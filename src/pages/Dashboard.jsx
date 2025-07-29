@@ -17,6 +17,7 @@ import {
   Button,
   FAB,
   ActivityIndicator,
+  Chip,
 } from "react-native-paper";
 import {
   MaterialIcons,
@@ -24,13 +25,18 @@ import {
   Ionicons,
 } from "@expo/vector-icons";
 import { Meeting, UserPreferences, User } from "@/api/entities";
+import aiService from "@/api/aiService";
+import { useTranslation } from "@/components/translations";
 
 export default function Dashboard({ navigation, language = "en" }) {
+  const { t } = useTranslation(language);
   const [meetings, setMeetings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userPreferences, setUserPreferences] = useState(null);
   const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [aiInsights, setAiInsights] = useState(null);
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -59,11 +65,33 @@ export default function Dashboard({ navigation, language = "en" }) {
         setUserPreferences(newPrefs);
         setAlertsEnabled(newPrefs.alert_enabled);
       }
+
+      // Generate AI insights if we have meetings
+      if (allMeetings.length > 0) {
+        generateAIInsights(allMeetings);
+      }
     } catch (error) {
       console.error("Error loading initial data:", error);
       Alert.alert("Error", "Failed to load data");
     }
     setIsLoading(false);
+  };
+
+  const generateAIInsights = async (meetingsData) => {
+    setIsGeneratingInsights(true);
+    try {
+      const recentMeetings = meetingsData.slice(0, 5); // Analyze last 5 meetings
+      const insights = await aiService.getMeetingSuggestions(
+        userPreferences || { language: language },
+        { meetings: recentMeetings },
+        language
+      );
+      setAiInsights(insights);
+    } catch (error) {
+      console.error("Error generating AI insights:", error);
+    } finally {
+      setIsGeneratingInsights(false);
+    }
   };
 
   const onRefresh = async () => {
@@ -78,7 +106,7 @@ export default function Dashboard({ navigation, language = "en" }) {
   };
 
   const getAiAssistedCount = () => {
-    return meetings.filter(m => m.source === 'ChatGPT' || m.source === 'WhatsApp').length;
+    return meetings.filter(m => m.source === 'ChatGPT' || m.source === 'WhatsApp' || m.source === 'AI Chat').length;
   };
 
   const getMeetingsNeedingReview = () => {
@@ -103,17 +131,13 @@ export default function Dashboard({ navigation, language = "en" }) {
   const handleGlobalTestAlert = () => {
     Alert.alert(
       "Test Alert",
-      "This is a test alert to verify the notification system is working.",
+      "This is a test alert to verify the notification system is working correctly.",
       [
         { text: "OK", style: "default" },
-        { text: "Snooze 5min", onPress: () => console.log("Snoozed for 5 minutes") }
+        { text: "Test Again", onPress: handleGlobalTestAlert }
       ]
     );
   };
-
-  const todaysMeetings = getTodaysMeetings();
-  const aiAssistedCount = getAiAssistedCount();
-  const reviewCount = getMeetingsNeedingReview();
 
   const renderStatusCard = ({ title, value, icon, color, onPress, subtitle }) => (
     <TouchableOpacity onPress={onPress} style={styles.statusCard}>
@@ -121,9 +145,9 @@ export default function Dashboard({ navigation, language = "en" }) {
         <Card.Content style={styles.cardContent}>
           <View style={styles.cardHeader}>
             <MaterialIcons name={icon} size={24} color={color} />
-            <Text style={styles.cardTitle}>{title}</Text>
+            <Text style={[styles.cardValue, { color }]}>{value}</Text>
           </View>
-          <Text style={[styles.cardValue, { color }]}>{value}</Text>
+          <Text style={styles.cardTitle}>{title}</Text>
           {subtitle && <Text style={styles.cardSubtitle}>{subtitle}</Text>}
         </Card.Content>
       </Card>
@@ -131,161 +155,213 @@ export default function Dashboard({ navigation, language = "en" }) {
   );
 
   const renderMeetingCard = (meeting, index) => (
-    <Card key={meeting.id} style={styles.meetingCard}>
-      <Card.Content>
-        <View style={styles.meetingHeader}>
-          <View style={styles.meetingInfo}>
-            <Title style={styles.meetingTitle}>{meeting.title}</Title>
-            <Paragraph style={styles.meetingTime}>
-              {meeting.time} • {meeting.duration}min
-            </Paragraph>
+    <TouchableOpacity
+      key={meeting.id}
+      onPress={() => navigation.navigate('MeetingDetails', { meetingId: meeting.id })}
+      style={styles.meetingCard}
+    >
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.meetingHeader}>
+            <View style={styles.meetingInfo}>
+              <Text style={styles.meetingTitle}>{meeting.title}</Text>
+              <Text style={styles.meetingTime}>
+                {meeting.time} • {meeting.duration} min
+              </Text>
+            </View>
+            <View style={styles.meetingBadges}>
+              {meeting.source === 'AI Chat' && (
+                <Chip mode="outlined" style={styles.aiChip}>
+                  <MaterialIcons name="psychology" size={16} color="#8B5CF6" />
+                  AI
+                </Chip>
+              )}
+              {meeting.confidence && meeting.confidence < 80 && (
+                <Chip mode="outlined" style={styles.reviewChip}>
+                  <MaterialIcons name="warning" size={16} color="#F59E0B" />
+                  Review
+                </Chip>
+              )}
+            </View>
           </View>
-          <View style={styles.meetingActions}>
-            <TouchableOpacity style={styles.actionButton}>
-              <MaterialIcons name="edit" size={20} color="#666" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
-              <MaterialIcons name="delete" size={20} color="#666" />
-            </TouchableOpacity>
-          </View>
-        </View>
-        {meeting.description && (
-          <Paragraph style={styles.meetingDescription}>
-            {meeting.description}
-          </Paragraph>
-        )}
-      </Card.Content>
-    </Card>
+          {meeting.description && (
+            <Text style={styles.meetingDescription} numberOfLines={2}>
+              {meeting.description}
+            </Text>
+          )}
+        </Card.Content>
+      </Card>
+    </TouchableOpacity>
   );
+
+  const renderAIInsights = () => {
+    if (!aiInsights) return null;
+
+    return (
+      <Card style={styles.insightsCard}>
+        <Card.Content>
+          <View style={styles.insightsHeader}>
+            <MaterialIcons name="lightbulb" size={24} color="#8B5CF6" />
+            <Title style={styles.insightsTitle}>AI Insights</Title>
+            {isGeneratingInsights && <ActivityIndicator size="small" color="#8B5CF6" />}
+          </View>
+          
+          <View style={styles.insightsSection}>
+            <Text style={styles.sectionTitle}>Suggested Times</Text>
+            <View style={styles.chipContainer}>
+              {aiInsights.suggested_times?.slice(0, 3).map((time, index) => (
+                <Chip key={index} mode="outlined" style={styles.insightChip}>
+                  {time}
+                </Chip>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.insightsSection}>
+            <Text style={styles.sectionTitle}>Optimization Tips</Text>
+            {aiInsights.optimization_tips?.slice(0, 2).map((tip, index) => (
+              <Text key={index} style={styles.insightText}>• {tip}</Text>
+            ))}
+          </View>
+
+          <Button
+            mode="outlined"
+            onPress={() => navigation.navigate('AIChat')}
+            style={styles.insightsButton}
+            icon="chat"
+          >
+            Get More AI Suggestions
+          </Button>
+        </Card.Content>
+      </Card>
+    );
+  };
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+        <Text style={styles.loadingText}>Loading your dashboard...</Text>
       </SafeAreaView>
     );
   }
 
+  const todaysMeetings = getTodaysMeetings();
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
+      
       <ScrollView
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Meeting Guard</Text>
-          <Text style={styles.subtitle}>Your smart meeting assistant</Text>
+          <View>
+            <Title style={styles.title}>{t('dashboard.title')}</Title>
+            <Paragraph style={styles.subtitle}>{t('dashboard.subtitle')}</Paragraph>
+          </View>
+          
+          <TouchableOpacity
+            onPress={handleToggleAlerts}
+            style={[styles.alertToggle, { backgroundColor: alertsEnabled ? '#10B981' : '#E5E7EB' }]}
+          >
+            <MaterialIcons
+              name={alertsEnabled ? 'notifications-active' : 'notifications-off'}
+              size={24}
+              color={alertsEnabled ? 'white' : '#6B7280'}
+            />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statusGrid}>
-          <View style={styles.statusRow}>
-            {renderStatusCard({
-              title: "Today's Meetings",
-              value: todaysMeetings.length,
-              icon: "event",
-              color: "#007AFF",
-              onPress: () => navigation.navigate("Calendar")
-            })}
-            {renderStatusCard({
-              title: "AI Assisted",
-              value: aiAssistedCount,
-              icon: "flash-on",
-              color: "#FF9500",
-              // subtitle: "Smart meetings"
-            })}
-          </View>
-          <View style={styles.statusRow}>
-            {renderStatusCard({
-              title: "Notes & Tasks",
-              value: "📝",
-              icon: "note",
-              color: "#FF3B30",
-              onPress: () => navigation.navigate("Notes")
-            })}
-            {renderStatusCard({
-              title: "Smart Alerts",
-              value: alertsEnabled ? "ON" : "OFF",
-              icon: alertsEnabled ? "notifications-active" : "notifications-off",
-              color: alertsEnabled ? "#34C759" : "#8E8E93",
-              onPress: handleToggleAlerts,
-              // subtitle: alertsEnabled ? "Active" : "Disabled"
-            })}
-          </View>
-          <View style={styles.statusRow}>
-            {renderStatusCard({
-              title: "AI Insights",
-              value: reviewCount > 0 ? reviewCount : "✓",
-              icon: "insights",
-              color: reviewCount > 0 ? "#FF9500" : "#34C759",
-              onPress: () => navigation.navigate("AIInsights"),
-              subtitle: reviewCount > 0 ? "Needs review" : "All good"
-            })}
-          </View>
+          {renderStatusCard({
+            title: t('dashboard.meetingsToday'),
+            value: todaysMeetings.length,
+            icon: 'today',
+            color: '#3B82F6',
+            onPress: () => navigation.navigate('Calendar')
+          })}
+          
+          {renderStatusCard({
+            title: t('dashboard.aiAssisted'),
+            value: getAiAssistedCount(),
+            icon: 'psychology',
+            color: '#8B5CF6',
+            subtitle: t('dashboard.aiAssistedSubtext'),
+            onPress: () => navigation.navigate('AIInsights')
+          })}
+          
+          {renderStatusCard({
+            title: t('dashboard.needsReview'),
+            value: getMeetingsNeedingReview(),
+            icon: 'warning',
+            color: '#F59E0B',
+            onPress: () => navigation.navigate('AIInsights')
+          })}
+          
+          {renderStatusCard({
+            title: t('dashboard.allGood'),
+            value: meetings.length - getMeetingsNeedingReview(),
+            icon: 'check-circle',
+            color: '#10B981',
+            onPress: () => navigation.navigate('Calendar')
+          })}
         </View>
 
-        <Card style={styles.testAlertCard}>
-          <Card.Content>
-            <View style={styles.testAlertContent}>
-              <View style={styles.testAlertInfo}>
-                <MaterialIcons name="volume-up" size={24} color="#FF3B30" />
-                <View>
-                  <Title style={styles.testAlertTitle}>Test Global Alert</Title>
-                  <Paragraph>Verify notification system</Paragraph>
-                </View>
-              </View>
-              <Button
-                mode="outlined"
-                onPress={handleGlobalTestAlert}
-                style={styles.testButton}
-              >
-                Test
-              </Button>
-            </View>
-          </Card.Content>
-        </Card>
+        {renderAIInsights()}
 
-        <View style={styles.meetingsSection}>
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today's Meetings</Text>
-            <View style={styles.realTimeIndicator}>
-              <MaterialIcons name="schedule" size={16} color="#666" />
-              <Text style={styles.realTimeText}>Real-time updates</Text>
-            </View>
+            <Title style={styles.sectionTitle}>{t('dashboard.todaysMeetings')}</Title>
+            <TouchableOpacity onPress={() => navigation.navigate('CreateMeeting')}>
+              <MaterialIcons name="add" size={24} color="#8B5CF6" />
+            </TouchableOpacity>
           </View>
 
-          {todaysMeetings.length > 0 ? (
-            todaysMeetings.map((meeting, index) => renderMeetingCard(meeting, index))
-          ) : (
+          {todaysMeetings.length === 0 ? (
             <Card style={styles.emptyCard}>
               <Card.Content style={styles.emptyContent}>
-                <MaterialIcons name="event" size={48} color="#8E8E93" />
-                <Title style={styles.emptyTitle}>No meetings today</Title>
-                <Paragraph style={styles.emptyText}>
-                  You're all caught up! Create a new meeting to get started.
-                </Paragraph>
+                <MaterialIcons name="event-busy" size={48} color="#9CA3AF" />
+                <Text style={styles.emptyTitle}>{t('dashboard.noMeetings')}</Text>
+                <Text style={styles.emptySubtext}>{t('dashboard.noMeetingsSubtext')}</Text>
                 <Button
                   mode="contained"
-                  onPress={() => navigation.navigate("CreateMeeting")}
+                  onPress={() => navigation.navigate('CreateMeeting')}
                   style={styles.createButton}
                 >
-                  Create New Meeting
+                  {t('dashboard.createNewMeeting')}
                 </Button>
               </Card.Content>
             </Card>
+          ) : (
+            <View style={styles.meetingsList}>
+              {todaysMeetings.map(renderMeetingCard)}
+            </View>
           )}
+        </View>
+
+        <View style={styles.testSection}>
+          <Button
+            mode="outlined"
+            onPress={handleGlobalTestAlert}
+            style={styles.testButton}
+            icon="notifications"
+          >
+            {t('dashboard.testGlobalAlert')}
+          </Button>
+          <Text style={styles.testSubtext}>{t('dashboard.testAlertSubtitle')}</Text>
         </View>
       </ScrollView>
 
       <FAB
         style={styles.fab}
-        icon="plus"
-        onPress={() => navigation.navigate("CreateMeeting")}
+        icon="add"
+        onPress={() => navigation.navigate('CreateMeeting')}
+        label={t('dashboard.createNewMeeting')}
       />
     </SafeAreaView>
   );
@@ -294,47 +370,56 @@ export default function Dashboard({ navigation, language = "en" }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F2F2F7",
-  },
-  scrollView: {
-    flex: 1,
+    backgroundColor: '#F8FAFC',
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: "#666",
+    color: '#64748B',
+  },
+  scrollView: {
+    flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 20,
-    alignItems: "center",
+    paddingTop: 10,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#1C1C1E",
-    marginBottom: 8,
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: "#666",
+    color: '#64748B',
+  },
+  alertToggle: {
+    padding: 12,
+    borderRadius: 12,
   },
   statusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     padding: 20,
-  },
-  statusRow: {
-    flexDirection: "row",
-    marginBottom: 12,
+    paddingTop: 0,
+    gap: 12,
   },
   statusCard: {
     flex: 1,
-    marginHorizontal: 6,
+    minWidth: '45%',
   },
   card: {
+    backgroundColor: '#FFFFFF',
     borderLeftWidth: 4,
     elevation: 2,
   },
@@ -342,126 +427,160 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
-  },
-  cardTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#666",
-    marginLeft: 8,
   },
   cardValue: {
     fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 4,
+    fontWeight: 'bold',
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
   },
   cardSubtitle: {
-    fontSize: 10,
-    color: "#666",
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
   },
-  testAlertCard: {
+  insightsCard: {
     margin: 20,
-    elevation: 2,
+    marginTop: 0,
+    backgroundColor: '#F8FAFC',
+    borderColor: '#8B5CF6',
+    borderWidth: 1,
   },
-  testAlertContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  insightsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  testAlertInfo: {
-    flexDirection: "row",
-    alignItems: "center",
+  insightsTitle: {
     flex: 1,
+    marginLeft: 8,
+    fontSize: 18,
   },
-  testAlertTitle: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  testButton: {
-    borderColor: "#FF3B30",
-  },
-  meetingsSection: {
-    padding: 20,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  insightsSection: {
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1C1C1E",
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    marginBottom: 8,
   },
-  realTimeIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  realTimeText: {
-    fontSize: 12,
-    color: "#666",
-    marginLeft: 4,
+  insightChip: {
+    borderColor: '#8B5CF6',
+  },
+  insightText: {
+    fontSize: 14,
+    color: '#475569',
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  insightsButton: {
+    borderColor: '#8B5CF6',
+  },
+  section: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  meetingsList: {
+    gap: 12,
   },
   meetingCard: {
-    marginBottom: 12,
-    elevation: 2,
+    marginBottom: 8,
   },
   meetingHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
   meetingInfo: {
     flex: 1,
   },
   meetingTitle: {
-    fontSize: 18,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1E293B',
     marginBottom: 4,
   },
   meetingTime: {
     fontSize: 14,
-    color: "#666",
+    color: '#64748B',
   },
-  meetingActions: {
-    flexDirection: "row",
+  meetingBadges: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  actionButton: {
-    padding: 8,
-    marginLeft: 8,
+  aiChip: {
+    borderColor: '#8B5CF6',
+  },
+  reviewChip: {
+    borderColor: '#F59E0B',
   },
   meetingDescription: {
-    marginTop: 8,
     fontSize: 14,
-    color: "#666",
+    color: '#475569',
+    lineHeight: 20,
   },
   emptyCard: {
-    elevation: 2,
+    backgroundColor: '#FFFFFF',
   },
   emptyContent: {
-    alignItems: "center",
-    padding: 40,
+    alignItems: 'center',
+    padding: 32,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1E293B',
     marginTop: 16,
     marginBottom: 8,
   },
-  emptyText: {
-    textAlign: "center",
+  emptySubtext: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
     marginBottom: 24,
-    color: "#666",
   },
   createButton: {
-    marginTop: 8,
+    backgroundColor: '#8B5CF6',
+  },
+  testSection: {
+    alignItems: 'center',
+    padding: 20,
+    paddingTop: 0,
+  },
+  testButton: {
+    borderColor: '#64748B',
+    marginBottom: 8,
+  },
+  testSubtext: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
   },
   fab: {
-    position: "absolute",
+    position: 'absolute',
     margin: 16,
     right: 0,
     bottom: 0,
-    backgroundColor: "#007AFF",
+    backgroundColor: '#8B5CF6',
   },
 });
