@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Meeting Guard Mobile",
-    "slug": "meeting-guard-mobile",
+    "name": "Meeting Guard AI",
+    "slug": "meeting-guard-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,14 +16,21 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.meetingguard.mobile"
+      "bundleIdentifier": "com.meetingguard.ai",
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "This app needs access to your calendar to create and manage meetings."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.meetingguard.mobile"
+      "package": "com.meetingguard.ai",
+      "permissions": [
+        "READ_CALENDAR",
+        "WRITE_CALENDAR"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -33,7 +40,7 @@
       "expo-notifications",
       "expo-calendar"
     ],
-    "scheme": "meeting-guard-mobile",
+    "scheme": "meetingguardai",
     "newArchEnabled": true
   }
 } 

@@ -1,7 +1,21 @@
 import * as Calendar from 'expo-calendar';
 import * as AuthSession from 'expo-auth-session';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } from '@env';
+
+// Environment variables with fallback
+let GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI;
+
+try {
+  const env = require('@env');
+  GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
+  GOOGLE_CLIENT_SECRET = env.GOOGLE_CLIENT_SECRET;
+  GOOGLE_REDIRECT_URI = env.GOOGLE_REDIRECT_URI;
+} catch (error) {
+  // Fallback to process.env for Node.js testing
+  GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+  GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+  GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
+}
 
 class GoogleCalendarService {
   constructor() {
