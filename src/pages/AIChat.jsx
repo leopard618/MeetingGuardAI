@@ -20,18 +20,28 @@ import {
   ActivityIndicator,
   FAB,
   Chip,
+  Menu,
+  Divider,
 } from "react-native-paper";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import aiService from "@/api/aiService";
+import { Meeting } from "@/api/entities";
 
 export default function AIChat({ navigation, language = "en" }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [detectedLanguage, setDetectedLanguage] = useState(language);
+  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+  const [currentContext, setCurrentContext] = useState({});
   const [suggestions] = useState([
     "Create a meeting for tomorrow at 2 PM",
     "Schedule a team standup for next week",
     "Plan a project review meeting",
     "Set up a client presentation",
+    "Analyze my meeting schedule",
+    "Translate this meeting description",
   ]);
 
   const scrollViewRef = useRef();
@@ -51,6 +61,14 @@ export default function AIChat({ navigation, language = "en" }) {
       confirmClear: "Are you sure you want to clear the chat?",
       meetingCreated: "Meeting created successfully!",
       viewMeeting: "View Meeting",
+      language: "Language",
+      translate: "Translate",
+      analyze: "Analyze",
+      optimize: "Optimize",
+      detectLanguage: "Detect Language",
+      meetingAnalysis: "Meeting Analysis",
+      preparationTips: "Preparation Tips",
+      optimizationSuggestions: "Optimization Suggestions",
     },
     es: {
       title: "Chat IA",
@@ -66,20 +84,29 @@ export default function AIChat({ navigation, language = "en" }) {
       confirmClear: "¿Estás seguro de que quieres limpiar el chat?",
       meetingCreated: "¡Reunión creada exitosamente!",
       viewMeeting: "Ver Reunión",
+      language: "Idioma",
+      translate: "Traducir",
+      analyze: "Analizar",
+      optimize: "Optimizar",
+      detectLanguage: "Detectar Idioma",
+      meetingAnalysis: "Análisis de Reunión",
+      preparationTips: "Consejos de Preparación",
+      optimizationSuggestions: "Sugerencias de Optimización",
     },
   };
 
   useEffect(() => {
     // Add welcome message
-    setMessages([
-      {
-        id: "welcome",
-        type: "ai",
-        content: "Hello! I'm your AI assistant. I can help you create meetings, schedule appointments, and manage your calendar. What would you like to do today?",
-        timestamp: new Date(),
-      },
-    ]);
-  }, []);
+    const welcomeMessage = {
+      id: "welcome",
+      type: "ai",
+      content: language === "es" 
+        ? "¡Hola! Soy tu asistente de IA. Puedo ayudarte a crear reuniones, programar citas y gestionar tu calendario. ¿En qué puedo ayudarte hoy?"
+        : "Hello! I'm your AI assistant. I can help you create meetings, schedule appointments, and manage your calendar. What would you like to do today?",
+      timestamp: new Date(),
+    };
+    setMessages([welcomeMessage]);
+  }, [language]);
 
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
@@ -96,18 +123,47 @@ export default function AIChat({ navigation, language = "en" }) {
     setIsLoading(true);
 
     try {
-      // Simulate AI response
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const aiResponse = {
+      // Detect language if not already set
+      if (detectedLanguage === language) {
+        const langDetection = await aiService.detectLanguage(inputText);
+        setDetectedLanguage(langDetection.language);
+      }
+
+      // Update conversation history
+      const updatedHistory = [
+        ...conversationHistory,
+        { role: 'user', content: inputText }
+      ];
+      setConversationHistory(updatedHistory);
+
+      // Get AI response with context
+      const aiResponse = await aiService.chatWithAI(
+        inputText, 
+        updatedHistory, 
+        detectedLanguage, 
+        currentContext
+      );
+
+      const aiMessage = {
         id: (Date.now() + 1).toString(),
         type: "ai",
-        content: generateAIResponse(inputText),
+        content: aiResponse,
         timestamp: new Date(),
-        hasMeetingData: inputText.toLowerCase().includes("meeting") || inputText.toLowerCase().includes("reunión"),
+        hasMeetingData: inputText.toLowerCase().includes("meeting") || 
+                       inputText.toLowerCase().includes("reunión") ||
+                       aiResponse.toLowerCase().includes("meeting") ||
+                       aiResponse.toLowerCase().includes("reunión"),
+        actions: getMessageActions(inputText, aiResponse),
       };
 
-      setMessages(prev => [...prev, aiResponse]);
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // Update conversation history with AI response
+      setConversationHistory([
+        ...updatedHistory,
+        { role: 'assistant', content: aiResponse }
+      ]);
+
     } catch (error) {
       console.error("Error sending message:", error);
       Alert.alert("Error", t[language].error);
@@ -116,42 +172,128 @@ export default function AIChat({ navigation, language = "en" }) {
     }
   };
 
-  const generateAIResponse = (userInput) => {
+  const getMessageActions = (userInput, aiResponse) => {
+    const actions = [];
     const input = userInput.toLowerCase();
-    
-    if (input.includes("meeting") || input.includes("reunión")) {
-      return "I can help you create that meeting! I've identified the key details. Would you like me to create a meeting with the following information?\n\n• Title: Team Meeting\n• Date: Tomorrow\n• Time: 2:00 PM\n• Duration: 30 minutes\n• Participants: Team members\n\nTap 'Create Meeting' to proceed.";
-    } else if (input.includes("hello") || input.includes("hi") || input.includes("hola")) {
-      return "Hello! How can I help you today? I can assist with creating meetings, scheduling appointments, or answering questions about your calendar.";
-    } else if (input.includes("help") || input.includes("ayuda")) {
-      return "I can help you with:\n• Creating meetings and appointments\n• Scheduling team events\n• Setting up reminders\n• Managing your calendar\n\nJust describe what you need!";
-    } else {
-      return "I understand you're asking about that. Let me help you create a meeting or schedule an appointment. Could you provide more details about what you'd like to schedule?";
+    const response = aiResponse.toLowerCase();
+
+    if (input.includes("meeting") || input.includes("reunión") || 
+        response.includes("meeting") || response.includes("reunión")) {
+      actions.push("createMeeting");
+    }
+
+    if (input.includes("translate") || input.includes("traducir")) {
+      actions.push("translate");
+    }
+
+    if (input.includes("analyze") || input.includes("analizar")) {
+      actions.push("analyze");
+    }
+
+    if (input.includes("optimize") || input.includes("optimizar")) {
+      actions.push("optimize");
+    }
+
+    return actions;
+  };
+
+  const handleCreateMeetingFromChat = async (messageContent) => {
+    try {
+      setIsLoading(true);
+      
+      const meetingData = await aiService.createMeetingFromText(
+        messageContent, 
+        detectedLanguage
+      );
+
+      if (meetingData) {
+        const meeting = await Meeting.create({
+          ...meetingData,
+          source: "AI Chat",
+          confidence: meetingData.confidence || 85,
+          created_by: "user@example.com",
+        });
+
+        Alert.alert(
+          "Success",
+          t[language].meetingCreated,
+          [
+            { text: "OK", style: "default" },
+            { text: t[language].viewMeeting, onPress: () => navigation.navigate('Dashboard') }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error("Error creating meeting:", error);
+      Alert.alert("Error", "Failed to create meeting");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTranslate = async (text) => {
+    try {
+      setIsLoading(true);
+      const targetLang = detectedLanguage === 'en' ? 'es' : 'en';
+      const translation = await aiService.translateText(
+        text, 
+        targetLang, 
+        detectedLanguage, 
+        'meeting'
+      );
+      
+      const translationMessage = {
+        id: Date.now().toString(),
+        type: "ai",
+        content: `Translation (${targetLang}): ${translation}`,
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => [...prev, translationMessage]);
+    } catch (error) {
+      console.error("Error translating:", error);
+      Alert.alert("Error", "Failed to translate text");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAnalyzeMeeting = async (text) => {
+    try {
+      setIsLoading(true);
+      
+      // Extract meeting info from text
+      const meetingData = await aiService.createMeetingFromText(text, detectedLanguage);
+      
+      if (meetingData) {
+        const analysis = await aiService.analyzeMeeting(meetingData, detectedLanguage);
+        
+        const analysisMessage = {
+          id: Date.now().toString(),
+          type: "ai",
+          content: `**${t[language].meetingAnalysis}**\n\n` +
+                   `Confidence: ${analysis.confidence}%\n\n` +
+                   `**${t[language].preparationTips}:**\n` +
+                   analysis.preparation_tips.map(tip => `• ${tip}`).join('\n') + '\n\n' +
+                   `**Key Topics:**\n` +
+                   analysis.key_topics.map(topic => `• ${topic}`).join('\n') + '\n\n' +
+                   `**Suggested Questions:**\n` +
+                   analysis.suggested_questions.map(q => `• ${q}`).join('\n'),
+          timestamp: new Date(),
+        };
+        
+        setMessages(prev => [...prev, analysisMessage]);
+      }
+    } catch (error) {
+      console.error("Error analyzing meeting:", error);
+      Alert.alert("Error", "Failed to analyze meeting");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSuggestionPress = (suggestion) => {
     setInputText(suggestion);
-  };
-
-  const handleCreateMeeting = () => {
-    Alert.alert(
-      "Create Meeting",
-      "Would you like to create a meeting based on the AI's suggestions?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Create", onPress: () => {
-          Alert.alert(
-            "Success",
-            t[language].meetingCreated,
-            [
-              { text: "OK", style: "default" },
-              { text: t[language].viewMeeting, onPress: () => navigation.navigate('CreateMeeting') }
-            ]
-          );
-        }}
-      ]
-    );
   };
 
   const handleClearChat = () => {
@@ -165,10 +307,14 @@ export default function AIChat({ navigation, language = "en" }) {
             {
               id: "welcome",
               type: "ai",
-              content: "Hello! I'm your AI assistant. I can help you create meetings, schedule appointments, and manage your calendar. What would you like to do today?",
+              content: language === "es" 
+                ? "¡Hola! Soy tu asistente de IA. ¿En qué puedo ayudarte hoy?"
+                : "Hello! I'm your AI assistant. What can I help you with today?",
               timestamp: new Date(),
             },
           ]);
+          setConversationHistory([]);
+          setCurrentContext({});
         }}
       ]
     );
@@ -195,16 +341,41 @@ export default function AIChat({ navigation, language = "en" }) {
           {message.content}
         </Text>
         
-        {message.hasMeetingData && message.type === "ai" && (
-          <View style={styles.meetingAction}>
-            <Button
-              mode="contained"
-              onPress={handleCreateMeeting}
-              style={styles.createMeetingButton}
-            >
-              <MaterialIcons name="add" size={16} color="white" />
-              {t[language].createMeeting}
-            </Button>
+        {message.actions && message.actions.length > 0 && (
+          <View style={styles.messageActions}>
+            {message.actions.includes("createMeeting") && (
+              <Button
+                mode="contained"
+                onPress={() => handleCreateMeetingFromChat(message.content)}
+                style={styles.actionButton}
+                compact
+              >
+                <MaterialIcons name="add" size={16} color="white" />
+                {t[language].createMeeting}
+              </Button>
+            )}
+            {message.actions.includes("translate") && (
+              <Button
+                mode="outlined"
+                onPress={() => handleTranslate(message.content)}
+                style={styles.actionButton}
+                compact
+              >
+                <MaterialIcons name="translate" size={16} color="#3b82f6" />
+                {t[language].translate}
+              </Button>
+            )}
+            {message.actions.includes("analyze") && (
+              <Button
+                mode="outlined"
+                onPress={() => handleAnalyzeMeeting(message.content)}
+                style={styles.actionButton}
+                compact
+              >
+                <MaterialIcons name="analytics" size={16} color="#10b981" />
+                {t[language].analyze}
+              </Button>
+            )}
           </View>
         )}
         
@@ -249,6 +420,19 @@ export default function AIChat({ navigation, language = "en" }) {
           <Title style={styles.title}>{t[language].title}</Title>
           <Paragraph style={styles.subtitle}>{t[language].subtitle}</Paragraph>
         </View>
+        
+        <Menu
+          visible={showLanguageMenu}
+          onDismiss={() => setShowLanguageMenu(false)}
+          anchor={
+            <TouchableOpacity onPress={() => setShowLanguageMenu(true)} style={styles.languageButton}>
+              <MaterialIcons name="language" size={24} color="#64748b" />
+            </TouchableOpacity>
+          }
+        >
+          <Menu.Item onPress={() => { setDetectedLanguage('en'); setShowLanguageMenu(false); }} title="English" />
+          <Menu.Item onPress={() => { setDetectedLanguage('es'); setShowLanguageMenu(false); }} title="Español" />
+        </Menu>
         
         <TouchableOpacity onPress={handleClearChat} style={styles.clearButton}>
           <MaterialIcons name="clear-all" size={24} color="#64748b" />
@@ -334,6 +518,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#64748b",
   },
+  languageButton: {
+    padding: 4,
+    marginRight: 8,
+  },
   clearButton: {
     padding: 4,
   },
@@ -377,12 +565,15 @@ const styles = StyleSheet.create({
   aiText: {
     color: "#1e293b",
   },
-  meetingAction: {
+  messageActions: {
     marginTop: 12,
     marginBottom: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
-  createMeetingButton: {
-    backgroundColor: "#10b981",
+  actionButton: {
+    marginRight: 8,
   },
   timestamp: {
     fontSize: 12,
