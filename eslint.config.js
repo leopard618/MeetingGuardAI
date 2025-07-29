@@ -1,21 +1,30 @@
 module.exports = {
-  root: true,
+  env: {
+    browser: true,
+    es2021: true,
+    node: true,
+  },
   extends: [
-    'expo',
-    'universe/native',
-    'universe/shared/typescript-analysis',
+    'eslint:recommended',
+    'plugin:react/recommended',
+    'plugin:react-hooks/recommended',
   ],
-  overrides: [
-    {
-      files: ['*.ts', '*.tsx', '*.d.ts'],
-      parserOptions: {
-        project: './tsconfig.json',
-      },
+  parserOptions: {
+    ecmaFeatures: {
+      jsx: true,
     },
-  ],
+    ecmaVersion: 12,
+    sourceType: 'module',
+  },
+  plugins: ['react', 'react-hooks'],
   rules: {
-    'prettier/prettier': 'off',
-    '@typescript-eslint/no-unused-vars': 'warn',
+    'react/react-in-jsx-scope': 'off',
+    'react/prop-types': 'off',
     'react-hooks/exhaustive-deps': 'warn',
+  },
+  settings: {
+    react: {
+      version: 'detect',
+    },
   },
 };

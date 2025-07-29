@@ -1,4 +1,15 @@
-import { OPENAI_API_KEY, OPENAI_MODEL } from '@env';
+// Environment variables with fallback
+let OPENAI_API_KEY, OPENAI_MODEL;
+
+try {
+  const env = require('@env');
+  OPENAI_API_KEY = env.OPENAI_API_KEY;
+  OPENAI_MODEL = env.OPENAI_MODEL;
+} catch (error) {
+  // Fallback to process.env for Node.js testing
+  OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+}
 
 class OpenAIService {
   constructor() {
