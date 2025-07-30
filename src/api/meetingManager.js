@@ -1,11 +1,24 @@
 import OpenAIService from './openai.js';
 import GoogleCalendarService from './googleCalendar.js';
+import MicrosoftGraphService from './microsoftGraph.js';
+import AppleCalendarService from './appleCalendar.js';
+import CalDAVService from './caldav.js';
+import VideoConferenceService from './videoConference.js';
+import CommunicationService from './communication.js';
 
 class MeetingManager {
   constructor() {
     this.openai = OpenAIService;
-    this.calendar = GoogleCalendarService;
+    this.calendars = {
+      google: GoogleCalendarService,
+      microsoft: MicrosoftGraphService,
+      apple: AppleCalendarService,
+      caldav: CalDAVService,
+    };
+    this.videoConference = VideoConferenceService;
+    this.communication = CommunicationService;
     this.isInitialized = false;
+    this.activeCalendar = 'google'; // Default calendar
   }
 
   /**
@@ -14,21 +27,42 @@ class MeetingManager {
    */
   async initialize() {
     try {
-      // Initialize calendar service
-      const calendarInitialized = await this.calendar.initialize();
-      
-      if (!calendarInitialized) {
-        console.warn('Calendar initialization failed');
+      // Initialize all calendar services
+      const calendarInitPromises = Object.entries(this.calendars).map(async ([name, service]) => {
+        const initialized = await service.initialize();
+        if (!initialized) {
+          console.warn(`${name} calendar initialization failed`);
+        }
+        return { name, initialized };
+      });
+
+      const calendarResults = await Promise.all(calendarInitPromises);
+      const availableCalendars = calendarResults.filter(result => result.initialized);
+
+      // Set active calendar to first available one
+      if (availableCalendars.length > 0) {
+        this.activeCalendar = availableCalendars[0].name;
+      }
+
+      // Initialize video conference service
+      const videoConferenceInitialized = await this.videoConference.initialize();
+      if (!videoConferenceInitialized) {
+        console.warn('Video conference initialization failed');
+      }
+
+      // Initialize communication service
+      const communicationInitialized = await this.communication.initialize();
+      if (!communicationInitialized) {
+        console.warn('Communication service initialization failed');
       }
 
       // Validate OpenAI API key
       const openaiValid = await this.openai.validateAPIKey();
-      
       if (!openaiValid) {
         console.warn('OpenAI API key validation failed');
       }
 
-      this.isInitialized = calendarInitialized && openaiValid;
+      this.isInitialized = availableCalendars.length > 0 && openaiValid;
       return this.isInitialized;
     } catch (error) {
       console.error('Meeting manager initialization failed:', error);
@@ -119,12 +153,17 @@ class MeetingManager {
         throw new Error('Missing required meeting information (title, date, time)');
       }
 
+      const activeCalendar = this.calendars[this.activeCalendar];
+      if (!activeCalendar) {
+        throw new Error('No active calendar available');
+      }
+
       // Check availability if date and time are specified
       if (meetingData.date && meetingData.time) {
         const startDate = new Date(`${meetingData.date}T${meetingData.time}:00`);
         const endDate = new Date(startDate.getTime() + (meetingData.duration || 60) * 60000);
         
-        const isAvailable = await this.calendar.checkAvailability(startDate, endDate);
+        const isAvailable = await activeCalendar.checkAvailability(startDate, endDate);
         if (!isAvailable) {
           return {
             success: false,
@@ -135,13 +174,41 @@ class MeetingManager {
         }
       }
 
+      // Create video conference link if requested
+      let videoConferenceData = null;
+      if (meetingData.videoConference && meetingData.videoConference.provider) {
+        try {
+          videoConferenceData = await this.videoConference.createMeetingLink(
+            meetingData.videoConference.provider,
+            meetingData
+          );
+          meetingData.joinUrl = videoConferenceData.joinUrl;
+        } catch (error) {
+          console.warn('Failed to create video conference link:', error);
+        }
+      }
+
       // Create the meeting
-      const createdMeeting = await this.calendar.createMeeting(meetingData);
+      const createdMeeting = await activeCalendar.createMeeting(meetingData);
+      
+      // Send notifications if participants are specified
+      if (meetingData.participants && meetingData.participants.length > 0) {
+        try {
+          const notificationChannels = meetingData.notificationChannels || ['email'];
+          await this.communication.sendMeetingInvitation(
+            { ...createdMeeting, joinUrl: videoConferenceData?.joinUrl },
+            notificationChannels
+          );
+        } catch (error) {
+          console.warn('Failed to send meeting invitations:', error);
+        }
+      }
       
       return {
         success: true,
         message: `Meeting "${createdMeeting.title}" has been created successfully!`,
         meeting: createdMeeting,
+        videoConference: videoConferenceData,
       };
     } catch (error) {
       throw new Error(`Failed to create meeting: ${error.message}`);
@@ -159,7 +226,12 @@ class MeetingManager {
         throw new Error('Meeting ID is required for updates');
       }
 
-      const updatedMeeting = await this.calendar.updateMeeting(
+      const activeCalendar = this.calendars[this.activeCalendar];
+      if (!activeCalendar) {
+        throw new Error('No active calendar available');
+      }
+
+      const updatedMeeting = await activeCalendar.updateMeeting(
         meetingData.meetingId,
         meetingData
       );
@@ -185,7 +257,12 @@ class MeetingManager {
         throw new Error('Meeting ID is required for deletion');
       }
 
-      await this.calendar.deleteMeeting(meetingData.meetingId);
+      const activeCalendar = this.calendars[this.activeCalendar];
+      if (!activeCalendar) {
+        throw new Error('No active calendar available');
+      }
+
+      await activeCalendar.deleteMeeting(meetingData.meetingId);
 
       return {
         success: true,
@@ -207,10 +284,15 @@ class MeetingManager {
         throw new Error('Date and time are required to check availability');
       }
 
+      const activeCalendar = this.calendars[this.activeCalendar];
+      if (!activeCalendar) {
+        throw new Error('No active calendar available');
+      }
+
       const startDate = new Date(`${meetingData.date}T${meetingData.time}:00`);
       const endDate = new Date(startDate.getTime() + (meetingData.duration || 60) * 60000);
       
-      const isAvailable = await this.calendar.checkAvailability(startDate, endDate);
+      const isAvailable = await activeCalendar.checkAvailability(startDate, endDate);
 
       return {
         success: true,
@@ -233,10 +315,15 @@ class MeetingManager {
    */
   async suggestMeetings(meetingData) {
     try {
+      const activeCalendar = this.calendars[this.activeCalendar];
+      if (!activeCalendar) {
+        throw new Error('No active calendar available');
+      }
+
       const date = meetingData.date ? new Date(meetingData.date) : new Date();
       const duration = meetingData.duration || 60;
       
-      const availableSlots = await this.calendar.findAvailableSlots(
+      const availableSlots = await activeCalendar.findAvailableSlots(
         date,
         duration,
         '09:00',
@@ -273,10 +360,20 @@ class MeetingManager {
    */
   async getCalendarContext() {
     try {
+      const activeCalendar = this.calendars[this.activeCalendar];
+      if (!activeCalendar) {
+        return {
+          todayMeetings: [],
+          upcomingMeetings: [],
+          calendarInfo: null,
+          currentTime: new Date().toISOString(),
+        };
+      }
+
       const [todayMeetings, upcomingMeetings, calendarInfo] = await Promise.all([
-        this.calendar.getTodayMeetings(),
-        this.calendar.getUpcomingMeetings(7),
-        this.calendar.getCalendarInfo(),
+        activeCalendar.getTodayMeetings(),
+        activeCalendar.getUpcomingMeetings(7),
+        activeCalendar.getCalendarInfo(),
       ]);
 
       return {
@@ -303,6 +400,11 @@ class MeetingManager {
    */
   async getMeetingSuggestions(userInput) {
     try {
+      const activeCalendar = this.calendars[this.activeCalendar];
+      if (!activeCalendar) {
+        return [];
+      }
+
       const extractedData = await this.openai.extractMeetingData(userInput);
       
       if (!extractedData) {
@@ -321,7 +423,7 @@ class MeetingManager {
       const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
       for (const date of [today, tomorrow]) {
-        const availableSlots = await this.calendar.findAvailableSlots(
+        const availableSlots = await activeCalendar.findAvailableSlots(
           date,
           60,
           '09:00',
@@ -344,13 +446,20 @@ class MeetingManager {
   }
 
   /**
-   * Authenticate with Google Calendar
+   * Authenticate with calendar service
+   * @param {string} calendarName - Calendar name ('google', 'microsoft', 'apple', 'caldav')
    * @returns {Promise<boolean>} Whether authentication was successful
    */
-  async authenticate() {
+  async authenticate(calendarName = this.activeCalendar) {
     try {
-      const success = await this.calendar.authenticate();
+      const calendar = this.calendars[calendarName];
+      if (!calendar) {
+        throw new Error(`Calendar '${calendarName}' not found`);
+      }
+
+      const success = await calendar.authenticate();
       if (success) {
+        this.activeCalendar = calendarName;
         this.isInitialized = true;
       }
       return success;
@@ -373,15 +482,170 @@ class MeetingManager {
    * @returns {Promise<Object>} Service status
    */
   async getStatus() {
-    const calendarInfo = await this.calendar.getCalendarInfo();
+    const calendarStatuses = {};
+    for (const [name, service] of Object.entries(this.calendars)) {
+      const info = await service.getCalendarInfo();
+      calendarStatuses[name] = {
+        isAuthenticated: service.isAuthenticated(),
+        info,
+      };
+    }
+
     const openaiValid = await this.openai.validateAPIKey();
+    const videoConferenceStatus = await this.videoConference.getStatus();
+    const communicationStatus = await this.communication.getStatus();
 
     return {
       isInitialized: this.isInitialized,
-      calendarConnected: !!calendarInfo?.isAuthenticated,
+      activeCalendar: this.activeCalendar,
+      calendars: calendarStatuses,
       openaiConnected: openaiValid,
-      calendarInfo,
+      videoConference: videoConferenceStatus,
+      communication: communicationStatus,
     };
+  }
+
+  /**
+   * Set active calendar
+   * @param {string} calendarName - Calendar name ('google', 'microsoft', 'apple', 'caldav')
+   * @returns {Promise<boolean>} Whether the calendar was set successfully
+   */
+  async setActiveCalendar(calendarName) {
+    if (!this.calendars[calendarName]) {
+      throw new Error(`Calendar '${calendarName}' not found`);
+    }
+
+    const calendar = this.calendars[calendarName];
+    if (!calendar.isAuthenticated()) {
+      throw new Error(`Calendar '${calendarName}' is not authenticated`);
+    }
+
+    this.activeCalendar = calendarName;
+    return true;
+  }
+
+  /**
+   * Get available calendars
+   * @returns {Array} Array of available calendars
+   */
+  getAvailableCalendars() {
+    return Object.entries(this.calendars).map(([name, service]) => ({
+      name,
+      displayName: this.getCalendarDisplayName(name),
+      isAuthenticated: service.isAuthenticated(),
+      isActive: name === this.activeCalendar,
+    }));
+  }
+
+  /**
+   * Get calendar display name
+   * @param {string} calendarName - Calendar name
+   * @returns {string} Display name
+   */
+  getCalendarDisplayName(calendarName) {
+    const displayNames = {
+      google: 'Google Calendar',
+      microsoft: 'Microsoft Outlook',
+      apple: 'Apple Calendar',
+      caldav: 'CalDAV',
+    };
+    return displayNames[calendarName] || calendarName;
+  }
+
+  /**
+   * Get available video conference providers
+   * @returns {Array} Array of available providers
+   */
+  getAvailableVideoProviders() {
+    return this.videoConference.getAvailableProviders();
+  }
+
+  /**
+   * Get available communication channels
+   * @returns {Array} Array of available channels
+   */
+  getAvailableCommunicationChannels() {
+    return this.communication.getAvailableChannels();
+  }
+
+  /**
+   * Send meeting reminder
+   * @param {string} meetingId - Meeting ID
+   * @param {Array} channels - Communication channels
+   * @returns {Promise<Object>} Send result
+   */
+  async sendMeetingReminder(meetingId, channels = ['whatsapp', 'email']) {
+    try {
+      const activeCalendar = this.calendars[this.activeCalendar];
+      const meeting = await activeCalendar.getMeeting(meetingId);
+      
+      if (!meeting) {
+        throw new Error('Meeting not found');
+      }
+
+      return await this.communication.sendMeetingReminder(meeting, channels);
+    } catch (error) {
+      console.error('Failed to send meeting reminder:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send meeting update
+   * @param {string} meetingId - Meeting ID
+   * @param {Object} updates - Meeting updates
+   * @param {Array} channels - Communication channels
+   * @returns {Promise<Object>} Send result
+   */
+  async sendMeetingUpdate(meetingId, updates, channels = ['email', 'slack']) {
+    try {
+      const activeCalendar = this.calendars[this.activeCalendar];
+      const updatedMeeting = await activeCalendar.updateMeeting(meetingId, updates);
+      
+      return await this.communication.sendMeetingUpdate(updatedMeeting, channels);
+    } catch (error) {
+      console.error('Failed to send meeting update:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send meeting cancellation
+   * @param {string} meetingId - Meeting ID
+   * @param {Array} channels - Communication channels
+   * @returns {Promise<Object>} Send result
+   */
+  async sendMeetingCancellation(meetingId, channels = ['whatsapp', 'email', 'sms']) {
+    try {
+      const activeCalendar = this.calendars[this.activeCalendar];
+      const meeting = await activeCalendar.getMeeting(meetingId);
+      
+      if (!meeting) {
+        throw new Error('Meeting not found');
+      }
+
+      return await this.communication.sendMeetingCancellation(meeting, channels);
+    } catch (error) {
+      console.error('Failed to send meeting cancellation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Set notification preferences
+   * @param {Object} preferences - Notification preferences
+   * @returns {Promise<void>}
+   */
+  async setNotificationPreferences(preferences) {
+    return await this.communication.setNotificationPreferences(preferences);
+  }
+
+  /**
+   * Get notification preferences
+   * @returns {Object} Notification preferences
+   */
+  getNotificationPreferences() {
+    return this.communication.getNotificationPreferences();
   }
 }
 
