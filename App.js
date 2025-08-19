@@ -5,6 +5,9 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { View, StyleSheet } from 'react-native';
+import { ThemeProvider } from './src/contexts/ThemeContext';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import calendarSyncManager from './src/api/calendarSyncManager';
 
 // Import components
 import MobileSidebar from './src/components/MobileSidebar';
@@ -15,8 +18,12 @@ import { User } from './src/api/entities';
 import { UserPreferences } from './src/api/entities';
 
 // Import screens
+import Auth from './src/pages/Auth';
 import Dashboard from './src/pages/Dashboard';
-import CreateMeeting from './src/pages/CreateMeeting';
+import ModernCreateMeeting from './src/components/ModernCreateMeeting';
+import TotalMeetings from './src/pages/TotalMeetings';
+import MeetingDetails from './src/pages/MeetingDetails';
+import EditMeeting from './src/pages/EditMeeting';
 import Calendar from './src/pages/Calendar';
 import Notes from './src/pages/Notes';
 import Settings from './src/pages/Settings';
@@ -27,12 +34,20 @@ import Privacy from './src/pages/Privacy';
 import Terms from './src/pages/Terms';
 import WhatsAppBot from './src/pages/WhatsAppBot';
 import ChooseCreationMethod from './src/pages/ChooseCreationMethod';
+import CalendarSync from './src/pages/CalendarSync';
+import GoogleCalendarTest from './src/pages/GoogleCalendarTest';
+import GoogleCalendarTestComponent from './src/components/GoogleCalendarTest';
+import NotificationDemo from './src/components/NotificationSystem/NotificationDemo';
 
 const Stack = createStackNavigator();
 
 // Wrapper components to pass language prop
+const AuthWithLanguage = (props) => <Auth {...props} language={props.route.params?.language || "en"} />;
 const DashboardWithLanguage = (props) => <Dashboard {...props} language={props.route.params?.language || "en"} />;
-const CreateMeetingWithLanguage = (props) => <CreateMeeting {...props} language={props.route.params?.language || "en"} />;
+const CreateMeetingWithLanguage = (props) => <ModernCreateMeeting {...props} language={props.route.params?.language || "en"} />;
+const TotalMeetingsWithLanguage = (props) => <TotalMeetings {...props} language={props.route.params?.language || "en"} />;
+const MeetingDetailsWithLanguage = (props) => <MeetingDetails {...props} language={props.route.params?.language || "en"} />;
+const EditMeetingWithLanguage = (props) => <EditMeeting {...props} language={props.route.params?.language || "en"} />;
 const CalendarWithLanguage = (props) => <Calendar {...props} language={props.route.params?.language || "en"} />;
 const NotesWithLanguage = (props) => <Notes {...props} language={props.route.params?.language || "en"} />;
 const SettingsWithLanguage = (props) => <Settings {...props} language={props.route.params?.language || "en"} />;
@@ -43,8 +58,14 @@ const PrivacyWithLanguage = (props) => <Privacy {...props} language={props.route
 const TermsWithLanguage = (props) => <Terms {...props} language={props.route.params?.language || "en"} />;
 const WhatsAppBotWithLanguage = (props) => <WhatsAppBot {...props} language={props.route.params?.language || "en"} />;
 const ChooseCreationMethodWithLanguage = (props) => <ChooseCreationMethod {...props} language={props.route.params?.language || "en"} />;
+const CalendarSyncWithLanguage = (props) => <CalendarSync {...props} language={props.route.params?.language || "en"} />;
+const GoogleCalendarTestWithLanguage = (props) => <GoogleCalendarTest {...props} language={props.route.params?.language || "en"} />;
+const GoogleCalendarTestComponentWithLanguage = (props) => <GoogleCalendarTestComponent {...props} language={props.route.params?.language || "en"} />;
+const NotificationDemoWithLanguage = (props) => <NotificationDemo {...props} language={props.route.params?.language || "en"} />;
 
-export default function App() {
+// App Navigator Component
+function AppNavigator() {
+  const { isAuthenticated, isLoading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [language, setLanguageState] = useState("en");
@@ -53,6 +74,14 @@ export default function App() {
   useEffect(() => {
     const fetchUserAndPrefs = async () => {
       try {
+        // For now, use mock data since User.me() might not be available
+        const currentUser = { email: 'user@example.com' };
+        setUser(currentUser);
+        
+        // Mock preferences for now
+        setLanguageState("en");
+        
+        /* TODO: Uncomment when User and UserPreferences are properly set up
         const currentUser = await User.me();
         setUser(currentUser);
         const prefsList = await UserPreferences.filter({ created_by: currentUser.email });
@@ -63,23 +92,42 @@ export default function App() {
           const newPrefs = await UserPreferences.create({ created_by: currentUser.email, language: "en" });
           setLanguageState(newPrefs.language);
         }
+        */
       } catch (error) {
         console.error("User not logged in or error fetching data:", error);
       }
     };
-    fetchUserAndPrefs();
-  }, []);
+    
+    if (isAuthenticated) {
+      fetchUserAndPrefs();
+      
+      // Initialize calendar sync manager
+      calendarSyncManager.initialize().then((success) => {
+        if (success) {
+          console.log('Calendar sync manager initialized successfully');
+        } else {
+          console.log('Calendar sync manager initialization failed');
+        }
+      }).catch((error) => {
+        console.error('Error initializing calendar sync manager:', error);
+      });
+    }
+  }, [isAuthenticated]);
 
   const setLanguage = async (lang) => {
     setLanguageState(lang);
     if (user) {
       try {
+        // For now, just update the state
+        // TODO: Uncomment when UserPreferences are properly set up
+        /*
         const prefsList = await UserPreferences.filter({ created_by: user.email });
         if (prefsList.length > 0) {
           await UserPreferences.update(prefsList[0].id, { language: lang });
         } else {
           await UserPreferences.create({ created_by: user.email, language: lang });
         }
+        */
       } catch (error) {
         console.error("Error updating language preference:", error);
       }
@@ -94,10 +142,29 @@ export default function App() {
     setIsSidebarOpen(false);
   };
 
+  // Show loading screen while checking authentication
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        {/* You can add a proper loading component here */}
+      </View>
+    );
+  }
+
+  // Show auth screen if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.container}>
+        <Auth />
+      </View>
+    );
+  }
+
   return (
     <PaperProvider>
-      <View style={styles.container}>
-        <NavigationContainer
+      <ThemeProvider>
+        <View style={styles.container}>
+          <NavigationContainer
           onStateChange={(state) => {
             if (state && state.routes && state.routes.length > 0) {
               const currentRoute = state.routes[state.index];
@@ -133,6 +200,24 @@ export default function App() {
               name="CreateMeeting" 
               component={CreateMeetingWithLanguage}
               options={{ title: 'Create Meeting' }}
+              initialParams={{ language }}
+            />
+            <Stack.Screen 
+              name="TotalMeetings" 
+              component={TotalMeetingsWithLanguage}
+              options={{ title: 'Total Meetings' }}
+              initialParams={{ language }}
+            />
+            <Stack.Screen 
+              name="MeetingDetails" 
+              component={MeetingDetailsWithLanguage}
+              options={{ title: 'Meeting Details' }}
+              initialParams={{ language }}
+            />
+            <Stack.Screen 
+              name="EditMeeting" 
+              component={EditMeetingWithLanguage}
+              options={{ title: 'Edit Meeting' }}
               initialParams={{ language }}
             />
             <Stack.Screen 
@@ -189,6 +274,30 @@ export default function App() {
               options={{ title: 'WhatsApp Bot' }}
               initialParams={{ language }}
             />
+            <Stack.Screen 
+              name="CalendarSync" 
+              component={CalendarSyncWithLanguage}
+              options={{ title: 'Google Calendar Sync' }}
+              initialParams={{ language }}
+            />
+            <Stack.Screen 
+              name="GoogleCalendarTest" 
+              component={GoogleCalendarTestWithLanguage}
+              options={{ title: 'Google Calendar Test' }}
+              initialParams={{ language }}
+            />
+            <Stack.Screen 
+              name="GoogleCalendarTestComponent" 
+              component={GoogleCalendarTestComponentWithLanguage}
+              options={{ title: 'Google Calendar Test Component' }}
+              initialParams={{ language }}
+            />
+            <Stack.Screen 
+              name="NotificationDemo" 
+              component={NotificationDemoWithLanguage}
+              options={{ title: 'Notification Demo' }}
+              initialParams={{ language }}
+            />
           </Stack.Navigator>
           
           {/* Mobile Sidebar */}
@@ -203,7 +312,8 @@ export default function App() {
           <StatusBar style="auto" />
           <Toast />
         </NavigationContainer>
-      </View>
+        </View>
+      </ThemeProvider>
     </PaperProvider>
   );
 }
@@ -212,4 +322,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-}); 
+});
+
+// Main App Component
+export default function App() {
+  return (
+    <AuthProvider>
+      <PaperProvider>
+        <ThemeProvider>
+          <View style={styles.container}>
+            <AppNavigator />
+            <StatusBar style="auto" />
+            <Toast />
+          </View>
+        </ThemeProvider>
+      </PaperProvider>
+    </AuthProvider>
+  );
+} 

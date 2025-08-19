@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import { Meeting } from "@/api/entities";
 import ServiceWorkerRegistration from './ServiceWorkerRegistration';
 import { storage } from "@/utils/storage";
+import { AlertIntensity } from '@/utils/notificationUtils';
 
 export default function AlertScheduler({ onTriggerAlert, language = "en", alertsEnabled }) {
   const alertTimeoutsRef = useRef(new Map());
@@ -22,37 +23,37 @@ export default function AlertScheduler({ onTriggerAlert, language = "en", alerts
 
     const timeouts = [];
 
-    // Schedule 15-minute alert
+    // Schedule 15-minute alert (Medium intensity)
     const alert15min = meetingTime.getTime() - (15 * 60 * 1000);
     if (alert15min > now.getTime()) {
       const timeout15 = setTimeout(() => {
-        onTriggerAlert(meeting, '15min');
+        onTriggerAlert(meeting, '15min', AlertIntensity.MEDIUM);
       }, alert15min - now.getTime());
       timeouts.push(timeout15);
     }
 
-    // Schedule 5-minute alert
+    // Schedule 5-minute alert (Maximum intensity)
     const alert5min = meetingTime.getTime() - (5 * 60 * 1000);
     if (alert5min > now.getTime()) {
       const timeout5 = setTimeout(() => {
-        onTriggerAlert(meeting, '5min');
+        onTriggerAlert(meeting, '5min', AlertIntensity.MAXIMUM);
       }, alert5min - now.getTime());
       timeouts.push(timeout5);
     }
 
-    // Schedule 1-minute alert
+    // Schedule 1-minute alert (Maximum intensity)
     const alert1min = meetingTime.getTime() - (1 * 60 * 1000);
     if (alert1min > now.getTime()) {
       const timeout1 = setTimeout(() => {
-        onTriggerAlert(meeting, '1min');
+        onTriggerAlert(meeting, '1min', AlertIntensity.MAXIMUM);
       }, alert1min - now.getTime());
       timeouts.push(timeout1);
     }
 
-    // Schedule "now" alert
+    // Schedule "now" alert (Maximum intensity)
     if (meetingTime.getTime() > now.getTime()) {
       const timeoutNow = setTimeout(() => {
-        onTriggerAlert(meeting, 'now');
+        onTriggerAlert(meeting, 'now', AlertIntensity.MAXIMUM);
       }, meetingTime.getTime() - now.getTime());
       timeouts.push(timeoutNow);
     }

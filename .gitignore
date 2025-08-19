@@ -23,4 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment variables and secrets
 .env
+.env.local
+.env.production
+.env.development
+
+# Config files with secrets (if any)
+src/config/api.js

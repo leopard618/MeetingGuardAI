@@ -22,13 +22,21 @@ import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Meeting } from "@/api/entities";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, parseISO } from "date-fns";
 import { es, enUS } from "date-fns/locale";
+import { useTheme } from "@/contexts/ThemeContext";
+import GoogleCalendarService from "@/api/googleCalendar";
+import { useGoogleAuth } from "@/hooks/useGoogleAuth";
+import { safeStringify } from "@/utils";
 
 const { width } = Dimensions.get('window');
 
 export default function Calendar({ navigation, language = "en" }) {
+  const { isDarkMode } = useTheme();
+  const googleAuth = useGoogleAuth();
   const [meetings, setMeetings] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
+  const [googleCalendarStatus, setGoogleCalendarStatus] = useState(null);
+  const [googleMeetings, setGoogleMeetings] = useState([]);
 
   const locale = language === "es" ? es : enUS;
 
@@ -71,6 +79,7 @@ export default function Calendar({ navigation, language = "en" }) {
 
   useEffect(() => {
     loadMeetings();
+    checkGoogleCalendarStatus();
   }, []);
 
   const loadMeetings = async () => {
@@ -85,9 +94,68 @@ export default function Calendar({ navigation, language = "en" }) {
     setIsLoading(false);
   };
 
+  const checkGoogleCalendarStatus = async () => {
+    try {
+      // Check if user is signed in to Google
+      const isSignedIn = googleAuth.isSignedIn;
+      
+      if (isSignedIn) {
+        try {
+          // Get Google Calendar info
+          const calendarInfo = await GoogleCalendarService.getCalendarInfo();
+          setGoogleCalendarStatus(calendarInfo);
+          
+          // Load Google Calendar meetings
+          const todayMeetings = await GoogleCalendarService.getTodayMeetings();
+          const upcomingMeetings = await GoogleCalendarService.getUpcomingMeetings(7);
+          setGoogleMeetings([...todayMeetings, ...upcomingMeetings]);
+        } catch (calendarError) {
+          console.error("Error fetching Google Calendar data:", calendarError);
+          setGoogleMeetings([]);
+          setGoogleCalendarStatus({ isAuthenticated: false, isInitialized: false });
+        }
+      } else {
+        setGoogleMeetings([]);
+        setGoogleCalendarStatus({ isAuthenticated: false, isInitialized: false });
+      }
+    } catch (error) {
+      console.error("Error checking Google Calendar status:", error);
+      setGoogleMeetings([]);
+      setGoogleCalendarStatus({ isAuthenticated: false, isInitialized: false });
+    }
+  };
+
+  const refreshCalendar = async () => {
+    await loadMeetings();
+    await checkGoogleCalendarStatus();
+  };
+
   const getMeetingsForDate = (date) => {
     const dateString = format(date, 'yyyy-MM-dd');
-    return meetings.filter(meeting => meeting.date === dateString);
+    
+    // Get local meetings
+    const localMeetings = meetings.filter(meeting => meeting.date === dateString);
+    
+    // Get Google Calendar meetings
+    const googleMeetingsForDate = googleMeetings.filter(meeting => {
+      const meetingDate = format(new Date(meeting.start?.dateTime || meeting.start?.date), 'yyyy-MM-dd');
+      return meetingDate === dateString;
+    });
+    
+    // Combine and mark source
+    const allMeetings = [
+      ...localMeetings.map(m => ({ ...m, source: 'local' })),
+      ...googleMeetingsForDate.map(m => ({ 
+        ...m, 
+        source: 'google',
+        title: m.summary || m.title,
+        time: m.start?.dateTime ? format(new Date(m.start.dateTime), 'HH:mm') : '00:00',
+        duration: m.duration ? Math.round(m.duration / 60000) : 60, // Convert ms to minutes
+        date: format(new Date(m.start?.dateTime || m.start?.date), 'yyyy-MM-dd')
+      }))
+    ];
+    
+    return allMeetings;
   };
 
   const navigateMonth = (direction) => {
@@ -103,7 +171,7 @@ export default function Calendar({ navigation, language = "en" }) {
   const handleMeetingClick = (meeting) => {
     Alert.alert(
       meeting.title,
-      `${meeting.description}\n\nTime: ${meeting.time}\nDuration: ${meeting.duration} minutes\nLocation: ${meeting.location || 'Not specified'}`,
+              `${meeting.description}\n\nTime: ${meeting.time}\nDuration: ${meeting.duration} minutes\nLocation: ${typeof meeting.location === 'string' ? meeting.location : (meeting.location?.address || 'Not specified')}`,
       [
         { text: "Close", style: "cancel" },
         { text: "Edit", onPress: () => navigation.navigate('CreateMeeting', { meeting }) }
@@ -184,8 +252,23 @@ export default function Calendar({ navigation, language = "en" }) {
                 {format(date, 'd')}
               </Text>
               {dayMeetings.length > 0 && (
-                <View style={styles.meetingIndicator}>
-                  <Text style={styles.meetingCount}>{dayMeetings.length}</Text>
+                <View style={styles.meetingIndicators}>
+                  {/* Local meetings indicator */}
+                  {dayMeetings.filter(m => m.source === 'local').length > 0 && (
+                    <View style={[styles.meetingIndicator, styles.localMeetingIndicator]}>
+                      <Text style={styles.meetingCount}>
+                        {dayMeetings.filter(m => m.source === 'local').length}
+                      </Text>
+                    </View>
+                  )}
+                  {/* Google meetings indicator */}
+                  {dayMeetings.filter(m => m.source === 'google').length > 0 && (
+                    <View style={[styles.meetingIndicator, styles.googleMeetingIndicator]}>
+                      <Text style={styles.meetingCount}>
+                        {dayMeetings.filter(m => m.source === 'google').length}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
             </TouchableOpacity>
@@ -196,9 +279,25 @@ export default function Calendar({ navigation, language = "en" }) {
   };
 
   const showDayMeetings = (date, dayMeetings) => {
-    const meetingList = dayMeetings.map(meeting => 
-      `${meeting.time} - ${meeting.title}`
-    ).join('\n');
+    const localMeetings = dayMeetings.filter(m => m.source === 'local');
+    const googleMeetings = dayMeetings.filter(m => m.source === 'google');
+    
+    let meetingList = '';
+    
+    if (localMeetings.length > 0) {
+      meetingList += '📱 Local Meetings:\n';
+      meetingList += localMeetings.map(meeting => 
+        `${meeting.time} - ${meeting.title}`
+      ).join('\n');
+    }
+    
+    if (googleMeetings.length > 0) {
+      if (meetingList) meetingList += '\n\n';
+      meetingList += '🌐 Google Calendar:\n';
+      meetingList += googleMeetings.map(meeting => 
+        `${meeting.time} - ${meeting.title}`
+      ).join('\n');
+    }
     
     Alert.alert(
       `Meetings for ${format(date, 'MMMM d, yyyy')}`,
@@ -210,34 +309,51 @@ export default function Calendar({ navigation, language = "en" }) {
     );
   };
 
-  const renderMeetingCard = (meeting) => (
-    <Card key={meeting.id} style={styles.meetingCard} onPress={() => handleMeetingClick(meeting)}>
-      <Card.Content>
-        <View style={styles.meetingHeader}>
-          <Title style={styles.meetingTitle}>{meeting.title}</Title>
-          <View style={styles.meetingTime}>
-            <MaterialIcons name="access-time" size={16} color="#666" />
-            <Text style={styles.timeText}>{formatTime(meeting.time)}</Text>
-          </View>
-        </View>
-        <Paragraph style={styles.meetingDescription} numberOfLines={2}>
-          {meeting.description}
-        </Paragraph>
-        <View style={styles.meetingMeta}>
-          <View style={styles.metaItem}>
-            <MaterialIcons name="schedule" size={14} color="#666" />
-            <Text style={styles.metaText}>{meeting.duration} {t[language].minutes}</Text>
-          </View>
-          {meeting.location && (
-            <View style={styles.metaItem}>
-              <MaterialIcons name="location-on" size={14} color="#666" />
-              <Text style={styles.metaText}>{meeting.location}</Text>
+  const renderMeetingCard = (meeting) => {
+    // Safety check to ensure meeting data is valid
+    if (!meeting || typeof meeting !== 'object') {
+      console.warn('Invalid meeting data:', meeting);
+      return null;
+    }
+
+    return (
+      <Card key={meeting.id} style={styles.meetingCard} onPress={() => handleMeetingClick(meeting)}>
+        <Card.Content>
+          <View style={styles.meetingHeader}>
+            <Title style={styles.meetingTitle}>{meeting.title || 'Untitled Meeting'}</Title>
+            <View style={styles.meetingTime}>
+              <MaterialIcons name="access-time" size={16} color="#666" />
+              <Text style={styles.timeText}>{formatTime(meeting.time)}</Text>
             </View>
-          )}
-        </View>
-      </Card.Content>
-    </Card>
-  );
+          </View>
+          <Paragraph style={styles.meetingDescription} numberOfLines={2}>
+            {meeting.description || 'No description'}
+          </Paragraph>
+          <View style={styles.meetingMeta}>
+            <View style={styles.metaItem}>
+              <MaterialIcons name="schedule" size={14} color="#666" />
+              <Text style={styles.metaText}>{meeting.duration || 0} {t[language].minutes}</Text>
+            </View>
+            {meeting.location && (
+              <View style={styles.metaItem}>
+                <MaterialIcons name="location-on" size={14} color="#666" />
+                <Text style={styles.metaText}>
+                  {typeof meeting.location === 'string' 
+                    ? meeting.location 
+                    : (meeting.location && typeof meeting.location === 'object' && meeting.location.address) 
+                      ? safeStringify(meeting.location.address) 
+                      : 'No address specified'
+                  }
+                </Text>
+              </View>
+            )}
+          </View>
+        </Card.Content>
+      </Card>
+    );
+  };
+
+  const styles = getStyles(isDarkMode);
 
   if (isLoading) {
     return (
@@ -257,7 +373,7 @@ export default function Calendar({ navigation, language = "en" }) {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <MaterialIcons name="arrow-back" size={24} color="#1e293b" />
+          <MaterialIcons name="arrow-back" size={24} color={isDarkMode ? "#ffffff" : "#1e293b"} />
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
@@ -268,7 +384,7 @@ export default function Calendar({ navigation, language = "en" }) {
 
       <View style={styles.calendarHeader}>
         <TouchableOpacity onPress={() => navigateMonth(-1)} style={styles.navButton}>
-          <MaterialIcons name="chevron-left" size={24} color="#1e293b" />
+          <MaterialIcons name="chevron-left" size={24} color={isDarkMode ? "#ffffff" : "#1e293b"} />
         </TouchableOpacity>
         
         <Text style={styles.monthYear}>
@@ -276,7 +392,7 @@ export default function Calendar({ navigation, language = "en" }) {
         </Text>
         
         <TouchableOpacity onPress={() => navigateMonth(1)} style={styles.navButton}>
-          <MaterialIcons name="chevron-right" size={24} color="#1e293b" />
+          <MaterialIcons name="chevron-right" size={24} color={isDarkMode ? "#ffffff" : "#1e293b"} />
         </TouchableOpacity>
       </View>
 
@@ -284,6 +400,7 @@ export default function Calendar({ navigation, language = "en" }) {
         <MaterialIcons name="today" size={20} color="#3b82f6" />
         <Text style={styles.todayButtonText}>{t[language].today}</Text>
       </TouchableOpacity>
+
 
       <ScrollView style={styles.calendarContainer} showsVerticalScrollIndicator={false}>
         {renderCalendarGrid()}
@@ -304,6 +421,68 @@ export default function Calendar({ navigation, language = "en" }) {
             </Card>
           )}
         </View>
+
+        {/* Google Calendar Meetings */}
+        {googleCalendarStatus?.isAuthenticated && googleMeetings.length > 0 && (
+          <View style={styles.todayMeetingsSection}>
+            <Title style={styles.sectionTitle}>
+              Google Calendar Meetings
+            </Title>
+            {googleMeetings.map((meeting, index) => {
+              // Safety check for Google Calendar meetings
+              if (!meeting || typeof meeting !== 'object') {
+                console.warn('Invalid Google meeting data:', meeting);
+                return null;
+              }
+
+              // Use meeting.id or a unique identifier instead of index
+              const uniqueKey = meeting.id || `google-${meeting.startTime || Date.now()}-${index}`;
+
+              return (
+                <Card key={uniqueKey} style={[styles.meetingCard, { borderLeftColor: '#4caf50' }]}>
+                  <Card.Content>
+                    <View style={styles.meetingHeader}>
+                      <View style={styles.meetingTitleContainer}>
+                        <Text style={styles.meetingTitle}>{meeting.title || 'Untitled Meeting'}</Text>
+                        <View style={styles.googleBadge}>
+                          <MaterialIcons name="event" size={12} color="#4caf50" />
+                          <Text style={styles.googleBadgeText}>Google</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.timeText}>
+                        {meeting.startTime ? format(new Date(meeting.startTime), 'HH:mm') : 'TBD'}
+                      </Text>
+                    </View>
+                    <Paragraph style={styles.meetingDescription} numberOfLines={2}>
+                      {meeting.description || 'No description'}
+                    </Paragraph>
+                    <View style={styles.meetingMeta}>
+                      {meeting.location && (
+                        <View style={styles.metaItem}>
+                          <MaterialIcons name="location-on" size={14} color="#666" />
+                          <Text style={styles.metaText}>
+                            {typeof meeting.location === 'string' 
+                              ? meeting.location 
+                              : (meeting.location && typeof meeting.location === 'object' && meeting.location.address) 
+                                ? safeStringify(meeting.location.address) 
+                                : 'No address specified'
+                            }
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.metaItem}>
+                        <MaterialIcons name="calendar-today" size={14} color="#666" />
+                        <Text style={styles.metaText}>
+                          {meeting.startTime ? format(new Date(meeting.startTime), 'MMM d, yyyy') : 'TBD'}
+                        </Text>
+                      </View>
+                    </View>
+                  </Card.Content>
+                </Card>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
 
       <FAB
@@ -316,18 +495,24 @@ export default function Calendar({ navigation, language = "en" }) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F2F2F7",
+    backgroundColor: isDarkMode ? "#0a0a0a" : "#f8fafc",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 20,
-    backgroundColor: "#ffffff",
+    padding: 24,
+    paddingTop: 32,
+    backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    borderBottomColor: isDarkMode ? "#262626" : "#e2e8f0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDarkMode ? 0.3 : 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   backButton: {
     marginRight: 16,
@@ -337,22 +522,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 28,
+    fontWeight: "800",
     marginBottom: 4,
+    color: isDarkMode ? "#ffffff" : "#1e293b",
   },
   subtitle: {
     fontSize: 14,
-    color: "#64748b",
+    color: isDarkMode ? "#a1a1aa" : "#64748b",
   },
   calendarHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#ffffff",
+    backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    borderBottomColor: isDarkMode ? "#262626" : "#e2e8f0",
   },
   navButton: {
     padding: 8,
@@ -360,21 +546,48 @@ const styles = StyleSheet.create({
   monthYear: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1e293b",
+    color: isDarkMode ? "#ffffff" : "#1e293b",
   },
   todayButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     padding: 12,
-    backgroundColor: "#ffffff",
+    backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    borderBottomColor: isDarkMode ? "#262626" : "#e2e8f0",
   },
   todayButtonText: {
     marginLeft: 8,
     color: "#3b82f6",
     fontWeight: "500",
+  },
+  googleStatusCard: {
+    margin: 16,
+    borderWidth: 2,
+    borderRadius: 12,
+  },
+  googleStatusContent: {
+    padding: 16,
+  },
+  googleStatusHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  googleStatusTitle: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  googleStatusText: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 12,
+  },
+  googleSignInButton: {
+    alignSelf: "flex-start",
   },
   calendarContainer: {
     flex: 1,
@@ -383,7 +596,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     padding: 20,
-    backgroundColor: "#ffffff",
+    backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
   },
   dayHeader: {
     height: 40,
@@ -393,21 +606,21 @@ const styles = StyleSheet.create({
   dayHeaderText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#64748b",
+    color: isDarkMode ? "#a1a1aa" : "#64748b",
   },
   dayCell: {
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#ffffff",
+    borderColor: isDarkMode ? "#262626" : "#e2e8f0",
+    backgroundColor: isDarkMode ? "#262626" : "#ffffff",
     position: "relative",
   },
   otherMonthDay: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: isDarkMode ? "#1a1a1a" : "#f8fafc",
   },
   otherMonthText: {
-    color: "#cbd5e1",
+    color: isDarkMode ? "#71717a" : "#cbd5e1",
   },
   todayCell: {
     backgroundColor: "#3b82f6",
@@ -418,18 +631,27 @@ const styles = StyleSheet.create({
   },
   dayText: {
     fontSize: 14,
-    color: "#1e293b",
+    color: isDarkMode ? "#ffffff" : "#1e293b",
   },
-  meetingIndicator: {
+  meetingIndicators: {
     position: "absolute",
     bottom: 2,
     right: 2,
-    backgroundColor: "#ef4444",
+    flexDirection: "row",
+    gap: 2,
+  },
+  meetingIndicator: {
     borderRadius: 8,
     minWidth: 16,
     height: 16,
     justifyContent: "center",
     alignItems: "center",
+  },
+  localMeetingIndicator: {
+    backgroundColor: "#3b82f6", // Blue for local meetings
+  },
+  googleMeetingIndicator: {
+    backgroundColor: "#4285f4", // Google blue for Google Calendar meetings
   },
   meetingCount: {
     fontSize: 10,
@@ -460,6 +682,26 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     flex: 1,
     marginRight: 8,
+  },
+  meetingTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  googleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#e8f5e8",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  googleBadgeText: {
+    fontSize: 10,
+    color: "#4caf50",
+    fontWeight: "600",
+    marginLeft: 2,
   },
   meetingTime: {
     flexDirection: "row",
