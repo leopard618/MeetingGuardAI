@@ -14,9 +14,11 @@ import { Card, Button, TextInput } from 'react-native-paper';
 import { Meeting } from "@/api/entities";
 import ConfidenceBadge from "../components/ConfidenceBadge";
 import SourceBadge from "../components/SourceBadge";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function AIInsights({ language = "en" }) {
   const navigation = useNavigation();
+  const { isDarkMode } = useTheme();
   const [meetings, setMeetings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingMeeting, setEditingMeeting] = useState(null);
@@ -251,6 +253,13 @@ export default function AIInsights({ language = "en" }) {
                         value={editForm.title}
                         onChangeText={(text) => setEditForm({...editForm, title: text})}
                         style={styles.input}
+                        theme={{
+                          colors: {
+                            primary: isDarkMode ? "#ffffff" : "#1e293b",
+                            text: isDarkMode ? "#ffffff" : "#1e293b",
+                            placeholder: isDarkMode ? "#a1a1aa" : "#64748b",
+                          }
+                        }}
                       />
                       <TextInput
                         label={t[language].description}
@@ -259,6 +268,13 @@ export default function AIInsights({ language = "en" }) {
                         multiline
                         numberOfLines={3}
                         style={styles.input}
+                        theme={{
+                          colors: {
+                            primary: isDarkMode ? "#ffffff" : "#1e293b",
+                            text: isDarkMode ? "#ffffff" : "#1e293b",
+                            placeholder: isDarkMode ? "#a1a1aa" : "#64748b",
+                          }
+                        }}
                       />
                       <View style={styles.row}>
                         <TextInput
@@ -266,12 +282,26 @@ export default function AIInsights({ language = "en" }) {
                           value={editForm.date}
                           onChangeText={(text) => setEditForm({...editForm, date: text})}
                           style={[styles.input, styles.halfInput]}
+                          theme={{
+                            colors: {
+                              primary: isDarkMode ? "#ffffff" : "#1e293b",
+                              text: isDarkMode ? "#ffffff" : "#1e293b",
+                              placeholder: isDarkMode ? "#a1a1aa" : "#64748b",
+                            }
+                          }}
                         />
                         <TextInput
                           label={t[language].time}
                           value={editForm.time}
                           onChangeText={(text) => setEditForm({...editForm, time: text})}
                           style={[styles.input, styles.halfInput]}
+                          theme={{
+                            colors: {
+                              primary: isDarkMode ? "#ffffff" : "#1e293b",
+                              text: isDarkMode ? "#ffffff" : "#1e293b",
+                              placeholder: isDarkMode ? "#a1a1aa" : "#64748b",
+                            }
+                          }}
                         />
                       </View>
                       <TextInput
@@ -279,6 +309,13 @@ export default function AIInsights({ language = "en" }) {
                         value={editForm.duration}
                         onChangeText={(text) => setEditForm({...editForm, duration: text})}
                         style={styles.input}
+                        theme={{
+                          colors: {
+                            primary: isDarkMode ? "#ffffff" : "#1e293b",
+                            text: isDarkMode ? "#ffffff" : "#1e293b",
+                            placeholder: isDarkMode ? "#a1a1aa" : "#64748b",
+                          }
+                        }}
                       />
                     </View>
                   ) : (

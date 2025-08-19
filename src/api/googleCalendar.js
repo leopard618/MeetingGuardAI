@@ -1,429 +1,874 @@
-import * as Calendar from 'expo-calendar';
-import * as AuthSession from 'expo-auth-session';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Environment variables with fallback
-let GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI;
-
-try {
-  const env = require('@env');
-  GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
-  GOOGLE_CLIENT_SECRET = env.GOOGLE_CLIENT_SECRET;
-  GOOGLE_REDIRECT_URI = env.GOOGLE_REDIRECT_URI;
-} catch (error) {
-  // Fallback to process.env for Node.js testing
-  GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-  GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-  GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
-}
 
 class GoogleCalendarService {
   constructor() {
-    this.clientId = GOOGLE_CLIENT_ID;
-    this.clientSecret = GOOGLE_CLIENT_SECRET;
-    this.redirectUri = GOOGLE_REDIRECT_URI;
+    this.baseUrl = 'https://www.googleapis.com/calendar/v3';
     this.calendarId = null;
-    this.accessToken = null;
-    this.refreshToken = null;
+    this.isInitialized = false;
   }
 
   /**
-   * Initialize calendar permissions and authentication
-   * @returns {Promise<boolean>} Whether initialization was successful
+   * Initialize the Google Calendar service
    */
   async initialize() {
     try {
-      // Request calendar permissions
-      const { status } = await Calendar.requestCalendarPermissionsAsync();
-      if (status !== 'granted') {
-        throw new Error('Calendar permission not granted');
+      console.log('🔄 Initializing Google Calendar service...');
+      
+      // Check if we have a valid access token
+      const hasToken = await this.getAccessToken();
+      if (!hasToken) {
+        console.log('❌ No valid access token found - Google Calendar will be disabled');
+        this.isInitialized = false;
+        return false;
       }
-
-      // Get default calendar
-      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
-      const defaultCalendar = calendars.find(cal => cal.isPrimary) || calendars[0];
+      console.log('✅ Access token found');
       
-      if (!defaultCalendar) {
-        throw new Error('No calendar found');
+      // Test calendar access with error handling
+      try {
+        console.log('🔄 Testing calendar access...');
+        const hasAccess = await this.checkCalendarAccess();
+        console.log('Calendar access test result:', hasAccess);
+        
+        if (hasAccess) {
+          // Get the primary calendar ID
+          console.log('🔄 Getting primary calendar ID...');
+          const calendarId = await this.getCalendarId();
+          console.log('✅ Primary calendar ID:', calendarId);
+          
+          this.isInitialized = true;
+          console.log('✅ Google Calendar service initialized successfully');
+          return true;
+        } else {
+          console.log('❌ Google Calendar service initialization failed - no calendar access');
+          this.isInitialized = false;
+          return false;
+        }
+      } catch (calendarError) {
+        console.warn('❌ Google Calendar access test failed:', calendarError.message);
+        console.error('Calendar access error details:', {
+          message: calendarError.message,
+          stack: calendarError.stack,
+          name: calendarError.name
+        });
+        this.isInitialized = false;
+        return false;
       }
-
-      this.calendarId = defaultCalendar.id;
-      
-      // Load stored tokens
-      await this.loadStoredTokens();
-      
-      return true;
     } catch (error) {
-      console.error('Calendar initialization failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Authenticate with Google
-   * @returns {Promise<boolean>} Whether authentication was successful
-   */
-  async authenticate() {
-    try {
-      const discovery = {
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-        tokenEndpoint: 'https://oauth2.googleapis.com/token',
-        revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-      };
-
-      const request = new AuthSession.AuthRequest({
-        clientId: this.clientId,
-        scopes: [
-          'https://www.googleapis.com/auth/calendar',
-          'https://www.googleapis.com/auth/calendar.events',
-        ],
-        redirectUri: this.redirectUri,
-        responseType: AuthSession.ResponseType.Code,
-        extraParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
+      console.error('❌ Error initializing Google Calendar service:', error);
+      console.error('Initialization error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
       });
-
-      const result = await request.promptAsync(discovery);
-
-      if (result.type === 'success') {
-        const tokenResult = await AuthSession.exchangeCodeAsync(
-          {
-            clientId: this.clientId,
-            clientSecret: this.clientSecret,
-            code: result.params.code,
-            redirectUri: this.redirectUri,
-            extraParams: {
-              code_verifier: request.codeVerifier,
-            },
-          },
-          discovery
-        );
-
-        this.accessToken = tokenResult.accessToken;
-        this.refreshToken = tokenResult.refreshToken;
-
-        // Store tokens
-        await this.storeTokens();
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error('Google authentication failed:', error);
+      this.isInitialized = false;
       return false;
     }
   }
 
   /**
-   * Create a new meeting/event
-   * @param {Object} meetingData - Meeting data
-   * @returns {Promise<Object>} Created meeting
+   * Get calendar ID (primary calendar)
    */
-  async createMeeting(meetingData) {
+  async getCalendarId() {
     try {
-      const {
-        title,
-        date,
-        time,
-        duration = 60,
-        location,
-        participants = [],
-        description,
-      } = meetingData;
-
-      // Parse date and time
-      const startDate = new Date(`${date}T${time}:00`);
-      const endDate = new Date(startDate.getTime() + duration * 60000);
-
-      const eventDetails = {
-        title,
-        startDate,
-        endDate,
-        location,
-        notes: description,
-        alarms: [{ relativeOffset: -15 }], // 15 minutes before
-      };
-
-      // Add attendees if provided
-      if (participants.length > 0) {
-        eventDetails.attendees = participants.map(email => ({ email }));
+      if (this.calendarId) {
+        return this.calendarId;
       }
+      
+      const calendars = await this.getCalendars();
+      const primaryCalendar = calendars.find(cal => cal.primary);
+      this.calendarId = primaryCalendar ? primaryCalendar.id : 'primary';
+      return this.calendarId;
+    } catch (error) {
+      console.error('Error getting calendar ID:', error);
+      // Fallback to primary calendar
+      this.calendarId = 'primary';
+      return this.calendarId;
+    }
+  }
 
-      const eventId = await Calendar.createEventAsync(this.calendarId, eventDetails);
-
+  /**
+   * Get calendar information
+   */
+  async getCalendarInfo() {
+    try {
+      const hasAccess = await this.checkCalendarAccess();
+      const calendars = hasAccess ? await this.getCalendars() : [];
+      
       return {
-        id: eventId,
-        ...meetingData,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+        isAuthenticated: hasAccess,
+        isInitialized: this.isInitialized,
+        primaryCalendar: calendars.find(cal => cal.primary) || null,
+        totalCalendars: calendars.length,
+        serviceName: 'Google Calendar',
+        lastSync: await this.getLastSyncTime(),
       };
     } catch (error) {
-      console.error('Failed to create meeting:', error);
-      throw new Error(`Failed to create meeting: ${error.message}`);
-    }
-  }
-
-  /**
-   * Update an existing meeting
-   * @param {string} meetingId - Meeting ID
-   * @param {Object} updates - Meeting updates
-   * @returns {Promise<Object>} Updated meeting
-   */
-  async updateMeeting(meetingId, updates) {
-    try {
-      const existingEvent = await Calendar.getEventAsync(meetingId);
-      if (!existingEvent) {
-        throw new Error('Meeting not found');
-      }
-
-      const {
-        title,
-        date,
-        time,
-        duration,
-        location,
-        participants,
-        description,
-      } = updates;
-
-      const eventUpdates = {};
-
-      if (title) eventUpdates.title = title;
-      if (location) eventUpdates.location = location;
-      if (description) eventUpdates.notes = description;
-
-      if (date && time) {
-        const startDate = new Date(`${date}T${time}:00`);
-        const endDate = new Date(startDate.getTime() + (duration || 60) * 60000);
-        eventUpdates.startDate = startDate;
-        eventUpdates.endDate = endDate;
-      }
-
-      if (participants) {
-        eventUpdates.attendees = participants.map(email => ({ email }));
-      }
-
-      await Calendar.updateEventAsync(meetingId, eventUpdates);
-
+      console.error('Error getting calendar info:', error);
       return {
-        id: meetingId,
-        ...updates,
+        isAuthenticated: false,
+        isInitialized: false,
+        primaryCalendar: null,
+        totalCalendars: 0,
+        serviceName: 'Google Calendar',
+        lastSync: null,
       };
-    } catch (error) {
-      console.error('Failed to update meeting:', error);
-      throw new Error(`Failed to update meeting: ${error.message}`);
-    }
-  }
-
-  /**
-   * Delete a meeting
-   * @param {string} meetingId - Meeting ID
-   * @returns {Promise<boolean>} Whether deletion was successful
-   */
-  async deleteMeeting(meetingId) {
-    try {
-      await Calendar.deleteEventAsync(meetingId);
-      return true;
-    } catch (error) {
-      console.error('Failed to delete meeting:', error);
-      throw new Error(`Failed to delete meeting: ${error.message}`);
-    }
-  }
-
-  /**
-   * Get meetings for a date range
-   * @param {Date} startDate - Start date
-   * @param {Date} endDate - End date
-   * @returns {Promise<Array>} Array of meetings
-   */
-  async getMeetings(startDate, endDate) {
-    try {
-      const events = await Calendar.getEventsAsync(
-        [this.calendarId],
-        startDate,
-        endDate
-      );
-
-      return events.map(event => ({
-        id: event.id,
-        title: event.title,
-        startDate: event.startDate,
-        endDate: event.endDate,
-        location: event.location,
-        description: event.notes,
-        attendees: event.attendees || [],
-        allDay: event.allDay,
-      }));
-    } catch (error) {
-      console.error('Failed to get meetings:', error);
-      throw new Error(`Failed to get meetings: ${error.message}`);
     }
   }
 
   /**
    * Get today's meetings
-   * @returns {Promise<Array>} Today's meetings
    */
   async getTodayMeetings() {
-    const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
-
-    return this.getMeetings(startOfDay, endOfDay);
-  }
-
-  /**
-   * Get upcoming meetings
-   * @param {number} days - Number of days to look ahead
-   * @returns {Promise<Array>} Upcoming meetings
-   */
-  async getUpcomingMeetings(days = 7) {
-    const now = new Date();
-    const endDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
-
-    return this.getMeetings(now, endDate);
-  }
-
-  /**
-   * Check availability for a time slot
-   * @param {Date} startDate - Start date/time
-   * @param {Date} endDate - End date/time
-   * @returns {Promise<boolean>} Whether the time slot is available
-   */
-  async checkAvailability(startDate, endDate) {
     try {
-      const events = await Calendar.getEventsAsync(
-        [this.calendarId],
-        startDate,
-        endDate
-      );
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-      return events.length === 0;
+      const events = await this.getEvents({
+        timeMin: startOfDay.toISOString(),
+        timeMax: endOfDay.toISOString(),
+      });
+
+      return events.map(event => this.convertFromGoogleEvent(event));
     } catch (error) {
-      console.error('Failed to check availability:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Find available time slots
-   * @param {Date} date - Date to check
-   * @param {number} duration - Duration in minutes
-   * @param {string} startTime - Start time (HH:MM)
-   * @param {string} endTime - End time (HH:MM)
-   * @returns {Promise<Array>} Available time slots
-   */
-  async findAvailableSlots(date, duration = 60, startTime = '09:00', endTime = '17:00') {
-    try {
-      const [startHour, startMinute] = startTime.split(':').map(Number);
-      const [endHour, endMinute] = endTime.split(':').map(Number);
-
-      const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), startHour, startMinute);
-      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), endHour, endMinute);
-
-      const events = await Calendar.getEventsAsync([this.calendarId], dayStart, dayEnd);
-
-      const availableSlots = [];
-      let currentTime = new Date(dayStart);
-
-      while (currentTime < dayEnd) {
-        const slotEnd = new Date(currentTime.getTime() + duration * 60000);
-        
-        if (slotEnd <= dayEnd) {
-          const conflictingEvent = events.find(event => 
-            (event.startDate < slotEnd && event.endDate > currentTime)
-          );
-
-          if (!conflictingEvent) {
-            availableSlots.push({
-              start: new Date(currentTime),
-              end: slotEnd,
-            });
-          }
-        }
-
-        currentTime = new Date(currentTime.getTime() + 30 * 60000); // Check every 30 minutes
-      }
-
-      return availableSlots;
-    } catch (error) {
-      console.error('Failed to find available slots:', error);
+      console.error('Error getting today\'s meetings:', error);
       return [];
     }
   }
 
   /**
-   * Store authentication tokens
-   * @returns {Promise<void>}
+   * Get upcoming meetings
    */
-  async storeTokens() {
+  async getUpcomingMeetings(days = 7) {
     try {
-      await AsyncStorage.setItem('google_access_token', this.accessToken);
-      if (this.refreshToken) {
-        await AsyncStorage.setItem('google_refresh_token', this.refreshToken);
+      const startDate = new Date();
+      const endDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
+
+      const events = await this.getEvents({
+        timeMin: startDate.toISOString(),
+        timeMax: endDate.toISOString(),
+      });
+
+      return events.map(event => this.convertFromGoogleEvent(event));
+    } catch (error) {
+      console.error('Error getting upcoming meetings:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Create a meeting
+   */
+  async createMeeting(meetingData) {
+    try {
+      const event = await this.createEvent(meetingData);
+      return this.convertFromGoogleEvent(event);
+    } catch (error) {
+      console.error('Error creating meeting:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update a meeting
+   */
+  async updateMeeting(meetingId, meetingData) {
+    try {
+      const event = await this.updateEvent({ ...meetingData, id: meetingId });
+      return this.convertFromGoogleEvent(event);
+    } catch (error) {
+      console.error('Error updating meeting:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a meeting
+   */
+  async deleteMeeting(meetingId) {
+    try {
+      await this.deleteEvent(meetingId);
+      return true;
+    } catch (error) {
+      console.error('Error deleting meeting:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check availability for a time slot
+   */
+  async checkAvailability(startDate, endDate) {
+    try {
+      const events = await this.getEvents({
+        timeMin: startDate.toISOString(),
+        timeMax: endDate.toISOString(),
+      });
+
+      return events.length === 0;
+    } catch (error) {
+      console.error('Error checking availability:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get access token from storage
+   */
+  async getAccessToken() {
+    try {
+      console.log('🔄 Getting Google access token from storage...');
+      const token = await AsyncStorage.getItem('google_access_token');
+      const expiry = await AsyncStorage.getItem('google_token_expiry');
+      
+      console.log('Token found:', !!token);
+      console.log('Expiry found:', !!expiry);
+      
+      if (!token) {
+        console.log('❌ No Google access token found in storage');
+        return null;
       }
+      
+      // Check if token is expired
+      if (expiry && Date.now() > parseInt(expiry)) {
+        console.log('❌ Google access token has expired');
+        console.log('Token expiry time:', new Date(parseInt(expiry)).toISOString());
+        console.log('Current time:', new Date().toISOString());
+        
+        // Clear expired token
+        await AsyncStorage.removeItem('google_access_token');
+        await AsyncStorage.removeItem('google_token_expiry');
+        await AsyncStorage.removeItem('google_refresh_token');
+        console.log('✅ Expired tokens cleared from storage');
+        return null;
+      }
+      
+      console.log('✅ Valid access token found');
+      console.log('Token expiry time:', expiry ? new Date(parseInt(expiry)).toISOString() : 'No expiry');
+      console.log('Current time:', new Date().toISOString());
+      return token;
     } catch (error) {
-      console.error('Failed to store tokens:', error);
+      console.error('❌ Error getting access token:', error);
+      console.error('Token retrieval error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      return null;
     }
   }
 
   /**
-   * Load stored authentication tokens
-   * @returns {Promise<void>}
+   * Make authenticated request to Google Calendar API
    */
-  async loadStoredTokens() {
+  async makeRequest(endpoint, options = {}) {
     try {
-      this.accessToken = await AsyncStorage.getItem('google_access_token');
-      this.refreshToken = await AsyncStorage.getItem('google_refresh_token');
+      console.log('🌐 Making Google Calendar API request to:', endpoint);
+      
+      const accessToken = await this.getAccessToken();
+      
+      if (!accessToken) {
+        console.log('❌ No valid access token available for API request');
+        return null;
+      }
+      console.log('✅ Access token available for API request');
+
+      const defaultOptions = {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      };
+
+      const requestOptions = {
+        ...defaultOptions,
+        ...options,
+      };
+
+      console.log('📤 Request options:', {
+        method: requestOptions.method || 'GET',
+        headers: Object.keys(requestOptions.headers),
+        hasBody: !!requestOptions.body
+      });
+
+      const response = await fetch(`${this.baseUrl}${endpoint}`, requestOptions);
+
+      console.log('📥 Response status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = `Google Calendar API error: ${response.status} - ${errorData.error?.message || response.statusText}`;
+        
+        console.log('❌ API Error Response:', errorData);
+        
+        // Handle specific error cases gracefully
+        if (response.status === 404) {
+          console.warn('Calendar endpoint not found:', errorMessage);
+          return null;
+        }
+        
+        // Don't throw error for authentication issues - just log and return null
+        if (response.status === 401 || response.status === 403) {
+          console.warn('Authentication error:', errorMessage);
+          return null;
+        }
+        
+        // For other errors, log but don't throw
+        console.warn('Google Calendar API error:', errorMessage);
+        return null;
+      }
+
+      const responseData = await response.json();
+      console.log('✅ API request successful, response keys:', Object.keys(responseData));
+      
+      return responseData;
     } catch (error) {
-      console.error('Failed to load tokens:', error);
+      console.error('❌ Google Calendar request failed:', error.message);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      return null;
     }
   }
 
   /**
-   * Clear stored authentication tokens
-   * @returns {Promise<void>}
+   * Get all calendars for the user
    */
-  async clearTokens() {
+  async getCalendars() {
     try {
-      await AsyncStorage.removeItem('google_access_token');
-      await AsyncStorage.removeItem('google_refresh_token');
-      this.accessToken = null;
-      this.refreshToken = null;
+      console.log('Fetching calendars...');
+      const response = await this.makeRequest('/users/me/calendarList');
+      
+      // Add null checks to prevent the error
+      if (!response) {
+        console.log('No response received from Google Calendar API for calendars');
+        return [];
+      }
+      
+      if (!response.items) {
+        console.log('No items in Google Calendar calendars response');
+        return [];
+      }
+      
+      console.log('Calendars fetched successfully:', response.items.length, 'calendars');
+      return response.items;
     } catch (error) {
-      console.error('Failed to clear tokens:', error);
+      console.error('Error fetching calendars:', error);
+      // Return empty array instead of throwing error
+      return [];
     }
   }
 
   /**
-   * Check if user is authenticated
-   * @returns {boolean} Whether user is authenticated
+   * Get events from Google Calendar
    */
-  isAuthenticated() {
-    return !!this.accessToken;
+  async getEvents(options = {}) {
+    try {
+      console.log('🔄 Getting events from Google Calendar...');
+      
+      // Check if we have a valid access token first
+      const accessToken = await this.getAccessToken();
+      if (!accessToken) {
+        console.log('❌ No valid access token available for fetching events');
+        return [];
+      }
+      console.log('✅ Access token available');
+
+      const {
+        timeMin = new Date().toISOString(),
+        timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        maxResults = 100,
+        singleEvents = true,
+        orderBy = 'startTime'
+      } = options;
+
+      console.log('📅 Event search parameters:', {
+        timeMin,
+        timeMax,
+        maxResults,
+        singleEvents,
+        orderBy
+      });
+
+      // Ensure we have a valid calendar ID
+      const calendarId = await this.getCalendarId();
+      console.log('📋 Using calendar ID:', calendarId);
+
+      const params = new URLSearchParams({
+        timeMin,
+        timeMax,
+        maxResults: maxResults.toString(),
+        singleEvents: singleEvents.toString(),
+        orderBy
+      });
+
+      const endpoint = `/calendars/${calendarId}/events?${params}`;
+      console.log('🌐 Making request to:', endpoint);
+
+      const response = await this.makeRequest(endpoint);
+      
+      // Add null checks to prevent the error
+      if (!response) {
+        console.log('❌ No response received from Google Calendar API');
+        return [];
+      }
+      
+      if (!response.items) {
+        console.log('❌ No items in Google Calendar response');
+        console.log('Response structure:', Object.keys(response));
+        return [];
+      }
+      
+      console.log('✅ Successfully fetched events:', response.items.length);
+      if (response.items.length > 0) {
+        console.log('📝 Sample event:', {
+          id: response.items[0].id,
+          summary: response.items[0].summary,
+          start: response.items[0].start,
+          end: response.items[0].end
+        });
+      }
+      
+      return response.items;
+    } catch (error) {
+      console.error('❌ Error fetching events:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      // Return empty array instead of throwing error
+      return [];
+    }
   }
 
   /**
-   * Get calendar information
-   * @returns {Promise<Object>} Calendar information
+   * Create event in Google Calendar
    */
-  async getCalendarInfo() {
+  async createEvent(eventData) {
     try {
-      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
-      const defaultCalendar = calendars.find(cal => cal.id === this.calendarId);
+      console.log('Creating Google Calendar event:', {
+        id: eventData.id,
+        title: eventData.title,
+        date: eventData.date,
+        time: eventData.time,
+        duration: eventData.duration
+      });
+      
+      const googleEvent = this.convertToGoogleEvent(eventData);
+      console.log('Converted to Google event format:', {
+        summary: googleEvent.summary,
+        start: googleEvent.start,
+        end: googleEvent.end
+      });
+      
+      // Ensure we have a valid calendar ID
+      const calendarId = await this.getCalendarId();
+      
+      const response = await this.makeRequest(`/calendars/${calendarId}/events`, {
+        method: 'POST',
+        body: JSON.stringify(googleEvent),
+      });
+
+      // Store the mapping to prevent duplicates
+      if (response && response.id && eventData.id) {
+        await this.storeEventMapping(eventData.id, response.id);
+        console.log('Event mapping stored:', eventData.id, '->', response.id);
+      }
+
+      return response;
+    } catch (error) {
+      console.error('Error creating Google Calendar event:', error);
+      // Return null instead of throwing error to prevent app crashes
+      return null;
+    }
+  }
+
+  /**
+   * Update event in Google Calendar
+   */
+  async updateEvent(eventData) {
+    try {
+      const googleEvent = this.convertToGoogleEvent(eventData);
+      
+      // Ensure we have a valid calendar ID
+      const calendarId = await this.getCalendarId();
+      
+      const response = await this.makeRequest(`/calendars/${calendarId}/events/${eventData.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(googleEvent),
+      });
+
+      return response;
+    } catch (error) {
+      console.error('Error updating Google Calendar event:', error);
+      // Return null instead of throwing error to prevent app crashes
+      return null;
+    }
+  }
+
+  /**
+   * Delete event from Google Calendar
+   */
+  async deleteEvent(eventId) {
+    try {
+      await this.makeRequest(`/calendars/${this.calendarId}/events/${eventId}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Error deleting Google Calendar event:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Convert app event format to Google Calendar format
+   */
+  convertToGoogleEvent(eventData) {
+    const {
+      title,
+      description,
+      date,
+      time,
+      duration,
+      location,
+      attendees = [],
+      reminders = {},
+    } = eventData;
+
+    // Safely parse dates with validation
+    const parseDateTime = (dateStr, timeStr) => {
+      try {
+        console.log('Parsing date/time:', { dateStr, timeStr });
+        
+        // Handle different date/time formats
+        let dateTimeString;
+        
+        if (dateStr && timeStr) {
+          // If we have separate date and time, ensure proper format
+          // Ensure time is in 24-hour format
+          let formattedTime = timeStr;
+          if (timeStr.includes('pm') || timeStr.includes('PM')) {
+            // Convert 12-hour to 24-hour format
+            const [hours, minutes] = timeStr.replace(/[ap]m/i, '').split(':');
+            let hour = parseInt(hours);
+            if (hour !== 12) hour += 12;
+            formattedTime = `${hour.toString().padStart(2, '0')}:${minutes}:00`;
+          } else if (timeStr.includes('am') || timeStr.includes('AM')) {
+            // Handle AM time
+            const [hours, minutes] = timeStr.replace(/[ap]m/i, '').split(':');
+            let hour = parseInt(hours);
+            if (hour === 12) hour = 0;
+            formattedTime = `${hour.toString().padStart(2, '0')}:${minutes}:00`;
+          } else if (!timeStr.includes(':')) {
+            // If time is just a number, assume it's hours
+            formattedTime = `${timeStr.padStart(2, '0')}:00:00`;
+          } else if (timeStr.split(':').length === 2) {
+            // If time is HH:MM, add seconds
+            formattedTime = `${timeStr}:00`;
+          }
+          
+          dateTimeString = `${dateStr}T${formattedTime}`;
+          console.log('Formatted dateTimeString:', dateTimeString);
+        } else if (dateStr && dateStr.includes('T')) {
+          // If we have a full ISO string
+          dateTimeString = dateStr;
+        } else if (dateStr) {
+          // If we only have date, assume 9 AM
+          dateTimeString = `${dateStr}T09:00:00`;
+        } else {
+          // Fallback to current time + 1 hour
+          return new Date(Date.now() + 60 * 60 * 1000);
+        }
+
+        const date = new Date(dateTimeString);
+        if (isNaN(date.getTime())) {
+          throw new Error('Invalid date');
+        }
+        
+        console.log('Parsed date:', date.toISOString());
+        return date;
+      } catch (error) {
+        console.error('Date parsing error:', error);
+        // Fallback to current time + 1 hour
+        return new Date(Date.now() + 60 * 60 * 1000);
+      }
+    };
+
+    const startDate = parseDateTime(date, time);
+    
+    // Calculate end date based on duration (default 60 minutes)
+    const endDate = new Date(startDate.getTime() + (duration || 60) * 60 * 1000);
+
+    return {
+      summary: title,
+      description: description || '',
+      location: location?.address || location || '',
+      start: {
+        dateTime: startDate.toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+      end: {
+        dateTime: endDate.toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+      attendees: attendees.map(attendee => ({ 
+        email: typeof attendee === 'string' ? attendee : attendee.email 
+      })),
+      reminders: {
+        useDefault: false,
+        overrides: [
+          {
+            method: 'popup',
+            minutes: reminders.popup || 10,
+          },
+          {
+            method: 'email',
+            minutes: reminders.email || 1440,
+          },
+        ],
+      },
+    };
+  }
+
+  /**
+   * Convert Google Calendar event to app format
+   */
+  convertFromGoogleEvent(googleEvent) {
+    try {
+      const startDateTime = googleEvent.start?.dateTime || googleEvent.start?.date;
+      const endDateTime = googleEvent.end?.dateTime || googleEvent.end?.date;
+      
+      // Parse the start date and time
+      let date = '';
+      let time = '';
+      
+      if (startDateTime) {
+        const startDate = new Date(startDateTime);
+        if (!isNaN(startDate.getTime())) {
+          date = startDate.toISOString().split('T')[0];
+          time = startDate.toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false 
+          });
+        }
+      }
+      
+      // Calculate duration in minutes
+      let duration = 60; // default 1 hour
+      if (startDateTime && endDateTime) {
+        const start = new Date(startDateTime);
+        const end = new Date(endDateTime);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+        }
+      }
       
       return {
-        id: defaultCalendar?.id,
-        title: defaultCalendar?.title,
-        color: defaultCalendar?.color,
-        isPrimary: defaultCalendar?.isPrimary,
-        isAuthenticated: this.isAuthenticated(),
+        id: googleEvent.id,
+        title: googleEvent.summary || 'Untitled Event',
+        description: googleEvent.description || '',
+        date: date,
+        time: time,
+        duration: duration,
+        location: {
+          address: googleEvent.location || '',
+          type: 'physical'
+        },
+        participants: googleEvent.attendees?.map(a => ({ 
+          name: a.displayName || '', 
+          email: a.email 
+        })) || [],
+        startTime: startDateTime,
+        endTime: endDateTime,
+        lastModified: googleEvent.updated,
+        created: googleEvent.created,
       };
     } catch (error) {
-      console.error('Failed to get calendar info:', error);
+      console.error('Error converting Google event:', error);
+      // Return a safe fallback
+      return {
+        id: googleEvent.id || 'unknown',
+        title: googleEvent.summary || 'Untitled Event',
+        description: googleEvent.description || '',
+        date: new Date().toISOString().split('T')[0],
+        time: '00:00',
+        duration: 60,
+        location: { address: googleEvent.location || '' },
+        participants: [],
+        startTime: googleEvent.start?.dateTime || googleEvent.start?.date,
+        endTime: googleEvent.end?.dateTime || googleEvent.end?.date,
+        lastModified: googleEvent.updated,
+        created: googleEvent.created,
+      };
+    }
+  }
+
+  /**
+   * Check if we have calendar access
+   */
+  async checkCalendarAccess() {
+    try {
+      console.log('🔄 Checking calendar access...');
+      const accessToken = await this.getAccessToken();
+      
+      if (!accessToken) {
+        console.log('❌ No access token available for calendar access check');
+        return false;
+      }
+      console.log('✅ Access token available for calendar access check');
+      
+      // Try to fetch calendars to test access
+      const response = await fetch(`${this.baseUrl}/users/me/calendarList`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('📥 Calendar access check response status:', response.status, response.statusText);
+      
+      if (response.ok) {
+        console.log('✅ Calendar access confirmed');
+        return true;
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Calendar access denied:', errorData);
+        console.error('Access denied details:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error checking calendar access:', error);
+      console.error('Calendar access check error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Check if calendar service is available
+   */
+  isAvailable() {
+    return this.isInitialized && this.calendarId !== null;
+  }
+
+  /**
+   * Check if we have valid authentication
+   */
+  async hasValidAuth() {
+    try {
+      const accessToken = await this.getAccessToken();
+      return !!accessToken;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Get last sync time
+   */
+  async getLastSyncTime() {
+    try {
+      const settings = await this.getSyncSettings();
+      return settings.lastSyncTime;
+    } catch (error) {
       return null;
+    }
+  }
+
+  /**
+   * Get calendar sync settings
+   */
+  async getSyncSettings() {
+    try {
+      const settings = await AsyncStorage.getItem('google_calendar_sync_settings');
+      return settings ? JSON.parse(settings) : {
+        autoSync: true,
+        syncInterval: 15,
+        syncDirection: 'bidirectional',
+        lastSyncTime: null,
+      };
+    } catch (error) {
+      console.error('Error getting sync settings:', error);
+      return {
+        autoSync: true,
+        syncInterval: 15,
+        syncDirection: 'bidirectional',
+        lastSyncTime: null,
+      };
+    }
+  }
+
+  /**
+   * Store mapping between app event ID and Google Calendar event ID
+   */
+  async storeEventMapping(appEventId, googleEventId) {
+    try {
+      const mappings = await this.getEventMappings();
+      mappings[appEventId] = googleEventId;
+      await AsyncStorage.setItem('google_calendar_mappings', JSON.stringify(mappings));
+    } catch (error) {
+      console.error('Error storing event mapping:', error);
+    }
+  }
+
+  /**
+   * Get Google Calendar event ID for app event ID
+   */
+  async getGoogleEventId(appEventId) {
+    try {
+      const mappings = await this.getEventMappings();
+      return mappings[appEventId];
+    } catch (error) {
+      console.error('Error getting Google event ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Remove event mapping
+   */
+  async removeEventMapping(appEventId) {
+    try {
+      const mappings = await this.getEventMappings();
+      delete mappings[appEventId];
+      await AsyncStorage.setItem('google_calendar_mappings', JSON.stringify(mappings));
+    } catch (error) {
+      console.error('Error removing event mapping:', error);
+    }
+  }
+
+  /**
+   * Get all event mappings
+   */
+  async getEventMappings() {
+    try {
+      const mappings = await AsyncStorage.getItem('google_calendar_mappings');
+      return mappings ? JSON.parse(mappings) : {};
+    } catch (error) {
+      console.error('Error getting event mappings:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Set calendar sync settings
+   */
+  async setSyncSettings(settings) {
+    try {
+      await AsyncStorage.setItem('google_calendar_sync_settings', JSON.stringify(settings));
+    } catch (error) {
+      console.error('Error saving sync settings:', error);
     }
   }
 }

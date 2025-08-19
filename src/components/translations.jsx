@@ -24,11 +24,13 @@ export const translations = {
     nav: {
       dashboard: "Dashboard",
       addMeeting: "Add Meeting",
+      totalMeetings: "Total Meetings",
       calendar: "Calendar",
       notes: "Notes & Tasks",
       aiChat: "AI Chat",
       settings: "Settings",
-      apiKeys: "API Keys"
+      apiKeys: "API Keys",
+      notificationDemo: "Notification Demo"
     },
     // Meeting
     meeting: {
@@ -80,11 +82,13 @@ export const translations = {
     nav: {
       dashboard: "Panel",
       addMeeting: "Añadir Reunión",
+      totalMeetings: "Todas las Reuniones",
       calendar: "Calendario",
       notes: "Notas y Tareas",
       aiChat: "Chat IA",
       settings: "Ajustes",
-      apiKeys: "Claves API"
+      apiKeys: "Claves API",
+      notificationDemo: "Demo de Notificaciones"
     },
     // Meeting
     meeting: {

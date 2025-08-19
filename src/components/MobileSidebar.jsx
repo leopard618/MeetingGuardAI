@@ -13,6 +13,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation, getAvailableLanguages } from './translations';
+import { useTheme } from '@/contexts/ThemeContext';
+import ThemeToggle from './ThemeToggle';
 
 const { width } = Dimensions.get('window');
 
@@ -30,6 +32,13 @@ const navigationItems = [
     icon: "add-circle-outline",
     iconColor: "#34D399", // Green for creating/adding
     activeIconColor: "#6EE7B7"
+  },
+  {
+    titleKey: "nav.totalMeetings",
+    screenName: "TotalMeetings",
+    icon: "list-outline",
+    iconColor: "#F59E0B", // Amber for meetings list
+    activeIconColor: "#FCD34D"
   },
   {
     titleKey: "nav.calendar",
@@ -62,7 +71,7 @@ const navigationItems = [
   {
     titleKey: "nav.apiKeys",
     screenName: "ApiSettings",
-    icon: "briefcase-outline",
+            icon: "business-outline",
     iconColor: "#FBBF24", // Amber for business/API
     activeIconColor: "#FCD34D"
   },
@@ -72,27 +81,76 @@ const LanguageSelector = ({ language, setLanguage, onClose }) => {
   const [isOpen, setIsOpen] = useState(false);
   const availableLanguages = getAvailableLanguages();
   const currentLang = availableLanguages.find(lang => lang.code === language);
+  const { isDarkMode } = useTheme();
+
+  const languageStyles = StyleSheet.create({
+    languageContainer: {
+      position: 'relative',
+    },
+    languageButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+    },
+    languageText: {
+      fontSize: 14,
+      color: isDarkMode ? '#71717a' : '#9CA3AF',
+      marginLeft: 8,
+    },
+    languageDropdown: {
+      position: 'absolute',
+      bottom: '100%',
+      left: 0,
+      right: 0,
+      backgroundColor: isDarkMode ? '#262626' : '#374151',
+      borderRadius: 8,
+      marginBottom: 8,
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      elevation: 5,
+    },
+    languageOption: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+    },
+    languageOptionActive: {
+      backgroundColor: isDarkMode ? '#404040' : '#4B5563',
+    },
+    languageOptionText: {
+      fontSize: 14,
+      color: isDarkMode ? '#a1a1aa' : '#D1D5DB',
+    },
+    languageOptionTextActive: {
+      color: '#FFFFFF',
+    },
+  });
 
   return (
-    <View style={styles.languageContainer}>
+    <View style={languageStyles.languageContainer}>
       <TouchableOpacity
-        style={styles.languageButton}
+        style={languageStyles.languageButton}
         onPress={() => setIsOpen(!isOpen)}
       >
-        <Ionicons name="globe-outline" size={16} color="#9CA3AF" />
-        <Text style={styles.languageText}>
+        <Ionicons name="globe-outline" size={16} color={isDarkMode ? "#a1a1aa" : "#9CA3AF"} />
+        <Text style={languageStyles.languageText}>
           {currentLang?.flag} {currentLang?.name}
         </Text>
       </TouchableOpacity>
       
       {isOpen && (
-        <View style={styles.languageDropdown}>
+        <View style={languageStyles.languageDropdown}>
           {availableLanguages.map((lang) => (
             <TouchableOpacity
               key={lang.code}
               style={[
-                styles.languageOption,
-                language === lang.code && styles.languageOptionActive
+                languageStyles.languageOption,
+                language === lang.code && languageStyles.languageOptionActive
               ]}
               onPress={() => {
                 setLanguage(lang.code);
@@ -100,8 +158,8 @@ const LanguageSelector = ({ language, setLanguage, onClose }) => {
               }}
             >
               <Text style={[
-                styles.languageOptionText,
-                language === lang.code && styles.languageOptionTextActive
+                languageStyles.languageOptionText,
+                language === lang.code && languageStyles.languageOptionTextActive
               ]}>
                 {lang.flag} {lang.name}
               </Text>
@@ -116,12 +174,15 @@ const LanguageSelector = ({ language, setLanguage, onClose }) => {
 const SidebarContent = ({ language, setLanguage, onClose, currentRouteName }) => {
   const navigation = useNavigation();
   const { t } = useTranslation(language);
+  const { isDarkMode } = useTheme();
 
   const handleNavigation = (screenName) => {
     navigation.navigate(screenName);
     onClose();
   };
 
+  const styles = getStyles(isDarkMode);
+  
   return (
     <View style={styles.sidebarContent}>
       {/* Header */}
@@ -173,6 +234,17 @@ const SidebarContent = ({ language, setLanguage, onClose, currentRouteName }) =>
         })}
       </ScrollView>
 
+      {/* Theme Toggle */}
+      <View style={styles.themeSection}>
+        <View style={styles.themeContainer}>
+          <Ionicons name="color-palette-outline" size={16} color={isDarkMode ? "#a1a1aa" : "#9CA3AF"} />
+          <Text style={styles.themeText}>
+            {isDarkMode ? "Light Mode" : "Dark Mode"}
+          </Text>
+          <ThemeToggle size={18} />
+        </View>
+      </View>
+
       {/* Language Selector */}
       <View style={styles.languageSection}>
         <LanguageSelector
@@ -186,6 +258,7 @@ const SidebarContent = ({ language, setLanguage, onClose, currentRouteName }) =>
 };
 
 const MobileSidebar = ({ visible, onClose, language, setLanguage, currentRouteName }) => {
+  const { isDarkMode } = useTheme();
   const slideAnim = React.useRef(new Animated.Value(-width)).current;
 
   useEffect(() => {
@@ -205,6 +278,8 @@ const MobileSidebar = ({ visible, onClose, language, setLanguage, currentRouteNa
       }).start();
     }
   }, [visible, slideAnim]);
+
+  const styles = getStyles(isDarkMode);
 
   return (
     <Modal
@@ -242,7 +317,7 @@ const MobileSidebar = ({ visible, onClose, language, setLanguage, currentRouteNa
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (isDarkMode) => StyleSheet.create({
   modalContainer: {
     flex: 1,
     flexDirection: 'row',
@@ -254,7 +329,7 @@ const styles = StyleSheet.create({
   sidebar: {
     width: width * 0.8,
     maxWidth: 320,
-    backgroundColor: '#1F2937',
+    backgroundColor: isDarkMode ? '#0f0f0f' : '#1F2937',
     height: '100%',
   },
   sidebarContent: {
@@ -266,7 +341,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: isDarkMode ? '#262626' : '#374151',
     height: 80,
   },
   logoContainer: {
@@ -301,11 +376,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   navigationItemActive: {
-    backgroundColor: '#374151',
+    backgroundColor: isDarkMode ? '#262626' : '#374151',
   },
   navigationText: {
     fontSize: 14,
-    color: '#D1D5DB',
+    color: isDarkMode ? '#a1a1aa' : '#D1D5DB',
     marginLeft: 12,
     fontWeight: '500',
   },
@@ -313,55 +388,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
+  themeSection: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? '#262626' : '#374151',
+  },
+  themeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  themeText: {
+    fontSize: 14,
+    color: isDarkMode ? '#a1a1aa' : '#D1D5DB',
+    marginLeft: 8,
+    flex: 1,
+  },
   languageSection: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#374151',
-  },
-  languageContainer: {
-    position: 'relative',
-  },
-  languageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  languageText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginLeft: 8,
-  },
-  languageDropdown: {
-    position: 'absolute',
-    bottom: '100%',
-    left: 0,
-    right: 0,
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  languageOption: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  languageOptionActive: {
-    backgroundColor: '#4B5563',
-  },
-  languageOptionText: {
-    fontSize: 14,
-    color: '#D1D5DB',
-  },
-  languageOptionTextActive: {
-    color: '#FFFFFF',
+    borderTopColor: isDarkMode ? '#262626' : '#374151',
   },
 });
 

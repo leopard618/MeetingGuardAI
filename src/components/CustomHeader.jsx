@@ -8,10 +8,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useTheme } from '@/contexts/ThemeContext';
+import ThemeToggle from './ThemeToggle';
 
 const CustomHeader = ({ title, onMenuPress, showMenu = true }) => {
   const navigation = useNavigation();
+  const { isDarkMode } = useTheme();
 
+  const styles = getStyles(isDarkMode);
+  
   return (
     <View style={styles.header}>
       <View style={styles.headerContent}>
@@ -26,13 +31,16 @@ const CustomHeader = ({ title, onMenuPress, showMenu = true }) => {
           />
           <Text style={styles.title}>{title || 'MeetingGuard AI'}</Text>
         </TouchableOpacity>
+        {/* Theme Toggle */}
+        <ThemeToggle size={20} style={styles.themeToggle} />
+        
         {/* Menu Button */}
         {showMenu && (
           <TouchableOpacity
             style={styles.menuButton}
             onPress={onMenuPress}
           >
-            <Ionicons name="menu" size={24} color="#1E293B" />
+            <Ionicons name="menu" size={24} color={isDarkMode ? "#ffffff" : "#1E293B"} />
           </TouchableOpacity>
         )}
       </View>
@@ -40,11 +48,11 @@ const CustomHeader = ({ title, onMenuPress, showMenu = true }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (isDarkMode) => StyleSheet.create({
   header: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1a1a1a' : '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: isDarkMode ? '#404040' : '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -76,11 +84,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: isDarkMode ? '#ffffff' : '#1E293B',
   },
   menuButton: {
     padding: 8,
     borderRadius: 8,
+  },
+  themeToggle: {
+    marginRight: 8,
   },
 });
 

@@ -66,6 +66,20 @@ class LocalStorageAPI {
       };
     }
   }
+
+  // Clear all meetings from storage
+  async clearAllMeetings() {
+    try {
+      const data = await this.getData();
+      data.meetings = [];
+      await this.setData(data);
+      console.log('All meetings cleared from storage');
+      return true;
+    } catch (error) {
+      console.error('Error clearing meetings:', error);
+      return false;
+    }
+  }
 }
 
 export const localStorageAPI = new LocalStorageAPI();
