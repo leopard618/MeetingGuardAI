@@ -11,7 +11,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://localhost:8000"
+        "EXPO_PUBLIC_API_URL": "http://localhost:3000"
       }
     },
     "preview": {
@@ -23,7 +23,7 @@
         "resourceClass": "m-medium"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://your-deno-deploy-url.deno.dev"
+        "EXPO_PUBLIC_API_URL": "https://meetingguard-backend.onrender.com"
       }
     },
     "production": {
@@ -35,7 +35,8 @@
         "resourceClass": "m-medium"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://your-deno-deploy-url.deno.dev"
+        "EXPO_PUBLIC_API_URL": "https://meetingguard-backend.onrender.com",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://5eea696ca12ece6f1c8d546d2c0a4452@o4509871473033216.ingest.de.sentry.io/4509877130952784"
       }
     }
   },
