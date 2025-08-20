@@ -3,10 +3,26 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'MeetingGuard AI Backend API',
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth/*',
+      meetings: '/api/meetings',
+      calendar: '/api/calendar/*'
+    }
+  });
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -14,7 +30,8 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    message: 'MeetingGuard AI Backend is running on Vercel!'
+    environment: process.env.NODE_ENV || 'development',
+    message: 'MeetingGuard AI Backend is running on Render!'
   });
 });
 
@@ -67,20 +84,6 @@ app.get('/api/calendar/events', (req, res) => {
   });
 });
 
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: 'MeetingGuard AI Backend API',
-    version: '1.0.0',
-    endpoints: {
-      health: '/api/health',
-      auth: '/api/auth/*',
-      meetings: '/api/meetings',
-      calendar: '/api/calendar/*'
-    }
-  });
-});
-
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
@@ -90,5 +93,13 @@ app.use('*', (req, res) => {
   });
 });
 
-// Export for Vercel
+// Start server
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 MeetingGuard AI Backend running on port ${PORT}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  });
+}
+
+// Export for Vercel (keep for compatibility)
 module.exports = app;
