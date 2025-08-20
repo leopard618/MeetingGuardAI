@@ -14,7 +14,7 @@
     "eject": "expo eject",
     "deploy:render": "echo 'Deploy to Render via GitHub integration'",
     "deploy:ios": "eas build --platform ios --profile production",
-    "deploy:android": "eas build --platform android --profile production",
+    "deploy:android": "eas build --platform android --profile production --local",
     "deploy": "npm run deploy:ios && npm run deploy:android",
     "health-check": "curl https://meetingguard-backend.onrender.com/api/health",
     "android": "expo run:android",
