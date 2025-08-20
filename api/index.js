@@ -93,13 +93,28 @@ app.use('*', (req, res) => {
   });
 });
 
-// Start server
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`🚀 MeetingGuard AI Backend running on port ${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+// Start server for Render
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 MeetingGuard AI Backend running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Render URL: https://meetingguard-backend.onrender.com`);
+});
+
+// Error handling
+server.on('error', (error) => {
+  console.error('Server error:', error);
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use`);
+  }
+});
+
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
   });
-}
+});
 
 // Export for Vercel (keep for compatibility)
 module.exports = app;
