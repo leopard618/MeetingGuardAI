@@ -9,7 +9,12 @@
     "web": "expo start --web",
     "lint": "eslint .",
     "build": "expo build",
-    "setup": "node setup-env.js"
+    "setup": "node setup-env.js",
+    "deploy:backend": "cd deno && deno deploy --app=meetingguard-backend .",
+    "deploy:ios": "eas build --platform ios --profile preview && eas submit --platform ios",
+    "deploy:android": "eas build --platform android --profile preview",
+    "deploy": "npm run deploy:backend && npm run deploy:ios && npm run deploy:android",
+    "health-check": "curl -s https://your-deno-deploy-url.deno.dev/health | jq '.'"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",
