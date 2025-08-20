@@ -4,7 +4,7 @@
     "slug": "meeting-guard-ai",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/favicon.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
@@ -38,7 +38,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icon.png"
     },
     "plugins": [
       "expo-router",
@@ -46,7 +46,6 @@
       "expo-calendar"
     ],
     "scheme": "meetingguardai",
-    "newArchEnabled": false,
     "extra": {
       "eas": {
         "projectId": "139b18d2-655f-458f-854a-27e423530626"
