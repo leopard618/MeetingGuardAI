@@ -2,8 +2,24 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+// Initialize Sentry for error tracking
+const Sentry = require('@sentry/node');
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV || 'development',
+  tracesSampleRate: 1.0,
+  integrations: [
+    new Sentry.Integrations.Http({ tracing: true }),
+    new Sentry.Integrations.Express({ app: express }),
+  ],
+});
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Sentry request handler (must be first)
+app.use(Sentry.Handlers.requestHandler());
 
 // Middleware
 app.use(cors());
@@ -31,7 +47,8 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     environment: process.env.NODE_ENV || 'development',
-    message: 'MeetingGuard AI Backend is running on Render!'
+    message: 'MeetingGuard AI Backend is running on Render!',
+    sentry: process.env.SENTRY_DSN ? 'enabled' : 'disabled'
   });
 });
 
@@ -84,6 +101,9 @@ app.get('/api/calendar/events', (req, res) => {
   });
 });
 
+// Sentry error handler (must be before 404 handler)
+app.use(Sentry.Handlers.errorHandler());
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
@@ -99,11 +119,13 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Render URL: https://meetingguard-backend.onrender.com`);
+  console.log(`📈 Sentry: ${process.env.SENTRY_DSN ? 'enabled' : 'disabled'}`);
 });
 
 // Error handling
 server.on('error', (error) => {
   console.error('Server error:', error);
+  Sentry.captureException(error);
   if (error.code === 'EADDRINUSE') {
     console.error(`Port ${PORT} is already in use`);
   }
