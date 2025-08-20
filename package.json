@@ -4,17 +4,19 @@
   "description": "MeetingGuard AI - Smart Meeting Management App",
   "main": "api/index.js",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
+    "start": "node api/index.js",
+    "dev": "nodemon api/index.js",
+    "expo:start": "expo start",
+    "expo:android": "expo start --android",
+    "expo:ios": "expo start --ios",
+    "expo:web": "expo start --web",
     "build": "expo build",
     "eject": "expo eject",
-    "deploy:backend": "vercel --prod",
+    "deploy:render": "echo 'Deploy to Render via GitHub integration'",
     "deploy:ios": "eas build --platform ios --profile production",
     "deploy:android": "eas build --platform android --profile production",
-    "deploy": "npm run deploy:backend && npm run deploy:ios && npm run deploy:android",
-    "health-check": "curl https://your-vercel-url.vercel.app/api/health"
+    "deploy": "npm run deploy:ios && npm run deploy:android",
+    "health-check": "curl https://your-render-url.onrender.com/api/health"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.0",
@@ -50,7 +52,12 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/react": "~18.2.45",
-    "typescript": "^5.1.3"
+    "typescript": "^5.1.3",
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "private": true
 }
