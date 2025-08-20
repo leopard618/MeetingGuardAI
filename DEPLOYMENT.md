@@ -1,387 +1,243 @@
-# 🚀 MeetingGuard AI - Milestone 5 Deployment Guide
+# 🚀 MeetingGuard AI - Deployment Guide
 
 ## 📋 Overview
 
-This guide covers the production deployment of MeetingGuard AI for **Milestone 5 - Technical Deployment Readiness**. The deployment includes:
-
-- ✅ **Backend Infrastructure**: Deno Deploy + Supabase
-- ✅ **SSL/HTTPS**: Automatic SSL certificates
-- ✅ **Environment Management**: Secure environment variables
-- ✅ **Monitoring**: Health checks + error tracking
-- ✅ **Backups**: Automated Supabase backups
-- ✅ **Test Builds**: iOS TestFlight + Android Play Console
+This guide covers deploying MeetingGuard AI to production using Vercel for the backend and EAS Build for mobile apps.
 
 ## 🏗️ Architecture
 
+- **Backend**: Node.js/Express API deployed on Vercel
+- **Database**: Supabase (PostgreSQL)
+- **Mobile Apps**: React Native/Expo with EAS Build
+- **Authentication**: Google OAuth + JWT
+- **Calendar Integration**: Google Calendar API
+
+## 🛠️ Prerequisites
+
+- [Vercel Account](https://vercel.com)
+- [Supabase Account](https://supabase.com)
+- [Expo Account](https://expo.dev)
+- [Google Cloud Console](https://console.cloud.google.com)
+- [Apple Developer Account](https://developer.apple.com)
+- [Google Play Console](https://play.google.com/console)
+
+## 🚀 Backend Deployment (Vercel)
+
+### Step 1: Install Vercel CLI
+```bash
+npm install -g vercel
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   React Native  │    │   Deno Deploy   │    │    Supabase     │
-│   Mobile App    │◄──►│   Backend API   │◄──►│   PostgreSQL    │
-│                 │    │                 │    │   Database      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   iOS/Android   │    │   Health Checks │    │   Auto Backups  │
-│   Test Builds   │    │   + Monitoring  │    │   + RLS         │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+
+### Step 2: Deploy to Vercel
+```bash
+# Login to Vercel
+vercel login
+
+# Deploy to production
+npm run deploy:backend
 ```
 
-## 🔧 Phase 1: Backend Infrastructure Setup
+### Step 3: Set Environment Variables
+In Vercel dashboard, add these environment variables:
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_KEY`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `JWT_SECRET`
 
-### 1.1 Supabase Database Setup
+## 🗄️ Database Setup (Supabase)
 
-#### Step 1: Create Supabase Project
-1. Go to [supabase.com](https://supabase.com)
-2. Create a new project
+### Step 1: Create Supabase Project
+1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
+2. Create new project
 3. Note down your project URL and API keys
 
-#### Step 2: Run Database Schema
-```bash
-# Connect to your Supabase project
-# Go to SQL Editor and run the schema
-# Copy and paste the contents of: supabase/schema.sql
+### Step 2: Apply Database Schema
+```sql
+-- Run this in Supabase SQL Editor
+-- Users table
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  google_id TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Meetings table
+CREATE TABLE meetings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  start_time TIMESTAMP WITH TIME ZONE,
+  end_time TIMESTAMP WITH TIME ZONE,
+  location TEXT,
+  attendees JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Notes table
+CREATE TABLE notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  meeting_id UUID REFERENCES meetings(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable Row Level Security
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE meetings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+CREATE POLICY "Users can view own data" ON users FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own data" ON users FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "Users can view own meetings" ON meetings FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own meetings" ON meetings FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own meetings" ON meetings FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own meetings" ON meetings FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view own notes" ON notes FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own notes" ON notes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own notes" ON notes FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own notes" ON notes FOR DELETE USING (auth.uid() = user_id);
 ```
 
-#### Step 3: Configure Backups
-1. Go to Settings → Database
-2. Enable Point-in-Time Recovery
-3. Set up automated daily backups
+## 📱 Mobile App Deployment
 
-### 1.2 Deno Deploy Backend
-
-#### Step 1: Install Deno CLI
+### iOS (TestFlight)
 ```bash
-# macOS/Linux
-curl -fsSL https://deno.land/x/install/install.sh | sh
-
-# Windows
-iwr https://deno.land/x/install/install.ps1 -useb | iex
-```
-
-#### Step 2: Deploy to Deno Deploy
-```bash
-# Navigate to backend directory
-cd deno
-
-# Deploy to Deno Deploy
-deno deploy --app=meetingguard-backend .
-```
-
-#### Step 3: Configure Environment Variables
-In Deno Deploy dashboard:
-```bash
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-JWT_SECRET=your-super-secret-jwt-key-at-least-32-characters-long
-CORS_ORIGIN=https://your-app-domain.com
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-DENO_ENV=production
-```
-
-## 🔐 Phase 2: Environment & Security
-
-### 2.1 Frontend Environment Variables
-
-Create `.env.production` in your project root:
-```bash
-# API Configuration
-EXPO_PUBLIC_API_URL=https://your-deno-deploy-url.deno.dev
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# AI Services
-EXPO_PUBLIC_OPENAI_API_KEY=your_openai_api_key
-
-# Google Services
-EXPO_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id
-EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
-
-# Video Conferencing
-EXPO_PUBLIC_ZOOM_API_KEY=your_zoom_api_key
-EXPO_PUBLIC_TEAMS_CLIENT_ID=your_teams_client_id
-
-# Error Tracking
-EXPO_PUBLIC_SENTRY_DSN=your_sentry_dsn_url
-```
-
-### 2.2 SSL & Security Configuration
-
-#### Deno Deploy (Automatic)
-- ✅ SSL certificates are automatically provisioned
-- ✅ HTTPS is enabled by default
-- ✅ CORS is configured for your domain
-
-#### Supabase (Automatic)
-- ✅ SSL certificates are automatically provisioned
-- ✅ Row Level Security (RLS) is enabled
-- ✅ API keys are secure
-
-## 📊 Phase 3: Monitoring & Health Checks
-
-### 3.1 Health Check Endpoints
-
-Test your backend health:
-```bash
-# Basic health check
-curl https://your-deno-deploy-url.deno.dev/health
-
-# Database health
-curl https://your-deno-deploy-url.deno.dev/health/db
-
-# Authentication health
-curl https://your-deno-deploy-url.deno.dev/health/auth
-
-# Calendar health
-curl https://your-deno-deploy-url.deno.dev/health/calendar
-
-# Comprehensive health check
-curl https://your-deno-deploy-url.deno.dev/health/all
-```
-
-### 3.2 Sentry Error Tracking
-
-#### Step 1: Create Sentry Project
-1. Go to [sentry.io](https://sentry.io)
-2. Create a new project for React Native
-3. Get your DSN
-
-#### Step 2: Configure Sentry
-```bash
-# Add to your environment variables
-EXPO_PUBLIC_SENTRY_DSN=https://your-sentry-dsn@sentry.io/project-id
-```
-
-## 📱 Phase 4: Test Builds
-
-### 4.1 iOS TestFlight Build
-
-#### Step 1: Configure EAS Build
-```bash
-# Install EAS CLI
-npm install -g @expo/eas-cli
-
-# Login to Expo
-eas login
-
-# Configure build
-eas build:configure
-```
-
-#### Step 2: Build for TestFlight
-```bash
-# Build iOS app
-eas build --platform ios --profile preview
+# Build for iOS
+npm run deploy:ios
 
 # Submit to TestFlight
 eas submit --platform ios
 ```
 
-### 4.2 Android Play Console Build
-
-#### Step 1: Build Android APK
+### Android (Play Console)
 ```bash
-# Build Android app
-eas build --platform android --profile preview
+# Build for Android
+npm run deploy:android
+
+# Submit to Play Console
+eas submit --platform android
 ```
 
-#### Step 2: Upload to Play Console
-1. Go to [Google Play Console](https://play.google.com/console)
-2. Create internal testing track
-3. Upload your APK/AAB file
+## 🔧 Environment Variables
 
-## ✅ Phase 5: QA Validation
-
-### 5.1 Calendar Sync Testing
-
-#### Google Calendar
-- ✅ Already implemented and working
-- Test with production Google OAuth credentials
-
-#### Outlook Calendar (Future)
-- 🔄 To be implemented in next milestone
-- Requires Microsoft Graph API integration
-
-#### Apple Calendar (Future)
-- 🔄 To be implemented in next milestone
-- Requires CalendarKit integration
-
-### 5.2 Alert System Testing
-
-#### Maximum Intensity Alerts
-```bash
-# Test full-screen takeover
-# Verify audio, vibration, and voice synthesis
+### Backend (.env)
+```env
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_KEY=your_supabase_service_key
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+JWT_SECRET=your_jwt_secret
 ```
 
-#### Medium Intensity Alerts
-```bash
-# Test persistent banner
-# Verify standard audio and vibration
+### Mobile App (app.config.js)
+```javascript
+export default {
+  expo: {
+    extra: {
+      apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://your-vercel-url.vercel.app',
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    },
+  },
+};
 ```
 
-#### Light Intensity Alerts
+## 🧪 Testing
+
+### Health Check
 ```bash
-# Test toast notifications
-# Verify brief sound and auto-dismiss
+# Test backend health
+npm run health-check
 ```
 
-### 5.3 Language Flow Testing
+### API Endpoints
+- `GET /api/health` - Health check
+- `POST /api/auth/google/callback` - Google OAuth callback
+- `POST /api/auth/validate` - JWT validation
+- `GET /api/meetings` - List meetings
+- `POST /api/meetings` - Create meeting
+- `GET /api/calendar/events` - Calendar events
 
-#### English Flow
-- ✅ All UI elements in English
-- ✅ Voice synthesis in English
-- ✅ Date/time formatting
+## 📊 Monitoring
 
-#### Spanish Flow
-- ✅ All UI elements in Spanish
-- ✅ Voice synthesis in Spanish
-- ✅ Date/time formatting
+### Vercel Analytics
+- Built-in analytics in Vercel dashboard
+- Function execution metrics
+- Error tracking
 
-## 🚀 Deployment Commands
+### Supabase Monitoring
+- Database performance metrics
+- Query analytics
+- Real-time logs
 
-### Quick Deployment Script
-```bash
-#!/bin/bash
-# deploy.sh
+## 🔄 CI/CD
 
-echo "🚀 Starting MeetingGuard AI Deployment..."
+### GitHub Actions (Optional)
+```yaml
+name: Deploy
+on:
+  push:
+    branches: [main]
 
-# 1. Deploy backend
-echo "📡 Deploying backend to Deno Deploy..."
-cd deno
-deno deploy --app=meetingguard-backend .
-
-# 2. Build iOS
-echo "📱 Building iOS app..."
-cd ..
-eas build --platform ios --profile preview
-
-# 3. Build Android
-echo "🤖 Building Android app..."
-eas build --platform android --profile preview
-
-echo "✅ Deployment complete!"
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+      - run: npm install
+      - run: npm run deploy:backend
 ```
 
-### Health Check Script
-```bash
-#!/bin/bash
-# health-check.sh
-
-API_URL="https://your-deno-deploy-url.deno.dev"
-
-echo "🏥 Running health checks..."
-
-# Basic health
-curl -s "$API_URL/health" | jq '.'
-
-# Database health
-curl -s "$API_URL/health/db" | jq '.'
-
-# Auth health
-curl -s "$API_URL/health/auth" | jq '.'
-
-# Calendar health
-curl -s "$API_URL/health/calendar" | jq '.'
-
-echo "✅ Health checks complete!"
-```
-
-## 🔄 Rollback Procedures
-
-### Backend Rollback
-```bash
-# Deno Deploy automatically handles rollbacks
-# Go to Deno Deploy dashboard → Deployments
-# Click "Revert" on previous deployment
-```
-
-### Database Rollback
-```bash
-# Supabase Point-in-Time Recovery
-# Go to Supabase dashboard → Database → Backups
-# Select restore point and restore
-```
-
-### App Rollback
-```bash
-# iOS: TestFlight → Builds → Remove from testing
-# Android: Play Console → Internal testing → Deactivate
-```
-
-## 📋 Pre-Deployment Checklist
-
-- [ ] Supabase project created and schema applied
-- [ ] Deno Deploy backend deployed and tested
-- [ ] Environment variables configured
-- [ ] Health checks passing
-- [ ] Sentry error tracking configured
-- [ ] iOS TestFlight build uploaded
-- [ ] Android Play Console build uploaded
-- [ ] Calendar sync tested (Google)
-- [ ] Alert system tested (max/medium/light)
-- [ ] Language flows tested (EN/ES)
-- [ ] SSL certificates verified
-- [ ] Backups enabled and tested
-
-## 🎯 Success Criteria
-
-✅ **App works end-to-end on both platforms**
-- iOS app installs and runs on TestFlight
-- Android app installs and runs on Play Console
-- All features functional with production backend
-
-✅ **Stable infrastructure**
-- Health checks passing
-- Error tracking operational
-- SSL/HTTPS working
-- Backups automated
-
-✅ **Test builds available**
-- iOS build in TestFlight internal testing
-- Android build in Play Console internal testing
-- Both builds installable and functional
-
-## 📞 Support & Troubleshooting
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-#### Backend Deployment Issues
-```bash
-# Check Deno Deploy logs
-deno deploy logs --project=meetingguard-backend
+1. **Vercel Deployment Fails**
+   - Check environment variables
+   - Verify Node.js version compatibility
+   - Check function size limits
 
-# Verify environment variables
-deno deploy env --project=meetingguard-backend
-```
+2. **Database Connection Issues**
+   - Verify Supabase credentials
+   - Check RLS policies
+   - Test connection in Supabase dashboard
 
-#### Database Connection Issues
-```bash
-# Test Supabase connection
-curl -X GET "https://your-project.supabase.co/rest/v1/meetings" \
-  -H "apikey: your_anon_key" \
-  -H "Authorization: Bearer your_anon_key"
-```
+3. **Mobile Build Fails**
+   - Check EAS configuration
+   - Verify app.json settings
+   - Check for missing dependencies
 
-#### Build Issues
-```bash
-# Clear EAS build cache
-eas build:clean
+## 📞 Support
 
-# Check build logs
-eas build:list
-```
+For deployment issues:
+1. Check Vercel logs
+2. Review Supabase logs
+3. Check EAS build logs
+4. Contact support with error details
 
-### Contact Information
-- **Backend Issues**: Check Deno Deploy dashboard
-- **Database Issues**: Check Supabase dashboard
-- **Build Issues**: Check EAS build logs
-- **App Issues**: Check Sentry error tracking
+## 🎯 Success Criteria
 
----
-
-**🎉 Congratulations! Your MeetingGuard AI app is now production-ready and deployed!**
+- [ ] Backend deployed on Vercel
+- [ ] Database schema applied to Supabase
+- [ ] Environment variables configured
+- [ ] Health check endpoint responding
+- [ ] iOS app built and submitted to TestFlight
+- [ ] Android app built and submitted to Play Console
+- [ ] All API endpoints tested
+- [ ] Monitoring configured
