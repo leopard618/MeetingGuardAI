@@ -5,6 +5,15 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { View, StyleSheet } from 'react-native';
+import * as Sentry from '@sentry/react-native';
+
+// Initialize Sentry for error tracking
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || 'https://5eea696ca12ece6f1c8d546d2c0a4452@o4509871473033216.ingest.de.sentry.io/4509877130952784',
+  environment: __DEV__ ? 'development' : 'production',
+  tracesSampleRate: 1.0,
+});
+
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import calendarSyncManager from './src/api/calendarSyncManager';
