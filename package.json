@@ -35,7 +35,6 @@
     "expo": "~50.0.0",
     "expo-calendar": "~12.2.1",
     "expo-constants": "~15.4.5",
-    "expo-dev-client": "~3.3.8",
     "expo-linking": "~6.2.2",
     "expo-notifications": "~0.27.6",
     "expo-router": "~3.4.7",
@@ -58,6 +57,7 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/react": "~18.2.45",
+    "babel-plugin-module-resolver": "^5.0.2",
     "nodemon": "^3.0.1",
     "typescript": "^5.1.3"
   },

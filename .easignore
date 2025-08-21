@@ -9,6 +9,18 @@ android/
 ios/build/
 ios/Pods/
 
+# Backend files (should not be included in mobile app build)
+api/
+backend/
+render.yaml
+vercel.json
+DEPLOYMENT.md
+RENDER_DEPLOYMENT.md
+MILESTONE_5_ROADMAP.md
+MILESTONE_5_SUMMARY.md
+test-render-deployment.js
+setup-env.js
+
 # Development files
 .git/
 .gitignore
