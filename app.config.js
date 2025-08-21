@@ -22,6 +22,11 @@ module.exports = {
       "expo-router",
       "expo-notifications",
       "expo-calendar"
-    ]
+    ],
+    extra: {
+      eas: {
+        projectId: "139b18d2-655f-458f-854a-27e423530626"
+      }
+    }
   }
 };
