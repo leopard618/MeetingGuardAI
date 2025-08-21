@@ -1,36 +1,11 @@
 {
   "cli": {
-    "version": ">= 16.17.4",
-    "appVersionSource": "remote"
+    "version": ">= 16.17.4"
   },
   "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
+    "minimal": {
       "android": {
         "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "http://localhost:3000"
-      }
-    },
-    "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://meetingguard-backend.onrender.com"
-      }
-    },
-    "production": {
-      "autoIncrement": true,
-      "android": {
-        "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://meetingguard-backend.onrender.com",
-        "EXPO_PUBLIC_SENTRY_DSN": "https://5eea696ca12ece6f1c8d546d2c0a4452@o4509871473033216.ingest.de.sentry.io/4509877130952784"
       }
     }
   }
