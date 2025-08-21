@@ -19,9 +19,6 @@
       "android": {
         "buildType": "apk"
       },
-      "ios": {
-        "resourceClass": "m-medium"
-      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://meetingguard-backend.onrender.com"
       }
@@ -31,28 +28,9 @@
       "android": {
         "buildType": "apk"
       },
-      "ios": {
-        "resourceClass": "m-medium"
-      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://meetingguard-backend.onrender.com",
         "EXPO_PUBLIC_SENTRY_DSN": "https://5eea696ca12ece6f1c8d546d2c0a4452@o4509871473033216.ingest.de.sentry.io/4509877130952784"
-      },
-      "cache": {
-        "key": "android-production-{{ platform }}"
-      }
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "your-app-store-connect-app-id",
-        "appleTeamId": "your-apple-team-id"
-      },
-      "android": {
-        "serviceAccountKeyPath": "./google-service-account.json",
-        "track": "internal"
       }
     }
   }

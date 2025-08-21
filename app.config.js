@@ -50,18 +50,6 @@ module.exports = {
       eas: {
         projectId: "139b18d2-655f-458f-854a-27e423530626"
       }
-    },
-    // Add build configuration for better Gradle compatibility
-    hooks: {
-      postPublish: [
-        {
-          file: "sentry-expo/upload-sourcemaps",
-          config: {
-            organization: "your-sentry-org",
-            project: "meetingguard-ai"
-          }
-        }
-      ]
     }
   }
 };
