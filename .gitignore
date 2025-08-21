@@ -32,3 +32,6 @@ dist-ssr
 # Config files with secrets (if any)
 src/config/api.js
 .vercel
+
+# Android (temporarily ignored for managed workflow)
+android/
