@@ -8,8 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleDebug"
+        "buildType": "apk"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "http://localhost:3000"
@@ -18,8 +17,7 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "buildType": "apk"
       },
       "ios": {
         "resourceClass": "m-medium"
@@ -31,8 +29,7 @@
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "buildType": "apk"
       },
       "ios": {
         "resourceClass": "m-medium"
