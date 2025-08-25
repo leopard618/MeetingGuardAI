@@ -5,7 +5,7 @@ const router = express.Router();
  * OAuth redirect handler for Google authentication
  * This replaces the old redirect-server.js functionality
  */
-router.get('/', async (req, res) => {
+router.get('/google', async (req, res) => {
   const { code, error, forceExpoGo } = req.query;
   
   // Define the OAuth redirect URI from environment variable
@@ -205,6 +205,17 @@ router.get('/', async (req, res) => {
       </html>
     `);
   }
+});
+
+/**
+ * Root OAuth endpoint for backward compatibility
+ */
+router.get('/', (req, res) => {
+  res.json({
+    message: 'OAuth endpoint',
+    available: ['/google'],
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'Not configured'
+  });
 });
 
 /**
