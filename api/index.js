@@ -60,12 +60,149 @@ app.get('/api/health', (req, res) => {
 });
 
 // Auth endpoints
-app.post('/api/auth/google/callback', (req, res) => {
-  // Mock Google OAuth callback
-  res.json({
-    message: 'Google OAuth callback endpoint',
-    status: 'configured'
-  });
+app.post('/api/auth/google/callback', async (req, res) => {
+  try {
+    const { code, error } = req.body;
+    
+    if (error) {
+      console.error('OAuth error:', error);
+      return res.status(400).json({
+        error: 'OAuth error',
+        message: error
+      });
+    }
+    
+    if (!code) {
+      return res.status(400).json({
+        error: 'Missing authorization code'
+      });
+    }
+    
+    console.log('Processing Google OAuth callback with code:', code);
+    
+    // Exchange code for tokens
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        code: code,
+        grant_type: 'authorization_code',
+        redirect_uri: 'https://meetingguard-backend.onrender.com/api/auth/google/callback',
+      }),
+    });
+    
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('Token exchange failed:', errorText);
+      return res.status(400).json({
+        error: 'Token exchange failed',
+        details: errorText
+      });
+    }
+    
+    const tokenData = await tokenResponse.json();
+    console.log('Token exchange successful');
+    
+    // Get user info
+    const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${tokenData.access_token}`
+      }
+    });
+    
+    const userData = await userResponse.json();
+    
+    res.json({
+      success: true,
+      user: userData,
+      tokens: tokenData,
+      message: 'OAuth callback processed successfully'
+    });
+    
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
+// GET endpoint for OAuth callback (Google sometimes uses GET)
+app.get('/api/auth/google/callback', async (req, res) => {
+  try {
+    const { code, error } = req.query;
+    
+    if (error) {
+      console.error('OAuth error:', error);
+      return res.status(400).json({
+        error: 'OAuth error',
+        message: error
+      });
+    }
+    
+    if (!code) {
+      return res.status(400).json({
+        error: 'Missing authorization code'
+      });
+    }
+    
+    console.log('Processing Google OAuth callback with code:', code);
+    
+    // Exchange code for tokens
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        code: code,
+        grant_type: 'authorization_code',
+        redirect_uri: 'https://meetingguard-backend.onrender.com/api/auth/google/callback',
+      }),
+    });
+    
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('Token exchange failed:', errorText);
+      return res.status(400).json({
+        error: 'Token exchange failed',
+        details: errorText
+      });
+    }
+    
+    const tokenData = await tokenResponse.json();
+    console.log('Token exchange successful');
+    
+    // Get user info
+    const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${tokenData.access_token}`
+      }
+    });
+    
+    const userData = await userResponse.json();
+    
+    res.json({
+      success: true,
+      user: userData,
+      tokens: tokenData,
+      message: 'OAuth callback processed successfully'
+    });
+    
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
 });
 
 app.post('/api/auth/validate', (req, res) => {

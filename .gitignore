@@ -35,3 +35,6 @@ src/config/api.js
 
 # Android (temporarily ignored for managed workflow)
 android/
+
+# Expo
+.expo/
