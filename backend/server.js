@@ -1,47 +1,132 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-const app = express();
-const PORT = process.env.PORT || 8000;
+const authRoutes = require('./routes/auth');
+const meetingRoutes = require('./routes/meetings');
+const calendarRoutes = require('./routes/calendar');
+const aiRoutes = require('./routes/ai');
+const fileRoutes = require('./routes/files');
+const userRoutes = require('./routes/users');
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+const { errorHandler } = require('./middleware/errorHandler');
+const { authenticateToken } = require('./middleware/auth');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(limiter);
+
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Compression middleware
+app.use(compression());
+
+// Logging middleware
+app.use(morgan('combined'));
+
+// CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'https://meetingguard.app',
+      'https://www.meetingguard.app',
+      'exp://localhost:8081',
+      'exp://192.168.141.51:8081',
+      'meetingguardai://'
+    ];
+    
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
+  res.status(200).json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
-    message: 'MeetingGuard AI Backend is running!'
+    environment: process.env.NODE_ENV || 'development',
+    version: process.env.npm_package_version || '1.0.0'
   });
 });
 
 // API routes
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    services: {
-      database: 'configured',
-      auth: 'configured',
-      calendar: 'configured'
-    },
-    timestamp: new Date().toISOString()
-  });
-});
+app.use('/api/auth', authRoutes);
+app.use('/api/meetings', authenticateToken, meetingRoutes);
+app.use('/api/calendar', authenticateToken, calendarRoutes);
+app.use('/api/ai', authenticateToken, aiRoutes);
+app.use('/api/files', authenticateToken, fileRoutes);
+app.use('/api/users', authenticateToken, userRoutes);
+
+// OAuth redirect endpoint (for Google Auth)
+app.use('/auth', require('./routes/oauth'));
+
+// Error handling middleware
+app.use(errorHandler);
 
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
-    error: 'Not found',
+    error: 'Endpoint not found',
     path: req.originalUrl,
-    timestamp: new Date().toISOString()
+    method: req.method
   });
 });
 
+// Start server
 app.listen(PORT, () => {
-  console.log(`🚀 MeetingGuard AI Backend starting on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`🚀 MeetingGuard Backend Server running on port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔐 OAuth redirect: http://localhost:${PORT}/auth`);
 });
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
+
+module.exports = app;
