@@ -134,7 +134,7 @@ app.listen(PORT, () => {
   console.log(`🚀 MeetingGuard Backend Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔐 OAuth redirect: http://localhost:${PORT}/auth`);
+  console.log(`🔐 OAuth redirect: http://localhost:${PORT}/oauth`);
 });
 
 // Graceful shutdown
