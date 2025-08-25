@@ -1,4 +1,5 @@
 import { localStorageAPI } from './localStorage';
+import { normalizeDate, normalizeTime } from '@/utils';
 
 // Meeting Entity
 export const Meeting = {
@@ -6,32 +7,71 @@ export const Meeting = {
     const data = await localStorageAPI.getData();
     let meetings = data.meetings || [];
     
+    console.log('Meeting Entity: Loading meetings from storage, count:', meetings.length);
+    console.log('Meeting Entity: All meetings:', meetings);
+    
     if (sortBy === "-created_date") {
       meetings = meetings.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
     }
     
+    console.log('Meeting Entity: Returning meetings:', meetings.length);
     return meetings;
   },
 
   create: async (meetingData) => {
+    console.log('Meeting Entity: Creating meeting with data:', meetingData);
+    console.log('Meeting Entity: Date format:', typeof meetingData.date, meetingData.date);
+    console.log('Meeting Entity: Time format:', typeof meetingData.time, meetingData.time);
+    
     const data = await localStorageAPI.getData();
     const currentUser = await localStorageAPI.getCurrentUser();
+    
+    // Normalize date and time formats
+    const normalizedDate = normalizeDate(meetingData.date);
+    const normalizedTime = normalizeTime(meetingData.time);
+    
+    console.log('Meeting Entity: Normalized date:', normalizedDate);
+    console.log('Meeting Entity: Normalized time:', normalizedTime);
+    
+    // Validate that we have required fields
+    if (!meetingData.title) {
+      throw new Error('Meeting title is required');
+    }
+    
+    if (!normalizedDate || normalizedDate === '') {
+      throw new Error('Meeting date is required');
+    }
+    
+    if (!normalizedTime || normalizedTime === '') {
+      throw new Error('Meeting time is required');
+    }
+    
     const newMeeting = {
       id: localStorageAPI.generateId(),
       ...meetingData,
+      date: normalizedDate,
+      time: normalizedTime,
       created_date: new Date().toISOString(),
       updated_date: new Date().toISOString(),
       created_by: currentUser.email
     };
     
+    console.log('Meeting Entity: New meeting object:', newMeeting);
+    console.log('Meeting Entity: Final date value:', newMeeting.date);
+    console.log('Meeting Entity: Final time value:', newMeeting.time);
+    
     data.meetings = data.meetings || [];
     data.meetings.push(newMeeting);
     await localStorageAPI.setData(data);
+    
+    console.log('Meeting Entity: Meeting created successfully');
     
     return newMeeting;
   },
 
   update: async (id, updateData) => {
+    console.log('Meeting Entity: Updating meeting with id:', id, 'and data:', updateData);
+    
     const data = await localStorageAPI.getData();
     const meetingIndex = data.meetings.findIndex(m => m.id === id);
     
@@ -42,17 +82,29 @@ export const Meeting = {
         updated_date: new Date().toISOString()
       };
       await localStorageAPI.setData(data);
+      console.log('Meeting Entity: Meeting updated successfully');
       return data.meetings[meetingIndex];
     }
     
+    console.log('Meeting Entity: Meeting not found with id:', id);
     throw new Error('Meeting not found');
   },
 
   delete: async (id) => {
+    console.log('Meeting Entity: Deleting meeting with id:', id);
+    
     const data = await localStorageAPI.getData();
     data.meetings = data.meetings.filter(m => m.id !== id);
     await localStorageAPI.setData(data);
+    
+    console.log('Meeting Entity: Meeting deleted successfully');
     return { success: true };
+  },
+
+  get: async (id) => {
+    const data = await localStorageAPI.getData();
+    const meeting = data.meetings.find(m => m.id === id);
+    return meeting || null;
   },
 
   schema: () => ({

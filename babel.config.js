@@ -3,24 +3,23 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
+      'react-native-reanimated/plugin',
+      [
+        'module-resolver',
+        {
+          root: ['./src'],
+          alias: {
+            '@': './src',
+          },
+        },
+      ],
       ['module:react-native-dotenv', {
         moduleName: '@env',
         path: '.env',
-        allowUndefined: true
-      }],
-      // optional, only if you're using aliases
-      ['module-resolver', {
-        root: ['./'],
-        extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
-        alias: {
-          '@': './src',
-          '@components': './src/components',
-          '@pages': './src/pages',
-          '@api': './src/api',
-          '@utils': './src/utils',
-          '@hooks': './src/hooks',
-          '@lib': './src/lib',
-        },
+        blocklist: null,
+        allowlist: null,
+        safe: false,
+        allowUndefined: true,
       }],
     ],
   };

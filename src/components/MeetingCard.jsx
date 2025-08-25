@@ -24,6 +24,7 @@ import { es, enUS } from "date-fns/locale";
 import ConfidenceBadge from "./ConfidenceBadge";
 import SourceBadge from "./SourceBadge";
 import { sendMeetingInvitation } from "@/api/functions";
+import { safeStringify } from "@/utils";
 
 export default function MeetingCard({ 
   meeting, 
@@ -126,9 +127,9 @@ export default function MeetingCard({
     if (meeting.location) {
       description += `\\n\\nLocation: `;
       if (meeting.location.type === 'virtual' && meeting.location.virtual_link) {
-        description += `Virtual Meeting - ${meeting.location.virtual_link}`;
+        description += `Virtual Meeting - ${safeStringify(meeting.location.virtual_link)}`;
       } else if (meeting.location.address) {
-        description += meeting.location.address;
+        description += safeStringify(meeting.location.address);
       }
     }
 
@@ -146,7 +147,7 @@ export default function MeetingCard({
       `DTEND:${formatDateForICS(endDate)}`,
       `SUMMARY:${meeting.title}`,
       `DESCRIPTION:${description}`,
-      meeting.location?.address ? `LOCATION:${meeting.location.address}` : '',
+      meeting.location?.address ? `LOCATION:${safeStringify(meeting.location.address)}` : '',
       `UID:${meeting.id}@meetingguard.ai`,
       'END:VEVENT',
       'END:VCALENDAR'
@@ -182,7 +183,7 @@ export default function MeetingCard({
   };
 
   const handleShareWhatsApp = () => {
-    const meetingText = `🗓️ *${meeting.title}*%0A%0A📅 ${formatDate(meeting.date)} a las ${formatTime(meeting.time)}%0A⏱️ Duración: ${meeting.duration} minutos%0A%0A${meeting.description ? `📝 ${meeting.description}%0A%0A` : ''}${meeting.location?.virtual_link ? `🔗 Enlace: ${meeting.location.virtual_link}%0A%0A` : ''}${meeting.location?.address ? `📍 Ubicación: ${meeting.location.address}%0A%0A` : ''}Creado con MeetingGuard AI 🤖`;
+    const meetingText = `🗓️ *${meeting.title}*%0A%0A📅 ${formatDate(meeting.date)} a las ${formatTime(meeting.time)}%0A⏱️ Duración: ${meeting.duration} minutos%0A%0A${meeting.description ? `📝 ${meeting.description}%0A%0A` : ''}${meeting.location?.virtual_link ? `🔗 Enlace: ${safeStringify(meeting.location.virtual_link)}%0A%0A` : ''}${meeting.location?.address ? `📍 Ubicación: ${safeStringify(meeting.location.address)}%0A%0A` : ''}Creado con MeetingGuard AI 🤖`;
     
     window.open(`https://wa.me/?text=${meetingText}`, '_blank');
   };
@@ -212,13 +213,13 @@ export default function MeetingCard({
       const { lat, lng } = meeting.location.coordinates;
       window.open(`https://maps.google.com/?q=${lat},${lng}`, '_blank');
     } else if (meeting.location?.address) {
-      window.open(`https://maps.google.com/?q=${encodeURIComponent(meeting.location.address)}`, '_blank');
+      window.open(`https://maps.google.com/?q=${encodeURIComponent(safeStringify(meeting.location.address))}`, '_blank');
     }
   };
 
   const openVirtualMeeting = () => {
     if (meeting.location?.virtual_link) {
-      window.open(meeting.location.virtual_link, '_blank');
+      window.open(safeStringify(meeting.location.virtual_link), '_blank');
     }
   };
 
@@ -291,9 +292,9 @@ export default function MeetingCard({
               {/* Location - MEJORADO CON GOOGLE MAPS Y MEET */}
               {meeting.location && (
                 <div className="flex items-start gap-2 mb-2">
-                  {meeting.location.type === 'virtual' ? (
+                  {meeting.location && typeof meeting.location === 'object' && meeting.location.type === 'virtual' ? (
                     <Video className="w-4 h-4 text-green-600 mt-1" />
-                  ) : meeting.location.type === 'hybrid' ? (
+                  ) : meeting.location && typeof meeting.location === 'object' && meeting.location.type === 'hybrid' ? (
                     <div className="flex gap-1 mt-1">
                       <MapPin className="w-4 h-4 text-red-600" />
                       <Video className="w-4 h-4 text-green-600" />
@@ -303,19 +304,19 @@ export default function MeetingCard({
                   )}
                   <div className="flex flex-col">
                     <span className="text-sm text-gray-700">
-                      {meeting.location.type === 'virtual' 
+                      {meeting.location && typeof meeting.location === 'object' && meeting.location.type === 'virtual' 
                         ? `${t[language].virtualMeeting} (${meeting.location.virtual_provider || t[language].online})`
-                        : meeting.location.type === 'hybrid'
+                        : meeting.location && typeof meeting.location === 'object' && meeting.location.type === 'hybrid'
                         ? `${t[language].hybridMeeting} (${meeting.location.virtual_provider || t[language].online})`
                         : t[language].physicalLocation
                       }
-                      {meeting.location.type !== 'virtual' && meeting.location.address && (
-                        <span className="text-xs text-gray-500 block">📍 {meeting.location.address}</span>
+                      {meeting.location && typeof meeting.location === 'object' && meeting.location.type !== 'virtual' && meeting.location.address && (
+                        <span className="text-xs text-gray-500 block">📍 {safeStringify(meeting.location.address)}</span>
                       )}
                     </span>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {/* Botón para unirse a reunión virtual */}
-                      {(meeting.location.type === 'virtual' || meeting.location.type === 'hybrid') && meeting.location.virtual_link && (
+                      {(meeting.location && typeof meeting.location === 'object' && (meeting.location.type === 'virtual' || meeting.location.type === 'hybrid')) && meeting.location.virtual_link && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -330,7 +331,7 @@ export default function MeetingCard({
                         </Button>
                       )}
                       {/* Botón para ver en Google Maps */}
-                      {(meeting.location.type === 'physical' || meeting.location.type === 'hybrid') && meeting.location.address && (
+                      {(meeting.location && typeof meeting.location === 'object' && (meeting.location.type === 'physical' || meeting.location.type === 'hybrid')) && meeting.location.address && (
                         <Button
                           size="sm"
                           variant="ghost"

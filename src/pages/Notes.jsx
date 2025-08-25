@@ -7,7 +7,6 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Alert,
-  TextInput,
 } from "react-native";
 import {
   Card,
@@ -18,10 +17,13 @@ import {
   ActivityIndicator,
   Searchbar,
   Chip,
+  TextInput, // <-- Use Paper's TextInput for consistent theming
 } from "react-native-paper";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function Notes({ navigation, language = "en" }) {
+  const { isDarkMode } = useTheme();
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -212,8 +214,8 @@ export default function Notes({ navigation, language = "en" }) {
   const getCategoryIcon = (category) => {
     const icons = {
       general: "note-text",
-      work: "briefcase",
-      personal: "account",
+      work: "work",
+      personal: "account-circle",
       ideas: "lightbulb",
       tasks: "checkbox-marked",
     };
@@ -277,11 +279,12 @@ export default function Notes({ navigation, language = "en" }) {
     </Card>
   );
 
+  // --- FIX: Use Paper's TextInput for modal, and fix modalContent/modalBody/modalFooter layout ---
   const renderAddNoteModal = () => (
     <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
+      <View style={[styles.modalContent, { backgroundColor: isDarkMode ? "#18181b" : "#ffffff" }]}>
         <View style={styles.modalHeader}>
-          <Title style={styles.modalTitle}>
+          <Title style={[styles.modalTitle, { color: isDarkMode ? "#fff" : "#18181b" }]}>
             {newNote.id ? t[language].editNote : t[language].addNote}
           </Title>
           <TouchableOpacity
@@ -290,21 +293,39 @@ export default function Notes({ navigation, language = "en" }) {
               setNewNote({ title: "", content: "", category: "general" });
             }}
           >
-            <MaterialIcons name="close" size={24} color="#666" />
+            <MaterialIcons name="close" size={24} color={isDarkMode ? "#a1a1aa" : "#666"} />
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.modalBody}>
+        <ScrollView
+          style={styles.modalBody}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          keyboardShouldPersistTaps="handled"
+        >
           <TextInput
             label={t[language].titlePlaceholder}
             value={newNote.title}
             onChangeText={(text) => setNewNote(prev => ({ ...prev, title: text }))}
-            style={styles.input}
+            style={[
+              styles.input,
+              { color: "#fff" } // Force input text color to white
+            ]}
             mode="outlined"
+            theme={{
+              colors: {
+                primary: isDarkMode ? "#ffffff" : "#1e293b",
+                text: "#fff", // Always white when inputting
+                placeholder: isDarkMode ? "#e0e0e0" : "#64748b",
+                background: isDarkMode ? "#262626" : "#f8fafc",
+              }
+            }}
+            placeholder={t[language].titlePlaceholder}
+            placeholderTextColor={isDarkMode ? "#e0e0e0" : "#64748b"}
+            autoFocus
           />
 
           <View style={styles.categorySelector}>
-            <Text style={styles.categoryLabel}>Category:</Text>
+            <Text style={[styles.categoryLabel, { color: isDarkMode ? "#a1a1aa" : "#374151" }]}>Category:</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {Object.keys(t[language].categories).filter(cat => cat !== 'all').map(category => (
                 <TouchableOpacity
@@ -338,6 +359,17 @@ export default function Notes({ navigation, language = "en" }) {
             mode="outlined"
             multiline
             numberOfLines={8}
+            theme={{
+              colors: {
+                primary: isDarkMode ? "#ffffff" : "#1e293b",
+                // Make input text much brighter in dark mode
+                text: isDarkMode ? "#f8fafc" : "#1e293b",
+                placeholder: isDarkMode ? "#e0e0e0" : "#64748b",
+                background: isDarkMode ? "#262626" : "#f8fafc",
+              }
+            }}
+            placeholder={t[language].contentPlaceholder}
+            placeholderTextColor={isDarkMode ? "#e0e0e0" : "#64748b"}
           />
         </ScrollView>
 
@@ -349,6 +381,7 @@ export default function Notes({ navigation, language = "en" }) {
               setNewNote({ title: "", content: "", category: "general" });
             }}
             style={styles.modalButton}
+            labelStyle={{ color: isDarkMode ? "#fff" : "#1e293b" }}
           >
             {t[language].cancel}
           </Button>
@@ -356,6 +389,7 @@ export default function Notes({ navigation, language = "en" }) {
             mode="contained"
             onPress={handleSaveNote}
             style={styles.modalButton}
+            labelStyle={{ color: "#fff" }}
           >
             {t[language].save}
           </Button>
@@ -363,6 +397,9 @@ export default function Notes({ navigation, language = "en" }) {
       </View>
     </View>
   );
+  // --- END FIX ---
+
+  const styles = getStyles(isDarkMode);
 
   if (isLoading) {
     return (
@@ -384,7 +421,7 @@ export default function Notes({ navigation, language = "en" }) {
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <MaterialIcons name="arrow-back" size={24} color="#1e293b" />
+          <MaterialIcons name="arrow-back" size={24} color={isDarkMode ? "#ffffff" : "#1e293b"} />
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
@@ -459,18 +496,24 @@ export default function Notes({ navigation, language = "en" }) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F2F2F7",
+    backgroundColor: isDarkMode ? "#0a0a0a" : "#F2F2F7",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 20,
-    backgroundColor: "#ffffff",
+    padding: 24,
+    paddingTop: 32,
+    backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    borderBottomColor: isDarkMode ? "#262626" : "#e2e8f0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDarkMode ? 0.3 : 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   backButton: {
     marginRight: 16,
@@ -480,27 +523,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 28,
+    fontWeight: "800",
     marginBottom: 4,
+    color: isDarkMode ? "#ffffff" : "#1e293b",
   },
   subtitle: {
     fontSize: 14,
-    color: "#64748b",
+    color: isDarkMode ? "#a1a1aa" : "#64748b",
   },
   searchContainer: {
     padding: 20,
-    backgroundColor: "#ffffff",
+    backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
   },
   searchbar: {
     elevation: 2,
+    backgroundColor: isDarkMode ? "#262626" : "#f8fafc",
   },
   categoryFilter: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: "#ffffff",
+    backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    borderBottomColor: isDarkMode ? "#262626" : "#e2e8f0",
   },
   categoryChip: {
     marginRight: 8,
@@ -508,13 +553,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
+    borderColor: isDarkMode ? "#262626" : "#e2e8f0",
+    backgroundColor: isDarkMode ? "#262626" : "#f8fafc",
   },
   categoryChipText: {
     fontSize: 12,
     fontWeight: "500",
-    color: "#64748b",
+    color: isDarkMode ? "#a1a1aa" : "#64748b",
   },
   notesContainer: {
     flex: 1,
@@ -522,7 +567,13 @@ const styles = StyleSheet.create({
   },
   noteCard: {
     marginBottom: 16,
-    elevation: 2,
+    elevation: 4,
+    backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: isDarkMode ? 0.3 : 0.1,
+    shadowRadius: 12,
   },
   noteHeader: {
     flexDirection: "row",
@@ -538,7 +589,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 8,
-    color: "#1e293b",
+    color: isDarkMode ? "#ffffff" : "#1e293b",
   },
   noteActions: {
     flexDirection: "row",
@@ -549,7 +600,7 @@ const styles = StyleSheet.create({
   },
   noteContent: {
     fontSize: 14,
-    color: "#374151",
+    color: isDarkMode ? "#a1a1aa" : "#374151",
     lineHeight: 20,
     marginBottom: 12,
     fontWeight: "400",
@@ -565,7 +616,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
-    color: "#666",
+    color: isDarkMode ? "#a1a1aa" : "#666",
     marginLeft: 4,
   },
   emptyContainer: {
@@ -577,13 +628,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#64748b",
+    color: isDarkMode ? "#a1a1aa" : "#64748b",
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: "#94a3b8",
+    color: isDarkMode ? "#71717a" : "#94a3b8",
     textAlign: "center",
     marginBottom: 24,
   },
@@ -624,6 +675,7 @@ const styles = StyleSheet.create({
     width: "90%",
     maxHeight: "80%",
     elevation: 5,
+    overflow: "hidden",
   },
   modalHeader: {
     flexDirection: "row",
@@ -639,9 +691,11 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 20,
+    backgroundColor: "transparent",
   },
   input: {
     marginBottom: 16,
+    backgroundColor: "transparent",
   },
   categorySelector: {
     marginBottom: 16,
@@ -668,6 +722,7 @@ const styles = StyleSheet.create({
   },
   textArea: {
     marginBottom: 16,
+    backgroundColor: "transparent",
   },
   modalFooter: {
     flexDirection: "row",
@@ -676,6 +731,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
     gap: 12,
+    backgroundColor: "transparent",
   },
   modalButton: {
     minWidth: 80,
