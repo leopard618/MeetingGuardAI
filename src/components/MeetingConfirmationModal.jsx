@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
+import { safeStringify } from '@/utils';
 
 export default function MeetingConfirmationModal({
   visible,
@@ -30,8 +31,17 @@ export default function MeetingConfirmationModal({
   isLoading = false,
   language = 'en',
 }) {
+  console.log('MeetingConfirmationModal: Received meetingData:', meetingData);
+  console.log('MeetingConfirmationModal: Action:', action);
+  
   const [editedData, setEditedData] = useState(meetingData || {});
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Update editedData when meetingData changes
+  useEffect(() => {
+    console.log('MeetingConfirmationModal: Updating editedData with:', meetingData);
+    setEditedData(meetingData || {});
+  }, [meetingData]);
 
   const t = {
     en: {
@@ -81,10 +91,12 @@ export default function MeetingConfirmationModal({
   };
 
   const formatDate = (dateString) => {
+    console.log('MeetingConfirmationModal: Formatting date:', dateString);
     if (!dateString) return '';
     try {
       return format(parseISO(dateString), 'EEEE, MMMM d, yyyy');
-    } catch {
+    } catch (error) {
+      console.log('MeetingConfirmationModal: Error parsing date:', error);
       return dateString;
     }
   };
@@ -103,7 +115,26 @@ export default function MeetingConfirmationModal({
   };
 
   const handleConfirm = () => {
+    console.log('MeetingConfirmationModal: Confirming with data:', editedData);
+    console.log('MeetingConfirmationModal: Title value:', editedData.title);
+    console.log('MeetingConfirmationModal: Date value:', editedData.date);
+    console.log('MeetingConfirmationModal: Time value:', editedData.time);
+    console.log('MeetingConfirmationModal: Duration value:', editedData.duration);
+    console.log('MeetingConfirmationModal: Location value:', editedData.location);
+    console.log('MeetingConfirmationModal: Participants value:', editedData.participants);
+    console.log('MeetingConfirmationModal: Meeting ID value:', editedData.meetingId);
+    
+    // For delete operations, we only need meetingId
     if (action === 'delete') {
+      if (!editedData.meetingId) {
+        console.error('MeetingConfirmationModal: ERROR - Meeting ID is missing for deletion!');
+        Alert.alert('Error', 'Meeting ID is required for deletion');
+        return;
+      }
+      
+      // If we have meetingId but missing other fields, that's okay for deletion
+      console.log('MeetingConfirmationModal: Proceeding with deletion using meeting ID:', editedData.meetingId);
+      
       Alert.alert(
         t[language].confirmDelete,
         t[language].confirmDeleteMessage,
@@ -112,9 +143,29 @@ export default function MeetingConfirmationModal({
           { text: t[language].delete, style: 'destructive', onPress: () => onConfirm(editedData) },
         ]
       );
-    } else {
-      onConfirm(editedData);
+      return;
     }
+    
+    // For other operations (create/update), validate all required fields
+    if (!editedData.title || editedData.title.trim() === '') {
+      console.error('MeetingConfirmationModal: ERROR - Title is missing!');
+      Alert.alert('Error', 'Meeting title is required');
+      return;
+    }
+    
+    if (!editedData.date || editedData.date.trim() === '') {
+      console.error('MeetingConfirmationModal: ERROR - Date is missing!');
+      Alert.alert('Error', 'Meeting date is required');
+      return;
+    }
+    
+    if (!editedData.time || editedData.time.trim() === '') {
+      console.error('MeetingConfirmationModal: ERROR - Time is missing!');
+      Alert.alert('Error', 'Meeting time is required');
+      return;
+    }
+    
+    onConfirm(editedData);
   };
 
   const handleEdit = () => {
@@ -254,7 +305,12 @@ export default function MeetingConfirmationModal({
                   
                   <TextInput
                     label={t[language].location}
-                    value={editedData.location || ''}
+                    value={typeof editedData.location === 'string' 
+                      ? editedData.location 
+                      : (editedData.location && typeof editedData.location === 'object' && editedData.location.address)
+                      ? editedData.location.address
+                      : ''
+                    }
                     onChangeText={(text) => setEditedData(prev => ({ ...prev, location: text }))}
                     style={styles.input}
                     mode="outlined"
@@ -278,7 +334,12 @@ export default function MeetingConfirmationModal({
                         onClose={() => removeParticipant(index)}
                         style={styles.participantChip}
                       >
-                        {participant}
+                        {typeof participant === 'string' 
+                          ? participant 
+                          : (participant && typeof participant === 'object' && participant.name)
+                          ? participant.name
+                          : 'Unknown participant'
+                        }
                       </Chip>
                     ))}
                     <Button
@@ -294,54 +355,77 @@ export default function MeetingConfirmationModal({
               ) : (
                 // View mode
                 <View style={styles.viewForm}>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.label}>{t[language].title}:</Text>
-                    <Text style={styles.value}>{meetingData?.title || '-'}</Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.label}>{t[language].date}:</Text>
-                    <Text style={styles.value}>{formatDate(meetingData?.date) || '-'}</Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.label}>{t[language].time}:</Text>
-                    <Text style={styles.value}>{formatTime(meetingData?.time) || '-'}</Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.label}>{t[language].duration}:</Text>
-                    <Text style={styles.value}>
-                      {meetingData?.duration ? `${meetingData.duration} ${t[language].minutes}` : '-'}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.detailRow}>
-                    <Text style={styles.label}>{t[language].location}:</Text>
-                    <Text style={styles.value}>{meetingData?.location || '-'}</Text>
-                  </View>
-                  
-                  {meetingData?.description && (
+                  {action === 'delete' && (!meetingData?.title || !meetingData?.date) ? (
+                    // For delete operations with incomplete data, show a simplified view
                     <View style={styles.detailRow}>
-                      <Text style={styles.label}>{t[language].description}:</Text>
-                      <Text style={styles.value}>{meetingData.description}</Text>
+                      <Text style={styles.label}>Meeting ID:</Text>
+                      <Text style={styles.value}>{meetingData?.meetingId || 'Unknown'}</Text>
                     </View>
+                  ) : (
+                    // Normal view for complete meeting data
+                    <>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.label}>{t[language].title}:</Text>
+                        <Text style={styles.value}>{meetingData?.title || '-'}</Text>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <Text style={styles.label}>{t[language].date}:</Text>
+                        <Text style={styles.value}>{formatDate(meetingData?.date) || '-'}</Text>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <Text style={styles.label}>{t[language].time}:</Text>
+                        <Text style={styles.value}>{formatTime(meetingData?.time) || '-'}</Text>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <Text style={styles.label}>{t[language].duration}:</Text>
+                        <Text style={styles.value}>
+                          {meetingData?.duration ? `${meetingData.duration} ${t[language].minutes}` : '-'}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <Text style={styles.label}>{t[language].location}:</Text>
+                        <Text style={styles.value}>
+                          {typeof meetingData?.location === 'string' 
+                            ? meetingData.location 
+                            : (meetingData?.location && typeof meetingData.location === 'object' && meetingData.location.address)
+                            ? meetingData.location.address
+                            : (meetingData?.location && typeof meetingData.location === 'object' && meetingData.location.type)
+                            ? `${meetingData.location.type} meeting`
+                            : '-'
+                          }
+                        </Text>
+                      </View>
+                      
+                      {meetingData?.description && (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.label}>{t[language].description}:</Text>
+                          <Text style={styles.value}>{meetingData.description}</Text>
+                        </View>
+                      )}
+                    </>
                   )}
                   
-                  <View style={styles.detailRow}>
-                    <Text style={styles.label}>{t[language].participants}:</Text>
-                    <View style={styles.participantsContainer}>
-                      {meetingData?.participants?.length > 0 ? (
-                        meetingData.participants.map((participant, index) => (
+                  {meetingData?.participants && meetingData.participants.length > 0 && (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.label}>{t[language].participants}:</Text>
+                      <View style={styles.participantsList}>
+                        {meetingData.participants.map((participant, index) => (
                           <Chip key={index} style={styles.participantChip}>
-                            {participant}
+                            {typeof participant === 'string' 
+                              ? participant 
+                              : (participant && typeof participant === 'object' && participant.name)
+                              ? participant.name
+                              : 'Unknown participant'
+                            }
                           </Chip>
-                        ))
-                      ) : (
-                        <Text style={styles.noParticipants}>{t[language].noParticipants}</Text>
-                      )}
+                        ))}
+                      </View>
                     </View>
-                  </View>
+                  )}
                 </View>
               )}
             </ScrollView>
@@ -438,6 +522,12 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   participantsContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  participantsList: {
     flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',

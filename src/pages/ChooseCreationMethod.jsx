@@ -10,28 +10,30 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button } from 'react-native-paper';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
-const MethodCard = ({ onPress, icon, title, description, delay }) => (
+const MethodCard = ({ onPress, icon, title, description, delay, isDarkMode, styles }) => (
   <TouchableOpacity
     style={styles.methodCard}
     onPress={onPress}
     activeOpacity={0.8}
   >
-    <Card style={styles.card}>
+    <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff' }]}>
       <Card.Content style={styles.cardContent}>
         <View style={styles.iconContainer}>
           <Ionicons name={icon} size={32} color="#FFFFFF" />
         </View>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.cardDescription}>{description}</Text>
+        <Text style={[styles.cardTitle, { color: isDarkMode ? '#ffffff' : '#1e293b' }]}>{title}</Text>
+        <Text style={[styles.cardDescription, { color: isDarkMode ? '#a1a1aa' : '#64748b' }]}>{description}</Text>
       </Card.Content>
     </Card>
   </TouchableOpacity>
 );
 
 export default function ChooseCreationMethod({ language = "en" }) {
+  const { isDarkMode } = useTheme();
   const navigation = useNavigation();
 
   const t = {
@@ -75,6 +77,8 @@ export default function ChooseCreationMethod({ language = "en" }) {
     navigation.navigate('Dashboard');
   };
 
+  const styles = getStyles(isDarkMode);
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.content}>
@@ -99,6 +103,8 @@ export default function ChooseCreationMethod({ language = "en" }) {
             title={t[language].manualTitle}
             description={t[language].manualDesc}
             delay={0}
+            isDarkMode={isDarkMode}
+            styles={styles}
           />
           
           <MethodCard 
@@ -107,25 +113,29 @@ export default function ChooseCreationMethod({ language = "en" }) {
             title={t[language].aiTitle}
             description={t[language].aiDesc}
             delay={1}
+            isDarkMode={isDarkMode}
+            styles={styles}
           />
-          
+{/*           
           <MethodCard 
             onPress={handleWhatsApp}
             icon="chatbubble-outline"
             title={t[language].whatsappTitle}
             description={t[language].whatsappDesc}
             delay={2}
-          />
+            isDarkMode={isDarkMode}
+            styles={styles}
+          /> */}
         </View>
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (isDarkMode) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: isDarkMode ? '#0a0a0a' : '#F8FAFC',
   },
   content: {
     padding: 16,
@@ -141,12 +151,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: isDarkMode ? '#ffffff' : '#1E293B',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#64748B',
+    color: isDarkMode ? '#a1a1aa' : '#64748B',
     lineHeight: 24,
   },
   methodsContainer: {
@@ -162,10 +172,10 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDarkMode ? 0.3 : 0.1,
     shadowRadius: 4,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDarkMode ? '#1a1a1a' : '#FFFFFF',
   },
   cardContent: {
     padding: 24,

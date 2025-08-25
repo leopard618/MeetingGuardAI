@@ -9,6 +9,7 @@ A React Native mobile application built with Expo for managing meetings, notes, 
 - 🤖 AI-powered chat and insights
 - 🔔 Meeting alerts and reminders
 - ⚙️ Settings and API configuration
+- 🌙 Dark mode support
 - 📱 Cross-platform (iOS & Android)
 
 ## Getting Started
@@ -33,12 +34,18 @@ cd meeting-guard-mobile
 npm install
 ```
 
-3. Start the development server:
+3. Set up environment variables:
+```bash
+npm run setup
+```
+Or manually create a `.env` file (see `ENVIRONMENT_SETUP.md` for details)
+
+4. Start the development server:
 ```bash
 npm start
 ```
 
-4. Run on your preferred platform:
+5. Run on your preferred platform:
    - Press `i` for iOS simulator
    - Press `a` for Android emulator
    - Press `w` for web browser
@@ -64,6 +71,7 @@ src/
 - `npm run web` - Start in web browser
 - `npm run lint` - Run ESLint
 - `npm run build` - Build the app for production
+- `npm run setup` - Interactive environment setup
 
 ## Technologies Used
 
@@ -75,6 +83,31 @@ src/
 - **Zod** - Schema validation
 - **Expo Notifications** - Push notifications
 - **Expo Calendar** - Calendar integration
+- **Tailwind CSS** - Utility-first CSS framework with dark mode support
+
+## Dark Mode
+
+The app includes a comprehensive dark mode implementation with the following features:
+
+- **Automatic Theme Detection**: The app automatically detects the user's system preference
+- **Manual Toggle**: Users can manually switch between light and dark themes
+- **Persistent Settings**: Theme preference is saved and restored on app restart
+- **Consistent Styling**: All components are styled to support both themes
+- **Accessibility**: Proper contrast ratios and readable text in both modes
+
+### How to Use Dark Mode
+
+1. **Settings Page**: Navigate to Settings → Theme to toggle between light and dark mode
+2. **Header Toggle**: Use the theme toggle button in the app header
+3. **Sidebar**: Access theme toggle from the mobile sidebar menu
+
+### Theme Context
+
+The app uses a React Context (`ThemeContext`) to manage theme state across all components. The context provides:
+
+- `isDarkMode`: Boolean indicating current theme
+- `toggleTheme`: Function to switch between themes
+- Automatic persistence to localStorage
 
 ## Contributing
 
