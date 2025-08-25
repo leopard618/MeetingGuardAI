@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { supabase } = require('../config/database');
-const { generateToken } = require('../middleware/auth');
+const { generateToken, authenticateToken } = require('../middleware/auth');
 const { ValidationError } = require('../middleware/errorHandler');
 
 const router = express.Router();
@@ -203,7 +203,7 @@ router.post('/google/refresh', async (req, res) => {
 /**
  * Get current user profile
  */
-router.get('/profile', async (req, res) => {
+router.get('/profile', authenticateToken, async (req, res) => {
   try {
     const { data: user, error } = await supabase
       .from('users')
@@ -231,7 +231,7 @@ router.get('/profile', async (req, res) => {
 /**
  * Update user profile
  */
-router.put('/profile', [
+router.put('/profile', authenticateToken, [
   body('name').optional().isString().trim().isLength({ min: 1, max: 100 }),
   body('picture').optional().isURL()
 ], async (req, res) => {
@@ -272,7 +272,7 @@ router.put('/profile', [
 /**
  * Logout user
  */
-router.post('/logout', async (req, res) => {
+router.post('/logout', authenticateToken, async (req, res) => {
   try {
     // In a more sophisticated setup, you might want to blacklist the token
     // For now, we'll just return success since JWT tokens are stateless
