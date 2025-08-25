@@ -77,6 +77,25 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'MeetingGuard Backend API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      auth: '/api/auth',
+      oauth: '/oauth',
+      meetings: '/api/meetings',
+      calendar: '/api/calendar',
+      ai: '/api/ai',
+      files: '/api/files',
+      users: '/api/users'
+    }
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -96,7 +115,7 @@ app.use('/api/files', authenticateToken, fileRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 
 // OAuth redirect endpoint (for Google Auth)
-app.use('/auth', require('./routes/oauth'));
+app.use('/oauth', require('./routes/oauth'));
 
 // Error handling middleware
 app.use(errorHandler);
