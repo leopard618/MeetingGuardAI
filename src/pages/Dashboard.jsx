@@ -23,7 +23,7 @@ import {
   MaterialCommunityIcons,
   Ionicons,
 } from "@expo/vector-icons";
-import { Meeting, UserPreferences, User } from "@/api/entities";
+// import { Meeting, UserPreferences, User } from "@/api/entities";
 import { useTheme } from "@/contexts/ThemeContext";
 import NotificationManager from "@/components/NotificationSystem/NotificationManager";
 import AlertScheduler from "@/components/AlertScheduler";

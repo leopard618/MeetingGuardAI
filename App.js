@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 // Initialize Sentry for error tracking
@@ -16,37 +16,44 @@ Sentry.init({
 
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
-import calendarSyncManager from './src/api/calendarSyncManager';
-
 // Import components
 import MobileSidebar from './src/components/MobileSidebar';
 import CustomHeader from './src/components/CustomHeader';
 
-// Import API entities
-import { User } from './src/api/entities';
-import { UserPreferences } from './src/api/entities';
-
 // Import screens
 import Auth from './src/pages/Auth';
-import Dashboard from './src/pages/Dashboard';
-import ModernCreateMeeting from './src/components/ModernCreateMeeting';
-import TotalMeetings from './src/pages/TotalMeetings';
-import MeetingDetails from './src/pages/MeetingDetails';
-import EditMeeting from './src/pages/EditMeeting';
-import Calendar from './src/pages/Calendar';
+// import Dashboard from './src/pages/Dashboard';
+// import ModernCreateMeeting from './src/components/ModernCreateMeeting';
+// import TotalMeetings from './src/pages/TotalMeetings';
+// import MeetingDetails from './src/pages/MeetingDetails';
+// import EditMeeting from './src/pages/EditMeeting';
+// import Calendar from './src/pages/Calendar';
 import Notes from './src/pages/Notes';
-import Settings from './src/pages/Settings';
-import AIChat from './src/pages/AIChat';
-import AIInsights from './src/pages/AIInsights';
-import ApiSettings from './src/pages/Apisettings';
+// import Settings from './src/pages/Settings';
+// import AIChat from './src/pages/AIChat';
+// import AIInsights from './src/pages/AIInsights';
+// import ApiSettings from './src/pages/Apisettings';
 import Privacy from './src/pages/Privacy';
 import Terms from './src/pages/Terms';
 import WhatsAppBot from './src/pages/WhatsAppBot';
 import ChooseCreationMethod from './src/pages/ChooseCreationMethod';
-import CalendarSync from './src/pages/CalendarSync';
-import GoogleCalendarTest from './src/pages/GoogleCalendarTest';
-import GoogleCalendarTestComponent from './src/components/GoogleCalendarTest';
+// import CalendarSync from './src/pages/CalendarSync';
+// import GoogleCalendarTest from './src/pages/GoogleCalendarTest';
+// import GoogleCalendarTestComponent from './src/components/GoogleCalendarTest';
 import NotificationDemo from './src/components/NotificationSystem/NotificationDemo';
+
+// Temporary placeholder components
+const Dashboard = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <Text>Dashboard - Coming Soon</Text>
+  </View>
+);
+
+const ModernCreateMeeting = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <Text>Create Meeting - Coming Soon</Text>
+  </View>
+);
 
 const Stack = createStackNavigator();
 
@@ -54,22 +61,22 @@ const Stack = createStackNavigator();
 const AuthWithLanguage = (props) => <Auth {...props} language={props.route.params?.language || "en"} />;
 const DashboardWithLanguage = (props) => <Dashboard {...props} language={props.route.params?.language || "en"} />;
 const CreateMeetingWithLanguage = (props) => <ModernCreateMeeting {...props} language={props.route.params?.language || "en"} />;
-const TotalMeetingsWithLanguage = (props) => <TotalMeetings {...props} language={props.route.params?.language || "en"} />;
-const MeetingDetailsWithLanguage = (props) => <MeetingDetails {...props} language={props.route.params?.language || "en"} />;
-const EditMeetingWithLanguage = (props) => <EditMeeting {...props} language={props.route.params?.language || "en"} />;
-const CalendarWithLanguage = (props) => <Calendar {...props} language={props.route.params?.language || "en"} />;
+// const TotalMeetingsWithLanguage = (props) => <TotalMeetings {...props} language={props.route.params?.language || "en"} />;
+// const MeetingDetailsWithLanguage = (props) => <MeetingDetails {...props} language={props.route.params?.language || "en"} />;
+// const EditMeetingWithLanguage = (props) => <EditMeeting {...props} language={props.route.params?.language || "en"} />;
+// const CalendarWithLanguage = (props) => <Calendar {...props} language={props.route.params?.language || "en"} />;
 const NotesWithLanguage = (props) => <Notes {...props} language={props.route.params?.language || "en"} />;
-const SettingsWithLanguage = (props) => <Settings {...props} language={props.route.params?.language || "en"} />;
-const AIChatWithLanguage = (props) => <AIChat {...props} language={props.route.params?.language || "en"} />;
-const AIInsightsWithLanguage = (props) => <AIInsights {...props} language={props.route.params?.language || "en"} />;
-const ApiSettingsWithLanguage = (props) => <ApiSettings {...props} language={props.route.params?.language || "en"} />;
+// const SettingsWithLanguage = (props) => <Settings {...props} language={props.route.params?.language || "en"} />;
+// const AIChatWithLanguage = (props) => <AIChat {...props} language={props.route.params?.language || "en"} />;
+// const AIInsightsWithLanguage = (props) => <AIInsights {...props} language={props.route.params?.language || "en"} />;
+// const ApiSettingsWithLanguage = (props) => <ApiSettings {...props} language={props.route.params?.language || "en"} />;
 const PrivacyWithLanguage = (props) => <Privacy {...props} language={props.route.params?.language || "en"} />;
 const TermsWithLanguage = (props) => <Terms {...props} language={props.route.params?.language || "en"} />;
 const WhatsAppBotWithLanguage = (props) => <WhatsAppBot {...props} language={props.route.params?.language || "en"} />;
 const ChooseCreationMethodWithLanguage = (props) => <ChooseCreationMethod {...props} language={props.route.params?.language || "en"} />;
-const CalendarSyncWithLanguage = (props) => <CalendarSync {...props} language={props.route.params?.language || "en"} />;
-const GoogleCalendarTestWithLanguage = (props) => <GoogleCalendarTest {...props} language={props.route.params?.language || "en"} />;
-const GoogleCalendarTestComponentWithLanguage = (props) => <GoogleCalendarTestComponent {...props} language={props.route.params?.language || "en"} />;
+// const CalendarSyncWithLanguage = (props) => <CalendarSync {...props} language={props.route.params?.language || "en"} />;
+// const GoogleCalendarTestWithLanguage = (props) => <GoogleCalendarTest {...props} language={props.route.params?.language || "en"} />;
+// const GoogleCalendarTestComponentWithLanguage = (props) => <GoogleCalendarTestComponent {...props} language={props.route.params?.language || "en"} />;
 const NotificationDemoWithLanguage = (props) => <NotificationDemo {...props} language={props.route.params?.language || "en"} />;
 
 // App Navigator Component
@@ -110,16 +117,16 @@ function AppNavigator() {
     if (isAuthenticated) {
       fetchUserAndPrefs();
       
-      // Initialize calendar sync manager
-      calendarSyncManager.initialize().then((success) => {
-        if (success) {
-          console.log('Calendar sync manager initialized successfully');
-        } else {
-          console.log('Calendar sync manager initialization failed');
-        }
-      }).catch((error) => {
-        console.error('Error initializing calendar sync manager:', error);
-      });
+      // TODO: Initialize calendar sync manager when API is properly set up
+      // calendarSyncManager.initialize().then((success) => {
+      //   if (success) {
+      //     console.log('Calendar sync manager initialized successfully');
+      //   } else {
+      //     console.log('Calendar sync manager initialization failed');
+      //   }
+      // }).catch((error) => {
+      //   console.error('Error initializing calendar sync manager:', error);
+      // });
     }
   }, [isAuthenticated]);
 
@@ -211,6 +218,7 @@ function AppNavigator() {
               options={{ title: 'Create Meeting' }}
               initialParams={{ language }}
             />
+            {/* Temporarily commented out due to API import issues
             <Stack.Screen 
               name="TotalMeetings" 
               component={TotalMeetingsWithLanguage}
@@ -235,12 +243,14 @@ function AppNavigator() {
               options={{ title: 'Calendar' }}
               initialParams={{ language }}
             />
+            */}
             <Stack.Screen 
               name="Notes" 
               component={NotesWithLanguage}
               options={{ title: 'Notes' }}
               initialParams={{ language }}
             />
+            {/* Temporarily commented out due to API import issues
             <Stack.Screen 
               name="Settings" 
               component={SettingsWithLanguage}
@@ -265,6 +275,7 @@ function AppNavigator() {
               options={{ title: 'API Settings' }}
               initialParams={{ language }}
             />
+            */}
             <Stack.Screen 
               name="Privacy" 
               component={PrivacyWithLanguage}
@@ -283,6 +294,7 @@ function AppNavigator() {
               options={{ title: 'WhatsApp Bot' }}
               initialParams={{ language }}
             />
+            {/* Temporarily commented out due to API import issues
             <Stack.Screen 
               name="CalendarSync" 
               component={CalendarSyncWithLanguage}
@@ -301,6 +313,7 @@ function AppNavigator() {
               options={{ title: 'Google Calendar Test Component' }}
               initialParams={{ language }}
             />
+            */}
             <Stack.Screen 
               name="NotificationDemo" 
               component={NotificationDemoWithLanguage}
