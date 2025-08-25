@@ -132,43 +132,62 @@ router.get('/google', async (req, res) => {
         console.log('User name:', userInfo.name);
         console.log('User ID:', userInfo.id);
         
-        // Store the authentication data temporarily (will be replaced by database storage)
-        // In production, this should be stored in the database
-        const authData = {
-          success: true,
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          user: {
-            id: userInfo.id,
-            email: userInfo.email,
-            name: userInfo.name,
-            picture: userInfo.picture,
-            given_name: userInfo.given_name,
-            family_name: userInfo.family_name,
-          }
-        };
+                 // Store the authentication data in database via API
+         console.log('=== STORING AUTH DATA IN DATABASE ===');
+         
+         try {
+           // Call the API endpoint to store user data and get JWT token
+           const apiResponse = await fetch(`${process.env.BACKEND_URL || 'https://meetingguard-backend.onrender.com'}/api/auth/google/callback?code=${code}`, {
+             method: 'GET',
+             headers: {
+               'Content-Type': 'application/json',
+             }
+           });
+           
+           if (apiResponse.ok) {
+             const apiData = await apiResponse.json();
+             console.log('=== DATABASE STORAGE SUCCESS ===');
+             console.log('User stored in database, JWT token generated');
+             
+             // Store the JWT token for the app to retrieve
+             global.authData = {
+               success: true,
+               jwtToken: apiData.token,
+               user: apiData.user,
+               googleTokens: apiData.googleTokens
+             };
+           } else {
+             console.error('Failed to store auth data in database:', apiResponse.status);
+           }
+         } catch (apiError) {
+           console.error('Error calling API endpoint:', apiError);
+         }
+         
+         console.log('=== AUTHENTICATION COMPLETE ===');
+         console.log('Authentication data ready for app to retrieve');
         
-        console.log('=== AUTHENTICATION COMPLETE ===');
-        console.log('Authentication data ready for app to retrieve');
-        
-        res.send(`
-          <html>
-            <head><title>OAuth Success</title></head>
-            <body>
-              <h1>OAuth Success</h1>
-              <p>Authentication completed successfully!</p>
-              <p>User: ${userInfo.email}</p>
-              <p>Name: ${userInfo.name}</p>
-              <p>You can close this window now.</p>
-              <script>
-                // Close the window
-                setTimeout(() => {
-                  window.close();
-                }, 2000);
-              </script>
-            </body>
-          </html>
-        `);
+                 // Redirect back to the app with success
+         res.send(`
+           <html>
+             <head><title>OAuth Success</title></head>
+             <body>
+               <h1>OAuth Success</h1>
+               <p>Authentication completed successfully!</p>
+               <p>User: ${userInfo.email}</p>
+               <p>Name: ${userInfo.name}</p>
+               <p>Redirecting back to app...</p>
+               <script>
+                 // Redirect back to app with success
+                 setTimeout(() => {
+                   ${isExpoGo 
+                     ? 'window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=' + encodeURIComponent(userInfo.email) + '";'
+                     : 'window.location.href = "meetingguardai://auth?success=true&user=' + encodeURIComponent(userInfo.email) + '";'
+                   }
+                 }, 1000);
+               </script>
+             </body>
+           </html>
+         `);
       } else {
         console.error('No access token in response:', tokenData);
         throw new Error('Failed to get access token from response');
@@ -219,6 +238,33 @@ router.get('/', (req, res) => {
 });
 
 /**
+ * Endpoint for the app to retrieve authentication data
+ */
+router.get('/auth-data', (req, res) => {
+  console.log('=== Auth Data Request ===');
+  console.log('Request headers:', req.headers);
+  
+  // Add CORS headers for mobile app
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Return stored authentication data
+  if (global.authData && global.authData.success) {
+    const authData = global.authData;
+    // Clear the data after sending it
+    global.authData = null;
+    
+    res.json(authData);
+  } else {
+    res.json({ 
+      success: false, 
+      message: 'No authentication data available. Please complete OAuth flow first.' 
+    });
+  }
+});
+
+/**
  * Endpoint for the app to check if authentication completed
  * This is a temporary endpoint for backward compatibility
  */
@@ -231,12 +277,18 @@ router.get('/check-auth', (req, res) => {
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
   
-  // In production, this should check the database for stored auth data
-  // For now, return a message indicating the new API structure
-  res.json({ 
-    success: false, 
-    message: 'Please use the new /api/auth/google/callback endpoint for authentication' 
-  });
+  // Check if auth data is available
+  if (global.authData && global.authData.success) {
+    res.json({ 
+      success: true, 
+      message: 'Authentication data available' 
+    });
+  } else {
+    res.json({ 
+      success: false, 
+      message: 'No authentication data available' 
+    });
+  }
 });
 
 module.exports = router;
