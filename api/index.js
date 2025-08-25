@@ -1,6 +1,50 @@
 const express = require('express');
 const cors = require('cors');
+const https = require('https');
+const http = require('http');
 require('dotenv').config();
+
+// Simple fetch polyfill for Node.js
+function fetch(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const isHttps = urlObj.protocol === 'https:';
+    const client = isHttps ? https : http;
+    
+    const requestOptions = {
+      hostname: urlObj.hostname,
+      port: urlObj.port || (isHttps ? 443 : 80),
+      path: urlObj.pathname + urlObj.search,
+      method: options.method || 'GET',
+      headers: options.headers || {}
+    };
+    
+    const req = client.request(requestOptions, (res) => {
+      let data = '';
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      res.on('end', () => {
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          json: () => Promise.resolve(JSON.parse(data)),
+          text: () => Promise.resolve(data)
+        });
+      });
+    });
+    
+    req.on('error', (error) => {
+      reject(error);
+    });
+    
+    if (options.body) {
+      req.write(options.body);
+    }
+    
+    req.end();
+  });
+}
 
 // Initialize Sentry for error tracking
 let Sentry;
