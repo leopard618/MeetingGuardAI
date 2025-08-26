@@ -134,12 +134,13 @@ router.get('/google', async (req, res) => {
         }
 
         const userInfo = await userInfoResponse.json();
-        console.log('=== USER AUTHENTICATION SUCCESS ===');
-        console.log('User email:', userInfo.email);
-        console.log('User name:', userInfo.name);
-        console.log('User ID:', userInfo.id);
-        
-                 // Store the authentication data directly in this route
+                 console.log('=== USER AUTHENTICATION SUCCESS ===');
+         console.log('User email:', userInfo.email);
+         console.log('User name:', userInfo.name);
+         console.log('User ID:', userInfo.id);
+         console.log('User picture:', userInfo.picture);
+         
+         // Store the authentication data directly in this route
          console.log('=== STORING AUTH DATA IN DATABASE ===');
          
          try {
@@ -240,58 +241,89 @@ router.get('/google', async (req, res) => {
          console.log('=== AUTHENTICATION COMPLETE ===');
          console.log('Authentication data ready for app to retrieve');
          
-         // Try direct redirect to app without HTML interface
-         console.log('=== ATTEMPTING DIRECT REDIRECT ===');
+         // Store authentication data globally for the app to retrieve
+         global.authData = {
+           success: true,
+           jwtToken: jwtToken,
+           user: {
+             id: user.id,
+             email: user.email,
+             name: user.name,
+             picture: user.picture
+           },
+           googleTokens: {
+             access_token: tokenData.access_token,
+             refresh_token: tokenData.refresh_token,
+             expires_in: tokenData.expires_in
+           }
+         };
          
-         // Set redirect headers for different schemes
-         res.set({
-           'Location': `exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}`,
-           'Cache-Control': 'no-cache, no-store, must-revalidate',
-           'Pragma': 'no-cache',
-           'Expires': '0'
+         console.log('=== STORED AUTH DATA GLOBALLY ===');
+         console.log('Global auth data:', {
+           success: global.authData.success,
+           userEmail: global.authData.user.email,
+           userName: global.authData.user.name,
+           hasJWT: !!global.authData.jwtToken,
+           hasAccessToken: !!global.authData.googleTokens.access_token
          });
          
-         // Try to redirect directly
-         try {
-           res.redirect(302, `exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}`);
-           console.log('Direct redirect sent to Expo Go');
-         } catch (redirectError) {
-           console.log('Direct redirect failed, trying custom scheme...');
-           
-           // Fallback to custom scheme
-           try {
-             res.redirect(302, `meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}`);
-             console.log('Direct redirect sent to custom scheme');
-           } catch (customError) {
-             console.log('All direct redirects failed, sending minimal HTML with immediate redirect');
-             
-             // Last resort: minimal HTML with immediate redirect
-             res.send(`
-               <!DOCTYPE html>
-               <html>
-               <head>
-                 <title>Redirecting...</title>
-                 <meta http-equiv="refresh" content="0;url=exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}">
-               </head>
-               <body>
-                 <script>
-                   // Immediate redirect attempts
-                   try {
-                     window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                   } catch (e) {
-                     try {
-                       window.location.href = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                     } catch (e2) {
-                       window.close();
-                     }
-                   }
-                 </script>
-                 <p>Redirecting to app...</p>
-               </body>
-               </html>
-             `);
-           }
-         }
+         // Send a simple success page that will close automatically
+         res.send(`
+           <!DOCTYPE html>
+           <html>
+           <head>
+             <title>Authentication Complete</title>
+             <style>
+               body { 
+                 font-family: Arial, sans-serif; 
+                 text-align: center; 
+                 padding: 50px; 
+                 background: #1a1a1a; 
+                 color: white; 
+                 margin: 0;
+                 min-height: 100vh;
+                 display: flex;
+                 align-items: center;
+                 justify-content: center;
+               }
+               .success { 
+                 background: #2d2d2d; 
+                 padding: 30px; 
+                 border-radius: 12px; 
+                 border: 1px solid #404040;
+                 max-width: 400px;
+               }
+             </style>
+           </head>
+           <body>
+             <div class="success">
+               <h2>✅ Authentication Successful!</h2>
+               <p>Welcome, ${userInfo.name}!</p>
+               <p>You can now close this window and return to your app.</p>
+               <p style="font-size: 12px; color: #888; margin-top: 20px;">
+                 Auth data is ready for your app to retrieve.
+               </p>
+             </div>
+             <script>
+               console.log('=== OAUTH SUCCESS PAGE LOADED ===');
+               console.log('User:', '${userInfo.name}');
+               console.log('Email:', '${userInfo.email}');
+               console.log('Auth data available:', true);
+               
+               // Try to close the window after 2 seconds
+               setTimeout(() => {
+                 console.log('Attempting to close window...');
+                 try {
+                   window.close();
+                   console.log('Window closed successfully');
+                 } catch (e) {
+                   console.log('Window close failed:', e.message);
+                 }
+               }, 2000);
+             </script>
+           </body>
+           </html>
+         `);
       } else {
         console.error('No access token in response:', tokenData);
         throw new Error('Failed to get access token from response');
@@ -362,6 +394,8 @@ router.get('/test-config', (req, res) => {
 router.get('/auth-data', (req, res) => {
   console.log('=== Auth Data Request ===');
   console.log('Request headers:', req.headers);
+  console.log('Global auth data exists:', !!global.authData);
+  console.log('Global auth data success:', global.authData?.success);
   
   // Add CORS headers for mobile app
   res.header('Access-Control-Allow-Origin', '*');
@@ -371,11 +405,20 @@ router.get('/auth-data', (req, res) => {
   // Return stored authentication data
   if (global.authData && global.authData.success) {
     const authData = global.authData;
+    console.log('=== SENDING AUTH DATA TO APP ===');
+    console.log('User email:', authData.user.email);
+    console.log('User name:', authData.user.name);
+    console.log('Has JWT:', !!authData.jwtToken);
+    console.log('Has access token:', !!authData.googleTokens?.access_token);
+    
     // Clear the data after sending it
     global.authData = null;
+    console.log('Global auth data cleared');
     
     res.json(authData);
   } else {
+    console.log('=== NO AUTH DATA AVAILABLE ===');
+    console.log('Global auth data:', global.authData);
     res.json({ 
       success: false, 
       message: 'No authentication data available. Please complete OAuth flow first.' 
