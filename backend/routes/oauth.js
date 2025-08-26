@@ -139,35 +139,102 @@ router.get('/google', async (req, res) => {
         console.log('User name:', userInfo.name);
         console.log('User ID:', userInfo.id);
         
-                 // Store the authentication data in database via API
+                 // Store the authentication data directly in this route
          console.log('=== STORING AUTH DATA IN DATABASE ===');
          
          try {
-           // Call the API endpoint to store user data and get JWT token
-           const apiResponse = await fetch(`${process.env.BACKEND_URL || 'https://meetingguard-backend.onrender.com'}/api/auth/google/callback?code=${code}`, {
-             method: 'GET',
-             headers: {
-               'Content-Type': 'application/json',
-             }
-           });
+           // Import the database and auth functions
+           const { supabase } = require('../config/database');
+           const { generateToken } = require('../middleware/auth');
            
-           if (apiResponse.ok) {
-             const apiData = await apiResponse.json();
-             console.log('=== DATABASE STORAGE SUCCESS ===');
-             console.log('User stored in database, JWT token generated');
-             
-             // Store the JWT token for the app to retrieve
-             global.authData = {
-               success: true,
-               jwtToken: apiData.token,
-               user: apiData.user,
-               googleTokens: apiData.googleTokens
-             };
-           } else {
-             console.error('Failed to store auth data in database:', apiResponse.status);
+           // Find or create user in database
+           let { data: user, error: userError } = await supabase
+             .from('users')
+             .select('*')
+             .eq('google_id', userInfo.id)
+             .single();
+
+           if (userError && userError.code !== 'PGRST116') {
+             throw userError;
            }
-         } catch (apiError) {
-           console.error('Error calling API endpoint:', apiError);
+
+           if (!user) {
+             // Create new user
+             const { data: newUser, error: createError } = await supabase
+               .from('users')
+               .insert({
+                 google_id: userInfo.id,
+                 email: userInfo.email,
+                 name: userInfo.name,
+                 picture: userInfo.picture,
+                 given_name: userInfo.given_name,
+                 family_name: userInfo.family_name,
+                 is_active: true,
+                 last_login: new Date().toISOString()
+               })
+               .select()
+               .single();
+
+             if (createError) {
+               throw createError;
+             }
+
+             user = newUser;
+           } else {
+             // Update existing user's last login
+             const { error: updateError } = await supabase
+               .from('users')
+               .update({
+                 last_login: new Date().toISOString(),
+                 name: userInfo.name,
+                 picture: userInfo.picture
+               })
+               .eq('id', user.id);
+
+             if (updateError) {
+               throw updateError;
+             }
+           }
+
+           // Store Google tokens securely
+           const { error: tokenError } = await supabase
+             .from('user_tokens')
+             .upsert({
+               user_id: user.id,
+               access_token: tokenData.access_token,
+               refresh_token: tokenData.refresh_token,
+               expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+               token_type: 'google'
+             });
+
+           if (tokenError) {
+             console.error('Error storing tokens:', tokenError);
+           }
+
+           // Generate JWT token
+           const jwtToken = generateToken(user.id);
+           
+           console.log('=== DATABASE STORAGE SUCCESS ===');
+           console.log('User stored in database, JWT token generated');
+           
+           // Store the JWT token for the app to retrieve
+           global.authData = {
+             success: true,
+             jwtToken: jwtToken,
+             user: {
+               id: user.id,
+               email: user.email,
+               name: user.name,
+               picture: user.picture
+             },
+             googleTokens: {
+               access_token: tokenData.access_token,
+               refresh_token: tokenData.refresh_token,
+               expires_in: tokenData.expires_in
+             }
+           };
+         } catch (dbError) {
+           console.error('Error storing auth data in database:', dbError);
          }
          
          console.log('=== AUTHENTICATION COMPLETE ===');
