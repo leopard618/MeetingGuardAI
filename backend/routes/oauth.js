@@ -317,7 +317,7 @@ router.get('/google', async (req, res) => {
          // Clear the processing code
          global.processingCode = null;
          
-         // Send a simple success page that will close automatically
+         // Send a success page with immediate redirect attempt
          res.send(`
            <!DOCTYPE html>
            <html>
@@ -349,9 +349,9 @@ router.get('/google', async (req, res) => {
              <div class="success">
                <h2>✅ Authentication Successful!</h2>
                <p>Welcome, ${userInfo.name}!</p>
-               <p>You can now close this window and return to your app.</p>
+               <p>Redirecting to your app...</p>
                <p style="font-size: 12px; color: #888; margin-top: 20px;">
-                 Auth data is ready for your app to retrieve.
+                 Auth data ready: ${userInfo.email}
                </p>
              </div>
              <script>
@@ -359,17 +359,102 @@ router.get('/google', async (req, res) => {
                console.log('User:', '${userInfo.name}');
                console.log('Email:', '${userInfo.email}');
                console.log('Auth data available:', true);
+               console.log('Auth data email:', '${userInfo.email}');
                
-               // Try to close the window after 2 seconds
+               // Function to check if auth data is available
+               async function checkAuthData() {
+                 try {
+                   console.log('Checking auth data availability...');
+                   const response = await fetch('/oauth/auth-data', {
+                     method: 'GET',
+                     headers: {
+                       'Content-Type': 'application/json',
+                     },
+                   });
+                   
+                   console.log('Auth data check response status:', response.status);
+                   
+                   if (response.ok) {
+                     const data = await response.json();
+                     console.log('Auth data check result:', data);
+                     
+                     if (data.success) {
+                       console.log('Auth data is available!');
+                       return true;
+                     } else {
+                       console.log('Auth data not available yet');
+                       return false;
+                     }
+                   } else {
+                     console.log('Auth data check failed');
+                     return false;
+                   }
+                 } catch (error) {
+                   console.log('Auth data check error:', error.message);
+                   return false;
+                 }
+               }
+               
+               // Try multiple redirect methods
+               function tryRedirect() {
+                 console.log('Attempting redirect to app...');
+                 
+                 // Method 1: Try Expo Go
+                 try {
+                   const expoUrl = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}";
+                   console.log('Trying Expo URL:', expoUrl);
+                   window.location.href = expoUrl;
+                 } catch (e) {
+                   console.log('Expo redirect failed:', e.message);
+                   
+                   // Method 2: Try custom scheme
+                   try {
+                     const customUrl = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}";
+                     console.log('Trying custom URL:', customUrl);
+                     window.location.href = customUrl;
+                   } catch (e2) {
+                     console.log('Custom redirect failed:', e2.message);
+                     
+                     // Method 3: Close window
+                     try {
+                       window.close();
+                       console.log('Window closed successfully');
+                     } catch (e3) {
+                       console.log('Window close failed:', e3.message);
+                     }
+                   }
+                 }
+               }
+               
+               // Main flow: check auth data, then redirect
+               async function mainFlow() {
+                 console.log('Starting main flow...');
+                 
+                 // Check auth data first
+                 const authDataAvailable = await checkAuthData();
+                 
+                 if (authDataAvailable) {
+                   console.log('Auth data confirmed, attempting redirect...');
+                   tryRedirect();
+                 } else {
+                   console.log('Auth data not ready, waiting...');
+                   // Wait 1 second and try again
+                   setTimeout(mainFlow, 1000);
+                 }
+               }
+               
+               // Start the main flow
+               mainFlow();
+               
+               // Fallback: close window after 10 seconds
                setTimeout(() => {
-                 console.log('Attempting to close window...');
+                 console.log('Final fallback: closing window');
                  try {
                    window.close();
-                   console.log('Window closed successfully');
                  } catch (e) {
-                   console.log('Window close failed:', e.message);
+                   console.log('Final close failed:', e.message);
                  }
-               }, 2000);
+               }, 10000);
              </script>
            </body>
            </html>
@@ -450,6 +535,7 @@ router.get('/auth-data', (req, res) => {
   console.log('Request headers:', req.headers);
   console.log('Global auth data exists:', !!global.authData);
   console.log('Global auth data success:', global.authData?.success);
+  console.log('Request timestamp:', new Date().toISOString());
   
   // Add CORS headers for mobile app
   res.header('Access-Control-Allow-Origin', '*');
@@ -464,6 +550,7 @@ router.get('/auth-data', (req, res) => {
     console.log('User name:', authData.user.name);
     console.log('Has JWT:', !!authData.jwtToken);
     console.log('Has access token:', !!authData.googleTokens?.access_token);
+    console.log('Auth data timestamp:', new Date().toISOString());
     
     // Clear the data after sending it
     global.authData = null;
@@ -473,6 +560,7 @@ router.get('/auth-data', (req, res) => {
   } else {
     console.log('=== NO AUTH DATA AVAILABLE ===');
     console.log('Global auth data:', global.authData);
+    console.log('No auth data timestamp:', new Date().toISOString());
     res.json({ 
       success: false, 
       message: 'No authentication data available. Please complete OAuth flow first.' 
