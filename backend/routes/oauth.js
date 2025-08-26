@@ -421,16 +421,16 @@ router.get('/google', async (req, res) => {
                </div>
                
                                <h1>Authentication Successful!</h1>
-                <p class="welcome-text">Hi, <strong>${userInfo.name}</strong>, welcome to MeetingGuard AI</p>
+                <p class="welcome-text">Hi, <strong>${userInfo.name}</strong>,<br> Welcome to MeetingGuard AI</p>
                 
                 <div class="user-info">
                   <p><strong>Email:</strong> ${userInfo.email}</p>
                   <p><strong>Status:</strong> ✅ Ready to use</p>
                 </div>
                 
-                <button class="dashboard-btn" id="dashboardBtn">
-                  Go to Dashboard
-                </button>
+                                 <button class="dashboard-btn" id="dashboardBtn" onclick="window.close();">
+                   Go to Dashboard
+                 </button>
                 
                 <div class="loading" id="loading">
                   <div class="spinner"></div>
@@ -444,65 +444,39 @@ router.get('/google', async (req, res) => {
                 </div>
               </div>
                 
-              <script>
-                // Simple and reliable redirect function
-                function goToDashboard() {
-                  console.log('Go to Dashboard clicked');
-                  
-                  // Show loading spinner
-                  document.getElementById('loading').style.display = 'block';
-                  document.getElementById('dashboardBtn').style.display = 'none';
-                  
-                  // Try to close the window first (most reliable)
-                  try {
-                    window.close();
-                  } catch (e) {
-                    console.log('Window close failed, trying redirects...');
-                    
-                    // Try redirects as fallback
-                    setTimeout(() => {
-                      try {
-                        // Try Expo Go redirect
-                        const expoUrl = "exp://192.168.141.51:8081/--/auth?success=true&user=" + encodeURIComponent('${userInfo.email}') + "&token=" + encodeURIComponent('${global.authData?.jwtToken || ''}');
-                        console.log('Trying Expo URL:', expoUrl);
-                        window.location.href = expoUrl;
-                      } catch (e2) {
-                        try {
-                          // Try custom scheme
-                          const customUrl = "meetingguardai://auth?success=true&user=" + encodeURIComponent('${userInfo.email}') + "&token=" + encodeURIComponent('${global.authData?.jwtToken || ''}');
-                          console.log('Trying custom URL:', customUrl);
-                          window.location.href = customUrl;
-                        } catch (e3) {
-                          console.log('All methods failed');
-                          document.getElementById('loading').innerHTML = '<p style="color: #ff6b6b;">Please close this window manually and return to the app.</p>';
-                        }
-                      }
-                    }, 500);
-                  }
-                }
-                
-                // Add click event listener when page loads
-                document.addEventListener('DOMContentLoaded', function() {
-                  const btn = document.getElementById('dashboardBtn');
-                  if (btn) {
-                    btn.addEventListener('click', goToDashboard);
-                    console.log('Button click listener added');
-                  }
-                });
-                
-                // Also add onclick attribute as backup
-                document.getElementById('dashboardBtn').onclick = goToDashboard;
-                
-                // Auto-close after 5 seconds
-                setTimeout(() => {
-                  console.log('Auto-closing window...');
-                  try {
-                    window.close();
-                  } catch (e) {
-                    console.log('Auto-close failed');
-                  }
-                }, 5000);
-              </script>
+                             <script>
+                 // Ultra-simple approach that will definitely work
+                 
+                 // Function to close window
+                 function closeWindow() {
+                   try {
+                     window.close();
+                   } catch (e) {
+                     // If window.close() fails, try to redirect
+                     try {
+                       window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
+                     } catch (e2) {
+                       // If that fails too, just show message
+                       document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white;"><h2>✅ Authentication Complete!</h2><p>You can now close this window and return to your app.</p></div>';
+                     }
+                   }
+                 }
+                 
+                 // Add click handler immediately
+                 document.getElementById('dashboardBtn').onclick = closeWindow;
+                 
+                 // Also add event listener as backup
+                 document.getElementById('dashboardBtn').addEventListener('click', closeWindow);
+                 
+                 // Auto-close after 3 seconds
+                 setTimeout(closeWindow, 3000);
+                 
+                 // Make button more obvious
+                 document.getElementById('dashboardBtn').style.cursor = 'pointer';
+                 document.getElementById('dashboardBtn').style.backgroundColor = '#ff6b6b';
+                 
+                 console.log('Script loaded successfully');
+               </script>
            </body>
            </html>
          `);
