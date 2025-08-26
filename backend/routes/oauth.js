@@ -241,13 +241,13 @@ router.get('/google', async (req, res) => {
          console.log('Authentication data ready for app to retrieve');
         
                  // Redirect back to the app with success
-         res.send(`
+                  res.send(`
            <!DOCTYPE html>
            <html lang="en">
            <head>
              <meta charset="UTF-8">
              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-             <title>OAuth Success - MeetingGuard</title>
+             <title>Authentication Success - MeetingGuard AI</title>
              <style>
                * {
                  margin: 0;
@@ -257,151 +257,121 @@ router.get('/google', async (req, res) => {
                
                body {
                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                 background: #1a1a1a;
                  min-height: 100vh;
                  display: flex;
                  align-items: center;
                  justify-content: center;
                  padding: 20px;
+                 color: #ffffff;
                }
                
                .container {
-                 background: white;
-                 border-radius: 20px;
-                 box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+                 background: #2d2d2d;
+                 border-radius: 16px;
+                 box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
                  padding: 40px;
-                 max-width: 500px;
+                 max-width: 450px;
                  width: 100%;
                  text-align: center;
-                 position: relative;
-                 overflow: hidden;
-               }
-               
-               .container::before {
-                 content: '';
-                 position: absolute;
-                 top: 0;
-                 left: 0;
-                 right: 0;
-                 height: 4px;
-                 background: linear-gradient(90deg, #4CAF50, #45a049);
+                 border: 1px solid #404040;
                }
                
                .success-icon {
-                 width: 80px;
-                 height: 80px;
-                 background: linear-gradient(135deg, #4CAF50, #45a049);
+                 width: 60px;
+                 height: 60px;
+                 background: #00d4aa;
                  border-radius: 50%;
                  display: flex;
                  align-items: center;
                  justify-content: center;
-                 margin: 0 auto 20px;
-                 box-shadow: 0 10px 20px rgba(76, 175, 80, 0.3);
+                 margin: 0 auto 24px;
+                 box-shadow: 0 4px 16px rgba(0, 212, 170, 0.3);
                }
                
                .success-icon svg {
-                 width: 40px;
-                 height: 40px;
+                 width: 30px;
+                 height: 30px;
                  fill: white;
                }
                
                h1 {
-                 color: #2c3e50;
-                 font-size: 28px;
-                 font-weight: 700;
-                 margin-bottom: 10px;
+                 color: #ffffff;
+                 font-size: 24px;
+                 font-weight: 600;
+                 margin-bottom: 8px;
                }
                
-               .subtitle {
-                 color: #7f8c8d;
+               .welcome-text {
+                 color: #b0b0b0;
                  font-size: 16px;
-                 margin-bottom: 30px;
+                 margin-bottom: 32px;
+                 line-height: 1.4;
                }
                
                .user-info {
-                 background: #f8f9fa;
+                 background: #404040;
                  border-radius: 12px;
                  padding: 20px;
-                 margin: 20px 0;
-                 border-left: 4px solid #4CAF50;
+                 margin: 24px 0;
+                 border-left: 3px solid #00d4aa;
                }
                
                .user-info p {
                  margin: 8px 0;
-                 color: #2c3e50;
+                 color: #e0e0e0;
                  font-size: 14px;
                }
                
                .user-info strong {
-                 color: #34495e;
-                 font-weight: 600;
+                 color: #ffffff;
+                 font-weight: 500;
                }
                
                .dashboard-btn {
-                 background: linear-gradient(135deg, #4CAF50, #45a049);
-                 color: white;
+                 background: #00d4aa;
+                 color: #1a1a1a;
                  border: none;
-                 padding: 15px 30px;
-                 border-radius: 25px;
+                 padding: 16px 32px;
+                 border-radius: 12px;
                  font-size: 16px;
                  font-weight: 600;
                  cursor: pointer;
-                 transition: all 0.3s ease;
-                 box-shadow: 0 8px 16px rgba(76, 175, 80, 0.3);
-                 margin: 20px 0;
+                 transition: all 0.2s ease;
+                 margin: 24px 0;
                  width: 100%;
-                 max-width: 250px;
+                 max-width: 200px;
+                 box-shadow: 0 4px 12px rgba(0, 212, 170, 0.3);
                }
                
                .dashboard-btn:hover {
-                 transform: translateY(-2px);
-                 box-shadow: 0 12px 24px rgba(76, 175, 80, 0.4);
+                 background: #00b894;
+                 transform: translateY(-1px);
+                 box-shadow: 0 6px 16px rgba(0, 212, 170, 0.4);
                }
                
                .dashboard-btn:active {
                  transform: translateY(0);
                }
                
-               .status {
-                 color: #27ae60;
-                 font-size: 14px;
-                 font-weight: 500;
-                 margin: 15px 0;
-               }
-               
-               .manual-link {
-                 background: #ecf0f1;
-                 border-radius: 8px;
-                 padding: 15px;
-                 margin: 20px 0;
-                 font-size: 12px;
-                 color: #7f8c8d;
-               }
-               
-               .manual-link code {
-                 background: #bdc3c7;
-                 color: #2c3e50;
-                 padding: 4px 8px;
-                 border-radius: 4px;
-                 font-family: 'Courier New', monospace;
-                 display: block;
-                 margin: 8px 0;
-                 word-break: break-all;
-               }
-               
                .loading {
                  display: none;
-                 margin: 10px 0;
+                 margin: 16px 0;
                }
                
                .spinner {
                  width: 20px;
                  height: 20px;
-                 border: 2px solid #f3f3f3;
-                 border-top: 2px solid #4CAF50;
+                 border: 2px solid #404040;
+                 border-top: 2px solid #00d4aa;
                  border-radius: 50%;
                  animation: spin 1s linear infinite;
-                 margin: 0 auto;
+                 margin: 0 auto 8px;
+               }
+               
+               .loading p {
+                 color: #b0b0b0;
+                 font-size: 14px;
                }
                
                @keyframes spin {
@@ -409,13 +379,35 @@ router.get('/google', async (req, res) => {
                  100% { transform: rotate(360deg); }
                }
                
+               .manual-link {
+                 background: #404040;
+                 border-radius: 8px;
+                 padding: 16px;
+                 margin: 24px 0 0 0;
+                 font-size: 12px;
+                 color: #b0b0b0;
+                 border: 1px solid #505050;
+               }
+               
+               .manual-link code {
+                 background: #1a1a1a;
+                 color: #00d4aa;
+                 padding: 8px 12px;
+                 border-radius: 6px;
+                 font-family: 'Courier New', monospace;
+                 display: block;
+                 margin: 8px 0;
+                 word-break: break-all;
+                 border: 1px solid #505050;
+               }
+               
                @media (max-width: 480px) {
                  .container {
-                   padding: 30px 20px;
+                   padding: 32px 24px;
                  }
                  
                  h1 {
-                   font-size: 24px;
+                   font-size: 22px;
                  }
                }
              </style>
@@ -429,18 +421,15 @@ router.get('/google', async (req, res) => {
                </div>
                
                <h1>Authentication Successful!</h1>
-               <p class="subtitle">Welcome to MeetingGuard</p>
+               <p class="welcome-text">Hi, <strong>${userInfo.name}</strong>, welcome to MeetingGuard AI</p>
                
                <div class="user-info">
-                 <p><strong>User:</strong> ${userInfo.email}</p>
-                 <p><strong>Name:</strong> ${userInfo.name}</p>
-                 <p><strong>Status:</strong> ✅ User data stored in database</p>
+                 <p><strong>Email:</strong> ${userInfo.email}</p>
+                 <p><strong>Status:</strong> ✅ Ready to use</p>
                </div>
                
-               <p class="status">You're all set! Click the button below to go to your dashboard.</p>
-               
                <button class="dashboard-btn" onclick="goToDashboard()">
-                 🚀 Go to Dashboard
+                 Go to Dashboard
                </button>
                
                <div class="loading" id="loading">
@@ -450,42 +439,69 @@ router.get('/google', async (req, res) => {
                
                <div class="manual-link">
                  <p><strong>Manual Authentication:</strong></p>
-                 <p>If the button doesn't work, you can manually retrieve your authentication data:</p>
+                 <p>If the button doesn't work, use this URL:</p>
                  <code>https://meetingguard-backend.onrender.com/oauth/auth-data/${encodeURIComponent(userInfo.email)}</code>
                </div>
-                            </div>
+             </div>
                
-               <script>
-                 function goToDashboard() {
-                   // Show loading spinner
-                   document.getElementById('loading').style.display = 'block';
-                   document.querySelector('.dashboard-btn').style.display = 'none';
-                   
-                   // Try multiple redirect methods
-                   setTimeout(() => {
+             <script>
+               function goToDashboard() {
+                 console.log('Go to Dashboard clicked');
+                 
+                 // Show loading spinner
+                 document.getElementById('loading').style.display = 'block';
+                 document.querySelector('.dashboard-btn').style.display = 'none';
+                 
+                 // Try multiple redirect methods with better error handling
+                 setTimeout(() => {
+                   try {
+                     console.log('Attempting redirect to Expo Go...');
+                     
+                     // Method 1: Try Expo Go redirect with proper URL encoding
+                     const expoUrl = "exp://192.168.141.51:8081/--/auth?success=true&user=" + encodeURIComponent(userInfo.email) + "&token=" + encodeURIComponent(global.authData?.jwtToken || '');
+                     console.log('Expo URL:', expoUrl);
+                     window.location.href = expoUrl;
+                     
+                   } catch (e) {
+                     console.log('Expo redirect failed, trying custom scheme...');
                      try {
-                       // Method 1: Try Expo Go redirect
-                       window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                     } catch (e) {
+                       // Method 2: Try custom scheme
+                       const customUrl = "meetingguardai://auth?success=true&user=" + encodeURIComponent(userInfo.email) + "&token=" + encodeURIComponent(global.authData?.jwtToken || '');
+                       console.log('Custom URL:', customUrl);
+                       window.location.href = customUrl;
+                       
+                     } catch (e2) {
+                       console.log('Custom scheme failed, trying window.close...');
+                       // Method 3: Fallback - try to close window
                        try {
-                         // Method 2: Try custom scheme
-                         window.location.href = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                       } catch (e2) {
-                         // Method 3: Fallback - try to close window
                          window.close();
+                       } catch (e3) {
+                         console.log('All redirect methods failed');
+                         // Show error message
+                         document.getElementById('loading').innerHTML = '<p style="color: #ff6b6b;">Redirect failed. Please close this window and return to the app.</p>';
                        }
                      }
-                   }, 500);
-                 }
-                 
-                 // Auto-redirect after 5 seconds as fallback
-                 setTimeout(() => {
-                   if (document.querySelector('.dashboard-btn').style.display !== 'none') {
-                     goToDashboard();
                    }
-                 }, 5000);
-               </script>
-             </body>
+                 }, 1000);
+               }
+               
+               // Auto-redirect after 3 seconds as fallback
+               setTimeout(() => {
+                 if (document.querySelector('.dashboard-btn').style.display !== 'none') {
+                   console.log('Auto-redirecting...');
+                   goToDashboard();
+                 }
+               }, 3000);
+               
+               // Add click event listener as backup
+               document.addEventListener('DOMContentLoaded', function() {
+                 const btn = document.querySelector('.dashboard-btn');
+                 if (btn) {
+                   btn.addEventListener('click', goToDashboard);
+                 }
+               });
+             </script>
+           </body>
            </html>
          `);
       } else {
