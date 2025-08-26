@@ -80,6 +80,29 @@ router.get('/google', async (req, res) => {
   } else if (code) {
     console.log('Authorization code received. Processing...');
     
+    // Prevent duplicate processing of the same code
+    if (global.processingCode === code) {
+      console.log('=== CODE ALREADY BEING PROCESSED ===');
+      console.log('Skipping duplicate code processing');
+      return res.send(`
+        <html>
+          <head><title>Processing...</title></head>
+          <body>
+            <h1>Authentication in Progress</h1>
+            <p>Please wait while we complete your authentication...</p>
+            <script>
+              setTimeout(() => {
+                window.close();
+              }, 2000);
+            </script>
+          </body>
+        </html>
+      `);
+    }
+    
+    // Mark this code as being processed
+    global.processingCode = code;
+    
     try {
       // Exchange the authorization code for tokens
       console.log('=== Exchanging Code for Tokens ===');
@@ -291,6 +314,9 @@ router.get('/google', async (req, res) => {
            hasAccessToken: !!global.authData.googleTokens.access_token
          });
          
+         // Clear the processing code
+         global.processingCode = null;
+         
          // Send a simple success page that will close automatically
          res.send(`
            <!DOCTYPE html>
@@ -354,6 +380,10 @@ router.get('/google', async (req, res) => {
       }
     } catch (error) {
       console.error('Error processing authorization code:', error);
+      
+      // Clear the processing code on error
+      global.processingCode = null;
+      
       res.send(`
         <html>
           <head><title>OAuth Error</title></head>
