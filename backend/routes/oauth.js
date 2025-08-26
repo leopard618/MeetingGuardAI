@@ -236,27 +236,51 @@ router.get('/google', async (req, res) => {
            };
          } catch (dbError) {
            console.error('Error storing auth data in database:', dbError);
+           
+           // Even if database storage fails, we can still generate JWT and return user data
+           console.log('=== FALLBACK: GENERATING JWT WITHOUT DATABASE ===');
+           const jwtToken = generateToken(userInfo.id); // Use Google ID as fallback
+           
+           global.authData = {
+             success: true,
+             jwtToken: jwtToken,
+             user: {
+               id: userInfo.id,
+               email: userInfo.email,
+               name: userInfo.name,
+               picture: userInfo.picture
+             },
+             googleTokens: {
+               access_token: tokenData.access_token,
+               refresh_token: tokenData.refresh_token,
+               expires_in: tokenData.expires_in
+             }
+           };
          }
          
          console.log('=== AUTHENTICATION COMPLETE ===');
          console.log('Authentication data ready for app to retrieve');
          
-         // Store authentication data globally for the app to retrieve
-         global.authData = {
-           success: true,
-           jwtToken: jwtToken,
-           user: {
-             id: user.id,
-             email: user.email,
-             name: user.name,
-             picture: user.picture
-           },
-           googleTokens: {
-             access_token: tokenData.access_token,
-             refresh_token: tokenData.refresh_token,
-             expires_in: tokenData.expires_in
-           }
-         };
+         // Ensure we have the auth data
+         if (!global.authData) {
+           console.log('=== FALLBACK: CREATING AUTH DATA ===');
+           const jwtToken = generateToken(userInfo.id);
+           global.authData = {
+             success: true,
+             jwtToken: jwtToken,
+             user: {
+               id: userInfo.id,
+               email: userInfo.email,
+               name: userInfo.name,
+               picture: userInfo.picture
+             },
+             googleTokens: {
+               access_token: tokenData.access_token,
+               refresh_token: tokenData.refresh_token,
+               expires_in: tokenData.expires_in
+             }
+           };
+         }
          
          console.log('=== STORED AUTH DATA GLOBALLY ===');
          console.log('Global auth data:', {
