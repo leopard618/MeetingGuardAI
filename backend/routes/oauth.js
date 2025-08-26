@@ -428,27 +428,24 @@ router.get('/google', async (req, res) => {
                   <p><strong>Status:</strong> ✅ Ready to use</p>
                 </div>
                 
-                                 <button class="dashboard-btn" id="dashboardBtn" onclick="window.close();">
+                                                  <a href="javascript:window.close();" class="dashboard-btn" style="display: inline-block; text-decoration: none;">
                    Go to Dashboard
-                 </button>
-                
-                <div class="loading" id="loading">
-                  <div class="spinner"></div>
-                  <p>Redirecting to app...</p>
-                </div>
-                
-                <div class="manual-link">
-                  <p><strong>Manual Authentication:</strong></p>
-                  <p>If the button doesn't work, use this URL:</p>
-                  <code>https://meetingguard-backend.onrender.com/oauth/auth-data/${encodeURIComponent(userInfo.email)}</code>
-                </div>
-              </div>
-                
-                             <script>
-                 // Ultra-simple approach that will definitely work
+                 </a>
                  
-                 // Function to close window
-                 function closeWindow() {
+                 <div class="manual-link">
+                   <p><strong>Manual Authentication:</strong></p>
+                   <p>If the button doesn't work, use this URL:</p>
+                   <code>https://meetingguard-backend.onrender.com/oauth/auth-data/${encodeURIComponent(userInfo.email)}</code>
+                 </div>
+                 
+                 <p style="color: #b0b0b0; font-size: 12px; margin-top: 20px;">
+                   This window will automatically close in 5 seconds...
+                 </p>
+               </div>
+                 
+               <script>
+                 // Simple auto-close after 5 seconds
+                 setTimeout(function() {
                    try {
                      window.close();
                    } catch (e) {
@@ -456,26 +453,11 @@ router.get('/google', async (req, res) => {
                      try {
                        window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
                      } catch (e2) {
-                       // If that fails too, just show message
-                       document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white;"><h2>✅ Authentication Complete!</h2><p>You can now close this window and return to your app.</p></div>';
+                       // If that fails too, just show success message
+                       document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; background: #1a1a1a; min-height: 100vh; display: flex; align-items: center; justify-content: center;"><div><h2>✅ Authentication Complete!</h2><p>You can now close this window and return to your app.</p></div></div>';
                      }
                    }
-                 }
-                 
-                 // Add click handler immediately
-                 document.getElementById('dashboardBtn').onclick = closeWindow;
-                 
-                 // Also add event listener as backup
-                 document.getElementById('dashboardBtn').addEventListener('click', closeWindow);
-                 
-                 // Auto-close after 3 seconds
-                 setTimeout(closeWindow, 3000);
-                 
-                 // Make button more obvious
-                 document.getElementById('dashboardBtn').style.cursor = 'pointer';
-                 document.getElementById('dashboardBtn').style.backgroundColor = '#ff6b6b';
-                 
-                 console.log('Script loaded successfully');
+                 }, 5000);
                </script>
            </body>
            </html>
