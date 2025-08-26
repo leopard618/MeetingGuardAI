@@ -239,123 +239,59 @@ router.get('/google', async (req, res) => {
          
          console.log('=== AUTHENTICATION COMPLETE ===');
          console.log('Authentication data ready for app to retrieve');
-        
-                 // Redirect back to the app with success
-                           // Send a simple HTML page that redirects to the app
-         console.log('=== SENDING REDIRECT PAGE ===');
-         console.log('Creating redirect page to app...');
          
-         res.send(`
-           <!DOCTYPE html>
-           <html>
-           <head>
-             <title>Redirecting to MeetingGuard...</title>
-             <style>
-               body { 
-                 font-family: Arial, sans-serif; 
-                 text-align: center; 
-                 padding: 50px; 
-                 background: #1a1a1a; 
-                 color: white; 
-                 margin: 0;
-                 min-height: 100vh;
-                 display: flex;
-                 align-items: center;
-                 justify-content: center;
-               }
-               .redirect { 
-                 background: #2d2d2d; 
-                 padding: 30px; 
-                 border-radius: 12px; 
-                 border: 1px solid #404040;
-                 max-width: 400px;
-               }
-               .spinner {
-                 width: 40px;
-                 height: 40px;
-                 border: 4px solid #404040;
-                 border-top: 4px solid #00d4aa;
-                 border-radius: 50%;
-                 animation: spin 1s linear infinite;
-                 margin: 20px auto;
-               }
-               @keyframes spin {
-                 0% { transform: rotate(0deg); }
-                 100% { transform: rotate(360deg); }
-               }
-             </style>
-           </head>
-           <body>
-             <div class="redirect">
-               <h2>✅ Authentication Successful!</h2>
-               <p>Welcome, ${userInfo.name}!</p>
-               <div class="spinner"></div>
-               <p>Redirecting to MeetingGuard...</p>
-             </div>
-                            <script>
-                 console.log('Starting redirect process...');
-                 
-                 // Function to try different redirect methods
-                 function tryRedirect() {
-                   console.log('Attempting redirect...');
-                   
-                   // Method 1: Try Expo Go
+         // Try direct redirect to app without HTML interface
+         console.log('=== ATTEMPTING DIRECT REDIRECT ===');
+         
+         // Set redirect headers for different schemes
+         res.set({
+           'Location': `exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}`,
+           'Cache-Control': 'no-cache, no-store, must-revalidate',
+           'Pragma': 'no-cache',
+           'Expires': '0'
+         });
+         
+         // Try to redirect directly
+         try {
+           res.redirect(302, `exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}`);
+           console.log('Direct redirect sent to Expo Go');
+         } catch (redirectError) {
+           console.log('Direct redirect failed, trying custom scheme...');
+           
+           // Fallback to custom scheme
+           try {
+             res.redirect(302, `meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}`);
+             console.log('Direct redirect sent to custom scheme');
+           } catch (customError) {
+             console.log('All direct redirects failed, sending minimal HTML with immediate redirect');
+             
+             // Last resort: minimal HTML with immediate redirect
+             res.send(`
+               <!DOCTYPE html>
+               <html>
+               <head>
+                 <title>Redirecting...</title>
+                 <meta http-equiv="refresh" content="0;url=exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}">
+               </head>
+               <body>
+                 <script>
+                   // Immediate redirect attempts
                    try {
-                     console.log('Trying Expo Go redirect...');
-                     const expoUrl = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                     console.log('Expo URL:', expoUrl);
-                     window.location.href = expoUrl;
+                     window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
                    } catch (e) {
-                     console.log('Expo redirect failed, trying custom scheme...');
-                     
-                     // Method 2: Try custom scheme
                      try {
-                       const customUrl = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                       console.log('Custom URL:', customUrl);
-                       window.location.href = customUrl;
+                       window.location.href = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
                      } catch (e2) {
-                       console.log('Custom scheme failed, trying window.close...');
-                       
-                       // Method 3: Try to close window
-                       try {
-                         window.close();
-                       } catch (e3) {
-                         console.log('Window close failed, showing success message...');
-                         
-                         // Method 4: Show success message
-                         document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; background: #1a1a1a; min-height: 100vh; display: flex; align-items: center; justify-content: center;"><div><h2>✅ Authentication Complete!</h2><p>Welcome, ${userInfo.name}!</p><p>You can now close this window and return to your app.</p><p style="font-size: 12px; color: #888; margin-top: 20px;">Manual URL: https://meetingguard-backend.onrender.com/oauth/auth-data/${encodeURIComponent(userInfo.email)}</p></div></div>';
-                       }
+                       window.close();
                      }
                    }
-                 }
-                 
-                 // Try redirect after 1 second
-                 setTimeout(tryRedirect, 1000);
-                 
-                 // Try again after 3 seconds as backup
-                 setTimeout(tryRedirect, 3000);
-                 
-                 // Try again after 5 seconds as final backup
-                 setTimeout(tryRedirect, 5000);
-                 
-                 // After 7 seconds, show manual option
-                 setTimeout(() => {
-                   const redirectDiv = document.querySelector('.redirect');
-                   if (redirectDiv) {
-                     redirectDiv.innerHTML = '<h2>✅ Authentication Complete!</h2>' +
-                       '<p>Welcome, ' + userInfo.name + '!</p>' +
-                       '<p>If you\'re not redirected automatically, you can:</p>' +
-                       '<p style="font-size: 12px; color: #888; margin-top: 20px;">' +
-                       '<strong>Manual URL:</strong><br>' +
-                       '<code style="background: #333; padding: 5px; border-radius: 3px;">https://meetingguard-backend.onrender.com/oauth/auth-data/' + encodeURIComponent(userInfo.email) + '</code>' +
-                       '</p>' +
-                       '<p style="font-size: 12px; color: #888; margin-top: 10px;">Or simply close this window and return to your app.</p>';
-                   }
-                 }, 7000);
-               </script>
-           </body>
-           </html>
-         `);
+                 </script>
+                 <p>Redirecting to app...</p>
+               </body>
+               </html>
+             `);
+           }
+         }
       } else {
         console.error('No access token in response:', tokenData);
         throw new Error('Failed to get access token from response');
