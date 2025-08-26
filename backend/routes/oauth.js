@@ -241,227 +241,73 @@ router.get('/google', async (req, res) => {
          console.log('Authentication data ready for app to retrieve');
         
                  // Redirect back to the app with success
-                  res.send(`
-           <!DOCTYPE html>
-           <html lang="en">
-           <head>
-             <meta charset="UTF-8">
-             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-             <title>Authentication Success - MeetingGuard AI</title>
-             <style>
-               * {
-                 margin: 0;
-                 padding: 0;
-                 box-sizing: border-box;
-               }
-               
-               body {
-                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                 background: #1a1a1a;
-                 min-height: 100vh;
-                 display: flex;
-                 align-items: center;
-                 justify-content: center;
-                 padding: 20px;
-                 color: #ffffff;
-               }
-               
-               .container {
-                 background: #2d2d2d;
-                 border-radius: 16px;
-                 box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-                 padding: 40px;
-                 max-width: 450px;
-                 width: 100%;
-                 text-align: center;
-                 border: 1px solid #404040;
-               }
-               
-               .success-icon {
-                 width: 60px;
-                 height: 60px;
-                 background: #00d4aa;
-                 border-radius: 50%;
-                 display: flex;
-                 align-items: center;
-                 justify-content: center;
-                 margin: 0 auto 24px;
-                 box-shadow: 0 4px 16px rgba(0, 212, 170, 0.3);
-               }
-               
-               .success-icon svg {
-                 width: 30px;
-                 height: 30px;
-                 fill: white;
-               }
-               
-               h1 {
-                 color: #ffffff;
-                 font-size: 24px;
-                 font-weight: 600;
-                 margin-bottom: 8px;
-               }
-               
-               .welcome-text {
-                 color: #b0b0b0;
-                 font-size: 16px;
-                 margin-bottom: 32px;
-                 line-height: 1.4;
-               }
-               
-               .user-info {
-                 background: #404040;
-                 border-radius: 12px;
-                 padding: 20px;
-                 margin: 24px 0;
-                 border-left: 3px solid #00d4aa;
-               }
-               
-               .user-info p {
-                 margin: 8px 0;
-                 color: #e0e0e0;
-                 font-size: 14px;
-               }
-               
-               .user-info strong {
-                 color: #ffffff;
-                 font-weight: 500;
-               }
-               
-               .dashboard-btn {
-                 background: #00d4aa;
-                 color: #1a1a1a;
-                 border: none;
-                 padding: 16px 32px;
-                 border-radius: 12px;
-                 font-size: 16px;
-                 font-weight: 600;
-                 cursor: pointer;
-                 transition: all 0.2s ease;
-                 margin: 24px 0;
-                 width: 100%;
-                 max-width: 200px;
-                 box-shadow: 0 4px 12px rgba(0, 212, 170, 0.3);
-               }
-               
-               .dashboard-btn:hover {
-                 background: #00b894;
-                 transform: translateY(-1px);
-                 box-shadow: 0 6px 16px rgba(0, 212, 170, 0.4);
-               }
-               
-               .dashboard-btn:active {
-                 transform: translateY(0);
-               }
-               
-               .loading {
-                 display: none;
-                 margin: 16px 0;
-               }
-               
-               .spinner {
-                 width: 20px;
-                 height: 20px;
-                 border: 2px solid #404040;
-                 border-top: 2px solid #00d4aa;
-                 border-radius: 50%;
-                 animation: spin 1s linear infinite;
-                 margin: 0 auto 8px;
-               }
-               
-               .loading p {
-                 color: #b0b0b0;
-                 font-size: 14px;
-               }
-               
-               @keyframes spin {
-                 0% { transform: rotate(0deg); }
-                 100% { transform: rotate(360deg); }
-               }
-               
-               .manual-link {
-                 background: #404040;
-                 border-radius: 8px;
-                 padding: 16px;
-                 margin: 24px 0 0 0;
-                 font-size: 12px;
-                 color: #b0b0b0;
-                 border: 1px solid #505050;
-               }
-               
-               .manual-link code {
-                 background: #1a1a1a;
-                 color: #00d4aa;
-                 padding: 8px 12px;
-                 border-radius: 6px;
-                 font-family: 'Courier New', monospace;
-                 display: block;
-                 margin: 8px 0;
-                 word-break: break-all;
-                 border: 1px solid #505050;
-               }
-               
-               @media (max-width: 480px) {
-                 .container {
-                   padding: 32px 24px;
-                 }
-                 
-                 h1 {
-                   font-size: 22px;
-                 }
-               }
-             </style>
-           </head>
-           <body>
-             <div class="container">
-               <div class="success-icon">
-                 <svg viewBox="0 0 24 24">
-                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                 </svg>
-               </div>
-               
-                               <h1>Authentication Successful!</h1>
-                <p class="welcome-text">Hi, <strong>${userInfo.name}</strong>,<br> Welcome to MeetingGuard AI</p>
-                
-                <div class="user-info">
-                  <p><strong>Email:</strong> ${userInfo.email}</p>
-                  <p><strong>Status:</strong> ✅ Ready to use</p>
-                </div>
-                
-                                                  <a href="javascript:window.close();" class="dashboard-btn" style="display: inline-block; text-decoration: none;">
-                   Go to Dashboard
-                 </a>
-                 
-                 <div class="manual-link">
-                   <p><strong>Manual Authentication:</strong></p>
-                   <p>If the button doesn't work, use this URL:</p>
-                   <code>https://meetingguard-backend.onrender.com/oauth/auth-data/${encodeURIComponent(userInfo.email)}</code>
-                 </div>
-                 
-                 <p style="color: #b0b0b0; font-size: 12px; margin-top: 20px;">
-                   This window will automatically close in 5 seconds...
-                 </p>
-               </div>
-                 
-               <script>
-                 // Simple auto-close after 5 seconds
-                 setTimeout(function() {
-                   try {
-                     window.close();
-                   } catch (e) {
-                     // If window.close() fails, try to redirect
-                     try {
-                       window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                     } catch (e2) {
-                       // If that fails too, just show success message
-                       document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; background: #1a1a1a; min-height: 100vh; display: flex; align-items: center; justify-content: center;"><div><h2>✅ Authentication Complete!</h2><p>You can now close this window and return to your app.</p></div></div>';
-                     }
+                           // Redirect directly to the app without showing any interface
+         console.log('=== DIRECT REDIRECT TO APP ===');
+         console.log('Redirecting to app with authentication data...');
+         
+         // Try to redirect directly to the app
+         try {
+           // Method 1: Try Expo Go redirect
+           const expoUrl = `exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}`;
+           console.log('Redirecting to Expo Go:', expoUrl);
+           res.redirect(expoUrl);
+         } catch (e) {
+           console.log('Expo redirect failed, trying custom scheme...');
+           try {
+             // Method 2: Try custom scheme
+             const customUrl = `meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}`;
+             console.log('Redirecting to custom scheme:', customUrl);
+             res.redirect(customUrl);
+           } catch (e2) {
+             console.log('All redirects failed, sending minimal success page...');
+             // Method 3: Minimal success page that auto-closes
+             res.send(`
+               <!DOCTYPE html>
+               <html>
+               <head>
+                 <title>Authentication Complete</title>
+                 <style>
+                   body { 
+                     font-family: Arial, sans-serif; 
+                     text-align: center; 
+                     padding: 50px; 
+                     background: #1a1a1a; 
+                     color: white; 
+                     margin: 0;
+                     min-height: 100vh;
+                     display: flex;
+                     align-items: center;
+                     justify-content: center;
                    }
-                 }, 5000);
-               </script>
-           </body>
-           </html>
-         `);
+                   .success { 
+                     background: #2d2d2d; 
+                     padding: 30px; 
+                     border-radius: 12px; 
+                     border: 1px solid #404040;
+                   }
+                 </style>
+               </head>
+               <body>
+                 <div class="success">
+                   <h2>✅ Authentication Complete!</h2>
+                   <p>Welcome, ${userInfo.name}!</p>
+                   <p>You can now close this window and return to your app.</p>
+                 </div>
+                 <script>
+                   // Auto-close after 2 seconds
+                   setTimeout(() => {
+                     try {
+                       window.close();
+                     } catch (e) {
+                       console.log('Auto-close failed');
+                     }
+                   }, 2000);
+                 </script>
+               </body>
+               </html>
+             `);
+           }
+         }
       } else {
         console.error('No access token in response:', tokenData);
         throw new Error('Failed to get access token from response');
