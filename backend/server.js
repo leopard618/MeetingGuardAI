@@ -133,8 +133,16 @@ app.use('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 MeetingGuard Backend Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔐 OAuth redirect: http://localhost:${PORT}/oauth`);
+  
+  // Show correct URLs based on environment
+  if (process.env.NODE_ENV === 'production') {
+    const baseUrl = process.env.BACKEND_URL || 'https://meetingguard-backend.onrender.com';
+    console.log(`🔗 Health check: ${baseUrl}/health`);
+    console.log(`🔐 OAuth redirect: ${baseUrl}/oauth`);
+  } else {
+    console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔐 OAuth redirect: http://localhost:${PORT}/oauth`);
+  }
 });
 
 // Graceful shutdown
