@@ -87,19 +87,26 @@ router.get('/google', async (req, res) => {
       console.log('Client ID:', process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Not set');
       console.log('Client Secret:', process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not set');
       
-      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: process.env.GOOGLE_CLIENT_ID,
-          client_secret: process.env.GOOGLE_CLIENT_SECRET,
-          code: code,
-          grant_type: 'authorization_code',
-          redirect_uri: oauthRedirectUri,
-        }),
-      });
+             // Log the exact values being sent for debugging
+       console.log('=== TOKEN EXCHANGE DETAILS ===');
+       console.log('Client ID:', process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Not set');
+       console.log('Client Secret:', process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not set');
+       console.log('Redirect URI:', oauthRedirectUri);
+       console.log('Code length:', code ? code.length : 0);
+       
+       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/x-www-form-urlencoded',
+         },
+         body: new URLSearchParams({
+           client_id: process.env.GOOGLE_CLIENT_ID,
+           client_secret: process.env.GOOGLE_CLIENT_SECRET,
+           code: code,
+           grant_type: 'authorization_code',
+           redirect_uri: oauthRedirectUri,
+         }),
+       });
 
       console.log('Token response status:', tokenResponse.status);
       
@@ -232,8 +239,23 @@ router.get('/google', async (req, res) => {
 router.get('/', (req, res) => {
   res.json({
     message: 'OAuth endpoint',
-    available: ['/google'],
-    redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'Not configured'
+    available: ['/google', '/test-config'],
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'Not configured',
+    client_id_set: !!process.env.GOOGLE_CLIENT_ID,
+    client_secret_set: !!process.env.GOOGLE_CLIENT_SECRET
+  });
+});
+
+/**
+ * Test endpoint to check OAuth configuration
+ */
+router.get('/test-config', (req, res) => {
+  res.json({
+    google_client_id: process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Not set',
+    google_client_secret: process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not set',
+    google_redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'Not set',
+    backend_url: process.env.BACKEND_URL || 'Not set',
+    node_env: process.env.NODE_ENV || 'Not set'
   });
 });
 
