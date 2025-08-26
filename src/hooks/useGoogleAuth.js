@@ -258,7 +258,7 @@ export const useGoogleAuth = () => {
               
               // Add user to local storage using the new user management system
               const userResult = await userStorage.addGoogleUser(authData.user);
-              
+              console.log('User result:', userResult);
               if (userResult.success) {
                 console.log('User added to local storage:', userResult.user.email);
                 console.log('Is new user:', userResult.isNewUser);

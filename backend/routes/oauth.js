@@ -424,8 +424,6 @@ router.get('/google', async (req, res) => {
                <p class="welcome-text">Hi, <strong>${userInfo.name}</strong>, welcome to MeetingGuard AI</p>
                
                <div class="user-info">
-                 <p><strong>Email:</strong> ${userInfo.email}</p>
-                 <p><strong>Status:</strong> ✅ Ready to use</p>
                </div>
                
                <button class="dashboard-btn" onclick="goToDashboard()">
@@ -437,11 +435,7 @@ router.get('/google', async (req, res) => {
                  <p>Redirecting to app...</p>
                </div>
                
-               <div class="manual-link">
-                 <p><strong>Manual Authentication:</strong></p>
-                 <p>If the button doesn't work, use this URL:</p>
-                 <code>https://meetingguard-backend.onrender.com/oauth/auth-data/${encodeURIComponent(userInfo.email)}</code>
-               </div>
+               
              </div>
                
              <script>
