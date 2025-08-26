@@ -242,38 +242,249 @@ router.get('/google', async (req, res) => {
         
                  // Redirect back to the app with success
          res.send(`
-           <html>
-             <head><title>OAuth Success</title></head>
-             <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center;">
-               <h1 style="color: #4CAF50;">✅ OAuth Success</h1>
-               <p style="font-size: 18px; color: #333;">Authentication completed successfully!</p>
-               <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+           <!DOCTYPE html>
+           <html lang="en">
+           <head>
+             <meta charset="UTF-8">
+             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+             <title>OAuth Success - MeetingGuard</title>
+             <style>
+               * {
+                 margin: 0;
+                 padding: 0;
+                 box-sizing: border-box;
+               }
+               
+               body {
+                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                 min-height: 100vh;
+                 display: flex;
+                 align-items: center;
+                 justify-content: center;
+                 padding: 20px;
+               }
+               
+               .container {
+                 background: white;
+                 border-radius: 20px;
+                 box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+                 padding: 40px;
+                 max-width: 500px;
+                 width: 100%;
+                 text-align: center;
+                 position: relative;
+                 overflow: hidden;
+               }
+               
+               .container::before {
+                 content: '';
+                 position: absolute;
+                 top: 0;
+                 left: 0;
+                 right: 0;
+                 height: 4px;
+                 background: linear-gradient(90deg, #4CAF50, #45a049);
+               }
+               
+               .success-icon {
+                 width: 80px;
+                 height: 80px;
+                 background: linear-gradient(135deg, #4CAF50, #45a049);
+                 border-radius: 50%;
+                 display: flex;
+                 align-items: center;
+                 justify-content: center;
+                 margin: 0 auto 20px;
+                 box-shadow: 0 10px 20px rgba(76, 175, 80, 0.3);
+               }
+               
+               .success-icon svg {
+                 width: 40px;
+                 height: 40px;
+                 fill: white;
+               }
+               
+               h1 {
+                 color: #2c3e50;
+                 font-size: 28px;
+                 font-weight: 700;
+                 margin-bottom: 10px;
+               }
+               
+               .subtitle {
+                 color: #7f8c8d;
+                 font-size: 16px;
+                 margin-bottom: 30px;
+               }
+               
+               .user-info {
+                 background: #f8f9fa;
+                 border-radius: 12px;
+                 padding: 20px;
+                 margin: 20px 0;
+                 border-left: 4px solid #4CAF50;
+               }
+               
+               .user-info p {
+                 margin: 8px 0;
+                 color: #2c3e50;
+                 font-size: 14px;
+               }
+               
+               .user-info strong {
+                 color: #34495e;
+                 font-weight: 600;
+               }
+               
+               .dashboard-btn {
+                 background: linear-gradient(135deg, #4CAF50, #45a049);
+                 color: white;
+                 border: none;
+                 padding: 15px 30px;
+                 border-radius: 25px;
+                 font-size: 16px;
+                 font-weight: 600;
+                 cursor: pointer;
+                 transition: all 0.3s ease;
+                 box-shadow: 0 8px 16px rgba(76, 175, 80, 0.3);
+                 margin: 20px 0;
+                 width: 100%;
+                 max-width: 250px;
+               }
+               
+               .dashboard-btn:hover {
+                 transform: translateY(-2px);
+                 box-shadow: 0 12px 24px rgba(76, 175, 80, 0.4);
+               }
+               
+               .dashboard-btn:active {
+                 transform: translateY(0);
+               }
+               
+               .status {
+                 color: #27ae60;
+                 font-size: 14px;
+                 font-weight: 500;
+                 margin: 15px 0;
+               }
+               
+               .manual-link {
+                 background: #ecf0f1;
+                 border-radius: 8px;
+                 padding: 15px;
+                 margin: 20px 0;
+                 font-size: 12px;
+                 color: #7f8c8d;
+               }
+               
+               .manual-link code {
+                 background: #bdc3c7;
+                 color: #2c3e50;
+                 padding: 4px 8px;
+                 border-radius: 4px;
+                 font-family: 'Courier New', monospace;
+                 display: block;
+                 margin: 8px 0;
+                 word-break: break-all;
+               }
+               
+               .loading {
+                 display: none;
+                 margin: 10px 0;
+               }
+               
+               .spinner {
+                 width: 20px;
+                 height: 20px;
+                 border: 2px solid #f3f3f3;
+                 border-top: 2px solid #4CAF50;
+                 border-radius: 50%;
+                 animation: spin 1s linear infinite;
+                 margin: 0 auto;
+               }
+               
+               @keyframes spin {
+                 0% { transform: rotate(0deg); }
+                 100% { transform: rotate(360deg); }
+               }
+               
+               @media (max-width: 480px) {
+                 .container {
+                   padding: 30px 20px;
+                 }
+                 
+                 h1 {
+                   font-size: 24px;
+                 }
+               }
+             </style>
+           </head>
+           <body>
+             <div class="container">
+               <div class="success-icon">
+                 <svg viewBox="0 0 24 24">
+                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                 </svg>
+               </div>
+               
+               <h1>Authentication Successful!</h1>
+               <p class="subtitle">Welcome to MeetingGuard</p>
+               
+               <div class="user-info">
                  <p><strong>User:</strong> ${userInfo.email}</p>
                  <p><strong>Name:</strong> ${userInfo.name}</p>
-                 <p><strong>Status:</strong> User data stored in database</p>
+                 <p><strong>Status:</strong> ✅ User data stored in database</p>
                </div>
-               <p style="color: #666;">Redirecting back to app...</p>
-               <p style="font-size: 14px; color: #999; margin-top: 30px;">
-                 If you don't see your app, you can manually retrieve your authentication data using:<br>
-                 <code style="background: #eee; padding: 5px; border-radius: 3px;">/oauth/auth-data/${encodeURIComponent(userInfo.email)}</code>
-               </p>
-                               <script>
-                  // Redirect back to app with success
-                  setTimeout(() => {
-                    try {
-                      // Try to redirect to Expo Go first
-                      window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                    } catch (e) {
-                      // Fallback to custom scheme
-                      window.location.href = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                    }
-                  }, 2000);
-                  
-                  // Also try to close the window after a delay
-                  setTimeout(() => {
-                    window.close();
-                  }, 3000);
-                </script>
+               
+               <p class="status">You're all set! Click the button below to go to your dashboard.</p>
+               
+               <button class="dashboard-btn" onclick="goToDashboard()">
+                 🚀 Go to Dashboard
+               </button>
+               
+               <div class="loading" id="loading">
+                 <div class="spinner"></div>
+                 <p>Redirecting to app...</p>
+               </div>
+               
+               <div class="manual-link">
+                 <p><strong>Manual Authentication:</strong></p>
+                 <p>If the button doesn't work, you can manually retrieve your authentication data:</p>
+                 <code>https://meetingguard-backend.onrender.com/oauth/auth-data/${encodeURIComponent(userInfo.email)}</code>
+               </div>
+                            </div>
+               
+               <script>
+                 function goToDashboard() {
+                   // Show loading spinner
+                   document.getElementById('loading').style.display = 'block';
+                   document.querySelector('.dashboard-btn').style.display = 'none';
+                   
+                   // Try multiple redirect methods
+                   setTimeout(() => {
+                     try {
+                       // Method 1: Try Expo Go redirect
+                       window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
+                     } catch (e) {
+                       try {
+                         // Method 2: Try custom scheme
+                         window.location.href = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
+                       } catch (e2) {
+                         // Method 3: Fallback - try to close window
+                         window.close();
+                       }
+                     }
+                   }, 500);
+                 }
+                 
+                 // Auto-redirect after 5 seconds as fallback
+                 setTimeout(() => {
+                   if (document.querySelector('.dashboard-btn').style.display !== 'none') {
+                     goToDashboard();
+                   }
+                 }, 5000);
+               </script>
              </body>
            </html>
          `);
