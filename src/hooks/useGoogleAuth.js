@@ -212,7 +212,7 @@ export const useGoogleAuth = () => {
       // Test the polling endpoint first
       try {
         console.log('=== TESTING POLLING ENDPOINT ===');
-        const checkAuthUrl = oauthRedirectUri.replace('/auth', '/check-auth');
+        const checkAuthUrl = oauthRedirectUri.replace('/google', '/auth-data');
         const testResponse = await fetch(checkAuthUrl, {
           method: 'GET',
           headers: {
@@ -235,7 +235,7 @@ export const useGoogleAuth = () => {
         
         try {
           // Check if our redirect server has processed the authentication
-          const checkAuthUrl = oauthRedirectUri.replace('/auth', '/check-auth');
+          const checkAuthUrl = oauthRedirectUri.replace('/google', '/auth-data');
           const checkResponse = await fetch(checkAuthUrl, {
             method: 'GET',
             headers: {
@@ -299,7 +299,7 @@ export const useGoogleAuth = () => {
       // Fallback: Check one more time for authentication data
       console.log('=== FALLBACK: FINAL CHECK ===');
       try {
-        const checkAuthUrl = oauthRedirectUri.replace('/auth', '/check-auth');
+        const checkAuthUrl = oauthRedirectUri.replace('/google', '/auth-data');
         const finalCheckResponse = await fetch(checkAuthUrl, {
           method: 'GET',
           headers: {
