@@ -244,21 +244,36 @@ router.get('/google', async (req, res) => {
          res.send(`
            <html>
              <head><title>OAuth Success</title></head>
-             <body>
-               <h1>OAuth Success</h1>
-               <p>Authentication completed successfully!</p>
-               <p>User: ${userInfo.email}</p>
-               <p>Name: ${userInfo.name}</p>
-               <p>Redirecting back to app...</p>
-               <script>
-                 // Redirect back to app with success
-                 setTimeout(() => {
-                   ${isExpoGo 
-                     ? 'window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=' + encodeURIComponent(userInfo.email) + '";'
-                     : 'window.location.href = "meetingguardai://auth?success=true&user=' + encodeURIComponent(userInfo.email) + '";'
-                   }
-                 }, 1000);
-               </script>
+             <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center;">
+               <h1 style="color: #4CAF50;">✅ OAuth Success</h1>
+               <p style="font-size: 18px; color: #333;">Authentication completed successfully!</p>
+               <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                 <p><strong>User:</strong> ${userInfo.email}</p>
+                 <p><strong>Name:</strong> ${userInfo.name}</p>
+                 <p><strong>Status:</strong> User data stored in database</p>
+               </div>
+               <p style="color: #666;">Redirecting back to app...</p>
+               <p style="font-size: 14px; color: #999; margin-top: 30px;">
+                 If you don't see your app, you can manually retrieve your authentication data using:<br>
+                 <code style="background: #eee; padding: 5px; border-radius: 3px;">/oauth/auth-data/${encodeURIComponent(userInfo.email)}</code>
+               </p>
+                               <script>
+                  // Redirect back to app with success
+                  setTimeout(() => {
+                    try {
+                      // Try to redirect to Expo Go first
+                      window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
+                    } catch (e) {
+                      // Fallback to custom scheme
+                      window.location.href = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
+                    }
+                  }, 2000);
+                  
+                  // Also try to close the window after a delay
+                  setTimeout(() => {
+                    window.close();
+                  }, 3000);
+                </script>
              </body>
            </html>
          `);
@@ -349,6 +364,76 @@ router.get('/auth-data', (req, res) => {
     res.json({ 
       success: false, 
       message: 'No authentication data available. Please complete OAuth flow first.' 
+    });
+  }
+});
+
+/**
+ * Endpoint to get auth data by user email (for cases where global.authData is cleared)
+ */
+router.get('/auth-data/:email', async (req, res) => {
+  console.log('=== Auth Data Request by Email ===');
+  console.log('Email:', req.params.email);
+  
+  // Add CORS headers for mobile app
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  
+  try {
+    const { supabase } = require('../config/database');
+    const { generateToken } = require('../middleware/auth');
+    
+    // Find user by email
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', req.params.email)
+      .single();
+    
+    if (userError || !user) {
+      return res.json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+    
+    // Get user tokens
+    const { data: tokens, error: tokenError } = await supabase
+      .from('user_tokens')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('token_type', 'google')
+      .single();
+    
+    if (tokenError) {
+      console.error('Error getting tokens:', tokenError);
+    }
+    
+    // Generate new JWT token
+    const jwtToken = generateToken(user.id);
+    
+    res.json({
+      success: true,
+      jwtToken: jwtToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture
+      },
+      googleTokens: tokens ? {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_in: Math.floor((new Date(tokens.expires_at) - new Date()) / 1000)
+      } : null
+    });
+    
+  } catch (error) {
+    console.error('Error getting auth data by email:', error);
+    res.json({ 
+      success: false, 
+      message: 'Error retrieving authentication data' 
     });
   }
 });
