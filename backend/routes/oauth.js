@@ -420,81 +420,89 @@ router.get('/google', async (req, res) => {
                  </svg>
                </div>
                
-               <h1>Authentication Successful!</h1>
-               <p class="welcome-text">Hi, <strong>${userInfo.name}</strong>, welcome to MeetingGuard AI</p>
-               
-               <div class="user-info">
-               </div>
-               
-               <button class="dashboard-btn" onclick="goToDashboard()">
-                 Go to Dashboard
-               </button>
-               
-               <div class="loading" id="loading">
-                 <div class="spinner"></div>
-                 <p>Redirecting to app...</p>
-               </div>
-               
-               
-             </div>
-               
-             <script>
-               function goToDashboard() {
-                 console.log('Go to Dashboard clicked');
-                 
-                 // Show loading spinner
-                 document.getElementById('loading').style.display = 'block';
-                 document.querySelector('.dashboard-btn').style.display = 'none';
-                 
-                 // Try multiple redirect methods with better error handling
-                 setTimeout(() => {
-                   try {
-                     console.log('Attempting redirect to Expo Go...');
-                     
-                     // Method 1: Try Expo Go redirect with proper URL encoding
-                     const expoUrl = "exp://192.168.141.51:8081/--/auth?success=true&user=" + encodeURIComponent(userInfo.email) + "&token=" + encodeURIComponent(global.authData?.jwtToken || '');
-                     console.log('Expo URL:', expoUrl);
-                     window.location.href = expoUrl;
-                     
-                   } catch (e) {
-                     console.log('Expo redirect failed, trying custom scheme...');
-                     try {
-                       // Method 2: Try custom scheme
-                       const customUrl = "meetingguardai://auth?success=true&user=" + encodeURIComponent(userInfo.email) + "&token=" + encodeURIComponent(global.authData?.jwtToken || '');
-                       console.log('Custom URL:', customUrl);
-                       window.location.href = customUrl;
-                       
-                     } catch (e2) {
-                       console.log('Custom scheme failed, trying window.close...');
-                       // Method 3: Fallback - try to close window
-                       try {
-                         window.close();
-                       } catch (e3) {
-                         console.log('All redirect methods failed');
-                         // Show error message
-                         document.getElementById('loading').innerHTML = '<p style="color: #ff6b6b;">Redirect failed. Please close this window and return to the app.</p>';
-                       }
-                     }
-                   }
-                 }, 1000);
-               }
-               
-               // Auto-redirect after 3 seconds as fallback
-               setTimeout(() => {
-                 if (document.querySelector('.dashboard-btn').style.display !== 'none') {
-                   console.log('Auto-redirecting...');
-                   goToDashboard();
-                 }
-               }, 3000);
-               
-               // Add click event listener as backup
-               document.addEventListener('DOMContentLoaded', function() {
-                 const btn = document.querySelector('.dashboard-btn');
-                 if (btn) {
-                   btn.addEventListener('click', goToDashboard);
-                 }
-               });
-             </script>
+                               <h1>Authentication Successful!</h1>
+                <p class="welcome-text">Hi, <strong>${userInfo.name}</strong>, welcome to MeetingGuard AI</p>
+                
+                <div class="user-info">
+                  <p><strong>Email:</strong> ${userInfo.email}</p>
+                  <p><strong>Status:</strong> ✅ Ready to use</p>
+                </div>
+                
+                <button class="dashboard-btn" id="dashboardBtn">
+                  Go to Dashboard
+                </button>
+                
+                <div class="loading" id="loading">
+                  <div class="spinner"></div>
+                  <p>Redirecting to app...</p>
+                </div>
+                
+                <div class="manual-link">
+                  <p><strong>Manual Authentication:</strong></p>
+                  <p>If the button doesn't work, use this URL:</p>
+                  <code>https://meetingguard-backend.onrender.com/oauth/auth-data/${encodeURIComponent(userInfo.email)}</code>
+                </div>
+              </div>
+                
+              <script>
+                // Simple and reliable redirect function
+                function goToDashboard() {
+                  console.log('Go to Dashboard clicked');
+                  
+                  // Show loading spinner
+                  document.getElementById('loading').style.display = 'block';
+                  document.getElementById('dashboardBtn').style.display = 'none';
+                  
+                  // Try to close the window first (most reliable)
+                  try {
+                    window.close();
+                  } catch (e) {
+                    console.log('Window close failed, trying redirects...');
+                    
+                    // Try redirects as fallback
+                    setTimeout(() => {
+                      try {
+                        // Try Expo Go redirect
+                        const expoUrl = "exp://192.168.141.51:8081/--/auth?success=true&user=" + encodeURIComponent('${userInfo.email}') + "&token=" + encodeURIComponent('${global.authData?.jwtToken || ''}');
+                        console.log('Trying Expo URL:', expoUrl);
+                        window.location.href = expoUrl;
+                      } catch (e2) {
+                        try {
+                          // Try custom scheme
+                          const customUrl = "meetingguardai://auth?success=true&user=" + encodeURIComponent('${userInfo.email}') + "&token=" + encodeURIComponent('${global.authData?.jwtToken || ''}');
+                          console.log('Trying custom URL:', customUrl);
+                          window.location.href = customUrl;
+                        } catch (e3) {
+                          console.log('All methods failed');
+                          document.getElementById('loading').innerHTML = '<p style="color: #ff6b6b;">Please close this window manually and return to the app.</p>';
+                        }
+                      }
+                    }, 500);
+                  }
+                }
+                
+                // Add click event listener when page loads
+                document.addEventListener('DOMContentLoaded', function() {
+                  const btn = document.getElementById('dashboardBtn');
+                  if (btn) {
+                    btn.addEventListener('click', goToDashboard);
+                    console.log('Button click listener added');
+                  }
+                });
+                
+                // Also add onclick attribute as backup
+                document.getElementById('dashboardBtn').onclick = goToDashboard;
+                
+                // Auto-close after 5 seconds
+                setTimeout(() => {
+                  console.log('Auto-closing window...');
+                  try {
+                    window.close();
+                  } catch (e) {
+                    console.log('Auto-close failed');
+                  }
+                }, 5000);
+              </script>
            </body>
            </html>
          `);
