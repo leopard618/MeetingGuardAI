@@ -292,28 +292,67 @@ router.get('/google', async (req, res) => {
                <div class="spinner"></div>
                <p>Redirecting to MeetingGuard...</p>
              </div>
-             <script>
-               // Try to redirect to the app
-               setTimeout(() => {
-                 try {
-                   // Try Expo Go first
-                   window.location.href = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                 } catch (e) {
+                            <script>
+                 console.log('Starting redirect process...');
+                 
+                 // Function to try different redirect methods
+                 function tryRedirect() {
+                   console.log('Attempting redirect...');
+                   
+                   // Method 1: Try Expo Go
                    try {
-                     // Try custom scheme
-                     window.location.href = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
-                   } catch (e2) {
-                     // If all redirects fail, just close the window
+                     console.log('Trying Expo Go redirect...');
+                     const expoUrl = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
+                     console.log('Expo URL:', expoUrl);
+                     window.location.href = expoUrl;
+                   } catch (e) {
+                     console.log('Expo redirect failed, trying custom scheme...');
+                     
+                     // Method 2: Try custom scheme
                      try {
-                       window.close();
-                     } catch (e3) {
-                       // Show success message if everything fails
-                       document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; background: #1a1a1a; min-height: 100vh; display: flex; align-items: center; justify-content: center;"><div><h2>✅ Authentication Complete!</h2><p>Welcome, ${userInfo.name}!</p><p>You can now close this window and return to your app.</p></div></div>';
+                       const customUrl = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}&token=${encodeURIComponent(global.authData?.jwtToken || '')}";
+                       console.log('Custom URL:', customUrl);
+                       window.location.href = customUrl;
+                     } catch (e2) {
+                       console.log('Custom scheme failed, trying window.close...');
+                       
+                       // Method 3: Try to close window
+                       try {
+                         window.close();
+                       } catch (e3) {
+                         console.log('Window close failed, showing success message...');
+                         
+                         // Method 4: Show success message
+                         document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; background: #1a1a1a; min-height: 100vh; display: flex; align-items: center; justify-content: center;"><div><h2>✅ Authentication Complete!</h2><p>Welcome, ${userInfo.name}!</p><p>You can now close this window and return to your app.</p><p style="font-size: 12px; color: #888; margin-top: 20px;">Manual URL: https://meetingguard-backend.onrender.com/oauth/auth-data/${encodeURIComponent(userInfo.email)}</p></div></div>';
+                       }
                      }
                    }
                  }
-               }, 1000);
-             </script>
+                 
+                 // Try redirect after 1 second
+                 setTimeout(tryRedirect, 1000);
+                 
+                 // Try again after 3 seconds as backup
+                 setTimeout(tryRedirect, 3000);
+                 
+                 // Try again after 5 seconds as final backup
+                 setTimeout(tryRedirect, 5000);
+                 
+                 // After 7 seconds, show manual option
+                 setTimeout(() => {
+                   const redirectDiv = document.querySelector('.redirect');
+                   if (redirectDiv) {
+                     redirectDiv.innerHTML = '<h2>✅ Authentication Complete!</h2>' +
+                       '<p>Welcome, ' + userInfo.name + '!</p>' +
+                       '<p>If you\'re not redirected automatically, you can:</p>' +
+                       '<p style="font-size: 12px; color: #888; margin-top: 20px;">' +
+                       '<strong>Manual URL:</strong><br>' +
+                       '<code style="background: #333; padding: 5px; border-radius: 3px;">https://meetingguard-backend.onrender.com/oauth/auth-data/' + encodeURIComponent(userInfo.email) + '</code>' +
+                       '</p>' +
+                       '<p style="font-size: 12px; color: #888; margin-top: 10px;">Or simply close this window and return to your app.</p>';
+                   }
+                 }, 7000);
+               </script>
            </body>
            </html>
          `);
