@@ -338,147 +338,115 @@ router.get('/google', async (req, res) => {
          global.processingCode = null;
          
          // Send a success page with immediate redirect attempt
-         res.send(`
-           <!DOCTYPE html>
-           <html>
-           <head>
-             <title>Authentication Complete</title>
-             <style>
-               body { 
-                 font-family: Arial, sans-serif; 
-                 text-align: center; 
-                 padding: 50px; 
-                 background: #1a1a1a; 
-                 color: white; 
-                 margin: 0;
-                 min-height: 100vh;
-                 display: flex;
-                 align-items: center;
-                 justify-content: center;
-               }
-               .success { 
-                 background: #2d2d2d; 
-                 padding: 30px; 
-                 border-radius: 12px; 
-                 border: 1px solid #404040;
-                 max-width: 400px;
-               }
-             </style>
-           </head>
-           <body>
-             <div class="success">
-               <h2>✅ Authentication Successful!</h2>
-               <p>Welcome, ${userInfo.name}!</p>
-               <p>Redirecting to your app...</p>
-               <p style="font-size: 12px; color: #888; margin-top: 20px;">
-                 Auth data ready: ${userInfo.email}
-               </p>
-             </div>
-             <script>
-               console.log('=== OAUTH SUCCESS PAGE LOADED ===');
-               console.log('User:', '${userInfo.name}');
-               console.log('Email:', '${userInfo.email}');
-               console.log('Auth data available:', true);
-               console.log('Auth data email:', '${userInfo.email}');
-               
-               // Function to check if auth data is available
-               async function checkAuthData() {
-                 try {
-                   console.log('Checking auth data availability...');
-                   const response = await fetch('/oauth/auth-data', {
-                     method: 'GET',
-                     headers: {
-                       'Content-Type': 'application/json',
-                     },
-                   });
-                   
-                   console.log('Auth data check response status:', response.status);
-                   
-                   if (response.ok) {
-                     const data = await response.json();
-                     console.log('Auth data check result:', data);
-                     
-                     if (data.success) {
-                       console.log('Auth data is available!');
-                       return true;
-                     } else {
-                       console.log('Auth data not available yet');
-                       return false;
-                     }
-                   } else {
-                     console.log('Auth data check failed');
-                     return false;
-                   }
-                 } catch (error) {
-                   console.log('Auth data check error:', error.message);
-                   return false;
-                 }
-               }
-               
-               // Try multiple redirect methods
-               function tryRedirect() {
-                 console.log('Attempting redirect to app...');
-                 
-                 // Method 1: Try Expo Go
-                 try {
-                   const expoUrl = "exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}";
-                   console.log('Trying Expo URL:', expoUrl);
-                   window.location.href = expoUrl;
-                 } catch (e) {
-                   console.log('Expo redirect failed:', e.message);
-                   
-                   // Method 2: Try custom scheme
-                   try {
-                     const customUrl = "meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}";
-                     console.log('Trying custom URL:', customUrl);
-                     window.location.href = customUrl;
-                   } catch (e2) {
-                     console.log('Custom redirect failed:', e2.message);
-                     
-                     // Method 3: Close window
-                     try {
-                       window.close();
-                       console.log('Window closed successfully');
-                     } catch (e3) {
-                       console.log('Window close failed:', e3.message);
-                     }
-                   }
-                 }
-               }
-               
-               // Main flow: check auth data, then redirect
-               async function mainFlow() {
-                 console.log('Starting main flow...');
-                 
-                 // Check auth data first
-                 const authDataAvailable = await checkAuthData();
-                 
-                 if (authDataAvailable) {
-                   console.log('Auth data confirmed, attempting redirect...');
-                   tryRedirect();
-                 } else {
-                   console.log('Auth data not ready, waiting...');
-                   // Wait 1 second and try again
-                   setTimeout(mainFlow, 1000);
-                 }
-               }
-               
-               // Start the main flow
-               mainFlow();
-               
-               // Fallback: close window after 10 seconds
-               setTimeout(() => {
-                 console.log('Final fallback: closing window');
-                 try {
-                   window.close();
-                 } catch (e) {
-                   console.log('Final close failed:', e.message);
-                 }
-               }, 10000);
-             </script>
-           </body>
-           </html>
-         `);
+
+    // Send a simple success page that immediately tries to redirect
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Authentication Complete</title>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            padding: 50px; 
+            background: #1a1a1a; 
+            color: white; 
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .success { 
+            background: #2d2d2d; 
+            padding: 30px; 
+            border-radius: 12px; 
+            border: 1px solid #404040;
+            max-width: 400px;
+          }
+          .spinner {
+            border: 3px solid #404040;
+            border-top: 3px solid #4CAF50;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="success">
+          <h2>✅ Authentication Successful!</h2>
+          <p>Hi, ${userInfo.name}, welcome to MeetingGuard AI</p>
+          <div class="spinner"></div>
+          <p>Redirecting to your app...</p>
+          <p style="font-size: 12px; color: #888; margin-top: 20px;">
+            If redirect doesn't work, close this window manually
+          </p>
+        </div>
+        <script>
+          console.log('=== OAUTH SUCCESS PAGE LOADED ===');
+          console.log('User:', '${userInfo.name}');
+          console.log('Email:', '${userInfo.email}');
+          
+          // Immediate redirect attempts
+          function redirectToApp() {
+            console.log('Attempting immediate redirect...');
+            
+            // Try multiple redirect methods
+            const redirectUrls = [
+              'exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}',
+              'meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}',
+              'exp://localhost:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}'
+            ];
+            
+            let currentIndex = 0;
+            
+            function tryNextRedirect() {
+              if (currentIndex >= redirectUrls.length) {
+                console.log('All redirect methods failed, closing window');
+                window.close();
+                return;
+              }
+              
+              const url = redirectUrls[currentIndex];
+              console.log('Trying redirect:', url);
+              
+              try {
+                window.location.href = url;
+                // If we reach here, redirect might have worked
+                setTimeout(() => {
+                  console.log('Redirect might have worked, closing window');
+                  window.close();
+                }, 2000);
+              } catch (error) {
+                console.log('Redirect failed:', error.message);
+                currentIndex++;
+                setTimeout(tryNextRedirect, 500);
+              }
+            }
+            
+            tryNextRedirect();
+          }
+          
+          // Start redirect immediately
+          redirectToApp();
+          
+          // Fallback: close window after 5 seconds
+          setTimeout(() => {
+            console.log('Fallback: closing window');
+            window.close();
+          }, 5000);
+        </script>
+      </body>
+      </html>
+    `);
       } else {
         console.error('No access token in response:', tokenData);
         throw new Error('Failed to get access token from response');
