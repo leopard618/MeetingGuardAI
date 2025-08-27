@@ -136,22 +136,22 @@ ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
 -- Users can only access their own data
-CREATE POLICY "Users can view own profile" ON users FOR SELECT USING (auth.uid()::text = id::text);
-CREATE POLICY "Users can update own profile" ON users FOR UPDATE USING (auth.uid()::text = id::text);
-CREATE POLICY "Allow service role full access" ON users FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY IF NOT EXISTS "Users can view own profile" ON users FOR SELECT USING (auth.uid()::text = id::text);
+CREATE POLICY IF NOT EXISTS "Users can update own profile" ON users FOR UPDATE USING (auth.uid()::text = id::text);
+CREATE POLICY IF NOT EXISTS "Allow service role full access" ON users FOR ALL USING (auth.role() = 'service_role');
 
 -- User tokens policies
-CREATE POLICY "Users can manage own tokens" ON user_tokens FOR ALL USING (auth.uid()::text = user_id::text);
-CREATE POLICY "Allow service role full access to tokens" ON user_tokens FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY IF NOT EXISTS "Users can manage own tokens" ON user_tokens FOR ALL USING (auth.uid()::text = user_id::text);
+CREATE POLICY IF NOT EXISTS "Allow service role full access to tokens" ON user_tokens FOR ALL USING (auth.role() = 'service_role');
 
 -- User preferences policies
-CREATE POLICY "Users can manage own preferences" ON user_preferences FOR ALL USING (auth.uid()::text = user_id::text);
+CREATE POLICY IF NOT EXISTS "Users can manage own preferences" ON user_preferences FOR ALL USING (auth.uid()::text = user_id::text);
 
 -- Meetings policies
-CREATE POLICY "Users can manage own meetings" ON meetings FOR ALL USING (auth.uid()::text = user_id::text);
+CREATE POLICY IF NOT EXISTS "Users can manage own meetings" ON meetings FOR ALL USING (auth.uid()::text = user_id::text);
 
 -- Meeting participants policies (through meetings)
-CREATE POLICY "Users can manage meeting participants" ON meeting_participants FOR ALL USING (
+CREATE POLICY IF NOT EXISTS "Users can manage meeting participants" ON meeting_participants FOR ALL USING (
     EXISTS (
         SELECT 1 FROM meetings 
         WHERE meetings.id = meeting_participants.meeting_id 
@@ -160,7 +160,7 @@ CREATE POLICY "Users can manage meeting participants" ON meeting_participants FO
 );
 
 -- Meeting attachments policies (through meetings)
-CREATE POLICY "Users can manage meeting attachments" ON meeting_attachments FOR ALL USING (
+CREATE POLICY IF NOT EXISTS "Users can manage meeting attachments" ON meeting_attachments FOR ALL USING (
     EXISTS (
         SELECT 1 FROM meetings 
         WHERE meetings.id = meeting_attachments.meeting_id 
@@ -169,10 +169,10 @@ CREATE POLICY "Users can manage meeting attachments" ON meeting_attachments FOR 
 );
 
 -- Files policies
-CREATE POLICY "Users can manage own files" ON files FOR ALL USING (auth.uid()::text = user_id::text);
+CREATE POLICY IF NOT EXISTS "Users can manage own files" ON files FOR ALL USING (auth.uid()::text = user_id::text);
 
 -- Calendar events policies
-CREATE POLICY "Users can manage own calendar events" ON calendar_events FOR ALL USING (auth.uid()::text = user_id::text);
+CREATE POLICY IF NOT EXISTS "Users can manage own calendar events" ON calendar_events FOR ALL USING (auth.uid()::text = user_id::text);
 
 -- Create functions for automatic timestamp updates
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -196,22 +196,22 @@ VALUES ('meeting-files', 'meeting-files', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Create storage policies
-CREATE POLICY "Users can upload own files" ON storage.objects FOR INSERT WITH CHECK (
+CREATE POLICY IF NOT EXISTS "Users can upload own files" ON storage.objects FOR INSERT WITH CHECK (
     bucket_id = 'meeting-files' AND 
     auth.uid()::text = (storage.foldername(name))[1]
 );
 
-CREATE POLICY "Users can view own files" ON storage.objects FOR SELECT USING (
+CREATE POLICY IF NOT EXISTS "Users can view own files" ON storage.objects FOR SELECT USING (
     bucket_id = 'meeting-files' AND 
     auth.uid()::text = (storage.foldername(name))[1]
 );
 
-CREATE POLICY "Users can update own files" ON storage.objects FOR UPDATE USING (
+CREATE POLICY IF NOT EXISTS "Users can update own files" ON storage.objects FOR UPDATE USING (
     bucket_id = 'meeting-files' AND 
     auth.uid()::text = (storage.foldername(name))[1]
 );
 
-CREATE POLICY "Users can delete own files" ON storage.objects FOR DELETE USING (
+CREATE POLICY IF NOT EXISTS "Users can delete own files" ON storage.objects FOR DELETE USING (
     bucket_id = 'meeting-files' AND 
     auth.uid()::text = (storage.foldername(name))[1]
 );
