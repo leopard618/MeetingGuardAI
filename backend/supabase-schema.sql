@@ -136,43 +136,101 @@ ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
 -- Users can only access their own data
-CREATE POLICY IF NOT EXISTS "Users can view own profile" ON users FOR SELECT USING (auth.uid()::text = id::text);
-CREATE POLICY IF NOT EXISTS "Users can update own profile" ON users FOR UPDATE USING (auth.uid()::text = id::text);
-CREATE POLICY IF NOT EXISTS "Allow service role full access" ON users FOR ALL USING (auth.role() = 'service_role');
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can view own profile' AND tablename = 'users') THEN
+        CREATE POLICY "Users can view own profile" ON users FOR SELECT USING (auth.uid()::text = id::text);
+    END IF;
+END $$;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update own profile' AND tablename = 'users') THEN
+        CREATE POLICY "Users can update own profile" ON users FOR UPDATE USING (auth.uid()::text = id::text);
+    END IF;
+END $$;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow service role full access' AND tablename = 'users') THEN
+        CREATE POLICY "Allow service role full access" ON users FOR ALL USING (auth.role() = 'service_role');
+    END IF;
+END $$;
 
 -- User tokens policies
-CREATE POLICY IF NOT EXISTS "Users can manage own tokens" ON user_tokens FOR ALL USING (auth.uid()::text = user_id::text);
-CREATE POLICY IF NOT EXISTS "Allow service role full access to tokens" ON user_tokens FOR ALL USING (auth.role() = 'service_role');
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage own tokens' AND tablename = 'user_tokens') THEN
+        CREATE POLICY "Users can manage own tokens" ON user_tokens FOR ALL USING (auth.uid()::text = user_id::text);
+    END IF;
+END $$;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow service role full access to tokens' AND tablename = 'user_tokens') THEN
+        CREATE POLICY "Allow service role full access to tokens" ON user_tokens FOR ALL USING (auth.role() = 'service_role');
+    END IF;
+END $$;
 
 -- User preferences policies
-CREATE POLICY IF NOT EXISTS "Users can manage own preferences" ON user_preferences FOR ALL USING (auth.uid()::text = user_id::text);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage own preferences' AND tablename = 'user_preferences') THEN
+        CREATE POLICY "Users can manage own preferences" ON user_preferences FOR ALL USING (auth.uid()::text = user_id::text);
+    END IF;
+END $$;
 
 -- Meetings policies
-CREATE POLICY IF NOT EXISTS "Users can manage own meetings" ON meetings FOR ALL USING (auth.uid()::text = user_id::text);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage own meetings' AND tablename = 'meetings') THEN
+        CREATE POLICY "Users can manage own meetings" ON meetings FOR ALL USING (auth.uid()::text = user_id::text);
+    END IF;
+END $$;
 
 -- Meeting participants policies (through meetings)
-CREATE POLICY IF NOT EXISTS "Users can manage meeting participants" ON meeting_participants FOR ALL USING (
-    EXISTS (
-        SELECT 1 FROM meetings 
-        WHERE meetings.id = meeting_participants.meeting_id 
-        AND meetings.user_id::text = auth.uid()::text
-    )
-);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage meeting participants' AND tablename = 'meeting_participants') THEN
+        CREATE POLICY "Users can manage meeting participants" ON meeting_participants FOR ALL USING (
+            EXISTS (
+                SELECT 1 FROM meetings 
+                WHERE meetings.id = meeting_participants.meeting_id 
+                AND meetings.user_id::text = auth.uid()::text
+            )
+        );
+    END IF;
+END $$;
 
 -- Meeting attachments policies (through meetings)
-CREATE POLICY IF NOT EXISTS "Users can manage meeting attachments" ON meeting_attachments FOR ALL USING (
-    EXISTS (
-        SELECT 1 FROM meetings 
-        WHERE meetings.id = meeting_attachments.meeting_id 
-        AND meetings.user_id::text = auth.uid()::text
-    )
-);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage meeting attachments' AND tablename = 'meeting_attachments') THEN
+        CREATE POLICY "Users can manage meeting attachments" ON meeting_attachments FOR ALL USING (
+            EXISTS (
+                SELECT 1 FROM meetings 
+                WHERE meetings.id = meeting_attachments.meeting_id 
+                AND meetings.user_id::text = auth.uid()::text
+            )
+        );
+    END IF;
+END $$;
 
 -- Files policies
-CREATE POLICY IF NOT EXISTS "Users can manage own files" ON files FOR ALL USING (auth.uid()::text = user_id::text);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage own files' AND tablename = 'files') THEN
+        CREATE POLICY "Users can manage own files" ON files FOR ALL USING (auth.uid()::text = user_id::text);
+    END IF;
+END $$;
 
 -- Calendar events policies
-CREATE POLICY IF NOT EXISTS "Users can manage own calendar events" ON calendar_events FOR ALL USING (auth.uid()::text = user_id::text);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage own calendar events' AND tablename = 'calendar_events') THEN
+        CREATE POLICY "Users can manage own calendar events" ON calendar_events FOR ALL USING (auth.uid()::text = user_id::text);
+    END IF;
+END $$;
 
 -- Create functions for automatic timestamp updates
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -196,22 +254,42 @@ VALUES ('meeting-files', 'meeting-files', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Create storage policies
-CREATE POLICY IF NOT EXISTS "Users can upload own files" ON storage.objects FOR INSERT WITH CHECK (
-    bucket_id = 'meeting-files' AND 
-    auth.uid()::text = (storage.foldername(name))[1]
-);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can upload own files' AND tablename = 'objects') THEN
+        CREATE POLICY "Users can upload own files" ON storage.objects FOR INSERT WITH CHECK (
+            bucket_id = 'meeting-files' AND 
+            auth.uid()::text = (storage.foldername(name))[1]
+        );
+    END IF;
+END $$;
 
-CREATE POLICY IF NOT EXISTS "Users can view own files" ON storage.objects FOR SELECT USING (
-    bucket_id = 'meeting-files' AND 
-    auth.uid()::text = (storage.foldername(name))[1]
-);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can view own files' AND tablename = 'objects') THEN
+        CREATE POLICY "Users can view own files" ON storage.objects FOR SELECT USING (
+            bucket_id = 'meeting-files' AND 
+            auth.uid()::text = (storage.foldername(name))[1]
+        );
+    END IF;
+END $$;
 
-CREATE POLICY IF NOT EXISTS "Users can update own files" ON storage.objects FOR UPDATE USING (
-    bucket_id = 'meeting-files' AND 
-    auth.uid()::text = (storage.foldername(name))[1]
-);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update own files' AND tablename = 'objects') THEN
+        CREATE POLICY "Users can update own files" ON storage.objects FOR UPDATE USING (
+            bucket_id = 'meeting-files' AND 
+            auth.uid()::text = (storage.foldername(name))[1]
+        );
+    END IF;
+END $$;
 
-CREATE POLICY IF NOT EXISTS "Users can delete own files" ON storage.objects FOR DELETE USING (
-    bucket_id = 'meeting-files' AND 
-    auth.uid()::text = (storage.foldername(name))[1]
-);
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete own files' AND tablename = 'objects') THEN
+        CREATE POLICY "Users can delete own files" ON storage.objects FOR DELETE USING (
+            bucket_id = 'meeting-files' AND 
+            auth.uid()::text = (storage.foldername(name))[1]
+        );
+    END IF;
+END $$;

@@ -25,9 +25,17 @@ ALTER TABLE users ADD CONSTRAINT users_auth_method_check
 CREATE INDEX IF NOT EXISTS idx_users_password_hash ON users(password_hash);
 
 -- Add service role policy for users table if it doesn't exist
-CREATE POLICY IF NOT EXISTS "Allow service role full access" ON users 
-    FOR ALL USING (auth.role() = 'service_role');
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow service role full access' AND tablename = 'users') THEN
+        CREATE POLICY "Allow service role full access" ON users FOR ALL USING (auth.role() = 'service_role');
+    END IF;
+END $$;
 
 -- Add service role policy for user_tokens table if it doesn't exist
-CREATE POLICY IF NOT EXISTS "Allow service role full access to tokens" ON user_tokens 
-    FOR ALL USING (auth.role() = 'service_role');
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow service role full access to tokens' AND tablename = 'user_tokens') THEN
+        CREATE POLICY "Allow service role full access to tokens" ON user_tokens FOR ALL USING (auth.role() = 'service_role');
+    END IF;
+END $$;
