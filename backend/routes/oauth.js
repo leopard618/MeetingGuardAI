@@ -2,10 +2,30 @@ const express = require('express');
 const router = express.Router();
 
 /**
+ * Root OAuth endpoint for testing
+ */
+router.get('/', (req, res) => {
+  console.log('=== OAUTH ROOT ENDPOINT ACCESSED ===');
+  res.json({
+    message: 'OAuth endpoint is working',
+    endpoints: {
+      google: '/oauth/google',
+      authData: '/oauth/auth-data'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
  * OAuth redirect handler for Google authentication
  * This replaces the old redirect-server.js functionality
  */
 router.get('/google', async (req, res) => {
+  console.log('=== OAUTH /GOOGLE ENDPOINT ACCESSED ===');
+  console.log('Request URL:', req.url);
+  console.log('Request method:', req.method);
+  console.log('Request headers:', req.headers);
+  
   const { code, error, forceExpoGo } = req.query;
   
   // Define the OAuth redirect URI from environment variable
