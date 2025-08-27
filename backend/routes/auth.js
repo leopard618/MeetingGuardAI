@@ -3,8 +3,227 @@ const { body, validationResult } = require('express-validator');
 const { supabase } = require('../config/database');
 const { generateToken, authenticateToken } = require('../middleware/auth');
 const { ValidationError } = require('../middleware/errorHandler');
+const { hashPassword, verifyPassword, validatePassword } = require('../utils/password');
 
 const router = express.Router();
+
+/**
+ * Manual sign up endpoint
+ */
+router.post('/signup', [
+  body('email').isEmail().normalizeEmail(),
+  body('password').isLength({ min: 6 }),
+  body('name').trim().isLength({ min: 2 })
+], async (req, res) => {
+  try {
+    // Validate input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { email, password, name } = req.body;
+
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: passwordValidation.message
+      });
+    }
+
+    // Check if user already exists
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id, email, google_id')
+      .eq('email', email)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      throw checkError;
+    }
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        error: 'User with this email already exists'
+      });
+    }
+
+    // Hash password
+    const passwordHash = await hashPassword(password);
+
+    // Create new user
+    const { data: newUser, error: createError } = await supabase
+      .from('users')
+      .insert({
+        email: email,
+        name: name,
+        password_hash: passwordHash,
+        is_active: true,
+        last_login: new Date().toISOString()
+      })
+      .select('id, email, name, created_at, last_login')
+      .single();
+
+    if (createError) {
+      throw createError;
+    }
+
+    // Generate JWT token
+    const jwtToken = generateToken(newUser.id);
+
+    console.log('=== MANUAL SIGN UP SUCCESS ===');
+    console.log('User created:', newUser.email);
+
+    res.json({
+      success: true,
+      user: newUser,
+      jwtToken: jwtToken
+    });
+
+  } catch (error) {
+    console.error('Sign up error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create user'
+    });
+  }
+});
+
+/**
+ * Manual sign in endpoint
+ */
+router.post('/signin', [
+  body('email').isEmail().normalizeEmail(),
+  body('password').notEmpty()
+], async (req, res) => {
+  try {
+    // Validate input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { email, password } = req.body;
+
+    // Find user by email
+    const { data: user, error: findError } = await supabase
+      .from('users')
+      .select('id, email, name, password_hash, google_id, created_at, last_login')
+      .eq('email', email)
+      .single();
+
+    if (findError) {
+      if (findError.code === 'PGRST116') {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid email or password'
+        });
+      }
+      throw findError;
+    }
+
+    // Check if user has password (manual user)
+    if (!user.password_hash) {
+      return res.status(401).json({
+        success: false,
+        error: 'This account was created with Google. Please use Google sign in.'
+      });
+    }
+
+    // Verify password
+    const isPasswordValid = await verifyPassword(password, user.password_hash);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid email or password'
+      });
+    }
+
+    // Update last login
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('Error updating last login:', updateError);
+    }
+
+    // Remove password_hash from response
+    const { password_hash, ...userWithoutPassword } = user;
+
+    // Generate JWT token
+    const jwtToken = generateToken(user.id);
+
+    console.log('=== MANUAL SIGN IN SUCCESS ===');
+    console.log('User signed in:', user.email);
+
+    res.json({
+      success: true,
+      user: userWithoutPassword,
+      jwtToken: jwtToken
+    });
+
+  } catch (error) {
+    console.error('Sign in error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to sign in'
+    });
+  }
+});
+
+/**
+ * Check if user exists for Google sign in
+ */
+router.get('/check-user/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    // Find user by email
+    const { data: user, error: findError } = await supabase
+      .from('users')
+      .select('id, email, name, google_id, created_at')
+      .eq('email', email)
+      .single();
+
+    if (findError) {
+      if (findError.code === 'PGRST116') {
+        return res.json({
+          success: true,
+          exists: false,
+          message: 'User not found'
+        });
+      }
+      throw findError;
+    }
+
+    res.json({
+      success: true,
+      exists: true,
+      user: user,
+      hasGoogleId: !!user.google_id
+    });
+
+  } catch (error) {
+    console.error('Check user error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check user'
+    });
+  }
+});
 
 /**
  * Google OAuth callback handler
