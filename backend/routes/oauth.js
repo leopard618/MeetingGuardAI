@@ -337,27 +337,54 @@ router.get('/google', async (req, res) => {
          // Clear the processing code
          global.processingCode = null;
          
-         // Send a success page with immediate redirect attempt
-
-    // Send a simple success page using the same approach as local redirect-server.js
-    res.send(`
-      <html>
-        <head><title>OAuth Success</title></head>
-        <body>
-          <h1>OAuth Success</h1>
-          <p>Authentication completed successfully!</p>
-          <p>User: ${userInfo.email}</p>
-          <p>Name: ${userInfo.name}</p>
-          <p>You can close this window now.</p>
-          <script>
-            // Close the window
-            setTimeout(() => {
-              window.close();
-            }, 2000);
-          </script>
-        </body>
-      </html>
-    `);
+         // FINAL CHECK: Ensure auth data is stored globally
+         if (!global.authData) {
+           console.log('=== FINAL FALLBACK: ENSURING AUTH DATA IS STORED ===');
+           const jwtToken = generateToken(userInfo.id);
+           global.authData = {
+             success: true,
+             jwtToken: jwtToken,
+             user: {
+               id: userInfo.id,
+               email: userInfo.email,
+               name: userInfo.name,
+               picture: userInfo.picture
+             },
+             googleTokens: {
+               access_token: tokenData.access_token,
+               refresh_token: tokenData.refresh_token,
+               expires_in: tokenData.expires_in
+             },
+             timestamp: new Date().toISOString()
+           };
+         }
+         
+         console.log('=== FINAL AUTH DATA CONFIRMATION ===');
+         console.log('Global auth data exists:', !!global.authData);
+         console.log('Global auth data success:', global.authData?.success);
+         console.log('User email:', global.authData?.user?.email);
+         console.log('Has JWT:', !!global.authData?.jwtToken);
+         
+         // Send a simple success page using the same approach as local redirect-server.js
+         res.send(`
+           <html>
+             <head><title>OAuth Success</title></head>
+             <body>
+               <h1>OAuth Success</h1>
+               <p>Authentication completed successfully!</p>
+               <p>User: ${userInfo.email}</p>
+               <p>Name: ${userInfo.name}</p>
+               <p>Auth data stored: ${!!global.authData}</p>
+               <p>You can close this window now.</p>
+               <script>
+                 // Close the window
+                 setTimeout(() => {
+                   window.close();
+                 }, 2000);
+               </script>
+             </body>
+           </html>
+         `);
       } else {
         console.error('No access token in response:', tokenData);
         throw new Error('Failed to get access token from response');
@@ -434,6 +461,8 @@ router.get('/auth-data', (req, res) => {
   console.log('Request headers:', req.headers);
   console.log('Global auth data exists:', !!global.authData);
   console.log('Global auth data success:', global.authData?.success);
+  console.log('Global auth data type:', typeof global.authData);
+  console.log('Global auth data keys:', global.authData ? Object.keys(global.authData) : 'null');
   console.log('Request timestamp:', new Date().toISOString());
   
   // Add CORS headers for mobile app
