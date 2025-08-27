@@ -339,112 +339,23 @@ router.get('/google', async (req, res) => {
          
          // Send a success page with immediate redirect attempt
 
-    // Send a simple success page that immediately tries to redirect
+    // Send a simple success page using the same approach as local redirect-server.js
     res.send(`
-      <!DOCTYPE html>
       <html>
-      <head>
-        <title>Authentication Complete</title>
-        <style>
-          body { 
-            font-family: Arial, sans-serif; 
-            text-align: center; 
-            padding: 50px; 
-            background: #1a1a1a; 
-            color: white; 
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-          .success { 
-            background: #2d2d2d; 
-            padding: 30px; 
-            border-radius: 12px; 
-            border: 1px solid #404040;
-            max-width: 400px;
-          }
-          .spinner {
-            border: 3px solid #404040;
-            border-top: 3px solid #4CAF50;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-          }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="success">
-          <h2>✅ Authentication Successful!</h2>
-          <p>Hi, ${userInfo.name}, welcome to MeetingGuard AI</p>
-          <div class="spinner"></div>
-          <p>Redirecting to your app...</p>
-          <p style="font-size: 12px; color: #888; margin-top: 20px;">
-            If redirect doesn't work, close this window manually
-          </p>
-        </div>
-        <script>
-          console.log('=== OAUTH SUCCESS PAGE LOADED ===');
-          console.log('User:', '${userInfo.name}');
-          console.log('Email:', '${userInfo.email}');
-          
-          // Immediate redirect attempts
-          function redirectToApp() {
-            console.log('Attempting immediate redirect...');
-            
-            // Try multiple redirect methods
-            const redirectUrls = [
-              'exp://192.168.141.51:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}',
-              'meetingguardai://auth?success=true&user=${encodeURIComponent(userInfo.email)}',
-              'exp://localhost:8081/--/auth?success=true&user=${encodeURIComponent(userInfo.email)}'
-            ];
-            
-            let currentIndex = 0;
-            
-            function tryNextRedirect() {
-              if (currentIndex >= redirectUrls.length) {
-                console.log('All redirect methods failed, closing window');
-                window.close();
-                return;
-              }
-              
-              const url = redirectUrls[currentIndex];
-              console.log('Trying redirect:', url);
-              
-              try {
-                window.location.href = url;
-                // If we reach here, redirect might have worked
-                setTimeout(() => {
-                  console.log('Redirect might have worked, closing window');
-                  window.close();
-                }, 2000);
-              } catch (error) {
-                console.log('Redirect failed:', error.message);
-                currentIndex++;
-                setTimeout(tryNextRedirect, 500);
-              }
-            }
-            
-            tryNextRedirect();
-          }
-          
-          // Start redirect immediately
-          redirectToApp();
-          
-          // Fallback: close window after 5 seconds
-          setTimeout(() => {
-            console.log('Fallback: closing window');
-            window.close();
-          }, 5000);
-        </script>
-      </body>
+        <head><title>OAuth Success</title></head>
+        <body>
+          <h1>OAuth Success</h1>
+          <p>Authentication completed successfully!</p>
+          <p>User: ${userInfo.email}</p>
+          <p>Name: ${userInfo.name}</p>
+          <p>You can close this window now.</p>
+          <script>
+            // Close the window
+            setTimeout(() => {
+              window.close();
+            }, 2000);
+          </script>
+        </body>
       </html>
     `);
       } else {
