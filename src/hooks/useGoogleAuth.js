@@ -254,7 +254,10 @@ export const useGoogleAuth = () => {
             
             if (authData.success && authData.user) {
               console.log('=== AUTHENTICATION COMPLETED ===');
+              console.log('Full auth data structure:', JSON.stringify(authData, null, 2));
               console.log('User:', authData.user);
+              console.log('Google tokens:', authData.googleTokens);
+              console.log('JWT token:', authData.jwtToken ? 'Present' : 'Missing');
               
               // Add user to local storage using the new user management system
               const userResult = await userStorage.addGoogleUser(authData.user);
@@ -264,7 +267,7 @@ export const useGoogleAuth = () => {
                 console.log('Is new user:', userResult.isNewUser);
                 
                 // Store the authentication data
-                await AsyncStorage.setItem('google_access_token', authData.access_token);
+                await AsyncStorage.setItem('google_access_token', authData.googleTokens.access_token);
                 await AsyncStorage.setItem('google_user_info', JSON.stringify(authData.user));
                 
                 // Set as current user
@@ -324,7 +327,7 @@ export const useGoogleAuth = () => {
               console.log('User added to local storage:', userResult.user.email);
               
               // Store the authentication data
-              await AsyncStorage.setItem('google_access_token', finalAuthData.access_token);
+              await AsyncStorage.setItem('google_access_token', finalAuthData.googleTokens.access_token);
               await AsyncStorage.setItem('google_user_info', JSON.stringify(finalAuthData.user));
               
               // Set as current user
