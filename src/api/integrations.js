@@ -73,8 +73,3 @@ export const UploadFile = Core.UploadFile;
 export const GenerateImage = Core.GenerateImage;
 export const ExtractDataFromUploadedFile = Core.ExtractDataFromUploadedFile;
 
-
-
-
-
-

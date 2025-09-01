@@ -44,7 +44,6 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-
 // Body parsing middleware (Stripe webhook will be handled separately)
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
@@ -81,7 +80,6 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
-
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -146,7 +144,6 @@ app.listen(PORT, () => {
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 OAuth redirect: http://localhost:${PORT}/auth`);
 
-  
   // Show correct URLs based on environment
   if (process.env.NODE_ENV === 'production') {
     const baseUrl = process.env.BACKEND_URL || 'https://meetingguard-backend.onrender.com';

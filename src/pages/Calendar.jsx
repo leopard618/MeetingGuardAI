@@ -401,7 +401,6 @@ export default function Calendar({ navigation, language = "en" }) {
         <Text style={styles.todayButtonText}>{t[language].today}</Text>
       </TouchableOpacity>
 
-
       <ScrollView style={styles.calendarContainer} showsVerticalScrollIndicator={false}>
         {renderCalendarGrid()}
         

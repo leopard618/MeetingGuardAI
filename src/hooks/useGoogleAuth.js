@@ -212,11 +212,7 @@ export const useGoogleAuth = () => {
       // Test the polling endpoint first
       try {
         console.log('=== TESTING POLLING ENDPOINT ===');
-<<<<<<< HEAD
-        const checkAuthUrl = oauthRedirectUri.replace('/auth', '/check-auth');
-=======
-        const checkAuthUrl = oauthRedirectUri.replace('/google', '/auth-data');
->>>>>>> snow
+
         const testResponse = await fetch(checkAuthUrl, {
           method: 'GET',
           headers: {
@@ -239,11 +235,7 @@ export const useGoogleAuth = () => {
         
         try {
           // Check if our redirect server has processed the authentication
-<<<<<<< HEAD
-          const checkAuthUrl = oauthRedirectUri.replace('/auth', '/check-auth');
-=======
-          const checkAuthUrl = oauthRedirectUri.replace('/google', '/auth-data');
->>>>>>> snow
+
           const checkResponse = await fetch(checkAuthUrl, {
             method: 'GET',
             headers: {
@@ -262,32 +254,13 @@ export const useGoogleAuth = () => {
             
             if (authData.success && authData.user) {
               console.log('=== AUTHENTICATION COMPLETED ===');
-<<<<<<< HEAD
-              console.log('User:', authData.user);
-              
-              // Add user to local storage using the new user management system
-              const userResult = await userStorage.addGoogleUser(authData.user);
-              
-=======
-              console.log('Full auth data structure:', JSON.stringify(authData, null, 2));
-              console.log('User:', authData.user);
-              console.log('Google tokens:', authData.googleTokens);
-              console.log('JWT token:', authData.jwtToken ? 'Present' : 'Missing');
-              
-              // Add user to local storage using the new user management system
-              const userResult = await userStorage.addGoogleUser(authData.user);
-              console.log('User result:', userResult);
->>>>>>> snow
+
               if (userResult.success) {
                 console.log('User added to local storage:', userResult.user.email);
                 console.log('Is new user:', userResult.isNewUser);
                 
                 // Store the authentication data
-<<<<<<< HEAD
-                await AsyncStorage.setItem('google_access_token', authData.access_token);
-=======
-                await AsyncStorage.setItem('google_access_token', authData.googleTokens.access_token);
->>>>>>> snow
+
                 await AsyncStorage.setItem('google_user_info', JSON.stringify(authData.user));
                 
                 // Set as current user
@@ -322,11 +295,7 @@ export const useGoogleAuth = () => {
       // Fallback: Check one more time for authentication data
       console.log('=== FALLBACK: FINAL CHECK ===');
       try {
-<<<<<<< HEAD
-        const checkAuthUrl = oauthRedirectUri.replace('/auth', '/check-auth');
-=======
-        const checkAuthUrl = oauthRedirectUri.replace('/google', '/auth-data');
->>>>>>> snow
+
         const finalCheckResponse = await fetch(checkAuthUrl, {
           method: 'GET',
           headers: {
@@ -351,11 +320,7 @@ export const useGoogleAuth = () => {
               console.log('User added to local storage:', userResult.user.email);
               
               // Store the authentication data
-<<<<<<< HEAD
-              await AsyncStorage.setItem('google_access_token', finalAuthData.access_token);
-=======
-              await AsyncStorage.setItem('google_access_token', finalAuthData.googleTokens.access_token);
->>>>>>> snow
+
               await AsyncStorage.setItem('google_user_info', JSON.stringify(finalAuthData.user));
               
               // Set as current user

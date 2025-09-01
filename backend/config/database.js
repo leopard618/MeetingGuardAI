@@ -20,40 +20,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 const setupDatabase = async () => {
   try {
     console.log('Setting up database schema...');
-<<<<<<< HEAD
-
-    // Create users table
-    const { error: usersError } = await supabase.rpc('create_users_table', {});
-    if (usersError && !usersError.message.includes('already exists')) {
-      console.error('Error creating users table:', usersError);
-    }
-
-    // Create meetings table
-    const { error: meetingsError } = await supabase.rpc('create_meetings_table', {});
-    if (meetingsError && !meetingsError.message.includes('already exists')) {
-      console.error('Error creating meetings table:', meetingsError);
-    }
-
-    // Create calendar_events table
-    const { error: calendarError } = await supabase.rpc('create_calendar_events_table', {});
-    if (calendarError && !calendarError.message.includes('already exists')) {
-      console.error('Error creating calendar_events table:', calendarError);
-    }
-
-    // Create files table
-    const { error: filesError } = await supabase.rpc('create_files_table', {});
-    if (filesError && !filesError.message.includes('already exists')) {
-      console.error('Error creating files table:', filesError);
-    }
-
-    // Create user_preferences table
-    const { error: preferencesError } = await supabase.rpc('create_user_preferences_table', {});
-    if (preferencesError && !preferencesError.message.includes('already exists')) {
-      console.error('Error creating user_preferences table:', preferencesError);
-    }
-
-    console.log('Database schema setup completed');
-=======
     
     // Check if tables exist by trying to query them
     const tables = ['users', 'meetings', 'participants', 'attachments', 'files', 'calendar_events'];
@@ -76,7 +42,6 @@ const setupDatabase = async () => {
     }
     
     console.log('Database schema setup check completed');
->>>>>>> snow
   } catch (error) {
     console.error('Database setup error:', error);
   }

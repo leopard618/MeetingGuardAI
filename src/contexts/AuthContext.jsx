@@ -1,10 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
-<<<<<<< HEAD
-=======
-import authService from '../api/authService';
->>>>>>> snow
 
 const AuthContext = createContext();
 
@@ -50,28 +46,7 @@ export const AuthProvider = ({ children }) => {
   const checkAuthStatus = async () => {
     try {
       console.log('=== AUTH CONTEXT: CHECKING STORAGE ===');
-      
-<<<<<<< HEAD
-      // Fallback to regular authentication
-      const token = await AsyncStorage.getItem('authToken');
-      const userData = await AsyncStorage.getItem('userData');
-      
-      console.log('Storage check:', { token: !!token, userData: !!userData });
-      
-      if (token && userData) {
-        const parsedUser = JSON.parse(userData);
-        console.log('User found in storage:', parsedUser.email);
-        setUser(parsedUser);
-=======
-      // Check stored authentication data
-      const authData = await authService.getStoredAuth();
-      
-      console.log('Auth data check:', authData);
-      
-      if (authData.success) {
-        console.log('User found in storage:', authData.user.email);
-        setUser(authData.user);
->>>>>>> snow
+
         setIsAuthenticated(true);
       } else {
         console.log('No user found in storage');
@@ -87,40 +62,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-<<<<<<< HEAD
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demo purposes, create a mock user
-      const mockUser = {
-        id: '1',
-        email: email,
-        name: email.split('@')[0], // Use email prefix as name
-        createdAt: new Date().toISOString(),
-      };
-      
-      const mockToken = 'mock-jwt-token-' + Date.now();
-      
-      // Store in AsyncStorage
-      await AsyncStorage.setItem('authToken', mockToken);
-      await AsyncStorage.setItem('userData', JSON.stringify(mockUser));
-      
-      setUser(mockUser);
-      setIsAuthenticated(true);
-      
-      return { success: true, user: mockUser };
-=======
-      console.log('=== AUTH CONTEXT: MANUAL LOGIN ===');
-      const result = await authService.signIn(email, password);
-      
-      if (result.success) {
-        setUser(result.user);
-        setIsAuthenticated(true);
-        return { success: true, user: result.user };
-      } else {
-        return { success: false, error: result.error };
-      }
->>>>>>> snow
+
     } catch (error) {
       console.error('Login error:', error);
       return { success: false, error: error.message };
@@ -129,40 +71,7 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (name, email, password) => {
     try {
-<<<<<<< HEAD
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demo purposes, create a mock user
-      const mockUser = {
-        id: '1',
-        email: email,
-        name: name,
-        createdAt: new Date().toISOString(),
-      };
-      
-      const mockToken = 'mock-jwt-token-' + Date.now();
-      
-      // Store in AsyncStorage
-      await AsyncStorage.setItem('authToken', mockToken);
-      await AsyncStorage.setItem('userData', JSON.stringify(mockUser));
-      
-      setUser(mockUser);
-      setIsAuthenticated(true);
-      
-      return { success: true, user: mockUser };
-=======
-      console.log('=== AUTH CONTEXT: MANUAL SIGNUP ===');
-      const result = await authService.signUp(name, email, password);
-      
-      if (result.success) {
-        setUser(result.user);
-        setIsAuthenticated(true);
-        return { success: true, user: result.user };
-      } else {
-        return { success: false, error: result.error };
-      }
->>>>>>> snow
+
     } catch (error) {
       console.error('Signup error:', error);
       return { success: false, error: error.message };
@@ -175,16 +84,7 @@ export const AuthProvider = ({ children }) => {
       
       // Sign out from Google if signed in
       await googleAuth.signOut();
-      
-<<<<<<< HEAD
-      // Clear AsyncStorage
-      await AsyncStorage.removeItem('authToken');
-      await AsyncStorage.removeItem('userData');
-=======
-      // Clear all authentication data
-      await authService.clearAuth();
->>>>>>> snow
-      
+
       setUser(null);
       setIsAuthenticated(false);
       console.log('Logout successful');

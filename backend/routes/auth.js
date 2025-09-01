@@ -1,20 +1,13 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { supabase } = require('../config/database');
-<<<<<<< HEAD
-const { generateToken } = require('../middleware/auth');
-const { ValidationError } = require('../middleware/errorHandler');
-=======
 const { generateToken, authenticateToken } = require('../middleware/auth');
 const { ValidationError } = require('../middleware/errorHandler');
 const { hashPassword, verifyPassword, validatePassword } = require('../utils/password');
->>>>>>> snow
 
 const router = express.Router();
 
 /**
-<<<<<<< HEAD
-=======
  * Manual sign up endpoint
  */
 router.post('/signup', [
@@ -233,7 +226,7 @@ router.get('/check-user/:email', async (req, res) => {
 });
 
 /**
->>>>>>> snow
+
  * Google OAuth callback handler
  */
 router.get('/google/callback', async (req, res) => {
@@ -430,11 +423,7 @@ router.post('/google/refresh', async (req, res) => {
 /**
  * Get current user profile
  */
-<<<<<<< HEAD
-router.get('/profile', async (req, res) => {
-=======
 router.get('/profile', authenticateToken, async (req, res) => {
->>>>>>> snow
   try {
     const { data: user, error } = await supabase
       .from('users')
@@ -462,11 +451,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
 /**
  * Update user profile
  */
-<<<<<<< HEAD
-router.put('/profile', [
-=======
 router.put('/profile', authenticateToken, [
->>>>>>> snow
   body('name').optional().isString().trim().isLength({ min: 1, max: 100 }),
   body('picture').optional().isURL()
 ], async (req, res) => {
@@ -507,11 +492,7 @@ router.put('/profile', authenticateToken, [
 /**
  * Logout user
  */
-<<<<<<< HEAD
-router.post('/logout', async (req, res) => {
-=======
 router.post('/logout', authenticateToken, async (req, res) => {
->>>>>>> snow
   try {
     // In a more sophisticated setup, you might want to blacklist the token
     // For now, we'll just return success since JWT tokens are stateless
