@@ -17,9 +17,6 @@ const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
 const billingRoutes = require('./routes/billing');
 const adminRoutes = require('./routes/admin');
-
-const { errorHandler } = require('./middleware/errorHandler');
-const { authenticateToken } = require('./middleware/auth');
 const { planGate } = require('./middleware/planGate');
 
 const app = express();
@@ -119,14 +116,6 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/meetings', authenticateToken, meetingRoutes);
-app.use('/api/calendar', authenticateToken, calendarRoutes);
-app.use('/api/ai', authenticateToken, aiRoutes);
-app.use('/api/files', authenticateToken, fileRoutes);
-app.use('/api/users', authenticateToken, userRoutes);
-
-// OAuth redirect endpoint (for Google Auth)
-app.use('/auth', require('./routes/oauth'));
 app.use('/api/meetings', authenticateToken, planGate({ requestType: 'meeting', feature: 'basic_meetings' }), meetingRoutes);
 app.use('/api/calendar', authenticateToken, planGate({ skipUsageIncrement: true }), calendarRoutes);
 app.use('/api/ai', authenticateToken, planGate({ requestType: 'ai', feature: 'basic_ai' }), aiRoutes);
