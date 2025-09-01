@@ -34,3 +34,7 @@ src/config/api.js
 
 # Expo
 .expo/
+
+android/
+ios/
+web/
