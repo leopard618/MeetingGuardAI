@@ -63,6 +63,24 @@ export const BACKEND_CONFIG = {
       STATS: '/api/users/stats',
       DELETE_ACCOUNT: '/api/users/account',
     },
+    
+    // Billing
+    BILLING: {
+      PLANS: '/api/billing/plans',
+      SUBSCRIPTION: '/api/billing/subscription',
+      CREATE_CHECKOUT: '/api/billing/create-checkout-session',
+      CREATE_PORTAL: '/api/billing/create-portal-session',
+      WEBHOOK: '/api/billing/webhook',
+    },
+    
+    // Admin
+    ADMIN: {
+      METRICS: '/api/admin/metrics',
+      USERS: '/api/admin/users',
+      USER_DETAILS: (id) => `/api/admin/users/${id}`,
+      TOGGLE_USER: (id) => `/api/admin/users/${id}/toggle-enabled`,
+      UPDATE_PLAN: (id) => `/api/admin/users/${id}/update-plan`,
+    },
   },
   
   // Google OAuth configuration for backend
