@@ -28,6 +28,8 @@ import Notes from "./Notes";
 
 import GoogleCalendarTest from "./GoogleCalendarTest";
 import CalendarTestPage from "./CalendarTestPage";
+import Pricing from "./Pricing";
+import Admin from "./Admin";
 
 import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'react-router-native';
 import { useAuth } from '@/contexts/AuthContext.web';
@@ -62,6 +64,8 @@ const PAGES = {
     
     GoogleCalendarTest: GoogleCalendarTest,
     CalendarTest: CalendarTestPage,
+    Pricing: Pricing,
+    Admin: Admin,
     
 }
 
@@ -182,6 +186,16 @@ function PagesContent() {
                 <Route path="/Notes" element={
                     <ProtectedRoute>
                         <Notes />
+                    </ProtectedRoute>
+                } />
+                <Route path="/Pricing" element={
+                    <ProtectedRoute>
+                        <Pricing />
+                    </ProtectedRoute>
+                } />
+                <Route path="/Admin" element={
+                    <ProtectedRoute>
+                        <Admin />
                     </ProtectedRoute>
                 } />
             </Routes>
