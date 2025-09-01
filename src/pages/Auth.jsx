@@ -357,7 +357,6 @@ export default function Auth({ navigation }) {
             </Card.Content>
           </Card>
 
-
           <View style={styles.switchContainer}>
              <Text style={styles.switchText}>
                {isLogin ? t.en.noAccount : t.en.hasAccount}

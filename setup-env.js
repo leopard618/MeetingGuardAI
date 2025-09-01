@@ -10,7 +10,7 @@ const rl = readline.createInterface({
 });
 
 console.log('🚀 MeetingGuard AI - Environment Setup');
-console.log('=====================================\n');
+console.log('==\n');
 
 const questions = [
   {

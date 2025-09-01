@@ -24,7 +24,6 @@ import { Meeting } from "@/api/entities";
 import { useTheme } from "@/contexts/ThemeContext";
 import calendarSyncManager from "@/api/calendarSyncManager";
 
-
 export default function CreateMeeting({ navigation }) {
   const { isDarkMode } = useTheme();
   // Store date and time as Date objects for picker compatibility

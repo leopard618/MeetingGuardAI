@@ -367,8 +367,7 @@ export default function Dashboard({ navigation, language = "en" }) {
         }
       >
         {/* Date and Time Display */}
-        
-        
+
         {/* Stats Section */}
         <View style={styles.statsSection}>
           <View style={styles.statsContent}>
@@ -476,7 +475,6 @@ export default function Dashboard({ navigation, language = "en" }) {
           </View>
         </View>
 
-
         <Card style={styles.testAlertCard}>
           <Card.Content>
             <View style={styles.testAlertContent}>
@@ -497,7 +495,6 @@ export default function Dashboard({ navigation, language = "en" }) {
             </View>
           </Card.Content>
         </Card>
-
 
         {/* Notification: Show which intensity is selected as spoken text */}
         <View style={{ marginVertical: 4, marginLeft: 24 }}>

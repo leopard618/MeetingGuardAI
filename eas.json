@@ -1,11 +1,7 @@
 {
   "cli": {
-<<<<<<< HEAD
-    "version": ">= 16.17.4"
-=======
     "version": ">= 16.17.4",
     "appVersionSource": "remote"
->>>>>>> snow
   },
   "build": {
     "development": {
@@ -22,10 +18,7 @@
       }
     },
     "production": {
-<<<<<<< HEAD
-=======
       "autoIncrement": true,
->>>>>>> snow
       "android": {
         "buildType": "app-bundle"
       }
