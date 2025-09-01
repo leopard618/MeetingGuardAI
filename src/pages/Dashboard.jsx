@@ -23,10 +23,11 @@ import {
   MaterialCommunityIcons,
   Ionicons,
 } from "@expo/vector-icons";
-// import { Meeting, UserPreferences, User } from "@/api/entities";
+import { Meeting, UserPreferences, User } from "@/api/entities";
 import { useTheme } from "@/contexts/ThemeContext";
 import NotificationManager from "@/components/NotificationSystem/NotificationManager";
 import AlertScheduler from "@/components/AlertScheduler";
+import ImageSlider from "@/components/ImageSlider";
 
 // Date and Time Display Component
 const DateTimeDisplay = ({ isDarkMode, styles }) => {
@@ -371,7 +372,15 @@ export default function Dashboard({ navigation, language = "en" }) {
         {/* Stats Section */}
         <View style={styles.statsSection}>
           <View style={styles.statsContent}>
-            <Text style={styles.statsTitle}>Meeting Guard AI</Text>
+            <Text style={styles.statsTitle}>Meeting Guard</Text>
+            
+            {/* Image Slider for Advertising */}
+            <ImageSlider 
+              autoPlay={true} 
+              interval={8000} 
+              context="default"
+            />
+            
             <View style={styles.headerStats}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{todaysMeetings.length}</Text>

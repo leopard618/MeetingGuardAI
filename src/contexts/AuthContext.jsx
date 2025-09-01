@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
+<<<<<<< HEAD
+=======
+import authService from '../api/authService';
+>>>>>>> snow
 
 const AuthContext = createContext();
 
@@ -47,6 +51,7 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('=== AUTH CONTEXT: CHECKING STORAGE ===');
       
+<<<<<<< HEAD
       // Fallback to regular authentication
       const token = await AsyncStorage.getItem('authToken');
       const userData = await AsyncStorage.getItem('userData');
@@ -57,6 +62,16 @@ export const AuthProvider = ({ children }) => {
         const parsedUser = JSON.parse(userData);
         console.log('User found in storage:', parsedUser.email);
         setUser(parsedUser);
+=======
+      // Check stored authentication data
+      const authData = await authService.getStoredAuth();
+      
+      console.log('Auth data check:', authData);
+      
+      if (authData.success) {
+        console.log('User found in storage:', authData.user.email);
+        setUser(authData.user);
+>>>>>>> snow
         setIsAuthenticated(true);
       } else {
         console.log('No user found in storage');
@@ -72,6 +87,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+<<<<<<< HEAD
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -93,6 +109,18 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       
       return { success: true, user: mockUser };
+=======
+      console.log('=== AUTH CONTEXT: MANUAL LOGIN ===');
+      const result = await authService.signIn(email, password);
+      
+      if (result.success) {
+        setUser(result.user);
+        setIsAuthenticated(true);
+        return { success: true, user: result.user };
+      } else {
+        return { success: false, error: result.error };
+      }
+>>>>>>> snow
     } catch (error) {
       console.error('Login error:', error);
       return { success: false, error: error.message };
@@ -101,6 +129,7 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (name, email, password) => {
     try {
+<<<<<<< HEAD
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -122,6 +151,18 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       
       return { success: true, user: mockUser };
+=======
+      console.log('=== AUTH CONTEXT: MANUAL SIGNUP ===');
+      const result = await authService.signUp(name, email, password);
+      
+      if (result.success) {
+        setUser(result.user);
+        setIsAuthenticated(true);
+        return { success: true, user: result.user };
+      } else {
+        return { success: false, error: result.error };
+      }
+>>>>>>> snow
     } catch (error) {
       console.error('Signup error:', error);
       return { success: false, error: error.message };
@@ -135,9 +176,14 @@ export const AuthProvider = ({ children }) => {
       // Sign out from Google if signed in
       await googleAuth.signOut();
       
+<<<<<<< HEAD
       // Clear AsyncStorage
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('userData');
+=======
+      // Clear all authentication data
+      await authService.clearAuth();
+>>>>>>> snow
       
       setUser(null);
       setIsAuthenticated(false);

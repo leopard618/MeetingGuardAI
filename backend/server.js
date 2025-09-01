@@ -12,9 +12,18 @@ const calendarRoutes = require('./routes/calendar');
 const aiRoutes = require('./routes/ai');
 const fileRoutes = require('./routes/files');
 const userRoutes = require('./routes/users');
+<<<<<<< HEAD
 
 const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
+=======
+const billingRoutes = require('./routes/billing');
+const adminRoutes = require('./routes/admin');
+
+const { errorHandler } = require('./middleware/errorHandler');
+const { authenticateToken } = require('./middleware/auth');
+const { planGate } = require('./middleware/planGate');
+>>>>>>> snow
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,7 +50,12 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+<<<<<<< HEAD
 // Body parsing middleware
+=======
+// Body parsing middleware (Stripe webhook will be handled separately)
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
+>>>>>>> snow
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -77,6 +91,30 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+<<<<<<< HEAD
+=======
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'MeetingGuard Backend API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      auth: '/api/auth',
+      oauth: '/oauth',
+      meetings: '/api/meetings',
+      calendar: '/api/calendar',
+      ai: '/api/ai',
+      files: '/api/files',
+      users: '/api/users',
+      billing: '/api/billing',
+      admin: '/api/admin'
+    }
+  });
+});
+
+>>>>>>> snow
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -89,6 +127,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+<<<<<<< HEAD
 app.use('/api/meetings', authenticateToken, meetingRoutes);
 app.use('/api/calendar', authenticateToken, calendarRoutes);
 app.use('/api/ai', authenticateToken, aiRoutes);
@@ -97,6 +136,18 @@ app.use('/api/users', authenticateToken, userRoutes);
 
 // OAuth redirect endpoint (for Google Auth)
 app.use('/auth', require('./routes/oauth'));
+=======
+app.use('/api/meetings', authenticateToken, planGate({ requestType: 'meeting', feature: 'basic_meetings' }), meetingRoutes);
+app.use('/api/calendar', authenticateToken, planGate({ skipUsageIncrement: true }), calendarRoutes);
+app.use('/api/ai', authenticateToken, planGate({ requestType: 'ai', feature: 'basic_ai' }), aiRoutes);
+app.use('/api/files', authenticateToken, planGate({ feature: 'file_attachments', skipUsageIncrement: true }), fileRoutes);
+app.use('/api/users', authenticateToken, userRoutes);
+app.use('/api/billing', authenticateToken, billingRoutes);
+app.use('/api/admin', authenticateToken, adminRoutes);
+
+// OAuth redirect endpoint (for Google Auth)
+app.use('/oauth', require('./routes/oauth'));
+>>>>>>> snow
 
 // Error handling middleware
 app.use(errorHandler);
@@ -114,8 +165,21 @@ app.use('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 MeetingGuard Backend Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+<<<<<<< HEAD
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 OAuth redirect: http://localhost:${PORT}/auth`);
+=======
+  
+  // Show correct URLs based on environment
+  if (process.env.NODE_ENV === 'production') {
+    const baseUrl = process.env.BACKEND_URL || 'https://meetingguard-backend.onrender.com';
+    console.log(`🔗 Health check: ${baseUrl}/health`);
+    console.log(`🔐 OAuth redirect: ${baseUrl}/oauth`);
+  } else {
+    console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔐 OAuth redirect: http://localhost:${PORT}/oauth`);
+  }
+>>>>>>> snow
 });
 
 // Graceful shutdown

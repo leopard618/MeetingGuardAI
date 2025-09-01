@@ -20,6 +20,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 const setupDatabase = async () => {
   try {
     console.log('Setting up database schema...');
+<<<<<<< HEAD
 
     // Create users table
     const { error: usersError } = await supabase.rpc('create_users_table', {});
@@ -52,6 +53,30 @@ const setupDatabase = async () => {
     }
 
     console.log('Database schema setup completed');
+=======
+    
+    // Check if tables exist by trying to query them
+    const tables = ['users', 'meetings', 'participants', 'attachments', 'files', 'calendar_events'];
+    
+    for (const table of tables) {
+      try {
+        const { error } = await supabase
+          .from(table)
+          .select('*')
+          .limit(1);
+        
+        if (error && error.code === 'PGRST116') {
+          console.log(`⚠️  Table '${table}' does not exist. Please run the schema setup.`);
+        } else {
+          console.log(`✅ Table '${table}' exists`);
+        }
+      } catch (err) {
+        console.log(`⚠️  Error checking table '${table}':`, err.message);
+      }
+    }
+    
+    console.log('Database schema setup check completed');
+>>>>>>> snow
   } catch (error) {
     console.error('Database setup error:', error);
   }

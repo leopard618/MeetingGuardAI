@@ -19,8 +19,13 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/contexts/ThemeContext';
+<<<<<<< HEAD
 // import { Meeting } from '@/api/entities';
 // import calendarSyncManager from '@/api/calendarSyncManager';
+=======
+import { Meeting } from '@/api/entities';
+import calendarSyncManager from '@/api/calendarSyncManager';
+>>>>>>> snow
 
 export default function ModernCreateMeeting({ navigation }) {
   const { isDarkMode } = useTheme();
