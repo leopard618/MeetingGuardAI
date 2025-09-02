@@ -209,8 +209,8 @@ export const useGoogleAuth = () => {
       // we need to poll our redirect server to check if authentication completed
       console.log('=== Polling for Authentication Completion ===');
       
-      // Define the check auth URL for polling
-      const checkAuthUrl = `${oauthRedirectUri.replace('/oauth/google', '')}/oauth/google-status`;
+      // Define the check auth URL for polling - use the endpoint that doesn't require sessionId
+      const checkAuthUrl = `${oauthRedirectUri.replace('/oauth/google', '')}/oauth/google-check`;
       
       // Test the polling endpoint first
       try {
