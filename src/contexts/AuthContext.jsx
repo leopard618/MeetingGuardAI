@@ -46,7 +46,13 @@ export const AuthProvider = ({ children }) => {
   const checkAuthStatus = async () => {
     try {
       console.log('=== AUTH CONTEXT: CHECKING STORAGE ===');
-
+      
+      // Check if user data exists in AsyncStorage
+      const userData = await AsyncStorage.getItem('user');
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        console.log('User found in storage:', parsedUser);
+        setUser(parsedUser);
         setIsAuthenticated(true);
       } else {
         console.log('No user found in storage');
@@ -62,19 +68,37 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-
+      console.log('=== AUTH CONTEXT: LOGIN ATTEMPT ===');
+      setIsLoading(true);
+      
+      // TODO: Implement actual login logic with your backend
+      // For now, return a placeholder response
+      console.log('Login not implemented yet - using placeholder');
+      
+      return { success: false, error: 'Login not implemented yet' };
     } catch (error) {
       console.error('Login error:', error);
       return { success: false, error: error.message };
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const signup = async (name, email, password) => {
     try {
-
+      console.log('=== AUTH CONTEXT: SIGNUP ATTEMPT ===');
+      setIsLoading(true);
+      
+      // TODO: Implement actual signup logic with your backend
+      // For now, return a placeholder response
+      console.log('Signup not implemented yet - using placeholder');
+      
+      return { success: false, error: 'Signup not implemented yet' };
     } catch (error) {
       console.error('Signup error:', error);
       return { success: false, error: error.message };
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -85,6 +109,9 @@ export const AuthProvider = ({ children }) => {
       // Sign out from Google if signed in
       await googleAuth.signOut();
 
+      // Clear local storage
+      await AsyncStorage.removeItem('user');
+      
       setUser(null);
       setIsAuthenticated(false);
       console.log('Logout successful');
@@ -104,6 +131,9 @@ export const AuthProvider = ({ children }) => {
       if (result.success) {
         console.log('=== AUTH CONTEXT: GOOGLE SIGN IN SUCCESS ===');
         console.log('User from result:', result.user);
+        
+        // Store user data in AsyncStorage
+        await AsyncStorage.setItem('user', JSON.stringify(result.user));
         
         // The useEffect will handle the state update automatically
         // since it's watching googleAuth.isSignedIn and googleAuth.user
