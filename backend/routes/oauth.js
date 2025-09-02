@@ -1,8 +1,18 @@
 const express = require('express');
 const router = express.Router();
 
-/**
+// Use built-in https module for HTTP requests
+const https = require('https');
+const { URLSearchParams } = require('url');
 
+// Store temporary OAuth state (in production, use Redis or database)
+const oauthState = new Map();
+
+/**
+ * Google OAuth redirect endpoint
+ * Handles the OAuth callback from Google
+ */
+router.get('/google', async (req, res) => {
   const { code, error, forceExpoGo } = req.query;
   
   // Define the OAuth redirect URI from environment variable
@@ -84,32 +94,137 @@ const router = express.Router();
       console.log('Client ID:', process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Not set');
       console.log('Client Secret:', process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not set');
 
-      console.log('Token response status:', tokenResponse.status);
-      
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error('Token exchange failed:', errorText);
-        throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorText}`);
-      }
-      
-      const tokenData = await tokenResponse.json();
+      // Exchange authorization code for tokens using https module
+      const tokenData = await new Promise((resolve, reject) => {
+        const postData = new URLSearchParams({
+          code: code,
+          client_id: process.env.GOOGLE_CLIENT_ID,
+          client_secret: process.env.GOOGLE_CLIENT_SECRET,
+          redirect_uri: oauthRedirectUri,
+          grant_type: 'authorization_code',
+        }).toString();
+
+        const options = {
+          hostname: 'oauth2.googleapis.com',
+          port: 443,
+          path: '/token',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(postData)
+          }
+        };
+
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            try {
+              if (res.statusCode === 200) {
+                const tokenData = JSON.parse(data);
+                resolve(tokenData);
+              } else {
+                reject(new Error(`Token exchange failed: ${res.statusCode} - ${data}`));
+              }
+            } catch (error) {
+              reject(new Error(`Failed to parse token response: ${error.message}`));
+            }
+          });
+        });
+
+        req.on('error', (error) => {
+          reject(new Error(`Token exchange request failed: ${error.message}`));
+        });
+
+        req.write(postData);
+        req.end();
+      });
+
+      console.log('Token exchange successful');
       console.log('Token response data:', tokenData);
 
       if (tokenData.access_token) {
         console.log('=== Getting User Info ===');
         
-        // Get user info
-        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-          headers: {
-            'Authorization': `Bearer ${tokenData.access_token}`,
-          },
+        // Get user info using https module
+        const userInfo = await new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'www.googleapis.com',
+            port: 443,
+            path: '/oauth2/v2/userinfo',
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${tokenData.access_token}`
+            }
+          };
+
+          const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+              try {
+                if (res.statusCode === 200) {
+                  const userInfo = JSON.parse(data);
+                  resolve(userInfo);
+                } else {
+                  reject(new Error(`Failed to get user info: ${res.statusCode}`));
+                }
+              } catch (error) {
+                reject(new Error(`Failed to parse user info response: ${error.message}`));
+              }
+            });
+          });
+
+          req.on('error', (error) => {
+            reject(new Error(`User info request failed: ${error.message}`));
+          });
+
+          req.end();
+        });
+        console.log('User info received:', userInfo);
+
+        // Store the OAuth state temporarily
+        const sessionId = Date.now().toString();
+        oauthState.set(sessionId, {
+          user: userInfo,
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token,
+          expiresAt: Date.now() + (tokenData.expires_in * 1000)
         });
 
-        if (!userInfoResponse.ok) {
-          throw new Error(`Failed to get user info: ${userInfoResponse.status}`);
+        // Clean up old sessions (older than 5 minutes)
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        for (const [key, value] of oauthState.entries()) {
+          if (value.expiresAt < fiveMinutesAgo) {
+            oauthState.delete(key);
+          }
         }
 
-        const userInfo = await userInfoResponse.json();
+        console.log('=== OAuth Success ===');
+        console.log('Session ID:', sessionId);
+        console.log('User email:', userInfo.email);
+        console.log('Stored in oauthState for polling');
+
+        // Send success response with session ID
+        res.send(`
+          <html>
+            <head><title>OAuth Success</title></head>
+            <body>
+              <h1>Authentication Successful!</h1>
+              <p>Welcome, ${userInfo.name}!</p>
+              <p>You can close this window and return to the app.</p>
+              <script>
+                // Store session ID in localStorage for the app to retrieve
+                localStorage.setItem('oauth_session_id', '${sessionId}');
+                
+                // Close window after 2 seconds
+                setTimeout(() => {
+                  window.close();
+                }, 2000);
+              </script>
+            </body>
+          </html>
+        `);
 
       } else {
         console.error('No access token in response:', tokenData);
@@ -151,7 +266,52 @@ const router = express.Router();
 });
 
 /**
+ * Endpoint for the app to check if authentication completed
+ * This endpoint allows the frontend to poll for OAuth completion
+ */
+router.get('/google-status', (req, res) => {
+  console.log('=== Google Status Check Request ===');
+  console.log('Request headers:', req.headers);
+  
+  // Add CORS headers for mobile app
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
 
+  const { sessionId } = req.query;
+  
+  if (!sessionId) {
+    return res.status(400).json({
+      success: false,
+      error: 'Session ID required'
+    });
+  }
+
+  console.log('Checking session ID:', sessionId);
+  
+  const oauthData = oauthState.get(sessionId);
+  
+  if (oauthData) {
+    console.log('Session found, returning user data');
+    // Remove the session after returning it (one-time use)
+    oauthState.delete(sessionId);
+    
+    return res.json({
+      success: true,
+      user: oauthData.user,
+      accessToken: oauthData.accessToken,
+      refreshToken: oauthData.refreshToken
+    });
+  } else {
+    console.log('Session not found or expired');
+    return res.json({
+      success: false,
+      error: 'Session not found or expired'
+    });
+  }
+});
+
+/**
  * Endpoint for the app to check if authentication completed
  * This is a temporary endpoint for backward compatibility
  */
@@ -164,6 +324,10 @@ router.get('/check-auth', (req, res) => {
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
 
+  res.json({
+    message: 'Check auth endpoint - use /google-status instead',
+    success: false
+  });
 });
 
 module.exports = router;

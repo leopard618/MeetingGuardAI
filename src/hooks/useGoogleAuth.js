@@ -35,7 +35,7 @@ export const useGoogleAuth = () => {
   console.log('- finalIsExpoGo:', finalIsExpoGo);
 
   // Use environment variable for redirect URI with fallback
-  const oauthRedirectUri = GOOGLE_REDIRECT_URI;
+  const oauthRedirectUri = GOOGLE_REDIRECT_URI || 'https://meetingguard-backend.onrender.com/oauth/google';
 
   console.log('OAuth Configuration:');
   console.log('- oauthRedirectUri:', oauthRedirectUri);
@@ -209,9 +209,13 @@ export const useGoogleAuth = () => {
       // we need to poll our redirect server to check if authentication completed
       console.log('=== Polling for Authentication Completion ===');
       
+      // Define the check auth URL for polling
+      const checkAuthUrl = `${oauthRedirectUri.replace('/oauth/google', '')}/oauth/google-status`;
+      
       // Test the polling endpoint first
       try {
         console.log('=== TESTING POLLING ENDPOINT ===');
+        console.log('Testing URL:', checkAuthUrl);
 
         const testResponse = await fetch(checkAuthUrl, {
           method: 'GET',
@@ -235,7 +239,6 @@ export const useGoogleAuth = () => {
         
         try {
           // Check if our redirect server has processed the authentication
-
           const checkResponse = await fetch(checkAuthUrl, {
             method: 'GET',
             headers: {
@@ -255,12 +258,14 @@ export const useGoogleAuth = () => {
             if (authData.success && authData.user) {
               console.log('=== AUTHENTICATION COMPLETED ===');
 
+              // Add user to local storage using the new user management system
+              const userResult = await userStorage.addGoogleUser(authData.user);
+              
               if (userResult.success) {
                 console.log('User added to local storage:', userResult.user.email);
                 console.log('Is new user:', userResult.isNewUser);
                 
                 // Store the authentication data
-
                 await AsyncStorage.setItem('google_user_info', JSON.stringify(authData.user));
                 
                 // Set as current user
@@ -295,7 +300,6 @@ export const useGoogleAuth = () => {
       // Fallback: Check one more time for authentication data
       console.log('=== FALLBACK: FINAL CHECK ===');
       try {
-
         const finalCheckResponse = await fetch(checkAuthUrl, {
           method: 'GET',
           headers: {
@@ -320,7 +324,6 @@ export const useGoogleAuth = () => {
               console.log('User added to local storage:', userResult.user.email);
               
               // Store the authentication data
-
               await AsyncStorage.setItem('google_user_info', JSON.stringify(finalAuthData.user));
               
               // Set as current user
