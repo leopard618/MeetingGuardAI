@@ -31,7 +31,8 @@ try {
   userRoutes = require('./routes/users');
   console.log('✅ userRoutes imported');
   
-  errorHandler = require('./middleware/errorHandler');
+  const errorHandlerModule = require('./middleware/errorHandler');
+  errorHandler = errorHandlerModule.errorHandler;
   console.log('✅ errorHandler imported');
   
   authenticateToken = require('./middleware/auth').authenticateToken;
