@@ -152,23 +152,24 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routes with error handling
+// API routes with error handling - TEMPORARILY DISABLED planGate
 try {
   console.log('Setting up API routes...');
   
   app.use('/api/auth', authRoutes);
   console.log('✅ /api/auth route configured');
   
-  app.use('/api/meetings', authenticateToken, planGate({ requestType: 'meeting', feature: 'basic_meetings' }), meetingRoutes);
+  // Temporarily disable planGate middleware to isolate the issue
+  app.use('/api/meetings', authenticateToken, meetingRoutes);
   console.log('✅ /api/meetings route configured');
   
-  app.use('/api/calendar', authenticateToken, planGate({ skipUsageIncrement: true }), calendarRoutes);
+  app.use('/api/calendar', authenticateToken, calendarRoutes);
   console.log('✅ /api/calendar route configured');
   
-  app.use('/api/ai', authenticateToken, planGate({ requestType: 'ai', feature: 'basic_ai' }), aiRoutes);
+  app.use('/api/ai', authenticateToken, aiRoutes);
   console.log('✅ /api/ai route configured');
   
-  app.use('/api/files', authenticateToken, planGate({ feature: 'file_attachments', skipUsageIncrement: true }), fileRoutes);
+  app.use('/api/files', authenticateToken, fileRoutes);
   console.log('✅ /api/files route configured');
   
   app.use('/api/users', authenticateToken, userRoutes);
