@@ -1,246 +1,189 @@
-import { BACKEND_CONFIG, getApiUrl, createAuthHeaders } from '../config/backend';
-import { getStoredToken } from './localStorage';
+import { apiClient } from './backendService';
 
 /**
- * Billing Service for Stripe integration
+ * Billing service for Stripe Checkout Links integration
+ * This approach uses pre-built Stripe checkout pages instead of API-based checkout
  */
-class BillingService {
-  /**
-   * Get available plans
-   */
-  async getPlans() {
-    try {
-      const token = getStoredToken();
-      const response = await fetch(getApiUrl('/api/billing/plans'), {
-        method: 'GET',
-        headers: createAuthHeaders(token),
-      });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch plans: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Get plans error:', error);
-      throw error;
-    }
+/**
+ * Get available subscription plans
+ */
+export const getPlans = async () => {
+  try {
+    const response = await apiClient.get('/billing/plans');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching plans:', error);
+    throw error;
   }
+};
 
-  /**
-   * Create Stripe checkout session
-   */
-  async createCheckoutSession(planId, successUrl, cancelUrl) {
-    try {
-      const token = getStoredToken();
-      const response = await fetch(getApiUrl('/api/billing/create-checkout-session'), {
-        method: 'POST',
-        headers: createAuthHeaders(token),
-        body: JSON.stringify({
-          planId,
-          successUrl,
-          cancelUrl
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to create checkout session: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Create checkout session error:', error);
-      throw error;
-    }
+/**
+ * Get user's current subscription status
+ */
+export const getSubscription = async () => {
+  try {
+    const response = await apiClient.get('/billing/subscription');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching subscription:', error);
+    throw error;
   }
+};
 
-  /**
-   * Create Stripe billing portal session
-   */
-  async createPortalSession(returnUrl) {
-    try {
-      const token = getStoredToken();
-      const response = await fetch(getApiUrl('/api/billing/create-portal-session'), {
-        method: 'POST',
-        headers: createAuthHeaders(token),
-        body: JSON.stringify({
-          returnUrl
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to create portal session: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Create portal session error:', error);
-      throw error;
-    }
+/**
+ * Redirect user to Stripe checkout for a specific plan
+ * @param {string} planId - The plan ID (e.g., 'pro_monthly', 'premium_yearly')
+ * @param {string} checkoutLink - The Stripe checkout link for the plan
+ */
+export const redirectToCheckout = (planId, checkoutLink) => {
+  if (!checkoutLink) {
+    throw new Error('Checkout link not available for this plan');
   }
+  
+  // Store the plan ID in localStorage for when user returns
+  localStorage.setItem('pendingPlan', planId);
+  
+  // Redirect to Stripe checkout
+  window.location.href = checkoutLink;
+};
 
-  /**
-   * Get user's subscription status
-   */
-  async getSubscription() {
-    try {
-      const token = getStoredToken();
-      const response = await fetch(getApiUrl('/api/billing/subscription'), {
-        method: 'GET',
-        headers: createAuthHeaders(token),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch subscription: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Get subscription error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Check if user has access to a feature
-   */
-  hasFeatureAccess(userPlan, feature) {
-    const planFeatures = {
-      free: ['basic_meetings', 'basic_ai'],
-      pro_monthly: ['basic_meetings', 'basic_ai', 'advanced_meetings', 'advanced_ai', 'calendar_sync', 'file_attachments'],
-      pro_yearly: ['basic_meetings', 'basic_ai', 'advanced_meetings', 'advanced_ai', 'calendar_sync', 'file_attachments'],
-      premium_monthly: ['basic_meetings', 'basic_ai', 'advanced_meetings', 'advanced_ai', 'calendar_sync', 'file_attachments', 'priority_support', 'advanced_analytics'],
-      premium_yearly: ['basic_meetings', 'basic_ai', 'advanced_meetings', 'advanced_ai', 'calendar_sync', 'file_attachments', 'priority_support', 'advanced_analytics']
-    };
-
-    const features = planFeatures[userPlan] || planFeatures.free;
-    return features.includes(feature);
-  }
-
-  /**
-   * Get plan display information
-   */
-  getPlanInfo(planId) {
-    const planInfo = {
-      free: {
-        name: 'Free',
-        price: 0,
-        interval: null,
-        features: [
-          '5 AI requests per day',
-          'Basic meeting management',
-          'Google Calendar sync'
-        ]
-      },
-      pro_monthly: {
-        name: 'Pro',
-        price: 7.99,
-        interval: 'month',
-        originalPrice: null,
-        features: [
-          'Unlimited AI requests',
-          'Advanced meeting features',
-          'File attachments',
-          'Priority support',
-          '7-day free trial'
-        ]
-      },
-      pro_yearly: {
-        name: 'Pro',
-        price: 5.99,
-        interval: 'month',
-        originalPrice: 7.99,
-        yearlyPrice: 71.88,
-        features: [
-          'Unlimited AI requests',
-          'Advanced meeting features',
-          'File attachments',
-          'Priority support',
-          '25% annual discount',
-          '7-day free trial'
-        ]
-      },
-      premium_monthly: {
-        name: 'Premium',
-        price: 14.99,
-        interval: 'month',
-        originalPrice: null,
-        features: [
-          'Everything in Pro',
-          'Advanced analytics',
-          'Custom integrations',
-          'Dedicated support',
-          '7-day free trial'
-        ]
-      },
-      premium_yearly: {
-        name: 'Premium',
-        price: 11.24,
-        interval: 'month',
-        originalPrice: 14.99,
-        yearlyPrice: 134.91,
-        features: [
-          'Everything in Pro',
-          'Advanced analytics',
-          'Custom integrations',
-          'Dedicated support',
-          '25% annual discount',
-          '7-day free trial'
-        ]
-      }
-    };
-
-    return planInfo[planId] || planInfo.free;
-  }
-
-  /**
-   * Format price for display
-   */
-  formatPrice(amount, currency = 'USD') {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency,
-    }).format(amount);
-  }
-
-  /**
-   * Get subscription status display text
-   */
-  getStatusDisplay(status) {
-    const statusMap = {
-      active: 'Active',
-      trialing: 'Trial',
-      past_due: 'Past Due',
-      canceled: 'Canceled',
-      unpaid: 'Unpaid',
-      inactive: 'Inactive'
-    };
-
-    return statusMap[status] || 'Unknown';
-  }
-
-  /**
-   * Check if subscription is active
-   */
-  isSubscriptionActive(status) {
-    return ['active', 'trialing'].includes(status);
-  }
-
-  /**
-   * Get days remaining in trial
-   */
-  getTrialDaysRemaining(currentPeriodEnd) {
-    if (!currentPeriodEnd) return 0;
+/**
+ * Update user's plan after successful checkout
+ * This should be called when user returns from Stripe checkout
+ * @param {string} planId - The plan ID
+ * @param {string} stripeCustomerId - The Stripe customer ID
+ */
+export const updatePlan = async (planId, stripeCustomerId) => {
+  try {
+    const response = await apiClient.post('/billing/update-plan', {
+      plan: planId,
+      stripeCustomerId: stripeCustomerId
+    });
     
-    const endDate = new Date(currentPeriodEnd);
-    const now = new Date();
-    const diffTime = endDate - now;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Clear pending plan from localStorage
+    localStorage.removeItem('pendingPlan');
     
-    return Math.max(0, diffDays);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating plan:', error);
+    throw error;
   }
-}
+};
 
-export default new BillingService();
+/**
+ * Get customer portal URL for subscription management
+ */
+export const getCustomerPortal = async () => {
+  try {
+    const response = await apiClient.post('/billing/customer-portal');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting customer portal:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if user has a pending plan upgrade
+ * This is useful for detecting when user returns from Stripe checkout
+ */
+export const getPendingPlan = () => {
+  return localStorage.getItem('pendingPlan');
+};
+
+/**
+ * Handle successful checkout return
+ * This should be called when user returns from Stripe checkout
+ */
+export const handleCheckoutReturn = async () => {
+  const pendingPlan = getPendingPlan();
+  
+  if (pendingPlan) {
+    // In a real implementation, you would get the Stripe customer ID
+    // from the URL parameters or from your backend
+    // For now, we'll just clear the pending plan
+    localStorage.removeItem('pendingPlan');
+    
+    // You could also redirect to a success page or update the UI
+    console.log(`User returned from checkout for plan: ${pendingPlan}`);
+    
+    return {
+      success: true,
+      plan: pendingPlan,
+      message: 'Checkout completed successfully!'
+    };
+  }
+  
+  return null;
+};
+
+/**
+ * Check if user can access a specific feature based on their plan
+ * @param {string} feature - The feature to check
+ * @param {string} userPlan - The user's current plan
+ */
+export const canAccessFeature = (feature, userPlan) => {
+  const planLimits = {
+    free: {
+      ai_requests: 5,
+      meeting_actions: 5,
+      file_storage: 5
+    },
+    pro_monthly: {
+      ai_requests: Infinity,
+      meeting_actions: Infinity,
+      file_storage: Infinity
+    },
+    pro_yearly: {
+      ai_requests: Infinity,
+      meeting_actions: Infinity,
+      file_storage: Infinity
+    },
+    premium_monthly: {
+      ai_requests: Infinity,
+      meeting_actions: Infinity,
+      file_storage: Infinity
+    },
+    premium_yearly: {
+      ai_requests: Infinity,
+      meeting_actions: Infinity,
+      file_storage: Infinity
+    }
+  };
+  
+  const plan = planLimits[userPlan] || planLimits.free;
+  return plan[feature] === Infinity || plan[feature] > 0;
+};
+
+/**
+ * Get plan display name
+ * @param {string} planId - The plan ID
+ */
+export const getPlanDisplayName = (planId) => {
+  const planNames = {
+    free: 'Free',
+    pro_monthly: 'Pro Monthly',
+    pro_yearly: 'Pro Yearly',
+    premium_monthly: 'Premium Monthly',
+    premium_yearly: 'Premium Yearly'
+  };
+  
+  return planNames[planId] || 'Unknown Plan';
+};
+
+/**
+ * Get plan price display
+ * @param {string} planId - The plan ID
+ */
+export const getPlanPrice = (planId) => {
+  const planPrices = {
+    free: '$0',
+    pro_monthly: '$7.99/month',
+    pro_yearly: '$5.99/month ($71.88/year)',
+    premium_monthly: '$14.99/month',
+    premium_yearly: '$11.24/month ($134.91/year)'
+  };
+  
+  return planPrices[planId] || 'Contact us';
+};
