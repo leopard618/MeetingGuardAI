@@ -4,21 +4,28 @@ const { createClient } = require('@supabase/supabase-js');
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.');
-  process.exit(1);
-}
+let supabase = null;
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
+if (supabaseUrl && supabaseServiceKey) {
+  supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+} else {
+  console.warn('⚠️  Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.');
+  console.warn('⚠️  Some features may not work without proper database configuration.');
+}
 
 // Database schema setup
 const setupDatabase = async () => {
   try {
+    if (!supabase) {
+      console.log('⚠️  Database setup skipped - Supabase not configured');
+      return;
+    }
+
     console.log('Setting up database schema...');
     
     // Check if tables exist by trying to query them
@@ -50,6 +57,11 @@ const setupDatabase = async () => {
 // Test database connection
 const testConnection = async () => {
   try {
+    if (!supabase) {
+      console.log('⚠️  Database connection test skipped - Supabase not configured');
+      return false;
+    }
+
     const { data, error } = await supabase
       .from('users')
       .select('count')
