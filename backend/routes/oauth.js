@@ -205,26 +205,53 @@ router.get('/google', async (req, res) => {
         console.log('User email:', userInfo.email);
         console.log('Stored in oauthState for polling');
 
-        // Send success response with session ID
-        res.send(`
-          <html>
-            <head><title>OAuth Success</title></head>
-            <body>
-              <h1>Authentication Successful!</h1>
-              <p>Welcome, ${userInfo.name}!</p>
-              <p>You can close this window and return to the app.</p>
-              <script>
-                // Store session ID in localStorage for the app to retrieve
-                localStorage.setItem('oauth_session_id', '${sessionId}');
-                
-                // Close window after 2 seconds
-                setTimeout(() => {
-                  window.close();
-                }, 2000);
-              </script>
-            </body>
-          </html>
-        `);
+                 // Send success response with session ID and instructions for the app
+         res.send(`
+           <html>
+             <head><title>OAuth Success</title></head>
+             <body>
+               <h1>Authentication Successful!</h1>
+               <p>Welcome, ${userInfo.name}!</p>
+               <p>Session ID: ${sessionId}</p>
+               <p>You can close this window and return to the app.</p>
+               <p>The app will automatically detect the completion.</p>
+               <script>
+                 // Try to communicate with the app
+                 try {
+                   // Store session ID in localStorage
+                   localStorage.setItem('oauth_session_id', '${sessionId}');
+                   
+                   // Try to send message to parent window (if in iframe)
+                   if (window.parent && window.parent !== window) {
+                     window.parent.postMessage({
+                       type: 'OAUTH_SUCCESS',
+                       sessionId: '${sessionId}',
+                       user: ${JSON.stringify(userInfo)}
+                     }, '*');
+                   }
+                   
+                   // Try to send message to opener (if opened by app)
+                   if (window.opener) {
+                     window.opener.postMessage({
+                       type: 'OAUTH_SUCCESS',
+                       sessionId: '${sessionId}',
+                       user: ${JSON.stringify(userInfo)}
+                     }, '*');
+                   }
+                   
+                   console.log('OAuth success message sent');
+                 } catch (e) {
+                   console.log('Could not send message to app:', e);
+                 }
+                 
+                 // Close window after 3 seconds
+                 setTimeout(() => {
+                   window.close();
+                 }, 3000);
+               </script>
+             </body>
+           </html>
+         `);
 
       } else {
         console.error('No access token in response:', tokenData);
@@ -307,6 +334,55 @@ router.get('/google-status', (req, res) => {
     return res.json({
       success: false,
       error: 'Session not found or expired'
+    });
+  }
+});
+
+/**
+ * Endpoint for the app to check for any available OAuth sessions
+ * This allows the frontend to poll without knowing a specific session ID
+ */
+router.get('/google-check', (req, res) => {
+  console.log('=== Google Check Request ===');
+  console.log('Request headers:', req.headers);
+  
+  // Add CORS headers for mobile app
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Clean up expired sessions first
+  const now = Date.now();
+  const fiveMinutesAgo = now - (5 * 60 * 1000);
+  for (const [key, value] of oauthState.entries()) {
+    if (value.expiresAt < fiveMinutesAgo) {
+      oauthState.delete(key);
+    }
+  }
+
+  // Find any available session
+  const availableSessions = Array.from(oauthState.entries());
+  
+  if (availableSessions.length > 0) {
+    // Get the first available session
+    const [sessionId, oauthData] = availableSessions[0];
+    console.log('Available session found:', sessionId);
+    
+    // Remove the session after returning it (one-time use)
+    oauthState.delete(sessionId);
+    
+    return res.json({
+      success: true,
+      sessionId: sessionId,
+      user: oauthData.user,
+      accessToken: oauthData.accessToken,
+      refreshToken: oauthData.refreshToken
+    });
+  } else {
+    console.log('No available sessions found');
+    return res.json({
+      success: false,
+      error: 'No authentication sessions available'
     });
   }
 });
