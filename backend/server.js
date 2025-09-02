@@ -6,18 +6,26 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-const authRoutes = require('./routes/auth');
-const meetingRoutes = require('./routes/meetings');
-const calendarRoutes = require('./routes/calendar');
-const aiRoutes = require('./routes/ai');
-const fileRoutes = require('./routes/files');
-const userRoutes = require('./routes/users');
+// Import routes with error handling
+let authRoutes, meetingRoutes, calendarRoutes, aiRoutes, fileRoutes, userRoutes;
+let errorHandler, authenticateToken, billingRoutes, adminRoutes, planGate;
 
-const { errorHandler } = require('./middleware/errorHandler');
-const { authenticateToken } = require('./middleware/auth');
-const billingRoutes = require('./routes/billing');
-const adminRoutes = require('./routes/admin');
-const { planGate } = require('./middleware/planGate');
+try {
+  authRoutes = require('./routes/auth');
+  meetingRoutes = require('./routes/meetings');
+  calendarRoutes = require('./routes/calendar');
+  aiRoutes = require('./routes/ai');
+  fileRoutes = require('./routes/files');
+  userRoutes = require('./routes/users');
+  errorHandler = require('./middleware/errorHandler');
+  authenticateToken = require('./middleware/auth').authenticateToken;
+  billingRoutes = require('./routes/billing');
+  adminRoutes = require('./routes/admin');
+  planGate = require('./middleware/planGate').planGate;
+} catch (error) {
+  console.error('Error importing routes or middleware:', error);
+  process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -111,18 +119,23 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/meetings', authenticateToken, planGate({ requestType: 'meeting', feature: 'basic_meetings' }), meetingRoutes);
-app.use('/api/calendar', authenticateToken, planGate({ skipUsageIncrement: true }), calendarRoutes);
-app.use('/api/ai', authenticateToken, planGate({ requestType: 'ai', feature: 'basic_ai' }), aiRoutes);
-app.use('/api/files', authenticateToken, planGate({ feature: 'file_attachments', skipUsageIncrement: true }), fileRoutes);
-app.use('/api/users', authenticateToken, userRoutes);
-app.use('/api/billing', authenticateToken, billingRoutes);
-app.use('/api/admin', authenticateToken, adminRoutes);
+// API routes with error handling
+try {
+  app.use('/api/auth', authRoutes);
+  app.use('/api/meetings', authenticateToken, planGate({ requestType: 'meeting', feature: 'basic_meetings' }), meetingRoutes);
+  app.use('/api/calendar', authenticateToken, planGate({ skipUsageIncrement: true }), calendarRoutes);
+  app.use('/api/ai', authenticateToken, planGate({ requestType: 'ai', feature: 'basic_ai' }), aiRoutes);
+  app.use('/api/files', authenticateToken, planGate({ feature: 'file_attachments', skipUsageIncrement: true }), fileRoutes);
+  app.use('/api/users', authenticateToken, userRoutes);
+  app.use('/api/billing', authenticateToken, billingRoutes);
+  app.use('/api/admin', authenticateToken, adminRoutes);
 
-// OAuth redirect endpoint (for Google Auth)
-app.use('/oauth', require('./routes/oauth'));
+  // OAuth redirect endpoint (for Google Auth)
+  app.use('/oauth', require('./routes/oauth'));
+} catch (error) {
+  console.error('Error setting up routes:', error);
+  process.exit(1);
+}
 
 // Error handling middleware
 app.use(errorHandler);
@@ -141,7 +154,7 @@ app.listen(PORT, () => {
   console.log(`🚀 MeetingGuard Backend Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔐 OAuth redirect: http://localhost:${PORT}/auth`);
+  console.log(`🔐 OAuth redirect: http://localhost:${PORT}/oauth`);
 
   // Show correct URLs based on environment
   if (process.env.NODE_ENV === 'production') {

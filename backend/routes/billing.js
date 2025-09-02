@@ -1,4 +1,5 @@
 const express = require('express');
+const { supabase } = require('../config/database');
 const router = express.Router();
 
 /**
@@ -137,7 +138,7 @@ router.get('/subscription', async (req, res) => {
     const userId = req.user.id;
     
     // Get user's current plan and subscription status
-    const { data: user, error } = await req.supabase
+    const { data: user, error } = await supabase
       .from('users')
       .select('plan, subscription_status, current_period_end, stripe_customer_id')
       .eq('id', userId)
@@ -174,7 +175,7 @@ router.post('/customer-portal', async (req, res) => {
     const userId = req.user.id;
     
     // Get user's Stripe customer ID
-    const { data: user, error } = await req.supabase
+    const { data: user, error } = await supabase
       .from('users')
       .select('stripe_customer_id')
       .eq('id', userId)
@@ -222,7 +223,7 @@ router.post('/update-plan', async (req, res) => {
     }
 
     // Update user's plan in database
-    const { error } = await req.supabase
+    const { error } = await supabase
       .from('users')
       .update({
         plan: plan,
