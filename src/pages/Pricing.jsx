@@ -30,13 +30,14 @@ const Pricing = () => {
       // Get the base URL from your backend
       const baseUrl = 'https://meetingguard-backend.onrender.com';
       
+      // Use the public endpoint (no authentication required)
       const response = await fetch(`${baseUrl}/billing/stripe-links`);
       if (response.ok) {
         const data = await response.json();
         console.log('Fetched Stripe links:', data);
         setStripeLinks(data);
       } else {
-        console.error('Failed to fetch Stripe links');
+        console.error('Failed to fetch Stripe links:', response.status, response.statusText);
         // Fallback to default links if API fails
         setStripeLinks({
           STRIPE_PRO_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',

@@ -159,6 +159,26 @@ app.use('/api/admin', authenticateToken, adminRoutes);
 // OAuth redirect endpoint (for Google Auth)
 app.use('/oauth', require('./routes/oauth'));
 
+// Public endpoints (no authentication required)
+app.get('/billing/stripe-links', async (req, res) => {
+  try {
+    const stripeLinks = {
+      STRIPE_PRO_MONTHLY_LINK: process.env.STRIPE_PRO_MONTHLY_LINK,
+      STRIPE_PRO_YEARLY_LINK: process.env.STRIPE_PRO_YEARLY_LINK,
+      STRIPE_PREMIUM_MONTHLY_LINK: process.env.STRIPE_PREMIUM_MONTHLY_LINK,
+      STRIPE_PREMIUM_YEARLY_LINK: process.env.STRIPE_PREMIUM_YEARLY_LINK
+    };
+
+    // Log the links for debugging (remove in production)
+    console.log('Serving Stripe links:', stripeLinks);
+
+    res.json(stripeLinks);
+  } catch (error) {
+    console.error('Error serving Stripe links:', error);
+    res.status(500).json({ error: 'Failed to get Stripe links' });
+  }
+});
+
 // Error handling middleware
 app.use(errorHandler);
 
