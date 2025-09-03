@@ -301,7 +301,7 @@ app.get('/payment-success', (req, res) => {
                 background: #059669;
                 transform: translateY(-2px);
             }
-            .app-link {
+            .manual-return {
                 background: #3B82F6;
                 color: white;
                 padding: 16px 32px;
@@ -311,11 +311,10 @@ app.get('/payment-success', (req, res) => {
                 font-weight: 600;
                 cursor: pointer;
                 width: 100%;
-                text-decoration: none;
-                display: inline-block;
+                margin-bottom: 20px;
                 transition: all 0.3s ease;
             }
-            .app-link:hover {
+            .manual-return:hover {
                 background: #2563EB;
                 transform: translateY(-2px);
             }
@@ -330,10 +329,38 @@ app.get('/payment-success', (req, res) => {
                 display: inline-block;
             }
             .instructions {
-                color: #6B7280;
+                background: #FEF3C7;
+                border: 1px solid #F59E0B;
+                border-radius: 12px;
+                padding: 20px;
+                margin: 20px 0;
+                text-align: left;
+            }
+            .instructions h3 {
+                color: #92400E;
+                margin-bottom: 10px;
+                font-size: 16px;
+            }
+            .instructions ol {
+                color: #92400E;
+                padding-left: 20px;
+                line-height: 1.6;
+            }
+            .instructions li {
+                margin-bottom: 8px;
+            }
+            .close-tab {
+                background: #EF4444;
+                color: white;
+                padding: 12px 24px;
+                border: none;
+                border-radius: 8px;
                 font-size: 14px;
-                margin-top: 20px;
-                line-height: 1.5;
+                cursor: pointer;
+                margin-top: 10px;
+            }
+            .close-tab:hover {
+                background: #DC2626;
             }
         </style>
     </head>
@@ -351,36 +378,237 @@ app.get('/payment-success', (req, res) => {
                 <div class="plan-info">You now have access to all premium features!</div>
             </div>
             
-            <button class="return-button" onclick="returnToApp()">
-                Return to MeetingGuard AI App
+            <button class="return-button" onclick="attemptReturn()">
+                🔄 Try to Return to App
             </button>
             
-            <a href="meetingguardai://dashboard" class="app-link">
-                Open App Directly
-            </a>
+            <button class="manual-return" onclick="showManualInstructions()">
+                📱 Manual Return Instructions
+            </button>
             
-            <p class="instructions">
-                If the app doesn't open automatically, tap "Open App Directly" above, 
-                or manually return to your MeetingGuard AI app.
+            <div class="instructions" id="manualInstructions" style="display: none;">
+                <h3>📱 How to Return to MeetingGuard AI App:</h3>
+                <ol>
+                    <li><strong>On Mobile:</strong> Swipe up from bottom (iOS) or press recent apps button (Android)</li>
+                    <li><strong>Find MeetingGuard AI</strong> in your recent apps</li>
+                    <li><strong>Tap to open</strong> the app</li>
+                    <li><strong>Alternative:</strong> Go to your home screen and tap the MeetingGuard AI icon</li>
+                </ol>
+                <button class="close-tab" onclick="closeTab()">Close This Tab</button>
+            </div>
+            
+            <p style="color: #6B7280; font-size: 14px; margin-top: 20px;">
+                Your subscription is now active! You can close this tab and return to your app.
             </p>
         </div>
         
         <script>
-            function returnToApp() {
-                // Try to open the app first
-                window.location.href = 'meetingguardai://dashboard';
+            function attemptReturn() {
+                // Try multiple deep link formats
+                const deepLinks = [
+                    'meetingguardai://dashboard',
+                    'meetingguardai://',
+                    'meetingguard://dashboard',
+                    'meetingguard://'
+                ];
                 
-                // Fallback: if app doesn't open, show instructions
-                setTimeout(() => {
-                    if (document.hidden) return;
-                    alert('If the app didn\'t open, please manually return to your MeetingGuard AI app.');
-                }, 1000);
+                let attempted = 0;
+                const maxAttempts = deepLinks.length;
+                
+                function tryNextLink() {
+                    if (attempted >= maxAttempts) {
+                        showManualInstructions();
+                        return;
+                    }
+                    
+                    const link = deepLinks[attempted];
+                    console.log('Trying deep link:', link);
+                    
+                    // Try to open the app
+                    window.location.href = link;
+                    
+                    // Wait a bit, then try next link
+                    setTimeout(() => {
+                        attempted++;
+                        tryNextLink();
+                    }, 1000);
+                }
+                
+                tryNextLink();
             }
             
-            // Auto-attempt to open app after 2 seconds
+            function showManualInstructions() {
+                document.getElementById('manualInstructions').style.display = 'block';
+            }
+            
+            function closeTab() {
+                window.close();
+                // Fallback for browsers that don't allow window.close()
+                setTimeout(() => {
+                    window.location.href = 'about:blank';
+                }, 100);
+            }
+            
+            // Auto-attempt return after 3 seconds
             setTimeout(() => {
-                returnToApp();
-            }, 2000);
+                attemptReturn();
+            }, 3000);
+            
+            // Show manual instructions after 8 seconds if still on page
+            setTimeout(() => {
+                if (!document.hidden) {
+                    showManualInstructions();
+                }
+            }, 8000);
+        </script>
+    </body>
+    </html>
+  `;
+  
+  res.send(html);
+});
+
+// Help page for users who can't return to app
+app.get('/payment-help', (req, res) => {
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Need Help? - MeetingGuard AI</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+            .container {
+                background: white;
+                border-radius: 20px;
+                padding: 40px;
+                text-align: center;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                max-width: 500px;
+                width: 100%;
+            }
+            .help-icon {
+                width: 80px;
+                height: 80px;
+                background: #F59E0B;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 30px;
+                font-size: 40px;
+                color: white;
+            }
+            h1 {
+                color: #1F2937;
+                margin-bottom: 15px;
+                font-size: 28px;
+            }
+            .subtitle {
+                color: #6B7280;
+                margin-bottom: 30px;
+                font-size: 18px;
+            }
+            .steps {
+                background: #F3F4F6;
+                border-radius: 12px;
+                padding: 20px;
+                margin: 20px 0;
+                text-align: left;
+            }
+            .step {
+                margin-bottom: 15px;
+                padding-left: 20px;
+                position: relative;
+            }
+            .step:before {
+                content: counter(step-counter);
+                counter-increment: step-counter;
+                position: absolute;
+                left: 0;
+                top: 0;
+                background: #10B981;
+                color: white;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            .steps {
+                counter-reset: step-counter;
+            }
+            .close-button {
+                background: #EF4444;
+                color: white;
+                padding: 16px 32px;
+                border: none;
+                border-radius: 12px;
+                font-size: 18px;
+                font-weight: 600;
+                cursor: pointer;
+                width: 100%;
+                margin-top: 20px;
+                transition: all 0.3s ease;
+            }
+            .close-button:hover {
+                background: #DC2626;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="help-icon">❓</div>
+            
+            <h1>Need Help Returning to App?</h1>
+            <p class="subtitle">Here's how to get back to MeetingGuard AI:</p>
+            
+            <div class="steps">
+                <div class="step">
+                    <strong>Close this browser tab</strong> - You can close this tab safely
+                </div>
+                <div class="step">
+                    <strong>Go to your home screen</strong> - Press home button or swipe up
+                </div>
+                <div class="step">
+                    <strong>Find MeetingGuard AI</strong> - Look for the app icon
+                </div>
+                <div class="step">
+                    <strong>Tap to open</strong> - Your subscription is already active!
+                </div>
+            </div>
+            
+            <p style="color: #6B7280; font-size: 14px; margin: 20px 0;">
+                Your payment was successful and your subscription is now active. 
+                You can safely close this tab and return to your app.
+            </p>
+            
+            <button class="close-button" onclick="closeTab()">
+                Close This Tab
+            </button>
+        </div>
+        
+        <script>
+            function closeTab() {
+                window.close();
+                // Fallback
+                setTimeout(() => {
+                    window.location.href = 'about:blank';
+                }, 100);
+            }
         </script>
     </body>
     </html>
