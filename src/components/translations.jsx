@@ -30,6 +30,7 @@ export const translations = {
       aiChat: "AI Chat",
       settings: "Settings",
       apiKeys: "API Keys",
+      pricing: "Pricing",
       notificationDemo: "Notification Demo"
     },
     // Meeting
@@ -88,6 +89,7 @@ export const translations = {
       aiChat: "Chat IA",
       settings: "Ajustes",
       apiKeys: "Claves API",
+      pricing: "Precios",
       notificationDemo: "Demo de Notificaciones"
     },
     // Meeting

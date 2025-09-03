@@ -6,7 +6,7 @@ import { User } from "@/api/entities";
 import { UserPreferences } from "@/api/entities";
 import { Button } from "@/components/ui/button";
 import { createPageUrl } from "@/utils";
-import { Menu, X, LayoutDashboard, Calendar, MessageCircle, Settings, Globe, PlusCircle, Briefcase, StickyNote } from "lucide-react-native";
+import { Menu, X, LayoutDashboard, Calendar, MessageCircle, Settings, Globe, PlusCircle, Briefcase, StickyNote, CreditCard } from "lucide-react-native";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation, getAvailableLanguages } from "@/components/translations";
 import CookieConsent from "@/components/CookieConsent";
@@ -60,6 +60,13 @@ const navigationItems = [
     icon: Briefcase,
     iconColor: "text-amber-400", // Amber for business/API
     activeIconColor: "text-amber-300"
+  },
+  {
+    titleKey: "nav.pricing",
+    url: createPageUrl("Pricing"),
+    icon: CreditCard,
+    iconColor: "text-emerald-400", // Emerald for pricing/billing
+    activeIconColor: "text-emerald-300"
   },
 ];
 

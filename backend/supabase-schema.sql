@@ -9,7 +9,30 @@ CREATE TABLE IF NOT EXISTS users (
     picture TEXT,
     given_name VARCHAR(255),
     family_name VARCHAR(255),
+    -- Subscription and billing fields
+    stripe_customer_id VARCHAR(255),
+    plan VARCHAR(50) DEFAULT 'free',
+    subscription_status VARCHAR(50) DEFAULT 'active',
+    current_period_end TIMESTAMP WITH TIME ZONE,
+    -- Admin and access control
+    role VARCHAR(20) DEFAULT 'user',
+    enabled BOOLEAN DEFAULT true,
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
+-- User usage tracking table
+CREATE TABLE IF NOT EXISTS user_usage (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    ai_requests INTEGER DEFAULT 0,
+    meeting_actions INTEGER DEFAULT 0,
+    file_uploads INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, date)
 );
 
 -- User tokens table (for storing OAuth tokens securely)
