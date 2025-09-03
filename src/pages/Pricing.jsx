@@ -56,8 +56,12 @@ const Pricing = () => {
     }
   };
 
-  // Note: We now use Stripe Checkout Sessions instead of Payment Links
-  // This provides better control over success/cancel URLs and automatic plan activation
+  // Note: We use Stripe Payment Links directly
+  // IMPORTANT: To enable auto-return after payment, configure success page in Stripe Dashboard:
+  // 1. Go to Stripe Dashboard > Payment Links
+  // 2. Edit each payment link
+  // 3. Set Success page to: https://meetingguard-backend.onrender.com/payment-success?plan={PLAN_ID}
+  // 4. This will redirect users to your success page after payment
 
   // Plans data with dynamic checkout links from backend
   const plans = {
@@ -138,47 +142,44 @@ const Pricing = () => {
 
   const handleUpgrade = async (planId, planName, price, period) => {
     try {
-      // Create Stripe Checkout Session instead of using Payment Links
-      const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://meetingguard-backend.onrender.com';
+      // Get the appropriate Stripe Payment Link
+      let paymentLink = '';
       
-      console.log('🔄 Creating Stripe checkout session for:', planId);
-      
-      const response = await fetch(`${baseUrl}/billing/create-checkout-session`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          planId,
-          planName,
-          price,
-          period,
-          successUrl: `${baseUrl}/payment-success?plan=${planId}`,
-          cancelUrl: `${baseUrl}/payment-cancel?plan=${planId}`
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      switch (planId) {
+        case 'pro_monthly':
+          paymentLink = stripeLinks.STRIPE_PRO_MONTHLY_LINK;
+          break;
+        case 'pro_yearly':
+          paymentLink = stripeLinks.STRIPE_PRO_YEARLY_LINK;
+          break;
+        case 'premium_monthly':
+          paymentLink = stripeLinks.STRIPE_PREMIUM_MONTHLY_LINK;
+          break;
+        case 'premium_yearly':
+          paymentLink = stripeLinks.STRIPE_PREMIUM_YEARLY_LINK;
+          break;
+        default:
+          throw new Error('Invalid plan selected');
       }
-
-      const { checkoutUrl } = await response.json();
       
-      if (checkoutUrl) {
-        // Open Stripe Checkout in browser
-        const supported = await Linking.canOpenURL(checkoutUrl);
-        if (supported) {
-          await Linking.openURL(checkoutUrl);
-        } else {
-          Alert.alert('Error', 'Cannot open checkout link');
-        }
+      if (!paymentLink) {
+        Alert.alert('Plan Unavailable', 'This plan is not available for upgrade');
+        return;
+      }
+      
+      console.log('🔄 Opening Stripe Payment Link for:', planId, paymentLink);
+      
+      // Open Stripe Payment Link in browser
+      const supported = await Linking.canOpenURL(paymentLink);
+      if (supported) {
+        await Linking.openURL(paymentLink);
       } else {
-        throw new Error('No checkout URL received');
+        Alert.alert('Error', 'Cannot open payment link');
       }
       
     } catch (error) {
-      console.error('Error creating checkout session:', error);
-      Alert.alert('Error', 'Failed to create checkout session. Please try again.');
+      console.error('Error opening payment link:', error);
+      Alert.alert('Error', 'Failed to open payment link. Please try again.');
     }
   };
 
@@ -346,7 +347,7 @@ const Pricing = () => {
                         styles.upgradeButton,
                         plan.popular && styles.popularUpgradeButton
                       ]}
-                                             onPress={() => handleUpgrade(planId, plan.name, plan.price, plan.period)}
+                                             onPress={() => handleUpgrade(planId)}
                     >
                       <Text style={styles.upgradeButtonText}>
                         Start 7-Day Trial

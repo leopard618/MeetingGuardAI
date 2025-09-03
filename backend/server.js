@@ -200,83 +200,8 @@ app.get('/test', (req, res) => {
   });
 });
 
-// Create Stripe Checkout Session endpoint
-app.post('/billing/create-checkout-session', async (req, res) => {
-  try {
-    // Check if Stripe is available
-    if (!stripe) {
-      console.error('Stripe package not available');
-      return res.status(503).json({ error: 'Stripe service unavailable' });
-    }
-
-    const { planId, planName, price, period, successUrl, cancelUrl } = req.body;
-    
-    if (!planId || !planName || !price || !period) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    // Define plan prices (you can move this to environment variables)
-    const planPrices = {
-      'pro_monthly': { amount: 799, currency: 'usd' }, // $7.99
-      'pro_yearly': { amount: 7188, currency: 'usd' }, // $71.88
-      'premium_monthly': { amount: 1499, currency: 'usd' }, // $14.99
-      'premium_yearly': { amount: 13991, currency: 'usd' } // $139.91
-    };
-
-    const planPrice = planPrices[planId];
-    if (!planPrice) {
-      return res.status(400).json({ error: 'Invalid plan ID' });
-    }
-
-    // Create Stripe Checkout Session
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: planPrice.currency,
-            product_data: {
-              name: planName,
-              description: `${planName} Plan - ${period}ly billing`,
-            },
-            unit_amount: planPrice.amount,
-          },
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription',
-      success_url: successUrl || `${process.env.FRONTEND_URL || 'https://meetingguard-backend.onrender.com'}/payment-success?plan=${planId}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl || `${process.env.FRONTEND_URL || 'https://meetingguard-backend.onrender.com'}/payment-cancel?plan=${planId}`,
-      metadata: {
-        planId: planId,
-        planName: planName,
-        period: period
-      },
-      subscription_data: {
-        metadata: {
-          planId: planId,
-          planName: planName,
-          period: period
-        }
-      }
-    });
-
-    console.log('✅ Created Stripe checkout session:', session.id);
-    
-    res.json({
-      success: true,
-      checkoutUrl: session.url,
-      sessionId: session.id
-    });
-
-  } catch (error) {
-    console.error('❌ Error creating checkout session:', error);
-    res.status(500).json({ 
-      error: 'Failed to create checkout session',
-      details: error.message 
-    });
-  }
-});
+// Note: We now use Stripe Payment Links directly from frontend environment variables
+// The success URLs are configured in the Stripe Dashboard for each payment link
 
 // Payment success page - users land here after Stripe payment
 app.get('/payment-success', (req, res) => {
