@@ -27,42 +27,21 @@ const Pricing = () => {
 
   const fetchStripeLinks = async () => {
     try {
-      const baseUrl = 'https://meetingguard-backend.onrender.com'; // Hardcoded for now
-      console.log('🔄 Attempting to fetch Stripe links from:', baseUrl);
+      // Use frontend environment variables instead of backend API
+      const stripeLinks = {
+        STRIPE_PRO_MONTHLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PRO_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+        STRIPE_PRO_YEARLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PRO_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+        STRIPE_PREMIUM_MONTHLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PREMIUM_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+        STRIPE_PREMIUM_YEARLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PREMIUM_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
+      };
       
-      // Add timeout to the fetch request
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ Request timed out after 10 seconds');
-        controller.abort();
-      }, 10000); // 10 second timeout
+      console.log('✅ Using frontend environment variables for Stripe links:', stripeLinks);
+      setStripeLinks(stripeLinks);
       
-      const response = await fetch(`${baseUrl}/billing/stripe-links`, {
-        signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Successfully fetched Stripe links:', data);
-        setStripeLinks(data);
-      } else {
-        console.error('❌ Failed to fetch Stripe links:', response.status, response.statusText);
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
     } catch (error) {
-      console.error('❌ Error fetching Stripe links:', error);
+      console.error('❌ Error setting Stripe links:', error);
       
-      if (error.name === 'AbortError') {
-        console.log('⏰ Request timed out, using fallback links');
-      }
-      
-      // Fallback to default links if API fails
+      // Fallback to default links if environment variables fail
       const fallbackLinks = {
         STRIPE_PRO_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
         STRIPE_PRO_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
@@ -79,7 +58,7 @@ const Pricing = () => {
 
   // Function to create checkout links with success URLs
   const createCheckoutLink = (planId, planName, price, period) => {
-    const baseUrl = 'https://meetingguard-backend.onrender.com';
+    const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://meetingguard-backend.onrender.com';
     const successUrl = `${baseUrl}/payment-success?plan=${planId}`;
     
     // Get the base Stripe link
@@ -230,7 +209,7 @@ const Pricing = () => {
         <ActivityIndicator size="large" color="#3B82F6" />
         <Text style={styles.loadingText}>Loading pricing plans...</Text>
         <Text style={[styles.loadingText, { fontSize: 14, marginTop: 10, textAlign: 'center' }]}>
-          If this takes too long, the backend might be deploying...
+          Loading pricing plans from environment variables...
         </Text>
         <TouchableOpacity 
           style={styles.retryButton}
