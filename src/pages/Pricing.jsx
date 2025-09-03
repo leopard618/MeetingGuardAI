@@ -49,8 +49,8 @@ const Pricing = () => {
     },
     pro_yearly: {
       name: 'Pro',
-      price: '$5.99',
-      period: 'month',
+      price: '$71.88',
+      period: 'year',
       description: 'Best for growing teams',
       features: [
         'Unlimited AI requests',
@@ -61,7 +61,7 @@ const Pricing = () => {
       ],
       popular: true,
       savings: 'Save 25%',
-      totalPrice: '$71.88 billed annually',
+      totalPrice: 'Billed annually',
       checkoutLink: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
     },
     premium_monthly: {
@@ -81,8 +81,8 @@ const Pricing = () => {
     },
     premium_yearly: {
       name: 'Premium',
-      price: '$11.24',
-      period: 'month',
+      price: '$139.91',
+      period: 'year',
       description: 'For enterprise teams',
       features: [
         'Everything in Pro',
@@ -93,7 +93,7 @@ const Pricing = () => {
       ],
       popular: false,
       savings: 'Save 25%',
-      totalPrice: '$134.91 billed annually',
+      totalPrice: 'Billed annually',
       checkoutLink: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
     }
   };
