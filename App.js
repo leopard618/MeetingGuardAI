@@ -38,6 +38,7 @@ import CalendarSync from './src/pages/CalendarSync';
 import GoogleCalendarTest from './src/pages/GoogleCalendarTest';
 import GoogleCalendarTestComponent from './src/components/GoogleCalendarTest';
 import NotificationDemo from './src/components/NotificationSystem/NotificationDemo';
+import Pricing from './src/pages/Pricing';
 
 const Stack = createStackNavigator();
 
@@ -62,6 +63,7 @@ const CalendarSyncWithLanguage = (props) => <CalendarSync {...props} language={p
 const GoogleCalendarTestWithLanguage = (props) => <GoogleCalendarTest {...props} language={props.route.params?.language || "en"} />;
 const GoogleCalendarTestComponentWithLanguage = (props) => <GoogleCalendarTestComponent {...props} language={props.route.params?.language || "en"} />;
 const NotificationDemoWithLanguage = (props) => <NotificationDemo {...props} language={props.route.params?.language || "en"} />;
+const PricingWithLanguage = (props) => <Pricing {...props} language={props.route.params?.language || "en"} />;
 
 // App Navigator Component
 function AppNavigator() {
@@ -296,6 +298,12 @@ function AppNavigator() {
               name="NotificationDemo" 
               component={NotificationDemoWithLanguage}
               options={{ title: 'Notification Demo' }}
+              initialParams={{ language }}
+            />
+            <Stack.Screen 
+              name="Pricing" 
+              component={PricingWithLanguage}
+              options={{ title: 'Pricing Plans' }}
               initialParams={{ language }}
             />
           </Stack.Navigator>

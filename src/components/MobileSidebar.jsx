@@ -71,9 +71,16 @@ const navigationItems = [
   {
     titleKey: "nav.apiKeys",
     screenName: "ApiSettings",
-            icon: "business-outline",
+    icon: "business-outline",
     iconColor: "#FBBF24", // Amber for business/API
     activeIconColor: "#FCD34D"
+  },
+  {
+    titleKey: "nav.pricing",
+    screenName: "Pricing",
+    icon: "card-outline",
+    iconColor: "#10B981", // Emerald for pricing/billing
+    activeIconColor: "#34D399"
   },
 ];
 

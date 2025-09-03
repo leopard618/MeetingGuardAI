@@ -25,6 +25,7 @@ import Privacy from "./Privacy";
 import Terms from "./Terms";
 
 import Notes from "./Notes";
+import Pricing from "./Pricing";
 
 import GoogleCalendarTest from "./GoogleCalendarTest";
 import CalendarTestPage from "./CalendarTestPage";
@@ -59,6 +60,7 @@ const PAGES = {
     Terms: Terms,
     
     Notes: Notes,
+    Pricing: Pricing,
     
     GoogleCalendarTest: GoogleCalendarTest,
     CalendarTest: CalendarTestPage,
@@ -182,6 +184,11 @@ function PagesContent() {
                 <Route path="/Notes" element={
                     <ProtectedRoute>
                         <Notes />
+                    </ProtectedRoute>
+                } />
+                <Route path="/Pricing" element={
+                    <ProtectedRoute>
+                        <Pricing />
                     </ProtectedRoute>
                 } />
 
