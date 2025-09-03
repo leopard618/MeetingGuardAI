@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 require('dotenv').config();
 
 const app = express();
@@ -624,6 +625,73 @@ app.get('/payment-help', (req, res) => {
   `;
   
   res.send(html);
+});
+
+// Stripe webhook handler for automatic plan activation
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case 'checkout.session.completed':
+      const session = event.data.object;
+      console.log('Payment succeeded:', session.id);
+      
+      // Extract plan information from metadata or description
+      const planId = session.metadata?.plan_id || 'pro_monthly'; // Default fallback
+      const customerEmail = session.customer_details?.email;
+      
+      if (customerEmail) {
+        try {
+          // Import supabase instance
+          const { supabase } = require('./config/database');
+          
+          // Update user's plan in database
+          const { data: user, error } = await supabase
+            .from('users')
+            .update({
+              plan: planId,
+              subscription_status: 'active',
+              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+              updated_at: new Date().toISOString()
+            })
+            .eq('email', customerEmail)
+            .select();
+
+          if (error) {
+            console.error('Error updating user plan:', error);
+          } else {
+            console.log('User plan updated successfully:', user);
+          }
+        } catch (error) {
+          console.error('Error in webhook plan update:', error);
+        }
+      }
+      break;
+      
+    case 'invoice.payment_succeeded':
+      console.log('Invoice payment succeeded');
+      break;
+      
+    case 'invoice.payment_failed':
+      console.log('Invoice payment failed');
+      break;
+      
+    default:
+      console.log(`Unhandled event type ${event.type}`);
+  }
+
+  res.json({ received: true });
 });
 
 // Error handling middleware
