@@ -179,6 +179,216 @@ app.get('/billing/stripe-links', async (req, res) => {
   }
 });
 
+// Create checkout session with return URLs
+app.post('/billing/create-checkout', async (req, res) => {
+  try {
+    const { planId, planName, price, period } = req.body;
+    
+    // Create checkout link with success/return URLs
+    const checkoutData = {
+      planId,
+      planName,
+      price,
+      period,
+      successUrl: `meetingguardai://payment-success?plan=${planId}&session_id={CHECKOUT_SESSION_ID}`,
+      returnUrl: `meetingguardai://payment-return?plan=${planId}`,
+      cancelUrl: `meetingguardai://payment-cancel?plan=${planId}`
+    };
+
+    res.json({
+      success: true,
+      checkoutData,
+      message: 'Checkout session created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating checkout:', error);
+    res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+});
+
+// Payment success page - users land here after Stripe payment
+app.get('/payment-success', (req, res) => {
+  const { plan, session_id } = req.query;
+  
+  const planNames = {
+    'pro_monthly': 'Pro Monthly',
+    'pro_yearly': 'Pro Yearly', 
+    'premium_monthly': 'Premium Monthly',
+    'premium_yearly': 'Premium Yearly'
+  };
+  
+  const planName = planNames[plan] || 'Premium Plan';
+  
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Successful - MeetingGuard AI</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+            .container {
+                background: white;
+                border-radius: 20px;
+                padding: 40px;
+                text-align: center;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                max-width: 500px;
+                width: 100%;
+            }
+            .success-icon {
+                width: 80px;
+                height: 80px;
+                background: #10B981;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 30px;
+                font-size: 40px;
+                color: white;
+            }
+            h1 {
+                color: #1F2937;
+                margin-bottom: 15px;
+                font-size: 28px;
+            }
+            .subtitle {
+                color: #6B7280;
+                margin-bottom: 30px;
+                font-size: 18px;
+            }
+            .plan-details {
+                background: #F3F4F6;
+                padding: 20px;
+                border-radius: 12px;
+                margin-bottom: 30px;
+            }
+            .plan-name {
+                color: #10B981;
+                font-weight: bold;
+                font-size: 20px;
+                margin-bottom: 10px;
+            }
+            .plan-info {
+                color: #6B7280;
+                font-size: 16px;
+            }
+            .return-button {
+                background: #10B981;
+                color: white;
+                padding: 16px 32px;
+                border: none;
+                border-radius: 12px;
+                font-size: 18px;
+                font-weight: 600;
+                cursor: pointer;
+                margin-bottom: 20px;
+                width: 100%;
+                transition: all 0.3s ease;
+            }
+            .return-button:hover {
+                background: #059669;
+                transform: translateY(-2px);
+            }
+            .app-link {
+                background: #3B82F6;
+                color: white;
+                padding: 16px 32px;
+                border: none;
+                border-radius: 12px;
+                font-size: 18px;
+                font-weight: 600;
+                cursor: pointer;
+                width: 100%;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.3s ease;
+            }
+            .app-link:hover {
+                background: #2563EB;
+                transform: translateY(-2px);
+            }
+            .session-id {
+                background: #1F2937;
+                color: #D1D5DB;
+                padding: 8px 16px;
+                border-radius: 8px;
+                font-family: monospace;
+                font-size: 12px;
+                margin-bottom: 20px;
+                display: inline-block;
+            }
+            .instructions {
+                color: #6B7280;
+                font-size: 14px;
+                margin-top: 20px;
+                line-height: 1.5;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="success-icon">✓</div>
+            
+            <h1>Payment Successful! 🎉</h1>
+            <p class="subtitle">Welcome to ${planName}!</p>
+            
+            ${session_id ? `<div class="session-id">Session ID: ${session_id}</div>` : ''}
+            
+            <div class="plan-details">
+                <div class="plan-name">${planName}</div>
+                <div class="plan-info">You now have access to all premium features!</div>
+            </div>
+            
+            <button class="return-button" onclick="returnToApp()">
+                Return to MeetingGuard AI App
+            </button>
+            
+            <a href="meetingguardai://dashboard" class="app-link">
+                Open App Directly
+            </a>
+            
+            <p class="instructions">
+                If the app doesn't open automatically, tap "Open App Directly" above, 
+                or manually return to your MeetingGuard AI app.
+            </p>
+        </div>
+        
+        <script>
+            function returnToApp() {
+                // Try to open the app first
+                window.location.href = 'meetingguardai://dashboard';
+                
+                // Fallback: if app doesn't open, show instructions
+                setTimeout(() => {
+                    if (document.hidden) return;
+                    alert('If the app didn\'t open, please manually return to your MeetingGuard AI app.');
+                }, 1000);
+            }
+            
+            // Auto-attempt to open app after 2 seconds
+            setTimeout(() => {
+                returnToApp();
+            }, 2000);
+        </script>
+    </body>
+    </html>
+  `;
+  
+  res.send(html);
+});
+
 // Error handling middleware
 app.use(errorHandler);
 

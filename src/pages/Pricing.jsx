@@ -27,10 +27,7 @@ const Pricing = () => {
 
   const fetchStripeLinks = async () => {
     try {
-      // Get the base URL from your backend
-      const baseUrl = 'https://meetingguard-backend.onrender.com';
-      
-      // Use the public endpoint (no authentication required)
+      const baseUrl = 'https://meetingguard-backend.onrender.com'; // Hardcoded for now
       const response = await fetch(`${baseUrl}/billing/stripe-links`);
       if (response.ok) {
         const data = await response.json();
@@ -58,6 +55,35 @@ const Pricing = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Function to create checkout links with success URLs
+  const createCheckoutLink = (planId, planName, price, period) => {
+    const baseUrl = 'https://meetingguard-backend.onrender.com';
+    const successUrl = `${baseUrl}/payment-success?plan=${planId}`;
+    
+    // Get the base Stripe link
+    let stripeLink = '';
+    switch (planId) {
+      case 'pro_monthly':
+        stripeLink = stripeLinks.STRIPE_PRO_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+        break;
+      case 'pro_yearly':
+        stripeLink = stripeLinks.STRIPE_PRO_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+        break;
+      case 'premium_monthly':
+        stripeLink = stripeLinks.STRIPE_PREMIUM_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+        break;
+      case 'premium_yearly':
+        stripeLink = stripeLinks.STRIPE_PREMIUM_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+        break;
+      default:
+        stripeLink = 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+    }
+    
+    // Add success URL as a parameter to the Stripe link
+    const separator = stripeLink.includes('?') ? '&' : '?';
+    return `${stripeLink}${separator}success_url=${encodeURIComponent(successUrl)}`;
   };
 
   // Plans data with dynamic checkout links from backend
@@ -89,7 +115,7 @@ const Pricing = () => {
       ],
       popular: true,
       get checkoutLink() {
-        return stripeLinks.STRIPE_PRO_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+        return createCheckoutLink('pro_monthly', 'Pro Monthly', '$7.99', 'month');
       }
     },
     pro_yearly: {
@@ -108,7 +134,7 @@ const Pricing = () => {
       savings: 'Save 25%',
       totalPrice: 'Billed annually',
       get checkoutLink() {
-        return stripeLinks.STRIPE_PRO_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+        return createCheckoutLink('pro_yearly', 'Pro Yearly', '$71.88', 'year');
       }
     },
     premium_monthly: {
@@ -125,7 +151,7 @@ const Pricing = () => {
       ],
       popular: false,
       get checkoutLink() {
-        return stripeLinks.STRIPE_PREMIUM_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+        return createCheckoutLink('premium_monthly', 'Premium Monthly', '$14.99', 'month');
       }
     },
     premium_yearly: {
@@ -144,7 +170,7 @@ const Pricing = () => {
       savings: 'Save 25%',
       totalPrice: 'Billed annually',
       get checkoutLink() {
-        return stripeLinks.STRIPE_PREMIUM_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+        return createCheckoutLink('premium_yearly', 'Premium Yearly', '$139.91', 'year');
       }
     }
   };
