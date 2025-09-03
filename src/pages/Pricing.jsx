@@ -56,12 +56,13 @@ const Pricing = () => {
     }
   };
 
-  // Function to create checkout links with success URLs
+  // Function to create checkout links (no success_url needed - configure in Stripe Dashboard)
+  // IMPORTANT: To enable auto-return after payment, configure success page in Stripe Dashboard:
+  // 1. Go to Stripe Dashboard > Payment Links
+  // 2. Edit each checkout link
+  // 3. Set Success page to: https://meetingguard-backend.onrender.com/payment-success?plan={PLAN_ID}
   const createCheckoutLink = (planId, planName, price, period) => {
-    const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://meetingguard-backend.onrender.com';
-    const successUrl = `${baseUrl}/payment-success?plan=${planId}`;
-    
-    // Get the base Stripe link
+    // Get the base Stripe link directly - no URL manipulation needed
     let stripeLink = '';
     switch (planId) {
       case 'pro_monthly':
@@ -80,9 +81,8 @@ const Pricing = () => {
         stripeLink = 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
     }
     
-    // Add success URL as a parameter to the Stripe link
-    const separator = stripeLink.includes('?') ? '&' : '?';
-    return `${stripeLink}${separator}success_url=${encodeURIComponent(successUrl)}`;
+    // Return the Stripe link directly - no success_url parameter
+    return stripeLink;
   };
 
   // Plans data with dynamic checkout links from backend
