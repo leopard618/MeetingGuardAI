@@ -4,7 +4,17 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+// Conditional Stripe import - won't crash if package isn't available
+let stripe;
+try {
+  stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+  console.log('✅ Stripe package loaded successfully');
+} catch (error) {
+  console.log('⚠️ Stripe package not available, webhook functionality will be disabled');
+  stripe = null;
+}
+
 require('dotenv').config();
 
 const app = express();
@@ -182,10 +192,11 @@ app.get('/billing/stripe-links', async (req, res) => {
 
 // Simple test endpoint to verify backend is working
 app.get('/test', (req, res) => {
-  res.json({ 
-    message: 'Backend is working!', 
+  res.json({
+    message: 'Backend is working!',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    stripe: stripe ? 'available' : 'unavailable'
   });
 });
 
@@ -629,6 +640,12 @@ app.get('/payment-help', (req, res) => {
 
 // Stripe webhook handler for automatic plan activation
 app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  // Check if Stripe is available
+  if (!stripe) {
+    console.error('Stripe package not available, webhook disabled');
+    return res.status(503).json({ error: 'Stripe webhook service unavailable' });
+  }
+
   const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
