@@ -179,6 +179,15 @@ app.get('/billing/stripe-links', async (req, res) => {
   }
 });
 
+// Simple test endpoint to verify backend is working
+app.get('/test', (req, res) => {
+  res.json({ 
+    message: 'Backend is working!', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Create checkout session with return URLs
 app.post('/billing/create-checkout', async (req, res) => {
   try {

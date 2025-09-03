@@ -28,30 +28,50 @@ const Pricing = () => {
   const fetchStripeLinks = async () => {
     try {
       const baseUrl = 'https://meetingguard-backend.onrender.com'; // Hardcoded for now
-      const response = await fetch(`${baseUrl}/billing/stripe-links`);
+      console.log('🔄 Attempting to fetch Stripe links from:', baseUrl);
+      
+      // Add timeout to the fetch request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ Request timed out after 10 seconds');
+        controller.abort();
+      }, 10000); // 10 second timeout
+      
+      const response = await fetch(`${baseUrl}/billing/stripe-links`, {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (response.ok) {
         const data = await response.json();
-        console.log('Fetched Stripe links:', data);
+        console.log('✅ Successfully fetched Stripe links:', data);
         setStripeLinks(data);
       } else {
-        console.error('Failed to fetch Stripe links:', response.status, response.statusText);
-        // Fallback to default links if API fails
-        setStripeLinks({
-          STRIPE_PRO_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
-          STRIPE_PRO_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
-          STRIPE_PREMIUM_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
-          STRIPE_PREMIUM_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
-        });
+        console.error('❌ Failed to fetch Stripe links:', response.status, response.statusText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
     } catch (error) {
-      console.error('Error fetching Stripe links:', error);
+      console.error('❌ Error fetching Stripe links:', error);
+      
+      if (error.name === 'AbortError') {
+        console.log('⏰ Request timed out, using fallback links');
+      }
+      
       // Fallback to default links if API fails
-      setStripeLinks({
+      const fallbackLinks = {
         STRIPE_PRO_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
         STRIPE_PRO_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
         STRIPE_PREMIUM_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
         STRIPE_PREMIUM_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
-      });
+      };
+      
+      console.log('🔄 Using fallback Stripe links:', fallbackLinks);
+      setStripeLinks(fallbackLinks);
     } finally {
       setLoading(false);
     }
@@ -209,6 +229,19 @@ const Pricing = () => {
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#3B82F6" />
         <Text style={styles.loadingText}>Loading pricing plans...</Text>
+        <Text style={[styles.loadingText, { fontSize: 14, marginTop: 10, textAlign: 'center' }]}>
+          If this takes too long, the backend might be deploying...
+        </Text>
+        <TouchableOpacity 
+          style={styles.retryButton}
+          onPress={() => {
+            setLoading(true);
+            fetchStripeLinks();
+          }}
+        >
+          <Ionicons name="refresh" size={20} color="#FFFFFF" />
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -699,6 +732,27 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 18,
     marginTop: 10,
+  },
+  retryButton: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
 
