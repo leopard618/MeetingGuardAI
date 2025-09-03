@@ -200,30 +200,81 @@ app.get('/test', (req, res) => {
   });
 });
 
-// Create checkout session with return URLs
-app.post('/billing/create-checkout', async (req, res) => {
+// Create Stripe Checkout Session endpoint
+app.post('/billing/create-checkout-session', async (req, res) => {
   try {
-    const { planId, planName, price, period } = req.body;
+    // Check if Stripe is available
+    if (!stripe) {
+      console.error('Stripe package not available');
+      return res.status(503).json({ error: 'Stripe service unavailable' });
+    }
+
+    const { planId, planName, price, period, successUrl, cancelUrl } = req.body;
     
-    // Create checkout link with success/return URLs
-    const checkoutData = {
-      planId,
-      planName,
-      price,
-      period,
-      successUrl: `meetingguardai://payment-success?plan=${planId}&session_id={CHECKOUT_SESSION_ID}`,
-      returnUrl: `meetingguardai://payment-return?plan=${planId}`,
-      cancelUrl: `meetingguardai://payment-cancel?plan=${planId}`
+    if (!planId || !planName || !price || !period) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Define plan prices (you can move this to environment variables)
+    const planPrices = {
+      'pro_monthly': { amount: 799, currency: 'usd' }, // $7.99
+      'pro_yearly': { amount: 7188, currency: 'usd' }, // $71.88
+      'premium_monthly': { amount: 1499, currency: 'usd' }, // $14.99
+      'premium_yearly': { amount: 13991, currency: 'usd' } // $139.91
     };
 
+    const planPrice = planPrices[planId];
+    if (!planPrice) {
+      return res.status(400).json({ error: 'Invalid plan ID' });
+    }
+
+    // Create Stripe Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: planPrice.currency,
+            product_data: {
+              name: planName,
+              description: `${planName} Plan - ${period}ly billing`,
+            },
+            unit_amount: planPrice.amount,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
+      success_url: successUrl || `${process.env.FRONTEND_URL || 'https://meetingguard-backend.onrender.com'}/payment-success?plan=${planId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl || `${process.env.FRONTEND_URL || 'https://meetingguard-backend.onrender.com'}/payment-cancel?plan=${planId}`,
+      metadata: {
+        planId: planId,
+        planName: planName,
+        period: period
+      },
+      subscription_data: {
+        metadata: {
+          planId: planId,
+          planName: planName,
+          period: period
+        }
+      }
+    });
+
+    console.log('✅ Created Stripe checkout session:', session.id);
+    
     res.json({
       success: true,
-      checkoutData,
-      message: 'Checkout session created successfully'
+      checkoutUrl: session.url,
+      sessionId: session.id
     });
+
   } catch (error) {
-    console.error('Error creating checkout:', error);
-    res.status(500).json({ error: 'Failed to create checkout session' });
+    console.error('❌ Error creating checkout session:', error);
+    res.status(500).json({ 
+      error: 'Failed to create checkout session',
+      details: error.message 
+    });
   }
 });
 
@@ -626,6 +677,154 @@ app.get('/payment-help', (req, res) => {
             function closeTab() {
                 window.close();
                 // Fallback
+                setTimeout(() => {
+                    window.location.href = 'about:blank';
+                }, 100);
+            }
+        </script>
+    </body>
+    </html>
+  `;
+  
+  res.send(html);
+});
+
+// Payment cancel page - users land here if they cancel payment
+app.get('/payment-cancel', (req, res) => {
+  const { plan } = req.query;
+  
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Cancelled - MeetingGuard AI</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+            .container {
+                background: white;
+                border-radius: 20px;
+                padding: 40px;
+                text-align: center;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                max-width: 500px;
+                width: 100%;
+            }
+            .cancel-icon {
+                width: 80px;
+                height: 80px;
+                background: #EF4444;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 30px;
+                font-size: 40px;
+                color: white;
+            }
+            h1 {
+                color: #1F2937;
+                margin-bottom: 15px;
+                font-size: 28px;
+            }
+            .subtitle {
+                color: #6B7280;
+                margin-bottom: 30px;
+                font-size: 18px;
+            }
+            .return-button {
+                background: #3B82F6;
+                color: white;
+                padding: 16px 32px;
+                border: none;
+                border-radius: 12px;
+                font-size: 18px;
+                font-weight: 600;
+                cursor: pointer;
+                margin-bottom: 20px;
+                width: 100%;
+                transition: all 0.3s ease;
+            }
+            .return-button:hover {
+                background: #2563EB;
+                transform: translateY(-2px);
+            }
+            .close-button {
+                background: #6B7280;
+                color: white;
+                padding: 12px 24px;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                cursor: pointer;
+                width: 100%;
+                transition: all 0.3s ease;
+            }
+            .close-button:hover {
+                background: #4B5563;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="cancel-icon">✕</div>
+            
+            <h1>Payment Cancelled</h1>
+            <p class="subtitle">No worries! You can try again anytime.</p>
+            
+            <button class="return-button" onclick="attemptReturn()">
+                🔄 Return to App
+            </button>
+            
+            <button class="close-button" onclick="closeTab()">
+                Close This Tab
+            </button>
+        </div>
+        
+        <script>
+            function attemptReturn() {
+                const deepLinks = [
+                    'meetingguardai://dashboard',
+                    'meetingguardai://',
+                    'meetingguard://dashboard',
+                    'meetingguard://'
+                ];
+                
+                let attempted = 0;
+                const maxAttempts = deepLinks.length;
+                
+                function tryNextLink() {
+                    if (attempted >= maxAttempts) {
+                        alert('Please manually return to your app');
+                        return;
+                    }
+                    
+                    const link = deepLinks[attempted];
+                    console.log('Trying deep link:', link);
+                    
+                    window.location.href = link;
+                    
+                    setTimeout(() => {
+                        attempted++;
+                        tryNextLink();
+                    }, 1000);
+                }
+                
+                tryNextLink();
+            }
+            
+            function closeTab() {
+                window.close();
                 setTimeout(() => {
                     window.location.href = 'about:blank';
                 }, 100);

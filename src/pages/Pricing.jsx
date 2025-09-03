@@ -56,34 +56,8 @@ const Pricing = () => {
     }
   };
 
-  // Function to create checkout links (no success_url needed - configure in Stripe Dashboard)
-  // IMPORTANT: To enable auto-return after payment, configure success page in Stripe Dashboard:
-  // 1. Go to Stripe Dashboard > Payment Links
-  // 2. Edit each checkout link
-  // 3. Set Success page to: https://meetingguard-backend.onrender.com/payment-success?plan={PLAN_ID}
-  const createCheckoutLink = (planId, planName, price, period) => {
-    // Get the base Stripe link directly - no URL manipulation needed
-    let stripeLink = '';
-    switch (planId) {
-      case 'pro_monthly':
-        stripeLink = stripeLinks.STRIPE_PRO_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
-        break;
-      case 'pro_yearly':
-        stripeLink = stripeLinks.STRIPE_PRO_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
-        break;
-      case 'premium_monthly':
-        stripeLink = stripeLinks.STRIPE_PREMIUM_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
-        break;
-      case 'premium_yearly':
-        stripeLink = stripeLinks.STRIPE_PREMIUM_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
-        break;
-      default:
-        stripeLink = 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
-    }
-    
-    // Return the Stripe link directly - no success_url parameter
-    return stripeLink;
-  };
+  // Note: We now use Stripe Checkout Sessions instead of Payment Links
+  // This provides better control over success/cancel URLs and automatic plan activation
 
   // Plans data with dynamic checkout links from backend
   const plans = {
@@ -112,10 +86,7 @@ const Pricing = () => {
         '10GB file storage',
         'Team collaboration'
       ],
-      popular: true,
-      get checkoutLink() {
-        return createCheckoutLink('pro_monthly', 'Pro Monthly', '$7.99', 'month');
-      }
+      popular: true
     },
     pro_yearly: {
       name: 'Pro',
@@ -131,10 +102,7 @@ const Pricing = () => {
       ],
       popular: true,
       savings: 'Save 25%',
-      totalPrice: 'Billed annually',
-      get checkoutLink() {
-        return createCheckoutLink('pro_yearly', 'Pro Yearly', '$71.88', 'year');
-      }
+      totalPrice: 'Billed annually'
     },
     premium_monthly: {
       name: 'Premium',
@@ -148,10 +116,7 @@ const Pricing = () => {
         'API access',
         'Dedicated support'
       ],
-      popular: false,
-      get checkoutLink() {
-        return createCheckoutLink('premium_monthly', 'Premium Monthly', '$14.99', 'month');
-      }
+      popular: false
     },
     premium_yearly: {
       name: 'Premium',
@@ -167,29 +132,53 @@ const Pricing = () => {
       ],
       popular: false,
       savings: 'Save 25%',
-      totalPrice: 'Billed annually',
-      get checkoutLink() {
-        return createCheckoutLink('premium_yearly', 'Premium Yearly', '$139.91', 'year');
-      }
+      totalPrice: 'Billed annually'
     }
   };
 
-  const handleUpgrade = async (planId, checkoutLink) => {
-    if (!checkoutLink) {
-      Alert.alert('Plan Unavailable', 'This plan is not available for upgrade');
-      return;
-    }
-
+  const handleUpgrade = async (planId, planName, price, period) => {
     try {
-      const supported = await Linking.canOpenURL(checkoutLink);
-      if (supported) {
-        await Linking.openURL(checkoutLink);
-      } else {
-        Alert.alert('Error', 'Cannot open checkout link');
+      // Create Stripe Checkout Session instead of using Payment Links
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL || 'https://meetingguard-backend.onrender.com';
+      
+      console.log('🔄 Creating Stripe checkout session for:', planId);
+      
+      const response = await fetch(`${baseUrl}/billing/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          planId,
+          planName,
+          price,
+          period,
+          successUrl: `${baseUrl}/payment-success?plan=${planId}`,
+          cancelUrl: `${baseUrl}/payment-cancel?plan=${planId}`
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+
+      const { checkoutUrl } = await response.json();
+      
+      if (checkoutUrl) {
+        // Open Stripe Checkout in browser
+        const supported = await Linking.canOpenURL(checkoutUrl);
+        if (supported) {
+          await Linking.openURL(checkoutUrl);
+        } else {
+          Alert.alert('Error', 'Cannot open checkout link');
+        }
+      } else {
+        throw new Error('No checkout URL received');
+      }
+      
     } catch (error) {
-      console.error('Error redirecting to checkout:', error);
-      Alert.alert('Error', 'Error redirecting to checkout. Please try again.');
+      console.error('Error creating checkout session:', error);
+      Alert.alert('Error', 'Failed to create checkout session. Please try again.');
     }
   };
 
@@ -357,7 +346,7 @@ const Pricing = () => {
                         styles.upgradeButton,
                         plan.popular && styles.popularUpgradeButton
                       ]}
-                      onPress={() => handleUpgrade(planId, plan.checkoutLink)}
+                                             onPress={() => handleUpgrade(planId, plan.name, plan.price, plan.period)}
                     >
                       <Text style={styles.upgradeButtonText}>
                         Start 7-Day Trial
