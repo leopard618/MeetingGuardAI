@@ -39,6 +39,7 @@ import GoogleCalendarTest from './src/pages/GoogleCalendarTest';
 import GoogleCalendarTestComponent from './src/components/GoogleCalendarTest';
 import NotificationDemo from './src/components/NotificationSystem/NotificationDemo';
 import Pricing from './src/pages/Pricing';
+import PaymentSuccess from './src/pages/PaymentSuccess';
 
 const Stack = createStackNavigator();
 
@@ -64,6 +65,7 @@ const GoogleCalendarTestWithLanguage = (props) => <GoogleCalendarTest {...props}
 const GoogleCalendarTestComponentWithLanguage = (props) => <GoogleCalendarTestComponent {...props} language={props.route.params?.language || "en"} />;
 const NotificationDemoWithLanguage = (props) => <NotificationDemo {...props} language={props.route.params?.language || "en"} />;
 const PricingWithLanguage = (props) => <Pricing {...props} language={props.route.params?.language || "en"} />;
+const PaymentSuccessWithLanguage = (props) => <PaymentSuccess {...props} language={props.route.params?.language || "en"} />;
 
 // App Navigator Component
 function AppNavigator() {
@@ -304,6 +306,12 @@ function AppNavigator() {
               name="Pricing" 
               component={PricingWithLanguage}
               options={{ title: 'Pricing Plans' }}
+              initialParams={{ language }}
+            />
+            <Stack.Screen 
+              name="PaymentSuccess" 
+              component={PaymentSuccessWithLanguage}
+              options={{ title: 'Payment Successful' }}
               initialParams={{ language }}
             />
           </Stack.Navigator>
