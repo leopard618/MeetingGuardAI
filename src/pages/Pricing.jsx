@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
   Alert,
   Dimensions,
   Linking,
-  StatusBar
+  StatusBar,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -16,8 +17,49 @@ const { width } = Dimensions.get('window');
 
 const Pricing = () => {
   const [billingCycle, setBillingCycle] = useState('monthly');
+  const [stripeLinks, setStripeLinks] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  // Mock data - no API calls needed
+  // Fetch real Stripe links from backend environment variables
+  useEffect(() => {
+    fetchStripeLinks();
+  }, []);
+
+  const fetchStripeLinks = async () => {
+    try {
+      // Get the base URL from your backend
+      const baseUrl = 'https://meetingguard-backend.onrender.com';
+      
+      const response = await fetch(`${baseUrl}/billing/stripe-links`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Fetched Stripe links:', data);
+        setStripeLinks(data);
+      } else {
+        console.error('Failed to fetch Stripe links');
+        // Fallback to default links if API fails
+        setStripeLinks({
+          STRIPE_PRO_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+          STRIPE_PRO_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+          STRIPE_PREMIUM_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+          STRIPE_PREMIUM_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching Stripe links:', error);
+      // Fallback to default links if API fails
+      setStripeLinks({
+        STRIPE_PRO_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+        STRIPE_PRO_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+        STRIPE_PREMIUM_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+        STRIPE_PREMIUM_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Plans data with dynamic checkout links from backend
   const plans = {
     free: {
       name: 'Free',
@@ -45,7 +87,9 @@ const Pricing = () => {
         'Team collaboration'
       ],
       popular: true,
-      checkoutLink: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
+      get checkoutLink() {
+        return stripeLinks.STRIPE_PRO_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+      }
     },
     pro_yearly: {
       name: 'Pro',
@@ -62,7 +106,9 @@ const Pricing = () => {
       popular: true,
       savings: 'Save 25%',
       totalPrice: 'Billed annually',
-      checkoutLink: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
+      get checkoutLink() {
+        return stripeLinks.STRIPE_PRO_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+      }
     },
     premium_monthly: {
       name: 'Premium',
@@ -77,7 +123,9 @@ const Pricing = () => {
         'Dedicated support'
       ],
       popular: false,
-      checkoutLink: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
+      get checkoutLink() {
+        return stripeLinks.STRIPE_PREMIUM_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+      }
     },
     premium_yearly: {
       name: 'Premium',
@@ -94,7 +142,9 @@ const Pricing = () => {
       popular: false,
       savings: 'Save 25%',
       totalPrice: 'Billed annually',
-      checkoutLink: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
+      get checkoutLink() {
+        return stripeLinks.STRIPE_PREMIUM_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02';
+      }
     }
   };
 
@@ -126,6 +176,15 @@ const Pricing = () => {
       }
     });
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text style={styles.loadingText}>Loading pricing plans...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -602,6 +661,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     fontWeight: '500',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+  },
+  loadingText: {
+    color: '#94A3B8',
+    fontSize: 18,
+    marginTop: 10,
   },
 });
 
