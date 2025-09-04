@@ -196,7 +196,8 @@ app.get('/test', (req, res) => {
     message: 'Backend is working!',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    stripe: stripe ? 'available' : 'unavailable'
+    stripe: stripe ? 'available' : 'unavailable',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ? 'configured' : 'missing'
   });
 });
 
