@@ -157,6 +157,200 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Stripe webhook handler for automatic plan activation
+const handleStripeWebhook = async (req, res) => {
+  // Check if Stripe is available
+  if (!stripe) {
+    console.error('Stripe package not available, webhook disabled');
+    return res.status(503).json({ error: 'Stripe webhook service unavailable' });
+  }
+
+  const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || 
+                        process.env.STRIPE_WEBHOOK_SECRET_KEY || 
+                        process.env.WEBHOOK_SECRET ||
+                        'whsec_hkaL8iPNybslJxt2CVYwseM6LfU22mak'; // Fallback for testing
+
+  console.log('Webhook received:', {
+    hasSignature: !!sig,
+    hasSecret: !!endpointSecret,
+    secretLength: endpointSecret ? endpointSecret.length : 0,
+    bodyLength: req.body ? req.body.length : 0,
+    allEnvVars: Object.keys(process.env).filter(key => key.includes('STRIPE'))
+  });
+
+  if (!endpointSecret) {
+    console.error('STRIPE_WEBHOOK_SECRET not found in environment variables');
+    console.error('Available environment variables:', Object.keys(process.env).filter(key => key.includes('STRIPE')));
+    return res.status(500).json({ error: 'Webhook secret not configured' });
+  }
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    console.log('Webhook event verified successfully:', event.type);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    console.error('Signature:', sig);
+    console.error('Secret exists:', !!endpointSecret);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case 'checkout.session.completed':
+      const session = event.data.object;
+      console.log('Payment succeeded:', session.id);
+      
+      // Extract plan information from metadata or description
+      const planId = session.metadata?.plan_id || 'pro_monthly'; // Default fallback
+      const customerEmail = session.customer_details?.email;
+      
+      if (customerEmail) {
+        try {
+          // Import supabase instance
+          const { supabase } = require('./config/database');
+          
+          // Update user's plan in database
+          const { data: user, error } = await supabase
+            .from('users')
+            .update({
+              plan: planId,
+              subscription_status: 'active',
+              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+              updated_at: new Date().toISOString()
+            })
+            .eq('email', customerEmail)
+            .select();
+
+          if (error) {
+            console.error('Error updating user plan:', error);
+          } else {
+            console.log('User plan updated successfully:', user);
+          }
+        } catch (error) {
+          console.error('Error in webhook plan update:', error);
+        }
+      }
+      break;
+      
+    case 'payment_intent.succeeded':
+      const paymentIntent = event.data.object;
+      console.log('Payment Intent succeeded:', paymentIntent.id);
+      console.log('Payment Intent details:', {
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        receipt_email: paymentIntent.receipt_email,
+        customer: paymentIntent.customer
+      });
+      
+      // For Payment Links, we get the customer email from the payment intent
+      const customerEmailFromIntent = paymentIntent.receipt_email;
+      
+      if (customerEmailFromIntent) {
+        try {
+          // Import supabase instance
+          const { supabase } = require('./config/database');
+          
+          // Determine plan from amount (you'll need to map your amounts to plans)
+          let planId = 'pro_monthly'; // Default
+          const amount = paymentIntent.amount;
+          
+          // Map amounts to plans (adjust these amounts to match your Payment Links)
+          if (amount === 799) { // $7.99 in cents
+            planId = 'pro_monthly';
+          } else if (amount === 1499) { // $14.99 in cents
+            planId = 'premium_monthly';
+          } else if (amount === 7188) { // $71.88 in cents (yearly)
+            planId = 'pro_yearly';
+          } else if (amount === 13991) { // $139.91 in cents (yearly)
+            planId = 'premium_yearly';
+          }
+          
+          console.log(`Updating user ${customerEmailFromIntent} to plan ${planId} (amount: ${amount})`);
+          
+          // First, check if user exists
+          const { data: existingUser, error: findError } = await supabase
+            .from('users')
+            .select('id, email, plan')
+            .eq('email', customerEmailFromIntent)
+            .single();
+
+          if (findError) {
+            console.error('Error finding user:', findError);
+            // Try to create user if not found
+            const { data: newUser, error: createError } = await supabase
+              .from('users')
+              .insert({
+                email: customerEmailFromIntent,
+                plan: planId,
+                subscription_status: 'active',
+                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .select();
+
+            if (createError) {
+              console.error('Error creating user:', createError);
+            } else {
+              console.log('User created successfully:', newUser);
+            }
+          } else {
+            console.log('Found existing user:', existingUser);
+            
+            // Update user's plan in database
+            const { data: user, error } = await supabase
+              .from('users')
+              .update({
+                plan: planId,
+                subscription_status: 'active',
+                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+                updated_at: new Date().toISOString()
+              })
+              .eq('email', customerEmailFromIntent)
+              .select();
+
+            if (error) {
+              console.error('Error updating user plan from payment intent:', error);
+            } else {
+              console.log('User plan updated successfully from payment intent:', user);
+            }
+          }
+        } catch (error) {
+          console.error('Error in webhook payment intent update:', error);
+        }
+      } else {
+        console.log('No customer email found in payment intent');
+      }
+      break;
+      
+    case 'invoice.payment_succeeded':
+      console.log('Invoice payment succeeded');
+      break;
+      
+    case 'invoice.payment_failed':
+      console.log('Invoice payment failed');
+      break;
+      
+    default:
+      console.log(`Unhandled event type ${event.type}`);
+  }
+
+  res.json({ received: true });
+};
+
+// Add error handling for webhook
+const handleStripeWebhookWithErrorHandling = async (req, res) => {
+  try {
+    await handleStripeWebhook(req, res);
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+};
+
 // Stripe webhook routes (must be before authentication middleware)
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookWithErrorHandling);
 app.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookWithErrorHandling);
@@ -677,200 +871,6 @@ app.get('/payment-cancel', (req, res) => {
   
   res.send(html);
 });
-
-// Stripe webhook handler for automatic plan activation
-const handleStripeWebhook = async (req, res) => {
-  // Check if Stripe is available
-  if (!stripe) {
-    console.error('Stripe package not available, webhook disabled');
-    return res.status(503).json({ error: 'Stripe webhook service unavailable' });
-  }
-
-  const sig = req.headers['stripe-signature'];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || 
-                        process.env.STRIPE_WEBHOOK_SECRET_KEY || 
-                        process.env.WEBHOOK_SECRET ||
-                        'whsec_hkaL8iPNybslJxt2CVYwseM6LfU22mak'; // Fallback for testing
-
-  console.log('Webhook received:', {
-    hasSignature: !!sig,
-    hasSecret: !!endpointSecret,
-    secretLength: endpointSecret ? endpointSecret.length : 0,
-    bodyLength: req.body ? req.body.length : 0,
-    allEnvVars: Object.keys(process.env).filter(key => key.includes('STRIPE'))
-  });
-
-  if (!endpointSecret) {
-    console.error('STRIPE_WEBHOOK_SECRET not found in environment variables');
-    console.error('Available environment variables:', Object.keys(process.env).filter(key => key.includes('STRIPE')));
-    return res.status(500).json({ error: 'Webhook secret not configured' });
-  }
-
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    console.log('Webhook event verified successfully:', event.type);
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
-    console.error('Signature:', sig);
-    console.error('Secret exists:', !!endpointSecret);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  // Handle the event
-  switch (event.type) {
-    case 'checkout.session.completed':
-      const session = event.data.object;
-      console.log('Payment succeeded:', session.id);
-      
-      // Extract plan information from metadata or description
-      const planId = session.metadata?.plan_id || 'pro_monthly'; // Default fallback
-      const customerEmail = session.customer_details?.email;
-      
-      if (customerEmail) {
-        try {
-          // Import supabase instance
-          const { supabase } = require('./config/database');
-          
-          // Update user's plan in database
-          const { data: user, error } = await supabase
-            .from('users')
-            .update({
-              plan: planId,
-              subscription_status: 'active',
-              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-              updated_at: new Date().toISOString()
-            })
-            .eq('email', customerEmail)
-            .select();
-
-          if (error) {
-            console.error('Error updating user plan:', error);
-          } else {
-            console.log('User plan updated successfully:', user);
-          }
-        } catch (error) {
-          console.error('Error in webhook plan update:', error);
-        }
-      }
-      break;
-      
-    case 'payment_intent.succeeded':
-      const paymentIntent = event.data.object;
-      console.log('Payment Intent succeeded:', paymentIntent.id);
-      console.log('Payment Intent details:', {
-        amount: paymentIntent.amount,
-        currency: paymentIntent.currency,
-        receipt_email: paymentIntent.receipt_email,
-        customer: paymentIntent.customer
-      });
-      
-      // For Payment Links, we get the customer email from the payment intent
-      const customerEmailFromIntent = paymentIntent.receipt_email;
-      
-      if (customerEmailFromIntent) {
-        try {
-          // Import supabase instance
-          const { supabase } = require('./config/database');
-          
-          // Determine plan from amount (you'll need to map your amounts to plans)
-          let planId = 'pro_monthly'; // Default
-          const amount = paymentIntent.amount;
-          
-          // Map amounts to plans (adjust these amounts to match your Payment Links)
-          if (amount === 799) { // $7.99 in cents
-            planId = 'pro_monthly';
-          } else if (amount === 1499) { // $14.99 in cents
-            planId = 'premium_monthly';
-          } else if (amount === 7188) { // $71.88 in cents (yearly)
-            planId = 'pro_yearly';
-          } else if (amount === 13991) { // $139.91 in cents (yearly)
-            planId = 'premium_yearly';
-          }
-          
-          console.log(`Updating user ${customerEmailFromIntent} to plan ${planId} (amount: ${amount})`);
-          
-          // First, check if user exists
-          const { data: existingUser, error: findError } = await supabase
-            .from('users')
-            .select('id, email, plan')
-            .eq('email', customerEmailFromIntent)
-            .single();
-
-          if (findError) {
-            console.error('Error finding user:', findError);
-            // Try to create user if not found
-            const { data: newUser, error: createError } = await supabase
-              .from('users')
-              .insert({
-                email: customerEmailFromIntent,
-                plan: planId,
-                subscription_status: 'active',
-                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              })
-              .select();
-
-            if (createError) {
-              console.error('Error creating user:', createError);
-            } else {
-              console.log('User created successfully:', newUser);
-            }
-          } else {
-            console.log('Found existing user:', existingUser);
-            
-            // Update user's plan in database
-            const { data: user, error } = await supabase
-              .from('users')
-              .update({
-                plan: planId,
-                subscription_status: 'active',
-                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-                updated_at: new Date().toISOString()
-              })
-              .eq('email', customerEmailFromIntent)
-              .select();
-
-            if (error) {
-              console.error('Error updating user plan from payment intent:', error);
-            } else {
-              console.log('User plan updated successfully from payment intent:', user);
-            }
-          }
-        } catch (error) {
-          console.error('Error in webhook payment intent update:', error);
-        }
-      } else {
-        console.log('No customer email found in payment intent');
-      }
-      break;
-      
-    case 'invoice.payment_succeeded':
-      console.log('Invoice payment succeeded');
-      break;
-      
-    case 'invoice.payment_failed':
-      console.log('Invoice payment failed');
-      break;
-      
-    default:
-      console.log(`Unhandled event type ${event.type}`);
-  }
-
-  res.json({ received: true });
-};
-
-// Add error handling for webhook
-const handleStripeWebhookWithErrorHandling = async (req, res) => {
-  try {
-    await handleStripeWebhook(req, res);
-  } catch (error) {
-    console.error('Webhook error:', error);
-    res.status(500).json({ error: 'Webhook processing failed' });
-  }
-};
 
 // Webhook routes are now defined earlier in the file (before authentication middleware)
 
