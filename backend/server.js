@@ -157,6 +157,10 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Stripe webhook routes (must be before authentication middleware)
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookWithErrorHandling);
+app.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookWithErrorHandling);
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/meetings', authenticateToken, meetingRoutes);
@@ -868,9 +872,7 @@ const handleStripeWebhookWithErrorHandling = async (req, res) => {
   }
 };
 
-// Add webhook routes
-app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookWithErrorHandling);
-app.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookWithErrorHandling);
+// Webhook routes are now defined earlier in the file (before authentication middleware)
 
 // Error handling middleware
 app.use(errorHandler);
