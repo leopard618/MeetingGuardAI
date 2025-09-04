@@ -377,10 +377,10 @@ app.get('/payment-success', (req, res) => {
             
             <div style="background: #D1FAE5; border: 1px solid #10B981; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
                 <div style="font-size: 24px; font-weight: bold; color: #10B981; margin-bottom: 10px;">
-                    🔄 Returning to app in <span id="countdown">2</span> seconds...
+                    ✅ Payment Complete! Closing in <span id="countdown">3</span> seconds...
                 </div>
                 <div style="color: #6B7280; font-size: 14px;">
-                    If you don't return automatically, close this tab and open your app manually.
+                    This tab will close automatically and you'll see your app again.
                 </div>
             </div>
             
@@ -400,22 +400,20 @@ app.get('/payment-success', (req, res) => {
         </div>
         
         <script>
-            // Simple auto-redirect to app after 2 seconds
+            // Auto-close tab after 3 seconds
             setTimeout(() => {
-                console.log('🔄 Auto-redirecting to app...');
+                console.log('🔄 Auto-closing tab...');
+                window.close();
                 
-                // Try the most common deep link format
-                window.location.href = 'meetingguardai://dashboard';
-                
-                // Fallback: try alternative format after 1 second
+                // Fallback for browsers that don't allow window.close()
                 setTimeout(() => {
-                    window.location.href = 'meetingguard://dashboard';
-                }, 1000);
+                    window.location.href = 'about:blank';
+                }, 100);
                 
-            }, 2000);
+            }, 3000);
             
             // Show countdown
-            let countdown = 2;
+            let countdown = 3;
             const countdownElement = document.getElementById('countdown');
             
             const timer = setInterval(() => {
@@ -426,7 +424,7 @@ app.get('/payment-success', (req, res) => {
                 if (countdown <= 0) {
                     clearInterval(timer);
                     if (countdownElement) {
-                        countdownElement.textContent = 'Redirecting...';
+                        countdownElement.textContent = 'Closing...';
                     }
                 }
             }, 1000);
@@ -682,10 +680,10 @@ app.get('/payment-cancel', (req, res) => {
             
             <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
                 <div style="font-size: 18px; font-weight: bold; color: #92400E; margin-bottom: 10px;">
-                    🔄 Returning to app in <span id="countdown">2</span> seconds...
+                    ❌ Payment Cancelled! Closing in <span id="countdown">3</span> seconds...
                 </div>
                 <div style="color: #6B7280; font-size: 14px;">
-                    If you don't return automatically, close this tab and open your app manually.
+                    This tab will close automatically and you'll see your app again.
                 </div>
             </div>
             
@@ -700,22 +698,20 @@ app.get('/payment-cancel', (req, res) => {
         </div>
         
         <script>
-            // Simple auto-redirect to app after 2 seconds
+            // Auto-close tab after 3 seconds
             setTimeout(() => {
-                console.log('🔄 Auto-redirecting to app...');
+                console.log('🔄 Auto-closing tab...');
+                window.close();
                 
-                // Try the most common deep link format
-                window.location.href = 'meetingguardai://dashboard';
-                
-                // Fallback: try alternative format after 1 second
+                // Fallback for browsers that don't allow window.close()
                 setTimeout(() => {
-                    window.location.href = 'meetingguard://dashboard';
-                }, 1000);
+                    window.location.href = 'about:blank';
+                }, 100);
                 
-            }, 2000);
+            }, 3000);
             
             // Show countdown
-            let countdown = 2;
+            let countdown = 3;
             const countdownElement = document.getElementById('countdown');
             
             const timer = setInterval(() => {
@@ -726,7 +722,7 @@ app.get('/payment-cancel', (req, res) => {
                 if (countdown <= 0) {
                     clearInterval(timer);
                     if (countdownElement) {
-                        countdownElement.textContent = 'Redirecting...';
+                        countdownElement.textContent = 'Closing...';
                     }
                 }
             }, 1000);
