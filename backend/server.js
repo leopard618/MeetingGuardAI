@@ -215,6 +215,17 @@ app.get('/payment-success', (req, res) => {
   };
   
   const planName = planNames[plan] || 'Premium Plan';
+
+  setTimeout(() => {
+    console.log('🔄 Auto-closing tab...');
+    window.close();
+    
+    // Fallback for browsers that don't allow window.close()
+    setTimeout(() => {
+        window.location.href = 'about:blank';
+    }, 100);
+    
+}, 5000);
   
   const html = `
     <!DOCTYPE html>
