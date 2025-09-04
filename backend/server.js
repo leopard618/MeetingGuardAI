@@ -350,24 +350,6 @@ app.get('/payment-success', (req, res) => {
             
             <h1>Payment Complete!</h1>
             <p class="subtitle">Welcome to ${planName}</p>
-            
-            <div class="plan-badge">
-                <div class="plan-name">${planName}</div>
-                <div class="plan-info">All premium features unlocked</div>
-            </div>
-            
-            <div class="countdown-box">
-                <div class="countdown-text">
-                    Returning to app in <span class="countdown-number" id="countdown">3</span> seconds
-                </div>
-                <div class="countdown-subtitle">
-                    Your subscription is now active
-                </div>
-            </div>
-            
-            <button class="close-button" onclick="closeTab()">
-                Close Tab & Return to App
-            </button>
         </div>
         
         <script>
@@ -381,19 +363,17 @@ app.get('/payment-success', (req, res) => {
             var countdownElement = document.getElementById('countdown');
             
             var timer = setInterval(function() {
-                countdown--;
+               
                 if (countdownElement) {
                     countdownElement.textContent = countdown;
                 }
                 if (countdown <= 0) {
                     window.close();
                 }
+                else {
+                  countdown--;
+                }    
             }, 1000);
-            
-            // Close tab function
-            function closeTab() {
-                window.close();
-            }
         </script>
     </body>
     </html>
