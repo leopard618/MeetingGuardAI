@@ -15,6 +15,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
+  const [userPlan, setUserPlan] = useState('free');
   const [isLoading, setIsLoading] = useState(true);
 
   // Use the Google Auth hook
@@ -35,13 +36,51 @@ export const AuthProvider = ({ children }) => {
       console.log('User name:', googleAuth.user.name);
       setUser(googleAuth.user);
       setIsAuthenticated(true);
-      setIsLoading(false);
+      
+      // Fetch user's current plan
+      fetchUserPlan(googleAuth.user.id).then(plan => {
+        setUserPlan(plan);
+        setIsLoading(false);
+      });
     } else if (!googleAuth.isLoading) {
       console.log('=== AUTH CONTEXT: NO GOOGLE AUTH, CHECKING STORAGE ===');
       // Only check storage if Google auth is not loading
       checkAuthStatus();
     }
   }, [googleAuth.isSignedIn, googleAuth.user, googleAuth.isLoading]);
+
+  const fetchUserPlan = async (userId) => {
+    try {
+      console.log('=== AUTH CONTEXT: FETCHING USER PLAN ===');
+      
+      // Get auth token from storage
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        console.log('No auth token found');
+        return 'free';
+      }
+
+      // Fetch user's subscription plan from backend
+      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/billing/subscription`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('User plan fetched:', data.subscription);
+        return data.subscription?.plan || 'free';
+      } else {
+        console.log('Failed to fetch user plan, using default');
+        return 'free';
+      }
+    } catch (error) {
+      console.error('Error fetching user plan:', error);
+      return 'free';
+    }
+  };
 
   const checkAuthStatus = async () => {
     try {
@@ -54,13 +93,19 @@ export const AuthProvider = ({ children }) => {
         console.log('User found in storage:', parsedUser);
         setUser(parsedUser);
         setIsAuthenticated(true);
+        
+        // Fetch user's current plan
+        const plan = await fetchUserPlan(parsedUser.id);
+        setUserPlan(plan);
       } else {
         console.log('No user found in storage');
         setIsAuthenticated(false);
+        setUserPlan('free');
       }
     } catch (error) {
       console.error('Error checking auth status:', error);
       setIsAuthenticated(false);
+      setUserPlan('free');
     } finally {
       setIsLoading(false);
     }
@@ -154,6 +199,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     isAuthenticated,
     user,
+    userPlan,
     isLoading,
     login,
     signup,

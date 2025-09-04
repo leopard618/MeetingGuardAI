@@ -12,10 +12,12 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 
 const Pricing = () => {
+  const { userPlan, isAuthenticated } = useAuth();
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [stripeLinks, setStripeLinks] = useState({});
   const [loading, setLoading] = useState(true);
@@ -193,6 +195,44 @@ const Pricing = () => {
     });
   };
 
+  const isCurrentPlan = (planId) => {
+    if (!isAuthenticated) return false;
+    
+    // Handle different plan ID formats
+    if (userPlan === 'free' && planId === 'free') return true;
+    if (userPlan === 'pro' && (planId === 'pro_monthly' || planId === 'pro_yearly')) return true;
+    if (userPlan === 'premium' && (planId === 'premium_monthly' || planId === 'premium_yearly')) return true;
+    
+    // Direct match for specific plan IDs
+    if (userPlan === planId) return true;
+    
+    return false;
+  };
+
+  const getButtonText = (planId) => {
+    if (isCurrentPlan(planId)) {
+      return 'Current Plan';
+    }
+    return 'Start 7-Day Trial';
+  };
+
+  const getButtonStyle = (planId, plan) => {
+    if (isCurrentPlan(planId)) {
+      return styles.currentPlanButton;
+    }
+    return [
+      styles.upgradeButton,
+      plan.popular && styles.popularUpgradeButton
+    ];
+  };
+
+  const getButtonTextStyle = (planId) => {
+    if (isCurrentPlan(planId)) {
+      return styles.currentPlanButtonText;
+    }
+    return styles.upgradeButtonText;
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -334,23 +374,21 @@ const Pricing = () => {
 
                 {/* Action Button */}
                 <View style={styles.actionContainer}>
-                  {planId === 'free' ? (
+                  {isCurrentPlan(planId) ? (
                     <TouchableOpacity
                       disabled
-                      style={styles.disabledButton}
+                      style={styles.currentPlanButton}
                     >
-                      <Text style={styles.disabledButtonText}>Current Plan</Text>
+                      <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                      <Text style={styles.currentPlanButtonText}>Current Plan</Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
-                      style={[
-                        styles.upgradeButton,
-                        plan.popular && styles.popularUpgradeButton
-                      ]}
-                                             onPress={() => handleUpgrade(planId)}
+                      style={getButtonStyle(planId, plan)}
+                      onPress={() => handleUpgrade(planId)}
                     >
-                      <Text style={styles.upgradeButtonText}>
-                        Start 7-Day Trial
+                      <Text style={getButtonTextStyle(planId)}>
+                        {getButtonText(planId)}
                       </Text>
                       <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
                     </TouchableOpacity>
@@ -650,6 +688,24 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontSize: 18,
     fontWeight: '600',
+  },
+  currentPlanButton: {
+    backgroundColor: '#D1FAE5',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    width: '100%',
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#10B981',
+  },
+  currentPlanButtonText: {
+    color: '#065F46',
+    fontSize: 18,
+    fontWeight: '700',
+    marginLeft: 8,
   },
   additionalInfo: {
     paddingHorizontal: 20,
