@@ -214,18 +214,7 @@ app.get('/payment-success', (req, res) => {
     'premium_yearly': 'Premium Yearly'
   };
   
-  const planName = planNames[plan] || 'Premium Plan';
-
-  setTimeout(() => {
-    console.log('🔄 Auto-closing tab...');
-    window.close();
-    
-    // Fallback for browsers that don't allow window.close()
-    setTimeout(() => {
-        window.location.href = 'about:blank';
-    }, 100);
-    
-}, 5000);
+    const planName = planNames[plan] || 'Premium Plan';
   
   const html = `
     <!DOCTYPE html>
@@ -388,10 +377,10 @@ app.get('/payment-success', (req, res) => {
             
             <div style="background: #D1FAE5; border: 1px solid #10B981; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
                 <div style="font-size: 24px; font-weight: bold; color: #10B981; margin-bottom: 10px;">
-                    ✅ Payment Complete! Closing in <span id="countdown">3</span> seconds...
+                    ✅ Payment Complete! Returning to app in <span id="countdown">3</span> seconds...
                 </div>
                 <div style="color: #6B7280; font-size: 14px;">
-                    This tab will close automatically and you'll see your app again.
+                    You'll be redirected back to your app automatically.
                 </div>
             </div>
             
@@ -411,16 +400,10 @@ app.get('/payment-success', (req, res) => {
         </div>
         
         <script>
-            // Auto-close tab after 3 seconds
+            // Redirect back to app after 3 seconds (same as OAuth approach)
             setTimeout(() => {
-                console.log('🔄 Auto-closing tab...');
-                window.close();
-                
-                // Fallback for browsers that don't allow window.close()
-                setTimeout(() => {
-                    window.location.href = 'about:blank';
-                }, 100);
-                
+                console.log('🔄 Redirecting back to app...');
+                window.location.href = 'meetingguardai://dashboard';
             }, 3000);
             
             // Show countdown
@@ -435,7 +418,7 @@ app.get('/payment-success', (req, res) => {
                 if (countdown <= 0) {
                     clearInterval(timer);
                     if (countdownElement) {
-                        countdownElement.textContent = 'Closing...';
+                        countdownElement.textContent = 'Redirecting...';
                     }
                 }
             }, 1000);
@@ -691,10 +674,10 @@ app.get('/payment-cancel', (req, res) => {
             
             <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
                 <div style="font-size: 18px; font-weight: bold; color: #92400E; margin-bottom: 10px;">
-                    ❌ Payment Cancelled! Closing in <span id="countdown">3</span> seconds...
+                    ❌ Payment Cancelled! Returning to app in <span id="countdown">3</span> seconds...
                 </div>
                 <div style="color: #6B7280; font-size: 14px;">
-                    This tab will close automatically and you'll see your app again.
+                    You'll be redirected back to your app automatically.
                 </div>
             </div>
             
@@ -709,16 +692,10 @@ app.get('/payment-cancel', (req, res) => {
         </div>
         
         <script>
-            // Auto-close tab after 3 seconds
+            // Redirect back to app after 3 seconds (same as OAuth approach)
             setTimeout(() => {
-                console.log('🔄 Auto-closing tab...');
-                window.close();
-                
-                // Fallback for browsers that don't allow window.close()
-                setTimeout(() => {
-                    window.location.href = 'about:blank';
-                }, 100);
-                
+                console.log('🔄 Redirecting back to app...');
+                window.location.href = 'meetingguardai://dashboard';
             }, 3000);
             
             // Show countdown
@@ -733,7 +710,7 @@ app.get('/payment-cancel', (req, res) => {
                 if (countdown <= 0) {
                     clearInterval(timer);
                     if (countdownElement) {
-                        countdownElement.textContent = 'Closing...';
+                        countdownElement.textContent = 'Redirecting...';
                     }
                 }
             }, 1000);
