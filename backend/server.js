@@ -135,7 +135,7 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       auth: '/api/auth',
-      oauth: '/oauth',
+      oauth: '/oauth',  
       meetings: '/api/meetings',
       calendar: '/api/calendar',
       ai: '/api/ai',
@@ -383,14 +383,22 @@ app.get('/payment-success', (req, res) => {
                 📱 Manual Return Instructions
             </button>
             
+            <button class="close-tab" onclick="closeTab()" style="background: #6B7280; color: white; padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; width: 100%; margin-top: 10px;">
+                ❌ Close This Tab
+            </button>
+            
             <div class="instructions" id="manualInstructions" style="display: none;">
                 <h3>📱 How to Return to MeetingGuard AI App:</h3>
                 <ol>
-                    <li><strong>On Mobile:</strong> Swipe up from bottom (iOS) or press recent apps button (Android)</li>
-                    <li><strong>Find MeetingGuard AI</strong> in your recent apps</li>
-                    <li><strong>Tap to open</strong> the app</li>
+                    <li><strong>On iPhone:</strong> Swipe up from bottom and hold, then find MeetingGuard AI</li>
+                    <li><strong>On Android:</strong> Press the square/recent apps button, find MeetingGuard AI</li>
                     <li><strong>Alternative:</strong> Go to your home screen and tap the MeetingGuard AI icon</li>
+                    <li><strong>Your subscription is already active!</strong> No need to do anything else</li>
                 </ol>
+                <div style="background: #D1FAE5; border: 1px solid #10B981; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                    <strong>✅ Payment Successful!</strong><br>
+                    Your ${planName} subscription is now active. You can safely close this tab and return to your app.
+                </div>
                 <button class="close-tab" onclick="closeTab()">Close This Tab</button>
             </div>
             
@@ -400,13 +408,22 @@ app.get('/payment-success', (req, res) => {
         </div>
         
         <script>
+            let returnAttempted = false;
+            
             function attemptReturn() {
-                // Try multiple deep link formats
+                if (returnAttempted) return;
+                returnAttempted = true;
+                
+                console.log('🔄 Attempting to return to app...');
+                
+                // Try multiple deep link formats with better timing
                 const deepLinks = [
                     'meetingguardai://dashboard',
                     'meetingguardai://',
-                    'meetingguard://dashboard',
-                    'meetingguard://'
+                    'meetingguard://dashboard', 
+                    'meetingguard://',
+                    'meetingguardai://payment-success',
+                    'meetingguard://payment-success'
                 ];
                 
                 let attempted = 0;
@@ -414,49 +431,92 @@ app.get('/payment-success', (req, res) => {
                 
                 function tryNextLink() {
                     if (attempted >= maxAttempts) {
+                        console.log('❌ All deep link attempts failed');
                         showManualInstructions();
                         return;
                     }
                     
                     const link = deepLinks[attempted];
-                    console.log('Trying deep link:', link);
+                    console.log('🔗 Trying deep link:', link);
                     
-                    // Try to open the app
+                    // Create a hidden iframe to attempt the deep link
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = link;
+                    document.body.appendChild(iframe);
+                    
+                    // Also try direct navigation
                     window.location.href = link;
                     
-                    // Wait a bit, then try next link
+                    // Clean up iframe after a short delay
+                    setTimeout(() => {
+                        if (iframe.parentNode) {
+                            iframe.parentNode.removeChild(iframe);
+                        }
+                    }, 500);
+                    
+                    // Wait longer before trying next link
                     setTimeout(() => {
                         attempted++;
                         tryNextLink();
-                    }, 1000);
+                    }, 2000);
                 }
                 
                 tryNextLink();
             }
             
             function showManualInstructions() {
+                console.log('📱 Showing manual instructions');
                 document.getElementById('manualInstructions').style.display = 'block';
+                
+                // Update button text
+                const returnButton = document.querySelector('.return-button');
+                if (returnButton) {
+                    returnButton.textContent = '🔄 Try Again';
+                    returnButton.onclick = () => {
+                        returnAttempted = false;
+                        attemptReturn();
+                    };
+                }
             }
             
             function closeTab() {
+                console.log('❌ Closing tab');
                 window.close();
+                
                 // Fallback for browsers that don't allow window.close()
                 setTimeout(() => {
                     window.location.href = 'about:blank';
                 }, 100);
             }
             
-            // Auto-attempt return after 3 seconds
+            // Auto-attempt return after 2 seconds
             setTimeout(() => {
+                console.log('⏰ Auto-attempting return...');
                 attemptReturn();
-            }, 3000);
+            }, 2000);
             
-            // Show manual instructions after 8 seconds if still on page
+            // Show manual instructions after 10 seconds if still on page
             setTimeout(() => {
-                if (!document.hidden) {
+                if (!document.hidden && !returnAttempted) {
+                    console.log('⏰ Showing manual instructions after timeout');
                     showManualInstructions();
                 }
-            }, 8000);
+            }, 10000);
+            
+            // Listen for page visibility changes
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    console.log('📱 Page hidden - user likely returned to app');
+                } else {
+                    console.log('📱 Page visible - user still on success page');
+                }
+            });
+            
+            // Listen for beforeunload to detect if user is leaving
+            window.addEventListener('beforeunload', function() {
+                console.log('🚪 User is leaving the page');
+            });
         </script>
     </body>
     </html>
@@ -717,7 +777,14 @@ app.get('/payment-cancel', (req, res) => {
         </div>
         
         <script>
+            let returnAttempted = false;
+            
             function attemptReturn() {
+                if (returnAttempted) return;
+                returnAttempted = true;
+                
+                console.log('🔄 Attempting to return to app...');
+                
                 const deepLinks = [
                     'meetingguardai://dashboard',
                     'meetingguardai://',
@@ -730,30 +797,52 @@ app.get('/payment-cancel', (req, res) => {
                 
                 function tryNextLink() {
                     if (attempted >= maxAttempts) {
+                        console.log('❌ All deep link attempts failed');
                         alert('Please manually return to your app');
                         return;
                     }
                     
                     const link = deepLinks[attempted];
-                    console.log('Trying deep link:', link);
+                    console.log('🔗 Trying deep link:', link);
                     
+                    // Create a hidden iframe to attempt the deep link
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = link;
+                    document.body.appendChild(iframe);
+                    
+                    // Also try direct navigation
                     window.location.href = link;
+                    
+                    // Clean up iframe after a short delay
+                    setTimeout(() => {
+                        if (iframe.parentNode) {
+                            iframe.parentNode.removeChild(iframe);
+                        }
+                    }, 500);
                     
                     setTimeout(() => {
                         attempted++;
                         tryNextLink();
-                    }, 1000);
+                    }, 2000);
                 }
                 
                 tryNextLink();
             }
             
             function closeTab() {
+                console.log('❌ Closing tab');
                 window.close();
                 setTimeout(() => {
                     window.location.href = 'about:blank';
                 }, 100);
             }
+            
+            // Auto-attempt return after 2 seconds
+            setTimeout(() => {
+                console.log('⏰ Auto-attempting return...');
+                attemptReturn();
+            }, 2000);
         </script>
     </body>
     </html>
