@@ -400,44 +400,16 @@ app.get('/payment-success', (req, res) => {
         </div>
         
         <script>
-            // Redirect back to app after 3 seconds (Render-compatible)
-            setTimeout(() => {
-                console.log('🔄 Redirecting back to app...');
-                
-                // Try multiple redirect methods for better compatibility
-                const appScheme = 'meetingguardai';
-                const redirectUrl = appScheme + '://dashboard';
-                
-                // Method 1: Direct redirect
-                window.location.href = redirectUrl;
-                
-                // Method 2: Fallback with iframe (for Render)
-                setTimeout(() => {
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = redirectUrl;
-                    document.body.appendChild(iframe);
-                    
-                    // Clean up after 1 second
-                    setTimeout(() => {
-                        if (iframe.parentNode) {
-                            iframe.parentNode.removeChild(iframe);
-                        }
-                    }, 1000);
-                }, 500);
-                
-                // Method 3: Final fallback - close window
-                setTimeout(() => {
-                    window.close();
-                }, 2000);
-                
+            // Simple redirect that actually works
+            setTimeout(function() {
+                window.location.href = 'meetingguardai://dashboard';
             }, 3000);
             
-            // Show countdown
-            let countdown = 3;
-            const countdownElement = document.getElementById('countdown');
+            // Countdown timer
+            var countdown = 3;
+            var countdownElement = document.getElementById('countdown');
             
-            const timer = setInterval(() => {
+            var timer = setInterval(function() {
                 countdown--;
                 if (countdownElement) {
                     countdownElement.textContent = countdown;
@@ -719,44 +691,16 @@ app.get('/payment-cancel', (req, res) => {
         </div>
         
         <script>
-            // Redirect back to app after 3 seconds (Render-compatible)
-            setTimeout(() => {
-                console.log('🔄 Redirecting back to app...');
-                
-                // Try multiple redirect methods for better compatibility
-                const appScheme = 'meetingguardai';
-                const redirectUrl = appScheme + '://dashboard';
-                
-                // Method 1: Direct redirect
-                window.location.href = redirectUrl;
-                
-                // Method 2: Fallback with iframe (for Render)
-                setTimeout(() => {
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = redirectUrl;
-                    document.body.appendChild(iframe);
-                    
-                    // Clean up after 1 second
-                    setTimeout(() => {
-                        if (iframe.parentNode) {
-                            iframe.parentNode.removeChild(iframe);
-                        }
-                    }, 1000);
-                }, 500);
-                
-                // Method 3: Final fallback - close window
-                setTimeout(() => {
-                    window.close();
-                }, 2000);
-                
+            // Simple redirect that actually works
+            setTimeout(function() {
+                window.location.href = 'meetingguardai://dashboard';
             }, 3000);
             
-            // Show countdown
-            let countdown = 3;
-            const countdownElement = document.getElementById('countdown');
+            // Countdown timer
+            var countdown = 3;
+            var countdownElement = document.getElementById('countdown');
             
-            const timer = setInterval(() => {
+            var timer = setInterval(function() {
                 countdown--;
                 if (countdownElement) {
                     countdownElement.textContent = countdown;
