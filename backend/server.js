@@ -778,6 +778,56 @@ const handleStripeWebhook = async (req, res) => {
       }
       break;
       
+    case 'payment_intent.succeeded':
+      const paymentIntent = event.data.object;
+      console.log('Payment Intent succeeded:', paymentIntent.id);
+      
+      // For Payment Links, we get the customer email from the payment intent
+      const customerEmailFromIntent = paymentIntent.receipt_email;
+      
+      if (customerEmailFromIntent) {
+        try {
+          // Import supabase instance
+          const { supabase } = require('./config/database');
+          
+          // Determine plan from amount (you'll need to map your amounts to plans)
+          let planId = 'pro_monthly'; // Default
+          const amount = paymentIntent.amount;
+          
+          // Map amounts to plans (adjust these amounts to match your Payment Links)
+          if (amount === 799) { // $7.99 in cents
+            planId = 'pro_monthly';
+          } else if (amount === 1499) { // $14.99 in cents
+            planId = 'premium_monthly';
+          } else if (amount === 7188) { // $71.88 in cents (yearly)
+            planId = 'pro_yearly';
+          } else if (amount === 13991) { // $139.91 in cents (yearly)
+            planId = 'premium_yearly';
+          }
+          
+          // Update user's plan in database
+          const { data: user, error } = await supabase
+            .from('users')
+            .update({
+              plan: planId,
+              subscription_status: 'active',
+              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+              updated_at: new Date().toISOString()
+            })
+            .eq('email', customerEmailFromIntent)
+            .select();
+
+          if (error) {
+            console.error('Error updating user plan from payment intent:', error);
+          } else {
+            console.log('User plan updated successfully from payment intent:', user);
+          }
+        } catch (error) {
+          console.error('Error in webhook payment intent update:', error);
+        }
+      }
+      break;
+      
     case 'invoice.payment_succeeded':
       console.log('Invoice payment succeeded');
       break;
