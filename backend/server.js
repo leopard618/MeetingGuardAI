@@ -26,7 +26,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for payment pages
       imgSrc: ["'self'", "data:", "https:"],
     },
   },
@@ -397,6 +397,10 @@ app.get('/payment-success', (req, res) => {
             <p style="color: #6B7280; font-size: 14px; margin-top: 20px;">
                 Your subscription is now active! You can safely close this tab and return to your app.
             </p>
+            
+            <button onclick="closeTab()" style="background: #EF4444; color: white; padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; margin-top: 10px; width: 100%;">
+                Close This Tab Now
+            </button>
         </div>
         
         <script>
@@ -421,6 +425,15 @@ app.get('/payment-success', (req, res) => {
                     }
                 }
             }, 1000);
+            
+            // Manual close function
+            function closeTab() {
+                window.close();
+                // Fallback if window.close() doesn't work
+                setTimeout(function() {
+                    window.location.href = 'about:blank';
+                }, 100);
+            }
         </script>
     </body>
     </html>
