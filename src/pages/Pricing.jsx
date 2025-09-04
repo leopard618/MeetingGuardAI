@@ -264,19 +264,6 @@ const Pricing = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Header Section */}
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <View style={styles.iconContainer}>
-              <Ionicons name="diamond" size={32} color="#FFFFFF" />
-            </View>
-            <Text style={styles.title}>Choose Your Plan</Text>
-            <Text style={styles.subtitle}>
-              Start with our free plan and upgrade as you grow. All paid plans include a 7-day free trial.
-            </Text>
-          </View>
-        </View>
-
         {/* Billing Toggle */}
         <View style={styles.billingToggleContainer}>
           <View style={styles.billingToggle}>
@@ -307,10 +294,7 @@ const Pricing = () => {
               ]}>
                 Yearly
               </Text>
-              <View style={styles.savingsBadge}>
-                <Ionicons name="star" size={12} color="#FFFFFF" />
-                <Text style={styles.savingsText}>Save 25%</Text>
-              </View>
+             
             </TouchableOpacity>
           </View>
         </View>
@@ -399,22 +383,6 @@ const Pricing = () => {
           ))}
         </View>
 
-        {/* Additional Info */}
-        <View style={styles.additionalInfo}>
-          <View style={styles.infoCard}>
-            <Ionicons name="shield-checkmark" size={24} color="#10B981" />
-            <Text style={styles.additionalInfoText}>
-              All plans include a 7-day free trial. Cancel anytime during the trial period.
-            </Text>
-          </View>
-          
-          <View style={styles.supportCard}>
-            <Ionicons name="help-circle" size={20} color="#6B7280" />
-            <Text style={styles.supportText}>
-              Need help choosing? Contact our support team
-            </Text>
-          </View>
-        </View>
       </ScrollView>
     </View>
   );
@@ -465,6 +433,7 @@ const styles = StyleSheet.create({
     maxWidth: 300,
   },
   billingToggleContainer: {
+    marginTop: 30,
     alignItems: 'center',
     marginBottom: 32,
     paddingHorizontal: 20,

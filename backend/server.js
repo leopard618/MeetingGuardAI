@@ -236,128 +236,111 @@ app.get('/payment-success', (req, res) => {
             }
             .container {
                 background: white;
-                border-radius: 20px;
-                padding: 40px;
+                border-radius: 24px;
+                padding: 48px 32px;
                 text-align: center;
-                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-                max-width: 500px;
+                box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+                max-width: 420px;
                 width: 100%;
+                position: relative;
+                overflow: hidden;
+            }
+            .container::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 4px;
+                background: linear-gradient(90deg, #10B981, #3B82F6);
             }
             .success-icon {
-                width: 80px;
-                height: 80px;
-                background: #10B981;
+                width: 72px;
+                height: 72px;
+                background: linear-gradient(135deg, #10B981, #059669);
                 border-radius: 50%;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                margin: 0 auto 30px;
-                font-size: 40px;
+                margin: 0 auto 24px;
+                font-size: 36px;
                 color: white;
+                box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
             }
             h1 {
-                color: #1F2937;
-                margin-bottom: 15px;
-                font-size: 28px;
+                color: #111827;
+                margin-bottom: 12px;
+                font-size: 32px;
+                font-weight: 800;
+                letter-spacing: -0.025em;
             }
             .subtitle {
                 color: #6B7280;
-                margin-bottom: 30px;
+                margin-bottom: 32px;
                 font-size: 18px;
+                font-weight: 500;
             }
-            .plan-details {
-                background: #F3F4F6;
-                padding: 20px;
-                border-radius: 12px;
-                margin-bottom: 30px;
-            }
-            .plan-name {
-                color: #10B981;
-                font-weight: bold;
-                font-size: 20px;
-                margin-bottom: 10px;
-            }
-            .plan-info {
-                color: #6B7280;
-                font-size: 16px;
-            }
-            .return-button {
-                background: #10B981;
-                color: white;
-                padding: 16px 32px;
-                border: none;
-                border-radius: 12px;
-                font-size: 18px;
-                font-weight: 600;
-                cursor: pointer;
-                margin-bottom: 20px;
-                width: 100%;
-                transition: all 0.3s ease;
-            }
-            .return-button:hover {
-                background: #059669;
-                transform: translateY(-2px);
-            }
-            .manual-return {
-                background: #3B82F6;
-                color: white;
-                padding: 16px 32px;
-                border: none;
-                border-radius: 12px;
-                font-size: 18px;
-                font-weight: 600;
-                cursor: pointer;
-                width: 100%;
-                margin-bottom: 20px;
-                transition: all 0.3s ease;
-            }
-            .manual-return:hover {
-                background: #2563EB;
-                transform: translateY(-2px);
-            }
-            .session-id {
-                background: #1F2937;
-                color: #D1D5DB;
-                padding: 8px 16px;
-                border-radius: 8px;
-                font-family: monospace;
-                font-size: 12px;
-                margin-bottom: 20px;
+            .plan-badge {
+                background: linear-gradient(135deg, #D1FAE5, #A7F3D0);
+                border: 2px solid #10B981;
+                border-radius: 16px;
+                padding: 16px 24px;
+                margin-bottom: 32px;
                 display: inline-block;
             }
-            .instructions {
-                background: #FEF3C7;
-                border: 1px solid #F59E0B;
-                border-radius: 12px;
-                padding: 20px;
-                margin: 20px 0;
-                text-align: left;
+            .plan-name {
+                color: #065F46;
+                font-weight: 700;
+                font-size: 18px;
+                margin-bottom: 4px;
             }
-            .instructions h3 {
-                color: #92400E;
-                margin-bottom: 10px;
-                font-size: 16px;
+            .plan-info {
+                color: #047857;
+                font-size: 14px;
+                font-weight: 500;
             }
-            .instructions ol {
-                color: #92400E;
-                padding-left: 20px;
-                line-height: 1.6;
+            .countdown-box {
+                background: linear-gradient(135deg, #F0F9FF, #E0F2FE);
+                border: 2px solid #0EA5E9;
+                border-radius: 16px;
+                padding: 24px;
+                margin-bottom: 24px;
             }
-            .instructions li {
+            .countdown-text {
+                font-size: 20px;
+                font-weight: 700;
+                color: #0C4A6E;
                 margin-bottom: 8px;
             }
-            .close-tab {
-                background: #EF4444;
-                color: white;
-                padding: 12px 24px;
-                border: none;
-                border-radius: 8px;
+            .countdown-subtitle {
+                color: #0369A1;
                 font-size: 14px;
-                cursor: pointer;
-                margin-top: 10px;
+                font-weight: 500;
             }
-            .close-tab:hover {
-                background: #DC2626;
+            .countdown-number {
+                color: #0EA5E9;
+                font-size: 24px;
+                font-weight: 800;
+            }
+            .close-button {
+                background: linear-gradient(135deg, #EF4444, #DC2626);
+                color: white;
+                padding: 16px 32px;
+                border: none;
+                border-radius: 12px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                width: 100%;
+                transition: all 0.2s ease;
+                box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+            }
+            .close-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+            }
+            .close-button:active {
+                transform: translateY(0);
             }
         </style>
     </head>
@@ -365,39 +348,26 @@ app.get('/payment-success', (req, res) => {
         <div class="container">
             <div class="success-icon">✓</div>
             
-            <h1>Payment Successful! 🎉</h1>
-            <p class="subtitle">Welcome to ${planName}!</p>
+            <h1>Payment Complete!</h1>
+            <p class="subtitle">Welcome to ${planName}</p>
             
-            ${session_id ? `<div class="session-id">Session ID: ${session_id}</div>` : ''}
-            
-            <div class="plan-details">
+            <div class="plan-badge">
                 <div class="plan-name">${planName}</div>
-                <div class="plan-info">You now have access to all premium features!</div>
+                <div class="plan-info">All premium features unlocked</div>
             </div>
             
-            <div style="background: #D1FAE5; border: 1px solid #10B981; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
-                <div style="font-size: 24px; font-weight: bold; color: #10B981; margin-bottom: 10px;">
-                    ✅ Payment Complete! Returning to app in <span id="countdown">3</span> seconds...
+            <div class="countdown-box">
+                <div class="countdown-text">
+                    Returning to app in <span class="countdown-number" id="countdown">3</span> seconds
                 </div>
-                <div style="color: #6B7280; font-size: 14px;">
-                    You'll be redirected back to your app automatically.
+                <div class="countdown-subtitle">
+                    Your subscription is now active
                 </div>
             </div>
             
-            <div style="background: #F3F4F6; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: left;">
-                <h3 style="color: #1F2937; margin-bottom: 15px; font-size: 16px;">📱 Manual Return Instructions:</h3>
-                <ol style="color: #6B7280; padding-left: 20px; line-height: 1.6;">
-                    <li><strong>On iPhone:</strong> Swipe up from bottom and hold, then find MeetingGuard AI</li>
-                    <li><strong>On Android:</strong> Press the square/recent apps button, find MeetingGuard AI</li>
-                    <li><strong>Alternative:</strong> Go to your home screen and tap the MeetingGuard AI icon</li>
-                    <li><strong>Your subscription is already active!</strong> No need to do anything else</li>
-                </ol>
-            </div>
-            
-            <p style="color: #6B7280; font-size: 14px; margin-top: 20px;">
-                Your subscription is now active! You can safely close this tab and return to your app.
-            </p>
-            
+            <button class="close-button" onclick="closeTab()">
+                Close Tab & Return to App
+            </button>
         </div>
         
         <script>
@@ -411,16 +381,19 @@ app.get('/payment-success', (req, res) => {
             var countdownElement = document.getElementById('countdown');
             
             var timer = setInterval(function() {
+                countdown--;
                 if (countdownElement) {
                     countdownElement.textContent = countdown;
                 }
                 if (countdown <= 0) {
-                   window.close();
-                }
-                else{
-                   countdown--;
+                    window.close();
                 }
             }, 1000);
+            
+            // Close tab function
+            function closeTab() {
+                window.close();
+            }
         </script>
     </body>
     </html>
@@ -731,12 +704,27 @@ const handleStripeWebhook = async (req, res) => {
   const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
+  console.log('Webhook received:', {
+    hasSignature: !!sig,
+    hasSecret: !!endpointSecret,
+    secretLength: endpointSecret ? endpointSecret.length : 0,
+    bodyLength: req.body ? req.body.length : 0
+  });
+
+  if (!endpointSecret) {
+    console.error('STRIPE_WEBHOOK_SECRET not found in environment variables');
+    return res.status(500).json({ error: 'Webhook secret not configured' });
+  }
+
   let event;
 
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    console.log('Webhook event verified successfully:', event.type);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
+    console.error('Signature:', sig);
+    console.error('Secret exists:', !!endpointSecret);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -781,6 +769,12 @@ const handleStripeWebhook = async (req, res) => {
     case 'payment_intent.succeeded':
       const paymentIntent = event.data.object;
       console.log('Payment Intent succeeded:', paymentIntent.id);
+      console.log('Payment Intent details:', {
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        receipt_email: paymentIntent.receipt_email,
+        customer: paymentIntent.customer
+      });
       
       // For Payment Links, we get the customer email from the payment intent
       const customerEmailFromIntent = paymentIntent.receipt_email;
@@ -805,26 +799,61 @@ const handleStripeWebhook = async (req, res) => {
             planId = 'premium_yearly';
           }
           
-          // Update user's plan in database
-          const { data: user, error } = await supabase
+          console.log(`Updating user ${customerEmailFromIntent} to plan ${planId} (amount: ${amount})`);
+          
+          // First, check if user exists
+          const { data: existingUser, error: findError } = await supabase
             .from('users')
-            .update({
-              plan: planId,
-              subscription_status: 'active',
-              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-              updated_at: new Date().toISOString()
-            })
+            .select('id, email, plan')
             .eq('email', customerEmailFromIntent)
-            .select();
+            .single();
 
-          if (error) {
-            console.error('Error updating user plan from payment intent:', error);
+          if (findError) {
+            console.error('Error finding user:', findError);
+            // Try to create user if not found
+            const { data: newUser, error: createError } = await supabase
+              .from('users')
+              .insert({
+                email: customerEmailFromIntent,
+                plan: planId,
+                subscription_status: 'active',
+                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .select();
+
+            if (createError) {
+              console.error('Error creating user:', createError);
+            } else {
+              console.log('User created successfully:', newUser);
+            }
           } else {
-            console.log('User plan updated successfully from payment intent:', user);
+            console.log('Found existing user:', existingUser);
+            
+            // Update user's plan in database
+            const { data: user, error } = await supabase
+              .from('users')
+              .update({
+                plan: planId,
+                subscription_status: 'active',
+                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+                updated_at: new Date().toISOString()
+              })
+              .eq('email', customerEmailFromIntent)
+              .select();
+
+            if (error) {
+              console.error('Error updating user plan from payment intent:', error);
+            } else {
+              console.log('User plan updated successfully from payment intent:', user);
+            }
           }
         } catch (error) {
           console.error('Error in webhook payment intent update:', error);
         }
+      } else {
+        console.log('No customer email found in payment intent');
       }
       break;
       
