@@ -398,9 +398,6 @@ app.get('/payment-success', (req, res) => {
                 Your subscription is now active! You can safely close this tab and return to your app.
             </p>
             
-            <button onclick="closeTab()" style="background: #EF4444; color: white; padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; margin-top: 10px; width: 100%;">
-                Close This Tab Now
-            </button>
         </div>
         
         <script>
@@ -414,12 +411,14 @@ app.get('/payment-success', (req, res) => {
             var countdownElement = document.getElementById('countdown');
             
             var timer = setInterval(function() {
-                countdown--;
                 if (countdownElement) {
                     countdownElement.textContent = countdown;
                 }
                 if (countdown <= 0) {
                    window.close();
+                }
+                else{
+                   countdown--;
                 }
             }, 1000);
         </script>
