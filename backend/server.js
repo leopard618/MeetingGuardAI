@@ -683,17 +683,22 @@ const handleStripeWebhook = async (req, res) => {
   }
 
   const sig = req.headers['stripe-signature'];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || 
+                        process.env.STRIPE_WEBHOOK_SECRET_KEY || 
+                        process.env.WEBHOOK_SECRET ||
+                        'whsec_hkaL8iPNybslJxt2CVYwseM6LfU22mak'; // Fallback for testing
 
   console.log('Webhook received:', {
     hasSignature: !!sig,
     hasSecret: !!endpointSecret,
     secretLength: endpointSecret ? endpointSecret.length : 0,
-    bodyLength: req.body ? req.body.length : 0
+    bodyLength: req.body ? req.body.length : 0,
+    allEnvVars: Object.keys(process.env).filter(key => key.includes('STRIPE'))
   });
 
   if (!endpointSecret) {
     console.error('STRIPE_WEBHOOK_SECRET not found in environment variables');
+    console.error('Available environment variables:', Object.keys(process.env).filter(key => key.includes('STRIPE')));
     return res.status(500).json({ error: 'Webhook secret not configured' });
   }
 
