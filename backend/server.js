@@ -721,7 +721,7 @@ app.get('/payment-cancel', (req, res) => {
 });
 
 // Stripe webhook handler for automatic plan activation
-app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+const handleStripeWebhook = async (req, res) => {
   // Check if Stripe is available
   if (!stripe) {
     console.error('Stripe package not available, webhook disabled');
@@ -791,7 +791,21 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
   }
 
   res.json({ received: true });
-});
+};
+
+// Add error handling for webhook
+const handleStripeWebhookWithErrorHandling = async (req, res) => {
+  try {
+    await handleStripeWebhook(req, res);
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+};
+
+// Add webhook routes
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookWithErrorHandling);
+app.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookWithErrorHandling);
 
 // Error handling middleware
 app.use(errorHandler);
