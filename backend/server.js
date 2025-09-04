@@ -216,6 +216,38 @@ app.get('/payment-success', (req, res) => {
   
   const planName = planNames[plan] || 'Premium Plan';
   
+  // Auto-close functionality - moved from HTML script to backend
+  const autoCloseScript = `
+    // Auto-close tab after 3 seconds
+    setTimeout(() => {
+      console.log('🔄 Auto-closing tab...');
+      window.close();
+      
+      // Fallback for browsers that don't allow window.close()
+      setTimeout(() => {
+        window.location.href = 'about:blank';
+      }, 100);
+      
+    }, 3000);
+    
+    // Show countdown
+    let countdown = 3;
+    const countdownElement = document.getElementById('countdown');
+    
+    const timer = setInterval(() => {
+      countdown--;
+      if (countdownElement) {
+        countdownElement.textContent = countdown;
+      }
+      if (countdown <= 0) {
+        clearInterval(timer);
+        if (countdownElement) {
+          countdownElement.textContent = 'Closing...';
+        }
+      }
+    }, 1000);
+  `;
+  
   const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -400,34 +432,7 @@ app.get('/payment-success', (req, res) => {
         </div>
         
         <script>
-            // Auto-close tab after 3 seconds
-            setTimeout(() => {
-                console.log('🔄 Auto-closing tab...');
-                window.close();
-                
-                // Fallback for browsers that don't allow window.close()
-                setTimeout(() => {
-                    window.location.href = 'about:blank';
-                }, 100);
-                
-            }, 3000);
-            
-            // Show countdown
-            let countdown = 3;
-            const countdownElement = document.getElementById('countdown');
-            
-            const timer = setInterval(() => {
-                countdown--;
-                if (countdownElement) {
-                    countdownElement.textContent = countdown;
-                }
-                if (countdown <= 0) {
-                    clearInterval(timer);
-                    if (countdownElement) {
-                        countdownElement.textContent = 'Closing...';
-                    }
-                }
-            }, 1000);
+            ${autoCloseScript}
         </script>
     </body>
     </html>
@@ -589,6 +594,38 @@ app.get('/payment-help', (req, res) => {
 app.get('/payment-cancel', (req, res) => {
   const { plan } = req.query;
   
+  // Auto-close functionality for cancel page
+  const autoCloseScript = `
+    // Auto-close tab after 3 seconds
+    setTimeout(() => {
+      console.log('🔄 Auto-closing tab...');
+      window.close();
+      
+      // Fallback for browsers that don't allow window.close()
+      setTimeout(() => {
+        window.location.href = 'about:blank';
+      }, 100);
+      
+    }, 3000);
+    
+    // Show countdown
+    let countdown = 3;
+    const countdownElement = document.getElementById('countdown');
+    
+    const timer = setInterval(() => {
+      countdown--;
+      if (countdownElement) {
+        countdownElement.textContent = countdown;
+      }
+      if (countdown <= 0) {
+        clearInterval(timer);
+        if (countdownElement) {
+          countdownElement.textContent = 'Closing...';
+        }
+      }
+    }, 1000);
+  `;
+  
   const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -698,34 +735,7 @@ app.get('/payment-cancel', (req, res) => {
         </div>
         
         <script>
-            // Auto-close tab after 3 seconds
-            setTimeout(() => {
-                console.log('🔄 Auto-closing tab...');
-                window.close();
-                
-                // Fallback for browsers that don't allow window.close()
-                setTimeout(() => {
-                    window.location.href = 'about:blank';
-                }, 100);
-                
-            }, 3000);
-            
-            // Show countdown
-            let countdown = 3;
-            const countdownElement = document.getElementById('countdown');
-            
-            const timer = setInterval(() => {
-                countdown--;
-                if (countdownElement) {
-                    countdownElement.textContent = countdown;
-                }
-                if (countdown <= 0) {
-                    clearInterval(timer);
-                    if (countdownElement) {
-                        countdownElement.textContent = 'Closing...';
-                    }
-                }
-            }, 1000);
+            ${autoCloseScript}
         </script>
     </body>
     </html>
