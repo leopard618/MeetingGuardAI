@@ -419,21 +419,9 @@ app.get('/payment-success', (req, res) => {
                     countdownElement.textContent = countdown;
                 }
                 if (countdown <= 0) {
-                    clearInterval(timer);
-                    if (countdownElement) {
-                        countdownElement.textContent = 'Redirecting...';
-                    }
+                   window.close();
                 }
             }, 1000);
-            
-            // Manual close function
-            function closeTab() {
-                window.close();
-                // Fallback if window.close() doesn't work
-                setTimeout(function() {
-                    window.location.href = 'about:blank';
-                }, 100);
-            }
         </script>
     </body>
     </html>
