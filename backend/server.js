@@ -475,6 +475,104 @@ app.post('/api/billing/test-update-plan', async (req, res) => {
   }
 });
 
+// Test endpoint to simulate payment success page
+app.get('/test-payment-success', async (req, res) => {
+  const { plan, email } = req.query;
+  
+  console.log('=== TEST PAYMENT SUCCESS ===');
+  console.log('Plan:', plan);
+  console.log('Email:', email);
+  
+  if (!plan || !email) {
+    return res.status(400).json({
+      success: false,
+      error: 'Plan and email are required'
+    });
+  }
+
+  try {
+    const { supabase } = require('./config/database');
+    
+    if (!supabase) {
+      return res.status(500).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    console.log(`🧪 Test: Simulating payment success for user ${email} with plan ${plan}`);
+    
+    // First, check if user exists
+    const { data: existingUser, error: findError } = await supabase
+      .from('users')
+      .select('id, email, plan, subscription_status')
+      .eq('email', email)
+      .single();
+
+    let result;
+    
+    if (findError && findError.code === 'PGRST116') {
+      // User not found, create new user
+      console.log('👤 User not found, creating new user');
+      
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert({
+          email: email,
+          plan: plan,
+          subscription_status: 'active',
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select();
+
+      if (createError) {
+        console.error('❌ Error creating user:', createError);
+        result = { success: false, error: createError.message };
+      } else {
+        console.log('✅ User created successfully:', newUser);
+        result = { success: true, user: newUser, action: 'created' };
+      }
+    } else if (findError) {
+      console.error('❌ Error finding user:', findError);
+      result = { success: false, error: findError.message };
+    } else {
+      // User exists, update their plan
+      console.log('👤 Found existing user:', existingUser);
+      console.log(`🔄 Updating user plan from '${existingUser.plan}' to '${plan}'`);
+      
+      const { data: user, error } = await supabase
+        .from('users')
+        .update({
+          plan: plan,
+          subscription_status: 'active',
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('email', email)
+        .select();
+
+      if (error) {
+        console.error('❌ Error updating user plan:', error);
+        result = { success: false, error: error.message };
+      } else {
+        console.log('✅ User plan updated successfully:', user);
+        result = { success: true, user: user, action: 'updated' };
+      }
+    }
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Test payment success error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Public endpoint to get user plan by email (for webhook-created users)
 app.get('/api/billing/user-plan/:email', async (req, res) => {
   try {
@@ -735,8 +833,13 @@ app.get('/test', (req, res) => {
 // The success URLs are configured in the Stripe Dashboard for each payment link
 
 // Payment success page - users land here after Stripe payment
-app.get('/payment-success', (req, res) => {
-  const { plan, session_id } = req.query;
+app.get('/payment-success', async (req, res) => {
+  const { plan, session_id, email } = req.query;
+  
+  console.log('=== PAYMENT SUCCESS PAGE ===');
+  console.log('Plan:', plan);
+  console.log('Session ID:', session_id);
+  console.log('Email:', email);
   
   const planNames = {
     'pro_monthly': 'Pro Monthly',
@@ -745,7 +848,77 @@ app.get('/payment-success', (req, res) => {
     'premium_yearly': 'Premium Yearly'
   };
   
-    const planName = planNames[plan] || 'Premium Plan';
+  const planName = planNames[plan] || 'Premium Plan';
+  
+  // If we have plan and email, try to update the user's plan in database
+  if (plan && email) {
+    try {
+      const { supabase } = require('./config/database');
+      
+      if (supabase) {
+        console.log(`🔄 Updating user ${email} to plan ${plan} from payment success page`);
+        
+        // First, check if user exists
+        const { data: existingUser, error: findError } = await supabase
+          .from('users')
+          .select('id, email, plan, subscription_status')
+          .eq('email', email)
+          .single();
+
+        if (findError && findError.code === 'PGRST116') {
+          // User not found, create new user
+          console.log('👤 User not found, creating new user with email:', email);
+          
+          const { data: newUser, error: createError } = await supabase
+            .from('users')
+            .insert({
+              email: email,
+              plan: plan,
+              subscription_status: 'active',
+              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select();
+
+          if (createError) {
+            console.error('❌ Error creating user from payment success:', createError);
+          } else {
+            console.log('✅ User created successfully from payment success:', newUser);
+          }
+        } else if (findError) {
+          console.error('❌ Error finding user from payment success:', findError);
+        } else {
+          // User exists, update their plan
+          console.log('👤 Found existing user:', existingUser);
+          console.log(`🔄 Updating user plan from '${existingUser.plan}' to '${plan}'`);
+          
+          const { data: user, error } = await supabase
+            .from('users')
+            .update({
+              plan: plan,
+              subscription_status: 'active',
+              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('email', email)
+            .select();
+
+          if (error) {
+            console.error('❌ Error updating user plan from payment success:', error);
+          } else {
+            console.log('✅ User plan updated successfully from payment success:', user);
+          }
+        }
+      } else {
+        console.error('❌ Supabase not configured - cannot save user plan from payment success');
+      }
+    } catch (error) {
+      console.error('❌ Error in payment success database update:', error);
+    }
+  } else {
+    console.log('⚠️ Missing plan or email in payment success query parameters');
+  }
   
   const html = `
     <!DOCTYPE html>
