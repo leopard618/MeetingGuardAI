@@ -211,6 +211,8 @@ const Pricing = () => {
 
   const isCurrentPlan = (planId) => {
     if (!isAuthenticated) return false;
+
+    console.log("[DEBUG] Userplan:", userPlan);
     
     // Handle different plan ID formats
     if (userPlan === 'free' && planId === 'free') return true;
