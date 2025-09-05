@@ -947,66 +947,102 @@ app.get('/payment-success', async (req, res) => {
   
   const planName = planNames[plan] || 'Premium Plan';
   
-  // If we have plan and email, try to update the user in database
-  if (plan && email) {
+  // If we have plan, try to update the user in database
+  if (plan) {
     try {
       const { supabase } = require('./config/database');
       
       if (supabase) {
-        console.log(`🔄 Processing payment success for user ${email} with plan ${plan}`);
+        console.log(`🔄 Processing payment success for plan: ${plan}`);
+        console.log(`🆔 Session ID from query: ${session_id || 'Not provided'}`);
         
-        // First, check if user exists
-        const { data: existingUser, error: findError } = await supabase
-          .from('users')
-          .select('id, email, name, picture, plan, subscription_status')
-          .eq('email', email)
-          .single();
-
-        if (findError && findError.code === 'PGRST116') {
-          // User not found, create new user with subscription info
-          console.log('👤 User not found, creating new user with email:', email);
-          
-          const { data: newUser, error: createError } = await supabase
-            .from('users')
-            .insert({
-              email: email,
-              name: email.split('@')[0], // Use email prefix as name
-              plan: plan,
-              subscription_status: 'active',
-              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
-            })
-            .select();
-
-          if (createError) {
-            console.error('❌ Error creating user from payment success:', createError);
-          } else {
-            console.log('✅ User created successfully from payment success:', newUser);
-            console.log(`📋 Payment successful for plan: ${plan} - User subscription activated`);
+        let customerEmail = null;
+        
+        // Try to get customer email from Stripe session if session_id is provided
+        if (session_id && session_id !== '{CHECKOUT_SESSION_ID}' && !session_id.includes('{')) {
+          try {
+            console.log(`🔍 Fetching Stripe session: ${session_id}`);
+            
+            if (stripe) {
+              const stripeSession = await stripe.checkout.sessions.retrieve(session_id);
+              customerEmail = stripeSession.customer_details?.email;
+              console.log(`📧 Customer email from Stripe session: ${customerEmail || 'Not found'}`);
+            } else {
+              console.log('⚠️ Stripe not configured - cannot fetch session details');
+            }
+          } catch (stripeError) {
+            console.error('❌ Error fetching Stripe session:', stripeError.message);
           }
-        } else if (findError) {
-          console.error('❌ Error finding user from payment success:', findError);
+        }
+        
+        // Fallback to email from query parameters if available
+        if (!customerEmail && email && email !== '{{CUSTOMER_EMAIL}}' && !email.includes('{{')) {
+          customerEmail = email;
+          console.log(`📧 Using email from query parameters: ${customerEmail}`);
+        }
+        
+        if (customerEmail) {
+          // We have a valid email, proceed with user update
+          console.log(`👤 Processing payment for user: ${customerEmail}`);
+          
+          // First, check if user exists
+          const { data: existingUser, error: findError } = await supabase
+            .from('users')
+            .select('id, email, name, picture, plan, subscription_status')
+            .eq('email', customerEmail)
+            .single();
+
+          if (findError && findError.code === 'PGRST116') {
+            // User not found, create new user with subscription info
+            console.log('👤 User not found, creating new user with email:', customerEmail);
+            
+            const { data: newUser, error: createError } = await supabase
+              .from('users')
+              .insert({
+                email: customerEmail,
+                name: customerEmail.split('@')[0], // Use email prefix as name
+                plan: plan,
+                subscription_status: 'active',
+                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+              })
+              .select();
+
+            if (createError) {
+              console.error('❌ Error creating user from payment success:', createError);
+            } else {
+              console.log('✅ User created successfully from payment success:', newUser);
+              console.log(`📋 Payment successful for plan: ${plan} - User subscription activated`);
+            }
+          } else if (findError) {
+            console.error('❌ Error finding user from payment success:', findError);
+          } else {
+            // User exists, update their subscription
+            console.log('👤 Found existing user:', existingUser);
+            console.log(`🔄 Updating user subscription from '${existingUser.plan}' to '${plan}'`);
+            
+            const { data: user, error: updateError } = await supabase
+              .from('users')
+              .update({
+                plan: plan,
+                subscription_status: 'active',
+                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+                updated_at: new Date().toISOString()
+              })
+              .eq('email', customerEmail)
+              .select();
+
+            if (updateError) {
+              console.error('❌ Error updating user subscription:', updateError);
+            } else {
+              console.log('✅ User subscription updated successfully:', user);
+              console.log(`📋 Payment successful for plan: ${plan} - User subscription activated`);
+            }
+          }
         } else {
-          // User exists, update their subscription
-          console.log('👤 Found existing user:', existingUser);
-          console.log(`🔄 Updating user subscription from '${existingUser.plan}' to '${plan}'`);
-          
-          const { data: user, error: updateError } = await supabase
-            .from('users')
-            .update({
-              plan: plan,
-              subscription_status: 'active',
-              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-              updated_at: new Date().toISOString()
-            })
-            .eq('email', email)
-            .select();
-
-          if (updateError) {
-            console.error('❌ Error updating user subscription:', updateError);
-          } else {
-            console.log('✅ User subscription updated successfully:', user);
-            console.log(`📋 Payment successful for plan: ${plan} - User subscription activated`);
-          }
+          // No valid email found, just log the payment success
+          console.log(`📋 Payment successful for plan: ${plan}`);
+          console.log(`⚠️ No customer email found - user will need to sign in to activate subscription`);
+          console.log(`💡 Consider using Stripe webhooks for automatic subscription activation`);
         }
       } else {
         console.error('❌ Supabase not configured - cannot save user from payment success');
@@ -1015,7 +1051,7 @@ app.get('/payment-success', async (req, res) => {
       console.error('❌ Error in payment success database update:', error);
     }
   } else {
-    console.log('⚠️ Missing plan or email in payment success query parameters');
+    console.log('⚠️ Missing plan in payment success query parameters');
   }
   
   const html = `
