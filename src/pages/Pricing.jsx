@@ -45,9 +45,9 @@ const Pricing = () => {
   const fetchPlanData = async () => {
     try {
       console.log('=== PRICING: FETCHING PLAN DATA FROM BACKEND ===');
-      console.log('Backend URL:', process.env.EXPO_PUBLIC_BACKEND_URL);
+      console.log('Backend URL:', process.env.BACKEND_URL);
       
-      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+      const backendUrl = process.env.BACKEND_URL;
       if (!backendUrl) {
         throw new Error('Backend URL not configured');
       }

@@ -97,6 +97,15 @@ const handleStripeWebhook = async (req, res) => {
           // Import supabase instance
           const { supabase } = require('./config/database');
           
+          // Check if Supabase is configured
+          if (!supabase) {
+            console.error('❌ Supabase not configured - cannot save user plan from checkout session');
+            return;
+          }
+
+          console.log(`🔍 Checkout session - Looking for user with email: ${customerEmail}`);
+          console.log(`📋 Plan ID from metadata: ${planId}`);
+          
           // Update user's plan in database
           const { data: user, error } = await supabase
             .from('users')
@@ -110,13 +119,15 @@ const handleStripeWebhook = async (req, res) => {
             .select();
 
           if (error) {
-            console.error('Error updating user plan:', error);
+            console.error('❌ Error updating user plan from checkout session:', error);
           } else {
-            console.log('User plan updated successfully:', user);
+            console.log('✅ User plan updated successfully from checkout session:', user);
           }
         } catch (error) {
-          console.error('Error in webhook plan update:', error);
+          console.error('❌ Error in webhook checkout session update:', error);
         }
+      } else {
+        console.log('⚠️ No customer email found in checkout session');
       }
       break;
       
@@ -143,6 +154,7 @@ const handleStripeWebhook = async (req, res) => {
           const amount = paymentIntent.amount;
           
           // Map amounts to plans (adjust these amounts to match your Payment Links)
+          // Note: These amounts should match your actual Stripe Payment Link prices
           if (amount === 799) { // $7.99 in cents
             planId = 'pro_monthly';
           } else if (amount === 1499) { // $14.99 in cents
@@ -151,22 +163,34 @@ const handleStripeWebhook = async (req, res) => {
             planId = 'pro_yearly';
           } else if (amount === 13991) { // $139.91 in cents (yearly)
             planId = 'premium_yearly';
+          } else if (amount === 13491) { // $134.91 in cents (yearly premium)
+            planId = 'premium_yearly';
+          } else {
+            // Log unknown amount for debugging
+            console.log(`Unknown payment amount: ${amount} cents. Using default plan: pro_monthly`);
+            planId = 'pro_monthly';
           }
           
           console.log(`Updating user ${customerEmailFromIntent} to plan ${planId} (amount: ${amount})`);
           
+          // Check if Supabase is configured
+          if (!supabase) {
+            console.error('❌ Supabase not configured - cannot save user plan');
+            return;
+          }
+
           // First, check if user exists
+          console.log(`🔍 Looking for user with email: ${customerEmailFromIntent}`);
           const { data: existingUser, error: findError } = await supabase
             .from('users')
-            .select('id, email, plan')
+            .select('id, email, plan, subscription_status')
             .eq('email', customerEmailFromIntent)
             .single();
 
-          if (findError) {
-            console.error('Error finding user:', findError);
-            console.log('User not found, creating new user with email:', customerEmailFromIntent);
+          if (findError && findError.code === 'PGRST116') {
+            // User not found, create new user
+            console.log('👤 User not found, creating new user with email:', customerEmailFromIntent);
             
-            // Try to create user if not found
             const { data: newUser, error: createError } = await supabase
               .from('users')
               .insert({
@@ -180,14 +204,17 @@ const handleStripeWebhook = async (req, res) => {
               .select();
 
             if (createError) {
-              console.error('Error creating user:', createError);
+              console.error('❌ Error creating user:', createError);
             } else {
-              console.log('User created successfully:', newUser);
+              console.log('✅ User created successfully:', newUser);
             }
+          } else if (findError) {
+            console.error('❌ Error finding user:', findError);
           } else {
-            console.log('Found existing user:', existingUser);
+            // User exists, update their plan
+            console.log('👤 Found existing user:', existingUser);
+            console.log(`🔄 Updating user plan from '${existingUser.plan}' to '${planId}'`);
             
-            // Update user's plan in database
             const { data: user, error } = await supabase
               .from('users')
               .update({
@@ -200,9 +227,9 @@ const handleStripeWebhook = async (req, res) => {
               .select();
 
             if (error) {
-              console.error('Error updating user plan from payment intent:', error);
+              console.error('❌ Error updating user plan from payment intent:', error);
             } else {
-              console.log('User plan updated successfully from payment intent:', user);
+              console.log('✅ User plan updated successfully from payment intent:', user);
             }
           }
         } catch (error) {
@@ -388,6 +415,135 @@ app.get('/api/billing/test', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });
+});
+
+// Test endpoint to manually update user plan (for testing)
+app.post('/api/billing/test-update-plan', async (req, res) => {
+  try {
+    const { email, plan } = req.body;
+    
+    if (!email || !plan) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email and plan are required'
+      });
+    }
+
+    const { supabase } = require('./config/database');
+    
+    if (!supabase) {
+      return res.status(500).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    console.log(`🧪 Test: Updating user ${email} to plan ${plan}`);
+    
+    const { data: user, error } = await supabase
+      .from('users')
+      .update({
+        plan: plan,
+        subscription_status: 'active',
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('email', email)
+      .select();
+
+    if (error) {
+      console.error('❌ Test update error:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+
+    console.log('✅ Test update successful:', user);
+    res.json({
+      success: true,
+      message: 'Plan updated successfully',
+      user: user
+    });
+
+  } catch (error) {
+    console.error('❌ Test endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Public endpoint to get user plan by email (for webhook-created users)
+app.get('/api/billing/user-plan/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required'
+      });
+    }
+
+    const { supabase } = require('./config/database');
+    
+    if (!supabase) {
+      return res.status(500).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    console.log(`🔍 Getting plan for user: ${email}`);
+    
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('plan, subscription_status, current_period_end, stripe_customer_id')
+      .eq('email', email)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // User not found, return free plan
+        console.log(`👤 User ${email} not found, returning free plan`);
+        return res.json({
+          success: true,
+          subscription: {
+            plan: 'free',
+            status: 'inactive',
+            currentPeriodEnd: null,
+            stripeCustomerId: null
+          }
+        });
+      }
+      
+      console.error('❌ Error fetching user plan:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+
+    console.log(`✅ Found user plan: ${user.plan}`);
+    res.json({
+      success: true,
+      subscription: {
+        plan: user.plan || 'free',
+        status: user.subscription_status || 'inactive',
+        currentPeriodEnd: user.current_period_end,
+        stripeCustomerId: user.stripe_customer_id
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in user plan endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // Webhook routes are now defined earlier in the file (before body parsing middleware)

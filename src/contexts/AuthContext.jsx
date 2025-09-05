@@ -53,43 +53,85 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('=== AUTH CONTEXT: FETCHING USER PLAN ===');
       console.log('User ID:', userId);
-      console.log('Backend URL:', process.env.EXPO_PUBLIC_BACKEND_URL);
+      console.log('Backend URL:', process.env.BACKEND_URL);
       
       // Get auth token from storage
       const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        console.log('No auth token found, returning free plan');
+      const userEmail = user?.email;
+      
+      if (!token && !userEmail) {
+        console.log('No auth token or user email found, returning free plan');
         return 'free';
       }
 
-      console.log('Auth token found, calling backend...');
-
-      // Fetch user's subscription plan from backend
-      const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/billing/subscription`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('Backend response status:', response.status);
-      console.log('Backend response ok:', response.ok);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Backend response data:', data);
-        console.log('Subscription data:', data.subscription);
-        console.log('Plan from subscription:', data.subscription?.plan);
+      // Try authenticated endpoint first if token exists
+      if (token) {
+        console.log('Auth token found, calling authenticated endpoint...');
         
-        const plan = data.subscription?.plan || 'free';
-        console.log('Final plan returned:', plan);
-        return plan;
-      } else {
-        const errorText = await response.text();
-        console.log('Backend error response:', errorText);
-        console.log('Failed to fetch user plan, using default');
-        return 'free';
+        try {
+          const response = await fetch(`${process.env.BACKEND_URL}/api/billing/subscription`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          console.log('Authenticated response status:', response.status);
+          console.log('Authenticated response ok:', response.ok);
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Authenticated response data:', data);
+            console.log('Subscription data:', data.subscription);
+            console.log('Plan from subscription:', data.subscription?.plan);
+            
+            const plan = data.subscription?.plan || 'free';
+            console.log('Final plan returned from authenticated endpoint:', plan);
+            return plan;
+          } else {
+            console.log('Authenticated endpoint failed, trying public endpoint...');
+          }
+        } catch (authError) {
+          console.log('Authenticated endpoint error:', authError);
+          console.log('Trying public endpoint...');
+        }
       }
+
+      // Fallback to public endpoint using user email
+      if (userEmail) {
+        console.log('Using public endpoint with email:', userEmail);
+        
+        try {
+          const response = await fetch(`${process.env.BACKEND_URL}/api/billing/user-plan/${encodeURIComponent(userEmail)}`, {
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+
+          console.log('Public response status:', response.status);
+          console.log('Public response ok:', response.ok);
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Public response data:', data);
+            console.log('Subscription data:', data.subscription);
+            console.log('Plan from subscription:', data.subscription?.plan);
+            
+            const plan = data.subscription?.plan || 'free';
+            console.log('Final plan returned from public endpoint:', plan);
+            return plan;
+          } else {
+            const errorText = await response.text();
+            console.log('Public endpoint error response:', errorText);
+          }
+        } catch (publicError) {
+          console.error('Public endpoint error:', publicError);
+        }
+      }
+
+      console.log('All endpoints failed, using default free plan');
+      return 'free';
+      
     } catch (error) {
       console.error('Error fetching user plan:', error);
       return 'free';
