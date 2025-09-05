@@ -65,7 +65,7 @@ router.post('/signup', [
         email: email,
         name: name,
         password_hash: passwordHash,
-        is_active: true,
+        enabled: true,
         last_login: new Date().toISOString()
       })
       .select('id, email, name, created_at, last_login')
@@ -303,7 +303,7 @@ router.get('/google/callback', async (req, res) => {
           picture: userInfo.picture,
           given_name: userInfo.given_name,
           family_name: userInfo.family_name,
-          is_active: true,
+          enabled: true,
           last_login: new Date().toISOString()
         })
         .select()
