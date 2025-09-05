@@ -312,15 +312,46 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Function to refresh user plan (useful after payment)
-  const refreshUserPlan = async () => {
+  const refreshUserPlan = async (delay = 0) => {
     if (isAuthenticated && user) {
       console.log('=== AUTH CONTEXT: REFRESHING USER PLAN ===');
-      const plan = await fetchUserPlan(user.id);
-      setUserPlan(plan);
-      console.log('User plan refreshed:', plan);
-      return plan;
+      console.log('Current user:', user.email);
+      console.log('Current plan before refresh:', userPlan);
+      console.log('Delay before refresh:', delay, 'ms');
+      
+      try {
+        // Add delay if specified (useful for payment scenarios)
+        if (delay > 0) {
+          console.log('⏳ Waiting', delay, 'ms before refreshing plan...');
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        const plan = await fetchUserPlan(user.id);
+        console.log('New plan fetched:', plan);
+        
+        // Only update if the plan actually changed
+        if (plan !== userPlan) {
+          console.log('✅ Plan changed from', userPlan, 'to', plan);
+          setUserPlan(plan);
+        } else {
+          console.log('ℹ️ Plan unchanged:', plan);
+        }
+        
+        return plan;
+      } catch (error) {
+        console.error('❌ Error refreshing user plan:', error);
+        return userPlan; // Return current plan on error
+      }
+    } else {
+      console.log('⚠️ Cannot refresh plan - user not authenticated or no user data');
+      return 'free';
     }
-    return 'free';
+  };
+
+  // Function to force refresh user plan with longer delay (for payment scenarios)
+  const forceRefreshUserPlan = async () => {
+    console.log('=== AUTH CONTEXT: FORCE REFRESHING USER PLAN (PAYMENT SCENARIO) ===');
+    return await refreshUserPlan(2000); // 2 second delay for payment webhooks
   };
 
   const value = {
@@ -333,6 +364,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     signInWithGoogle,
     refreshUserPlan,
+    forceRefreshUserPlan,
   };
 
   return (

@@ -23,8 +23,10 @@ import {
   MaterialCommunityIcons,
   Ionicons,
 } from "@expo/vector-icons";
+import { useFocusEffect } from '@react-navigation/native';
 import { Meeting, UserPreferences, User } from "@/api/entities";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
 import NotificationManager from "@/components/NotificationSystem/NotificationManager";
 import AlertScheduler from "@/components/AlertScheduler";
 import ImageSlider from "@/components/ImageSlider";
@@ -91,6 +93,7 @@ const DateTimeDisplay = ({ isDarkMode, styles }) => {
 
 export default function Dashboard({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
+  const { isAuthenticated, refreshUserPlan } = useAuth();
   const [meetings, setMeetings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -109,6 +112,19 @@ export default function Dashboard({ navigation, language = "en" }) {
 
     return unsubscribe;
   }, [navigation]);
+
+  // Refresh user plan when returning from payment (e.g., from PaymentSuccess page)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('=== DASHBOARD: PAGE FOCUSED, REFRESHING USER PLAN ===');
+      if (isAuthenticated) {
+        // Add a small delay to ensure any payment webhooks have processed
+        setTimeout(() => {
+          refreshUserPlan(1000); // 1 second delay
+        }, 500);
+      }
+    }, [isAuthenticated, refreshUserPlan])
+  );
 
   const loadInitialData = async () => {
     setIsLoading(true);

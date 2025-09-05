@@ -36,8 +36,8 @@ const Pricing = () => {
       if (isAuthenticated) {
         // Add a small delay to ensure webhook has processed the payment
         setTimeout(() => {
-          refreshUserPlan();
-        }, 1000);
+          refreshUserPlan(1000); // 1 second delay
+        }, 500);
       }
     }, [isAuthenticated, refreshUserPlan])
   );
