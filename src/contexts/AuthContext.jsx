@@ -37,20 +37,16 @@ export const AuthProvider = ({ children }) => {
       setUser(googleAuth.user);
       setIsAuthenticated(true);
       
-      // Save user to backend/Supabase first, then fetch plan
+      // Save user to backend/Supabase first
       saveUserToBackend(googleAuth.user).then(() => {
-        // Fetch user's current plan after saving
-        fetchUserPlan(googleAuth.user.id).then(plan => {
-          setUserPlan(plan);
-          setIsLoading(false);
-        });
+        // Set default plan to free for now
+        setUserPlan('free');
+        setIsLoading(false);
       }).catch(error => {
         console.error('Error saving user to backend:', error);
-        // Still try to fetch plan even if save fails
-        fetchUserPlan(googleAuth.user.id).then(plan => {
-          setUserPlan(plan);
-          setIsLoading(false);
-        });
+        // Set default plan to free even if save fails
+        setUserPlan('free');
+        setIsLoading(false);
       });
     } else if (!googleAuth.isLoading) {
       console.log('=== AUTH CONTEXT: NO GOOGLE AUTH, CHECKING STORAGE ===');
