@@ -21,11 +21,12 @@ const Pricing = () => {
   const { userPlan, isAuthenticated, refreshUserPlan } = useAuth();
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [stripeLinks, setStripeLinks] = useState({});
+  const [plans, setPlans] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // Fetch real Stripe links from backend environment variables
+  // Fetch plan data and Stripe links from backend
   useEffect(() => {
-    fetchStripeLinks();
+    fetchPlanData();
   }, []);
 
   // Refresh user plan when user returns to pricing page (e.g., after payment)
@@ -41,31 +42,140 @@ const Pricing = () => {
     }, [isAuthenticated, refreshUserPlan])
   );
 
-  const fetchStripeLinks = async () => {
+  const fetchPlanData = async () => {
     try {
-      // Use frontend environment variables instead of backend API
-      const stripeLinks = {
+      console.log('=== PRICING: FETCHING PLAN DATA FROM BACKEND ===');
+      
+      // Fetch plans from backend API
+      const plansResponse = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/billing/plans`);
+      
+      if (plansResponse.ok) {
+        const plansData = await plansResponse.json();
+        console.log('✅ Plans data from backend:', plansData);
+        
+        if (plansData.success && plansData.plans) {
+          setPlans(plansData.plans);
+          
+          // Extract Stripe links from plans data
+          const extractedLinks = {};
+          Object.entries(plansData.plans).forEach(([planId, plan]) => {
+            if (plan.checkoutLink) {
+              switch (planId) {
+                case 'pro_monthly':
+                  extractedLinks.STRIPE_PRO_MONTHLY_LINK = plan.checkoutLink;
+                  break;
+                case 'pro_yearly':
+                  extractedLinks.STRIPE_PRO_YEARLY_LINK = plan.checkoutLink;
+                  break;
+                case 'premium_monthly':
+                  extractedLinks.STRIPE_PREMIUM_MONTHLY_LINK = plan.checkoutLink;
+                  break;
+                case 'premium_yearly':
+                  extractedLinks.STRIPE_PREMIUM_YEARLY_LINK = plan.checkoutLink;
+                  break;
+              }
+            }
+          });
+          
+          console.log('✅ Extracted Stripe links:', extractedLinks);
+          setStripeLinks(extractedLinks);
+        } else {
+          throw new Error('Invalid plans data structure');
+        }
+      } else {
+        throw new Error(`Failed to fetch plans: ${plansResponse.status}`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error fetching plan data from backend:', error);
+      
+      // Fallback to static plans and environment variables
+      console.log('🔄 Using fallback plan data...');
+      
+      const fallbackPlans = {
+        free: {
+          name: 'Free',
+          price: '$0',
+          period: 'forever',
+          description: 'Perfect for getting started',
+          features: [
+            '5 AI requests per day',
+            'Basic meeting management',
+            'Standard support',
+            '1GB file storage'
+          ],
+          popular: false
+        },
+        pro_monthly: {
+          name: 'Pro',
+          price: '$7.99',
+          period: 'month',
+          description: 'Best for growing teams',
+          features: [
+            'Unlimited AI requests',
+            'Advanced meeting features',
+            'Priority support',
+            '10GB file storage',
+            'Team collaboration'
+          ],
+          popular: true
+        },
+        pro_yearly: {
+          name: 'Pro',
+          price: '$71.88',
+          period: 'year',
+          description: 'Best for growing teams',
+          features: [
+            'Unlimited AI requests',
+            'Advanced meeting features',
+            'Priority support',
+            '10GB file storage',
+            'Team collaboration'
+          ],
+          popular: true,
+          savings: 'Save 25%',
+          totalPrice: 'Billed annually'
+        },
+        premium_monthly: {
+          name: 'Premium',
+          price: '$14.99',
+          period: 'month',
+          description: 'For enterprise teams',
+          features: [
+            'Everything in Pro',
+            'Unlimited file storage',
+            'White-label options',
+            'API access',
+            'Dedicated support'
+          ],
+          popular: false
+        },
+        premium_yearly: {
+          name: 'Premium',
+          price: '$139.91',
+          period: 'year',
+          description: 'For enterprise teams',
+          features: [
+            'Everything in Pro',
+            'Unlimited file storage',
+            'White-label options',
+            'API access',
+            'Dedicated support'
+          ],
+          popular: false,
+          savings: 'Save 25%',
+          totalPrice: 'Billed annually'
+        }
+      };
+      
+      const fallbackLinks = {
         STRIPE_PRO_MONTHLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PRO_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
         STRIPE_PRO_YEARLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PRO_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
         STRIPE_PREMIUM_MONTHLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PREMIUM_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
         STRIPE_PREMIUM_YEARLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PREMIUM_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
       };
       
-      console.log('✅ Using frontend environment variables for Stripe links:', stripeLinks);
-      setStripeLinks(stripeLinks);
-      
-    } catch (error) {
-      console.error('❌ Error setting Stripe links:', error);
-      
-      // Fallback to default links if environment variables fail
-      const fallbackLinks = {
-        STRIPE_PRO_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
-        STRIPE_PRO_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
-        STRIPE_PREMIUM_MONTHLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
-        STRIPE_PREMIUM_YEARLY_LINK: 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
-      };
-      
-      console.log('🔄 Using fallback Stripe links:', fallbackLinks);
+      setPlans(fallbackPlans);
       setStripeLinks(fallbackLinks);
     } finally {
       setLoading(false);
@@ -79,82 +189,7 @@ const Pricing = () => {
   // 3. Set Success page to: https://meetingguard-backend.onrender.com/payment-success?plan={PLAN_ID}
   // 4. This will redirect users to your success page after payment
 
-  // Plans data with dynamic checkout links from backend
-  const plans = {
-    free: {
-      name: 'Free',
-      price: '$0',
-      period: 'forever',
-      description: 'Perfect for getting started',
-      features: [
-        '5 AI requests per day',
-        'Basic meeting management',
-        'Standard support',
-        '1GB file storage'
-      ],
-      popular: false
-    },
-    pro_monthly: {
-      name: 'Pro',
-      price: '$7.99',
-      period: 'month',
-      description: 'Best for growing teams',
-      features: [
-        'Unlimited AI requests',
-        'Advanced meeting features',
-        'Priority support',
-        '10GB file storage',
-        'Team collaboration'
-      ],
-      popular: true
-    },
-    pro_yearly: {
-      name: 'Pro',
-      price: '$71.88',
-      period: 'year',
-      description: 'Best for growing teams',
-      features: [
-        'Unlimited AI requests',
-        'Advanced meeting features',
-        'Priority support',
-        '10GB file storage',
-        'Team collaboration'
-      ],
-      popular: true,
-      savings: 'Save 25%',
-      totalPrice: 'Billed annually'
-    },
-    premium_monthly: {
-      name: 'Premium',
-      price: '$14.99',
-      period: 'month',
-      description: 'For enterprise teams',
-      features: [
-        'Everything in Pro',
-        'Unlimited file storage',
-        'White-label options',
-        'API access',
-        'Dedicated support'
-      ],
-      popular: false
-    },
-    premium_yearly: {
-      name: 'Premium',
-      price: '$139.91',
-      period: 'year',
-      description: 'For enterprise teams',
-      features: [
-        'Everything in Pro',
-        'Unlimited file storage',
-        'White-label options',
-        'API access',
-        'Dedicated support'
-      ],
-      popular: false,
-      savings: 'Save 25%',
-      totalPrice: 'Billed annually'
-    }
-  };
+  // Plans data is now fetched from backend API
 
   const handleUpgrade = async (planId, planName, price, period) => {
     try {
@@ -255,13 +290,13 @@ const Pricing = () => {
         <ActivityIndicator size="large" color="#3B82F6" />
         <Text style={styles.loadingText}>Loading pricing plans...</Text>
         <Text style={[styles.loadingText, { fontSize: 14, marginTop: 10, textAlign: 'center' }]}>
-          Loading pricing plans from environment variables...
+          Loading pricing plans from backend...
         </Text>
         <TouchableOpacity 
           style={styles.retryButton}
           onPress={() => {
             setLoading(true);
-            fetchStripeLinks();
+            fetchPlanData();
           }}
         >
           <Ionicons name="refresh" size={20} color="#FFFFFF" />
@@ -356,7 +391,12 @@ const Pricing = () => {
                   
                   {/* Total Yearly Price */}
                   {plan.totalPrice && (
-                    <Text style={styles.totalPrice}>{plan.totalPrice} billed annually</Text>
+                    <Text style={styles.totalPrice}>{plan.totalPrice}</Text>
+                  )}
+                  
+                  {/* Period Text for yearly plans */}
+                  {plan.periodText && (
+                    <Text style={styles.periodText}>billed {plan.periodText}ly</Text>
                   )}
                 </View>
 
@@ -607,6 +647,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94A3B8',
     fontWeight: '500',
+  },
+  periodText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '500',
+    marginTop: 4,
   },
   featuresContainer: {
     marginBottom: 32,
