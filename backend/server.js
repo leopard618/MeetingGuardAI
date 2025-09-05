@@ -359,6 +359,132 @@ app.get('/health', (req, res) => {
 
 // Webhook routes are now defined earlier in the file (before body parsing middleware)
 
+// Public API routes (no authentication required)
+app.get('/api/billing/plans', async (req, res) => {
+  try {
+    const plans = {
+      free: {
+        name: 'Free',
+        price: '$0',
+        period: 'forever',
+        features: [
+          '5 AI requests per day',
+          '5 meeting actions per day',
+          'Basic calendar sync',
+          'Email support'
+        ],
+        limits: {
+          ai_requests: 5,
+          meeting_actions: 5
+        },
+        checkoutLink: null,
+        popular: false
+      },
+      pro_monthly: {
+        name: 'Pro',
+        price: '$7.99',
+        period: 'month',
+        originalPrice: '$7.99',
+        features: [
+          'Unlimited AI requests',
+          'Unlimited meeting actions',
+          'Advanced calendar sync',
+          'Priority support',
+          '7-day free trial'
+        ],
+        limits: {
+          ai_requests: Infinity,
+          meeting_actions: Infinity
+        },
+        checkoutLink: process.env.STRIPE_PRO_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+        popular: true
+      },
+      pro_yearly: {
+        name: 'Pro',
+        price: '$5.99',
+        period: 'month',
+        originalPrice: '$7.99',
+        periodText: 'year',
+        totalPrice: '$71.88',
+        savings: 'Save 25%',
+        features: [
+          'Unlimited AI requests',
+          'Unlimited meeting actions',
+          'Advanced calendar sync',
+          'Priority support',
+          '7-day free trial',
+          '25% annual discount'
+        ],
+        limits: {
+          ai_requests: Infinity,
+          meeting_actions: Infinity
+        },
+        checkoutLink: process.env.STRIPE_PRO_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+        popular: false
+      },
+      premium_monthly: {
+        name: 'Premium',
+        price: '$14.99',
+        period: 'month',
+        originalPrice: '$14.99',
+        features: [
+          'Everything in Pro',
+          'Advanced AI features',
+          'Unlimited file storage',
+          'Team collaboration',
+          'API access',
+          '7-day free trial'
+        ],
+        limits: {
+          ai_requests: Infinity,
+          meeting_actions: Infinity,
+          file_storage: Infinity
+        },
+        checkoutLink: process.env.STRIPE_PREMIUM_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+        popular: false
+      },
+      premium_yearly: {
+        name: 'Premium',
+        price: '$11.24',
+        period: 'month',
+        originalPrice: '$14.99',
+        periodText: 'year',
+        totalPrice: '$134.91',
+        savings: 'Save 25%',
+        features: [
+          'Everything in Pro',
+          'Advanced AI features',
+          'Unlimited file storage',
+          'Team collaboration',
+          'API access',
+          '7-day free trial',
+          '25% annual discount'
+        ],
+        limits: {
+          ai_requests: Infinity,
+          meeting_actions: Infinity,
+          file_storage: Infinity
+        },
+        checkoutLink: process.env.STRIPE_PREMIUM_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
+        popular: false
+      }
+    };
+
+    res.json({
+      success: true,
+      plans,
+      message: 'Subscription plans retrieved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching plans:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch subscription plans'
+    });
+  }
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/meetings', authenticateToken, meetingRoutes);
@@ -391,6 +517,7 @@ app.get('/billing/stripe-links', async (req, res) => {
     res.status(500).json({ error: 'Failed to get Stripe links' });
   }
 });
+
 
 // Simple test endpoint to verify backend is working
 app.get('/test', (req, res) => {
