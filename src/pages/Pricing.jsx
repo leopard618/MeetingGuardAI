@@ -12,12 +12,13 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 
 const Pricing = () => {
-  const { userPlan, isAuthenticated } = useAuth();
+  const { userPlan, isAuthenticated, refreshUserPlan } = useAuth();
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [stripeLinks, setStripeLinks] = useState({});
   const [loading, setLoading] = useState(true);
@@ -26,6 +27,19 @@ const Pricing = () => {
   useEffect(() => {
     fetchStripeLinks();
   }, []);
+
+  // Refresh user plan when user returns to pricing page (e.g., after payment)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('=== PRICING: PAGE FOCUSED, REFRESHING USER PLAN ===');
+      if (isAuthenticated) {
+        // Add a small delay to ensure webhook has processed the payment
+        setTimeout(() => {
+          refreshUserPlan();
+        }, 1000);
+      }
+    }, [isAuthenticated, refreshUserPlan])
+  );
 
   const fetchStripeLinks = async () => {
     try {
