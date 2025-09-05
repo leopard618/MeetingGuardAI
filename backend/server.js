@@ -260,21 +260,43 @@ const corsOptions = {
       'https://www.meetingguard.app',
       'exp://localhost:8081',
       'exp://192.168.141.51:8081',
-      'meetingguardai://'
+      'exp://192.168.1.100:8081',
+      'exp://192.168.0.100:8081',
+      'exp://10.0.2.2:8081',
+      'exp://10.0.3.2:8081',
+      'meetingguardai://',
+      'http://localhost:3000',
+      'http://localhost:8081',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:8081'
     ];
     
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
+    // Allow requests with no origin (like mobile apps, Postman, or React Native)
+    if (!origin) {
+      console.log('CORS: Allowing request with no origin (mobile app)');
+      return callback(null, true);
+    }
     
+    // Check if origin is in allowed list
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('CORS: Allowing origin:', origin);
       callback(null, true);
     } else {
-      console.log('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
+      console.log('CORS: Blocked origin:', origin);
+      console.log('CORS: Allowed origins:', allowedOrigins);
+      // For development, allow all origins
+      if (process.env.NODE_ENV === 'development') {
+        console.log('CORS: Development mode - allowing all origins');
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
 app.use(cors(corsOptions));
 
@@ -353,7 +375,18 @@ app.get('/health', (req, res) => {
     status: 'OK',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    version: process.env.npm_package_version || '1.0.0'
+    version: process.env.npm_package_version || '1.0.0',
+    cors: 'enabled',
+    plans_api: 'available'
+  });
+});
+
+// Simple test endpoint for plans API
+app.get('/api/billing/test', (req, res) => {
+  res.json({
+    message: 'Plans API is working!',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -362,6 +395,11 @@ app.get('/health', (req, res) => {
 // Public API routes (no authentication required)
 app.get('/api/billing/plans', async (req, res) => {
   try {
+    console.log('=== PLANS API: Request received ===');
+    console.log('Origin:', req.headers.origin);
+    console.log('User-Agent:', req.headers['user-agent']);
+    console.log('Request IP:', req.ip);
+    
     const plans = {
       free: {
         name: 'Free',
@@ -470,17 +508,24 @@ app.get('/api/billing/plans', async (req, res) => {
       }
     };
 
+    console.log('=== PLANS API: Sending response ===');
+    console.log('Plans count:', Object.keys(plans).length);
+    
     res.json({
       success: true,
       plans,
-      message: 'Subscription plans retrieved successfully'
+      message: 'Subscription plans retrieved successfully',
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
+    console.error('=== PLANS API: Error ===');
     console.error('Error fetching plans:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch subscription plans'
+      error: 'Failed to fetch subscription plans',
+      message: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });

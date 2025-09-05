@@ -45,9 +45,24 @@ const Pricing = () => {
   const fetchPlanData = async () => {
     try {
       console.log('=== PRICING: FETCHING PLAN DATA FROM BACKEND ===');
+      console.log('Backend URL:', process.env.EXPO_PUBLIC_BACKEND_URL);
+      
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error('Backend URL not configured');
+      }
       
       // Fetch plans from backend API
-      const plansResponse = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/billing/plans`);
+      const plansResponse = await fetch(`${backendUrl}/api/billing/plans`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('Response status:', plansResponse.status);
+      console.log('Response ok:', plansResponse.ok);
       
       if (plansResponse.ok) {
         const plansData = await plansResponse.json();
@@ -83,7 +98,9 @@ const Pricing = () => {
           throw new Error('Invalid plans data structure');
         }
       } else {
-        throw new Error(`Failed to fetch plans: ${plansResponse.status}`);
+        const errorText = await plansResponse.text();
+        console.error('❌ Backend error response:', errorText);
+        throw new Error(`Failed to fetch plans: ${plansResponse.status} - ${errorText}`);
       }
       
     } catch (error) {
