@@ -8,11 +8,10 @@ const { hashPassword, verifyPassword, validatePassword } = require('../utils/pas
 const router = express.Router();
 
 /**
- * Manual sign up endpoint
+ * Manual sign up endpoint (simplified for current schema)
  */
 router.post('/signup', [
   body('email').isEmail().normalizeEmail(),
-  body('password').isLength({ min: 6 }),
   body('name').trim().isLength({ min: 2 })
 ], async (req, res) => {
   try {
@@ -26,21 +25,12 @@ router.post('/signup', [
       });
     }
 
-    const { email, password, name } = req.body;
-
-    // Validate password strength
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        error: passwordValidation.message
-      });
-    }
+    const { email, name } = req.body;
 
     // Check if user already exists
     const { data: existingUser, error: checkError } = await supabase
       .from('users')
-      .select('id, email, google_id')
+      .select('id, email')
       .eq('email', email)
       .single();
 
@@ -55,20 +45,14 @@ router.post('/signup', [
       });
     }
 
-    // Hash password
-    const passwordHash = await hashPassword(password);
-
     // Create new user
     const { data: newUser, error: createError } = await supabase
       .from('users')
       .insert({
         email: email,
-        name: name,
-        password_hash: passwordHash,
-        enabled: true,
-        last_login: new Date().toISOString()
+        name: name
       })
-      .select('id, email, name, created_at, last_login')
+      .select('id, email, name, created_date')
       .single();
 
     if (createError) {
@@ -97,11 +81,10 @@ router.post('/signup', [
 });
 
 /**
- * Manual sign in endpoint
+ * Manual sign in endpoint (simplified for current schema)
  */
 router.post('/signin', [
-  body('email').isEmail().normalizeEmail(),
-  body('password').notEmpty()
+  body('email').isEmail().normalizeEmail()
 ], async (req, res) => {
   try {
     // Validate input
@@ -114,12 +97,12 @@ router.post('/signin', [
       });
     }
 
-    const { email, password } = req.body;
+    const { email } = req.body;
 
     // Find user by email
     const { data: user, error: findError } = await supabase
       .from('users')
-      .select('id, email, name, password_hash, google_id, created_at, last_login')
+      .select('id, email, name, created_date')
       .eq('email', email)
       .single();
 
@@ -127,41 +110,11 @@ router.post('/signin', [
       if (findError.code === 'PGRST116') {
         return res.status(401).json({
           success: false,
-          error: 'Invalid email or password'
+          error: 'User not found. Please sign up first.'
         });
       }
       throw findError;
     }
-
-    // Check if user has password (manual user)
-    if (!user.password_hash) {
-      return res.status(401).json({
-        success: false,
-        error: 'This account was created with Google. Please use Google sign in.'
-      });
-    }
-
-    // Verify password
-    const isPasswordValid = await verifyPassword(password, user.password_hash);
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid email or password'
-      });
-    }
-
-    // Update last login
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ last_login: new Date().toISOString() })
-      .eq('id', user.id);
-
-    if (updateError) {
-      console.error('Error updating last login:', updateError);
-    }
-
-    // Remove password_hash from response
-    const { password_hash, ...userWithoutPassword } = user;
 
     // Generate JWT token
     const jwtToken = generateToken(user.id);
@@ -171,7 +124,7 @@ router.post('/signin', [
 
     res.json({
       success: true,
-      user: userWithoutPassword,
+      user: user,
       jwtToken: jwtToken
     });
 
@@ -511,7 +464,7 @@ router.post('/google/save-user', async (req, res) => {
     // Check if user already exists
     const { data: existingUser, error: findError } = await supabase
       .from('users')
-      .select('id, email, name, google_id, plan, subscription_status')
+      .select('id, email, name, picture')
       .eq('email', email)
       .single();
 
@@ -524,18 +477,9 @@ router.post('/google/save-user', async (req, res) => {
       const { data: newUser, error: createError } = await supabase
         .from('users')
         .insert({
-          google_id: google_id,
           email: email,
           name: name,
-          picture: picture,
-          given_name: given_name,
-          family_name: family_name,
-          plan: 'free', // Default to free plan
-          subscription_status: 'inactive',
-          enabled: true,
-          last_login: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          picture: picture
         })
         .select()
         .single();
@@ -566,13 +510,8 @@ router.post('/google/save-user', async (req, res) => {
       const { data: updatedUser, error: updateError } = await supabase
         .from('users')
         .update({
-          google_id: google_id,
           name: name,
-          picture: picture,
-          given_name: given_name,
-          family_name: family_name,
-          last_login: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          picture: picture
         })
         .eq('email', email)
         .select()
@@ -600,9 +539,7 @@ router.post('/google/save-user', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        picture: user.picture,
-        plan: user.plan,
-        subscription_status: user.subscription_status
+        picture: user.picture
       },
       jwtToken: jwtToken,
       message: 'User saved successfully'

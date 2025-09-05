@@ -506,7 +506,7 @@ app.post('/test-google-user-save', async (req, res) => {
     // Check if user already exists
     const { data: existingUser, error: findError } = await supabase
       .from('users')
-      .select('id, email, name, google_id, plan, subscription_status')
+      .select('id, email, name, picture')
       .eq('email', email)
       .single();
 
@@ -519,18 +519,9 @@ app.post('/test-google-user-save', async (req, res) => {
       const { data: newUser, error: createError } = await supabase
         .from('users')
         .insert({
-          google_id: google_id,
           email: email,
           name: name,
-          picture: picture,
-          given_name: given_name,
-          family_name: family_name,
-          plan: 'free',
-          subscription_status: 'inactive',
-          enabled: true,
-          last_login: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          picture: picture
         })
         .select();
 
@@ -552,13 +543,8 @@ app.post('/test-google-user-save', async (req, res) => {
       const { data: user, error } = await supabase
         .from('users')
         .update({
-          google_id: google_id,
           name: name,
-          picture: picture,
-          given_name: given_name,
-          family_name: family_name,
-          last_login: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          picture: picture
         })
         .eq('email', email)
         .select();
