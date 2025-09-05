@@ -183,6 +183,112 @@ router.get('/google', async (req, res) => {
         });
         console.log('User info received:', userInfo);
 
+        // Save or update user in Supabase database
+        try {
+          const { supabase } = require('../config/database');
+          
+          if (supabase) {
+            console.log('=== SAVING USER TO SUPABASE ===');
+            console.log('User email:', userInfo.email);
+            console.log('User name:', userInfo.name);
+            
+            // Check if user already exists
+            const { data: existingUser, error: findError } = await supabase
+              .from('users')
+              .select('id, email, name, google_id, plan, subscription_status')
+              .eq('email', userInfo.email)
+              .single();
+
+            let user;
+            
+            if (findError && findError.code === 'PGRST116') {
+              // User not found, create new user
+              console.log('👤 User not found, creating new user with Google info');
+              
+              const { data: newUser, error: createError } = await supabase
+                .from('users')
+                .insert({
+                  google_id: userInfo.id,
+                  email: userInfo.email,
+                  name: userInfo.name,
+                  picture: userInfo.picture,
+                  given_name: userInfo.given_name,
+                  family_name: userInfo.family_name,
+                  plan: 'free', // Default to free plan
+                  subscription_status: 'inactive',
+                  enabled: true,
+                  last_login: new Date().toISOString(),
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+              if (createError) {
+                console.error('❌ Error creating user from Google OAuth:', createError);
+                throw createError;
+              } else {
+                console.log('✅ User created successfully from Google OAuth:', newUser);
+                user = newUser;
+              }
+            } else if (findError) {
+              console.error('❌ Error finding user:', findError);
+              throw findError;
+            } else {
+              // User exists, update their info
+              console.log('👤 Found existing user:', existingUser);
+              console.log(`🔄 Updating user info for Google OAuth`);
+              
+              const { data: updatedUser, error: updateError } = await supabase
+                .from('users')
+                .update({
+                  google_id: userInfo.id,
+                  name: userInfo.name,
+                  picture: userInfo.picture,
+                  given_name: userInfo.given_name,
+                  family_name: userInfo.family_name,
+                  last_login: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                })
+                .eq('email', userInfo.email)
+                .select()
+                .single();
+
+              if (updateError) {
+                console.error('❌ Error updating user from Google OAuth:', updateError);
+                throw updateError;
+              } else {
+                console.log('✅ User updated successfully from Google OAuth:', updatedUser);
+                user = updatedUser;
+              }
+            }
+            
+            // Store user tokens in database
+            if (user) {
+              const { error: tokenError } = await supabase
+                .from('user_tokens')
+                .upsert({
+                  user_id: user.id,
+                  access_token: tokenData.access_token,
+                  refresh_token: tokenData.refresh_token,
+                  expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+                  token_type: 'google'
+                });
+
+              if (tokenError) {
+                console.error('❌ Error storing user tokens:', tokenError);
+              } else {
+                console.log('✅ User tokens stored successfully');
+              }
+            }
+          } else {
+            console.error('❌ Supabase not configured - cannot save user from Google OAuth');
+          }
+        } catch (dbError) {
+          console.error('❌ Database error during Google OAuth:', dbError);
+          // Continue with OAuth flow even if database save fails
+        }
+
         // Store the OAuth state temporarily
         const sessionId = Date.now().toString();
         oauthState.set(sessionId, {
