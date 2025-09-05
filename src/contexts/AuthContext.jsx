@@ -37,10 +37,20 @@ export const AuthProvider = ({ children }) => {
       setUser(googleAuth.user);
       setIsAuthenticated(true);
       
-      // Fetch user's current plan
-      fetchUserPlan(googleAuth.user.id).then(plan => {
-        setUserPlan(plan);
-        setIsLoading(false);
+      // Save user to backend/Supabase first, then fetch plan
+      saveUserToBackend(googleAuth.user).then(() => {
+        // Fetch user's current plan after saving
+        fetchUserPlan(googleAuth.user.id).then(plan => {
+          setUserPlan(plan);
+          setIsLoading(false);
+        });
+      }).catch(error => {
+        console.error('Error saving user to backend:', error);
+        // Still try to fetch plan even if save fails
+        fetchUserPlan(googleAuth.user.id).then(plan => {
+          setUserPlan(plan);
+          setIsLoading(false);
+        });
       });
     } else if (!googleAuth.isLoading) {
       console.log('=== AUTH CONTEXT: NO GOOGLE AUTH, CHECKING STORAGE ===');
@@ -48,6 +58,59 @@ export const AuthProvider = ({ children }) => {
       checkAuthStatus();
     }
   }, [googleAuth.isSignedIn, googleAuth.user, googleAuth.isLoading]);
+
+  const saveUserToBackend = async (userInfo) => {
+    try {
+      console.log('=== AUTH CONTEXT: SAVING USER TO BACKEND ===');
+      console.log('User info:', userInfo);
+      console.log('Backend URL:', process.env.BACKEND_URL);
+      
+      const backendUrl = process.env.BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error('Backend URL not configured');
+      }
+
+      // Call the backend to save/update user
+      const response = await fetch(`${backendUrl}/api/auth/google/save-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          google_id: userInfo.id,
+          email: userInfo.email,
+          name: userInfo.name,
+          picture: userInfo.picture,
+          given_name: userInfo.given_name,
+          family_name: userInfo.family_name
+        })
+      });
+
+      console.log('Save user response status:', response.status);
+      console.log('Save user response ok:', response.ok);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ User saved to backend successfully:', data);
+        
+        // Store the JWT token for future authenticated requests
+        if (data.jwtToken) {
+          await AsyncStorage.setItem('authToken', data.jwtToken);
+          console.log('✅ JWT token stored for authenticated requests');
+        }
+        
+        return data;
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Error saving user to backend:', errorText);
+        throw new Error(`Failed to save user: ${response.status} - ${errorText}`);
+      }
+    } catch (error) {
+      console.error('❌ Error in saveUserToBackend:', error);
+      throw error;
+    }
+  };
 
   const fetchUserPlan = async (userId) => {
     try {
