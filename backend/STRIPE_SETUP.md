@@ -57,7 +57,7 @@ BACKEND_URL=https://your-backend-domain.com
 
 1. In Stripe Dashboard, go to **Developers** → **Webhooks**
 2. Click **Add endpoint**
-3. Set endpoint URL to: `https://your-backend-domain.com/api/billing/webhook`
+3. Set endpoint URL to: `https://meetingguard-backend.onrender.com/api/billing/webhook`
 4. Select these events to listen for:
    - `checkout.session.completed`
    - `customer.subscription.created`
