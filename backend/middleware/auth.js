@@ -22,18 +22,19 @@ const authenticateToken = async (req, res, next) => {
     // Get user from database to ensure they still exist
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, picture, is_active, last_login')
+      .select('id, email, name, picture, enabled')
       .eq('id', decoded.userId)
       .single();
 
     if (error || !user) {
+      console.log('Auth middleware: User not found or error:', error);
       return res.status(401).json({
         error: 'Invalid token',
         message: 'User not found or account deactivated'
       });
     }
 
-    if (!user.is_active) {
+    if (!user.enabled) {
       return res.status(401).json({
         error: 'Account deactivated',
         message: 'Your account has been deactivated'
@@ -84,11 +85,11 @@ const optionalAuth = async (req, res, next) => {
     
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, picture, is_active')
+      .select('id, email, name, picture, enabled')
       .eq('id', decoded.userId)
       .single();
 
-    if (!error && user && user.is_active) {
+    if (!error && user && user.enabled) {
       req.user = user;
       req.userId = user.id;
     }

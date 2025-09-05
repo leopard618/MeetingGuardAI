@@ -52,13 +52,17 @@ export const AuthProvider = ({ children }) => {
   const fetchUserPlan = async (userId) => {
     try {
       console.log('=== AUTH CONTEXT: FETCHING USER PLAN ===');
+      console.log('User ID:', userId);
+      console.log('Backend URL:', process.env.EXPO_PUBLIC_BACKEND_URL);
       
       // Get auth token from storage
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
-        console.log('No auth token found');
+        console.log('No auth token found, returning free plan');
         return 'free';
       }
+
+      console.log('Auth token found, calling backend...');
 
       // Fetch user's subscription plan from backend
       const response = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/billing/subscription`, {
@@ -68,11 +72,21 @@ export const AuthProvider = ({ children }) => {
         }
       });
 
+      console.log('Backend response status:', response.status);
+      console.log('Backend response ok:', response.ok);
+
       if (response.ok) {
         const data = await response.json();
-        console.log('User plan fetched:', data.subscription);
-        return data.subscription?.plan || 'free';
+        console.log('Backend response data:', data);
+        console.log('Subscription data:', data.subscription);
+        console.log('Plan from subscription:', data.subscription?.plan);
+        
+        const plan = data.subscription?.plan || 'free';
+        console.log('Final plan returned:', plan);
+        return plan;
       } else {
+        const errorText = await response.text();
+        console.log('Backend error response:', errorText);
         console.log('Failed to fetch user plan, using default');
         return 'free';
       }
