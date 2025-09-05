@@ -1,3 +1,6 @@
+// Load environment variables FIRST
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -8,14 +11,22 @@ const rateLimit = require('express-rate-limit');
 // Conditional Stripe import - won't crash if package isn't available
 let stripe;
 try {
+  console.log('🔍 Checking Stripe configuration...');
+  console.log('🔑 STRIPE_SECRET_KEY exists:', !!process.env.STRIPE_SECRET_KEY);
+  console.log('🔑 STRIPE_SECRET_KEY length:', process.env.STRIPE_SECRET_KEY ? process.env.STRIPE_SECRET_KEY.length : 0);
+  console.log('🔑 STRIPE_SECRET_KEY starts with sk_:', process.env.STRIPE_SECRET_KEY ? process.env.STRIPE_SECRET_KEY.startsWith('sk_') : false);
+  
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY environment variable is not set');
+  }
+  
   stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
   console.log('✅ Stripe package loaded successfully');
 } catch (error) {
   console.log('⚠️ Stripe package not available, webhook functionality will be disabled');
+  console.log('❌ Stripe error:', error.message);
   stripe = null;
 }
-
-require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
