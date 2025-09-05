@@ -29,17 +29,19 @@ const Pricing = () => {
     fetchPlanData();
   }, []);
 
-  // Refresh user plan when user returns to pricing page (e.g., after payment)
+  // Only refresh user plan when user returns to pricing page (minimal calls)
   useFocusEffect(
     React.useCallback(() => {
-      console.log('=== PRICING: PAGE FOCUSED, REFRESHING USER PLAN ===');
-      if (isAuthenticated) {
-        // Add a small delay to ensure webhook has processed the payment
+      console.log('=== PRICING: PAGE FOCUSED ===');
+      // Only refresh if we're not already loading (to avoid conflicts with payment monitoring)
+      if (isAuthenticated && !loading) {
+        console.log('🔄 Refreshing user plan on page focus');
+        // Use a longer delay to avoid 429 errors
         setTimeout(() => {
-          refreshUserPlan(1000); // 1 second delay
-        }, 500);
+          refreshUserPlan(2000); // 2 second delay
+        }, 1000);
       }
-    }, [isAuthenticated, refreshUserPlan])
+    }, [isAuthenticated, refreshUserPlan, loading])
   );
 
   const fetchPlanData = async () => {
@@ -237,18 +239,101 @@ const Pricing = () => {
       
       console.log('🔄 Opening Stripe Payment Link for:', planId, paymentLink);
       
+      // Set loading state to show payment is in progress
+      setLoading(true);
+      
       // Open Stripe Payment Link in browser
       const supported = await Linking.canOpenURL(paymentLink);
       if (supported) {
         await Linking.openURL(paymentLink);
+        
+        // Start monitoring for payment completion
+        startPaymentMonitoring(planId);
       } else {
         Alert.alert('Error', 'Cannot open payment link');
+        setLoading(false);
       }
       
     } catch (error) {
       console.error('Error opening payment link:', error);
       Alert.alert('Error', 'Failed to open payment link. Please try again.');
+      setLoading(false);
     }
+  };
+
+  // Monitor for payment completion by checking user plan periodically
+  const startPaymentMonitoring = (planId) => {
+    console.log('🔄 Starting payment monitoring for plan:', planId);
+    
+    let attempts = 0;
+    const maxAttempts = 30; // 30 attempts = 30 seconds max
+    const checkInterval = 1000; // Check every 1 second
+    
+    const paymentMonitor = setInterval(async () => {
+      attempts++;
+      console.log(`🔍 Payment check attempt ${attempts}/${maxAttempts}`);
+      
+      try {
+        // Make a single API call to check current user plan
+        const currentPlan = await refreshUserPlan(0); // No delay for monitoring
+        
+        // Check if plan has changed to the expected plan
+        if (currentPlan === planId || 
+            (planId.includes('pro') && currentPlan === 'pro') ||
+            (planId.includes('premium') && currentPlan === 'premium')) {
+          
+          console.log('✅ Payment detected! Plan updated to:', currentPlan);
+          clearInterval(paymentMonitor);
+          setLoading(false);
+          
+          // Show success message
+          Alert.alert(
+            'Payment Successful! 🎉',
+            `Welcome to ${planId.replace('_', ' ').toUpperCase()}! Your subscription is now active.`,
+            [{ text: 'OK', onPress: () => {
+              // Refresh the page to show updated plan status
+              fetchPlanData();
+            }}]
+          );
+          
+          return;
+        }
+        
+        // If max attempts reached, stop monitoring
+        if (attempts >= maxAttempts) {
+          console.log('⏰ Payment monitoring timeout - stopping checks');
+          clearInterval(paymentMonitor);
+          setLoading(false);
+          
+          Alert.alert(
+            'Payment Processing',
+            'Your payment is being processed. Please refresh the page in a few moments to see your updated plan.',
+            [{ text: 'OK' }]
+          );
+        }
+        
+      } catch (error) {
+        console.error('❌ Error during payment monitoring:', error);
+        
+        // If we get 429 error, stop monitoring to avoid more requests
+        if (error.message && error.message.includes('429')) {
+          console.log('🚫 429 error detected - stopping payment monitoring');
+          clearInterval(paymentMonitor);
+          setLoading(false);
+          
+          Alert.alert(
+            'Payment Processing',
+            'Your payment is being processed. Please wait a moment and refresh the page to see your updated plan.',
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    }, checkInterval);
+    
+    // Cleanup function to stop monitoring if component unmounts
+    return () => {
+      clearInterval(paymentMonitor);
+    };
   };
 
   const getFilteredPlans = () => {

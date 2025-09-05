@@ -34,23 +34,26 @@ const PaymentSuccess = () => {
       
       setLoading(false);
       
-      // Refresh user plan to get the latest subscription status
-      console.log('=== PAYMENT SUCCESS: REFRESHING USER PLAN ===');
+      // Only refresh user plan once after a delay to avoid 429 errors
+      console.log('=== PAYMENT SUCCESS: SINGLE PLAN REFRESH ===');
       setRefreshing(true);
       
       try {
+        // Wait 3 seconds for server to process payment, then make single API call
+        await new Promise(resolve => setTimeout(resolve, 3000));
         const updatedPlan = await forceRefreshUserPlan();
         console.log('✅ User plan refreshed after payment:', updatedPlan);
       } catch (error) {
         console.error('❌ Error refreshing user plan after payment:', error);
+        // Don't show error to user, just log it
       } finally {
         setRefreshing(false);
       }
       
-      // Auto-navigate back to main app after 5 seconds (increased to allow for plan refresh)
+      // Auto-navigate back to main app after 6 seconds
       const timer = setTimeout(() => {
         navigation.navigate('Dashboard');
-      }, 5000);
+      }, 6000);
       
       return () => clearTimeout(timer);
     };
@@ -69,19 +72,8 @@ const PaymentSuccess = () => {
   };
 
   const handleReturnToApp = async () => {
-    // Refresh user plan before navigating back
-    console.log('=== PAYMENT SUCCESS: MANUAL RETURN - REFRESHING PLAN ===');
-    setRefreshing(true);
-    
-    try {
-      await forceRefreshUserPlan();
-      console.log('✅ User plan refreshed before manual return');
-    } catch (error) {
-      console.error('❌ Error refreshing user plan before manual return:', error);
-    } finally {
-      setRefreshing(false);
-    }
-    
+    // Navigate back without additional API calls to avoid 429 errors
+    console.log('=== PAYMENT SUCCESS: MANUAL RETURN ===');
     navigation.navigate('Dashboard');
   };
 
@@ -169,8 +161,8 @@ const PaymentSuccess = () => {
       {/* Auto-navigate notice */}
       <Text style={styles.autoNavigate}>
         {refreshing 
-          ? 'Refreshing your plan...' 
-          : 'Auto-returning to app in 5 seconds...'
+          ? 'Updating your subscription...' 
+          : 'Auto-returning to app in 6 seconds...'
         }
       </Text>
     </View>
