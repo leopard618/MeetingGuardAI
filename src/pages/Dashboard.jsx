@@ -113,15 +113,22 @@ export default function Dashboard({ navigation, language = "en" }) {
     return unsubscribe;
   }, [navigation]);
 
-  // Refresh user plan when returning from payment (e.g., from PaymentSuccess page)
+  // Only refresh user plan when returning from payment (minimal calls)
   useFocusEffect(
     React.useCallback(() => {
-      console.log('=== DASHBOARD: PAGE FOCUSED, REFRESHING USER PLAN ===');
+      console.log('=== DASHBOARD: PAGE FOCUSED ===');
+      // Only refresh occasionally to avoid 429 errors
       if (isAuthenticated) {
-        // Add a small delay to ensure any payment webhooks have processed
-        setTimeout(() => {
-          refreshUserPlan(1000); // 1 second delay
-        }, 500);
+        // Use a longer delay and only refresh occasionally
+        const shouldRefresh = Math.random() < 0.3; // 30% chance to refresh
+        if (shouldRefresh) {
+          console.log('🔄 Refreshing user plan on page focus (occasional)');
+          setTimeout(() => {
+            refreshUserPlan(2000); // 2 second delay
+          }, 1000);
+        } else {
+          console.log('⏭️ Skipping plan refresh to avoid 429 errors');
+        }
       }
     }, [isAuthenticated, refreshUserPlan])
   );
