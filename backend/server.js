@@ -475,6 +475,114 @@ app.post('/api/billing/test-update-plan', async (req, res) => {
   }
 });
 
+// Test endpoint to simulate Google user saving
+app.post('/test-google-user-save', async (req, res) => {
+  const { google_id, email, name, picture, given_name, family_name } = req.body;
+  
+  console.log('=== TEST GOOGLE USER SAVE ===');
+  console.log('Email:', email);
+  console.log('Name:', name);
+  console.log('Google ID:', google_id);
+  
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      error: 'Email is required'
+    });
+  }
+
+  try {
+    const { supabase } = require('./config/database');
+    
+    if (!supabase) {
+      return res.status(500).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    console.log(`🧪 Test: Saving Google user ${email}`);
+    
+    // Check if user already exists
+    const { data: existingUser, error: findError } = await supabase
+      .from('users')
+      .select('id, email, name, google_id, plan, subscription_status')
+      .eq('email', email)
+      .single();
+
+    let result;
+    
+    if (findError && findError.code === 'PGRST116') {
+      // User not found, create new user
+      console.log('👤 User not found, creating new user');
+      
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert({
+          google_id: google_id,
+          email: email,
+          name: name,
+          picture: picture,
+          given_name: given_name,
+          family_name: family_name,
+          plan: 'free',
+          subscription_status: 'inactive',
+          enabled: true,
+          last_login: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select();
+
+      if (createError) {
+        console.error('❌ Error creating user:', createError);
+        result = { success: false, error: createError.message };
+      } else {
+        console.log('✅ User created successfully:', newUser);
+        result = { success: true, user: newUser, action: 'created' };
+      }
+    } else if (findError) {
+      console.error('❌ Error finding user:', findError);
+      result = { success: false, error: findError.message };
+    } else {
+      // User exists, update their info
+      console.log('👤 Found existing user:', existingUser);
+      console.log(`🔄 Updating user info`);
+      
+      const { data: user, error } = await supabase
+        .from('users')
+        .update({
+          google_id: google_id,
+          name: name,
+          picture: picture,
+          given_name: given_name,
+          family_name: family_name,
+          last_login: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('email', email)
+        .select();
+
+      if (error) {
+        console.error('❌ Error updating user:', error);
+        result = { success: false, error: error.message };
+      } else {
+        console.log('✅ User updated successfully:', user);
+        result = { success: true, user: user, action: 'updated' };
+      }
+    }
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('❌ Test Google user save error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Test endpoint to simulate payment success page
 app.get('/test-payment-success', async (req, res) => {
   const { plan, email } = req.query;

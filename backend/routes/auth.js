@@ -490,6 +490,135 @@ router.put('/profile', authenticateToken, [
 });
 
 /**
+ * Save Google user to database (called from frontend)
+ */
+router.post('/google/save-user', async (req, res) => {
+  try {
+    const { google_id, email, name, picture, given_name, family_name } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required'
+      });
+    }
+
+    console.log('=== SAVING GOOGLE USER FROM FRONTEND ===');
+    console.log('User email:', email);
+    console.log('User name:', name);
+    console.log('Google ID:', google_id);
+
+    // Check if user already exists
+    const { data: existingUser, error: findError } = await supabase
+      .from('users')
+      .select('id, email, name, google_id, plan, subscription_status')
+      .eq('email', email)
+      .single();
+
+    let user;
+    
+    if (findError && findError.code === 'PGRST116') {
+      // User not found, create new user
+      console.log('👤 User not found, creating new user with Google info');
+      
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert({
+          google_id: google_id,
+          email: email,
+          name: name,
+          picture: picture,
+          given_name: given_name,
+          family_name: family_name,
+          plan: 'free', // Default to free plan
+          subscription_status: 'inactive',
+          enabled: true,
+          last_login: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('❌ Error creating user from frontend Google auth:', createError);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to create user',
+          details: createError.message
+        });
+      } else {
+        console.log('✅ User created successfully from frontend Google auth:', newUser);
+        user = newUser;
+      }
+    } else if (findError) {
+      console.error('❌ Error finding user:', findError);
+      return res.status(500).json({
+        success: false,
+        error: 'Database error',
+        details: findError.message
+      });
+    } else {
+      // User exists, update their info
+      console.log('👤 Found existing user:', existingUser);
+      console.log(`🔄 Updating user info for frontend Google auth`);
+      
+      const { data: updatedUser, error: updateError } = await supabase
+        .from('users')
+        .update({
+          google_id: google_id,
+          name: name,
+          picture: picture,
+          given_name: given_name,
+          family_name: family_name,
+          last_login: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('email', email)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('❌ Error updating user from frontend Google auth:', updateError);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to update user',
+          details: updateError.message
+        });
+      } else {
+        console.log('✅ User updated successfully from frontend Google auth:', updatedUser);
+        user = updatedUser;
+      }
+    }
+
+    // Generate JWT token for the user
+    const jwtToken = generateToken(user.id);
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+        plan: user.plan,
+        subscription_status: user.subscription_status
+      },
+      jwtToken: jwtToken,
+      message: 'User saved successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error in save Google user endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
+/**
  * Logout user
  */
 router.post('/logout', authenticateToken, async (req, res) => {
