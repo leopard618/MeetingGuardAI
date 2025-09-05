@@ -936,6 +936,7 @@ app.get('/payment-success', async (req, res) => {
   console.log('Plan:', plan);
   console.log('Session ID:', session_id);
   console.log('Email:', email);
+  console.log('req.query:', req.query);
   
   const planNames = {
     'pro_monthly': 'Pro Monthly',
