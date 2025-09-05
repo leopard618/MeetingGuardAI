@@ -106,22 +106,23 @@ const handleStripeWebhook = async (req, res) => {
           console.log(`🔍 Checkout session - Looking for user with email: ${customerEmail}`);
           console.log(`📋 Plan ID from metadata: ${planId}`);
           
-          // Update user's plan in database
+          // Update user's subscription
           const { data: user, error } = await supabase
             .from('users')
             .update({
               plan: planId,
               subscription_status: 'active',
               current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-              updated_at: new Date().toISOString()
+              updated_date: new Date().toISOString()
             })
             .eq('email', customerEmail)
             .select();
 
           if (error) {
-            console.error('❌ Error updating user plan from checkout session:', error);
+            console.error('❌ Error updating user subscription from checkout session:', error);
           } else {
-            console.log('✅ User plan updated successfully from checkout session:', user);
+            console.log('✅ User subscription updated successfully from checkout session:', user);
+            console.log(`📋 Payment successful for plan: ${planId} - User subscription activated`);
           }
         } catch (error) {
           console.error('❌ Error in webhook checkout session update:', error);
@@ -183,23 +184,22 @@ const handleStripeWebhook = async (req, res) => {
           console.log(`🔍 Looking for user with email: ${customerEmailFromIntent}`);
           const { data: existingUser, error: findError } = await supabase
             .from('users')
-            .select('id, email, plan, subscription_status')
+            .select('id, email, name, picture, plan, subscription_status')
             .eq('email', customerEmailFromIntent)
             .single();
 
           if (findError && findError.code === 'PGRST116') {
-            // User not found, create new user
+            // User not found, create new user with subscription info
             console.log('👤 User not found, creating new user with email:', customerEmailFromIntent);
             
             const { data: newUser, error: createError } = await supabase
               .from('users')
               .insert({
                 email: customerEmailFromIntent,
+                name: customerEmailFromIntent.split('@')[0], // Use email prefix as name
                 plan: planId,
                 subscription_status: 'active',
-                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
+                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
               })
               .select();
 
@@ -207,13 +207,14 @@ const handleStripeWebhook = async (req, res) => {
               console.error('❌ Error creating user:', createError);
             } else {
               console.log('✅ User created successfully:', newUser);
+              console.log(`📋 Payment successful for plan: ${planId} - User subscription activated`);
             }
           } else if (findError) {
             console.error('❌ Error finding user:', findError);
           } else {
-            // User exists, update their plan
+            // User exists, update their subscription
             console.log('👤 Found existing user:', existingUser);
-            console.log(`🔄 Updating user plan from '${existingUser.plan}' to '${planId}'`);
+            console.log(`🔄 Updating user subscription from '${existingUser.plan}' to '${planId}'`);
             
             const { data: user, error } = await supabase
               .from('users')
@@ -221,15 +222,16 @@ const handleStripeWebhook = async (req, res) => {
                 plan: planId,
                 subscription_status: 'active',
                 current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-                updated_at: new Date().toISOString()
+                updated_date: new Date().toISOString()
               })
               .eq('email', customerEmailFromIntent)
               .select();
 
             if (error) {
-              console.error('❌ Error updating user plan from payment intent:', error);
+              console.error('❌ Error updating user subscription from payment intent:', error);
             } else {
-              console.log('✅ User plan updated successfully from payment intent:', user);
+              console.log('✅ User subscription updated successfully from payment intent:', user);
+              console.log(`📋 Payment successful for plan: ${planId} - User subscription activated`);
             }
           }
         } catch (error) {
@@ -446,7 +448,7 @@ app.post('/api/billing/test-update-plan', async (req, res) => {
         plan: plan,
         subscription_status: 'active',
         current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        updated_at: new Date().toISOString()
+        updated_date: new Date().toISOString()
       })
       .eq('email', email)
       .select();
@@ -599,25 +601,24 @@ app.get('/test-payment-success', async (req, res) => {
     // First, check if user exists
     const { data: existingUser, error: findError } = await supabase
       .from('users')
-      .select('id, email, plan, subscription_status')
+      .select('id, email, name, picture, plan, subscription_status')
       .eq('email', email)
       .single();
 
     let result;
     
     if (findError && findError.code === 'PGRST116') {
-      // User not found, create new user
+      // User not found, create new user with subscription info
       console.log('👤 User not found, creating new user');
       
       const { data: newUser, error: createError } = await supabase
         .from('users')
         .insert({
           email: email,
+          name: email.split('@')[0], // Use email prefix as name
           plan: plan,
           subscription_status: 'active',
-          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
         })
         .select();
 
@@ -626,32 +627,33 @@ app.get('/test-payment-success', async (req, res) => {
         result = { success: false, error: createError.message };
       } else {
         console.log('✅ User created successfully:', newUser);
+        console.log(`📋 Payment successful for plan: ${plan} - User subscription activated`);
         result = { success: true, user: newUser, action: 'created' };
       }
     } else if (findError) {
       console.error('❌ Error finding user:', findError);
       result = { success: false, error: findError.message };
     } else {
-      // User exists, update their plan
+      // User exists, update their subscription
       console.log('👤 Found existing user:', existingUser);
-      console.log(`🔄 Updating user plan from '${existingUser.plan}' to '${plan}'`);
+      console.log(`🔄 Updating user subscription from '${existingUser.plan}' to '${plan}'`);
       
       const { data: user, error } = await supabase
         .from('users')
         .update({
           plan: plan,
           subscription_status: 'active',
-          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          updated_at: new Date().toISOString()
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+          updated_date: new Date().toISOString()
         })
         .eq('email', email)
         .select();
 
       if (error) {
-        console.error('❌ Error updating user plan:', error);
+        console.error('❌ Error updating user subscription:', error);
         result = { success: false, error: error.message };
       } else {
-        console.log('✅ User plan updated successfully:', user);
+        console.log('✅ User subscription updated successfully:', user);
         result = { success: true, user: user, action: 'updated' };
       }
     }
@@ -692,7 +694,7 @@ app.get('/api/billing/user-plan/:email', async (req, res) => {
     
     const { data: user, error } = await supabase
       .from('users')
-      .select('plan, subscription_status, current_period_end, stripe_customer_id')
+      .select('id, email, name, picture, plan, subscription_status, current_period_end, stripe_customer_id, created_date, updated_date')
       .eq('email', email)
       .single();
 
@@ -711,14 +713,14 @@ app.get('/api/billing/user-plan/:email', async (req, res) => {
         });
       }
       
-      console.error('❌ Error fetching user plan:', error);
+      console.error('❌ Error fetching user:', error);
       return res.status(500).json({
         success: false,
         error: error.message
       });
     }
 
-    console.log(`✅ Found user plan: ${user.plan}`);
+    console.log(`✅ Found user: ${user.email} with plan: ${user.plan}`);
     res.json({
       success: true,
       subscription: {
@@ -944,34 +946,33 @@ app.get('/payment-success', async (req, res) => {
   
   const planName = planNames[plan] || 'Premium Plan';
   
-  // If we have plan and email, try to update the user's plan in database
+  // If we have plan and email, try to update the user in database
   if (plan && email) {
     try {
       const { supabase } = require('./config/database');
       
       if (supabase) {
-        console.log(`🔄 Updating user ${email} to plan ${plan} from payment success page`);
+        console.log(`🔄 Processing payment success for user ${email} with plan ${plan}`);
         
         // First, check if user exists
         const { data: existingUser, error: findError } = await supabase
           .from('users')
-          .select('id, email, plan, subscription_status')
+          .select('id, email, name, picture, plan, subscription_status')
           .eq('email', email)
           .single();
 
         if (findError && findError.code === 'PGRST116') {
-          // User not found, create new user
+          // User not found, create new user with subscription info
           console.log('👤 User not found, creating new user with email:', email);
           
           const { data: newUser, error: createError } = await supabase
             .from('users')
             .insert({
               email: email,
+              name: email.split('@')[0], // Use email prefix as name
               plan: plan,
               subscription_status: 'active',
-              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
             })
             .select();
 
@@ -979,33 +980,35 @@ app.get('/payment-success', async (req, res) => {
             console.error('❌ Error creating user from payment success:', createError);
           } else {
             console.log('✅ User created successfully from payment success:', newUser);
+            console.log(`📋 Payment successful for plan: ${plan} - User subscription activated`);
           }
         } else if (findError) {
           console.error('❌ Error finding user from payment success:', findError);
         } else {
-          // User exists, update their plan
+          // User exists, update their subscription
           console.log('👤 Found existing user:', existingUser);
-          console.log(`🔄 Updating user plan from '${existingUser.plan}' to '${plan}'`);
+          console.log(`🔄 Updating user subscription from '${existingUser.plan}' to '${plan}'`);
           
-          const { data: user, error } = await supabase
+          const { data: user, error: updateError } = await supabase
             .from('users')
             .update({
               plan: plan,
               subscription_status: 'active',
-              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-              updated_at: new Date().toISOString()
+              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+              updated_date: new Date().toISOString()
             })
             .eq('email', email)
             .select();
 
-          if (error) {
-            console.error('❌ Error updating user plan from payment success:', error);
+          if (updateError) {
+            console.error('❌ Error updating user subscription:', updateError);
           } else {
-            console.log('✅ User plan updated successfully from payment success:', user);
+            console.log('✅ User subscription updated successfully:', user);
+            console.log(`📋 Payment successful for plan: ${plan} - User subscription activated`);
           }
         }
       } else {
-        console.error('❌ Supabase not configured - cannot save user plan from payment success');
+        console.error('❌ Supabase not configured - cannot save user from payment success');
       }
     } catch (error) {
       console.error('❌ Error in payment success database update:', error);

@@ -464,7 +464,7 @@ router.post('/google/save-user', async (req, res) => {
     // Check if user already exists
     const { data: existingUser, error: findError } = await supabase
       .from('users')
-      .select('id, email, name, picture')
+      .select('id, email, name, picture, plan, subscription_status')
       .eq('email', email)
       .single();
 
@@ -479,7 +479,10 @@ router.post('/google/save-user', async (req, res) => {
         .insert({
           email: email,
           name: name,
-          picture: picture
+          picture: picture,
+          google_id: google_id,
+          plan: 'free', // Default to free plan
+          subscription_status: 'inactive'
         })
         .select()
         .single();
@@ -511,7 +514,8 @@ router.post('/google/save-user', async (req, res) => {
         .from('users')
         .update({
           name: name,
-          picture: picture
+          picture: picture,
+          google_id: google_id
         })
         .eq('email', email)
         .select()
@@ -539,7 +543,9 @@ router.post('/google/save-user', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        picture: user.picture
+        picture: user.picture,
+        plan: user.plan,
+        subscription_status: user.subscription_status
       },
       jwtToken: jwtToken,
       message: 'User saved successfully'
