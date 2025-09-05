@@ -9,34 +9,54 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useAuth } from '../contexts/AuthContext';
 
 const PaymentSuccess = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const { forceRefreshUserPlan } = useAuth();
   const [loading, setLoading] = useState(true);
   const [planDetails, setPlanDetails] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    // Get plan details from route params or URL
-    const { plan, session_id } = route.params || {};
+    const initializePaymentSuccess = async () => {
+      // Get plan details from route params or URL
+      const { plan, session_id } = route.params || {};
+      
+      if (plan) {
+        setPlanDetails({
+          planId: plan,
+          planName: getPlanName(plan),
+          sessionId: session_id
+        });
+      }
+      
+      setLoading(false);
+      
+      // Refresh user plan to get the latest subscription status
+      console.log('=== PAYMENT SUCCESS: REFRESHING USER PLAN ===');
+      setRefreshing(true);
+      
+      try {
+        const updatedPlan = await forceRefreshUserPlan();
+        console.log('✅ User plan refreshed after payment:', updatedPlan);
+      } catch (error) {
+        console.error('❌ Error refreshing user plan after payment:', error);
+      } finally {
+        setRefreshing(false);
+      }
+      
+      // Auto-navigate back to main app after 5 seconds (increased to allow for plan refresh)
+      const timer = setTimeout(() => {
+        navigation.navigate('Dashboard');
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    };
     
-    if (plan) {
-      setPlanDetails({
-        planId: plan,
-        planName: getPlanName(plan),
-        sessionId: session_id
-      });
-    }
-    
-    setLoading(false);
-    
-    // Auto-navigate back to main app after 3 seconds
-    const timer = setTimeout(() => {
-      navigation.navigate('Dashboard');
-    }, 3000);
-    
-    return () => clearTimeout(timer);
-  }, [navigation, route.params]);
+    initializePaymentSuccess();
+  }, [navigation, route.params, forceRefreshUserPlan]);
 
   const getPlanName = (planId) => {
     const planNames = {
@@ -48,7 +68,20 @@ const PaymentSuccess = () => {
     return planNames[planId] || 'Premium Plan';
   };
 
-  const handleReturnToApp = () => {
+  const handleReturnToApp = async () => {
+    // Refresh user plan before navigating back
+    console.log('=== PAYMENT SUCCESS: MANUAL RETURN - REFRESHING PLAN ===');
+    setRefreshing(true);
+    
+    try {
+      await forceRefreshUserPlan();
+      console.log('✅ User plan refreshed before manual return');
+    } catch (error) {
+      console.error('❌ Error refreshing user plan before manual return:', error);
+    } finally {
+      setRefreshing(false);
+    }
+    
     navigation.navigate('Dashboard');
   };
 
@@ -109,16 +142,24 @@ const PaymentSuccess = () => {
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={styles.primaryButton}
+          style={[styles.primaryButton, refreshing && styles.disabledButton]}
           onPress={handleReturnToApp}
+          disabled={refreshing}
         >
-          <Ionicons name="home" size={20} color="#FFFFFF" />
-          <Text style={styles.primaryButtonText}>Return to App</Text>
+          {refreshing ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Ionicons name="home" size={20} color="#FFFFFF" />
+          )}
+          <Text style={styles.primaryButtonText}>
+            {refreshing ? 'Refreshing Plan...' : 'Return to App'}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.secondaryButton}
+          style={[styles.secondaryButton, refreshing && styles.disabledButton]}
           onPress={handleViewSubscription}
+          disabled={refreshing}
         >
           <Ionicons name="settings" size={20} color="#6B7280" />
           <Text style={styles.secondaryButtonText}>Manage Subscription</Text>
@@ -127,7 +168,10 @@ const PaymentSuccess = () => {
 
       {/* Auto-navigate notice */}
       <Text style={styles.autoNavigate}>
-        Auto-returning to app in 3 seconds...
+        {refreshing 
+          ? 'Refreshing your plan...' 
+          : 'Auto-returning to app in 5 seconds...'
+        }
       </Text>
     </View>
   );
@@ -272,6 +316,9 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontSize: 14,
     textAlign: 'center',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
 
