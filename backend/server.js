@@ -164,6 +164,8 @@ const handleStripeWebhook = async (req, res) => {
 
           if (findError) {
             console.error('Error finding user:', findError);
+            console.log('User not found, creating new user with email:', customerEmailFromIntent);
+            
             // Try to create user if not found
             const { data: newUser, error: createError } = await supabase
               .from('users')
