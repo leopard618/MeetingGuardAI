@@ -136,6 +136,11 @@ router.get('/plans', async (req, res) => {
 router.get('/subscription', async (req, res) => {
   try {
     const userId = req.user.id;
+    const userEmail = req.user.email;
+    
+    console.log('=== BILLING: FETCHING SUBSCRIPTION ===');
+    console.log('User ID:', userId);
+    console.log('User Email:', userEmail);
     
     // Get user's current plan and subscription status
     const { data: user, error } = await supabase
@@ -145,9 +150,48 @@ router.get('/subscription', async (req, res) => {
       .single();
 
     if (error) {
+      console.error('Error fetching user by ID:', error);
+      
+      // If user not found by ID, try to find by email (in case webhook created user)
+      if (error.code === 'PGRST116') {
+        console.log('User not found by ID, trying to find by email:', userEmail);
+        
+        const { data: userByEmail, error: emailError } = await supabase
+          .from('users')
+          .select('plan, subscription_status, current_period_end, stripe_customer_id')
+          .eq('email', userEmail)
+          .single();
+
+        if (emailError) {
+          console.error('Error fetching user by email:', emailError);
+          // Return default free plan if user not found
+          return res.json({
+            success: true,
+            subscription: {
+              plan: 'free',
+              status: 'inactive',
+              currentPeriodEnd: null,
+              stripeCustomerId: null
+            }
+          });
+        }
+
+        console.log('User found by email:', userByEmail);
+        return res.json({
+          success: true,
+          subscription: {
+            plan: userByEmail.plan || 'free',
+            status: userByEmail.subscription_status || 'inactive',
+            currentPeriodEnd: userByEmail.current_period_end,
+            stripeCustomerId: userByEmail.stripe_customer_id
+          }
+        });
+      }
+      
       throw error;
     }
 
+    console.log('User found by ID:', user);
     res.json({
       success: true,
       subscription: {
