@@ -42,121 +42,6 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Compression middleware
-app.use(compression());
-
-// Logging middleware
-app.use(morgan('combined'));
-
-// CORS configuration
-const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = [
-      'https://meetingguard.app',
-      'https://www.meetingguard.app',
-      'exp://localhost:8081',
-      'exp://192.168.141.51:8081',
-      'meetingguardai://'
-    ];
-    
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
-
-// Import routes and middleware
-let authRoutes, meetingRoutes, calendarRoutes, aiRoutes, fileRoutes, userRoutes;
-let errorHandler, authenticateToken, billingRoutes, adminRoutes, planGate;
-
-try {
-  console.log('Importing routes and middleware...');
-  
-  authRoutes = require('./routes/auth');
-  console.log('✅ authRoutes imported');
-  
-  meetingRoutes = require('./routes/meetings');
-  console.log('✅ meetingRoutes imported');
-  
-  calendarRoutes = require('./routes/calendar');
-  console.log('✅ calendarRoutes imported');
-  
-  aiRoutes = require('./routes/ai');
-  console.log('✅ aiRoutes imported');
-  
-  fileRoutes = require('./routes/files');
-  console.log('✅ fileRoutes imported');
-  
-  userRoutes = require('./routes/users');
-  console.log('✅ userRoutes imported');
-  
-  const errorHandlerModule = require('./middleware/errorHandler');
-  errorHandler = errorHandlerModule.errorHandler;
-  console.log('✅ errorHandler imported');
-  
-  authenticateToken = require('./middleware/auth').authenticateToken;
-  console.log('✅ authenticateToken imported');
-  
-  billingRoutes = require('./routes/billing');
-  console.log('✅ billingRoutes imported');
-  
-  adminRoutes = require('./routes/admin');
-  console.log('✅ adminRoutes imported');
-  
-  planGate = require('./middleware/planGate').planGate;
-  console.log('✅ planGate imported');
-  
-  console.log('✅ All imports successful');
-} catch (error) {
-  console.error('❌ Error importing routes or middleware:', error);
-  console.error('Stack trace:', error.stack);
-  process.exit(1);
-}
-
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: 'MeetingGuard Backend API',
-    version: '1.0.0',
-    status: 'running',
-    endpoints: {
-      health: '/health',
-      auth: '/api/auth',
-      oauth: '/oauth',  
-      meetings: '/api/meetings',
-      calendar: '/api/calendar',
-      ai: '/api/ai',
-      files: '/api/files',
-      users: '/api/users',
-      billing: '/api/billing',
-      admin: '/api/admin'
-    }
-  });
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: process.env.npm_package_version || '1.0.0'
-  });
-});
-
 // Stripe webhook handler for automatic plan activation
 const handleStripeWebhook = async (req, res) => {
   // Check if Stripe is available
@@ -351,9 +236,126 @@ const handleStripeWebhookWithErrorHandling = async (req, res) => {
   }
 };
 
-// Stripe webhook routes (must be before authentication middleware)
+// Stripe webhook routes (MUST be before any body parsing middleware)
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookWithErrorHandling);
 app.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhookWithErrorHandling);
+
+// Body parsing middleware (AFTER webhook routes)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Compression middleware
+app.use(compression());
+
+// Logging middleware
+app.use(morgan('combined'));
+
+// CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'https://meetingguard.app',
+      'https://www.meetingguard.app',
+      'exp://localhost:8081',
+      'exp://192.168.141.51:8081',
+      'meetingguardai://'
+    ];
+    
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+
+// Import routes and middleware
+let authRoutes, meetingRoutes, calendarRoutes, aiRoutes, fileRoutes, userRoutes;
+let errorHandler, authenticateToken, billingRoutes, adminRoutes, planGate;
+
+try {
+  console.log('Importing routes and middleware...');
+  
+  authRoutes = require('./routes/auth');
+  console.log('✅ authRoutes imported');
+  
+  meetingRoutes = require('./routes/meetings');
+  console.log('✅ meetingRoutes imported');
+  
+  calendarRoutes = require('./routes/calendar');
+  console.log('✅ calendarRoutes imported');
+  
+  aiRoutes = require('./routes/ai');
+  console.log('✅ aiRoutes imported');
+  
+  fileRoutes = require('./routes/files');
+  console.log('✅ fileRoutes imported');
+  
+  userRoutes = require('./routes/users');
+  console.log('✅ userRoutes imported');
+  
+  const errorHandlerModule = require('./middleware/errorHandler');
+  errorHandler = errorHandlerModule.errorHandler;
+  console.log('✅ errorHandler imported');
+  
+  authenticateToken = require('./middleware/auth').authenticateToken;
+  console.log('✅ authenticateToken imported');
+  
+  billingRoutes = require('./routes/billing');
+  console.log('✅ billingRoutes imported');
+  
+  adminRoutes = require('./routes/admin');
+  console.log('✅ adminRoutes imported');
+  
+  planGate = require('./middleware/planGate').planGate;
+  console.log('✅ planGate imported');
+  
+  console.log('✅ All imports successful');
+} catch (error) {
+  console.error('❌ Error importing routes or middleware:', error);
+  console.error('Stack trace:', error.stack);
+  process.exit(1);
+}
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'MeetingGuard Backend API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      auth: '/api/auth',
+      oauth: '/oauth',  
+      meetings: '/api/meetings',
+      calendar: '/api/calendar',
+      ai: '/api/ai',
+      files: '/api/files',
+      users: '/api/users',
+      billing: '/api/billing',
+      admin: '/api/admin'
+    }
+  });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    version: process.env.npm_package_version || '1.0.0'
+  });
+});
+
+// Webhook routes are now defined earlier in the file (before body parsing middleware)
 
 // API routes
 app.use('/api/auth', authRoutes);
