@@ -52,7 +52,7 @@ router.post('/signup', [
         email: email,
         name: name
       })
-      .select('id, email, name, created_date')
+      .select('id, email, name, created_at')
       .single();
 
     if (createError) {
@@ -102,7 +102,7 @@ router.post('/signin', [
     // Find user by email
     const { data: user, error: findError } = await supabase
       .from('users')
-      .select('id, email, name, created_date')
+      .select('id, email, name, created_at')
       .eq('email', email)
       .single();
 

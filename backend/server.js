@@ -113,7 +113,7 @@ const handleStripeWebhook = async (req, res) => {
               plan: planId,
               subscription_status: 'active',
               current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-              updated_date: new Date().toISOString()
+              updated_at: new Date().toISOString()
             })
             .eq('email', customerEmail)
             .select();
@@ -222,7 +222,7 @@ const handleStripeWebhook = async (req, res) => {
                 plan: planId,
                 subscription_status: 'active',
                 current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-                updated_date: new Date().toISOString()
+                updated_at: new Date().toISOString()
               })
               .eq('email', customerEmailFromIntent)
               .select();
@@ -448,7 +448,7 @@ app.post('/api/billing/test-update-plan', async (req, res) => {
         plan: plan,
         subscription_status: 'active',
         current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        updated_date: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
       .eq('email', email)
       .select();
@@ -644,7 +644,7 @@ app.get('/test-payment-success', async (req, res) => {
           plan: plan,
           subscription_status: 'active',
           current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-          updated_date: new Date().toISOString()
+          updated_at: new Date().toISOString()
         })
         .eq('email', email)
         .select();
@@ -694,7 +694,7 @@ app.get('/api/billing/user-plan/:email', async (req, res) => {
     
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, picture, plan, subscription_status, current_period_end, stripe_customer_id, created_date, updated_date')
+      .select('id, email, name, picture, plan, subscription_status, current_period_end, stripe_customer_id, created_at, updated_at')
       .eq('email', email)
       .single();
 
@@ -995,7 +995,7 @@ app.get('/payment-success', async (req, res) => {
               plan: plan,
               subscription_status: 'active',
               current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-              updated_date: new Date().toISOString()
+              updated_at: new Date().toISOString()
             })
             .eq('email', email)
             .select();
