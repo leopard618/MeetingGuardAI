@@ -196,6 +196,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Function to refresh user plan (useful after payment)
+  const refreshUserPlan = async () => {
+    if (isAuthenticated && user) {
+      console.log('=== AUTH CONTEXT: REFRESHING USER PLAN ===');
+      const plan = await fetchUserPlan(user.id);
+      setUserPlan(plan);
+      console.log('User plan refreshed:', plan);
+      return plan;
+    }
+    return 'free';
+  };
+
   const value = {
     isAuthenticated,
     user,
@@ -205,6 +217,7 @@ export const AuthProvider = ({ children }) => {
     signup,
     logout,
     signInWithGoogle,
+    refreshUserPlan,
   };
 
   return (
