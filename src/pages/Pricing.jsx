@@ -32,10 +32,8 @@ const Pricing = () => {
   // Only refresh user plan when user returns to pricing page (minimal calls)
   useFocusEffect(
     React.useCallback(() => {
-      console.log('=== PRICING: PAGE FOCUSED ===');
       // Only refresh if we're not already loading (to avoid conflicts with payment monitoring)
       if (isAuthenticated && !loading) {
-        console.log('🔄 Refreshing user plan on page focus');
         // Use a longer delay to avoid 429 errors
         setTimeout(() => {
           refreshUserPlan(2000); // 2 second delay
@@ -46,8 +44,7 @@ const Pricing = () => {
 
   const fetchPlanData = async () => {
     try {
-      console.log('=== PRICING: FETCHING PLAN DATA FROM BACKEND ===');
-      console.log('Backend URL:', process.env.BACKEND_URL);
+      // Fetching plan data from backend
       
       const backendUrl = process.env.BACKEND_URL;
       if (!backendUrl) {
@@ -366,6 +363,12 @@ const Pricing = () => {
     if (isCurrentPlan(planId)) {
       return 'Current Plan';
     }
+    
+    // Disable free plan if user has a paid plan
+    if (planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) {
+      return 'Downgrade Not Available';
+    }
+    
     return 'Start 7-Day Trial';
   };
 
@@ -373,6 +376,12 @@ const Pricing = () => {
     if (isCurrentPlan(planId)) {
       return styles.currentPlanButton;
     }
+    
+    // Disable free plan if user has a paid plan
+    if (planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) {
+      return styles.disabledButton;
+    }
+    
     return [
       styles.upgradeButton,
       plan.popular && styles.popularUpgradeButton
@@ -383,6 +392,12 @@ const Pricing = () => {
     if (isCurrentPlan(planId)) {
       return styles.currentPlanButtonText;
     }
+    
+    // Disable free plan if user has a paid plan
+    if (planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) {
+      return styles.disabledButtonText;
+    }
+    
     return styles.upgradeButtonText;
   };
 
@@ -526,13 +541,16 @@ const Pricing = () => {
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
+                      disabled={planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')}
                       style={getButtonStyle(planId, plan)}
                       onPress={() => handleUpgrade(planId)}
                     >
                       <Text style={getButtonTextStyle(planId)}>
                         {getButtonText(planId)}
                       </Text>
-                      <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                      {!(planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) && (
+                        <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                      )}
                     </TouchableOpacity>
                   )}
                 </View>

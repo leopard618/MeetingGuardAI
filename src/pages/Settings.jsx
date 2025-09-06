@@ -29,7 +29,7 @@ import CalendarTest from "@/components/CalendarTest";
 
 export default function Settings({ navigation, language = "en" }) {
   const { isDarkMode, toggleTheme } = useTheme();
-  const { logout, user: authUser } = useAuth();
+  const { user: authUser } = useAuth();
   const [user, setUser] = useState(null);
   const [preferences, setPreferences] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -229,20 +229,7 @@ export default function Settings({ navigation, language = "en" }) {
     setIsSaving(false);
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      "Confirm Logout",
-      t[language].confirmLogout,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Logout", style: "destructive", onPress: () => {
-          logout();
-          // The AuthContext will handle the navigation automatically
-          // when isAuthenticated becomes false
-        }},
-      ]
-    );
-  };
+  // Logout functionality moved to navigation bar
 
   const updatePreference = (key, value) => {
     setPreferences(prev => ({
@@ -608,14 +595,7 @@ export default function Settings({ navigation, language = "en" }) {
             {isSaving ? t[language].saving : t[language].save}
           </Button>
           
-          <Button
-            mode="outlined"
-            onPress={handleLogout}
-            style={styles.logoutButton}
-            textColor="#ef4444"
-          >
-            {t[language].logout}
-          </Button>
+          {/* Logout button moved to navigation bar */}
         </View>
       </ScrollView>
     </SafeAreaView>

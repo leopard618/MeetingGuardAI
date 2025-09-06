@@ -131,35 +131,62 @@ export function formatMeetingTime(meeting) {
 }
 
 /**
- * Generate voice message based on meeting and intensity
+ * Generate voice message based on meeting, alert type, and intensity
  */
-export function generateVoiceMessage(meeting, intensity, language = 'en') {
+export function generateVoiceMessage(meeting, alertType = 'now', intensity, language = 'en') {
   if (!meeting) return '';
   
   const timeText = formatMeetingTime(meeting);
   const meetingTitle = meeting.title || 'Meeting';
   
+  // Get time description based on alert type
+  const getTimeDescription = (type, lang) => {
+    if (lang === 'es') {
+      switch (type) {
+        case '1day': return 'en 1 día';
+        case '1hour': return 'en 1 hora';
+        case '15min': return 'en 15 minutos';
+        case '5min': return 'en 5 minutos';
+        case '1min': return 'en 1 minuto';
+        case 'now': return 'comenzando ahora';
+        default: return timeText === 'NOW' ? 'comenzando ahora' : timeText;
+      }
+    } else {
+      switch (type) {
+        case '1day': return 'in 1 day';
+        case '1hour': return 'in 1 hour';
+        case '15min': return 'in 15 minutes';
+        case '5min': return 'in 5 minutes';
+        case '1min': return 'in 1 minute';
+        case 'now': return 'starting now';
+        default: return timeText === 'NOW' ? 'starting now' : timeText;
+      }
+    }
+  };
+  
+  const timeDesc = getTimeDescription(alertType, language);
+  
   if (language === 'es') {
     switch (intensity) {
       case AlertIntensity.MAXIMUM:
-        return `Alerta urgente. Reunión ${meetingTitle} ${timeText === 'NOW' ? 'comenzando ahora' : timeText}`;
+        return `Alerta urgente. Reunión ${meetingTitle} ${timeDesc}`;
       case AlertIntensity.MEDIUM:
-        return `Atención. Reunión ${meetingTitle} ${timeText === 'NOW' ? 'comenzando ahora' : timeText}`;
+        return `Atención. Reunión ${meetingTitle} ${timeDesc}`;
       case AlertIntensity.LIGHT:
-        return `Reunión ${meetingTitle} ${timeText === 'NOW' ? 'comenzando ahora' : timeText}`;
+        return `Recordatorio. Reunión ${meetingTitle} ${timeDesc}`;
       default:
-        return `Reunión ${meetingTitle} ${timeText === 'NOW' ? 'comenzando ahora' : timeText}`;
+        return `Reunión ${meetingTitle} ${timeDesc}`;
     }
   } else {
     switch (intensity) {
       case AlertIntensity.MAXIMUM:
-        return `Urgent alert. ${meetingTitle} meeting ${timeText === 'NOW' ? 'starting now' : timeText}`;
+        return `Urgent alert. ${meetingTitle} meeting ${timeDesc}`;
       case AlertIntensity.MEDIUM:
-        return `Attention. ${meetingTitle} meeting ${timeText === 'NOW' ? 'starting now' : timeText}`;
+        return `Attention. ${meetingTitle} meeting ${timeDesc}`;
       case AlertIntensity.LIGHT:
-        return `${meetingTitle} meeting ${timeText === 'NOW' ? 'starting now' : timeText}`;
+        return `Reminder. ${meetingTitle} meeting ${timeDesc}`;
       default:
-        return `${meetingTitle} meeting ${timeText === 'NOW' ? 'starting now' : timeText}`;
+        return `${meetingTitle} meeting ${timeDesc}`;
     }
   }
 }
