@@ -110,7 +110,11 @@ const ImageSlider = ({ slides = [], autoPlay = true, interval = 3000, context = 
           goToSlide(prevIndex);
         }}
       >
-        <MaterialIcons name="chevron-left" size={24} color="#ffffff" />
+        <MaterialIcons 
+          name="chevron-left" 
+          size={24} 
+          color="#ffffff" 
+        />
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -120,7 +124,11 @@ const ImageSlider = ({ slides = [], autoPlay = true, interval = 3000, context = 
           goToSlide(nextIndex);
         }}
       >
-        <MaterialIcons name="chevron-right" size={24} color="#ffffff" />
+        <MaterialIcons 
+          name="chevron-right" 
+          size={24} 
+          color="#ffffff" 
+        />
       </TouchableOpacity>
     </View>
   );
@@ -208,7 +216,7 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
-    bottom: 10,
+    bottom: 16,
     left: 0,
     right: 0,
   },
@@ -216,12 +224,14 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     marginHorizontal: 4,
   },
   paginationDotActive: {
     backgroundColor: '#ffffff',
     width: 24,
+    height: 8,
+    borderRadius: 4,
   },
   navButton: {
     position: 'absolute',

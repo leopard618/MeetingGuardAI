@@ -12,8 +12,10 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { Alert } from 'react-native';
 import { useTranslation, getAvailableLanguages } from './translations';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import ThemeToggle from './ThemeToggle';
 
 const { width } = Dimensions.get('window');
@@ -182,10 +184,27 @@ const SidebarContent = ({ language, setLanguage, onClose, currentRouteName }) =>
   const navigation = useNavigation();
   const { t } = useTranslation(language);
   const { isDarkMode } = useTheme();
+  const { logout, user } = useAuth();
 
   const handleNavigation = (screenName) => {
     navigation.navigate(screenName);
     onClose();
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Confirm Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Logout", style: "destructive", onPress: () => {
+          logout();
+          onClose();
+          // The AuthContext will handle the navigation automatically
+          // when isAuthenticated becomes false
+        }},
+      ]
+    );
   };
 
   const styles = getStyles(isDarkMode);
@@ -260,6 +279,25 @@ const SidebarContent = ({ language, setLanguage, onClose, currentRouteName }) =>
           onClose={onClose}
         />
       </View>
+
+      {/* User Info and Logout */}
+      {user && (
+        <View style={styles.userSection}>
+          <View style={styles.userInfo}>
+            <Ionicons name="person-circle-outline" size={20} color={isDarkMode ? "#a1a1aa" : "#9CA3AF"} />
+            <Text style={styles.userText}>
+              {user.name || user.email || 'User'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -415,6 +453,38 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: isDarkMode ? '#262626' : '#374151',
+  },
+  userSection: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? '#262626' : '#374151',
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  userText: {
+    fontSize: 14,
+    color: isDarkMode ? '#a1a1aa' : '#D1D5DB',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: isDarkMode ? '#262626' : '#374151',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+  },
+  logoutText: {
+    fontSize: 14,
+    color: '#ef4444',
+    marginLeft: 8,
+    fontWeight: '600',
   },
 });
 

@@ -8,7 +8,7 @@ export const imageSliderConfig = {
   defaultSlides: [
     {
       id: 1,
-      image: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=800&h=400&fit=crop',
+      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=400&fit=crop',
       title: 'Stay on top.',
       description: 'View today\'s meetings and AI insights at a glance.',
       actionText: 'Learn More',
@@ -26,7 +26,7 @@ export const imageSliderConfig = {
     },
     {
       id: 3,
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=400&fit=crop',
+      image: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=800&h=400&fit=crop',
       title: 'Never miss.',
       description: 'Full-screen alerts with sound keep you on time.',
       actionText: 'Enable',
@@ -35,7 +35,7 @@ export const imageSliderConfig = {
     },
     {
       id: 4,
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=400&fit=crop',
+      image: 'https://images.unsplash.com/photo-1553877522-43269d4ea984?w=800&h=400&fit=crop',
       title: 'All meetings.',
       description: 'Organize past and future meetings seamlessly.',
       actionText: 'View All',

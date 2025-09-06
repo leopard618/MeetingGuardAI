@@ -93,7 +93,7 @@ const DateTimeDisplay = ({ isDarkMode, styles }) => {
 
 export default function Dashboard({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
-  const { isAuthenticated, refreshUserPlan } = useAuth();
+  const { isAuthenticated, refreshUserPlan, user } = useAuth();
   const [meetings, setMeetings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -136,9 +136,13 @@ export default function Dashboard({ navigation, language = "en" }) {
   const loadInitialData = async () => {
     setIsLoading(true);
     try {
-      // Force use the same user as Settings (snowleo1342@gmail.com)
-      const currentUser = { email: "snowleo1342@gmail.com", id: "104931622861258224109", name: "Snow Leopard" };
-      console.log('Dashboard currentUser (forced):', currentUser);
+      // Use the user from component level
+      if (!user) {
+        console.error('No authenticated user found');
+        setIsLoading(false);
+        return;
+      }
+      const currentUser = user;
 
       const [allMeetings, prefsList] = await Promise.all([
         Meeting.list("-created_date"),
@@ -148,7 +152,7 @@ export default function Dashboard({ navigation, language = "en" }) {
       setMeetings(allMeetings);
 
       if (prefsList.length > 0) {
-        console.log('Found preferences:', prefsList[0]);
+        // Preferences loaded successfully
 
         // If we have multiple preference records, use the one with alert_intensity
         let bestPrefs = prefsList[0];
@@ -156,7 +160,7 @@ export default function Dashboard({ navigation, language = "en" }) {
           const prefsWithIntensity = prefsList.find(p => p.alert_intensity);
           if (prefsWithIntensity) {
             bestPrefs = prefsWithIntensity;
-            console.log('Using preferences with alert_intensity:', bestPrefs);
+            // Using preferences with alert intensity
           }
         }
 
@@ -177,7 +181,7 @@ export default function Dashboard({ navigation, language = "en" }) {
           }
         }
       } else {
-        console.log('Creating new preferences for:', currentUser.email);
+        // Creating new preferences for user
         const newPrefs = await UserPreferences.create({
           created_by: currentUser.email,
           language: language,
@@ -246,7 +250,11 @@ export default function Dashboard({ navigation, language = "en" }) {
   const syncPreferencesFromSettings = async () => {
     try {
       console.log('Manually syncing preferences...');
-      const currentUser = { email: "snowleo1342@gmail.com" };
+      if (!user) {
+        Alert.alert('Error', 'No authenticated user found');
+        return;
+      }
+      const currentUser = user;
 
       // Get all preference records for this user
       const allPrefs = await UserPreferences.filter({ created_by: currentUser.email });

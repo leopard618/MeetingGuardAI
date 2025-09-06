@@ -9,10 +9,7 @@ export default function AlertScheduler({ onTriggerAlert, language = "en", alerts
   const alertTimeoutsRef = useRef(new Map());
   const checkIntervalRef = useRef(null);
 
-  // Schedule alerts for a meeting (moved inside useEffect as per outline)
-  // This function will be recreated whenever onTriggerAlert or alertsEnabled changes
-  // due to its placement inside useEffect and the effect's dependency array.
-  // This is acceptable as it ensures it captures the latest onTriggerAlert.
+  // Schedule alerts for a meeting with multiple timing options
   const scheduleAlertsForMeeting = async (meeting) => {
     const meetingTime = new Date(`${meeting.date} ${meeting.time}`);
     const now = new Date();
@@ -22,41 +19,38 @@ export default function AlertScheduler({ onTriggerAlert, language = "en", alerts
     existingTimeouts.forEach(timeout => clearTimeout(timeout));
 
     const timeouts = [];
+    const alertTimes = [];
 
-    // Schedule 15-minute alert (Medium intensity)
-    const alert15min = meetingTime.getTime() - (15 * 60 * 1000);
-    if (alert15min > now.getTime()) {
-      const timeout15 = setTimeout(() => {
-        onTriggerAlert(meeting, '15min', AlertIntensity.MEDIUM);
-      }, alert15min - now.getTime());
-      timeouts.push(timeout15);
-    }
+    // Enhanced alert schedule with multiple timings
+    const alertSchedule = [
+      // 1 day before (Light intensity)
+      { time: 24 * 60 * 60 * 1000, type: '1day', intensity: AlertIntensity.LIGHT },
+      // 1 hour before (Medium intensity)
+      { time: 60 * 60 * 1000, type: '1hour', intensity: AlertIntensity.MEDIUM },
+      // 15 minutes before (Medium intensity)
+      { time: 15 * 60 * 1000, type: '15min', intensity: AlertIntensity.MEDIUM },
+      // 5 minutes before (Maximum intensity)
+      { time: 5 * 60 * 1000, type: '5min', intensity: AlertIntensity.MAXIMUM },
+      // 1 minute before (Maximum intensity)
+      { time: 1 * 60 * 1000, type: '1min', intensity: AlertIntensity.MAXIMUM },
+      // Meeting time (Maximum intensity)
+      { time: 0, type: 'now', intensity: AlertIntensity.MAXIMUM }
+    ];
 
-    // Schedule 5-minute alert (Maximum intensity)
-    const alert5min = meetingTime.getTime() - (5 * 60 * 1000);
-    if (alert5min > now.getTime()) {
-      const timeout5 = setTimeout(() => {
-        onTriggerAlert(meeting, '5min', AlertIntensity.MAXIMUM);
-      }, alert5min - now.getTime());
-      timeouts.push(timeout5);
-    }
-
-    // Schedule 1-minute alert (Maximum intensity)
-    const alert1min = meetingTime.getTime() - (1 * 60 * 1000);
-    if (alert1min > now.getTime()) {
-      const timeout1 = setTimeout(() => {
-        onTriggerAlert(meeting, '1min', AlertIntensity.MAXIMUM);
-      }, alert1min - now.getTime());
-      timeouts.push(timeout1);
-    }
-
-    // Schedule "now" alert (Maximum intensity)
-    if (meetingTime.getTime() > now.getTime()) {
-      const timeoutNow = setTimeout(() => {
-        onTriggerAlert(meeting, 'now', AlertIntensity.MAXIMUM);
-      }, meetingTime.getTime() - now.getTime());
-      timeouts.push(timeoutNow);
-    }
+    // Schedule all alerts
+    alertSchedule.forEach(({ time, type, intensity }) => {
+      const alertTime = meetingTime.getTime() - time;
+      
+      if (alertTime > now.getTime()) {
+        const timeout = setTimeout(() => {
+          console.log(`🔔 Alert triggered: ${type} for meeting ${meeting.title}`);
+          onTriggerAlert(meeting, type, intensity);
+        }, alertTime - now.getTime());
+        
+        timeouts.push(timeout);
+        alertTimes.push(alertTime);
+      }
+    });
 
     alertTimeoutsRef.current.set(meeting.id, timeouts);
 
@@ -64,11 +58,12 @@ export default function AlertScheduler({ onTriggerAlert, language = "en", alerts
     try {
       const alertData = {
         meetingId: meeting.id,
-        // alertTimes: [alert15min, alert5min, alert1min, meetingTime.getTime()], // This line uses the raw calculated times
-        alertTimes: [alert15min, alert5min, alert1min, meetingTime.getTime()], // Re-added the correct line based on original code structure
+        alertTimes: alertTimes,
+        alertTypes: alertSchedule.map(s => s.type),
         scheduled: Date.now()
       };
       await storage.setItem(`alertSchedule_${meeting.id}`, JSON.stringify(alertData));
+      console.log(`📅 Scheduled ${timeouts.length} alerts for meeting: ${meeting.title}`);
     } catch (error) {
       console.error('Failed to save alert schedule:', error);
     }
@@ -122,21 +117,25 @@ export default function AlertScheduler({ onTriggerAlert, language = "en", alerts
               const meetingId = alertData.meetingId;
 
               // Check if any alert time has passed
-              // Ensure onTriggerAlert is called for unique missed alerts only to avoid duplicates
               alertData.alertTimes.forEach((alertTime, index) => {
                 // Ensure alertTime is numeric and valid before comparison
                 if (typeof alertTime === 'number' && !isNaN(alertTime) && alertTime > alertData.scheduled && alertTime <= now) {
                   // This alert was missed, trigger it now
                   Meeting.get(meetingId).then(meeting => {
                     if (meeting) {
-                      const alertTypes = ['15min', '5min', '1min', 'now'];
-                      // Added a check to prevent triggering the same alert multiple times if already triggered
-                      // (This state would need to be persisted or checked against, but for simplicity, the outline doesn't specify.)
-                      onTriggerAlert(meeting, alertTypes[index]);
+                      // Use the stored alert types or fallback to new format
+                      const alertTypes = alertData.alertTypes || ['1day', '1hour', '15min', '5min', '1min', 'now'];
+                      const alertType = alertTypes[index] || 'unknown';
+                      
+                      // Determine intensity based on alert type
+                      let intensity = AlertIntensity.MAXIMUM;
+                      if (alertType === '1day') intensity = AlertIntensity.LIGHT;
+                      else if (alertType === '1hour' || alertType === '15min') intensity = AlertIntensity.MEDIUM;
+                      
+                      console.log(`🔔 Triggering missed alert: ${alertType} for meeting ${meeting.title}`);
+                      onTriggerAlert(meeting, alertType, intensity);
                     }
                   }).catch(console.error);
-                  // Optionally remove or mark this alert as triggered in storage to avoid re-triggering
-                  // For now, keeping it as is, following the original logic's pattern.
                 }
               });
             } catch (error) {
