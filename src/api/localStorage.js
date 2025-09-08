@@ -49,8 +49,25 @@ class LocalStorageAPI {
 
   async getCurrentUser() {
     try {
+      // First try to get user from AsyncStorage (where AuthContext stores it)
+      const userFromAuth = await AsyncStorage.getItem('user');
+      if (userFromAuth) {
+        const parsedUser = JSON.parse(userFromAuth);
+        console.log('getCurrentUser: Found user from AuthContext:', parsedUser);
+        return parsedUser;
+      }
+      
+      // Fallback to the old method
       const data = await this.getData();
-      return data.users?.find(user => user.isCurrent) || {
+      const userFromData = data.users?.find(user => user.isCurrent);
+      if (userFromData) {
+        console.log('getCurrentUser: Found user from data.users:', userFromData);
+        return userFromData;
+      }
+      
+      // Final fallback
+      console.log('getCurrentUser: No user found, using default');
+      return {
         id: 'default-user',
         email: 'user@example.com',
         name: 'Default User',

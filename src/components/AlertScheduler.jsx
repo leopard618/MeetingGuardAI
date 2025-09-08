@@ -129,13 +129,6 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
     }
   };
 
-  // Expose functions to parent components
-  useImperativeHandle(ref, () => ({
-    scheduleAlertsForMeeting: scheduleAlertsForSpecificMeeting,
-    clearAlertsForMeeting: clearAlertsForMeeting,
-    refreshAlerts: refreshAlerts
-  }));
-
   useEffect(() => {
     // Clear all scheduled alerts if alerts are disabled
     if (!alertsEnabled) {
@@ -225,6 +218,13 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
       }
     };
   }, [onTriggerAlert, alertsEnabled]); // Re-run effect if onTriggerAlert or alertsEnabled changes
+
+  // Expose functions to parent components
+  useImperativeHandle(ref, () => ({
+    scheduleAlertsForMeeting: scheduleAlertsForSpecificMeeting,
+    clearAlertsForMeeting: clearAlertsForMeeting,
+    refreshAlerts: refreshAlerts
+  }));
 
   // Only render ServiceWorkerRegistration if alerts are enabled
   return alertsEnabled ? <ServiceWorkerRegistration /> : null;
