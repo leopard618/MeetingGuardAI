@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import googleCalendarService from './googleCalendar';
-import { Meeting } from './entities';
+import googleCalendarService from './googleCalendar.js';
+import { Meeting } from './entities.js';
 
 class CalendarSyncManager {
   constructor() {
