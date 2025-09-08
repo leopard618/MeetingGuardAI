@@ -669,15 +669,6 @@ router.get('/google', async (req, res) => {
                        <div class="user-name">${userInfo.name}</div>
                        <div class="user-email">${userInfo.email}</div>
                    </div>
-                   
-                   <div class="countdown-box">
-                       <div class="countdown-text">Returning to app in <span class="countdown-number" id="countdown">3</span> seconds...</div>
-                       <div class="countdown-subtitle">Or click "Return to App" button below</div>
-                   </div>
-                   
-                   <button class="close-button" onclick="closeTab()">
-                       Return to App
-                   </button>
                </div>
                
                <script>
