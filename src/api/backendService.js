@@ -1,7 +1,7 @@
 // Backend API Service
 // Handles all communication with the deployed backend
 
-import { BACKEND_CONFIG, getApiUrl, createAuthHeaders } from '../config/backend';
+import { BACKEND_CONFIG, getApiUrl, createAuthHeaders } from '../config/backend.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Storage keys

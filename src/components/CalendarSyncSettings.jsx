@@ -18,9 +18,9 @@ import {
   ActivityIndicator,
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '@/contexts/ThemeContext';
-import calendarSyncManager from '@/api/calendarSyncManager';
-import googleCalendarService from '@/api/googleCalendar';
+import { useTheme } from '../contexts/ThemeContext.jsx';
+import calendarSyncManager from '../api/calendarSyncManager.js';
+import googleCalendarService from '../api/googleCalendar.js';
 
 export default function CalendarSyncSettings() {
   const { isDarkMode } = useTheme();

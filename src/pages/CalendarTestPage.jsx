@@ -11,7 +11,7 @@ import {
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import CalendarSyncTest from '@/components/CalendarSyncTest';
+import CalendarSyncTest from '../components/CalendarSyncTest.jsx';
 
 export default function CalendarTestPage({ navigation }) {
   const { isDarkMode } = useTheme();

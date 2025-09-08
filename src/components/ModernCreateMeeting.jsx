@@ -18,10 +18,10 @@ import {
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { Meeting } from '@/api/entities';
-import calendarSyncManager from '@/api/calendarSyncManager';
+import { useTheme } from '../contexts/ThemeContext.jsx';
+import { useAuth } from '../contexts/AuthContext.jsx';
+import { Meeting } from '../api/entities.js';
+import calendarSyncManager from '../api/calendarSyncManager.js';
 
 export default function ModernCreateMeeting({ navigation }) {
   const { isDarkMode } = useTheme();

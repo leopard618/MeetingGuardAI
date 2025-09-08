@@ -25,7 +25,7 @@ import {
   Avatar,
 } from "react-native-paper";
 import { MaterialIcons, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-import MeetingManager from "../api/meetingManager";
+import MeetingManager from '../api/meetingManager.js';
 import MeetingConfirmationModal from "../components/MeetingConfirmationModal";
 import { useTheme } from "@/contexts/ThemeContext";
 import { isAPIConfigured } from "@/config/api";
