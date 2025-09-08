@@ -164,11 +164,42 @@ export const useGoogleAuth = () => {
   };
 
   const storeTokens = async (accessToken, refreshToken) => {
-    await AsyncStorage.setItem('google_access_token', accessToken);
-    if (refreshToken) {
-      await AsyncStorage.setItem('google_refresh_token', refreshToken);
+    try {
+      console.log('🔄 useGoogleAuth: Storing tokens...');
+      console.log('🔄 useGoogleAuth: Access token:', !!accessToken, accessToken ? accessToken.substring(0, 20) + '...' : 'null');
+      console.log('🔄 useGoogleAuth: Refresh token:', !!refreshToken, refreshToken ? refreshToken.substring(0, 20) + '...' : 'null');
+      
+      if (accessToken) {
+        await AsyncStorage.setItem('google_access_token', accessToken);
+        console.log('✅ useGoogleAuth: Access token stored successfully');
+      } else {
+        console.log('❌ useGoogleAuth: No access token to store');
+      }
+      
+      if (refreshToken) {
+        await AsyncStorage.setItem('google_refresh_token', refreshToken);
+        console.log('✅ useGoogleAuth: Refresh token stored successfully');
+      } else {
+        console.log('⚠️ useGoogleAuth: No refresh token to store');
+      }
+      
+      const expiryTime = Date.now() + 3600 * 1000;
+      await AsyncStorage.setItem('google_token_expiry', expiryTime.toString());
+      console.log('✅ useGoogleAuth: Token expiry stored:', new Date(expiryTime).toISOString());
+      
+      // Verify tokens were stored
+      const storedAccessToken = await AsyncStorage.getItem('google_access_token');
+      const storedRefreshToken = await AsyncStorage.getItem('google_refresh_token');
+      const storedExpiry = await AsyncStorage.getItem('google_token_expiry');
+      
+      console.log('🔍 useGoogleAuth: Verification - Access token stored:', !!storedAccessToken);
+      console.log('🔍 useGoogleAuth: Verification - Refresh token stored:', !!storedRefreshToken);
+      console.log('🔍 useGoogleAuth: Verification - Expiry stored:', !!storedExpiry);
+      
+    } catch (error) {
+      console.error('❌ useGoogleAuth: Error storing tokens:', error);
+      throw error;
     }
-    await AsyncStorage.setItem('google_token_expiry', (Date.now() + 3600 * 1000).toString());
   };
 
   const signIn = async () => {
@@ -268,6 +299,20 @@ export const useGoogleAuth = () => {
                 // Store the authentication data
                 await AsyncStorage.setItem('google_user_info', JSON.stringify(authData.user));
                 
+                // CRITICAL FIX: Store tokens from backend response
+                if (authData.accessToken || authData.refreshToken) {
+                  console.log('🔄 MAIN FLOW: Backend provided tokens, storing them locally...');
+                  console.log('🔄 MAIN FLOW: Access token from backend:', !!authData.accessToken);
+                  console.log('🔄 MAIN FLOW: Refresh token from backend:', !!authData.refreshToken);
+                  
+                  // Store tokens in the format expected by the app
+                  await storeTokens(authData.accessToken, authData.refreshToken);
+                  
+                  console.log('✅ MAIN FLOW: Tokens stored successfully');
+                } else {
+                  console.log('⚠️ MAIN FLOW: No tokens in backend response');
+                }
+                
                 // Set as current user
                 await userStorage.setCurrentUser(userResult.user);
                 
@@ -277,7 +322,16 @@ export const useGoogleAuth = () => {
                 
                 console.log('=== AUTHENTICATION COMPLETE ===');
                 console.log('User state updated:', { user: userResult.user, isSignedIn: true });
-                return { success: true, user: userResult.user, isNewUser: userResult.isNewUser };
+                
+                // Get tokens for return
+                const tokens = await getStoredTokens();
+                if (!tokens) {
+                  console.log('⚠️ No tokens found in storage, creating empty token object');
+                  const emptyTokens = { access_token: null, refresh_token: null, expires_in: 0 };
+                  return { success: true, user: userResult.user, isNewUser: userResult.isNewUser, tokens: emptyTokens };
+                }
+                console.log('=== AUTHENTICATION COMPLETE WITH TOKENS ===');
+                return { success: true, user: userResult.user, isNewUser: userResult.isNewUser, tokens };
               } else {
                 throw new Error(`Failed to add user to storage: ${userResult.error}`);
               }
@@ -333,8 +387,35 @@ export const useGoogleAuth = () => {
               setUser(userResult.user);
               setIsSignedIn(true);
               
-              // Get tokens for return
-              const tokens = await getStoredTokens();
+              // CRITICAL FIX: Handle tokens from backend response
+              let tokens = null;
+              if (finalAuthData.accessToken || finalAuthData.refreshToken) {
+                console.log('🔄 Backend provided tokens, storing them locally...');
+                console.log('🔄 Access token from backend:', !!finalAuthData.accessToken);
+                console.log('🔄 Refresh token from backend:', !!finalAuthData.refreshToken);
+                
+                // Store tokens in the format expected by the app
+                await storeTokens(finalAuthData.accessToken, finalAuthData.refreshToken);
+                
+                // Create tokens object in the expected format
+                tokens = {
+                  access_token: finalAuthData.accessToken,
+                  refresh_token: finalAuthData.refreshToken,
+                  expires_in: 3600 // Default 1 hour
+                };
+              } else if (finalAuthData.tokens) {
+                console.log('🔄 Backend provided tokens in nested format, storing them locally...');
+                await storeTokens(finalAuthData.tokens.access_token, finalAuthData.tokens.refresh_token);
+                tokens = finalAuthData.tokens;
+              } else {
+                console.log('⚠️ No tokens from backend, checking local storage...');
+                tokens = await getStoredTokens();
+                if (!tokens) {
+                  console.log('❌ No tokens available - Google Calendar will not work');
+                  // Create a mock token object to prevent errors
+                  tokens = { access_token: null, refresh_token: null, expires_in: 0 };
+                }
+              }
               
               console.log('=== FALLBACK: AUTHENTICATION COMPLETE ===');
               return { success: true, user: userResult.user, isNewUser: userResult.isNewUser, tokens };
@@ -357,21 +438,31 @@ export const useGoogleAuth = () => {
 
   const getStoredTokens = async () => {
     try {
+      console.log('🔍 useGoogleAuth: Getting stored tokens...');
+      
       const accessToken = await AsyncStorage.getItem('google_access_token');
       const refreshToken = await AsyncStorage.getItem('google_refresh_token');
       const expiryTime = await AsyncStorage.getItem('google_token_expiry');
 
+      console.log('🔍 useGoogleAuth: Retrieved access token:', !!accessToken);
+      console.log('🔍 useGoogleAuth: Retrieved refresh token:', !!refreshToken);
+      console.log('🔍 useGoogleAuth: Retrieved expiry time:', !!expiryTime);
+
       if (!accessToken) {
+        console.log('❌ useGoogleAuth: No access token found in storage');
         return null;
       }
 
-      return {
+      const tokens = {
         access_token: accessToken,
         refresh_token: refreshToken,
         expires_in: expiryTime ? (parseInt(expiryTime) - Date.now()) / 1000 : 3600,
       };
+      
+      console.log('✅ useGoogleAuth: Tokens retrieved successfully');
+      return tokens;
     } catch (error) {
-      console.error('Error getting stored tokens:', error);
+      console.error('❌ useGoogleAuth: Error getting stored tokens:', error);
       return null;
     }
   };

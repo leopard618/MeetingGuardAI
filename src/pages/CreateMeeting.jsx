@@ -24,7 +24,7 @@ import { Meeting } from "@/api/entities";
 import { useTheme } from "@/contexts/ThemeContext";
 import calendarSyncManager from "@/api/calendarSyncManager";
 
-export default function CreateMeeting({ navigation }) {
+export default function CreateMeeting({ navigation, route }) {
   const { isDarkMode } = useTheme();
   // Store date and time as Date objects for picker compatibility
   const [formData, setFormData] = useState({
@@ -185,6 +185,12 @@ export default function CreateMeeting({ navigation }) {
 
       // Create meeting in app
       const createdMeeting = await Meeting.create(meetingData);
+
+      // Schedule alerts for the new meeting
+      if (route?.params?.onMeetingCreated) {
+        console.log('📅 Scheduling alerts for newly created meeting:', createdMeeting.title);
+        await route.params.onMeetingCreated(createdMeeting);
+      }
 
       // Sync to Google Calendar if enabled
       if (syncToGoogle) {

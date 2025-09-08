@@ -212,6 +212,21 @@ export const AuthProvider = ({ children }) => {
         // Fetch user's current plan
         const plan = await fetchUserPlan(parsedUser.id);
         setUserPlan(plan);
+        
+        // Initialize Google Calendar service if user is authenticated
+        try {
+          console.log('🔄 Initializing Google Calendar service for authenticated user...');
+          const googleCalendarService = (await import('../api/googleCalendar')).default;
+          const initialized = await googleCalendarService.initialize();
+          if (initialized) {
+            console.log('✅ Google Calendar service initialized for authenticated user');
+          } else {
+            console.log('⚠️ Google Calendar service initialization failed for authenticated user');
+          }
+        } catch (calendarError) {
+          console.warn('⚠️ Failed to initialize Google Calendar service:', calendarError.message);
+          // Don't fail the auth check if calendar init fails
+        }
       } else {
         console.log('No user found in storage');
         setIsAuthenticated(false);
@@ -383,15 +398,34 @@ export const AuthProvider = ({ children }) => {
         
         // Sync Google tokens with backend if available
         if (result.tokens) {
-          console.log('🔄 Syncing Google tokens with backend...');
+          console.log('🔄 AuthContext: Syncing Google tokens with backend...');
+          console.log('🔄 AuthContext: Tokens received:', {
+            hasAccessToken: !!result.tokens.access_token,
+            hasRefreshToken: !!result.tokens.refresh_token,
+            expiresIn: result.tokens.expires_in
+          });
           try {
             const googleCalendarService = (await import('../api/googleCalendar')).default;
             await googleCalendarService.storeTokens(result.tokens);
-            console.log('✅ Google tokens synced with backend');
+            
+            // Initialize the Google Calendar service after storing tokens
+            console.log('🔄 AuthContext: Initializing Google Calendar service...');
+            const initialized = await googleCalendarService.initialize();
+            if (initialized) {
+              console.log('✅ AuthContext: Google Calendar service initialized successfully');
+            } else {
+              console.log('⚠️ AuthContext: Google Calendar service initialization failed');
+            }
+            
+            console.log('✅ AuthContext: Google tokens synced with backend');
           } catch (syncError) {
-            console.error('⚠️ Failed to sync Google tokens:', syncError);
+            console.error('⚠️ AuthContext: Failed to sync Google tokens:', syncError);
             // Don't fail the sign-in if token sync fails
+            // The tokens are already stored locally by useGoogleAuth
           }
+        } else {
+          console.log('⚠️ AuthContext: No tokens returned from Google sign-in');
+          console.log('⚠️ AuthContext: Result object:', result);
         }
         
         // The useEffect will handle the state update automatically
