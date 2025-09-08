@@ -8,11 +8,12 @@ const { hashPassword, verifyPassword, validatePassword } = require('../utils/pas
 const router = express.Router();
 
 /**
- * Manual sign up endpoint (simplified for current schema)
+ * Manual sign up endpoint with password
  */
 router.post('/signup', [
   body('email').isEmail().normalizeEmail(),
-  body('name').trim().isLength({ min: 2 })
+  body('name').trim().isLength({ min: 2 }),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
 ], async (req, res) => {
   try {
     // Validate input
@@ -25,7 +26,7 @@ router.post('/signup', [
       });
     }
 
-    const { email, name } = req.body;
+    const { email, name, password } = req.body;
 
     // Check if user already exists
     const { data: existingUser, error: checkError } = await supabase
@@ -45,14 +46,21 @@ router.post('/signup', [
       });
     }
 
+    // Hash the password
+    const passwordHash = await hashPassword(password);
+
     // Create new user
     const { data: newUser, error: createError } = await supabase
       .from('users')
       .insert({
         email: email,
-        name: name
+        name: name,
+        password_hash: passwordHash,
+        plan: 'free',
+        subscription_status: 'inactive',
+        last_login: new Date().toISOString()
       })
-      .select('id, email, name, created_at')
+      .select('id, email, name, created_at, plan, subscription_status')
       .single();
 
     if (createError) {
@@ -81,10 +89,11 @@ router.post('/signup', [
 });
 
 /**
- * Manual sign in endpoint (simplified for current schema)
+ * Manual sign in endpoint with password verification
  */
 router.post('/signin', [
-  body('email').isEmail().normalizeEmail()
+  body('email').isEmail().normalizeEmail(),
+  body('password').notEmpty().withMessage('Password is required')
 ], async (req, res) => {
   try {
     // Validate input
@@ -97,12 +106,12 @@ router.post('/signin', [
       });
     }
 
-    const { email } = req.body;
+    const { email, password } = req.body;
 
     // Find user by email
     const { data: user, error: findError } = await supabase
       .from('users')
-      .select('id, email, name, created_at')
+      .select('id, email, name, password_hash, created_at, plan, subscription_status')
       .eq('email', email)
       .single();
 
@@ -110,11 +119,34 @@ router.post('/signin', [
       if (findError.code === 'PGRST116') {
         return res.status(401).json({
           success: false,
-          error: 'User not found. Please sign up first.'
+          error: 'Invalid email or password'
         });
       }
       throw findError;
     }
+
+    // Check if user has a password (manual signup)
+    if (!user.password_hash) {
+      return res.status(401).json({
+        success: false,
+        error: 'This account was created with Google. Please use Google Sign In.'
+      });
+    }
+
+    // Verify password
+    const isValidPassword = await verifyPassword(password, user.password_hash);
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid email or password'
+      });
+    }
+
+    // Update last login
+    await supabase
+      .from('users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', user.id);
 
     // Generate JWT token
     const jwtToken = generateToken(user.id);
@@ -122,9 +154,12 @@ router.post('/signin', [
     console.log('=== MANUAL SIGN IN SUCCESS ===');
     console.log('User signed in:', user.email);
 
+    // Remove password_hash from response
+    const { password_hash, ...userWithoutPassword } = user;
+
     res.json({
       success: true,
-      user: user,
+      user: userWithoutPassword,
       jwtToken: jwtToken
     });
 
@@ -553,6 +588,67 @@ router.post('/google/save-user', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error in save Google user endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Sync Google tokens with backend database
+ */
+router.post('/google/sync-tokens', authenticateToken, async (req, res) => {
+  try {
+    const { access_token, refresh_token, expires_in, expires_at } = req.body;
+
+    if (!access_token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Access token is required'
+      });
+    }
+
+    console.log('=== SYNCING GOOGLE TOKENS ===');
+    console.log('User ID:', req.userId);
+    console.log('Has access token:', !!access_token);
+    console.log('Has refresh token:', !!refresh_token);
+    console.log('Expires at:', expires_at);
+
+    // Upsert tokens in database
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('user_tokens')
+      .upsert({
+        user_id: req.userId,
+        access_token: access_token,
+        refresh_token: refresh_token,
+        expires_at: expires_at,
+        token_type: 'google'
+      }, { 
+        onConflict: 'user_id,token_type' 
+      })
+      .select()
+      .single();
+
+    if (tokenError) {
+      console.error('❌ Error syncing tokens:', tokenError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to sync tokens',
+        details: tokenError.message
+      });
+    }
+
+    console.log('✅ Tokens synced successfully');
+
+    res.json({
+      success: true,
+      message: 'Tokens synced successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error in sync tokens endpoint:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',

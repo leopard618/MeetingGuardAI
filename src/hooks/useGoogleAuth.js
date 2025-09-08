@@ -333,8 +333,11 @@ export const useGoogleAuth = () => {
               setUser(userResult.user);
               setIsSignedIn(true);
               
+              // Get tokens for return
+              const tokens = await getStoredTokens();
+              
               console.log('=== FALLBACK: AUTHENTICATION COMPLETE ===');
-              return { success: true, user: userResult.user, isNewUser: userResult.isNewUser };
+              return { success: true, user: userResult.user, isNewUser: userResult.isNewUser, tokens };
             }
           }
         }
@@ -349,6 +352,27 @@ export const useGoogleAuth = () => {
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
       throw error;
+    }
+  };
+
+  const getStoredTokens = async () => {
+    try {
+      const accessToken = await AsyncStorage.getItem('google_access_token');
+      const refreshToken = await AsyncStorage.getItem('google_refresh_token');
+      const expiryTime = await AsyncStorage.getItem('google_token_expiry');
+
+      if (!accessToken) {
+        return null;
+      }
+
+      return {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_in: expiryTime ? (parseInt(expiryTime) - Date.now()) / 1000 : 3600,
+      };
+    } catch (error) {
+      console.error('Error getting stored tokens:', error);
+      return null;
     }
   };
 
