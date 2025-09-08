@@ -14,8 +14,8 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Alert } from 'react-native';
 import { useTranslation, getAvailableLanguages } from './translations';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext.jsx';
+import { useAuth } from '../contexts/AuthContext.jsx';
 import ThemeToggle from './ThemeToggle';
 
 const { width } = Dimensions.get('window');

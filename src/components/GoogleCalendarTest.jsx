@@ -16,8 +16,8 @@ import {
 } from 'react-native-paper';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import googleCalendarService from '@/api/googleCalendar';
-import calendarSyncManager from '@/api/calendarSyncManager';
+import googleCalendarService from '../api/googleCalendar.js';
+import calendarSyncManager from '../api/calendarSyncManager.js';
 
 export default function GoogleCalendarTest({ navigation }) {
   const { isDarkMode } = useTheme();

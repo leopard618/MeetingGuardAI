@@ -9,9 +9,9 @@ import {
 } from 'react-native';
 import { Card, Title, Paragraph, Button, ActivityIndicator } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import MeetingManager from '../api/meetingManager';
-import OpenAIService from '../api/openai';
-import GoogleCalendarService from '../api/googleCalendar';
+import MeetingManager from '../api/meetingManager.js';
+import OpenAIService from '../api/openai.js';
+import GoogleCalendarService from '../api/googleCalendar.js';
 
 export default function APITest() {
   const [isLoading, setIsLoading] = useState(false);

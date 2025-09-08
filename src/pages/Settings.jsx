@@ -24,7 +24,7 @@ import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { User, UserPreferences } from "@/api/entities";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
-import CalendarSyncSettings from "@/components/CalendarSyncSettings";
+import CalendarSyncSettings from '../components/CalendarSyncSettings.jsx';
 import CalendarTest from "@/components/CalendarTest";
 
 export default function Settings({ navigation, language = "en" }) {

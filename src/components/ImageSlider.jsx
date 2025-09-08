@@ -10,8 +10,8 @@ import {
   Animated,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '@/contexts/ThemeContext';
-import { imageSliderConfig, getSlidesForContext } from '@/config/imageSliderConfig';
+import { useTheme } from '../contexts/ThemeContext.jsx';
+import { imageSliderConfig, getSlidesForContext } from '../config/imageSliderConfig.js';
 
 const { width: screenWidth } = Dimensions.get('window');
 

@@ -23,7 +23,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { Meeting } from "@/api/entities";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
-import calendarSyncManager from "@/api/calendarSyncManager";
+import calendarSyncManager from '../api/calendarSyncManager.js';
 
 export default function CreateMeeting({ navigation, route }) {
   const { isDarkMode } = useTheme();

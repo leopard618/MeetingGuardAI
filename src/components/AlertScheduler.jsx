@@ -3,7 +3,7 @@ import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react
 import { Meeting } from "@/api/entities";
 import ServiceWorkerRegistration from './ServiceWorkerRegistration';
 import { storage } from "@/utils/storage";
-import { AlertIntensity } from '@/utils/notificationUtils';
+import { AlertIntensity } from '../utils/notificationUtils.js';
 
 const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnabled }, ref) => {
   const alertTimeoutsRef = useRef(new Map());
