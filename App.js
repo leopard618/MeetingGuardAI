@@ -5,41 +5,41 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { View, StyleSheet } from 'react-native';
-import { ThemeProvider } from './src/contexts/ThemeContext';
-import { AuthProvider, useAuth } from './src/contexts/AuthContext';
-import calendarSyncManager from './src/api/calendarSyncManager';
+import { ThemeProvider } from './src/contexts/ThemeContext.jsx';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext.jsx';
+import calendarSyncManager from './src/api/calendarSyncManager.js';
 
 // Import components
-import MobileSidebar from './src/components/MobileSidebar';
-import CustomHeader from './src/components/CustomHeader';
+import MobileSidebar from './src/components/MobileSidebar.jsx';
+import CustomHeader from './src/components/CustomHeader.jsx';
 
 // Import API entities
-import { User } from './src/api/entities';
-import { UserPreferences } from './src/api/entities';
+import { User } from './src/api/entities.js';
+import { UserPreferences } from './src/api/entities.js';
 
 // Import screens
-import Auth from './src/pages/Auth';
-import Dashboard from './src/pages/Dashboard';
-import ModernCreateMeeting from './src/components/ModernCreateMeeting';
-import TotalMeetings from './src/pages/TotalMeetings';
-import MeetingDetails from './src/pages/MeetingDetails';
-import EditMeeting from './src/pages/EditMeeting';
-import Calendar from './src/pages/Calendar';
-import Notes from './src/pages/Notes';
-import Settings from './src/pages/Settings';
-import AIChat from './src/pages/AIChat';
-import AIInsights from './src/pages/AIInsights';
-import ApiSettings from './src/pages/Apisettings';
-import Privacy from './src/pages/Privacy';
-import Terms from './src/pages/Terms';
-import WhatsAppBot from './src/pages/WhatsAppBot';
-import ChooseCreationMethod from './src/pages/ChooseCreationMethod';
-import CalendarSync from './src/pages/CalendarSync';
-import GoogleCalendarTest from './src/pages/GoogleCalendarTest';
-import GoogleCalendarTestComponent from './src/components/GoogleCalendarTest';
-import NotificationDemo from './src/components/NotificationSystem/NotificationDemo';
-import Pricing from './src/pages/Pricing';
-import PaymentSuccess from './src/pages/PaymentSuccess';
+import Auth from './src/pages/Auth.jsx';
+import Dashboard from './src/pages/Dashboard.jsx';
+import ModernCreateMeeting from './src/components/ModernCreateMeeting.jsx';
+import TotalMeetings from './src/pages/TotalMeetings.jsx';
+import MeetingDetails from './src/pages/MeetingDetails.jsx';
+import EditMeeting from './src/pages/EditMeeting.jsx';
+import Calendar from './src/pages/Calendar.jsx';
+import Notes from './src/pages/Notes.jsx';
+import Settings from './src/pages/Settings.jsx';
+import AIChat from './src/pages/AIChat.jsx';
+import AIInsights from './src/pages/AIInsights.jsx';
+import ApiSettings from './src/pages/Apisettings.jsx';
+import Privacy from './src/pages/Privacy.jsx';
+import Terms from './src/pages/Terms.jsx';
+import WhatsAppBot from './src/pages/WhatsAppBot.jsx';
+import ChooseCreationMethod from './src/pages/ChooseCreationMethod.jsx';
+import CalendarSync from './src/pages/CalendarSync.jsx';
+import GoogleCalendarTest from './src/pages/GoogleCalendarTest.jsx';
+import GoogleCalendarTestComponent from './src/components/GoogleCalendarTest.jsx';
+import NotificationDemo from './src/components/NotificationSystem/NotificationDemo.jsx';
+import Pricing from './src/pages/Pricing.jsx';
+import PaymentSuccess from './src/pages/PaymentSuccess.jsx';
 
 const Stack = createStackNavigator();
 
