@@ -213,16 +213,18 @@ class GoogleCalendarService {
   }
 
   /**
-   * Get access token from storage
+   * Get access token from storage with automatic refresh
    */
   async getAccessToken() {
     try {
       console.log('🔄 Getting Google access token from storage...');
       const token = await AsyncStorage.getItem('google_access_token');
       const expiry = await AsyncStorage.getItem('google_token_expiry');
+      const refreshToken = await AsyncStorage.getItem('google_refresh_token');
       
       console.log('Token found:', !!token);
       console.log('Expiry found:', !!expiry);
+      console.log('Refresh token found:', !!refreshToken);
       
       if (!token) {
         console.log('❌ No Google access token found in storage');
@@ -235,7 +237,21 @@ class GoogleCalendarService {
         console.log('Token expiry time:', new Date(parseInt(expiry)).toISOString());
         console.log('Current time:', new Date().toISOString());
         
-        // Clear expired token
+        // Try to refresh the token
+        if (refreshToken) {
+          console.log('🔄 Attempting to refresh expired token...');
+          try {
+            const newTokens = await this.refreshAccessToken(refreshToken);
+            if (newTokens && newTokens.access_token) {
+              console.log('✅ Token refreshed successfully');
+              return newTokens.access_token;
+            }
+          } catch (refreshError) {
+            console.error('❌ Token refresh failed:', refreshError);
+          }
+        }
+        
+        // Clear expired tokens if refresh failed
         await AsyncStorage.removeItem('google_access_token');
         await AsyncStorage.removeItem('google_token_expiry');
         await AsyncStorage.removeItem('google_refresh_token');
@@ -255,6 +271,131 @@ class GoogleCalendarService {
         name: error.name
       });
       return null;
+    }
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async refreshAccessToken(refreshToken) {
+    try {
+      console.log('🔄 Refreshing Google access token...');
+      
+      const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '929271330787-chktjtd81grj1sb4nae2b11tevocmfh9.apps.googleusercontent.com',
+          client_secret: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET,
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Token refresh failed:', response.status, errorText);
+        throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
+      }
+
+      const tokens = await response.json();
+      console.log('✅ Token refresh successful');
+      
+      // Store new tokens
+      await this.storeTokens(tokens);
+      
+      return tokens;
+    } catch (error) {
+      console.error('❌ Error refreshing access token:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Store tokens in AsyncStorage and sync with backend
+   */
+  async storeTokens(tokens) {
+    try {
+      console.log('💾 Storing Google tokens...');
+      
+      if (tokens.access_token) {
+        await AsyncStorage.setItem('google_access_token', tokens.access_token);
+        console.log('✅ Access token stored');
+      }
+      
+      if (tokens.refresh_token) {
+        await AsyncStorage.setItem('google_refresh_token', tokens.refresh_token);
+        console.log('✅ Refresh token stored');
+      }
+      
+      if (tokens.expires_in) {
+        const expiryTime = Date.now() + (tokens.expires_in * 1000);
+        await AsyncStorage.setItem('google_token_expiry', expiryTime.toString());
+        console.log('✅ Token expiry stored:', new Date(expiryTime).toISOString());
+      }
+      
+      // Sync tokens with backend
+      await this.syncTokensWithBackend(tokens);
+      
+      console.log('✅ All tokens stored successfully');
+    } catch (error) {
+      console.error('❌ Error storing tokens:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sync tokens with backend database
+   */
+  async syncTokensWithBackend(tokens) {
+    try {
+      console.log('🔄 Syncing tokens with backend...');
+      
+      const backendUrl = process.env.BACKEND_URL;
+      if (!backendUrl) {
+        console.log('⚠️ Backend URL not configured, skipping token sync');
+        return;
+      }
+
+      // Get user info from storage
+      const userData = await AsyncStorage.getItem('user');
+      if (!userData) {
+        console.log('⚠️ No user data found, skipping token sync');
+        return;
+      }
+
+      const user = JSON.parse(userData);
+      const authToken = await AsyncStorage.getItem('authToken');
+
+      if (!authToken) {
+        console.log('⚠️ No auth token found, skipping token sync');
+        return;
+      }
+
+      const response = await fetch(`${backendUrl}/api/auth/google/sync-tokens`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expires_in: tokens.expires_in,
+          expires_at: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null
+        })
+      });
+
+      if (response.ok) {
+        console.log('✅ Tokens synced with backend successfully');
+      } else {
+        console.log('⚠️ Failed to sync tokens with backend:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error syncing tokens with backend:', error);
+      // Don't throw error - token sync failure shouldn't break the app
     }
   }
 

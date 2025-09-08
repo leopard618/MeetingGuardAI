@@ -228,17 +228,58 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      console.log('=== AUTH CONTEXT: LOGIN ATTEMPT ===');
+      console.log('=== AUTH CONTEXT: MANUAL LOGIN ATTEMPT ===');
+      console.log('Email:', email);
       setIsLoading(true);
       
-      // TODO: Implement actual login logic with your backend
-      // For now, return a placeholder response
-      console.log('Login not implemented yet - using placeholder');
-      
-      return { success: false, error: 'Login not implemented yet' };
+      const backendUrl = process.env.BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error('Backend URL not configured');
+      }
+
+      // Call the backend login endpoint
+      const response = await fetch(`${backendUrl}/api/auth/signin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password
+        })
+      });
+
+      console.log('Login response status:', response.status);
+      console.log('Login response ok:', response.ok);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Manual login successful:', data);
+        
+        // Store user data in AsyncStorage
+        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Store the JWT token for future authenticated requests
+        if (data.jwtToken) {
+          await AsyncStorage.setItem('authToken', data.jwtToken);
+          console.log('✅ JWT token stored for authenticated requests');
+        }
+        
+        // Update auth state
+        setUser(data.user);
+        setIsAuthenticated(true);
+        setUserPlan(data.user.plan || 'free');
+        
+        return { success: true, user: data.user };
+      } else {
+        const errorData = await response.json();
+        console.error('❌ Manual login failed:', errorData);
+        return { success: false, error: errorData.error || 'Login failed' };
+      }
     } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, error: error.message };
+      console.error('❌ Manual login error:', error);
+      return { success: false, error: error.message || 'Network error' };
     } finally {
       setIsLoading(false);
     }
@@ -246,17 +287,60 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (name, email, password) => {
     try {
-      console.log('=== AUTH CONTEXT: SIGNUP ATTEMPT ===');
+      console.log('=== AUTH CONTEXT: MANUAL SIGNUP ATTEMPT ===');
+      console.log('Name:', name);
+      console.log('Email:', email);
       setIsLoading(true);
       
-      // TODO: Implement actual signup logic with your backend
-      // For now, return a placeholder response
-      console.log('Signup not implemented yet - using placeholder');
-      
-      return { success: false, error: 'Signup not implemented yet' };
+      const backendUrl = process.env.BACKEND_URL;
+      if (!backendUrl) {
+        throw new Error('Backend URL not configured');
+      }
+
+      // Call the backend signup endpoint
+      const response = await fetch(`${backendUrl}/api/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          name: name,
+          email: email,
+          password: password
+        })
+      });
+
+      console.log('Signup response status:', response.status);
+      console.log('Signup response ok:', response.ok);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Manual signup successful:', data);
+        
+        // Store user data in AsyncStorage
+        await AsyncStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Store the JWT token for future authenticated requests
+        if (data.jwtToken) {
+          await AsyncStorage.setItem('authToken', data.jwtToken);
+          console.log('✅ JWT token stored for authenticated requests');
+        }
+        
+        // Update auth state
+        setUser(data.user);
+        setIsAuthenticated(true);
+        setUserPlan(data.user.plan || 'free');
+        
+        return { success: true, user: data.user };
+      } else {
+        const errorData = await response.json();
+        console.error('❌ Manual signup failed:', errorData);
+        return { success: false, error: errorData.error || 'Signup failed' };
+      }
     } catch (error) {
-      console.error('Signup error:', error);
-      return { success: false, error: error.message };
+      console.error('❌ Manual signup error:', error);
+      return { success: false, error: error.message || 'Network error' };
     } finally {
       setIsLoading(false);
     }
@@ -271,9 +355,11 @@ export const AuthProvider = ({ children }) => {
 
       // Clear local storage
       await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('authToken');
       
       setUser(null);
       setIsAuthenticated(false);
+      setUserPlan('free');
       console.log('Logout successful');
     } catch (error) {
       console.error('Logout error:', error);
@@ -294,6 +380,19 @@ export const AuthProvider = ({ children }) => {
         
         // Store user data in AsyncStorage
         await AsyncStorage.setItem('user', JSON.stringify(result.user));
+        
+        // Sync Google tokens with backend if available
+        if (result.tokens) {
+          console.log('🔄 Syncing Google tokens with backend...');
+          try {
+            const googleCalendarService = (await import('../api/googleCalendar')).default;
+            await googleCalendarService.storeTokens(result.tokens);
+            console.log('✅ Google tokens synced with backend');
+          } catch (syncError) {
+            console.error('⚠️ Failed to sync Google tokens:', syncError);
+            // Don't fail the sign-in if token sync fails
+          }
+        }
         
         // The useEffect will handle the state update automatically
         // since it's watching googleAuth.isSignedIn and googleAuth.user
