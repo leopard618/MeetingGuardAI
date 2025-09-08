@@ -1,164 +1,241 @@
-# 🚀 Deployment Checklist
+# 🚀 MeetingGuard AI - Deployment Checklist
 
-## ✅ Google Calendar Issues Fixed
+## 📋 Pre-Deployment Checklist
 
-### **Token Management**
-- ✅ Added automatic token refresh mechanism
-- ✅ Fixed token synchronization between frontend and backend
-- ✅ Added proper token storage and retrieval
-- ✅ Implemented token expiry handling
+### ✅ Code & Features
+- [ ] All meeting creation features working
+- [ ] Google OAuth working correctly
+- [ ] Manual login/register working
+- [ ] Google Calendar sync working
+- [ ] Alert system functioning
+- [ ] Payment integration tested
+- [ ] No console errors or warnings
+- [ ] App tested on both iOS and Android devices
 
-### **Backend Improvements**
-- ✅ Added `/api/auth/google/sync-tokens` endpoint
-- ✅ Enhanced token refresh in calendar routes
-- ✅ Added health check endpoint (`/api/health`)
-- ✅ Improved error handling for expired tokens
+### ✅ Backend & Infrastructure
+- [ ] Backend deployed to production (Render/Heroku/AWS)
+- [ ] Production database configured (Supabase)
+- [ ] Environment variables set for production
+- [ ] Google OAuth credentials configured for production URLs
+- [ ] Stripe webhooks configured for production
+- [ ] Backend health check endpoint working
 
-### **Frontend Improvements**
-- ✅ Enhanced Google Calendar service with token refresh
-- ✅ Added token sync with backend on authentication
-- ✅ Improved error handling for calendar operations
-- ✅ Fixed token storage and retrieval
+### ✅ App Configuration
+- [ ] app.json configured for production
+- [ ] Bundle identifiers set correctly
+- [ ] App icons and splash screens ready
+- [ ] Permissions configured properly
+- [ ] EAS project configured
 
-## 🔧 Manual Authentication Implementation
+## 🤖 Google Play Store
 
-### **Database Schema**
-- ✅ Added password fields to users table
-- ✅ Created migration file: `backend/migrations/add-password-fields.sql`
-
-### **Backend API**
-- ✅ Enhanced `/api/auth/signup` with password hashing
-- ✅ Enhanced `/api/auth/signin` with password verification
-- ✅ Added proper validation and error handling
-- ✅ Implemented JWT token generation
-
-### **Frontend Integration**
-- ✅ Implemented `login()` function in AuthContext
-- ✅ Implemented `signup()` function in AuthContext
-- ✅ Added proper error handling and user feedback
-- ✅ Integrated with existing UI components
-
-## 🧪 Testing
-
-### **Test Scripts Created**
-- ✅ `test-manual-auth.js` - Tests manual authentication flow
-- ✅ `test-deployment-readiness.js` - Comprehensive deployment tests
-
-### **Test Coverage**
-- ✅ Manual signup/signin flow
-- ✅ Token refresh mechanism
-- ✅ Database connectivity
-- ✅ Environment variables
-- ✅ CORS configuration
-- ✅ Google OAuth setup
-
-## 📋 Pre-Deployment Steps
-
-### **1. Database Migration**
-```sql
--- Run this in Supabase SQL Editor
--- Copy contents from: backend/migrations/add-password-fields.sql
-ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE;
-```
-
-### **2. Environment Variables**
-Ensure these are set in your deployment environment:
+### Step 1: Build Android App
 ```bash
-# Database
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
+# Install EAS CLI
+npm install -g eas-cli
 
-# Authentication
-JWT_SECRET=your_jwt_secret
+# Login to Expo
+npx eas-cli login
 
-# Google OAuth
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_REDIRECT_URI=your_google_redirect_uri
-
-# Stripe (if using payments)
-STRIPE_SECRET_KEY=your_stripe_secret_key
-STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+# Build for production
+npx eas-cli build --platform android --profile production
 ```
 
-### **3. Run Tests**
+### Step 2: Google Play Console
+- [ ] Create Google Play Console account ($25 fee)
+- [ ] Create new app in console
+- [ ] Upload AAB file from EAS build
+- [ ] Complete store listing:
+  - [ ] App description
+  - [ ] Screenshots (phone and tablet)
+  - [ ] Feature graphic (1024x500px)
+  - [ ] App icon (512x512px)
+  - [ ] Content rating
+  - [ ] Data safety information
+  - [ ] Privacy policy URL
+  - [ ] Support contact information
+
+### Step 3: Required Information
+**App Name:** MeetingGuard AI
+**Package Name:** com.meetingguard.ai
+**Category:** Productivity
+**Content Rating:** Everyone
+
+## 🍎 Apple App Store
+
+### Step 1: Apple Developer Account
+- [ ] Enroll in Apple Developer Program ($99/year)
+- [ ] Create App ID: com.meetingguard.ai
+- [ ] Configure certificates and provisioning profiles
+
+### Step 2: Build iOS App
 ```bash
-# Test manual authentication
-node test-manual-auth.js
-
-# Test deployment readiness
-node test-deployment-readiness.js
+# Build for production
+npx eas-cli build --platform ios --profile production
 ```
+
+### Step 3: App Store Connect
+- [ ] Create app in App Store Connect
+- [ ] Upload build using Transporter or Xcode
+- [ ] Complete app information:
+  - [ ] App description
+  - [ ] Keywords
+  - [ ] Screenshots (all required sizes)
+  - [ ] App icon (1024x1024px)
+  - [ ] Privacy policy URL
+  - [ ] Support URL
+  - [ ] Marketing URL (optional)
+
+### Step 4: App Review Information
+- [ ] Contact information
+- [ ] Demo account (if needed)
+- [ ] Review notes
+- [ ] Export compliance information
+
+## 🔧 Production Environment Setup
+
+### Backend Environment Variables
+```env
+NODE_ENV=production
+PORT=3000
+SUPABASE_URL=your_production_supabase_url
+SUPABASE_ANON_KEY=your_production_supabase_anon_key
+GOOGLE_CLIENT_ID=your_production_google_client_id
+GOOGLE_CLIENT_SECRET=your_production_google_client_secret
+GOOGLE_REDIRECT_URI=your_production_redirect_uri
+STRIPE_SECRET_KEY=your_production_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_production_webhook_secret
+OPENAI_API_KEY=your_openai_api_key
+```
+
+### Frontend Configuration
+Update app.json extra section:
+```json
+"extra": {
+  "BACKEND_URL": "https://your-production-backend.com",
+  "GOOGLE_CLIENT_ID": "your_production_google_client_id",
+  "STRIPE_PUBLISHABLE_KEY": "your_production_stripe_publishable_key"
+}
+```
+
+## 📱 Required Assets
+
+### App Icons
+- [ ] Android: 512x512px (adaptive icon)
+- [ ] iOS: 1024x1024px
+- [ ] Web: 192x192px, 512x512px
+
+### Screenshots
+- [ ] Android Phone: 2:1 ratio
+- [ ] Android Tablet: 16:10 ratio
+- [ ] iOS iPhone 6.7": 1290x2796px
+- [ ] iOS iPhone 6.5": 1242x2688px
+- [ ] iOS iPhone 5.5": 1242x2208px
+- [ ] iOS iPad Pro: 2048x2732px
+
+### Feature Graphic (Android)
+- [ ] 1024x500px
 
 ## 🚀 Deployment Commands
 
-### **Backend Deployment**
+### Build Commands
 ```bash
-# Install dependencies
-npm install
+# Build for Android
+npx eas-cli build --platform android --profile production
 
-# Start server
-npm start
+# Build for iOS
+npx eas-cli build --platform ios --profile production
+
+# Build for both platforms
+npx eas-cli build --platform all --profile production
 ```
 
-### **Frontend Deployment**
+### Submit Commands
 ```bash
-# Install dependencies
-npm install
+# Submit to Google Play Store
+npx eas-cli submit --platform android
 
-# Build for production
-npm run build
-
-# Start production server
-npm run start:prod
+# Submit to Apple App Store
+npx eas-cli submit --platform ios
 ```
 
-## 🔍 Post-Deployment Verification
+## 📋 Final Pre-Submission Checklist
 
-### **1. Health Check**
+### App Functionality
+- [ ] Meeting creation works
+- [ ] Google sign-in works
+- [ ] Manual login/register works
+- [ ] Calendar sync works
+- [ ] Alerts work
+- [ ] Payment flow works
+- [ ] All navigation works
+- [ ] No crashes or errors
+
+### Store Requirements
+- [ ] Privacy policy published and accessible
+- [ ] Terms of service published and accessible
+- [ ] Support contact information provided
+- [ ] App description finalized
+- [ ] Keywords selected
+- [ ] Screenshots taken and uploaded
+- [ ] App icons ready
+- [ ] Content rating completed
+
+### Legal & Compliance
+- [ ] Privacy policy covers all data collection
+- [ ] Terms of service are clear
+- [ ] App complies with platform guidelines
+- [ ] All required permissions justified
+- [ ] Data safety information accurate
+
+## 🎯 Launch Strategy
+
+### Pre-Launch
+- [ ] Beta testing completed
+- [ ] User feedback incorporated
+- [ ] Marketing materials prepared
+- [ ] Social media accounts ready
+- [ ] Website updated
+
+### Launch Day
+- [ ] Monitor app review status
+- [ ] Respond to any review feedback
+- [ ] Announce launch on social media
+- [ ] Send launch email to beta testers
+- [ ] Monitor analytics and crash reports
+
+### Post-Launch
+- [ ] Respond to user reviews
+- [ ] Monitor app performance
+- [ ] Plan first update
+- [ ] Gather user feedback
+- [ ] Optimize app store listing
+
+## 🆘 Support Resources
+
+- [Expo Documentation](https://docs.expo.dev/)
+- [EAS Build Documentation](https://docs.expo.dev/build/introduction/)
+- [Apple App Store Guidelines](https://developer.apple.com/app-store/review/guidelines/)
+- [Google Play Policy](https://support.google.com/googleplay/android-developer/answer/9859348)
+
+## 📞 Quick Commands Reference
+
 ```bash
-curl https://your-backend-url/api/health
+# Check EAS status
+npx eas-cli whoami
+
+# List builds
+npx eas-cli build:list
+
+# View build logs
+npx eas-cli build:view [BUILD_ID]
+
+# Submit to stores
+npx eas-cli submit --platform android
+npx eas-cli submit --platform ios
+
+# Update app version
+# Update version in app.json, then rebuild
 ```
 
-### **2. Authentication Test**
-- Test manual signup/signin
-- Test Google OAuth
-- Verify token refresh works
-
-### **3. Calendar Integration Test**
-- Connect Google Calendar
-- Create/edit/delete events
-- Verify sync works properly
-
-## 🐛 Common Issues & Solutions
-
-### **Google Calendar Disconnection**
-- **Cause**: Token expiry or sync issues
-- **Solution**: Tokens now auto-refresh and sync with backend
-
-### **Authentication Failures**
-- **Cause**: Missing environment variables or database issues
-- **Solution**: Run deployment readiness test to identify issues
-
-### **CORS Errors**
-- **Cause**: Incorrect CORS configuration
-- **Solution**: Verify CORS settings in backend
-
-## 📞 Support
-
-If you encounter issues during deployment:
-1. Check the test results from `test-deployment-readiness.js`
-2. Verify all environment variables are set
-3. Check backend logs for specific error messages
-4. Ensure database migration was run successfully
-
-## 🎉 Success Criteria
-
-Your app is ready for deployment when:
-- ✅ All tests in `test-deployment-readiness.js` pass
-- ✅ Manual authentication works
-- ✅ Google Calendar connects and stays connected
-- ✅ Health check endpoint responds
-- ✅ All environment variables are configured
-- ✅ Database migration is complete
+Good luck with your deployment! 🚀
