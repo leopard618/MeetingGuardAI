@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import NotificationManager from "@/components/NotificationSystem/NotificationManager";
 import AlertScheduler from "@/components/AlertScheduler";
 import ImageSlider from "@/components/ImageSlider";
+import calendarSyncManager from "@/api/calendarSyncManager";
 
 // Date and Time Display Component
 const DateTimeDisplay = ({ isDarkMode, styles }) => {
@@ -237,6 +238,9 @@ export default function Dashboard({ navigation, language = "en" }) {
   const [realAlertOpen, setRealAlertOpen] = useState(false);
   const [realAlertMeeting, setRealAlertMeeting] = useState(null);
   const [realAlertType, setRealAlertType] = useState(null);
+  
+  // Ref for AlertScheduler to access its methods
+  const alertSchedulerRef = useRef(null);
 
   const handleGlobalTestAlert = () => {
     // Get current alert intensity from user preferences
@@ -322,6 +326,49 @@ export default function Dashboard({ navigation, language = "en" }) {
     Alert.alert('Postponed', `Meeting postponed to: ${newDateTime.date} ${newDateTime.time}`);
     setRealAlertOpen(false);
   };
+
+  // Function to handle meeting creation with alert scheduling
+  const handleMeetingCreated = async (newMeeting) => {
+    console.log('📅 Meeting created, scheduling alerts:', newMeeting.title);
+    if (alertSchedulerRef.current) {
+      await alertSchedulerRef.current.scheduleAlertsForMeeting(newMeeting);
+    }
+  };
+
+  // Function to handle meeting update with alert rescheduling
+  const handleMeetingUpdated = async (updatedMeeting) => {
+    console.log('📅 Meeting updated, rescheduling alerts:', updatedMeeting.title);
+    if (alertSchedulerRef.current) {
+      // Clear old alerts and schedule new ones
+      await alertSchedulerRef.current.clearAlertsForMeeting(updatedMeeting.id);
+      await alertSchedulerRef.current.scheduleAlertsForMeeting(updatedMeeting);
+    }
+  };
+
+  // Function to handle meeting deletion with alert cleanup
+  const handleMeetingDeleted = async (meetingId) => {
+    console.log('🗑️ Meeting deleted, clearing alerts for ID:', meetingId);
+    if (alertSchedulerRef.current) {
+      await alertSchedulerRef.current.clearAlertsForMeeting(meetingId);
+    }
+  };
+
+  // Function to refresh all alerts (useful after bulk operations)
+  const refreshAllAlerts = async () => {
+    console.log('🔄 Refreshing all alerts...');
+    if (alertSchedulerRef.current) {
+      await alertSchedulerRef.current.refreshAlerts();
+    }
+  };
+
+  // Set up calendar sync manager callbacks
+  useEffect(() => {
+    calendarSyncManager.setCallbacks({
+      onMeetingCreated: handleMeetingCreated,
+      onMeetingUpdated: handleMeetingUpdated,
+      onMeetingDeleted: handleMeetingDeleted
+    });
+  }, []);
 
   const todaysMeetings = getTodaysMeetings();
   const aiAssistedCount = getAiAssistedCount();
@@ -561,7 +608,9 @@ export default function Dashboard({ navigation, language = "en" }) {
                 </Text>
                 <Button
                   mode="contained"
-                  onPress={() => navigation.navigate("CreateMeeting")}
+                  onPress={() => navigation.navigate("CreateMeeting", { 
+                    onMeetingCreated: handleMeetingCreated 
+                  })}
                   style={styles.createButton}
                   buttonColor="#3b82f6"
                 >
@@ -576,11 +625,14 @@ export default function Dashboard({ navigation, language = "en" }) {
       <FAB
         style={styles.fab}
         icon="plus"
-        onPress={() => navigation.navigate("CreateMeeting")}
+        onPress={() => navigation.navigate("CreateMeeting", { 
+          onMeetingCreated: handleMeetingCreated 
+        })}
       />
 
       {/* AlertScheduler for Real Meeting Alerts */}
       <AlertScheduler
+        ref={alertSchedulerRef}
         onTriggerAlert={handleRealMeetingAlert}
         language={language}
         alertsEnabled={alertsEnabled}

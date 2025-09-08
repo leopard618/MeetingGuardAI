@@ -6,6 +6,16 @@ class CalendarSyncManager {
   constructor() {
     this.isSyncing = false;
     this.syncInterval = null;
+    this.onMeetingCreated = null; // Callback for meeting creation
+    this.onMeetingUpdated = null; // Callback for meeting updates
+    this.onMeetingDeleted = null; // Callback for meeting deletion
+  }
+
+  // Set callbacks for meeting lifecycle events
+  setCallbacks({ onMeetingCreated, onMeetingUpdated, onMeetingDeleted }) {
+    this.onMeetingCreated = onMeetingCreated;
+    this.onMeetingUpdated = onMeetingUpdated;
+    this.onMeetingDeleted = onMeetingDeleted;
   }
 
   // Initialize sync manager
@@ -146,6 +156,13 @@ class CalendarSyncManager {
             
             // Store mapping
             await googleCalendarService.storeEventMapping(newEvent.id, googleEvent.id);
+            
+            // Schedule alerts for the new meeting
+            if (this.onMeetingCreated) {
+              console.log('📅 Scheduling alerts for Google Calendar imported meeting:', newEvent.title);
+              await this.onMeetingCreated(newEvent);
+            }
+            
             syncResults.created++;
           }
         } catch (error) {

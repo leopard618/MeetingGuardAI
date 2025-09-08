@@ -77,23 +77,12 @@ export default function Settings({ navigation, language = "en" }) {
       },
       notificationSettings: {
         title: "Notification Settings",
-        meetings: "Meeting reminders",
-        tasks: "Task reminders",
-        insights: "AI insights",
-        updates: "App updates",
         alertIntensity: "Alert Intensity",
         intensityLevels: {
           maximum: "Maximum - Full screen alerts",
           medium: "Medium - Banner alerts", 
           light: "Light - Toast notifications"
         }
-      },
-      privacySettings: {
-        title: "Privacy & Security",
-        dataCollection: "Data collection",
-        analytics: "Analytics",
-        crashReports: "Crash reports",
-        location: "Location services",
       },
     },
     es: {
@@ -129,17 +118,12 @@ export default function Settings({ navigation, language = "en" }) {
       },
       notificationSettings: {
         title: "Configuración de notificaciones",
-        meetings: "Recordatorios de reuniones",
-        tasks: "Recordatorios de tareas",
-        insights: "Insights de IA",
-        updates: "Actualizaciones de la app",
-      },
-      privacySettings: {
-        title: "Privacidad y Seguridad",
-        dataCollection: "Recopilación de datos",
-        analytics: "Analíticas",
-        crashReports: "Reportes de errores",
-        location: "Servicios de ubicación",
+        alertIntensity: "Intensidad de alertas",
+        intensityLevels: {
+          maximum: "Máxima - Alertas de pantalla completa",
+          medium: "Media - Alertas de banner", 
+          light: "Ligera - Notificaciones toast"
+        }
       },
     },
   };
@@ -176,14 +160,7 @@ export default function Settings({ navigation, language = "en" }) {
               language: language,
               theme: "light",
               alert_enabled: true,
-              notification_meetings: true,
-              notification_tasks: true,
-              notification_insights: true,
-              notification_updates: false,
-              privacy_data_collection: true,
-              privacy_analytics: true,
-              privacy_crash_reports: true,
-              privacy_location: false,
+              alert_intensity: 'maximum',
             });
             setPreferences(defaultPrefs);
           }
@@ -196,14 +173,7 @@ export default function Settings({ navigation, language = "en" }) {
             language: language,
             theme: "light",
             alert_enabled: true,
-            notification_meetings: true,
-            notification_tasks: true,
-            notification_insights: true,
-            notification_updates: false,
-            privacy_data_collection: true,
-            privacy_analytics: true,
-            privacy_crash_reports: true,
-            privacy_location: false,
+            alert_intensity: 'maximum',
           };
           setPreferences(mockPreferences);
         }
@@ -312,56 +282,7 @@ export default function Settings({ navigation, language = "en" }) {
           {t[language].notificationSettings.title}
         </Title>
         
-        <List.Item
-          title={t[language].notificationSettings.meetings}
-          titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-          left={(props) => <List.Icon {...props} icon="calendar" />}
-          right={() => (
-            <Switch
-              value={preferences?.notification_meetings || false}
-              onValueChange={(value) => updatePreference('notification_meetings', value)}
-            />
-          )}
-        />
-        
-        <List.Item
-          title={t[language].notificationSettings.tasks}
-          titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-          left={(props) => <List.Icon {...props} icon="checkbox-marked" />}
-          right={() => (
-            <Switch
-              value={preferences?.notification_tasks || false}
-              onValueChange={(value) => updatePreference('notification_tasks', value)}
-            />
-          )}
-        />
-        
-        <List.Item
-          title={t[language].notificationSettings.insights}
-          left={(props) => <List.Icon {...props} icon="brain" />}
-          titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-          right={() => (
-            <Switch
-              value={preferences?.notification_insights || false}
-              onValueChange={(value) => updatePreference('notification_insights', value)}
-            />
-          )}
-        />
-        
-        <List.Item
-          title={t[language].notificationSettings.updates}
-          left={(props) => <List.Icon {...props} icon="update" />}
-          titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-          right={() => (
-            <Switch
-              value={preferences?.notification_updates || false}
-              onValueChange={(value) => updatePreference('notification_updates', value)}
-            />
-          )}
-        />
-
-        <Divider style={styles.divider} />
-        
+        {/* Only keep Alert Intensity - this is the only one that actually works */}
         <List.Item
           title={t[language].notificationSettings.alertIntensity}
           description={t[language].notificationSettings.intensityLevels[alertIntensity]}
@@ -402,63 +323,7 @@ export default function Settings({ navigation, language = "en" }) {
     </Card>
   );
 
-  const renderPrivacySettings = () => (
-    <Card style={styles.section}>
-      <Card.Content>
-        <Title style={[styles.sectionTitle, { color: getTitleColor() }]}>
-          {t[language].privacySettings.title}
-        </Title>
-        
-        <List.Item
-          title={t[language].privacySettings.dataCollection}
-          titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-          left={(props) => <List.Icon {...props} icon="database" />}
-          right={() => (
-            <Switch
-              value={preferences?.privacy_data_collection || false}
-              onValueChange={(value) => updatePreference('privacy_data_collection', value)}
-            />
-          )}
-        />
-        
-        <List.Item
-          title={t[language].privacySettings.analytics}
-          titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-          left={(props) => <List.Icon {...props} icon="chart-line" />}
-          right={() => (
-            <Switch
-              value={preferences?.privacy_analytics || false}
-              onValueChange={(value) => updatePreference('privacy_analytics', value)}
-            />
-          )}
-        />
-        
-        <List.Item
-          title={t[language].privacySettings.crashReports}
-          titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-          left={(props) => <List.Icon {...props} icon="bug" />}
-          right={() => (
-            <Switch
-              value={preferences?.privacy_crash_reports || false}
-              onValueChange={(value) => updatePreference('privacy_crash_reports', value)}
-            />
-          )}
-        />
-        
-        <List.Item
-          title={t[language].privacySettings.location}
-          titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-          left={(props) => <List.Icon {...props} icon="map-marker" />}
-          right={() => (
-            <Switch
-              value={preferences?.privacy_location || false}
-              onValueChange={(value) => updatePreference('privacy_location', value)}
-            />
-          )}
-        />
-      </Card.Content>
-    </Card>
-  );
+  // Privacy settings removed - they were just UI placeholders without functionality
 
   const renderNavigationItems = () => (
     <Card style={styles.section}>
@@ -581,7 +446,6 @@ export default function Settings({ navigation, language = "en" }) {
         {renderProfileSection()}
         {renderThemeSettings()}
         {renderNotificationSettings()}
-        {renderPrivacySettings()}
         {renderNavigationItems()}
         
         <View style={styles.buttonContainer}>

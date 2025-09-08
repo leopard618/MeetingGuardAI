@@ -1,13 +1,73 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Meeting } from "@/api/entities";
 import ServiceWorkerRegistration from './ServiceWorkerRegistration';
 import { storage } from "@/utils/storage";
 import { AlertIntensity } from '@/utils/notificationUtils';
 
-export default function AlertScheduler({ onTriggerAlert, language = "en", alertsEnabled }) {
+const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnabled }, ref) => {
   const alertTimeoutsRef = useRef(new Map());
   const checkIntervalRef = useRef(null);
+
+  // Expose function to manually schedule alerts for a specific meeting
+  const scheduleAlertsForSpecificMeeting = async (meeting) => {
+    if (!alertsEnabled) {
+      console.log('Alerts disabled, skipping alert scheduling for meeting:', meeting.title);
+      return;
+    }
+    
+    console.log('📅 Manually scheduling alerts for meeting:', meeting.title);
+    await scheduleAlertsForMeeting(meeting);
+  };
+
+  // Expose function to clear alerts for a specific meeting
+  const clearAlertsForMeeting = async (meetingId) => {
+    console.log('🗑️ Clearing alerts for meeting ID:', meetingId);
+    
+    // Clear timeouts
+    const existingTimeouts = alertTimeoutsRef.current.get(meetingId) || [];
+    existingTimeouts.forEach(timeout => clearTimeout(timeout));
+    alertTimeoutsRef.current.delete(meetingId);
+    
+    // Clear from storage
+    try {
+      await storage.removeItem(`alertSchedule_${meetingId}`);
+      console.log('✅ Cleared alert schedule from storage for meeting:', meetingId);
+    } catch (error) {
+      console.error('Failed to clear alert schedule from storage:', error);
+    }
+  };
+
+  // Load meetings and schedule alerts
+  const loadAndScheduleMeetings = async () => {
+    try {
+      const meetings = await Meeting.list();
+      const now = new Date();
+      const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+      // Filter meetings for the next week (to catch 1-day advance alerts)
+      const upcomingMeetings = meetings.filter(meeting => {
+        const meetingDate = new Date(meeting.date);
+        return meetingDate >= now && meetingDate <= oneWeekFromNow;
+      });
+
+      console.log(`📅 Found ${upcomingMeetings.length} meetings to schedule alerts for`);
+      for (const meeting of upcomingMeetings) {
+        await scheduleAlertsForMeeting(meeting);
+      }
+    } catch (error) {
+      console.error('Failed to load meetings for alerts:', error);
+    }
+  };
+
+  // Create a wrapper function for refreshing alerts
+  const refreshAlerts = async () => {
+    if (!alertsEnabled) {
+      console.log('Alerts disabled, skipping refresh');
+      return;
+    }
+    await loadAndScheduleMeetings();
+  };
 
   // Schedule alerts for a meeting with multiple timing options
   const scheduleAlertsForMeeting = async (meeting) => {
@@ -69,6 +129,13 @@ export default function AlertScheduler({ onTriggerAlert, language = "en", alerts
     }
   };
 
+  // Expose functions to parent components
+  useImperativeHandle(ref, () => ({
+    scheduleAlertsForMeeting: scheduleAlertsForSpecificMeeting,
+    clearAlertsForMeeting: clearAlertsForMeeting,
+    refreshAlerts: refreshAlerts
+  }));
+
   useEffect(() => {
     // Clear all scheduled alerts if alerts are disabled
     if (!alertsEnabled) {
@@ -84,25 +151,6 @@ export default function AlertScheduler({ onTriggerAlert, language = "en", alerts
       return; // Exit early if alerts are disabled
     }
 
-    // Load meetings and schedule alerts
-    const loadAndScheduleMeetings = async () => {
-      try {
-        const meetings = await Meeting.list();
-        const today = new Date().toISOString().split('T')[0];
-        const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-        // Filter meetings for today and tomorrow
-        const upcomingMeetings = meetings.filter(meeting =>
-          meeting.date === today || meeting.date === tomorrow
-        );
-
-        for (const meeting of upcomingMeetings) {
-          await scheduleAlertsForMeeting(meeting);
-        }
-      } catch (error) {
-        console.error('Failed to load meetings for alerts:', error);
-      }
-    };
 
     const checkMissedAlerts = async () => {
       const now = Date.now();
@@ -180,4 +228,6 @@ export default function AlertScheduler({ onTriggerAlert, language = "en", alerts
 
   // Only render ServiceWorkerRegistration if alerts are enabled
   return alertsEnabled ? <ServiceWorkerRegistration /> : null;
-}
+});
+
+export default AlertScheduler;

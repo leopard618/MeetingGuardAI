@@ -68,22 +68,185 @@ router.get('/google', async (req, res) => {
   
   if (error) {
     console.log('Redirecting with ERROR:', error);
-    res.send(`
-      <html>
-        <head><title>OAuth Error</title></head>
-        <body>
-          <h1>OAuth Error</h1>
-          <p>Error: ${error}</p>
+    const html = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Google Sign-In Error - MeetingGuard AI</title>
+          <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { 
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                  min-height: 100vh;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  padding: 20px;
+              }
+              .container {
+                  background: white;
+                  border-radius: 24px;
+                  padding: 48px 32px;
+                  text-align: center;
+                  box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+                  max-width: 420px;
+                  width: 100%;
+                  position: relative;
+                  overflow: hidden;
+              }
+              .container::before {
+                  content: '';
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                  right: 0;
+                  height: 4px;
+                  background: linear-gradient(90deg, #EF4444, #DC2626);
+              }
+              .error-icon {
+                  width: 72px;
+                  height: 72px;
+                  background: linear-gradient(135deg, #EF4444, #DC2626);
+                  border-radius: 50%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  margin: 0 auto 24px;
+                  font-size: 36px;
+                  color: white;
+                  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.3);
+              }
+              h1 {
+                  color: #111827;
+                  margin-bottom: 12px;
+                  font-size: 32px;
+                  font-weight: 800;
+                  letter-spacing: -0.025em;
+              }
+              .subtitle {
+                  color: #6B7280;
+                  margin-bottom: 32px;
+                  font-size: 18px;
+                  font-weight: 500;
+              }
+              .error-details {
+                  background: linear-gradient(135deg, #FEF2F2, #FEE2E2);
+                  border: 2px solid #EF4444;
+                  border-radius: 16px;
+                  padding: 20px;
+                  margin-bottom: 32px;
+              }
+              .error-message {
+                  color: #991B1B;
+                  font-weight: 600;
+                  font-size: 16px;
+                  margin-bottom: 8px;
+              }
+              .error-description {
+                  color: #7F1D1D;
+                  font-size: 14px;
+                  font-weight: 500;
+              }
+              .countdown-box {
+                  background: linear-gradient(135deg, #F0F9FF, #E0F2FE);
+                  border: 2px solid #0EA5E9;
+                  border-radius: 16px;
+                  padding: 24px;
+                  margin-bottom: 24px;
+              }
+              .countdown-text {
+                  font-size: 20px;
+                  font-weight: 700;
+                  color: #0C4A6E;
+                  margin-bottom: 8px;
+              }
+              .countdown-subtitle {
+                  color: #0369A1;
+                  font-size: 14px;
+                  font-weight: 500;
+              }
+              .countdown-number {
+                  color: #0EA5E9;
+                  font-size: 24px;
+                  font-weight: 800;
+              }
+              .close-button {
+                  background: linear-gradient(135deg, #6B7280, #4B5563);
+                  color: white;
+                  padding: 16px 32px;
+                  border: none;
+                  border-radius: 12px;
+                  font-size: 16px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  width: 100%;
+                  transition: all 0.2s ease;
+                  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+              }
+              .close-button:hover {
+                  transform: translateY(-2px);
+                  box-shadow: 0 6px 16px rgba(107, 114, 128, 0.4);
+              }
+              .close-button:active {
+                  transform: translateY(0);
+              }
+          </style>
+      </head>
+      <body>
+          <div class="container">
+              <div class="error-icon">✕</div>
+              
+              <h1>Sign-In Failed</h1>
+              <p class="subtitle">Something went wrong with Google authentication</p>
+              
+              <div class="error-details">
+                  <div class="error-message">Error: ${error}</div>
+                  <div class="error-description">Please try signing in again from the app</div>
+              </div>
+              
+              <div class="countdown-box">
+                  <div class="countdown-text">Returning to app in <span class="countdown-number" id="countdown">3</span> seconds...</div>
+                  <div class="countdown-subtitle">You can close this tab manually if needed</div>
+              </div>
+              
+              <button class="close-button" onclick="closeTab()">
+                  Close This Tab
+              </button>
+          </div>
+          
           <script>
-            // Redirect back to app with error
-            ${isExpoGo 
-              ? 'window.location.href = "exp://192.168.141.51:8081/--/auth?error=' + error + '";'
-              : 'window.location.href = "meetingguardai://auth?error=' + error + '";'
-            }
+              // Countdown timer
+              var countdown = 3;
+              var countdownElement = document.getElementById('countdown');
+              
+              var timer = setInterval(function() {
+                  countdown--;
+                  if (countdownElement) {
+                      countdownElement.textContent = countdown;
+                  }
+                  if (countdown <= 0) {
+                      clearInterval(timer);
+                      closeTab();
+                  }
+              }, 1000);
+              
+              // Close tab function
+              function closeTab() {
+                  try {
+                      window.close();
+                  } catch (e) {
+                      // Fallback - redirect to blank page
+                      window.location.href = 'about:blank';
+                  }
+              }
           </script>
-        </body>
+      </body>
       </html>
-    `);
+    `;
+    res.send(html);
   } else if (code) {
     console.log('Authorization code received. Processing...');
 
@@ -311,53 +474,225 @@ router.get('/google', async (req, res) => {
         console.log('User email:', userInfo.email);
         console.log('Stored in oauthState for polling');
 
-                 // Send success response with session ID and instructions for the app
-         res.send(`
-           <html>
-             <head><title>OAuth Success</title></head>
-             <body>
-               <h1>Authentication Successful!</h1>
-               <p>Welcome, ${userInfo.name}!</p>
-               <p>Session ID: ${sessionId}</p>
-               <p>You can close this window and return to the app.</p>
-               <p>The app will automatically detect the completion.</p>
+                 // Send success response with beautiful HTML page
+         const html = `
+           <!DOCTYPE html>
+           <html lang="en">
+           <head>
+               <meta charset="UTF-8">
+               <meta name="viewport" content="width=device-width, initial-scale=1.0">
+               <title>Google Sign-In Successful - MeetingGuard AI</title>
+               <style>
+                   * { margin: 0; padding: 0; box-sizing: border-box; }
+                   body { 
+                       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                       min-height: 100vh;
+                       display: flex;
+                       align-items: center;
+                       justify-content: center;
+                       padding: 20px;
+                   }
+                   .container {
+                       background: white;
+                       border-radius: 24px;
+                       padding: 48px 32px;
+                       text-align: center;
+                       box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+                       max-width: 420px;
+                       width: 100%;
+                       position: relative;
+                       overflow: hidden;
+                   }
+                   .container::before {
+                       content: '';
+                       position: absolute;
+                       top: 0;
+                       left: 0;
+                       right: 0;
+                       height: 4px;
+                       background: linear-gradient(90deg, #10B981, #3B82F6);
+                   }
+                   .success-icon {
+                       width: 72px;
+                       height: 72px;
+                       background: linear-gradient(135deg, #10B981, #059669);
+                       border-radius: 50%;
+                       display: flex;
+                       align-items: center;
+                       justify-content: center;
+                       margin: 0 auto 24px;
+                       font-size: 36px;
+                       color: white;
+                       box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+                   }
+                   h1 {
+                       color: #111827;
+                       margin-bottom: 12px;
+                       font-size: 32px;
+                       font-weight: 800;
+                       letter-spacing: -0.025em;
+                   }
+                   .subtitle {
+                       color: #6B7280;
+                       margin-bottom: 32px;
+                       font-size: 18px;
+                       font-weight: 500;
+                   }
+                   .user-info {
+                       background: linear-gradient(135deg, #D1FAE5, #A7F3D0);
+                       border: 2px solid #10B981;
+                       border-radius: 16px;
+                       padding: 20px;
+                       margin-bottom: 32px;
+                   }
+                   .user-avatar {
+                       width: 60px;
+                       height: 60px;
+                       border-radius: 50%;
+                       margin: 0 auto 16px;
+                       border: 3px solid #10B981;
+                       object-fit: cover;
+                   }
+                   .user-name {
+                       color: #065F46;
+                       font-weight: 700;
+                       font-size: 20px;
+                       margin-bottom: 8px;
+                   }
+                   .user-email {
+                       color: #047857;
+                       font-size: 14px;
+                       font-weight: 500;
+                   }
+                   .countdown-box {
+                       background: linear-gradient(135deg, #F0F9FF, #E0F2FE);
+                       border: 2px solid #0EA5E9;
+                       border-radius: 16px;
+                       padding: 24px;
+                       margin-bottom: 24px;
+                   }
+                   .countdown-text {
+                       font-size: 20px;
+                       font-weight: 700;
+                       color: #0C4A6E;
+                       margin-bottom: 8px;
+                   }
+                   .countdown-subtitle {
+                       color: #0369A1;
+                       font-size: 14px;
+                       font-weight: 500;
+                   }
+                   .countdown-number {
+                       color: #0EA5E9;
+                       font-size: 24px;
+                       font-weight: 800;
+                   }
+                   .close-button {
+                       background: linear-gradient(135deg, #EF4444, #DC2626);
+                       color: white;
+                       padding: 16px 32px;
+                       border: none;
+                       border-radius: 12px;
+                       font-size: 16px;
+                       font-weight: 600;
+                       cursor: pointer;
+                       width: 100%;
+                       transition: all 0.2s ease;
+                       box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+                   }
+                   .close-button:hover {
+                       transform: translateY(-2px);
+                       box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+                   }
+                   .close-button:active {
+                       transform: translateY(0);
+                   }
+               </style>
+           </head>
+           <body>
+               <div class="container">
+                   <div class="success-icon">✓</div>
+                   
+                   <h1>Sign-In Complete!</h1>
+                   <p class="subtitle">Welcome to MeetingGuard AI</p>
+                   
+                   <div class="user-info">
+                       <img src="${userInfo.picture || 'https://via.placeholder.com/60x60/10B981/FFFFFF?text=' + userInfo.name.charAt(0).toUpperCase()}" 
+                            alt="${userInfo.name}" class="user-avatar">
+                       <div class="user-name">${userInfo.name}</div>
+                       <div class="user-email">${userInfo.email}</div>
+                   </div>
+                   
+                   <div class="countdown-box">
+                       <div class="countdown-text">Returning to app in <span class="countdown-number" id="countdown">3</span> seconds...</div>
+                       <div class="countdown-subtitle">You can close this tab manually if needed</div>
+                   </div>
+                   
+                   <button class="close-button" onclick="closeTab()">
+                       Close This Tab
+                   </button>
+               </div>
+               
                <script>
-                 // Try to communicate with the app
-                 try {
-                   // Store session ID in localStorage
-                   localStorage.setItem('oauth_session_id', '${sessionId}');
-                   
-                   // Try to send message to parent window (if in iframe)
-                   if (window.parent && window.parent !== window) {
-                     window.parent.postMessage({
-                       type: 'OAUTH_SUCCESS',
-                       sessionId: '${sessionId}',
-                       user: ${JSON.stringify(userInfo)}
-                     }, '*');
+                   // Try to communicate with the app
+                   try {
+                       // Store session ID in localStorage
+                       localStorage.setItem('oauth_session_id', '${sessionId}');
+                       
+                       // Try to send message to parent window (if in iframe)
+                       if (window.parent && window.parent !== window) {
+                           window.parent.postMessage({
+                               type: 'OAUTH_SUCCESS',
+                               sessionId: '${sessionId}',
+                               user: ${JSON.stringify(userInfo)}
+                           }, '*');
+                       }
+                       
+                       // Try to send message to opener (if opened by app)
+                       if (window.opener) {
+                           window.opener.postMessage({
+                               type: 'OAUTH_SUCCESS',
+                               sessionId: '${sessionId}',
+                               user: ${JSON.stringify(userInfo)}
+                           }, '*');
+                       }
+                       
+                       console.log('OAuth success message sent');
+                   } catch (e) {
+                       console.log('Could not send message to app:', e);
                    }
                    
-                   // Try to send message to opener (if opened by app)
-                   if (window.opener) {
-                     window.opener.postMessage({
-                       type: 'OAUTH_SUCCESS',
-                       sessionId: '${sessionId}',
-                       user: ${JSON.stringify(userInfo)}
-                     }, '*');
-                   }
+                   // Countdown timer
+                   var countdown = 3;
+                   var countdownElement = document.getElementById('countdown');
                    
-                   console.log('OAuth success message sent');
-                 } catch (e) {
-                   console.log('Could not send message to app:', e);
-                 }
-                 
-                 // Close window after 3 seconds
-                 setTimeout(() => {
-                   window.close();
-                 }, 3000);
+                   var timer = setInterval(function() {
+                       countdown--;
+                       if (countdownElement) {
+                           countdownElement.textContent = countdown;
+                       }
+                       if (countdown <= 0) {
+                           clearInterval(timer);
+                           closeTab();
+                       }
+                   }, 1000);
+                   
+                   // Close tab function
+                   function closeTab() {
+                       try {
+                           window.close();
+                       } catch (e) {
+                           // Fallback - redirect to blank page
+                           window.location.href = 'about:blank';
+                       }
+                   }
                </script>
-             </body>
+           </body>
            </html>
-         `);
+         `;
+         
+         res.send(html);
 
       } else {
         console.error('No access token in response:', tokenData);
@@ -366,20 +701,185 @@ router.get('/google', async (req, res) => {
     } catch (error) {
       console.error('Error processing authorization code:', error);
 
-      res.send(`
-        <html>
-          <head><title>OAuth Error</title></head>
-          <body>
-            <h1>OAuth Error</h1>
-            <p>Error: ${error.message}</p>
+      const html = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Google Sign-In Error - MeetingGuard AI</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }
+                .container {
+                    background: white;
+                    border-radius: 24px;
+                    padding: 48px 32px;
+                    text-align: center;
+                    box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+                    max-width: 420px;
+                    width: 100%;
+                    position: relative;
+                    overflow: hidden;
+                }
+                .container::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 4px;
+                    background: linear-gradient(90deg, #EF4444, #DC2626);
+                }
+                .error-icon {
+                    width: 72px;
+                    height: 72px;
+                    background: linear-gradient(135deg, #EF4444, #DC2626);
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 24px;
+                    font-size: 36px;
+                    color: white;
+                    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.3);
+                }
+                h1 {
+                    color: #111827;
+                    margin-bottom: 12px;
+                    font-size: 32px;
+                    font-weight: 800;
+                    letter-spacing: -0.025em;
+                }
+                .subtitle {
+                    color: #6B7280;
+                    margin-bottom: 32px;
+                    font-size: 18px;
+                    font-weight: 500;
+                }
+                .error-details {
+                    background: linear-gradient(135deg, #FEF2F2, #FEE2E2);
+                    border: 2px solid #EF4444;
+                    border-radius: 16px;
+                    padding: 20px;
+                    margin-bottom: 32px;
+                }
+                .error-message {
+                    color: #991B1B;
+                    font-weight: 600;
+                    font-size: 16px;
+                    margin-bottom: 8px;
+                }
+                .error-description {
+                    color: #7F1D1D;
+                    font-size: 14px;
+                    font-weight: 500;
+                }
+                .countdown-box {
+                    background: linear-gradient(135deg, #F0F9FF, #E0F2FE);
+                    border: 2px solid #0EA5E9;
+                    border-radius: 16px;
+                    padding: 24px;
+                    margin-bottom: 24px;
+                }
+                .countdown-text {
+                    font-size: 20px;
+                    font-weight: 700;
+                    color: #0C4A6E;
+                    margin-bottom: 8px;
+                }
+                .countdown-subtitle {
+                    color: #0369A1;
+                    font-size: 14px;
+                    font-weight: 500;
+                }
+                .countdown-number {
+                    color: #0EA5E9;
+                    font-size: 24px;
+                    font-weight: 800;
+                }
+                .close-button {
+                    background: linear-gradient(135deg, #6B7280, #4B5563);
+                    color: white;
+                    padding: 16px 32px;
+                    border: none;
+                    border-radius: 12px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    width: 100%;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+                }
+                .close-button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 16px rgba(107, 114, 128, 0.4);
+                }
+                .close-button:active {
+                    transform: translateY(0);
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="error-icon">✕</div>
+                
+                <h1>Sign-In Failed</h1>
+                <p class="subtitle">Something went wrong with Google authentication</p>
+                
+                <div class="error-details">
+                    <div class="error-message">Error: ${error.message}</div>
+                    <div class="error-description">Please try signing in again from the app</div>
+                </div>
+                
+                <div class="countdown-box">
+                    <div class="countdown-text">Returning to app in <span class="countdown-number" id="countdown">3</span> seconds...</div>
+                    <div class="countdown-subtitle">You can close this tab manually if needed</div>
+                </div>
+                
+                <button class="close-button" onclick="closeTab()">
+                    Close This Tab
+                </button>
+            </div>
+            
             <script>
-              setTimeout(() => {
-                window.close();
-              }, 2000);
+                // Countdown timer
+                var countdown = 3;
+                var countdownElement = document.getElementById('countdown');
+                
+                var timer = setInterval(function() {
+                    countdown--;
+                    if (countdownElement) {
+                        countdownElement.textContent = countdown;
+                    }
+                    if (countdown <= 0) {
+                        clearInterval(timer);
+                        closeTab();
+                    }
+                }, 1000);
+                
+                // Close tab function
+                function closeTab() {
+                    try {
+                        window.close();
+                    } catch (e) {
+                        // Fallback - redirect to blank page
+                        window.location.href = 'about:blank';
+                    }
+                }
             </script>
-          </body>
+        </body>
         </html>
-      `);
+      `;
+      res.send(html);
     }
   } else {
     console.log('No code or error received');

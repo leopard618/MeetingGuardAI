@@ -37,13 +37,21 @@ export default function CalendarSyncSettings() {
   const loadSyncData = async () => {
     try {
       setIsLoading(true);
-      const [status, settings, stats] = await Promise.all([
+      const [status, settings, stats, connectionStatus] = await Promise.all([
         calendarSyncManager.getSyncStatus(),
         googleCalendarService.getSyncSettings(),
         calendarSyncManager.getSyncStatistics(),
+        googleCalendarService.getConnectionStatus(),
       ]);
       
-      setSyncStatus(status);
+      // Merge connection status with sync status
+      const enhancedStatus = {
+        ...status,
+        ...connectionStatus,
+        connectionDetails: connectionStatus
+      };
+      
+      setSyncStatus(enhancedStatus);
       setSyncSettings(settings);
       setSyncStatistics(stats);
     } catch (error) {
@@ -113,6 +121,62 @@ export default function CalendarSyncSettings() {
     } catch (error) {
       console.error('Error during force sync:', error);
       Alert.alert('Error', 'Failed to perform sync');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleManualReconnect = async () => {
+    try {
+      setIsSyncing(true);
+      console.log('🔄 Attempting manual Google Calendar reconnection...');
+      
+      // Clear any cached tokens that might be invalid
+      await googleCalendarService.clearTokens();
+      
+      // Try to reinitialize the service
+      const reconnected = await googleCalendarService.initialize();
+      
+      if (reconnected) {
+        Alert.alert('Success', 'Google Calendar reconnected successfully!');
+        await loadSyncData();
+      } else {
+        Alert.alert(
+          'Reconnection Failed', 
+          'Unable to reconnect to Google Calendar. Please try signing in again with Google.'
+        );
+      }
+    } catch (error) {
+      console.error('Error during manual reconnect:', error);
+      Alert.alert('Error', `Failed to reconnect: ${error.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    try {
+      setIsSyncing(true);
+      console.log('🔄 Testing Google Calendar connection...');
+      
+      const hasAccess = await googleCalendarService.checkCalendarAccess();
+      
+      if (hasAccess) {
+        const calendars = await googleCalendarService.getCalendars();
+        Alert.alert(
+          'Connection Test Successful', 
+          `Connected to Google Calendar!\n\nFound ${calendars.length} calendar(s):\n${calendars.map(cal => `• ${cal.summary}`).join('\n')}`
+        );
+        await loadSyncData();
+      } else {
+        Alert.alert(
+          'Connection Test Failed', 
+          'Unable to connect to Google Calendar. Your tokens may have expired or been revoked.'
+        );
+      }
+    } catch (error) {
+      console.error('Error during connection test:', error);
+      Alert.alert('Error', `Connection test failed: ${error.message}`);
     } finally {
       setIsSyncing(false);
     }
@@ -199,6 +263,17 @@ export default function CalendarSyncSettings() {
               {syncStatus?.isConnected ? 'Connected' : 'Disconnected'}
             </Text>
           </View>
+          
+          {syncStatus?.connectionDetails && (
+            <View style={styles.statusRow}>
+              <Text style={[styles.statusLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
+                Details:
+              </Text>
+              <Text style={[styles.statusValue, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
+                {syncStatus.connectionDetails.message}
+              </Text>
+            </View>
+          )}
           
           {syncStatus?.lastSyncTime && (
             <View style={styles.statusRow}>
@@ -334,11 +409,43 @@ export default function CalendarSyncSettings() {
         </Card>
       )}
 
-      {/* Action Buttons */}
+      {/* Connection Actions */}
       <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
         <Card.Content>
           <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-            Actions
+            Connection Actions
+          </Title>
+          
+          <Button
+            mode="contained"
+            onPress={handleTestConnection}
+            loading={isSyncing}
+            disabled={isSyncing}
+            style={[styles.actionButton, { backgroundColor: isDarkMode ? '#3b82f6' : '#2563eb' }]}
+            icon="wifi-check"
+          >
+            {isSyncing ? 'Testing...' : 'Test Connection'}
+          </Button>
+          
+          <Button
+            mode="outlined"
+            onPress={handleManualReconnect}
+            loading={isSyncing}
+            disabled={isSyncing}
+            style={[styles.actionButton, { borderColor: isDarkMode ? '#f59e0b' : '#d97706' }]}
+            icon="refresh"
+            textColor={isDarkMode ? '#f59e0b' : '#d97706'}
+          >
+            {isSyncing ? 'Reconnecting...' : 'Reconnect to Google'}
+          </Button>
+        </Card.Content>
+      </Card>
+
+      {/* Sync Actions */}
+      <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
+        <Card.Content>
+          <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
+            Sync Actions
           </Title>
           
           <Button

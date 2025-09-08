@@ -319,15 +319,28 @@ class GoogleCalendarService {
   async storeTokens(tokens) {
     try {
       console.log('💾 Storing Google tokens...');
+      console.log('Tokens received:', { 
+        hasAccessToken: !!tokens.access_token, 
+        hasRefreshToken: !!tokens.refresh_token, 
+        expiresIn: tokens.expires_in 
+      });
       
-      if (tokens.access_token) {
+      // Check if tokens are already stored (to avoid duplicate storage)
+      const existingAccessToken = await AsyncStorage.getItem('google_access_token');
+      const existingRefreshToken = await AsyncStorage.getItem('google_refresh_token');
+      
+      if (tokens.access_token && tokens.access_token !== existingAccessToken) {
         await AsyncStorage.setItem('google_access_token', tokens.access_token);
         console.log('✅ Access token stored');
+      } else if (tokens.access_token) {
+        console.log('✅ Access token already stored');
       }
       
-      if (tokens.refresh_token) {
+      if (tokens.refresh_token && tokens.refresh_token !== existingRefreshToken) {
         await AsyncStorage.setItem('google_refresh_token', tokens.refresh_token);
         console.log('✅ Refresh token stored');
+      } else if (tokens.refresh_token) {
+        console.log('✅ Refresh token already stored');
       }
       
       if (tokens.expires_in) {
@@ -336,12 +349,37 @@ class GoogleCalendarService {
         console.log('✅ Token expiry stored:', new Date(expiryTime).toISOString());
       }
       
-      // Sync tokens with backend
-      await this.syncTokensWithBackend(tokens);
+      // Sync tokens with backend (don't fail if this fails)
+      try {
+        await this.syncTokensWithBackend(tokens);
+        console.log('✅ Tokens synced with backend');
+      } catch (backendError) {
+        console.warn('⚠️ Backend sync failed, but tokens are stored locally:', backendError.message);
+        // Don't throw - tokens are still stored locally
+      }
       
-      console.log('✅ All tokens stored successfully');
+      console.log('✅ All tokens processed successfully');
     } catch (error) {
       console.error('❌ Error storing tokens:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear all stored tokens
+   */
+  async clearTokens() {
+    try {
+      console.log('🔄 Clearing all Google tokens from storage...');
+      
+      await AsyncStorage.removeItem('google_access_token');
+      await AsyncStorage.removeItem('google_refresh_token');
+      await AsyncStorage.removeItem('google_token_expiry');
+      
+      this.isInitialized = false;
+      console.log('✅ All Google tokens cleared successfully');
+    } catch (error) {
+      console.error('❌ Error clearing Google tokens:', error);
       throw error;
     }
   }
@@ -893,6 +931,36 @@ class GoogleCalendarService {
         name: error.name
       });
       return false;
+    }
+  }
+
+  /**
+   * Get detailed connection status
+   */
+  async getConnectionStatus() {
+    try {
+      const hasToken = await this.getAccessToken();
+      const hasAccess = hasToken ? await this.checkCalendarAccess() : false;
+      
+      return {
+        hasToken: !!hasToken,
+        hasAccess: hasAccess,
+        isConnected: hasAccess,
+        isInitialized: this.isInitialized,
+        status: hasAccess ? 'connected' : (hasToken ? 'token_invalid' : 'no_token'),
+        message: hasAccess ? 'Connected to Google Calendar' : 
+                (hasToken ? 'Token expired or invalid' : 'No authentication token found')
+      };
+    } catch (error) {
+      console.error('Error getting connection status:', error);
+      return {
+        hasToken: false,
+        hasAccess: false,
+        isConnected: false,
+        isInitialized: false,
+        status: 'error',
+        message: `Connection error: ${error.message}`
+      };
     }
   }
 
