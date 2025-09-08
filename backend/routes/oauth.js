@@ -195,7 +195,7 @@ router.get('/google', async (req, res) => {
               }
           </style>
       </head>
-      <body>
+        <body>
           <div class="container">
               <div class="error-icon">✕</div>
               
@@ -233,17 +233,71 @@ router.get('/google', async (req, res) => {
                   }
               }, 1000);
               
-              // Close tab function
+              // Close tab function with multiple fallbacks
               function closeTab() {
+                  console.log('Attempting to close tab...');
+                  
+                  // Method 1: Try window.close()
                   try {
-                      window.close();
+                      if (window.close) {
+                          window.close();
+                          console.log('window.close() called');
+                          return;
+                      }
                   } catch (e) {
-                      // Fallback - redirect to blank page
-                      window.location.href = 'about:blank';
+                      console.log('window.close() failed:', e);
                   }
-              }
+                  
+                  // Method 2: Try self.close()
+                  try {
+                      if (self.close) {
+                          self.close();
+                          console.log('self.close() called');
+                          return;
+                      }
+                  } catch (e) {
+                      console.log('self.close() failed:', e);
+                  }
+                  
+                  // Method 3: Try opener.close() if opened by another window
+                  try {
+                      if (window.opener && window.opener.close) {
+                          window.opener.close();
+                          console.log('opener.close() called');
+                          return;
+                      }
+                  } catch (e) {
+                      console.log('opener.close() failed:', e);
+                  }
+                  
+                  // Method 4: Try to redirect to a blank page
+                  try {
+                      window.location.href = 'about:blank';
+                      console.log('Redirected to about:blank');
+                      return;
+                  } catch (e) {
+                      console.log('about:blank redirect failed:', e);
+                  }
+                  
+                  // Method 5: Try to redirect to a simple page
+                  try {
+                      window.location.href = 'data:text/html,<html><body><h1>You can close this tab now</h1></body></html>';
+                      console.log('Redirected to data URL');
+                      return;
+                  } catch (e) {
+                      console.log('data URL redirect failed:', e);
+                  }
+                  
+                  // Method 6: Show a message to user
+                  try {
+                      document.body.innerHTML = '<div style="text-align:center;padding:50px;font-family:Arial,sans-serif;"><h1>You can close this tab now</h1><p>Click the X button in your browser tab to close this window.</p></div>';
+                      console.log('Showed close message to user');
+                  } catch (e) {
+                      console.log('Failed to show close message:', e);
+                  }
+            }
           </script>
-      </body>
+        </body>
       </html>
     `;
     res.send(html);
@@ -610,7 +664,7 @@ router.get('/google', async (req, res) => {
                    }
                </style>
            </head>
-           <body>
+             <body>
                <div class="container">
                    <div class="success-icon">✓</div>
                    
@@ -635,34 +689,34 @@ router.get('/google', async (req, res) => {
                </div>
                
                <script>
-                   // Try to communicate with the app
-                   try {
-                       // Store session ID in localStorage
-                       localStorage.setItem('oauth_session_id', '${sessionId}');
-                       
-                       // Try to send message to parent window (if in iframe)
-                       if (window.parent && window.parent !== window) {
-                           window.parent.postMessage({
-                               type: 'OAUTH_SUCCESS',
-                               sessionId: '${sessionId}',
-                               user: ${JSON.stringify(userInfo)}
-                           }, '*');
-                       }
-                       
-                       // Try to send message to opener (if opened by app)
-                       if (window.opener) {
-                           window.opener.postMessage({
-                               type: 'OAUTH_SUCCESS',
-                               sessionId: '${sessionId}',
-                               user: ${JSON.stringify(userInfo)}
-                           }, '*');
-                       }
-                       
-                       console.log('OAuth success message sent');
-                   } catch (e) {
-                       console.log('Could not send message to app:', e);
+                 // Try to communicate with the app
+                 try {
+                   // Store session ID in localStorage
+                   localStorage.setItem('oauth_session_id', '${sessionId}');
+                   
+                   // Try to send message to parent window (if in iframe)
+                   if (window.parent && window.parent !== window) {
+                     window.parent.postMessage({
+                       type: 'OAUTH_SUCCESS',
+                       sessionId: '${sessionId}',
+                       user: ${JSON.stringify(userInfo)}
+                     }, '*');
                    }
                    
+                   // Try to send message to opener (if opened by app)
+                   if (window.opener) {
+                     window.opener.postMessage({
+                       type: 'OAUTH_SUCCESS',
+                       sessionId: '${sessionId}',
+                       user: ${JSON.stringify(userInfo)}
+                     }, '*');
+                   }
+                   
+                   console.log('OAuth success message sent');
+                 } catch (e) {
+                   console.log('Could not send message to app:', e);
+                 }
+                 
                    // Countdown timer
                    var countdown = 3;
                    var countdownElement = document.getElementById('countdown');
@@ -678,17 +732,71 @@ router.get('/google', async (req, res) => {
                        }
                    }, 1000);
                    
-                   // Close tab function
+                   // Close tab function with multiple fallbacks
                    function closeTab() {
+                       console.log('Attempting to close tab...');
+                       
+                       // Method 1: Try window.close()
                        try {
-                           window.close();
+                           if (window.close) {
+                               window.close();
+                               console.log('window.close() called');
+                               return;
+                           }
                        } catch (e) {
-                           // Fallback - redirect to blank page
+                           console.log('window.close() failed:', e);
+                       }
+                       
+                       // Method 2: Try self.close()
+                       try {
+                           if (self.close) {
+                               self.close();
+                               console.log('self.close() called');
+                               return;
+                           }
+                       } catch (e) {
+                           console.log('self.close() failed:', e);
+                       }
+                       
+                       // Method 3: Try opener.close() if opened by another window
+                       try {
+                           if (window.opener && window.opener.close) {
+                               window.opener.close();
+                               console.log('opener.close() called');
+                               return;
+                           }
+                       } catch (e) {
+                           console.log('opener.close() failed:', e);
+                       }
+                       
+                       // Method 4: Try to redirect to a blank page
+                       try {
                            window.location.href = 'about:blank';
+                           console.log('Redirected to about:blank');
+                           return;
+                       } catch (e) {
+                           console.log('about:blank redirect failed:', e);
+                       }
+                       
+                       // Method 5: Try to redirect to a simple page
+                       try {
+                           window.location.href = 'data:text/html,<html><body><h1>You can close this tab now</h1></body></html>';
+                           console.log('Redirected to data URL');
+                           return;
+                       } catch (e) {
+                           console.log('data URL redirect failed:', e);
+                       }
+                       
+                       // Method 6: Show a message to user
+                       try {
+                           document.body.innerHTML = '<div style="text-align:center;padding:50px;font-family:Arial,sans-serif;"><h1>You can close this tab now</h1><p>Click the X button in your browser tab to close this window.</p></div>';
+                           console.log('Showed close message to user');
+                       } catch (e) {
+                           console.log('Failed to show close message:', e);
                        }
                    }
                </script>
-           </body>
+             </body>
            </html>
          `;
          
@@ -828,7 +936,7 @@ router.get('/google', async (req, res) => {
                 }
             </style>
         </head>
-        <body>
+          <body>
             <div class="container">
                 <div class="error-icon">✕</div>
                 
@@ -866,17 +974,71 @@ router.get('/google', async (req, res) => {
                     }
                 }, 1000);
                 
-                // Close tab function
-                function closeTab() {
-                    try {
-                        window.close();
-                    } catch (e) {
-                        // Fallback - redirect to blank page
-                        window.location.href = 'about:blank';
-                    }
-                }
+                   // Close tab function with multiple fallbacks
+                   function closeTab() {
+                       console.log('Attempting to close tab...');
+                       
+                       // Method 1: Try window.close()
+                       try {
+                           if (window.close) {
+                               window.close();
+                               console.log('window.close() called');
+                               return;
+                           }
+                       } catch (e) {
+                           console.log('window.close() failed:', e);
+                       }
+                       
+                       // Method 2: Try self.close()
+                       try {
+                           if (self.close) {
+                               self.close();
+                               console.log('self.close() called');
+                               return;
+                           }
+                       } catch (e) {
+                           console.log('self.close() failed:', e);
+                       }
+                       
+                       // Method 3: Try opener.close() if opened by another window
+                       try {
+                           if (window.opener && window.opener.close) {
+                               window.opener.close();
+                               console.log('opener.close() called');
+                               return;
+                           }
+                       } catch (e) {
+                           console.log('opener.close() failed:', e);
+                       }
+                       
+                       // Method 4: Try to redirect to a blank page
+                       try {
+                           window.location.href = 'about:blank';
+                           console.log('Redirected to about:blank');
+                           return;
+                       } catch (e) {
+                           console.log('about:blank redirect failed:', e);
+                       }
+                       
+                       // Method 5: Try to redirect to a simple page
+                       try {
+                           window.location.href = 'data:text/html,<html><body><h1>You can close this tab now</h1></body></html>';
+                           console.log('Redirected to data URL');
+                           return;
+                       } catch (e) {
+                           console.log('data URL redirect failed:', e);
+                       }
+                       
+                       // Method 6: Show a message to user
+                       try {
+                           document.body.innerHTML = '<div style="text-align:center;padding:50px;font-family:Arial,sans-serif;"><h1>You can close this tab now</h1><p>Click the X button in your browser tab to close this window.</p></div>';
+                           console.log('Showed close message to user');
+                       } catch (e) {
+                           console.log('Failed to show close message:', e);
+                       }
+                   }
             </script>
-        </body>
+          </body>
         </html>
       `;
       res.send(html);
