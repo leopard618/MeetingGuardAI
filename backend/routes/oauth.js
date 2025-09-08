@@ -233,69 +233,61 @@ router.get('/google', async (req, res) => {
                   }
               }, 1000);
               
-              // Close tab function with multiple fallbacks
+              // Redirect to app (error case)
               function closeTab() {
-                  console.log('Attempting to close tab...');
+                  console.log('Redirecting to app after error...');
                   
-                  // Method 1: Try window.close()
-                  try {
-                      if (window.close) {
-                          window.close();
-                          console.log('window.close() called');
-                          return;
+                  // Try different app deep links for error case
+                  const appLinks = [
+                      'meetingguardai://auth-error?error=${error}',
+                      'meetingguardai://dashboard?auth=error&error=${error}',
+                      'meetingguardai://login?error=true&message=${error}',
+                      'exp://192.168.141.51:8081/--/auth-error?error=${error}',
+                      'exp://localhost:8081/--/auth-error?error=${error}'
+                  ];
+                  
+                  // Try each link in sequence
+                  let linkIndex = 0;
+                  const tryNextLink = () => {
+                      if (linkIndex < appLinks.length) {
+                          const link = appLinks[linkIndex];
+                          console.log('Trying app link:', link);
+                          
+                          try {
+                              window.location.href = link;
+                              console.log('Redirected to app link:', link);
+                              
+                              // If redirect doesn't work after 2 seconds, try next link
+                              setTimeout(() => {
+                                  if (document.visibilityState === 'visible') {
+                                      linkIndex++;
+                                      tryNextLink();
+                                  }
+                              }, 2000);
+                          } catch (e) {
+                              console.log('Failed to redirect to:', link, e);
+                              linkIndex++;
+                              tryNextLink();
+                          }
+                      } else {
+                          // All app links failed, show fallback message
+                          console.log('All app links failed, showing fallback message');
+                          document.body.innerHTML = \`
+                              <div style="text-align:center;padding:50px;font-family:Arial,sans-serif;">
+                                  <h1>❌ Sign-In Error</h1>
+                                  <p>Error: ${error}</p>
+                                  <p>Please try signing in again from your app.</p>
+                                  <button onclick="window.close()" style="padding:10px 20px;margin-top:20px;background:#FF3B30;color:white;border:none;border-radius:8px;cursor:pointer;">
+                                      Close This Tab
+                                  </button>
+                              </div>
+                          \`;
                       }
-                  } catch (e) {
-                      console.log('window.close() failed:', e);
-                  }
+                  };
                   
-                  // Method 2: Try self.close()
-                  try {
-                      if (self.close) {
-                          self.close();
-                          console.log('self.close() called');
-                          return;
-                      }
-                  } catch (e) {
-                      console.log('self.close() failed:', e);
-                  }
-                  
-                  // Method 3: Try opener.close() if opened by another window
-                  try {
-                      if (window.opener && window.opener.close) {
-                          window.opener.close();
-                          console.log('opener.close() called');
-                          return;
-                      }
-                  } catch (e) {
-                      console.log('opener.close() failed:', e);
-                  }
-                  
-                  // Method 4: Try to redirect to a blank page
-                  try {
-                      window.location.href = 'about:blank';
-                      console.log('Redirected to about:blank');
-                      return;
-                  } catch (e) {
-                      console.log('about:blank redirect failed:', e);
-                  }
-                  
-                  // Method 5: Try to redirect to a simple page
-                  try {
-                      window.location.href = 'data:text/html,<html><body><h1>You can close this tab now</h1></body></html>';
-                      console.log('Redirected to data URL');
-                      return;
-                  } catch (e) {
-                      console.log('data URL redirect failed:', e);
-                  }
-                  
-                  // Method 6: Show a message to user
-                  try {
-                      document.body.innerHTML = '<div style="text-align:center;padding:50px;font-family:Arial,sans-serif;"><h1>You can close this tab now</h1><p>Click the X button in your browser tab to close this window.</p></div>';
-                      console.log('Showed close message to user');
-                  } catch (e) {
-                      console.log('Failed to show close message:', e);
-                  }
-            }
+                  // Start trying links
+                  tryNextLink();
+              }
           </script>
         </body>
       </html>
@@ -680,11 +672,11 @@ router.get('/google', async (req, res) => {
                    
                    <div class="countdown-box">
                        <div class="countdown-text">Returning to app in <span class="countdown-number" id="countdown">3</span> seconds...</div>
-                       <div class="countdown-subtitle">You can close this tab manually if needed</div>
+                       <div class="countdown-subtitle">Or click "Return to App" button below</div>
                    </div>
                    
                    <button class="close-button" onclick="closeTab()">
-                       Close This Tab
+                       Return to App
                    </button>
                </div>
                
@@ -732,68 +724,72 @@ router.get('/google', async (req, res) => {
                        }
                    }, 1000);
                    
-                   // Close tab function with multiple fallbacks
+                   // Redirect to app with user info
                    function closeTab() {
-                       console.log('Attempting to close tab...');
+                       console.log('Redirecting to app with user info...');
                        
-                       // Method 1: Try window.close()
-                       try {
-                           if (window.close) {
-                               window.close();
-                               console.log('window.close() called');
-                               return;
+                       // Create deep link with user information
+                       const userInfo = ${JSON.stringify(userInfo)};
+                       const sessionId = '${sessionId}';
+                       
+                       // Encode user info for URL
+                       const encodedUserInfo = encodeURIComponent(JSON.stringify({
+                           sessionId: sessionId,
+                           user: userInfo,
+                           timestamp: Date.now()
+                       }));
+                       
+                       // Try different app deep links
+                       const appLinks = [
+                           'meetingguardai://auth-success?data=' + encodedUserInfo,
+                           'meetingguardai://dashboard?auth=success&data=' + encodedUserInfo,
+                           'meetingguardai://login?success=true&data=' + encodedUserInfo,
+                           'exp://192.168.141.51:8081/--/auth-success?data=' + encodedUserInfo,
+                           'exp://localhost:8081/--/auth-success?data=' + encodedUserInfo
+                       ];
+                       
+                       // Try each link in sequence
+                       let linkIndex = 0;
+                       const tryNextLink = () => {
+                           if (linkIndex < appLinks.length) {
+                               const link = appLinks[linkIndex];
+                               console.log('Trying app link:', link);
+                               
+                               try {
+                                   window.location.href = link;
+                                   console.log('Redirected to app link:', link);
+                                   
+                                   // If redirect doesn't work after 2 seconds, try next link
+                 setTimeout(() => {
+                                       if (document.visibilityState === 'visible') {
+                                           linkIndex++;
+                                           tryNextLink();
+                                       }
+                                   }, 2000);
+                               } catch (e) {
+                                   console.log('Failed to redirect to:', link, e);
+                                   linkIndex++;
+                                   tryNextLink();
+                               }
+                           } else {
+                               // All app links failed, show fallback message
+                               console.log('All app links failed, showing fallback message');
+                               document.body.innerHTML = \`
+                                   <div style="text-align:center;padding:50px;font-family:Arial,sans-serif;">
+                                       <h1>✅ Sign-In Successful!</h1>
+                                       <p>Welcome, \${userInfo.name}!</p>
+                                       <p>You can now close this tab and return to your app.</p>
+                                       <p>Your session ID: \${sessionId}</p>
+                                       <button onclick="window.close()" style="padding:10px 20px;margin-top:20px;background:#007AFF;color:white;border:none;border-radius:8px;cursor:pointer;">
+                                           Close This Tab
+                                       </button>
+                                   </div>
+                               \`;
                            }
-                       } catch (e) {
-                           console.log('window.close() failed:', e);
-                       }
+                       };
                        
-                       // Method 2: Try self.close()
-                       try {
-                           if (self.close) {
-                               self.close();
-                               console.log('self.close() called');
-                               return;
-                           }
-                       } catch (e) {
-                           console.log('self.close() failed:', e);
-                       }
-                       
-                       // Method 3: Try opener.close() if opened by another window
-                       try {
-                           if (window.opener && window.opener.close) {
-                               window.opener.close();
-                               console.log('opener.close() called');
-                               return;
-                           }
-                       } catch (e) {
-                           console.log('opener.close() failed:', e);
-                       }
-                       
-                       // Method 4: Try to redirect to a blank page
-                       try {
-                           window.location.href = 'about:blank';
-                           console.log('Redirected to about:blank');
-                           return;
-                       } catch (e) {
-                           console.log('about:blank redirect failed:', e);
-                       }
-                       
-                       // Method 5: Try to redirect to a simple page
-                       try {
-                           window.location.href = 'data:text/html,<html><body><h1>You can close this tab now</h1></body></html>';
-                           console.log('Redirected to data URL');
-                           return;
-                       } catch (e) {
-                           console.log('data URL redirect failed:', e);
-                       }
-                       
-                       // Method 6: Show a message to user
-                       try {
-                           document.body.innerHTML = '<div style="text-align:center;padding:50px;font-family:Arial,sans-serif;"><h1>You can close this tab now</h1><p>Click the X button in your browser tab to close this window.</p></div>';
-                           console.log('Showed close message to user');
-                       } catch (e) {
-                           console.log('Failed to show close message:', e);
-                       }
+                       // Start trying links
+                       tryNextLink();
                    }
                </script>
              </body>
@@ -974,68 +970,72 @@ router.get('/google', async (req, res) => {
                     }
                 }, 1000);
                 
-                   // Close tab function with multiple fallbacks
+                   // Redirect to app with user info
                    function closeTab() {
-                       console.log('Attempting to close tab...');
+                       console.log('Redirecting to app with user info...');
                        
-                       // Method 1: Try window.close()
-                       try {
-                           if (window.close) {
-                               window.close();
-                               console.log('window.close() called');
-                               return;
+                       // Create deep link with user information
+                       const userInfo = ${JSON.stringify(userInfo)};
+                       const sessionId = '${sessionId}';
+                       
+                       // Encode user info for URL
+                       const encodedUserInfo = encodeURIComponent(JSON.stringify({
+                           sessionId: sessionId,
+                           user: userInfo,
+                           timestamp: Date.now()
+                       }));
+                       
+                       // Try different app deep links
+                       const appLinks = [
+                           'meetingguardai://auth-success?data=' + encodedUserInfo,
+                           'meetingguardai://dashboard?auth=success&data=' + encodedUserInfo,
+                           'meetingguardai://login?success=true&data=' + encodedUserInfo,
+                           'exp://192.168.141.51:8081/--/auth-success?data=' + encodedUserInfo,
+                           'exp://localhost:8081/--/auth-success?data=' + encodedUserInfo
+                       ];
+                       
+                       // Try each link in sequence
+                       let linkIndex = 0;
+                       const tryNextLink = () => {
+                           if (linkIndex < appLinks.length) {
+                               const link = appLinks[linkIndex];
+                               console.log('Trying app link:', link);
+                               
+                               try {
+                                   window.location.href = link;
+                                   console.log('Redirected to app link:', link);
+                                   
+                                   // If redirect doesn't work after 2 seconds, try next link
+              setTimeout(() => {
+                                       if (document.visibilityState === 'visible') {
+                                           linkIndex++;
+                                           tryNextLink();
+                                       }
+              }, 2000);
+                               } catch (e) {
+                                   console.log('Failed to redirect to:', link, e);
+                                   linkIndex++;
+                                   tryNextLink();
+                               }
+                           } else {
+                               // All app links failed, show fallback message
+                               console.log('All app links failed, showing fallback message');
+                               document.body.innerHTML = \`
+                                   <div style="text-align:center;padding:50px;font-family:Arial,sans-serif;">
+                                       <h1>✅ Sign-In Successful!</h1>
+                                       <p>Welcome, \${userInfo.name}!</p>
+                                       <p>You can now close this tab and return to your app.</p>
+                                       <p>Your session ID: \${sessionId}</p>
+                                       <button onclick="window.close()" style="padding:10px 20px;margin-top:20px;background:#007AFF;color:white;border:none;border-radius:8px;cursor:pointer;">
+                                           Close This Tab
+                                       </button>
+                                   </div>
+                               \`;
                            }
-                       } catch (e) {
-                           console.log('window.close() failed:', e);
-                       }
+                       };
                        
-                       // Method 2: Try self.close()
-                       try {
-                           if (self.close) {
-                               self.close();
-                               console.log('self.close() called');
-                               return;
-                           }
-                       } catch (e) {
-                           console.log('self.close() failed:', e);
-                       }
-                       
-                       // Method 3: Try opener.close() if opened by another window
-                       try {
-                           if (window.opener && window.opener.close) {
-                               window.opener.close();
-                               console.log('opener.close() called');
-                               return;
-                           }
-                       } catch (e) {
-                           console.log('opener.close() failed:', e);
-                       }
-                       
-                       // Method 4: Try to redirect to a blank page
-                       try {
-                           window.location.href = 'about:blank';
-                           console.log('Redirected to about:blank');
-                           return;
-                       } catch (e) {
-                           console.log('about:blank redirect failed:', e);
-                       }
-                       
-                       // Method 5: Try to redirect to a simple page
-                       try {
-                           window.location.href = 'data:text/html,<html><body><h1>You can close this tab now</h1></body></html>';
-                           console.log('Redirected to data URL');
-                           return;
-                       } catch (e) {
-                           console.log('data URL redirect failed:', e);
-                       }
-                       
-                       // Method 6: Show a message to user
-                       try {
-                           document.body.innerHTML = '<div style="text-align:center;padding:50px;font-family:Arial,sans-serif;"><h1>You can close this tab now</h1><p>Click the X button in your browser tab to close this window.</p></div>';
-                           console.log('Showed close message to user');
-                       } catch (e) {
-                           console.log('Failed to show close message:', e);
-                       }
+                       // Start trying links
+                       tryNextLink();
                    }
             </script>
           </body>
