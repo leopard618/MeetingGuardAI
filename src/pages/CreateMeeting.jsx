@@ -22,10 +22,12 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { Meeting } from "@/api/entities";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
 import calendarSyncManager from "@/api/calendarSyncManager";
 
 export default function CreateMeeting({ navigation, route }) {
   const { isDarkMode } = useTheme();
+  const { user } = useAuth();
   // Store date and time as Date objects for picker compatibility
   const [formData, setFormData] = useState({
     title: "",
@@ -180,7 +182,7 @@ export default function CreateMeeting({ navigation, route }) {
           : [],
         source: "Manual",
         confidence: 100,
-        created_by: "user@example.com", // This should come from user context
+        created_by: user?.email || "unknown@example.com",
       };
 
       // Create meeting in app

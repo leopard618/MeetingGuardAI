@@ -19,9 +19,13 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { Meeting } from '@/api/entities';
+import calendarSyncManager from '@/api/calendarSyncManager';
 
 export default function ModernCreateMeeting({ navigation }) {
   const { isDarkMode } = useTheme();
+  const { user } = useAuth();
   
   // Form state
   const [formData, setFormData] = useState({
@@ -237,6 +241,7 @@ export default function ModernCreateMeeting({ navigation }) {
         attachments: formData.attachments, // Include attachments
         source: 'Manual',
         confidence: 100,
+        created_by: user?.email || "unknown@example.com",
       };
 
       console.log('Creating meeting with data:', {
