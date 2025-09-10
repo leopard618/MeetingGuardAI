@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch"; // Added for customizable alerts
-import { Label } from "@/components/ui/label"; // Added for customizable alerts
+import { Button } from './ui\button';
+import { Input } from './ui\input';
+import { Card, CardContent } from './ui\card';
+import { Switch } from './ui\switch'; // Added for customizable alerts
+import { Label } from './ui\label'; // Added for customizable alerts
 import { Brain, Clock, Volume2, VolumeX, Calendar, Smartphone, Settings2 } from "lucide-react-native"; // Settings2 added for customization icon
 import { motion, AnimatePresence } from "framer-motion";
-import { Meeting, User, UserPreferences } from "@/api/entities"; // Added User, UserPreferences
-import { storage } from "@/utils/storage";
+import { Meeting, User, UserPreferences } from '..\api\entities'; // Added User, UserPreferences
+import { storage } from '..\utils\storage';
 
 export default function AlertSystem({ 
   meeting, 

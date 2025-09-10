@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-native";
-import { User } from "@/api/entities";
-import { UserPreferences } from "@/api/entities";
-import { Button } from "@/components/ui/button";
-import { createPageUrl } from "@/utils";
+import { User } from '..\api\entities';
+import { UserPreferences } from '..\api\entities';
+import { Button } from '..\components\ui\button';
+import { createPageUrl } from '..\utils';
 import { Menu, X, LayoutDashboard, Calendar, MessageCircle, Settings, Globe, PlusCircle, Briefcase, StickyNote, CreditCard } from "lucide-react-native";
 import { motion, AnimatePresence } from "framer-motion";
-import { useTranslation, getAvailableLanguages } from "@/components/translations";
-import CookieConsent from "@/components/CookieConsent";
+import { useTranslation, getAvailableLanguages } from '..\components\translations';
+import CookieConsent from '..\components\CookieConsent';
 
 const navigationItems = [
   {

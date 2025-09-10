@@ -10,7 +10,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button } from 'react-native-paper';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '..\contexts\ThemeContext';
 
 const { width } = Dimensions.get('window');
 

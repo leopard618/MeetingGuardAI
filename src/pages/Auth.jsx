@@ -20,10 +20,10 @@ import {
   Divider,
 } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useTheme } from "@/contexts/ThemeContext";
-import { useAuth } from "@/contexts/AuthContext";
-import RedirectURIDebug from "@/components/RedirectURIDebug";
-import OAuthTest from "@/components/OAuthTest";
+import { useTheme } from '..\contexts\ThemeContext';
+import { useAuth } from '..\contexts\AuthContext';
+import RedirectURIDebug from '..\components\RedirectURIDebug';
+import OAuthTest from '..\components\OAuthTest';
 
 export default function Auth({ navigation }) {
   const { isDarkMode } = useTheme();

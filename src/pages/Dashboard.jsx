@@ -24,12 +24,12 @@ import {
   Ionicons,
 } from "@expo/vector-icons";
 import { useFocusEffect } from '@react-navigation/native';
-import { Meeting, UserPreferences, User } from "@/api/entities";
-import { useTheme } from "@/contexts/ThemeContext";
-import { useAuth } from "@/contexts/AuthContext";
-import NotificationManager from "@/components/NotificationSystem/NotificationManager";
-import AlertScheduler from "@/components/AlertScheduler";
-import ImageSlider from "@/components/ImageSlider";
+import { Meeting, UserPreferences, User } from '..\api\entities';
+import { useTheme } from '..\contexts\ThemeContext';
+import { useAuth } from '..\contexts\AuthContext';
+import NotificationManager from '..\components\NotificationSystem\NotificationManager';
+import AlertScheduler from '..\components\AlertScheduler';
+import ImageSlider from '..\components\ImageSlider';
 import calendarSyncManager from '../api/calendarSyncManager';
 
 // Date and Time Display Component

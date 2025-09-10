@@ -6,8 +6,8 @@ import {
   generateVoiceMessage, 
   formatMeetingTime,
   AlertIntensity 
-} from '@/utils/notificationUtils';
-import { storage } from '@/utils/storage';
+} from '..\utils\notificationUtils';
+import { storage } from '..\utils\storage';
 
 export function useNotificationSystem() {
   const [currentAlert, setCurrentAlert] = useState(null);

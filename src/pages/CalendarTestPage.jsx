@@ -10,7 +10,7 @@ import {
   Paragraph,
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useTheme } from '..\contexts\ThemeContext';
 import CalendarSyncTest from '../components/CalendarSyncTest.jsx';
 
 export default function CalendarTestPage({ navigation }) {

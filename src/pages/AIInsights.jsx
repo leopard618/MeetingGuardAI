@@ -11,10 +11,10 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button, TextInput } from 'react-native-paper';
-import { Meeting } from "@/api/entities";
+import { Meeting } from '..\api\entities';
 import ConfidenceBadge from "../components/ConfidenceBadge";
 import SourceBadge from "../components/SourceBadge";
-import { useTheme } from "@/contexts/ThemeContext";
+import { useTheme } from '..\contexts\ThemeContext';
 
 export default function AIInsights({ language = "en" }) {
   const navigation = useNavigation();

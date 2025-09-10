@@ -17,9 +17,9 @@ import {
   Divider,
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '@/contexts/ThemeContext';
-import { Meeting } from '@/api/entities';
-import { safeStringify } from '@/utils';
+import { useTheme } from '..\contexts\ThemeContext';
+import { Meeting } from '..\api\entities';
+import { safeStringify } from '..\utils';
 
 export default function MeetingDetails({ navigation, route }) {
   const { meeting } = route.params;
