@@ -20,8 +20,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { Meeting } from '../api/entities.js';
-import calendarSyncManager from '../api/calendarSyncManager.js';
+import { Meeting } from '../api/entities';
+import calendarSyncManager from '../api/calendarSyncManager';
 
 export default function ModernCreateMeeting({ navigation }) {
   const { isDarkMode } = useTheme();
@@ -229,10 +229,17 @@ export default function ModernCreateMeeting({ navigation }) {
 
     setIsLoading(true);
     try {
-                   const meetingData = {
+                   // Format date in local timezone to avoid timezone conversion issues
+      const localDate = new Date(formData.date);
+      const year = localDate.getFullYear();
+      const month = String(localDate.getMonth() + 1).padStart(2, '0');
+      const day = String(localDate.getDate()).padStart(2, '0');
+      const localDateString = `${year}-${month}-${day}`;
+      
+      const meetingData = {
         title: formData.title,
         description: formData.description,
-        date: formData.date.toISOString().split('T')[0],
+        date: localDateString, // Use local date instead of UTC
         time: formData.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
         duration: parseInt(formData.duration),
         location: formData.location || 'No location specified',

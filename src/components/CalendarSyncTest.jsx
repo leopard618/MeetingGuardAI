@@ -10,8 +10,8 @@ import {
 import { Card, Title, Paragraph, Button, ActivityIndicator, Divider } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import googleCalendarService from '../api/googleCalendar.js';
-import calendarSyncManager from '../api/calendarSyncManager.js';
+import googleCalendarService from '../api/googleCalendar';
+import calendarSyncManager from '../api/calendarSyncManager';
 import { Meeting } from '@/api/entities';
 
 export default function CalendarSyncTest() {

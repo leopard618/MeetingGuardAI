@@ -767,7 +767,7 @@ class GoogleCalendarService {
           throw new Error('Invalid date');
         }
         
-        console.log('Parsed date:', date.toISOString());
+        console.log('Parsed date (local):', date.toString());
         return date;
       } catch (error) {
         console.error('Date parsing error:', error);
@@ -781,16 +781,27 @@ class GoogleCalendarService {
     // Calculate end date based on duration (default 60 minutes)
     const endDate = new Date(startDate.getTime() + (duration || 60) * 60 * 1000);
 
+    // Format dates in local timezone to avoid double conversion
+    const formatLocalDateTime = (dateObj) => {
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const hours = String(dateObj.getHours()).padStart(2, '0');
+      const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+      const seconds = String(dateObj.getSeconds()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    };
+
     return {
       summary: title,
       description: description || '',
       location: location?.address || location || '',
       start: {
-        dateTime: startDate.toISOString(),
+        dateTime: formatLocalDateTime(startDate),
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
       end: {
-        dateTime: endDate.toISOString(),
+        dateTime: formatLocalDateTime(endDate),
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
       attendees: attendees.map(attendee => ({ 
@@ -827,7 +838,12 @@ class GoogleCalendarService {
       if (startDateTime) {
         const startDate = new Date(startDateTime);
         if (!isNaN(startDate.getTime())) {
-          date = startDate.toISOString().split('T')[0];
+          // Use local timezone to avoid date shifting
+          const year = startDate.getFullYear();
+          const month = String(startDate.getMonth() + 1).padStart(2, '0');
+          const day = String(startDate.getDate()).padStart(2, '0');
+          date = `${year}-${month}-${day}`;
+          
           time = startDate.toLocaleTimeString([], { 
             hour: '2-digit', 
             minute: '2-digit', 

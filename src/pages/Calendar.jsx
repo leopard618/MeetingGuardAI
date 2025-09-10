@@ -23,7 +23,7 @@ import { Meeting } from "@/api/entities";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, parseISO } from "date-fns";
 import { es, enUS } from "date-fns/locale";
 import { useTheme } from "@/contexts/ThemeContext";
-import GoogleCalendarService from '../api/googleCalendar.js';
+import GoogleCalendarService from '../api/googleCalendar';
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import { safeStringify } from "@/utils";
 

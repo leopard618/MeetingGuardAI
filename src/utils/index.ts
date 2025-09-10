@@ -194,18 +194,24 @@ export function normalizeDate(date: any): string {
       return date;
     }
     
-    // If it's a Date object, convert to YYYY-MM-DD
+    // If it's a Date object, convert to YYYY-MM-DD using local timezone
     if (date instanceof Date) {
-      const result = date.toISOString().split('T')[0];
-      console.log('normalizeDate: Converted Date object to:', result);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const result = `${year}-${month}-${day}`;
+      console.log('normalizeDate: Converted Date object to local date:', result);
       return result;
     }
     
-    // Try to parse as Date and convert
+    // Try to parse as Date and convert using local timezone
     const parsedDate = new Date(date);
     if (!isNaN(parsedDate.getTime())) {
-      const result = parsedDate.toISOString().split('T')[0];
-      console.log('normalizeDate: Parsed date string to:', result);
+      const year = parsedDate.getFullYear();
+      const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(parsedDate.getDate()).padStart(2, '0');
+      const result = `${year}-${month}-${day}`;
+      console.log('normalizeDate: Parsed date string to local date:', result);
       return result;
     }
     
@@ -231,15 +237,21 @@ export function normalizeDate(date: any): string {
       if (date.toLowerCase().includes('tomorrow')) {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
-        const result = tomorrow.toISOString().split('T')[0];
-        console.log('normalizeDate: Converted "tomorrow" to:', result);
+        const year = tomorrow.getFullYear();
+        const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+        const day = String(tomorrow.getDate()).padStart(2, '0');
+        const result = `${year}-${month}-${day}`;
+        console.log('normalizeDate: Converted "tomorrow" to local date:', result);
         return result;
       }
       
       if (date.toLowerCase().includes('today')) {
         const today = new Date();
-        const result = today.toISOString().split('T')[0];
-        console.log('normalizeDate: Converted "today" to:', result);
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const result = `${year}-${month}-${day}`;
+        console.log('normalizeDate: Converted "today" to local date:', result);
         return result;
       }
       
@@ -247,8 +259,11 @@ export function normalizeDate(date: any): string {
       if (date.toLowerCase().includes('next week')) {
         const nextWeek = new Date();
         nextWeek.setDate(nextWeek.getDate() + 7);
-        const result = nextWeek.toISOString().split('T')[0];
-        console.log('normalizeDate: Converted "next week" to:', result);
+        const year = nextWeek.getFullYear();
+        const month = String(nextWeek.getMonth() + 1).padStart(2, '0');
+        const day = String(nextWeek.getDate()).padStart(2, '0');
+        const result = `${year}-${month}-${day}`;
+        console.log('normalizeDate: Converted "next week" to local date:', result);
         return result;
       }
     }
@@ -271,18 +286,27 @@ export function extractDateTimeFromMessage(message: string): { date: string, tim
   
   const messageLower = message.toLowerCase();
   
-  // Extract date patterns
+  // Extract date patterns using local timezone
   if (messageLower.includes('tomorrow')) {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    result.date = tomorrow.toISOString().split('T')[0];
+    const year = tomorrow.getFullYear();
+    const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const day = String(tomorrow.getDate()).padStart(2, '0');
+    result.date = `${year}-${month}-${day}`;
   } else if (messageLower.includes('today')) {
     const today = new Date();
-    result.date = today.toISOString().split('T')[0];
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    result.date = `${year}-${month}-${day}`;
   } else if (messageLower.includes('next week')) {
     const nextWeek = new Date();
     nextWeek.setDate(nextWeek.getDate() + 7);
-    result.date = nextWeek.toISOString().split('T')[0];
+    const year = nextWeek.getFullYear();
+    const month = String(nextWeek.getMonth() + 1).padStart(2, '0');
+    const day = String(nextWeek.getDate()).padStart(2, '0');
+    result.date = `${year}-${month}-${day}`;
   }
   
   // Extract time patterns

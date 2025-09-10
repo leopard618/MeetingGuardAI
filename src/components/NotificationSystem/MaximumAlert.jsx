@@ -363,7 +363,11 @@ export default function MaximumAlert({
               {meeting.location && (
                 <View style={styles.detailRow}>
                   <Ionicons name="location-outline" size={16} color="#6B7280" />
-                  <Text style={styles.detailText}>{meeting.location}</Text>
+                  <Text style={styles.detailText}>
+                    {typeof meeting.location === 'object' 
+                      ? meeting.location.address || meeting.location 
+                      : meeting.location}
+                  </Text>
                 </View>
               )}
             </View>

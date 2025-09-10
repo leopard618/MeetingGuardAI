@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import googleCalendarService from './googleCalendar.js';
-import { Meeting } from './entities.js';
+import googleCalendarService from './googleCalendar';
+import { Meeting } from './entities';
 
 class CalendarSyncManager {
   constructor() {
@@ -9,6 +9,7 @@ class CalendarSyncManager {
     this.onMeetingCreated = null; // Callback for meeting creation
     this.onMeetingUpdated = null; // Callback for meeting updates
     this.onMeetingDeleted = null; // Callback for meeting deletion
+    this.syncEnabled = true; // Control sync to prevent date conflicts
   }
 
   // Set callbacks for meeting lifecycle events
@@ -16,6 +17,21 @@ class CalendarSyncManager {
     this.onMeetingCreated = onMeetingCreated;
     this.onMeetingUpdated = onMeetingUpdated;
     this.onMeetingDeleted = onMeetingDeleted;
+  }
+
+  // Control sync to prevent date conflicts
+  enableSync() {
+    this.syncEnabled = true;
+    console.log('Calendar sync enabled');
+  }
+
+  disableSync() {
+    this.syncEnabled = false;
+    console.log('Calendar sync disabled to prevent date conflicts');
+  }
+
+  isSyncEnabled() {
+    return this.syncEnabled;
   }
 
   // Initialize sync manager
@@ -133,6 +149,11 @@ class CalendarSyncManager {
 
   // Sync from Google Calendar to app
   async syncFromGoogleCalendar(syncResults) {
+    if (!this.syncEnabled) {
+      console.log('Sync disabled, skipping Google Calendar import');
+      return;
+    }
+    
     try {
       const googleEvents = await googleCalendarService.getEvents();
       const mappings = await googleCalendarService.getEventMappings();
@@ -187,6 +208,11 @@ class CalendarSyncManager {
 
   // Sync from app to Google Calendar
   async syncToGoogleCalendar(syncResults) {
+    if (!this.syncEnabled) {
+      console.log('Sync disabled, skipping app to Google Calendar sync');
+      return;
+    }
+    
     try {
       // Get all app meetings
       const appMeetings = await Meeting.list();
