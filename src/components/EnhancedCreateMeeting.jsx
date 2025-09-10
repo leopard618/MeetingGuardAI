@@ -23,8 +23,8 @@ import {
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useTheme } from '@/contexts/ThemeContext';
-import { Meeting } from '@/api/entities';
+import { useTheme } from '..\contexts\ThemeContext';
+import { Meeting } from '..\api\entities';
 
 // Import services with fallbacks
 let videoConferencingService = null;

@@ -20,9 +20,9 @@ import {
   Divider,
 } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Meeting } from "@/api/entities";
-import { useTheme } from "@/contexts/ThemeContext";
-import { useAuth } from "@/contexts/AuthContext";
+import { Meeting } from '..\api\entities';
+import { useTheme } from '..\contexts\ThemeContext';
+import { useAuth } from '..\contexts\AuthContext';
 import calendarSyncManager from '../api/calendarSyncManager';
 
 export default function CreateMeeting({ navigation, route }) {

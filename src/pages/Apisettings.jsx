@@ -19,9 +19,9 @@ import {
   Chip,
 } from "react-native-paper";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { ApiKey } from "@/api/entities";
+import { ApiKey } from '..\api\entities';
 import React, { useState, useEffect } from "react";
-import { useTheme } from "@/contexts/ThemeContext";
+import { useTheme } from '..\contexts\ThemeContext';
 import * as Clipboard from 'expo-clipboard';
 
 export default function ApiSettings({ navigation, language = "en" }) {

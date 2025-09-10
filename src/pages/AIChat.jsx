@@ -27,10 +27,10 @@ import {
 import { MaterialIcons, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import MeetingManager from '../api/meetingManager';
 import MeetingConfirmationModal from "../components/MeetingConfirmationModal";
-import { useTheme } from "@/contexts/ThemeContext";
-import { isAPIConfigured } from "@/config/api";
-import { safeStringify, makeMeetingDataSafe } from "@/utils";
-import { Meeting } from "@/api/entities";
+import { useTheme } from "../contexts/ThemeContext";
+import { isAPIConfigured } from "../config/api";
+import { safeStringify, makeMeetingDataSafe } from "../utils";
+import { Meeting } from "../api/entities";
 
 const { width } = Dimensions.get('window');
 

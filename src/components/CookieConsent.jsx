@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Button } from './ui\button';
+import { Card, CardContent } from './ui\card';
+import { Switch } from './ui\switch';
+import { Label } from './ui\label';
 import { Cookie, Settings, X, Check } from "lucide-react-native";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-native";
-import { createPageUrl } from "@/utils";
-import { storage } from "@/utils/storage";
+import { createPageUrl } from '..\utils';
+import { storage } from '..\utils\storage';
 
 export default function CookieConsent({ language = "en" }) {
   const [showBanner, setShowBanner] = useState(false);

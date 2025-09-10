@@ -14,8 +14,8 @@ import {
   Title,
   Paragraph,
 } from 'react-native-paper';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '..\contexts\ThemeContext';
+import { useAuth } from '..\contexts\AuthContext';
 import googleCalendarService from '../api/googleCalendar';
 import calendarSyncManager from '../api/calendarSyncManager';
 

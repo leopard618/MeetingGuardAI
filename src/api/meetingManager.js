@@ -1,7 +1,7 @@
 import OpenAIService from './openai';
 import GoogleCalendarService from './googleCalendar';
 import { Meeting } from './entities';
-import { validateMeetingData } from '@/utils';
+import { validateMeetingData } from '../utils';
 import CalendarSyncManager from './calendarSyncManager';
 
 class MeetingManager {
