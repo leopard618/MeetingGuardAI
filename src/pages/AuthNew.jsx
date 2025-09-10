@@ -20,9 +20,9 @@ import {
   Divider,
 } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useTheme } from '..\contexts\ThemeContext';
-import { useAuth } from '..\contexts\AuthContext';
-import { useGoogleAuth } from '..\hooks\useGoogleAuth';
+import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
 
 export default function AuthNew({ navigation }) {
   const { isDarkMode } = useTheme();

@@ -20,7 +20,7 @@ import {
   TextInput, // <-- Use Paper's TextInput for consistent theming
 } from "react-native-paper";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useTheme } from '..\contexts\ThemeContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function Notes({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();

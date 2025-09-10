@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from '..\ui\button';
-import { Card, CardContent } from '..\ui\card';
-import { Switch } from '..\ui\switch';
-import { Label } from '..\ui\label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '..\ui\select';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { Switch } from '../ui/switch';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { 
   Settings2, 
   Volume2, 
@@ -14,7 +14,7 @@ import {
   X,
   Save
 } from "lucide-react-native";
-import { AlertIntensity, defaultAlertConfig } from '..\..\utils\notificationUtils';
+import { AlertIntensity, defaultAlertConfig } from '../../utils/notificationUtils';
 
 export default function AlertCustomizer({ 
   isOpen, 

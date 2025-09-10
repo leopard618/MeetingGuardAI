@@ -31,7 +31,7 @@ import GoogleCalendarTest from "./GoogleCalendarTest";
 import CalendarTestPage from "./CalendarTestPage";
 
 import { BrowserRouter as Router, Route, Routes, useLocation, Navigate } from 'react-router-native';
-import { useAuth } from '..\contexts\AuthContext.web';
+import { useAuth } from '../contexts/AuthContext.web';
 
 const PAGES = {
     

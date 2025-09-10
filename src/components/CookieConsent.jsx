@@ -6,8 +6,8 @@ import { Label } from './ui\label';
 import { Cookie, Settings, X, Check } from "lucide-react-native";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-native";
-import { createPageUrl } from '..\utils';
-import { storage } from '..\utils\storage';
+import { createPageUrl } from '../utils';
+import { storage } from '../utils/storage';
 
 export default function CookieConsent({ language = "en" }) {
   const [showBanner, setShowBanner] = useState(false);

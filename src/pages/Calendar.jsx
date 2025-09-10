@@ -19,13 +19,13 @@ import {
   ActivityIndicator,
 } from "react-native-paper";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { Meeting } from '..\api\entities';
+import { Meeting } from '../api/entities';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, parseISO } from "date-fns";
 import { es, enUS } from "date-fns/locale";
-import { useTheme } from '..\contexts\ThemeContext';
+import { useTheme } from '../contexts/ThemeContext';
 import GoogleCalendarService from '../api/googleCalendar';
-import { useGoogleAuth } from '..\hooks\useGoogleAuth';
-import { safeStringify } from '..\utils';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
+import { safeStringify } from '../utils';
 
 const { width } = Dimensions.get('window');
 

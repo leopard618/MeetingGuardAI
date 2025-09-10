@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { vibrationPatterns, supportsVibration } from '..\utils\notificationUtils';
+import { vibrationPatterns, supportsVibration } from '../utils/notificationUtils';
 
 export function useVibrationSystem() {
   // Trigger vibration with specific pattern

@@ -12,7 +12,7 @@ import {
   Button,
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '..\contexts\ThemeContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function EditMeeting({ navigation, route }) {
   const { meeting } = route.params;

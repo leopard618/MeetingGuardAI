@@ -23,8 +23,8 @@ import { format, parseISO } from "date-fns";
 import { es, enUS } from "date-fns/locale";
 import ConfidenceBadge from "./ConfidenceBadge";
 import SourceBadge from "./SourceBadge";
-import { sendMeetingInvitation } from '..\api\functions';
-import { safeStringify } from '..\utils';
+import { sendMeetingInvitation } from '../api/functions';
+import { safeStringify } from '../utils';
 
 export default function MeetingCard({ 
   meeting, 
