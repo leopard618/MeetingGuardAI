@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Card, Title, Paragraph, Button, ActivityIndicator } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '..\contexts\ThemeContext';
+import { useTheme } from '../contexts/ThemeContext';
 import googleCalendarService from '../api/googleCalendar';
 import calendarSyncManager from '../api/calendarSyncManager';
 

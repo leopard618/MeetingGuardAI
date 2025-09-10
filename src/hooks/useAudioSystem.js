@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { audioConfig, supportsAudioContext, supportsSpeechSynthesis } from '..\utils\notificationUtils';
+import { audioConfig, supportsAudioContext, supportsSpeechSynthesis } from '../utils/notificationUtils';
 
 export function useAudioSystem(intensity = 'maximum') {
   const [volume, setVolume] = useState(0.3);
