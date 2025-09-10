@@ -30,7 +30,7 @@ dist-ssr
 .env.development
 
 # Config files with secrets (if any)
-src/config/api.js
+# src/config/api.js - removed to allow tracking of API config file
 
 # Expo
 .expo/
