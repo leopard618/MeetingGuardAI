@@ -3,7 +3,7 @@ import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react
 import { Meeting } from "@/api/entities";
 import ServiceWorkerRegistration from './ServiceWorkerRegistration';
 import { storage } from "@/utils/storage";
-import { AlertIntensity } from '../utils/notificationUtils.js';
+import { AlertIntensity } from '../utils/notificationUtils';
 
 const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnabled }, ref) => {
   const alertTimeoutsRef = useRef(new Map());
@@ -38,17 +38,78 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
     }
   };
 
+  // Clear old alert schedules to prevent accumulation
+  const clearOldAlertSchedules = async () => {
+    try {
+      const keys = await storage.getAllKeys();
+      const now = Date.now();
+      const oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000);
+      
+      for (const key of keys) {
+        if (key.startsWith('alertSchedule_')) {
+          try {
+            const alertDataStr = await storage.getItem(key);
+            const alertData = JSON.parse(alertDataStr);
+            
+            // If the alert schedule is older than a week, remove it
+            if (alertData.scheduled && alertData.scheduled < oneWeekAgo) {
+              await storage.removeItem(key);
+              console.log('🗑️ Removed old alert schedule:', key);
+            }
+          } catch (error) {
+            // If we can't parse the data, remove it
+            await storage.removeItem(key);
+            console.log('🗑️ Removed malformed alert schedule:', key);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to clear old alert schedules:', error);
+    }
+  };
+
   // Load meetings and schedule alerts
   const loadAndScheduleMeetings = async () => {
     try {
+      // First, clear old alert schedules
+      await clearOldAlertSchedules();
+      
       const meetings = await Meeting.list();
       const now = new Date();
       const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
       // Filter meetings for the next week (to catch 1-day advance alerts)
       const upcomingMeetings = meetings.filter(meeting => {
-        const meetingDate = new Date(meeting.date);
-        return meetingDate >= now && meetingDate <= oneWeekFromNow;
+        try {
+          // Handle different date formats
+          let meetingDate;
+          if (meeting.date.includes('T')) {
+            // ISO format
+            meetingDate = new Date(meeting.date);
+          } else {
+            // YYYY-MM-DD format
+            meetingDate = new Date(meeting.date + 'T00:00:00');
+          }
+          
+          // Check if date is valid
+          if (isNaN(meetingDate.getTime())) {
+            console.log('Invalid date for meeting:', meeting.title, meeting.date);
+            return false;
+          }
+          
+          // Only include meetings from today onwards (don't include past meetings)
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const isUpcoming = meetingDate >= today && meetingDate <= oneWeekFromNow;
+          
+          if (isUpcoming) {
+            console.log('Meeting scheduled for alerts:', meeting.title, 'Date:', meeting.date, 'Parsed:', meetingDate.toISOString());
+          }
+          
+          return isUpcoming;
+        } catch (error) {
+          console.error('Error parsing meeting date:', meeting.title, meeting.date, error);
+          return false;
+        }
       });
 
       console.log(`📅 Found ${upcomingMeetings.length} meetings to schedule alerts for`);
@@ -71,8 +132,25 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
 
   // Schedule alerts for a meeting with multiple timing options
   const scheduleAlertsForMeeting = async (meeting) => {
-    const meetingTime = new Date(`${meeting.date} ${meeting.time}`);
-    const now = new Date();
+    try {
+      // Parse meeting date and time properly
+      let meetingTime;
+      if (meeting.date.includes('T')) {
+        // ISO format
+        meetingTime = new Date(meeting.date);
+      } else {
+        // YYYY-MM-DD format - combine with time
+        const timeStr = meeting.time || '00:00';
+        meetingTime = new Date(`${meeting.date}T${timeStr}:00`);
+      }
+      
+      // Validate the meeting time
+      if (isNaN(meetingTime.getTime())) {
+        console.error('Invalid meeting time for:', meeting.title, meeting.date, meeting.time);
+        return;
+      }
+      
+      const now = new Date();
 
     // Clear existing alerts for this meeting
     const existingTimeouts = alertTimeoutsRef.current.get(meeting.id) || [];
@@ -127,6 +205,9 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
     } catch (error) {
       console.error('Failed to save alert schedule:', error);
     }
+    } catch (error) {
+      console.error('Error scheduling alerts for meeting:', meeting.title, error);
+    }
   };
 
   useEffect(() => {
@@ -157,26 +238,41 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
               const alertData = JSON.parse(alertDataStr);
               const meetingId = alertData.meetingId;
 
-              // Check if any alert time has passed
+              // Initialize triggered alerts array if it doesn't exist
+              if (!alertData.triggeredAlerts) {
+                alertData.triggeredAlerts = [];
+              }
+
+              // Check if any alert time has passed and hasn't been triggered yet
               alertData.alertTimes.forEach((alertTime, index) => {
                 // Ensure alertTime is numeric and valid before comparison
                 if (typeof alertTime === 'number' && !isNaN(alertTime) && alertTime > alertData.scheduled && alertTime <= now) {
-                  // This alert was missed, trigger it now
-                  Meeting.get(meetingId).then(meeting => {
-                    if (meeting) {
-                      // Use the stored alert types or fallback to new format
-                      const alertTypes = alertData.alertTypes || ['1day', '1hour', '15min', '5min', '1min', 'now'];
-                      const alertType = alertTypes[index] || 'unknown';
-                      
-                      // Determine intensity based on alert type
-                      let intensity = AlertIntensity.MAXIMUM;
-                      if (alertType === '1day') intensity = AlertIntensity.LIGHT;
-                      else if (alertType === '1hour' || alertType === '15min') intensity = AlertIntensity.MEDIUM;
-                      
-                      console.log(`🔔 Triggering missed alert: ${alertType} for meeting ${meeting.title}`);
-                      onTriggerAlert(meeting, alertType, intensity);
-                    }
-                  }).catch(console.error);
+                  // Check if this alert has already been triggered
+                  const alertKey = `${meetingId}_${index}_${alertTime}`;
+                  if (!alertData.triggeredAlerts.includes(alertKey)) {
+                    // This alert was missed and hasn't been triggered yet, trigger it now
+                    Meeting.get(meetingId).then(meeting => {
+                      if (meeting) {
+                        // Use the stored alert types or fallback to new format
+                        const alertTypes = alertData.alertTypes || ['1day', '1hour', '15min', '5min', '1min', 'now'];
+                        const alertType = alertTypes[index] || 'unknown';
+                        
+                        // Determine intensity based on alert type
+                        let intensity = AlertIntensity.MAXIMUM;
+                        if (alertType === '1day') intensity = AlertIntensity.LIGHT;
+                        else if (alertType === '1hour' || alertType === '15min') intensity = AlertIntensity.MEDIUM;
+                        
+                        console.log(`🔔 Triggering missed alert: ${alertType} for meeting ${meeting.title}`);
+                        onTriggerAlert(meeting, alertType, intensity);
+                        
+                        // Mark this alert as triggered
+                        alertData.triggeredAlerts.push(alertKey);
+                        
+                        // Save the updated alert data back to storage
+                        storage.setItem(key, JSON.stringify(alertData)).catch(console.error);
+                      }
+                    }).catch(console.error);
+                  }
                 }
               });
             } catch (error) {
@@ -195,14 +291,14 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
 
     checkMissedAlerts(); // Initial check for missed alerts
 
-    // Set up periodic checking every minute only if not already running
+    // Set up periodic checking every 5 minutes only if not already running
     if (!checkIntervalRef.current) {
       checkIntervalRef.current = setInterval(async () => {
         if (alertsEnabled) { // Only run if alerts are currently enabled
           await checkMissedAlerts();
           await loadAndScheduleMeetings(); // Refresh schedules to catch new/updated meetings
         }
-      }, 60 * 1000); // Check every minute
+      }, 5 * 60 * 1000); // Check every 5 minutes instead of every minute
     }
 
     return () => {

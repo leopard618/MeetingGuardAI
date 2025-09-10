@@ -8,8 +8,8 @@ import {
 } from 'react-native';
 import { Card, Title, Paragraph, Button, ActivityIndicator } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import GoogleCalendarService from '../api/googleCalendar.js';
-import { useGoogleAuth } from '../hooks/useGoogleAuth.js';
+import GoogleCalendarService from '../api/googleCalendar';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
 
 export default function GoogleCalendarTest() {
   const googleAuth = useGoogleAuth();

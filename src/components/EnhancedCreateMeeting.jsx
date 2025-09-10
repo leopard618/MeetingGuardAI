@@ -233,7 +233,13 @@ export default function EnhancedCreateMeeting({ navigation }) {
       try {
         const meetingData = {
           title: formData.title,
-          date: formData.date.toISOString().split('T')[0],
+          date: (() => {
+            const localDate = new Date(formData.date);
+            const year = localDate.getFullYear();
+            const month = String(localDate.getMonth() + 1).padStart(2, '0');
+            const day = String(localDate.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          })(),
           time: formData.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
           duration: parseInt(formData.duration),
           participants: formData.participants,
@@ -359,7 +365,13 @@ export default function EnhancedCreateMeeting({ navigation }) {
       const meetingData = {
         title: formData.title,
         description: formData.description,
-        date: formData.date.toISOString().split('T')[0],
+        date: (() => {
+          const localDate = new Date(formData.date);
+          const year = localDate.getFullYear();
+          const month = String(localDate.getMonth() + 1).padStart(2, '0');
+          const day = String(localDate.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        })(),
         time: formData.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
         duration: parseInt(formData.duration),
         location: {

@@ -1,4 +1,4 @@
-import { apiClient } from './backendService.js';
+import { apiClient } from './backendService';
 
 /**
  * Billing service for Stripe Checkout Links integration

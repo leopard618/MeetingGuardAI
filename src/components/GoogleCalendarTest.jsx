@@ -16,8 +16,8 @@ import {
 } from 'react-native-paper';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import googleCalendarService from '../api/googleCalendar.js';
-import calendarSyncManager from '../api/calendarSyncManager.js';
+import googleCalendarService from '../api/googleCalendar';
+import calendarSyncManager from '../api/calendarSyncManager';
 
 export default function GoogleCalendarTest({ navigation }) {
   const { isDarkMode } = useTheme();
@@ -39,7 +39,7 @@ export default function GoogleCalendarTest({ navigation }) {
 
     try {
       // Test 1: Check authentication
-      results.push({ test: 'Authentication Check', status: 'running' });
+      results.push({ test: 'Authenticati on Check', status: 'running' });
       console.log('=== TEST 1: AUTHENTICATION CHECK ===');
       console.log('User authenticated:', isAuthenticated);
       console.log('User:', user);

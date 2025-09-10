@@ -23,7 +23,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { Meeting } from "@/api/entities";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
-import calendarSyncManager from '../api/calendarSyncManager.js';
+import calendarSyncManager from '../api/calendarSyncManager';
 
 export default function CreateMeeting({ navigation, route }) {
   const { isDarkMode } = useTheme();
@@ -55,7 +55,11 @@ export default function CreateMeeting({ navigation, route }) {
   // Format date as YYYY-MM-DD
   const formatDate = (dateObj) => {
     if (!(dateObj instanceof Date)) return "";
-    return dateObj.toISOString().split("T")[0];
+    // Use local timezone to avoid date shifting
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   // Format time as HH:MM (24-hour)

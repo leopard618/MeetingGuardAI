@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
-import { useGoogleAuth } from '../hooks/useGoogleAuth.js';
-import { useAuth } from '../contexts/AuthContext.jsx';
-import { userStorage } from '../utils/storage.js';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
+import { useAuth } from '../contexts/AuthContext';
+import { userStorage } from '../utils/storage';
 
 const OAuthTest = () => {
   const { signIn, isSignedIn, user, isLoading } = useGoogleAuth();

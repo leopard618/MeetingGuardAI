@@ -123,7 +123,9 @@ export default function MediumAlert({
           
           {meeting.location && (
             <Text style={styles.meetingLocation}>
-              📍 {meeting.location}
+              📍 {typeof meeting.location === 'object' 
+                ? meeting.location.address || meeting.location 
+                : meeting.location}
             </Text>
           )}
         </View>

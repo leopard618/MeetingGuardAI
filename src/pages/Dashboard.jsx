@@ -30,7 +30,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import NotificationManager from "@/components/NotificationSystem/NotificationManager";
 import AlertScheduler from "@/components/AlertScheduler";
 import ImageSlider from "@/components/ImageSlider";
-import calendarSyncManager from '../api/calendarSyncManager.js';
+import calendarSyncManager from '../api/calendarSyncManager';
 
 // Date and Time Display Component
 const DateTimeDisplay = ({ isDarkMode, styles }) => {
@@ -206,7 +206,12 @@ export default function Dashboard({ navigation, language = "en" }) {
   };
 
   const getTodaysMeetings = () => {
-    const today = new Date().toISOString().split('T')[0];
+    // Use local timezone to avoid date shifting
+    const todayDate = new Date();
+    const year = todayDate.getFullYear();
+    const month = String(todayDate.getMonth() + 1).padStart(2, '0');
+    const day = String(todayDate.getDate()).padStart(2, '0');
+    const today = `${year}-${month}-${day}`;
     return meetings.filter(meeting => meeting.date === today);
   };
 
@@ -644,7 +649,13 @@ export default function Dashboard({ navigation, language = "en" }) {
           meeting={{
             id: 'test-meeting',
             title: 'Test Meeting Alert',
-            date: new Date().toISOString().split('T')[0],
+            date: (() => {
+              const todayDate = new Date();
+              const year = todayDate.getFullYear();
+              const month = String(todayDate.getMonth() + 1).padStart(2, '0');
+              const day = String(todayDate.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            })(),
             time: new Date(Date.now() + 5 * 60 * 1000).toTimeString().slice(0, 5),
             location: 'Test Location',
             confidence: 0.95,

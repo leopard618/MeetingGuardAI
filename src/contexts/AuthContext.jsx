@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useGoogleAuth } from '../hooks/useGoogleAuth.js';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
 
 const AuthContext = createContext();
 

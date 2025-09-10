@@ -1,8 +1,8 @@
-import OpenAIService from './openai.js';
-import GoogleCalendarService from './googleCalendar.js';
-import { Meeting } from './entities.js';
+import OpenAIService from './openai';
+import GoogleCalendarService from './googleCalendar';
+import { Meeting } from './entities';
 import { validateMeetingData } from '@/utils';
-import CalendarSyncManager from './calendarSyncManager.js';
+import CalendarSyncManager from './calendarSyncManager';
 
 class MeetingManager {
   constructor() {
