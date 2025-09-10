@@ -16,7 +16,7 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react';
-import { BACKEND_CONFIG, getApiUrl, createAuthHeaders } from '../config/backend';
+import { BACKEND_CONFIG, getApiUrl, createAuthHeaders } from '../config/backend.js';
 import { getStoredToken } from '../api/localStorage';
 
 const Admin = () => {
