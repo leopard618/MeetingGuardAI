@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { imageSliderConfig, getSlidesForContext } from '../config/imageSliderConfig';
+import { imageSliderConfig, getSlidesForContext } from '../config/imageSliderConfig.js';
 
 const ImageSlider = ({ slides = [], autoPlay = true, interval = 3000, context = 'default' }) => {
   const [currentIndex, setCurrentIndex] = useState(0);

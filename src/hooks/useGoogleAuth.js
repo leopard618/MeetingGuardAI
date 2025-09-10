@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import Constants from 'expo-constants';
-import { GOOGLE_OAUTH_CONFIG } from '../config/googleAuth';
+import { GOOGLE_OAUTH_CONFIG } from '../config/googleAuth.js';
 import { userStorage } from '../utils/storage';
 import { GOOGLE_REDIRECT_URI } from '@env';
 
