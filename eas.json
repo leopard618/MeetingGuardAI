@@ -9,12 +9,24 @@
       "distribution": "internal",
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildProperties": {
+          "expo.android.compileSdkVersion": 35,
+          "expo.android.targetSdkVersion": 35
+        }
       }
     },
     "preview": {
       "distribution": "internal",
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildProperties": {
+          "expo.android.compileSdkVersion": 35,
+          "expo.android.targetSdkVersion": 35
+        }
       }
     },
     "production": {
@@ -22,7 +34,12 @@
         "resourceClass": "m-medium"
       },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:assembleRelease",
+        "buildProperties": {
+          "expo.android.compileSdkVersion": 35,
+          "expo.android.targetSdkVersion": 35
+        }
       }
     }
   },

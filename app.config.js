@@ -29,6 +29,8 @@ module.exports = {
       },
       package: "com.meetingguard.ai",
       versionCode: 1,
+      compileSdkVersion: 35,
+      targetSdkVersion: 35,
       permissions: [
         "READ_CALENDAR",
         "WRITE_CALENDAR",
