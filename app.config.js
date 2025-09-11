@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: "meeting-guard-ai",
     slug: "meeting-guard-ai",
-    version: "1.0.0",
+    version: "1.0.1",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
@@ -28,7 +28,7 @@ module.exports = {
         backgroundColor: "#ffffff"
       },
       package: "com.meetingguard.ai",
-      versionCode: 1,
+      versionCode: 2,
       compileSdkVersion: 35,
       targetSdkVersion: 35,
       permissions: [
@@ -44,7 +44,19 @@ module.exports = {
         "android.permission.WRITE_CALENDAR",
         "android.permission.READ_CONTACTS",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      // Android 15 compliance
+      intentFilters: [
+        {
+          action: "VIEW",
+          data: {
+            scheme: "meetingguardai"
+          },
+          category: ["BROWSABLE", "DEFAULT"]
+        }
+      ],
+      // Ensure proper exported attribute for Android 15
+      exported: true
     },
     web: {
       favicon: "./assets/favicon.png"
@@ -53,7 +65,14 @@ module.exports = {
     newArchEnabled: false,
     plugins: [
       "expo-router",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#ffffff",
+          "defaultChannel": "default"
+        }
+      ],
       "expo-calendar"
     ],
     extra: {
