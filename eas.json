@@ -12,10 +12,6 @@
       },
       "android": {
         "buildType": "apk"
-      },
-      "buildProperties": {
-        "expo.android.compileSdkVersion": 35,
-        "expo.android.targetSdkVersion": 35
       }
     },
     "preview": {
@@ -25,10 +21,6 @@
       },
       "android": {
         "buildType": "apk"
-      },
-      "buildProperties": {
-        "expo.android.compileSdkVersion": 35,
-        "expo.android.targetSdkVersion": 35
       }
     },
     "production": {
@@ -37,10 +29,6 @@
       },
       "android": {
         "buildType": "app-bundle"
-      },
-      "buildProperties": {
-        "expo.android.compileSdkVersion": 35,
-        "expo.android.targetSdkVersion": 35
       }
     }
   },
