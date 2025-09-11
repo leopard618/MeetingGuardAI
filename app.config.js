@@ -63,14 +63,7 @@ module.exports = {
     newArchEnabled: false,
     plugins: [
       "expo-router",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#ffffff",
-          "defaultChannel": "default"
-        }
-      ],
+      "expo-notifications",
       "expo-calendar",
       [
         "expo-build-properties",
