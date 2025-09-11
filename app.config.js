@@ -29,8 +29,6 @@ module.exports = {
       },
       package: "com.meetingguard.ai",
       versionCode: 2,
-      compileSdkVersion: 35,
-      targetSdkVersion: 35,
       permissions: [
         "READ_CALENDAR",
         "WRITE_CALENDAR",
@@ -73,7 +71,16 @@ module.exports = {
           "defaultChannel": "default"
         }
       ],
-      "expo-calendar"
+      "expo-calendar",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "targetSdkVersion": 35,
+            "compileSdkVersion": 35
+          }
+        }
+      ]
     ],
     extra: {
       eas: {
