@@ -31,6 +31,10 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// API Version
+const API_VERSION = 'v1';
+const API_BASE_PATH = `/api/${API_VERSION}`;
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -891,7 +895,17 @@ app.get('/api/billing/plans', async (req, res) => {
   }
 });
 
-// API routes
+// API routes with versioning
+app.use(`${API_BASE_PATH}/auth`, authRoutes);
+app.use(`${API_BASE_PATH}/meetings`, authenticateToken, meetingRoutes);
+app.use(`${API_BASE_PATH}/calendar`, authenticateToken, calendarRoutes);
+app.use(`${API_BASE_PATH}/ai`, authenticateToken, aiRoutes);
+app.use(`${API_BASE_PATH}/files`, authenticateToken, fileRoutes);
+app.use(`${API_BASE_PATH}/users`, authenticateToken, userRoutes);
+app.use(`${API_BASE_PATH}/billing`, authenticateToken, billingRoutes);
+app.use(`${API_BASE_PATH}/admin`, authenticateToken, adminRoutes);
+
+// Legacy routes (for backward compatibility)
 app.use('/api/auth', authRoutes);
 app.use('/api/meetings', authenticateToken, meetingRoutes);
 app.use('/api/calendar', authenticateToken, calendarRoutes);
@@ -907,7 +921,9 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    apiVersion: API_VERSION,
+    supportedVersions: ['v1']
   });
 });
 
