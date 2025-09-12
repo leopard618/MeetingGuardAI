@@ -30,7 +30,7 @@ import { useAuth } from '../contexts/AuthContext';
 import NotificationManager from '../components/NotificationSystem/NotificationManager';
 import AlertScheduler from '../components/AlertScheduler';
 import ImageSlider from '../components/ImageSlider';
-import calendarSyncManager from '../api/calendarSyncManager';
+import calendarSyncManager from '../api/calendarSyncManager.js';
 
 // Date and Time Display Component
 const DateTimeDisplay = ({ isDarkMode, styles }) => {

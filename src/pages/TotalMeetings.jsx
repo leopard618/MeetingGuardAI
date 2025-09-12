@@ -27,7 +27,7 @@ import { Meeting } from '../api/entities';
 import { safeStringify } from '../utils/index.ts';
 import { localStorageAPI } from '../api/localStorage';
 import googleCalendarService from '../api/googleCalendar';
-import calendarSyncManager from '../api/calendarSyncManager';
+import calendarSyncManager from '../api/calendarSyncManager.js';
 
 export default function TotalMeetings({ navigation }) {
   const { isDarkMode } = useTheme();
