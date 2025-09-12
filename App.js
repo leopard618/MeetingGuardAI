@@ -106,15 +106,15 @@ function AppNavigator() {
       fetchUserAndPrefs();
       
       // Initialize calendar sync manager
-      calendarSyncManager.initialize().then((success) => {
-        if (success) {
-          console.log('Calendar sync manager initialized successfully');
-        } else {
-          console.log('Calendar sync manager initialization failed');
-        }
-      }).catch((error) => {
-        console.error('Error initializing calendar sync manager:', error);
-      });
+      // calendarSyncManager.initialize().then((success) => {
+      //   if (success) {
+      //     console.log('Calendar sync manager initialized successfully');
+      //   } else {
+      //     console.log('Calendar sync manager initialization failed');
+      //   }
+      // }).catch((error) => {
+      //   console.error('Error initializing calendar sync manager:', error);
+      // });
     }
   }, [isAuthenticated]);
 
