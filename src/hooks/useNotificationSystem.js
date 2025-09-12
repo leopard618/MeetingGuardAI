@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useAudioSystem } from './useAudioSystem';
-import { useVibrationSystem } from './useVibrationSystem';
+import { useAudioSystem } from './useAudioSystem.js';
+import { useVibrationSystem } from './useVibrationSystem.js';
 import { 
   getAlertConfig, 
   generateVoiceMessage, 
