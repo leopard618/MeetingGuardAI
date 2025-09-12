@@ -14,7 +14,7 @@ import {
   X,
   Save
 } from "lucide-react-native";
-import { AlertIntensity, defaultAlertConfig } from '../../utils/notificationUtils';
+import { AlertIntensity, defaultAlertConfig } from '../../utils/notificationUtils.js';
 
 export default function AlertCustomizer({ 
   isOpen, 

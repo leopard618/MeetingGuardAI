@@ -1,5 +1,5 @@
 import { localStorageAPI } from './localStorage';
-import { normalizeDate, normalizeTime } from '../utils';
+import { normalizeDate, normalizeTime } from '../utils/index.ts';
 
 // Meeting Entity
 export const Meeting = {

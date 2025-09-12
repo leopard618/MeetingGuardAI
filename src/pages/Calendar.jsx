@@ -25,7 +25,7 @@ import { es, enUS } from "date-fns/locale";
 import { useTheme } from '../contexts/ThemeContext';
 import GoogleCalendarService from '../api/googleCalendar';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
-import { safeStringify } from '../utils';
+import { safeStringify } from '../utils/index.ts';
 
 const { width } = Dimensions.get('window');
 

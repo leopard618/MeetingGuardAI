@@ -19,7 +19,7 @@ import {
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
-import { safeStringify } from '../utils';
+import { safeStringify } from '../utils/index.ts';
 
 export default function MeetingConfirmationModal({
   visible,
