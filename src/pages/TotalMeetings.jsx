@@ -24,7 +24,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { Meeting } from '../api/entities';
-import { safeStringify } from '../utils';
+import { safeStringify } from '../utils/index.ts';
 import { localStorageAPI } from '../api/localStorage';
 import googleCalendarService from '../api/googleCalendar';
 import calendarSyncManager from '../api/calendarSyncManager';

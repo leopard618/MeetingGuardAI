@@ -5,7 +5,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import Constants from 'expo-constants';
 import { GOOGLE_OAUTH_CONFIG } from '../config/googleAuth.js';
-import { userStorage } from '../utils/storage';
+import { userStorage } from '../utils/storage.js';
 import { GOOGLE_REDIRECT_URI } from '@env';
 
 // Ensure auth sessions complete when app is foregrounded again

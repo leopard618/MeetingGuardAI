@@ -19,7 +19,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { Meeting } from '../api/entities';
-import { safeStringify } from '../utils';
+import { safeStringify } from '../utils/index.ts';
 
 export default function MeetingDetails({ navigation, route }) {
   const { meeting } = route.params;

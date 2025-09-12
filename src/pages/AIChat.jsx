@@ -29,7 +29,7 @@ import MeetingManager from '../api/meetingManager';
 import MeetingConfirmationModal from "../components/MeetingConfirmationModal";
 import { useTheme } from "../contexts/ThemeContext";
 import { isAPIConfigured } from "../config/api.js";
-import { safeStringify, makeMeetingDataSafe } from "../utils";
+import { safeStringify, makeMeetingDataSafe } from "../utils/index.ts";
 import { Meeting } from "../api/entities";
 
 const { width } = Dimensions.get('window');

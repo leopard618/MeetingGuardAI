@@ -24,7 +24,7 @@ import { es, enUS } from "date-fns/locale";
 import ConfidenceBadge from "./ConfidenceBadge";
 import SourceBadge from "./SourceBadge";
 import { sendMeetingInvitation } from '../api/functions';
-import { safeStringify } from '../utils';
+import { safeStringify } from '../utils/index.ts';
 
 export default function MeetingCard({ 
   meeting, 
