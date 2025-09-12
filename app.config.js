@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: "meeting-guard-ai",
     slug: "meeting-guard-ai",
-    version: "1.0.2",
+    version: "1.0.3",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "light",
@@ -28,7 +28,7 @@ module.exports = {
         backgroundColor: "#ffffff"
       },
       package: "com.meetingguard.ai",
-      versionCode: 3,
+      versionCode: 14,
       permissions: [
         "READ_CALENDAR",
         "WRITE_CALENDAR",
