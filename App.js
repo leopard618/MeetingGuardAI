@@ -7,7 +7,7 @@ import Toast from 'react-native-toast-message';
 import { View, StyleSheet } from 'react-native';
 import { ThemeProvider } from './src/contexts/ThemeContext.jsx';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext.jsx';
-import calendarSyncManager from './src/api/calendarSyncManager';
+import calendarSyncManager from './src/api/calendarSyncManager.js';
 
 // Import components
 import MobileSidebar from './src/components/MobileSidebar.jsx';

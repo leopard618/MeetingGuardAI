@@ -94,6 +94,20 @@ android {
         versionCode 3
         versionName "1.0.2"
     }
+    
+    // Android 15 compliance
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+    
+    buildFeatures {
+        buildConfig true
+    }
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
