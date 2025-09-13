@@ -275,7 +275,7 @@ export default function Layout({ children, currentPageName }) {
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
             {/* Company Info */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
@@ -365,6 +365,47 @@ export default function Layout({ children, currentPageName }) {
                   {language === 'es' ? 'Documentación API' : 'API Documentation'}
                 </a></li>
               </ul>
+            </div>
+            
+            {/* Technology Stack */}
+            <div>
+              <h3 className="font-semibold text-lg mb-4">
+                {language === 'es' ? 'Tecnologías' : 'Technologies'}
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/0/05/Scikit_learn_logo_small.svg" alt="Scikit-Learn" className="w-5 h-5" />
+                  <span>Scikit-Learn</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="Transformers" className="w-5 h-5" />
+                  <span>Transformers</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="Hugging Face" className="w-5 h-5" />
+                  <span>Hugging Face</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <img src="https://raw.githubusercontent.com/langchain-ai/langchain/master/docs/static/img/langchain-logo.png" alt="LangChain" className="w-5 h-5" />
+                  <span>LangChain</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg" alt="OpenAI" className="w-5 h-5" />
+                  <span>OpenAI</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <img src="https://www.anthropic.com/favicon.ico" alt="Anthropic" className="w-5 h-5" />
+                  <span>Anthropic</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <img src="https://gradio.app/favicon.ico" alt="Gradio" className="w-5 h-5" />
+                  <span>Gradio</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/9/93/Amazon_Web_Services_Logo.svg" alt="AWS" className="w-5 h-5" />
+                  <span>AWS</span>
+                </div>
+              </div>
             </div>
           </div>
           
