@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 
 // Conditional Stripe import - won't crash if package isn't available
 let stripe;
@@ -345,7 +346,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Serve static files from public directory
-const path = require('path');
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve delete account page
