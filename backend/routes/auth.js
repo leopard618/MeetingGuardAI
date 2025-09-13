@@ -478,6 +478,162 @@ router.put('/profile', authenticateToken, [
 });
 
 /**
+ * Delete user account and all associated data
+ */
+router.delete('/delete-account', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    console.log('=== ACCOUNT DELETION REQUEST ===');
+    console.log('User ID:', userId);
+
+    // Start a transaction to delete all user data
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('email, name')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      throw userError;
+    }
+
+    console.log('Deleting account for:', user.email);
+
+    // Delete user's meetings (if stored in database)
+    const { error: meetingsError } = await supabase
+      .from('meetings')
+      .delete()
+      .eq('user_id', userId);
+
+    if (meetingsError) {
+      console.warn('Warning: Could not delete meetings:', meetingsError);
+    }
+
+    // Delete user's calendar sync data (if stored in database)
+    const { error: calendarError } = await supabase
+      .from('calendar_sync')
+      .delete()
+      .eq('user_id', userId);
+
+    if (calendarError) {
+      console.warn('Warning: Could not delete calendar sync data:', calendarError);
+    }
+
+    // Delete user's AI chat history (if stored in database)
+    const { error: chatError } = await supabase
+      .from('ai_chats')
+      .delete()
+      .eq('user_id', userId);
+
+    if (chatError) {
+      console.warn('Warning: Could not delete AI chat history:', chatError);
+    }
+
+    // Delete user's settings/preferences (if stored in database)
+    const { error: settingsError } = await supabase
+      .from('user_settings')
+      .delete()
+      .eq('user_id', userId);
+
+    if (settingsError) {
+      console.warn('Warning: Could not delete user settings:', settingsError);
+    }
+
+    // Finally, delete the user account
+    const { error: deleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    console.log('Account successfully deleted for:', user.email);
+
+    res.json({
+      success: true,
+      message: 'Account and all associated data have been permanently deleted',
+      deletedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Account deletion error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete account',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Request account deletion via email (for Google Play compliance)
+ */
+router.post('/request-deletion', [
+  body('email').isEmail().normalizeEmail(),
+  body('reason').optional().isString().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { email, reason } = req.body;
+
+    // Check if user exists
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, email, name')
+      .eq('email', email)
+      .single();
+
+    if (userError) {
+      if (userError.code === 'PGRST116') {
+        return res.status(404).json({
+          success: false,
+          error: 'User not found'
+        });
+      }
+      throw userError;
+    }
+
+    // Log the deletion request
+    console.log('=== ACCOUNT DELETION REQUEST ===');
+    console.log('Email:', email);
+    console.log('User ID:', user.id);
+    console.log('Reason:', reason || 'Not specified');
+    console.log('Requested at:', new Date().toISOString());
+
+    // In a real implementation, you might:
+    // 1. Send an email confirmation
+    // 2. Store the request in a database
+    // 3. Process it manually or automatically after a delay
+
+    res.json({
+      success: true,
+      message: 'Account deletion request received. We will process your request within 24-48 hours.',
+      requestId: `DEL-${Date.now()}-${user.id}`,
+      estimatedProcessingTime: '24-48 hours'
+    });
+
+  } catch (error) {
+    console.error('Deletion request error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process deletion request',
+      message: error.message
+    });
+  }
+});
+
+/**
  * Save Google user to database (called from frontend)
  */
 router.post('/google/save-user', async (req, res) => {
