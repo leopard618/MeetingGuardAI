@@ -344,6 +344,15 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// Serve static files from public directory
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve delete account page
+app.get('/delete-account', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/delete-account.html'));
+});
+
 // Import routes and middleware
 let authRoutes, meetingRoutes, calendarRoutes, aiRoutes, fileRoutes, userRoutes;
 let errorHandler, authenticateToken, billingRoutes, adminRoutes, planGate;
