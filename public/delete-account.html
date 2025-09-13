@@ -86,17 +86,37 @@
         <p>To delete your MeetingGuard AI account and all associated data, please follow these steps:</p>
         
         <div class="contact-info">
-            <h3>📧 Contact Us</h3>
-            <p>Send an email to our support team with the following information:</p>
-            <ul>
-                <li>Your email address used for the account</li>
-                <li>Subject: "Account Deletion Request"</li>
-                <li>Confirmation that you want to delete your account</li>
-            </ul>
+            <h3>📧 Request Account Deletion</h3>
+            <p>You can request account deletion in two ways:</p>
             
-            <a href="mailto:support@meetingguard.ai?subject=Account%20Deletion%20Request&body=Please%20delete%20my%20MeetingGuard%20AI%20account%20and%20all%20associated%20data.%20My%20email%20address%20is:%20[YOUR_EMAIL]" class="email-link">
-                📧 Send Deletion Request
-            </a>
+            <div style="margin: 20px 0;">
+                <h4>Option 1: Online Form (Recommended)</h4>
+                <form id="deletionForm" style="background: white; padding: 20px; border-radius: 8px; margin: 10px 0;">
+                    <div style="margin-bottom: 15px;">
+                        <label for="email" style="display: block; margin-bottom: 5px; font-weight: bold;">Your Email Address:</label>
+                        <input type="email" id="email" name="email" required 
+                               style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label for="reason" style="display: block; margin-bottom: 5px; font-weight: bold;">Reason (Optional):</label>
+                        <textarea id="reason" name="reason" rows="3" 
+                                  style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; resize: vertical;"
+                                  placeholder="Tell us why you're deleting your account (optional)"></textarea>
+                    </div>
+                    <button type="submit" style="background: #f44336; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px;">
+                        🗑️ Request Account Deletion
+                    </button>
+                </form>
+                <div id="formResult" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <h4>Option 2: Email Request</h4>
+                <p>Send an email to our support team:</p>
+                <a href="mailto:support@meetingguard.ai?subject=Account%20Deletion%20Request&body=Please%20delete%20my%20MeetingGuard%20AI%20account%20and%20all%20associated%20data.%20My%20email%20address%20is:%20[YOUR_EMAIL]" class="email-link">
+                    📧 Send Email Request
+                </a>
+            </div>
         </div>
     </div>
 
@@ -145,5 +165,69 @@
         <p>&copy; 2025 MeetingGuard AI. All rights reserved.</p>
         <p>Made with ❤️ to revolutionize meeting productivity.</p>
     </footer>
+
+    <script>
+        document.getElementById('deletionForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const form = e.target;
+            const formData = new FormData(form);
+            const email = formData.get('email');
+            const reason = formData.get('reason');
+            const resultDiv = document.getElementById('formResult');
+            const submitButton = form.querySelector('button[type="submit"]');
+            
+            // Show loading state
+            submitButton.disabled = true;
+            submitButton.textContent = '⏳ Processing...';
+            resultDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('https://meetingguard-backend.onrender.com/api/auth/request-deletion', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        reason: reason
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.style.display = 'block';
+                    resultDiv.style.background = '#d4edda';
+                    resultDiv.style.color = '#155724';
+                    resultDiv.style.border = '1px solid #c3e6cb';
+                    resultDiv.innerHTML = `
+                        <strong>✅ Success!</strong><br>
+                        ${data.message}<br>
+                        <small>Request ID: ${data.requestId}</small>
+                    `;
+                    form.reset();
+                } else {
+                    throw new Error(data.error || 'Request failed');
+                }
+                
+            } catch (error) {
+                console.error('Deletion request error:', error);
+                resultDiv.style.display = 'block';
+                resultDiv.style.background = '#f8d7da';
+                resultDiv.style.color = '#721c24';
+                resultDiv.style.border = '1px solid #f5c6cb';
+                resultDiv.innerHTML = `
+                    <strong>❌ Error:</strong><br>
+                    ${error.message}<br>
+                    <small>Please try the email option instead.</small>
+                `;
+            } finally {
+                // Reset button
+                submitButton.disabled = false;
+                submitButton.textContent = '🗑️ Request Account Deletion';
+            }
+        });
+    </script>
 </body>
 </html>
