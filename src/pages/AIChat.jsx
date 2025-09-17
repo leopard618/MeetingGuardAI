@@ -118,7 +118,7 @@ export default function AIChat({ navigation, language = "en" }) {
       connecting: "Conectando a servicios...",
       connected: "Conectado",
       disconnected: "Desconectado",
-      welcome: "¡Hola! Soy tu asistente IA de reuniones. Puedo ayudarte a:\n\n📅 **Ver tus reuniones** - Pregunta sobre las reuniones de hoy, próximas reuniones o todas tus reuniones\n\n➕ **Crear reuniones** - Programar nuevas reuniones con todos los detalles\n\n✏️ **Actualizar reuniones** - Modificar detalles de reuniones existentes\n\n🗑️ **Eliminar reuniones** - Remover reuniones de tu calendario\n\n🔍 **Verificar disponibilidad** - Ver si los horarios están libres\n\n¿Qué te gustaría hacer hoy?",
+      welcome: "¡Hola! Soy tu asistente IA de reuniones. Puedo ayudarte a:\n\n📅 Ver tus reuniones - Pregunta sobre las reuniones de hoy, próximas reuniones o todas tus reuniones\n\n➕ Crear reuniones - Programar nuevas reuniones con todos los detalles\n\n✏️ Actualizar reuniones - Modificar detalles de reuniones existentes\n\n🗑️ Eliminar reuniones - Remover reuniones de tu calendario\n\n🔍 Verificar disponibilidad - Ver si los horarios están libres\n\n¿Qué te gustaría hacer hoy?",
       apiNotConfigured: "Clave API de OpenAI no configurada. Por favor configura tu clave API en la configuración.",
       configureAPI: "Configurar API",
     },

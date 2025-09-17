@@ -230,13 +230,13 @@ class MeetingManager {
 
       // Add helpful suggestions if no meetings found
       if (!meetings || meetings.length === 0) {
-        responseMessage += "\n\n💡 **Suggestions:**\n";
+        responseMessage += "\n\n💡 Suggestions:\n";
         responseMessage += "• Try asking about 'upcoming meetings' or 'all meetings'\n";
         responseMessage += "• Create a new meeting by saying 'Create a meeting for tomorrow at 2 PM'\n";
         responseMessage += "• Check your Google Calendar for any existing meetings";
       } else {
         // Add information about how to update/delete meetings
-        responseMessage += "\n\n💡 **To update or delete a meeting:**\n";
+        responseMessage += "\n\n💡 To update or delete a meeting:\n";
         responseMessage += "• Say 'Update the ADSF meeting' or 'Delete the team standup'\n";
         responseMessage += "• I'll help you modify the meeting details";
       }
@@ -307,7 +307,7 @@ class MeetingManager {
         minute: '2-digit',
       });
 
-      response += `${index + 1}. **${meeting.title}**\n`;
+      response += `${index + 1}. ${meeting.title}\n`;
       response += `   📅 ${formattedDate}\n`;
       if (meeting.duration) {
         response += `   ⏱️ ${meeting.duration} minutes\n`;
