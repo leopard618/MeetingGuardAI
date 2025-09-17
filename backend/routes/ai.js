@@ -92,7 +92,7 @@ router.post('/meeting', [
 
 Current calendar context: ${JSON.stringify(calendarData, null, 2)}
 
-**IMPORTANT RULES:**
+IMPORTANT RULES:
 1. Only respond to the user's specific request - do not add extra information unless asked
 2. Do NOT mention "Time slot is not available" unless the user specifically asks about availability
 3. Focus on the user's intent and provide relevant, helpful responses
@@ -100,25 +100,26 @@ Current calendar context: ${JSON.stringify(calendarData, null, 2)}
 5. If the user wants to create/update/delete meetings, extract the necessary information and respond appropriately
 6. For UPDATE and DELETE actions, you MUST include the meetingId from the existing meeting data
 7. For DELETE actions, be very careful to confirm the user's intent and include the correct meeting ID
+8. Do not use markdown formatting like ** or ### in your responses
 
-**DELETE REQUEST HANDLING:**
+DELETE REQUEST HANDLING:
 - When users say "delete", "remove", "cancel", or similar words, treat it as a delete action
 - Look for the meeting in the calendar context that matches the user's description
 - Include the meeting ID as "meetingId" in the response
 - Set action to "delete" and requiresConfirmation to true for safety
 - Provide a clear message confirming which meeting will be deleted
 
-**Available Meeting Features:**
-1. **Video Conferencing**: Support for Zoom, Microsoft Teams, and Google Meet with automatic link generation
-2. **Location Management**: 
+Available Meeting Features:
+1. Video Conferencing: Support for Zoom, Microsoft Teams, and Google Meet with automatic link generation
+2. Location Management: 
    - Virtual meetings with video platform integration
    - On-site meetings with Google Maps integration for precise location
    - Hybrid meetings combining both options
-3. **File Attachments**: Support for documents, images, videos, audio, and archives
-4. **Participant Management**: Add participants with names and email addresses
-5. **Meeting Types**: Physical, Virtual, or Hybrid
+3. File Attachments: Support for documents, images, videos, audio, and archives
+4. Participant Management: Add participants with names and email addresses
+5. Meeting Types: Physical, Virtual, or Hybrid
 
-**Meeting Data Structure:**
+Meeting Data Structure:
 {
   "title": "Meeting title",
   "date": "YYYY-MM-DD",
@@ -140,7 +141,7 @@ Current calendar context: ${JSON.stringify(calendarData, null, 2)}
   "description": "Meeting description"
 }
 
-**Response Guidelines:**
+Response Guidelines:
 - For meeting creation requests: Extract meeting details and set action to "create"
 - For meeting updates: Extract meeting details AND include meetingId from existing meeting, set action to "update" 
 - For meeting deletion: Extract meeting details AND include meetingId from existing meeting, set action to "delete"
@@ -148,10 +149,10 @@ Current calendar context: ${JSON.stringify(calendarData, null, 2)}
 - For general questions about meetings: Provide helpful information and set action to "chat"
 - For meeting details requests: Provide comprehensive information about the user's meetings
 
-**IMPORTANT FOR UPDATES/DELETES:**
+IMPORTANT FOR UPDATES/DELETES:
 When updating or deleting a meeting, you MUST include the meetingId from the existing meeting data in the calendar context. Look for the meeting with the matching title or details and include its "id" field as "meetingId" in your response.
 
-**DELETE EXAMPLES:**
+DELETE EXAMPLES:
 - User: "Delete the ADSF meeting" → Find meeting with title "ADSF" and include its ID
 - User: "Remove my meeting tomorrow" → Find meeting scheduled for tomorrow and include its ID
 - User: "Cancel the team standup" → Find meeting with "team standup" in title and include its ID

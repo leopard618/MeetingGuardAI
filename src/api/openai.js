@@ -85,26 +85,26 @@ class OpenAIService {
 
 When users ask about creating meetings, provide a comprehensive explanation of what information is needed:
 
-**Required Information:**
-- **Meeting Title**: A clear, descriptive name for the meeting
-- **Date**: When the meeting will take place (e.g., "tomorrow", "next Monday", "2024-01-15")
-- **Time**: What time the meeting starts (e.g., "2 PM", "14:30")
-- **Duration**: How long the meeting will last (e.g., "30 minutes", "1 hour")
+Required Information:
+- Meeting Title: A clear, descriptive name for the meeting
+- Date: When the meeting will take place (e.g., "tomorrow", "next Monday", "2024-01-15")
+- Time: What time the meeting starts (e.g., "2 PM", "14:30")
+- Duration: How long the meeting will last (e.g., "30 minutes", "1 hour")
 
-**Optional Information:**
-- **Location**: Where the meeting will be held
+Optional Information:
+- Location: Where the meeting will be held
   - Physical address for in-person meetings
   - Virtual platform (Zoom, Teams, Google Meet) for online meetings
   - "Hybrid" for meetings with both in-person and virtual participants
-- **Participants**: People who will attend (names and email addresses)
-- **Description**: Additional details about the meeting purpose or agenda
+- Participants: People who will attend (names and email addresses)
+- Description: Additional details about the meeting purpose or agenda
 
-**Examples:**
+Examples:
 - "Create a team standup for tomorrow at 9 AM for 30 minutes"
 - "Schedule a client meeting on Friday at 2 PM for 1 hour at the office"
 - "Set up a virtual project review on Monday at 10 AM for 45 minutes using Zoom"
 
-Be helpful, friendly, and provide specific examples. Always give complete, actionable guidance.`;
+Be helpful, friendly, and provide specific examples. Always give complete, actionable guidance. Do not use markdown formatting like ** or ### in your responses.`;
 
       const response = await fetch(`${this.baseURL}/chat/completions`, {
         method: 'POST',
