@@ -14,142 +14,10 @@ import {
   Divider,
 } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useTranslation } from "../components/translations.jsx";
 
 export default function Privacy({ navigation, language = "en" }) {
-  const t = {
-    en: {
-      title: "Privacy Policy",
-      subtitle: "How we protect your data and privacy",
-      lastUpdated: "Last updated: December 2024",
-      
-      // Sections
-      dataCollection: "Data Collection",
-      dataCollectionDesc: "We collect only the information necessary to provide our services:",
-      dataCollectionItems: [
-        "Meeting details (title, date, time, participants)",
-        "User preferences and settings",
-        "Usage analytics to improve our service",
-        "Communication data when you contact us"
-      ],
-      
-      dataUsage: "How We Use Your Data",
-      dataUsageDesc: "Your data is used exclusively for:",
-      dataUsageItems: [
-        "Providing meeting management services",
-        "Sending notifications and reminders",
-        "Personalizing your experience",
-        "Improving our AI capabilities"
-      ],
-      
-      dataSharing: "Data Sharing",
-      dataSharingDesc: "We do not sell, trade, or rent your personal information. We may share data only when:",
-      dataSharingItems: [
-        "Required by law or legal process",
-        "Necessary to protect our rights and safety",
-        "With your explicit consent",
-        "With service providers who assist in our operations"
-      ],
-      
-      dataSecurity: "Data Security",
-      dataSecurityDesc: "We implement industry-standard security measures:",
-      dataSecurityItems: [
-        "End-to-end encryption for sensitive data",
-        "Regular security audits and updates",
-        "Secure data centers with 99.9% uptime",
-        "Access controls and authentication"
-      ],
-      
-      yourRights: "Your Rights",
-      yourRightsDesc: "You have the right to:",
-      yourRightsItems: [
-        "Access your personal data",
-        "Correct inaccurate information",
-        "Request deletion of your data",
-        "Export your data in a portable format",
-        "Opt-out of non-essential communications"
-      ],
-      
-      cookies: "Cookies and Tracking",
-      cookiesDesc: "We use cookies and similar technologies to:",
-      cookiesItems: [
-        "Remember your preferences",
-        "Analyze usage patterns",
-        "Provide personalized content",
-        "Ensure security and prevent fraud"
-      ],
-      
-      contact: "Contact Us",
-      contactDesc: "If you have questions about this privacy policy, contact us at:",
-      email: "privacy@meetingguard.ai",
-      address: "MeetingGuard AI\n123 Innovation Street\nTech City, TC 12345"
-    },
-    es: {
-      title: "Política de Privacidad",
-      subtitle: "Cómo protegemos tus datos y privacidad",
-      lastUpdated: "Última actualización: Diciembre 2024",
-      
-      dataCollection: "Recopilación de Datos",
-      dataCollectionDesc: "Solo recopilamos la información necesaria para brindar nuestros servicios:",
-      dataCollectionItems: [
-        "Detalles de reuniones (título, fecha, hora, participantes)",
-        "Preferencias y configuraciones del usuario",
-        "Análisis de uso para mejorar nuestro servicio",
-        "Datos de comunicación cuando nos contactas"
-      ],
-      
-      dataUsage: "Cómo Usamos Tus Datos",
-      dataUsageDesc: "Tus datos se usan exclusivamente para:",
-      dataUsageItems: [
-        "Brindar servicios de gestión de reuniones",
-        "Enviar notificaciones y recordatorios",
-        "Personalizar tu experiencia",
-        "Mejorar nuestras capacidades de IA"
-      ],
-      
-      dataSharing: "Compartir Datos",
-      dataSharingDesc: "No vendemos, intercambiamos o alquilamos tu información personal. Solo podemos compartir datos cuando:",
-      dataSharingItems: [
-        "Lo requiera la ley o proceso legal",
-        "Sea necesario para proteger nuestros derechos y seguridad",
-        "Con tu consentimiento explícito",
-        "Con proveedores de servicios que ayudan en nuestras operaciones"
-      ],
-      
-      dataSecurity: "Seguridad de Datos",
-      dataSecurityDesc: "Implementamos medidas de seguridad estándar de la industria:",
-      dataSecurityItems: [
-        "Cifrado de extremo a extremo para datos sensibles",
-        "Auditorías de seguridad regulares y actualizaciones",
-        "Centros de datos seguros con 99.9% de tiempo de actividad",
-        "Controles de acceso y autenticación"
-      ],
-      
-      yourRights: "Tus Derechos",
-      yourRightsDesc: "Tienes derecho a:",
-      yourRightsItems: [
-        "Acceder a tus datos personales",
-        "Corregir información inexacta",
-        "Solicitar la eliminación de tus datos",
-        "Exportar tus datos en formato portable",
-        "Optar por no recibir comunicaciones no esenciales"
-      ],
-      
-      cookies: "Cookies y Seguimiento",
-      cookiesDesc: "Usamos cookies y tecnologías similares para:",
-      cookiesItems: [
-        "Recordar tus preferencias",
-        "Analizar patrones de uso",
-        "Proporcionar contenido personalizado",
-        "Asegurar la seguridad y prevenir el fraude"
-      ],
-      
-      contact: "Contáctanos",
-      contactDesc: "Si tienes preguntas sobre esta política de privacidad, contáctanos en:",
-      email: "privacy@meetingguard.ai",
-      address: "MeetingGuard AI\n123 Innovation Street\nTech City, TC 12345"
-    }
-  };
-
+  const { t } = useTranslation(language);
   const renderSection = (title, description, items) => (
     <Card style={styles.sectionCard}>
       <Card.Content>
@@ -181,65 +49,65 @@ export default function Privacy({ navigation, language = "en" }) {
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
-          <Title style={styles.title}>{t[language].title}</Title>
-          <Paragraph style={styles.subtitle}>{t[language].subtitle}</Paragraph>
-          <Text style={styles.lastUpdated}>{t[language].lastUpdated}</Text>
+          <Title style={styles.title}>{t('privacy.title')}</Title>
+          <Paragraph style={styles.subtitle}>{t('privacy.subtitle')}</Paragraph>
+          <Text style={styles.lastUpdated}>{t('privacy.lastUpdated')}</Text>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {renderSection(
-          t[language].dataCollection,
-          t[language].dataCollectionDesc,
-          t[language].dataCollectionItems
+          t('privacy.dataCollection'),
+          t('privacy.dataCollectionDesc'),
+          t('privacy.dataCollectionItems')
         )}
         
         {renderSection(
-          t[language].dataUsage,
-          t[language].dataUsageDesc,
-          t[language].dataUsageItems
+          t('privacy.dataUsage'),
+          t('privacy.dataUsageDesc'),
+          t('privacy.dataUsageItems')
         )}
         
         {renderSection(
-          t[language].dataSharing,
-          t[language].dataSharingDesc,
-          t[language].dataSharingItems
+          t('privacy.dataSharing'),
+          t('privacy.dataSharingDesc'),
+          t('privacy.dataSharingItems')
         )}
         
         {renderSection(
-          t[language].dataSecurity,
-          t[language].dataSecurityDesc,
-          t[language].dataSecurityItems
+          t('privacy.dataSecurity'),
+          t('privacy.dataSecurityDesc'),
+          t('privacy.dataSecurityItems')
         )}
         
         {renderSection(
-          t[language].yourRights,
-          t[language].yourRightsDesc,
-          t[language].yourRightsItems
+          t('privacy.yourRights'),
+          t('privacy.yourRightsDesc'),
+          t('privacy.yourRightsItems')
         )}
         
         {renderSection(
-          t[language].cookies,
-          t[language].cookiesDesc,
-          t[language].cookiesItems
+          t('privacy.cookies'),
+          t('privacy.cookiesDesc'),
+          t('privacy.cookiesItems')
         )}
         
         <Card style={styles.contactCard}>
           <Card.Content>
-            <Title style={styles.sectionTitle}>{t[language].contact}</Title>
+            <Title style={styles.sectionTitle}>{t('privacy.contact')}</Title>
             <Paragraph style={styles.sectionDescription}>
-              {t[language].contactDesc}
+              {t('privacy.contactDesc')}
             </Paragraph>
             
             <View style={styles.contactInfo}>
               <View style={styles.contactItem}>
                 <MaterialIcons name="email" size={20} color="#3b82f6" />
-                <Text style={styles.contactText}>{t[language].email}</Text>
+                <Text style={styles.contactText}>{t('privacy.email')}</Text>
               </View>
               
               <View style={styles.contactItem}>
                 <MaterialIcons name="location-on" size={20} color="#3b82f6" />
-                <Text style={styles.contactText}>{t[language].address}</Text>
+                <Text style={styles.contactText}>{t('privacy.address')}</Text>
               </View>
             </View>
           </Card.Content>

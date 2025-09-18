@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from '../translations.jsx';
 
 export default function MediumAlert({ 
   meeting, 
@@ -23,22 +24,7 @@ export default function MediumAlert({
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const t = {
-    en: {
-      title: "Meeting Reminder",
-      snooze5: "Snooze 5 min",
-      snooze15: "Snooze 15 min",
-      snooze60: "Snooze 1 hour",
-      dismiss: "Dismiss"
-    },
-    es: {
-      title: "Recordatorio de Reunión",
-      snooze5: "Posponer 5 min",
-      snooze15: "Posponer 15 min",
-      snooze60: "Posponer 1 hora",
-      dismiss: "Descartar"
-    }
-  };
+  const { t } = useTranslation(language);
 
   // Initialize audio (simplified for now)
   useEffect(() => {
@@ -109,7 +95,7 @@ export default function MediumAlert({
           <View style={styles.header}>
             <Ionicons name="notifications" size={20} color="#F59E0B" />
             <Text style={styles.title}>
-              {t[language].title}
+              {t('mediumAlert.title')}
             </Text>
           </View>
           
@@ -135,21 +121,21 @@ export default function MediumAlert({
             style={styles.snoozeButton}
             onPress={() => handleSnooze(5)}
           >
-            <Text style={styles.snoozeText}>{t[language].snooze5}</Text>
+            <Text style={styles.snoozeText}>{t('mediumAlert.snooze5')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
             style={styles.snoozeButton}
             onPress={() => handleSnooze(15)}
           >
-            <Text style={styles.snoozeText}>{t[language].snooze15}</Text>
+            <Text style={styles.snoozeText}>{t('mediumAlert.snooze15')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
             style={styles.dismissButton}
             onPress={handleClose}
           >
-            <Text style={styles.dismissText}>{t[language].dismiss}</Text>
+            <Text style={styles.dismissText}>{t('mediumAlert.dismiss')}</Text>
           </TouchableOpacity>
         </View>
       </View>

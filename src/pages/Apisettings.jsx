@@ -23,53 +23,16 @@ import { ApiKey } from '../api/entities';
 import React, { useState, useEffect } from "react";
 import { useTheme } from '../contexts/ThemeContext';
 import * as Clipboard from 'expo-clipboard';
+import { useTranslation } from '../components/translations.jsx';
 
 export default function ApiSettings({ navigation, language = "en" }) {
+  const { t } = useTranslation(language);
   const { isDarkMode } = useTheme();
   const [apiKeys, setApiKeys] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [copiedKey, setCopiedKey] = useState(null);
-
-  const t = {
-    en: {
-      title: "API Key Management",
-      description: "Generate and manage API keys for your B2B clients.",
-      companyName: "Company Name",
-      apiKey: "API Key",
-      status: "Status",
-      usage: "Usage",
-      actions: "Actions",
-      generate: "Generate New Key",
-      revoke: "Revoke",
-      active: "Active",
-      inactive: "Inactive",
-      revoked: "Revoked",
-      noKeys: "No API keys found. Generate your first one to get started.",
-      confirmRevoke: "Are you sure you want to revoke this key? This action cannot be undone.",
-      keyCopied: "API key copied to clipboard",
-      enterCompanyName: "Please enter a company name.",
-    },
-    es: {
-      title: "Gestión de Claves API",
-      description: "Genera y gestiona las claves de API para tus clientes B2B.",
-      companyName: "Nombre de la Empresa",
-      apiKey: "Clave de API",
-      status: "Estado",
-      usage: "Uso",
-      actions: "Acciones",
-      generate: "Generar Nueva Clave",
-      revoke: "Revocar",
-      active: "Activa",
-      inactive: "Inactiva",
-      revoked: "Revocada",
-      noKeys: "No se encontraron claves de API. Genera la primera para empezar.",
-      confirmRevoke: "¿Estás seguro de que quieres revocar esta clave? Esta acción no se puede deshacer.",
-      keyCopied: "Clave API copiada al portapapeles",
-      enterCompanyName: "Por favor ingresa un nombre de empresa.",
-    },
-  };
 
   useEffect(() => {
     loadApiKeys();
@@ -89,7 +52,7 @@ export default function ApiSettings({ navigation, language = "en" }) {
 
   const generateApiKey = async () => {
     if (!newCompanyName.trim()) {
-      Alert.alert("Error", t[language].enterCompanyName);
+      Alert.alert("Error", t('apiSettings.enterCompanyName'));
       return;
     }
     setIsGenerating(true);
@@ -114,7 +77,7 @@ export default function ApiSettings({ navigation, language = "en" }) {
   const revokeApiKey = async (id) => {
     Alert.alert(
       "Confirm Revoke",
-      t[language].confirmRevoke,
+      t('apiSettings.confirmRevoke'),
       [
         { text: "Cancel", style: "cancel" },
         { text: "Revoke", style: "destructive", onPress: async () => {
@@ -136,7 +99,7 @@ export default function ApiSettings({ navigation, language = "en" }) {
       await Clipboard.setStringAsync(key);
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2000);
-      Alert.alert("Success", t[language].keyCopied);
+      Alert.alert("Success", t('apiSettings.keyCopied'));
     } catch (error) {
       console.error("Error copying to clipboard:", error);
       Alert.alert("Error", "Failed to copy to clipboard");
@@ -191,7 +154,7 @@ export default function ApiSettings({ navigation, language = "en" }) {
             textColor="#ef4444"
           >
             <MaterialIcons name="delete" size={16} color="#ef4444" />
-            {t[language].revoke}
+            {t('apiSettings.revoke')}
           </Button>
         )}
       </Card.Content>
@@ -222,8 +185,8 @@ export default function ApiSettings({ navigation, language = "en" }) {
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
-          <Title style={styles.title}>{t[language].title}</Title>
-          <Paragraph style={styles.subtitle}>{t[language].description}</Paragraph>
+          <Title style={styles.title}>{t('apiSettings.title')}</Title>
+          <Paragraph style={styles.subtitle}>{t('apiSettings.description')}</Paragraph>
         </View>
       </View>
 
@@ -234,8 +197,8 @@ export default function ApiSettings({ navigation, language = "en" }) {
             <View style={styles.inputContainer}>
               <TextInput
                 mode="outlined"
-                label={t[language].companyName}
-                placeholder={t[language].companyName}
+                label={t('apiSettings.companyName')}
+                placeholder={t('apiSettings.companyName')}
                 value={newCompanyName}
                 onChangeText={setNewCompanyName}
                 style={styles.textInput}
@@ -255,7 +218,7 @@ export default function ApiSettings({ navigation, language = "en" }) {
                 style={styles.generateButton}
               >
                 <MaterialIcons name="add" size={20} color="white" />
-                {t[language].generate}
+                {t('apiSettings.generate')}
               </Button>
             </View>
           </Card.Content>
@@ -268,7 +231,7 @@ export default function ApiSettings({ navigation, language = "en" }) {
             {apiKeys.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="key" size={48} color={isDarkMode ? "#71717a" : "#ccc"} />
-                <Text style={styles.emptyText}>{t[language].noKeys}</Text>
+                <Text style={styles.emptyText}>{t('apiSettings.noKeys')}</Text>
               </View>
             ) : (
               <View style={styles.keysList}>

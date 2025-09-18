@@ -28,6 +28,7 @@ import { MaterialIcons, MaterialCommunityIcons, Ionicons } from "@expo/vector-ic
 import MeetingManager from '../api/meetingManager';
 import MeetingConfirmationModal from "../components/MeetingConfirmationModal";
 import { useTheme } from "../contexts/ThemeContext";
+import { useTranslation } from "../components/translations.jsx";
 import { isAPIConfigured } from "../config/api.js";
 import { safeStringify, makeMeetingDataSafe } from "../utils/index.ts";
 import { Meeting } from "../api/entities";
@@ -36,6 +37,7 @@ const { width } = Dimensions.get('window');
 
 export default function AIChat({ navigation, language = "en" }) {
   const { isDarkMode, toggleTheme } = useTheme();
+  const { t } = useTranslation(language);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -65,82 +67,13 @@ export default function AIChat({ navigation, language = "en" }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
-  const t = {
-    en: {
-      title: "AI Assistant",
-      subtitle: "Your intelligent meeting companion",
-      placeholder: "Ask me to create, update, or manage your meetings...",
-      send: "Send",
-      createMeeting: "Create Meeting",
-      updateMeeting: "Update Meeting",
-      deleteMeeting: "Delete Meeting",
-      suggestions: "Quick suggestions:",
-      thinking: "AI is thinking...",
-      error: "Error communicating with AI",
-      retry: "Retry",
-      clear: "Clear Chat",
-      confirmClear: "Are you sure you want to clear the chat?",
-      meetingCreated: "Meeting created successfully!",
-      meetingUpdated: "Meeting updated successfully!",
-      meetingDeleted: "Meeting deleted successfully!",
-      viewMeeting: "View Meeting",
-      initializeError: "Failed to initialize services. Please check your configuration.",
-      notAuthenticated: "Please authenticate with Google Calendar to manage meetings.",
-      authenticate: "Authenticate",
-      connecting: "",
-      connected: "Connected",
-      disconnected: "Disconnected",
-      welcome: "Hello! I'm your AI meeting assistant. What would you like to do today?",
-      apiNotConfigured: "OpenAI API key not configured. Please set your API key in the settings.",
-      configureAPI: "Configure API",
-    },
-    es: {
-      title: "Asistente IA",
-      subtitle: "Tu compañero inteligente para reuniones",
-      placeholder: "Pídeme crear, actualizar o gestionar tus reuniones...",
-      send: "Enviar",
-      createMeeting: "Crear Reunión",
-      updateMeeting: "Actualizar Reunión",
-      deleteMeeting: "Eliminar Reunión",
-      suggestions: "Sugerencias rápidas:",
-      thinking: "La IA está pensando...",
-      error: "Error al comunicarse con la IA",
-      retry: "Reintentar",
-      clear: "Limpiar Chat",
-      confirmClear: "¿Estás seguro de que quieres limpiar el chat?",
-      meetingCreated: "¡Reunión creada exitosamente!",
-      meetingUpdated: "¡Reunión actualizada exitosamente!",
-      meetingDeleted: "¡Reunión eliminada exitosamente!",
-      viewMeeting: "Ver Reunión",
-      initializeError: "Error al inicializar servicios. Por favor verifica tu configuración.",
-      notAuthenticated: "Por favor autentícate con Google Calendar para gestionar reuniones.",
-      authenticate: "Autenticar",
-      connecting: "Conectando a servicios...",
-      connected: "Conectado",
-      disconnected: "Desconectado",
-      welcome: "¡Hola! Soy tu asistente IA de reuniones. Puedo ayudarte a:\n\n📅 Ver tus reuniones - Pregunta sobre las reuniones de hoy, próximas reuniones o todas tus reuniones\n\n➕ Crear reuniones - Programar nuevas reuniones con todos los detalles\n\n✏️ Actualizar reuniones - Modificar detalles de reuniones existentes\n\n🗑️ Eliminar reuniones - Remover reuniones de tu calendario\n\n🔍 Verificar disponibilidad - Ver si los horarios están libres\n\n¿Qué te gustaría hacer hoy?",
-      apiNotConfigured: "Clave API de OpenAI no configurada. Por favor configura tu clave API en la configuración.",
-      configureAPI: "Configurar API",
-    },
-  };
 
-  const suggestions = [
-    "What meetings do I have today?",
-    "Show my upcoming meetings",
-    "Create a meeting for tomorrow at 2 PM",
-    "Schedule a team standup for next week",
-    "Check my availability for Friday",
-    "Update my meeting with John",
-    "Delete the ADSF meeting",
-    "Create a virtual meeting with Zoom",
-    "Schedule a hybrid meeting with Google Meet",
-    "Tell me about my meetings",
-  ];
+  const suggestions = t('aiChat.suggestionsList');
 
   useEffect(() => {
     initializeServices();
     animateIn();
-  }, []);
+  }, [language]);
 
   const animateIn = () => {
     Animated.parallel([
@@ -168,7 +101,7 @@ export default function AIChat({ navigation, language = "en" }) {
           {
             id: "welcome",
             type: "ai",
-            content: t[language].welcome,
+            content: t('aiChat.welcome'),
             timestamp: new Date(),
           },
         ]);
@@ -178,7 +111,7 @@ export default function AIChat({ navigation, language = "en" }) {
       const initialized = await MeetingManager.initialize();
       
       if (!initialized) {
-        showSnackbar(t[language].initializeError, "error");
+        showSnackbar(t('aiChat.initializeError'), "error");
       }
       
       const status = await MeetingManager.getStatus();
@@ -193,13 +126,13 @@ export default function AIChat({ navigation, language = "en" }) {
         {
           id: "welcome",
           type: "ai",
-          content: t[language].welcome,
+          content: t('aiChat.welcome'),
           timestamp: new Date(),
         },
       ]);
     } catch (error) {
       console.error("Initialization error:", error);
-      showSnackbar(t[language].initializeError, "error");
+        showSnackbar(t('aiChat.initializeError'), "error");
     } finally {
       setIsInitializing(false);
     }
@@ -530,7 +463,7 @@ export default function AIChat({ navigation, language = "en" }) {
   const handleClearChat = () => {
     Alert.alert(
       "Clear Chat",
-      t[language].confirmClear,
+      "Are you sure you want to clear the chat history?",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Clear", style: "destructive", onPress: () => {
@@ -538,7 +471,7 @@ export default function AIChat({ navigation, language = "en" }) {
             {
               id: "welcome",
               type: "ai",
-              content: t[language].welcome,
+              content: t('aiChat.welcome'),
               timestamp: new Date(),
             },
           ]);
@@ -640,7 +573,7 @@ export default function AIChat({ navigation, language = "en" }) {
                   compact
                   icon="plus"
                 >
-                  {t[language].createMeeting}
+                  Create Meeting
                 </Button>
               )}
               {message.aiResponse.action === 'update' && (
@@ -659,7 +592,7 @@ export default function AIChat({ navigation, language = "en" }) {
                   compact
                   icon="pencil"
                 >
-                  {t[language].updateMeeting}
+                  Update Meeting
                 </Button>
               )}
               {message.aiResponse.action === 'delete' && (
@@ -678,7 +611,7 @@ export default function AIChat({ navigation, language = "en" }) {
                   compact
                   icon="delete"
                 >
-                  {t[language].deleteMeeting}
+                  Delete Meeting
                 </Button>
               )}
             </View>
@@ -708,7 +641,7 @@ export default function AIChat({ navigation, language = "en" }) {
           size={20} 
           color={isDarkMode ? "#10b981" : "#059669"} 
         />
-        <Text style={styles.suggestionsTitle}>{t[language].suggestions}</Text>
+        <Text style={styles.suggestionsTitle}>{t('aiChat.suggestions')}</Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         {suggestions.map((suggestion, index) => (
@@ -730,7 +663,7 @@ export default function AIChat({ navigation, language = "en" }) {
         <View style={styles.statusContainer}>
           <View style={styles.statusContent}>
             <ActivityIndicator size="small" color={isDarkMode ? "#10b981" : "#059669"} />
-            <Text style={styles.statusText}>{t[language].connecting}</Text>
+            <Text style={styles.statusText}></Text>
           </View>
         </View>
       );
@@ -741,7 +674,7 @@ export default function AIChat({ navigation, language = "en" }) {
         <View style={styles.statusContainer}>
           <View style={styles.statusContent}>
             <MaterialIcons name="error-outline" size={20} color="#ef4444" />
-            <Text style={styles.statusText}>{t[language].apiNotConfigured}</Text>
+            <Text style={styles.statusText}>API not configured. Please set up your OpenAI API key.</Text>
             <Button
               mode="outlined"
               onPress={() => navigation.navigate('Settings')}
@@ -749,7 +682,7 @@ export default function AIChat({ navigation, language = "en" }) {
               style={styles.authButton}
               textColor={isDarkMode ? "#10b981" : "#059669"}
             >
-              {t[language].configureAPI}
+              Configure API
             </Button>
           </View>
         </View>
@@ -761,7 +694,7 @@ export default function AIChat({ navigation, language = "en" }) {
     //     <View style={styles.statusContainer}>
     //       <View style={styles.statusContent}>
     //         <MaterialIcons name="warning" size={20} color="#f59e0b" />
-    //         <Text style={styles.statusText}>{t[language].notAuthenticated}</Text>
+    //         <Text style={styles.statusText}>{t('notAuthenticated}</Text>
     //         <Button
     //           mode="outlined"
     //           onPress={handleAuthenticate}
@@ -769,7 +702,7 @@ export default function AIChat({ navigation, language = "en" }) {
     //           style={styles.authButton}
     //           textColor={isDarkMode ? "#10b981" : "#059669"}
     //         >
-    //           {t[language].authenticate}
+    //           {t('authenticate}
     //         </Button>
     //       </View>
     //     </View>
@@ -780,7 +713,7 @@ export default function AIChat({ navigation, language = "en" }) {
     //   <View style={styles.statusContainer}>
     //     <View style={styles.statusContent}>
     //       <MaterialIcons name="check-circle" size={20} color="#10b981" />
-    //       <Text style={styles.statusText}>{t[language].connected}</Text>
+    //       <Text style={styles.statusText}>{t('connected}</Text>
     //     </View>
     //   </View>
     // );
@@ -1186,10 +1119,10 @@ export default function AIChat({ navigation, language = "en" }) {
           </TouchableOpacity>
           <View style={styles.headerInfo}>
             <Text style={[styles.headerTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-              AI Assistant
+              {t('aiChat.title')}
             </Text>
             <Text style={[styles.headerSubtitle, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-              Your intelligent meeting companion
+              {t('aiChat.subtitle')}
             </Text>
           </View>
         </View>
@@ -1202,7 +1135,7 @@ export default function AIChat({ navigation, language = "en" }) {
                 backgroundColor: '#10b981' 
               }]} />
               <Text style={[styles.statusText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                Connected
+                {t('aiChat.connected')}
               </Text>
             </View>
           )}
@@ -1273,7 +1206,7 @@ export default function AIChat({ navigation, language = "en" }) {
                 <View style={[styles.messageBubble, styles.aiBubble, styles.loadingBubble]}>
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color={isDarkMode ? "#10b981" : "#059669"} />
-                    <Text style={styles.loadingText}>{t[language].thinking}</Text>
+                    <Text style={styles.loadingText}>{t('aiChat.thinking')}</Text>
                   </View>
                 </View>
               </View>
@@ -1287,7 +1220,7 @@ export default function AIChat({ navigation, language = "en" }) {
           <View style={styles.inputWrapper}>
             <TextInput
               mode="outlined"
-              placeholder={t[language].placeholder}
+              placeholder={t('aiChat.placeholder')}
               value={inputText}
               onChangeText={setInputText}
               style={[

@@ -23,12 +23,14 @@ import {
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { User, UserPreferences } from '../api/entities';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from '../components/translations.jsx';
 import { useAuth } from '../contexts/AuthContext';
 import CalendarSyncSettings from '../components/CalendarSyncSettings.jsx';
 import CalendarTest from '../components/CalendarTest';
 
 export default function Settings({ navigation, language = "en" }) {
   const { isDarkMode, toggleTheme } = useTheme();
+  const { t } = useTranslation(language);
   const { user: authUser } = useAuth();
   const [user, setUser] = useState(null);
   const [preferences, setPreferences] = useState(null);
@@ -43,90 +45,6 @@ export default function Settings({ navigation, language = "en" }) {
     }
   }, [preferences]);
 
-  const t = {
-    en: {
-      title: "Settings",
-      subtitle: "Customize your experience",
-      profile: "Profile",
-      account: "Account Settings",
-      notifications: "Notifications",
-      language: "Language",
-      theme: "Theme",
-      privacy: "Privacy & Security",
-      about: "About",
-      version: "Version",
-      logout: "Logout",
-      save: "Save Changes",
-      saving: "Saving...",
-      saved: "Settings saved successfully",
-      error: "Error saving settings",
-      confirmLogout: "Are you sure you want to logout?",
-      languages: {
-        en: "English",
-        es: "Español",
-        fr: "Français",
-        de: "Deutsch",
-        pt: "Português",
-        zh: "中文",
-        "zh-TW": "繁體中文",
-      },
-      themes: {
-        light: "Light",
-        dark: "Dark",
-        auto: "Auto",
-      },
-      notificationSettings: {
-        title: "Notification Settings",
-        alertIntensity: "Alert Intensity",
-        intensityLevels: {
-          maximum: "Maximum - Full screen alerts",
-          medium: "Medium - Banner alerts", 
-          light: "Light - Toast notifications"
-        }
-      },
-    },
-    es: {
-      title: "Configuración",
-      subtitle: "Personaliza tu experiencia",
-      profile: "Perfil",
-      account: "Configuración de cuenta",
-      notifications: "Notificaciones",
-      language: "Idioma",
-      theme: "Tema",
-      privacy: "Privacidad y Seguridad",
-      about: "Acerca de",
-      version: "Versión",
-      logout: "Cerrar sesión",
-      save: "Guardar cambios",
-      saving: "Guardando...",
-      saved: "Configuración guardada exitosamente",
-      error: "Error al guardar configuración",
-      confirmLogout: "¿Estás seguro de que quieres cerrar sesión?",
-      languages: {
-        en: "English",
-        es: "Español",
-        fr: "Français",
-        de: "Deutsch",
-        pt: "Português",
-        zh: "中文",
-        "zh-TW": "繁體中文",
-      },
-      themes: {
-        light: "Claro",
-        dark: "Oscuro",
-        auto: "Automático",
-      },
-      notificationSettings: {
-        title: "Configuración de notificaciones",
-        alertIntensity: "Intensidad de alertas",
-        intensityLevels: {
-          maximum: "Máxima - Alertas de pantalla completa",
-          medium: "Media - Alertas de banner", 
-          light: "Ligera - Notificaciones toast"
-        }
-      },
-    },
-  };
 
   useEffect(() => {
     loadUserData();
@@ -191,10 +109,10 @@ export default function Settings({ navigation, language = "en" }) {
     setIsSaving(true);
     try {
       await UserPreferences.update(preferences.id, preferences);
-      Alert.alert("Success", t[language].saved);
+      Alert.alert("Success", t('settings.saved'));
     } catch (error) {
       console.error("Error saving settings:", error);
-      Alert.alert("Error", t[language].error);
+      Alert.alert("Error", t('settings.error'));
     }
     setIsSaving(false);
   };
@@ -210,19 +128,19 @@ export default function Settings({ navigation, language = "en" }) {
 
   const showAlertIntensityPicker = () => {
     Alert.alert(
-      t[language].notificationSettings.alertIntensity,
+      t('settings.notificationSettings.alertIntensity'),
       "Choose alert intensity level:",
       [
         {
-          text: t[language].notificationSettings.intensityLevels.maximum,
+          text: t('settings.notificationSettings.intensityLevels.maximum'),
           onPress: () => updateAlertIntensity('maximum')
         },
         {
-          text: t[language].notificationSettings.intensityLevels.medium,
+          text: t('settings.notificationSettings.intensityLevels.medium'),
           onPress: () => updateAlertIntensity('medium')
         },
         {
-          text: t[language].notificationSettings.intensityLevels.light,
+          text: t('settings.notificationSettings.intensityLevels.light'),
           onPress: () => updateAlertIntensity('light')
         },
         {
@@ -279,13 +197,13 @@ export default function Settings({ navigation, language = "en" }) {
     <Card style={styles.section}>
       <Card.Content>
         <Title style={[styles.sectionTitle, { color: getTitleColor() }]}>
-          {t[language].notificationSettings.title}
+          {t('settings.notificationSettings.title')}
         </Title>
         
         {/* Only keep Alert Intensity - this is the only one that actually works */}
         <List.Item
-          title={t[language].notificationSettings.alertIntensity}
-          description={t[language].notificationSettings.intensityLevels[alertIntensity]}
+          title={t('settings.notificationSettings.alertIntensity')}
+          description={t(`settings.notificationSettings.intensityLevels.${alertIntensity}`)}
           titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
           descriptionStyle={{ color: isDarkMode ? "#a1a1aa" : "#666" }}
           left={(props) => <List.Icon {...props} icon="bell-ring" />}
@@ -299,11 +217,11 @@ export default function Settings({ navigation, language = "en" }) {
     <Card style={styles.section}>
       <Card.Content>
         <Title style={[styles.sectionTitle, { color: getTitleColor() }]}>
-          {t[language].theme}
+          {t('settings.theme')}
         </Title>
         
         <List.Item
-          title={isDarkMode ? t[language].themes.dark : t[language].themes.light}
+          title={isDarkMode ? t('settings.themes.dark') : t('settings.themes.light')}
           description={isDarkMode ? "Dark theme is enabled" : "Light theme is enabled"}
           titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
           left={(props) => (
@@ -404,8 +322,8 @@ export default function Settings({ navigation, language = "en" }) {
         <Divider />
         
         <List.Item
-          title={t[language].about}
-          description={`${t[language].version} 1.0.0`}
+          title={t('settings.about')}
+          description={`${t('settings.version')} 1.0.0`}
           titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
           left={(props) => <List.Icon {...props} icon="information" />}
         />
@@ -437,8 +355,8 @@ export default function Settings({ navigation, language = "en" }) {
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
-          <Title style={styles.title}>{t[language].title}</Title>
-          <Paragraph style={styles.subtitle}>{t[language].subtitle}</Paragraph>
+          <Title style={styles.title}>{t('settings.title')}</Title>
+          <Paragraph style={styles.subtitle}>{t('settings.subtitle')}</Paragraph>
         </View>
       </View>
 
@@ -456,7 +374,7 @@ export default function Settings({ navigation, language = "en" }) {
             disabled={isSaving}
             style={styles.saveButton}
           >
-            {isSaving ? t[language].saving : t[language].save}
+            {isSaving ? t('settings.saving') : t('settings.save')}
           </Button>
           
           {/* Logout button moved to navigation bar */}

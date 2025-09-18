@@ -10,47 +10,13 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button } from 'react-native-paper';
+import { useTranslation } from '../components/translations.jsx';
 
 export default function WhatsAppBot({ language = "en" }) {
   const navigation = useNavigation();
   const [isLoading, setIsLoading] = useState(false);
 
-  const t = {
-    en: {
-      title: "WhatsApp Bot",
-      subtitle: "Schedule meetings quickly via WhatsApp",
-      description: "Send a message to our WhatsApp bot to create meetings on the go. Perfect for quick scheduling when you're busy.",
-      features: [
-        "Natural language processing",
-        "Quick meeting creation",
-        "Available 24/7",
-        "Works from anywhere"
-      ],
-      startChat: "Start WhatsApp Chat",
-      backToDashboard: "Back to Dashboard",
-      comingSoon: "Coming Soon",
-      notAvailable: "WhatsApp Bot is not available yet. Please use the manual creation method or AI Assistant.",
-      openWhatsApp: "Open WhatsApp",
-      whatsAppNumber: "+1234567890"
-    },
-    es: {
-      title: "Bot de WhatsApp",
-      subtitle: "Agenda reuniones rápidamente vía WhatsApp",
-      description: "Envía un mensaje a nuestro bot de WhatsApp para crear reuniones sobre la marcha. Perfecto para agendar rápidamente cuando estés ocupado.",
-      features: [
-        "Procesamiento de lenguaje natural",
-        "Creación rápida de reuniones",
-        "Disponible 24/7",
-        "Funciona desde cualquier lugar"
-      ],
-      startChat: "Iniciar Chat de WhatsApp",
-      backToDashboard: "Volver al Panel",
-      comingSoon: "Próximamente",
-      notAvailable: "El Bot de WhatsApp no está disponible aún. Por favor usa el método de creación manual o el Asistente IA.",
-      openWhatsApp: "Abrir WhatsApp",
-      whatsAppNumber: "+1234567890"
-    }
-  };
+  const { t } = useTranslation(language);
 
   const handleBack = () => {
     navigation.navigate('Dashboard');
@@ -59,7 +25,7 @@ export default function WhatsAppBot({ language = "en" }) {
   const handleWhatsApp = async () => {
     setIsLoading(true);
     try {
-      const url = `whatsapp://send?phone=${t[language].whatsAppNumber}&text=Hello! I want to schedule a meeting.`;
+      const url = `whatsapp://send?phone=${t('whatsAppBot.whatsAppNumber')}&text=Hello! I want to schedule a meeting.`;
       const supported = await Linking.canOpenURL(url);
       
       if (supported) {
@@ -94,11 +60,11 @@ export default function WhatsAppBot({ language = "en" }) {
             style={styles.backButton}
             icon="arrow-left"
           >
-            {t[language].backToDashboard}
+            {t('whatsAppBot.backToDashboard')}
           </Button>
           
-          <Text style={styles.title}>{t[language].title}</Text>
-          <Text style={styles.subtitle}>{t[language].subtitle}</Text>
+          <Text style={styles.title}>{t('whatsAppBot.title')}</Text>
+          <Text style={styles.subtitle}>{t('whatsAppBot.subtitle')}</Text>
         </View>
 
         <Card style={styles.mainCard}>
@@ -107,10 +73,10 @@ export default function WhatsAppBot({ language = "en" }) {
               <Ionicons name="logo-whatsapp" size={64} color="#25D366" />
             </View>
             
-            <Text style={styles.description}>{t[language].description}</Text>
+            <Text style={styles.description}>{t('whatsAppBot.description')}</Text>
             
             <View style={styles.featuresContainer}>
-              {t[language].features.map((feature, index) => (
+              {t('whatsAppBot.features').map((feature, index) => (
                 <View key={index} style={styles.featureItem}>
                   <Ionicons name="checkmark-circle" size={20} color="#25D366" />
                   <Text style={styles.featureText}>{feature}</Text>
@@ -127,7 +93,7 @@ export default function WhatsAppBot({ language = "en" }) {
                 style={styles.whatsappButton}
                 icon="logo-whatsapp"
               >
-                {t[language].startChat}
+                {t('whatsAppBot.startChat')}
               </Button>
               
               <Button
@@ -146,9 +112,9 @@ export default function WhatsAppBot({ language = "en" }) {
           <Card.Content>
             <View style={styles.infoHeader}>
               <Ionicons name="information-circle" size={24} color="#3B82F6" />
-              <Text style={styles.infoTitle}>{t[language].comingSoon}</Text>
+              <Text style={styles.infoTitle}>{t('whatsAppBot.comingSoon')}</Text>
             </View>
-            <Text style={styles.infoText}>{t[language].notAvailable}</Text>
+            <Text style={styles.infoText}>{t('whatsAppBot.notAvailable')}</Text>
           </Card.Content>
         </Card>
       </View>

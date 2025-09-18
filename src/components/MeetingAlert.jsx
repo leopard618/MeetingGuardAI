@@ -6,6 +6,7 @@ import { Brain, Clock, AlertTriangle, CheckCircle2, AlarmClockOff } from "lucide
 import { format } from "date-fns";
 import { es, enUS } from "date-fns/locale";
 import ConfidenceBadge from './ConfidenceBadge';
+import { useTranslation } from './translations.jsx';
 
 export default function MeetingAlert({ 
   meeting, 
@@ -17,30 +18,7 @@ export default function MeetingAlert({
   const [countdown, setCountdown] = useState(10);
   const locale = language === "es" ? es : enUS;
 
-  const t = {
-    en: {
-      title: "MEETING ALERT",
-      subtitle: "You have a meeting starting soon!",
-      inMinutes: "in minutes",
-      now: "NOW",
-      understood: "UNDERSTOOD - GO TO MEETING",
-      snooze: "Snooze 5 min",
-      preparation: "AI Preparation Tips",
-      confidence: "AI Confidence",
-      autoClose: "Auto-close in"
-    },
-    es: {
-      title: "ALERTA DE REUNIÓN",
-      subtitle: "¡Tienes una reunión que comenzará pronto!",
-      inMinutes: "en minutos",
-      now: "AHORA",
-      understood: "ENTENDIDO - IR A REUNIÓN",
-      snooze: "Posponer 5 min",
-      preparation: "Consejos de Preparación IA",
-      confidence: "Confianza IA",
-      autoClose: "Cierre automático en"
-    }
-  };
+  const { t } = useTranslation(language);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -103,10 +81,10 @@ export default function MeetingAlert({
 
                   <div>
                     <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                      {t[language].title}
+                      {t('meetingAlert.title')}
                     </h1>
                     <p className="text-gray-600">
-                      {t[language].subtitle}
+                      {t('meetingAlert.subtitle')}
                     </p>
                   </div>
 
@@ -119,10 +97,10 @@ export default function MeetingAlert({
                       <Clock className="w-5 h-5 text-gray-600" />
                       <span className="font-medium">
                         {minutesUntil <= 0 ? (
-                          <span className="text-red-600 font-bold">{t[language].now}</span>
+                          <span className="text-red-600 font-bold">{t('meetingAlert.now')}</span>
                         ) : (
                           <span>
-                            {minutesUntil} {t[language].inMinutes}
+                            {minutesUntil} {t('meetingAlert.inMinutes')}
                           </span>
                         )}
                       </span>
@@ -130,7 +108,7 @@ export default function MeetingAlert({
 
                     <div className="flex items-center justify-center gap-4">
                       <div className="text-center">
-                        <p className="text-xs text-gray-500 mb-1">{t[language].confidence}</p>
+                        <p className="text-xs text-gray-500 mb-1">{t('meetingAlert.confidence')}</p>
                         <ConfidenceBadge confidence={meeting.confidence} size="sm" />
                       </div>
                     </div>
@@ -140,7 +118,7 @@ export default function MeetingAlert({
                     <div className="bg-blue-50/80 rounded-xl p-4 text-left">
                       <h3 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4" />
-                        {t[language].preparation}
+                        {t('meetingAlert.preparation')}
                       </h3>
                       <ul className="space-y-1">
                         {meeting.preparation_tips.slice(0, 3).map((tip, index) => (
@@ -159,7 +137,7 @@ export default function MeetingAlert({
                       className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 text-lg shadow-lg"
                     >
                       <CheckCircle2 className="w-5 h-5 mr-2" />
-                      {t[language].understood}
+                      {t('meetingAlert.understood')}
                     </Button>
                     
                     <Button
@@ -168,12 +146,12 @@ export default function MeetingAlert({
                       className="w-full border-white/30 text-gray-700 hover:bg-white/20 font-medium"
                     >
                       <AlarmClockOff className="w-4 h-4 mr-2" />
-                      {t[language].snooze}
+                      {t('meetingAlert.snooze')}
                     </Button>
                   </div>
 
                   <div className="text-xs text-gray-500">
-                    {t[language].autoClose} {countdown}s
+                    {t('meetingAlert.autoClose')} {countdown}s
                   </div>
                 </div>
               </CardContent>

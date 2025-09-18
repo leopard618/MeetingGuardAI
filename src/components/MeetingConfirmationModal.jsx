@@ -20,6 +20,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
 import { safeStringify } from '../utils/index.ts';
+import { useTranslation } from './translations.jsx';
 
 export default function MeetingConfirmationModal({
   visible,
@@ -43,52 +44,7 @@ export default function MeetingConfirmationModal({
     setEditedData(meetingData || {});
   }, [meetingData]);
 
-  const t = {
-    en: {
-      confirmCreate: 'Create Meeting',
-      confirmUpdate: 'Update Meeting',
-      confirmDelete: 'Delete Meeting',
-      cancel: 'Cancel',
-      edit: 'Edit',
-      save: 'Save',
-      meetingDetails: 'Meeting Details',
-      title: 'Title',
-      date: 'Date',
-      time: 'Time',
-      duration: 'Duration',
-      location: 'Location',
-      participants: 'Participants',
-      description: 'Description',
-      minutes: 'minutes',
-      confirmDeleteMessage: 'Are you sure you want to delete this meeting?',
-      delete: 'Delete',
-      noParticipants: 'No participants',
-      addParticipant: 'Add participant',
-      participantEmail: 'Participant email',
-    },
-    es: {
-      confirmCreate: 'Crear Reunión',
-      confirmUpdate: 'Actualizar Reunión',
-      confirmDelete: 'Eliminar Reunión',
-      cancel: 'Cancelar',
-      edit: 'Editar',
-      save: 'Guardar',
-      meetingDetails: 'Detalles de la Reunión',
-      title: 'Título',
-      date: 'Fecha',
-      time: 'Hora',
-      duration: 'Duración',
-      location: 'Ubicación',
-      participants: 'Participantes',
-      description: 'Descripción',
-      minutes: 'minutos',
-      confirmDeleteMessage: '¿Estás seguro de que quieres eliminar esta reunión?',
-      delete: 'Eliminar',
-      noParticipants: 'Sin participantes',
-      addParticipant: 'Agregar participante',
-      participantEmail: 'Email del participante',
-    },
-  };
+  const { t } = useTranslation(language);
 
   const formatDate = (dateString) => {
     console.log('MeetingConfirmationModal: Formatting date:', dateString);
@@ -136,11 +92,11 @@ export default function MeetingConfirmationModal({
       console.log('MeetingConfirmationModal: Proceeding with deletion using meeting ID:', editedData.meetingId);
       
       Alert.alert(
-        t[language].confirmDelete,
-        t[language].confirmDeleteMessage,
+        t('meetingConfirmationModal.confirmDelete'),
+        t('meetingConfirmationModal.confirmDeleteMessage'),
         [
-          { text: t[language].cancel, style: 'cancel' },
-          { text: t[language].delete, style: 'destructive', onPress: () => onConfirm(editedData) },
+          { text: t('meetingConfirmationModal.cancel'), style: 'cancel' },
+          { text: t('meetingConfirmationModal.delete'), style: 'destructive', onPress: () => onConfirm(editedData) },
         ]
       );
       return;
@@ -184,10 +140,10 @@ export default function MeetingConfirmationModal({
 
   const addParticipant = () => {
     Alert.prompt(
-      t[language].addParticipant,
-      t[language].participantEmail,
+      t('meetingConfirmationModal.addParticipant'),
+      t('meetingConfirmationModal.participantEmail'),
       [
-        { text: t[language].cancel, style: 'cancel' },
+        { text: t('meetingConfirmationModal.cancel'), style: 'cancel' },
         {
           text: 'Add',
           onPress: (email) => {
@@ -214,11 +170,11 @@ export default function MeetingConfirmationModal({
   const getActionButtonText = () => {
     switch (action) {
       case 'create':
-        return t[language].confirmCreate;
+        return t('meetingConfirmationModal.confirmCreate');
       case 'update':
-        return t[language].confirmUpdate;
+        return t('meetingConfirmationModal.confirmUpdate');
       case 'delete':
-        return t[language].confirmDelete;
+        return t('meetingConfirmationModal.confirmDelete');
       default:
         return 'Confirm';
     }
@@ -251,14 +207,14 @@ export default function MeetingConfirmationModal({
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.header}>
-              <Title style={styles.title}>{t[language].meetingDetails}</Title>
+              <Title style={styles.title}>{t('meetingConfirmationModal.meetingDetails')}</Title>
               {action !== 'delete' && (
                 <Button
                   mode="text"
                   onPress={isEditing ? handleSave : handleEdit}
                   disabled={isLoading}
                 >
-                  {isEditing ? t[language].save : t[language].edit}
+                  {isEditing ? t('meetingConfirmationModal.save') : t('meetingConfirmationModal.edit')}
                 </Button>
               )}
             </View>
@@ -268,7 +224,7 @@ export default function MeetingConfirmationModal({
                 // Edit mode
                 <View style={styles.editForm}>
                   <TextInput
-                    label={t[language].title}
+                    label={t('meetingConfirmationModal.title')}
                     value={editedData.title || ''}
                     onChangeText={(text) => setEditedData(prev => ({ ...prev, title: text }))}
                     style={styles.input}
@@ -276,7 +232,7 @@ export default function MeetingConfirmationModal({
                   />
                   
                   <TextInput
-                    label={t[language].date}
+                    label={t('meetingConfirmationModal.date')}
                     value={editedData.date || ''}
                     onChangeText={(text) => setEditedData(prev => ({ ...prev, date: text }))}
                     style={styles.input}
@@ -285,7 +241,7 @@ export default function MeetingConfirmationModal({
                   />
                   
                   <TextInput
-                    label={t[language].time}
+                    label={t('meetingConfirmationModal.time')}
                     value={editedData.time || ''}
                     onChangeText={(text) => setEditedData(prev => ({ ...prev, time: text }))}
                     style={styles.input}
@@ -294,17 +250,17 @@ export default function MeetingConfirmationModal({
                   />
                   
                   <TextInput
-                    label={t[language].duration}
+                    label={t('meetingConfirmationModal.duration')}
                     value={editedData.duration?.toString() || ''}
                     onChangeText={(text) => setEditedData(prev => ({ ...prev, duration: parseInt(text) || 60 }))}
                     style={styles.input}
                     mode="outlined"
                     keyboardType="numeric"
-                    right={<TextInput.Affix text={t[language].minutes} />}
+                    right={<TextInput.Affix text={t('meetingConfirmationModal.minutes')} />}
                   />
                   
                   <TextInput
-                    label={t[language].location}
+                    label={t('meetingConfirmationModal.location')}
                     value={typeof editedData.location === 'string' 
                       ? editedData.location 
                       : (editedData.location && typeof editedData.location === 'object' && editedData.location.address)
@@ -317,7 +273,7 @@ export default function MeetingConfirmationModal({
                   />
                   
                   <TextInput
-                    label={t[language].description}
+                    label={t('meetingConfirmationModal.description')}
                     value={editedData.description || ''}
                     onChangeText={(text) => setEditedData(prev => ({ ...prev, description: text }))}
                     style={styles.input}
@@ -327,7 +283,7 @@ export default function MeetingConfirmationModal({
                   />
 
                   <View style={styles.participantsSection}>
-                    <Text style={styles.sectionTitle}>{t[language].participants}</Text>
+                    <Text style={styles.sectionTitle}>{t('meetingConfirmationModal.participants')}</Text>
                     {editedData.participants?.map((participant, index) => (
                       <Chip
                         key={index}
@@ -348,7 +304,7 @@ export default function MeetingConfirmationModal({
                       style={styles.addParticipantButton}
                     >
                       <MaterialIcons name="add" size={16} />
-                      {t[language].addParticipant}
+                      {t('meetingConfirmationModal.addParticipant')}
                     </Button>
                   </View>
                 </View>
@@ -365,29 +321,29 @@ export default function MeetingConfirmationModal({
                     // Normal view for complete meeting data
                     <>
                       <View style={styles.detailRow}>
-                        <Text style={styles.label}>{t[language].title}:</Text>
+                        <Text style={styles.label}>{t('meetingConfirmationModal.title')}:</Text>
                         <Text style={styles.value}>{meetingData?.title || '-'}</Text>
                       </View>
                       
                       <View style={styles.detailRow}>
-                        <Text style={styles.label}>{t[language].date}:</Text>
+                        <Text style={styles.label}>{t('meetingConfirmationModal.date')}:</Text>
                         <Text style={styles.value}>{formatDate(meetingData?.date) || '-'}</Text>
                       </View>
                       
                       <View style={styles.detailRow}>
-                        <Text style={styles.label}>{t[language].time}:</Text>
+                        <Text style={styles.label}>{t('meetingConfirmationModal.time')}:</Text>
                         <Text style={styles.value}>{formatTime(meetingData?.time) || '-'}</Text>
                       </View>
                       
                       <View style={styles.detailRow}>
-                        <Text style={styles.label}>{t[language].duration}:</Text>
+                        <Text style={styles.label}>{t('meetingConfirmationModal.duration')}:</Text>
                         <Text style={styles.value}>
-                          {meetingData?.duration ? `${meetingData.duration} ${t[language].minutes}` : '-'}
+                          {meetingData?.duration ? `${meetingData.duration} ${t('meetingConfirmationModal.minutes')}` : '-'}
                         </Text>
                       </View>
                       
                       <View style={styles.detailRow}>
-                        <Text style={styles.label}>{t[language].location}:</Text>
+                        <Text style={styles.label}>{t('meetingConfirmationModal.location')}:</Text>
                         <Text style={styles.value}>
                           {typeof meetingData?.location === 'string' 
                             ? meetingData.location 
@@ -402,7 +358,7 @@ export default function MeetingConfirmationModal({
                       
                       {meetingData?.description && (
                         <View style={styles.detailRow}>
-                          <Text style={styles.label}>{t[language].description}:</Text>
+                          <Text style={styles.label}>{t('meetingConfirmationModal.description')}:</Text>
                           <Text style={styles.value}>{meetingData.description}</Text>
                         </View>
                       )}
@@ -411,7 +367,7 @@ export default function MeetingConfirmationModal({
                   
                   {meetingData?.participants && meetingData.participants.length > 0 && (
                     <View style={styles.detailRow}>
-                      <Text style={styles.label}>{t[language].participants}:</Text>
+                      <Text style={styles.label}>{t('meetingConfirmationModal.participants')}:</Text>
                       <View style={styles.participantsList}>
                         {meetingData.participants.map((participant, index) => (
                           <Chip key={index} style={styles.participantChip}>
@@ -435,16 +391,16 @@ export default function MeetingConfirmationModal({
             {isEditing ? (
               <>
                 <Button onPress={handleCancel} disabled={isLoading}>
-                  {t[language].cancel}
+                  {t('meetingConfirmationModal.cancel')}
                 </Button>
                 <Button onPress={handleSave} disabled={isLoading}>
-                  {t[language].save}
+                  {t('meetingConfirmationModal.save')}
                 </Button>
               </>
             ) : (
               <>
                 <Button onPress={onCancel || onDismiss} disabled={isLoading}>
-                  {t[language].cancel}
+                  {t('meetingConfirmationModal.cancel')}
                 </Button>
                 <Button
                   mode="contained"

@@ -13,7 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Alert } from 'react-native';
-import { useTranslation, getAvailableLanguages } from './translations';
+import { useTranslation } from './translations';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import ThemeToggle from './ThemeToggle';
@@ -86,99 +86,7 @@ const navigationItems = [
   },
 ];
 
-const LanguageSelector = ({ language, setLanguage, onClose }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const availableLanguages = getAvailableLanguages();
-  const currentLang = availableLanguages.find(lang => lang.code === language);
-  const { isDarkMode } = useTheme();
-
-  const languageStyles = StyleSheet.create({
-    languageContainer: {
-      position: 'relative',
-    },
-    languageButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-    },
-    languageText: {
-      fontSize: 14,
-      color: isDarkMode ? '#71717a' : '#9CA3AF',
-      marginLeft: 8,
-    },
-    languageDropdown: {
-      position: 'absolute',
-      bottom: '100%',
-      left: 0,
-      right: 0,
-      backgroundColor: isDarkMode ? '#262626' : '#374151',
-      borderRadius: 8,
-      marginBottom: 8,
-      shadowColor: '#000',
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
-      elevation: 5,
-    },
-    languageOption: {
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-    },
-    languageOptionActive: {
-      backgroundColor: isDarkMode ? '#404040' : '#4B5563',
-    },
-    languageOptionText: {
-      fontSize: 14,
-      color: isDarkMode ? '#a1a1aa' : '#D1D5DB',
-    },
-    languageOptionTextActive: {
-      color: '#FFFFFF',
-    },
-  });
-
-  return (
-    <View style={languageStyles.languageContainer}>
-      <TouchableOpacity
-        style={languageStyles.languageButton}
-        onPress={() => setIsOpen(!isOpen)}
-      >
-        <Ionicons name="globe-outline" size={16} color={isDarkMode ? "#a1a1aa" : "#9CA3AF"} />
-        <Text style={languageStyles.languageText}>
-          {currentLang?.flag} {currentLang?.name}
-        </Text>
-      </TouchableOpacity>
-      
-      {isOpen && (
-        <View style={languageStyles.languageDropdown}>
-          {availableLanguages.map((lang) => (
-            <TouchableOpacity
-              key={lang.code}
-              style={[
-                languageStyles.languageOption,
-                language === lang.code && languageStyles.languageOptionActive
-              ]}
-              onPress={() => {
-                setLanguage(lang.code);
-                setIsOpen(false);
-              }}
-            >
-              <Text style={[
-                languageStyles.languageOptionText,
-                language === lang.code && languageStyles.languageOptionTextActive
-              ]}>
-                {lang.flag} {lang.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-};
+// LanguageSelector component removed - now handled in header
 
 const SidebarContent = ({ language, setLanguage, onClose, currentRouteName }) => {
   const navigation = useNavigation();
@@ -271,14 +179,7 @@ const SidebarContent = ({ language, setLanguage, onClose, currentRouteName }) =>
         </View>
       </View>
 
-      {/* Language Selector */}
-      <View style={styles.languageSection}>
-        <LanguageSelector
-          language={language}
-          setLanguage={setLanguage}
-          onClose={onClose}
-        />
-      </View>
+      {/* Language selector removed - now in header */}
 
       {/* User Info and Logout */}
       {user && (

@@ -11,6 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button } from 'react-native-paper';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from '../components/translations.jsx';
 
 const { width } = Dimensions.get('window');
 
@@ -35,31 +36,7 @@ const MethodCard = ({ onPress, icon, title, description, delay, isDarkMode, styl
 export default function ChooseCreationMethod({ language = "en" }) {
   const { isDarkMode } = useTheme();
   const navigation = useNavigation();
-
-  const t = {
-    en: {
-      title: "Choose a Creation Method",
-      subtitle: "Select how you want to schedule your next meeting.",
-      manualTitle: "Manual",
-      manualDesc: "Full control. Define every detail of your meeting in a simple form.",
-      aiTitle: "AI Assistant",
-      aiDesc: "Talk to the AI. Ask for what you need in natural language and let the assistant do the rest.",
-      whatsappTitle: "WhatsApp Bot",
-      whatsappDesc: "Quick and mobile. Send a message to schedule on the go, from anywhere.",
-      back: "Back to Dashboard"
-    },
-    es: {
-      title: "Elige un Método de Creación",
-      subtitle: "Selecciona cómo quieres agendar tu próxima reunión.",
-      manualTitle: "Manual",
-      manualDesc: "Control total. Define cada detalle de tu reunión en un formulario simple.",
-      aiTitle: "Asistente IA",
-      aiDesc: "Habla con la IA. Pide lo que necesitas en lenguaje natural y deja que el asistente haga el resto.",
-      whatsappTitle: "Bot de WhatsApp",
-      whatsappDesc: "Rápido y móvil. Envía un mensaje para agendar sobre la marcha, desde cualquier lugar.",
-      back: "Volver al Panel"
-    }
-  };
+  const { t } = useTranslation(language);
 
   const handleManual = () => {
     navigation.navigate('CreateMeeting');
@@ -89,19 +66,19 @@ export default function ChooseCreationMethod({ language = "en" }) {
             style={styles.backButton}
             icon="arrow-left"
           >
-            {t[language].back}
+            {t('chooseCreationMethod.back')}
           </Button>
           
-          <Text style={styles.title}>{t[language].title}</Text>
-          <Text style={styles.subtitle}>{t[language].subtitle}</Text>
+          <Text style={styles.title}>{t('chooseCreationMethod.title')}</Text>
+          <Text style={styles.subtitle}>{t('chooseCreationMethod.subtitle')}</Text>
         </View>
         
         <View style={styles.methodsContainer}>
           <MethodCard 
             onPress={handleManual}
             icon="create-outline"
-            title={t[language].manualTitle}
-            description={t[language].manualDesc}
+            title={t('chooseCreationMethod.manualTitle')}
+            description={t('chooseCreationMethod.manualDesc')}
             delay={0}
             isDarkMode={isDarkMode}
             styles={styles}
@@ -110,8 +87,8 @@ export default function ChooseCreationMethod({ language = "en" }) {
           <MethodCard 
             onPress={handleAI}
             icon="bulb-outline"
-            title={t[language].aiTitle}
-            description={t[language].aiDesc}
+            title={t('chooseCreationMethod.aiTitle')}
+            description={t('chooseCreationMethod.aiDesc')}
             delay={1}
             isDarkMode={isDarkMode}
             styles={styles}
@@ -120,8 +97,8 @@ export default function ChooseCreationMethod({ language = "en" }) {
           <MethodCard 
             onPress={handleWhatsApp}
             icon="chatbubble-outline"
-            title={t[language].whatsappTitle}
-            description={t[language].whatsappDesc}
+            title={t('chooseCreationMethod.whatsappTitle')}
+            description={t('chooseCreationMethod.whatsappDesc')}
             delay={2}
             isDarkMode={isDarkMode}
             styles={styles}

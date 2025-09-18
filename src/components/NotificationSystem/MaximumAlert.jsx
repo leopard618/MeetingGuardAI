@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from '../translations.jsx';
 
 export default function MaximumAlert({ 
   meeting, 
@@ -29,28 +30,7 @@ export default function MaximumAlert({
   const [isPlaying, setIsPlaying] = useState(false);
   const [beepInterval, setBeepInterval] = useState(null);
 
-  const t = {
-    en: {
-      title: "🚨 URGENT MEETING ALERT 🚨",
-      subtitle: "You have an important meeting!",
-      understood: "UNDERSTOOD - GO TO MEETING",
-      snooze5: "Snooze 5 min",
-      snooze15: "Snooze 15 min",
-      snooze60: "Snooze 1 hour",
-      postpone: "Postpone Meeting",
-      customize: "Customize Alerts"
-    },
-    es: {
-      title: "🚨 ALERTA URGENTE DE REUNIÓN 🚨",
-      subtitle: "¡Tienes una reunión importante!",
-      understood: "ENTENDIDO - IR A REUNIÓN",
-      snooze5: "Posponer 5 min",
-      snooze15: "Posponer 15 min",
-      snooze60: "Posponer 1 hora",
-      postpone: "Posponer Reunión",
-      customize: "Personalizar Alertas"
-    }
-  };
+  const { t } = useTranslation(language);
 
   // Initialize audio
   useEffect(() => {
@@ -339,10 +319,10 @@ export default function MaximumAlert({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>
-              {t[language].title}
+              {t('maximumAlert.title')}
             </Text>
             <Text style={styles.subtitle}>
-              {t[language].subtitle}
+              {t('maximumAlert.subtitle')}
             </Text>
           </View>
 
@@ -409,7 +389,7 @@ export default function MaximumAlert({
             >
               <Ionicons name="checkmark-circle" size={20} color="white" />
               <Text style={styles.mainButtonText}>
-                {t[language].understood}
+                {t('maximumAlert.understood')}
               </Text>
             </TouchableOpacity>
 
@@ -421,7 +401,7 @@ export default function MaximumAlert({
               >
                 <Ionicons name="alarm-outline" size={16} color="#6B7280" />
                 <Text style={styles.snoozeButtonText}>
-                  {t[language].snooze5}
+                  {t('maximumAlert.snooze5')}
                 </Text>
               </TouchableOpacity>
               
@@ -431,7 +411,7 @@ export default function MaximumAlert({
               >
                 <Ionicons name="alarm-outline" size={16} color="#6B7280" />
                 <Text style={styles.snoozeButtonText}>
-                  {t[language].snooze15}
+                  {t('maximumAlert.snooze15')}
                 </Text>
               </TouchableOpacity>
               
@@ -441,7 +421,7 @@ export default function MaximumAlert({
               >
                 <Ionicons name="alarm-outline" size={16} color="#6B7280" />
                 <Text style={styles.snoozeButtonText}>
-                  {t[language].snooze60}
+                  {t('maximumAlert.snooze60')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -456,7 +436,7 @@ export default function MaximumAlert({
             >
               <Ionicons name="calendar-outline" size={16} color="#6B7280" />
               <Text style={styles.postponeButtonText}>
-                {t[language].postpone}
+                {t('maximumAlert.postpone')}
               </Text>
             </TouchableOpacity>
 
@@ -492,7 +472,7 @@ export default function MaximumAlert({
             >
               <Ionicons name="settings-outline" size={16} color="#6B7280" />
               <Text style={styles.customizeButtonText}>
-                {t[language].customize}
+                {t('maximumAlert.customize')}
               </Text>
             </TouchableOpacity>
           </View>

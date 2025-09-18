@@ -21,9 +21,11 @@ import {
 } from "react-native-paper";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from '../components/translations.jsx';
 
 export default function Notes({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
+  const { t } = useTranslation(language);
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,58 +37,6 @@ export default function Notes({ navigation, language = "en" }) {
     category: "general",
   });
 
-  const t = {
-    en: {
-      title: "Notes & Tasks",
-      subtitle: "Your digital brain for ideas and tasks",
-      searchPlaceholder: "Search notes...",
-      addNote: "Add Note",
-      editNote: "Edit Note",
-      deleteNote: "Delete Note",
-      save: "Save",
-      cancel: "Cancel",
-      titlePlaceholder: "Note title",
-      contentPlaceholder: "Write your note here...",
-      categories: {
-        all: "All",
-        general: "General",
-        work: "Work",
-        personal: "Personal",
-        ideas: "Ideas",
-        tasks: "Tasks",
-      },
-      noNotes: "No notes yet",
-      noNotesSubtext: "Create your first note to get started",
-      deleteConfirm: "Are you sure you want to delete this note?",
-      noteSaved: "Note saved successfully",
-      noteDeleted: "Note deleted successfully",
-    },
-    es: {
-      title: "Notas y Tareas",
-      subtitle: "Tu cerebro digital para ideas y tareas",
-      searchPlaceholder: "Buscar notas...",
-      addNote: "Agregar Nota",
-      editNote: "Editar Nota",
-      deleteNote: "Eliminar Nota",
-      save: "Guardar",
-      cancel: "Cancelar",
-      titlePlaceholder: "Título de la nota",
-      contentPlaceholder: "Escribe tu nota aquí...",
-      categories: {
-        all: "Todas",
-        general: "General",
-        work: "Trabajo",
-        personal: "Personal",
-        ideas: "Ideas",
-        tasks: "Tareas",
-      },
-      noNotes: "Aún no hay notas",
-      noNotesSubtext: "Crea tu primera nota para comenzar",
-      deleteConfirm: "¿Estás seguro de que quieres eliminar esta nota?",
-      noteSaved: "Nota guardada exitosamente",
-      noteDeleted: "Nota eliminada exitosamente",
-    },
-  };
 
   useEffect(() => {
     loadNotes();
@@ -179,21 +129,21 @@ export default function Notes({ navigation, language = "en" }) {
     setNotes(prev => [noteToSave, ...prev]);
     setNewNote({ title: "", content: "", category: "general" });
     setShowAddNote(false);
-    Alert.alert("Success", t[language].noteSaved);
+    Alert.alert("Success", t('notes.noteSaved'));
   };
 
   const handleDeleteNote = (noteId) => {
     Alert.alert(
       "Confirm Delete",
-      t[language].deleteConfirm,
+      t('notes.deleteConfirm'),
       [
-        { text: t[language].cancel, style: "cancel" },
+        { text: t('notes.cancel'), style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: () => {
             setNotes(prev => prev.filter(note => note.id !== noteId));
-            Alert.alert("Success", t[language].noteDeleted);
+            Alert.alert("Success", t('notes.noteDeleted'));
           },
         },
       ]
@@ -235,7 +185,7 @@ export default function Notes({ navigation, language = "en" }) {
               textStyle={{ color: getCategoryColor(note.category) }}
               style={[styles.categoryChip, { borderColor: getCategoryColor(note.category) }]}
             >
-              {t[language].categories[note.category]}
+              {t(`notes.categories.${note.category}`)}
             </Chip>
           </View>
           <View style={styles.noteActions}>
@@ -271,7 +221,7 @@ export default function Notes({ navigation, language = "en" }) {
           <View style={styles.metaItem}>
             <MaterialIcons name={getCategoryIcon(note.category)} size={14} color={getCategoryColor(note.category)} />
             <Text style={[styles.metaText, { color: getCategoryColor(note.category) }]}>
-              {t[language].categories[note.category]}
+              {t(`notes.categories.${note.category}`)}
             </Text>
           </View>
         </View>
@@ -285,7 +235,7 @@ export default function Notes({ navigation, language = "en" }) {
       <View style={[styles.modalContent, { backgroundColor: isDarkMode ? "#18181b" : "#ffffff" }]}>
         <View style={styles.modalHeader}>
           <Title style={[styles.modalTitle, { color: isDarkMode ? "#fff" : "#18181b" }]}>
-            {newNote.id ? t[language].editNote : t[language].addNote}
+            {newNote.id ? t('notes.editNote') : t('notes.addNote')}
           </Title>
           <TouchableOpacity
             onPress={() => {
@@ -303,7 +253,7 @@ export default function Notes({ navigation, language = "en" }) {
           keyboardShouldPersistTaps="handled"
         >
           <TextInput
-            label={t[language].titlePlaceholder}
+            label={t('notes.titlePlaceholder')}
             value={newNote.title}
             onChangeText={(text) => setNewNote(prev => ({ ...prev, title: text }))}
             style={[
@@ -319,7 +269,7 @@ export default function Notes({ navigation, language = "en" }) {
                 background: isDarkMode ? "#262626" : "#f8fafc",
               }
             }}
-            placeholder={t[language].titlePlaceholder}
+            placeholder={t('notes.titlePlaceholder')}
             placeholderTextColor={isDarkMode ? "#e0e0e0" : "#64748b"}
             autoFocus
           />
@@ -327,7 +277,7 @@ export default function Notes({ navigation, language = "en" }) {
           <View style={styles.categorySelector}>
             <Text style={[styles.categoryLabel, { color: isDarkMode ? "#a1a1aa" : "#374151" }]}>Category:</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {Object.keys(t[language].categories).filter(cat => cat !== 'all').map(category => (
+              {Object.keys(t('notes.categories')).filter(cat => cat !== 'all').map(category => (
                 <TouchableOpacity
                   key={category}
                   onPress={() => setNewNote(prev => ({ ...prev, category }))}
@@ -344,7 +294,7 @@ export default function Notes({ navigation, language = "en" }) {
                       newNote.category === category && { color: "white" },
                     ]}
                   >
-                    {t[language].categories[category]}
+                    {t(`notes.categories.${category}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -352,7 +302,7 @@ export default function Notes({ navigation, language = "en" }) {
           </View>
 
           <TextInput
-            label={t[language].contentPlaceholder}
+            label={t('notes.contentPlaceholder')}
             value={newNote.content}
             onChangeText={(text) => setNewNote(prev => ({ ...prev, content: text }))}
             style={styles.textArea}
@@ -368,7 +318,7 @@ export default function Notes({ navigation, language = "en" }) {
                 background: isDarkMode ? "#262626" : "#f8fafc",
               }
             }}
-            placeholder={t[language].contentPlaceholder}
+            placeholder={t('notes.contentPlaceholder')}
             placeholderTextColor={isDarkMode ? "#e0e0e0" : "#64748b"}
           />
         </ScrollView>
@@ -383,7 +333,7 @@ export default function Notes({ navigation, language = "en" }) {
             style={styles.modalButton}
             labelStyle={{ color: isDarkMode ? "#fff" : "#1e293b" }}
           >
-            {t[language].cancel}
+            {t('notes.cancel')}
           </Button>
           <Button
             mode="contained"
@@ -391,7 +341,7 @@ export default function Notes({ navigation, language = "en" }) {
             style={styles.modalButton}
             labelStyle={{ color: "#fff" }}
           >
-            {t[language].save}
+            {t('notes.save')}
           </Button>
         </View>
       </View>
@@ -425,14 +375,14 @@ export default function Notes({ navigation, language = "en" }) {
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
-          <Title style={styles.title}>{t[language].title}</Title>
-          <Paragraph style={styles.subtitle}>{t[language].subtitle}</Paragraph>
+          <Title style={styles.title}>{t('notes.title')}</Title>
+          <Paragraph style={styles.subtitle}>{t('notes.subtitle')}</Paragraph>
         </View>
       </View>
 
       <View style={styles.searchContainer}>
         <Searchbar
-          placeholder={t[language].searchPlaceholder}
+          placeholder={t('notes.searchPlaceholder')}
           onChangeText={setSearchQuery}
           value={searchQuery}
           style={styles.searchbar}
@@ -441,7 +391,7 @@ export default function Notes({ navigation, language = "en" }) {
 
       <View style={styles.categoryFilter}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {Object.keys(t[language].categories).map(category => (
+          {Object.keys(t('notes.categories')).map(category => (
             <TouchableOpacity
               key={category}
               onPress={() => setSelectedCategory(category)}
@@ -458,7 +408,7 @@ export default function Notes({ navigation, language = "en" }) {
                   selectedCategory === category && { color: "white" },
                 ]}
               >
-                {t[language].categories[category]}
+                {t(`notes.categories.${category}`)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -471,14 +421,14 @@ export default function Notes({ navigation, language = "en" }) {
         ) : (
           <View style={styles.emptyContainer}>
             <MaterialIcons name="note-add" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>{t[language].noNotes}</Text>
-            <Text style={styles.emptySubtext}>{t[language].noNotesSubtext}</Text>
+            <Text style={styles.emptyTitle}>{t('notes.noNotes')}</Text>
+            <Text style={styles.emptySubtext}>{t('notes.noNotesSubtext')}</Text>
             <Button
               mode="contained"
               onPress={() => setShowAddNote(true)}
               style={styles.addFirstNoteButton}
             >
-              {t[language].addNote}
+              {t('notes.addNote')}
             </Button>
           </View>
         )}
@@ -488,7 +438,7 @@ export default function Notes({ navigation, language = "en" }) {
         icon="plus"
         style={styles.fab}
         onPress={() => setShowAddNote(true)}
-        label={t[language].addNote}
+        label={t('notes.addNote')}
       />
 
       {showAddNote && renderAddNoteModal()}

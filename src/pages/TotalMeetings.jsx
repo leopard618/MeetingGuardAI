@@ -28,9 +28,11 @@ import { safeStringify } from '../utils/index.ts';
 import { localStorageAPI } from '../api/localStorage';
 import googleCalendarService from '../api/googleCalendar';
 import calendarSyncManager from '../api/calendarSyncManager.js';
+import { useTranslation } from '../components/translations.jsx';
 
-export default function TotalMeetings({ navigation }) {
+export default function TotalMeetings({ navigation, language = 'en' }) {
   const { isDarkMode } = useTheme();
+  const { t } = useTranslation(language);
   
   // State
   const [meetings, setMeetings] = useState([]);
@@ -356,13 +358,13 @@ export default function TotalMeetings({ navigation }) {
     const diff = meetingDate - now;
     
     if (diff < 0) {
-      return { status: 'past', color: '#6b7280', text: 'Past' };
+      return { status: 'past', color: '#6b7280', text: t('totalMeetings.past') };
     } else if (diff < 24 * 60 * 60 * 1000) {
-      return { status: 'today', color: '#ef4444', text: 'Today' };
+      return { status: 'today', color: '#ef4444', text: t('totalMeetings.today') };
     } else if (diff < 7 * 24 * 60 * 60 * 1000) {
-      return { status: 'upcoming', color: '#f59e0b', text: 'This Week' };
+      return { status: 'upcoming', color: '#f59e0b', text: t('totalMeetings.thisWeek') };
     } else {
-      return { status: 'future', color: '#10b981', text: 'Upcoming' };
+      return { status: 'future', color: '#10b981', text: t('totalMeetings.upcoming') };
     }
   };
 
@@ -427,7 +429,7 @@ export default function TotalMeetings({ navigation }) {
                    setMenuVisible({ ...menuVisible, [uniqueKey]: false });
                    handleViewMeeting(meeting);
                  }}
-                 title="View Details"
+                 title={t('totalMeetings.view')}
                  leadingIcon="eye"
                />
                {meeting.source === 'local' && (
@@ -471,7 +473,7 @@ export default function TotalMeetings({ navigation }) {
             {meeting.duration && (
               <View style={styles.infoRow}>
                 <MaterialIcons name="timer" size={16} color="#6b7280" />
-                <Text style={styles.infoText}>{meeting.duration} minutes</Text>
+                <Text style={styles.infoText}>{meeting.duration} {t('totalMeetings.minutes')}</Text>
               </View>
             )}
 
@@ -479,7 +481,7 @@ export default function TotalMeetings({ navigation }) {
               <View style={styles.infoRow}>
                 <MaterialIcons name="people" size={16} color="#6b7280" />
                 <Text style={styles.infoText}>
-                  {meeting.participants.length} participant{meeting.participants.length !== 1 ? 's' : ''}
+                  {meeting.participants.length} {meeting.participants.length !== 1 ? t('totalMeetings.participants') : t('totalMeetings.participant')}
                 </Text>
               </View>
             )}
@@ -501,7 +503,7 @@ export default function TotalMeetings({ navigation }) {
               labelStyle={styles.viewButtonText}
               icon="eye"
             >
-              View
+              {t('totalMeetings.view')}
             </Button>
           </View>
         </Card.Content>
@@ -518,7 +520,7 @@ export default function TotalMeetings({ navigation }) {
          >
            <MaterialIcons name="arrow-back" size={24} color={isDarkMode ? '#fff' : '#333'} />
          </TouchableOpacity>
-         <Text style={styles.headerTitle}>Total Meetings</Text>
+         <Text style={styles.headerTitle}>{t('totalMeetings.title')}</Text>
          <View style={styles.headerButtons}>
            <TouchableOpacity 
              style={styles.debugButton}
@@ -536,7 +538,7 @@ export default function TotalMeetings({ navigation }) {
        </View>
 
       <Searchbar
-        placeholder="Search meetings..."
+        placeholder={t('totalMeetings.searchPlaceholder')}
         onChangeText={setSearchQuery}
         value={searchQuery}
         style={styles.searchbar}
@@ -550,10 +552,10 @@ export default function TotalMeetings({ navigation }) {
         contentContainerStyle={styles.filterContent}
       >
         {[
-          { key: 'all', label: 'All', icon: 'list' },
-          { key: 'today', label: 'Today', icon: 'today' },
-          { key: 'upcoming', label: 'Upcoming', icon: 'schedule' },
-          { key: 'past', label: 'Past', icon: 'history' },
+          { key: 'all', label: t('totalMeetings.all'), icon: 'list' },
+          { key: 'today', label: t('totalMeetings.today'), icon: 'today' },
+          { key: 'upcoming', label: t('totalMeetings.upcoming'), icon: 'schedule' },
+          { key: 'past', label: t('totalMeetings.past'), icon: 'history' },
         ].map((filter) => (
           <TouchableOpacity
             key={filter.key}
@@ -587,14 +589,14 @@ export default function TotalMeetings({ navigation }) {
       >
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading meetings...</Text>
+            <Text style={styles.loadingText}>{t('totalMeetings.loadingMeetings')}</Text>
           </View>
         ) : filteredMeetings.length === 0 ? (
           <View style={styles.emptyContainer}>
             <MaterialIcons name="event-busy" size={64} color="#9ca3af" />
-            <Text style={styles.emptyTitle}>No meetings found</Text>
+            <Text style={styles.emptyTitle}>{t('totalMeetings.noMeetingsFound')}</Text>
             <Text style={styles.emptyText}>
-              {searchQuery ? 'Try adjusting your search' : 'Create your first meeting to get started'}
+              {searchQuery ? t('totalMeetings.tryAdjustingSearch') : t('totalMeetings.createFirstMeeting')}
             </Text>
           </View>
         ) : (
@@ -610,7 +612,7 @@ export default function TotalMeetings({ navigation }) {
         icon="plus"
         style={styles.fab}
         onPress={() => navigation.navigate('CreateMeeting')}
-        label="New Meeting"
+        label={t('totalMeetings.newMeeting')}
       />
     </SafeAreaView>
   );

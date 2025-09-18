@@ -22,10 +22,12 @@ import { useTheme } from '../contexts/ThemeContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { Meeting } from '../api/entities';
 import calendarSyncManager from '../api/calendarSyncManager';
+import { useTranslation } from './translations.jsx';
 
-export default function ModernCreateMeeting({ navigation }) {
+export default function ModernCreateMeeting({ navigation, language = 'en' }) {
   const { isDarkMode } = useTheme();
   const { user } = useAuth();
+  const { t } = useTranslation(language);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -307,7 +309,7 @@ export default function ModernCreateMeeting({ navigation }) {
           >
             <MaterialIcons name="arrow-back" size={24} color={isDarkMode ? '#fff' : '#333'} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Meeting</Text>
+          <Text style={styles.headerTitle}>{t('createMeeting.title')}</Text>
           <View style={styles.placeholder} />
         </View>
 
@@ -316,11 +318,11 @@ export default function ModernCreateMeeting({ navigation }) {
           <Card.Content>
             <View style={styles.cardHeader}>
               <MaterialIcons name="event" size={24} color="#3b82f6" />
-              <Text style={styles.cardTitle}>Basic Details</Text>
+              <Text style={styles.cardTitle}>{t('createMeeting.basicDetails')}</Text>
             </View>
             
             <TextInput
-              label="Meeting Title"
+              label={t('createMeeting.meetingTitle')}
               value={formData.title}
               onChangeText={(text) => handleInputChange('title', text)}
               style={styles.input}
@@ -336,7 +338,7 @@ export default function ModernCreateMeeting({ navigation }) {
               >
                 <MaterialIcons name="calendar-today" size={20} color="#3b82f6" />
                 <View style={styles.dateTimeContent}>
-                  <Text style={styles.dateTimeLabel}>Date</Text>
+                  <Text style={styles.dateTimeLabel}>{t('createMeeting.date')}</Text>
                   <Text style={styles.dateTimeValue}>{formatDate(formData.date)}</Text>
                 </View>
               </TouchableOpacity>
@@ -351,14 +353,14 @@ export default function ModernCreateMeeting({ navigation }) {
               >
                 <MaterialIcons name="access-time" size={20} color="#3b82f6" />
                 <View style={styles.dateTimeContent}>
-                  <Text style={styles.dateTimeLabel}>Time</Text>
+                  <Text style={styles.dateTimeLabel}>{t('createMeeting.time')}</Text>
                   <Text style={styles.dateTimeValue}>{formatTime(formData.time)}</Text>
                 </View>
               </TouchableOpacity>
             </View>
 
             <TextInput
-              label="Duration (minutes)"
+              label={t('createMeeting.duration')}
               value={formData.duration}
               onChangeText={(text) => handleInputChange('duration', text)}
               style={styles.input}
@@ -369,7 +371,7 @@ export default function ModernCreateMeeting({ navigation }) {
             />
 
             <TextInput
-              label="Description"
+              label={t('createMeeting.description')}
               value={formData.description}
               onChangeText={(text) => handleInputChange('description', text)}
               style={styles.input}
@@ -387,14 +389,14 @@ export default function ModernCreateMeeting({ navigation }) {
           <Card.Content>
             <View style={styles.cardHeader}>
               <MaterialIcons name="location-on" size={24} color="#10b981" />
-              <Text style={styles.cardTitle}>Location</Text>
+              <Text style={styles.cardTitle}>{t('createMeeting.location')}</Text>
             </View>
             
             <View style={styles.locationTypeContainer}>
               {[
-                { key: 'physical', label: 'Physical', icon: '🏢' },
-                { key: 'virtual', label: 'Virtual', icon: '💻' },
-                { key: 'hybrid', label: 'Hybrid', icon: '🔄' }
+                { key: 'physical', label: t('createMeeting.physical'), icon: '🏢' },
+                { key: 'virtual', label: t('createMeeting.virtual'), icon: '💻' },
+                { key: 'hybrid', label: t('createMeeting.hybrid'), icon: '🔄' }
               ].map((type) => (
                 <TouchableOpacity
                   key={type.key}
@@ -417,12 +419,12 @@ export default function ModernCreateMeeting({ navigation }) {
 
             {(formData.locationType === 'physical' || formData.locationType === 'hybrid') && (
               <TextInput
-                label="Location Address"
+                label={t('createMeeting.locationAddress')}
                 value={formData.location}
                 onChangeText={(text) => handleInputChange('location', text)}
                 style={styles.input}
                 mode="outlined"
-                placeholder="Enter meeting location..."
+                placeholder={t('createMeeting.enterMeetingLocation')}
                 theme={{ colors: { primary: '#10b981' } }}
                 left={<TextInput.Icon icon="map-marker" />}
               />
@@ -430,7 +432,7 @@ export default function ModernCreateMeeting({ navigation }) {
 
             {(formData.locationType === 'virtual' || formData.locationType === 'hybrid') && (
               <View style={styles.virtualSection}>
-                <Text style={styles.sectionSubtitle}>Video Platform</Text>
+                <Text style={styles.sectionSubtitle}>{t('createMeeting.videoPlatform')}</Text>
                 <View style={styles.platformContainer}>
                   {[
                     { id: 'zoom', name: 'Zoom', icon: '🎥' },
@@ -464,7 +466,7 @@ export default function ModernCreateMeeting({ navigation }) {
                   labelStyle={styles.generateButtonText}
                   icon="video"
                 >
-                  Generate Meeting Link
+                  {t('createMeeting.generateMeetingLink')}
                 </Button>
 
                 {generatedMeetingLink && (
@@ -472,7 +474,7 @@ export default function ModernCreateMeeting({ navigation }) {
                     <MaterialIcons name="check-circle" size={20} color="#10b981" />
                     <View style={styles.generatedLinkContent}>
                       <Text style={styles.generatedLinkTitle}>
-                        {generatedMeetingLink.platform} Link Generated
+                        {generatedMeetingLink.platform} {t('createMeeting.linkGenerated')}
                       </Text>
                       <Text style={styles.generatedLinkText}>{generatedMeetingLink.meetingLink}</Text>
                     </View>
@@ -488,13 +490,13 @@ export default function ModernCreateMeeting({ navigation }) {
           <Card.Content>
             <View style={styles.cardHeader}>
               <MaterialIcons name="people" size={24} color="#f59e0b" />
-              <Text style={styles.cardTitle}>Participants</Text>
+              <Text style={styles.cardTitle}>{t('createMeeting.participants')}</Text>
             </View>
             
             {formData.participants.map((participant, index) => (
               <View key={index} style={styles.participantRow}>
                 <TextInput
-                  label="Name"
+                  label={t('createMeeting.name')}
                   value={participant.name}
                   onChangeText={(text) => handleUpdateParticipant(index, 'name', text)}
                   style={styles.participantInput}
@@ -503,7 +505,7 @@ export default function ModernCreateMeeting({ navigation }) {
                   left={<TextInput.Icon icon="account" />}
                 />
                 <TextInput
-                  label="Email"
+                  label={t('createMeeting.email')}
                   value={participant.email}
                   onChangeText={(text) => handleUpdateParticipant(index, 'email', text)}
                   style={styles.participantInput}
@@ -528,7 +530,7 @@ export default function ModernCreateMeeting({ navigation }) {
               labelStyle={styles.addButtonText}
               icon="account-plus"
             >
-              Add Participant
+              {t('createMeeting.addParticipant')}
             </Button>
           </Card.Content>
         </Card>
@@ -538,11 +540,11 @@ export default function ModernCreateMeeting({ navigation }) {
           <Card.Content>
             <View style={styles.cardHeader}>
               <MaterialIcons name="attachment" size={24} color="#57606a" />
-              <Text style={styles.cardTitle}>Attachments</Text>
+              <Text style={styles.cardTitle}>{t('createMeeting.attachments')}</Text>
             </View>
             <View style={styles.attachmentsContainer}>
               {formData.attachments.length === 0 && (
-                <Text style={styles.noAttachmentsText}>No attachments added yet.</Text>
+                <Text style={styles.noAttachmentsText}>{t('createMeeting.noAttachmentsAdded')}</Text>
               )}
               {formData.attachments.map((attachment, index) => (
                 <View key={attachment.id} style={styles.attachmentItem}>
@@ -571,7 +573,7 @@ export default function ModernCreateMeeting({ navigation }) {
                 labelStyle={styles.fileUploadButtonText}
                 icon="file-document"
               >
-                Pick Document
+                {t('createMeeting.pickDocument')}
               </Button>
               <Button
                 mode="outlined"
@@ -581,7 +583,7 @@ export default function ModernCreateMeeting({ navigation }) {
                 labelStyle={styles.fileUploadButtonText}
                 icon="image"
               >
-                Pick Images
+                {t('createMeeting.pickImages')}
               </Button>
             </View>
           </Card.Content>
@@ -597,7 +599,7 @@ export default function ModernCreateMeeting({ navigation }) {
           disabled={!formData.title.trim()}
           icon="check"
         >
-          Create Meeting
+          {t('createMeeting.createMeeting')}
         </Button>
       </ScrollView>
 
