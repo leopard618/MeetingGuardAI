@@ -43,7 +43,9 @@ export const translations = {
     // Calendar
     calendar: {
       title: "Calendar",
-      subtitle: "View all your meetings organized by date"
+      subtitle: "View all your meetings organized by date",
+      loadError: "Failed to load meetings",
+      addMeeting: "Add Meeting"
     },
     // Settings
     settings: {
@@ -642,7 +644,9 @@ export const translations = {
     // Calendar
     calendar: {
       title: "Calendario",
-      subtitle: "Ve todas tus reuniones organizadas por fecha"
+      subtitle: "Ve todas tus reuniones organizadas por fecha",
+      loadError: "Error al cargar las reuniones",
+      addMeeting: "Agregar Reunión"
     },
     // Settings
     settings: {

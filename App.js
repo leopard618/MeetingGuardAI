@@ -75,6 +75,9 @@ function AppNavigator() {
   const [language, setLanguageState] = useState("es");
   const [currentRouteName, setCurrentRouteName] = useState("Dashboard");
 
+  // Define CalendarWithLanguage inside the function to access language state
+  const CalendarWithLanguage = (props) => <Calendar {...props} language={language} />;
+
   useEffect(() => {
     const fetchUserAndPrefs = async () => {
       try {
