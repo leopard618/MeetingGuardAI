@@ -23,6 +23,7 @@ import { Meeting } from '../api/entities';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, parseISO } from "date-fns";
 import { es, enUS } from "date-fns/locale";
 import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from '../components/translations.jsx';
 import GoogleCalendarService from '../api/googleCalendar';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { safeStringify } from '../utils/index.ts';
@@ -31,6 +32,7 @@ const { width } = Dimensions.get('window');
 
 export default function Calendar({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
+  const { t } = useTranslation(language);
   const googleAuth = useGoogleAuth();
   const [meetings, setMeetings] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -40,42 +42,6 @@ export default function Calendar({ navigation, language = "en" }) {
 
   const locale = language === "es" ? es : enUS;
 
-  const t = {
-    en: {
-      title: "Calendar",
-      subtitle: "View all your meetings organized by date",
-      backToDashboard: "Back to Dashboard",
-      addMeeting: "Add Meeting",
-      today: "Today",
-      noMeetings: "No meetings",
-      meeting: "meeting",
-      meetings: "meetings",
-      viewDetails: "View Details",
-      time: "Time",
-      duration: "Duration",
-      minutes: "min",
-      source: "Source",
-      confidence: "Confidence",
-      preparation: "Preparation Tips"
-    },
-    es: {
-      title: "Calendario",
-      subtitle: "Ve todas tus reuniones organizadas por fecha",
-      backToDashboard: "Volver al Panel",
-      addMeeting: "Agregar Reunión",
-      today: "Hoy",
-      noMeetings: "Sin reuniones",
-      meeting: "reunión",
-      meetings: "reuniones",
-      viewDetails: "Ver Detalles",
-      time: "Hora",
-      duration: "Duración",
-      minutes: "min",
-      source: "Origen",
-      confidence: "Confianza",
-      preparation: "Consejos de Preparación"
-    }
-  };
 
   useEffect(() => {
     loadMeetings();
@@ -332,7 +298,7 @@ export default function Calendar({ navigation, language = "en" }) {
           <View style={styles.meetingMeta}>
             <View style={styles.metaItem}>
               <MaterialIcons name="schedule" size={14} color="#666" />
-              <Text style={styles.metaText}>{meeting.duration || 0} {t[language].minutes}</Text>
+              <Text style={styles.metaText}>{meeting.duration || 0} {t('totalMeetings.minutes')}</Text>
             </View>
             {meeting.location && (
               <View style={styles.metaItem}>
@@ -377,8 +343,8 @@ export default function Calendar({ navigation, language = "en" }) {
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
-          <Title style={styles.title}>{t[language].title}</Title>
-          <Paragraph style={styles.subtitle}>{t[language].subtitle}</Paragraph>
+          <Title style={styles.title}>{t('calendar.title')}</Title>
+          <Paragraph style={styles.subtitle}>{t('calendar.subtitle')}</Paragraph>
         </View>
       </View>
 
@@ -398,7 +364,7 @@ export default function Calendar({ navigation, language = "en" }) {
 
       <TouchableOpacity onPress={goToToday} style={styles.todayButton}>
         <MaterialIcons name="today" size={20} color="#3b82f6" />
-        <Text style={styles.todayButtonText}>{t[language].today}</Text>
+        <Text style={styles.todayButtonText}>{t('dashboard.today')}</Text>
       </TouchableOpacity>
 
       <ScrollView style={styles.calendarContainer} showsVerticalScrollIndicator={false}>
@@ -407,7 +373,7 @@ export default function Calendar({ navigation, language = "en" }) {
         {/* Today's meetings */}
         <View style={styles.todayMeetingsSection}>
           <Title style={styles.sectionTitle}>
-            {t[language].today} - {format(new Date(), 'MMMM d, yyyy')}
+            {t('dashboard.today')} - {format(new Date(), 'MMMM d, yyyy')}
           </Title>
           {getMeetingsForDate(new Date()).length > 0 ? (
             getMeetingsForDate(new Date()).map(renderMeetingCard)
@@ -415,7 +381,7 @@ export default function Calendar({ navigation, language = "en" }) {
             <Card style={styles.emptyCard}>
               <Card.Content style={styles.emptyContent}>
                 <MaterialIcons name="event-busy" size={48} color="#ccc" />
-                <Text style={styles.emptyText}>{t[language].noMeetings}</Text>
+                <Text style={styles.emptyText}>{t('dashboard.noMeetings')}</Text>
               </Card.Content>
             </Card>
           )}
@@ -488,7 +454,7 @@ export default function Calendar({ navigation, language = "en" }) {
         icon="plus"
         style={styles.fab}
         onPress={() => navigation.navigate('CreateMeeting')}
-        label={t[language].addMeeting}
+        label={t('dashboard.createNewMeeting')}
       />
     </SafeAreaView>
   );

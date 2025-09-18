@@ -16,6 +16,7 @@ import { format, parseISO } from "date-fns";
 import { es, enUS } from "date-fns/locale";
 import ConfidenceBadge from './ConfidenceBadge';
 import SourceBadge from './SourceBadge';
+import { useTranslation } from './translations.jsx';
 
 export default function MeetingDetailsModal({ 
   meeting, 
@@ -25,38 +26,7 @@ export default function MeetingDetailsModal({
 }) {
   const locale = language === "es" ? es : enUS;
 
-  const t = {
-    en: {
-      title: "Meeting Details",
-      description: "Description",
-      date: "Date",
-      time: "Time",
-      duration: "Duration",
-      minutes: "min",
-      source: "Source",
-      confidence: "AI Confidence",
-      preparation: "AI Preparation Tips",
-      noDescription: "No description provided",
-      exportCalendar: "Export to Calendar",
-      testAlert: "Test Alert",
-      close: "Close"
-    },
-    es: {
-      title: "Detalles de la Reunión",
-      description: "Descripción",
-      date: "Fecha",
-      time: "Hora",
-      duration: "Duración",
-      minutes: "min",
-      source: "Origen",
-      confidence: "Confianza IA",
-      preparation: "Consejos de Preparación IA",
-      noDescription: "No se proporcionó descripción",
-      exportCalendar: "Exportar al Calendario",
-      testAlert: "Probar Alerta",
-      close: "Cerrar"
-    }
-  };
+  const { t } = useTranslation(language);
 
   const formatDate = (dateString) => {
     try {
@@ -158,7 +128,7 @@ export default function MeetingDetailsModal({
                 {meeting.description && (
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {t[language].description}
+                      {t('meetingDetailsModal.description')}
                     </h3>
                     <p className="text-gray-700 leading-relaxed">
                       {meeting.description}
@@ -172,7 +142,7 @@ export default function MeetingDetailsModal({
                     <div className="flex items-center gap-3">
                       <Calendar className="w-5 h-5 text-gray-500" />
                       <div>
-                        <p className="text-sm font-medium text-gray-500">{t[language].date}</p>
+                        <p className="text-sm font-medium text-gray-500">{t('meetingDetailsModal.date')}</p>
                         <p className="text-gray-900">{formatDate(meeting.date)}</p>
                       </div>
                     </div>
@@ -180,7 +150,7 @@ export default function MeetingDetailsModal({
                     <div className="flex items-center gap-3">
                       <Clock className="w-5 h-5 text-gray-500" />
                       <div>
-                        <p className="text-sm font-medium text-gray-500">{t[language].time}</p>
+                        <p className="text-sm font-medium text-gray-500">{t('meetingDetailsModal.time')}</p>
                         <p className="text-gray-900">{formatTime(meeting.time)}</p>
                       </div>
                     </div>
@@ -191,8 +161,8 @@ export default function MeetingDetailsModal({
                       <div className="flex items-center gap-3">
                         <Clock className="w-5 h-5 text-gray-500" />
                         <div>
-                          <p className="text-sm font-medium text-gray-500">{t[language].duration}</p>
-                          <p className="text-gray-900">{meeting.duration} {t[language].minutes}</p>
+                          <p className="text-sm font-medium text-gray-500">{t('meetingDetailsModal.duration')}</p>
+                          <p className="text-gray-900">{meeting.duration} {t('meetingDetailsModal.minutes')}</p>
                         </div>
                       </div>
                     )}
@@ -200,7 +170,7 @@ export default function MeetingDetailsModal({
                     <div className="flex items-center gap-3">
                       <Brain className="w-5 h-5 text-gray-500" />
                       <div>
-                        <p className="text-sm font-medium text-gray-500">{t[language].confidence}</p>
+                        <p className="text-sm font-medium text-gray-500">{t('meetingDetailsModal.confidence')}</p>
                         <ConfidenceBadge confidence={meeting.confidence} />
                       </div>
                     </div>
@@ -212,7 +182,7 @@ export default function MeetingDetailsModal({
                   <div className="bg-purple-50 rounded-lg p-4">
                     <h3 className="text-lg font-semibold text-purple-900 mb-3 flex items-center gap-2">
                       <Brain className="w-5 h-5" />
-                      {t[language].preparation}
+                      {t('meetingDetailsModal.preparation')}
                     </h3>
                     <ul className="space-y-2">
                       {meeting.preparation_tips.map((tip, index) => (
@@ -233,7 +203,7 @@ export default function MeetingDetailsModal({
                     className="flex-1"
                   >
                     <Download className="w-4 h-4 mr-2" />
-                    {t[language].exportCalendar}
+                    {t('meetingDetailsModal.exportCalendar')}
                   </Button>
                   <Button
                     onClick={() => {
@@ -244,7 +214,7 @@ export default function MeetingDetailsModal({
                     className="flex-1 border-orange-200 text-orange-600 hover:bg-orange-50"
                   >
                     <AlertTriangle className="w-4 h-4 mr-2" />
-                    {t[language].testAlert}
+                    {t('meetingDetailsModal.testAlert')}
                   </Button>
                 </div>
               </CardContent>

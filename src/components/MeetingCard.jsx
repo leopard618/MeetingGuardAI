@@ -25,6 +25,7 @@ import ConfidenceBadge from "./ConfidenceBadge";
 import SourceBadge from "./SourceBadge";
 import { sendMeetingInvitation } from '../api/functions';
 import { safeStringify } from '../utils/index.ts';
+import { useTranslation } from './translations.jsx';
 
 export default function MeetingCard({ 
   meeting, 
@@ -32,58 +33,10 @@ export default function MeetingCard({
   delay = 0,
   onAlert 
 }) {
+  const { t } = useTranslation(language);
   const [isSharing, setIsSharing] = useState(false);
   const [showCopyNotification, setShowCopyNotification] = useState(false);
   const locale = language === "es" ? es : enUS;
-
-  const t = {
-    en: {
-      at: "at",
-      duration: "Duration",
-      minutes: "min",
-      export: "Export",
-      testAlert: "Test Alert",
-      preparationTips: "AI Preparation Tips",
-      participants: "Participants",
-      location: "Location",
-      attachments: "Attachments",
-      shareEmail: "Send via Email",
-      shareWhatsApp: "Send via WhatsApp",
-      copyLink: "Copy Link",
-      linkCopied: "Link copied!",
-      noParticipants: "No participants added",
-      physicalLocation: "Physical Location",
-      virtualMeeting: "Virtual Meeting",
-      hybridMeeting: "Hybrid Meeting",
-      online: "Online", // New translation for virtual provider fallback
-      joinMeetingProvider: "Join {provider}", // New dynamic translation for joining a meeting
-      joinMeetingGeneric: "Join Meeting", // New generic translation for joining a meeting
-      viewOnGoogleMaps: "View on Google Maps" // New translation for maps link
-    },
-    es: {
-      at: "a las",
-      duration: "Duración",
-      minutes: "min",
-      export: "Exportar",
-      testAlert: "Probar Alerta",
-      preparationTips: "Consejos de Preparación IA",
-      participants: "Participantes",
-      location: "Ubicación",
-      attachments: "Archivos Adjuntos",
-      shareEmail: "Enviar por Email",
-      shareWhatsApp: "Enviar por WhatsApp",
-      copyLink: "Copiar Enlace",
-      linkCopied: "¡Enlace copiado!",
-      noParticipants: "Sin participantes",
-      physicalLocation: "Ubicación Física",
-      virtualMeeting: "Reunión Virtual",
-      hybridMeeting: "Reunión Híbrida",
-      online: "Online", // New translation for virtual provider fallback
-      joinMeetingProvider: "Unirse a {provider}", // New dynamic translation for joining a meeting
-      joinMeetingGeneric: "Unirse a la reunión", // New generic translation for joining a meeting
-      viewOnGoogleMaps: "Ver en Google Maps" // New translation for maps link
-    }
-  };
 
   const formatDate = (dateString) => {
     try {
@@ -236,7 +189,7 @@ export default function MeetingCard({
           exit={{ opacity: 0, y: -20 }}
           className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50"
         >
-          {t[language].linkCopied}
+          {t('meetingCard.linkCopied')}
         </motion.div>
       )}
       
@@ -258,7 +211,7 @@ export default function MeetingCard({
                 </div>
                 {meeting.duration && (
                   <Badge variant="outline" className="text-xs">
-                    {meeting.duration} {t[language].minutes}
+                    {meeting.duration} {t('meetingCard.minutes')}
                   </Badge>
                 )}
               </div>
@@ -268,7 +221,7 @@ export default function MeetingCard({
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="w-4 h-4 text-blue-600" />
                   <span className="text-sm text-gray-700">
-                    {meeting.participants.length} {t[language].participants}
+                    {meeting.participants.length} {t('meetingCard.participants')}
                   </span>
                   <div className="flex -space-x-1">
                     {meeting.participants.slice(0, 3).map((participant, idx) => (
@@ -305,10 +258,10 @@ export default function MeetingCard({
                   <div className="flex flex-col">
                     <span className="text-sm text-gray-700">
                       {meeting.location && typeof meeting.location === 'object' && meeting.location.type === 'virtual' 
-                        ? `${t[language].virtualMeeting} (${meeting.location.virtual_provider || t[language].online})`
+                        ? `${t('meetingCard.virtualMeeting')} (${meeting.location.virtual_provider || t('meetingCard.online')})`
                         : meeting.location && typeof meeting.location === 'object' && meeting.location.type === 'hybrid'
-                        ? `${t[language].hybridMeeting} (${meeting.location.virtual_provider || t[language].online})`
-                        : t[language].physicalLocation
+                        ? `${t('meetingCard.hybridMeeting')} (${meeting.location.virtual_provider || t('meetingCard.online')})`
+                        : t('meetingCard.physicalLocation')
                       }
                       {meeting.location && typeof meeting.location === 'object' && meeting.location.type !== 'virtual' && meeting.location.address && (
                         <span className="text-xs text-gray-500 block">📍 {safeStringify(meeting.location.address)}</span>
@@ -325,8 +278,8 @@ export default function MeetingCard({
                         >
                           <ExternalLink className="w-3 h-3 mr-1" />
                           {meeting.location.virtual_provider
-                            ? t[language].joinMeetingProvider.replace('{provider}', meeting.location.virtual_provider)
-                            : t[language].joinMeetingGeneric
+                            ? t('meetingCard.joinMeetingProvider').replace('{provider}', meeting.location.virtual_provider)
+                            : t('meetingCard.joinMeetingGeneric')
                           }
                         </Button>
                       )}
@@ -339,7 +292,7 @@ export default function MeetingCard({
                           onClick={openLocation}
                         >
                           <MapPin className="w-3 h-3 mr-1" />
-                          {t[language].viewOnGoogleMaps}
+                          {t('meetingCard.viewOnGoogleMaps')}
                         </Button>
                       )}
                     </div>
@@ -352,7 +305,7 @@ export default function MeetingCard({
                 <div className="flex items-center gap-2 mb-2">
                   <Paperclip className="w-4 h-4 text-purple-600" />
                   <span className="text-sm text-gray-700">
-                    {meeting.attachments.length} {t[language].attachments}
+                    {meeting.attachments.length} {t('meetingCard.attachments')}
                   </span>
                 </div>
               )}
@@ -376,7 +329,7 @@ export default function MeetingCard({
               <div className="flex items-center gap-2 mb-2">
                 <Brain className="w-4 h-4 text-purple-600" />
                 <span className="text-sm font-medium text-purple-800">
-                  {t[language].preparationTips}
+                  {t('meetingCard.preparationTips')}
                 </span>
               </div>
               <ul className="text-sm text-purple-700 space-y-1">
@@ -398,7 +351,7 @@ export default function MeetingCard({
               className="text-xs"
             >
               <Download className="w-3 h-3 mr-1" />
-              {t[language].export}
+              {t('meetingCard.export')}
             </Button>
             <Button
               onClick={handleTestAlert}
@@ -407,7 +360,7 @@ export default function MeetingCard({
               className="text-xs border-orange-200 text-orange-600 hover:bg-orange-50"
             >
               <AlertTriangle className="w-3 h-3 mr-1" />
-              {t[language].testAlert}
+              {t('meetingCard.testAlert')}
             </Button>
             <Button
               onClick={handleShareEmail}
@@ -417,7 +370,7 @@ export default function MeetingCard({
               disabled={isSharing || !meeting.participants?.some(p => p.email)}
             >
               <Mail className="w-3 h-3 mr-1" />
-              {t[language].shareEmail}
+              {t('meetingCard.shareEmail')}
             </Button>
             <Button
               onClick={handleShareWhatsApp}
@@ -426,7 +379,7 @@ export default function MeetingCard({
               className="text-xs border-green-200 text-green-600 hover:bg-green-50"
             >
               <MessageCircle className="w-3 h-3 mr-1" />
-              {t[language].shareWhatsApp}
+              {t('meetingCard.shareWhatsApp')}
             </Button>
             <Button
               onClick={handleCopyLink}
@@ -435,7 +388,7 @@ export default function MeetingCard({
               className="text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
             >
               <Share2 className="w-3 h-3 mr-1" />
-              {t[language].copyLink}
+              {t('meetingCard.copyLink')}
             </Button>
           </div>
         </CardContent>

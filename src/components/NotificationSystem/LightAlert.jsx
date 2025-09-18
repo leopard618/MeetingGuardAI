@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from '../translations.jsx';
 
 export default function LightAlert({ 
   meeting, 
@@ -21,16 +22,7 @@ export default function LightAlert({
   const slideAnim = useRef(new Animated.Value(-100)).current;
   const [sound, setSound] = useState(null);
 
-  const t = {
-    en: {
-      title: "Meeting Reminder",
-      dismiss: "Dismiss"
-    },
-    es: {
-      title: "Recordatorio de Reunión",
-      dismiss: "Descartar"
-    }
-  };
+  const { t } = useTranslation(language);
 
   // Initialize audio (simplified for now)
   useEffect(() => {
@@ -106,7 +98,7 @@ export default function LightAlert({
           <Ionicons name="notifications-outline" size={16} color="#10B981" />
           <View style={styles.textContainer}>
             <Text style={styles.title}>
-              {t[language].title}
+              {t('lightAlert.title')}
             </Text>
             <Text style={styles.meetingTitle}>
               {meeting.title}

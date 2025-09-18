@@ -43,36 +43,36 @@ import PaymentSuccess from './src/pages/PaymentSuccess.jsx';
 
 const Stack = createStackNavigator();
 
-// Wrapper components to pass language prop
-const AuthWithLanguage = (props) => <Auth {...props} language={props.route.params?.language || "en"} />;
-const DashboardWithLanguage = (props) => <Dashboard {...props} language={props.route.params?.language || "en"} />;
-const CreateMeetingWithLanguage = (props) => <ModernCreateMeeting {...props} language={props.route.params?.language || "en"} />;
-const TotalMeetingsWithLanguage = (props) => <TotalMeetings {...props} language={props.route.params?.language || "en"} />;
-const MeetingDetailsWithLanguage = (props) => <MeetingDetails {...props} language={props.route.params?.language || "en"} />;
-const EditMeetingWithLanguage = (props) => <EditMeeting {...props} language={props.route.params?.language || "en"} />;
-const CalendarWithLanguage = (props) => <Calendar {...props} language={props.route.params?.language || "en"} />;
-const NotesWithLanguage = (props) => <Notes {...props} language={props.route.params?.language || "en"} />;
-const SettingsWithLanguage = (props) => <Settings {...props} language={props.route.params?.language || "en"} />;
-const AIChatWithLanguage = (props) => <AIChat {...props} language={props.route.params?.language || "en"} />;
-const AIInsightsWithLanguage = (props) => <AIInsights {...props} language={props.route.params?.language || "en"} />;
-const ApiSettingsWithLanguage = (props) => <ApiSettings {...props} language={props.route.params?.language || "en"} />;
-const PrivacyWithLanguage = (props) => <Privacy {...props} language={props.route.params?.language || "en"} />;
-const TermsWithLanguage = (props) => <Terms {...props} language={props.route.params?.language || "en"} />;
-const WhatsAppBotWithLanguage = (props) => <WhatsAppBot {...props} language={props.route.params?.language || "en"} />;
-const ChooseCreationMethodWithLanguage = (props) => <ChooseCreationMethod {...props} language={props.route.params?.language || "en"} />;
-const CalendarSyncWithLanguage = (props) => <CalendarSync {...props} language={props.route.params?.language || "en"} />;
-const GoogleCalendarTestWithLanguage = (props) => <GoogleCalendarTest {...props} language={props.route.params?.language || "en"} />;
-const GoogleCalendarTestComponentWithLanguage = (props) => <GoogleCalendarTestComponent {...props} language={props.route.params?.language || "en"} />;
-const NotificationDemoWithLanguage = (props) => <NotificationDemo {...props} language={props.route.params?.language || "en"} />;
-const PricingWithLanguage = (props) => <Pricing {...props} language={props.route.params?.language || "en"} />;
-const PaymentSuccessWithLanguage = (props) => <PaymentSuccess {...props} language={props.route.params?.language || "en"} />;
+// Wrapper components to pass language prop - now using current language state
+const AuthWithLanguage = (props) => <Auth {...props} language={props.language || "en"} />;
+const DashboardWithLanguage = (props) => <Dashboard {...props} language={props.language || "en"} />;
+const CreateMeetingWithLanguage = (props) => <ModernCreateMeeting {...props} language={props.language || "en"} />;
+const TotalMeetingsWithLanguage = (props) => <TotalMeetings {...props} language={props.language || "en"} />;
+const MeetingDetailsWithLanguage = (props) => <MeetingDetails {...props} language={props.language || "en"} />;
+const EditMeetingWithLanguage = (props) => <EditMeeting {...props} language={props.language || "en"} />;
+const CalendarWithLanguage = (props) => <Calendar {...props} language={props.language || "en"} />;
+const NotesWithLanguage = (props) => <Notes {...props} language={props.language || "en"} />;
+const SettingsWithLanguage = (props) => <Settings {...props} language={props.language || "en"} />;
+const AIChatWithLanguage = (props) => <AIChat {...props} language={props.language || "en"} />;
+const AIInsightsWithLanguage = (props) => <AIInsights {...props} language={props.language || "en"} />;
+const ApiSettingsWithLanguage = (props) => <ApiSettings {...props} language={props.language || "en"} />;
+const PrivacyWithLanguage = (props) => <Privacy {...props} language={props.language || "en"} />;
+const TermsWithLanguage = (props) => <Terms {...props} language={props.language || "en"} />;
+const WhatsAppBotWithLanguage = (props) => <WhatsAppBot {...props} language={props.language || "en"} />;
+const ChooseCreationMethodWithLanguage = (props) => <ChooseCreationMethod {...props} language={props.language || "en"} />;
+const CalendarSyncWithLanguage = (props) => <CalendarSync {...props} language={props.language || "en"} />;
+const GoogleCalendarTestWithLanguage = (props) => <GoogleCalendarTest {...props} language={props.language || "en"} />;
+const GoogleCalendarTestComponentWithLanguage = (props) => <GoogleCalendarTestComponent {...props} language={props.language || "en"} />;
+const NotificationDemoWithLanguage = (props) => <NotificationDemo {...props} language={props.language || "en"} />;
+const PricingWithLanguage = (props) => <Pricing {...props} language={props.language || "en"} />;
+const PaymentSuccessWithLanguage = (props) => <PaymentSuccess {...props} language={props.language || "en"} />;
 
 // App Navigator Component
 function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
-  const [language, setLanguageState] = useState("en");
+  const [language, setLanguageState] = useState("es");
   const [currentRouteName, setCurrentRouteName] = useState("Dashboard");
 
   useEffect(() => {
@@ -82,8 +82,8 @@ function AppNavigator() {
         const currentUser = { email: 'user@example.com' };
         setUser(currentUser);
         
-        // Mock preferences for now
-        setLanguageState("en");
+        // Mock preferences for now - set to Spanish for testing
+        setLanguageState("es");
         
         /* TODO: Uncomment when User and UserPreferences are properly set up
         const currentUser = await User.me();
@@ -142,6 +142,15 @@ function AppNavigator() {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
+  const toggleLanguage = () => {
+    const newLanguage = language === 'en' ? 'es' : 'en';
+    setLanguageState(newLanguage);
+    
+    // Force re-render of all screens by updating their params
+    // This ensures all components get the new language prop
+    console.log('Language toggled to:', newLanguage);
+  };
+
   const closeSidebar = () => {
     setIsSidebarOpen(false);
   };
@@ -184,134 +193,131 @@ function AppNavigator() {
                   title={route.name}
                   onMenuPress={toggleSidebar}
                   showMenu={true}
+                  language={language}
+                  onLanguageToggle={toggleLanguage}
                 />
               ),
             }}
           >
             <Stack.Screen 
               name="Dashboard" 
-              component={DashboardWithLanguage}
-              options={{ title: 'Meeting Guard' }}
-              initialParams={{ language }}
+              component={(props) => <DashboardWithLanguage {...props} language={language} />}
+              options={({ route }) => ({ title: language === 'es' ? 'Panel Principal' : 'Meeting Guard' })}
             />
             <Stack.Screen 
               name="ChooseCreationMethod" 
-              component={ChooseCreationMethodWithLanguage}
-              options={{ title: 'Choose Creation Method' }}
-              initialParams={{ language }}
+              component={(props) => <ChooseCreationMethodWithLanguage {...props} language={language} />}
+              options={({ route }) => ({ title: language === 'es' ? 'Elegir Método' : 'ChooseMethod' })}
             />
             <Stack.Screen 
               name="CreateMeeting" 
-              component={CreateMeetingWithLanguage}
-              options={{ title: 'Create Meeting' }}
-              initialParams={{ language }}
+              component={(props) => <CreateMeetingWithLanguage {...props} language={language} />}
+              options={({ route }) => ({ title: language === 'es' ? 'Crear Reunión' : 'Create Meeting' })}
             />
             <Stack.Screen 
               name="TotalMeetings" 
-              component={TotalMeetingsWithLanguage}
-              options={{ title: 'Total Meetings' }}
-              initialParams={{ language }}
+              component={(props) => <TotalMeetingsWithLanguage {...props} language={language} />}
+              options={({ route }) => ({ title: language === 'es' ? 'Todas las Reuniones' : 'Total Meetings' })}
             />
             <Stack.Screen 
               name="MeetingDetails" 
               component={MeetingDetailsWithLanguage}
-              options={{ title: 'Meeting Details' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Detalles de la Reunión' : 'Meeting Details' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="EditMeeting" 
               component={EditMeetingWithLanguage}
-              options={{ title: 'Edit Meeting' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Editar Reunión' : 'Edit Meeting' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="Calendar" 
               component={CalendarWithLanguage}
-              options={{ title: 'Calendar' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Calendario' : 'Calendar' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="Notes" 
               component={NotesWithLanguage}
-              options={{ title: 'Notes' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Notas' : 'Notes' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="Settings" 
               component={SettingsWithLanguage}
-              options={{ title: 'Settings' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Configuración' : 'Settings' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="AIChat" 
-              component={AIChatWithLanguage}
-              options={{ title: 'AI Chat' }}
-              initialParams={{ language }}
+              component={(props) => <AIChatWithLanguage {...props} language={language} />}
+              options={({ route }) => ({ title: language === 'es' ? 'Chat IA' : 'AI Chat' })}
             />
             <Stack.Screen 
               name="AIInsights" 
               component={AIInsightsWithLanguage}
-              options={{ title: 'AI Insights' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Información IA' : 'AI Insights' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="ApiSettings" 
               component={ApiSettingsWithLanguage}
-              options={{ title: 'API Settings' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Configuración API' : 'API Settings' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="Privacy" 
               component={PrivacyWithLanguage}
-              options={{ title: 'Privacy Policy' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Política de Privacidad' : 'Privacy Policy' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="Terms" 
               component={TermsWithLanguage}
-              options={{ title: 'Terms of Service' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Términos de Servicio' : 'Terms of Service' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="WhatsAppBot" 
               component={WhatsAppBotWithLanguage}
-              options={{ title: 'WhatsApp Bot' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Bot WhatsApp' : 'WhatsApp Bot' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="CalendarSync" 
               component={CalendarSyncWithLanguage}
-              options={{ title: 'Google Calendar Sync' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Sincronización Google Calendar' : 'Google Calendar Sync' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="GoogleCalendarTest" 
               component={GoogleCalendarTestWithLanguage}
-              options={{ title: 'Google Calendar Test' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Prueba Google Calendar' : 'Google Calendar Test' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="GoogleCalendarTestComponent" 
               component={GoogleCalendarTestComponentWithLanguage}
-              options={{ title: 'Google Calendar Test Component' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Componente Prueba Google Calendar' : 'Google Calendar Test Component' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="NotificationDemo" 
               component={NotificationDemoWithLanguage}
-              options={{ title: 'Notification Demo' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Demo de Notificaciones' : 'Notification Demo' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="Pricing" 
               component={PricingWithLanguage}
-              options={{ title: 'Pricing Plans' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Planes de Precios' : 'Pricing Plans' })}
               initialParams={{ language }}
             />
             <Stack.Screen 
               name="PaymentSuccess" 
               component={PaymentSuccessWithLanguage}
-              options={{ title: 'Payment Successful' }}
+              options={({ route }) => ({ title: language === 'es' ? 'Pago Exitoso' : 'Payment Successful' })}
               initialParams={{ language }}
             />
           </Stack.Navigator>

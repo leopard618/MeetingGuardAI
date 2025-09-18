@@ -31,6 +31,7 @@ import NotificationManager from '../components/NotificationSystem/NotificationMa
 import AlertScheduler from '../components/AlertScheduler';
 import ImageSlider from '../components/ImageSlider';
 import calendarSyncManager from '../api/calendarSyncManager.js';
+import { useTranslation } from '../components/translations.jsx';
 
 // Date and Time Display Component
 const DateTimeDisplay = ({ isDarkMode, styles }) => {
@@ -95,6 +96,11 @@ const DateTimeDisplay = ({ isDarkMode, styles }) => {
 export default function Dashboard({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
   const { isAuthenticated, refreshUserPlan, user } = useAuth();
+  const { t } = useTranslation(language);
+  
+  // Debug: Log the language and translation
+  console.log('Dashboard language:', language);
+  console.log('Dashboard translation for today:', t('dashboard.today'));
   const [meetings, setMeetings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -466,17 +472,17 @@ export default function Dashboard({ navigation, language = "en" }) {
             <View style={styles.headerStats}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{todaysMeetings.length}</Text>
-                <Text style={styles.statLabel}>Today</Text>
+                <Text style={styles.statLabel}>{t('dashboard.today')}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{meetings.length}</Text>
-                <Text style={styles.statLabel}>Total</Text>
+                <Text style={styles.statLabel}>{t('dashboard.total')}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{aiAssistedCount}</Text>
-                <Text style={styles.statLabel}>AI Powered</Text>
+                <Text style={styles.statLabel}>{t('dashboard.aiPowered')}</Text>
               </View>
             </View>
           </View>
@@ -485,7 +491,7 @@ export default function Dashboard({ navigation, language = "en" }) {
         <View style={styles.statusGrid}>
           <View style={styles.statusRow}>
             {renderStatusCard({
-              title: "Today",
+              title: t('dashboard.today'),
               value: todaysMeetings.length,
               icon: "event",
               color: "#007AFF",
@@ -495,14 +501,14 @@ export default function Dashboard({ navigation, language = "en" }) {
           </View>
           <View style={styles.statusRow}>
             {renderStatusCard({
-              title: "AI Assisted",
+              title: t('dashboard.aiAssisted'),
               value: aiAssistedCount,
               icon: "flash-on",
               color: "#FF9500",
               // subtitle: "Smart meetings"
             })}
             {renderStatusCard({
-              title: "Notes & Tasks",
+              title: t('dashboard.notesAndTasks'),
               value: "📝",
               icon: "note",
               color: "#FF3B30",
@@ -512,20 +518,20 @@ export default function Dashboard({ navigation, language = "en" }) {
           </View>
           <View style={styles.statusRow}>
             {renderStatusCard({
-              title: "Smart Alerts",
+              title: t('dashboard.smartAlerts'),
               value: alertsEnabled ? "ON" : "OFF",
               icon: alertsEnabled ? "notifications-active" : "notifications-off",
               color: alertsEnabled ? "#34C759" : "#8E8E93",
               onPress: handleToggleAlerts,
-              subtitle: alertsEnabled ? "Active" : "Disabled"
+              subtitle: alertsEnabled ? t('dashboard.active') : t('dashboard.disabled')
             })}
             {renderStatusCard({
-              title: "AI Insights",
+              title: t('dashboard.aiInsights'),
               value: reviewCount > 0 ? reviewCount : "✓",
               icon: "insights",
               color: reviewCount > 0 ? "#FF9500" : "#34C759",
               onPress: () => navigation.navigate("AIInsights"),
-              subtitle: reviewCount > 0 ? "Needs review" : "All good"
+              subtitle: reviewCount > 0 ? t('dashboard.needsReview') : t('dashboard.allGood')
             })}
           </View>
         </View>
@@ -539,21 +545,21 @@ export default function Dashboard({ navigation, language = "en" }) {
               onPress={() => navigation.navigate("CreateMeeting")}
             >
               <MaterialIcons name="add-circle" size={32} color="#3b82f6" />
-              <Text style={styles.actionText}>New Meeting</Text>
+              <Text style={styles.actionText}>{t('dashboard.newMeeting')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionCard, { backgroundColor: isDarkMode ? '#262626' : '#ffffff' }]}
               onPress={() => navigation.navigate("AIChat")}
             >
               <MaterialIcons name="chat" size={32} color="#10b981" />
-              <Text style={styles.actionText}>AI Chat</Text>
+              <Text style={styles.actionText}>{t('dashboard.aiChat')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionCard, { backgroundColor: isDarkMode ? '#262626' : '#ffffff' }]}
               onPress={() => navigation.navigate("Calendar")}
             >
               <MaterialIcons name="calendar-today" size={32} color="#f59e0b" />
-              <Text style={styles.actionText}>Calendar</Text>
+              <Text style={styles.actionText}>{t('dashboard.calendar')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -564,7 +570,7 @@ export default function Dashboard({ navigation, language = "en" }) {
               <View style={styles.testAlertInfo}>
                 <MaterialIcons name="volume-up" size={24} color="#FF3B30" />
                 <View>
-                  <Title style={styles.testAlertTitle}>Test Global Alert</Title>
+                  <Title style={styles.testAlertTitle}>{t('dashboard.testGlobalAlert')}</Title>
                 </View>
               </View>
               <Button
@@ -573,7 +579,7 @@ export default function Dashboard({ navigation, language = "en" }) {
                 style={styles.testButton}
                 textColor={isDarkMode ? "#ffffff" : "#FF3B30"}
               >
-                Test
+                {t('dashboard.test')}
               </Button>
             </View>
           </Card.Content>
@@ -586,16 +592,16 @@ export default function Dashboard({ navigation, language = "en" }) {
             color: isDarkMode ? '#fff' : '#222',
             fontWeight: '500'
           }}>
-            Selected Intensity: <Text style={{ color: '#3b82f6' }}>{userPreferences?.alert_intensity}</Text>
+            {t('dashboard.selectedIntensity')}: <Text style={{ color: '#3b82f6' }}>{userPreferences?.alert_intensity}</Text>
           </Text>
         </View>
 
         <View style={styles.meetingsSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today's Meetings</Text>
+            <Text style={styles.sectionTitle}>{t('dashboard.todaysMeetings')}</Text>
             <View style={styles.realTimeIndicator}>
               <MaterialIcons name="schedule" size={16} color={isDarkMode ? "#a1a1aa" : "#666"} />
-              <Text style={styles.realTimeText}>Real-time updates</Text>
+              <Text style={styles.realTimeText}>{t('dashboard.realTimeUpdates')}</Text>
             </View>
           </View>
 
@@ -607,9 +613,9 @@ export default function Dashboard({ navigation, language = "en" }) {
                 <View style={[styles.emptyIconContainer, { backgroundColor: isDarkMode ? '#262626' : '#f1f5f9' }]}>
                   <MaterialIcons name="event" size={48} color={isDarkMode ? "#71717a" : "#8E8E93"} />
                 </View>
-                <Title style={styles.emptyTitle}>No meetings today</Title>
+                <Title style={styles.emptyTitle}>{t('dashboard.noMeetingsToday')}</Title>
                 <Text style={styles.emptyText}>
-                  You're all caught up! Create a new meeting to get started.
+                  {t('dashboard.allCaughtUp')}
                 </Text>
                 <Button
                   mode="contained"
@@ -619,7 +625,7 @@ export default function Dashboard({ navigation, language = "en" }) {
                   style={styles.createButton}
                   buttonColor="#3b82f6"
                 >
-                  Create New Meeting
+                  {t('dashboard.createNewMeeting')}
                 </Button>
               </Card.Content>
             </Card>

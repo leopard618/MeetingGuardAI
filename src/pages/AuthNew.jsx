@@ -22,6 +22,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from '../components/translations.jsx';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
 
 export default function AuthNew({ navigation }) {
@@ -39,60 +40,27 @@ export default function AuthNew({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const t = {
-    en: {
-      title: "MeetingGuard",
-      subtitle: "Secure your meetings with AI",
-      loginTitle: "Welcome Back",
-      signupTitle: "Create Account",
-      loginSubtitle: "Sign in to continue to your dashboard",
-      signupSubtitle: "Create your account to get started",
-      email: "Email",
-      password: "Password",
-      confirmPassword: "Confirm Password",
-      name: "Full Name",
-      login: "Sign In",
-      signup: "Sign Up",
-      forgotPassword: "Forgot Password?",
-      noAccount: "Don't have an account?",
-      hasAccount: "Already have an account?",
-      signUpHere: "Sign up here",
-      signInHere: "Sign in here",
-      emailPlaceholder: "Enter your email",
-      passwordPlaceholder: "Enter your password",
-      namePlaceholder: "Enter your full name",
-      loginSuccess: "Login successful!",
-      signupSuccess: "Account created successfully!",
-      error: "An error occurred. Please try again.",
-      invalidEmail: "Please enter a valid email address",
-      passwordMismatch: "Passwords do not match",
-      weakPassword: "Password must be at least 6 characters",
-      emptyFields: "Please fill in all fields",
-      orContinueWith: "Or continue with",
-      signInWithGoogle: "Sign in with Google",
-      signUpWithGoogle: "Sign up with Google",
-    },
-  };
+  const { t } = useTranslation("en"); // AuthNew page is always in English for now
 
   const validateForm = () => {
     if (!formData.email || !formData.password) {
-      Alert.alert("Error", t.en.emptyFields);
+      Alert.alert("Error", t('auth.emptyFields'));
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      Alert.alert("Error", t.en.invalidEmail);
+      Alert.alert("Error", t('auth.invalidEmail'));
       return false;
     }
 
     if (formData.password.length < 6) {
-      Alert.alert("Error", t.en.weakPassword);
+      Alert.alert("Error", t('auth.weakPassword'));
       return false;
     }
 
     if (!isLogin && formData.password !== formData.confirmPassword) {
-      Alert.alert("Error", t.en.passwordMismatch);
+      Alert.alert("Error", t('auth.passwordMismatch'));
       return false;
     }
 
@@ -107,20 +75,20 @@ export default function AuthNew({ navigation }) {
       if (isLogin) {
         const result = await login(formData.email, formData.password);
         if (result.success) {
-          Alert.alert("Success", t.en.loginSuccess);
+          Alert.alert("Success", t('auth.loginSuccess'));
         } else {
-          Alert.alert("Error", result.error || t.en.error);
+          Alert.alert("Error", result.error || t('auth.error'));
         }
       } else {
         const result = await signup(formData.email, formData.password, formData.name);
         if (result.success) {
-          Alert.alert("Success", t.en.signupSuccess);
+          Alert.alert("Success", t('auth.signupSuccess'));
         } else {
-          Alert.alert("Error", result.error || t.en.error);
+          Alert.alert("Error", result.error || t('auth.error'));
         }
       }
     } catch (error) {
-      Alert.alert("Error", t.en.error);
+      Alert.alert("Error", t('auth.error'));
     } finally {
       setIsLoadingForm(false);
     }
@@ -164,56 +132,56 @@ export default function AuthNew({ navigation }) {
               size={60}
               color={isDarkMode ? "#60a5fa" : "#3b82f6"}
             />
-            <Title style={styles.appTitle}>{t.en.title}</Title>
-            <Paragraph style={styles.appSubtitle}>{t.en.subtitle}</Paragraph>
+            <Title style={styles.appTitle}>{t('auth.title')}</Title>
+            <Paragraph style={styles.appSubtitle}>{t('auth.subtitle')}</Paragraph>
           </View>
 
           <Card style={styles.card}>
             <Card.Content>
               <Title style={styles.formTitle}>
-                {isLogin ? t.en.loginTitle : t.en.signupTitle}
+                {isLogin ? t('auth.loginTitle') : t('auth.signupTitle')}
               </Title>
               <Paragraph style={styles.formSubtitle}>
-                {isLogin ? t.en.loginSubtitle : t.en.signupSubtitle}
+                {isLogin ? t('auth.loginSubtitle') : t('auth.signupSubtitle')}
               </Paragraph>
 
               {!isLogin && (
                 <TextInput
-                  label={t.en.name}
+                  label={t('auth.name')}
                   value={formData.name}
                   onChangeText={(text) =>
                     setFormData({ ...formData, name: text })
                   }
                   mode="outlined"
                   style={styles.input}
-                  placeholder={t.en.namePlaceholder}
+                  placeholder={t('auth.namePlaceholder')}
                   left={<TextInput.Icon icon="account-circle" />}
                 />
               )}
 
               <TextInput
-                label={t.en.email}
+                 label={t('auth.email')}
                 value={formData.email}
                 onChangeText={(text) =>
                   setFormData({ ...formData, email: text })
                 }
                 mode="outlined"
                 style={styles.input}
-                placeholder={t.en.emailPlaceholder}
+                 placeholder={t('auth.emailPlaceholder')}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 left={<TextInput.Icon icon="email" />}
               />
 
               <TextInput
-                label={t.en.password}
+                 label={t('auth.password')}
                 value={formData.password}
                 onChangeText={(text) =>
                   setFormData({ ...formData, password: text })
                 }
                 mode="outlined"
                 style={styles.input}
-                placeholder={t.en.passwordPlaceholder}
+                placeholder={t('auth.passwordPlaceholder')}
                 secureTextEntry={!showPassword}
                 left={<TextInput.Icon icon="lock" />}
                 right={
@@ -226,14 +194,14 @@ export default function AuthNew({ navigation }) {
 
               {!isLogin && (
                 <TextInput
-                  label={t.en.confirmPassword}
+                   label={t('auth.confirmPassword')}
                   value={formData.confirmPassword}
                   onChangeText={(text) =>
                     setFormData({ ...formData, confirmPassword: text })
                   }
                   mode="outlined"
                   style={styles.input}
-                  placeholder={t.en.passwordPlaceholder}
+                  placeholder={t('auth.passwordPlaceholder')}
                   secureTextEntry={!showConfirmPassword}
                   left={<TextInput.Icon icon="lock" />}
                   right={
@@ -252,12 +220,12 @@ export default function AuthNew({ navigation }) {
                 disabled={isLoadingForm}
                 style={styles.submitButton}
               >
-                {isLogin ? t.en.login : t.en.signup}
+                {isLogin ? t('auth.login') : t('auth.signup')}
               </Button>
 
               <Divider style={styles.divider} />
 
-              <Paragraph style={styles.orText}>{t.en.orContinueWith}</Paragraph>
+               <Paragraph style={styles.orText}>{t('auth.orContinueWith')}</Paragraph>
 
               <Button
                 mode="outlined"
@@ -267,14 +235,14 @@ export default function AuthNew({ navigation }) {
                 style={styles.googleButton}
                 icon="google"
               >
-                {isLogin ? t.en.signInWithGoogle : t.en.signUpWithGoogle}
+                {isLogin ? t('auth.signInWithGoogle') : t('auth.signUpWithGoogle')}
               </Button>
 
               <TouchableOpacity onPress={toggleMode} style={styles.toggleContainer}>
                 <Text style={styles.toggleText}>
-                  {isLogin ? t.en.noAccount : t.en.hasAccount}{" "}
+                  {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}{" "}
                   <Text style={styles.toggleLink}>
-                    {isLogin ? t.en.signUpHere : t.en.signInHere}
+                    {isLogin ? t('auth.signUpHere') : t('auth.signInHere')}
                   </Text>
                 </Text>
               </TouchableOpacity>

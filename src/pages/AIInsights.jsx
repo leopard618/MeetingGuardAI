@@ -15,63 +15,16 @@ import { Meeting } from '../api/entities';
 import ConfidenceBadge from "../components/ConfidenceBadge";
 import SourceBadge from "../components/SourceBadge";
 import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from '../components/translations.jsx';
 
 export default function AIInsights({ language = "en" }) {
   const navigation = useNavigation();
   const { isDarkMode } = useTheme();
+  const { t } = useTranslation(language);
   const [meetings, setMeetings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [editForm, setEditForm] = useState({});
-
-  const t = {
-    en: {
-      title: "AI Insights & Review",
-      subtitle: "Review and improve meetings that need your attention",
-      backToDashboard: "Back to Dashboard",
-      noReviewNeeded: "All meetings look good!",
-      noReviewSubtext: "Your AI assistant is working perfectly. No meetings need review.",
-      whyReview: "Why Review?",
-      lowConfidence: "Low AI confidence",
-      missingDetails: "Missing key details",
-      unclearTime: "Unclear time format",
-      vagueDuration: "Vague duration",
-      edit: "Edit",
-      save: "Save Changes",
-      cancel: "Cancel",
-      confirm: "Confirm as Correct",
-      title: "Title",
-      date: "Date",
-      time: "Time",
-      duration: "Duration (minutes)",
-      description: "Description",
-      fixed: "Fixed",
-      meetingUpdated: "Meeting updated successfully"
-    },
-    es: {
-      title: "Información IA y Revisión",
-      subtitle: "Revisa y mejora reuniones que necesitan tu atención",
-      backToDashboard: "Volver al Panel",
-      noReviewNeeded: "¡Todas las reuniones se ven bien!",
-      noReviewSubtext: "Tu asistente de IA está funcionando perfectamente. No hay reuniones que revisar.",
-      whyReview: "¿Por qué Revisar?",
-      lowConfidence: "Baja confianza de la IA",
-      missingDetails: "Faltan detalles clave",
-      unclearTime: "Formato de hora poco claro",
-      vagueDuration: "Duración vaga",
-      edit: "Editar",
-      save: "Guardar Cambios",
-      cancel: "Cancelar",
-      confirm: "Confirmar como Correcta",
-      title: "Título",
-      date: "Fecha",
-      time: "Hora",
-      duration: "Duración (minutos)",
-      description: "Descripción",
-      fixed: "Corregida",
-      meetingUpdated: "Reunión actualizada exitosamente"
-    }
-  };
 
   useEffect(() => {
     loadMeetings();
@@ -97,9 +50,9 @@ export default function AIInsights({ language = "en" }) {
 
   const getReviewReasons = (meeting) => {
     const reasons = [];
-    if (meeting.confidence < 80) reasons.push(t[language].lowConfidence);
-    if (!meeting.description) reasons.push(t[language].missingDetails);
-    if (!meeting.duration) reasons.push(t[language].vagueDuration);
+    if (meeting.confidence < 80) reasons.push(t('aiInsights.lowConfidence'));
+    if (!meeting.description) reasons.push(t('aiInsights.missingDetails'));
+    if (!meeting.duration) reasons.push(t('aiInsights.vagueDuration'));
     return reasons;
   };
 
@@ -122,7 +75,7 @@ export default function AIInsights({ language = "en" }) {
   const saveChanges = async (meetingId) => {
     try {
       await Meeting.update(meetingId, editForm);
-      Alert.alert("Success", t[language].meetingUpdated);
+      Alert.alert("Success", t('aiInsights.meetingUpdated'));
       setEditingMeeting(null);
       setEditForm({});
       loadMeetings();
@@ -135,7 +88,7 @@ export default function AIInsights({ language = "en" }) {
   const confirmAsCorrect = async (meetingId) => {
     try {
       await Meeting.update(meetingId, { confidence: 100 });
-      Alert.alert("Success", t[language].fixed);
+      Alert.alert("Success", t('aiInsights.fixed'));
       loadMeetings();
     } catch (error) {
       console.error("Error confirming meeting:", error);
@@ -179,19 +132,19 @@ export default function AIInsights({ language = "en" }) {
             style={styles.backButton}
             icon="arrow-left"
           >
-            {t[language].backToDashboard}
+            {t('aiInsights.backToDashboard')}
           </Button>
           
-          <Text style={styles.title}>{t[language].title}</Text>
-          <Text style={styles.subtitle}>{t[language].subtitle}</Text>
+          <Text style={styles.title}>{t('aiInsights.title')}</Text>
+          <Text style={styles.subtitle}>{t('aiInsights.subtitle')}</Text>
         </View>
 
         {meetings.length === 0 ? (
           <Card style={styles.noMeetingsCard}>
             <Card.Content style={styles.noMeetingsContent}>
               <Ionicons name="checkmark-circle" size={64} color="#10B981" />
-              <Text style={styles.noMeetingsTitle}>{t[language].noReviewNeeded}</Text>
-              <Text style={styles.noMeetingsSubtext}>{t[language].noReviewSubtext}</Text>
+              <Text style={styles.noMeetingsTitle}>{t('aiInsights.noReviewNeeded')}</Text>
+              <Text style={styles.noMeetingsSubtext}>{t('aiInsights.noReviewSubtext')}</Text>
             </Card.Content>
           </Card>
         ) : (
@@ -215,14 +168,14 @@ export default function AIInsights({ language = "en" }) {
                             onPress={() => saveChanges(meeting.id)}
                             style={styles.saveButton}
                           >
-                            {t[language].save}
+                            {t('aiInsights.save')}
                           </Button>
                           <Button
                             mode="outlined"
                             onPress={cancelEditing}
                             style={styles.cancelButton}
                           >
-                            {t[language].cancel}
+                            {t('aiInsights.cancel')}
                           </Button>
                         </View>
                       ) : (
@@ -232,14 +185,14 @@ export default function AIInsights({ language = "en" }) {
                             onPress={() => startEditing(meeting)}
                             style={styles.editButton}
                           >
-                            {t[language].edit}
+                            {t('aiInsights.edit')}
                           </Button>
                           <Button
                             mode="contained"
                             onPress={() => confirmAsCorrect(meeting.id)}
                             style={styles.confirmButton}
                           >
-                            {t[language].confirm}
+                            {t('aiInsights.confirm')}
                           </Button>
                         </View>
                       )}
@@ -249,7 +202,7 @@ export default function AIInsights({ language = "en" }) {
                   {editingMeeting === meeting.id ? (
                     <View style={styles.editForm}>
                       <TextInput
-                        label={t[language].title}
+                        label={t('aiInsights.title')}
                         value={editForm.title}
                         onChangeText={(text) => setEditForm({...editForm, title: text})}
                         style={styles.input}
@@ -262,7 +215,7 @@ export default function AIInsights({ language = "en" }) {
                         }}
                       />
                       <TextInput
-                        label={t[language].description}
+                        label={t('aiInsights.description')}
                         value={editForm.description}
                         onChangeText={(text) => setEditForm({...editForm, description: text})}
                         multiline
@@ -278,7 +231,7 @@ export default function AIInsights({ language = "en" }) {
                       />
                       <View style={styles.row}>
                         <TextInput
-                          label={t[language].date}
+                          label={t('aiInsights.date')}
                           value={editForm.date}
                           onChangeText={(text) => setEditForm({...editForm, date: text})}
                           style={[styles.input, styles.halfInput]}
@@ -291,7 +244,7 @@ export default function AIInsights({ language = "en" }) {
                           }}
                         />
                         <TextInput
-                          label={t[language].time}
+                          label={t('aiInsights.time')}
                           value={editForm.time}
                           onChangeText={(text) => setEditForm({...editForm, time: text})}
                           style={[styles.input, styles.halfInput]}
@@ -305,7 +258,7 @@ export default function AIInsights({ language = "en" }) {
                         />
                       </View>
                       <TextInput
-                        label={t[language].duration}
+                        label={t('aiInsights.duration')}
                         value={editForm.duration}
                         onChangeText={(text) => setEditForm({...editForm, duration: text})}
                         style={styles.input}
@@ -337,7 +290,7 @@ export default function AIInsights({ language = "en" }) {
                       </View>
                       
                       <View style={styles.reviewReasons}>
-                        <Text style={styles.reasonsTitle}>{t[language].whyReview}:</Text>
+                        <Text style={styles.reasonsTitle}>{t('aiInsights.whyReview')}:</Text>
                         {getReviewReasons(meeting).map((reason, index) => (
                           <View key={index} style={styles.reasonItem}>
                             <Ionicons name="alert-circle" size={16} color="#F59E0B" />

@@ -15,6 +15,7 @@ import {
   Save
 } from "lucide-react-native";
 import { AlertIntensity, defaultAlertConfig } from '../../utils/notificationUtils.js';
+import { useTranslation } from '../translations.jsx';
 
 export default function AlertCustomizer({ 
   isOpen, 
@@ -23,56 +24,12 @@ export default function AlertCustomizer({
   currentConfig = defaultAlertConfig,
   language = "en"
 }) {
+  const { t } = useTranslation(language);
   const [config, setConfig] = useState(currentConfig);
 
   useEffect(() => {
     setConfig(currentConfig);
   }, [currentConfig]);
-
-  const t = {
-    en: {
-      title: "Alert Settings",
-      subtitle: "Customize your notification preferences",
-      intensity: "Alert Intensity",
-      intensityDescription: "Choose how prominent your alerts should be",
-      soundEnabled: "Sound Alerts",
-      soundDescription: "Play audio notifications",
-      vibrationEnabled: "Vibration",
-      vibrationDescription: "Vibrate device on alerts",
-      speechEnabled: "Voice Announcements",
-      speechDescription: "Announce meeting details with voice",
-      autoCloseEnabled: "Auto-close Alerts",
-      autoCloseDescription: "Automatically close alerts after countdown",
-      defaultSnoozeMinutes: "Default Snooze Time",
-      defaultSnoozeDescription: "Default snooze duration in minutes",
-      save: "Save Settings",
-      cancel: "Cancel",
-      maximum: "Maximum - Full screen takeover",
-      medium: "Medium - Persistent banner",
-      light: "Light - Toast notification"
-    },
-    es: {
-      title: "Configuración de Alertas",
-      subtitle: "Personaliza tus preferencias de notificación",
-      intensity: "Intensidad de Alerta",
-      intensityDescription: "Elige qué tan prominentes deben ser tus alertas",
-      soundEnabled: "Alertas de Sonido",
-      soundDescription: "Reproducir notificaciones de audio",
-      vibrationEnabled: "Vibración",
-      vibrationDescription: "Vibrar dispositivo en alertas",
-      speechEnabled: "Anuncios de Voz",
-      speechDescription: "Anunciar detalles de reunión con voz",
-      autoCloseEnabled: "Cerrar Alertas Automáticamente",
-      autoCloseDescription: "Cerrar alertas automáticamente después del conteo",
-      defaultSnoozeMinutes: "Tiempo de Posposición Predeterminado",
-      defaultSnoozeDescription: "Duración predeterminada de posposición en minutos",
-      save: "Guardar Configuración",
-      cancel: "Cancelar",
-      maximum: "Máximo - Toma de pantalla completa",
-      medium: "Medio - Banner persistente",
-      light: "Ligero - Notificación toast"
-    }
-  };
 
   const handleSave = () => {
     onSave && onSave(config);
@@ -91,9 +48,9 @@ export default function AlertCustomizer({
   };
 
   const intensityOptions = [
-    { value: AlertIntensity.MAXIMUM, label: t[language].maximum },
-    { value: AlertIntensity.MEDIUM, label: t[language].medium },
-    { value: AlertIntensity.LIGHT, label: t[language].light }
+    { value: AlertIntensity.MAXIMUM, label: t('alertCustomizer.maximum') },
+    { value: AlertIntensity.MEDIUM, label: t('alertCustomizer.medium') },
+    { value: AlertIntensity.LIGHT, label: t('alertCustomizer.light') }
   ];
 
   const snoozeOptions = [5, 10, 15, 30, 60];
@@ -184,10 +141,10 @@ export default function AlertCustomizer({
                   <Settings2 className="w-6 h-6 text-blue-600" />
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">
-                      {t[language].title}
+                      {t('alertCustomizer.title')}
                     </h2>
                     <p className="text-sm text-gray-600">
-                      {t[language].subtitle}
+                      {t('alertCustomizer.subtitle')}
                     </p>
                   </div>
                 </div>
@@ -210,11 +167,11 @@ export default function AlertCustomizer({
                   <div className="flex items-center gap-2 mb-1">
                     <AlertTriangle className="w-4 h-4 text-orange-500" />
                     <Label className="text-sm font-medium">
-                      {t[language].intensity}
+                      {t('alertCustomizer.intensity')}
                     </Label>
                   </div>
                   <p className="text-xs text-gray-600">
-                    {t[language].intensityDescription}
+                    {t('alertCustomizer.intensityDescription')}
                   </p>
                   <div className={`intensity-preview intensity-${config.intensity}`}>
                     {intensityOptions.find(opt => opt.value === config.intensity)?.label}
@@ -243,11 +200,11 @@ export default function AlertCustomizer({
                   <div className="flex items-center gap-2 mb-1">
                     <Volume2 className="w-4 h-4 text-blue-500" />
                     <Label className="text-sm font-medium">
-                      {t[language].soundEnabled}
+                      {t('alertCustomizer.soundEnabled')}
                     </Label>
                   </div>
                   <p className="text-xs text-gray-600">
-                    {t[language].soundDescription}
+                    {t('alertCustomizer.soundDescription')}
                   </p>
                 </div>
                 <Switch
@@ -262,11 +219,11 @@ export default function AlertCustomizer({
                   <div className="flex items-center gap-2 mb-1">
                     <Smartphone className="w-4 h-4 text-purple-500" />
                     <Label className="text-sm font-medium">
-                      {t[language].vibrationEnabled}
+                      {t('alertCustomizer.vibrationEnabled')}
                     </Label>
                   </div>
                   <p className="text-xs text-gray-600">
-                    {t[language].vibrationDescription}
+                    {t('alertCustomizer.vibrationDescription')}
                   </p>
                 </div>
                 <Switch
@@ -281,11 +238,11 @@ export default function AlertCustomizer({
                   <div className="flex items-center gap-2 mb-1">
                     <MessageSquare className="w-4 h-4 text-green-500" />
                     <Label className="text-sm font-medium">
-                      {t[language].speechEnabled}
+                      {t('alertCustomizer.speechEnabled')}
                     </Label>
                   </div>
                   <p className="text-xs text-gray-600">
-                    {t[language].speechDescription}
+                    {t('alertCustomizer.speechDescription')}
                   </p>
                 </div>
                 <Switch
@@ -300,11 +257,11 @@ export default function AlertCustomizer({
                   <div className="flex items-center gap-2 mb-1">
                     <AlertTriangle className="w-4 h-4 text-red-500" />
                     <Label className="text-sm font-medium">
-                      {t[language].autoCloseEnabled}
+                      {t('alertCustomizer.autoCloseEnabled')}
                     </Label>
                   </div>
                   <p className="text-xs text-gray-600">
-                    {t[language].autoCloseDescription}
+                    {t('alertCustomizer.autoCloseDescription')}
                   </p>
                 </div>
                 <Switch
@@ -317,10 +274,10 @@ export default function AlertCustomizer({
               <div className="setting-item">
                 <div className="setting-info">
                   <Label className="text-sm font-medium">
-                    {t[language].defaultSnoozeMinutes}
+                    {t('alertCustomizer.defaultSnoozeMinutes')}
                   </Label>
                   <p className="text-xs text-gray-600">
-                    {t[language].defaultSnoozeDescription}
+                    {t('alertCustomizer.defaultSnoozeDescription')}
                   </p>
                 </div>
                 <Select
@@ -348,14 +305,14 @@ export default function AlertCustomizer({
                 onClick={handleCancel}
                 className="flex-1"
               >
-                {t[language].cancel}
+                {t('alertCustomizer.cancel')}
               </Button>
               <Button
                 onClick={handleSave}
                 className="flex-1 bg-blue-600 hover:bg-blue-700"
               >
                 <Save className="w-4 h-4 mr-2" />
-                {t[language].save}
+                {t('alertCustomizer.save')}
               </Button>
             </div>
           </motion.div>

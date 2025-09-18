@@ -14,11 +14,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useTranslation } from '../components/translations.jsx';
 
 const { width } = Dimensions.get('window');
 
-const Pricing = () => {
+const Pricing = ({ language = 'en' }) => {
   const { userPlan, isAuthenticated, refreshUserPlan } = useAuth();
+  const { t } = useTranslation(language);
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [stripeLinks, setStripeLinks] = useState({});
   const [plans, setPlans] = useState({});
@@ -405,9 +407,9 @@ const Pricing = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#3B82F6" />
-        <Text style={styles.loadingText}>Loading pricing plans...</Text>
+        <Text style={styles.loadingText}>{t('pricing.loadingPricingPlans')}</Text>
         <Text style={[styles.loadingText, { fontSize: 14, marginTop: 10, textAlign: 'center' }]}>
-          Loading pricing plans from backend...
+          {t('pricing.loadingFromBackend')}
         </Text>
         <TouchableOpacity 
           style={styles.retryButton}
@@ -417,7 +419,7 @@ const Pricing = () => {
           }}
         >
           <Ionicons name="refresh" size={20} color="#FFFFFF" />
-          <Text style={styles.retryButtonText}>Retry</Text>
+          <Text style={styles.retryButtonText}>{t('pricing.retry')}</Text>
         </TouchableOpacity>
       </View>
     );

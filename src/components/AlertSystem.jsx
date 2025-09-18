@@ -9,6 +9,7 @@ import { Brain, Clock, Volume2, VolumeX, Calendar, Smartphone, Settings2 } from 
 import { motion, AnimatePresence } from "framer-motion";
 import { Meeting, User, UserPreferences } from '../api/entities'; // Added User, UserPreferences
 import { storage } from '../utils/storage.js';
+import { useTranslation } from './translations.jsx';
 
 export default function AlertSystem({ 
   meeting, 
@@ -20,6 +21,7 @@ export default function AlertSystem({
   alertType = "15min",
   onAlertCustomized // New prop for passing custom alert configuration back
 }) {
+  const { t } = useTranslation(language);
   const [countdown, setCountdown] = useState(30);
   const [volume, setVolume] = useState(0.3);
   const [isMuted, setIsMuted] = useState(false); // Temporary mute state
@@ -80,69 +82,6 @@ export default function AlertSystem({
 
     loadCustomAlertConfig();
   }, []);
-
-  const t = {
-    en: {
-      title: "🚨 MEETING ALERT 🚨",
-      subtitle: "You have an important meeting!",
-      inMinutes: "in minutes",
-      now: "NOW",
-      understood: "UNDERSTOOD - GO TO MEETING",
-      snooze5: "Snooze 5 min",
-      snooze15: "Snooze 15 min",
-      snooze60: "Snooze 1 hour",
-      postpone: "Postpone Meeting",
-      reschedule: "Reschedule",
-      cancel: "Cancel",
-      autoClose: "Auto-close in",
-      muteSound: "Mute",
-      unmuteSound: "Unmute",
-      postponeTitle: "Reschedule Meeting",
-      newDate: "New Date",
-      newTime: "New Time",
-      tapToActivateAudio: "TAP TO ACTIVATE AUDIO",
-      
-      // New translations for customization feature
-      customizeAlert: "Customize Alert",
-      customizeAlertTitle: "Customize Alert Settings",
-      minutesBeforeMeeting: "Minutes before meeting",
-      enableSound: "Enable Sound",
-      enableVibration: "Enable Vibration",
-      enableSpeech: "Enable Speech",
-      saveCustomization: "Save Customization",
-      back: "Back",
-    },
-    es: {
-      title: "🚨 ALERTA DE REUNIÓN 🚨",
-      subtitle: "¡Tienes una reunión importante!",
-      inMinutes: "en minutos",
-      now: "AHORA",
-      understood: "ENTENDIDO - IR A REUNIÓN",
-      snooze5: "Posponer 5 min",
-      snooze15: "Posponer 15 min",
-      snooze60: "Posponer 1 hora",
-      postpone: "Reagendar Reunión",
-      reschedule: "Reagendar",
-      cancel: "Cancelar",
-      autoClose: "Cierre automático en",
-      muteSound: "Silenciar",
-      unmuteSound: "Activar sonido",
-      postponeTitle: "Reagendar Reunión",
-      newDate: "Nueva Fecha",
-      newTime: "Nueva Hora",
-      tapToActivateAudio: "TOCA PARA ACTIVAR AUDIO",
-
-      // New translations for customization feature
-      customizeAlert: "Personalizar Alerta",
-      customizeAlertTitle: "Configuración de Alerta Personalizada",
-      minutesBeforeMeeting: "Minutos antes de la reunión",
-      enableSound: "Activar Sonido",
-      enableVibration: "Activar Vibración",
-      enableSpeech: "Activar Voz",
-      saveCustomization: "Guardar Personalización",
-      back: "Atrás",
-    }
-  };
 
   // Detect mobile device
   useEffect(() => {
@@ -677,7 +616,7 @@ export default function AlertSystem({
                     className="mobile-audio-prompt w-full"
                   >
                     <Smartphone className="w-5 h-5 mr-2 inline" />
-                    {t[language].tapToActivateAudio}
+                    {t('alertSystem.tapToActivateAudio')}
                   </button>
                 )}
 
@@ -688,7 +627,7 @@ export default function AlertSystem({
                     size="sm"
                     onClick={() => setCustomizeAlert(true)}
                     className="text-gray-500 hover:text-gray-700"
-                    title={t[language].customizeAlert}
+                    title={t('alertSystem.customizeAlert')}
                   >
                     <Settings2 className="w-4 h-4" />
                   </Button>
@@ -706,7 +645,7 @@ export default function AlertSystem({
                     size="sm"
                     onClick={() => setIsMuted(!isMuted)}
                     className="text-gray-500 hover:text-gray-700"
-                    title={isMuted ? t[language].unmuteSound : t[language].muteSound}
+                    title={isMuted ? t('alertSystem.unmuteSound') : t('alertSystem.muteSound')}
                   >
                     {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </Button>
@@ -715,10 +654,10 @@ export default function AlertSystem({
                 {/* Alert Title */}
                 <div>
                   <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-gray-900 mb-2`}>
-                    {t[language].title}
+                    {t('alertSystem.title')}
                   </h1>
                   <p className="text-gray-600">
-                    {t[language].subtitle}
+                    {t('alertSystem.subtitle')}
                   </p>
                 </div>
 
@@ -733,11 +672,11 @@ export default function AlertSystem({
                     <span className="font-medium">
                       {minutesUntil <= 0 ? (
                         <span className="text-red-600 font-bold text-xl">
-                          {t[language].now}
+                          {t('alertSystem.now')}
                         </span>
                       ) : (
                         <span>
-                          {minutesUntil} {t[language].inMinutes}
+                          {minutesUntil} {t('alertSystem.inMinutes')}
                         </span>
                       )}
                     </span>
@@ -767,7 +706,7 @@ export default function AlertSystem({
                     onClick={handleMainClose}
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 text-lg shadow-lg"
                   >
-                    {t[language].understood}
+                    {t('alertSystem.understood')}
                   </Button>
                   
                   <div className={`grid ${isMobile ? 'grid-cols-1 gap-2' : 'grid-cols-3 gap-2'}`}>
@@ -776,21 +715,21 @@ export default function AlertSystem({
                       variant="outline"
                       className="text-sm py-2"
                     >
-                      {t[language].snooze5}
+                      {t('alertSystem.snooze5')}
                     </Button>
                     <Button
                       onClick={() => handleSnooze(15)}
                       variant="outline"
                       className="text-sm py-2"
                     >
-                      {t[language].snooze15}
+                      {t('alertSystem.snooze15')}
                     </Button>
                     <Button
                       onClick={() => handleSnooze(60)}
                       variant="outline"
                       className="text-sm py-2"
                     >
-                      {t[language].snooze60}
+                      {t('alertSystem.snooze60')}
                     </Button>
                   </div>
 
@@ -800,26 +739,26 @@ export default function AlertSystem({
                     className="w-full text-blue-600 border-blue-200 hover:bg-blue-50"
                   >
                     <Calendar className="w-4 h-4 mr-2" />
-                    {t[language].postpone}
+                    {t('alertSystem.postpone')}
                   </Button>
                 </div>
 
                 {/* Auto-close countdown */}
                 <div className="text-xs text-gray-500">
-                  {t[language].autoClose} {countdown}s
+                  {t('alertSystem.autoClose')} {countdown}s
                 </div>
               </div>
             ) : showPostponeModal ? (
               /* Postpone Modal */
               <div className="space-y-6">
                 <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-gray-900 text-center`}>
-                  {t[language].postponeTitle}
+                  {t('alertSystem.postponeTitle')}
                 </h2>
                 
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t[language].newDate}
+                      {t('alertSystem.newDate')}
                     </label>
                     <Input
                       type="date"
@@ -831,7 +770,7 @@ export default function AlertSystem({
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t[language].newTime}
+                      {t('alertSystem.newTime')}
                     </label>
                     <Input
                       type="time"
@@ -847,14 +786,14 @@ export default function AlertSystem({
                     variant="outline"
                     className="flex-1"
                   >
-                    {t[language].cancel}
+                    {t('alertSystem.cancel')}
                   </Button>
                   <Button
                     onClick={handlePostpone}
                     disabled={!postponeDate || !postponeTime}
                     className="flex-1 bg-blue-600 hover:bg-blue-700"
                   >
-                    {t[language].reschedule}
+                    {t('alertSystem.reschedule')}
                   </Button>
                 </div>
               </div>
@@ -862,14 +801,14 @@ export default function AlertSystem({
               /* Customize Alert Modal */
               <div className="space-y-6">
                 <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-gray-900 text-center`}>
-                  {t[language].customizeAlertTitle}
+                  {t('alertSystem.customizeAlertTitle')}
                 </h2>
                 
                 <div className="space-y-4">
                   {/* Minutes before meeting input */}
                   <div>
                     <Label htmlFor="minutesBefore" className="block text-sm font-medium text-gray-700 mb-1">
-                      {t[language].minutesBeforeMeeting}
+                      {t('alertSystem.minutesBeforeMeeting')}
                     </Label>
                     <Input
                       id="minutesBefore"
@@ -887,7 +826,7 @@ export default function AlertSystem({
 
                   {/* Toggle for Enable Sound */}
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="enableSound">{t[language].enableSound}</Label>
+                    <Label htmlFor="enableSound">{t('alertSystem.enableSound')}</Label>
                     <Switch
                       id="enableSound"
                       checked={customAlertConfig.soundEnabled}
@@ -898,7 +837,7 @@ export default function AlertSystem({
                   {/* Toggle for Enable Vibration (only if supported by device) */}
                   {vibrationSupported && (
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="enableVibration">{t[language].enableVibration}</Label>
+                      <Label htmlFor="enableVibration">{t('alertSystem.enableVibration')}</Label>
                       <Switch
                         id="enableVibration"
                         checked={customAlertConfig.vibrationEnabled}
@@ -909,7 +848,7 @@ export default function AlertSystem({
 
                   {/* Toggle for Enable Speech */}
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="enableSpeech">{t[language].enableSpeech}</Label>
+                    <Label htmlFor="enableSpeech">{t('alertSystem.enableSpeech')}</Label>
                     <Switch
                       id="enableSpeech"
                       checked={customAlertConfig.speechEnabled}
@@ -924,13 +863,13 @@ export default function AlertSystem({
                     variant="outline"
                     className="flex-1"
                   >
-                    {t[language].back}
+                    {t('alertSystem.back')}
                   </Button>
                   <Button
                     onClick={handleSaveCustomization}
                     className="flex-1 bg-green-600 hover:bg-green-700"
                   >
-                    {t[language].saveCustomization}
+                    {t('alertSystem.saveCustomization')}
                   </Button>
                 </div>
               </div>
