@@ -522,12 +522,12 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
          </TouchableOpacity>
          <Text style={styles.headerTitle}>{t('totalMeetings.title')}</Text>
          <View style={styles.headerButtons}>
-           <TouchableOpacity 
+           {/* <TouchableOpacity 
              style={styles.debugButton}
              onPress={handleDebugGoogleCalendar}
            >
              <MaterialIcons name="bug-report" size={20} color="#3b82f6" />
-           </TouchableOpacity>
+           </TouchableOpacity> */}
            <TouchableOpacity 
              style={styles.clearButton}
              onPress={handleClearAllMeetings}

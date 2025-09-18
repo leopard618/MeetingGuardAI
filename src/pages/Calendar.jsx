@@ -34,6 +34,7 @@ export default function Calendar({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
   const { t } = useTranslation(language);
   const googleAuth = useGoogleAuth();
+  
   const [meetings, setMeetings] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
@@ -46,7 +47,7 @@ export default function Calendar({ navigation, language = "en" }) {
   useEffect(() => {
     loadMeetings();
     checkGoogleCalendarStatus();
-  }, []);
+  }, [language]);
 
   const loadMeetings = async () => {
     setIsLoading(true);
@@ -55,7 +56,7 @@ export default function Calendar({ navigation, language = "en" }) {
       setMeetings(allMeetings);
     } catch (error) {
       console.error("Error loading meetings:", error);
-      Alert.alert("Error", "Failed to load meetings");
+      Alert.alert(t('common.error'), t('calendar.loadError'));
     }
     setIsLoading(false);
   };
@@ -139,8 +140,8 @@ export default function Calendar({ navigation, language = "en" }) {
       meeting.title,
               `${meeting.description}\n\nTime: ${meeting.time}\nDuration: ${meeting.duration} minutes\nLocation: ${typeof meeting.location === 'string' ? meeting.location : (meeting.location?.address || 'Not specified')}`,
       [
-        { text: "Close", style: "cancel" },
-        { text: "Edit", onPress: () => navigation.navigate('CreateMeeting', { meeting }) }
+        { text: t('common.close'), style: "cancel" },
+        { text: t('common.edit'), onPress: () => navigation.navigate('CreateMeeting', { meeting }) }
       ]
     );
   };
@@ -203,8 +204,8 @@ export default function Calendar({ navigation, language = "en" }) {
                     `${format(date, 'MMMM d, yyyy')}`,
                     `${dayMeetings.length} meeting${dayMeetings.length > 1 ? 's' : ''} scheduled`,
                     [
-                      { text: "Close", style: "cancel" },
-                      { text: "View", onPress: () => showDayMeetings(date, dayMeetings) }
+                      { text: t('common.close'), style: "cancel" },
+                      { text: t('common.view'), onPress: () => showDayMeetings(date, dayMeetings) }
                     ]
                   );
                 }
@@ -269,8 +270,8 @@ export default function Calendar({ navigation, language = "en" }) {
       `Meetings for ${format(date, 'MMMM d, yyyy')}`,
       meetingList || 'No meetings scheduled',
       [
-        { text: "Close", style: "cancel" },
-        { text: "Add Meeting", onPress: () => navigation.navigate('CreateMeeting') }
+        { text: t('common.close'), style: "cancel" },
+        { text: t('calendar.addMeeting'), onPress: () => navigation.navigate('CreateMeeting') }
       ]
     );
   };
