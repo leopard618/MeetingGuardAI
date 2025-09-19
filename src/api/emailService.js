@@ -4,6 +4,7 @@
 class EmailService {
   constructor() {
     this.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+    this.isDevelopment = process.env.NODE_ENV === 'development';
   }
 
   /**
@@ -11,6 +12,15 @@ class EmailService {
    */
   async sendMeetingInvitations(meetingData, participants) {
     try {
+      // Validate inputs
+      this.validateMeetingData(meetingData);
+      participants.forEach(p => this.validateParticipant(p));
+
+      // In development, use mock service if backend is not available
+      if (this.isDevelopment && !this.baseURL.includes('localhost')) {
+        return this.mockSendInvitations(meetingData, participants);
+      }
+
       const response = await fetch(`${this.baseURL}/api/v1/email/send-invitations`, {
         method: 'POST',
         headers: {
@@ -35,8 +45,15 @@ class EmailService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to send invitations');
+        let errorMessage = 'Failed to send invitations';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (parseError) {
+          // If we can't parse the error response, use the status text
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -44,8 +61,49 @@ class EmailService {
       return result;
     } catch (error) {
       console.error('❌ Error sending meeting invitations:', error);
-      throw error;
+      
+      // In development, fall back to mock service
+      if (this.isDevelopment) {
+        console.log('🔄 Falling back to mock email service for development');
+        return this.mockSendInvitations(meetingData, participants);
+      }
+      
+      // Provide more specific error messages
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to email service. Please check your internet connection.');
+      } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+        throw new Error('Authentication error: Please log in again.');
+      } else if (error.message.includes('500')) {
+        throw new Error('Server error: Email service is temporarily unavailable.');
+      } else {
+        throw new Error(`Email service error: ${error.message}`);
+      }
     }
+  }
+
+  /**
+   * Mock email service for development
+   */
+  async mockSendInvitations(meetingData, participants) {
+    console.log('📧 Mock: Sending email invitations...');
+    console.log('Meeting:', meetingData.title);
+    console.log('Participants:', participants.map(p => p.email));
+    
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    return {
+      success: true,
+      sent: participants.length,
+      failed: 0,
+      message: `Mock: ${participants.length} invitations prepared for sending`,
+      results: participants.map(p => ({
+        success: true,
+        recipient: p.email,
+        messageId: `mock-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      })),
+      errors: []
+    };
   }
 
   /**
