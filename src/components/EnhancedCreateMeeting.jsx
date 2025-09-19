@@ -399,31 +399,46 @@ export default function EnhancedCreateMeeting({ navigation }) {
       }
 
       // Send email invitations to participants
+      let emailInvitationResult = { sent: 0, failed: 0, errors: [] };
       if (formData.participants.length > 0) {
         try {
           const validParticipants = formData.participants.filter(p => p.name && p.email);
           if (validParticipants.length > 0) {
-            const invitationResult = await emailService.sendMeetingInvitations(meetingData, validParticipants);
-            console.log(`📧 Sent ${invitationResult.sent} email invitations`);
+            emailInvitationResult = await emailService.sendMeetingInvitations(meetingData, validParticipants);
+            console.log(`📧 Sent ${emailInvitationResult.sent} email invitations`);
             
-            if (invitationResult.failed > 0) {
-              console.log(`⚠️ Failed to send ${invitationResult.failed} invitations:`, invitationResult.errors);
+            if (emailInvitationResult.failed > 0) {
+              console.log(`⚠️ Failed to send ${emailInvitationResult.failed} invitations:`, emailInvitationResult.errors);
             }
           }
         } catch (emailError) {
           console.error('Failed to send email invitations:', emailError);
-          // Don't show error to user, just log it
+          emailInvitationResult = { 
+            sent: 0, 
+            failed: formData.participants.filter(p => p.name && p.email).length, 
+            errors: [{ error: emailError.message }] 
+          };
         }
       }
 
-      // Prepare success message
+      // Prepare success message based on actual results
       let successMessage = 'Meeting created successfully!';
+      
+      // Add email invitation status
       if (formData.participants.length > 0) {
         const validParticipants = formData.participants.filter(p => p.name && p.email);
         if (validParticipants.length > 0) {
-          successMessage += `\n\n📧 Email invitations sent to ${validParticipants.length} participant(s).`;
+          if (emailInvitationResult.sent > 0 && emailInvitationResult.failed === 0) {
+            successMessage += `\n\n📧 Email invitations sent to ${emailInvitationResult.sent} participant(s).`;
+          } else if (emailInvitationResult.sent > 0 && emailInvitationResult.failed > 0) {
+            successMessage += `\n\n📧 Email invitations sent to ${emailInvitationResult.sent} participant(s). ${emailInvitationResult.failed} failed to send.`;
+          } else if (emailInvitationResult.failed > 0) {
+            successMessage += `\n\n⚠️ Failed to send email invitations. Please check your email configuration.`;
+          }
         }
       }
+      
+      // Add file attachment status
       if (formData.attachments.length > 0) {
         successMessage += `\n\n📎 ${formData.attachments.length} file(s) attached.`;
       }
