@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -162,13 +163,12 @@ export default function Auth({ navigation }) {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <MaterialIcons
-              name="security"
-              size={60}
-              color={isDarkMode ? "#60a5fa" : "#3b82f6"}
+            <Image
+              source={require('../../assets/icon.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
             />
             <Title style={styles.appTitle}>{t('auth.title')}</Title>
-            <Paragraph style={styles.appSubtitle}>{t('auth.subtitle')}</Paragraph>
           </View>
 
           {/* Debug Component - Remove after fixing */}
@@ -176,12 +176,12 @@ export default function Auth({ navigation }) {
 
           <Card style={styles.card}>
             <Card.Content>
-              <Title style={styles.formTitle}>
+              {/* <Title style={styles.formTitle}>
                 {isLogin ? t('auth.loginTitle') : t('auth.signupTitle')}
               </Title>
               <Paragraph style={styles.formSubtitle}>
                 {isLogin ? t('auth.loginSubtitle') : t('auth.signupSubtitle')}
-              </Paragraph>
+              </Paragraph> */}
 
               {!isLogin && (
                 <TextInput
@@ -336,6 +336,10 @@ const getStyles = (isDarkMode) =>
     header: {
       alignItems: "center",
       marginBottom: 40,
+    },
+    logoImage: {
+      width: 200,
+      height: 100,
     },
     appTitle: {
       fontSize: 28,

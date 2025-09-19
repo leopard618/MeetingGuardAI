@@ -18,6 +18,7 @@ import { User } from './src/api/entities.js';
 import { UserPreferences } from './src/api/entities.js';
 
 // Import screens
+import LandingPage from './src/pages/LandingPage.jsx';
 import Auth from './src/pages/Auth.jsx';
 import Dashboard from './src/pages/Dashboard.jsx';
 import ModernCreateMeeting from './src/components/ModernCreateMeeting.jsx';
@@ -196,7 +197,7 @@ function AppNavigator() {
           }}
         >
           <Stack.Navigator 
-            initialRouteName="Dashboard"
+            initialRouteName="LandingPage"
             screenOptions={{
               header: ({ route, navigation }) => (
                 <CustomHeader
@@ -209,6 +210,16 @@ function AppNavigator() {
               ),
             }}
           >
+            <Stack.Screen 
+              name="LandingPage" 
+              component={LandingPage}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="Auth" 
+              component={(props) => <AuthWithLanguage {...props} language={language} />}
+              options={{ headerShown: false }}
+            />
             <Stack.Screen 
               name="Dashboard" 
               component={(props) => <DashboardWithLanguage {...props} language={language} />}
