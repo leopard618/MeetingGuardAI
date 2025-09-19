@@ -244,7 +244,12 @@ export default function ModernCreateMeeting({ navigation, language = 'en' }) {
         date: localDateString, // Use local date instead of UTC
         time: formData.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
         duration: parseInt(formData.duration),
-        location: formData.location || 'No location specified',
+        location: {
+          type: 'physical', // Default to physical location
+          address: formData.location || 'No location specified',
+          virtualPlatform: formData.virtualPlatform,
+          virtualLink: generatedMeetingLink?.meetingLink,
+        },
         participants: formData.participants.filter(p => p.name || p.email),
         preparation_tips: formData.preparation_tips,
         attachments: formData.attachments, // Include attachments
