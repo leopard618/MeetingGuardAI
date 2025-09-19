@@ -618,14 +618,19 @@ class GoogleCalendarService {
         title: eventData.title,
         date: eventData.date,
         time: eventData.time,
-        duration: eventData.duration
+        duration: eventData.duration,
+        attendees: eventData.attendees,
+        location: eventData.location
       });
       
       const googleEvent = this.convertToGoogleEvent(eventData);
       console.log('Converted to Google event format:', {
         summary: googleEvent.summary,
         start: googleEvent.start,
-        end: googleEvent.end
+        end: googleEvent.end,
+        location: googleEvent.location,
+        attendees: googleEvent.attendees,
+        description: googleEvent.description
       });
       
       // Ensure we have a valid calendar ID
@@ -777,10 +782,32 @@ class GoogleCalendarService {
       return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
     };
 
+    // Prepare location string with meeting link if available
+    let locationString = '';
+    if (location) {
+      if (typeof location === 'string') {
+        locationString = location;
+      } else if (location.address) {
+        locationString = location.address;
+        // Add virtual meeting link if available
+        if (location.virtualLink) {
+          locationString += `\n\nMeeting Link: ${location.virtualLink}`;
+        }
+      } else if (location.virtualLink) {
+        locationString = `Meeting Link: ${location.virtualLink}`;
+      }
+    }
+
+    // Prepare description with meeting link if not in location
+    let enhancedDescription = description || '';
+    if (location?.virtualLink && !locationString.includes(location.virtualLink)) {
+      enhancedDescription += `\n\nMeeting Link: ${location.virtualLink}`;
+    }
+
     return {
       summary: title,
-      description: description || '',
-      location: location?.address || location || '',
+      description: enhancedDescription,
+      location: locationString,
       start: {
         dateTime: formatLocalDateTime(startDate),
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -789,9 +816,16 @@ class GoogleCalendarService {
         dateTime: formatLocalDateTime(endDate),
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
-      attendees: attendees.map(attendee => ({ 
-        email: typeof attendee === 'string' ? attendee : attendee.email 
-      })),
+      attendees: attendees.map(attendee => {
+        if (typeof attendee === 'string') {
+          return { email: attendee };
+        } else {
+          return {
+            email: attendee.email,
+            displayName: attendee.displayName || attendee.name || attendee.email
+          };
+        }
+      }),
       reminders: {
         useDefault: false,
         overrides: [
