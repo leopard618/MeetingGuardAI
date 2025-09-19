@@ -7,6 +7,7 @@ import Constants from 'expo-constants';
 import { GOOGLE_OAUTH_CONFIG } from '../config/googleAuth.js';
 import { userStorage } from '../utils/storage.js';
 import { GOOGLE_REDIRECT_URI } from '@env';
+import googleCalendarConnectionManager from '../api/googleCalendarConnectionManager.js';
 
 // Ensure auth sessions complete when app is foregrounded again
 WebBrowser.maybeCompleteAuthSession();

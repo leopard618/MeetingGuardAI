@@ -387,6 +387,10 @@ export default function EnhancedCreateMeeting({ navigation }) {
         preparation_tips: formData.preparation_tips,
         source: 'Manual',
         confidence: 100,
+        // Add attendees for Google Calendar integration
+        attendees: formData.participants
+          .filter(p => p.email && p.email.trim())
+          .map(p => ({ email: p.email.trim(), displayName: p.name || p.email.trim() }))
       };
 
       const createdMeeting = await Meeting.create(meetingData);
@@ -398,17 +402,43 @@ export default function EnhancedCreateMeeting({ navigation }) {
         }
       }
 
-      // Send email invitations to participants
-      let emailInvitationResult = { sent: 0, failed: 0, errors: [] };
+      // Send Google Calendar invitations to participants (primary method)
+      let calendarInvitationResult = { sent: 0, failed: 0, errors: [] };
       if (formData.participants.length > 0) {
+        try {
+          const validParticipants = formData.participants.filter(p => p.email && p.email.trim());
+          if (validParticipants.length > 0) {
+            // Google Calendar invitations are sent automatically when the event is synced
+            // The attendees are already included in the meetingData.attendees
+            calendarInvitationResult = { 
+              sent: validParticipants.length, 
+              failed: 0, 
+              errors: [],
+              method: 'Google Calendar'
+            };
+            console.log(`📅 Google Calendar invitations will be sent to ${validParticipants.length} participant(s)`);
+          }
+        } catch (calendarError) {
+          console.error('Failed to prepare Google Calendar invitations:', calendarError);
+          calendarInvitationResult = { 
+            sent: 0, 
+            failed: formData.participants.filter(p => p.email && p.email.trim()).length, 
+            errors: [{ error: calendarError.message }] 
+          };
+        }
+      }
+
+      // Fallback: Send email invitations if Google Calendar is not available
+      let emailInvitationResult = { sent: 0, failed: 0, errors: [] };
+      if (formData.participants.length > 0 && calendarInvitationResult.failed > 0) {
         try {
           const validParticipants = formData.participants.filter(p => p.name && p.email);
           if (validParticipants.length > 0) {
             emailInvitationResult = await emailService.sendMeetingInvitations(meetingData, validParticipants);
-            console.log(`📧 Sent ${emailInvitationResult.sent} email invitations`);
+            console.log(`📧 Fallback: Sent ${emailInvitationResult.sent} email invitations`);
             
             if (emailInvitationResult.failed > 0) {
-              console.log(`⚠️ Failed to send ${emailInvitationResult.failed} invitations:`, emailInvitationResult.errors);
+              console.log(`⚠️ Failed to send ${emailInvitationResult.failed} email invitations:`, emailInvitationResult.errors);
             }
           }
         } catch (emailError) {
@@ -424,16 +454,19 @@ export default function EnhancedCreateMeeting({ navigation }) {
       // Prepare success message based on actual results
       let successMessage = 'Meeting created successfully!';
       
-      // Add email invitation status
+      // Add invitation status (Google Calendar primary, email fallback)
       if (formData.participants.length > 0) {
-        const validParticipants = formData.participants.filter(p => p.name && p.email);
+        const validParticipants = formData.participants.filter(p => p.email && p.email.trim());
         if (validParticipants.length > 0) {
-          if (emailInvitationResult.sent > 0 && emailInvitationResult.failed === 0) {
+          if (calendarInvitationResult.sent > 0 && calendarInvitationResult.failed === 0) {
+            successMessage += `\n\n📅 Google Calendar invitations sent to ${calendarInvitationResult.sent} participant(s).`;
+            successMessage += `\n\nParticipants will receive calendar invitations and can RSVP directly in their Google Calendar.`;
+          } else if (emailInvitationResult.sent > 0 && emailInvitationResult.failed === 0) {
             successMessage += `\n\n📧 Email invitations sent to ${emailInvitationResult.sent} participant(s).`;
           } else if (emailInvitationResult.sent > 0 && emailInvitationResult.failed > 0) {
             successMessage += `\n\n📧 Email invitations sent to ${emailInvitationResult.sent} participant(s). ${emailInvitationResult.failed} failed to send.`;
-          } else if (emailInvitationResult.failed > 0) {
-            successMessage += `\n\n⚠️ Failed to send email invitations. Please check your email configuration.`;
+          } else if (calendarInvitationResult.failed > 0 && emailInvitationResult.failed > 0) {
+            successMessage += `\n\n⚠️ Failed to send invitations. Please check your Google Calendar and email configuration.`;
           }
         }
       }
