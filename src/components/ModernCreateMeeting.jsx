@@ -24,6 +24,7 @@ import { Meeting } from '../api/entities';
 import calendarSyncManager from '../api/calendarSyncManager';
 import { useTranslation } from './translations.jsx';
 import fileUploadService from '../api/fileUpload.js';
+import emailService from '../api/emailService.js';
 
 export default function ModernCreateMeeting({ navigation, language = 'en' }) {
   const { isDarkMode } = useTheme();
@@ -274,6 +275,24 @@ export default function ModernCreateMeeting({ navigation, language = 'en' }) {
         }
       }
 
+      // Send email invitations to participants
+      if (formData.participants.length > 0) {
+        try {
+          const validParticipants = formData.participants.filter(p => p.name && p.email);
+          if (validParticipants.length > 0) {
+            const invitationResult = await emailService.sendMeetingInvitations(meetingData, validParticipants);
+            console.log(`📧 Sent ${invitationResult.sent} email invitations`);
+            
+            if (invitationResult.failed > 0) {
+              console.log(`⚠️ Failed to send ${invitationResult.failed} invitations:`, invitationResult.errors);
+            }
+          }
+        } catch (emailError) {
+          console.error('Failed to send email invitations:', emailError);
+          // Don't show error to user, just log it
+        }
+      }
+
       // Automatically sync to Google Calendar
       try {
         await calendarSyncManager.syncEventToGoogle(createdMeeting.id);
@@ -283,9 +302,21 @@ export default function ModernCreateMeeting({ navigation, language = 'en' }) {
         // Don't show error to user, just log it
       }
 
+      // Prepare success message
+      let successMessage = 'Meeting created successfully!';
+      if (formData.participants.length > 0) {
+        const validParticipants = formData.participants.filter(p => p.name && p.email);
+        if (validParticipants.length > 0) {
+          successMessage += `\n\n📧 Email invitations sent to ${validParticipants.length} participant(s).`;
+        }
+      }
+      if (formData.attachments.length > 0) {
+        successMessage += `\n\n📎 ${formData.attachments.length} file(s) attached.`;
+      }
+
       Alert.alert(
         'Success',
-        'Meeting created successfully!',
+        successMessage,
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
