@@ -8,6 +8,7 @@ import { View, StyleSheet } from 'react-native';
 import { ThemeProvider } from './src/contexts/ThemeContext.jsx';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext.jsx';
 import calendarSyncManager from './src/api/calendarSyncManager.js';
+import googleCalendarInitializer from './src/api/googleCalendarInitializer.js';
 
 // Import components
 import MobileSidebar from './src/components/MobileSidebar.jsx';
@@ -126,6 +127,17 @@ function AppNavigator() {
         }
       }).catch((error) => {
         console.error('Error initializing calendar sync manager:', error);
+      });
+      
+      // Initialize Google Calendar connection
+      googleCalendarInitializer.initialize().then(result => {
+        if (result.success) {
+          console.log('✅ Google Calendar initialized successfully:', result.message);
+        } else {
+          console.log('⚠️ Google Calendar initialization failed:', result.message);
+        }
+      }).catch(error => {
+        console.error('❌ Google Calendar initialization error:', error);
       });
     }
   }, [isAuthenticated]);

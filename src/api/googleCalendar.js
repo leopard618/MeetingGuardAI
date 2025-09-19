@@ -1,10 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import googleCalendarConnectionManager from './googleCalendarConnectionManager.js';
 
 class GoogleCalendarService {
   constructor() {
     this.baseUrl = 'https://www.googleapis.com/calendar/v3';
     this.calendarId = null;
     this.isInitialized = false;
+    this.connectionManager = googleCalendarConnectionManager;
   }
 
   /**
@@ -14,14 +16,18 @@ class GoogleCalendarService {
     try {
       console.log('🔄 Initializing Google Calendar service...');
       
-      // Check if we have a valid access token
-      const hasToken = await this.getAccessToken();
-      if (!hasToken) {
-        console.log('❌ No valid access token found - Google Calendar will be disabled');
+      // Use connection manager to restore connection
+      const connectionResult = await this.connectionManager.initializeConnection();
+      
+      if (connectionResult.success) {
+        console.log('✅ Google Calendar connection restored:', connectionResult.message);
+        this.isInitialized = true;
+        return true;
+      } else {
+        console.log('❌ Google Calendar connection not available:', connectionResult.message);
         this.isInitialized = false;
         return false;
       }
-      console.log('✅ Access token found');
       
       // Test calendar access with error handling
       try {
@@ -319,46 +325,25 @@ class GoogleCalendarService {
   async storeTokens(tokens) {
     try {
       console.log('💾 Storing Google tokens...');
-      console.log('Tokens received:', { 
-        hasAccessToken: !!tokens.access_token, 
-        hasRefreshToken: !!tokens.refresh_token, 
-        expiresIn: tokens.expires_in 
-      });
       
-      // Check if tokens are already stored (to avoid duplicate storage)
-      const existingAccessToken = await AsyncStorage.getItem('google_access_token');
-      const existingRefreshToken = await AsyncStorage.getItem('google_refresh_token');
+      // Use connection manager
+      const storeResult = await this.connectionManager.storeTokens(tokens);
       
-      if (tokens.access_token && tokens.access_token !== existingAccessToken) {
-        await AsyncStorage.setItem('google_access_token', tokens.access_token);
-        console.log('✅ Access token stored');
-      } else if (tokens.access_token) {
-        console.log('✅ Access token already stored');
+      if (storeResult) {
+        console.log('✅ Tokens stored successfully via persistence service');
+        
+        // Sync tokens with backend (don't fail if this fails)
+        try {
+          await this.syncTokensWithBackend(tokens);
+          console.log('✅ Tokens synced with backend');
+        } catch (backendError) {
+          console.warn('⚠️ Backend sync failed, but tokens are stored locally:', backendError.message);
+          // Don't throw - tokens are still stored locally
+        }
+      } else {
+        console.error('❌ Failed to store tokens via persistence service');
+        throw new Error('Failed to store tokens');
       }
-      
-      if (tokens.refresh_token && tokens.refresh_token !== existingRefreshToken) {
-        await AsyncStorage.setItem('google_refresh_token', tokens.refresh_token);
-        console.log('✅ Refresh token stored');
-      } else if (tokens.refresh_token) {
-        console.log('✅ Refresh token already stored');
-      }
-      
-      if (tokens.expires_in) {
-        const expiryTime = Date.now() + (tokens.expires_in * 1000);
-        await AsyncStorage.setItem('google_token_expiry', expiryTime.toString());
-        console.log('✅ Token expiry stored:', new Date(expiryTime).toISOString());
-      }
-      
-      // Sync tokens with backend (don't fail if this fails)
-      try {
-        await this.syncTokensWithBackend(tokens);
-        console.log('✅ Tokens synced with backend');
-      } catch (backendError) {
-        console.warn('⚠️ Backend sync failed, but tokens are stored locally:', backendError.message);
-        // Don't throw - tokens are still stored locally
-      }
-      
-      console.log('✅ All tokens processed successfully');
     } catch (error) {
       console.error('❌ Error storing tokens:', error);
       throw error;
