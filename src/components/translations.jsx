@@ -70,7 +70,15 @@ export const translations = {
           medium: "Medium - Banner alerts",
           light: "Light - Toast notifications"
         }
-      }
+      },
+      smartAlerts: "Smart Alerts",
+      loadError: "Failed to load user data",
+      alertIntensityUpdated: "Alert intensity updated to",
+      saveError: "Failed to save alert intensity",
+      noPreferences: "No preferences found",
+      user: "User",
+      darkThemeEnabled: "Dark theme is enabled",
+      lightThemeEnabled: "Light theme is enabled"
     },
     // Notes
     notes: {
@@ -96,7 +104,10 @@ export const translations = {
       noNotesSubtext: "Create your first note to get started",
       deleteConfirm: "Are you sure you want to delete this note?",
       noteSaved: "Note saved successfully",
-      noteDeleted: "Note deleted successfully"
+      noteDeleted: "Note deleted successfully",
+      loadError: "Failed to load notes",
+      fillRequired: "Please fill in both title and content",
+      confirmDelete: "Confirm Delete"
     },
     // Navigation
     nav: {
@@ -599,7 +610,10 @@ export const translations = {
       next: "Next",
       loading: "Loading...",
       error: "Error",
-      success: "Success"
+      success: "Success",
+      logout: "Logout",
+      confirmLogout: "Are you sure you want to logout?",
+      settings: "Settings"
     }
   },
   es: {
@@ -671,7 +685,15 @@ export const translations = {
           medium: "Media - Alertas de banner",
           light: "Ligera - Notificaciones toast"
         }
-      }
+      },
+      smartAlerts: "Alertas",
+      loadError: "Error al cargar los datos del usuario",
+      alertIntensityUpdated: "Intensidad de alerta actualizada a",
+      saveError: "Error al guardar la intensidad de alerta",
+      noPreferences: "No se encontraron preferencias",
+      user: "Usuario",
+      darkThemeEnabled: "El tema oscuro está habilitado",
+      lightThemeEnabled: "El tema claro está habilitado"
     },
     // Notes
     notes: {
@@ -697,7 +719,10 @@ export const translations = {
       noNotesSubtext: "Crea tu primera nota para comenzar",
       deleteConfirm: "¿Estás seguro de que quieres eliminar esta nota?",
       noteSaved: "Nota guardada exitosamente",
-      noteDeleted: "Nota eliminada exitosamente"
+      noteDeleted: "Nota eliminada exitosamente",
+      loadError: "Error al cargar las notas",
+      fillRequired: "Por favor completa tanto el título como el contenido",
+      confirmDelete: "Confirmar Eliminación"
     },
     // Navigation
     nav: {
@@ -1200,7 +1225,10 @@ export const translations = {
       next: "Siguiente",
       loading: "Cargando...",
       error: "Error",
-      success: "Éxito"
+      success: "Éxito",
+      logout: "Cerrar Sesión",
+      confirmLogout: "¿Estás seguro de que quieres cerrar sesión?",
+      settings: "Configuración"
     }
   },
   fr: {

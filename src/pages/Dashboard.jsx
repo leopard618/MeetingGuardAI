@@ -32,6 +32,14 @@ import AlertScheduler from '../components/AlertScheduler';
 import ImageSlider from '../components/ImageSlider';
 import calendarSyncManager from '../api/calendarSyncManager.js';
 import { useTranslation } from '../components/translations.jsx';
+import { 
+  getResponsiveFontSizes, 
+  getResponsiveSpacing, 
+  getResponsiveIconSizes, 
+  getResponsiveCardDimensions,
+  getResponsiveButtonDimensions,
+  getDeviceType 
+} from '../utils/responsive.js';
 
 // Date and Time Display Component
 const DateTimeDisplay = ({ isDarkMode, styles }) => {
@@ -518,7 +526,7 @@ export default function Dashboard({ navigation, language = "en" }) {
           </View>
           <View style={styles.statusRow}>
             {renderStatusCard({
-              title: t('dashboard.smartAlerts'),
+              title: t('settings.smartAlerts'),
               value: alertsEnabled ? "ON" : "OFF",
               icon: alertsEnabled ? "notifications-active" : "notifications-off",
               color: alertsEnabled ? "#34C759" : "#8E8E93",
@@ -693,7 +701,15 @@ export default function Dashboard({ navigation, language = "en" }) {
   );
 }
 
-const getStyles = (isDarkMode) => StyleSheet.create({
+const getStyles = (isDarkMode) => {
+  const fonts = getResponsiveFontSizes();
+  const spacing = getResponsiveSpacing();
+  const icons = getResponsiveIconSizes();
+  const cards = getResponsiveCardDimensions();
+  const buttons = getResponsiveButtonDimensions();
+  const deviceType = getDeviceType();
+  
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: isDarkMode ? "#0a0a0a" : "#f8fafc",
@@ -705,7 +721,7 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 20, // Add padding to avoid header overlap
+    paddingTop: spacing.md, // Add padding to avoid header overlap
   },
   loadingContainer: {
     flex: 1,
@@ -713,30 +729,30 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
+    marginTop: spacing.lg,
+    fontSize: fonts.md,
     color: isDarkMode ? "#a1a1aa" : "#666",
   },
   statsSection: {
-    padding: 24,
-    paddingTop: 32, // Add more top padding to avoid header overlap
+    padding: spacing['2xl'],
+    paddingTop: spacing['3xl'], // Add more top padding to avoid header overlap
   },
   statsContent: {
     alignItems: "center",
   },
   statsTitle: {
-    fontSize: 32,
+    fontSize: fonts['4xl'],
     fontWeight: "700",
     color: isDarkMode ? "#ffffff" : "#1e293b",
-    marginBottom: 16,
+    marginBottom: spacing.lg,
     textAlign: "center",
   },
   headerStats: {
     flexDirection: "row",
     backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 16,
+    borderRadius: cards.borderRadius,
+    padding: cards.padding,
+    marginTop: spacing.lg,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: isDarkMode ? 0.3 : 0.1,
@@ -748,34 +764,34 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     alignItems: "center",
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: fonts['2xl'],
     fontWeight: "700",
     color: isDarkMode ? "#ffffff" : "#1e293b",
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: fonts.xs,
     color: isDarkMode ? "#a1a1aa" : "#64748b",
     fontWeight: "500",
   },
   statDivider: {
     width: 1,
     backgroundColor: isDarkMode ? "#262626" : "#e2e8f0",
-    marginHorizontal: 8,
+    marginHorizontal: spacing.sm,
   },
   statusGrid: {
-    padding: 20,
+    padding: spacing.xl,
   },
   statusRow: {
     flexDirection: "row",
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   statusCard: {
     flex: 1,
-    marginHorizontal: 6,
+    marginHorizontal: spacing.xs,
   },
   card: {
-    borderRadius: 16,
+    borderRadius: cards.borderRadius,
     elevation: 4,
     backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
     shadowColor: "#000",
@@ -784,12 +800,12 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     shadowRadius: 12,
   },
   cardContent: {
-    padding: 20,
+    padding: cards.padding,
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   iconContainer: {
     width: 40,
@@ -800,33 +816,33 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     marginRight: 8,
   },
   cardTitle: {
-    fontSize: 14,
+    fontSize: fonts.sm,
     fontWeight: "600",
     color: "#666",
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   cardValue: {
-    fontSize: 24,
+    fontSize: fonts['2xl'],
     fontWeight: "bold",
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   cardSubtitle: {
-    fontSize: 10,
+    fontSize: fonts.xs,
     color: "#666",
   },
   quickActions: {
-    padding: 20,
+    padding: spacing.xl,
   },
   actionButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   actionCard: {
     flex: 1,
-    marginHorizontal: 4,
-    padding: 20,
-    borderRadius: 16,
+    marginHorizontal: spacing.xs,
+    padding: spacing.xl,
+    borderRadius: cards.borderRadius,
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -835,10 +851,10 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     elevation: 3,
   },
   actionText: {
-    fontSize: 12,
+    fontSize: fonts.xs,
     fontWeight: "600",
     color: isDarkMode ? "#ffffff" : "#1e293b",
-    marginTop: 8,
+    marginTop: spacing.sm,
     textAlign: "center",
   },
   testAlertCard: {
@@ -902,15 +918,15 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     alignItems: "center",
   },
   realTimeText: {
-    fontSize: 12,
+    fontSize: fonts.xs,
     color: isDarkMode ? "#a1a1aa" : "#666",
-    marginLeft: 4,
+    marginLeft: spacing.xs,
   },
   meetingCard: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
     elevation: 4,
     backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
-    borderRadius: 16,
+    borderRadius: cards.borderRadius,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: isDarkMode ? 0.3 : 0.1,
@@ -927,37 +943,37 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   meetingTimeContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   meetingTitle: {
-    fontSize: 18,
+    fontSize: fonts.lg,
     fontWeight: "700",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
     color: isDarkMode ? "#ffffff" : "#1e293b",
   },
   meetingTime: {
-    fontSize: 14,
+    fontSize: fonts.sm,
     color: isDarkMode ? "#a1a1aa" : "#64748b",
-    marginLeft: 4,
+    marginLeft: spacing.xs,
   },
   meetingActions: {
     flexDirection: "row",
   },
   actionButton: {
-    padding: 8,
-    marginLeft: 8,
-    borderRadius: 8,
+    padding: spacing.sm,
+    marginLeft: spacing.sm,
+    borderRadius: spacing.sm,
   },
   meetingDescription: {
-    marginTop: 8,
-    fontSize: 14,
+    marginTop: spacing.sm,
+    fontSize: fonts.sm,
     color: isDarkMode ? "#a1a1aa" : "#64748b",
     lineHeight: 20,
   },
   emptyCard: {
     elevation: 4,
     backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
-    borderRadius: 16,
+    borderRadius: cards.borderRadius,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: isDarkMode ? 0.3 : 0.1,
@@ -965,35 +981,35 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   },
   emptyContent: {
     alignItems: "center",
-    padding: 40,
+    padding: spacing['4xl'],
   },
   emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: icons['2xl'] * 2,
+    height: icons['2xl'] * 2,
+    borderRadius: icons['2xl'],
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: fonts.xl,
     fontWeight: "700",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
     color: isDarkMode ? "#ffffff" : "#1e293b",
   },
   emptyText: {
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: spacing['2xl'],
     color: isDarkMode ? "#a1a1aa" : "#64748b",
-    fontSize: 14,
+    fontSize: fonts.sm,
     lineHeight: 20,
   },
   createButton: {
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   fab: {
     position: "absolute",
-    margin: 16,
+    margin: spacing.lg,
     right: 0,
     bottom: 0,
     backgroundColor: "#3b82f6",
@@ -1034,7 +1050,8 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     alignItems: "center",
   },
   dateText: {
-    fontSize: 14,
-    marginLeft: 8,
+    fontSize: fonts.sm,
+    marginLeft: spacing.sm,
   },
-});
+  });
+};

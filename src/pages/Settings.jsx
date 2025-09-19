@@ -24,6 +24,13 @@ import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { User, UserPreferences } from '../api/entities';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from '../components/translations.jsx';
+import { 
+  getResponsiveFontSizes, 
+  getResponsiveSpacing, 
+  getResponsiveIconSizes, 
+  getResponsiveCardDimensions,
+  getDeviceType 
+} from '../utils/responsive.js';
 import { useAuth } from '../contexts/AuthContext';
 import CalendarSyncSettings from '../components/CalendarSyncSettings.jsx';
 import CalendarTest from '../components/CalendarTest';
@@ -48,7 +55,7 @@ export default function Settings({ navigation, language = "en" }) {
 
   useEffect(() => {
     loadUserData();
-  }, [authUser]);
+  }, [authUser, language]);
 
   const loadUserData = async () => {
     setIsLoading(true);
@@ -98,7 +105,7 @@ export default function Settings({ navigation, language = "en" }) {
       }
     } catch (error) {
       console.error("Error loading user data:", error);
-      Alert.alert("Error", "Failed to load user data");
+      Alert.alert(t('common.error'), t('settings.loadError'));
     }
     setIsLoading(false);
   };
@@ -109,10 +116,10 @@ export default function Settings({ navigation, language = "en" }) {
     setIsSaving(true);
     try {
       await UserPreferences.update(preferences.id, preferences);
-      Alert.alert("Success", t('settings.saved'));
+      Alert.alert(t('common.success'), t('settings.saved'));
     } catch (error) {
       console.error("Error saving settings:", error);
-      Alert.alert("Error", t('settings.error'));
+      Alert.alert(t('common.error'), t('settings.error'));
     }
     setIsSaving(false);
   };
@@ -144,7 +151,7 @@ export default function Settings({ navigation, language = "en" }) {
           onPress: () => updateAlertIntensity('light')
         },
         {
-          text: "Cancel",
+          text: t('common.cancel'),
           style: "cancel"
         }
       ]
@@ -162,34 +169,17 @@ export default function Settings({ navigation, language = "en" }) {
         });
         console.log('Updated preferences after update:', updatedPrefs);
         setPreferences(updatedPrefs);
-        Alert.alert("Success", `Alert intensity updated to ${intensity}`);
+        Alert.alert(t('common.success'), `${t('settings.alertIntensityUpdated')} ${intensity}`);
       } catch (error) {
         console.error("Error updating alert intensity:", error);
-        Alert.alert("Error", "Failed to save alert intensity");
+        Alert.alert(t('common.error'), t('settings.saveError'));
       }
     } else {
       console.log('No preferences found, cannot update');
-      Alert.alert("Error", "No preferences found");
+      Alert.alert(t('common.error'), t('settings.noPreferences'));
     }
   };
 
-  const renderProfileSection = () => (
-    <Card style={styles.section}>
-      <Card.Content>
-        <View style={styles.profileHeader}>
-          <Avatar.Text 
-            size={60} 
-            label={user?.name?.charAt(0) || "U"} 
-            style={styles.avatar}
-          />
-          <View style={styles.profileInfo}>
-            <Title style={styles.profileName}>{user?.name || "User"}</Title>
-            <Paragraph style={styles.profileEmail}>{user?.email || "user@example.com"}</Paragraph>
-          </View>
-        </View>
-      </Card.Content>
-    </Card>
-  );
 
   const getTitleColor = () => (isDarkMode ? "#ffffff" : "#1e293b");
 
@@ -222,7 +212,7 @@ export default function Settings({ navigation, language = "en" }) {
         
         <List.Item
           title={isDarkMode ? t('settings.themes.dark') : t('settings.themes.light')}
-          description={isDarkMode ? "Dark theme is enabled" : "Light theme is enabled"}
+          description={isDarkMode ? t('settings.darkThemeEnabled') : t('settings.lightThemeEnabled')}
           titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
           left={(props) => (
             <List.Icon 
@@ -361,7 +351,6 @@ export default function Settings({ navigation, language = "en" }) {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {renderProfileSection()}
         {renderThemeSettings()}
         {renderNotificationSettings()}
         {renderNavigationItems()}
@@ -384,7 +373,14 @@ export default function Settings({ navigation, language = "en" }) {
   );
 }
 
-const getStyles = (isDarkMode) => StyleSheet.create({
+const getStyles = (isDarkMode) => {
+  const fonts = getResponsiveFontSizes();
+  const spacing = getResponsiveSpacing();
+  const icons = getResponsiveIconSizes();
+  const cards = getResponsiveCardDimensions();
+  const deviceType = getDeviceType();
+  
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: isDarkMode ? "#0a0a0a" : "#f8fafc",
@@ -436,27 +432,6 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     shadowRadius: 12,
     color:isDarkMode ? "#ffffff" : "#1e293b",
   },
-  profileHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  avatar: {
-    marginRight: 16,
-    backgroundColor: "#3b82f6",
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 4,
-    color: isDarkMode ? "#ffffff" : "#1e293b",
-  },
-  profileEmail: {
-    fontSize: 14,
-    color: isDarkMode ? "#a1a1aa" : "#64748b",
-  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
@@ -490,7 +465,8 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     color: isDarkMode ? "#a1a1aa" : "#64748b",
   },
   divider: {
-    marginVertical: 8,
+    marginVertical: spacing.sm,
     backgroundColor: isDarkMode ? "#262626" : "#e2e8f0",
   },
-});
+  });
+};

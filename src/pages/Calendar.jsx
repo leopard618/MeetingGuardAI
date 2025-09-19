@@ -24,6 +24,13 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSam
 import { es, enUS } from "date-fns/locale";
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from '../components/translations.jsx';
+import { 
+  getResponsiveFontSizes, 
+  getResponsiveSpacing, 
+  getResponsiveIconSizes, 
+  getResponsiveCardDimensions,
+  getDeviceType 
+} from '../utils/responsive.js';
 import GoogleCalendarService from '../api/googleCalendar';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { safeStringify } from '../utils/index.ts';
@@ -461,7 +468,14 @@ export default function Calendar({ navigation, language = "en" }) {
   );
 }
 
-const getStyles = (isDarkMode) => StyleSheet.create({
+const getStyles = (isDarkMode) => {
+  const fonts = getResponsiveFontSizes();
+  const spacing = getResponsiveSpacing();
+  const icons = getResponsiveIconSizes();
+  const cards = getResponsiveCardDimensions();
+  const deviceType = getDeviceType();
+  
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: isDarkMode ? "#0a0a0a" : "#f8fafc",
@@ -715,15 +729,16 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
+    marginTop: spacing.lg,
+    fontSize: fonts.md,
     color: "#64748b",
   },
   fab: {
     position: "absolute",
-    margin: 16,
+    margin: spacing.lg,
     right: 0,
     bottom: 0,
     backgroundColor: "#3b82f6",
   },
-});
+  });
+};

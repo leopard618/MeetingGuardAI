@@ -22,6 +22,13 @@ import {
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from '../components/translations.jsx';
+import { 
+  getResponsiveFontSizes, 
+  getResponsiveSpacing, 
+  getResponsiveIconSizes, 
+  getResponsiveCardDimensions,
+  getDeviceType 
+} from '../utils/responsive.js';
 
 export default function Notes({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
@@ -40,7 +47,7 @@ export default function Notes({ navigation, language = "en" }) {
 
   useEffect(() => {
     loadNotes();
-  }, []);
+  }, [language]);
 
   const loadNotes = async () => {
     setIsLoading(true);
@@ -75,7 +82,7 @@ export default function Notes({ navigation, language = "en" }) {
       setNotes(mockNotes);
     } catch (error) {
       console.error("Error loading notes:", error);
-      Alert.alert("Error", "Failed to load notes");
+      Alert.alert(t('common.error'), t('notes.loadError'));
     }
     setIsLoading(false);
   };
@@ -115,7 +122,7 @@ export default function Notes({ navigation, language = "en" }) {
 
   const handleSaveNote = () => {
     if (!newNote.title.trim() || !newNote.content.trim()) {
-      Alert.alert("Error", "Please fill in both title and content");
+      Alert.alert(t('common.error'), t('notes.fillRequired'));
       return;
     }
 
@@ -134,16 +141,16 @@ export default function Notes({ navigation, language = "en" }) {
 
   const handleDeleteNote = (noteId) => {
     Alert.alert(
-      "Confirm Delete",
+      t('notes.confirmDelete'),
       t('notes.deleteConfirm'),
       [
         { text: t('notes.cancel'), style: "cancel" },
         {
-          text: "Delete",
+          text: t('common.delete'),
           style: "destructive",
           onPress: () => {
             setNotes(prev => prev.filter(note => note.id !== noteId));
-            Alert.alert("Success", t('notes.noteDeleted'));
+            Alert.alert(t('common.success'), t('notes.noteDeleted'));
           },
         },
       ]
@@ -446,7 +453,14 @@ export default function Notes({ navigation, language = "en" }) {
   );
 }
 
-const getStyles = (isDarkMode) => StyleSheet.create({
+const getStyles = (isDarkMode) => {
+  const fonts = getResponsiveFontSizes();
+  const spacing = getResponsiveSpacing();
+  const icons = getResponsiveIconSizes();
+  const cards = getResponsiveCardDimensions();
+  const deviceType = getDeviceType();
+  
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: isDarkMode ? "#0a0a0a" : "#F2F2F7",
@@ -686,4 +700,5 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   modalButton: {
     minWidth: 80,
   },
-});
+  });
+};
