@@ -391,6 +391,9 @@ try {
   adminRoutes = require('./routes/admin');
   console.log('✅ adminRoutes imported');
   
+  emailRoutes = require('./routes/email');
+  console.log('✅ emailRoutes imported');
+  
   planGate = require('./middleware/planGate').planGate;
   console.log('✅ planGate imported');
   
@@ -913,6 +916,7 @@ app.use(`${API_BASE_PATH}/files`, authenticateToken, fileRoutes);
 app.use(`${API_BASE_PATH}/users`, authenticateToken, userRoutes);
 app.use(`${API_BASE_PATH}/billing`, authenticateToken, billingRoutes);
 app.use(`${API_BASE_PATH}/admin`, authenticateToken, adminRoutes);
+app.use(`${API_BASE_PATH}/email`, authenticateToken, emailRoutes);
 
 // Legacy routes (for backward compatibility)
 app.use('/api/auth', authRoutes);
