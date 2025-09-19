@@ -11,15 +11,14 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 
 const { width, height } = Dimensions.get('window');
 
-export default function LandingPage() {
-  const navigation = useNavigation();
-
+export default function LandingPage({ onGetStarted }) {
   const handleGetStarted = () => {
-    navigation.navigate('Auth');
+    if (onGetStarted) {
+      onGetStarted();
+    }
   };
 
   return (

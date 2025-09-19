@@ -23,6 +23,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { Meeting } from '../api/entities';
 import calendarSyncManager from '../api/calendarSyncManager';
 import { useTranslation } from './translations.jsx';
+import fileUploadService from '../api/fileUpload.js';
 
 export default function ModernCreateMeeting({ navigation, language = 'en' }) {
   const { isDarkMode } = useTheme();
@@ -148,24 +149,23 @@ export default function ModernCreateMeeting({ navigation, language = 'en' }) {
   const handlePickDocument = async () => {
     try {
       setUploadingFile(true);
-      // For now, simulate file picking
-      const mockFile = {
-        id: Date.now().toString(),
-        name: `Document_${Date.now()}.pdf`,
-        type: 'application/pdf',
-        size: '2.5 MB',
-        uri: 'mock://document.pdf'
-      };
       
-      setFormData(prev => ({
-        ...prev,
-        attachments: [...prev.attachments, mockFile]
-      }));
-      
-      Alert.alert('Success', 'Document added successfully!');
+      const result = await fileUploadService.pickDocument({
+        multiple: true
+      });
+
+      if (result.success) {
+        setFormData(prev => ({
+          ...prev,
+          attachments: [...prev.attachments, ...result.files]
+        }));
+        Alert.alert('Success', `${result.files.length} document(s) added successfully!`);
+      } else {
+        Alert.alert('Info', result.message || 'No documents selected');
+      }
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'Failed to pick document');
+      Alert.alert('Error', 'Failed to pick document. Please try again.');
     } finally {
       setUploadingFile(false);
     }
@@ -174,24 +174,23 @@ export default function ModernCreateMeeting({ navigation, language = 'en' }) {
   const handlePickImages = async () => {
     try {
       setUploadingFile(true);
-      // For now, simulate image picking
-      const mockImage = {
-        id: Date.now().toString(),
-        name: `Image_${Date.now()}.jpg`,
-        type: 'image/jpeg',
-        size: '1.2 MB',
-        uri: 'mock://image.jpg'
-      };
       
-      setFormData(prev => ({
-        ...prev,
-        attachments: [...prev.attachments, mockImage]
-      }));
-      
-      Alert.alert('Success', 'Image added successfully!');
+      const result = await fileUploadService.pickImages({
+        multiple: true
+      });
+
+      if (result.success) {
+        setFormData(prev => ({
+          ...prev,
+          attachments: [...prev.attachments, ...result.files]
+        }));
+        Alert.alert('Success', `${result.files.length} image(s) added successfully!`);
+      } else {
+        Alert.alert('Info', result.message || 'No images selected');
+      }
     } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      console.error('Error picking images:', error);
+      Alert.alert('Error', 'Failed to pick images. Please try again.');
     } finally {
       setUploadingFile(false);
     }
@@ -261,6 +260,19 @@ export default function ModernCreateMeeting({ navigation, language = 'en' }) {
       });
 
       const createdMeeting = await Meeting.create(meetingData);
+
+      // Attach files to meeting if any attachments exist
+      if (formData.attachments.length > 0) {
+        try {
+          for (const attachment of formData.attachments) {
+            await fileUploadService.attachFileToMeeting(attachment.id, createdMeeting.id);
+          }
+          console.log(`Attached ${formData.attachments.length} files to meeting`);
+        } catch (fileError) {
+          console.error('Failed to attach files to meeting:', fileError);
+          // Don't show error to user, just log it
+        }
+      }
 
       // Automatically sync to Google Calendar
       try {
