@@ -29,6 +29,14 @@ import { localStorageAPI } from '../api/localStorage';
 import googleCalendarService from '../api/googleCalendar';
 import calendarSyncManager from '../api/calendarSyncManager.js';
 import { useTranslation } from '../components/translations.jsx';
+import { 
+  getResponsiveFontSizes, 
+  getResponsiveSpacing, 
+  getResponsiveIconSizes, 
+  getResponsiveCardDimensions,
+  getResponsiveButtonDimensions,
+  getDeviceType 
+} from '../utils/responsive.js';
 
 export default function TotalMeetings({ navigation, language = 'en' }) {
   const { isDarkMode } = useTheme();
@@ -618,7 +626,15 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
   );
 }
 
-const getStyles = (isDarkMode) => StyleSheet.create({
+const getStyles = (isDarkMode) => {
+  const fonts = getResponsiveFontSizes();
+  const spacing = getResponsiveSpacing();
+  const icons = getResponsiveIconSizes();
+  const cards = getResponsiveCardDimensions();
+  const buttons = getResponsiveButtonDimensions();
+  const deviceType = getDeviceType();
+  
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: isDarkMode ? '#121212' : '#f5f5f5',
@@ -627,40 +643,40 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    paddingBottom: 8,
+    padding: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   backButton: {
-    padding: 8,
+    padding: spacing.sm,
     borderRadius: 20,
     backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: fonts['3xl'],
     fontWeight: 'bold',
     color: isDarkMode ? '#fff' : '#333',
   },
   placeholder: {
-    width: 40,
+    width: spacing['4xl'],
   },
   headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   debugButton: {
-    padding: 8,
+    padding: spacing.sm,
     borderRadius: 20,
     backgroundColor: isDarkMode ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.1)',
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   clearButton: {
-    padding: 8,
+    padding: spacing.sm,
     borderRadius: 20,
     backgroundColor: isDarkMode ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.1)',
   },
   searchbar: {
-    marginHorizontal: 16,
-    marginBottom: 12,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
     backgroundColor: isDarkMode ? '#2d2d2d' : '#fff',
   },
   filterContainer: {
@@ -676,11 +692,11 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    height:30,
-    marginRight: 6,
-    borderRadius: 16,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    height: buttons.minHeight * 0.7,
+    marginRight: spacing.xs,
+    borderRadius: cards.borderRadius,
     backgroundColor: isDarkMode ? '#2d2d2d' : '#fff',
     borderWidth: 1,
     borderColor: isDarkMode ? '#404040' : '#e5e7eb',
@@ -692,8 +708,8 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     borderColor: '#3b82f6',
   },
   filterText: {
-    marginLeft: 4,
-    fontSize: 11,
+    marginLeft: spacing.xs,
+    fontSize: fonts.xs,
     fontWeight: '500',
     color: isDarkMode ? '#9ca3af' : '#6b7280',
   },
@@ -702,43 +718,43 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: spacing['4xl'],
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: fonts.md,
     color: isDarkMode ? '#9ca3af' : '#6b7280',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: spacing['4xl'],
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: fonts.lg,
     fontWeight: '600',
     color: isDarkMode ? '#fff' : '#333',
-    marginTop: 16,
+    marginTop: spacing.lg,
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: fonts.sm,
     color: isDarkMode ? '#9ca3af' : '#6b7280',
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   meetingsContainer: {
     paddingBottom: 80,
   },
   meetingCard: {
-    marginBottom: 16,
-    borderRadius: 16,
+    marginBottom: spacing.lg,
+    borderRadius: cards.borderRadius,
     elevation: 4,
     backgroundColor: isDarkMode ? '#2d2d2d' : '#fff',
   },
@@ -746,17 +762,17 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   titleContainer: {
     flex: 1,
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   meetingTitle: {
-    fontSize: 18,
+    fontSize: fonts.lg,
     fontWeight: '600',
     color: isDarkMode ? '#fff' : '#333',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   sourceContainer: {
     flexDirection: 'row',
@@ -796,14 +812,15 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   },
   viewButtonText: {
     color: '#3b82f6',
-    fontSize: 12,
+    fontSize: fonts.xs,
     fontWeight: '600',
   },
   fab: {
     position: 'absolute',
-    margin: 16,
+    margin: spacing.lg,
     right: 0,
     bottom: 0,
     backgroundColor: '#3b82f6',
   },
-});
+  });
+};

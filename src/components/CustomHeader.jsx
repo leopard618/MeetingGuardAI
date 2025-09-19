@@ -1,21 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Image,
+  Modal,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import ThemeToggle from './ThemeToggle';
 import { useTranslation } from './translations.jsx';
+import { 
+  getResponsiveFontSizes, 
+  getResponsiveSpacing, 
+  getResponsiveIconSizes, 
+  getDeviceType 
+} from '../utils/responsive.js';
 
 const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', onLanguageToggle }) => {
   const navigation = useNavigation();
   const { isDarkMode } = useTheme();
+  const { user, logout } = useAuth();
   const { t } = useTranslation(language);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   const styles = getStyles(isDarkMode);
   
@@ -31,6 +42,7 @@ const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', on
       'Calendar': language === 'es' ? 'Calendario' : 'Calendar',
       'Notes': language === 'es' ? 'Notas' : 'Notes',
       'Settings': language === 'es' ? 'Configuración' : 'Settings',
+      'Profile': language === 'es' ? 'Perfil' : 'Profile',
       'AIChat': language === 'es' ? 'Chat IA' : 'AI Chat',
       'AIInsights': language === 'es' ? 'Información IA' : 'AI Insights',
       'ApiSettings': language === 'es' ? 'Configuración API' : 'API Settings',
@@ -48,6 +60,34 @@ const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', on
   };
   
   const displayTitle = getTranslatedTitle(title);
+  
+  const handleProfilePress = () => {
+    setShowProfileDropdown(!showProfileDropdown);
+  };
+
+  const handleSettingsPress = () => {
+    setShowProfileDropdown(false);
+    navigation.navigate('Settings');
+  };
+
+  const handleLogoutPress = () => {
+    setShowProfileDropdown(false);
+    Alert.alert(
+      t('common.logout'),
+      t('common.confirmLogout'),
+      [
+        {
+          text: t('common.cancel'),
+          style: 'cancel',
+        },
+        {
+          text: t('common.logout'),
+          style: 'destructive',
+          onPress: logout,
+        },
+      ]
+    );
+  };
   
   return (
     <View style={styles.header}>
@@ -76,8 +116,15 @@ const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', on
           </Text>
         </TouchableOpacity>
         
-        {/* Theme Toggle */}
-        <ThemeToggle size={20} style={styles.themeToggle} />
+        {/* Profile Button */}
+        {user && (
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={handleProfilePress}
+          >
+            <Ionicons name="person-circle" size={24} color={isDarkMode ? "#ffffff" : "#1E293B"} />
+          </TouchableOpacity>
+        )}
         
         {/* Menu Button */}
         {showMenu && (
@@ -89,11 +136,61 @@ const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', on
           </TouchableOpacity>
         )}
       </View>
+      
+      {/* Profile Dropdown Modal */}
+      <Modal
+        visible={showProfileDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowProfileDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownOverlay}
+          activeOpacity={1}
+          onPress={() => setShowProfileDropdown(false)}
+        >
+          <View style={styles.dropdownContainer}>
+            <View style={styles.dropdownContent}>
+              {/* User Info */}
+              <View style={styles.userInfo}>
+                <Ionicons name="person-circle" size={32} color={isDarkMode ? "#ffffff" : "#1E293B"} />
+                <View style={styles.userDetails}>
+                  <Text style={styles.userName}>{user?.name || user?.email || 'User'}</Text>
+                  <Text style={styles.userEmail}>{user?.email}</Text>
+                </View>
+              </View>
+              
+              {/* Dropdown Items */}
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={handleSettingsPress}
+              >
+                <Ionicons name="settings-outline" size={20} color={isDarkMode ? "#ffffff" : "#1E293B"} />
+                <Text style={styles.dropdownItemText}>{t('common.settings')}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={handleLogoutPress}
+              >
+                <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+                <Text style={[styles.dropdownItemText, { color: '#ef4444' }]}>{t('common.logout')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
 
-const getStyles = (isDarkMode) => StyleSheet.create({
+const getStyles = (isDarkMode) => {
+  const fonts = getResponsiveFontSizes();
+  const spacing = getResponsiveSpacing();
+  const icons = getResponsiveIconSizes();
+  const deviceType = getDeviceType();
+  
+  return StyleSheet.create({
   header: {
     backgroundColor: isDarkMode ? '#1a1a1a' : '#FFFFFF',
     borderBottomWidth: 1,
@@ -111,10 +208,10 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     minHeight: 56,
-    marginTop:40
+    marginTop: 40
   },
   logoContainer: {
     flexDirection: 'row',
@@ -122,41 +219,106 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     flex: 1,
   },
   logo: {
-    width: 32,
-    height: 32,
-    marginRight: 8,
+    width: icons.lg,
+    height: icons.lg,
+    marginRight: spacing.sm,
   },
   title: {
-    fontSize: 18,
+    fontSize: fonts.lg,
     fontWeight: 'bold',
     color: isDarkMode ? '#ffffff' : '#1E293B',
   },
   languageButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
-    borderRadius: 8,
-    marginRight: 8,
+    padding: spacing.sm,
+    borderRadius: spacing.sm,
+    marginRight: spacing.sm,
     backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
     minWidth: 50,
     justifyContent: 'center',
   },
   flagEmoji: {
-    fontSize: 16,
+    fontSize: icons.sm,
   },
   languageText: {
-    fontSize: 14,
+    fontSize: fonts.sm,
     fontWeight: 'bold',
     color: isDarkMode ? '#ffffff' : '#1E293B',
-    marginLeft: 4,
+    marginLeft: spacing.xs,
   },
   menuButton: {
-    padding: 8,
-    borderRadius: 8,
+    padding: spacing.sm,
+    borderRadius: spacing.sm,
   },
   themeToggle: {
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
-});
+  profileButton: {
+    padding: spacing.sm,
+    borderRadius: spacing.sm,
+    marginRight: spacing.sm,
+  },
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 100,
+    paddingRight: 16,
+  },
+  dropdownContainer: {
+    backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+    borderRadius: 12,
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  dropdownContent: {
+    padding: spacing.md,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: isDarkMode ? '#404040' : '#e5e7eb',
+    marginBottom: spacing.md,
+  },
+  userDetails: {
+    marginLeft: spacing.sm,
+    flex: 1,
+  },
+  userName: {
+    fontSize: fonts.md,
+    fontWeight: '600',
+    color: isDarkMode ? '#ffffff' : '#1E293B',
+  },
+  userEmail: {
+    fontSize: fonts.sm,
+    color: isDarkMode ? '#a1a1aa' : '#64748b',
+    marginTop: 2,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 8,
+  },
+  dropdownItemText: {
+    fontSize: fonts.md,
+    color: isDarkMode ? '#ffffff' : '#1E293B',
+    marginLeft: spacing.sm,
+    fontWeight: '500',
+  },
+  });
+};
 
 export default CustomHeader; 

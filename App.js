@@ -53,6 +53,7 @@ const EditMeetingWithLanguage = (props) => <EditMeeting {...props} language={pro
 const CalendarWithLanguage = (props) => <Calendar {...props} language={props.language || "en"} />;
 const NotesWithLanguage = (props) => <Notes {...props} language={props.language || "en"} />;
 const SettingsWithLanguage = (props) => <Settings {...props} language={props.language || "en"} />;
+const ProfileWithLanguage = (props) => <Settings {...props} language={props.language || "en"} />;
 const AIChatWithLanguage = (props) => <AIChat {...props} language={props.language || "en"} />;
 const AIInsightsWithLanguage = (props) => <AIInsights {...props} language={props.language || "en"} />;
 const ApiSettingsWithLanguage = (props) => <ApiSettings {...props} language={props.language || "en"} />;
@@ -77,6 +78,12 @@ function AppNavigator() {
 
   // Define CalendarWithLanguage inside the function to access language state
   const CalendarWithLanguage = (props) => <Calendar {...props} language={language} />;
+  
+  // Define NotesWithLanguage inside the function to access language state
+  const NotesWithLanguage = (props) => <Notes {...props} language={language} />;
+  
+  // Define SettingsWithLanguage inside the function to access language state
+  const SettingsWithLanguage = (props) => <Settings {...props} language={language} />;
 
   useEffect(() => {
     const fetchUserAndPrefs = async () => {
@@ -250,6 +257,12 @@ function AppNavigator() {
               name="Settings" 
               component={SettingsWithLanguage}
               options={({ route }) => ({ title: language === 'es' ? 'Configuración' : 'Settings' })}
+              initialParams={{ language }}
+            />
+            <Stack.Screen 
+              name="Profile" 
+              component={ProfileWithLanguage}
+              options={({ route }) => ({ title: language === 'es' ? 'Perfil' : 'Profile' })}
               initialParams={{ language }}
             />
             <Stack.Screen 

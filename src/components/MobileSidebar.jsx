@@ -16,7 +16,6 @@ import { Alert } from 'react-native';
 import { useTranslation } from './translations';
 import { useTheme } from '../contexts/ThemeContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import ThemeToggle from './ThemeToggle';
 
 const { width } = Dimensions.get('window');
 
@@ -62,13 +61,6 @@ const navigationItems = [
     icon: "chatbubble-outline",
     iconColor: "#22D3EE", // Cyan for AI/chat
     activeIconColor: "#67E8F9"
-  },
-  {
-    titleKey: "nav.settings",
-    screenName: "Settings",
-    icon: "settings-outline",
-    iconColor: "#9CA3AF", // Gray for settings
-    activeIconColor: "#D1D5DB"
   },
   {
     titleKey: "nav.apiKeys",
@@ -129,7 +121,7 @@ const SidebarContent = ({ language, setLanguage, onClose, currentRouteName }) =>
             source={{ uri: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/816636779_file_00000000800861f89b8e5d3eba90a7691.png" }}
             style={styles.logo}
           />
-          <Text style={styles.logoText}>MeetingGuard AI</Text>
+          <Text style={styles.logoText}>Meeting Guard</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.closeButton}
@@ -168,37 +160,9 @@ const SidebarContent = ({ language, setLanguage, onClose, currentRouteName }) =>
         })}
       </ScrollView>
 
-      {/* Theme Toggle */}
-      <View style={styles.themeSection}>
-        <View style={styles.themeContainer}>
-          <Ionicons name="color-palette-outline" size={16} color={isDarkMode ? "#a1a1aa" : "#9CA3AF"} />
-          <Text style={styles.themeText}>
-            {isDarkMode ? "Light Mode" : "Dark Mode"}
-          </Text>
-          <ThemeToggle size={18} />
-        </View>
-      </View>
 
       {/* Language selector removed - now in header */}
 
-      {/* User Info and Logout */}
-      {user && (
-        <View style={styles.userSection}>
-          <View style={styles.userInfo}>
-            <Ionicons name="person-circle-outline" size={20} color={isDarkMode ? "#a1a1aa" : "#9CA3AF"} />
-            <Text style={styles.userText}>
-              {user.name || user.email || 'User'}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
-            <Ionicons name="log-out-outline" size={18} color="#ef4444" />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-      )}
     </View>
   );
 };
@@ -334,22 +298,6 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  themeSection: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: isDarkMode ? '#262626' : '#374151',
-  },
-  themeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  themeText: {
-    fontSize: 14,
-    color: isDarkMode ? '#a1a1aa' : '#D1D5DB',
-    marginLeft: 8,
-    flex: 1,
-  },
   languageSection: {
     padding: 16,
     borderTopWidth: 1,
@@ -363,29 +311,12 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
   },
   userText: {
     fontSize: 14,
     color: isDarkMode ? '#a1a1aa' : '#D1D5DB',
     marginLeft: 8,
     fontWeight: '500',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: isDarkMode ? '#262626' : '#374151',
-    borderWidth: 1,
-    borderColor: '#ef4444',
-  },
-  logoutText: {
-    fontSize: 14,
-    color: '#ef4444',
-    marginLeft: 8,
-    fontWeight: '600',
   },
 });
 
