@@ -65,12 +65,14 @@ module.exports = {
       "expo-router",
       "expo-notifications",
       "expo-calendar",
+      "expo-dev-client",
       [
         "expo-build-properties",
         {
           "android": {
             "targetSdkVersion": 35,
-            "compileSdkVersion": 35
+            "compileSdkVersion": 35,
+            "minSdkVersion": 24
           }
         }
       ]
