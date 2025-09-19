@@ -76,6 +76,7 @@ function AppNavigator() {
   const [user, setUser] = useState(null);
   const [language, setLanguageState] = useState("es");
   const [currentRouteName, setCurrentRouteName] = useState("Dashboard");
+  const [showAuth, setShowAuth] = useState(false);
 
   // Define CalendarWithLanguage inside the function to access language state
   const CalendarWithLanguage = (props) => <Calendar {...props} language={language} />;
@@ -175,11 +176,15 @@ function AppNavigator() {
     );
   }
 
-  // Show auth screen if not authenticated
+  // Show landing page or auth page if not authenticated
   if (!isAuthenticated) {
     return (
       <View style={styles.container}>
-        <Auth />
+        {showAuth ? (
+          <Auth />
+        ) : (
+          <LandingPage onGetStarted={() => setShowAuth(true)} />
+        )}
       </View>
     );
   }
@@ -197,7 +202,7 @@ function AppNavigator() {
           }}
         >
           <Stack.Navigator 
-            initialRouteName="LandingPage"
+            initialRouteName="Dashboard"
             screenOptions={{
               header: ({ route, navigation }) => (
                 <CustomHeader
