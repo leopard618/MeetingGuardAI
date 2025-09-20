@@ -83,7 +83,20 @@ const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', on
         {
           text: t('common.logout'),
           style: 'destructive',
-          onPress: logout,
+          onPress: async () => {
+            try {
+              // Close any open modals or dropdowns first
+              setShowProfileDropdown(false);
+              
+              // Call logout function
+              await logout();
+              
+              // The App.js will handle the navigation to landing page
+              // when isAuthenticated becomes false
+            } catch (error) {
+              console.error('Logout error:', error);
+            }
+          },
         },
       ]
     );
