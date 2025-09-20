@@ -26,6 +26,16 @@ import { useAuth } from '../contexts/AuthContext';
 import RedirectURIDebug from '../components/RedirectURIDebug';
 import OAuthTest from '../components/OAuthTest';
 import { useTranslation } from '../components/translations.jsx';
+import {
+  getResponsiveFontSizes,
+  getResponsiveSpacing,
+  getResponsiveButtonDimensions,
+  scaleWidth,
+  scaleHeight,
+  getDeviceType,
+  isSmallDevice,
+  isTabletOrLarger,
+} from '../utils/responsive';
 
 export default function Auth({ navigation }) {
   const { isDarkMode } = useTheme();
@@ -153,7 +163,14 @@ export default function Auth({ navigation }) {
     });
   };
 
-  const styles = getStyles(isDarkMode);
+  // Get responsive values
+  const fonts = getResponsiveFontSizes();
+  const spacing = getResponsiveSpacing();
+  const buttonDims = getResponsiveButtonDimensions();
+  const isSmall = isSmallDevice();
+  const isTablet = isTabletOrLarger();
+
+  const styles = getStyles(isDarkMode, fonts, spacing, buttonDims, isSmall, isTablet);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -319,7 +336,7 @@ export default function Auth({ navigation }) {
   );
 }
 
-const getStyles = (isDarkMode) =>
+const getStyles = (isDarkMode, fonts, spacing, buttonDims, isSmall, isTablet) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -331,62 +348,63 @@ const getStyles = (isDarkMode) =>
     scrollContent: {
       flexGrow: 1,
       justifyContent: "center",
-      padding: 20,
+      padding: isSmall ? spacing['lg'] : spacing['xl'],
     },
     header: {
       alignItems: "center",
-      marginBottom: 40,
+      marginBottom: isSmall ? spacing['2xl'] : spacing['3xl'],
     },
     logoImage: {
-      width: 200,
-      height: 100,
+      width: isSmall ? scaleWidth(150) : isTablet ? scaleWidth(250) : scaleWidth(200),
+      height: isSmall ? scaleHeight(75) : isTablet ? scaleHeight(125) : scaleHeight(100),
     },
     appTitle: {
-      fontSize: 28,
+      fontSize: isSmall ? fonts['2xl'] : isTablet ? fonts['3xl'] + 4 : fonts['3xl'],
       fontWeight: "bold",
-      marginTop: 16,
+      marginTop: spacing['lg'],
       color: isDarkMode ? "#f1f5f9" : "#1e293b",
     },
     appSubtitle: {
-      fontSize: 16,
-      marginTop: 8,
+      fontSize: isSmall ? fonts['md'] : fonts['lg'],
+      marginTop: spacing['sm'],
       textAlign: "center",
       color: isDarkMode ? "#94a3b8" : "#64748b",
     },
     card: {
       backgroundColor: isDarkMode ? "#1e293b" : "#ffffff",
-      borderRadius: 16,
+      borderRadius: isSmall ? spacing['lg'] : spacing['xl'],
       elevation: 4,
       shadowColor: isDarkMode ? "#000" : "#000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: isDarkMode ? 0.3 : 0.1,
       shadowRadius: 8,
+      padding: isSmall ? spacing['lg'] : spacing['2xl'],
     },
     formTitle: {
-      fontSize: 24,
+      fontSize: isSmall ? fonts['xl'] : isTablet ? fonts['2xl'] + 2 : fonts['2xl'],
       fontWeight: "bold",
-      marginBottom: 8,
+      marginBottom: spacing['sm'],
       color: isDarkMode ? "#f1f5f9" : "#1e293b",
     },
     formSubtitle: {
-      fontSize: 14,
-      marginBottom: 24,
+      fontSize: isSmall ? fonts['sm'] : fonts['md'],
+      marginBottom: isSmall ? spacing['lg'] : spacing['2xl'],
       color: isDarkMode ? "#94a3b8" : "#64748b",
     },
     input: {
-      marginBottom: 16,
+      marginBottom: spacing['lg'],
       backgroundColor: isDarkMode ? "#334155" : "#f8fafc",
     },
     submitButton: {
-      marginTop: 8,
-      marginBottom: 16,
-      paddingVertical: 8,
-      borderRadius: 8,
+      marginTop: spacing['sm'],
+      marginBottom: spacing['lg'],
+      paddingVertical: buttonDims.paddingVertical,
+      borderRadius: buttonDims.borderRadius,
     },
     dividerContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginVertical: 20,
+      marginVertical: isSmall ? spacing['lg'] : spacing['xl'],
     },
     divider: {
       flex: 1,

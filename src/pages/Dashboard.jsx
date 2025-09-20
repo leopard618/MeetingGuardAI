@@ -109,6 +109,13 @@ export default function Dashboard({ navigation, language = "en" }) {
   // Debug: Log the language and translation
   console.log('Dashboard language:', language);
   console.log('Dashboard translation for today:', t('dashboard.today'));
+  
+  // Early return if not authenticated - this prevents the component from rendering
+  // and causing the "No authenticated user found" error
+  if (!isAuthenticated || !user) {
+    console.log('Dashboard: User not authenticated, not rendering component');
+    return null;
+  }
   const [meetings, setMeetings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -151,9 +158,9 @@ export default function Dashboard({ navigation, language = "en" }) {
   const loadInitialData = async () => {
     setIsLoading(true);
     try {
-      // Use the user from component level
-      if (!user) {
-        console.error('No authenticated user found');
+      // Check authentication state first
+      if (!isAuthenticated || !user) {
+        console.log('User not authenticated, skipping data load');
         setIsLoading(false);
         return;
       }
@@ -273,8 +280,8 @@ export default function Dashboard({ navigation, language = "en" }) {
   const syncPreferencesFromSettings = async () => {
     try {
       console.log('Manually syncing preferences...');
-      if (!user) {
-        Alert.alert('Error', 'No authenticated user found');
+      if (!isAuthenticated || !user) {
+        console.log('User not authenticated, skipping sync');
         return;
       }
       const currentUser = user;

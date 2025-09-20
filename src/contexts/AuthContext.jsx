@@ -364,6 +364,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       console.log('Logging out user');
+      setIsLoading(true); // Set loading state during logout
       
       // Sign out from Google if signed in
       await googleAuth.signOut();
@@ -372,12 +373,23 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('user');
       await AsyncStorage.removeItem('authToken');
       
+      // Clear Google Calendar tokens
+      try {
+        const googleCalendarService = (await import('../api/googleCalendar')).default;
+        await googleCalendarService.clearTokens();
+        console.log('Google Calendar tokens cleared');
+      } catch (calendarError) {
+        console.warn('Failed to clear Google Calendar tokens:', calendarError);
+      }
+      
       setUser(null);
       setIsAuthenticated(false);
       setUserPlan('free');
       console.log('Logout successful');
     } catch (error) {
       console.error('Logout error:', error);
+    } finally {
+      setIsLoading(false); // Clear loading state
     }
   };
 
