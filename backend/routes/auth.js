@@ -281,6 +281,12 @@ router.get('/google/callback', async (req, res) => {
     }
 
     if (!user) {
+      // Generate a random password for Google login users
+      const randomPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
+      const passwordHash = await hashPassword(randomPassword);
+      
+      console.log('Google OAuth: Creating new user with generated password');
+      
       // Create new user
       const { data: newUser, error: createError } = await supabase
         .from('users')
@@ -291,6 +297,7 @@ router.get('/google/callback', async (req, res) => {
           picture: userInfo.picture,
           given_name: userInfo.given_name,
           family_name: userInfo.family_name,
+          password_hash: passwordHash, // Save generated password hash
           enabled: true,
           last_login: new Date().toISOString()
         })
@@ -302,15 +309,26 @@ router.get('/google/callback', async (req, res) => {
       }
 
       user = newUser;
+      console.log('Google OAuth: New user created with password hash');
     } else {
-      // Update existing user's last login
+      // Update existing user's last login and ensure they have a password hash
+      const updateData = {
+        last_login: new Date().toISOString(),
+        name: userInfo.name,
+        picture: userInfo.picture
+      };
+
+      // If user doesn't have a password hash, generate one
+      if (!user.password_hash) {
+        const randomPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
+        const passwordHash = await hashPassword(randomPassword);
+        updateData.password_hash = passwordHash;
+        console.log('Google OAuth: Adding password hash to existing user');
+      }
+
       const { error: updateError } = await supabase
         .from('users')
-        .update({
-          last_login: new Date().toISOString(),
-          name: userInfo.name,
-          picture: userInfo.picture
-        })
+        .update(updateData)
         .eq('id', user.id);
 
       if (updateError) {

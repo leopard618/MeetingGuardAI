@@ -599,6 +599,25 @@ export const translations = {
       address: "MeetingGuard AI\n123 Innovation Street\nTech City, TC 12345",
       backToDashboard: "Back to Dashboard"
     },
+    // Google Calendar
+    googleCalendar: {
+      connectTitle: "Connect Google Calendar",
+      connectSubtitle: "Sync your meetings with Google Calendar",
+      connectDescription: "Connect your Google Calendar to automatically sync meetings, send invitations, and manage your schedule seamlessly.",
+      connectButton: "Connect Google Calendar",
+      connecting: "Connecting...",
+      connectedSuccessfully: "Google Calendar connected successfully!",
+      connectionFailed: "Failed to connect Google Calendar. Please try again.",
+      connectionError: "An error occurred while connecting to Google Calendar.",
+      alreadyConnected: "Google Calendar is already connected",
+      skipButton: "Skip for now",
+      skipTitle: "Skip Google Calendar Connection?",
+      skipMessage: "You can connect Google Calendar later from the settings. This will limit some features like automatic meeting invitations.",
+      skipConfirm: "Skip",
+      benefit1: "Automatic meeting synchronization",
+      benefit2: "Send invitations to participants",
+      benefit3: "Manage calendar events seamlessly"
+    },
     // Common
     common: {
       save: "Save",
@@ -1213,6 +1232,25 @@ export const translations = {
       email: "legal@meetingguard.ai",
       address: "MeetingGuard AI\n123 Innovation Street\nTech City, TC 12345",
       backToDashboard: "Volver al Panel"
+    },
+    // Google Calendar
+    googleCalendar: {
+      connectTitle: "Conectar Google Calendar",
+      connectSubtitle: "Sincroniza tus reuniones con Google Calendar",
+      connectDescription: "Conecta tu Google Calendar para sincronizar automáticamente reuniones, enviar invitaciones y gestionar tu horario sin problemas.",
+      connectButton: "Conectar Google Calendar",
+      connecting: "Conectando...",
+      connectedSuccessfully: "¡Google Calendar conectado exitosamente!",
+      connectionFailed: "Error al conectar Google Calendar. Por favor, inténtalo de nuevo.",
+      connectionError: "Ocurrió un error al conectar con Google Calendar.",
+      alreadyConnected: "Google Calendar ya está conectado",
+      skipButton: "Omitir por ahora",
+      skipTitle: "¿Omitir la conexión de Google Calendar?",
+      skipMessage: "Puedes conectar Google Calendar más tarde desde la configuración. Esto limitará algunas funciones como invitaciones automáticas a reuniones.",
+      skipConfirm: "Omitir",
+      benefit1: "Sincronización automática de reuniones",
+      benefit2: "Enviar invitaciones a participantes",
+      benefit3: "Gestionar eventos del calendario sin problemas"
     },
     // Common
     common: {
