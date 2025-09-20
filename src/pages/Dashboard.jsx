@@ -40,6 +40,8 @@ import {
   getResponsiveButtonDimensions,
   getDeviceType 
 } from '../utils/responsive.js';
+import GoogleCalendarConnectionPrompt from '../components/GoogleCalendarConnectionPrompt.jsx';
+import manualLoginGoogleCalendarService from '../api/manualLoginGoogleCalendarService.js';
 
 // Date and Time Display Component
 const DateTimeDisplay = ({ isDarkMode, styles }) => {
@@ -121,10 +123,45 @@ export default function Dashboard({ navigation, language = "en" }) {
   const [refreshing, setRefreshing] = useState(false);
   const [userPreferences, setUserPreferences] = useState(null);
   const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [showGoogleCalendarPrompt, setShowGoogleCalendarPrompt] = useState(false);
+  const [isManualLoginUser, setIsManualLoginUser] = useState(false);
 
   useEffect(() => {
     loadInitialData();
+    checkUserLoginType();
   }, []);
+
+  // Check if user is a manual login user (no Google ID)
+  const checkUserLoginType = async () => {
+    try {
+      if (user) {
+        // Check if user has Google ID (indicates Google login)
+        const hasGoogleId = user.google_id || user.id?.includes('google') || user.picture?.includes('googleusercontent');
+        const isManual = !hasGoogleId;
+        
+        console.log('Dashboard: User login type check:', {
+          hasGoogleId,
+          isManual,
+          userEmail: user.email
+        });
+        
+        setIsManualLoginUser(isManual);
+        
+        // Show Google Calendar prompt for manual login users
+        if (isManual) {
+          const isConnected = await manualLoginGoogleCalendarService.isConnected();
+          if (!isConnected) {
+            // Show prompt after a short delay to let the dashboard load
+            setTimeout(() => {
+              setShowGoogleCalendarPrompt(true);
+            }, 2000);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Dashboard: Error checking user login type:', error);
+    }
+  };
 
   // Refresh data when screen comes into focus
   useEffect(() => {
@@ -704,6 +741,18 @@ export default function Dashboard({ navigation, language = "en" }) {
           language={language}
         />
       )}
+
+      {/* Google Calendar Connection Prompt for Manual Login Users */}
+      <GoogleCalendarConnectionPrompt
+        visible={showGoogleCalendarPrompt}
+        onClose={() => setShowGoogleCalendarPrompt(false)}
+        onSuccess={(result) => {
+          console.log('Dashboard: Google Calendar connected successfully:', result);
+          setShowGoogleCalendarPrompt(false);
+        }}
+        userEmail={user?.email}
+        language={language}
+      />
     </View>
   );
 }
