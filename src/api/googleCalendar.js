@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import googleCalendarConnectionManager from './googleCalendarConnectionManager.js';
+import { googleTokenManager } from './googleTokenManager.js';
 
 class GoogleCalendarService {
   constructor() {
@@ -223,59 +224,20 @@ class GoogleCalendarService {
    */
   async getAccessToken() {
     try {
-      console.log('🔄 Getting Google access token from storage...');
-      const token = await AsyncStorage.getItem('google_access_token');
-      const expiry = await AsyncStorage.getItem('google_token_expiry');
-      const refreshToken = await AsyncStorage.getItem('google_refresh_token');
+      console.log('🔄 Getting Google access token...');
       
-      console.log('Token found:', !!token);
-      console.log('Expiry found:', !!expiry);
-      console.log('Refresh token found:', !!refreshToken);
+      // Use the unified token manager
+      const token = await googleTokenManager.getValidAccessToken();
       
-      if (!token) {
-        console.log('❌ No Google access token found in storage');
+      if (token) {
+        console.log('✅ Valid access token obtained');
+        return token;
+      } else {
+        console.log('❌ No valid access token available');
         return null;
       }
-      
-      // Check if token is expired
-      if (expiry && Date.now() > parseInt(expiry)) {
-        console.log('❌ Google access token has expired');
-        console.log('Token expiry time:', new Date(parseInt(expiry)).toISOString());
-        console.log('Current time:', new Date().toISOString());
-        
-        // Try to refresh the token
-        if (refreshToken) {
-          console.log('🔄 Attempting to refresh expired token...');
-          try {
-            const newTokens = await this.refreshAccessToken(refreshToken);
-            if (newTokens && newTokens.access_token) {
-              console.log('✅ Token refreshed successfully');
-              return newTokens.access_token;
-            }
-          } catch (refreshError) {
-            console.error('❌ Token refresh failed:', refreshError);
-          }
-        }
-        
-        // Clear expired tokens if refresh failed
-        await AsyncStorage.removeItem('google_access_token');
-        await AsyncStorage.removeItem('google_token_expiry');
-        await AsyncStorage.removeItem('google_refresh_token');
-        console.log('✅ Expired tokens cleared from storage');
-        return null;
-      }
-      
-      console.log('✅ Valid access token found');
-      console.log('Token expiry time:', expiry ? new Date(parseInt(expiry)).toISOString() : 'No expiry');
-      console.log('Current time:', new Date().toISOString());
-      return token;
     } catch (error) {
       console.error('❌ Error getting access token:', error);
-      console.error('Token retrieval error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
       return null;
     }
   }
