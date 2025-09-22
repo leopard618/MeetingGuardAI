@@ -5,6 +5,7 @@ import { backendService } from './backendService.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleAuthError } from '../utils/authUtils.js';
 import { isValidUUID, fixInvalidUUID } from '../utils/uuid.js';
+import { sanitizeMeetingsArray } from '../utils/meetingDataSanitizer.js';
 
 class SupabaseMeetingService {
   constructor() {
@@ -111,7 +112,11 @@ class SupabaseMeetingService {
         meetings = meetings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       }
       
-      return meetings;
+      // Sanitize meeting data to fix format issues
+      const sanitizedMeetings = sanitizeMeetingsArray(meetings);
+      console.log('SupabaseMeetingService: Sanitized meetings:', sanitizedMeetings.length);
+      
+      return sanitizedMeetings;
     } catch (error) {
       console.error('SupabaseMeetingService: Error fetching meetings:', error);
       
@@ -305,7 +310,11 @@ class SupabaseMeetingService {
       
       console.log('SupabaseMeetingService: Retrieved meetings by range:', meetings.length);
       
-      return meetings;
+      // Sanitize meeting data to fix format issues
+      const sanitizedMeetings = sanitizeMeetingsArray(meetings);
+      console.log('SupabaseMeetingService: Sanitized meetings by range:', sanitizedMeetings.length);
+      
+      return sanitizedMeetings;
     } catch (error) {
       console.error('SupabaseMeetingService: Error getting meetings by range:', error);
       return [];

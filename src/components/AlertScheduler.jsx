@@ -133,20 +133,32 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
   // Schedule alerts for a meeting with multiple timing options
   const scheduleAlertsForMeeting = async (meeting) => {
     try {
-      // Parse meeting date and time properly
+      // Parse meeting date and time properly with better error handling
       let meetingTime;
-      if (meeting.date.includes('T')) {
-        // ISO format
-        meetingTime = new Date(meeting.date);
-      } else {
-        // YYYY-MM-DD format - combine with time
-        const timeStr = meeting.time || '00:00';
-        meetingTime = new Date(`${meeting.date}T${timeStr}:00`);
-      }
-      
-      // Validate the meeting time
-      if (isNaN(meetingTime.getTime())) {
-        console.error('Invalid meeting time for:', meeting.title, meeting.date, meeting.time);
+      try {
+        if (meeting.date && typeof meeting.date === 'string') {
+          if (meeting.date.includes('T')) {
+            // ISO format
+            meetingTime = new Date(meeting.date);
+          } else {
+            // YYYY-MM-DD format - combine with time
+            const timeStr = meeting.time || '00:00';
+            meetingTime = new Date(`${meeting.date}T${timeStr}:00`);
+          }
+        } else if (meeting.date instanceof Date) {
+          meetingTime = meeting.date;
+        } else {
+          console.error('Invalid meeting date format:', meeting.title, meeting.date, meeting.time);
+          return;
+        }
+        
+        // Validate the meeting time
+        if (isNaN(meetingTime.getTime())) {
+          console.error('Invalid meeting time for:', meeting.title, meeting.date, meeting.time);
+          return;
+        }
+      } catch (error) {
+        console.error('Error parsing meeting time:', meeting.title, meeting.date, meeting.time, error);
         return;
       }
       

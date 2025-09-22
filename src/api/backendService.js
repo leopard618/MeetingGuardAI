@@ -21,6 +21,10 @@ class BackendService {
     this.lastHealthCheck = 0;
     this.healthCheckInterval = 30000; // 30 seconds minimum between health checks
     this.pendingRequests = new Map(); // Prevent duplicate requests
+    
+    // Rate limiting protection
+    this.lastRequestTime = 0;
+    this.minRequestInterval = 2000; // Minimum 2 seconds between requests
   }
 
   // Token management
@@ -141,6 +145,17 @@ class BackendService {
 
   // Internal method to execute the actual request
   async _executeRequest(url, config) {
+    // Rate limiting protection - ensure minimum interval between requests
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    if (timeSinceLastRequest < this.minRequestInterval) {
+      const waitTime = this.minRequestInterval - timeSinceLastRequest;
+      console.log(`BackendService: Rate limiting protection - waiting ${waitTime}ms`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    this.lastRequestTime = Date.now();
     let lastError;
     
     for (let attempt = 1; attempt <= BACKEND_CONFIG.REQUEST_CONFIG.RETRY_ATTEMPTS; attempt++) {
