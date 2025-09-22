@@ -8,6 +8,7 @@ import { AlertIntensity } from '../utils/notificationUtils.js';
 const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnabled }, ref) => {
   const alertTimeoutsRef = useRef(new Map());
   const checkIntervalRef = useRef(null);
+  const lastSchedulingRef = useRef(0);
 
   // Expose function to manually schedule alerts for a specific meeting
   const scheduleAlertsForSpecificMeeting = async (meeting) => {
@@ -71,12 +72,24 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
   // Load meetings and schedule alerts
   const loadAndScheduleMeetings = async () => {
     try {
+      // Rate limiting: Only schedule alerts once every 5 minutes
+      const now = Date.now();
+      const timeSinceLastScheduling = now - lastSchedulingRef.current;
+      const minInterval = 5 * 60 * 1000; // 5 minutes
+      
+      if (timeSinceLastScheduling < minInterval) {
+        console.log(`⏰ Alert scheduling throttled. Last scheduled ${Math.round(timeSinceLastScheduling / 1000)}s ago. Waiting ${Math.round((minInterval - timeSinceLastScheduling) / 1000)}s more.`);
+        return;
+      }
+      
+      lastSchedulingRef.current = now;
+      
       // First, clear old alert schedules
       await clearOldAlertSchedules();
       
       const meetings = await Meeting.list();
-      const now = new Date();
-      const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const currentTime = new Date();
+      const oneWeekFromNow = new Date(currentTime.getTime() + 7 * 24 * 60 * 60 * 1000);
 
       // Filter meetings for the next week (to catch 1-day advance alerts)
       const upcomingMeetings = meetings.filter(meeting => {
@@ -98,7 +111,7 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
           }
           
           // Only include meetings from today onwards (don't include past meetings)
-          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const today = new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate());
           const isUpcoming = meetingDate >= today && meetingDate <= oneWeekFromNow;
           
           if (isUpcoming) {
@@ -112,8 +125,13 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
         }
       });
 
-      console.log(`📅 Found ${upcomingMeetings.length} meetings to schedule alerts for`);
-      for (const meeting of upcomingMeetings) {
+      // Deduplicate meetings by ID to prevent multiple scheduling
+      const uniqueMeetings = upcomingMeetings.filter((meeting, index, self) => 
+        index === self.findIndex(m => m.id === meeting.id)
+      );
+      
+      console.log(`📅 Found ${upcomingMeetings.length} meetings, ${uniqueMeetings.length} unique meetings to schedule alerts for`);
+      for (const meeting of uniqueMeetings) {
         await scheduleAlertsForMeeting(meeting);
       }
     } catch (error) {
