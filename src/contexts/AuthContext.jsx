@@ -38,15 +38,19 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       
       // Save user to backend/Supabase first
-      saveUserToBackend(googleAuth.user).then(() => {
+      saveUserToBackend(googleAuth.user).then((result) => {
+        console.log('✅ User saved to backend successfully:', result);
         // Set default plan to free for now
         setUserPlan('free');
         setIsLoading(false);
       }).catch(error => {
-        console.error('Error saving user to backend:', error);
+        console.error('❌ Error saving user to backend:', error);
+        console.error('❌ Error details:', error.message);
         // Set default plan to free even if save fails
         setUserPlan('free');
         setIsLoading(false);
+        // Show user-friendly error message
+        alert(`Failed to save user data: ${error.message}. Please try signing in again.`);
       });
     } else if (!googleAuth.isLoading) {
       console.log('=== AUTH CONTEXT: NO GOOGLE AUTH, CHECKING STORAGE ===');
@@ -94,12 +98,22 @@ export const AuthProvider = ({ children }) => {
         if (data.jwtToken) {
           await AsyncStorage.setItem('authToken', data.jwtToken);
           console.log('✅ JWT token stored for authenticated requests');
+        } else {
+          console.warn('⚠️ No JWT token received from backend');
+        }
+        
+        // Store the user data in AsyncStorage
+        if (data.user) {
+          await AsyncStorage.setItem('user', JSON.stringify(data.user));
+          console.log('✅ User data stored in AsyncStorage');
         }
         
         return data;
       } else {
         const errorText = await response.text();
         console.error('❌ Error saving user to backend:', errorText);
+        console.error('❌ Response status:', response.status);
+        console.error('❌ Response headers:', response.headers);
         throw new Error(`Failed to save user: ${response.status} - ${errorText}`);
       }
     } catch (error) {

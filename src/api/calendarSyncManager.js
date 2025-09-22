@@ -37,10 +37,21 @@ class CalendarSyncManager {
   // Initialize sync manager
   async initialize() {
     try {
+      console.log('CalendarSyncManager: Starting initialization...');
+      
+      // Check if user is authenticated first
+      const user = await AsyncStorage.getItem('user');
+      const token = await AsyncStorage.getItem('authToken');
+      
+      if (!user || !token) {
+        console.log('CalendarSyncManager: User not authenticated, skipping sync initialization');
+        return false;
+      }
+
       // Check if Google Calendar access is available
       const hasAccess = await googleCalendarService.checkCalendarAccess();
       if (!hasAccess) {
-        console.log('Google Calendar access not available');
+        console.log('CalendarSyncManager: Google Calendar access not available');
         return false;
       }
 
@@ -56,12 +67,12 @@ class CalendarSyncManager {
       }
 
       // Perform initial sync
-      console.log('Performing initial sync...');
+      console.log('CalendarSyncManager: Performing initial sync...');
       await this.performSync();
 
       return true;
     } catch (error) {
-      console.error('Error initializing calendar sync manager:', error);
+      console.error('CalendarSyncManager: Error initializing calendar sync manager:', error);
       return false;
     }
   }

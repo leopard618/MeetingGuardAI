@@ -2,12 +2,17 @@ import { localStorageAPI } from './localStorage';
 import { supabaseMeetingService } from './supabaseMeetingService';
 import { meetingCreationService } from './meetingCreationService';
 import { normalizeDate, normalizeTime } from '../utils/index.ts';
+import { debugAuthState } from '../utils/authDebug.js';
 
 // Meeting Entity - Now uses Supabase backend
 export const Meeting = {
   list: async (sortBy = "-created_date") => {
     try {
       console.log('Meeting Entity: Attempting to load meetings from Supabase backend');
+      
+      // Debug authentication state
+      const authState = await debugAuthState();
+      console.log('Meeting Entity: Auth state:', authState);
       
       // Try Supabase backend first
       const isSupabaseAvailable = await supabaseMeetingService.isAvailable();
