@@ -19,12 +19,23 @@ const authenticateToken = async (req, res, next) => {
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
+    console.log('Auth middleware: JWT decoded:', {
+      userId: decoded.userId,
+      iat: decoded.iat,
+      exp: decoded.exp
+    });
+    
     // Get user from database to ensure they still exist
     const { data: user, error } = await supabase
       .from('users')
       .select('id, email, name, picture, enabled')
       .eq('id', decoded.userId)
       .single();
+
+    console.log('Auth middleware: Database query result:', {
+      user: user ? { id: user.id, email: user.email, enabled: user.enabled } : null,
+      error: error ? { code: error.code, message: error.message } : null
+    });
 
     if (error || !user) {
       console.log('Auth middleware: User not found or error:', error);

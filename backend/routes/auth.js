@@ -309,7 +309,11 @@ router.get('/google/callback', async (req, res) => {
       }
 
       user = newUser;
-      console.log('Google OAuth: New user created with password hash');
+      console.log('Google OAuth: New user created with password hash:', {
+        userId: user.id,
+        userEmail: user.email,
+        googleId: user.google_id
+      });
     } else {
       // Update existing user's last login and ensure they have a password hash
       const updateData = {
@@ -334,6 +338,13 @@ router.get('/google/callback', async (req, res) => {
       if (updateError) {
         throw updateError;
       }
+      
+      console.log('Google OAuth: Existing user updated:', {
+        userId: user.id,
+        userEmail: user.email,
+        googleId: user.google_id,
+        hadPassword: !!user.password_hash
+      });
     }
 
     // Store Google tokens securely
@@ -353,6 +364,12 @@ router.get('/google/callback', async (req, res) => {
 
     // Generate JWT token
     const jwtToken = generateToken(user.id);
+    
+    console.log('Google OAuth: Generating JWT token for user:', {
+      userId: user.id,
+      userEmail: user.email,
+      tokenLength: jwtToken.length
+    });
 
     res.json({
       success: true,
@@ -362,7 +379,7 @@ router.get('/google/callback', async (req, res) => {
         name: user.name,
         picture: user.picture
       },
-      token: jwtToken,
+      jwtToken: jwtToken, // Fixed: changed from 'token' to 'jwtToken'
       googleTokens: {
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,

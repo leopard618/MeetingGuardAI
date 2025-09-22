@@ -3,6 +3,7 @@
 
 import { backendService } from './backendService.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { handleAuthError } from '../utils/authUtils.js';
 
 class SupabaseMeetingService {
   constructor() {
@@ -18,8 +19,22 @@ class SupabaseMeetingService {
         return false;
       }
       
+      // Load tokens into backend service
+      const tokensLoaded = await backendService.loadTokens();
+      if (!tokensLoaded) {
+        console.log('SupabaseMeetingService: Failed to load tokens into backend service');
+        return false;
+      }
+      
+      // Validate authentication before proceeding
+      const isValidAuth = await backendService.validateAuth();
+      if (!isValidAuth) {
+        console.log('SupabaseMeetingService: Authentication validation failed');
+        return false;
+      }
+      
       this.isInitialized = true;
-      console.log('SupabaseMeetingService: Initialized successfully');
+      console.log('SupabaseMeetingService: Initialized successfully with valid tokens');
       return true;
     } catch (error) {
       console.error('SupabaseMeetingService: Initialization failed:', error);
@@ -35,6 +50,9 @@ class SupabaseMeetingService {
         await this.initialize();
       }
 
+      // Ensure tokens are loaded before making request
+      await backendService.loadTokens();
+      
       const response = await backendService.getMeetings();
       let meetings = response.meetings || [];
       
@@ -48,6 +66,21 @@ class SupabaseMeetingService {
       return meetings;
     } catch (error) {
       console.error('SupabaseMeetingService: Error fetching meetings:', error);
+      
+      // Handle authentication errors
+      if (error.message.includes('Authentication failed') || error.message.includes('User not found')) {
+        console.log('SupabaseMeetingService: Authentication failed, clearing auth state');
+        await handleAuthError(error);
+        this.isInitialized = false;
+        return [];
+      }
+      
+      // Handle rate limiting gracefully
+      if (error.message.includes('HTTP 429')) {
+        console.log('SupabaseMeetingService: Rate limited, returning empty array gracefully');
+        return [];
+      }
+      
       // Fallback to empty array instead of throwing
       return [];
     }
@@ -60,6 +93,9 @@ class SupabaseMeetingService {
       if (!this.isInitialized) {
         await this.initialize();
       }
+
+      // Ensure tokens are loaded before making request
+      await backendService.loadTokens();
 
       // Validate required fields
       if (!meetingData.title) {
@@ -108,6 +144,9 @@ class SupabaseMeetingService {
         await this.initialize();
       }
 
+      // Ensure tokens are loaded before making request
+      await backendService.loadTokens();
+
       const response = await backendService.updateMeeting(id, updateData);
       const updatedMeeting = response.meeting;
       
@@ -128,6 +167,9 @@ class SupabaseMeetingService {
         await this.initialize();
       }
 
+      // Ensure tokens are loaded before making request
+      await backendService.loadTokens();
+
       await backendService.deleteMeeting(id);
       
       console.log('SupabaseMeetingService: Meeting deleted successfully');
@@ -147,6 +189,9 @@ class SupabaseMeetingService {
         await this.initialize();
       }
 
+      // Ensure tokens are loaded before making request
+      await backendService.loadTokens();
+
       const response = await backendService.getMeeting(id);
       const meeting = response.meeting;
       
@@ -155,6 +200,21 @@ class SupabaseMeetingService {
       return meeting;
     } catch (error) {
       console.error('SupabaseMeetingService: Error getting meeting:', error);
+      
+      // Handle authentication errors
+      if (error.message.includes('Authentication failed') || error.message.includes('User not found')) {
+        console.log('SupabaseMeetingService: Authentication failed, clearing auth state');
+        await handleAuthError(error);
+        this.isInitialized = false;
+        return null;
+      }
+      
+      // Handle rate limiting gracefully
+      if (error.message.includes('HTTP 429')) {
+        console.log('SupabaseMeetingService: Rate limited, returning null gracefully');
+        return null;
+      }
+      
       return null;
     }
   }
@@ -166,6 +226,9 @@ class SupabaseMeetingService {
       if (!this.isInitialized) {
         await this.initialize();
       }
+
+      // Ensure tokens are loaded before making request
+      await backendService.loadTokens();
 
       // Use the backend service to get meetings by date range
       const response = await backendService.makeRequest(`/meetings/range/${startDate}/${endDate}`);
@@ -186,6 +249,9 @@ class SupabaseMeetingService {
       if (!this.isInitialized) {
         await this.initialize();
       }
+      
+      // Ensure tokens are loaded
+      await backendService.loadTokens();
       
       // Try to make a simple request to check if backend is available
       await backendService.healthCheck();
