@@ -8,36 +8,72 @@ import { handleAuthError } from '../utils/authUtils.js';
 class SupabaseMeetingService {
   constructor() {
     this.isInitialized = false;
+    this._authFailed = false;
   }
 
   async initialize() {
     try {
+      console.log('SupabaseMeetingService: Starting initialization...');
+      
       // Check if we have auth token
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
-        console.log('SupabaseMeetingService: No auth token found');
+        console.log('SupabaseMeetingService: No auth token found, marking as failed');
+        this._authFailed = true;
         return false;
       }
+      
+      console.log('SupabaseMeetingService: Auth token found, loading into backend service...');
       
       // Load tokens into backend service
       const tokensLoaded = await backendService.loadTokens();
       if (!tokensLoaded) {
         console.log('SupabaseMeetingService: Failed to load tokens into backend service');
+        this._authFailed = true;
         return false;
       }
+      
+      console.log('SupabaseMeetingService: Tokens loaded, validating authentication...');
       
       // Validate authentication before proceeding
       const isValidAuth = await backendService.validateAuth();
       if (!isValidAuth) {
         console.log('SupabaseMeetingService: Authentication validation failed');
+        this._authFailed = true;
         return false;
       }
       
       this.isInitialized = true;
+      this._authFailed = false; // Reset failed state on successful initialization
       console.log('SupabaseMeetingService: Initialized successfully with valid tokens');
       return true;
     } catch (error) {
       console.error('SupabaseMeetingService: Initialization failed:', error);
+      this._authFailed = true;
+      return false;
+    }
+  }
+
+  // Method to reset the failed state (useful for retry scenarios)
+  resetAuthState() {
+    this._authFailed = false;
+    this.isInitialized = false;
+    console.log('SupabaseMeetingService: Auth state reset');
+  }
+
+  // Check if service is available without triggering authentication
+  async isAvailable() {
+    try {
+      // If we're in a failed state, don't try again
+      if (this._authFailed) {
+        return false;
+      }
+      
+      // Check if we have a token
+      const token = await AsyncStorage.getItem('authToken');
+      return !!token;
+    } catch (error) {
+      console.error('SupabaseMeetingService: Error checking availability:', error);
       return false;
     }
   }
@@ -46,8 +82,19 @@ class SupabaseMeetingService {
     try {
       console.log('SupabaseMeetingService: Fetching meetings from backend');
       
+      // Check if we're already in a failed state to prevent infinite loops
+      if (this._authFailed) {
+        console.log('SupabaseMeetingService: Authentication previously failed, skipping request');
+        return [];
+      }
+      
       if (!this.isInitialized) {
-        await this.initialize();
+        const initialized = await this.initialize();
+        if (!initialized) {
+          console.log('SupabaseMeetingService: Initialization failed, marking auth as failed');
+          this._authFailed = true;
+          return [];
+        }
       }
 
       // Ensure tokens are loaded before making request
@@ -72,6 +119,7 @@ class SupabaseMeetingService {
         console.log('SupabaseMeetingService: Authentication failed, clearing auth state');
         await handleAuthError(error);
         this.isInitialized = false;
+        this._authFailed = true; // Mark as failed to prevent retries
         return [];
       }
       
@@ -185,8 +233,19 @@ class SupabaseMeetingService {
     try {
       console.log('SupabaseMeetingService: Getting meeting with id:', id);
       
+      // Check if we're already in a failed state to prevent infinite loops
+      if (this._authFailed) {
+        console.log('SupabaseMeetingService: Authentication previously failed, skipping request');
+        return null;
+      }
+      
       if (!this.isInitialized) {
-        await this.initialize();
+        const initialized = await this.initialize();
+        if (!initialized) {
+          console.log('SupabaseMeetingService: Initialization failed, marking auth as failed');
+          this._authFailed = true;
+          return null;
+        }
       }
 
       // Ensure tokens are loaded before making request
@@ -206,6 +265,7 @@ class SupabaseMeetingService {
         console.log('SupabaseMeetingService: Authentication failed, clearing auth state');
         await handleAuthError(error);
         this.isInitialized = false;
+        this._authFailed = true; // Mark as failed to prevent retries
         return null;
       }
       
