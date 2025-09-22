@@ -5,6 +5,7 @@ import { supabaseMeetingService } from './supabaseMeetingService.js';
 import { googleCalendarService } from './googleCalendar.js';
 import { googleTokenManager } from './googleTokenManager.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { generateLocalId } from '../utils/uuid.js';
 
 class MeetingCreationService {
   constructor() {
@@ -132,7 +133,7 @@ class MeetingCreationService {
       if (!createdMeeting) {
         console.log('MeetingCreationService: Creating local meeting object...');
         createdMeeting = {
-          id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: generateLocalId('local'),
           ...meetingData,
           created_at: new Date().toISOString(),
           source: 'local'
