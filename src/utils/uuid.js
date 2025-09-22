@@ -33,7 +33,7 @@ export function isValidUUID(uuid) {
 }
 
 /**
- * Convert an invalid ID to a proper UUID (deterministic)
+ * Convert an invalid ID to a proper UUID
  * @param {string} invalidId - Invalid ID to convert
  * @returns {string} A proper UUID
  */
@@ -42,44 +42,9 @@ export function fixInvalidUUID(invalidId) {
     return invalidId;
   }
   
-  // Create a deterministic UUID based on the invalid ID
-  // This ensures the same invalid ID always produces the same UUID
-  const hash = simpleHash(invalidId);
-  return createDeterministicUUID(hash);
+  // For invalid IDs, just generate a new proper UUID
+  // This is simpler and avoids the complex deterministic generation
+  console.log(`UUID fix: Converting invalid ID "${invalidId}" to new UUID`);
+  return generateUUID();
 }
 
-/**
- * Simple hash function for deterministic UUID generation
- * @param {string} str - String to hash
- * @returns {number} Hash value
- */
-function simpleHash(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return Math.abs(hash);
-}
-
-/**
- * Create a deterministic UUID from a hash
- * @param {number} hash - Hash value
- * @returns {string} Deterministic UUID
- */
-function createDeterministicUUID(hash) {
-  // Convert hash to hex and pad to ensure we have enough characters
-  const hex = hash.toString(16).padStart(8, '0');
-  
-  // Create a deterministic UUID v4-like format
-  const uuid = [
-    hex.substring(0, 8),
-    hex.substring(0, 4),
-    '4' + hex.substring(1, 4), // Version 4
-    '8' + hex.substring(1, 4), // Variant
-    hex.substring(0, 12)
-  ].join('-');
-  
-  return uuid;
-}
