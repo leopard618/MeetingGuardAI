@@ -4,6 +4,7 @@
 import { backendService } from './backendService.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { handleAuthError } from '../utils/authUtils.js';
+import { isValidUUID, fixInvalidUUID } from '../utils/uuid.js';
 
 class SupabaseMeetingService {
   constructor() {
@@ -232,6 +233,14 @@ class SupabaseMeetingService {
   async get(id) {
     try {
       console.log('SupabaseMeetingService: Getting meeting with id:', id);
+      
+      // Validate and fix UUID format
+      if (!isValidUUID(id)) {
+        console.log('SupabaseMeetingService: Invalid UUID format detected, fixing:', id);
+        const fixedId = fixInvalidUUID(id);
+        console.log('SupabaseMeetingService: Fixed UUID:', fixedId);
+        id = fixedId;
+      }
       
       // Check if we're already in a failed state to prevent infinite loops
       if (this._authFailed) {
