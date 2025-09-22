@@ -1,5 +1,6 @@
 import { localStorageAPI } from './localStorage';
 import { supabaseMeetingService } from './supabaseMeetingService';
+import { meetingCreationService } from './meetingCreationService';
 import { normalizeDate, normalizeTime } from '../utils/index.ts';
 
 // Meeting Entity - Now uses Supabase backend
@@ -12,7 +13,7 @@ export const Meeting = {
       const isSupabaseAvailable = await supabaseMeetingService.isAvailable();
       if (isSupabaseAvailable) {
         console.log('Meeting Entity: Using Supabase backend');
-        const meetings = await supabaseMeetingService.list(sortBy);
+        const meetings = await meetingCreationService.getMeetings();
         console.log('Meeting Entity: Retrieved meetings from Supabase:', meetings.length);
         return meetings;
       }
@@ -75,9 +76,9 @@ export const Meeting = {
       // Try Supabase backend first
       const isSupabaseAvailable = await supabaseMeetingService.isAvailable();
       if (isSupabaseAvailable) {
-        console.log('Meeting Entity: Creating meeting in Supabase backend');
-        const createdMeeting = await supabaseMeetingService.create(normalizedMeetingData);
-        console.log('Meeting Entity: Meeting created successfully in Supabase:', createdMeeting);
+        console.log('Meeting Entity: Creating meeting with full integration');
+        const createdMeeting = await meetingCreationService.createMeeting(normalizedMeetingData);
+        console.log('Meeting Entity: Meeting created successfully with Google Calendar integration:', createdMeeting);
         return createdMeeting;
       }
       

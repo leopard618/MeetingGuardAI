@@ -3,6 +3,55 @@ const { body, validationResult } = require('express-validator');
 const { supabase } = require('../config/database');
 const { ValidationError, NotFoundError } = require('../middleware/errorHandler');
 
+// Helper function to create Google Calendar event
+async function createGoogleCalendarEvent({ accessToken, meeting, userEmail }) {
+  try {
+    const startDateTime = new Date(`${meeting.date}T${meeting.time}`);
+    const endDateTime = new Date(startDateTime.getTime() + meeting.duration * 60000);
+    
+    const event = {
+      summary: meeting.title,
+      description: meeting.description || '',
+      start: {
+        dateTime: startDateTime.toISOString(),
+        timeZone: 'UTC'
+      },
+      end: {
+        dateTime: endDateTime.toISOString(),
+        timeZone: 'UTC'
+      },
+      attendees: meeting.participants ? meeting.participants.map(p => ({
+        email: p.email,
+        displayName: p.name
+      })) : [],
+      location: meeting.location ? meeting.location.address || meeting.location.name : undefined,
+      organizer: {
+        email: userEmail
+      }
+    };
+
+    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(event)
+    });
+
+    if (response.ok) {
+      return await response.json();
+    } else {
+      const errorData = await response.json();
+      console.error('Google Calendar API error:', errorData);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error creating Google Calendar event:', error);
+    return null;
+  }
+}
+
 const router = express.Router();
 
 /**
@@ -111,6 +160,21 @@ router.post('/', [
       attachments
     } = req.body;
 
+    // Get user email for Google Calendar integration
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('email, name')
+      .eq('id', req.userId)
+      .single();
+
+    if (userError || !user) {
+      console.error('User not found for meeting creation:', userError);
+      return res.status(404).json({
+        error: 'User not found',
+        message: 'User account not found. Please sign in again.'
+      });
+    }
+
     // Create meeting
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
@@ -179,6 +243,52 @@ router.post('/', [
 
     if (fetchError) {
       throw fetchError;
+    }
+
+    // Try to create Google Calendar event if user has Google tokens
+    try {
+      const { data: userTokens, error: tokenError } = await supabase
+        .from('user_tokens')
+        .select('access_token, refresh_token, expires_at')
+        .eq('user_id', req.userId)
+        .eq('token_type', 'google')
+        .single();
+
+      if (!tokenError && userTokens && userTokens.access_token) {
+        console.log('Creating Google Calendar event for meeting:', meeting.id);
+        
+        // Create Google Calendar event
+        const googleEvent = await createGoogleCalendarEvent({
+          accessToken: userTokens.access_token,
+          meeting: completeMeeting,
+          userEmail: user.email
+        });
+        
+        if (googleEvent) {
+          // Store Google event ID in calendar_events table
+          await supabase
+            .from('calendar_events')
+            .insert({
+              user_id: req.userId,
+              google_event_id: googleEvent.id,
+              title: completeMeeting.title,
+              description: completeMeeting.description,
+              start_time: new Date(`${completeMeeting.date}T${completeMeeting.time}`).toISOString(),
+              end_time: new Date(new Date(`${completeMeeting.date}T${completeMeeting.time}`).getTime() + completeMeeting.duration * 60000).toISOString(),
+              location: completeMeeting.location ? JSON.stringify(completeMeeting.location) : null,
+              attendees: participants ? JSON.stringify(participants) : null,
+              organizer: JSON.stringify({ email: user.email, name: user.name }),
+              status: 'confirmed'
+            });
+          
+          console.log('Google Calendar event created successfully:', googleEvent.id);
+        }
+      } else {
+        console.log('No Google tokens found for user, skipping Google Calendar integration');
+      }
+    } catch (googleError) {
+      console.error('Error creating Google Calendar event:', googleError);
+      // Don't fail the meeting creation if Google Calendar fails
     }
 
     res.status(201).json({
