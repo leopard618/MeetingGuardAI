@@ -286,7 +286,11 @@ class BackendService {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
-          console.log('BackendService: Request failed with status:', response.status, 'Error:', errorMessage);
+          
+          // Only log non-404 errors to reduce noise
+          if (response.status !== 404) {
+            console.log('BackendService: Request failed with status:', response.status, 'Error:', errorMessage);
+          }
           
           // Don't retry 404 errors - they're permanent
           if (response.status === 404) {
