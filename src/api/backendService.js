@@ -19,12 +19,17 @@ class BackendService {
     this.refreshToken = null;
     this.requestCache = new Map();
     this.lastHealthCheck = 0;
-    this.healthCheckInterval = 30000; // 30 seconds minimum between health checks
+    this.healthCheckInterval = 60000; // 60 seconds minimum between health checks
     this.pendingRequests = new Map(); // Prevent duplicate requests
     
-    // Rate limiting protection
+    // Enhanced rate limiting protection
     this.lastRequestTime = 0;
-    this.minRequestInterval = 2000; // Minimum 2 seconds between requests
+    this.minRequestInterval = 5000; // Minimum 5 seconds between requests
+    this.requestQueue = []; // Queue for rate-limited requests
+    this.isProcessingQueue = false;
+    this.consecutiveRateLimits = 0;
+    this.maxConsecutiveRateLimits = 3;
+    this.rateLimitBackoffMultiplier = 2;
   }
 
   // Token management
@@ -102,6 +107,31 @@ class BackendService {
     }
   }
 
+  // Process request queue to prevent rate limiting
+  async _processRequestQueue() {
+    if (this.isProcessingQueue || this.requestQueue.length === 0) {
+      return;
+    }
+    
+    this.isProcessingQueue = true;
+    
+    while (this.requestQueue.length > 0) {
+      const { resolve, reject, url, config } = this.requestQueue.shift();
+      
+      try {
+        const result = await this._executeRequest(url, config);
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+      
+      // Wait between requests to respect rate limits
+      await new Promise(resolve => setTimeout(resolve, this.minRequestInterval));
+    }
+    
+    this.isProcessingQueue = false;
+  }
+
   // Request helper with retry logic, rate limiting handling, and deduplication
   async makeRequest(endpoint, options = {}) {
     const url = getApiUrl(endpoint);
@@ -130,8 +160,16 @@ class BackendService {
       console.log('BackendService: No auth token available for request');
     }
 
+    // Check if we've hit too many consecutive rate limits
+    if (this.consecutiveRateLimits >= this.maxConsecutiveRateLimits) {
+      const backoffTime = this.minRequestInterval * Math.pow(this.rateLimitBackoffMultiplier, this.consecutiveRateLimits);
+      console.log(`BackendService: Too many consecutive rate limits (${this.consecutiveRateLimits}), backing off for ${backoffTime}ms`);
+      await new Promise(resolve => setTimeout(resolve, backoffTime));
+      this.consecutiveRateLimits = 0; // Reset after backoff
+    }
+
     // Create promise for this request
-    const requestPromise = this._executeRequest(url, config);
+    const requestPromise = this._executeRequestWithQueue(url, config);
     this.pendingRequests.set(requestKey, requestPromise);
     
     try {
@@ -141,6 +179,14 @@ class BackendService {
       // Clean up pending request
       this.pendingRequests.delete(requestKey);
     }
+  }
+
+  // Execute request with queue management
+  async _executeRequestWithQueue(url, config) {
+    return new Promise((resolve, reject) => {
+      this.requestQueue.push({ resolve, reject, url, config });
+      this._processRequestQueue();
+    });
   }
 
   // Internal method to execute the actual request
@@ -161,6 +207,11 @@ class BackendService {
     for (let attempt = 1; attempt <= BACKEND_CONFIG.REQUEST_CONFIG.RETRY_ATTEMPTS; attempt++) {
       try {
         const response = await fetch(url, config);
+        
+        // Reset consecutive rate limits on successful request
+        if (response.ok) {
+          this.consecutiveRateLimits = 0;
+        }
         
         // Handle 401 - try to refresh token or clear auth
         if (response.status === 401) {
@@ -192,10 +243,12 @@ class BackendService {
         
         // Handle 429 - Rate limiting with exponential backoff
         if (response.status === 429) {
+          this.consecutiveRateLimits++;
           const retryAfter = response.headers.get('Retry-After');
-          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+          const baseWaitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+          const waitTime = baseWaitTime * Math.pow(this.rateLimitBackoffMultiplier, this.consecutiveRateLimits - 1);
           
-          console.log(`BackendService: Rate limited (429), waiting ${waitTime}ms before retry ${attempt}/${BACKEND_CONFIG.REQUEST_CONFIG.RETRY_ATTEMPTS}`);
+          console.log(`BackendService: Rate limited (429) - attempt ${attempt}/${BACKEND_CONFIG.REQUEST_CONFIG.RETRY_ATTEMPTS}, consecutive: ${this.consecutiveRateLimits}, waiting ${waitTime}ms`);
           
           if (attempt < BACKEND_CONFIG.REQUEST_CONFIG.RETRY_ATTEMPTS) {
             await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -208,7 +261,9 @@ class BackendService {
         // Handle other errors
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || `HTTP ${response.status}`);
+          const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+          console.log('BackendService: Request failed with status:', response.status, 'Error:', errorMessage);
+          throw new Error(errorMessage);
         }
         
         return await response.json();
@@ -395,6 +450,14 @@ class BackendService {
     return this.makeRequest(BACKEND_CONFIG.ENDPOINTS.USERS.DELETE_ACCOUNT, {
       method: 'DELETE',
     });
+  }
+
+  // Reset rate limiting state
+  resetRateLimitState() {
+    this.consecutiveRateLimits = 0;
+    this.requestQueue = [];
+    this.isProcessingQueue = false;
+    console.log('BackendService: Rate limit state reset');
   }
 
   // Health check with throttling

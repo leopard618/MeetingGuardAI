@@ -63,6 +63,16 @@ class SupabaseMeetingService {
     console.log('SupabaseMeetingService: Auth state reset');
   }
 
+  // Method to reset rate limiting state
+  async resetRateLimitState() {
+    try {
+      await backendService.resetRateLimitState();
+      console.log('SupabaseMeetingService: Rate limit state reset');
+    } catch (error) {
+      console.error('SupabaseMeetingService: Error resetting rate limit state:', error);
+    }
+  }
+
   // Check if service is available without triggering authentication
   async isAvailable() {
     try {
@@ -132,6 +142,8 @@ class SupabaseMeetingService {
       // Handle rate limiting gracefully
       if (error.message.includes('HTTP 429')) {
         console.log('SupabaseMeetingService: Rate limited, returning empty array gracefully');
+        // Add a small delay before allowing next request
+        await new Promise(resolve => setTimeout(resolve, 10000)); // 10 second delay
         return [];
       }
       
@@ -265,14 +277,21 @@ class SupabaseMeetingService {
       // Ensure tokens are loaded before making request
       await backendService.loadTokens();
 
+      console.log('SupabaseMeetingService: Making request to backend for meeting:', id);
       const response = await backendService.getMeeting(id);
       const meeting = response.meeting;
       
-      console.log('SupabaseMeetingService: Meeting retrieved:', meeting);
+      console.log('SupabaseMeetingService: Meeting retrieved from backend:', meeting ? 'found' : 'not found');
       
       return meeting;
     } catch (error) {
       console.error('SupabaseMeetingService: Error getting meeting:', error);
+      
+      // Handle 404 errors specifically
+      if (error.message.includes('HTTP 404')) {
+        console.log('SupabaseMeetingService: Meeting not found (404) - this is expected if meeting does not exist');
+        return null;
+      }
       
       // Handle authentication errors
       if (error.message.includes('Authentication failed') || error.message.includes('User not found')) {
@@ -286,6 +305,8 @@ class SupabaseMeetingService {
       // Handle rate limiting gracefully
       if (error.message.includes('HTTP 429')) {
         console.log('SupabaseMeetingService: Rate limited, returning null gracefully');
+        // Add a small delay before allowing next request
+        await new Promise(resolve => setTimeout(resolve, 10000)); // 10 second delay
         return null;
       }
       

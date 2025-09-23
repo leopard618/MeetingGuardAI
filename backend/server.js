@@ -433,7 +433,12 @@ app.get('/health', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     version: process.env.npm_package_version || '1.0.0',
     cors: 'enabled',
-    plans_api: 'available'
+    plans_api: 'available',
+    api_version: API_VERSION,
+    endpoints: {
+      meetings: `${API_BASE_PATH}/meetings`,
+      auth: `${API_BASE_PATH}/auth`
+    }
   });
 });
 
@@ -443,6 +448,16 @@ app.get('/api/billing/test', (req, res) => {
     message: 'Plans API is working!',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Test endpoint for meetings API (no auth required for testing)
+app.get('/api/meetings/test', (req, res) => {
+  res.json({
+    message: 'Meetings API endpoint is accessible!',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    note: 'This endpoint is for testing connectivity only'
   });
 });
 
