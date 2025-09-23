@@ -59,6 +59,11 @@ const router = express.Router();
  */
 router.get('/', async (req, res) => {
   try {
+    console.log('Get meetings request:', {
+      userId: req.userId,
+      userEmail: req.user?.email
+    });
+
     const { data: meetings, error } = await supabase
       .from('meetings')
       .select(`
@@ -68,6 +73,11 @@ router.get('/', async (req, res) => {
       `)
       .eq('user_id', req.userId)
       .order('created_at', { ascending: false });
+
+    console.log('Get meetings database result:', {
+      meetingsCount: meetings ? meetings.length : 0,
+      error: error ? { code: error.code, message: error.message } : null
+    });
 
     if (error) {
       throw error;
@@ -93,6 +103,12 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
+    console.log('Get meeting request:', {
+      id: id,
+      userId: req.userId,
+      userEmail: req.user?.email
+    });
+
     const { data: meeting, error } = await supabase
       .from('meetings')
       .select(`
@@ -104,29 +120,41 @@ router.get('/:id', async (req, res) => {
       .eq('user_id', req.userId)
       .single();
 
+    console.log('Get meeting database result:', {
+      meeting: meeting ? { id: meeting.id, title: meeting.title, user_id: meeting.user_id } : null,
+      error: error ? { code: error.code, message: error.message } : null
+    });
+
     if (error) {
       if (error.code === 'PGRST116') {
-        throw new NotFoundError('Meeting not found');
+        console.log('Meeting not found for user:', { id, userId: req.userId });
+        return res.status(404).json({
+          error: 'Meeting not found',
+          message: 'The requested meeting does not exist or you do not have permission to access it'
+        });
       }
       throw error;
     }
 
+    if (!meeting) {
+      console.log('No meeting returned from database');
+      return res.status(404).json({
+        error: 'Meeting not found',
+        message: 'The requested meeting does not exist'
+      });
+    }
+
+    console.log('Meeting found successfully:', { id: meeting.id, title: meeting.title });
     res.json({
       meeting: meeting
     });
 
   } catch (error) {
     console.error('Get meeting error:', error);
-    if (error.name === 'NotFoundError') {
-      res.status(404).json({
-        error: error.message
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to get meeting',
-        message: error.message
-      });
-    }
+    res.status(500).json({
+      error: 'Failed to get meeting',
+      message: error.message
+    });
   }
 });
 
