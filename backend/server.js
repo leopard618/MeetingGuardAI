@@ -48,13 +48,20 @@ app.use(helmet({
   },
 }));
 
-// Rate limiting
+// Rate limiting - More lenient for mobile apps
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // Increased from 100 to 1000 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip rate limiting for health checks and test endpoints
+  skip: (req) => {
+    return req.path === '/health' || 
+           req.path === '/api/health' || 
+           req.path === '/test-connectivity' ||
+           req.path === '/api/meetings/test';
+  }
 });
 app.use(limiter);
 
@@ -458,6 +465,16 @@ app.get('/api/meetings/test', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     note: 'This endpoint is for testing connectivity only'
+  });
+});
+
+// Simple connectivity test (bypasses rate limiting)
+app.get('/test-connectivity', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Backend is accessible',
+    timestamp: new Date().toISOString(),
+    rateLimitInfo: 'This endpoint bypasses rate limiting for testing'
   });
 });
 

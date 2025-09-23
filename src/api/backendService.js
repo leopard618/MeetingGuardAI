@@ -143,6 +143,14 @@ class BackendService {
       return this.pendingRequests.get(requestKey);
     }
     
+    // Add a small delay to prevent rapid-fire requests
+    const now = Date.now();
+    if (now - this.lastRequestTime < 1000) { // 1 second minimum between requests
+      const waitTime = 1000 - (now - this.lastRequestTime);
+      console.log(`BackendService: Rate limiting protection - waiting ${waitTime}ms`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
     const config = {
       method: 'GET',
       headers: {
@@ -246,7 +254,7 @@ class BackendService {
           this.consecutiveRateLimits++;
           const retryAfter = response.headers.get('Retry-After');
           const baseWaitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
-          const waitTime = baseWaitTime * Math.pow(this.rateLimitBackoffMultiplier, this.consecutiveRateLimits - 1);
+          const waitTime = Math.min(baseWaitTime * Math.pow(this.rateLimitBackoffMultiplier, this.consecutiveRateLimits - 1), 30000); // Max 30 seconds
           
           console.log(`BackendService: Rate limited (429) - attempt ${attempt}/${BACKEND_CONFIG.REQUEST_CONFIG.RETRY_ATTEMPTS}, consecutive: ${this.consecutiveRateLimits}, waiting ${waitTime}ms`);
           
@@ -254,6 +262,7 @@ class BackendService {
             await new Promise(resolve => setTimeout(resolve, waitTime));
             continue;
           } else {
+            console.log('BackendService: Max retries reached for rate limiting, returning graceful error');
             throw new Error('HTTP 429 - Rate limit exceeded. Please try again later.');
           }
         }
@@ -464,8 +473,8 @@ class BackendService {
   async healthCheck() {
     const now = Date.now();
     
-    // Throttle health checks to prevent rate limiting
-    if (now - this.lastHealthCheck < this.healthCheckInterval) {
+    // Throttle health checks to prevent rate limiting (reduced from 60s to 30s)
+    if (now - this.lastHealthCheck < 30000) { // 30 seconds instead of 60
       console.log('BackendService: Health check throttled, using cached result');
       return true; // Assume healthy if recently checked
     }

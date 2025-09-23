@@ -253,10 +253,9 @@ class SupabaseMeetingService {
       
       // Validate and fix UUID format
       if (!isValidUUID(id)) {
-        console.log('SupabaseMeetingService: Invalid UUID format detected, fixing:', id);
-        const fixedId = fixInvalidUUID(id);
-        console.log('SupabaseMeetingService: Fixed UUID:', fixedId);
-        id = fixedId;
+        console.log('SupabaseMeetingService: Invalid UUID format detected, skipping request:', id);
+        console.log('SupabaseMeetingService: This meeting ID is not valid, returning null');
+        return null; // Don't try to fix invalid UUIDs, just return null
       }
       
       // Check if we're already in a failed state to prevent infinite loops
