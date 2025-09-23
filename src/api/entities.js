@@ -183,7 +183,19 @@ export const Meeting = {
     try {
       console.log('Meeting Entity: Getting meeting with id:', id);
       
-      // Try Supabase backend first
+      // Check if the ID is a localStorage ID (not a UUID)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const isUUID = uuidRegex.test(id);
+      
+      if (!isUUID) {
+        console.log('Meeting Entity: Non-UUID ID detected, searching in localStorage only:', id);
+        const data = await localStorageAPI.getData();
+        const meeting = data.meetings.find(m => m.id === id);
+        console.log('Meeting Entity: Retrieved meeting from localStorage:', meeting);
+        return meeting || null;
+      }
+      
+      // Try Supabase backend first for UUID meetings
       const isSupabaseAvailable = await supabaseMeetingService.isAvailable();
       if (isSupabaseAvailable) {
         console.log('Meeting Entity: Getting meeting from Supabase backend');
