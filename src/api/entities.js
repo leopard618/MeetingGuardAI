@@ -198,9 +198,11 @@ export const Meeting = {
       // Try Supabase backend first for UUID meetings
       const isSupabaseAvailable = await supabaseMeetingService.isAvailable();
       if (isSupabaseAvailable) {
-        console.log('Meeting Entity: Getting meeting from Supabase backend');
         const meeting = await supabaseMeetingService.get(id);
-        console.log('Meeting Entity: Retrieved meeting from Supabase:', meeting ? 'found' : 'not found');
+        // Only log when meeting is found to reduce noise
+        if (meeting) {
+          console.log('Meeting Entity: Retrieved meeting from Supabase: found');
+        }
         return meeting;
       }
       

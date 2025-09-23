@@ -290,7 +290,6 @@ class BackendService {
           
           // Don't retry 404 errors - they're permanent
           if (response.status === 404) {
-            console.log('BackendService: 404 error detected, caching and not retrying');
             // Cache this 404 to prevent repeated requests
             if (requestKey) {
               this.notFoundCache.set(requestKey, Date.now());
@@ -311,7 +310,10 @@ class BackendService {
         if (error.message.includes('HTTP 429') || 
             error.message.includes('HTTP 404') ||
             error.message.includes('The requested meeting does not exist')) {
-          console.log('BackendService: Permanent error detected, not retrying:', error.message);
+          // Only log non-404 permanent errors to reduce noise
+          if (!error.message.includes('HTTP 404')) {
+            console.log('BackendService: Permanent error detected, not retrying:', error.message);
+          }
           throw error;
         }
         

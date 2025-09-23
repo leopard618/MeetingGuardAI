@@ -300,19 +300,21 @@ class SupabaseMeetingService {
       // Ensure tokens are loaded before making request
       await backendService.loadTokens();
 
-      console.log('SupabaseMeetingService: Making request to backend for meeting:', id);
       const response = await backendService.getMeeting(id);
       const meeting = response.meeting;
       
-      console.log('SupabaseMeetingService: Meeting retrieved from backend:', meeting ? 'found' : 'not found');
+      // Only log when meeting is found, not when it's a 404 (which is expected)
+      if (meeting) {
+        console.log('SupabaseMeetingService: Meeting retrieved from backend: found');
+      }
       
       return meeting;
     } catch (error) {
       console.error('SupabaseMeetingService: Error getting meeting:', error);
       
-      // Handle 404 errors specifically
+      // Handle 404 errors specifically - these are expected for non-existent meetings
       if (error.message.includes('HTTP 404')) {
-        console.log('SupabaseMeetingService: Meeting not found (404) - this is expected if meeting does not exist');
+        // Don't log 404s as they're expected when checking for meetings that don't exist
         return null;
       }
       

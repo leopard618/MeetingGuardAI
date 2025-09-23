@@ -45,6 +45,7 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
       const keys = await storage.getAllKeys();
       const now = Date.now();
       const oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000);
+      let removedCount = 0;
       
       for (const key of keys) {
         if (key.startsWith('alertSchedule_')) {
@@ -55,14 +56,18 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
             // If the alert schedule is older than a week, remove it
             if (alertData.scheduled && alertData.scheduled < oneWeekAgo) {
               await storage.removeItem(key);
-              console.log('🗑️ Removed old alert schedule:', key);
+              removedCount++;
             }
           } catch (error) {
             // If we can't parse the data, remove it
             await storage.removeItem(key);
-            console.log('🗑️ Removed malformed alert schedule:', key);
+            removedCount++;
           }
         }
+      }
+      
+      if (removedCount > 0) {
+        console.log(`🗑️ Cleaned up ${removedCount} old alert schedules`);
       }
     } catch (error) {
       console.error('Failed to clear old alert schedules:', error);
@@ -300,8 +305,20 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
                         
                         // Save the updated alert data back to storage
                         storage.setItem(key, JSON.stringify(alertData)).catch(console.error);
+                      } else {
+                        // Meeting not found, remove this alert schedule to prevent future 404s
+                        console.log(`🗑️ Meeting ${meetingId} not found, removing alert schedule to prevent future 404s`);
+                        storage.removeItem(key).catch(console.error);
                       }
-                    }).catch(console.error);
+                    }).catch(error => {
+                      // If we get a 404 or similar error, remove the alert schedule
+                      if (error.message && error.message.includes('404')) {
+                        console.log(`🗑️ Meeting ${meetingId} returned 404, removing alert schedule`);
+                        storage.removeItem(key).catch(console.error);
+                      } else {
+                        console.error('Error fetching meeting for alert:', error);
+                      }
+                    });
                   }
                 }
               });
@@ -321,14 +338,14 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
 
     checkMissedAlerts(); // Initial check for missed alerts
 
-    // Set up periodic checking every 5 minutes only if not already running
+    // Set up periodic checking every 10 minutes only if not already running
     if (!checkIntervalRef.current) {
       checkIntervalRef.current = setInterval(async () => {
         if (alertsEnabled) { // Only run if alerts are currently enabled
           await checkMissedAlerts();
           await loadAndScheduleMeetings(); // Refresh schedules to catch new/updated meetings
         }
-      }, 5 * 60 * 1000); // Check every 5 minutes instead of every minute
+      }, 10 * 60 * 1000); // Check every 10 minutes to reduce API calls
     }
 
     return () => {
