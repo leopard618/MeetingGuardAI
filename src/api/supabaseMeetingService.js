@@ -310,13 +310,14 @@ class SupabaseMeetingService {
       
       return meeting;
     } catch (error) {
-      console.error('SupabaseMeetingService: Error getting meeting:', error);
-      
       // Handle 404 errors specifically - these are expected for non-existent meetings
       if (error.message.includes('HTTP 404')) {
         // Don't log 404s as they're expected when checking for meetings that don't exist
         return null;
       }
+      
+      // Only log non-404 errors
+      console.error('SupabaseMeetingService: Error getting meeting:', error);
       
       // Handle authentication errors
       if (error.message.includes('Authentication failed') || error.message.includes('User not found')) {
