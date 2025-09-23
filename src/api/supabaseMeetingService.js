@@ -73,6 +73,16 @@ class SupabaseMeetingService {
     }
   }
 
+  // Method to clear 404 cache
+  async clearNotFoundCache() {
+    try {
+      await backendService.clearNotFoundCache();
+      console.log('SupabaseMeetingService: 404 cache cleared');
+    } catch (error) {
+      console.error('SupabaseMeetingService: Error clearing 404 cache:', error);
+    }
+  }
+
   // Check if service is available without triggering authentication
   async isAvailable() {
     try {

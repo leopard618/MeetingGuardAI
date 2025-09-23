@@ -109,7 +109,8 @@ router.get('/:id', async (req, res) => {
       userEmail: req.user?.email
     });
 
-    const { data: meeting, error } = await supabase
+    // First check if meeting exists for this user
+    const { data: meetings, error } = await supabase
       .from('meetings')
       .select(`
         *,
@@ -118,33 +119,31 @@ router.get('/:id', async (req, res) => {
       `)
       .eq('id', id)
       .eq('user_id', req.userId)
-      .single();
+      .limit(1);
 
     console.log('Get meeting database result:', {
-      meeting: meeting ? { id: meeting.id, title: meeting.title, user_id: meeting.user_id } : null,
-      error: error ? { code: error.code, message: error.message } : null
+      meetingsCount: meetings ? meetings.length : 0,
+      error: error ? { code: error.code, message: error.message } : null,
+      firstMeeting: meetings && meetings.length > 0 ? { id: meetings[0].id, title: meetings[0].title } : null
     });
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        console.log('Meeting not found for user:', { id, userId: req.userId });
-        return res.status(404).json({
-          error: 'Meeting not found',
-          message: 'The requested meeting does not exist or you do not have permission to access it'
-        });
-      }
+      console.log('Database error occurred:', error);
       throw error;
     }
 
-    if (!meeting) {
-      console.log('No meeting returned from database');
+    // Check if meeting was found
+    if (!meetings || meetings.length === 0) {
+      console.log('Meeting not found for user:', { id, userId: req.userId });
       return res.status(404).json({
         error: 'Meeting not found',
-        message: 'The requested meeting does not exist'
+        message: 'The requested meeting does not exist or you do not have permission to access it'
       });
     }
 
+    const meeting = meetings[0]; // Get the first (and only) meeting
     console.log('Meeting found successfully:', { id: meeting.id, title: meeting.title });
+    
     res.json({
       meeting: meeting
     });
@@ -361,18 +360,19 @@ router.put('/:id', [
     const updateData = { ...req.body };
 
     // Check if meeting exists and belongs to user
-    const { data: existingMeeting, error: checkError } = await supabase
+    const { data: existingMeetings, error: checkError } = await supabase
       .from('meetings')
       .select('id')
       .eq('id', id)
       .eq('user_id', req.userId)
-      .single();
+      .limit(1);
 
     if (checkError) {
-      if (checkError.code === 'PGRST116') {
-        throw new NotFoundError('Meeting not found');
-      }
       throw checkError;
+    }
+
+    if (!existingMeetings || existingMeetings.length === 0) {
+      throw new NotFoundError('Meeting not found');
     }
 
     // Update meeting
@@ -422,18 +422,19 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
 
     // Check if meeting exists and belongs to user
-    const { data: existingMeeting, error: checkError } = await supabase
+    const { data: existingMeetings, error: checkError } = await supabase
       .from('meetings')
       .select('id')
       .eq('id', id)
       .eq('user_id', req.userId)
-      .single();
+      .limit(1);
 
     if (checkError) {
-      if (checkError.code === 'PGRST116') {
-        throw new NotFoundError('Meeting not found');
-      }
       throw checkError;
+    }
+
+    if (!existingMeetings || existingMeetings.length === 0) {
+      throw new NotFoundError('Meeting not found');
     }
 
     // Delete meeting (cascade will handle participants and attachments)

@@ -21,6 +21,7 @@ class BackendService {
     this.lastHealthCheck = 0;
     this.healthCheckInterval = 60000; // 60 seconds minimum between health checks
     this.pendingRequests = new Map(); // Prevent duplicate requests
+    this.notFoundCache = new Map(); // Cache 404 responses to prevent repeated requests
     
     // Enhanced rate limiting protection
     this.lastRequestTime = 0;
@@ -136,6 +137,20 @@ class BackendService {
   async makeRequest(endpoint, options = {}) {
     const url = getApiUrl(endpoint);
     const requestKey = `${options.method || 'GET'}:${url}`;
+    
+    // Check if this is a GET request for a resource that was recently 404
+    if ((options.method || 'GET') === 'GET' && this.notFoundCache.has(requestKey)) {
+      const cacheTime = this.notFoundCache.get(requestKey);
+      const fiveMinutesAgo = Date.now() - (5 * 60 * 1000); // 5 minutes
+      
+      if (cacheTime > fiveMinutesAgo) {
+        console.log('BackendService: Resource was recently not found, skipping request');
+        throw new Error('The requested meeting does not exist or you do not have permission to access it');
+      } else {
+        // Cache expired, remove from cache
+        this.notFoundCache.delete(requestKey);
+      }
+    }
     
     // Check if same request is already pending
     if (this.pendingRequests.has(requestKey)) {
@@ -272,6 +287,15 @@ class BackendService {
           const errorData = await response.json().catch(() => ({}));
           const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
           console.log('BackendService: Request failed with status:', response.status, 'Error:', errorMessage);
+          
+          // Don't retry 404 errors - they're permanent
+          if (response.status === 404) {
+            console.log('BackendService: 404 error detected, caching and not retrying');
+            // Cache this 404 to prevent repeated requests
+            this.notFoundCache.set(requestKey, Date.now());
+            throw new Error(errorMessage);
+          }
+          
           throw new Error(errorMessage);
         }
         
@@ -280,8 +304,11 @@ class BackendService {
       } catch (error) {
         lastError = error;
         
-        // Don't retry on 429 errors after max attempts
-        if (error.message.includes('HTTP 429')) {
+        // Don't retry on permanent errors
+        if (error.message.includes('HTTP 429') || 
+            error.message.includes('HTTP 404') ||
+            error.message.includes('The requested meeting does not exist')) {
+          console.log('BackendService: Permanent error detected, not retrying:', error.message);
           throw error;
         }
         
@@ -466,7 +493,14 @@ class BackendService {
     this.consecutiveRateLimits = 0;
     this.requestQueue = [];
     this.isProcessingQueue = false;
-    console.log('BackendService: Rate limit state reset');
+    this.notFoundCache.clear(); // Also clear 404 cache
+    console.log('BackendService: Rate limit state reset and 404 cache cleared');
+  }
+
+  // Clear 404 cache (useful when user creates new meetings)
+  clearNotFoundCache() {
+    this.notFoundCache.clear();
+    console.log('BackendService: 404 cache cleared');
   }
 
   // Health check with throttling
