@@ -14,13 +14,20 @@ class EmailService {
    */
   initializeTransporter() {
     try {
+      // Check if email credentials are configured
+      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.log('⚠️ Email credentials not configured - email service will be disabled');
+        this.transporter = null;
+        return;
+      }
+
       // For development, we'll use Gmail SMTP
       // In production, you should use a proper email service like SendGrid, Mailgun, etc.
-      this.transporter = nodemailer.createTransporter({
+      this.transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-          user: process.env.EMAIL_USER || 'your-email@gmail.com',
-          pass: process.env.EMAIL_PASS || 'your-app-password' // Use App Password for Gmail
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS // Use App Password for Gmail
         }
       });
 
@@ -28,12 +35,14 @@ class EmailService {
       this.transporter.verify((error, success) => {
         if (error) {
           console.error('Email transporter verification failed:', error);
+          this.transporter = null; // Disable email service if verification fails
         } else {
           console.log('✅ Email service is ready to send messages');
         }
       });
     } catch (error) {
       console.error('Failed to initialize email transporter:', error);
+      this.transporter = null; // Disable email service if initialization fails
     }
   }
 
@@ -43,7 +52,12 @@ class EmailService {
   async sendMeetingInvitation(meetingData, participant) {
     try {
       if (!this.transporter) {
-        throw new Error('Email service not initialized');
+        console.log('⚠️ Email service not available - skipping email invitation');
+        return {
+          success: false,
+          message: 'Email service not configured',
+          recipient: participant.email
+        };
       }
 
       const { title, description, date, time, duration, location, meeting_link } = meetingData;
@@ -261,7 +275,11 @@ If you believe you received this email in error, please ignore it.
   async testEmailService() {
     try {
       if (!this.transporter) {
-        throw new Error('Email service not initialized');
+        console.log('⚠️ Email service not available - cannot send test email');
+        return {
+          success: false,
+          message: 'Email service not configured'
+        };
       }
 
       const testMailOptions = {
