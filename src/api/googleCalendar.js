@@ -26,6 +26,11 @@ class GoogleCalendarService {
         return true;
       } else {
         console.log('❌ Google Calendar connection not available:', connectionResult.message);
+        console.log('Connection result details:', {
+          status: connectionResult.status,
+          needsReauth: connectionResult.needsReauth,
+          message: connectionResult.message
+        });
         this.isInitialized = false;
         return false;
       }
@@ -328,6 +333,65 @@ class GoogleCalendarService {
     } catch (error) {
       console.error('❌ Error clearing Google tokens:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Reconnect to Google Calendar with fresh OAuth flow
+   */
+  async reconnect() {
+    try {
+      console.log('🔄 Starting Google Calendar reconnection...');
+      
+      // Clear any existing tokens
+      await this.clearTokens();
+      
+      // Import manual login service for OAuth flow
+      let manualLoginService;
+      try {
+        manualLoginService = (await import('./manualLoginGoogleCalendarService')).default;
+      } catch (importError) {
+        console.error('Could not import manual login service:', importError);
+        throw new Error('Google Calendar reconnection service not available');
+      }
+      
+      // Start fresh OAuth flow
+      console.log('🔄 Starting fresh OAuth flow for Google Calendar...');
+      const connectionResult = await manualLoginService.connectGoogleCalendar();
+      
+      if (connectionResult.success) {
+        console.log('✅ OAuth flow completed successfully');
+        
+        // Reinitialize the service
+        const initialized = await this.initialize();
+        
+        if (initialized) {
+          console.log('✅ Google Calendar service reinitialized successfully');
+          return {
+            success: true,
+            message: 'Google Calendar reconnected successfully'
+          };
+        } else {
+          console.warn('⚠️ OAuth succeeded but service initialization failed');
+          return {
+            success: true,
+            message: 'Google Calendar connection established, but service needs restart',
+            needsRestart: true
+          };
+        }
+      } else {
+        console.error('❌ OAuth flow failed:', connectionResult.error);
+        return {
+          success: false,
+          error: connectionResult.error || 'OAuth flow failed'
+        };
+      }
+    } catch (error) {
+      console.error('❌ Error during Google Calendar reconnection:', error);
+      return {
+        success: false,
+        error: error.message || 'Reconnection failed'
+      };
     }
   }
 

@@ -122,47 +122,36 @@ class MeetingCreationService {
         createdMeeting = await supabaseMeetingService.create(meetingData);
         
         if (createdMeeting) {
-          console.log('MeetingCreationService: Meeting created in Supabase:', createdMeeting.id);
+          console.log('MeetingCreationService: Meeting created in Supabase successfully:', createdMeeting.id);
+          // Success! Don't create any fallback
+        } else {
+          // This shouldn't happen, but handle just in case
+          throw new Error('Supabase returned null meeting');
         }
       } catch (supabaseError) {
         console.log('MeetingCreationService: Supabase creation failed:', supabaseError.message);
-        // Continue with fallback creation
-      }
-
-      // If Supabase failed, create a local meeting object
-      if (!createdMeeting) {
-        console.log('MeetingCreationService: Creating local meeting object...');
+        
+        // Only create local fallback if Supabase truly failed
+        console.log('MeetingCreationService: Creating local fallback meeting...');
         createdMeeting = {
           id: generateLocalId('local'),
           ...meetingData,
           created_at: new Date().toISOString(),
           source: 'local'
         };
-        console.log('MeetingCreationService: Local meeting created:', createdMeeting.id);
+        console.log('MeetingCreationService: Local fallback meeting created:', createdMeeting.id);
       }
 
       console.log('MeetingCreationService: Meeting created successfully:', createdMeeting.id);
 
-      // Try to create Google Calendar event (only if user is available)
-      if (user) {
-        try {
-          console.log('MeetingCreationService: Attempting Google Calendar integration...');
-          const googleEvent = await this.createGoogleCalendarEvent(createdMeeting, user);
-          
-          if (googleEvent) {
-            console.log('MeetingCreationService: Google Calendar event created:', googleEvent.id);
-            // Update meeting with Google event ID if needed
-            // This could be stored in a separate field or table
-          } else {
-            console.log('MeetingCreationService: Google Calendar integration skipped or failed');
-          }
-        } catch (googleError) {
-          console.error('MeetingCreationService: Google Calendar integration failed:', googleError);
-          // Don't fail the meeting creation if Google Calendar fails
-        }
-      } else {
-        console.log('MeetingCreationService: No user data, skipping Google Calendar integration');
+      // Ensure we have a valid meeting before proceeding
+      if (!createdMeeting || !createdMeeting.id) {
+        throw new Error('Invalid meeting created - missing ID');
       }
+
+      // DISABLED: Google Calendar integration is handled by backend to prevent duplicates
+      // The backend will create Google Calendar events to avoid duplicate creation
+      console.log('MeetingCreationService: Google Calendar integration handled by backend (preventing duplicates)');
 
       return createdMeeting;
     } catch (error) {

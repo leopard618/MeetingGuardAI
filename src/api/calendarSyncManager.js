@@ -182,20 +182,13 @@ class CalendarSyncManager {
             await Meeting.update(appEventId, appEvent);
             syncResults.updated++;
           } else {
-            // Create new app event
-            const appEvent = googleCalendarService.convertFromGoogleEvent(googleEvent);
-            const newEvent = await Meeting.create(appEvent);
+            // DISABLED: Creating app events from Google Calendar causes massive duplicates
+            // Only create app events from Google if they're NOT created by this app
+            console.log('CalendarSyncManager: Skipping Google→App sync to prevent duplicates for event:', googleEvent.summary);
             
-            // Store mapping
-            await googleCalendarService.storeEventMapping(newEvent.id, googleEvent.id);
-            
-            // Schedule alerts for the new meeting
-            if (this.onMeetingCreated) {
-              console.log('📅 Scheduling alerts for Google Calendar imported meeting:', newEvent.title);
-              await this.onMeetingCreated(newEvent);
-            }
-            
-            syncResults.created++;
+            // TODO: Add logic to detect if this Google event was created by our app
+            // For now, skip all Google→App creation to stop the duplication
+            syncResults.skipped = (syncResults.skipped || 0) + 1;
           }
         } catch (error) {
           console.error('Error syncing Google event:', googleEvent.id, error);

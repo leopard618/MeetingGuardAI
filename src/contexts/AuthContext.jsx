@@ -38,8 +38,28 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       
       // Save user to backend/Supabase first
-      saveUserToBackend(googleAuth.user).then((result) => {
+      saveUserToBackend(googleAuth.user).then(async (result) => {
         console.log('✅ User saved to backend successfully:', result);
+        
+        // Try to initialize Google Calendar connection after successful authentication
+        try {
+          console.log('🔄 AuthContext: Attempting to initialize Google Calendar...');
+          const googleCalendarService = (await import('../api/googleCalendar')).default;
+          const initialized = await googleCalendarService.initialize();
+          
+          if (initialized) {
+            console.log('✅ AuthContext: Google Calendar initialized successfully on login');
+            await AsyncStorage.setItem('google_calendar_connected', 'true');
+            await AsyncStorage.setItem('google_calendar_connected_at', new Date().toISOString());
+          } else {
+            console.log('⚠️ AuthContext: Google Calendar initialization failed on login');
+            console.log('⚠️ This is normal if user hasn\'t granted calendar permissions yet');
+          }
+        } catch (calendarError) {
+          console.log('⚠️ AuthContext: Error initializing Google Calendar on login:', calendarError.message);
+          // This is not critical, user can connect later in settings
+        }
+        
         // Set default plan to free for now
         setUserPlan('free');
         setIsLoading(false);
@@ -439,8 +459,17 @@ export const AuthProvider = ({ children }) => {
             const initialized = await googleCalendarService.initialize();
             if (initialized) {
               console.log('✅ AuthContext: Google Calendar service initialized successfully');
+              
+              // Store Google Calendar connection status for user
+              await AsyncStorage.setItem('google_calendar_connected', 'true');
+              await AsyncStorage.setItem('google_calendar_connected_at', new Date().toISOString());
             } else {
               console.log('⚠️ AuthContext: Google Calendar service initialization failed');
+              console.log('⚠️ This may be due to insufficient permissions or network issues');
+              
+              // Still mark as connected since we have tokens - user can test/reconnect later
+              await AsyncStorage.setItem('google_calendar_connected', 'partial');
+              await AsyncStorage.setItem('google_calendar_connected_at', new Date().toISOString());
             }
             
             console.log('✅ AuthContext: Google tokens synced with backend');

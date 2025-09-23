@@ -423,47 +423,14 @@ class MeetingManager {
       const meeting = await Meeting.create(validatedData);
       console.log('MeetingManager: Local meeting created successfully:', meeting);
       
-      // Automatically sync to Google Calendar if available
-      if (this.calendar.isAvailable()) {
-        try {
-          console.log('MeetingManager: Syncing meeting to Google Calendar...');
-          const syncResult = await this.syncManager.syncEventToGoogle(meeting.id);
-          
-          if (syncResult) {
-            console.log('MeetingManager: Meeting synced to Google Calendar successfully');
-            return {
-              success: true,
-              message: 'Meeting created and synced to Google Calendar successfully',
-              meeting: meeting,
-              synced: true,
-            };
-          } else {
-            console.warn('MeetingManager: Failed to sync meeting to Google Calendar, but local meeting was created');
-            return {
-              success: true,
-              message: 'Meeting created locally (Google Calendar sync failed)',
-              meeting: meeting,
-              synced: false,
-            };
-          }
-        } catch (syncError) {
-          console.error('MeetingManager: Error syncing to Google Calendar:', syncError);
-          return {
-            success: true,
-            message: 'Meeting created locally (Google Calendar sync failed)',
-            meeting: meeting,
-            synced: false,
-          };
-        }
-      } else {
-        console.log('MeetingManager: Google Calendar not available, meeting created locally only');
-        return {
-          success: true,
-          message: 'Meeting created successfully',
-          meeting: meeting,
-          synced: false,
-        };
-      }
+      // DISABLED: Google Calendar sync handled by backend to prevent duplicates
+      console.log('MeetingManager: Google Calendar sync handled by backend (preventing duplicates)');
+      return {
+        success: true,
+        message: 'Meeting created successfully',
+        meeting: meeting,
+        synced: false, // Backend handles the sync
+      };
     } catch (error) {
       console.error('MeetingManager: Failed to create meeting:', error);
       return {
