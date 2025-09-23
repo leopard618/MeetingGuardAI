@@ -104,6 +104,13 @@ class SupabaseMeetingService {
     try {
       console.log('SupabaseMeetingService: Fetching meetings from backend');
       
+      // Check if user is authenticated before making requests
+      const hasToken = await backendService.loadTokens();
+      if (!hasToken) {
+        console.log('SupabaseMeetingService: No authentication token available, returning empty array');
+        return [];
+      }
+      
       // Check if we're already in a failed state to prevent infinite loops
       if (this._authFailed) {
         console.log('SupabaseMeetingService: Authentication previously failed, skipping request');
@@ -260,6 +267,13 @@ class SupabaseMeetingService {
   async get(id) {
     try {
       console.log('SupabaseMeetingService: Getting meeting with id:', id);
+      
+      // Check if user is authenticated before making requests
+      const hasToken = await backendService.loadTokens();
+      if (!hasToken) {
+        console.log('SupabaseMeetingService: No authentication token available, skipping request');
+        return null;
+      }
       
       // Validate and fix UUID format
       if (!isValidUUID(id)) {

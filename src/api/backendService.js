@@ -117,10 +117,10 @@ class BackendService {
     this.isProcessingQueue = true;
     
     while (this.requestQueue.length > 0) {
-      const { resolve, reject, url, config } = this.requestQueue.shift();
+      const { resolve, reject, url, config, requestKey } = this.requestQueue.shift();
       
       try {
-        const result = await this._executeRequest(url, config);
+        const result = await this._executeRequest(url, config, requestKey);
         resolve(result);
       } catch (error) {
         reject(error);
@@ -192,7 +192,7 @@ class BackendService {
     }
 
     // Create promise for this request
-    const requestPromise = this._executeRequestWithQueue(url, config);
+    const requestPromise = this._executeRequestWithQueue(url, config, requestKey);
     this.pendingRequests.set(requestKey, requestPromise);
     
     try {
@@ -205,15 +205,15 @@ class BackendService {
   }
 
   // Execute request with queue management
-  async _executeRequestWithQueue(url, config) {
+  async _executeRequestWithQueue(url, config, requestKey) {
     return new Promise((resolve, reject) => {
-      this.requestQueue.push({ resolve, reject, url, config });
+      this.requestQueue.push({ resolve, reject, url, config, requestKey });
       this._processRequestQueue();
     });
   }
 
   // Internal method to execute the actual request
-  async _executeRequest(url, config) {
+  async _executeRequest(url, config, requestKey) {
     // Rate limiting protection - ensure minimum interval between requests
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
@@ -292,8 +292,11 @@ class BackendService {
           if (response.status === 404) {
             console.log('BackendService: 404 error detected, caching and not retrying');
             // Cache this 404 to prevent repeated requests
-            this.notFoundCache.set(requestKey, Date.now());
-            throw new Error(errorMessage);
+            if (requestKey) {
+              this.notFoundCache.set(requestKey, Date.now());
+            }
+            // Use a specific message that will be caught in the retry logic
+            throw new Error(`HTTP 404: ${errorMessage}`);
           }
           
           throw new Error(errorMessage);
