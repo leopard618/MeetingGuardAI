@@ -131,24 +131,64 @@ export default function CalendarSyncSettings() {
       setIsSyncing(true);
       console.log('🔄 Attempting manual Google Calendar reconnection...');
       
-      // Clear any cached tokens that might be invalid
-      await googleCalendarService.clearTokens();
+      // Use the new reconnection method
+      const reconnectResult = await googleCalendarService.reconnect();
       
-      // Try to reinitialize the service
-      const reconnected = await googleCalendarService.initialize();
-      
-      if (reconnected) {
-        Alert.alert('Success', 'Google Calendar reconnected successfully!');
-        await loadSyncData();
+      if (reconnectResult.success) {
+        console.log('✅ Google Calendar reconnection successful');
+        
+        if (reconnectResult.needsRestart) {
+          Alert.alert(
+            'Partial Success', 
+            'Google Calendar connection established, but the service needs a restart. Please close and reopen the app to complete the setup.',
+            [
+              { text: 'OK', onPress: () => loadSyncData() }
+            ]
+          );
+        } else {
+          Alert.alert(
+            'Success!', 
+            'Google Calendar has been reconnected successfully. You can now sync your meetings.',
+            [
+              { text: 'OK', onPress: () => loadSyncData() }
+            ]
+          );
+        }
       } else {
-        Alert.alert(
-          'Reconnection Failed', 
-          'Unable to reconnect to Google Calendar. Please try signing in again with Google.'
-        );
+        console.error('❌ Google Calendar reconnection failed:', reconnectResult.error);
+        
+        // Provide more specific error messages
+        const errorMessage = reconnectResult.error || 'Unknown error';
+        
+        if (errorMessage.includes('cancelled') || errorMessage.includes('user_cancelled')) {
+          Alert.alert(
+            'Connection Cancelled', 
+            'Google Calendar connection was cancelled. You can try again anytime.'
+          );
+        } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
+          Alert.alert(
+            'Network Error', 
+            'Unable to connect to Google Calendar due to network issues. Please check your internet connection and try again.'
+          );
+        } else if (errorMessage.includes('service not available')) {
+          Alert.alert(
+            'Service Error', 
+            'Google Calendar connection service is temporarily unavailable. Please restart the app and try again.'
+          );
+        } else {
+          Alert.alert(
+            'Connection Failed', 
+            `Unable to reconnect to Google Calendar.\n\nError: ${errorMessage}\n\nPlease try again or restart the app if the problem persists.`
+          );
+        }
       }
     } catch (error) {
       console.error('Error during manual reconnect:', error);
-      Alert.alert('Error', `Failed to reconnect: ${error.message}`);
+      
+      Alert.alert(
+        'Reconnection Error', 
+        `An unexpected error occurred while trying to reconnect to Google Calendar.\n\nError: ${error.message || 'Unknown error'}\n\nPlease restart the app and try again.`
+      );
     } finally {
       setIsSyncing(false);
     }

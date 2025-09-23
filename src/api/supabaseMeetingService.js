@@ -205,7 +205,11 @@ class SupabaseMeetingService {
         attachments: meetingData.attachments || []
       };
 
-      console.log('SupabaseMeetingService: Sending to backend:', backendMeetingData);
+      console.log('SupabaseMeetingService: Sending to backend:', {
+        ...backendMeetingData,
+        participantCount: backendMeetingData.participants?.length || 0,
+        participants: backendMeetingData.participants
+      });
 
       const response = await backendService.createMeeting(backendMeetingData);
       const createdMeeting = response.meeting;

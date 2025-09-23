@@ -9,9 +9,78 @@ async function createGoogleCalendarEvent({ accessToken, meeting, userEmail }) {
     const startDateTime = new Date(`${meeting.date}T${meeting.time}`);
     const endDateTime = new Date(startDateTime.getTime() + meeting.duration * 60000);
     
+    console.log('Creating Google Calendar event with:', {
+      title: meeting.title,
+      startTime: startDateTime.toISOString(),
+      endTime: endDateTime.toISOString(),
+      participantCount: meeting.participants?.length || 0,
+      location: meeting.location
+    });
+
+    // Build attendees list from participants
+    const attendees = [];
+    if (meeting.participants && Array.isArray(meeting.participants)) {
+      meeting.participants.forEach(p => {
+        if (p.email) {
+          attendees.push({
+            email: p.email,
+            displayName: p.name || p.email
+          });
+        }
+      });
+    }
+
+    console.log('Google Calendar attendees:', attendees);
+
+    // Build location and description based on meeting type
+    let locationField = '';
+    let descriptionParts = [meeting.description || ''];
+
+    if (meeting.location) {
+      const locationType = meeting.location.type || 'physical';
+      
+      if (locationType === 'virtual' || locationType === 'hybrid') {
+        // Virtual or hybrid meeting - add meeting link
+        if (meeting.location.virtualLink) {
+          descriptionParts.push(`\n🔗 Meeting Link: ${meeting.location.virtualLink}`);
+          if (locationType === 'virtual') {
+            locationField = `Virtual Meeting (${meeting.location.virtualPlatform || 'Online'})`;
+          }
+        }
+        
+        if (meeting.location.virtualPlatform) {
+          descriptionParts.push(`📹 Platform: ${meeting.location.virtualPlatform}`);
+        }
+      }
+      
+      if (locationType === 'physical' || locationType === 'hybrid') {
+        // Physical or hybrid meeting - add physical location
+        if (meeting.location.address) {
+          if (locationType === 'hybrid') {
+            locationField = meeting.location.address;
+            descriptionParts.push(`📍 Physical Location: ${meeting.location.address}`);
+          } else {
+            locationField = meeting.location.address;
+          }
+        }
+      }
+      
+      if (locationType === 'hybrid') {
+        descriptionParts.push('\n🔄 This is a hybrid meeting - join either physically or virtually');
+      }
+    }
+
+    // Add participants to description if we have them
+    if (attendees.length > 0) {
+      descriptionParts.push('\n👥 Participants:');
+      attendees.forEach(attendee => {
+        descriptionParts.push(`• ${attendee.displayName} (${attendee.email})`);
+      });
+    }
+
     const event = {
       summary: meeting.title,
-      description: meeting.description || '',
+      description: descriptionParts.filter(part => part.trim()).join('\n'),
       start: {
         dateTime: startDateTime.toISOString(),
         timeZone: 'UTC'
@@ -20,15 +89,19 @@ async function createGoogleCalendarEvent({ accessToken, meeting, userEmail }) {
         dateTime: endDateTime.toISOString(),
         timeZone: 'UTC'
       },
-      attendees: meeting.participants ? meeting.participants.map(p => ({
-        email: p.email,
-        displayName: p.name
-      })) : [],
-      location: meeting.location ? meeting.location.address || meeting.location.name : undefined,
+      attendees: attendees,
+      location: locationField || undefined,
       organizer: {
         email: userEmail
       }
     };
+
+    console.log('Final Google Calendar event:', {
+      summary: event.summary,
+      location: event.location,
+      attendeesCount: event.attendees.length,
+      descriptionLength: event.description.length
+    });
 
     const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
       method: 'POST',
@@ -40,7 +113,13 @@ async function createGoogleCalendarEvent({ accessToken, meeting, userEmail }) {
     });
 
     if (response.ok) {
-      return await response.json();
+      const result = await response.json();
+      console.log('Google Calendar event created successfully:', {
+        id: result.id,
+        htmlLink: result.htmlLink,
+        attendeesCount: result.attendees?.length || 0
+      });
+      return result;
     } else {
       const errorData = await response.json();
       console.error('Google Calendar API error:', errorData);
@@ -202,7 +281,35 @@ router.post('/', [
       });
     }
 
-    // Create meeting
+    // Check for duplicate meetings first (same title, date, time for same user)
+    const { data: existingMeetings, error: checkError } = await supabase
+      .from('meetings')
+      .select('id, title, date, time')
+      .eq('user_id', req.userId)
+      .eq('title', title)
+      .eq('date', date)
+      .eq('time', time);
+
+    if (checkError) {
+      console.error('Error checking for duplicate meetings:', checkError);
+    } else if (existingMeetings && existingMeetings.length > 0) {
+      console.log('Duplicate meeting detected:', {
+        existingCount: existingMeetings.length,
+        title,
+        date,
+        time
+      });
+      
+      // Return the existing meeting instead of creating a duplicate
+      const existingMeeting = existingMeetings[0];
+      return res.status(200).json({
+        meeting: existingMeeting,
+        message: 'Meeting already exists (duplicate prevented)',
+        isDuplicate: true
+      });
+    }
+
+    // Create meeting only if no duplicate found
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
       .insert({
@@ -224,11 +331,18 @@ router.post('/', [
 
     // Add participants if provided
     if (participants && participants.length > 0) {
+      console.log('Processing participants:', participants);
+      
       const participantData = participants.map(p => ({
         meeting_id: meeting.id,
-        name: p.name,
-        email: p.email
+        user_id: req.userId, // Add user_id for the table requirement
+        name: p.name || '',
+        email: p.email || '',
+        role: 'participant',
+        status: 'invited'
       }));
+
+      console.log('Participant data to insert:', participantData);
 
       const { error: participantError } = await supabase
         .from('meeting_participants')
@@ -236,6 +350,10 @@ router.post('/', [
 
       if (participantError) {
         console.error('Error adding participants:', participantError);
+        console.error('Participant data that failed:', participantData);
+        // Don't fail the meeting creation if participants fail
+      } else {
+        console.log('Participants added successfully:', participantData.length);
       }
     }
 
@@ -257,6 +375,9 @@ router.post('/', [
       }
     }
 
+    // Wait a moment to ensure participants and attachments are committed
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     // Get the complete meeting with participants and attachments
     const { data: completeMeeting, error: fetchError } = await supabase
       .from('meetings')
@@ -267,6 +388,13 @@ router.post('/', [
       `)
       .eq('id', meeting.id)
       .single();
+
+    console.log('Complete meeting fetched:', {
+      id: completeMeeting?.id,
+      title: completeMeeting?.title,
+      participantCount: completeMeeting?.participants?.length || 0,
+      attachmentCount: completeMeeting?.attachments?.length || 0
+    });
 
     if (fetchError) {
       throw fetchError;
@@ -284,10 +412,24 @@ router.post('/', [
       if (!tokenError && userTokens && userTokens.access_token) {
         console.log('Creating Google Calendar event for meeting:', meeting.id);
         
+        // Prepare meeting data for Google Calendar with proper participant structure
+        const meetingForGoogle = {
+          ...completeMeeting,
+          // Ensure participants are in the correct format for Google Calendar
+          participants: completeMeeting.participants || []
+        };
+
+        console.log('Meeting data for Google Calendar:', {
+          title: meetingForGoogle.title,
+          participantCount: meetingForGoogle.participants.length,
+          participants: meetingForGoogle.participants,
+          location: meetingForGoogle.location
+        });
+        
         // Create Google Calendar event
         const googleEvent = await createGoogleCalendarEvent({
           accessToken: userTokens.access_token,
-          meeting: completeMeeting,
+          meeting: meetingForGoogle,
           userEmail: user.email
         });
         

@@ -55,8 +55,9 @@ class GoogleCalendarConnectionManager {
             this.connectionStatus = 'disconnected';
             return {
               success: false,
-              status: 'disconnected',
-              message: 'Google Calendar connection expired. Please sign in again.'
+              status: 'token_refresh_failed',
+              message: 'Google Calendar tokens expired and refresh failed. Please reconnect.',
+              needsReauth: true
             };
           }
         } else {
@@ -66,8 +67,9 @@ class GoogleCalendarConnectionManager {
           this.connectionStatus = 'disconnected';
           return {
             success: false,
-            status: 'disconnected',
-            message: 'Google Calendar connection expired. Please sign in again.'
+            status: 'no_refresh_token',
+            message: 'Google Calendar connection expired and no refresh token available. Please reconnect.',
+            needsReauth: true
           };
         }
       }

@@ -229,6 +229,12 @@ export default function ModernCreateMeeting({ navigation, language = 'en' }) {
       return;
     }
 
+    // Prevent double submission
+    if (isLoading) {
+      console.log('ModernCreateMeeting: Submission already in progress, ignoring');
+      return;
+    }
+
     setIsLoading(true);
     try {
                    // Format date in local timezone to avoid timezone conversion issues
@@ -245,8 +251,8 @@ export default function ModernCreateMeeting({ navigation, language = 'en' }) {
         time: formData.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
         duration: parseInt(formData.duration),
         location: {
-          type: 'physical', // Default to physical location
-          address: formData.location || 'No location specified',
+          type: formData.locationType || 'physical',
+          address: formData.location || (formData.locationType === 'virtual' ? null : 'No location specified'),
           virtualPlatform: formData.virtualPlatform,
           virtualLink: generatedMeetingLink?.meetingLink,
         },
@@ -263,13 +269,27 @@ export default function ModernCreateMeeting({ navigation, language = 'en' }) {
       };
 
       console.log('Creating meeting with data:', {
+        title: meetingData.title,
         date: meetingData.date,
         time: meetingData.time,
+        participants: meetingData.participants,
+        location: meetingData.location,
         originalDate: formData.date,
         originalTime: formData.time
       });
 
       const createdMeeting = await Meeting.create(meetingData);
+
+      // Check if this was a duplicate prevention
+      if (createdMeeting.isDuplicate) {
+        Alert.alert(
+          'Duplicate Meeting Prevented',
+          'A meeting with the same title, date, and time already exists.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+        setIsLoading(false);
+        return;
+      }
 
       // Attach files to meeting if any attachments exist
       if (formData.attachments.length > 0) {

@@ -361,6 +361,12 @@ export default function EnhancedCreateMeeting({ navigation }) {
       return;
     }
 
+    // Prevent double submission
+    if (isLoading) {
+      console.log('EnhancedCreateMeeting: Submission already in progress, ignoring');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const meetingData = {
