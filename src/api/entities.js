@@ -200,7 +200,7 @@ export const Meeting = {
       if (isSupabaseAvailable) {
         console.log('Meeting Entity: Getting meeting from Supabase backend');
         const meeting = await supabaseMeetingService.get(id);
-        console.log('Meeting Entity: Retrieved meeting from Supabase:', meeting);
+        console.log('Meeting Entity: Retrieved meeting from Supabase:', meeting ? 'found' : 'not found');
         return meeting;
       }
       
