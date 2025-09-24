@@ -37,6 +37,31 @@ router.get('/google', async (req, res) => {
   console.log('Force Expo Go:', forceExpoGo || 'None');
   console.log('User-Agent:', req.headers['user-agent']);
   
+  // Prevent code reuse by tracking used codes
+  if (code) {
+    const codeKey = `oauth_code_${code}`;
+    if (global.usedOAuthCodes && global.usedOAuthCodes[codeKey]) {
+      console.log('⚠️ OAuth code already used:', code.substring(0, 20) + '...');
+      return res.status(400).send('Invalid request: Authorization code already used');
+    }
+    
+    // Initialize global tracking if needed
+    if (!global.usedOAuthCodes) {
+      global.usedOAuthCodes = {};
+    }
+    
+    // Mark this code as used
+    global.usedOAuthCodes[codeKey] = Date.now();
+    
+    // Clean up old codes (older than 10 minutes)
+    const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+    Object.keys(global.usedOAuthCodes).forEach(key => {
+      if (global.usedOAuthCodes[key] < tenMinutesAgo) {
+        delete global.usedOAuthCodes[key];
+      }
+    });
+  }
+  
   // Detect if this is Expo Go based on User-Agent or referer
   const userAgent = req.headers['user-agent'] || '';
   const referer = req.headers['referer'] || '';
@@ -961,28 +986,28 @@ router.get('/google', async (req, res) => {
                     }
                 }, 1000);
                 
-                   // Redirect to app with user info
+                   // Redirect to app (error case)
                    function closeTab() {
-                       console.log('Redirecting to app with user info...');
+                       console.log('Redirecting to app after error...');
                        
-                       // Create deep link with user information
-                       const userInfo = ${JSON.stringify(userInfo)};
+                       // Create deep link for error case
                        const sessionId = '${sessionId}';
                        
-                       // Encode user info for URL
-                       const encodedUserInfo = encodeURIComponent(JSON.stringify({
+                       // Encode error info for URL
+                       const encodedErrorInfo = encodeURIComponent(JSON.stringify({
                            sessionId: sessionId,
-                           user: userInfo,
+                           error: true,
+                           message: 'Authentication failed',
                            timestamp: Date.now()
                        }));
                        
-                       // Try different app deep links
+                       // Try different app deep links (error case)
                        const appLinks = [
-                           'meetingguardai://auth-success?data=' + encodedUserInfo,
-                           'meetingguardai://dashboard?auth=success&data=' + encodedUserInfo,
-                           'meetingguardai://login?success=true&data=' + encodedUserInfo,
-                           'exp://192.168.141.51:8081/--/auth-success?data=' + encodedUserInfo,
-                           'exp://localhost:8081/--/auth-success?data=' + encodedUserInfo
+                           'meetingguardai://auth-error?data=' + encodedErrorInfo,
+                           'meetingguardai://dashboard?auth=error&data=' + encodedErrorInfo,
+                           'meetingguardai://login?success=false&data=' + encodedErrorInfo,
+                           'exp://192.168.141.51:8081/--/auth-error?data=' + encodedErrorInfo,
+                           'exp://localhost:8081/--/auth-error?data=' + encodedErrorInfo
                        ];
                        
                        // Try each link in sequence
