@@ -444,6 +444,53 @@ router.post('/google/refresh', async (req, res) => {
 });
 
 /**
+ * Sync Google tokens to backend database
+ */
+router.post('/sync-google-tokens', authenticateToken, async (req, res) => {
+  try {
+    const { access_token, refresh_token, expires_at } = req.body;
+    
+    console.log('📡 Syncing Google tokens for user:', req.userId);
+    
+    if (!access_token) {
+      return res.status(400).json({
+        error: 'Access token required'
+      });
+    }
+    
+    // Upsert Google tokens in database
+    const { data, error } = await supabase
+      .from('user_tokens')
+      .upsert({
+        user_id: req.userId,
+        access_token: access_token,
+        refresh_token: refresh_token || null,
+        expires_at: expires_at || new Date(Date.now() + 3600 * 1000).toISOString(),
+        token_type: 'google'
+      });
+    
+    if (error) {
+      console.error('❌ Error storing Google tokens:', error);
+      throw error;
+    }
+    
+    console.log('✅ Google tokens synced successfully for user:', req.userId);
+    
+    res.json({
+      success: true,
+      message: 'Google tokens synced successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Sync Google tokens error:', error);
+    res.status(500).json({
+      error: 'Failed to sync Google tokens',
+      message: error.message
+    });
+  }
+});
+
+/**
  * Get current user profile
  */
 router.get('/profile', authenticateToken, async (req, res) => {

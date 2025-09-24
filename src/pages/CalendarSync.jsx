@@ -11,10 +11,12 @@ import {
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from '../components/translations.jsx';
 import CalendarSyncSettings from '../components/CalendarSyncSettings.jsx';
 
 export default function CalendarSync({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
+  const { t } = useTranslation(language);
 
   const styles = getStyles(isDarkMode);
 
@@ -33,14 +35,14 @@ export default function CalendarSync({ navigation, language = "en" }) {
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
-          <Title style={styles.title}>Google Calendar Sync</Title>
+          <Title style={styles.title}>{t('googleCalendar.syncTitle')}</Title>
           <Paragraph style={styles.subtitle}>
-            Configure synchronization with your Google Calendar
+            {t('googleCalendar.connectDescription')}
           </Paragraph>
         </View>
       </View>
 
-      <CalendarSyncSettings />
+      <CalendarSyncSettings language={language} />
     </SafeAreaView>
   );
 }
