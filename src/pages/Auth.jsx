@@ -51,6 +51,29 @@ export default function Auth({ navigation }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [logoutMessage, setLogoutMessage] = useState(null);
+
+  // Check if user was automatically logged out
+  React.useEffect(() => {
+    const checkLogoutReason = async () => {
+      try {
+        const googleConnectionMonitor = (await import('../api/googleConnectionMonitor')).default;
+        const reason = await googleConnectionMonitor.getLogoutReason();
+        
+        if (reason && reason.reason === 'google_disconnected') {
+          setLogoutMessage({
+            title: 'Google Calendar Disconnected',
+            message: 'You were automatically signed out because your Google Calendar connection expired. Please sign in again to continue using the app.',
+            type: 'warning'
+          });
+        }
+      } catch (error) {
+        console.log('Error checking logout reason:', error);
+      }
+    };
+    
+    checkLogoutReason();
+  }, []);
 
   const validateForm = () => {
     const { email, password, confirmPassword, name } = formData;
@@ -179,6 +202,35 @@ export default function Auth({ navigation }) {
         style={styles.keyboardView}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Automatic Logout Warning */}
+          {logoutMessage && (
+            <Card style={[styles.warningCard, { backgroundColor: isDarkMode ? '#451a03' : '#fef3c7', marginBottom: 16 }]}>
+              <Card.Content>
+                <View style={styles.warningHeader}>
+                  <MaterialIcons
+                    name="warning"
+                    size={24}
+                    color={isDarkMode ? '#f59e0b' : '#d97706'}
+                  />
+                  <Text style={[styles.warningTitle, { color: isDarkMode ? '#f59e0b' : '#d97706' }]}>
+                    {logoutMessage.title}
+                  </Text>
+                </View>
+                <Text style={[styles.warningMessage, { color: isDarkMode ? '#fbbf24' : '#92400e' }]}>
+                  {logoutMessage.message}
+                </Text>
+                <TouchableOpacity
+                  style={styles.dismissButton}
+                  onPress={() => setLogoutMessage(null)}
+                >
+                  <Text style={[styles.dismissText, { color: isDarkMode ? '#f59e0b' : '#d97706' }]}>
+                    Dismiss
+                  </Text>
+                </TouchableOpacity>
+              </Card.Content>
+            </Card>
+          )}
+          
           <View style={styles.header}>
             <Image
               source={require('../../assets/icon.png')}
@@ -353,6 +405,36 @@ const getStyles = (isDarkMode, fonts, spacing, buttonDims, isSmall, isTablet) =>
     header: {
       alignItems: "center",
       marginBottom: isSmall ? spacing['2xl'] : spacing['3xl'],
+    },
+    warningCard: {
+      borderRadius: 12,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#f59e0b' : '#d97706',
+    },
+    warningHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    warningTitle: {
+      marginLeft: 8,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    warningMessage: {
+      fontSize: 14,
+      lineHeight: 20,
+      marginBottom: 12,
+    },
+    dismissButton: {
+      alignSelf: 'flex-end',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    dismissText: {
+      fontSize: 14,
+      fontWeight: '500',
     },
     logoImage: {
       width: isSmall ? scaleWidth(150) : isTablet ? scaleWidth(250) : scaleWidth(200),

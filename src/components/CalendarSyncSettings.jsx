@@ -18,13 +18,11 @@ import {
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext.jsx';
-import { useAuth } from '../contexts/AuthContext.jsx';
 import calendarSyncManager from '../api/calendarSyncManager';
 import googleCalendarService from '../api/googleCalendar';
 
 export default function CalendarSyncSettings() {
   const { isDarkMode } = useTheme();
-  const { logout } = useAuth();
   const [syncSettings, setSyncSettings] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -54,17 +52,23 @@ export default function CalendarSyncSettings() {
 
   const handleAutoSyncToggle = async (value) => {
     try {
-      await googleCalendarService.setSyncEnabled(value);
+      // Update local state immediately for better UX
       setSyncSettings(prev => ({ ...prev, autoSyncEnabled: value }));
       
       if (value) {
+        console.log('🔄 Starting auto sync...');
         calendarSyncManager.startAutoSync();
       } else {
+        console.log('🛑 Stopping auto sync...');
         calendarSyncManager.stopAutoSync();
       }
+      
+      console.log(`✅ Auto sync ${value ? 'enabled' : 'disabled'}`);
     } catch (error) {
       console.error('Error updating auto sync:', error);
       Alert.alert('Error', 'Failed to update auto sync setting');
+      // Revert state on error
+      setSyncSettings(prev => ({ ...prev, autoSyncEnabled: !value }));
     }
   };
 
@@ -87,48 +91,31 @@ export default function CalendarSyncSettings() {
   const handleForceSync = async () => {
     try {
       setIsSyncing(true);
-      const results = await calendarSyncManager.forceSync();
+      console.log('🔄 Starting manual sync...');
       
-      Alert.alert(
-        'Sync Complete',
-        `Created: ${results.created}\nUpdated: ${results.updated}\nDeleted: ${results.deleted}\nErrors: ${results.errors.length}`
-      );
+      const results = await calendarSyncManager.forceSync();
+      console.log('📊 Sync results:', results);
+      
+      // Show results with better messaging
+      const message = `Sync completed successfully!\n\n• Created: ${results.created || 0}\n• Updated: ${results.updated || 0}\n• Skipped: ${results.skipped || 0}\n• Errors: ${results.errors?.length || 0}`;
+      
+      if (results.errors?.length > 0) {
+        console.log('⚠️ Sync errors:', results.errors);
+        Alert.alert('Sync Completed with Issues', `${message}\n\nSome items had issues but sync continued. Check console for details.`);
+      } else {
+        Alert.alert('Sync Successful', message);
+      }
       
       // Reload data
       await loadSyncData();
     } catch (error) {
-      console.error('Error during force sync:', error);
-      Alert.alert('Error', 'Failed to perform sync');
+      console.error('❌ Error during force sync:', error);
+      Alert.alert('Sync Error', `Failed to perform sync: ${error.message}`);
     } finally {
       setIsSyncing(false);
     }
   };
 
-  const handleSignOutAndReconnect = () => {
-    Alert.alert(
-      'Refresh Google Calendar Connection',
-      'To refresh your Google Calendar connection, you need to sign out and sign back in. This ensures you have the latest permissions and a fresh connection.\n\nYour meetings and data will be preserved.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Sign Out & Reconnect',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('🔄 User requested sign out to refresh Google Calendar connection');
-              await logout();
-            } catch (error) {
-              console.error('Error during logout:', error);
-              Alert.alert('Error', 'Failed to sign out. Please try again.');
-            }
-          }
-        }
-      ]
-    );
-  };
 
   const getSyncDirectionLabel = (direction) => {
     switch (direction) {
@@ -156,7 +143,7 @@ export default function CalendarSyncSettings() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc' }]}>
-      {/* Google Calendar Sync Info */}
+      {/* Google Calendar Connection Status */}
       <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
         <Card.Content>
           <View style={styles.statusHeader}>
@@ -170,23 +157,68 @@ export default function CalendarSyncSettings() {
             </Title>
           </View>
           
-          <Paragraph style={[styles.infoText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-            Your meetings automatically sync with Google Calendar when you sign in with Google.
-            If sync stops working, simply sign out and sign back in to refresh the connection.
-          </Paragraph>
-
-          <Button
-            mode="outlined"
-            onPress={handleSignOutAndReconnect}
-            style={[styles.refreshButton, { borderColor: isDarkMode ? '#f59e0b' : '#d97706' }]}
-            icon="refresh"
-          >
-            Refresh Connection (Sign Out & Back In)
-          </Button>
+          <View style={styles.connectionStatus}>
+            <View style={styles.statusIndicator}>
+              <View style={[
+                styles.statusDot, 
+                { backgroundColor: isDarkMode ? '#10b981' : '#059669' }
+              ]} />
+              <Text style={[styles.statusText, { color: isDarkMode ? '#10b981' : '#059669' }]}>
+                Connected
+              </Text>
+            </View>
+            <Text style={[styles.statusDescription, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
+              Your meetings automatically sync with Google Calendar. If connection is lost, you'll be automatically signed out for a fresh reconnection.
+            </Text>
+          </View>
         </Card.Content>
       </Card>
 
-      {/* Sync Settings */}
+      {/* Sync Statistics - TOP */}
+      <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
+        <Card.Content>
+          <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
+            Sync Statistics
+          </Title>
+          
+          <View style={styles.statsGrid}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statNumber, { color: isDarkMode ? '#60a5fa' : '#3b82f6' }]}>
+                {syncStatistics?.totalSynced || 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
+                Total Synced
+              </Text>
+            </View>
+            
+            <View style={styles.statItem}>
+              <Text style={[styles.statNumber, { color: isDarkMode ? '#10b981' : '#059669' }]}>
+                {syncStatistics?.successful || 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
+                Successful
+              </Text>
+            </View>
+            
+            <View style={styles.statItem}>
+              <Text style={[styles.statNumber, { color: isDarkMode ? '#f59e0b' : '#d97706' }]}>
+                {syncStatistics?.errors || 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
+                Errors
+              </Text>
+            </View>
+          </View>
+          
+          {syncStatistics?.lastSync && (
+            <Text style={[styles.lastSyncText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
+              Last sync: {new Date(syncStatistics.lastSync).toLocaleString()}
+            </Text>
+          )}
+        </Card.Content>
+      </Card>
+
+      {/* Sync Settings - MIDDLE */}
       <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
         <Card.Content>
           <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
@@ -220,7 +252,7 @@ export default function CalendarSyncSettings() {
         </Card.Content>
       </Card>
 
-      {/* Sync Actions */}
+      {/* Sync Actions - BOTTOM */}
       <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
         <Card.Content>
           <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
@@ -239,52 +271,6 @@ export default function CalendarSyncSettings() {
           </Button>
         </Card.Content>
       </Card>
-
-      {/* Sync Statistics */}
-      {syncStatistics && (
-        <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
-          <Card.Content>
-            <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-              Sync Statistics
-            </Title>
-            
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: isDarkMode ? '#60a5fa' : '#3b82f6' }]}>
-                  {syncStatistics.totalSynced || 0}
-                </Text>
-                <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                  Total Synced
-                </Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: isDarkMode ? '#10b981' : '#059669' }]}>
-                  {syncStatistics.successful || 0}
-                </Text>
-                <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                  Successful
-                </Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: isDarkMode ? '#f59e0b' : '#d97706' }]}>
-                  {syncStatistics.errors || 0}
-                </Text>
-                <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                  Errors
-                </Text>
-              </View>
-            </View>
-            
-            {syncStatistics.lastSync && (
-              <Text style={[styles.lastSyncText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                Last sync: {new Date(syncStatistics.lastSync).toLocaleString()}
-              </Text>
-            )}
-          </Card.Content>
-        </Card>
-      )}
     </ScrollView>
   );
 }
@@ -317,13 +303,27 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
   },
-  infoText: {
+  connectionStatus: {
+    marginTop: 12,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  statusDescription: {
     fontSize: 14,
     lineHeight: 20,
-    marginBottom: 16,
-  },
-  refreshButton: {
-    marginTop: 8,
   },
   sectionTitle: {
     fontSize: 18,

@@ -691,7 +691,18 @@ class GoogleCalendarService {
       // Ensure we have a valid calendar ID
       const calendarId = await this.getCalendarId();
       
-      const response = await this.makeRequest(`/calendars/${calendarId}/events/${eventData.id}`, {
+      // Get the Google event ID from mappings
+      const mappings = await this.getEventMappings();
+      const googleEventId = mappings[eventData.id];
+      
+      if (!googleEventId) {
+        console.log('No Google event ID found for app event:', eventData.id, 'Creating new event instead');
+        return await this.createEvent(eventData);
+      }
+      
+      console.log('Updating Google Calendar event:', googleEventId, 'for app event:', eventData.id);
+      
+      const response = await this.makeRequest(`/calendars/${calendarId}/events/${googleEventId}`, {
         method: 'PUT',
         body: JSON.stringify(googleEvent),
       });
@@ -925,7 +936,7 @@ class GoogleCalendarService {
         startTime: startDateTime,
         endTime: endDateTime,
         lastModified: googleEvent.updated,
-        created: googleEvent.created,
+        // Remove 'created' field - doesn't exist in database schema
       };
     } catch (error) {
       console.error('Error converting Google event:', error);
@@ -942,7 +953,7 @@ class GoogleCalendarService {
         startTime: googleEvent.start?.dateTime || googleEvent.start?.date,
         endTime: googleEvent.end?.dateTime || googleEvent.end?.date,
         lastModified: googleEvent.updated,
-        created: googleEvent.created,
+        // Remove 'created' field - doesn't exist in database schema
       };
     }
   }
