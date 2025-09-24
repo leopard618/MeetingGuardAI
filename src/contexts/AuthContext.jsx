@@ -60,6 +60,15 @@ export const AuthProvider = ({ children }) => {
             } catch (schedulerError) {
               console.log('⚠️ AuthContext: Failed to start token scheduler:', schedulerError.message);
             }
+
+            // Start Google connection monitoring
+            try {
+              const googleConnectionMonitor = (await import('../api/googleConnectionMonitor')).default;
+              googleConnectionMonitor.startMonitoring();
+              console.log('✅ AuthContext: Google connection monitoring started');
+            } catch (monitorError) {
+              console.log('⚠️ AuthContext: Failed to start connection monitor:', monitorError.message);
+            }
           } else {
             console.log('⚠️ AuthContext: Google Calendar initialization failed on login');
             console.log('⚠️ This is normal if user hasn\'t granted calendar permissions yet');
@@ -272,6 +281,15 @@ export const AuthProvider = ({ children }) => {
             } catch (schedulerError) {
               console.log('⚠️ Failed to start token scheduler for restored session:', schedulerError.message);
             }
+
+            // Start Google connection monitoring for restored session
+            try {
+              const googleConnectionMonitor = (await import('../api/googleConnectionMonitor')).default;
+              googleConnectionMonitor.startMonitoring();
+              console.log('✅ Google connection monitoring started for restored session');
+            } catch (monitorError) {
+              console.log('⚠️ Failed to start connection monitor for restored session:', monitorError.message);
+            }
           } else {
             console.log('⚠️ Google Calendar service initialization failed for authenticated user');
           }
@@ -417,6 +435,19 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('Logging out user');
       setIsLoading(true); // Set loading state during logout
+      
+      // Stop Google monitoring services
+      try {
+        const googleTokenScheduler = (await import('../api/googleTokenScheduler')).default;
+        googleTokenScheduler.stopAutoRefresh();
+        console.log('✅ Google token scheduler stopped');
+
+        const googleConnectionMonitor = (await import('../api/googleConnectionMonitor')).default;
+        googleConnectionMonitor.stopMonitoring();
+        console.log('✅ Google connection monitoring stopped');
+      } catch (error) {
+        console.log('⚠️ Error stopping Google services:', error.message);
+      }
       
       // Sign out from Google if signed in
       await googleAuth.signOut();

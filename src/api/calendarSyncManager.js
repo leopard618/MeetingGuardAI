@@ -160,54 +160,18 @@ class CalendarSyncManager {
 
   // Sync from Google Calendar to app
   async syncFromGoogleCalendar(syncResults) {
-    if (!this.syncEnabled) {
-      console.log('Sync disabled, skipping Google Calendar import');
-      return;
-    }
+    console.log('🚫 CalendarSyncManager: Google→App sync DISABLED to prevent errors and duplicates');
+    console.log('💡 CalendarSyncManager: App meetings are the single source of truth');
     
-    try {
-      const googleEvents = await googleCalendarService.getEvents();
-      const mappings = await googleCalendarService.getEventMappings();
-
-      for (const googleEvent of googleEvents) {
-        try {
-          // Check if this Google event is already mapped to an app event
-          const appEventId = Object.keys(mappings).find(key => mappings[key] === googleEvent.id);
-          
-          if (appEventId) {
-            // Update existing app event
-            const appEvent = googleCalendarService.convertFromGoogleEvent(googleEvent);
-            appEvent.id = appEventId; // Keep the original app ID
-            
-            await Meeting.update(appEventId, appEvent);
-            syncResults.updated++;
-          } else {
-            // DISABLED: Creating app events from Google Calendar causes massive duplicates
-            // Only create app events from Google if they're NOT created by this app
-            console.log('CalendarSyncManager: Skipping Google→App sync to prevent duplicates for event:', googleEvent.summary);
-            
-            // TODO: Add logic to detect if this Google event was created by our app
-            // For now, skip all Google→App creation to stop the duplication
-            syncResults.skipped = (syncResults.skipped || 0) + 1;
-          }
-        } catch (error) {
-          console.error('Error syncing Google event:', googleEvent.id, error);
-          syncResults.errors.push({
-            type: 'google_to_app',
-            eventId: googleEvent.id,
-            error: error.message,
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error syncing from Google Calendar:', error);
-      // Don't throw error, just log it and continue
-      syncResults.errors.push({
-        type: 'google_to_app',
-        eventId: 'unknown',
-        error: error.message,
-      });
-    }
+    // Completely disable Google→App sync to prevent:
+    // 1. Database schema errors (created column)
+    // 2. Duplicate meetings 
+    // 3. Sync conflicts
+    // 4. User confusion
+    
+    syncResults.skipped = (syncResults.skipped || 0) + 1;
+    
+    return; // Skip all Google→App sync
   }
 
   // Sync from app to Google Calendar
