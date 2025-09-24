@@ -32,6 +32,9 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy for production deployment (fixes rate limiting warning)
+app.set('trust proxy', true);
+
 // API Version
 const API_VERSION = 'v1';
 const API_BASE_PATH = `/api/${API_VERSION}`;
