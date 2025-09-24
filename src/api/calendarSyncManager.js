@@ -203,14 +203,14 @@ class CalendarSyncManager {
               syncResults.updated++;
             }
           } else {
-            // Create new Google Calendar event
-            const createdEvent = await googleCalendarService.createEvent(meeting);
-            
-            // Store the mapping to prevent duplicates
-            if (createdEvent && createdEvent.id) {
-              await googleCalendarService.storeEventMapping(meeting.id, createdEvent.id);
-              syncResults.created++;
-            }
+            // DISABLED: Frontend Google Calendar event creation
+            console.log('🚫 Skipping Google Calendar event creation for app meeting:', meeting.id);
+            console.log('💡 Google Calendar events are now created by backend to prevent data format issues');
+            // Backend handles Google Calendar integration properly with correct:
+            // - Location field separation (no concatenation)
+            // - Participant handling
+            // - Duplicate prevention
+            syncResults.skipped = (syncResults.skipped || 0) + 1;
           }
         } catch (error) {
           console.error('Error syncing app meeting to Google:', meeting.id, error);
@@ -268,17 +268,14 @@ class CalendarSyncManager {
           return false;
         }
       } else {
-        // Create new Google Calendar event
-        const createdEvent = await googleCalendarService.createEvent(event);
-        if (createdEvent && createdEvent.id) {
-          // Store the mapping to prevent duplicates
-          await googleCalendarService.storeEventMapping(eventId, createdEvent.id);
-          console.log('Event synced to Google Calendar (created):', eventId);
-          return true;
-        } else {
-          console.log('Failed to create event in Google Calendar:', eventId);
-          return false;
-        }
+        // DISABLED: Frontend Google Calendar event creation
+        console.log('🚫 Skipping Google Calendar event creation for event:', eventId);
+        console.log('💡 Backend handles Google Calendar integration to prevent data corruption');
+        // Frontend sync creation disabled to prevent:
+        // - Location/link concatenation errors
+        // - Missing participants 
+        // - Data format inconsistencies
+        return false; // Don't claim success for skipped operation
       }
     } catch (error) {
       console.error('Error syncing event to Google Calendar:', error);
@@ -487,29 +484,62 @@ class CalendarSyncManager {
   // Get sync statistics
   async getSyncStatistics() {
     try {
+      console.log('📊 Getting sync statistics...');
+      
+      // Import Meeting service
+      const Meeting = (await import('./entities.js')).default;
+      
       const appMeetings = await Meeting.list();
+      console.log('📱 App meetings count:', appMeetings?.length || 0);
+      
       const googleEvents = await googleCalendarService.getEvents();
+      console.log('📅 Google events count:', googleEvents?.length || 0);
+      
       const mappings = await googleCalendarService.getEventMappings();
+      console.log('🗺️ Event mappings count:', Object.keys(mappings || {}).length);
+      
       const settings = await googleCalendarService.getSyncSettings();
+      console.log('⚙️ Sync settings:', settings);
       
-      const syncedAppEvents = appMeetings.filter(m => mappings[m.id]);
-      const syncedGoogleEvents = googleEvents.filter(e => 
-        Object.values(mappings).includes(e.id)
-      );
+      const syncedAppEvents = appMeetings?.filter(m => mappings[m.id]) || [];
+      const syncedGoogleEvents = googleEvents?.filter(e => 
+        Object.values(mappings || {}).includes(e.id)
+      ) || [];
       
-      return {
-        totalAppEvents: appMeetings.length,
-        totalGoogleEvents: googleEvents.length,
+      const stats = {
+        totalSynced: syncedAppEvents.length,
+        successful: syncedAppEvents.length,
+        errors: Math.max(0, (appMeetings?.length || 0) - syncedAppEvents.length),
+        totalAppEvents: appMeetings?.length || 0,
+        totalGoogleEvents: googleEvents?.length || 0,
         syncedAppEvents: syncedAppEvents.length,
         syncedGoogleEvents: syncedGoogleEvents.length,
-        orphanedMappings: Object.keys(mappings).length - syncedAppEvents.length,
-        syncDirection: settings.syncDirection,
-        lastSyncTime: settings.lastSyncTime,
-        autoSyncEnabled: settings.autoSync,
+        orphanedMappings: Object.keys(mappings || {}).length - syncedAppEvents.length,
+        syncDirection: settings?.syncDirection || 'bidirectional',
+        lastSyncTime: settings?.lastSyncTime,
+        lastSync: settings?.lastSyncTime,
+        autoSyncEnabled: settings?.autoSync !== false,
       };
+      
+      console.log('📊 Final sync statistics:', stats);
+      return stats;
     } catch (error) {
-      console.error('Error getting sync statistics:', error);
-      throw error;
+      console.error('❌ Error getting sync statistics:', error);
+      // Return safe defaults
+      return {
+        totalSynced: 0,
+        successful: 0,
+        errors: 0,
+        totalAppEvents: 0,
+        totalGoogleEvents: 0,
+        syncedAppEvents: 0,
+        syncedGoogleEvents: 0,
+        orphanedMappings: 0,
+        syncDirection: 'bidirectional',
+        lastSyncTime: null,
+        lastSync: null,
+        autoSyncEnabled: true,
+      };
     }
   }
 
