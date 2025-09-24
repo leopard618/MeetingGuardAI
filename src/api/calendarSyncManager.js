@@ -486,8 +486,20 @@ class CalendarSyncManager {
     try {
       console.log('📊 Getting sync statistics...');
       
-      // Import Meeting service
-      const Meeting = (await import('./entities.js')).default;
+      // Import Meeting service dynamically with proper error handling
+      let Meeting;
+      try {
+        const entitiesModule = await import('./entities.js');
+        Meeting = entitiesModule.Meeting || entitiesModule.default;
+      } catch (importError) {
+        console.error('❌ Failed to import Meeting service:', importError);
+        throw new Error('Meeting service not available');
+      }
+      
+      if (!Meeting || typeof Meeting.list !== 'function') {
+        console.error('❌ Meeting service or list method not available');
+        throw new Error('Meeting.list method not available');
+      }
       
       const appMeetings = await Meeting.list();
       console.log('📱 App meetings count:', appMeetings?.length || 0);
