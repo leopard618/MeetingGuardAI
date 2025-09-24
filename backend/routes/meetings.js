@@ -14,23 +14,43 @@ async function createGoogleCalendarEvent({ accessToken, meeting, userEmail }) {
       startTime: startDateTime.toISOString(),
       endTime: endDateTime.toISOString(),
       participantCount: meeting.participants?.length || 0,
-      location: meeting.location
+      location: meeting.location,
+      participantsRaw: meeting.participants
     });
 
     // Build attendees list from participants
     const attendees = [];
     if (meeting.participants && Array.isArray(meeting.participants)) {
-      meeting.participants.forEach(p => {
-        if (p.email) {
-          attendees.push({
-            email: p.email,
-            displayName: p.name || p.email
-          });
+      console.log('Processing participants for Google Calendar:', meeting.participants);
+      
+      meeting.participants.forEach((p, index) => {
+        console.log(`Participant ${index}:`, {
+          name: p.name,
+          email: p.email,
+          hasEmail: !!p.email,
+          emailTrimmed: p.email?.trim()
+        });
+        
+        if (p.email && p.email.trim()) {
+          const attendee = {
+            email: p.email.trim(),
+            displayName: p.name || p.email.trim()
+          };
+          attendees.push(attendee);
+          console.log(`Added attendee ${index}:`, attendee);
+        } else {
+          console.log(`Skipped participant ${index} - no valid email`);
         }
+      });
+    } else {
+      console.log('No participants found or participants is not an array:', {
+        participants: meeting.participants,
+        isArray: Array.isArray(meeting.participants)
       });
     }
 
-    console.log('Google Calendar attendees:', attendees);
+    console.log('Final Google Calendar attendees:', attendees);
+    console.log('Attendees count:', attendees.length);
 
     // Build location and description based on meeting type
     let locationField = '';
@@ -38,34 +58,46 @@ async function createGoogleCalendarEvent({ accessToken, meeting, userEmail }) {
 
     if (meeting.location) {
       const locationType = meeting.location.type || 'physical';
+      const hasPhysicalLocation = meeting.location.address && meeting.location.address.trim();
+      const hasVirtualLink = meeting.location.virtualLink && meeting.location.virtualLink.trim();
       
-      if (locationType === 'virtual' || locationType === 'hybrid') {
-        // Virtual or hybrid meeting - add meeting link
-        if (meeting.location.virtualLink) {
-          descriptionParts.push(`\n🔗 Meeting Link: ${meeting.location.virtualLink}`);
-          if (locationType === 'virtual') {
-            locationField = `Virtual Meeting (${meeting.location.virtualPlatform || 'Online'})`;
-          }
-        }
+      console.log('Processing location:', {
+        type: locationType,
+        address: meeting.location.address,
+        virtualLink: meeting.location.virtualLink,
+        hasPhysicalLocation,
+        hasVirtualLink
+      });
+      
+      // Determine the primary location field based on what we have
+      if (locationType === 'virtual') {
+        // Pure virtual meeting
+        locationField = `Virtual Meeting (${meeting.location.virtualPlatform || 'Online'})`;
+      } else if (locationType === 'hybrid') {
+        // Hybrid meeting - prioritize physical location in location field
+        locationField = hasPhysicalLocation ? meeting.location.address : 'Hybrid Meeting';
+      } else {
+        // Physical meeting (but might have a generated meeting link)
+        locationField = hasPhysicalLocation ? meeting.location.address : 'Physical Meeting';
+      }
+      
+      // Add virtual meeting details to description if present
+      if (hasVirtualLink) {
+        descriptionParts.push(`\n🔗 Meeting Link: ${meeting.location.virtualLink}`);
         
         if (meeting.location.virtualPlatform) {
           descriptionParts.push(`📹 Platform: ${meeting.location.virtualPlatform}`);
         }
-      }
-      
-      if (locationType === 'physical' || locationType === 'hybrid') {
-        // Physical or hybrid meeting - add physical location
-        if (meeting.location.address) {
-          if (locationType === 'hybrid') {
-            locationField = meeting.location.address;
-            descriptionParts.push(`📍 Physical Location: ${meeting.location.address}`);
-          } else {
-            locationField = meeting.location.address;
-          }
+        
+        // If this is a physical meeting with a generated link, explain it
+        if (locationType === 'physical') {
+          descriptionParts.push('\n💡 This physical meeting also has a virtual option available');
         }
       }
       
-      if (locationType === 'hybrid') {
+      // Add physical location to description for hybrid meetings
+      if (locationType === 'hybrid' && hasPhysicalLocation) {
+        descriptionParts.push(`📍 Physical Location: ${meeting.location.address}`);
         descriptionParts.push('\n🔄 This is a hybrid meeting - join either physically or virtually');
       }
     }
@@ -100,8 +132,12 @@ async function createGoogleCalendarEvent({ accessToken, meeting, userEmail }) {
       summary: event.summary,
       location: event.location,
       attendeesCount: event.attendees.length,
-      descriptionLength: event.description.length
+      attendees: event.attendees,
+      descriptionLength: event.description.length,
+      description: event.description
     });
+
+    console.log('Sending to Google Calendar API:', JSON.stringify(event, null, 2));
 
     const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
       method: 'POST',
@@ -117,12 +153,17 @@ async function createGoogleCalendarEvent({ accessToken, meeting, userEmail }) {
       console.log('Google Calendar event created successfully:', {
         id: result.id,
         htmlLink: result.htmlLink,
-        attendeesCount: result.attendees?.length || 0
+        attendeesCount: result.attendees?.length || 0,
+        attendeesFromResponse: result.attendees,
+        location: result.location,
+        description: result.description
       });
       return result;
     } else {
       const errorData = await response.json();
       console.error('Google Calendar API error:', errorData);
+      console.error('Response status:', response.status);
+      console.error('Response headers:', response.headers);
       return null;
     }
   } catch (error) {
