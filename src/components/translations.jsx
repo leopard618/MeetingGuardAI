@@ -616,7 +616,57 @@ export const translations = {
       skipConfirm: "Skip",
       benefit1: "Automatic meeting synchronization",
       benefit2: "Send invitations to participants",
-      benefit3: "Manage calendar events seamlessly"
+      benefit3: "Manage calendar events seamlessly",
+      
+      // Calendar Sync Settings
+      syncTitle: "Google Calendar Sync",
+      syncStatistics: "Sync Statistics",
+      syncSettings: "Sync Settings",
+      syncActions: "Sync Actions",
+      connected: "Connected",
+      disconnected: "Disconnected",
+      checking: "Checking...",
+      connectedMessage: "Connected to Google Calendar. Your meetings sync automatically.",
+      disconnectedMessage: "Google Calendar connection expired. You'll be automatically signed out for reconnection.",
+      notConnectedMessage: "Not connected to Google Calendar. Please sign in to enable sync.",
+      connectionCheckFailed: "Connection check failed. Please try again.",
+      
+      // Statistics
+      totalSynced: "Total Synced",
+      successful: "Successful", 
+      errors: "Errors",
+      notSynced: "Not Synced",
+      lastSync: "Last sync",
+      notConnectedWarning: "Not connected - meetings are not syncing to Google Calendar",
+      
+      // Settings
+      autoSync: "Auto Sync",
+      autoSyncDescription: "Automatically sync meetings with Google Calendar",
+      syncDirection: "Sync Direction",
+      bidirectionalSync: "Bidirectional (App ↔ Google)",
+      
+      // Actions
+      syncNow: "Sync Now",
+      syncing: "Syncing...",
+      reconnectButton: "Reconnect Google Calendar",
+      reconnectTitle: "Reconnect Google Calendar",
+      reconnectMessage: "We'll try to reuse your existing Google authentication to reconnect Google Calendar.",
+      reconnectSuccess: "Google Calendar reconnected successfully using your existing Google authentication!",
+      reconnectFailed: "Connection Failed",
+      freshSignInRequired: "Fresh Sign-In Required",
+      manualActionRequired: "Manual Action Required",
+      signOutRestart: "Sign Out & Restart",
+      signOutInstructions: "Please go to Settings → Sign Out, then sign in again with Google to refresh your Google Calendar connection.",
+      
+      // Sync Results
+      syncCompleted: "Sync completed successfully!",
+      syncCompletedWithIssues: "Sync Completed with Issues",
+      syncError: "Sync Error",
+      syncFailed: "Failed to perform sync",
+      created: "Created",
+      updated: "Updated", 
+      skipped: "Skipped",
+      syncIssuesNote: "Some items had issues but sync continued. Check console for details."
     },
     // Common
     common: {
@@ -1250,7 +1300,57 @@ export const translations = {
       skipConfirm: "Omitir",
       benefit1: "Sincronización automática de reuniones",
       benefit2: "Enviar invitaciones a participantes",
-      benefit3: "Gestionar eventos del calendario sin problemas"
+      benefit3: "Gestionar eventos del calendario sin problemas",
+      
+      // Calendar Sync Settings
+      syncTitle: "Sincronización Google Calendar",
+      syncStatistics: "Estadísticas de Sincronización",
+      syncSettings: "Configuración de Sincronización", 
+      syncActions: "Acciones de Sincronización",
+      connected: "Conectado",
+      disconnected: "Desconectado",
+      checking: "Verificando...",
+      connectedMessage: "Conectado a Google Calendar. Tus reuniones se sincronizan automáticamente.",
+      disconnectedMessage: "Conexión de Google Calendar expirada. Serás desconectado automáticamente para una nueva conexión.",
+      notConnectedMessage: "No conectado a Google Calendar. Por favor inicia sesión para habilitar la sincronización.",
+      connectionCheckFailed: "Falló la verificación de conexión. Por favor inténtalo de nuevo.",
+      
+      // Statistics
+      totalSynced: "Total Sincronizado",
+      successful: "Exitoso",
+      errors: "Errores", 
+      notSynced: "No Sincronizado",
+      lastSync: "Última sincronización",
+      notConnectedWarning: "No conectado - las reuniones no se están sincronizando con Google Calendar",
+      
+      // Settings
+      autoSync: "Sincronización Automática",
+      autoSyncDescription: "Sincronizar reuniones automáticamente con Google Calendar",
+      syncDirection: "Dirección de Sincronización",
+      bidirectionalSync: "Bidireccional (App ↔ Google)",
+      
+      // Actions
+      syncNow: "Sincronizar Ahora",
+      syncing: "Sincronizando...",
+      reconnectButton: "Reconectar Google Calendar",
+      reconnectTitle: "Reconectar Google Calendar",
+      reconnectMessage: "Intentaremos reutilizar tu autenticación existente de Google para reconectar Google Calendar.",
+      reconnectSuccess: "¡Google Calendar reconectado exitosamente usando tu autenticación existente de Google!",
+      reconnectFailed: "Falló la Conexión",
+      freshSignInRequired: "Se Requiere Nuevo Inicio de Sesión",
+      manualActionRequired: "Acción Manual Requerida",
+      signOutRestart: "Cerrar Sesión y Reiniciar",
+      signOutInstructions: "Por favor ve a Configuración → Cerrar Sesión, luego inicia sesión nuevamente con Google para refrescar tu conexión de Google Calendar.",
+      
+      // Sync Results
+      syncCompleted: "¡Sincronización completada exitosamente!",
+      syncCompletedWithIssues: "Sincronización Completada con Problemas",
+      syncError: "Error de Sincronización",
+      syncFailed: "Falló al realizar la sincronización",
+      created: "Creado",
+      updated: "Actualizado",
+      skipped: "Omitido", 
+      syncIssuesNote: "Algunos elementos tuvieron problemas pero la sincronización continuó. Revisa la consola para más detalles."
     },
     // Common
     common: {

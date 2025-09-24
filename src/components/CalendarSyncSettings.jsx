@@ -18,11 +18,13 @@ import {
 } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext.jsx';
+import { useTranslation } from './translations.jsx';
 import calendarSyncManager from '../api/calendarSyncManager';
 import googleCalendarService from '../api/googleCalendar';
 
-export default function CalendarSyncSettings() {
+export default function CalendarSyncSettings({ language = 'en' }) {
   const { isDarkMode } = useTheme();
+  const { t } = useTranslation(language);
   const [syncSettings, setSyncSettings] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -50,7 +52,7 @@ export default function CalendarSyncSettings() {
         setConnectionStatus({
           isConnected: false,
           checking: false,
-          message: 'Not connected to Google Calendar. Please sign in to enable sync.'
+          message: t('googleCalendar.notConnectedMessage')
         });
         return false;
       }
@@ -64,14 +66,14 @@ export default function CalendarSyncSettings() {
         setConnectionStatus({
           isConnected: true,
           checking: false,
-          message: 'Connected to Google Calendar. Your meetings sync automatically.'
+          message: t('googleCalendar.connectedMessage')
         });
         return true;
       } else {
         setConnectionStatus({
           isConnected: false,
           checking: false,
-          message: 'Google Calendar connection expired. You\'ll be automatically signed out for reconnection.'
+          message: t('googleCalendar.disconnectedMessage')
         });
         return false;
       }
@@ -80,7 +82,7 @@ export default function CalendarSyncSettings() {
       setConnectionStatus({
         isConnected: false,
         checking: false,
-        message: 'Connection check failed. Please try again.'
+        message: t('googleCalendar.connectionCheckFailed')
       });
       return false;
     }
@@ -113,7 +115,7 @@ export default function CalendarSyncSettings() {
       }
     } catch (error) {
       console.error('Error loading sync data:', error);
-      Alert.alert('Error', 'Failed to load sync settings');
+      Alert.alert(t('common.error'), 'Failed to load sync settings');
     } finally {
       setIsLoading(false);
     }
@@ -135,7 +137,7 @@ export default function CalendarSyncSettings() {
       console.log(`✅ Auto sync ${value ? 'enabled' : 'disabled'}`);
     } catch (error) {
       console.error('Error updating auto sync:', error);
-      Alert.alert('Error', 'Failed to update auto sync setting');
+      Alert.alert(t('common.error'), 'Failed to update auto sync setting');
       // Revert state on error
       setSyncSettings(prev => ({ ...prev, autoSyncEnabled: !value }));
     }
@@ -153,7 +155,7 @@ export default function CalendarSyncSettings() {
       }
     } catch (error) {
       console.error('Error updating sync interval:', error);
-      Alert.alert('Error', 'Failed to update sync interval');
+      Alert.alert(t('common.error'), 'Failed to update sync interval');
     }
   };
 
@@ -161,32 +163,51 @@ export default function CalendarSyncSettings() {
     try {
       console.log('🔄 Initiating Google Calendar reconnection...');
       
-      // Import the manual login service for OAuth flow
-      const manualLoginService = (await import('../api/manualLoginGoogleCalendarService')).default;
-      
       Alert.alert(
-        'Reconnect Google Calendar',
-        'You will be redirected to Google to sign in again. This will establish a fresh connection.',
+        t('googleCalendar.reconnectTitle'),
+        t('googleCalendar.reconnectMessage'),
         [
           {
-            text: 'Cancel',
+            text: t('common.cancel'),
             style: 'cancel'
           },
           {
-            text: 'Reconnect',
+            text: t('googleCalendar.reconnectButton'),
             onPress: async () => {
               try {
-                const result = await manualLoginService.connectGoogleCalendar();
+                // Use the new simplified reconnect service
+                const reconnectService = (await import('../api/googleCalendarReconnectService')).default;
+                const result = await reconnectService.reconnectUsingExistingAuth();
+                
                 if (result.success) {
-                  Alert.alert('Success', 'Google Calendar reconnected successfully!');
+                  Alert.alert(t('common.success'), result.message);
                   // Reload the page to show updated status
                   await loadSyncData();
+                } else if (result.requiresReauth) {
+                  Alert.alert(
+                    t('googleCalendar.freshSignInRequired'), 
+                    result.error + '\n\nWould you like to sign out and sign in again?',
+                    [
+                      { text: t('common.cancel'), style: 'cancel' },
+                      { 
+                        text: t('googleCalendar.signOutRestart'), 
+                        onPress: async () => {
+                          const { useAuth } = await import('../contexts/AuthContext');
+                          // This would need to be accessed differently, showing user the instructions
+                          Alert.alert(
+                            t('googleCalendar.manualActionRequired'),
+                            t('googleCalendar.signOutInstructions')
+                          );
+                        }
+                      }
+                    ]
+                  );
                 } else {
-                  Alert.alert('Failed', result.error || 'Failed to reconnect to Google Calendar');
+                  Alert.alert(t('googleCalendar.reconnectFailed'), result.error || 'Failed to reconnect to Google Calendar');
                 }
               } catch (error) {
                 console.error('❌ Reconnection failed:', error);
-                Alert.alert('Error', 'Failed to reconnect. Please try again.');
+                Alert.alert(t('common.error'), 'Failed to reconnect. Please try again.');
               }
             }
           }
@@ -194,7 +215,7 @@ export default function CalendarSyncSettings() {
       );
     } catch (error) {
       console.error('❌ Error initiating reconnection:', error);
-      Alert.alert('Error', 'Failed to initiate reconnection. Please try again.');
+      Alert.alert(t('common.error'), 'Failed to initiate reconnection. Please try again.');
     }
   };
 
@@ -207,20 +228,20 @@ export default function CalendarSyncSettings() {
       console.log('📊 Sync results:', results);
       
       // Show results with better messaging
-      const message = `Sync completed successfully!\n\n• Created: ${results.created || 0}\n• Updated: ${results.updated || 0}\n• Skipped: ${results.skipped || 0}\n• Errors: ${results.errors?.length || 0}`;
+      const message = `${t('googleCalendar.syncCompleted')}\n\n• ${t('googleCalendar.created')}: ${results.created || 0}\n• ${t('googleCalendar.updated')}: ${results.updated || 0}\n• ${t('googleCalendar.skipped')}: ${results.skipped || 0}\n• ${t('googleCalendar.errors')}: ${results.errors?.length || 0}`;
       
       if (results.errors?.length > 0) {
         console.log('⚠️ Sync errors:', results.errors);
-        Alert.alert('Sync Completed with Issues', `${message}\n\nSome items had issues but sync continued. Check console for details.`);
+        Alert.alert(t('googleCalendar.syncCompletedWithIssues'), `${message}\n\n${t('googleCalendar.syncIssuesNote')}`);
       } else {
-        Alert.alert('Sync Successful', message);
+        Alert.alert(t('common.success'), message);
       }
       
       // Reload data
       await loadSyncData();
     } catch (error) {
       console.error('❌ Error during force sync:', error);
-      Alert.alert('Sync Error', `Failed to perform sync: ${error.message}`);
+      Alert.alert(t('googleCalendar.syncError'), `${t('googleCalendar.syncFailed')}: ${error.message}`);
     } finally {
       setIsSyncing(false);
     }
@@ -230,13 +251,13 @@ export default function CalendarSyncSettings() {
   const getSyncDirectionLabel = (direction) => {
     switch (direction) {
       case 'bidirectional':
-        return 'Bidirectional (App ↔ Google)';
+        return t('googleCalendar.bidirectionalSync');
       case 'toGoogle':
         return 'App → Google Calendar';
       case 'fromGoogle':
         return 'Google Calendar → App';
       default:
-        return 'Bidirectional';
+        return t('googleCalendar.bidirectionalSync');
     }
   };
 
@@ -245,7 +266,7 @@ export default function CalendarSyncSettings() {
       <View style={[styles.container, { backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc' }]}>
         <ActivityIndicator size="large" color={isDarkMode ? '#60a5fa' : '#3b82f6'} />
         <Text style={[styles.loadingText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-          Loading sync settings...
+          {t('common.loading')}
         </Text>
       </View>
     );
@@ -263,7 +284,7 @@ export default function CalendarSyncSettings() {
               color={isDarkMode ? '#60a5fa' : '#3b82f6'}
             />
             <Title style={[styles.statusTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-              Google Calendar Sync
+              {t('googleCalendar.syncTitle')}
             </Title>
           </View>
           
@@ -287,7 +308,7 @@ export default function CalendarSyncSettings() {
                   : (isDarkMode ? '#ef4444' : '#dc2626') 
                 }
               ]}>
-                {connectionStatus.checking ? 'Checking...' : (connectionStatus.isConnected ? 'Connected' : 'Disconnected')}
+                {connectionStatus.checking ? t('googleCalendar.checking') : (connectionStatus.isConnected ? t('googleCalendar.connected') : t('googleCalendar.disconnected'))}
               </Text>
             </View>
             <Text style={[styles.statusDescription, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
@@ -302,7 +323,7 @@ export default function CalendarSyncSettings() {
                 style={[styles.reconnectButton, { backgroundColor: isDarkMode ? '#3b82f6' : '#2563eb' }]}
                 icon="refresh"
               >
-                Reconnect Google Calendar
+                        {t('googleCalendar.reconnectButton')}
               </Button>
             )}
           </View>
@@ -313,7 +334,7 @@ export default function CalendarSyncSettings() {
       <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
         <Card.Content>
           <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-            Sync Statistics
+            {t('googleCalendar.syncStatistics')}
           </Title>
           
           <View style={styles.statsGrid}>
@@ -322,7 +343,7 @@ export default function CalendarSyncSettings() {
                 {connectionStatus.isConnected ? (syncStatistics?.totalSynced || 0) : 0}
               </Text>
               <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                Total Synced
+                {t('googleCalendar.totalSynced')}
               </Text>
             </View>
             
@@ -331,7 +352,7 @@ export default function CalendarSyncSettings() {
                 {connectionStatus.isConnected ? (syncStatistics?.successful || 0) : 0}
               </Text>
               <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                Successful
+                {t('googleCalendar.successful')}
               </Text>
             </View>
             
@@ -340,20 +361,20 @@ export default function CalendarSyncSettings() {
                 {connectionStatus.isConnected ? (syncStatistics?.errors || 0) : (syncStatistics?.totalAppEvents || 0)}
               </Text>
               <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                {connectionStatus.isConnected ? 'Errors' : 'Not Synced'}
+                {connectionStatus.isConnected ? t('googleCalendar.errors') : t('googleCalendar.notSynced')}
               </Text>
             </View>
           </View>
           
           {connectionStatus.isConnected && syncStatistics?.lastSync && (
             <Text style={[styles.lastSyncText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-              Last sync: {new Date(syncStatistics.lastSync).toLocaleString()}
+              {t('googleCalendar.lastSync')}: {new Date(syncStatistics.lastSync).toLocaleString()}
             </Text>
           )}
           
           {!connectionStatus.isConnected && !connectionStatus.checking && (
             <Text style={[styles.lastSyncText, { color: isDarkMode ? '#ef4444' : '#dc2626' }]}>
-              Not connected - meetings are not syncing to Google Calendar
+              {t('googleCalendar.notConnectedWarning')}
             </Text>
           )}
         </Card.Content>
@@ -363,12 +384,12 @@ export default function CalendarSyncSettings() {
       <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
         <Card.Content>
           <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-            Sync Settings
+            {t('googleCalendar.syncSettings')}
           </Title>
           
           <List.Item
-            title="Auto Sync"
-            description="Automatically sync meetings with Google Calendar"
+            title={t('googleCalendar.autoSync')}
+            description={t('googleCalendar.autoSyncDescription')}
             left={props => <List.Icon {...props} icon="sync" />}
             right={() => (
               <Switch
@@ -384,7 +405,7 @@ export default function CalendarSyncSettings() {
           <Divider style={{ backgroundColor: isDarkMode ? '#334155' : '#e2e8f0' }} />
           
           <List.Item
-            title="Sync Direction"
+            title={t('googleCalendar.syncDirection')}
             description={getSyncDirectionLabel(syncSettings?.syncDirection)}
             left={props => <List.Icon {...props} icon="swap-horizontal" />}
             titleStyle={{ color: isDarkMode ? '#f1f5f9' : '#1e293b' }}
@@ -397,7 +418,7 @@ export default function CalendarSyncSettings() {
       <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
         <Card.Content>
           <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-            Sync Actions
+            {t('googleCalendar.syncActions')}
           </Title>
           
           <Button
@@ -408,7 +429,7 @@ export default function CalendarSyncSettings() {
             style={[styles.actionButton, { backgroundColor: isDarkMode ? '#3b82f6' : '#2563eb' }]}
             icon="sync"
           >
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
+            {isSyncing ? t('googleCalendar.syncing') : t('googleCalendar.syncNow')}
           </Button>
         </Card.Content>
       </Card>
