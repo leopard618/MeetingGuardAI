@@ -27,14 +27,72 @@ export default function CalendarSyncSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatistics, setSyncStatistics] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState({
+    isConnected: false,
+    checking: true,
+    message: 'Checking connection...'
+  });
 
   useEffect(() => {
     loadSyncData();
   }, []);
 
+  const checkRealConnectionStatus = async () => {
+    try {
+      console.log('🔍 Checking REAL Google Calendar connection status...');
+      setConnectionStatus(prev => ({ ...prev, checking: true }));
+      
+      // Check if Google Calendar service is actually available
+      const isGoogleAvailable = await googleCalendarService.isAvailable();
+      console.log('📊 Google Calendar service available:', isGoogleAvailable);
+      
+      if (!isGoogleAvailable) {
+        setConnectionStatus({
+          isConnected: false,
+          checking: false,
+          message: 'Not connected to Google Calendar. Please sign in to enable sync.'
+        });
+        return false;
+      }
+      
+      // Try to get a valid access token
+      const tokenManager = (await import('../api/googleTokenManager.js')).default;
+      const hasValidToken = await tokenManager.hasValidAccess();
+      console.log('🔑 Has valid Google access token:', hasValidToken);
+      
+      if (hasValidToken) {
+        setConnectionStatus({
+          isConnected: true,
+          checking: false,
+          message: 'Connected to Google Calendar. Your meetings sync automatically.'
+        });
+        return true;
+      } else {
+        setConnectionStatus({
+          isConnected: false,
+          checking: false,
+          message: 'Google Calendar connection expired. You\'ll be automatically signed out for reconnection.'
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error checking Google Calendar connection:', error);
+      setConnectionStatus({
+        isConnected: false,
+        checking: false,
+        message: 'Connection check failed. Please try again.'
+      });
+      return false;
+    }
+  };
+
   const loadSyncData = async () => {
     try {
       setIsLoading(true);
+      
+      // Check real connection status first
+      const isConnected = await checkRealConnectionStatus();
+      
       const [settings, stats] = await Promise.all([
         googleCalendarService.getSyncSettings(),
         calendarSyncManager.getSyncStatistics(),
@@ -42,6 +100,17 @@ export default function CalendarSyncSettings() {
       
       setSyncSettings(settings);
       setSyncStatistics(stats);
+      
+      // If not connected, zero out the statistics to reflect reality
+      if (!isConnected) {
+        setSyncStatistics(prev => ({
+          ...prev,
+          totalSynced: 0,
+          successful: 0,
+          errors: prev?.totalAppEvents || 0,
+          lastSync: null
+        }));
+      }
     } catch (error) {
       console.error('Error loading sync data:', error);
       Alert.alert('Error', 'Failed to load sync settings');
@@ -85,6 +154,47 @@ export default function CalendarSyncSettings() {
     } catch (error) {
       console.error('Error updating sync interval:', error);
       Alert.alert('Error', 'Failed to update sync interval');
+    }
+  };
+
+  const handleReconnectGoogle = async () => {
+    try {
+      console.log('🔄 Initiating Google Calendar reconnection...');
+      
+      // Import the manual login service for OAuth flow
+      const manualLoginService = (await import('../api/manualLoginGoogleCalendarService')).default;
+      
+      Alert.alert(
+        'Reconnect Google Calendar',
+        'You will be redirected to Google to sign in again. This will establish a fresh connection.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          },
+          {
+            text: 'Reconnect',
+            onPress: async () => {
+              try {
+                const result = await manualLoginService.connectGoogleCalendar();
+                if (result.success) {
+                  Alert.alert('Success', 'Google Calendar reconnected successfully!');
+                  // Reload the page to show updated status
+                  await loadSyncData();
+                } else {
+                  Alert.alert('Failed', result.error || 'Failed to reconnect to Google Calendar');
+                }
+              } catch (error) {
+                console.error('❌ Reconnection failed:', error);
+                Alert.alert('Error', 'Failed to reconnect. Please try again.');
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('❌ Error initiating reconnection:', error);
+      Alert.alert('Error', 'Failed to initiate reconnection. Please try again.');
     }
   };
 
@@ -159,17 +269,42 @@ export default function CalendarSyncSettings() {
           
           <View style={styles.connectionStatus}>
             <View style={styles.statusIndicator}>
-              <View style={[
-                styles.statusDot, 
-                { backgroundColor: isDarkMode ? '#10b981' : '#059669' }
-              ]} />
-              <Text style={[styles.statusText, { color: isDarkMode ? '#10b981' : '#059669' }]}>
-                Connected
+              {connectionStatus.checking ? (
+                <ActivityIndicator size="small" color={isDarkMode ? '#60a5fa' : '#3b82f6'} />
+              ) : (
+                <View style={[
+                  styles.statusDot, 
+                  { backgroundColor: connectionStatus.isConnected 
+                    ? (isDarkMode ? '#10b981' : '#059669') 
+                    : (isDarkMode ? '#ef4444' : '#dc2626') 
+                  }
+                ]} />
+              )}
+              <Text style={[
+                styles.statusText, 
+                { color: connectionStatus.isConnected 
+                  ? (isDarkMode ? '#10b981' : '#059669') 
+                  : (isDarkMode ? '#ef4444' : '#dc2626') 
+                }
+              ]}>
+                {connectionStatus.checking ? 'Checking...' : (connectionStatus.isConnected ? 'Connected' : 'Disconnected')}
               </Text>
             </View>
             <Text style={[styles.statusDescription, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-              Your meetings automatically sync with Google Calendar. If connection is lost, you'll be automatically signed out for a fresh reconnection.
+              {connectionStatus.message}
             </Text>
+            
+            {/* Show reconnect button if disconnected */}
+            {!connectionStatus.isConnected && !connectionStatus.checking && (
+              <Button
+                mode="contained"
+                onPress={handleReconnectGoogle}
+                style={[styles.reconnectButton, { backgroundColor: isDarkMode ? '#3b82f6' : '#2563eb' }]}
+                icon="refresh"
+              >
+                Reconnect Google Calendar
+              </Button>
+            )}
           </View>
         </Card.Content>
       </Card>
@@ -184,7 +319,7 @@ export default function CalendarSyncSettings() {
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, { color: isDarkMode ? '#60a5fa' : '#3b82f6' }]}>
-                {syncStatistics?.totalSynced || 0}
+                {connectionStatus.isConnected ? (syncStatistics?.totalSynced || 0) : 0}
               </Text>
               <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
                 Total Synced
@@ -193,7 +328,7 @@ export default function CalendarSyncSettings() {
             
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, { color: isDarkMode ? '#10b981' : '#059669' }]}>
-                {syncStatistics?.successful || 0}
+                {connectionStatus.isConnected ? (syncStatistics?.successful || 0) : 0}
               </Text>
               <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
                 Successful
@@ -202,17 +337,23 @@ export default function CalendarSyncSettings() {
             
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, { color: isDarkMode ? '#f59e0b' : '#d97706' }]}>
-                {syncStatistics?.errors || 0}
+                {connectionStatus.isConnected ? (syncStatistics?.errors || 0) : (syncStatistics?.totalAppEvents || 0)}
               </Text>
               <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                Errors
+                {connectionStatus.isConnected ? 'Errors' : 'Not Synced'}
               </Text>
             </View>
           </View>
           
-          {syncStatistics?.lastSync && (
+          {connectionStatus.isConnected && syncStatistics?.lastSync && (
             <Text style={[styles.lastSyncText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
               Last sync: {new Date(syncStatistics.lastSync).toLocaleString()}
+            </Text>
+          )}
+          
+          {!connectionStatus.isConnected && !connectionStatus.checking && (
+            <Text style={[styles.lastSyncText, { color: isDarkMode ? '#ef4444' : '#dc2626' }]}>
+              Not connected - meetings are not syncing to Google Calendar
             </Text>
           )}
         </Card.Content>
@@ -353,5 +494,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  reconnectButton: {
+    marginTop: 12,
+    borderRadius: 8,
   },
 });

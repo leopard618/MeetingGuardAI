@@ -443,6 +443,8 @@ router.post('/', [
 
     // Try to create Google Calendar event if user has Google tokens
     try {
+      console.log('🔍 Checking for Google tokens for user:', req.userId);
+      
       const { data: userTokens, error: tokenError } = await supabase
         .from('user_tokens')
         .select('access_token, refresh_token, expires_at')
@@ -450,8 +452,81 @@ router.post('/', [
         .eq('token_type', 'google')
         .single();
 
-      if (!tokenError && userTokens && userTokens.access_token) {
-        console.log('Creating Google Calendar event for meeting:', meeting.id);
+      console.log('🔑 Google tokens check result:', {
+        hasTokens: !!userTokens,
+        hasAccessToken: !!(userTokens?.access_token),
+        hasRefreshToken: !!(userTokens?.refresh_token),
+        expiresAt: userTokens?.expires_at,
+        tokenError: tokenError?.message
+      });
+
+      if (tokenError) {
+        console.log('❌ No Google tokens found for user:', tokenError.message);
+        console.log('💡 User needs to connect Google Calendar in settings');
+      } else if (!userTokens || !userTokens.access_token) {
+        console.log('❌ Invalid or missing Google access token');
+      } else {
+        // Check if token is expired
+        const now = new Date();
+        const expiresAt = new Date(userTokens.expires_at);
+        const isExpired = now >= expiresAt;
+        
+        console.log('⏰ Token expiry check:', {
+          now: now.toISOString(),
+          expiresAt: expiresAt.toISOString(),
+          isExpired: isExpired
+        });
+        
+        if (isExpired) {
+          console.log('⚠️ Google access token is expired, attempting refresh...');
+          
+          // Try to refresh the token
+          if (userTokens.refresh_token) {
+            try {
+              const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                  client_id: process.env.GOOGLE_CLIENT_ID,
+                  client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                  refresh_token: userTokens.refresh_token,
+                  grant_type: 'refresh_token',
+                }),
+              });
+              
+              if (refreshResponse.ok) {
+                const refreshData = await refreshResponse.json();
+                console.log('✅ Token refreshed successfully');
+                
+                // Update tokens in database
+                await supabase
+                  .from('user_tokens')
+                  .update({
+                    access_token: refreshData.access_token,
+                    expires_at: new Date(Date.now() + refreshData.expires_in * 1000).toISOString()
+                  })
+                  .eq('user_id', req.userId)
+                  .eq('token_type', 'google');
+                
+                // Use new access token
+                userTokens.access_token = refreshData.access_token;
+              } else {
+                const errorData = await refreshResponse.text();
+                console.error('❌ Token refresh failed:', refreshResponse.status, errorData);
+                throw new Error(`Token refresh failed: ${errorData}`);
+              }
+            } catch (refreshError) {
+              console.error('❌ Error refreshing token:', refreshError);
+              throw new Error(`Token refresh error: ${refreshError.message}`);
+            }
+          } else {
+            throw new Error('No refresh token available - user needs to reconnect Google Calendar');
+          }
+        }
+        
+        console.log('✅ Valid Google access token available, creating calendar event for meeting:', meeting.id);
         
         // Prepare meeting data for Google Calendar with proper participant structure
         const meetingForGoogle = {
@@ -492,12 +567,13 @@ router.post('/', [
             });
           
           console.log('Google Calendar event created successfully:', googleEvent.id);
+        } else {
+          console.log('❌ Failed to create Google Calendar event');
         }
-      } else {
-        console.log('No Google tokens found for user, skipping Google Calendar integration');
       }
     } catch (googleError) {
-      console.error('Error creating Google Calendar event:', googleError);
+      console.error('❌ Error with Google Calendar integration:', googleError.message);
+      console.log('💡 Meeting saved to database but not synced to Google Calendar');
       // Don't fail the meeting creation if Google Calendar fails
     }
 
