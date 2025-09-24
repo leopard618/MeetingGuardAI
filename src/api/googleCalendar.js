@@ -639,17 +639,14 @@ class GoogleCalendarService {
    */
   async createEvent(eventData) {
     try {
-      console.log('Creating Google Calendar event:', {
-        id: eventData.id,
-        title: eventData.title,
-        date: eventData.date,
-        time: eventData.time,
-        duration: eventData.duration,
-        attendees: eventData.attendees,
-        location: eventData.location
-      });
-      
-      const googleEvent = this.convertToGoogleEvent(eventData);
+      console.log('🚫 Frontend Google Calendar createEvent disabled for event:', eventData.id);
+      console.log('💡 Backend handles all Google Calendar operations to prevent data corruption');
+      // DISABLED: Frontend creation operations cause:
+      // - Location/link concatenation errors (line 831: locationString += Meeting Link)
+      // - Missing participants in Google Calendar
+      // - Data format inconsistencies
+      // Backend handles creation properly with correct formatting
+      return null;
       console.log('Converted to Google event format:', {
         summary: googleEvent.summary,
         start: googleEvent.start,
@@ -686,19 +683,14 @@ class GoogleCalendarService {
    */
   async updateEvent(eventData) {
     try {
-      const googleEvent = this.convertToGoogleEvent(eventData);
-      
-      // Ensure we have a valid calendar ID
-      const calendarId = await this.getCalendarId();
-      
-      // Get the Google event ID from mappings
-      const mappings = await this.getEventMappings();
-      const googleEventId = mappings[eventData.id];
-      
-      if (!googleEventId) {
-        console.log('No Google event ID found for app event:', eventData.id, 'Creating new event instead');
-        return await this.createEvent(eventData);
-      }
+      console.log('🚫 Frontend Google Calendar updateEvent disabled');
+      console.log('💡 Backend handles all Google Calendar operations to prevent data corruption');
+      // DISABLED: Frontend update operations cause:
+      // - Location/link concatenation errors  
+      // - Missing participants
+      // - Data format inconsistencies
+      // Backend handles updates properly
+      return null;
       
       console.log('Updating Google Calendar event:', googleEventId, 'for app event:', eventData.id);
       
