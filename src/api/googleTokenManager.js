@@ -33,9 +33,19 @@ class GoogleTokenManager {
         return null;
       }
 
-      // Check if token is expired
-      if (tokens.expiry && Date.now() > tokens.expiry) {
-        console.log('❌ [TokenManager] Access token has expired');
+      // Check if token is expired or will expire soon (5 minutes buffer)
+      const fiveMinutesFromNow = Date.now() + (5 * 60 * 1000);
+      const isExpiredOrExpiringSoon = tokens.expiry && fiveMinutesFromNow > tokens.expiry;
+      
+      if (isExpiredOrExpiringSoon) {
+        const isAlreadyExpired = Date.now() > tokens.expiry;
+        
+        if (isAlreadyExpired) {
+          console.log('❌ [TokenManager] Access token has expired');
+        } else {
+          console.log('🔄 [TokenManager] Access token expires soon, refreshing proactively');
+        }
+        
         console.log('❌ [TokenManager] Expiry time:', new Date(tokens.expiry).toISOString());
         console.log('❌ [TokenManager] Current time:', new Date().toISOString());
 
@@ -71,6 +81,11 @@ class GoogleTokenManager {
 
         // Clear expired tokens if refresh failed
         await this.clearTokens();
+        
+        // Trigger automatic logout when tokens can't be refreshed
+        console.log('🚨 [TokenManager] Google tokens expired and refresh failed - triggering logout');
+        await this.triggerLogout();
+        
         return null;
       }
 
@@ -152,23 +167,48 @@ class GoogleTokenManager {
     try {
       console.log('🔄 [TokenManager] Refreshing access token...');
 
+      // Get client credentials
+      const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '929271330787-chktjtd81grj1sb4nae2b11tevocmfh9.apps.googleusercontent.com';
+      const clientSecret = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET;
+      
+      console.log('🔄 [TokenManager] Using client ID:', clientId ? `${clientId.substring(0, 20)}...` : 'NOT SET');
+      console.log('🔄 [TokenManager] Client secret available:', !!clientSecret);
+      
+      if (!clientSecret) {
+        console.error('❌ [TokenManager] Google Client Secret not configured');
+        throw new Error('Google Client Secret not configured - check environment variables');
+      }
+      
+      const requestBody = new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      });
+      
+      console.log('🔄 [TokenManager] Making token refresh request...');
+
       const response = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          client_id: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-          client_secret: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET,
-          refresh_token: refreshToken,
-          grant_type: 'refresh_token',
-        }),
+        body: requestBody,
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorText = await response.text();
+        console.error('❌ [TokenManager] Token refresh failed:', response.status, errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: 'parse_error', error_description: errorText };
+        }
+        
         console.error('❌ [TokenManager] Google token refresh failed:', errorData);
-        throw new Error(`Token refresh failed: ${errorData.error_description || response.statusText}`);
+        throw new Error(`Token refresh failed: ${errorData.error_description || errorData.error || response.statusText}`);
       }
 
       const tokenData = await response.json();
@@ -201,6 +241,34 @@ class GoogleTokenManager {
     } catch (error) {
       console.error('❌ [TokenManager] Error clearing tokens:', error);
       return false;
+    }
+  }
+
+  /**
+   * Trigger automatic logout when Google tokens can't be refreshed
+   */
+  async triggerLogout() {
+    try {
+      console.log('🚨 [TokenManager] Triggering automatic logout due to expired Google tokens');
+      
+      // Clear all authentication data
+      await AsyncStorage.multiRemove([
+        'user',
+        'authToken',
+        'google_access_token',
+        'google_refresh_token',
+        'google_token_expiry',
+        'google_calendar_connected',
+        'google_calendar_connected_at'
+      ]);
+      
+      console.log('✅ [TokenManager] All auth data cleared - user will be logged out');
+      
+      // The AuthContext will detect the cleared tokens and automatically log out the user
+      // This triggers a clean re-authentication flow
+      
+    } catch (error) {
+      console.error('❌ [TokenManager] Error during automatic logout:', error);
     }
   }
 

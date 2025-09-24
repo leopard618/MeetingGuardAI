@@ -51,6 +51,15 @@ export const AuthProvider = ({ children }) => {
             console.log('✅ AuthContext: Google Calendar initialized successfully on login');
             await AsyncStorage.setItem('google_calendar_connected', 'true');
             await AsyncStorage.setItem('google_calendar_connected_at', new Date().toISOString());
+            
+            // Start automatic token refresh scheduler
+            try {
+              const googleTokenScheduler = (await import('../api/googleTokenScheduler')).default;
+              await googleTokenScheduler.startAutoRefresh();
+              console.log('✅ AuthContext: Google token auto-refresh started');
+            } catch (schedulerError) {
+              console.log('⚠️ AuthContext: Failed to start token scheduler:', schedulerError.message);
+            }
           } else {
             console.log('⚠️ AuthContext: Google Calendar initialization failed on login');
             console.log('⚠️ This is normal if user hasn\'t granted calendar permissions yet');
@@ -254,6 +263,15 @@ export const AuthProvider = ({ children }) => {
           const initialized = await googleCalendarService.initialize();
           if (initialized) {
             console.log('✅ Google Calendar service initialized for authenticated user');
+            
+            // Start automatic token refresh scheduler for restored session
+            try {
+              const googleTokenScheduler = (await import('../api/googleTokenScheduler')).default;
+              await googleTokenScheduler.startAutoRefresh();
+              console.log('✅ Google token auto-refresh started for restored session');
+            } catch (schedulerError) {
+              console.log('⚠️ Failed to start token scheduler for restored session:', schedulerError.message);
+            }
           } else {
             console.log('⚠️ Google Calendar service initialization failed for authenticated user');
           }

@@ -22,7 +22,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import calendarSyncManager from '../api/calendarSyncManager';
 import googleCalendarService from '../api/googleCalendar';
 
-export default function CalendarSyncSettings() {
+export default function SimplifiedCalendarSyncSettings() {
   const { isDarkMode } = useTheme();
   const { logout } = useAuth();
   const [syncSettings, setSyncSettings] = useState(null);
