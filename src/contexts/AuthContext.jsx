@@ -97,6 +97,63 @@ export const AuthProvider = ({ children }) => {
     }
   }, [googleAuth.isSignedIn, googleAuth.user, googleAuth.isLoading]);
 
+  // Periodic auth validation - check every 30 seconds if tokens still exist
+  useEffect(() => {
+    let authValidationInterval;
+    
+    if (isAuthenticated) {
+      authValidationInterval = setInterval(async () => {
+        try {
+          console.log('🔍 [AuthContext] Performing periodic auth validation...');
+          
+          // Check if essential auth data still exists
+          const [userData, authToken] = await Promise.all([
+            AsyncStorage.getItem('user'),
+            AsyncStorage.getItem('authToken')
+          ]);
+          
+          // If tokens were cleared by automatic logout services, redirect to login
+          if (!userData || !authToken) {
+            console.log('🚨 [AuthContext] Essential auth data missing - user was logged out externally');
+            console.log('🚨 [AuthContext] Triggering automatic logout and redirect to login');
+            
+            // Stop monitoring services
+            try {
+              const googleTokenScheduler = (await import('../api/googleTokenScheduler')).default;
+              googleTokenScheduler.stopAutoRefresh();
+              
+              const googleConnectionMonitor = (await import('../api/googleConnectionMonitor')).default;
+              googleConnectionMonitor.stopMonitoring();
+            } catch (error) {
+              console.log('⚠️ [AuthContext] Error stopping services during auto-logout:', error.message);
+            }
+            
+            // Update state to logged out
+            setUser(null);
+            setIsAuthenticated(false);
+            setUserPlan('free');
+            
+            // The app will automatically redirect to login screen due to isAuthenticated = false
+            console.log('✅ [AuthContext] User logged out automatically - will redirect to login');
+          } else {
+            console.log('✅ [AuthContext] Auth validation passed - user still authenticated');
+          }
+        } catch (error) {
+          console.error('❌ [AuthContext] Error during auth validation:', error);
+        }
+      }, 30000); // Check every 30 seconds
+      
+      console.log('✅ [AuthContext] Periodic auth validation started (every 30 seconds)');
+    }
+    
+    return () => {
+      if (authValidationInterval) {
+        clearInterval(authValidationInterval);
+        console.log('🛑 [AuthContext] Periodic auth validation stopped');
+      }
+    };
+  }, [isAuthenticated]);
+
   const saveUserToBackend = async (userInfo) => {
     try {
       console.log('=== AUTH CONTEXT: SAVING USER TO BACKEND ===');

@@ -22,22 +22,20 @@ class GoogleConnectionMonitor {
       return;
     }
 
-    console.log('🚀 [ConnectionMonitor] Google connection monitoring available but disabled');
-    console.log('💡 [ConnectionMonitor] Use manual reconnection if needed');
+    console.log('🚀 [ConnectionMonitor] Starting Google connection monitoring...');
     
-    // Monitoring is disabled for now - just show status
-    // this.isMonitoring = true;
-    // this.consecutiveFailures = 0;
+    this.isMonitoring = true;
+    this.consecutiveFailures = 0;
 
-    // // Initial check
-    // this.checkConnection();
+    // Initial check
+    this.checkConnection();
 
-    // // Set up periodic checks
-    // this.monitorInterval = setInterval(() => {
-    //   this.checkConnection();
-    // }, this.checkIntervalMinutes * 60 * 1000);
+    // Set up periodic checks
+    this.monitorInterval = setInterval(() => {
+      this.checkConnection();
+    }, this.checkIntervalMinutes * 60 * 1000);
 
-    // console.log(`✅ [ConnectionMonitor] Monitoring started (checking every ${this.checkIntervalMinutes} minutes)`);
+    console.log(`✅ [ConnectionMonitor] Monitoring started (checking every ${this.checkIntervalMinutes} minutes)`);
   }
 
   /**
