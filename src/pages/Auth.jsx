@@ -39,18 +39,9 @@ import {
 
 export default function Auth({ navigation }) {
   const { isDarkMode } = useTheme();
-  const { login, signup, signInWithGoogle } = useAuth();
+  const { signInWithGoogle } = useAuth();
   const { t } = useTranslation("en"); // Auth page is always in English for now
-  const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    confirmPassword: "",
-    name: "",
-  });
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [logoutMessage, setLogoutMessage] = useState(null);
 
   // Check if user was automatically logged out
@@ -75,69 +66,6 @@ export default function Auth({ navigation }) {
     checkLogoutReason();
   }, []);
 
-  const validateForm = () => {
-    const { email, password, confirmPassword, name } = formData;
-    
-    if (!email || !password || (!isLogin && (!name || !confirmPassword))) {
-      Alert.alert("Error", t('auth.emptyFields'));
-      return false;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert("Error", t('auth.invalidEmail'));
-      return false;
-    }
-
-    if (password.length < 6) {
-      Alert.alert("Error", t('auth.weakPassword'));
-      return false;
-    }
-
-    if (!isLogin && password !== confirmPassword) {
-      Alert.alert("Error", t('auth.passwordMismatch'));
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
-
-    setIsLoading(true);
-    try {
-      let result;
-      
-      if (isLogin) {
-        result = await login(formData.email, formData.password);
-      } else {
-        result = await signup(formData.name, formData.email, formData.password);
-      }
-      
-             if (result.success) {
-         Alert.alert(
-           "Success",
-           isLogin ? t('auth.loginSuccess') : t('auth.signupSuccess'),
-           [
-             {
-               text: "OK",
-               onPress: () => {
-                 // Authentication state will automatically trigger navigation
-                 console.log("Authentication successful");
-               },
-             },
-           ]
-         );
-       } else {
-         Alert.alert("Error", result.error || t('auth.error'));
-       }
-    } catch (error) {
-      Alert.alert("Error", t('auth.error'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleGoogleSignIn = async () => {
     console.log('=== AUTH PAGE: GOOGLE SIGN IN CLICKED ===');
@@ -176,15 +104,6 @@ export default function Auth({ navigation }) {
     }
   };
 
-  const toggleMode = () => {
-    setIsLogin(!isLogin);
-    setFormData({
-      email: "",
-      password: "",
-      confirmPassword: "",
-      name: "",
-    });
-  };
 
   // Get responsive values
   const fonts = getResponsiveFontSizes();
@@ -245,96 +164,12 @@ export default function Auth({ navigation }) {
 
           <Card style={styles.card}>
             <Card.Content>
-              {/* <Title style={styles.formTitle}>
-                {isLogin ? t('auth.loginTitle') : t('auth.signupTitle')}
+              <Title style={styles.formTitle}>
+                {t('auth.signInTitle')}
               </Title>
               <Paragraph style={styles.formSubtitle}>
-                {isLogin ? t('auth.loginSubtitle') : t('auth.signupSubtitle')}
-              </Paragraph> */}
-
-              {!isLogin && (
-                <TextInput
-                  label={t('auth.name')}
-                  value={formData.name}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, name: text })
-                  }
-                  mode="outlined"
-                  style={styles.input}
-                  placeholder={t('auth.namePlaceholder')}
-                                     left={<TextInput.Icon icon="account-circle" />}
-                />
-              )}
-
-              <TextInput
-                label={t('auth.email')}
-                value={formData.email}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, email: text })
-                }
-                mode="outlined"
-                style={styles.input}
-                placeholder={t('auth.emailPlaceholder')}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                left={<TextInput.Icon icon="email" />}
-              />
-
-              <TextInput
-                label={t('auth.password')}
-                value={formData.password}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, password: text })
-                }
-                mode="outlined"
-                style={styles.input}
-                placeholder={t('auth.passwordPlaceholder')}
-                secureTextEntry={!showPassword}
-                left={<TextInput.Icon icon="lock" />}
-                right={
-                  <TextInput.Icon
-                    icon={showPassword ? "eye-off" : "eye"}
-                    onPress={() => setShowPassword(!showPassword)}
-                  />
-                }
-              />
-
-              {!isLogin && (
-                <TextInput
-                  label={t('auth.confirmPassword')}
-                  value={formData.confirmPassword}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, confirmPassword: text })
-                  }
-                  mode="outlined"
-                  style={styles.input}
-                  placeholder={t('auth.passwordPlaceholder')}
-                  secureTextEntry={!showConfirmPassword}
-                  left={<TextInput.Icon icon="lock-check" />}
-                  right={
-                    <TextInput.Icon
-                      icon={showConfirmPassword ? "eye-off" : "eye"}
-                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                    />
-                  }
-                />
-              )}
-
-              <Button
-                mode="contained"
-                onPress={handleSubmit}
-                style={styles.submitButton}
-                loading={isLoading}
-                disabled={isLoading}
-              >
-                {isLogin ? t('auth.login') : t('auth.signup')}
-              </Button>
-
-              <View style={styles.dividerContainer}>
-                <View style={styles.divider} />
-                <Text style={styles.dividerText}>{t('auth.orContinueWith')}</Text>
-                <View style={styles.divider} />
-              </View>
+                {t('auth.signInSubtitle')}
+              </Paragraph>
 
               <TouchableOpacity
                 style={styles.googleButton}
@@ -347,30 +182,12 @@ export default function Auth({ navigation }) {
                   color={isDarkMode ? "#ffffff" : "#000000"}
                 />
                 <Text style={styles.googleButtonText}>
-                  {isLogin ? t('auth.signInWithGoogle') : t('auth.signUpWithGoogle')}
+                  {t('auth.signInWithGoogle')}
                 </Text>
               </TouchableOpacity>
-
-              {isLogin && (
-                <TouchableOpacity style={styles.forgotPassword}>
-                  <Text style={styles.forgotPasswordText}>
-                    {t('auth.forgotPassword')}
-                  </Text>
-                </TouchableOpacity>
-              )}
             </Card.Content>
           </Card>
 
-          <View style={styles.switchContainer}>
-             <Text style={styles.switchText}>
-               {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}
-             </Text>
-             <TouchableOpacity onPress={toggleMode}>
-               <Text style={styles.switchLink}>
-                 {isLogin ? t('auth.signUpHere') : t('auth.signInHere')}
-               </Text>
-             </TouchableOpacity>
-           </View>
            
                        {/* Temporary debug button - remove in production */}
             {/* <TouchableOpacity 
@@ -467,36 +284,13 @@ const getStyles = (isDarkMode, fonts, spacing, buttonDims, isSmall, isTablet) =>
       fontWeight: "bold",
       marginBottom: spacing['sm'],
       color: isDarkMode ? "#f1f5f9" : "#1e293b",
+      textAlign: "center",
     },
     formSubtitle: {
       fontSize: isSmall ? fonts['sm'] : fonts['md'],
       marginBottom: isSmall ? spacing['lg'] : spacing['2xl'],
       color: isDarkMode ? "#94a3b8" : "#64748b",
-    },
-    input: {
-      marginBottom: spacing['lg'],
-      backgroundColor: isDarkMode ? "#334155" : "#f8fafc",
-    },
-    submitButton: {
-      marginTop: spacing['sm'],
-      marginBottom: spacing['lg'],
-      paddingVertical: buttonDims.paddingVertical,
-      borderRadius: buttonDims.borderRadius,
-    },
-    dividerContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginVertical: isSmall ? spacing['lg'] : spacing['xl'],
-    },
-    divider: {
-      flex: 1,
-      height: 1,
-      backgroundColor: isDarkMode ? '#475569' : '#e2e8f0',
-    },
-    dividerText: {
-      marginHorizontal: 16,
-      color: isDarkMode ? '#94a3b8' : '#64748b',
-      fontSize: 14,
+      textAlign: "center",
     },
     googleButton: {
       flexDirection: 'row',
@@ -516,30 +310,13 @@ const getStyles = (isDarkMode, fonts, spacing, buttonDims, isSmall, isTablet) =>
       fontWeight: '500',
       color: isDarkMode ? '#f1f5f9' : '#1e293b',
     },
-    forgotPassword: {
-      alignItems: "center",
-      marginTop: 8,
-    },
-    forgotPasswordText: {
-      color: isDarkMode ? "#60a5fa" : "#3b82f6",
+    infoText: {
       fontSize: 14,
+      color: isDarkMode ? '#94a3b8' : '#64748b',
+      textAlign: 'center',
+      marginTop: 16,
+      lineHeight: 20,
     },
-    switchContainer: {
-      flexDirection: "row",
-      justifyContent: "center",
-      alignItems: "center",
-      marginTop: 24,
-      gap: 4,
-    },
-    switchText: {
-      color: isDarkMode ? "#94a3b8" : "#64748b",
-      fontSize: 14,
-    },
-         switchLink: {
-       color: isDarkMode ? "#60a5fa" : "#3b82f6",
-       fontSize: 14,
-       fontWeight: "600",
-     },
      debugButton: {
        marginTop: 16,
        padding: 12,

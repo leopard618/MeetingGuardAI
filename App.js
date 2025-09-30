@@ -20,7 +20,6 @@ import { UserPreferences } from './src/api/entities.js';
 
 // Import screens
 import LandingPage from './src/pages/LandingPage.jsx';
-import Auth from './src/pages/Auth.jsx';
 import Dashboard from './src/pages/Dashboard.jsx';
 import ModernCreateMeeting from './src/components/ModernCreateMeeting.jsx';
 import TotalMeetings from './src/pages/TotalMeetings.jsx';
@@ -46,7 +45,6 @@ import PaymentSuccess from './src/pages/PaymentSuccess.jsx';
 const Stack = createStackNavigator();
 
 // Wrapper components to pass language prop - now using current language state
-const AuthWithLanguage = (props) => <Auth {...props} language={props.language || "en"} />;
 const DashboardWithLanguage = (props) => <Dashboard {...props} language={props.language || "en"} />;
 const CreateMeetingWithLanguage = (props) => <ModernCreateMeeting {...props} language={props.language || "en"} />;
 const TotalMeetingsWithLanguage = (props) => <TotalMeetings {...props} language={props.language || "en"} />;
@@ -77,7 +75,6 @@ function AppNavigator() {
   const [user, setUser] = useState(null);
   const [language, setLanguageState] = useState("es");
   const [currentRouteName, setCurrentRouteName] = useState("Dashboard");
-  const [showAuth, setShowAuth] = useState(false);
 
   // Define CalendarWithLanguage inside the function to access language state
   const CalendarWithLanguage = (props) => <Calendar {...props} language={language} />;
@@ -188,15 +185,11 @@ function AppNavigator() {
     );
   }
 
-  // Show landing page or auth page if not authenticated
+  // Show landing page if not authenticated
   if (!isAuthenticated) {
     return (
       <View style={styles.container}>
-        {showAuth ? (
-          <Auth />
-        ) : (
-          <LandingPage onGetStarted={() => setShowAuth(true)} />
-        )}
+        <LandingPage />
       </View>
     );
   }

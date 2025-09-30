@@ -394,7 +394,10 @@ export const translations = {
       emptyFields: "Please fill in all fields",
       orContinueWith: "Or continue with",
       signInWithGoogle: "Sign in with Google",
-      signUpWithGoogle: "Sign up with Google"
+      signUpWithGoogle: "Sign up with Google",
+      signInTitle: "Sign In with Google",
+      signInSubtitle: "Access your meetings and Google Calendar",
+      googleRequired: ""
     },
     // API Settings
     apiSettings: {
@@ -1078,7 +1081,10 @@ export const translations = {
       emptyFields: "Por favor completa todos los campos",
       orContinueWith: "O continúa con",
       signInWithGoogle: "Iniciar sesión con Google",
-      signUpWithGoogle: "Registrarse con Google"
+      signUpWithGoogle: "Registrarse con Google",
+      signInTitle: "Iniciar Sesión con Google",
+      signInSubtitle: "Accede a tus reuniones y Google Calendar",
+      googleRequired: ""
     },
     // API Settings
     apiSettings: {
