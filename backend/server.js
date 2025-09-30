@@ -404,6 +404,9 @@ try {
   emailRoutes = require('./routes/email');
   console.log('✅ emailRoutes imported');
   
+  notificationRoutes = require('./routes/notifications');
+  console.log('✅ notificationRoutes imported');
+  
   planGate = require('./middleware/planGate').planGate;
   console.log('✅ planGate imported');
   
@@ -962,6 +965,7 @@ app.use('/api/files', authenticateToken, fileRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/billing', authenticateToken, billingRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
