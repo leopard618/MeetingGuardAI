@@ -3,7 +3,7 @@ import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react
 import { Meeting } from '../api/entities';
 import ServiceWorkerRegistration from './ServiceWorkerRegistration';
 import { storage } from '../utils/storage.js';
-import { AlertIntensity } from '../utils/notificationUtils.js';
+import { AlertIntensity } from '../utils/notificationUtils.js';\nimport EnhancedNotificationManager from '../services/EnhancedNotificationManager';
 
 const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnabled }, ref) => {
   const alertTimeoutsRef = useRef(new Map());
@@ -18,14 +18,17 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
     }
     
     console.log('📅 Manually scheduling alerts for meeting:', meeting.title);
+    
+    // Schedule both in-app alerts (existing system) and background notifications (new system)
     await scheduleAlertsForMeeting(meeting);
+    await EnhancedNotificationManager.scheduleMeetingNotifications(meeting);
   };
 
   // Expose function to clear alerts for a specific meeting
   const clearAlertsForMeeting = async (meetingId) => {
     console.log('🗑️ Clearing alerts for meeting ID:', meetingId);
     
-    // Clear timeouts
+    // Clear timeouts (existing system)
     const existingTimeouts = alertTimeoutsRef.current.get(meetingId) || [];
     existingTimeouts.forEach(timeout => clearTimeout(timeout));
     alertTimeoutsRef.current.delete(meetingId);
@@ -37,6 +40,9 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
     } catch (error) {
       console.error('Failed to clear alert schedule from storage:', error);
     }
+    
+    // Clear background notifications (new system)
+    await EnhancedNotificationManager.cancelMeetingNotifications(meetingId);
   };
 
   // Clear old alert schedules to prevent accumulation
@@ -244,6 +250,18 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
       console.error('Error scheduling alerts for meeting:', meeting.title, error);
     }
   };
+
+  // Initialize Enhanced Notification Manager
+  useEffect(() => {
+    const initializeNotifications = async () => {
+      if (alertsEnabled) {
+        console.log('🚀 Initializing Enhanced Notification Manager...');
+        await EnhancedNotificationManager.initialize();
+      }
+    };
+    
+    initializeNotifications();
+  }, [alertsEnabled]);
 
   useEffect(() => {
     // Clear all scheduled alerts if alerts are disabled

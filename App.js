@@ -42,6 +42,10 @@ import NotificationDemo from './src/components/NotificationSystem/NotificationDe
 import Pricing from './src/pages/Pricing.jsx';
 import PaymentSuccess from './src/pages/PaymentSuccess.jsx';
 
+// Import notification and floating widget components
+import FloatingWidgetContainer from './src/components/FloatingWidgetContainer.jsx';
+import EnhancedNotificationManager from './src/services/EnhancedNotificationManager.js';
+
 const Stack = createStackNavigator();
 
 // Wrapper components to pass language prop - now using current language state
@@ -135,6 +139,17 @@ function AppNavigator() {
         }
       }).catch(error => {
         console.error('❌ Google Calendar initialization error:', error);
+      });
+      
+      // Initialize enhanced notification system
+      EnhancedNotificationManager.initialize().then(result => {
+        if (result) {
+          console.log('✅ Enhanced notification system initialized successfully');
+        } else {
+          console.log('⚠️ Enhanced notification system initialization failed');
+        }
+      }).catch((error) => {
+        console.error('❌ Notification system initialization error:', error);
       });
     }
   }, [isAuthenticated]);
@@ -370,6 +385,16 @@ function AppNavigator() {
           
           <StatusBar style="auto" />
           <Toast />
+          
+          {/* Floating Widget Container */}
+          <FloatingWidgetContainer 
+            navigation={navigation}
+            onNavigateToMeeting={(meeting) => {
+              console.log('Navigate to meeting from widget:', meeting.title);
+              // Navigate to meeting details or dashboard
+              navigation.navigate('Dashboard');
+            }}
+          />
         </NavigationContainer>
         </View>
       </ThemeProvider>

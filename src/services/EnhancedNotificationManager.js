@@ -1,0 +1,319 @@
+import * as Notifications from 'expo-notifications';
+import LocalNotificationScheduler from './LocalNotificationScheduler';
+import BackgroundTaskManager from './BackgroundTaskManager';
+import { registerForPushNotificationsAsync, checkNotificationPermissions } from './NotificationPermissions';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+class EnhancedNotificationManager {
+  constructor() {
+    this.pushToken = null;
+    this.isInitialized = false;
+    this.notificationListener = null;
+    this.responseListener = null;
+  }
+
+  async initialize() {
+    try {
+      console.log('🚀 Initializing Enhanced Notification System...');
+      
+      // Check and request permissions
+      const hasPermissions = await checkNotificationPermissions();
+      if (!hasPermissions) {
+        console.warn('⚠️ Notification permissions not granted');
+        return false;
+      }
+
+      // Register for push notifications
+      this.pushToken = await registerForPushNotificationsAsync();
+      if (this.pushToken) {
+        console.log('✅ Push token obtained:', this.pushToken);
+        await this.registerTokenWithBackend(this.pushToken);
+      }
+
+      // Initialize background task manager
+      await BackgroundTaskManager.initialize();
+
+      // Set up notification listeners
+      this.setupNotificationListeners();
+
+      this.isInitialized = true;
+      console.log('✅ Enhanced notification system initialized successfully');
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to initialize notification system:', error);
+      return false;
+    }
+  }
+
+  setupNotificationListeners() {
+    // Listen for notifications received while app is running
+    this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('📱 Notification received:', notification);
+    });
+
+    // Listen for user interactions with notifications
+    this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('👆 Notification response:', response);
+      this.handleNotificationResponse(response);
+    });
+  }
+
+  async handleNotificationResponse(response) {
+    const { notification, actionIdentifier } = response;
+    const { meetingId, alertType, meeting } = notification.request.content.data;
+
+    console.log(`🎯 User interacted with ${alertType} notification for meeting ${meetingId}`);
+
+    try {
+      // Parse meeting data
+      const meetingData = typeof meeting === 'string' ? JSON.parse(meeting) : meeting;
+
+      // Handle different actions
+      switch (actionIdentifier) {
+        case 'view':
+          // Navigate to meeting details
+          // This would be handled by your navigation system
+          console.log('📋 User wants to view meeting:', meetingData.title);
+          break;
+        
+        case 'snooze':
+          // Snooze the notification for 5 minutes
+          await this.snoozeMeetingNotification(meetingData, 5);
+          break;
+        
+        default:
+          // Default tap action - could open the app or show meeting details
+          console.log('📱 User tapped notification:', meetingData.title);
+          break;
+      }
+    } catch (error) {
+      console.error('Error handling notification response:', error);
+    }
+  }
+
+  async snoozeMeetingNotification(meeting, snoozeMinutes = 5) {
+    try {
+      const snoozeTime = new Date(Date.now() + snoozeMinutes * 60 * 1000);
+      
+      await LocalNotificationScheduler.scheduleNotification(
+        meeting,
+        'snooze',
+        snoozeTime.getTime()
+      );
+      
+      console.log(`😴 Snoozed notification for ${meeting.title} for ${snoozeMinutes} minutes`);
+    } catch (error) {
+      console.error('Failed to snooze notification:', error);
+    }
+  }
+
+  async registerTokenWithBackend(token) {
+    try {
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) {
+        console.warn('No auth token available for backend registration');
+        return;
+      }
+
+      const response = await fetch(`${process.env.BACKEND_URL}/api/notifications/register-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          pushToken: token,
+          platform: Platform.OS,
+          deviceId: await this.getDeviceId(),
+        }),
+      });
+
+      if (response.ok) {
+        console.log('✅ Push token registered with backend');
+      } else {
+        console.warn('⚠️ Failed to register push token with backend:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to register push token with backend:', error);
+    }
+  }
+
+  async getDeviceId() {
+    try {
+      let deviceId = await AsyncStorage.getItem('deviceId');
+      if (!deviceId) {
+        deviceId = `${Platform.OS}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await AsyncStorage.setItem('deviceId', deviceId);
+      }
+      return deviceId;
+    } catch (error) {
+      return `${Platform.OS}-${Date.now()}`;
+    }
+  }
+
+  async scheduleMeetingNotifications(meeting) {
+    if (!this.isInitialized) {
+      console.warn('⚠️ Notification system not initialized');
+      return false;
+    }
+
+    try {
+      console.log(`📅 Scheduling notifications for meeting: ${meeting.title}`);
+      
+      // Schedule local notifications (primary method)
+      const localResult = await LocalNotificationScheduler.scheduleMeetingAlerts(meeting);
+      
+      // Schedule push notifications as backup (if backend is available)
+      if (this.pushToken) {
+        await this.schedulePushNotifications(meeting);
+      }
+
+      console.log(`✅ Scheduled ${localResult.length} local notifications for: ${meeting.title}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to schedule meeting notifications:', error);
+      return false;
+    }
+  }
+
+  async schedulePushNotifications(meeting) {
+    try {
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) return;
+
+      const response = await fetch(`${process.env.BACKEND_URL}/api/notifications/schedule-meeting`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          meeting,
+          pushToken: this.pushToken,
+        }),
+      });
+
+      if (response.ok) {
+        console.log(`📤 Scheduled push notifications for: ${meeting.title}`);
+      }
+    } catch (error) {
+      console.error('Failed to schedule push notifications:', error);
+    }
+  }
+
+  async cancelMeetingNotifications(meetingId) {
+    try {
+      console.log(`🗑️ Cancelling notifications for meeting: ${meetingId}`);
+      
+      // Cancel local notifications
+      await LocalNotificationScheduler.cancelMeetingAlerts(meetingId);
+      
+      // Cancel push notifications via backend
+      if (this.pushToken) {
+        await this.cancelPushNotifications(meetingId);
+      }
+
+      console.log(`✅ Cancelled notifications for meeting: ${meetingId}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to cancel meeting notifications:', error);
+      return false;
+    }
+  }
+
+  async cancelPushNotifications(meetingId) {
+    try {
+      const authToken = await AsyncStorage.getItem('authToken');
+      if (!authToken) return;
+
+      const response = await fetch(`${process.env.BACKEND_URL}/api/notifications/cancel-meeting`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          meetingId,
+          pushToken: this.pushToken,
+        }),
+      });
+
+      if (response.ok) {
+        console.log(`📤 Cancelled push notifications for meeting: ${meetingId}`);
+      }
+    } catch (error) {
+      console.error('Failed to cancel push notifications:', error);
+    }
+  }
+
+  async refreshAllNotifications() {
+    try {
+      console.log('🔄 Refreshing all notifications...');
+      
+      // Force refresh via background task manager
+      const result = await BackgroundTaskManager.forceRefreshNotifications();
+      
+      console.log(`✅ Refreshed notifications: ${result.meetingsProcessed} meetings, ${result.notificationsScheduled} notifications`);
+      return result;
+    } catch (error) {
+      console.error('Failed to refresh notifications:', error);
+      throw error;
+    }
+  }
+
+  async getNotificationStatus() {
+    try {
+      const [
+        hasPermissions,
+        scheduledCount,
+        backgroundStatus,
+        scheduledNotifications
+      ] = await Promise.all([
+        checkNotificationPermissions(),
+        LocalNotificationScheduler.getScheduledNotificationCount(),
+        BackgroundTaskManager.getStatus(),
+        LocalNotificationScheduler.getScheduledNotifications()
+      ]);
+
+      return {
+        isInitialized: this.isInitialized,
+        hasPermissions,
+        pushToken: this.pushToken,
+        scheduledCount,
+        backgroundStatus,
+        scheduledNotifications: scheduledNotifications.slice(0, 10), // First 10 for preview
+      };
+    } catch (error) {
+      console.error('Failed to get notification status:', error);
+      return {
+        isInitialized: false,
+        hasPermissions: false,
+        pushToken: null,
+        scheduledCount: 0,
+        backgroundStatus: { status: 'unknown' },
+        scheduledNotifications: [],
+      };
+    }
+  }
+
+  async clearAllNotifications() {
+    try {
+      await LocalNotificationScheduler.clearAllNotifications();
+      console.log('🧹 Cleared all notifications');
+    } catch (error) {
+      console.error('Failed to clear notifications:', error);
+    }
+  }
+
+  cleanup() {
+    if (this.notificationListener) {
+      Notifications.removeNotificationSubscription(this.notificationListener);
+    }
+    if (this.responseListener) {
+      Notifications.removeNotificationSubscription(this.responseListener);
+    }
+  }
+}
+
+export default new EnhancedNotificationManager();
