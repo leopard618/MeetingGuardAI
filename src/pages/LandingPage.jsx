@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,10 @@ import {
   Image,
   StatusBar,
   Dimensions,
+  Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
 import {
   getResponsiveFontSizes,
   getResponsiveSpacing,
@@ -26,9 +28,33 @@ import {
 const { width, height } = Dimensions.get('window');
 
 export default function LandingPage({ onGetStarted }) {
-  const handleGetStarted = () => {
-    if (onGetStarted) {
-      onGetStarted();
+  const { signInWithGoogle } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    console.log('=== LANDING PAGE: GOOGLE SIGN IN CLICKED ===');
+    setIsLoading(true);
+    try {
+      console.log('=== LANDING PAGE: CALLING signInWithGoogle ===');
+      const result = await signInWithGoogle();
+      console.log('=== LANDING PAGE: signInWithGoogle RESULT ===');
+      console.log('Result:', result);
+      
+      if (result.success) {
+        console.log('=== LANDING PAGE: GOOGLE SIGN IN SUCCESS ===');
+        // Authentication state will automatically trigger navigation to dashboard
+        console.log('Google authentication successful - will navigate to dashboard');
+      } else {
+        console.log('=== LANDING PAGE: GOOGLE SIGN IN FAILED ===');
+        console.log('Error:', result.error);
+        Alert.alert('Error', result.error || 'Google sign-in failed. Please try again.');
+      }
+    } catch (error) {
+      console.log('=== LANDING PAGE: GOOGLE SIGN IN EXCEPTION ===');
+      console.error('Exception:', error);
+      Alert.alert('Error', 'Google sign-in failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -98,13 +124,14 @@ export default function LandingPage({ onGetStarted }) {
         paddingHorizontal: isSmall ? spacing['lg'] : spacing['2xl'],
         fontWeight: '500',
       },
-      getStartedButton: {
-        backgroundColor: '#3B82F6',
+      googleSignInButton: {
+        backgroundColor: '#ffffff',
         paddingVertical: buttonDims.paddingVertical,
         paddingHorizontal: buttonDims.paddingHorizontal,
         borderRadius: buttonDims.borderRadius,
         alignItems: 'center',
         justifyContent: 'center',
+        flexDirection: 'row',
         shadowColor: '#000',
         shadowOffset: {
           width: 0,
@@ -114,11 +141,16 @@ export default function LandingPage({ onGetStarted }) {
         shadowRadius: 8,
         elevation: 8,
         minWidth: isSmall ? scaleWidth(200) : scaleWidth(250),
+        gap: 12,
+        opacity: isLoading ? 0.7 : 1,
       },
-      getStartedText: {
+      googleSignInText: {
         fontSize: buttonDims.fontSize,
         fontWeight: 'bold',
-        color: '#ffffff',
+        color: '#1f2937',
+      },
+      googleIcon: {
+        marginRight: 4,
       },
     });
   };
@@ -164,9 +196,21 @@ export default function LandingPage({ onGetStarted }) {
             Smart, multi-sensory notifications remind you across all devices. Never miss a meeting again!
           </Text>
 
-          {/* Get Started Button */}
-          <TouchableOpacity style={styles.getStartedButton} onPress={handleGetStarted}>
-            <Text style={styles.getStartedText}>Get Started</Text>
+          {/* Google Sign In Button */}
+          <TouchableOpacity 
+            style={styles.googleSignInButton} 
+            onPress={handleGoogleSignIn}
+            disabled={isLoading}
+          >
+            <MaterialIcons
+              name="g-translate"
+              size={24}
+              color="#1f2937"
+              style={styles.googleIcon}
+            />
+            <Text style={styles.googleSignInText}>
+              {isLoading ? 'Signing in...' : 'Sign in with Google'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ImageBackground>

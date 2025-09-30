@@ -368,125 +368,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
-    try {
-      console.log('=== AUTH CONTEXT: MANUAL LOGIN ATTEMPT ===');
-      console.log('Email:', email);
-      setIsLoading(true);
-      
-      const backendUrl = process.env.BACKEND_URL;
-      if (!backendUrl) {
-        throw new Error('Backend URL not configured');
-      }
 
-      // Call the backend login endpoint
-      const response = await fetch(`${backendUrl}/api/auth/signin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          email: email,
-          password: password
-        })
-      });
-
-      console.log('Login response status:', response.status);
-      console.log('Login response ok:', response.ok);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Manual login successful:', data);
-        
-        // Store user data in AsyncStorage
-        await AsyncStorage.setItem('user', JSON.stringify(data.user));
-        
-        // Store the JWT token for future authenticated requests
-        if (data.jwtToken) {
-          await AsyncStorage.setItem('authToken', data.jwtToken);
-          console.log('✅ JWT token stored for authenticated requests');
-        }
-        
-        // Update auth state
-        setUser(data.user);
-        setIsAuthenticated(true);
-        setUserPlan(data.user.plan || 'free');
-        
-        return { success: true, user: data.user };
-      } else {
-        const errorData = await response.json();
-        console.error('❌ Manual login failed:', errorData);
-        return { success: false, error: errorData.error || 'Login failed' };
-      }
-    } catch (error) {
-      console.error('❌ Manual login error:', error);
-      return { success: false, error: error.message || 'Network error' };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const signup = async (name, email, password) => {
-    try {
-      console.log('=== AUTH CONTEXT: MANUAL SIGNUP ATTEMPT ===');
-      console.log('Name:', name);
-      console.log('Email:', email);
-      setIsLoading(true);
-      
-      const backendUrl = process.env.BACKEND_URL;
-      if (!backendUrl) {
-        throw new Error('Backend URL not configured');
-      }
-
-      // Call the backend signup endpoint
-      const response = await fetch(`${backendUrl}/api/auth/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          name: name,
-          email: email,
-          password: password
-        })
-      });
-
-      console.log('Signup response status:', response.status);
-      console.log('Signup response ok:', response.ok);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Manual signup successful:', data);
-        
-        // Store user data in AsyncStorage
-        await AsyncStorage.setItem('user', JSON.stringify(data.user));
-        
-        // Store the JWT token for future authenticated requests
-        if (data.jwtToken) {
-          await AsyncStorage.setItem('authToken', data.jwtToken);
-          console.log('✅ JWT token stored for authenticated requests');
-        }
-        
-        // Update auth state
-        setUser(data.user);
-        setIsAuthenticated(true);
-        setUserPlan(data.user.plan || 'free');
-        
-        return { success: true, user: data.user };
-      } else {
-        const errorData = await response.json();
-        console.error('❌ Manual signup failed:', errorData);
-        return { success: false, error: errorData.error || 'Signup failed' };
-      }
-    } catch (error) {
-      console.error('❌ Manual signup error:', error);
-      return { success: false, error: error.message || 'Network error' };
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const logout = async () => {
     try {
@@ -653,8 +535,6 @@ export const AuthProvider = ({ children }) => {
     user,
     userPlan,
     isLoading,
-    login,
-    signup,
     logout,
     signInWithGoogle,
     refreshUserPlan,
