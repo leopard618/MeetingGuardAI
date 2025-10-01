@@ -3,7 +3,7 @@ import { View, StyleSheet, AppState } from 'react-native';
 import FloatingMeetingWidget from './FloatingMeetingWidget';
 import FloatingWidgetManager from '../services/FloatingWidgetManager';
 
-const FloatingWidgetContainer = ({ navigation, onNavigateToMeeting }) => {
+const FloatingWidgetContainer = ({ onNavigateToMeeting }) => {
   const [nextMeeting, setNextMeeting] = useState(null);
   const [widgetVisible, setWidgetVisible] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
@@ -63,13 +63,13 @@ const FloatingWidgetContainer = ({ navigation, onNavigateToMeeting }) => {
     // Hide widget
     setWidgetVisible(false);
     
-    // Navigate to meeting details or dashboard
+    // Call the callback if provided
     if (meeting && onNavigateToMeeting) {
       onNavigateToMeeting(meeting);
-    } else if (navigation) {
-      // Default navigation to dashboard or meetings list
-      navigation.navigate('Dashboard');
     }
+    
+    // For now, just log the action - navigation can be handled by parent component
+    console.log('Widget pressed - app should come to foreground');
   };
 
   const handleWidgetClose = () => {
