@@ -388,11 +388,9 @@ function AppNavigator() {
           
           {/* Floating Widget Container */}
           <FloatingWidgetContainer 
-            navigation={navigation}
             onNavigateToMeeting={(meeting) => {
               console.log('Navigate to meeting from widget:', meeting.title);
-              // Navigate to meeting details or dashboard
-              navigation.navigate('Dashboard');
+              // Navigation will be handled by the widget itself
             }}
           />
         </NavigationContainer>
