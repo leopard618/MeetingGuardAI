@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from '../translations.jsx';
+import { getLocationString } from '../../utils/meetingHelpers';
 
 export default function MaximumAlert({ 
   meeting, 
@@ -344,9 +345,7 @@ export default function MaximumAlert({
                 <View style={styles.detailRow}>
                   <Ionicons name="location-outline" size={16} color="#6B7280" />
                   <Text style={styles.detailText}>
-                    {typeof meeting.location === 'object' 
-                      ? meeting.location.address || meeting.location 
-                      : meeting.location}
+                    {getLocationString(meeting.location)}
                   </Text>
                 </View>
               )}

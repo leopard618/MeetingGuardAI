@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from '../translations.jsx';
+import { getLocationString } from '../../utils/meetingHelpers';
 
 export default function MediumAlert({ 
   meeting, 
@@ -109,9 +110,7 @@ export default function MediumAlert({
           
           {meeting.location && (
             <Text style={styles.meetingLocation}>
-              📍 {typeof meeting.location === 'object' 
-                ? meeting.location.address || meeting.location 
-                : meeting.location}
+              📍 {getLocationString(meeting.location)}
             </Text>
           )}
         </View>

@@ -45,6 +45,8 @@ import PaymentSuccess from './src/pages/PaymentSuccess.jsx';
 // Import notification and floating widget components
 import FloatingWidgetContainer from './src/components/FloatingWidgetContainer.jsx';
 import EnhancedNotificationManager from './src/services/EnhancedNotificationManager.js';
+import PersistentNotificationService from './src/services/PersistentNotificationService.js';
+import { usePersistentNotification } from './src/hooks/usePersistentNotification.js';
 
 const Stack = createStackNavigator();
 
@@ -150,6 +152,17 @@ function AppNavigator() {
         }
       }).catch((error) => {
         console.error('❌ Notification system initialization error:', error);
+      });
+
+      // Initialize persistent notification system
+      PersistentNotificationService.initialize().then(result => {
+        if (result) {
+          console.log('✅ Persistent notification system initialized successfully');
+        } else {
+          console.log('⚠️ Persistent notification system initialization failed');
+        }
+      }).catch((error) => {
+        console.error('❌ Persistent notification system initialization error:', error);
       });
     }
   }, [isAuthenticated]);
