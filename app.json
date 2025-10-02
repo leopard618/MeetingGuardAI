@@ -51,7 +51,8 @@
           "defaultChannel": "meeting-alerts",
           "sounds": [
             "./assets/notification-sound.wav"
-          ]
+          ],
+          "mode": "production"
         }
       ],
       "expo-task-manager",

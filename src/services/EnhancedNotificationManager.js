@@ -78,35 +78,46 @@ class EnhancedNotificationManager {
   }
 
   async handleNotificationResponse(response) {
-    const { notification, actionIdentifier } = response;
-    const { meetingId, alertType, meeting } = notification.request.content.data;
-
-    console.log(`🎯 User interacted with ${alertType} notification for meeting ${meetingId}`);
-
     try {
-      // Parse meeting data
-      const meetingData = typeof meeting === 'string' ? JSON.parse(meeting) : meeting;
+      const { notification, actionIdentifier } = response || {};
+      
+      if (!notification || !notification.request || !notification.request.content) {
+        console.warn('⚠️ Invalid notification response structure');
+        return;
+      }
+
+      const data = notification.request.content.data || {};
+      const { meetingId, alertType, meeting } = data;
+
+      console.log(`🎯 User interacted with notification`, { actionIdentifier, meetingId, alertType });
+
+      // Parse meeting data safely
+      let meetingData = null;
+      try {
+        meetingData = typeof meeting === 'string' ? JSON.parse(meeting) : meeting;
+      } catch (parseError) {
+        console.warn('⚠️ Could not parse meeting data:', parseError.message);
+        meetingData = { title: 'Meeting', id: meetingId };
+      }
 
       // Handle different actions
       switch (actionIdentifier) {
         case 'view':
-          // Navigate to meeting details
-          // This would be handled by your navigation system
-          console.log('📋 User wants to view meeting:', meetingData.title);
+          console.log('📋 User wants to view meeting:', meetingData?.title || 'Unknown');
           break;
         
         case 'snooze':
-          // Snooze the notification for 5 minutes
-          await this.snoozeMeetingNotification(meetingData, 5);
+          if (meetingData) {
+            await this.snoozeMeetingNotification(meetingData, 5);
+          }
           break;
         
         default:
-          // Default tap action - could open the app or show meeting details
-          console.log('📱 User tapped notification:', meetingData.title);
+          console.log('📱 User tapped notification:', meetingData?.title || 'Unknown');
           break;
       }
     } catch (error) {
-      console.error('Error handling notification response:', error);
+      console.error('❌ Error handling notification response:', error);
     }
   }
 

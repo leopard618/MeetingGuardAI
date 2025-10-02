@@ -40,8 +40,10 @@ import {
   getResponsiveButtonDimensions,
   getDeviceType 
 } from '../utils/responsive.js';
+import { getLocationString, safeStringify } from '../utils/meetingHelpers.js';
 import GoogleCalendarConnectionPrompt from '../components/GoogleCalendarConnectionPrompt.jsx';
 import manualLoginGoogleCalendarService from '../api/manualLoginGoogleCalendarService.js';
+import { usePersistentNotification } from '../hooks/usePersistentNotification.js';
 
 // Date and Time Display Component
 const DateTimeDisplay = ({ isDarkMode, styles }) => {
@@ -437,6 +439,49 @@ export default function Dashboard({ navigation, language = "en" }) {
   const aiAssistedCount = getAiAssistedCount();
   const reviewCount = getMeetingsNeedingReview();
   const styles = getStyles(isDarkMode);
+
+  // Get next meeting for persistent notification
+  const nextMeeting = React.useMemo(() => {
+    const now = new Date();
+    console.log('📅 Calculating next meeting. Current time:', now.toISOString());
+    console.log('📅 Total meetings:', meetings.length);
+    
+    // Debug all meetings
+    meetings.forEach((m, index) => {
+      const meetingTime = new Date(m.startTime || `${m.date}T${m.time}`);
+      const isFuture = meetingTime > now;
+      console.log(`📅 Meeting ${index + 1}: ${m.title} at ${meetingTime.toISOString()} - Future: ${isFuture}`);
+    });
+    
+    const upcoming = meetings
+      .filter(m => {
+        try {
+          const meetingTime = new Date(m.startTime || `${m.date}T${m.time}`);
+          const isFuture = meetingTime > now;
+          return isFuture;
+        } catch (error) {
+          console.error('Error parsing meeting time:', error);
+          return false;
+        }
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.startTime || `${a.date}T${a.time}`);
+        const timeB = new Date(b.startTime || `${b.date}T${b.time}`);
+        return timeA - timeB;
+      });
+    
+    console.log('📅 Upcoming meetings found:', upcoming.length);
+    if (upcoming[0]) {
+      console.log('📅 Next meeting:', upcoming[0].title, 'at', new Date(upcoming[0].startTime || `${upcoming[0].date}T${upcoming[0].time}`).toISOString());
+    } else {
+      console.log('📅 No upcoming meetings found');
+    }
+    
+    return upcoming[0] || null;
+  }, [meetings]);
+
+  // Use persistent notification hook
+  usePersistentNotification(nextMeeting);
 
   const renderStatusCard = ({ title, value, icon, color, onPress, subtitle }) => (
     <TouchableOpacity onPress={onPress} style={styles.statusCard}>

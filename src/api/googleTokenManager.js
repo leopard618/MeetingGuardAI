@@ -174,9 +174,21 @@ class GoogleTokenManager {
       console.log('🔄 [TokenManager] Using client ID:', clientId ? `${clientId.substring(0, 20)}...` : 'NOT SET');
       console.log('🔄 [TokenManager] Client secret available:', !!clientSecret);
       
-      if (!clientSecret) {
+      if (!clientSecret || clientSecret === 'YOUR_CLIENT_SECRET_HERE') {
         console.error('❌ [TokenManager] Google Client Secret not configured');
-        throw new Error('Google Client Secret not configured - check environment variables');
+        console.error('⚠️ [TokenManager] Please follow these steps:');
+        console.error('1. Go to https://console.cloud.google.com/apis/credentials');
+        console.error('2. Find your OAuth client ID and copy the Client Secret');
+        console.error('3. Create a .env file in your project root');
+        console.error('4. Add: EXPO_PUBLIC_GOOGLE_CLIENT_SECRET=YOUR_SECRET');
+        console.error('5. Restart the app with: npx expo start --clear');
+        console.error('📖 See GOOGLE_TOKEN_REFRESH_FIX.md for detailed instructions');
+        
+        // Store reconnect flag so user knows to reconnect
+        await AsyncStorage.setItem('google_calendar_needs_reconnect', 'true');
+        await AsyncStorage.setItem('google_calendar_disconnect_reason', 'client_secret_missing');
+        
+        throw new Error('Google Client Secret not configured - see console for setup instructions');
       }
       
       const requestBody = new URLSearchParams({
