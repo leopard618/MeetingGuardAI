@@ -5,11 +5,24 @@ import { Platform } from 'react-native';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    // Check if this is a persistent notification
+    if (notification.request.content.data?.type === 'persistent') {
+      // Persistent notifications: only show in tray, not in app
+      return {
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    }
+    
+    // Regular meeting alerts: show in app with sound
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
 });
 
 export async function registerForPushNotificationsAsync() {

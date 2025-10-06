@@ -41,16 +41,16 @@ class PersistentNotificationService {
       // Configure notification behavior
       await Notifications.setNotificationHandler({
         handleNotification: async (notification) => {
-          // For persistent notification, always show it
+          // For persistent notification, DON'T show alert in app (only in tray)
           if (notification.request.content.data?.type === 'persistent') {
             return {
-              shouldShowAlert: true,
+              shouldShowAlert: false, // FALSE = Only show in notification tray, not in app
               shouldPlaySound: false,
               shouldSetBadge: false,
             };
           }
           
-          // For regular notifications
+          // For regular notifications, show in app
           return {
             shouldShowAlert: true,
             shouldPlaySound: true,
@@ -72,6 +72,24 @@ class PersistentNotificationService {
    */
   async showPersistentNotification(meeting) {
     try {
+      console.log('🔔 [PersistentNotification] showPersistentNotification called');
+      console.log('🔔 [PersistentNotification] Meeting data:', meeting);
+      
+      // Request permissions first if not granted
+      const { status } = await Notifications.getPermissionsAsync();
+      console.log('🔔 [PersistentNotification] Permission status:', status);
+      
+      if (status !== 'granted') {
+        console.log('🔔 [PersistentNotification] Requesting notification permissions...');
+        const { status: newStatus } = await Notifications.requestPermissionsAsync();
+        console.log('🔔 [PersistentNotification] New permission status:', newStatus);
+        
+        if (newStatus !== 'granted') {
+          console.warn('⚠️ [PersistentNotification] Notification permission denied');
+          return null;
+        }
+      }
+      
       // ALWAYS show notification, even if no meeting
       this.nextMeeting = meeting;
       
@@ -80,8 +98,8 @@ class PersistentNotificationService {
       if (!meeting) {
         // No meeting - show default status
         console.log('📱 No meeting scheduled - showing default notification');
-        title = '🔔 Meeting Guard';
-        body = 'No upcoming meetings\nTap to create a meeting';
+        title = '🔔 Meeting Guard - Active';
+        body = 'No upcoming meetings\nTap to open app';
         priority = 'low';
       } else {
         console.log('📱 Attempting to show persistent notification for meeting:', {
@@ -104,7 +122,9 @@ class PersistentNotificationService {
         body = `Next: ${meeting.title}\n${countdown}`;
       }
       
-      console.log(`📱 Showing persistent notification: ${body}`);
+      console.log(`📱 Showing persistent notification:`);
+      console.log(`   Title: ${title}`);
+      console.log(`   Body: ${body}`);
 
       // Cancel previous notification if exists
       if (this.currentNotificationId) {
@@ -135,6 +155,8 @@ class PersistentNotificationService {
         }),
       });
 
+      console.log(`✅ Persistent notification shown with ID: ${this.currentNotificationId}`);
+      
       this.isActive = true;
 
       // Start update interval (update every minute)
@@ -143,6 +165,8 @@ class PersistentNotificationService {
       return this.currentNotificationId;
     } catch (error) {
       console.error('❌ Failed to show persistent notification:', error);
+      console.error('❌ Error details:', error.message);
+      console.error('❌ Error stack:', error.stack);
       return null;
     }
   }

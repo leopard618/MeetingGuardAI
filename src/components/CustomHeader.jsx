@@ -23,7 +23,7 @@ import {
 
 const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', onLanguageToggle }) => {
   const navigation = useNavigation();
-  const { isDarkMode } = useTheme();
+  const { isDarkMode, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const { t } = useTranslation(language);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -127,6 +127,18 @@ const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', on
           <Text style={styles.languageText}>
             {language === 'es' ? 'ES' : 'EN'}
           </Text>
+        </TouchableOpacity>
+
+        {/* Dark/Light Mode Toggle */}
+        <TouchableOpacity
+          style={styles.themeButton}
+          onPress={toggleTheme}
+        >
+          <Ionicons 
+            name={isDarkMode ? "sunny" : "moon"} 
+            size={20} 
+            color={isDarkMode ? "#FDB813" : "#1E293B"} 
+          />
         </TouchableOpacity>
         
         {/* Profile Button */}
@@ -259,6 +271,16 @@ const getStyles = (isDarkMode) => {
     fontWeight: 'bold',
     color: isDarkMode ? '#ffffff' : '#1E293B',
     marginLeft: spacing.xs,
+  },
+  themeButton: {
+    padding: spacing.sm,
+    borderRadius: spacing.sm,
+    marginRight: spacing.sm,
+    backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   menuButton: {
     padding: spacing.sm,
