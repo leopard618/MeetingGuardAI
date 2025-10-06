@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   RefreshControl,
   Alert,
+  Image,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -127,6 +128,7 @@ export default function Dashboard({ navigation, language = "en" }) {
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [showGoogleCalendarPrompt, setShowGoogleCalendarPrompt] = useState(false);
   const [isManualLoginUser, setIsManualLoginUser] = useState(false);
+  const [fabMenuOpen, setFabMenuOpen] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -298,75 +300,12 @@ export default function Dashboard({ navigation, language = "en" }) {
     }
   };
 
-  const [testAlertOpen, setTestAlertOpen] = useState(false);
-  const [testAlertIntensity, setTestAlertIntensity] = useState('maximum');
   const [realAlertOpen, setRealAlertOpen] = useState(false);
   const [realAlertMeeting, setRealAlertMeeting] = useState(null);
   const [realAlertType, setRealAlertType] = useState(null);
   
   // Ref for AlertScheduler to access its methods
   const alertSchedulerRef = useRef(null);
-
-  const handleGlobalTestAlert = () => {
-    // Get current alert intensity from user preferences
-    const currentIntensity = userPreferences?.alert_intensity || 'maximum';
-    console.log('Current alert intensity:', currentIntensity);
-    setTestAlertIntensity(currentIntensity);
-    setTestAlertOpen(true);
-  };
-
-  // Function to manually sync preferences from Settings
-  const syncPreferencesFromSettings = async () => {
-    try {
-      console.log('Manually syncing preferences...');
-      if (!isAuthenticated || !user) {
-        console.log('User not authenticated, skipping sync');
-        return;
-      }
-      const currentUser = user;
-
-      // Get all preference records for this user
-      const allPrefs = await UserPreferences.filter({ created_by: currentUser.email });
-      console.log('All preference records:', allPrefs);
-
-      // Find the record with alert_intensity (the one Settings uses)
-      const settingsRecord = allPrefs.find(p => p.alert_intensity);
-
-      if (settingsRecord) {
-        console.log('Found Settings record:', settingsRecord);
-        setUserPreferences(settingsRecord);
-        setAlertsEnabled(settingsRecord.alert_enabled);
-        setTestAlertIntensity(settingsRecord.alert_intensity);
-        Alert.alert('Success', `Synced intensity: ${settingsRecord.alert_intensity}`);
-      } else {
-        Alert.alert('Error', 'No Settings record found');
-      }
-    } catch (error) {
-      console.log('Error syncing preferences:', error);
-      Alert.alert('Error', 'Failed to sync preferences');
-    }
-  };
-
-  // Update test alert intensity when user preferences change
-  useEffect(() => {
-    if (userPreferences?.alert_intensity) {
-      setTestAlertIntensity(userPreferences.alert_intensity);
-    }
-  }, [userPreferences?.alert_intensity]);
-
-  const handleTestAlertClose = () => {
-    setTestAlertOpen(false);
-  };
-
-  const handleTestAlertSnooze = (minutes) => {
-    Alert.alert('Snoozed', `Test alert snoozed for ${minutes} minutes`);
-    setTestAlertOpen(false);
-  };
-
-  const handleTestAlertPostpone = (newDateTime) => {
-    Alert.alert('Postponed', `Test meeting postponed to: ${newDateTime.date} ${newDateTime.time}`);
-    setTestAlertOpen(false);
-  };
 
   // Handle real meeting alerts
   const handleRealMeetingAlert = (meeting, alertType, intensity) => {
@@ -634,64 +573,9 @@ export default function Dashboard({ navigation, language = "en" }) {
         </View>
 
         {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.actionCard, { backgroundColor: isDarkMode ? '#262626' : '#ffffff' }]}
-              onPress={() => navigation.navigate("CreateMeeting")}
-            >
-              <MaterialIcons name="add-circle" size={32} color="#3b82f6" />
-              <Text style={styles.actionText}>{t('dashboard.newMeeting')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionCard, { backgroundColor: isDarkMode ? '#262626' : '#ffffff' }]}
-              onPress={() => navigation.navigate("AIChat")}
-            >
-              <MaterialIcons name="chat" size={32} color="#10b981" />
-              <Text style={styles.actionText}>{t('dashboard.aiChat')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionCard, { backgroundColor: isDarkMode ? '#262626' : '#ffffff' }]}
-              onPress={() => navigation.navigate("Calendar")}
-            >
-              <MaterialIcons name="calendar-today" size={32} color="#f59e0b" />
-              <Text style={styles.actionText}>{t('dashboard.calendar')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        
 
-        <Card style={styles.testAlertCard}>
-          <Card.Content>
-            <View style={styles.testAlertContent}>
-              <View style={styles.testAlertInfo}>
-                <MaterialIcons name="volume-up" size={24} color="#FF3B30" />
-                <View>
-                  <Title style={styles.testAlertTitle}>{t('dashboard.testGlobalAlert')}</Title>
-                </View>
-              </View>
-              <Button
-                mode="outlined"
-                onPress={handleGlobalTestAlert}
-                style={styles.testButton}
-                textColor={isDarkMode ? "#ffffff" : "#FF3B30"}
-              >
-                {t('dashboard.test')}
-              </Button>
-            </View>
-          </Card.Content>
-        </Card>
-
-        {/* Notification: Show which intensity is selected as spoken text */}
-        <View style={{ marginVertical: 4, marginLeft: 24 }}>
-          <Text style={{
-            fontSize: 14,
-            color: isDarkMode ? '#fff' : '#222',
-            fontWeight: '500'
-          }}>
-            {t('dashboard.selectedIntensity')}: <Text style={{ color: '#3b82f6' }}>{userPreferences?.alert_intensity}</Text>
-          </Text>
-        </View>
+      
 
         <View style={styles.meetingsSection}>
           <View style={styles.sectionHeader}>
@@ -730,13 +614,94 @@ export default function Dashboard({ navigation, language = "en" }) {
         </View>
       </ScrollView>
 
-      <FAB
-        style={styles.fab}
-        icon="plus"
-        onPress={() => navigation.navigate("CreateMeeting", { 
-          onMeetingCreated: handleMeetingCreated 
-        })}
-      />
+      {/* Speed Dial FAB Menu */}
+      <View style={styles.fabContainer}>
+        {/* Action Buttons (shown when menu is open) - Compact Diagonal */}
+        {fabMenuOpen && (
+          <>
+            {/* Backdrop/Overlay - Must be FIRST so buttons are on top */}
+            <TouchableOpacity
+              style={styles.fabBackdrop}
+              activeOpacity={1}
+              onPress={() => setFabMenuOpen(false)}
+            />
+
+            {/* Create Meeting - Position 1 */}
+            <TouchableOpacity
+              style={[styles.fabAction, { 
+                bottom: 0,
+                right: 140,
+              }]}
+              onPress={() => {
+                setFabMenuOpen(false);
+                navigation.navigate("CreateMeeting", { 
+                  onMeetingCreated: handleMeetingCreated 
+                });
+              }}
+            >
+              <MaterialIcons name="add" size={22} color="#fff" />
+            </TouchableOpacity>
+
+            {/* AI Chat - Position 2 */}
+            <TouchableOpacity
+              style={[styles.fabAction, { 
+                bottom: 70,
+                right: 120,
+              }]}
+              onPress={() => {
+                setFabMenuOpen(false);
+                navigation.navigate("AIChat");
+              }}
+            >
+              <MaterialIcons name="chat" size={22} color="#fff" />
+            </TouchableOpacity>
+
+            {/* Calendar - Position 3 */}
+            <TouchableOpacity
+              style={[styles.fabAction, { 
+                bottom: 120,
+                right: 70,
+              }]}
+              onPress={() => {
+                setFabMenuOpen(false);
+                navigation.navigate("Calendar");
+              }}
+            >
+              <MaterialIcons name="calendar-today" size={22} color="#fff" />
+            </TouchableOpacity>
+
+            {/* Settings - Position 4 */}
+            <TouchableOpacity
+              style={[styles.fabAction, { 
+                bottom: 140,
+                right: 0,
+              }]}
+              onPress={() => {
+                setFabMenuOpen(false);
+                navigation.navigate("Settings");
+              }}
+            >
+              <MaterialIcons name="settings" size={22} color="#fff" />
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* Main FAB Button with App Icon */}
+        <TouchableOpacity
+          style={styles.fabCustom}
+          onPress={() => setFabMenuOpen(!fabMenuOpen)}
+          activeOpacity={0.8}
+        >
+          {fabMenuOpen ? (
+            <MaterialIcons name="close" size={28} color="#fff" />
+          ) : (
+            <Image
+              source={require('../../assets/fab.png')}
+              style={styles.fabIcon}
+            />
+          )}
+        </TouchableOpacity>
+      </View>
 
       {/* AlertScheduler for Real Meeting Alerts */}
       <AlertScheduler
@@ -745,33 +710,6 @@ export default function Dashboard({ navigation, language = "en" }) {
         language={language}
         alertsEnabled={alertsEnabled}
       />
-
-      {/* Notification Manager for Test Alerts */}
-      {testAlertOpen && (
-        <NotificationManager
-          meeting={{
-            id: 'test-meeting',
-            title: 'Test Meeting Alert',
-            date: (() => {
-              const todayDate = new Date();
-              const year = todayDate.getFullYear();
-              const month = String(todayDate.getMonth() + 1).padStart(2, '0');
-              const day = String(todayDate.getDate()).padStart(2, '0');
-              return `${year}-${month}-${day}`;
-            })(),
-            time: new Date(Date.now() + 5 * 60 * 1000).toTimeString().slice(0, 5),
-            location: 'Test Location',
-            confidence: 0.95,
-            source: 'test'
-          }}
-          isOpen={testAlertOpen}
-          onClose={handleTestAlertClose}
-          onSnooze={handleTestAlertSnooze}
-          onPostpone={handleTestAlertPostpone}
-          intensity={testAlertIntensity}
-          language={language}
-        />
-      )}
 
       {/* Notification Manager for Real Meeting Alerts */}
       {realAlertOpen && realAlertMeeting && (
@@ -1108,18 +1046,49 @@ const getStyles = (isDarkMode) => {
   createButton: {
     marginTop: spacing.sm,
   },
-  fab: {
+  fabContainer: {
     position: "absolute",
-    margin: spacing.lg,
-    right: 0,
-    bottom: 0,
+    right: 30,
+    bottom: 30,
+  },
+  fab: {
     backgroundColor: "#3b82f6",
+    elevation: 4,
+  },
+  fabCustom: {
+    width: 56,
+    height: 56,
+    // borderRadius: 50,
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fabIcon: {
+    width: 60,
+    height: 60,
+  },
+  fabAction: {
+    position: "absolute",
+    right: 0,
+    width: 56,
+    height: 56,
     borderRadius: 28,
-    elevation: 8,
+    backgroundColor: "#3b82f6",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  fabBackdrop: {
+    position: "absolute",
+    top: -1000,
+    left: -1000,
+    right: -1000,
+    bottom: -1000,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
   dateTimeContainer: {
     flex: 1,

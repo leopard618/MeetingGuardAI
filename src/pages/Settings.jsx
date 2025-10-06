@@ -34,6 +34,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import CalendarSyncSettings from '../components/CalendarSyncSettings.jsx';
 import CalendarTest from '../components/CalendarTest';
+import NotificationManager from '../components/NotificationSystem/NotificationManager.jsx';
 
 export default function Settings({ navigation, language = "en" }) {
   const { isDarkMode, toggleTheme } = useTheme();
@@ -44,6 +45,8 @@ export default function Settings({ navigation, language = "en" }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [alertIntensity, setAlertIntensity] = useState('maximum');
+  const [testAlertOpen, setTestAlertOpen] = useState(false);
+  const [testAlertIntensity, setTestAlertIntensity] = useState('maximum');
 
   // Load alert intensity from preferences
   useEffect(() => {
@@ -169,7 +172,12 @@ export default function Settings({ navigation, language = "en" }) {
         });
         console.log('Updated preferences after update:', updatedPrefs);
         setPreferences(updatedPrefs);
-        Alert.alert(t('common.success'), `${t('settings.alertIntensityUpdated')} ${intensity}`);
+        
+        // Test the alert with the new intensity
+        setTestAlertIntensity(intensity);
+        setTestAlertOpen(true);
+        
+        // Don't show success alert here, NotificationManager will handle it
       } catch (error) {
         console.error("Error updating alert intensity:", error);
         Alert.alert(t('common.error'), t('settings.saveError'));
@@ -178,6 +186,24 @@ export default function Settings({ navigation, language = "en" }) {
       console.log('No preferences found, cannot update');
       Alert.alert(t('common.error'), t('settings.noPreferences'));
     }
+  };
+
+  const handleTestAlertClose = () => {
+    setTestAlertOpen(false);
+    // Show success message after alert closes
+    Alert.alert(t('common.success'), `${t('settings.alertIntensityUpdated')} ${testAlertIntensity}`);
+  };
+
+  const handleTestAlertSnooze = (minutes) => {
+    Alert.alert('Test Snoozed', `Alert snoozed for ${minutes} minutes`);
+    setTestAlertOpen(false);
+    Alert.alert(t('common.success'), `${t('settings.alertIntensityUpdated')} ${testAlertIntensity}`);
+  };
+
+  const handleTestAlertPostpone = (newDateTime) => {
+    Alert.alert('Test Postponed', `Meeting postponed to: ${newDateTime.date} ${newDateTime.time}`);
+    setTestAlertOpen(false);
+    Alert.alert(t('common.success'), `${t('settings.alertIntensityUpdated')} ${testAlertIntensity}`);
   };
 
 
@@ -369,6 +395,33 @@ export default function Settings({ navigation, language = "en" }) {
           {/* Logout button moved to navigation bar */}
         </View>
       </ScrollView>
+
+      {/* Test Alert Notification Manager */}
+      {testAlertOpen && (
+        <NotificationManager
+          meeting={{
+            id: 'test-meeting',
+            title: 'Test Meeting Alert',
+            date: (() => {
+              const todayDate = new Date();
+              const year = todayDate.getFullYear();
+              const month = String(todayDate.getMonth() + 1).padStart(2, '0');
+              const day = String(todayDate.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            })(),
+            time: new Date(Date.now() + 5 * 60 * 1000).toTimeString().slice(0, 5),
+            location: 'Test Location',
+            confidence: 0.95,
+            source: 'test'
+          }}
+          isOpen={testAlertOpen}
+          onClose={handleTestAlertClose}
+          onSnooze={handleTestAlertSnooze}
+          onPostpone={handleTestAlertPostpone}
+          intensity={testAlertIntensity}
+          language={language}
+        />
+      )}
     </SafeAreaView>
   );
 }
