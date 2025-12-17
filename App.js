@@ -9,6 +9,7 @@ import { ThemeProvider } from './src/contexts/ThemeContext.jsx';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext.jsx';
 import calendarSyncManager from './src/api/calendarSyncManager.js';
 import googleCalendarInitializer from './src/api/googleCalendarInitializer.js';
+import ErrorBoundary from './src/components/ErrorBoundary.jsx';
 
 // Import components
 import MobileSidebar from './src/components/MobileSidebar.jsx';
@@ -41,6 +42,7 @@ import GoogleCalendarTestComponent from './src/components/GoogleCalendarTest.jsx
 import NotificationDemo from './src/components/NotificationSystem/NotificationDemo.jsx';
 import Pricing from './src/pages/Pricing.jsx';
 import PaymentSuccess from './src/pages/PaymentSuccess.jsx';
+import EnvironmentTest from './src/components/EnvironmentTest.jsx';
 
 // Import notification and floating widget components
 import FloatingWidgetContainer from './src/components/FloatingWidgetContainer.jsx';
@@ -385,6 +387,11 @@ function AppNavigator() {
               options={({ route }) => ({ title: language === 'es' ? 'Pago Exitoso' : 'Payment Successful' })}
               initialParams={{ language }}
             />
+            <Stack.Screen 
+              name="EnvironmentTest" 
+              component={EnvironmentTest}
+              options={({ route }) => ({ title: language === 'es' ? 'Prueba de Entorno' : 'Environment Test' })}
+            />
           </Stack.Navigator>
           
           {/* Mobile Sidebar */}
@@ -422,16 +429,18 @@ const styles = StyleSheet.create({
 // Main App Component
 export default function App() {
   return (
-    <AuthProvider>
-      <PaperProvider>
-        <ThemeProvider>
-          <View style={styles.container}>
-            <AppNavigator />
-            <StatusBar style="auto" />
-            <Toast />
-          </View>
-        </ThemeProvider>
-      </PaperProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <PaperProvider>
+          <ThemeProvider>
+            <View style={styles.container}>
+              <AppNavigator />
+              <StatusBar style="auto" />
+              <Toast />
+            </View>
+          </ThemeProvider>
+        </PaperProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 } 

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import firebaseAuthService from '../services/firebaseAuth';
 
-const BACKEND_URL = 'https://meetingguard-backend.onrender.com';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://meetingguard-backend.onrender.com';
 
 class AuthService {
   constructor() {
@@ -8,99 +9,68 @@ class AuthService {
   }
 
   /**
-   * Manual sign up
+   * Sign up with email and password (using Firebase)
    */
   async signUp(name, email, password) {
     try {
-      console.log('=== AUTH SERVICE: MANUAL SIGN UP ===');
+      console.log('=== AUTH SERVICE: FIREBASE SIGN UP ===');
       console.log('Email:', email);
       console.log('Name:', name);
 
-      const response = await fetch(`${this.baseURL}/api/auth/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          password
-        })
-      });
+      // Use Firebase Auth for sign up
+      const result = await firebaseAuthService.signUpWithEmail(email, password, name);
 
-      const data = await response.json();
-      console.log('Sign up response:', data);
-
-      if (data.success) {
-        // Store authentication data
-        await AsyncStorage.setItem('authToken', data.jwtToken);
-        await AsyncStorage.setItem('userData', JSON.stringify(data.user));
-        await AsyncStorage.setItem('authMethod', 'manual');
-
+      if (result.success) {
+        // Firebase Auth state listener will handle user state
+        // Just return success
         return {
           success: true,
-          user: data.user,
-          token: data.jwtToken
+          user: result.user,
         };
       } else {
         return {
           success: false,
-          error: data.error || 'Sign up failed'
+          error: result.error || 'Sign up failed'
         };
       }
     } catch (error) {
       console.error('Sign up error:', error);
       return {
         success: false,
-        error: 'Network error. Please try again.'
+        error: error.message || 'Network error. Please try again.'
       };
     }
   }
 
   /**
-   * Manual sign in
+   * Sign in with email and password (using Firebase)
    */
   async signIn(email, password) {
     try {
-      console.log('=== AUTH SERVICE: MANUAL SIGN IN ===');
+      console.log('=== AUTH SERVICE: FIREBASE SIGN IN ===');
       console.log('Email:', email);
 
-      const response = await fetch(`${this.baseURL}/api/auth/signin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password
-        })
-      });
+      // Use Firebase Auth for sign in
+      const result = await firebaseAuthService.signInWithEmail(email, password);
 
-      const data = await response.json();
-      console.log('Sign in response:', data);
-
-      if (data.success) {
-        // Store authentication data
-        await AsyncStorage.setItem('authToken', data.jwtToken);
-        await AsyncStorage.setItem('userData', JSON.stringify(data.user));
-        await AsyncStorage.setItem('authMethod', 'manual');
-
+      if (result.success) {
+        // Firebase Auth state listener will handle user state
+        // Just return success
         return {
           success: true,
-          user: data.user,
-          token: data.jwtToken
+          user: result.user,
         };
       } else {
         return {
           success: false,
-          error: data.error || 'Sign in failed'
+          error: result.error || 'Sign in failed'
         };
       }
     } catch (error) {
       console.error('Sign in error:', error);
       return {
         success: false,
-        error: 'Network error. Please try again.'
+        error: error.message || 'Network error. Please try again.'
       };
     }
   }

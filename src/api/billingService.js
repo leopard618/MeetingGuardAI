@@ -1,17 +1,50 @@
-import { apiClient } from './backendService';
+// Billing service - Using Google Play Billing for Android
+// Replaces Stripe for Google Play Store compliance
 
-/**
- * Billing service for Stripe Checkout Links integration
- * This approach uses pre-built Stripe checkout pages instead of API-based checkout
- */
+import { Platform } from 'react-native';
+import googlePlayBillingService from '../services/googlePlayBillingService';
 
 /**
  * Get available subscription plans
+ * Uses Google Play Billing on Android, fallback on other platforms
  */
 export const getPlans = async () => {
   try {
-    const response = await apiClient.get('/billing/plans');
-    return response.data;
+    // Use Google Play Billing on Android
+    if (Platform.OS === 'android') {
+      return await googlePlayBillingService.getPlans();
+    }
+    
+    // Fallback for iOS/Web (you can implement Apple IAP later)
+    return {
+      success: true,
+      plans: {
+        pro_monthly: {
+          id: 'pro_monthly',
+          name: 'Pro Monthly',
+          price: '$9.99',
+          features: ['All Free features', 'Unlimited meetings', 'Priority support']
+        },
+        pro_yearly: {
+          id: 'pro_yearly',
+          name: 'Pro Yearly',
+          price: '$99.99',
+          features: ['All Pro features', 'Save 17%', 'Annual billing']
+        },
+        premium_monthly: {
+          id: 'premium_monthly',
+          name: 'Premium Monthly',
+          price: '$19.99',
+          features: ['All Pro features', 'Advanced AI', 'Custom integrations']
+        },
+        premium_yearly: {
+          id: 'premium_yearly',
+          name: 'Premium Yearly',
+          price: '$199.99',
+          features: ['All Premium features', 'Save 17%', 'Annual billing']
+        }
+      }
+    };
   } catch (error) {
     console.error('Error fetching plans:', error);
     throw error;
@@ -19,103 +52,73 @@ export const getPlans = async () => {
 };
 
 /**
- * Get user's current subscription status
+ * Get user's current subscription status (from Firestore)
  */
 export const getSubscription = async () => {
   try {
-    const response = await apiClient.get('/billing/subscription');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching subscription:', error);
-    throw error;
-  }
-};
-
-/**
- * Redirect user to Stripe checkout for a specific plan
- * @param {string} planId - The plan ID (e.g., 'pro_monthly', 'premium_yearly')
- * @param {string} checkoutLink - The Stripe checkout link for the plan
- */
-export const redirectToCheckout = (planId, checkoutLink) => {
-  if (!checkoutLink) {
-    throw new Error('Checkout link not available for this plan');
-  }
-  
-  // Store the plan ID in localStorage for when user returns
-  localStorage.setItem('pendingPlan', planId);
-  
-  // Redirect to Stripe checkout
-  window.location.href = checkoutLink;
-};
-
-/**
- * Update user's plan after successful checkout
- * This should be called when user returns from Stripe checkout
- * @param {string} planId - The plan ID
- * @param {string} stripeCustomerId - The Stripe customer ID
- */
-export const updatePlan = async (planId, stripeCustomerId) => {
-  try {
-    const response = await apiClient.post('/billing/update-plan', {
-      plan: planId,
-      stripeCustomerId: stripeCustomerId
-    });
+    // Use Google Play Billing service on Android
+    if (Platform.OS === 'android') {
+      return await googlePlayBillingService.getSubscription();
+    }
     
-    // Clear pending plan from localStorage
-    localStorage.removeItem('pendingPlan');
-    
-    return response.data;
-  } catch (error) {
-    console.error('Error updating plan:', error);
-    throw error;
-  }
-};
-
-/**
- * Get customer portal URL for subscription management
- */
-export const getCustomerPortal = async () => {
-  try {
-    const response = await apiClient.post('/billing/customer-portal');
-    return response.data;
-  } catch (error) {
-    console.error('Error getting customer portal:', error);
-    throw error;
-  }
-};
-
-/**
- * Check if user has a pending plan upgrade
- * This is useful for detecting when user returns from Stripe checkout
- */
-export const getPendingPlan = () => {
-  return localStorage.getItem('pendingPlan');
-};
-
-/**
- * Handle successful checkout return
- * This should be called when user returns from Stripe checkout
- */
-export const handleCheckoutReturn = async () => {
-  const pendingPlan = getPendingPlan();
-  
-  if (pendingPlan) {
-    // In a real implementation, you would get the Stripe customer ID
-    // from the URL parameters or from your backend
-    // For now, we'll just clear the pending plan
-    localStorage.removeItem('pendingPlan');
-    
-    // You could also redirect to a success page or update the UI
-    console.log(`User returned from checkout for plan: ${pendingPlan}`);
+    // Fallback for other platforms
+    const firestoreService = (await import('../services/firestoreService')).default;
+    const userId = firestoreService.getCurrentUserId();
+    const user = await firestoreService.getUser(userId);
     
     return {
       success: true,
-      plan: pendingPlan,
-      message: 'Checkout completed successfully!'
+      subscription: {
+        plan: user?.plan || 'free',
+        status: user?.subscription_status || 'inactive',
+        current_period_end: user?.current_period_end || null
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching subscription:', error);
+    return {
+      success: true,
+      subscription: {
+        plan: 'free',
+        status: 'inactive',
+        current_period_end: null
+      }
     };
   }
-  
-  return null;
+};
+
+/**
+ * Purchase a subscription plan
+ * @param {string} planId - The plan ID (e.g., 'pro_monthly', 'premium_yearly')
+ */
+export const purchaseSubscription = async (planId) => {
+  try {
+    if (Platform.OS === 'android') {
+      // Use Google Play Billing
+      return await googlePlayBillingService.purchaseSubscription(planId);
+    } else {
+      throw new Error('In-app purchases are only available on Android. iOS support coming soon.');
+    }
+  } catch (error) {
+    console.error('Error purchasing subscription:', error);
+    throw error;
+  }
+};
+
+/**
+ * Restore purchases (useful for users who reinstalled the app)
+ */
+export const restorePurchases = async () => {
+  try {
+    if (Platform.OS === 'android') {
+      return await googlePlayBillingService.restorePurchases();
+    } else {
+      throw new Error('Restore purchases is only available on Android. iOS support coming soon.');
+    }
+  } catch (error) {
+    console.error('Error restoring purchases:', error);
+    throw error;
+  }
 };
 
 /**

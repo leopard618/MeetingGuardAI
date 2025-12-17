@@ -382,15 +382,6 @@ export default function Dashboard({ navigation, language = "en" }) {
   // Get next meeting for persistent notification
   const nextMeeting = React.useMemo(() => {
     const now = new Date();
-    console.log('📅 Calculating next meeting. Current time:', now.toISOString());
-    console.log('📅 Total meetings:', meetings.length);
-    
-    // Debug all meetings
-    meetings.forEach((m, index) => {
-      const meetingTime = new Date(m.startTime || `${m.date}T${m.time}`);
-      const isFuture = meetingTime > now;
-      console.log(`📅 Meeting ${index + 1}: ${m.title} at ${meetingTime.toISOString()} - Future: ${isFuture}`);
-    });
     
     const upcoming = meetings
       .filter(m => {
@@ -934,9 +925,6 @@ const getStyles = (isDarkMode) => {
   },
   testButton: {
     borderColor: "#FF3B30",
-  },
-  debugButton: {
-    marginLeft: 8,
   },
   meetingsSection: {
     padding: 20,

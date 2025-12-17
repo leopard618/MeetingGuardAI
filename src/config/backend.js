@@ -6,10 +6,11 @@ import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from '@env';
 // API Version
 const API_VERSION = 'v1';
 
-// Production backend URL
+// Production backend URL (DEPRECATED - Using Firebase now)
+// Keep only if using minimal backend for OpenAI
 export const BACKEND_CONFIG = {
-  // Base URL for the deployed backend
-  BASE_URL: 'https://meetingguard-backend.onrender.com',
+  // Base URL for the deployed backend (only for OpenAI if needed)
+  BASE_URL: process.env.BACKEND_URL || 'https://meetingguard-backend.onrender.com',
   
   // API version
   API_VERSION: API_VERSION,
