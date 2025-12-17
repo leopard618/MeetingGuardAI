@@ -8,10 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "eslint .",
-    "build": "expo build",
-    "setup": "node setup-env.js",
-    "server": "node server.js",
-    "backend": "cd backend && npm start"
+    "build": "expo build"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",
@@ -58,6 +55,7 @@
     "expo-system-ui": "~4.0.9",
     "expo-task-manager": "~12.0.6",
     "expo-web-browser": "~14.0.2",
+    "firebase": "^10.13.0",
     "express": "^5.1.0",
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
@@ -80,6 +78,7 @@
     "react-native-safe-area-context": "4.12.0",
     "react-native-screens": "~4.4.0",
     "react-native-svg": "15.8.0",
+    "react-native-iap": "^12.13.0",
     "react-native-toast-message": "^2.2.0",
     "react-native-web": "~0.19.13",
     "react-router-dom": "^7.7.1",

@@ -1,41 +1,34 @@
 import { localStorageAPI } from './localStorage';
-import { supabaseMeetingService } from './supabaseMeetingService';
-import { meetingCreationService } from './meetingCreationService';
+import firestoreService from '../services/firestoreService';
 import { normalizeDate, normalizeTime } from '../utils/index.ts';
-import { debugAuthState } from '../utils/authDebug.js';
 
-// Meeting Entity - Now uses Supabase backend
+// Meeting Entity - Now uses Firestore (Frontend-only)
 export const Meeting = {
   list: async (sortBy = "-created_date") => {
     try {
-      console.log('Meeting Entity: Attempting to load meetings from Supabase backend');
+      console.log('Meeting Entity: Loading meetings from Firestore');
       
-      // Debug authentication state
-      const authState = await debugAuthState();
-      console.log('Meeting Entity: Auth state:', authState);
-      
-      // Try Supabase backend first
-      const isSupabaseAvailable = await supabaseMeetingService.isAvailable();
-      if (isSupabaseAvailable) {
-        console.log('Meeting Entity: Using Supabase backend');
-        const meetings = await meetingCreationService.getMeetings();
-        console.log('Meeting Entity: Retrieved meetings from Supabase:', meetings.length);
+      // Try Firestore first
+      try {
+        const meetings = await firestoreService.getMeetings({ sortBy });
+        console.log('Meeting Entity: Retrieved meetings from Firestore:', meetings.length);
+        return meetings;
+      } catch (firestoreError) {
+        console.log('Meeting Entity: Firestore not available, falling back to localStorage:', firestoreError.message);
+        
+        // Fallback to localStorage
+        const data = await localStorageAPI.getData();
+        let meetings = data.meetings || [];
+        
+        console.log('Meeting Entity: Loading meetings from storage, count:', meetings.length);
+        
+        if (sortBy === "-created_date") {
+          meetings = meetings.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+        }
+        
+        console.log('Meeting Entity: Returning meetings from localStorage:', meetings.length);
         return meetings;
       }
-      
-      // Fallback to localStorage if Supabase is not available
-      console.log('Meeting Entity: Supabase not available, falling back to localStorage');
-      const data = await localStorageAPI.getData();
-      let meetings = data.meetings || [];
-      
-      console.log('Meeting Entity: Loading meetings from storage, count:', meetings.length);
-      
-      if (sortBy === "-created_date") {
-        meetings = meetings.sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
-      }
-      
-      console.log('Meeting Entity: Returning meetings from localStorage:', meetings.length);
-      return meetings;
     } catch (error) {
       console.error('Meeting Entity: Error loading meetings:', error);
       // Return empty array on error
@@ -78,37 +71,47 @@ export const Meeting = {
       
       console.log('Meeting Entity: Normalized meeting data:', normalizedMeetingData);
       
-      // Try Supabase backend first
-      const isSupabaseAvailable = await supabaseMeetingService.isAvailable();
-      if (isSupabaseAvailable) {
-        console.log('Meeting Entity: Creating meeting with full integration');
-        const createdMeeting = await meetingCreationService.createMeeting(normalizedMeetingData);
-        console.log('Meeting Entity: Meeting created successfully with Google Calendar integration:', createdMeeting);
+      // Try Firestore first
+      try {
+        console.log('Meeting Entity: Creating meeting in Firestore');
+        const createdMeeting = await firestoreService.createMeeting(normalizedMeetingData);
+        console.log('Meeting Entity: Meeting created successfully in Firestore:', createdMeeting);
+        
+        // Also sync with Google Calendar if available
+        try {
+          const googleCalendarService = (await import('./googleCalendar')).default;
+          await googleCalendarService.createEvent(normalizedMeetingData);
+          console.log('Meeting Entity: Meeting synced with Google Calendar');
+        } catch (calendarError) {
+          console.log('Meeting Entity: Google Calendar sync failed (non-critical):', calendarError.message);
+        }
+        
         return createdMeeting;
+      } catch (firestoreError) {
+        console.log('Meeting Entity: Firestore not available, creating in localStorage:', firestoreError.message);
+        
+        // Fallback to localStorage
+        const data = await localStorageAPI.getData();
+        const currentUser = await localStorageAPI.getCurrentUser();
+        
+        const newMeeting = {
+          id: localStorageAPI.generateId(),
+          ...normalizedMeetingData,
+          created_date: new Date().toISOString(),
+          updated_date: new Date().toISOString(),
+          created_by: currentUser.email
+        };
+        
+        console.log('Meeting Entity: New meeting object for localStorage:', newMeeting);
+        
+        data.meetings = data.meetings || [];
+        data.meetings.push(newMeeting);
+        await localStorageAPI.setData(data);
+        
+        console.log('Meeting Entity: Meeting created successfully in localStorage');
+        
+        return newMeeting;
       }
-      
-      // Fallback to localStorage if Supabase is not available
-      console.log('Meeting Entity: Supabase not available, creating in localStorage');
-      const data = await localStorageAPI.getData();
-      const currentUser = await localStorageAPI.getCurrentUser();
-      
-      const newMeeting = {
-        id: localStorageAPI.generateId(),
-        ...normalizedMeetingData,
-        created_date: new Date().toISOString(),
-        updated_date: new Date().toISOString(),
-        created_by: currentUser.email
-      };
-      
-      console.log('Meeting Entity: New meeting object for localStorage:', newMeeting);
-      
-      data.meetings = data.meetings || [];
-      data.meetings.push(newMeeting);
-      await localStorageAPI.setData(data);
-      
-      console.log('Meeting Entity: Meeting created successfully in localStorage');
-      
-      return newMeeting;
     } catch (error) {
       console.error('Meeting Entity: Error creating meeting:', error);
       throw error;
@@ -119,33 +122,43 @@ export const Meeting = {
     try {
       console.log('Meeting Entity: Updating meeting with id:', id, 'and data:', updateData);
       
-      // Try Supabase backend first
-      const isSupabaseAvailable = await supabaseMeetingService.isAvailable();
-      if (isSupabaseAvailable) {
-        console.log('Meeting Entity: Updating meeting in Supabase backend');
-        const updatedMeeting = await supabaseMeetingService.update(id, updateData);
-        console.log('Meeting Entity: Meeting updated successfully in Supabase:', updatedMeeting);
+      // Try Firestore first
+      try {
+        console.log('Meeting Entity: Updating meeting in Firestore');
+        const updatedMeeting = await firestoreService.updateMeeting(id, updateData);
+        console.log('Meeting Entity: Meeting updated successfully in Firestore:', updatedMeeting);
+        
+        // Also sync with Google Calendar if available
+        try {
+          const googleCalendarService = (await import('./googleCalendar')).default;
+          await googleCalendarService.updateEvent(id, updateData);
+          console.log('Meeting Entity: Meeting synced with Google Calendar');
+        } catch (calendarError) {
+          console.log('Meeting Entity: Google Calendar sync failed (non-critical):', calendarError.message);
+        }
+        
         return updatedMeeting;
+      } catch (firestoreError) {
+        console.log('Meeting Entity: Firestore not available, updating in localStorage:', firestoreError.message);
+        
+        // Fallback to localStorage
+        const data = await localStorageAPI.getData();
+        const meetingIndex = data.meetings.findIndex(m => m.id === id);
+        
+        if (meetingIndex !== -1) {
+          data.meetings[meetingIndex] = {
+            ...data.meetings[meetingIndex],
+            ...updateData,
+            updated_date: new Date().toISOString()
+          };
+          await localStorageAPI.setData(data);
+          console.log('Meeting Entity: Meeting updated successfully in localStorage');
+          return data.meetings[meetingIndex];
+        }
+        
+        console.log('Meeting Entity: Meeting not found with id:', id);
+        throw new Error('Meeting not found');
       }
-      
-      // Fallback to localStorage if Supabase is not available
-      console.log('Meeting Entity: Supabase not available, updating in localStorage');
-      const data = await localStorageAPI.getData();
-      const meetingIndex = data.meetings.findIndex(m => m.id === id);
-      
-      if (meetingIndex !== -1) {
-        data.meetings[meetingIndex] = {
-          ...data.meetings[meetingIndex],
-          ...updateData,
-          updated_date: new Date().toISOString()
-        };
-        await localStorageAPI.setData(data);
-        console.log('Meeting Entity: Meeting updated successfully in localStorage');
-        return data.meetings[meetingIndex];
-      }
-      
-      console.log('Meeting Entity: Meeting not found with id:', id);
-      throw new Error('Meeting not found');
     } catch (error) {
       console.error('Meeting Entity: Error updating meeting:', error);
       throw error;
@@ -156,23 +169,33 @@ export const Meeting = {
     try {
       console.log('Meeting Entity: Deleting meeting with id:', id);
       
-      // Try Supabase backend first
-      const isSupabaseAvailable = await supabaseMeetingService.isAvailable();
-      if (isSupabaseAvailable) {
-        console.log('Meeting Entity: Deleting meeting in Supabase backend');
-        const result = await supabaseMeetingService.delete(id);
-        console.log('Meeting Entity: Meeting deleted successfully in Supabase');
-        return result;
+      // Try Firestore first
+      try {
+        console.log('Meeting Entity: Deleting meeting in Firestore');
+        await firestoreService.deleteMeeting(id);
+        console.log('Meeting Entity: Meeting deleted successfully in Firestore');
+        
+        // Also sync with Google Calendar if available
+        try {
+          const googleCalendarService = (await import('./googleCalendar')).default;
+          await googleCalendarService.deleteEvent(id);
+          console.log('Meeting Entity: Meeting synced with Google Calendar');
+        } catch (calendarError) {
+          console.log('Meeting Entity: Google Calendar sync failed (non-critical):', calendarError.message);
+        }
+        
+        return { success: true };
+      } catch (firestoreError) {
+        console.log('Meeting Entity: Firestore not available, deleting in localStorage:', firestoreError.message);
+        
+        // Fallback to localStorage
+        const data = await localStorageAPI.getData();
+        data.meetings = data.meetings.filter(m => m.id !== id);
+        await localStorageAPI.setData(data);
+        
+        console.log('Meeting Entity: Meeting deleted successfully in localStorage');
+        return { success: true };
       }
-      
-      // Fallback to localStorage if Supabase is not available
-      console.log('Meeting Entity: Supabase not available, deleting in localStorage');
-      const data = await localStorageAPI.getData();
-      data.meetings = data.meetings.filter(m => m.id !== id);
-      await localStorageAPI.setData(data);
-      
-      console.log('Meeting Entity: Meeting deleted successfully in localStorage');
-      return { success: true };
     } catch (error) {
       console.error('Meeting Entity: Error deleting meeting:', error);
       throw error;
@@ -183,34 +206,21 @@ export const Meeting = {
     try {
       console.log('Meeting Entity: Getting meeting with id:', id);
       
-      // Check if the ID is a localStorage ID (not a UUID)
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      const isUUID = uuidRegex.test(id);
-      
-      if (!isUUID) {
-        console.log('Meeting Entity: Non-UUID ID detected, searching in localStorage only:', id);
-        const data = await localStorageAPI.getData();
-        const meeting = data.meetings.find(m => m.id === id);
-        console.log('Meeting Entity: Retrieved meeting from localStorage:', meeting);
-        return meeting || null;
-      }
-      
-      // Try Supabase backend first for UUID meetings
-      const isSupabaseAvailable = await supabaseMeetingService.isAvailable();
-      if (isSupabaseAvailable) {
-        const meeting = await supabaseMeetingService.get(id);
-        // Only log when meeting is found to reduce noise
+      // Try Firestore first
+      try {
+        const meeting = await firestoreService.getMeeting(id);
         if (meeting) {
-          console.log('Meeting Entity: Retrieved meeting from Supabase: found');
+          console.log('Meeting Entity: Retrieved meeting from Firestore');
+          return meeting;
         }
-        return meeting;
+      } catch (firestoreError) {
+        console.log('Meeting Entity: Firestore not available, getting from localStorage:', firestoreError.message);
       }
       
-      // Fallback to localStorage if Supabase is not available
-      console.log('Meeting Entity: Supabase not available, getting from localStorage');
+      // Fallback to localStorage
       const data = await localStorageAPI.getData();
       const meeting = data.meetings.find(m => m.id === id);
-      console.log('Meeting Entity: Retrieved meeting from localStorage:', meeting);
+      console.log('Meeting Entity: Retrieved meeting from localStorage:', meeting ? 'found' : 'not found');
       return meeting || null;
     } catch (error) {
       console.error('Meeting Entity: Error getting meeting:', error);
@@ -232,54 +242,79 @@ export const Meeting = {
   })
 };
 
-// UserPreferences Entity
+// UserPreferences Entity - Now uses Firestore
 export const UserPreferences = {
   filter: async (criteria) => {
-    const data = await localStorageAPI.getData();
-    let prefs = data.userPreferences || [];
-    
-    if (criteria.created_by) {
-      prefs = prefs.filter(p => p.created_by === criteria.created_by);
+    try {
+      // Try Firestore first
+      const prefs = await firestoreService.getUserPreferences();
+      return prefs;
+    } catch (error) {
+      // Fallback to localStorage
+      const data = await localStorageAPI.getData();
+      let prefs = data.userPreferences || [];
+      
+      if (criteria.created_by) {
+        prefs = prefs.filter(p => p.created_by === criteria.created_by);
+      }
+      
+      return prefs;
     }
-    
-    return prefs;
   },
 
   create: async (prefData) => {
-    const data = await localStorageAPI.getData();
-    const newPrefs = {
-      id: localStorageAPI.generateId(),
-      ...prefData,
-      created_date: new Date().toISOString(),
-      updated_date: new Date().toISOString()
-    };
-    
-    data.userPreferences = data.userPreferences || [];
-    data.userPreferences.push(newPrefs);
-    await localStorageAPI.setData(data);
-    
-    return newPrefs;
+    try {
+      // Try Firestore first
+      const prefs = await firestoreService.getUserPreferences();
+      const updatedPrefs = { ...prefs, ...prefData };
+      await firestoreService.updateUserPreferences(updatedPrefs);
+      return updatedPrefs;
+    } catch (error) {
+      // Fallback to localStorage
+      const data = await localStorageAPI.getData();
+      const newPrefs = {
+        id: localStorageAPI.generateId(),
+        ...prefData,
+        created_date: new Date().toISOString(),
+        updated_date: new Date().toISOString()
+      };
+      
+      data.userPreferences = data.userPreferences || [];
+      data.userPreferences.push(newPrefs);
+      await localStorageAPI.setData(data);
+      
+      return newPrefs;
+    }
   },
 
   update: async (id, updateData) => {
-    const data = await localStorageAPI.getData();
-    const prefIndex = data.userPreferences.findIndex(p => p.id === id);
-    
-    if (prefIndex !== -1) {
-      data.userPreferences[prefIndex] = {
-        ...data.userPreferences[prefIndex],
-        ...updateData,
-        updated_date: new Date().toISOString()
-      };
-      await localStorageAPI.setData(data);
-      return data.userPreferences[prefIndex];
+    try {
+      // Try Firestore first
+      const prefs = await firestoreService.getUserPreferences();
+      const updatedPrefs = { ...prefs, ...updateData };
+      await firestoreService.updateUserPreferences(updatedPrefs);
+      return updatedPrefs;
+    } catch (error) {
+      // Fallback to localStorage
+      const data = await localStorageAPI.getData();
+      const prefIndex = data.userPreferences.findIndex(p => p.id === id);
+      
+      if (prefIndex !== -1) {
+        data.userPreferences[prefIndex] = {
+          ...data.userPreferences[prefIndex],
+          ...updateData,
+          updated_date: new Date().toISOString()
+        };
+        await localStorageAPI.setData(data);
+        return data.userPreferences[prefIndex];
+      }
+      
+      throw new Error('UserPreferences not found');
     }
-    
-    throw new Error('UserPreferences not found');
   }
 };
 
-// ApiKey Entity
+// ApiKey Entity - Uses localStorage (API keys stored locally)
 export const ApiKey = {
   list: async () => {
     const data = await localStorageAPI.getData();
@@ -328,7 +363,7 @@ export const ApiKey = {
   }
 };
 
-// Note Entity
+// Note Entity - Uses localStorage
 export const Note = {
   list: async (sortBy = "-created_date") => {
     const data = await localStorageAPI.getData();
@@ -384,14 +419,24 @@ export const Note = {
   }
 };
 
-// User Auth Entity
+// User Auth Entity - Uses Firebase Auth
 export const User = {
   me: async () => {
-    return await localStorageAPI.getCurrentUser();
+    try {
+      // Try Firestore first
+      const firestoreService = (await import('../services/firestoreService')).default;
+      const userId = firestoreService.getCurrentUserId();
+      const user = await firestoreService.getUser(userId);
+      return user;
+    } catch (error) {
+      // Fallback to localStorage
+      return await localStorageAPI.getCurrentUser();
+    }
   },
 
   signIn: async (credentials) => {
-    // Mock sign in - in real app this would validate credentials
+    // This is handled by Firebase Auth now
+    // Just return user from localStorage as fallback
     const user = {
       id: 'user-' + localStorageAPI.generateId(),
       email: credentials.email,

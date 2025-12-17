@@ -22,9 +22,9 @@ const Pricing = ({ language = 'en' }) => {
   const { userPlan, isAuthenticated, refreshUserPlan } = useAuth();
   const { t } = useTranslation(language);
   const [billingCycle, setBillingCycle] = useState('monthly');
-  const [stripeLinks, setStripeLinks] = useState({});
   const [plans, setPlans] = useState({});
   const [loading, setLoading] = useState(true);
+  const [purchasing, setPurchasing] = useState(false);
 
   // Fetch plan data and Stripe links from backend
   useEffect(() => {
@@ -46,68 +46,56 @@ const Pricing = ({ language = 'en' }) => {
 
   const fetchPlanData = async () => {
     try {
-      // Fetching plan data from backend
+      setLoading(true);
+      // Fetching plan data from billing service (Google Play Billing)
+      const { getPlans } = await import('../api/billingService');
+      const plansData = await getPlans();
       
-      const backendUrl = process.env.BACKEND_URL;
-      if (!backendUrl) {
-        throw new Error('Backend URL not configured');
-      }
+      console.log('✅ Plans data:', plansData);
       
-      // Fetch plans from backend API
-      const plansResponse = await fetch(`${backendUrl}/api/billing/plans`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-      
-      console.log('Response status:', plansResponse.status);
-      console.log('Response ok:', plansResponse.ok);
-      
-      if (plansResponse.ok) {
-        const plansData = await plansResponse.json();
-        console.log('✅ Plans data from backend:', plansData);
+      if (plansData.success && plansData.plans) {
+        // Convert plans to the format expected by the UI
+        const formattedPlans = {};
+        Object.entries(plansData.plans).forEach(([planId, plan]) => {
+          formattedPlans[planId] = {
+            name: plan.name || plan.id,
+            price: plan.price || '$0',
+            period: planId.includes('yearly') ? 'year' : planId.includes('monthly') ? 'month' : 'forever',
+            description: plan.description || getPlanDescription(planId),
+            features: plan.features || [],
+            popular: planId === 'pro_monthly' || planId === 'pro_yearly',
+            productId: plan.productId,
+          };
+          
+          if (planId.includes('yearly')) {
+            formattedPlans[planId].savings = 'Save 17%';
+            formattedPlans[planId].totalPrice = 'Billed annually';
+          }
+        });
         
-        if (plansData.success && plansData.plans) {
-          setPlans(plansData.plans);
-          
-          // Extract Stripe links from plans data
-          const extractedLinks = {};
-          Object.entries(plansData.plans).forEach(([planId, plan]) => {
-            if (plan.checkoutLink) {
-              switch (planId) {
-                case 'pro_monthly':
-                  extractedLinks.STRIPE_PRO_MONTHLY_LINK = plan.checkoutLink;
-                  break;
-                case 'pro_yearly':
-                  extractedLinks.STRIPE_PRO_YEARLY_LINK = plan.checkoutLink;
-                  break;
-                case 'premium_monthly':
-                  extractedLinks.STRIPE_PREMIUM_MONTHLY_LINK = plan.checkoutLink;
-                  break;
-                case 'premium_yearly':
-                  extractedLinks.STRIPE_PREMIUM_YEARLY_LINK = plan.checkoutLink;
-                  break;
-              }
-            }
-          });
-          
-          console.log('✅ Extracted Stripe links:', extractedLinks);
-          setStripeLinks(extractedLinks);
-        } else {
-          throw new Error('Invalid plans data structure');
-        }
+        // Add free plan
+        formattedPlans.free = {
+          name: 'Free',
+          price: '$0',
+          period: 'forever',
+          description: 'Perfect for getting started',
+          features: [
+            '5 AI requests per day',
+            'Basic meeting management',
+            'Standard support',
+            '1GB file storage'
+          ],
+          popular: false
+        };
+        
+        setPlans(formattedPlans);
       } else {
-        const errorText = await plansResponse.text();
-        console.error('❌ Backend error response:', errorText);
-        throw new Error(`Failed to fetch plans: ${plansResponse.status} - ${errorText}`);
+        throw new Error('Invalid plans data structure');
       }
-      
     } catch (error) {
-      console.error('❌ Error fetching plan data from backend:', error);
+      console.error('❌ Error fetching plan data:', error);
       
-      // Fallback to static plans and environment variables
+      // Fallback to static plans
       console.log('🔄 Using fallback plan data...');
       
       const fallbackPlans = {
@@ -126,7 +114,7 @@ const Pricing = ({ language = 'en' }) => {
         },
         pro_monthly: {
           name: 'Pro',
-          price: '$7.99',
+          price: '$9.99',
           period: 'month',
           description: 'Best for growing teams',
           features: [
@@ -140,7 +128,7 @@ const Pricing = ({ language = 'en' }) => {
         },
         pro_yearly: {
           name: 'Pro',
-          price: '$71.88',
+          price: '$99.99',
           period: 'year',
           description: 'Best for growing teams',
           features: [
@@ -151,12 +139,12 @@ const Pricing = ({ language = 'en' }) => {
             'Team collaboration'
           ],
           popular: true,
-          savings: 'Save 25%',
+          savings: 'Save 17%',
           totalPrice: 'Billed annually'
         },
         premium_monthly: {
           name: 'Premium',
-          price: '$14.99',
+          price: '$19.99',
           period: 'month',
           description: 'For enterprise teams',
           features: [
@@ -170,7 +158,7 @@ const Pricing = ({ language = 'en' }) => {
         },
         premium_yearly: {
           name: 'Premium',
-          price: '$139.91',
+          price: '$199.99',
           period: 'year',
           description: 'For enterprise teams',
           features: [
@@ -181,158 +169,82 @@ const Pricing = ({ language = 'en' }) => {
             'Dedicated support'
           ],
           popular: false,
-          savings: 'Save 25%',
+          savings: 'Save 17%',
           totalPrice: 'Billed annually'
         }
       };
       
-      const fallbackLinks = {
-        STRIPE_PRO_MONTHLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PRO_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
-        STRIPE_PRO_YEARLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PRO_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
-        STRIPE_PREMIUM_MONTHLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PREMIUM_MONTHLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02',
-        STRIPE_PREMIUM_YEARLY_LINK: process.env.EXPO_PUBLIC_STRIPE_PREMIUM_YEARLY_LINK || 'https://buy.stripe.com/test_3cI28s924foc8FN18JgMw02'
-      };
-      
       setPlans(fallbackPlans);
-      setStripeLinks(fallbackLinks);
     } finally {
       setLoading(false);
     }
   };
 
-  // Note: We use Stripe Payment Links directly
-  // IMPORTANT: To enable auto-return after payment, configure success page in Stripe Dashboard:
-  // 1. Go to Stripe Dashboard > Payment Links
-  // 2. Edit each payment link
-  // 3. Set Success page to: https://meetingguard-backend.onrender.com/payment-success?plan={PLAN_ID}
-  // 4. This will redirect users to your success page after payment
+  // Handle subscription purchase using Google Play Billing
+  const handleUpgrade = async (planId) => {
+    if (!isAuthenticated) {
+      Alert.alert('Authentication Required', 'Please sign in to upgrade your plan.');
+      return;
+    }
 
-  // Plans data is now fetched from backend API
+    if (planId === 'free') {
+      Alert.alert('Free Plan', 'You are already on the free plan.');
+      return;
+    }
 
-  const handleUpgrade = async (planId, planName, price, period) => {
     try {
-      // Get the appropriate Stripe Payment Link
-      let paymentLink = '';
+      setPurchasing(true);
+      console.log('🔄 Purchasing subscription:', planId);
       
-      switch (planId) {
-        case 'pro_monthly':
-          paymentLink = stripeLinks.STRIPE_PRO_MONTHLY_LINK;
-          break;
-        case 'pro_yearly':
-          paymentLink = stripeLinks.STRIPE_PRO_YEARLY_LINK;
-          break;
-        case 'premium_monthly':
-          paymentLink = stripeLinks.STRIPE_PREMIUM_MONTHLY_LINK;
-          break;
-        case 'premium_yearly':
-          paymentLink = stripeLinks.STRIPE_PREMIUM_YEARLY_LINK;
-          break;
-        default:
-          throw new Error('Invalid plan selected');
-      }
+      // Import billing service
+      const { purchaseSubscription } = await import('../api/billingService');
       
-      if (!paymentLink) {
-        Alert.alert('Plan Unavailable', 'This plan is not available for upgrade');
-        return;
-      }
+      // Initiate purchase
+      const result = await purchaseSubscription(planId);
       
-      console.log('🔄 Opening Stripe Payment Link for:', planId, paymentLink);
-      
-      // Set loading state to show payment is in progress
-      setLoading(true);
-      
-      // Open Stripe Payment Link in browser
-      const supported = await Linking.canOpenURL(paymentLink);
-      if (supported) {
-        await Linking.openURL(paymentLink);
+      if (result.success) {
+        // Purchase initiated - Google Play Billing will handle the rest
+        // The purchase will be processed by the purchaseUpdatedListener in googlePlayBillingService
+        console.log('✅ Purchase initiated successfully');
         
-        // Start monitoring for payment completion
-        startPaymentMonitoring(planId);
-      } else {
-        Alert.alert('Error', 'Cannot open payment link');
-        setLoading(false);
+        // Wait a moment for purchase to complete, then refresh
+        setTimeout(async () => {
+          await refreshUserPlan(1000);
+          setPurchasing(false);
+          Alert.alert(
+            'Purchase Initiated',
+            'Please complete the purchase in the Google Play dialog. Your subscription will be activated once payment is confirmed.',
+            [{ text: 'OK', onPress: () => fetchPlanData() }]
+          );
+        }, 500);
+      }
+    } catch (error) {
+      console.error('❌ Error purchasing subscription:', error);
+      setPurchasing(false);
+      
+      let errorMessage = 'Failed to initiate purchase. Please try again.';
+      if (error.message) {
+        if (error.message.includes('User cancelled')) {
+          errorMessage = 'Purchase was cancelled.';
+        } else if (error.message.includes('already owned')) {
+          errorMessage = 'You already own this subscription.';
+        } else {
+          errorMessage = error.message;
+        }
       }
       
-    } catch (error) {
-      console.error('Error opening payment link:', error);
-      Alert.alert('Error', 'Failed to open payment link. Please try again.');
-      setLoading(false);
+      Alert.alert('Purchase Error', errorMessage);
     }
   };
 
-  // Monitor for payment completion by checking user plan periodically
-  const startPaymentMonitoring = (planId) => {
-    console.log('🔄 Starting payment monitoring for plan:', planId);
-    
-    let attempts = 0;
-    const maxAttempts = 30; // 30 attempts = 30 seconds max
-    const checkInterval = 1000; // Check every 1 second
-    
-    const paymentMonitor = setInterval(async () => {
-      attempts++;
-      console.log(`🔍 Payment check attempt ${attempts}/${maxAttempts}`);
-      
-      try {
-        // Make a single API call to check current user plan
-        const currentPlan = await refreshUserPlan(0); // No delay for monitoring
-        
-        // Check if plan has changed to the expected plan
-        if (currentPlan === planId || 
-            (planId.includes('pro') && currentPlan === 'pro') ||
-            (planId.includes('premium') && currentPlan === 'premium')) {
-          
-          console.log('✅ Payment detected! Plan updated to:', currentPlan);
-          clearInterval(paymentMonitor);
-          setLoading(false);
-          
-          // Show success message
-          Alert.alert(
-            'Payment Successful! 🎉',
-            `Welcome to ${planId.replace('_', ' ').toUpperCase()}! Your subscription is now active.`,
-            [{ text: 'OK', onPress: () => {
-              // Refresh the page to show updated plan status
-              fetchPlanData();
-            }}]
-          );
-          
-          return;
-        }
-        
-        // If max attempts reached, stop monitoring
-        if (attempts >= maxAttempts) {
-          console.log('⏰ Payment monitoring timeout - stopping checks');
-          clearInterval(paymentMonitor);
-          setLoading(false);
-          
-          Alert.alert(
-            'Payment Processing',
-            'Your payment is being processed. Please refresh the page in a few moments to see your updated plan.',
-            [{ text: 'OK' }]
-          );
-        }
-        
-      } catch (error) {
-        console.error('❌ Error during payment monitoring:', error);
-        
-        // If we get 429 error, stop monitoring to avoid more requests
-        if (error.message && error.message.includes('429')) {
-          console.log('🚫 429 error detected - stopping payment monitoring');
-          clearInterval(paymentMonitor);
-          setLoading(false);
-          
-          Alert.alert(
-            'Payment Processing',
-            'Your payment is being processed. Please wait a moment and refresh the page to see your updated plan.',
-            [{ text: 'OK' }]
-          );
-        }
-      }
-    }, checkInterval);
-    
-    // Cleanup function to stop monitoring if component unmounts
-    return () => {
-      clearInterval(paymentMonitor);
+  const getPlanDescription = (planId) => {
+    const descriptions = {
+      pro_monthly: 'Best for growing teams',
+      pro_yearly: 'Best for growing teams - Annual',
+      premium_monthly: 'For enterprise teams',
+      premium_yearly: 'For enterprise teams - Annual',
     };
+    return descriptions[planId] || '';
   };
 
   const getFilteredPlans = () => {
@@ -543,15 +455,28 @@ const Pricing = ({ language = 'en' }) => {
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
-                      disabled={planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')}
+                      disabled={
+                        (planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) ||
+                        purchasing ||
+                        isCurrentPlan(planId)
+                      }
                       style={getButtonStyle(planId, plan)}
                       onPress={() => handleUpgrade(planId)}
                     >
-                      <Text style={getButtonTextStyle(planId)}>
-                        {getButtonText(planId)}
-                      </Text>
-                      {!(planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) && (
-                        <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                      {purchasing ? (
+                        <>
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                          <Text style={getButtonTextStyle(planId)}>Processing...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={getButtonTextStyle(planId)}>
+                            {getButtonText(planId)}
+                          </Text>
+                          {!(planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) && !isCurrentPlan(planId) && (
+                            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                          )}
+                        </>
                       )}
                     </TouchableOpacity>
                   )}
@@ -935,3 +860,4 @@ const styles = StyleSheet.create({
 });
 
 export default Pricing;
+

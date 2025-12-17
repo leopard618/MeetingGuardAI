@@ -38,3 +38,29 @@ dist-ssr
 android/
 ios/
 web/
+
+# Test files
+*test*.js
+*test*.jsx
+*spec*.js
+*spec*.jsx
+test/
+tests/
+__tests__/
+
+# Debug files
+*debug*.js
+*debug*.jsx
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Documentation (keep only README.md)
+*.md
+!README.md
+!src/components/NotificationSystem/README.md

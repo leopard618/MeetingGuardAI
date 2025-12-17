@@ -35,6 +35,7 @@ import { useAuth } from '../contexts/AuthContext';
 import CalendarSyncSettings from '../components/CalendarSyncSettings.jsx';
 import CalendarTest from '../components/CalendarTest';
 import NotificationManager from '../components/NotificationSystem/NotificationManager.jsx';
+import EnvironmentTest from '../components/EnvironmentTest.jsx';
 
 export default function Settings({ navigation, language = "en" }) {
   const { isDarkMode, toggleTheme } = useTheme();
@@ -286,6 +287,21 @@ export default function Settings({ navigation, language = "en" }) {
             description="Configure calendar synchronization"
             titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
             left={(props) => <List.Icon {...props} icon="sync" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          />
+        </TouchableOpacity>
+        
+        <Divider />
+        
+        <TouchableOpacity
+          onPress={() => navigation.navigate('EnvironmentTest')}
+          style={styles.navItem}
+        >
+          <List.Item
+            title="Environment Test"
+            description="Test and verify environment configuration"
+            titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
+            left={(props) => <List.Icon {...props} icon="check-circle" />}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
           />
         </TouchableOpacity>

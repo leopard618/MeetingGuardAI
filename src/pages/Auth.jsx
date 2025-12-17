@@ -159,9 +159,6 @@ export default function Auth({ navigation }) {
             <Title style={styles.appTitle}>{t('auth.title')}</Title>
           </View>
 
-          {/* Debug Component - Remove after fixing */}
-          {/* <RedirectURIDebug /> */}
-
           <Card style={styles.card}>
             <Card.Content>
               <Title style={styles.formTitle}>
@@ -187,18 +184,6 @@ export default function Auth({ navigation }) {
               </TouchableOpacity>
             </Card.Content>
           </Card>
-
-           
-                       {/* Temporary debug button - remove in production */}
-            {/* <TouchableOpacity 
-              style={styles.debugButton}
-              onPress={async () => {
-                await AsyncStorage.clear();
-                console.log("Storage cleared");
-              }}
-            >
-              <Text style={styles.debugButtonText}>Clear Storage (Debug)</Text>
-            </TouchableOpacity> */}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -317,16 +302,4 @@ const getStyles = (isDarkMode, fonts, spacing, buttonDims, isSmall, isTablet) =>
       marginTop: 16,
       lineHeight: 20,
     },
-     debugButton: {
-       marginTop: 16,
-       padding: 12,
-       backgroundColor: isDarkMode ? "#dc2626" : "#ef4444",
-       borderRadius: 8,
-       alignItems: "center",
-     },
-     debugButtonText: {
-       color: "#ffffff",
-       fontSize: 12,
-       fontWeight: "500",
-     },
   }); 

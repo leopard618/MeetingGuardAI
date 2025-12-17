@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import googleCalendarConnectionManager from './googleCalendarConnectionManager.js';
 import { googleTokenManager } from './googleTokenManager.js';
+import firebaseAuthService from '../services/firebaseAuth';
 
 class GoogleCalendarService {
   constructor() {
@@ -225,17 +226,25 @@ class GoogleCalendarService {
   }
 
   /**
-   * Get access token from storage with automatic refresh
+   * Get access token from Firebase Auth with automatic refresh
    */
   async getAccessToken() {
     try {
-      console.log('🔄 Getting Google access token...');
+      console.log('🔄 Getting Google access token from Firebase...');
       
-      // Use the unified token manager
+      // First try Firebase Auth service (new method)
+      const firebaseToken = await firebaseAuthService.getGoogleCalendarAccessToken();
+      if (firebaseToken) {
+        console.log('✅ Google access token obtained from Firebase');
+        return firebaseToken;
+      }
+      
+      // Fallback to old token manager for backward compatibility
+      console.log('🔄 Falling back to legacy token manager...');
       const token = await googleTokenManager.getValidAccessToken();
       
       if (token) {
-        console.log('✅ Valid access token obtained');
+        console.log('✅ Valid access token obtained from legacy manager');
         return token;
       } else {
         console.log('❌ No valid access token available');
