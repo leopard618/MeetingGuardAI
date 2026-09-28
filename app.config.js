@@ -1,86 +1,86 @@
+// Single source of truth for the Expo app config (app.json was removed).
+// Native projects are generated from this file (Continuous Native Generation):
+// android/ and ios/ are NOT committed - run `npx expo prebuild` locally if needed.
+//
+// Versioning: `version` is the user-facing version. Android versionCode / iOS
+// buildNumber are managed remotely by EAS (eas.json: cli.appVersionSource = "remote").
+
+const CALENDAR_USAGE =
+  'MeetingGuard AI uses your calendar to show, create and update your meetings and to schedule meeting alerts.';
+
 module.exports = {
   expo: {
-    name: "meeting-guard-ai",
-    slug: "meeting-guard-ai",
-    version: "1.0.9",
-    orientation: "portrait",
-    icon: "./assets/icon.png",
-    userInterfaceStyle: "light",
+    name: 'MeetingGuard AI',
+    slug: 'meeting-guard-ai',
+    version: '1.1.0',
+    scheme: 'meetingguardai',
+    platforms: ['ios', 'android'],
+    orientation: 'portrait',
+    icon: './assets/icon.png',
+    userInterfaceStyle: 'automatic',
     splash: {
-      image: "./assets/splash.png",
-      resizeMode: "contain",
-      backgroundColor: "#ffffff"
+      image: './assets/splash.png',
+      resizeMode: 'contain',
+      backgroundColor: '#ffffff',
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.meetingguard.ai",
-      buildNumber: "1",
+      bundleIdentifier: 'com.meetingguard.ai',
       infoPlist: {
-        "NSCalendarsUsageDescription": "This app needs access to your calendar to create and manage meetings.",
-        "NSContactsUsageDescription": "This app needs access to your contacts to add meeting participants.",
-        "NSMicrophoneUsageDescription": "This app needs access to your microphone for voice notes and meeting recordings.",
-        "ITSAppUsesNonExemptEncryption": false
-      }
+        NSCalendarsUsageDescription: CALENDAR_USAGE,
+        NSCalendarsFullAccessUsageDescription: CALENDAR_USAGE,
+        ITSAppUsesNonExemptEncryption: false,
+      },
     },
     android: {
+      package: 'com.meetingguard.ai',
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#ffffff"
+        foregroundImage: './assets/adaptive-icon.png',
+        backgroundColor: '#ffffff',
       },
-      package: "com.meetingguard.ai",
-      versionCode: 20,
+      // Only what the app actually needs. INTERNET / ACCESS_NETWORK_STATE are added
+      // by React Native and @react-native-community/netinfo themselves.
       permissions: [
-        "READ_CALENDAR",
-        "WRITE_CALENDAR",
-        "READ_CONTACTS",
-        "RECORD_AUDIO",
-        "INTERNET",
-        "ACCESS_NETWORK_STATE",
-        "VIBRATE",
-        "WAKE_LOCK",
-        "android.permission.READ_CALENDAR",
-        "android.permission.WRITE_CALENDAR",
-        "android.permission.READ_CONTACTS",
-        "android.permission.RECORD_AUDIO"
+        'android.permission.VIBRATE',
+        'android.permission.RECEIVE_BOOT_COMPLETED',
+        'android.permission.POST_NOTIFICATIONS',
+        'android.permission.READ_CALENDAR',
+        'android.permission.WRITE_CALENDAR',
+        'android.permission.WAKE_LOCK',
       ],
-      // Android 15 compliance
-      intentFilters: [
-        {
-          action: "VIEW",
-          data: {
-            scheme: "meetingguardai"
-          },
-          category: ["BROWSABLE", "DEFAULT"]
-        }
+      // Prevent libraries (e.g. expo-av) from merging sensitive permissions back in.
+      blockedPermissions: [
+        'android.permission.RECORD_AUDIO',
+        'android.permission.READ_CONTACTS',
+        'android.permission.SYSTEM_ALERT_WINDOW',
       ],
-      // Ensure proper exported attribute for Android 15
-      exported: true
     },
-    web: {
-      favicon: "./assets/favicon.png"
-    },
-    scheme: "meetingguardai",
-    newArchEnabled: false,
     plugins: [
-      "expo-router",
-      "expo-notifications",
-      "expo-calendar",
-      "expo-dev-client",
+      'expo-notifications',
       [
-        "expo-build-properties",
+        'expo-calendar',
         {
-          "android": {
-            "targetSdkVersion": 35,
-            "compileSdkVersion": 35,
-            "minSdkVersion": 24
-          }
-        }
-      ]
+          calendarPermission: CALENDAR_USAGE,
+        },
+      ],
+      'expo-dev-client',
+      [
+        'expo-build-properties',
+        {
+          // TODO(SDK upgrade step): revisit these pins - Play requires targetSdk 36
+          // for updates after 31 Aug 2026; the Expo SDK 57 defaults satisfy that.
+          android: {
+            targetSdkVersion: 35,
+            compileSdkVersion: 35,
+            minSdkVersion: 24,
+          },
+        },
+      ],
     ],
     extra: {
       eas: {
-        projectId: "139b18d2-655f-458f-854a-27e423530626"
-      }
-    }
-  }
+        projectId: '139b18d2-655f-458f-854a-27e423530626',
+      },
+    },
+  },
 };
