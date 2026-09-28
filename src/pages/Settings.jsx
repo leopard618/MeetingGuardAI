@@ -31,8 +31,12 @@ import {
   getResponsiveCardDimensions,
   getDeviceType 
 } from '../utils/responsive.js';
+import Constants from 'expo-constants';
 import { useAuth } from '../contexts/AuthContext';
 import NotificationManager from '../components/NotificationSystem/NotificationManager.jsx';
+
+// User-facing version from app.config.js (was hard-coded to 1.0.0).
+const APP_VERSION = Constants.expoConfig?.version ?? '';
 
 export default function Settings({ navigation, language = "en" }) {
   const { isDarkMode, toggleTheme } = useTheme();
@@ -307,7 +311,7 @@ export default function Settings({ navigation, language = "en" }) {
         
         <List.Item
           title={t('settings.about')}
-          description={`${t('settings.version')} 1.0.0`}
+          description={`${t('settings.version')} ${APP_VERSION}`.trim()}
           titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
           left={(props) => <List.Icon {...props} icon="information" />}
         />

@@ -94,9 +94,9 @@ export default function Privacy({ navigation, language = "en" }) {
         
         <Card style={styles.contactCard}>
           <Card.Content>
-            <Title style={styles.sectionTitle}>{t('privacy.contact')}</Title>
+            <Title style={styles.sectionTitle}>{t('privacy.contactUs')}</Title>
             <Paragraph style={styles.sectionDescription}>
-              {t('privacy.contactDesc')}
+              {t('privacy.contactUsDesc')}
             </Paragraph>
             
             <View style={styles.contactInfo}>

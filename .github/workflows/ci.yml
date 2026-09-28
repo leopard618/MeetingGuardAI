@@ -24,16 +24,6 @@ jobs:
     env:
       CI: 'true'
       EXPO_NO_TELEMETRY: '1'
-      # Dummy PUBLIC values so the bundle builds with a complete config. They are not real
-      # credentials. Real values come from EAS environment variables at build time.
-      EXPO_PUBLIC_FIREBASE_API_KEY: ci-dummy-firebase-api-key
-      EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: demo-meetingguard.firebaseapp.com
-      EXPO_PUBLIC_FIREBASE_PROJECT_ID: demo-meetingguard
-      EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: demo-meetingguard.appspot.com
-      EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
-      EXPO_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000'
-      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: 000000000000-dummyweb.apps.googleusercontent.com
-      EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: 000000000000-dummyios.apps.googleusercontent.com
     steps:
       - uses: actions/checkout@v4
 
@@ -55,6 +45,18 @@ jobs:
         run: npm test -- --ci
 
       - name: Bundle (Android)
+        # Dummy PUBLIC values so the bundle builds with a complete config. They are not real
+        # credentials; real values come from EAS environment variables at build time. They are
+        # scoped to this step so the unit tests run without any EXPO_PUBLIC_* values.
+        env:
+          EXPO_PUBLIC_FIREBASE_API_KEY: ci-dummy-firebase-api-key
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: demo-meetingguard.firebaseapp.com
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: demo-meetingguard
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: demo-meetingguard.appspot.com
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
+          EXPO_PUBLIC_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000'
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: 000000000000-dummyweb.apps.googleusercontent.com
+          EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: 000000000000-dummyios.apps.googleusercontent.com
         run: npx expo export --platform android --no-bytecode --output-dir dist/ci-export
 
       - name: Check the bundle for secrets

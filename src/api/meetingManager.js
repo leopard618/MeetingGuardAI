@@ -237,7 +237,7 @@ class MeetingManager {
       } else {
         // Add information about how to update/delete meetings
         responseMessage += "\n\n💡 To update or delete a meeting:\n";
-        responseMessage += "• Say 'Update the ADSF meeting' or 'Delete the team standup'\n";
+        responseMessage += "• Say 'Move the team standup to 3 PM' or 'Delete the team standup'\n";
         responseMessage += "• I'll help you modify the meeting details";
       }
 

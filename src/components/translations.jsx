@@ -617,6 +617,10 @@ export const translations = {
         "Uninterrupted or error-free service",
         "Accuracy or reliability of information provided"
       ],
+      limitations: "Limitation of Liability",
+      limitationsDesc: "To the maximum extent permitted by law, MeetingGuard AI shall not be liable for any indirect, incidental, special or consequential damages, including missed meetings or lost data, arising from your use of or inability to use the service.",
+      changes: "Changes to These Terms",
+      changesDesc: "We may update these Terms of Service from time to time. We will notify you of material changes in the app, and continuing to use the service after the changes take effect means you accept the updated terms.",
       contact: "Contact Information",
       contactDesc: "If you have any questions about these Terms of Service, please contact us at:",
       email: "legal@meetingguard.ai",
@@ -706,7 +710,10 @@ export const translations = {
       success: "Success",
       logout: "Logout",
       confirmLogout: "Are you sure you want to logout?",
-      settings: "Settings"
+      settings: "Settings",
+      ok: "OK",
+      close: "Close",
+      view: "View"
     }
   },
   es: {
@@ -1325,6 +1332,10 @@ export const translations = {
         "Servicio ininterrumpido o libre de errores",
         "Precisión o confiabilidad de la información proporcionada"
       ],
+      limitations: "Limitación de Responsabilidad",
+      limitationsDesc: "En la máxima medida permitida por la ley, MeetingGuard AI no será responsable de daños indirectos, incidentales, especiales o consecuentes, incluidas reuniones perdidas o pérdida de datos, derivados del uso o la imposibilidad de usar el servicio.",
+      changes: "Cambios en estos Términos",
+      changesDesc: "Podemos actualizar estos Términos de Servicio periódicamente. Te notificaremos los cambios importantes en la aplicación, y seguir usando el servicio después de que entren en vigor implica que aceptas los términos actualizados.",
       contact: "Información de Contacto",
       contactDesc: "Si tienes alguna pregunta sobre estos Términos de Servicio, por favor contáctanos en:",
       email: "legal@meetingguard.ai",
@@ -1414,7 +1425,10 @@ export const translations = {
       success: "Éxito",
       logout: "Cerrar Sesión",
       confirmLogout: "¿Estás seguro de que quieres cerrar sesión?",
-      settings: "Configuración"
+      settings: "Configuración",
+      ok: "Aceptar",
+      close: "Cerrar",
+      view: "Ver"
     }
   },
   fr: {

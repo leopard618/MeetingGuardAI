@@ -21,6 +21,9 @@ import {
   getDeviceType 
 } from '../utils/responsive.js';
 
+// Bundled app logo (previously hot-linked from the retired Base44/Supabase storage bucket).
+const APP_LOGO = require('../../assets/icon.png');
+
 const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', onLanguageToggle }) => {
   const navigation = useNavigation();
   const { isDarkMode, toggleTheme } = useTheme();
@@ -106,7 +109,7 @@ const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', on
           onPress={() => navigation.navigate('Dashboard')}
         >
           <Image
-            source={{ uri: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/816636779_file_00000000800861f89b8e5d3eba90a7691.png" }}
+            source={APP_LOGO}
             style={styles.logo}
           />
           <Text style={styles.title}>{displayTitle}</Text>
