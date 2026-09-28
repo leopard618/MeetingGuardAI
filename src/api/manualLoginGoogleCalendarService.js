@@ -3,13 +3,7 @@
 
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
-import { GOOGLE_OAUTH_CONFIG } from '../config/googleAuth.js';
-import { GOOGLE_REDIRECT_URI } from '@env';
-
-// Ensure auth sessions complete when app is foregrounded again
-WebBrowser.maybeCompleteAuthSession();
+import { MovedToServerError } from '../utils/movedToServer';
 
 class ManualLoginGoogleCalendarService {
   constructor() {
@@ -83,121 +77,27 @@ class ManualLoginGoogleCalendarService {
   }
 
   /**
-   * Start the OAuth flow for Google Calendar
+   * Start the OAuth flow for Google Calendar.
+   *
+   * Disabled: the old flow redirected to the retired Render backend and exchanged the code
+   * there. Google Calendar access will be rebuilt with native Google Sign-In (incremental
+   * calendar scope) and a Firebase Cloud Function for the code exchange.
    */
   async startOAuthFlow() {
-    try {
-      console.log('ManualLoginGoogleCalendarService: Starting OAuth flow');
-      
-      // Use environment variable for redirect URI with fallback
-      const oauthRedirectUri = GOOGLE_REDIRECT_URI || 'https://meetingguard-backend.onrender.com/oauth/google';
-      
-      // Create auth request
-      const request = new AuthSession.AuthRequest({
-        clientId: GOOGLE_OAUTH_CONFIG.CLIENT_ID,
-        scopes: [
-          'https://www.googleapis.com/auth/calendar',
-          'https://www.googleapis.com/auth/calendar.events',
-          'https://www.googleapis.com/auth/userinfo.email',
-          'https://www.googleapis.com/auth/userinfo.profile'
-        ],
-        redirectUri: oauthRedirectUri,
-        responseType: AuthSession.ResponseType.Code,
-        extraParams: {
-          access_type: 'offline',
-          prompt: 'consent'
-        }
-      });
-
-      console.log('ManualLoginGoogleCalendarService: Auth request created');
-      console.log('ManualLoginGoogleCalendarService: Redirect URI:', oauthRedirectUri);
-
-      // Start the auth session
-      const result = await request.promptAsync({
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth'
-      });
-
-      console.log('ManualLoginGoogleCalendarService: Auth session result:', result);
-
-      if (result.type === 'success' && result.params.code) {
-        console.log('ManualLoginGoogleCalendarService: Authorization code received');
-        
-        // Exchange code for tokens
-        const tokens = await this.exchangeCodeForTokens(result.params.code, oauthRedirectUri);
-        
-        if (tokens) {
-          return {
-            success: true,
-            tokens: tokens
-          };
-        } else {
-          return {
-            success: false,
-            error: 'Failed to exchange authorization code for tokens'
-          };
-        }
-      } else if (result.type === 'cancel') {
-        return {
-          success: false,
-          error: 'User cancelled Google Calendar authorization'
-        };
-      } else {
-        return {
-          success: false,
-          error: result.error?.message || 'Authorization failed'
-        };
-      }
-    } catch (error) {
-      console.error('ManualLoginGoogleCalendarService: OAuth flow error:', error);
-      return {
-        success: false,
-        error: error.message || 'OAuth flow failed'
-      };
-    }
+    const error = new MovedToServerError('google-calendar-connect');
+    return {
+      success: false,
+      error: error.message,
+      code: error.code,
+    };
   }
 
   /**
-   * Exchange authorization code for access and refresh tokens
+   * Exchange authorization code for tokens - requires the client secret, so it can only
+   * happen on the server (Firebase Cloud Function, later stage).
    */
-  async exchangeCodeForTokens(code, redirectUri) {
-    try {
-      console.log('ManualLoginGoogleCalendarService: Exchanging code for tokens');
-      
-      const backendUrl = process.env.BACKEND_URL;
-      if (!backendUrl) {
-        throw new Error('Backend URL not configured');
-      }
-
-      const response = await fetch(`${backendUrl}/api/auth/google/callback?code=${encodeURIComponent(code)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-
-      console.log('ManualLoginGoogleCalendarService: Token exchange response status:', response.status);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('ManualLoginGoogleCalendarService: Tokens received successfully');
-        
-        return {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          expires_in: data.expires_in,
-          expires_at: data.expires_at,
-          token_type: data.token_type || 'Bearer'
-        };
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('ManualLoginGoogleCalendarService: Token exchange failed:', errorData);
-        throw new Error(errorData.error || `Token exchange failed: ${response.status}`);
-      }
-    } catch (error) {
-      console.error('ManualLoginGoogleCalendarService: Error exchanging code for tokens:', error);
-      throw error;
-    }
+  async exchangeCodeForTokens(_code, _redirectUri) {
+    throw new MovedToServerError('google-calendar-connect');
   }
 
   /**

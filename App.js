@@ -6,6 +6,9 @@ import { Provider as PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { env } from './src/config/env';
+import { isFirebaseReady } from './src/config/firebase';
+import NotConfiguredScreen from './src/components/NotConfiguredScreen';
 import { ThemeProvider } from './src/contexts/ThemeContext.jsx';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext.jsx';
 import calendarSyncManager from './src/api/calendarSyncManager.js';
@@ -377,7 +380,18 @@ const styles = StyleSheet.create({
 });
 
 // Main App Component
-export default function App() {
+function App() {
+  // Without the public EXPO_PUBLIC_* configuration (e.g. an EAS build missing its environment
+  // variables) Firebase cannot start: show a clear screen instead of crashing.
+  if (!env.isConfigured || !isFirebaseReady) {
+    return (
+      <SafeAreaProvider>
+        <NotConfiguredScreen missingKeys={env.missingKeys} invalidKeys={env.invalidKeys} />
+        <StatusBar style="light" />
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
@@ -396,3 +410,5 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
+export default App;

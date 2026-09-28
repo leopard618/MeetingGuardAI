@@ -2,6 +2,7 @@
 // Ensures persistent Google Calendar connection across app sessions
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MovedToServerError } from '../utils/movedToServer';
 
 class GoogleCalendarConnectionManager {
   constructor() {
@@ -166,55 +167,17 @@ class GoogleCalendarConnectionManager {
   }
 
   /**
-   * Refresh access token using refresh token
+   * Refresh access token using refresh token.
+   *
+   * Needs the OAuth client secret -> server only (Firebase Cloud Function, later stage).
    */
-  async refreshAccessToken(refreshToken) {
-    try {
-      console.log('🔄 [ConnectionManager] Refreshing access token...');
-
-      const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-          client_secret: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET,
-          refresh_token: refreshToken,
-          grant_type: 'refresh_token',
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Token refresh failed: ${errorData.error_description || response.statusText}`);
-      }
-
-      const tokenData = await response.json();
-      
-      // Store the new tokens
-      const storeResult = await this.storeTokens(tokenData);
-      
-      if (storeResult) {
-        console.log('✅ [ConnectionManager] Token refresh and storage successful');
-        return {
-          success: true,
-          tokens: tokenData
-        };
-      } else {
-        console.log('❌ [ConnectionManager] Token refresh successful but storage failed');
-        return {
-          success: false,
-          error: 'Failed to store refreshed tokens'
-        };
-      }
-    } catch (error) {
-      console.error('❌ [ConnectionManager] Token refresh error:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
+  async refreshAccessToken(_refreshToken) {
+    const error = new MovedToServerError('google-token-refresh');
+    return {
+      success: false,
+      error: error.message,
+      code: error.code,
+    };
   }
 
   /**

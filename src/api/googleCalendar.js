@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import googleCalendarConnectionManager from './googleCalendarConnectionManager.js';
 import { googleTokenManager } from './googleTokenManager.js';
 import firebaseAuthService from '../services/firebaseAuth';
+import { MovedToServerError } from '../utils/movedToServer';
 
 class GoogleCalendarService {
   constructor() {
@@ -226,42 +227,12 @@ class GoogleCalendarService {
   }
 
   /**
-   * Refresh access token using refresh token
+   * Refresh access token using refresh token.
+   *
+   * Needs the OAuth client secret -> server only (Firebase Cloud Function, later stage).
    */
-  async refreshAccessToken(refreshToken) {
-    try {
-      console.log('🔄 Refreshing Google access token...');
-      
-      const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || 'REMOVED',
-          client_secret: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET,
-          refresh_token: refreshToken,
-          grant_type: 'refresh_token',
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Token refresh failed:', response.status, errorText);
-        throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
-      }
-
-      const tokens = await response.json();
-      console.log('✅ Token refresh successful');
-      
-      // Store new tokens
-      await this.storeTokens(tokens);
-      
-      return tokens;
-    } catch (error) {
-      console.error('❌ Error refreshing access token:', error);
-      throw error;
-    }
+  async refreshAccessToken(_refreshToken) {
+    throw new MovedToServerError('google-token-refresh');
   }
 
   /**

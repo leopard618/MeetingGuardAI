@@ -4,6 +4,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MovedToServerError } from '../utils/movedToServer';
 import { Alert } from 'react-native';
 
 class GoogleCalendarReconnectService {
@@ -101,50 +102,20 @@ class GoogleCalendarReconnectService {
   }
   
   /**
-   * Sync Google tokens with backend database
+   * Sync Google tokens with backend database.
+   *
+   * Disabled: this posted Google tokens to the retired Render backend. Token storage will move
+   * to Firebase (server-side) in a later stage.
    */
-  async syncTokensWithBackend(tokens, user) {
-    try {
-      console.log('🔄 Syncing Google tokens with backend...');
-      
-      const authToken = await AsyncStorage.getItem('authToken');
-      if (!authToken) {
-        throw new Error('No auth token found');
-      }
-      
-      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://meetingguard-backend.onrender.com';
-      
-      const response = await fetch(`${backendUrl}/api/auth/sync-google-tokens`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          expires_at: tokens.expires_at || new Date(Date.now() + 3600 * 1000).toISOString()
-        })
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Google tokens synced with backend successfully');
-        return { success: true, result };
-      } else {
-        const errorData = await response.text();
-        console.error('❌ Backend sync failed:', response.status, errorData);
-        throw new Error(`Backend sync failed: ${response.status} ${errorData}`);
-      }
-    } catch (error) {
-      console.error('❌ Error syncing tokens with backend:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
+  async syncTokensWithBackend(_tokens, _user) {
+    const error = new MovedToServerError('backend-sync');
+    return {
+      success: false,
+      error: error.message,
+      code: error.code,
+    };
   }
-  
+
   /**
    * Request fresh Google authentication
    */

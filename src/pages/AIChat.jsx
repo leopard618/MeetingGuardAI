@@ -5,7 +5,6 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
@@ -13,6 +12,7 @@ import {
   Dimensions,
   Animated,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Card,
   Title,
@@ -29,7 +29,8 @@ import MeetingManager from '../api/meetingManager';
 import MeetingConfirmationModal from "../components/MeetingConfirmationModal";
 import { useTheme } from "../contexts/ThemeContext";
 import { useTranslation } from "../components/translations.jsx";
-import { isAPIConfigured } from "../config/api.js";
+import { isAIAvailable } from "../config/api.js";
+import { movedToServerMessage } from "../utils/movedToServer";
 import { safeStringify, makeMeetingDataSafe } from "../utils/index.ts";
 import { Meeting } from "../api/entities";
 
@@ -94,8 +95,8 @@ export default function AIChat({ navigation, language = "en" }) {
     try {
       setIsInitializing(true);
       
-      // Check if API is configured
-      if (!isAPIConfigured()) {
+      // The AI assistant is moving to a Firebase Cloud Function; skip initialization until then.
+      if (!isAIAvailable()) {
         setServiceStatus({ openaiConnected: false, calendarConnected: false });
         setMessages([
           {
@@ -141,18 +142,18 @@ export default function AIChat({ navigation, language = "en" }) {
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
 
-    // Check if API key is properly configured
-    const apiConfig = isAPIConfigured();
-    if (!apiConfig.openai.hasKey || !apiConfig.openai.keyFormat) {
+    // The AI assistant is temporarily unavailable (moving to a secure server).
+    if (!isAIAvailable()) {
+      const unavailableText = movedToServerMessage('ai-assistant', language);
       const errorMessage = {
         id: (Date.now() + 1).toString(),
         type: "ai",
-        content: "I'm sorry, but the OpenAI API key is not configured. Please check your .env file and make sure OPENAI_API_KEY is set correctly.",
+        content: unavailableText,
         timestamp: new Date(),
         isError: true,
       };
       setMessages(prev => [...prev, errorMessage]);
-      showSnackbar("Please check your .env file configuration", "error");
+      showSnackbar(unavailableText, "error");
       return;
     }
 
@@ -604,21 +605,12 @@ export default function AIChat({ navigation, language = "en" }) {
       );
     }
 
-    if (!isAPIConfigured()) {
+    if (!isAIAvailable()) {
       return (
         <View style={styles.statusContainer}>
           <View style={styles.statusContent}>
             <MaterialIcons name="error-outline" size={20} color="#ef4444" />
-            <Text style={styles.statusText}>API not configured. Please set up your OpenAI API key.</Text>
-            <Button
-              mode="outlined"
-              onPress={() => navigation.navigate('Settings')}
-              compact
-              style={styles.authButton}
-              textColor={isDarkMode ? "#10b981" : "#059669"}
-            >
-              Configure API
-            </Button>
+            <Text style={styles.statusText}>{movedToServerMessage('ai-assistant', language)}</Text>
           </View>
         </View>
       );
@@ -1045,7 +1037,7 @@ export default function AIChat({ navigation, language = "en" }) {
   const styles = getStyles(isDarkMode);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
         <View style={styles.headerLeft}>

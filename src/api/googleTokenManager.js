@@ -3,6 +3,8 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { MovedToServerError } from '../utils/movedToServer';
+
 class GoogleTokenManager {
   constructor() {
     this.tokenCache = new Map();
@@ -161,75 +163,18 @@ class GoogleTokenManager {
   }
 
   /**
-   * Refresh access token using refresh token
+   * Refresh access token using refresh token.
+   *
+   * A refresh-token grant needs the OAuth client secret, which must never ship in the app.
+   * It will run in a Firebase Cloud Function (later stage); until then the refresh fails and
+   * the calendar is marked as needing a reconnect.
    */
-  async refreshAccessToken(refreshToken) {
-    try {
-      console.log('🔄 [TokenManager] Refreshing access token...');
-
-      // Get client credentials
-      const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || 'REMOVED';
-      const clientSecret = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET;
-      
-      console.log('🔄 [TokenManager] Using client ID:', clientId ? `${clientId.substring(0, 20)}...` : 'NOT SET');
-      console.log('🔄 [TokenManager] Client secret available:', !!clientSecret);
-      
-      if (!clientSecret || clientSecret === 'YOUR_CLIENT_SECRET_HERE') {
-        console.error('❌ [TokenManager] Google Client Secret not configured');
-        console.error('⚠️ [TokenManager] Please follow these steps:');
-        console.error('1. Go to https://console.cloud.google.com/apis/credentials');
-        console.error('2. Find your OAuth client ID and copy the Client Secret');
-        console.error('3. Create a .env file in your project root');
-        console.error('4. Add: EXPO_PUBLIC_GOOGLE_CLIENT_SECRET=YOUR_SECRET');
-        console.error('5. Restart the app with: npx expo start --clear');
-        console.error('📖 See GOOGLE_TOKEN_REFRESH_FIX.md for detailed instructions');
-        
-        // Store reconnect flag so user knows to reconnect
-        await AsyncStorage.setItem('google_calendar_needs_reconnect', 'true');
-        await AsyncStorage.setItem('google_calendar_disconnect_reason', 'client_secret_missing');
-        
-        throw new Error('Google Client Secret not configured - see console for setup instructions');
-      }
-      
-      const requestBody = new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      });
-      
-      console.log('🔄 [TokenManager] Making token refresh request...');
-
-      const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: requestBody,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ [TokenManager] Token refresh failed:', response.status, errorText);
-        
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: 'parse_error', error_description: errorText };
-        }
-        
-        console.error('❌ [TokenManager] Google token refresh failed:', errorData);
-        throw new Error(`Token refresh failed: ${errorData.error_description || errorData.error || response.statusText}`);
-      }
-
-      const tokenData = await response.json();
-      console.log('✅ [TokenManager] Token refresh successful');
-      return tokenData;
-    } catch (error) {
-      console.error('❌ [TokenManager] Token refresh error:', error);
-      throw error;
-    }
+  async refreshAccessToken(_refreshToken) {
+    await AsyncStorage.multiSet([
+      ['google_calendar_needs_reconnect', 'true'],
+      ['google_calendar_disconnect_reason', 'moved_to_server'],
+    ]).catch(() => {});
+    throw new MovedToServerError('google-token-refresh');
   }
 
   /**
