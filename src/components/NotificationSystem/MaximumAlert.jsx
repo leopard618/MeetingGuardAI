@@ -9,10 +9,13 @@ import {
   Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from '../translations.jsx';
 import { getLocationString } from '../../utils/meetingHelpers';
+
+// Bundled alarm sound (works offline; replaces the old sound streamed from soundjay.com).
+const ALARM_SOUND = require('../../../assets/alert-sound.mp3');
 
 export default function MaximumAlert({ 
   meeting, 
@@ -42,14 +45,14 @@ export default function MaximumAlert({
           setSound({ 
             play: () => playWebBeep(),
             stop: () => stopWebBeep(),
-            setVolume: (vol) => setVolume(vol)
+            setVolume: () => {}
           });
         } else {
           // For mobile, we'll use a simple approach
           setSound({ 
             play: () => playMobileBeep(),
             stop: () => stopMobileBeep(),
-            setVolume: (vol) => setVolume(vol)
+            setVolume: () => {}
           });
         }
       } catch (error) {
@@ -119,18 +122,17 @@ export default function MaximumAlert({
       // For mobile, we'll use a combination of vibration and system sounds
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       
-      // Try to play a system sound for both iOS and Android
-      const { Audio } = await import('expo-av');
+      // Play the bundled alarm sound (expo-audio; expo-av was removed in Expo SDK 55).
       try {
-        // Use a simple beep sound that works on both platforms
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav' },
-          { shouldPlay: true, volume: volume, isLooping: false }
-        );
-        mobileSound = sound;
+        await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false });
+        const player = createAudioPlayer(ALARM_SOUND);
+        player.volume = volume;
+        player.loop = false;
+        player.play();
+        mobileSound = player;
         console.log('Mobile audio loaded successfully');
       } catch (error) {
-        console.log('Could not load external sound, using vibration only:', error);
+        console.log('Could not play alarm sound, using vibration only:', error);
       }
       
       // Repeat vibration pattern as audio feedback
@@ -151,10 +153,12 @@ export default function MaximumAlert({
     }
     if (mobileSound) {
       try {
-        await mobileSound.unloadAsync();
+        // createAudioPlayer() players are not released automatically.
+        mobileSound.pause();
+        mobileSound.remove();
         mobileSound = null;
       } catch (error) {
-        console.log('Error unloading mobile sound:', error);
+        console.log('Error releasing mobile sound:', error);
       }
     }
     setIsPlaying(false);

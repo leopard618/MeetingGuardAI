@@ -2,9 +2,9 @@ import React from 'react';
 import {
   View,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Title,
   Paragraph,
@@ -21,7 +21,7 @@ export default function CalendarSync({ navigation, language = "en" }) {
   const styles = getStyles(isDarkMode);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}

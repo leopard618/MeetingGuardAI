@@ -1,12 +1,13 @@
 {
   "cli": {
-    "version": ">= 3.0.0",
+    "version": ">= 24.8.0",
     "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "environment": "development",
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -16,6 +17,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -25,6 +27,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "environment": "production",
       "ios": {
         "resourceClass": "m-medium"
       },

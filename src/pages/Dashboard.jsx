@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   RefreshControl,
   Alert,
   Image,
@@ -106,7 +105,17 @@ const DateTimeDisplay = ({ isDarkMode, styles }) => {
   );
 };
 
-export default function Dashboard({ navigation, language = "en" }) {
+// Hooks must run unconditionally (React 19 throws when the hook count changes between renders),
+// so the authentication guard lives in a thin wrapper and the screen body in DashboardContent.
+export default function Dashboard(props) {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+  return <DashboardContent {...props} />;
+}
+
+function DashboardContent({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
   const { isAuthenticated, refreshUserPlan, user } = useAuth();
   const { t } = useTranslation(language);
@@ -115,12 +124,6 @@ export default function Dashboard({ navigation, language = "en" }) {
   console.log('Dashboard language:', language);
   console.log('Dashboard translation for today:', t('dashboard.today'));
   
-  // Early return if not authenticated - this prevents the component from rendering
-  // and causing the "No authenticated user found" error
-  if (!isAuthenticated || !user) {
-    console.log('Dashboard: User not authenticated, not rendering component');
-    return null;
-  }
   const [meetings, setMeetings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

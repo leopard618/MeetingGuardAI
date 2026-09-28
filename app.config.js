@@ -4,9 +4,67 @@
 //
 // Versioning: `version` is the user-facing version. Android versionCode / iOS
 // buildNumber are managed remotely by EAS (eas.json: cli.appVersionSource = "remote").
+//
+// Expo SDK 57 platform defaults (no expo-build-properties needed): Android minSdk 24,
+// compileSdk/targetSdk 36, New Architecture + Hermes always on, edge-to-edge always on
+// (the old `edgeToEdgeEnabled` / `newArchEnabled` switches no longer exist). iOS min 16.4.
+//
+// This file runs in Node at build/config time. It may read build-time env vars
+// (SENTRY_*, EXPO_PUBLIC_GOOGLE_IOS_*); nothing secret is written into the app config.
 
 const CALENDAR_USAGE =
   'MeetingGuard AI uses your calendar to show, create and update your meetings and to schedule meeting alerts.';
+const PHOTOS_USAGE = 'MeetingGuard AI lets you attach photos from your library to a meeting.';
+const CAMERA_USAGE = 'MeetingGuard AI lets you take a photo and attach it to a meeting.';
+
+const trim = (value) => (typeof value === 'string' ? value.trim() : '');
+
+/**
+ * iOS URL scheme required by @react-native-google-signin/google-signin: the "reversed" iOS
+ * OAuth client ID (com.googleusercontent.apps.<id>). Taken from EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME,
+ * or derived from EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID (<id>.apps.googleusercontent.com).
+ * Returns null when neither is set.
+ */
+function getGoogleIosUrlScheme() {
+  const explicit = trim(process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME);
+  if (explicit.startsWith('com.googleusercontent.apps.')) return explicit;
+
+  const iosClientId = trim(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID);
+  const suffix = '.apps.googleusercontent.com';
+  if (iosClientId.endsWith(suffix)) {
+    return `com.googleusercontent.apps.${iosClientId.slice(0, -suffix.length)}`;
+  }
+  return null;
+}
+
+/**
+ * The google-signin plugin only adds the iOS URL scheme. Without options it switches to
+ * "Firebase config file" mode and requires google-services.json / GoogleService-Info.plist,
+ * which this app does not use - so when no scheme is configured the plugin is left out
+ * entirely (Android does not need it; an iOS build then cannot complete Google sign-in).
+ */
+function googleSignInPlugin() {
+  const iosUrlScheme = getGoogleIosUrlScheme();
+  return iosUrlScheme ? [['@react-native-google-signin/google-signin', { iosUrlScheme }]] : [];
+}
+
+/**
+ * Sentry: organization/project/auth token come from build-time env vars (EAS secrets), never
+ * from this file. Source-map upload is only enabled when all three are present, so local
+ * prebuilds and builds without Sentry credentials do not fail.
+ */
+function sentryPlugin() {
+  const organization = trim(process.env.SENTRY_ORG);
+  const project = trim(process.env.SENTRY_PROJECT);
+  const hasAuthToken = trim(process.env.SENTRY_AUTH_TOKEN) !== '';
+  const options = {
+    url: trim(process.env.SENTRY_URL) || 'https://sentry.io/',
+    disableAutoUpload: !(organization && project && hasAuthToken),
+  };
+  if (organization) options.organization = organization;
+  if (project) options.project = project;
+  return ['@sentry/react-native/expo', options];
+}
 
 module.exports = {
   expo: {
@@ -18,17 +76,10 @@ module.exports = {
     orientation: 'portrait',
     icon: './assets/icon.png',
     userInterfaceStyle: 'automatic',
-    splash: {
-      image: './assets/splash.png',
-      resizeMode: 'contain',
-      backgroundColor: '#ffffff',
-    },
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.meetingguard.ai',
       infoPlist: {
-        NSCalendarsUsageDescription: CALENDAR_USAGE,
-        NSCalendarsFullAccessUsageDescription: CALENDAR_USAGE,
         ITSAppUsesNonExemptEncryption: false,
       },
     },
@@ -38,8 +89,9 @@ module.exports = {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',
       },
-      // Only what the app actually needs. INTERNET / ACCESS_NETWORK_STATE are added
-      // by React Native and @react-native-community/netinfo themselves.
+      // Only what the app actually needs. INTERNET / ACCESS_NETWORK_STATE are added by
+      // React Native and @react-native-community/netinfo; expo-notifications and
+      // expo-calendar add their own permissions too (listed here for clarity).
       permissions: [
         'android.permission.VIBRATE',
         'android.permission.RECEIVE_BOOT_COMPLETED',
@@ -47,8 +99,11 @@ module.exports = {
         'android.permission.READ_CALENDAR',
         'android.permission.WRITE_CALENDAR',
         'android.permission.WAKE_LOCK',
+        // User-granted on Android 12+; lets expo-notifications use exact alarms for meeting
+        // alerts once the user allows it (otherwise the OS may delay alerts under Doze).
+        'android.permission.SCHEDULE_EXACT_ALARM',
       ],
-      // Prevent libraries (e.g. expo-av) from merging sensitive permissions back in.
+      // Prevent libraries from merging sensitive permissions back in.
       blockedPermissions: [
         'android.permission.RECORD_AUDIO',
         'android.permission.READ_CONTACTS',
@@ -56,26 +111,64 @@ module.exports = {
       ],
     },
     plugins: [
-      'expo-notifications',
+      [
+        'expo-splash-screen',
+        {
+          image: './assets/splash.png',
+          imageWidth: 200,
+          resizeMode: 'contain',
+          backgroundColor: '#ffffff',
+        },
+      ],
+      [
+        'expo-notifications',
+        {
+          // 96x96 white-on-transparent glyph (Android status bar icon), derived from icon.png.
+          icon: './assets/notification-icon.png',
+          color: '#1E40AF',
+          // No custom notification sounds yet: the app schedules with the default sound.
+          // assets/alert-sound.mp3 cannot be listed as-is (a "-" is not valid in an Android
+          // resource name and iOS notification sounds must be .wav/.aiff/.caf).
+        },
+      ],
       [
         'expo-calendar',
         {
           calendarPermission: CALENDAR_USAGE,
+          remindersPermission: false,
         },
       ],
-      'expo-dev-client',
       [
-        'expo-build-properties',
+        // Playback only: no microphone, no background playback (avoids RECORD_AUDIO and a
+        // mediaPlayback foreground service that would need a Play Console declaration).
+        'expo-audio',
         {
-          // TODO(SDK upgrade step): revisit these pins - Play requires targetSdk 36
-          // for updates after 31 Aug 2026; the Expo SDK 57 defaults satisfy that.
-          android: {
-            targetSdkVersion: 35,
-            compileSdkVersion: 35,
-            minSdkVersion: 24,
+          microphonePermission: false,
+          recordAudioAndroid: false,
+          enableBackgroundPlayback: false,
+        },
+      ],
+      'expo-background-task',
+      [
+        'expo-localization',
+        {
+          supportedLocales: {
+            ios: ['en', 'es'],
+            android: ['en', 'es'],
           },
         },
       ],
+      [
+        'expo-image-picker',
+        {
+          photosPermission: PHOTOS_USAGE,
+          cameraPermission: CAMERA_USAGE,
+          microphonePermission: false,
+        },
+      ],
+      ...googleSignInPlugin(),
+      sentryPlugin(),
+      'expo-dev-client',
     ],
     extra: {
       eas: {

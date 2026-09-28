@@ -337,10 +337,13 @@ class EnhancedNotificationManager {
 
   cleanup() {
     if (this.notificationListener) {
-      Notifications.removeNotificationSubscription(this.notificationListener);
+      // removeNotificationSubscription() no longer exists in expo-notifications; subscriptions remove themselves.
+      this.notificationListener.remove();
+      this.notificationListener = null;
     }
     if (this.responseListener) {
-      Notifications.removeNotificationSubscription(this.responseListener);
+      this.responseListener.remove();
+      this.responseListener = null;
     }
   }
 }

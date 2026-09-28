@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { View, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/contexts/ThemeContext.jsx';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext.jsx';
 import calendarSyncManager from './src/api/calendarSyncManager.js';
@@ -379,17 +380,19 @@ const styles = StyleSheet.create({
 export default function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <PaperProvider>
-          <ThemeProvider>
-            <View style={styles.container}>
-              <AppNavigator />
-              <StatusBar style="auto" />
-              <Toast />
-            </View>
-          </ThemeProvider>
-        </PaperProvider>
-      </AuthProvider>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <PaperProvider>
+            <ThemeProvider>
+              <View style={styles.container}>
+                <AppNavigator />
+                <StatusBar style="auto" />
+                <Toast />
+              </View>
+            </ThemeProvider>
+          </PaperProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
-} 
+}

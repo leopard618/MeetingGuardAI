@@ -1,8 +1,11 @@
 import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
+import * as BackgroundTask from 'expo-background-task';
 import LocalNotificationScheduler from './LocalNotificationScheduler';
 import { Meeting } from '../api/entities';
 
+// expo-background-task (WorkManager on Android, BGTaskScheduler on iOS) replaces the deprecated
+// expo-background-fetch. It only refreshes already-scheduled local notifications; alert
+// delivery itself never depends on this task running.
 const BACKGROUND_FETCH_TASK = 'background-notification-refresh';
 
 // Define the background task
@@ -33,10 +36,10 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
     const duration = Date.now() - startTime;
     console.log(`✅ Background task completed in ${duration}ms: Updated ${result.meetingsProcessed} meetings, scheduled ${result.notificationsScheduled} notifications`);
     
-    return BackgroundFetch.BackgroundFetchResult.NewData;
+    return BackgroundTask.BackgroundTaskResult.Success;
   } catch (error) {
     console.error('❌ Background task failed:', error);
-    return BackgroundFetch.BackgroundFetchResult.Failed;
+    return BackgroundTask.BackgroundTaskResult.Failed;
   }
 });
 
@@ -47,26 +50,25 @@ class BackgroundTaskManager {
 
   async initialize() {
     try {
-      // Check if background fetch is available
-      const status = await BackgroundFetch.getStatusAsync();
-      if (status === BackgroundFetch.BackgroundFetchStatus.Restricted) {
-        console.warn('⚠️ Background fetch is restricted on this device');
+      // Check if background tasks are available
+      const status = await BackgroundTask.getStatusAsync();
+      if (status === BackgroundTask.BackgroundTaskStatus.Restricted) {
+        console.warn('⚠️ Background tasks are restricted on this device');
         return false;
       }
 
-      // Register background fetch task
-      await BackgroundFetch.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-        minimumInterval: 15 * 60, // 15 minutes minimum interval
-        stopOnTerminate: false, // Continue after app is killed
-        startOnBoot: true, // Start when device boots
-      });
+      // Register the background task once. The interval is in MINUTES (minimum 15) and is
+      // only a hint - the OS decides when the task actually runs.
+      const alreadyRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_FETCH_TASK);
+      if (!alreadyRegistered) {
+        await BackgroundTask.registerTaskAsync(BACKGROUND_FETCH_TASK, {
+          minimumInterval: 15,
+        });
+      }
 
       this.isRegistered = true;
-      console.log('✅ Background fetch registered successfully');
-      
-      // Set background fetch interval (this is a hint to the OS)
-      await BackgroundFetch.setMinimumIntervalAsync(15 * 60); // 15 minutes
-      
+      console.log('✅ Background task registered successfully');
+
       return true;
     } catch (error) {
       console.error('❌ Failed to register background fetch:', error);
@@ -77,7 +79,7 @@ class BackgroundTaskManager {
   async unregister() {
     try {
       if (this.isRegistered) {
-        await BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
+        await BackgroundTask.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
         this.isRegistered = false;
         console.log('🛑 Background fetch unregistered');
       }
@@ -88,7 +90,7 @@ class BackgroundTaskManager {
 
   async getStatus() {
     try {
-      const status = await BackgroundFetch.getStatusAsync();
+      const status = await BackgroundTask.getStatusAsync();
       const isTaskRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_FETCH_TASK);
       
       return {
@@ -110,11 +112,9 @@ class BackgroundTaskManager {
 
   getStatusText(status) {
     switch (status) {
-      case BackgroundFetch.BackgroundFetchStatus.Available:
+      case BackgroundTask.BackgroundTaskStatus.Available:
         return 'Available';
-      case BackgroundFetch.BackgroundFetchStatus.Denied:
-        return 'Denied';
-      case BackgroundFetch.BackgroundFetchStatus.Restricted:
+      case BackgroundTask.BackgroundTaskStatus.Restricted:
         return 'Restricted';
       default:
         return 'Unknown';
@@ -125,17 +125,13 @@ class BackgroundTaskManager {
   async triggerBackgroundTask() {
     try {
       console.log('🧪 Manually triggering background task...');
-      const result = await TaskManager.getTaskOptionsAsync(BACKGROUND_FETCH_TASK);
-      
-      if (result) {
-        // Execute the task function directly for testing
-        const taskResult = await TaskManager.getRegisteredTasksAsync();
-        console.log('Background task triggered manually, result:', taskResult);
-        return true;
-      } else {
+      const isTaskRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_FETCH_TASK);
+      if (!isTaskRegistered) {
         console.warn('Background task not registered');
         return false;
       }
+      // Development builds only: asks the OS worker to run registered tasks now.
+      return await BackgroundTask.triggerTaskWorkerForTestingAsync();
     } catch (error) {
       console.error('Failed to trigger background task:', error);
       return false;

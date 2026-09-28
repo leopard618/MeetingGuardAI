@@ -3,7 +3,8 @@
 
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+// SDK 54+: the classic FileSystem API lives in expo-file-system/legacy (root import now throws).
+import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 class FileUploadService {
@@ -89,7 +90,7 @@ class FileUploadService {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'], // MediaTypeOptions is deprecated
         allowsMultipleSelection: options.multiple || false,
         quality: options.quality || 0.8,
         aspect: options.aspect || [4, 3],
@@ -120,7 +121,7 @@ class FileUploadService {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'], // MediaTypeOptions is deprecated
         quality: options.quality || 0.8,
         aspect: options.aspect || [4, 3],
         ...options
