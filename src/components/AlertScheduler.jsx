@@ -391,4 +391,6 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
   return null;
 });
 
+AlertScheduler.displayName = 'AlertScheduler';
+
 export default AlertScheduler;

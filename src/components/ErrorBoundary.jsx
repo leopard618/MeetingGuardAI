@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { captureException } from '../services/sentry';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -21,10 +22,8 @@ class ErrorBoundary extends React.Component {
       errorInfo,
     });
 
-    // TODO: Send error to error reporting service (e.g., Sentry)
-    // if (process.env.NODE_ENV === 'production') {
-    //   errorReportingService.captureException(error, { extra: errorInfo });
-    // }
+    // Report to Sentry (no-op when EXPO_PUBLIC_SENTRY_DSN is not set).
+    captureException(error, { componentStack: errorInfo?.componentStack });
   }
 
   handleReset = () => {
@@ -39,7 +38,7 @@ class ErrorBoundary extends React.Component {
           <MaterialIcons name="error-outline" size={64} color="#ef4444" />
           <Text style={styles.title}>Something went wrong</Text>
           <Text style={styles.message}>
-            We're sorry, but something unexpected happened. Please try again.
+            {"We're sorry, but something unexpected happened. Please try again."}
           </Text>
           {__DEV__ && this.state.error && (
             <View style={styles.errorDetails}>
@@ -96,13 +95,13 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 12,
     color: '#ef4444',
-    fontFamily: 'monospace',
+    fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
     marginBottom: 10,
   },
   errorStack: {
     fontSize: 10,
     color: '#64748b',
-    fontFamily: 'monospace',
+    fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
   },
   button: {
     backgroundColor: '#3b82f6',

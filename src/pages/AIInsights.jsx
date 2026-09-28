@@ -202,7 +202,7 @@ export default function AIInsights({ language = "en" }) {
                   {editingMeeting === meeting.id ? (
                     <View style={styles.editForm}>
                       <TextInput
-                        label={t('aiInsights.title')}
+                        label={t('aiInsights.titleLabel')}
                         value={editForm.title}
                         onChangeText={(text) => setEditForm({...editForm, title: text})}
                         style={styles.input}

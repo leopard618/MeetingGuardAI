@@ -8,6 +8,7 @@ import { View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { env } from './src/config/env';
 import { isFirebaseReady } from './src/config/firebase';
+import { wrapRootComponent } from './src/services/sentry';
 import NotConfiguredScreen from './src/components/NotConfiguredScreen';
 import { ThemeProvider } from './src/contexts/ThemeContext.jsx';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext.jsx';
@@ -411,4 +412,4 @@ function App() {
   );
 }
 
-export default App;
+export default wrapRootComponent(App);

@@ -9,16 +9,30 @@ Package / bundle id: `com.meetingguard.ai` (published on Google Play).
 
 ## Stack
 
-- Expo (managed workflow, Continuous Native Generation), React Native, React Navigation (stack)
-- React Native Paper, `@expo/vector-icons`
-- Firebase JS SDK (Auth + Firestore)
-- `expo-notifications`, `expo-background-fetch`, `expo-task-manager`, `expo-calendar`
-- JavaScript with incremental TypeScript (`tsconfig.json` has `allowJs`; new modules are `.ts`/`.tsx`)
+- Expo SDK 57 (React Native 0.86, React 19.2, New Architecture + Hermes), Continuous Native
+  Generation, React Navigation 7 (stack)
+- React Native Paper, `@expo/vector-icons`, `react-native-safe-area-context` (edge-to-edge)
+- Firebase JS SDK 12 (Auth + Firestore; Cloud Functions client ready for the AI backend)
+- `expo-notifications`, `expo-background-task`, `expo-task-manager`, `expo-calendar`, `expo-audio`
+- Sentry (`@sentry/react-native`, enabled only when `EXPO_PUBLIC_SENTRY_DSN` is set)
+- JavaScript with incremental TypeScript (`allowJs`, `strict`; new modules are `.ts`/`.tsx`,
+  `@/*` path alias -> `src/*`)
+- Tooling: ESLint 9 (flat config, `eslint-config-expo`), Jest (`jest-expo`) +
+  React Native Testing Library, GitHub Actions CI (`.github/workflows/ci.yml`)
+
+### Temporarily unavailable in this build
+
+- **AI assistant**: direct OpenAI calls were removed (the key was extractable from the APK). It
+  will come back as a Firebase callable Cloud Function.
+- **Google sign-in / Google Calendar connect / token refresh**: the old flows needed the Google
+  OAuth client secret in the app or the retired Render backend. Sign-in is being rebuilt with
+  `@react-native-google-signin/google-signin` + Firebase.
+- **Subscriptions**: purchase buttons are hidden ("coming soon").
 
 ## Getting started
 
-Prerequisites: Node.js LTS, npm, and for native builds either EAS (`npm i -g eas-cli`) or a
-local Android Studio / Xcode setup.
+Prerequisites: Node.js 22 or 24, npm 10+, and for native builds either EAS (`npm i -g eas-cli`)
+or a local Android Studio (JDK 17) / Xcode 26.4+ setup.
 
 ```bash
 npm install
@@ -40,9 +54,9 @@ eas build --profile development --platform android
 | `npm run android` / `npm run ios` | Local native build + run (`expo run:*`, generates `android/` / `ios/`) |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Placeholder until the test setup lands |
+| `npm test` | Jest (`jest-expo` preset) |
+| `npm run check:bundle` | Bundle the JS for Android into `dist/check-bundle` (quick "does it bundle" check) |
 | `npm run doctor` | `expo-doctor` dependency / config checks |
-| `npm run export:android` | Bundle the JS for Android (quick "does it bundle" check) |
 
 ## Configuration
 
@@ -52,21 +66,27 @@ eas build --profile development --platform android
 - **Versioning**: `version` in `app.config.js` is the user-facing version. Android
   `versionCode` / iOS `buildNumber` are stored remotely by EAS (`appVersionSource: "remote"`)
   and auto-incremented for `production` builds.
-- **Environment variables**: see `env.example`. Only public values (`EXPO_PUBLIC_*` Firebase
-  web config, OAuth client IDs, optional Sentry DSN) may be shipped in the app. Configure them
-  as EAS environment variables for cloud builds; `.env` files are never uploaded to EAS
-  (`.easignore`).
+- **Environment variables**: see `env.example`; they are read and validated (zod) only in
+  `src/config/env.ts`. Only public values (`EXPO_PUBLIC_*` Firebase web config, OAuth client
+  IDs, optional Sentry DSN) may be shipped in the app - never an OpenAI key or a client secret
+  (those belong in Firebase Functions secrets). If required values are missing the app shows an
+  "App not configured" screen instead of crashing. Configure them as EAS environment variables
+  for cloud builds; `.env` files are never uploaded to EAS (`.easignore`).
+- **Sentry**: set `EXPO_PUBLIC_SENTRY_DSN` to enable crash reporting. Source-map upload during
+  EAS builds needs `SENTRY_ORG`, `SENTRY_PROJECT` and `SENTRY_AUTH_TOKEN` (EAS secret); without
+  them the upload step is skipped and the build still succeeds.
 - **Private material** (credentials, contracts) must stay out of the repo; `reference/`,
   `.env*`, keystores and service-account JSON files are ignored by git and EAS.
 
 ## Project structure
 
 ```
-App.js            # Providers + navigation (entry)
+index.js          # Entry: Sentry init + registerRootComponent(App)
+App.js            # Providers + navigation
 src/
   api/            # Data entities, Google Calendar, AI, billing catalog
   components/     # Shared UI, alert system (NotificationSystem/)
-  config/         # Firebase and app configuration
+  config/         # env.ts (typed public env), firebase.ts, feature flags
   contexts/       # Auth and theme contexts
   hooks/          # React hooks
   pages/          # Screens

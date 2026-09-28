@@ -5,7 +5,7 @@
 
 /**
  * Safely extract location string from meeting location object
- * @param {Object|string} location - The location data (can be string or object)
+ * @param {Object|string|null|undefined} location - The location data (can be string or object)
  * @returns {string} - A safe string representation of the location
  */
 export const getLocationString = (location) => {
