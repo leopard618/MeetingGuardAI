@@ -1,7 +1,6 @@
 
 import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Meeting } from '../api/entities';
-import ServiceWorkerRegistration from './ServiceWorkerRegistration';
 import { storage } from '../utils/storage.js';
 import { AlertIntensity } from '../utils/notificationUtils.js';
 import EnhancedNotificationManager from '../services/EnhancedNotificationManager';
@@ -388,8 +387,8 @@ const AlertScheduler = forwardRef(({ onTriggerAlert, language = "en", alertsEnab
     refreshAlerts: refreshAlerts
   }));
 
-  // Only render ServiceWorkerRegistration if alerts are enabled
-  return alertsEnabled ? <ServiceWorkerRegistration /> : null;
+  // Headless scheduler: renders nothing (the web-only service worker was removed).
+  return null;
 });
 
 export default AlertScheduler;

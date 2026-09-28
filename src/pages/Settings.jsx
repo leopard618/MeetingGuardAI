@@ -32,10 +32,7 @@ import {
   getDeviceType 
 } from '../utils/responsive.js';
 import { useAuth } from '../contexts/AuthContext';
-import CalendarSyncSettings from '../components/CalendarSyncSettings.jsx';
-import CalendarTest from '../components/CalendarTest';
 import NotificationManager from '../components/NotificationSystem/NotificationManager.jsx';
-import EnvironmentTest from '../components/EnvironmentTest.jsx';
 
 export default function Settings({ navigation, language = "en" }) {
   const { isDarkMode, toggleTheme } = useTheme();
@@ -264,21 +261,6 @@ export default function Settings({ navigation, language = "en" }) {
     <Card style={styles.section}>
       <Card.Content>
         <TouchableOpacity
-          onPress={() => navigation.navigate('ApiSettings')}
-          style={styles.navItem}
-        >
-          <List.Item
-            title="API Settings"
-            description="Configure API keys and integrations"
-            titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-            left={(props) => <List.Icon {...props} icon="api" />}
-            right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          />
-        </TouchableOpacity>
-        
-        <Divider />
-        
-        <TouchableOpacity
           onPress={() => navigation.navigate('CalendarSync')}
           style={styles.navItem}
         >
@@ -292,37 +274,7 @@ export default function Settings({ navigation, language = "en" }) {
         </TouchableOpacity>
         
         <Divider />
-        
-        <TouchableOpacity
-          onPress={() => navigation.navigate('EnvironmentTest')}
-          style={styles.navItem}
-        >
-          <List.Item
-            title="Environment Test"
-            description="Test and verify environment configuration"
-            titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-            left={(props) => <List.Icon {...props} icon="check-circle" />}
-            right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          />
-        </TouchableOpacity>
-        
-        <Divider />
-        
-        {/* <TouchableOpacity
-          onPress={() => navigation.navigate('/CalendarTest')}
-          style={styles.navItem}
-        >
-          <List.Item
-            title="Calendar Integration Test"
-            description="Test Google Calendar integration"
-            titleStyle={{ color: isDarkMode ? "#fff" : "#000" }}
-            left={(props) => <List.Icon {...props} icon="test-tube" />}
-            right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          />
-        </TouchableOpacity> */}
-        
-        {/* <Divider /> */}
-        
+
         <TouchableOpacity
           onPress={() => navigation.navigate('Privacy')}
           style={styles.navItem}

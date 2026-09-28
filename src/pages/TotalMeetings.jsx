@@ -310,56 +310,6 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
     );
   };
 
-  const handleDebugGoogleCalendar = async () => {
-    try {
-      console.log('=== DEBUGGING GOOGLE CALENDAR ===');
-      
-      // Test 1: Check if we have access token
-      const accessToken = await googleCalendarService.getAccessToken();
-      console.log('Access token exists:', !!accessToken);
-      
-      // Test 2: Check calendar access
-      const hasAccess = await googleCalendarService.checkCalendarAccess();
-      console.log('Calendar access:', hasAccess);
-      
-      // Test 3: Try to get calendars
-      const calendars = await googleCalendarService.getCalendars();
-      console.log('Available calendars:', calendars.length);
-      if (calendars.length > 0) {
-        console.log('Primary calendar:', calendars.find(c => c.primary));
-      }
-      
-      // Test 4: Try to get events
-      const events = await googleCalendarService.getEvents();
-      console.log('Total events found:', events.length);
-      if (events.length > 0) {
-        console.log('Sample event:', events[0]);
-      }
-      
-      // Test 5: Try to get upcoming meetings
-      const upcoming = await googleCalendarService.getUpcomingMeetings(7);
-      console.log('Upcoming meetings (7 days):', upcoming.length);
-      
-      // Test 6: Try to get today's meetings
-      const today = await googleCalendarService.getTodayMeetings();
-      console.log('Today meetings:', today.length);
-      
-      Alert.alert(
-        'Google Calendar Debug',
-        `Access Token: ${!!accessToken}\n` +
-        `Calendar Access: ${hasAccess}\n` +
-        `Calendars: ${calendars.length}\n` +
-        `Total Events: ${events.length}\n` +
-        `Upcoming (7 days): ${upcoming.length}\n` +
-        `Today: ${today.length}\n\n` +
-        `Check console for detailed logs.`
-      );
-    } catch (error) {
-      console.error('Debug error:', error);
-      Alert.alert('Debug Error', error.message);
-    }
-  };
-
   const getMeetingStatus = (meeting) => {
     const now = new Date();
     const meetingDate = new Date(meeting.date + ' ' + meeting.time);
@@ -530,12 +480,6 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
          </TouchableOpacity>
          <Text style={styles.headerTitle}>{t('totalMeetings.title')}</Text>
          <View style={styles.headerButtons}>
-           {/* <TouchableOpacity 
-             style={styles.debugButton}
-             onPress={handleDebugGoogleCalendar}
-           >
-             <MaterialIcons name="bug-report" size={20} color="#3b82f6" />
-           </TouchableOpacity> */}
            <TouchableOpacity 
              style={styles.clearButton}
              onPress={handleClearAllMeetings}
@@ -662,12 +606,6 @@ const getStyles = (isDarkMode) => {
   headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  debugButton: {
-    padding: spacing.sm,
-    borderRadius: 20,
-    backgroundColor: isDarkMode ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.1)',
-    marginRight: spacing.sm,
   },
   clearButton: {
     padding: spacing.sm,

@@ -188,7 +188,6 @@ export const translations = {
         "Schedule a team standup for next week",
         "Check my availability for Friday",
         "Update my meeting with John",
-        "Delete the ADSF meeting",
         "Create a virtual meeting with Zoom",
         "Schedule a hybrid meeting with Google Meet",
         "Tell me about my meetings"
@@ -225,9 +224,38 @@ export const translations = {
     },
     // Pricing
     pricing: {
-      loadingPricingPlans: "Loading pricing plans...",
-      loadingFromBackend: "Loading pricing plans from backend...",
-      retry: "Retry"
+      monthly: "Monthly",
+      yearly: "Yearly",
+      month: "month",
+      year: "year",
+      mostPopular: "Most Popular",
+      currentPlan: "Current Plan",
+      comingSoon: "Coming soon",
+      subscriptionsComingSoonTitle: "Subscriptions coming soon",
+      subscriptionsComingSoonBody: "Paid plans can't be purchased yet. You can keep using all Free features in the meantime.",
+      savePercent: "Save 25%",
+      billedAnnually: "Billed annually",
+      freeName: "Free",
+      proName: "Pro",
+      premiumName: "Premium",
+      freeDescription: "Perfect for getting started",
+      proDescription: "For busy professionals",
+      premiumDescription: "For power users and teams",
+      freeFeatures: [
+        "5 AI requests per day",
+        "Meeting management",
+        "Smart meeting alerts"
+      ],
+      proFeatures: [
+        "Everything in Free",
+        "Unlimited AI requests",
+        "Priority support"
+      ],
+      premiumFeatures: [
+        "Everything in Pro",
+        "Advanced AI features",
+        "Dedicated support"
+      ]
     },
     // Choose Creation Method
     chooseCreationMethod: {
@@ -875,7 +903,6 @@ export const translations = {
         "Programar una reunión de equipo para la próxima semana",
         "Verificar mi disponibilidad para el viernes",
         "Actualizar mi reunión con John",
-        "Eliminar la reunión ADSF",
         "Crear una reunión virtual con Zoom",
         "Programar una reunión híbrida con Google Meet",
         "Cuéntame sobre mis reuniones"
@@ -912,9 +939,38 @@ export const translations = {
     },
     // Pricing
     pricing: {
-      loadingPricingPlans: "Cargando planes de precios...",
-      loadingFromBackend: "Cargando planes de precios desde el servidor...",
-      retry: "Reintentar"
+      monthly: "Mensual",
+      yearly: "Anual",
+      month: "mes",
+      year: "año",
+      mostPopular: "Más popular",
+      currentPlan: "Plan actual",
+      comingSoon: "Próximamente",
+      subscriptionsComingSoonTitle: "Suscripciones próximamente",
+      subscriptionsComingSoonBody: "Los planes de pago aún no se pueden comprar. Mientras tanto, puedes seguir usando todas las funciones gratuitas.",
+      savePercent: "Ahorra 25%",
+      billedAnnually: "Facturado anualmente",
+      freeName: "Gratis",
+      proName: "Pro",
+      premiumName: "Premium",
+      freeDescription: "Perfecto para empezar",
+      proDescription: "Para profesionales ocupados",
+      premiumDescription: "Para usuarios avanzados y equipos",
+      freeFeatures: [
+        "5 solicitudes de IA por día",
+        "Gestión de reuniones",
+        "Alertas inteligentes de reuniones"
+      ],
+      proFeatures: [
+        "Todo lo del plan Gratis",
+        "Solicitudes de IA ilimitadas",
+        "Soporte prioritario"
+      ],
+      premiumFeatures: [
+        "Todo lo del plan Pro",
+        "Funciones de IA avanzadas",
+        "Soporte dedicado"
+      ]
     },
     // Choose Creation Method
     chooseCreationMethod: {

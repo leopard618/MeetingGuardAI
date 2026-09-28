@@ -327,64 +327,6 @@ export default function AIChat({ navigation, language = "en" }) {
     }
   };
 
-  const testMeetingCreation = async () => {
-    try {
-      const testMeetingData = {
-        title: "Test Meeting",
-        date: "2024-01-15",
-        time: "14:30",
-        duration: 60,
-        description: "Test meeting description",
-        location: "Test Location",
-        participants: ["test@example.com"],
-        source: "local"
-      };
-
-      console.log('AIChat: Testing meeting creation with data:', testMeetingData);
-      const result = await Meeting.create(testMeetingData);
-      console.log('AIChat: Test meeting created:', result);
-      showSnackbar("Test meeting created successfully", "success");
-      
-      // Test loading meetings
-      const meetings = await Meeting.list();
-      console.log('AIChat: Loaded meetings after test creation:', meetings);
-    } catch (error) {
-      console.error('AIChat: Test meeting creation failed:', error);
-      showSnackbar("Test meeting creation failed: " + error.message, "error");
-    }
-  };
-
-  const testMeetingDeletion = async () => {
-    try {
-      console.log('AIChat: Testing meeting deletion...');
-      
-      // First, get all meetings
-      const meetings = await Meeting.list();
-      console.log('AIChat: Current meetings:', meetings);
-      
-      if (meetings.length === 0) {
-        showSnackbar("No meetings to delete", "info");
-        return;
-      }
-      
-      // Try to delete the first meeting
-      const firstMeeting = meetings[0];
-      console.log('AIChat: Attempting to delete meeting:', firstMeeting);
-      
-      const result = await Meeting.delete(firstMeeting.id);
-      console.log('AIChat: Delete result:', result);
-      
-      showSnackbar(`Test meeting "${firstMeeting.title}" deleted successfully`, "success");
-      
-      // Verify deletion
-      const remainingMeetings = await Meeting.list();
-      console.log('AIChat: Remaining meetings after deletion:', remainingMeetings);
-    } catch (error) {
-      console.error('AIChat: Test meeting deletion failed:', error);
-      showSnackbar("Test meeting deletion failed: " + error.message, "error");
-    }
-  };
-
   const handleConfirmMeeting = async (meetingData) => {
     try {
       const currentAction = confirmationModal.action;
@@ -449,15 +391,8 @@ export default function AIChat({ navigation, language = "en" }) {
   };
 
   const handleSuggestionPress = (suggestion) => {
-    if (suggestion === "Test Meeting Creation") {
-      testMeetingCreation();
-    } else if (suggestion === "Delete the ADSF meeting") {
-      testMeetingDeletion();
-    } else if (suggestion === "Test Delete Function") {
-      testMeetingDeletion();
-    } else {
-      setInputText(suggestion);
-    }
+    // Suggestions only pre-fill the input; every action still goes through the AI + confirmation flow.
+    setInputText(suggestion);
   };
 
   const handleClearChat = () => {

@@ -240,72 +240,6 @@ export default function MaximumAlert({
     onToggleMute && onToggleMute();
   };
 
-  const testVibration = async () => {
-    try {
-      console.log('Testing vibration...');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      console.log('Vibration test successful!');
-      Alert.alert('Vibration Test', 'Vibration is working! ✅');
-    } catch (error) {
-      console.log('Vibration test failed:', error);
-      Alert.alert('Vibration Test', 'Vibration not supported on this device/emulator ❌');
-    }
-  };
-
-  const testAudio = async () => {
-    try {
-      console.log('Testing audio...');
-      if (Platform.OS === 'web') {
-        // Test web audio
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
-        
-        Alert.alert('Audio Test', 'Web audio is working! ✅');
-      } else {
-        // Test mobile audio with multiple approaches
-        try {
-          // First try external sound
-          const { Audio } = await import('expo-av');
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav' },
-            { shouldPlay: true, volume: 0.5, isLooping: false }
-          );
-          
-          setTimeout(async () => {
-            await sound.unloadAsync();
-          }, 1000);
-          
-          Alert.alert('Audio Test', 'Mobile audio is working! ✅');
-        } catch (externalError) {
-          console.log('External audio failed, trying vibration as audio:', externalError);
-          // Fallback to vibration as audio feedback
-          for (let i = 0; i < 3; i++) {
-            setTimeout(() => {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            }, i * 500);
-          }
-          Alert.alert('Audio Test', 'Using vibration as audio feedback! 📳');
-        }
-      }
-    } catch (error) {
-      console.log('Audio test failed:', error);
-      Alert.alert('Audio Test', 'Audio not supported on this device/emulator ❌');
-    }
-  };
-
   if (!meeting) return null;
 
   return (
@@ -436,28 +370,6 @@ export default function MaximumAlert({
               <Ionicons name="calendar-outline" size={16} color="#6B7280" />
               <Text style={styles.postponeButtonText}>
                 {t('maximumAlert.postpone')}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Test Vibration Button */}
-            <TouchableOpacity
-              style={styles.testButton}
-              onPress={testVibration}
-            >
-              <Ionicons name="phone-portrait" size={16} color="#6B7280" />
-              <Text style={styles.testButtonText}>
-                Test Vibration
-              </Text>
-            </TouchableOpacity>
-
-            {/* Test Audio Button */}
-            <TouchableOpacity
-              style={styles.testButton}
-              onPress={testAudio}
-            >
-              <Ionicons name="volume-high" size={16} color="#6B7280" />
-              <Text style={styles.testButtonText}>
-                Test Audio
               </Text>
             </TouchableOpacity>
 
@@ -623,21 +535,6 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   customizeButtonText: {
-    color: '#6B7280',
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-  },
-  testButtonText: {
     color: '#6B7280',
     fontSize: 14,
     marginLeft: 8,

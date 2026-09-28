@@ -45,16 +45,11 @@ const CustomHeader = ({ title, onMenuPress, showMenu = true, language = 'en', on
       'Profile': language === 'es' ? 'Perfil' : 'Profile',
       'AIChat': language === 'es' ? 'Chat IA' : 'AI Chat',
       'AIInsights': language === 'es' ? 'Información IA' : 'AI Insights',
-      'ApiSettings': language === 'es' ? 'Configuración API' : 'API Settings',
       'Privacy': language === 'es' ? 'Política de Privacidad' : 'Privacy Policy',
       'Terms': language === 'es' ? 'Términos de Servicio' : 'Terms of Service',
       'WhatsAppBot': language === 'es' ? 'Bot WhatsApp' : 'WhatsApp Bot',
       'CalendarSync': language === 'es' ? 'Sincronización Google Calendar' : 'Google Calendar Sync',
-      'GoogleCalendarTest': language === 'es' ? 'Prueba Google Calendar' : 'Google Calendar Test',
-      'GoogleCalendarTestComponent': language === 'es' ? 'Componente Prueba Google Calendar' : 'Google Calendar Test Component',
-      'NotificationDemo': language === 'es' ? 'Demo de Notificaciones' : 'Notification Demo',
       'Pricing': language === 'es' ? 'Planes de Precios' : 'Pricing Plans',
-      'PaymentSuccess': language === 'es' ? 'Pago Exitoso' : 'Payment Successful',
     };
     return titleMap[routeName] || title || 'MeetingGuard AI';
   };

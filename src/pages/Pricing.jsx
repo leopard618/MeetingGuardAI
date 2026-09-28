@@ -1,491 +1,144 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert,
-  Dimensions,
-  Linking,
   StatusBar,
-  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useTranslation } from '../components/translations.jsx';
+import { getPlans, getPlanTier, formatUsd, PURCHASES_AVAILABLE } from '../api/billingService';
 
-const { width } = Dimensions.get('window');
-
+// Subscriptions are disabled in this release: the plans are shown for information only,
+// purchase buttons are replaced by a "coming soon" state and there are no payment links.
 const Pricing = ({ language = 'en' }) => {
   const { userPlan, isAuthenticated, refreshUserPlan } = useAuth();
   const { t } = useTranslation(language);
   const [billingCycle, setBillingCycle] = useState('monthly');
-  const [plans, setPlans] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState(false);
 
-  // Fetch plan data and Stripe links from backend
-  useEffect(() => {
-    fetchPlanData();
-  }, []);
-
-  // Only refresh user plan when user returns to pricing page (minimal calls)
+  // Refresh the displayed plan when the screen gains focus. refreshUserPlan is not
+  // memoized by AuthContext, so keep it in a ref to avoid re-running on every render.
+  const refreshUserPlanRef = useRef(refreshUserPlan);
+  refreshUserPlanRef.current = refreshUserPlan;
   useFocusEffect(
-    React.useCallback(() => {
-      // Only refresh if we're not already loading (to avoid conflicts with payment monitoring)
-      if (isAuthenticated && !loading) {
-        // Use a longer delay to avoid 429 errors
-        setTimeout(() => {
-          refreshUserPlan(2000); // 2 second delay
-        }, 1000);
+    useCallback(() => {
+      if (isAuthenticated) {
+        refreshUserPlanRef.current();
       }
-    }, [isAuthenticated, refreshUserPlan, loading])
+    }, [isAuthenticated])
   );
 
-  const fetchPlanData = async () => {
-    try {
-      setLoading(true);
-      // Fetching plan data from billing service (Google Play Billing)
-      const { getPlans } = await import('../api/billingService');
-      const plansData = await getPlans();
-      
-      console.log('✅ Plans data:', plansData);
-      
-      if (plansData.success && plansData.plans) {
-        // Convert plans to the format expected by the UI
-        const formattedPlans = {};
-        Object.entries(plansData.plans).forEach(([planId, plan]) => {
-          formattedPlans[planId] = {
-            name: plan.name || plan.id,
-            price: plan.price || '$0',
-            period: planId.includes('yearly') ? 'year' : planId.includes('monthly') ? 'month' : 'forever',
-            description: plan.description || getPlanDescription(planId),
-            features: plan.features || [],
-            popular: planId === 'pro_monthly' || planId === 'pro_yearly',
-            productId: plan.productId,
-          };
-          
-          if (planId.includes('yearly')) {
-            formattedPlans[planId].savings = 'Save 17%';
-            formattedPlans[planId].totalPrice = 'Billed annually';
-          }
-        });
-        
-        // Add free plan
-        formattedPlans.free = {
-          name: 'Free',
-          price: '$0',
-          period: 'forever',
-          description: 'Perfect for getting started',
-          features: [
-            '5 AI requests per day',
-            'Basic meeting management',
-            'Standard support',
-            '1GB file storage'
-          ],
-          popular: false
-        };
-        
-        setPlans(formattedPlans);
-      } else {
-        throw new Error('Invalid plans data structure');
-      }
-    } catch (error) {
-      console.error('❌ Error fetching plan data:', error);
-      
-      // Fallback to static plans
-      console.log('🔄 Using fallback plan data...');
-      
-      const fallbackPlans = {
-        free: {
-          name: 'Free',
-          price: '$0',
-          period: 'forever',
-          description: 'Perfect for getting started',
-          features: [
-            '5 AI requests per day',
-            'Basic meeting management',
-            'Standard support',
-            '1GB file storage'
-          ],
-          popular: false
-        },
-        pro_monthly: {
-          name: 'Pro',
-          price: '$9.99',
-          period: 'month',
-          description: 'Best for growing teams',
-          features: [
-            'Unlimited AI requests',
-            'Advanced meeting features',
-            'Priority support',
-            '10GB file storage',
-            'Team collaboration'
-          ],
-          popular: true
-        },
-        pro_yearly: {
-          name: 'Pro',
-          price: '$99.99',
-          period: 'year',
-          description: 'Best for growing teams',
-          features: [
-            'Unlimited AI requests',
-            'Advanced meeting features',
-            'Priority support',
-            '10GB file storage',
-            'Team collaboration'
-          ],
-          popular: true,
-          savings: 'Save 17%',
-          totalPrice: 'Billed annually'
-        },
-        premium_monthly: {
-          name: 'Premium',
-          price: '$19.99',
-          period: 'month',
-          description: 'For enterprise teams',
-          features: [
-            'Everything in Pro',
-            'Unlimited file storage',
-            'White-label options',
-            'API access',
-            'Dedicated support'
-          ],
-          popular: false
-        },
-        premium_yearly: {
-          name: 'Premium',
-          price: '$199.99',
-          period: 'year',
-          description: 'For enterprise teams',
-          features: [
-            'Everything in Pro',
-            'Unlimited file storage',
-            'White-label options',
-            'API access',
-            'Dedicated support'
-          ],
-          popular: false,
-          savings: 'Save 17%',
-          totalPrice: 'Billed annually'
-        }
-      };
-      
-      setPlans(fallbackPlans);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const currentTier = isAuthenticated ? getPlanTier(userPlan) : null;
+  const isCurrentPlan = (plan) => currentTier !== null && plan.tier === currentTier;
+  const toList = (value) => (Array.isArray(value) ? value : []);
 
-  // Handle subscription purchase using Google Play Billing
-  const handleUpgrade = async (planId) => {
-    if (!isAuthenticated) {
-      Alert.alert('Authentication Required', 'Please sign in to upgrade your plan.');
-      return;
-    }
-
-    if (planId === 'free') {
-      Alert.alert('Free Plan', 'You are already on the free plan.');
-      return;
-    }
-
-    try {
-      setPurchasing(true);
-      console.log('🔄 Purchasing subscription:', planId);
-      
-      // Import billing service
-      const { purchaseSubscription } = await import('../api/billingService');
-      
-      // Initiate purchase
-      const result = await purchaseSubscription(planId);
-      
-      if (result.success) {
-        // Purchase initiated - Google Play Billing will handle the rest
-        // The purchase will be processed by the purchaseUpdatedListener in googlePlayBillingService
-        console.log('✅ Purchase initiated successfully');
-        
-        // Wait a moment for purchase to complete, then refresh
-        setTimeout(async () => {
-          await refreshUserPlan(1000);
-          setPurchasing(false);
-          Alert.alert(
-            'Purchase Initiated',
-            'Please complete the purchase in the Google Play dialog. Your subscription will be activated once payment is confirmed.',
-            [{ text: 'OK', onPress: () => fetchPlanData() }]
-          );
-        }, 500);
-      }
-    } catch (error) {
-      console.error('❌ Error purchasing subscription:', error);
-      setPurchasing(false);
-      
-      let errorMessage = 'Failed to initiate purchase. Please try again.';
-      if (error.message) {
-        if (error.message.includes('User cancelled')) {
-          errorMessage = 'Purchase was cancelled.';
-        } else if (error.message.includes('already owned')) {
-          errorMessage = 'You already own this subscription.';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      
-      Alert.alert('Purchase Error', errorMessage);
-    }
-  };
-
-  const getPlanDescription = (planId) => {
-    const descriptions = {
-      pro_monthly: 'Best for growing teams',
-      pro_yearly: 'Best for growing teams - Annual',
-      premium_monthly: 'For enterprise teams',
-      premium_yearly: 'For enterprise teams - Annual',
-    };
-    return descriptions[planId] || '';
-  };
-
-  const getFilteredPlans = () => {
-    return Object.entries(plans).filter(([planId, plan]) => {
-      if (billingCycle === 'monthly') {
-        return planId.includes('monthly') || planId === 'free';
-      } else {
-        return planId.includes('yearly') || planId === 'free';
-      }
-    });
-  };
-
-  const isCurrentPlan = (planId) => {
-    if (!isAuthenticated) return false;
-
-    console.log("[DEBUG] Userplan:", userPlan);
-    
-    // Handle different plan ID formats
-    if (userPlan === 'free' && planId === 'free') return true;
-    if (userPlan === 'pro' && (planId === 'pro_monthly' || planId === 'pro_yearly')) return true;
-    if (userPlan === 'premium' && (planId === 'premium_monthly' || planId === 'premium_yearly')) return true;
-    
-    // Direct match for specific plan IDs
-    if (userPlan === planId) return true;
-    
-    return false;
-  };
-
-  const getButtonText = (planId) => {
-    if (isCurrentPlan(planId)) {
-      return 'Current Plan';
-    }
-    
-    // Disable free plan if user has a paid plan
-    if (planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) {
-      return 'Downgrade Not Available';
-    }
-    
-    return 'Start 7-Day Trial';
-  };
-
-  const getButtonStyle = (planId, plan) => {
-    if (isCurrentPlan(planId)) {
-      return styles.currentPlanButton;
-    }
-    
-    // Disable free plan if user has a paid plan
-    if (planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) {
-      return styles.disabledButton;
-    }
-    
-    return [
-      styles.upgradeButton,
-      plan.popular && styles.popularUpgradeButton
-    ];
-  };
-
-  const getButtonTextStyle = (planId) => {
-    if (isCurrentPlan(planId)) {
-      return styles.currentPlanButtonText;
-    }
-    
-    // Disable free plan if user has a paid plan
-    if (planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) {
-      return styles.disabledButtonText;
-    }
-    
-    return styles.upgradeButtonText;
-  };
-
-  if (loading) {
+  const renderPlan = (plan) => {
+    const period = plan.cycle === 'yearly' ? t('pricing.year') : plan.cycle === 'monthly' ? t('pricing.month') : null;
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3B82F6" />
-        <Text style={styles.loadingText}>{t('pricing.loadingPricingPlans')}</Text>
-        <Text style={[styles.loadingText, { fontSize: 14, marginTop: 10, textAlign: 'center' }]}>
-          {t('pricing.loadingFromBackend')}
-        </Text>
-        <TouchableOpacity 
-          style={styles.retryButton}
-          onPress={() => {
-            setLoading(true);
-            fetchPlanData();
-          }}
-        >
-          <Ionicons name="refresh" size={20} color="#FFFFFF" />
-          <Text style={styles.retryButtonText}>{t('pricing.retry')}</Text>
-        </TouchableOpacity>
+      <View key={plan.id} style={[styles.planCard, plan.popular && styles.popularPlan]}>
+        {plan.popular && (
+          <View style={styles.popularBadge}>
+            <Ionicons name="star" size={16} color="#FFFFFF" />
+            <Text style={styles.popularBadgeText}>{t('pricing.mostPopular')}</Text>
+          </View>
+        )}
+
+        <View style={styles.planContent}>
+          <View style={styles.planHeader}>
+            <Text style={styles.planName}>{t(`pricing.${plan.tier}Name`)}</Text>
+            <Text style={styles.planDescription}>{t(`pricing.${plan.tier}Description`)}</Text>
+
+            <View style={styles.priceContainer}>
+              <Text style={styles.price}>{formatUsd(plan.priceUsd)}</Text>
+              {period && <Text style={styles.period}>/{period}</Text>}
+            </View>
+
+            {plan.discountPercent ? (
+              <View style={styles.savingsContainer}>
+                <Ionicons name="trending-up" size={16} color="#10B981" />
+                <Text style={styles.savings}>{t('pricing.savePercent')}</Text>
+              </View>
+            ) : null}
+
+            {plan.monthlyEquivalentUsd ? (
+              <Text style={styles.totalPrice}>
+                {`${t('pricing.billedAnnually')} · ${formatUsd(plan.monthlyEquivalentUsd)}/${t('pricing.month')}`}
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.featuresContainer}>
+            {toList(t(`pricing.${plan.tier}Features`)).map((feature) => (
+              <View key={feature} style={styles.featureItem}>
+                <View style={styles.featureIconContainer}>
+                  <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                </View>
+                <Text style={styles.featureText}>{feature}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.actionContainer}>
+            {isCurrentPlan(plan) ? (
+              <View style={styles.currentPlanButton}>
+                <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                <Text style={styles.currentPlanButtonText}>{t('pricing.currentPlan')}</Text>
+              </View>
+            ) : plan.tier !== 'free' && !PURCHASES_AVAILABLE ? (
+              <View style={styles.disabledButton} accessibilityState={{ disabled: true }}>
+                <Text style={styles.disabledButtonText}>{t('pricing.comingSoon')}</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
       </View>
     );
-  }
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
-      <ScrollView 
-        style={styles.scrollView} 
+
+      <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {!PURCHASES_AVAILABLE && (
+          <View style={styles.comingSoonBanner}>
+            <Ionicons name="time-outline" size={22} color="#FBBF24" />
+            <View style={styles.comingSoonTextContainer}>
+              <Text style={styles.comingSoonTitle}>{t('pricing.subscriptionsComingSoonTitle')}</Text>
+              <Text style={styles.comingSoonBody}>{t('pricing.subscriptionsComingSoonBody')}</Text>
+            </View>
+          </View>
+        )}
+
         {/* Billing Toggle */}
         <View style={styles.billingToggleContainer}>
           <View style={styles.billingToggle}>
-            <TouchableOpacity
-              style={[
-                styles.billingButton,
-                billingCycle === 'monthly' && styles.billingButtonActive
-              ]}
-              onPress={() => setBillingCycle('monthly')}
-            >
-              <Text style={[
-                styles.billingButtonText,
-                billingCycle === 'monthly' && styles.billingButtonTextActive
-              ]}>
-                Monthly
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.billingButton,
-                billingCycle === 'yearly' && styles.billingButtonActive
-              ]}
-              onPress={() => setBillingCycle('yearly')}
-            >
-              <Text style={[
-                styles.billingButtonText,
-                billingCycle === 'yearly' && styles.billingButtonTextActive
-              ]}>
-                Yearly
-              </Text>
-             
-            </TouchableOpacity>
+            {['monthly', 'yearly'].map((cycle) => (
+              <TouchableOpacity
+                key={cycle}
+                style={[styles.billingButton, billingCycle === cycle && styles.billingButtonActive]}
+                onPress={() => setBillingCycle(cycle)}
+              >
+                <Text style={[styles.billingButtonText, billingCycle === cycle && styles.billingButtonTextActive]}>
+                  {t(`pricing.${cycle}`)}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* Plans Grid */}
+        {/* Plans */}
         <View style={styles.plansContainer}>
-          {getFilteredPlans().map(([planId, plan]) => (
-            <View
-              key={planId}
-              style={[
-                styles.planCard,
-                plan.popular && styles.popularPlan
-              ]}
-            >
-              {/* Popular Badge */}
-              {plan.popular && (
-                <View style={styles.popularBadge}>
-                  <Ionicons name="star" size={16} color="#FFFFFF" />
-                  <Text style={styles.popularBadgeText}>Most Popular</Text>
-                </View>
-              )}
-
-              <View style={styles.planContent}>
-                {/* Plan Header */}
-                <View style={styles.planHeader}>
-                  <Text style={styles.planName}>{plan.name}</Text>
-                  <Text style={styles.planDescription}>{plan.description}</Text>
-                  
-                  <View style={styles.priceContainer}>
-                    <Text style={styles.price}>{plan.price}</Text>
-                    {plan.period !== 'forever' && (
-                      <Text style={styles.period}>/{plan.period}</Text>
-                    )}
-                  </View>
-                  
-                  {/* Yearly Savings */}
-                  {plan.savings && (
-                    <View style={styles.savingsContainer}>
-                      <Ionicons name="trending-up" size={16} color="#10B981" />
-                      <Text style={styles.savings}>{plan.savings}</Text>
-                    </View>
-                  )}
-                  
-                  {/* Total Yearly Price */}
-                  {plan.totalPrice && (
-                    <Text style={styles.totalPrice}>{plan.totalPrice}</Text>
-                  )}
-                  
-                  {/* Period Text for yearly plans */}
-                  {plan.periodText && (
-                    <Text style={styles.periodText}>billed {plan.periodText}ly</Text>
-                  )}
-                </View>
-
-                {/* Features */}
-                <View style={styles.featuresContainer}>
-                  {plan.features.map((feature, index) => (
-                    <View key={index} style={styles.featureItem}>
-                      <View style={styles.featureIconContainer}>
-                        <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                      </View>
-                      <Text style={styles.featureText}>{feature}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {/* Action Button */}
-                <View style={styles.actionContainer}>
-                  {isCurrentPlan(planId) ? (
-                    <TouchableOpacity
-                      disabled
-                      style={styles.currentPlanButton}
-                    >
-                      <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                      <Text style={styles.currentPlanButtonText}>Current Plan</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      disabled={
-                        (planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) ||
-                        purchasing ||
-                        isCurrentPlan(planId)
-                      }
-                      style={getButtonStyle(planId, plan)}
-                      onPress={() => handleUpgrade(planId)}
-                    >
-                      {purchasing ? (
-                        <>
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                          <Text style={getButtonTextStyle(planId)}>Processing...</Text>
-                        </>
-                      ) : (
-                        <>
-                          <Text style={getButtonTextStyle(planId)}>
-                            {getButtonText(planId)}
-                          </Text>
-                          {!(planId === 'free' && (userPlan === 'pro' || userPlan === 'premium')) && !isCurrentPlan(planId) && (
-                            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-                          )}
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            </View>
-          ))}
+          {getPlans(billingCycle).map(renderPlan)}
         </View>
-
       </ScrollView>
     </View>
   );
@@ -534,6 +187,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     maxWidth: 300,
+  },
+  comingSoonBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#1E293B',
+    borderColor: '#FBBF24',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 20,
+    marginTop: 24,
+  },
+  comingSoonTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  comingSoonTitle: {
+    color: '#F1F5F9',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  comingSoonBody: {
+    color: '#94A3B8',
+    fontSize: 14,
+    lineHeight: 20,
   },
   billingToggleContainer: {
     marginTop: 30,

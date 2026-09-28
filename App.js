@@ -31,18 +31,12 @@ import Notes from './src/pages/Notes.jsx';
 import Settings from './src/pages/Settings.jsx';
 import AIChat from './src/pages/AIChat.jsx';
 import AIInsights from './src/pages/AIInsights.jsx';
-import ApiSettings from './src/pages/Apisettings.jsx';
 import Privacy from './src/pages/Privacy.jsx';
 import Terms from './src/pages/Terms.jsx';
 import WhatsAppBot from './src/pages/WhatsAppBot.jsx';
 import ChooseCreationMethod from './src/pages/ChooseCreationMethod.jsx';
 import CalendarSync from './src/pages/CalendarSync.jsx';
-import GoogleCalendarTest from './src/pages/GoogleCalendarTest.jsx';
-import GoogleCalendarTestComponent from './src/components/GoogleCalendarTest.jsx';
-import NotificationDemo from './src/components/NotificationSystem/NotificationDemo.jsx';
 import Pricing from './src/pages/Pricing.jsx';
-import PaymentSuccess from './src/pages/PaymentSuccess.jsx';
-import EnvironmentTest from './src/components/EnvironmentTest.jsx';
 
 // Import notification and floating widget components
 import FloatingWidgetContainer from './src/components/FloatingWidgetContainer.jsx';
@@ -64,17 +58,12 @@ const SettingsWithLanguage = (props) => <Settings {...props} language={props.lan
 const ProfileWithLanguage = (props) => <Settings {...props} language={props.language || "en"} />;
 const AIChatWithLanguage = (props) => <AIChat {...props} language={props.language || "en"} />;
 const AIInsightsWithLanguage = (props) => <AIInsights {...props} language={props.language || "en"} />;
-const ApiSettingsWithLanguage = (props) => <ApiSettings {...props} language={props.language || "en"} />;
 const PrivacyWithLanguage = (props) => <Privacy {...props} language={props.language || "en"} />;
 const TermsWithLanguage = (props) => <Terms {...props} language={props.language || "en"} />;
 const WhatsAppBotWithLanguage = (props) => <WhatsAppBot {...props} language={props.language || "en"} />;
 const ChooseCreationMethodWithLanguage = (props) => <ChooseCreationMethod {...props} language={props.language || "en"} />;
 const CalendarSyncWithLanguage = (props) => <CalendarSync {...props} language={props.language || "en"} />;
-const GoogleCalendarTestWithLanguage = (props) => <GoogleCalendarTest {...props} language={props.language || "en"} />;
-const GoogleCalendarTestComponentWithLanguage = (props) => <GoogleCalendarTestComponent {...props} language={props.language || "en"} />;
-const NotificationDemoWithLanguage = (props) => <NotificationDemo {...props} language={props.language || "en"} />;
 const PricingWithLanguage = (props) => <Pricing {...props} language={props.language || "en"} />;
-const PaymentSuccessWithLanguage = (props) => <PaymentSuccess {...props} language={props.language || "en"} />;
 
 // App Navigator Component
 function AppNavigator() {
@@ -256,11 +245,6 @@ function AppNavigator() {
               options={{ headerShown: false }}
             />
             <Stack.Screen 
-              name="Auth" 
-              component={(props) => <AuthWithLanguage {...props} language={language} />}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen 
               name="Dashboard" 
               component={(props) => <DashboardWithLanguage {...props} language={language} />}
               options={({ route }) => ({ title: language === 'es' ? 'Panel Principal' : 'Meeting Guard' })}
@@ -328,12 +312,6 @@ function AppNavigator() {
               initialParams={{ language }}
             />
             <Stack.Screen 
-              name="ApiSettings" 
-              component={ApiSettingsWithLanguage}
-              options={({ route }) => ({ title: language === 'es' ? 'Configuración API' : 'API Settings' })}
-              initialParams={{ language }}
-            />
-            <Stack.Screen 
               name="Privacy" 
               component={PrivacyWithLanguage}
               options={({ route }) => ({ title: language === 'es' ? 'Política de Privacidad' : 'Privacy Policy' })}
@@ -358,39 +336,10 @@ function AppNavigator() {
               initialParams={{ language }}
             />
             <Stack.Screen 
-              name="GoogleCalendarTest" 
-              component={GoogleCalendarTestWithLanguage}
-              options={({ route }) => ({ title: language === 'es' ? 'Prueba Google Calendar' : 'Google Calendar Test' })}
-              initialParams={{ language }}
-            />
-            <Stack.Screen 
-              name="GoogleCalendarTestComponent" 
-              component={GoogleCalendarTestComponentWithLanguage}
-              options={({ route }) => ({ title: language === 'es' ? 'Componente Prueba Google Calendar' : 'Google Calendar Test Component' })}
-              initialParams={{ language }}
-            />
-            <Stack.Screen 
-              name="NotificationDemo" 
-              component={NotificationDemoWithLanguage}
-              options={({ route }) => ({ title: language === 'es' ? 'Demo de Notificaciones' : 'Notification Demo' })}
-              initialParams={{ language }}
-            />
-            <Stack.Screen 
               name="Pricing" 
               component={PricingWithLanguage}
               options={({ route }) => ({ title: language === 'es' ? 'Planes de Precios' : 'Pricing Plans' })}
               initialParams={{ language }}
-            />
-            <Stack.Screen 
-              name="PaymentSuccess" 
-              component={PaymentSuccessWithLanguage}
-              options={({ route }) => ({ title: language === 'es' ? 'Pago Exitoso' : 'Payment Successful' })}
-              initialParams={{ language }}
-            />
-            <Stack.Screen 
-              name="EnvironmentTest" 
-              component={EnvironmentTest}
-              options={({ route }) => ({ title: language === 'es' ? 'Prueba de Entorno' : 'Environment Test' })}
             />
           </Stack.Navigator>
           

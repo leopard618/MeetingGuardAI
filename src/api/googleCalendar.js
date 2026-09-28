@@ -35,37 +35,6 @@ class GoogleCalendarService {
         this.isInitialized = false;
         return false;
       }
-      
-      // Test calendar access with error handling
-      try {
-        console.log('🔄 Testing calendar access...');
-        const hasAccess = await this.checkCalendarAccess();
-        console.log('Calendar access test result:', hasAccess);
-        
-        if (hasAccess) {
-          // Get the primary calendar ID
-          console.log('🔄 Getting primary calendar ID...');
-          const calendarId = await this.getCalendarId();
-          console.log('✅ Primary calendar ID:', calendarId);
-          
-          this.isInitialized = true;
-          console.log('✅ Google Calendar service initialized successfully');
-          return true;
-        } else {
-          console.log('❌ Google Calendar service initialization failed - no calendar access');
-          this.isInitialized = false;
-          return false;
-        }
-      } catch (calendarError) {
-        console.warn('❌ Google Calendar access test failed:', calendarError.message);
-        console.error('Calendar access error details:', {
-          message: calendarError.message,
-          stack: calendarError.stack,
-          name: calendarError.name
-        });
-        this.isInitialized = false;
-        return false;
-      }
     } catch (error) {
       console.error('❌ Error initializing Google Calendar service:', error);
       console.error('Initialization error details:', {
@@ -647,73 +616,21 @@ class GoogleCalendarService {
    * Create event in Google Calendar
    */
   async createEvent(eventData) {
-    try {
-      console.log('🚫 Frontend Google Calendar createEvent disabled for event:', eventData.id);
-      console.log('💡 Backend handles all Google Calendar operations to prevent data corruption');
-      // DISABLED: Frontend creation operations cause:
-      // - Location/link concatenation errors (line 831: locationString += Meeting Link)
-      // - Missing participants in Google Calendar
-      // - Data format inconsistencies
-      // Backend handles creation properly with correct formatting
-      return null;
-      console.log('Converted to Google event format:', {
-        summary: googleEvent.summary,
-        start: googleEvent.start,
-        end: googleEvent.end,
-        location: googleEvent.location,
-        attendees: googleEvent.attendees,
-        description: googleEvent.description
-      });
-      
-      // Ensure we have a valid calendar ID
-      const calendarId = await this.getCalendarId();
-      
-      const response = await this.makeRequest(`/calendars/${calendarId}/events`, {
-        method: 'POST',
-        body: JSON.stringify(googleEvent),
-      });
-
-      // Store the mapping to prevent duplicates
-      if (response && response.id && eventData.id) {
-        await this.storeEventMapping(eventData.id, response.id);
-        console.log('Event mapping stored:', eventData.id, '->', response.id);
-      }
-
-      return response;
-    } catch (error) {
-      console.error('Error creating Google Calendar event:', error);
-      // Return null instead of throwing error to prevent app crashes
-      return null;
-    }
+    // DISABLED on the client: device-side creation caused location/link concatenation
+    // errors, missing participants and data format inconsistencies.
+    // Google Calendar writes will move to a server-side (Cloud Functions) path.
+    console.log('🚫 Frontend Google Calendar createEvent disabled for event:', eventData?.id);
+    return null;
   }
 
   /**
    * Update event in Google Calendar
    */
   async updateEvent(eventData) {
-    try {
-      console.log('🚫 Frontend Google Calendar updateEvent disabled');
-      console.log('💡 Backend handles all Google Calendar operations to prevent data corruption');
-      // DISABLED: Frontend update operations cause:
-      // - Location/link concatenation errors  
-      // - Missing participants
-      // - Data format inconsistencies
-      // Backend handles updates properly
-      return null;
-      
-      console.log('Updating Google Calendar event:', googleEventId, 'for app event:', eventData.id);
-      
-      const response = await this.makeRequest(`/calendars/${calendarId}/events/${googleEventId}`, {
-        method: 'PUT',
-        body: JSON.stringify(googleEvent),
-      });
-
-      return response;
-    } catch (error) {
-      console.error('Error updating Google Calendar event:', error);
-      // Return null instead of throwing error to prevent app crashes
-      return null;
-    }
+    // DISABLED on the client (same reasons as createEvent).
+    // Google Calendar writes will move to a server-side (Cloud Functions) path.
+    console.log('🚫 Frontend Google Calendar updateEvent disabled for event:', eventData?.id);
+    return null;
   }
 
   /**
