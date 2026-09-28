@@ -68,9 +68,10 @@ module.exports = defineConfig([
     },
   },
   {
+    // Tests run in Node under Jest (fs, path, __dirname are available).
     files: ['**/__tests__/**/*.{js,jsx,ts,tsx}', '**/*.test.{js,jsx,ts,tsx}', 'jest.setup.{js,ts}'],
     languageOptions: {
-      globals: globals.jest,
+      globals: { ...globals.node, ...globals.jest },
     },
   },
 ]);
