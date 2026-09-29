@@ -1,0 +1,36 @@
+{
+  "language": "Idioma",
+  "headline": "Avisos de reuniones que no se te escapan",
+  "subtitle": "MeetingGuard AI te avisa antes de cada reunión, de la forma que elijas.",
+  "valueProps": {
+    "alerts": {
+      "title": "Avisos que llaman tu atención",
+      "body": "Elige una alarma a pantalla completa, un aviso que se queda hasta que actúes o un recordatorio discreto, con sonido y vibración. Los avisos por voz suenan mientras la app está abierta."
+    },
+    "calendars": {
+      "title": "Tus calendarios, juntos",
+      "body": "Sincroniza con Google Calendar y trae los eventos de los calendarios de tu teléfono."
+    },
+    "assistant": {
+      "title": "Un asistente de IA que pregunta antes",
+      "body": "Crea, mueve o comparte reuniones escribiendo lo que necesitas. Nada cambia hasta que lo confirmas."
+    },
+    "languages": {
+      "title": "Español e inglés",
+      "body": "Usa la app, los avisos y el asistente en cualquiera de los dos idiomas."
+    }
+  },
+  "signIn": {
+    "google": "Continuar con Google",
+    "busy": "Iniciando sesión…",
+    "failedTitle": "No se pudo iniciar sesión",
+    "failed": "El inicio de sesión con Google no funcionó. Inténtalo de nuevo."
+  },
+  "freePlan_one": "El plan gratuito incluye {{count}} consulta al asistente de IA al día.",
+  "freePlan_other": "El plan gratuito incluye {{count}} consultas al asistente de IA al día.",
+  "consent": {
+    "text": "Al continuar, aceptas los Términos del servicio y confirmas que has leído la Política de privacidad.",
+    "terms": "Términos del servicio",
+    "privacy": "Política de privacidad"
+  }
+}

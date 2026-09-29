@@ -10,7 +10,10 @@
  * This module is the single source of truth for the plan catalog shown in the UI.
  * Contract pricing: Free (5 AI requests/day), Pro $7.99/month, Premium $14.99/month,
  * annual plans = 25% discount on 12 x monthly (Pro $71.91/yr, Premium $134.91/yr).
+ * Daily AI quotas are the server-enforced ones (core/aiContract PLAN_DAILY_AI_LIMITS).
  */
+import { PLAN_DAILY_AI_LIMITS } from '../core/aiContract';
+
 
 export type PlanTier = 'free' | 'pro' | 'premium';
 export type BillingCycle = 'monthly' | 'yearly';
@@ -27,8 +30,8 @@ export interface Plan {
   monthlyEquivalentUsd?: number;
   /** For yearly plans: discount vs. paying monthly for 12 months. */
   discountPercent?: number;
-  /** Daily AI request quota; null means unlimited. */
-  aiRequestsPerDay: number | null;
+  /** Daily AI request quota (server-enforced, see PLAN_DAILY_AI_LIMITS). */
+  aiRequestsPerDay: number;
   popular: boolean;
 }
 
@@ -48,13 +51,13 @@ export interface PurchaseResult {
 /** Purchases are switched off until the new billing stack ships. */
 export const PURCHASES_AVAILABLE = false;
 
-export const FREE_AI_REQUESTS_PER_DAY = 5;
+export const FREE_AI_REQUESTS_PER_DAY = PLAN_DAILY_AI_LIMITS.free;
 export const ANNUAL_DISCOUNT_PERCENT = 25;
 
 // 12 x $7.99 = $95.88 -> -25% = $71.91 ; 12 x $14.99 = $179.88 -> -25% = $134.91
 export const PLANS: readonly Plan[] = [
   { id: 'free', tier: 'free', cycle: null, priceUsd: 0, aiRequestsPerDay: FREE_AI_REQUESTS_PER_DAY, popular: false },
-  { id: 'pro_monthly', tier: 'pro', cycle: 'monthly', priceUsd: 7.99, aiRequestsPerDay: null, popular: true },
+  { id: 'pro_monthly', tier: 'pro', cycle: 'monthly', priceUsd: 7.99, aiRequestsPerDay: PLAN_DAILY_AI_LIMITS.pro, popular: true },
   {
     id: 'pro_yearly',
     tier: 'pro',
@@ -62,10 +65,10 @@ export const PLANS: readonly Plan[] = [
     priceUsd: 71.91,
     monthlyEquivalentUsd: 5.99,
     discountPercent: ANNUAL_DISCOUNT_PERCENT,
-    aiRequestsPerDay: null,
+    aiRequestsPerDay: PLAN_DAILY_AI_LIMITS.pro,
     popular: true,
   },
-  { id: 'premium_monthly', tier: 'premium', cycle: 'monthly', priceUsd: 14.99, aiRequestsPerDay: null, popular: false },
+  { id: 'premium_monthly', tier: 'premium', cycle: 'monthly', priceUsd: 14.99, aiRequestsPerDay: PLAN_DAILY_AI_LIMITS.premium, popular: false },
   {
     id: 'premium_yearly',
     tier: 'premium',
@@ -73,7 +76,7 @@ export const PLANS: readonly Plan[] = [
     priceUsd: 134.91,
     monthlyEquivalentUsd: 11.24,
     discountPercent: ANNUAL_DISCOUNT_PERCENT,
-    aiRequestsPerDay: null,
+    aiRequestsPerDay: PLAN_DAILY_AI_LIMITS.premium,
     popular: false,
   },
 ];

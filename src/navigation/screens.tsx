@@ -2,37 +2,34 @@
  * MODULE-LEVEL screen components for the root stack. Nothing here is created during render, so a
  * navigation, sidebar or language change never remounts a screen (fixes the old remount storm).
  *
- * - Legacy stage-3 screens get the live `language` prop through withLanguage().
+ * - Every screen reads the live language itself (useT / useLanguage); withLanguage() is unused.
  * - TypeScript screens (src/screens): meeting details and the create / edit form (they read the
  *   live meeting from `meetingId` or a legacy `meeting` param), settings (account deletion) and
  *   alert settings.
- * - Landing gets the Terms/Privacy consent notice and a language switch (before sign-in).
- * - Privacy / Terms outside the Main group (no header there) get the top safe-area inset.
+ * - Landing (src/screens/auth) has the language switch and the Terms/Privacy consent itself.
+ * - Privacy / Terms (src/screens/legal): outside the Main group (no header there) the standalone
+ *   variants draw their own top bar.
  */
-import type { ComponentType, ReactElement } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Text, useTheme as usePaperTheme } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { useLanguage, useT } from '../i18n';
 import { AssistantScreen } from '../screens/assistant/AssistantScreen';
 import { AIInsightsScreen as AIInsights } from '../screens/insights/AIInsightsScreen';
 import { CalendarScreen as CalendarView } from '../screens/calendar/CalendarScreen';
 import { CalendarSyncScreen as CalendarSync } from '../screens/calendarSync/CalendarSyncScreen';
 import { ChooseCreationMethodScreen as ChooseCreationMethod } from '../screens/create/ChooseCreationMethodScreen';
 import { DashboardScreen as Dashboard } from '../screens/home/DashboardScreen';
-import LegacyLandingPage from '../pages/LandingPage';
-import { NotesScreen as NotesView } from '../screens/notes/NotesScreen';
-import Pricing from '../pages/Pricing';
-import Privacy from '../pages/Privacy';
-import Terms from '../pages/Terms';
 import { MeetingsListScreen as MeetingsList } from '../screens/meetings/list/MeetingsListScreen';
 import { AlertSettingsScreen as AlertSettings } from '../screens/alerts/AlertSettingsScreen';
+import { LandingScreen as Landing } from '../screens/auth/LandingScreen';
+import {
+  PrivacyScreen as Privacy,
+  StandalonePrivacyScreen as StandalonePrivacy,
+  StandaloneTermsScreen as StandaloneTerms,
+  TermsScreen as Terms,
+} from '../screens/legal';
 import { MeetingDetailsScreen as MeetingDetails } from '../screens/meetings/MeetingDetailsScreen';
 import { MeetingFormScreen } from '../screens/meetings/MeetingFormScreen';
+import { NotesScreen as NotesView } from '../screens/notes/NotesScreen';
+import { PricingScreen as Pricing } from '../screens/pricing/PricingScreen';
 import { SettingsScreen as Settings } from '../screens/settings/SettingsScreen';
-import { ConsentNotice } from './ConsentNotice';
-import { withLanguage, type LegacyComponent, type WithLanguageProps } from './withLanguage';
 
 // ---- Main group --------------------------------------------------------------------------------
 
@@ -48,10 +45,10 @@ export const ProfileScreen = Settings;
 export const AlertSettingsScreen = AlertSettings;
 export const AIChatScreen = AssistantScreen;
 export const AIInsightsScreen = AIInsights;
-export const PrivacyScreen = withLanguage(Privacy);
-export const TermsScreen = withLanguage(Terms);
+export const PrivacyScreen = Privacy;
+export const TermsScreen = Terms;
 export const CalendarSyncScreen = CalendarSync;
-export const PricingScreen = withLanguage(Pricing);
+export const PricingScreen = Pricing;
 
 // ---- Meetings (TypeScript): live meeting from `meetingId` or a legacy `meeting` param ----------
 
@@ -60,106 +57,8 @@ export const EditMeetingScreen = MeetingFormScreen;
 
 // ---- Auth group -----------------------------------------------------------------------------
 
-const LandingPage = LegacyLandingPage as LegacyComponent;
-
-function LandingFooter(): ReactElement {
-  const t = useT();
-  const insets = useSafeAreaInsets();
-  const { language, setLanguage, supportedLanguages } = useLanguage();
-  return (
-    <View style={[StyleSheet.absoluteFill, styles.landingOverlay]} pointerEvents="box-none">
-      <View style={[styles.landingFooter, { marginBottom: insets.bottom + 12 }]}>
-        <View style={styles.languageRow} accessibilityRole="radiogroup">
-          {supportedLanguages.map((code) => {
-            const selected = code === language;
-            return (
-              <TouchableOpacity
-                key={code}
-                onPress={() => {
-                  void setLanguage(code);
-                }}
-                style={[styles.languageChip, selected && styles.languageChipSelected]}
-                accessibilityRole="radio"
-                accessibilityState={{ selected }}
-              >
-                <Text style={[styles.languageChipText, selected && styles.languageChipTextSelected]}>
-                  {t(`common:language.${code}`)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        <ConsentNotice color="#F8FAFC" />
-      </View>
-    </View>
-  );
-}
-
-export function LandingScreen(): ReactElement {
-  return (
-    <View style={styles.fill}>
-      <LandingPage />
-      <LandingFooter />
-    </View>
-  );
-}
-
-function withTopInset(Screen: ComponentType<WithLanguageProps>, name: string): ComponentType<WithLanguageProps> {
-  function TopInsetScreen(props: WithLanguageProps): ReactElement {
-    const insets = useSafeAreaInsets();
-    const theme = usePaperTheme();
-    return (
-      <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
-        <Screen {...props} />
-      </View>
-    );
-  }
-  TopInsetScreen.displayName = `${name}Standalone`;
-  return TopInsetScreen;
-}
+export const LandingScreen = Landing;
 
 /** Privacy / Terms in the Auth and Onboarding groups (no Main header above them). */
-export const StandalonePrivacyScreen = withTopInset(PrivacyScreen, 'Privacy');
-export const StandaloneTermsScreen = withTopInset(TermsScreen, 'Terms');
-
-const styles = StyleSheet.create({
-  fill: {
-    flex: 1,
-  },
-  landingOverlay: {
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  landingFooter: {
-    marginHorizontal: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
-    alignItems: 'center',
-  },
-  languageRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  languageChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(248, 250, 252, 0.6)',
-    marginHorizontal: 4,
-  },
-  languageChipSelected: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#F8FAFC',
-  },
-  languageChipText: {
-    color: '#F8FAFC',
-    fontSize: 13,
-  },
-  languageChipTextSelected: {
-    color: '#0F172A',
-    fontWeight: '600',
-  },
-});
+export const StandalonePrivacyScreen = StandalonePrivacy;
+export const StandaloneTermsScreen = StandaloneTerms;

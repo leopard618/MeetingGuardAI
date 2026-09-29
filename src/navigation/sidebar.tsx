@@ -4,7 +4,7 @@
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
-import MobileSidebar from '../components/MobileSidebar';
+import { MobileSidebar } from '../components/MobileSidebar';
 import { useCurrentRouteName } from './navigationService';
 
 interface SidebarContextValue {

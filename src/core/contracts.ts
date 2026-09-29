@@ -843,6 +843,10 @@ export const I18N_NAMESPACE_LIST = [
   'attachments',
   'home',
   'insights',
+  'shell',
+  'landing',
+  'legal',
+  'pricing',
 ] as const;
 export type I18nNamespace = (typeof I18N_NAMESPACE_LIST)[number];
 

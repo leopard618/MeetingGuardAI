@@ -1,0 +1,52 @@
+{
+  "comingSoonTitle": "Subscriptions coming soon",
+  "comingSoonBody": "Paid plans can't be purchased yet. Everything in the Free plan keeps working in the meantime.",
+  "comingSoon": "Coming soon",
+  "comingSoonA11y": "{{plan}}: coming soon, not available to buy yet",
+  "currentPlan": "Current plan",
+  "popular": "Most popular",
+  "perMonth": "month",
+  "perYear": "year",
+  "priceA11y": "{{price}} per {{period}}",
+  "monthlyEquivalent": "Billed yearly · {{price}} per month",
+  "save": "Save {{percent}}%",
+  "cycle": {
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "monthlyA11y": "Show monthly prices",
+    "yearlyA11y": "Show yearly prices"
+  },
+  "plans": {
+    "free": {
+      "name": "Free",
+      "description": "Everything you need to get started."
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "For a busy schedule and daily use of the assistant."
+    },
+    "premium": {
+      "name": "Premium",
+      "description": "For heavy use of the AI assistant."
+    }
+  },
+  "features": {
+    "requests_one": "{{count}} AI assistant request per day",
+    "requests_other": "{{count}} AI assistant requests per day",
+    "meetings": "Meetings, notes and alerts",
+    "calendars": "Google Calendar and phone calendar sync",
+    "everythingFree": "Everything in Free"
+  },
+  "usage": {
+    "title": "AI assistant today",
+    "plan": "Your plan: {{plan}}",
+    "today": "{{used}} of {{limit}} requests used",
+    "resets": "Resets {{time}}",
+    "exhausted": "You've used all of today's requests. They reset {{time}}.",
+    "thisDevice": "Updated with each assistant request from this device.",
+    "perDay_one": "{{count}} request per day",
+    "perDay_other": "{{count}} requests per day",
+    "unknownToday": "Today's count appears after you use the assistant."
+  },
+  "footer": "Prices are in US dollars. Before any purchase, the App Store or Google Play will show the final price in your currency, including taxes."
+}

@@ -1,0 +1,35 @@
+{
+  "header": {
+    "back": "Volver",
+    "home": "Ir al panel principal",
+    "openMenu": "Abrir menú",
+    "darkMode": "Cambiar a modo oscuro",
+    "lightMode": "Cambiar a modo claro",
+    "switchLanguage": "Cambiar el idioma a {{language}}"
+  },
+  "sidebar": {
+    "close": "Cerrar menú",
+    "language": "Idioma",
+    "theme": "Apariencia",
+    "themeModes": {
+      "system": "Sistema",
+      "light": "Claro",
+      "dark": "Oscuro"
+    },
+    "items": {
+      "Dashboard": "Panel principal",
+      "ChooseCreationMethod": "Nueva reunión",
+      "TotalMeetings": "Todas las reuniones",
+      "Calendar": "Calendario",
+      "Notes": "Notas y tareas",
+      "AIChat": "Asistente de IA",
+      "Pricing": "Planes",
+      "Settings": "Ajustes"
+    }
+  },
+  "errorBoundary": {
+    "title": "Algo salió mal",
+    "message": "Esta pantalla tuvo un problema inesperado. Inténtalo de nuevo. Si vuelve a ocurrir, cierra la app y ábrela otra vez.",
+    "retryHint": "Vuelve a cargar la pantalla"
+  }
+}

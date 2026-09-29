@@ -9,7 +9,7 @@
 import { createStackNavigator, type StackHeaderProps, type StackNavigationOptions } from '@react-navigation/stack';
 import { useEffect, type ReactElement, type ReactNode } from 'react';
 
-import CustomHeader from '../components/CustomHeader';
+import { CustomHeader } from '../components/CustomHeader';
 import type { RootStackParamList, RouteName } from '../core/contracts';
 import {
   OnboardingAlertsScreen,
@@ -52,13 +52,13 @@ import { useSignOutFlow } from './useSignOut';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
-function MainHeader({ routeName }: { routeName: RouteName }): ReactElement {
+function MainHeader({ routeName, onBackPress }: { routeName: RouteName; onBackPress?: () => void }): ReactElement {
   const { open } = useSidebar();
-  return <CustomHeader title={routeName} onMenuPress={open} showMenu />;
+  return <CustomHeader title={routeName} onMenuPress={open} showMenu onBackPress={onBackPress} />;
 }
 
-function renderMainHeader({ route }: StackHeaderProps): ReactNode {
-  return <MainHeader routeName={route.name as RouteName} />;
+function renderMainHeader({ route, back, navigation }: StackHeaderProps): ReactNode {
+  return <MainHeader routeName={route.name as RouteName} onBackPress={back ? navigation.goBack : undefined} />;
 }
 
 const HEADERLESS_OPTIONS: StackNavigationOptions = { headerShown: false };

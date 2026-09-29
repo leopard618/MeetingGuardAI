@@ -58,20 +58,22 @@ jest.mock('../../screens/settings/SettingsScreen', () => ({ SettingsScreen: mock
 jest.mock('../../screens/alerts/AlertSettingsScreen', () => ({ AlertSettingsScreen: mockScreen('AlertSettings').default }));
 jest.mock('../../screens/assistant/AssistantScreen', () => ({ AssistantScreen: mockScreen('AIChat').default }));
 jest.mock('../../screens/insights/AIInsightsScreen', () => ({ AIInsightsScreen: mockScreen('AIInsights').default }));
-jest.mock('../../pages/Privacy', () => mockScreen('Privacy'));
-jest.mock('../../pages/Terms', () => mockScreen('Terms'));
+jest.mock('../../screens/legal', () => ({
+  PrivacyScreen: mockScreen('Privacy').default,
+  TermsScreen: mockScreen('Terms').default,
+  StandalonePrivacyScreen: mockScreen('Privacy').default,
+  StandaloneTermsScreen: mockScreen('Terms').default,
+}));
 jest.mock('../../screens/calendarSync/CalendarSyncScreen', () => ({ CalendarSyncScreen: mockScreen('CalendarSync').default }));
-jest.mock('../../pages/Pricing', () => mockScreen('Pricing'));
-jest.mock('../../pages/LandingPage', () => mockScreen('Landing'));
+jest.mock('../../screens/pricing/PricingScreen', () => ({ PricingScreen: mockScreen('Pricing').default }));
+jest.mock('../../screens/auth/LandingScreen', () => ({ LandingScreen: mockScreen('Landing').default }));
 jest.mock('../../components/CustomHeader', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    __esModule: true,
-    default: ({ title }: { title: string }) => React.createElement(Text, { testID: 'header' }, `header:${title}`),
-  };
+  const MockHeader = ({ title }: { title: string }) => React.createElement(Text, { testID: 'header' }, `header:${title}`);
+  return { __esModule: true, CustomHeader: MockHeader, default: MockHeader };
 });
-jest.mock('../../components/MobileSidebar', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../components/MobileSidebar', () => ({ __esModule: true, MobileSidebar: () => null, default: () => null }));
 jest.mock('../../screens/onboarding', () => {
   const stepScreen = (name: string) => () => mockScreen(name).default({});
   return {
@@ -176,13 +178,11 @@ describe('RootNavigator gate', () => {
     expect(screen.getByTestId('app-splash')).toBeTruthy();
   });
 
-  it('shows the Landing screen with the consent notice when signed out', async () => {
+  it('shows the Landing screen when signed out', async () => {
     mockUseAuth.mockReturnValue(authState('signed_out'));
     mockUsePreferences.mockReturnValue(preferencesState({ isLoaded: false }));
     await renderNavigator();
     expect(screen.getByTestId('screen-Landing')).toBeTruthy();
-    expect(screen.getByText('Terms of Service')).toBeTruthy();
-    expect(screen.getByText('Privacy Policy')).toBeTruthy();
   });
 
   it('waits for the preferences, and reports a preferences failure', async () => {

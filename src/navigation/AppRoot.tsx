@@ -8,16 +8,16 @@
  * The session manager (auth area) starts/stops the data session, calendar sync and alerts; this
  * root only initializes the alert engine once and registers the crash reporter for the logger.
  */
-import { DarkTheme as NavigationDarkTheme, DefaultTheme as NavigationLightTheme, NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, type ReactElement } from 'react';
-import { MD3DarkTheme, MD3LightTheme, PaperProvider, adaptNavigationTheme } from 'react-native-paper';
+import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { AlertHost } from '../components/alerts';
-import ErrorBoundary from '../components/ErrorBoundary';
-import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ThemeProvider, useAppThemes } from '../contexts/ThemeContext';
 import { toAppError } from '../core/errors';
 import { createLogger, setErrorReporter } from '../core/logger';
 import { I18nProvider } from '../i18n';
@@ -31,32 +31,32 @@ import { RootNavigator } from './RootNavigator';
 
 const log = createLogger('app');
 
-const { LightTheme: NAVIGATION_LIGHT, DarkTheme: NAVIGATION_DARK } = adaptNavigationTheme({
-  reactNavigationLight: NavigationLightTheme,
-  reactNavigationDark: NavigationDarkTheme,
-  materialLight: MD3LightTheme,
-  materialDark: MD3DarkTheme,
-});
+/** Registered when this module loads (before the first render), so ErrorBoundary can report a crash of the very first render. */
+function registerCrashReporter(): void {
+  setErrorReporter((error, context) => captureException(error, { scope: context.scope, message: context.message }));
+}
+registerCrashReporter();
 
 function ThemedApp(): ReactElement {
-  const { isDarkMode } = useTheme() as { isDarkMode: boolean };
+  // Paper, React Navigation and the status bar follow ThemeContext (system / light / dark) together.
+  const { paperTheme, navigationTheme, statusBarStyle } = useAppThemes();
   const insets = useSafeAreaInsets();
 
   return (
-    <PaperProvider theme={isDarkMode ? MD3DarkTheme : MD3LightTheme}>
+    <PaperProvider theme={paperTheme}>
       <AuthProvider>
         <DataProvider>
           <NavigationContainer
             ref={navigationRef}
             linking={linking}
-            theme={isDarkMode ? NAVIGATION_DARK : NAVIGATION_LIGHT}
+            theme={navigationTheme}
             onReady={onNavigationReady}
           >
             <RootNavigator />
             <AlertHost />
           </NavigationContainer>
           <Toast topOffset={insets.top + 8} />
-          <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+          <StatusBar style={statusBarStyle} />
         </DataProvider>
       </AuthProvider>
     </PaperProvider>
@@ -65,7 +65,7 @@ function ThemedApp(): ReactElement {
 
 export function AppRoot(): ReactElement {
   useEffect(() => {
-    setErrorReporter((error, context) => captureException(error, { scope: context.scope, message: context.message }));
+    registerCrashReporter();
     alertEngine.init().catch((error: unknown) => {
       log.error('alert engine initialization failed', toAppError(error));
     });

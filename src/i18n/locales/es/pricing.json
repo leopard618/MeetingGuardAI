@@ -1,0 +1,52 @@
+{
+  "comingSoonTitle": "Suscripciones próximamente",
+  "comingSoonBody": "Todavía no se pueden comprar planes de pago. Mientras tanto, todo lo del plan Gratis sigue funcionando.",
+  "comingSoon": "Próximamente",
+  "comingSoonA11y": "{{plan}}: próximamente, todavía no se puede comprar",
+  "currentPlan": "Plan actual",
+  "popular": "El más elegido",
+  "perMonth": "mes",
+  "perYear": "año",
+  "priceA11y": "{{price}} por {{period}}",
+  "monthlyEquivalent": "Facturación anual · {{price}} al mes",
+  "save": "Ahorra un {{percent}} %",
+  "cycle": {
+    "monthly": "Mensual",
+    "yearly": "Anual",
+    "monthlyA11y": "Ver precios mensuales",
+    "yearlyA11y": "Ver precios anuales"
+  },
+  "plans": {
+    "free": {
+      "name": "Gratis",
+      "description": "Todo lo que necesitas para empezar."
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "Para agendas apretadas y uso diario del asistente."
+    },
+    "premium": {
+      "name": "Premium",
+      "description": "Para un uso intensivo del asistente de IA."
+    }
+  },
+  "features": {
+    "requests_one": "{{count}} consulta al asistente de IA al día",
+    "requests_other": "{{count}} consultas al asistente de IA al día",
+    "meetings": "Reuniones, notas y avisos",
+    "calendars": "Sincronización con Google Calendar y los calendarios del teléfono",
+    "everythingFree": "Todo lo del plan Gratis"
+  },
+  "usage": {
+    "title": "Asistente de IA hoy",
+    "plan": "Tu plan: {{plan}}",
+    "today": "{{used}} de {{limit}} consultas usadas",
+    "resets": "Se reinicia: {{time}}",
+    "exhausted": "Ya usaste todas las consultas de hoy. Se reinician: {{time}}.",
+    "thisDevice": "Se actualiza con cada consulta al asistente desde este dispositivo.",
+    "perDay_one": "{{count}} consulta al día",
+    "perDay_other": "{{count}} consultas al día",
+    "unknownToday": "El recuento de hoy aparece cuando uses el asistente."
+  },
+  "footer": "Los precios están en dólares estadounidenses. Antes de cualquier compra, App Store o Google Play te mostrarán el precio final en tu moneda, con impuestos incluidos."
+}

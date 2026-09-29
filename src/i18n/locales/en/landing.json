@@ -1,0 +1,36 @@
+{
+  "language": "Language",
+  "headline": "Meeting alerts you won't miss",
+  "subtitle": "MeetingGuard AI reminds you before every meeting, in the way you choose.",
+  "valueProps": {
+    "alerts": {
+      "title": "Alerts that get your attention",
+      "body": "Pick a full-screen alarm, a banner that stays until you act, or a gentle reminder, with sound and vibration. Spoken alerts play while the app is open."
+    },
+    "calendars": {
+      "title": "Your calendars, together",
+      "body": "Sync with Google Calendar and bring in events from the calendars on your phone."
+    },
+    "assistant": {
+      "title": "An AI assistant that asks first",
+      "body": "Create, move or share meetings by typing what you need. Nothing changes until you confirm it."
+    },
+    "languages": {
+      "title": "English and Spanish",
+      "body": "Use the app, the alerts and the assistant in either language."
+    }
+  },
+  "signIn": {
+    "google": "Continue with Google",
+    "busy": "Signing in…",
+    "failedTitle": "Couldn't sign in",
+    "failed": "Google sign-in didn't work. Please try again."
+  },
+  "freePlan_one": "The free plan includes {{count}} AI assistant request per day.",
+  "freePlan_other": "The free plan includes {{count}} AI assistant requests per day.",
+  "consent": {
+    "text": "By continuing, you agree to the Terms of Service and confirm that you have read the Privacy Policy.",
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy"
+  }
+}

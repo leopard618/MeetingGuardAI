@@ -16,11 +16,15 @@ import enCreate from './locales/en/create.json';
 import enData from './locales/en/data.json';
 import enHome from './locales/en/home.json';
 import enInsights from './locales/en/insights.json';
+import enLanding from './locales/en/landing.json';
+import enLegal from './locales/en/legal.json';
 import enMeetings from './locales/en/meetings.json';
 import enNavigation from './locales/en/navigation.json';
 import enNotes from './locales/en/notes.json';
 import enOnboarding from './locales/en/onboarding.json';
+import enPricing from './locales/en/pricing.json';
 import enSettings from './locales/en/settings.json';
+import enShell from './locales/en/shell.json';
 import esAi from './locales/es/ai.json';
 import esAlerts from './locales/es/alerts.json';
 import esAttachments from './locales/es/attachments.json';
@@ -32,11 +36,15 @@ import esCreate from './locales/es/create.json';
 import esData from './locales/es/data.json';
 import esHome from './locales/es/home.json';
 import esInsights from './locales/es/insights.json';
+import esLanding from './locales/es/landing.json';
+import esLegal from './locales/es/legal.json';
 import esMeetings from './locales/es/meetings.json';
 import esNavigation from './locales/es/navigation.json';
 import esNotes from './locales/es/notes.json';
 import esOnboarding from './locales/es/onboarding.json';
+import esPricing from './locales/es/pricing.json';
 import esSettings from './locales/es/settings.json';
+import esShell from './locales/es/shell.json';
 
 /** A namespace's JSON tree (nested objects, strings and string arrays). */
 export type TranslationTree = { readonly [key: string]: unknown };
@@ -59,6 +67,10 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     attachments: enAttachments,
     home: enHome,
     insights: enInsights,
+    shell: enShell,
+    landing: enLanding,
+    legal: enLegal,
+    pricing: enPricing,
   },
   es: {
     common: esCommon,
@@ -77,5 +89,9 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     attachments: esAttachments,
     home: esHome,
     insights: esInsights,
+    shell: esShell,
+    landing: esLanding,
+    legal: esLegal,
+    pricing: esPricing,
   },
 };
