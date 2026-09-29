@@ -26,22 +26,6 @@ import { addMinutesIso, endIso, toDate } from '../../../core/time';
 import type { Meeting, MeetingPatch, Preferences } from '../../../core/types';
 import { chunk, createMutex, insideWindow, isOwnMeeting, syncWindow } from '../shared';
 import type { DeviceSyncState, StateStore } from '../stateStore';
-
-/** This device's exported copy of a meeting (raw device ids). */
-interface OwnCopy {
-  eventId: string;
-  /** null when only a legacy shared ref without calendar is known. */
-  calendarId: string | null;
-}
-
-/** Local link first; else a shared ref scoped to this device (states written before links existed). */
-function ownCopy(meeting: Meeting, key: string, state: DeviceSyncState): OwnCopy | null {
-  const link = state.exportLinks[meeting.id];
-  if (link) return link;
-  const raw = ownRawId(meeting.external.deviceEventId, key);
-  if (raw === null) return null;
-  return { eventId: raw, calendarId: ownRawId(meeting.external.deviceCalendarId, key) };
-}
 import type { CalendarStatusStore } from '../status';
 import type { DeviceCalendarPort } from './adapter';
 import {
@@ -62,6 +46,23 @@ import {
 } from './mapping';
 
 const log = createLogger('calendar');
+
+/** This device's exported copy of a meeting (raw device ids). */
+interface OwnCopy {
+  eventId: string;
+  /** null when only a legacy shared ref without calendar is known. */
+  calendarId: string | null;
+}
+
+/** Local link first; else a shared ref scoped to this device (states written before links existed). */
+function ownCopy(meeting: Meeting, key: string, state: DeviceSyncState): OwnCopy | null {
+  const link = state.exportLinks[meeting.id];
+  if (link) return link;
+  const raw = ownRawId(meeting.external.deviceEventId, key);
+  if (raw === null) return null;
+  return { eventId: raw, calendarId: ownRawId(meeting.external.deviceCalendarId, key) };
+}
+
 const UPSERT_CHUNK_SIZE = 100;
 /** Deleted meetings older than this are assumed to have had their device copy removed already. */
 const TOMBSTONE_CHECK_DAYS = 30;
