@@ -78,6 +78,24 @@ describe('notification responses', () => {
     expect(urlForNotificationResponse(response(DEFAULT_ACTION, {}))).toBeNull();
   });
 
+  it('lets only the app notification auto-start the follow-up assistant', () => {
+    const external = assistantDeepLink({ followUpMeetingId: 'g_abc' });
+    expect(intentForDeepLink(external)).toEqual({ name: 'AIChat', params: { followup: 'g_abc' } });
+    expect(intentForDeepLink(external, { fromNotification: true })).toEqual({
+      name: 'AIChat',
+      params: { followup: 'g_abc', autoStart: true },
+    });
+    // A URL cannot smuggle the flag in.
+    expect(intentForDeepLink(`${external}&autoStart=true`)).toEqual({ name: 'AIChat', params: { followup: 'g_abc' } });
+
+    expect(
+      handleNotificationResponse(
+        response(NOTIFICATION_ACTIONS.assistant, { meetingId: 'm9', url: meetingDeepLink('m9') }, 'mg:m9:followup', 9),
+      ),
+    ).toBe(true);
+    expect(getPendingNavigation()).toEqual({ name: 'AIChat', params: { followup: 'm9', autoStart: true } });
+  });
+
   it('handles the same response only once (cold start + listener)', () => {
     const tap = response(DEFAULT_ACTION, { url: meetingDeepLink('m3') });
     expect(handleNotificationResponse(tap)).toBe(true);

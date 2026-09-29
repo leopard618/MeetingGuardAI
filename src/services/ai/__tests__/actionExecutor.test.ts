@@ -396,4 +396,21 @@ describe('preview', () => {
     const preview = await executor.preview(updateAction('a_7-4', 'm1', { durationMinutes: 90 }));
     expect(preview.warnings).toEqual([]);
   });
+
+  it('lists recipients and participants that are not on the meeting yet', async () => {
+    const meeting = makeMeeting('m1', { participants: [{ email: 'Ana@Example.com', name: 'Ana' }] });
+    const { executor } = setup({ meetings: [meeting] });
+
+    const share = await executor.preview(shareAction('a_7-5', 'm1', { recipients: ['ana@example.com', 'stranger@evil.example'] }));
+    expect(share.warnings).toContain('new_people');
+    expect(share.newPeople).toEqual(['stranger@evil.example']);
+
+    const update = await executor.preview(
+      updateAction('a_7-6', 'm1', { participants: [{ email: 'ana@example.com', name: 'Ana' }, { email: 'new@corp.com', name: null }] }),
+    );
+    expect(update.newPeople).toEqual(['new@corp.com']);
+
+    const known = await executor.preview(shareAction('a_7-7', 'm1', { recipients: ['ana@example.com'] }));
+    expect(known.warnings).not.toContain('new_people');
+  });
 });

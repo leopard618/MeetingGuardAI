@@ -34,6 +34,8 @@ export const AUTH_ERROR_REASONS = [
   'provider_disabled',
   'session_expired',
   'invalid_server_response',
+  'requires_recent_login',
+  'user_mismatch',
 ] as const;
 export type AuthErrorReason = (typeof AUTH_ERROR_REASONS)[number];
 
@@ -114,7 +116,8 @@ const FIREBASE_AUTH_CODES: Readonly<Record<string, { code: AppErrorCode; reason:
   'auth/api-key-not-valid.-please-pass-a-valid-api-key.': { code: 'not_configured', reason: 'firebase_not_configured' },
   'auth/app-not-authorized': { code: 'not_configured', reason: 'firebase_not_configured' },
   'auth/user-token-expired': { code: 'unauthenticated', reason: 'session_expired' },
-  'auth/requires-recent-login': { code: 'unauthenticated', reason: 'session_expired' },
+  'auth/requires-recent-login': { code: 'unauthenticated', reason: 'requires_recent_login' },
+  'auth/user-mismatch': { code: 'permission_denied', reason: 'user_mismatch' },
   'auth/network-request-failed': { code: 'offline', reason: null },
   'auth/internal-error': { code: 'upstream_error', reason: null },
 };
@@ -239,6 +242,8 @@ const REASON_MESSAGE_KEYS: Readonly<Record<AuthErrorReason, string>> = {
   provider_disabled: 'auth:errors.providerDisabled',
   session_expired: 'auth:errors.sessionExpired',
   invalid_server_response: 'auth:errors.invalidServerResponse',
+  requires_recent_login: 'auth:errors.requiresRecentLogin',
+  user_mismatch: 'auth:errors.userMismatch',
 };
 
 const CODE_MESSAGE_KEYS: Partial<Readonly<Record<AppErrorCode, string>>> = {

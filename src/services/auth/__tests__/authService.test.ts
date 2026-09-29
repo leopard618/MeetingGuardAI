@@ -31,6 +31,8 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
 
 jest.mock('firebase/auth', () => ({
   GoogleAuthProvider: { credential: jest.fn((idToken: string) => ({ providerId: 'google.com', idToken })) },
+  EmailAuthProvider: { credential: jest.fn((email: string, password: string) => ({ providerId: 'password', email, password })) },
+  reauthenticateWithCredential: jest.fn(),
   signInWithCredential: jest.fn(),
   signInWithEmailAndPassword: jest.fn(),
   createUserWithEmailAndPassword: jest.fn(),
@@ -62,6 +64,8 @@ interface GoogleMock {
 }
 interface FirebaseAuthMock {
   GoogleAuthProvider: { credential: MockFn };
+  EmailAuthProvider: { credential: MockFn };
+  reauthenticateWithCredential: MockFn;
   signInWithCredential: MockFn;
   signInWithEmailAndPassword: MockFn;
   createUserWithEmailAndPassword: MockFn;
@@ -437,6 +441,48 @@ describe('sign-out, revoke and deletion', () => {
 
     callable.mockRejectedValueOnce(nativeError('functions/unauthenticated'));
     await expect(authService.deleteAccountOnServer()).rejects.toMatchObject({ code: 'unauthenticated' });
+    firebaseConfig.auth.currentUser = null;
+  });
+
+  it('reports a server-side "sign in again" as requires_recent_login', async () => {
+    const { authService, httpsCallable, firebaseConfig } = load();
+    firebaseConfig.auth.currentUser = firebaseUser();
+    const callable = jest.fn().mockRejectedValue(
+      Object.assign(nativeError('functions/failed-precondition'), { details: { reason: 'requires_recent_login' } }),
+    );
+    httpsCallable.mockReturnValue(callable);
+    await expect(authService.deleteAccountOnServer()).rejects.toMatchObject({
+      code: 'unauthenticated',
+      details: { reason: 'requires_recent_login' },
+    });
+    firebaseConfig.auth.currentUser = null;
+  });
+
+  it('re-authenticates Google users with a fresh ID token and password users with their password', async () => {
+    const { authService, google, fb, firebaseConfig } = load();
+    const user = firebaseUser();
+    firebaseConfig.auth.currentUser = user;
+    google.signIn.mockResolvedValueOnce({ type: 'success', data: googleUser(['email'], 'fresh-token') });
+    fb.reauthenticateWithCredential.mockResolvedValue({ user });
+    await expect(authService.reauthenticate()).resolves.toBe('done');
+    expect(fb.reauthenticateWithCredential).toHaveBeenCalledWith(user, { providerId: 'google.com', idToken: 'fresh-token' });
+
+    google.signIn.mockResolvedValueOnce({ type: 'cancelled', data: null });
+    await expect(authService.reauthenticate()).resolves.toBe('cancelled');
+
+    google.signIn.mockResolvedValueOnce({ type: 'success', data: googleUser(['email'], 'other-account') });
+    fb.reauthenticateWithCredential.mockRejectedValueOnce(nativeError('auth/user-mismatch'));
+    await expect(authService.reauthenticate()).rejects.toMatchObject({ details: { reason: 'user_mismatch' } });
+
+    const passwordUser = { ...firebaseUser(), providerData: [{ providerId: 'password' }] };
+    firebaseConfig.auth.currentUser = passwordUser;
+    await expect(authService.reauthenticate()).rejects.toMatchObject({ details: { reason: 'missing_password' } });
+    await expect(authService.reauthenticate({ password: 'secret' })).resolves.toBe('done');
+    expect(fb.reauthenticateWithCredential).toHaveBeenLastCalledWith(passwordUser, {
+      providerId: 'password',
+      email: 'ana@example.com',
+      password: 'secret',
+    });
     firebaseConfig.auth.currentUser = null;
   });
 

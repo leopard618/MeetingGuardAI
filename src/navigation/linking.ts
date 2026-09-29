@@ -70,7 +70,8 @@ export function handleNotificationResponse(response: NotificationResponseLike): 
   const key = responseKey(response);
   if (handledResponses.has(key)) return false;
   handledResponses.add(key);
-  return openDeepLink(url);
+  // Our own notification: the follow-up assistant may start by itself.
+  return openDeepLink(url, { fromNotification: true });
 }
 
 function lastNotificationResponse(): NotificationResponseLike | null {

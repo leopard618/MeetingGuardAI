@@ -73,8 +73,12 @@ export function clearPendingNavigation(): void {
   pending = null;
 }
 
-/** PURE: maps a meetingguardai:// URL to a navigation intent (null if unknown). */
-export function intentForDeepLink(url: string): NavigationIntent | null {
+/**
+ * PURE: maps a meetingguardai:// URL to a navigation intent (null if unknown). Only the app's own
+ * notification responses (`fromNotification`) may auto-start the follow-up assistant: a link from
+ * any other app or web page just opens the chat.
+ */
+export function intentForDeepLink(url: string, options: { fromNotification?: boolean } = {}): NavigationIntent | null {
   const parsed = parseDeepLink(url);
   switch (parsed.type) {
     case 'meeting':
@@ -82,7 +86,10 @@ export function intentForDeepLink(url: string): NavigationIntent | null {
     case 'assistant':
       return {
         name: 'AIChat',
-        params: parsed.followUpMeetingId !== null ? { followup: parsed.followUpMeetingId } : undefined,
+        params:
+          parsed.followUpMeetingId !== null
+            ? { followup: parsed.followUpMeetingId, ...(options.fromNotification === true ? { autoStart: true } : {}) }
+            : undefined,
       };
     default:
       return null;
@@ -90,8 +97,8 @@ export function intentForDeepLink(url: string): NavigationIntent | null {
 }
 
 /** Routes a meetingguardai:// URL (notification data.url). false if the URL is not ours/unknown. */
-export const openDeepLink: NavigationApi['openDeepLink'] = (url) => {
-  const intent = intentForDeepLink(url);
+export const openDeepLink: NavigationApi['openDeepLink'] = (url, options) => {
+  const intent = intentForDeepLink(url, options);
   if (intent === null) {
     if (typeof url === 'string' && url.startsWith(DEEP_LINK_PREFIX)) log.warn('ignoring an unknown deep link');
     return false;

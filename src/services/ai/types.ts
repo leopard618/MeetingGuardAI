@@ -56,6 +56,11 @@ export interface AiActionPreview extends ActionPreview {
   overlapping: Meeting[];
   /** Whether Google Calendar is connected (null when not relevant / unknown). */
   calendarConnected: boolean | null;
+  /**
+   * share / update: addresses that are not participants of the meeting yet (warning 'new_people').
+   * The confirmation card lists them so a proposal can never quietly add or mail someone new.
+   */
+  newPeople?: string[];
 }
 
 type DoneResult = Extract<ActionResult, { status: 'done' }>;
@@ -139,6 +144,8 @@ export interface AssistantHookResult extends UseAssistantResult {
   /** Confirms every pending action in order; resolves with each result. */
   confirmAll(): Promise<ActionResult[]>;
   followUpInFlight: string | null;
+  /** Meetings whose follow-up was already requested (the start button is hidden for them). */
+  followUpsRequested: string[];
 }
 
 export interface AssistantController {
@@ -146,7 +153,7 @@ export interface AssistantController {
   subscribe(listener: () => void): Unsubscribe;
   /** Switches to (or clears) the signed-in user; loads the persisted thread. */
   setUid(uid: string | null): Promise<void>;
-  send(text: string): Promise<void>;
+  send(text: string, options?: { origin?: 'typed' | 'suggestion' }): Promise<void>;
   startFollowUp(meetingId: string): Promise<void>;
   retry(): Promise<void>;
   confirm(actionId: string): Promise<ActionResult>;

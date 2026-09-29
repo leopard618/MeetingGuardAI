@@ -19,7 +19,8 @@
     "cancel": "Cancelar",
     "pending_one": "{{count}} acción pendiente de tu confirmación",
     "pending_other": "{{count}} acciones pendientes de tu confirmación",
-    "reviewAll": "Revisar todas"
+    "reviewAll": "Revisar todas",
+    "followUpStart": "Obtener ideas de seguimiento"
   },
   "examples": {
     "e1": "Programa una reunión con Ana mañana a las 4 p. m.",
@@ -166,7 +167,8 @@
     "overlaps_existing": "Se solapa con otra reunión.",
     "overlaps_with": "Se solapa con: {{titles}}",
     "google_meet_needs_calendar": "Conecta Google Calendar para crear un enlace real de Google Meet. Sin él, la reunión se guarda sin enlace.",
-    "no_recipients": "No se indicó ningún destinatario de correo."
+    "no_recipients": "No se indicó ningún destinatario de correo.",
+    "new_people": "Todavía no están en esta reunión: {{emails}}. Asegúrate de que quieres incluirlos."
   },
   "results": {
     "created": "Reunión creada.",

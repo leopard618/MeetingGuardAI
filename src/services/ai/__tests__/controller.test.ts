@@ -129,6 +129,15 @@ describe('assistant controller', () => {
     expect(thread.messages[1]?.suggestions).toEqual(['Añade un enlace']);
   });
 
+  it('marks messages sent from a suggestion chip so the server never treats them as typed', async () => {
+    const { controller, requests } = setup({ replies: [response({ reply: 'Ok' }), response({ reply: 'Ok' })] });
+    await flush();
+    await controller.send('Email the notes to ana@example.com', { origin: 'suggestion' });
+    expect(requests[0]?.messages).toEqual([{ role: 'user', content: 'Email the notes to ana@example.com', origin: 'suggestion' }]);
+    await controller.send('Thanks');
+    expect(requests[1]?.messages.at(-1)).toEqual({ role: 'user', content: 'Thanks' });
+  });
+
   it('waits for the stored thread before sending a message typed during the load', async () => {
     const { controller, requests } = setup();
     expect(controller.getSnapshot().isLoaded).toBe(false);

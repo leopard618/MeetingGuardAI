@@ -412,7 +412,7 @@ function UsagePill({ usage, palette }) {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * @param {{ navigation: any, route?: { params?: { followup?: string, prefill?: string } } }} props
+ * @param {{ navigation: any, route?: { params?: { followup?: string, prefill?: string, autoStart?: boolean } } }} props
  */
 export default function AIChat({ navigation, route }) {
   const t = useT();
@@ -424,8 +424,10 @@ export default function AIChat({ navigation, route }) {
   const params = route?.params ?? {};
   const followUpMeetingId = typeof params.followup === 'string' && params.followup !== '' ? params.followup : null;
   const prefill = typeof params.prefill === 'string' ? params.prefill : '';
+  // Set only by the app's own follow-up notification: other links show a button instead.
+  const autoStartFollowUp = params.autoStart === true;
 
-  const assistant = useAssistant({ followUpMeetingId });
+  const assistant = useAssistant({ followUpMeetingId, autoStartFollowUp });
   const { plan, isLoaded: planLoaded } = useEntitlement();
   const { meeting: followUpMeeting } = useMeeting(followUpMeetingId);
 
@@ -472,6 +474,24 @@ export default function AIChat({ navigation, route }) {
     setInput('');
     void assistant.send(trimmed);
   };
+
+  /**
+   * A tapped suggestion chip: sent as-is, marked as model-written (the server never treats its
+   * links or addresses as typed by the user).
+   * @param {string} text
+   */
+  const sendSuggestion = (text) => {
+    const trimmed = text.trim();
+    if (!trimmed || assistant.isSending || !assistant.isLoaded) return;
+    void assistant.send(trimmed, { origin: 'suggestion' });
+  };
+
+  const canStartFollowUp =
+    followUpMeetingId !== null &&
+    !autoStartFollowUp &&
+    assistant.isLoaded &&
+    !assistant.isSending &&
+    !(assistant.followUpsRequested ?? []).includes(followUpMeetingId);
 
   const openMeeting = useCallback(
     /** @param {string} meetingId */
@@ -541,6 +561,16 @@ export default function AIChat({ navigation, route }) {
           <Text style={[styles.bannerText, { color: palette.info }]} numberOfLines={1}>
             {followUpTitle ? fmt.t('ai:chat.followUpFor', { title: followUpTitle }) : fmt.t('ai:chat.followUpGeneric')}
           </Text>
+          {canStartFollowUp ? (
+            <Pressable
+              onPress={() => void assistant.startFollowUp(followUpMeetingId)}
+              style={[styles.smallButton, { backgroundColor: palette.primary }]}
+              accessibilityRole="button"
+              testID="assistant-start-followup"
+            >
+              <Text style={[styles.smallButtonText, { color: palette.onPrimary }]}>{fmt.t('ai:chat.followUpStart')}</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -616,7 +646,7 @@ export default function AIChat({ navigation, route }) {
               />
             ) : null}
 
-            <SuggestionChips items={suggestions} onPress={send} palette={palette} disabled={assistant.isSending} />
+            <SuggestionChips items={suggestions} onPress={sendSuggestion} palette={palette} disabled={assistant.isSending} />
           </ScrollView>
         )}
 

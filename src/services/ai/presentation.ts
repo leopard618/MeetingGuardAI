@@ -287,10 +287,17 @@ export function describeShare(fmt: AssistantFormatter, action: ShareMeetingActio
 
 export function describeWarnings(
   fmt: AssistantFormatter,
-  preview: Pick<AiActionPreview, 'warnings' | 'missingMeetingIds'> & { overlapping?: readonly Meeting[] },
+  preview: Pick<AiActionPreview, 'warnings' | 'missingMeetingIds'> & {
+    overlapping?: readonly Meeting[];
+    newPeople?: readonly string[];
+  },
 ): string[] {
   return preview.warnings.map((warning: ActionWarning) => {
     if (warning === 'meeting_not_found') return fmt.t('ai:warnings.meeting_not_found', { count: Math.max(1, preview.missingMeetingIds.length) });
+    if (warning === 'new_people') {
+      const emails = (preview.newPeople ?? []).join(', ');
+      return fmt.t('ai:warnings.new_people', { emails, interpolation: { escapeValue: false } });
+    }
     if (warning === 'overlaps_existing') {
       const titles = (preview.overlapping ?? []).map((m) => m.title).slice(0, 3).join(', ');
       return titles ? fmt.t('ai:warnings.overlaps_with', { titles }) : fmt.t('ai:warnings.overlaps_existing');

@@ -53,6 +53,7 @@ export function buildRequestMessages(messages: readonly ChatMessage[], max: numb
     .map((m): AssistantMessage => ({
       role: m.role,
       content: m.content.length > AI_LIMITS.maxMessageChars ? m.content.slice(0, AI_LIMITS.maxMessageChars) : m.content,
+      ...(m.role === 'user' && m.origin === 'suggestion' ? { origin: 'suggestion' as const } : {}),
     }));
   return usable.slice(Math.max(0, usable.length - max));
 }

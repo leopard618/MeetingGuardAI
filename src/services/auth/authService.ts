@@ -21,9 +21,11 @@ import type {
   User as GoogleUser,
 } from '@react-native-google-signin/google-signin';
 import {
+  EmailAuthProvider,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   onAuthStateChanged as onFirebaseAuthStateChanged,
+  reauthenticateWithCredential,
   sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
@@ -290,6 +292,15 @@ async function firebaseGoogleSignIn(): Promise<SignInResult> {
   }
 }
 
+/** `details.reason` of a callable error (HttpsError details), if any. */
+function serverReason(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const details = (error as { details?: unknown }).details;
+  if (typeof details !== 'object' || details === null) return null;
+  const reason = (details as { reason?: unknown }).reason;
+  return typeof reason === 'string' ? reason : null;
+}
+
 function requireEmail(email: string): string {
   const trimmed = typeof email === 'string' ? email.trim() : '';
   if (!trimmed) throw authError('invalid_input', 'invalid_email', 'Email is required');
@@ -544,11 +555,56 @@ export const authService: AuthServiceImpl = {
     try {
       data = (await callable({ confirm: true })).data;
     } catch (error) {
+      if (serverReason(error) === 'requires_recent_login') {
+        throw authError('unauthenticated', 'requires_recent_login', 'A recent sign-in is required to delete the account', {
+          cause: error,
+        });
+      }
       throw mapFirebaseAuthError(error);
     }
     if (!deleteAccountResponseSchema.safeParse(data).success) {
       throw authError('upstream_error', 'invalid_server_response', 'Unexpected deleteAccount response');
     }
+  },
+
+  async reauthenticate(options: { password?: string } = {}): Promise<'done' | 'cancelled'> {
+    const authInstance = requireAuth();
+    const user = authInstance.currentUser;
+    if (!user) throw new AppError('unauthenticated', 'Nobody is signed in');
+    const providers = user.providerData.map((profile) => profile.providerId);
+    if (providers.includes('google.com')) {
+      if (!env.google.webClientId) {
+        throw authError('not_configured', 'google_not_configured', 'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is not set');
+      }
+      return googleQueue.run(async () => {
+        configureGoogle();
+        const account = await interactiveGoogleSignIn();
+        if (!account) return 'cancelled' as const;
+        if (!account.idToken) {
+          throw authError('not_configured', 'missing_id_token', 'Google returned no ID token');
+        }
+        try {
+          // Fails with auth/user-mismatch when another Google account was picked.
+          await reauthenticateWithCredential(user, GoogleAuthProvider.credential(account.idToken));
+        } catch (error) {
+          throw mapFirebaseAuthError(error);
+        } finally {
+          notifyGoogleAccessChanged();
+        }
+        return 'done' as const;
+      });
+    }
+    if (providers.includes('password')) {
+      if (!options.password) throw authError('invalid_input', 'missing_password', 'Password is required');
+      if (!user.email) throw authError('invalid_input', 'invalid_email', 'The account has no email');
+      try {
+        await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, options.password));
+      } catch (error) {
+        throw mapFirebaseAuthError(error);
+      }
+      return 'done';
+    }
+    throw new AppError('unsupported', 'This sign-in method cannot be confirmed in the app');
   },
 
   onGoogleAccessChanged(listener: () => void): Unsubscribe {

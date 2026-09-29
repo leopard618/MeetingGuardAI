@@ -133,11 +133,18 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     }
   }
 
+  /** Addresses that are not participants of `meeting` yet (all of them when it is unknown). */
+  function notYetOn(meeting: Meeting | undefined, emails: readonly string[]): string[] {
+    const known = new Set((meeting?.participants ?? []).map((participant) => participant.email.trim().toLowerCase()));
+    return [...new Set(emails.map((email) => email.trim().toLowerCase()))].filter((email) => !known.has(email));
+  }
+
   async function preview(action: AiAction): Promise<AiActionPreview> {
     const { found, missing } = await loadReferenced(referencedMeetingIds(action));
     const warnings: ActionWarning[] = [];
     if (missing.length > 0) warnings.push('meeting_not_found');
     let overlapping: Meeting[] = [];
+    let newPeople: string[] = [];
     const calendar: { connected: boolean | null } = { connected: null };
     const at = now();
 
@@ -157,6 +164,9 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
       }
       case 'update_meeting': {
         const meeting = found[0];
+        if (action.changes.participants) {
+          newPeople = notYetOn(meeting, action.changes.participants.map((participant) => participant.email));
+        }
         if (meeting && changesTouchTime(action.changes)) {
           const window = windowAfterChanges(meeting, action.changes);
           if (isInPast(window, at)) warnings.push('start_in_past');
@@ -181,13 +191,23 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
       }
       case 'share_meeting':
         if (action.channel === 'email' && action.recipients.length === 0) warnings.push('no_recipients');
+        if (action.channel === 'email') newPeople = notYetOn(found[0], action.recipients);
         break;
       case 'delete_meeting':
       case 'list':
         break;
     }
     if (overlapping.length > 0) warnings.push('overlaps_existing');
-    return { action, meetings: found, missingMeetingIds: missing, warnings, overlapping, calendarConnected: calendar.connected };
+    if (newPeople.length > 0) warnings.push('new_people');
+    return {
+      action,
+      meetings: found,
+      missingMeetingIds: missing,
+      warnings,
+      overlapping,
+      calendarConnected: calendar.connected,
+      newPeople,
+    };
   }
 
   /** Creates the requested Meet link; never throws. */

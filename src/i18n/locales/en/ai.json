@@ -19,7 +19,8 @@
     "cancel": "Cancel",
     "pending_one": "{{count}} action waiting for your confirmation",
     "pending_other": "{{count}} actions waiting for your confirmation",
-    "reviewAll": "Review all"
+    "reviewAll": "Review all",
+    "followUpStart": "Get follow-up ideas"
   },
   "examples": {
     "e1": "Schedule a meeting with Ana tomorrow at 4pm",
@@ -166,7 +167,8 @@
     "overlaps_existing": "This overlaps with another meeting.",
     "overlaps_with": "Overlaps with: {{titles}}",
     "google_meet_needs_calendar": "Connect Google Calendar to create a real Google Meet link. Without it, the meeting is saved without a link.",
-    "no_recipients": "No email recipients were given."
+    "no_recipients": "No email recipients were given.",
+    "new_people": "Not on this meeting yet: {{emails}}. Make sure you want to include them."
   },
   "results": {
     "created": "Meeting created.",

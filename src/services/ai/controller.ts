@@ -226,7 +226,7 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
     }
   }
 
-  async function send(text: string): Promise<void> {
+  async function send(text: string, options: { origin?: 'typed' | 'suggestion' } = {}): Promise<void> {
     const content = text.trim().slice(0, AI_LIMITS.maxMessageChars);
     if (content === '') return;
     if (!snapshot.uid) {
@@ -245,6 +245,8 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
       createdAt: new Date().toISOString(),
       actionIds: [],
       suggestions: [],
+      // Chip text is model-written: the server never treats it as typed by the user.
+      ...(options.origin === 'suggestion' ? { origin: 'suggestion' as const } : {}),
     };
     apply({ type: 'user_message', message });
     await enqueue(() => runRequest({ mode: 'chat' }, message.id));

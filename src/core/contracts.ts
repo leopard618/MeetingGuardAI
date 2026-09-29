@@ -379,8 +379,18 @@ export interface AuthService {
   requestCalendarScope(): Promise<boolean>;
   /** GoogleSignin.revokeAccess() (disconnect calendar / account deletion). */
   revokeGoogleAccess(): Promise<void>;
-  /** Calls the "deleteAccount" callable ({ confirm: true }). Local cleanup is the session manager's job. */
+  /**
+   * Calls the "deleteAccount" callable ({ confirm: true }). Local cleanup is the session manager's
+   * job. The server requires a recent sign-in: call reauthenticate() right before; otherwise it
+   * fails with AppError('unauthenticated', details.reason 'requires_recent_login').
+   */
   deleteAccountOnServer(): Promise<void>;
+  /**
+   * Confirms the signed-in user again (fresh auth_time for sensitive operations): Google accounts
+   * pick their account again (reauthenticateWithCredential), password accounts give `password`.
+   * 'cancelled' when the user dismissed the Google picker.
+   */
+  reauthenticate(options?: { password?: string }): Promise<'done' | 'cancelled'>;
 }
 
 /** Scopes requested incrementally for calendar sync. */
@@ -898,8 +908,12 @@ export type MainStackParamList = {
   Notes: undefined;
   Settings: undefined;
   Profile: undefined;
-  /** Deep link assistant?followup=<meetingId>. */
-  AIChat: { followup?: string; prefill?: string } | undefined;
+  /**
+   * Deep link assistant?followup=<meetingId>. `autoStart` is set ONLY by the app's own follow-up
+   * notification (never parsed from a URL): an external link opens the chat and offers a button,
+   * so no paid request is sent without a user action.
+   */
+  AIChat: { followup?: string; prefill?: string; autoStart?: boolean } | undefined;
   AIInsights: undefined;
   Privacy: undefined;
   Terms: undefined;
@@ -914,8 +928,11 @@ export type RouteName = keyof RootStackParamList;
 export interface NavigationApi {
   /** Navigates once the container is ready (queued before onReady / while signed out). */
   navigate<Name extends RouteName>(name: Name, params?: RootStackParamList[Name]): void;
-  /** Routes a meetingguardai:// URL (notification data.url). false if unknown. */
-  openDeepLink(url: string): boolean;
+  /**
+   * Routes a meetingguardai:// URL. false if unknown. `fromNotification` is passed only for the
+   * app's own notification responses (it lets the follow-up assistant start by itself).
+   */
+  openDeepLink(url: string, options?: { fromNotification?: boolean }): boolean;
   isReady(): boolean;
 }
 
@@ -942,7 +959,9 @@ export type ActionWarning =
   | 'start_in_past'
   | 'overlaps_existing'
   | 'google_meet_needs_calendar'
-  | 'no_recipients';
+  | 'no_recipients'
+  /** Recipients / participants that are not on the meeting yet (listed on the card). */
+  | 'new_people';
 
 export interface ActionPreview {
   action: AiAction;
@@ -985,6 +1004,8 @@ export interface AssistantChatMessage {
   /** Ids of proposed actions attached to this assistant message. */
   actionIds: string[];
   suggestions: string[];
+  /** User messages: 'suggestion' when sent by tapping a suggestion chip (model-written text). */
+  origin?: 'typed' | 'suggestion';
 }
 
 export interface ProposedActionState {
@@ -995,8 +1016,13 @@ export interface ProposedActionState {
 }
 
 export interface UseAssistantOptions {
-  /** Starts a follow-up conversation for this meeting (mode 'followup'). */
+  /** The meeting a follow-up conversation is about (mode 'followup'). */
   followUpMeetingId?: string | null;
+  /**
+   * Start the follow-up request by itself (only when the app's own follow-up notification opened
+   * the chat). Otherwise the screen offers a button (startFollowUp).
+   */
+  autoStartFollowUp?: boolean;
 }
 
 export interface UseAssistantResult {
@@ -1005,7 +1031,10 @@ export interface UseAssistantResult {
   isSending: boolean;
   error: AppError | null;
   usage: AssistantUsage | null;
-  send(text: string): Promise<void>;
+  /** `origin: 'suggestion'` for text sent by tapping a suggestion chip. */
+  send(text: string, options?: { origin?: 'typed' | 'suggestion' }): Promise<void>;
+  /** Requests the post-meeting follow-up for a meeting (once per meeting). */
+  startFollowUp(meetingId: string): Promise<void>;
   confirm(actionId: string): Promise<ActionResult>;
   reject(actionId: string): void;
   /** Re-sends the last failed request. */

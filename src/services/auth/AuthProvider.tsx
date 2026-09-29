@@ -57,6 +57,8 @@ export interface AuthContextValueImpl extends AuthContextValue {
    * calendar service. true when connected; false when the user cancelled or declined the scope.
    */
   requestCalendarAccess(): Promise<boolean>;
+  /** Confirms the user again before a sensitive operation (account deletion). */
+  reauthenticate(options?: { password?: string }): Promise<'done' | 'cancelled'>;
 }
 
 const AuthContext = createContext<AuthContextValueImpl | null>(null);
@@ -280,6 +282,10 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
   }, []);
 
   const deleteAccount = useCallback(() => sessionManager.deleteAccount(), []);
+  const reauthenticate = useCallback(
+    (options?: { password?: string }) => authService.reauthenticate(options),
+    [],
+  );
 
   const refreshUserPlan = useCallback(async (delayMs: number = 0): Promise<Plan> => {
     const uid = sessionManager.getState().status === 'active' ? sessionManager.getState().user?.uid : undefined;
@@ -326,6 +332,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       requestCalendarScope,
       requestCalendarAccess,
       deleteAccount,
+      reauthenticate,
       refreshUserPlan,
       forceRefreshUserPlan,
     }),
@@ -348,6 +355,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       requestCalendarScope,
       requestCalendarAccess,
       deleteAccount,
+      reauthenticate,
       refreshUserPlan,
       forceRefreshUserPlan,
     ],

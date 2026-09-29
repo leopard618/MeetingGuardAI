@@ -54,7 +54,9 @@ function assistantState(overrides: Partial<AssistantHookResult> = {}): Assistant
     canRetry: false,
     pendingActionIds: [],
     followUpInFlight: null,
+    followUpsRequested: [],
     send: jest.fn(async () => undefined),
+    startFollowUp: jest.fn(async () => undefined),
     confirm: jest.fn(
       async (actionId: string): Promise<ActionResult> => ({
         status: 'done',
@@ -100,12 +102,22 @@ describe('AIChat screen', () => {
     expect(state.send).toHaveBeenCalledWith('What do I have this week?');
   });
 
-  it('passes the follow-up meeting from the deep link to the hook and uses the prefill', async () => {
-    useAssistant.mockReturnValue(assistantState());
+  it('never auto-starts a follow-up from an external link: the user taps "Get follow-up ideas"', async () => {
+    const state = assistantState();
+    useAssistant.mockReturnValue(state);
     await render(<AIChat navigation={navigation} route={{ params: { followup: 'meeting_7', prefill: 'Draft text' } }} />);
-    expect(useAssistant).toHaveBeenCalledWith({ followUpMeetingId: 'meeting_7' });
+    expect(useAssistant).toHaveBeenCalledWith({ followUpMeetingId: 'meeting_7', autoStartFollowUp: false });
     expect(screen.getByDisplayValue('Draft text')).toBeTruthy();
     expect(screen.getByText('Meeting follow-up')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('assistant-start-followup'));
+    expect(state.startFollowUp).toHaveBeenCalledWith('meeting_7');
+  });
+
+  it('auto-starts the follow-up only when the app notification opened the chat', async () => {
+    useAssistant.mockReturnValue(assistantState());
+    await render(<AIChat navigation={navigation} route={{ params: { followup: 'meeting_7', autoStart: true } }} />);
+    expect(useAssistant).toHaveBeenCalledWith({ followUpMeetingId: 'meeting_7', autoStartFollowUp: true });
+    expect(screen.queryByTestId('assistant-start-followup')).toBeNull();
   });
 
   it('shows an update proposal, reviews it as a diff and confirms it', async () => {
@@ -139,7 +151,8 @@ describe('AIChat screen', () => {
     useAssistant.mockReturnValue(state);
     await render(<AIChat navigation={navigation} route={{ params: {} }} />);
     await fireEvent.press(screen.getByText('Share it with the team'));
-    expect(state.send).toHaveBeenCalledWith('Share it with the team');
+    // Model-written chip text is marked, so the server never treats it as typed by the user.
+    expect(state.send).toHaveBeenCalledWith('Share it with the team', { origin: 'suggestion' });
   });
 
   it('offers an upgrade for quota errors and retry for transient ones', async () => {
