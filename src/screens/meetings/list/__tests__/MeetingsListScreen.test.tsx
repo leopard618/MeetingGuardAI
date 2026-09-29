@@ -17,7 +17,7 @@ jest.mock('expo-localization', () => ({
   getCalendars: jest.fn(() => [{ timeZone: 'America/Mexico_City', uses24hourClock: false }]),
 }));
 jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { show: jest.fn() } }));
-jest.mock('../useNow', () => ({ useNow: () => new Date('2026-10-06T03:00:00.000Z') }));
+jest.mock('../../../shared/useLiveNow', () => ({ useLiveNow: () => new Date('2026-10-06T03:00:00.000Z') }));
 
 const mockRemove = jest.fn();
 const mockRefresh = jest.fn();

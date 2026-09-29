@@ -1,6 +1,5 @@
 {
   "chat": {
-    "title": "Asistente IA",
     "subtitle": "Programa, mueve, cancela y comparte reuniones chateando",
     "welcome": "¡Hola! Dime qué necesitas: programar, mover, cancelar o compartir una reunión, o pregúntame qué tienes en tu calendario. Siempre te mostraré exactamente qué va a cambiar y esperaré tu confirmación.",
     "examplesTitle": "Prueba a pedir",

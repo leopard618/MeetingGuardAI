@@ -16,7 +16,7 @@ import { endMs, meetingJoinLink, startMs } from '../insights/meetingInsights';
 import { Section } from '../shared/Section';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
 import { CLOCK_THRESHOLD_SECONDS, countdownDisplay, countdownTickMs, countdownTo, formatCountdownClock } from './homeModel';
-import { useLiveNow } from './useLiveNow';
+import { useLiveNow } from '../shared/useLiveNow';
 
 export interface NextMeetingCardProps {
   current: Meeting | null;

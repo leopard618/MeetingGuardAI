@@ -11,7 +11,7 @@
  */
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { StackScreenProps } from '@react-navigation/stack';
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Snackbar } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +33,7 @@ import {
   USAGE_CLOCK_MS,
   canStartFollowUp,
   chatErrorDescription,
+  confirmInOrder,
   parseChatParams,
   reviewableStates,
   sendableText,
@@ -40,6 +41,7 @@ import {
   visibleSuggestions,
 } from './chatModel';
 import { useKeyboardAvoidance } from '../shared/useKeyboardAvoidance';
+import { useLiveNow } from '../shared/useLiveNow';
 
 type Props = StackScreenProps<RootStackParamList, 'AIChat'>;
 
@@ -130,13 +132,9 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
   const [reviewIds, setReviewIds] = useState<string[] | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [now, setNow] = useState(() => new Date());
   const listRef = useRef<FlatList<ChatMessage> | null>(null);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), USAGE_CLOCK_MS);
-    return () => clearInterval(timer);
-  }, []);
+  // Daily-limit reset times; paused while another screen is on top or the app is in the background.
+  const now = useLiveNow(USAGE_CLOCK_MS);
 
   const usage = describeUsage(fmt, assistant.usage, planLoaded ? { plan, limit: PLAN_DAILY_AI_LIMITS[plan] } : null, now);
   const errorDescription = chatErrorDescription(fmt, assistant, now);
@@ -174,16 +172,15 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
   const reviewOne = (actionId: string): void => setReviewIds([actionId]);
 
   const confirmReviewed = async (): Promise<void> => {
-    const ids = reviewStates.map((state) => state.action.id);
-    if (ids.length === 0) return;
+    const items = reviewStates.map((state) => ({ id: state.action.id, type: state.action.type }));
+    if (items.length === 0) return;
     setConfirming(true);
     setReviewIds(null);
-    const results: ActionResult[] = [];
+    let results: ActionResult[] = [];
     try {
-      for (const id of ids) {
-        // Sequential: later actions may depend on earlier ones (create, then share).
-        results.push(await assistant.confirm(id));
-      }
+      // In order (later actions may depend on earlier ones); an action that fails or disappeared
+      // (conversation cleared meanwhile) becomes a failed result instead of an unhandled rejection.
+      results = await confirmInOrder(items, assistant.confirm);
     } finally {
       setConfirming(false);
     }
@@ -238,14 +235,10 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={keyboardVerticalOffset}>
         <View style={[styles.topBar, { borderBottomColor: palette.border }]}>
           <AssistantAvatar palette={palette} />
-          <View style={styles.flex}>
-            <Text style={[styles.topTitle, { color: palette.text }]} accessibilityRole="header">
-              {fmt.t('ai:chat.title')}
-            </Text>
-            <Text style={[styles.topSubtitle, { color: palette.textMuted }]} numberOfLines={2}>
-              {fmt.t('ai:chat.subtitle')}
-            </Text>
-          </View>
+          {/* The stack header already shows the screen title ("AI assistant"). */}
+          <Text style={[styles.flex, styles.topSubtitle, { color: palette.textMuted }]} numberOfLines={2}>
+            {fmt.t('ai:chat.subtitle')}
+          </Text>
           <UsagePill usage={usage} palette={palette} />
           <Pressable
             onPress={clearConversation}
@@ -399,12 +392,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  topTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
   topSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 18,
   },
   iconButton: {
     padding: 6,

@@ -1,8 +1,6 @@
 {
   "screen": {
-    "title": "Calendar sync",
-    "subtitle": "Keep MeetingGuard in step with Google Calendar and the calendars on this phone.",
-    "back": "Back"
+    "subtitle": "Keep MeetingGuard in step with Google Calendar and the calendars on this phone."
   },
   "status": {
     "lastSynced": "Last synced {{time}}",

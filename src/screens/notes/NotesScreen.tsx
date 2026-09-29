@@ -9,7 +9,7 @@
  *   meeting (the card opens that meeting). Delete asks first; notes are hard-deleted everywhere.
  */
 import type { StackScreenProps } from '@react-navigation/stack';
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { Alert, FlatList, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Chip, FAB, HelperText, Searchbar, Text, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +23,7 @@ import { useT } from '../../i18n';
 import { useMeetings, useNotes, useSyncState } from '../../services/data';
 import { formatRelative } from '../../utils/format';
 import { useFormatters } from '../shared/useFormatters';
+import { useLiveNow } from '../shared/useLiveNow';
 import { categoryIcon } from './categoryStyle';
 import { NoteCard } from './NoteCard';
 import { NoteEditor } from './NoteEditor';
@@ -36,22 +37,13 @@ type EditorState = { mode: 'create' } | { mode: 'edit'; note: Note } | null;
 
 const CLOCK_TICK_MS = 60_000;
 
-/** "now" for relative times, refreshed every minute while the screen is mounted. */
-function useMinuteClock(): Date {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), CLOCK_TICK_MS);
-    return () => clearInterval(timer);
-  }, []);
-  return now;
-}
-
 export function NotesScreen({ navigation }: Props): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
   const insets = useSafeAreaInsets();
   const fmt = useFormatters();
-  const now = useMinuteClock();
+  // "now" for relative times (paused behind other screens and in the background).
+  const now = useLiveNow(CLOCK_TICK_MS);
   const { notes, isLoading, error, create, update, remove } = useNotes();
   const { meetings, isLoading: meetingsLoading } = useMeetings();
   const sync = useSyncState();

@@ -9,6 +9,7 @@ import {
   parseChatParams,
   reviewableStates,
   sendableText,
+  confirmInOrder,
   summarizeResults,
   visibleSuggestions,
 } from '../chatModel';
@@ -135,5 +136,29 @@ describe('sendableText', () => {
     expect(sendableText('   ', { isSending: false, isLoaded: true })).toBeNull();
     expect(sendableText('hi', { isSending: true, isLoaded: true })).toBeNull();
     expect(sendableText('hi', { isSending: false, isLoaded: false })).toBeNull();
+  });
+});
+
+describe('confirmInOrder', () => {
+  it('runs the actions in order and turns a rejection into a failed result', async () => {
+    const order: string[] = [];
+    const confirm = jest.fn(async (id: string): Promise<ActionResult> => {
+      order.push(id);
+      if (id === 'b') throw new AppError('not_found', 'action no longer in the thread');
+      return { status: 'done', actionId: id, type: 'create_meeting', meetingIds: ['m1'], duplicate: false };
+    });
+    const results = await confirmInOrder(
+      [
+        { id: 'a', type: 'create_meeting' },
+        { id: 'b', type: 'share_meeting' },
+        { id: 'c', type: 'create_meeting' },
+      ],
+      confirm,
+    );
+    expect(order).toEqual(['a', 'b', 'c']);
+    expect(results.map((result) => result.status)).toEqual(['done', 'failed', 'done']);
+    const failed = results[1];
+    expect(failed).toMatchObject({ status: 'failed', actionId: 'b', type: 'share_meeting' });
+    expect(failed?.status === 'failed' ? failed.error.code : null).toBe('not_found');
   });
 });

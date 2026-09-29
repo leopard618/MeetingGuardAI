@@ -3,8 +3,9 @@
  * (error notice, suggestion chips, follow-up button, the actions under review) and the snackbar
  * summary after confirming. No React / React Native imports; unit-tested.
  */
+import type { AiActionType } from '../../core/aiContract';
 import type { ActionResult, ProposedActionState, RootStackParamList } from '../../core/contracts';
-import type { AppError } from '../../core/errors';
+import { toAppError, type AppError } from '../../core/errors';
 import { describeAssistantError, describeResult, type ErrorDescription, type Feedback } from '../../services/ai/presentation';
 import type { AssistantFormatter, ChatMessage } from '../../services/ai/types';
 
@@ -88,6 +89,27 @@ export function reviewableStates(
   return (reviewIds ?? [])
     .map((id) => actions[id])
     .filter((state): state is ProposedActionState => state !== undefined && (state.status === 'proposed' || state.status === 'failed'));
+}
+
+/**
+ * Runs confirmed actions one after the other (later ones may depend on earlier ones: create, then
+ * share). A rejection (the action is gone because the conversation was cleared meanwhile, or an
+ * unexpected error) becomes a failed result for that action and the rest still run, so the caller
+ * always gets a summary and never an unhandled rejection.
+ */
+export async function confirmInOrder(
+  items: readonly { id: string; type: AiActionType }[],
+  confirm: (actionId: string) => Promise<ActionResult>,
+): Promise<ActionResult[]> {
+  const results: ActionResult[] = [];
+  for (const item of items) {
+    try {
+      results.push(await confirm(item.id));
+    } catch (caught) {
+      results.push({ status: 'failed', actionId: item.id, type: item.type, error: toAppError(caught) });
+    }
+  }
+  return results;
 }
 
 /**

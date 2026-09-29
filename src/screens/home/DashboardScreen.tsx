@@ -35,7 +35,7 @@ import { NextMeetingCard } from './NextMeetingCard';
 import { OfflineBanner } from './OfflineBanner';
 import { QuickActions } from './QuickActions';
 import { TodayTimelineRow } from './TodayTimelineRow';
-import { useLiveNow } from './useLiveNow';
+import { useLiveNow } from '../shared/useLiveNow';
 
 const log = createLogger('home');
 

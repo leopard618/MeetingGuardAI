@@ -115,7 +115,7 @@ it('shows a loading state until the preferences are known', async () => {
   mockPreferencesLoaded = false;
   await renderScreen();
   expect(screen.getByTestId('calendar-loading')).toBeTruthy();
-  expect(screen.getByText('Calendar sync')).toBeTruthy();
+  expect(screen.getByTestId('calendar-intro')).toBeTruthy();
 });
 
 it('connects Google Calendar and reports the real first-sync counts', async () => {
@@ -260,18 +260,17 @@ it('disables "Sync now" while a sync runs', async () => {
   expect(screen.getAllByText('Syncing…').length).toBeGreaterThan(0);
 });
 
-it('goes back from the header', async () => {
+it('leaves the back arrow and the title to the stack header', async () => {
   await renderScreen();
-  await act(async () => {
-    fireEvent.press(screen.getByTestId('calendar-back'));
-  });
-  expect(navigation.goBack).toHaveBeenCalled();
+  expect(screen.queryByTestId('calendar-back')).toBeNull();
+  expect(screen.queryByText('Calendar sync')).toBeNull();
+  expect(screen.getByText('Keep MeetingGuard in step with Google Calendar and the calendars on this phone.')).toBeTruthy();
 });
 
 it('renders in Spanish and in dark mode', async () => {
   mockDarkMode = true;
   await i18n.changeLanguage('es');
   await renderScreen();
-  expect(screen.getByText('Sincronización de calendarios')).toBeTruthy();
+  expect(screen.getByText('Mantén MeetingGuard al día con Google Calendar y con los calendarios de este teléfono.')).toBeTruthy();
   expect(screen.getByText('Conectar Google Calendar')).toBeTruthy();
 });

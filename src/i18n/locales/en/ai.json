@@ -1,6 +1,5 @@
 {
   "chat": {
-    "title": "AI Assistant",
     "subtitle": "Schedule, move, cancel and share meetings by chatting",
     "welcome": "Hi! Tell me what you need: schedule, move, cancel or share a meeting, or ask what's on your calendar. I'll always show you exactly what will change and wait for your confirmation.",
     "examplesTitle": "Try asking",

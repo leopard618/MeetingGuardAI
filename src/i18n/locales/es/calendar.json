@@ -1,8 +1,6 @@
 {
   "screen": {
-    "title": "Sincronización de calendarios",
-    "subtitle": "Mantén MeetingGuard al día con Google Calendar y con los calendarios de este teléfono.",
-    "back": "Volver"
+    "subtitle": "Mantén MeetingGuard al día con Google Calendar y con los calendarios de este teléfono."
   },
   "status": {
     "lastSynced": "Última sincronización: {{time}}",

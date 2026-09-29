@@ -12,7 +12,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, SectionList, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, SectionList, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { CalendarStatus, RootStackParamList, TranslateFn } from '../../core/contracts';
@@ -32,6 +32,7 @@ import {
 import { CardBottom, CardMiddle, CardTop, ImportRow, InlineProgress, PrimaryButton, RadioRow, SyncLine, partStyles } from './CalendarSyncParts';
 import { toneColor, useCalendarPalette, type CalendarPalette } from './palette';
 import { refreshGoogleState, showCalendarError, useGoogleConnect } from './useCalendarActions';
+import { useLiveNow } from '../shared/useLiveNow';
 import { useDeviceCalendars } from './useDeviceCalendars';
 
 type Props = StackScreenProps<RootStackParamList, 'CalendarSync'>;
@@ -242,7 +243,7 @@ function DeviceRowView({
   }
 }
 
-export function CalendarSyncScreen({ navigation }: Props): ReactElement {
+export function CalendarSyncScreen(_props: Props): ReactElement {
   const t = useT();
   const { language } = useLanguage();
   const palette = useCalendarPalette();
@@ -251,13 +252,12 @@ export function CalendarSyncScreen({ navigation }: Props): ReactElement {
   const { preferences, isLoaded, update } = usePreferences();
   const devices = useDeviceCalendars(status.device.permission);
   const [busy, setBusy] = useState<Busy>(null);
-  const [now, setNow] = useState(() => new Date());
+  // "Last synced 3 min ago"; paused behind other screens and in the background.
+  const now = useLiveNow(CLOCK_MS);
   const google = useGoogleConnect();
 
   useEffect(() => {
     refreshGoogleState();
-    const timer = setInterval(() => setNow(new Date()), CLOCK_MS);
-    return () => clearInterval(timer);
   }, []);
 
   const updatePreferences = useCallback(
@@ -326,33 +326,17 @@ export function CalendarSyncScreen({ navigation }: Props): ReactElement {
     void updatePreferences({ deviceCalendarExportId: calendarId });
   };
 
-  const header = (
-    <View style={[styles.header, { borderBottomColor: palette.border }]}>
-      {navigation.canGoBack() ? (
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={t('calendar:screen.back')}
-          testID="calendar-back"
-        >
-          <MaterialIcons name="arrow-back" size={24} color={palette.text} />
-        </Pressable>
-      ) : null}
-      <View style={styles.flex}>
-        <Text style={[styles.title, { color: palette.text }]} accessibilityRole="header">
-          {t('calendar:screen.title')}
-        </Text>
-        <Text style={[styles.subtitle, { color: palette.muted }]}>{t('calendar:screen.subtitle')}</Text>
-      </View>
-    </View>
+  // The stack header (CustomHeader) shows the back arrow and the title; this is the intro line.
+  const intro = (
+    <Text style={[styles.intro, { color: palette.muted }]} testID="calendar-intro">
+      {t('calendar:screen.subtitle')}
+    </Text>
   );
 
   if (!isLoaded) {
     return (
       <View style={[styles.container, { backgroundColor: palette.background }]}>
-        {header}
+        <View style={styles.introBox}>{intro}</View>
         <View style={styles.centered} accessible accessibilityLabel={t('calendar:device.loading')} testID="calendar-loading">
           <ActivityIndicator size="large" color={palette.accent} />
         </View>
@@ -407,7 +391,6 @@ export function CalendarSyncScreen({ navigation }: Props): ReactElement {
 
   return (
     <View style={[styles.container, { backgroundColor: palette.background, paddingLeft: insets.left, paddingRight: insets.right }]}>
-      {header}
       <SectionList<Item, Section>
         sections={sections}
         keyExtractor={(item) => item.key}
@@ -418,6 +401,7 @@ export function CalendarSyncScreen({ navigation }: Props): ReactElement {
         // A handful of calendars: render them all at once (no blank rows while scrolling).
         initialNumToRender={INITIAL_ROWS}
         contentContainerStyle={[styles.content, { paddingBottom: 16 + insets.bottom }]}
+        ListHeaderComponent={intro}
         ListFooterComponent={
           <PrimaryButton
             label={syncing ? t('calendar:sync.syncing') : t('calendar:sync.now')}
@@ -448,24 +432,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  introBox: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
-  backButton: {
-    marginRight: 16,
-    padding: 4,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  subtitle: {
+  intro: {
     fontSize: 14,
     lineHeight: 20,
+    marginBottom: 16,
   },
   content: {
     padding: 16,

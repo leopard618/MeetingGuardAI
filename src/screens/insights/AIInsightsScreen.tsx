@@ -19,7 +19,7 @@ import type { Meeting } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useMeetings } from '../../services/data';
 import { OfflineBanner } from '../home/OfflineBanner';
-import { useLiveNow } from '../home/useLiveNow';
+import { useLiveNow } from '../shared/useLiveNow';
 import { Section } from '../shared/Section';
 import { useFormatters } from '../shared/useFormatters';
 import { AiSuggestionsSection } from './AiSuggestionsSection';

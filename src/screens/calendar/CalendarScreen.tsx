@@ -20,8 +20,8 @@ import { MeetingActionsSheet, useMeetingActions } from '../meetings/list/meeting
 import { MeetingListItem, sourceColor } from '../meetings/list/MeetingListItem';
 import { dayRelation, type SourceCategory } from '../meetings/list/meetingListModel';
 import { useMeetingsRefresh } from '../meetings/list/useMeetingsRefresh';
-import { useNow } from '../meetings/list/useNow';
 import { useFormatters } from '../shared/useFormatters';
+import { useLiveNow } from '../shared/useLiveNow';
 import {
   buildMonthGrid,
   dayKeyOf,
@@ -46,7 +46,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
   const insets = useSafeAreaInsets();
   const fmt = useFormatters();
   const { language } = useLanguage();
-  const now = useNow();
+  const now = useLiveNow(60_000);
   const timeZone = getDeviceTimeZone();
   const todayKey = todayInZone(timeZone, now);
   const [selectedKey, setSelectedKey] = useState(todayKey);

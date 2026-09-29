@@ -30,6 +30,7 @@ import type { Meeting } from '../../../core/types';
 import { useT } from '../../../i18n';
 import { useMeetings } from '../../../services/data';
 import { useFormatters } from '../../shared/useFormatters';
+import { useLiveNow } from '../../shared/useLiveNow';
 import { MeetingActionsSheet, useMeetingActions } from './meetingActions';
 import { MeetingListItem } from './MeetingListItem';
 import {
@@ -45,7 +46,6 @@ import {
   type SourceFilter,
 } from './meetingListModel';
 import { useMeetingsRefresh } from './useMeetingsRefresh';
-import { useNow } from './useNow';
 
 type Props = StackScreenProps<RootStackParamList, 'TotalMeetings'>;
 
@@ -54,7 +54,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
   const theme = usePaperTheme();
   const insets = useSafeAreaInsets();
   const fmt = useFormatters();
-  const now = useNow();
+  const now = useLiveNow(60_000);
   const timeZone = getDeviceTimeZone();
   const { meetings, isLoading, error, refresh } = useMeetings();
   const [filters, setFilters] = useState<MeetingFilters>(DEFAULT_FILTERS);
