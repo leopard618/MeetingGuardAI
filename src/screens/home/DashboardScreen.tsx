@@ -89,6 +89,10 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   const timeline = useMemo(() => buildTodayTimeline(meetings, context), [meetings, context]);
   const summary = useMemo(() => computeDashboardSummary(meetings, context), [meetings, context]);
   const { current, next } = useMemo(() => findNowAndNext(meetings, now), [meetings, now]);
+  // Nothing could be read (first launch offline, permission denied): say so instead of showing
+  // "no meetings" empty states next to the error (a failure is not an empty list).
+  const loadFailed = error !== null && !isLoading && meetings.length === 0;
+  const showData = !isLoading && !loadFailed;
 
   const openMeeting = useCallback((meeting: Meeting) => navigation.navigate('MeetingDetails', { meetingId: meeting.id }), [navigation]);
 
@@ -141,18 +145,20 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
           </Button>
         </View>
       ) : null}
-      {isLoading ? null : <NextMeetingCard current={current} next={next} onOpen={openMeeting} onJoin={join} />}
+      {showData ? <NextMeetingCard current={current} next={next} onOpen={openMeeting} onJoin={join} /> : null}
       <QuickActions onNewManual={() => navigation.navigate('CreateMeeting')} onNewWithAi={() => navigation.navigate('AIChat')} />
-      <View style={styles.sectionHeader}>
-        <Text variant="titleMedium" accessibilityRole="header">
-          {t('home:today.title')}
-        </Text>
-        {!isLoading ? (
-          <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }} testID="today-count">
-            {t('home:today.count', { count: summary.today.count })}
+      {loadFailed ? null : (
+        <View style={styles.sectionHeader}>
+          <Text variant="titleMedium" accessibilityRole="header">
+            {t('home:today.title')}
           </Text>
-        ) : null}
-      </View>
+          {showData ? (
+            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }} testID="today-count">
+              {t('home:today.count', { count: summary.today.count })}
+            </Text>
+          ) : null}
+        </View>
+      )}
     </View>
   );
 
@@ -163,7 +169,7 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
         {t('home:loading')}
       </Text>
     </View>
-  ) : (
+  ) : loadFailed ? null : (
     <View style={[styles.empty, { borderColor: theme.colors.outlineVariant }]} testID="today-empty">
       <Text variant="titleSmall">{t('home:today.empty')}</Text>
       <Text variant="bodySmall" style={[styles.emptyHint, { color: theme.colors.onSurfaceVariant }]}>
@@ -178,17 +184,19 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   const footer = isLoading ? null : (
     <View style={styles.footer}>
       <AlertStatusCard preferences={preferences} meetings={meetings} now={now} onOpenSettings={() => navigation.navigate('AlertSettings')} />
-      <InsightsSummaryCard
-        summary={summary}
-        onAskAssistant={() => navigation.navigate('AIChat', { prefill: t('home:insights.askPrompt') })}
-        onSeeAll={() => navigation.navigate('AIInsights')}
-      />
+      {loadFailed ? null : (
+        <InsightsSummaryCard
+          summary={summary}
+          onAskAssistant={() => navigation.navigate('AIChat', { prefill: t('home:insights.askPrompt') })}
+          onSeeAll={() => navigation.navigate('AIInsights')}
+        />
+      )}
     </View>
   );
 
   return (
     <FlatList
-      data={isLoading ? [] : timeline}
+      data={showData ? timeline : []}
       keyExtractor={(item) => item.meeting.id}
       renderItem={renderItem}
       ListHeaderComponent={header}

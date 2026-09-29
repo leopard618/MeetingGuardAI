@@ -29,7 +29,9 @@
   },
   "errorBoundary": {
     "title": "Algo salió mal",
-    "message": "Esta pantalla tuvo un problema inesperado. Inténtalo de nuevo. Si vuelve a ocurrir, cierra la app y ábrela otra vez.",
-    "retryHint": "Vuelve a cargar la pantalla"
+    "message": "MeetingGuard tuvo un problema inesperado. Inténtalo de nuevo. Si vuelve a ocurrir, cierra la app y ábrela otra vez.",
+    "retryHint": "Vuelve a cargar MeetingGuard",
+    "screenMessage": "Esta pantalla tuvo un problema inesperado. Inténtalo de nuevo o vuelve atrás. Si vuelve a ocurrir, cierra la app y ábrela otra vez.",
+    "screenRetryHint": "Vuelve a cargar la pantalla"
   }
 }

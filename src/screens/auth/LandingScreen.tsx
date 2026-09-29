@@ -10,7 +10,7 @@
  * - Scrolls, so it works with large fonts, small phones and landscape.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { useState, type ComponentProps, type ReactElement } from 'react';
@@ -54,6 +54,9 @@ export function LandingScreen(): ReactElement {
   const { signInWithGoogle } = useAuth();
   const { language, setLanguage, supportedLanguages } = useLanguage();
   const [busy, setBusy] = useState(false);
+  // Light status-bar icons only while the dark hero is on screen: expo-status-bar keeps the last
+  // mounted style, so a pushed Terms / Privacy page must not inherit it.
+  const focused = useIsFocused();
 
   const handleSignIn = async (): Promise<void> => {
     if (busy) return;
@@ -75,7 +78,7 @@ export function LandingScreen(): ReactElement {
 
   return (
     <ImageBackground source={BACKGROUND} style={styles.fill} resizeMode="cover" testID="landing-screen">
-      <StatusBar style="light" />
+      {focused ? <StatusBar style="light" /> : null}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: HERO_SCRIM }]} />
       <ScrollView
         style={styles.fill}

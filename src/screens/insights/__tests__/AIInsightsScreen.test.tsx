@@ -154,6 +154,18 @@ it('shows the loading state', async () => {
   expect(screen.getByTestId('insights-loading')).toBeTruthy();
 });
 
+it('shows a load failure with Retry instead of an empty period', async () => {
+  const refresh = jest.fn(async () => undefined);
+  mockMeetings = { meetings: [], isLoading: false, error: new AppError('offline', 'no cache'), refresh };
+  await renderInsights();
+  expect(screen.getByTestId('insights-error')).toBeTruthy();
+  expect(screen.queryByTestId('insights-empty')).toBeNull();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('insights-retry'));
+  });
+  expect(refresh).toHaveBeenCalled();
+});
+
 it('shows an empty period without AI suggestions', async () => {
   mockMeetings = { meetings: [MEETINGS[4]!], isLoading: false, error: null, refresh: jest.fn() };
   await renderInsights();

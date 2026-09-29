@@ -29,7 +29,9 @@
   },
   "errorBoundary": {
     "title": "Something went wrong",
-    "message": "This screen ran into an unexpected problem. Try again. If it keeps happening, close and reopen the app.",
-    "retryHint": "Reloads the screen"
+    "message": "MeetingGuard ran into an unexpected problem. Try again. If it keeps happening, close and reopen the app.",
+    "retryHint": "Reloads MeetingGuard",
+    "screenMessage": "This screen ran into an unexpected problem. Try again, or go back. If it keeps happening, close and reopen the app.",
+    "screenRetryHint": "Reloads the screen"
   }
 }

@@ -1,12 +1,5 @@
 import { createDefaultPreferences } from '../../../core/types';
-import {
-  buildAlertSettingsPatch,
-  clockOptionOf,
-  isSettingsDraftValid,
-  settingsDraftFromPreferences,
-  snoozeChoices,
-  is24HourFromOption,
-} from '../alertSettings';
+import { buildAlertSettingsPatch, isSettingsDraftValid, settingsDraftFromPreferences, snoozeChoices } from '../alertSettings';
 
 const prefs = createDefaultPreferences({ language: 'en', timezone: 'UTC' });
 
@@ -24,7 +17,6 @@ describe('alert settings model', () => {
       defaultAlertTimes: [30, 0],
       followUpEnabled: false,
       snoozeMinutes: 15,
-      use24HourClock: true,
     };
     expect(buildAlertSettingsPatch(prefs, draft)).toEqual({
       alertEnabled: false,
@@ -33,16 +25,15 @@ describe('alert settings model', () => {
       defaultAlertTimes: [30, 0],
       followUpEnabled: false,
       snoozeMinutes: 15,
-      use24HourClock: true,
     });
   });
 
-  it('maps the clock choice and offers the stored snooze length', () => {
-    expect(clockOptionOf(null)).toBe('auto');
-    expect(clockOptionOf(false)).toBe('12');
-    expect(is24HourFromOption('24')).toBe(true);
-    expect(is24HourFromOption('auto')).toBeNull();
+  it('offers the stored snooze length', () => {
     expect(snoozeChoices(7)).toEqual([5, 7, 10, 15, 30]);
+  });
+
+  it('leaves the clock to Settings > Time format', () => {
+    expect(buildAlertSettingsPatch({ ...prefs, use24HourClock: true }, settingsDraftFromPreferences(prefs))).toEqual({});
   });
 
   it('needs a reminder time while alerts are on and a valid snooze length', () => {

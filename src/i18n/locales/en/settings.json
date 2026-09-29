@@ -36,5 +36,12 @@
   "about": {
     "version": "MeetingGuard AI {{version}}",
     "update": "Update {{id}} · {{channel}}"
+  },
+  "timeFormat": {
+    "12": "12-hour",
+    "24": "24-hour",
+    "title": "Time format",
+    "auto": "Automatic",
+    "hint": "Used for every time in the app and in your alerts, for example {{example}}."
   }
 }

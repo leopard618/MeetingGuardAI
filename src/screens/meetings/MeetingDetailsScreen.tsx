@@ -22,6 +22,7 @@ import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
+import { useCalendarStatus } from '../../services/calendar';
 import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
 import { MeetingAttachmentsSection } from '../attachments/MeetingAttachmentsSection';
 import { alertTimeLabel } from '../onboarding/alertOptions';
@@ -66,14 +67,34 @@ export function MeetingDetailsScreen({ navigation, route }: Props): ReactElement
   const id = route.params?.meetingId ?? null;
   const { meeting, isLoading } = useMeeting(id);
   if (!meeting) return <MeetingStatus loading={id !== null && isLoading} />;
-  return <MeetingDetails meeting={meeting} onEdit={() => navigation.navigate('EditMeeting', { meetingId: meeting.id })} onDeleted={() => navigation.goBack()} />;
+  return (
+    <MeetingDetails
+      meeting={meeting}
+      onEdit={() => navigation.navigate('EditMeeting', { meetingId: meeting.id })}
+      onDeleted={() => navigation.goBack()}
+      onOpenCalendarSync={() => navigation.navigate('CalendarSync')}
+    />
+  );
 }
 
-function MeetingDetails({ meeting, onEdit, onDeleted }: { meeting: Meeting; onEdit(): void; onDeleted(): void }): ReactElement {
+function MeetingDetails({
+  meeting,
+  onEdit,
+  onDeleted,
+  onOpenCalendarSync,
+}: {
+  meeting: Meeting;
+  onEdit(): void;
+  onDeleted(): void;
+  onOpenCalendarSync(): void;
+}): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
   const fmt = useFormatters();
   const { preferences } = usePreferences();
+  const calendar = useCalendarStatus();
+  // Only the Google Calendar push creates a Meet link (never invented here).
+  const googleConnected = calendar.google.enabled && calendar.google.hasScope;
   const [deleting, setDeleting] = useState(false);
   const when = whenText(meeting, fmt);
   const isDevice = meeting.source === 'device';
@@ -188,9 +209,20 @@ function MeetingDetails({ meeting, onEdit, onDeleted }: { meeting: Meeting; onEd
               </Button>
             </View>
           ) : conference?.provider === 'google_meet' ? (
-            <HelperText type="info" visible>
-              {t('meetings:details.meetPending')}
-            </HelperText>
+            googleConnected ? (
+              <HelperText type="info" visible testID="meeting-meet-pending">
+                {t('meetings:details.meetPending')}
+              </HelperText>
+            ) : (
+              <View>
+                <HelperText type="info" visible testID="meeting-meet-needs-calendar">
+                  {t('meetings:details.meetNeedsCalendar')}
+                </HelperText>
+                <Button mode="outlined" icon="calendar-sync-outline" style={styles.action} onPress={onOpenCalendarSync} testID="meeting-connect-calendar">
+                  {t('meetings:details.connectCalendar')}
+                </Button>
+              </View>
+            )
           ) : (
             <HelperText type="info" visible>
               {t('meetings:details.noLink')}

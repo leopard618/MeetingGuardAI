@@ -10,6 +10,7 @@ import { createStackNavigator, type StackHeaderProps, type StackNavigationOption
 import { useEffect, type ReactElement, type ReactNode } from 'react';
 
 import { CustomHeader } from '../components/CustomHeader';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { RootStackParamList, RouteName } from '../core/contracts';
 import {
   OnboardingAlertsScreen,
@@ -61,6 +62,11 @@ function renderMainHeader({ route, back, navigation }: StackHeaderProps): ReactN
   return <MainHeader routeName={route.name as RouteName} onBackPress={back ? navigation.goBack : undefined} />;
 }
 
+/** A render error replaces only the failed screen (header and navigation keep working). */
+function renderScreenLayout({ children }: { children: ReactElement }): ReactElement {
+  return <ErrorBoundary scope="screen">{children}</ErrorBoundary>;
+}
+
 const HEADERLESS_OPTIONS: StackNavigationOptions = { headerShown: false };
 const MAIN_OPTIONS: StackNavigationOptions = { header: renderMainHeader };
 
@@ -97,7 +103,7 @@ export function RootNavigator(): ReactElement {
 
   if (gate === 'auth') {
     return (
-      <Stack.Navigator key="auth" initialRouteName="Landing" screenOptions={HEADERLESS_OPTIONS}>
+      <Stack.Navigator key="auth" initialRouteName="Landing" screenOptions={HEADERLESS_OPTIONS} screenLayout={renderScreenLayout}>
         <Stack.Screen name="Landing" component={LandingScreen} />
         <Stack.Screen name="Privacy" component={StandalonePrivacyScreen} />
         <Stack.Screen name="Terms" component={StandaloneTermsScreen} />
@@ -111,6 +117,7 @@ export function RootNavigator(): ReactElement {
         key="onboarding"
         initialRouteName={resume.step ?? ONBOARDING_STEPS[0]}
         screenOptions={HEADERLESS_OPTIONS}
+        screenLayout={renderScreenLayout}
       >
         <Stack.Screen name="OnboardingLanguage" component={OnboardingLanguageScreen} />
         <Stack.Screen name="OnboardingCalendars" component={OnboardingCalendarsScreen} />
@@ -125,7 +132,7 @@ export function RootNavigator(): ReactElement {
 
   return (
     <SidebarProvider>
-      <Stack.Navigator key="main" initialRouteName={MAIN_INITIAL_ROUTE} screenOptions={MAIN_OPTIONS}>
+      <Stack.Navigator key="main" initialRouteName={MAIN_INITIAL_ROUTE} screenOptions={MAIN_OPTIONS} screenLayout={renderScreenLayout}>
         <Stack.Screen name="Dashboard" component={DashboardScreen} />
         <Stack.Screen name="ChooseCreationMethod" component={ChooseCreationMethodScreen} />
         <Stack.Screen name="CreateMeeting" component={CreateMeetingScreen} />

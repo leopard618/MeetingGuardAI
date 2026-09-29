@@ -65,7 +65,7 @@ beforeEach(async () => {
   mockOpenAlarmChannelSettings.mockClear();
 });
 
-it('edits alert preferences after onboarding (vibration, follow-ups, snooze, clock) and saves only the changes', async () => {
+it('edits alert preferences after onboarding (vibration, follow-ups, snooze) and saves only the changes', async () => {
   mockUpdate.mockResolvedValue({});
   await renderScreen();
   expect(screen.getByText('Snooze length')).toBeTruthy();
@@ -77,13 +77,14 @@ it('edits alert preferences after onboarding (vibration, follow-ups, snooze, clo
   });
   await act(async () => {
     fireEvent.press(screen.getByText('15 min'));
-    fireEvent.press(screen.getByText('24-hour'));
   });
   await act(async () => {
     fireEvent.press(screen.getByTestId('alert-settings-save'));
   });
 
-  expect(mockUpdate).toHaveBeenCalledWith({ vibrationEnabled: false, followUpEnabled: false, snoozeMinutes: 15, use24HourClock: true });
+  expect(mockUpdate).toHaveBeenCalledWith({ vibrationEnabled: false, followUpEnabled: false, snoozeMinutes: 15 });
+  // The time format lives in Settings now.
+  expect(screen.queryByText('24-hour')).toBeNull();
   expect(await screen.findByTestId('home')).toBeTruthy();
 });
 

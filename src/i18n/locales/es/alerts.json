@@ -112,12 +112,6 @@
       "label": "Seguimiento después de las reuniones",
       "description": "5 minutos después de que termine una reunión, recibe ideas de seguimiento del asistente de IA."
     },
-    "clock": {
-      "12": "12 horas",
-      "24": "24 horas",
-      "label": "Formato de hora",
-      "auto": "Automático"
-    },
     "dnd": {
       "title": "No molestar",
       "androidDescription": "Las alertas máximas solo pueden sonar con No molestar activado si lo permites: abre los ajustes de las alertas máximas y activa «Ignorar No molestar».",

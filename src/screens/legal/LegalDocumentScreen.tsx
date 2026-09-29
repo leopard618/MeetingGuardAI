@@ -8,6 +8,7 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 import { useMemo, type ReactElement } from 'react';
 import { FlatList, Linking, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,7 +68,7 @@ function Paragraphs({ paragraphs, colors, muted = false }: { paragraphs: string[
 export function LegalDocumentScreen({ document, standalone = false }: LegalDocumentScreenProps): ReactElement {
   const t = useT();
   const { language } = useLanguage();
-  const { colors } = useTheme();
+  const { colors, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
   const layout = useResponsive();
   const navigation = useNavigation();
@@ -148,6 +149,8 @@ export function LegalDocumentScreen({ document, standalone = false }: LegalDocum
         <View
           style={[styles.topBar, { paddingTop: insets.top, backgroundColor: colors.surface, borderBottomColor: colors.border }]}
         >
+          {/* Its own status bar style: the screen below (Landing) may have set light icons. */}
+          <StatusBar style={isDarkMode ? 'light' : 'dark'} />
           <View style={styles.topBarRow}>
             {navigation.canGoBack() ? (
               <Pressable

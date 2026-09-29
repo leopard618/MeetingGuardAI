@@ -13,6 +13,8 @@
     "location": "Lugar",
     "videoCall": "Videollamada",
     "meetPending": "El enlace de Google Meet se crea cuando la reunión se sincroniza con Google Calendar.",
+    "meetNeedsCalendar": "Todavía no hay enlace de Google Meet. MeetingGuard solo lo crea a través de Google Calendar: conéctalo, o edita la reunión y pega un enlace.",
+    "connectCalendar": "Conectar Google Calendar",
     "noLink": "Todavía no hay enlace. Edita la reunión para pegar uno.",
     "password": "Código de acceso: {{password}}",
     "participants_one": "{{count}} participante",

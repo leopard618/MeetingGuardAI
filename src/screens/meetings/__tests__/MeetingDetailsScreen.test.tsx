@@ -20,6 +20,11 @@ jest.mock('../../attachments/MeetingAttachmentsSection', () => {
   return { MeetingAttachmentsSection: ({ meetingId }: { meetingId: string }) => <MockText testID={`attachments-${meetingId}`} /> };
 });
 
+let mockGoogleConnected = true;
+jest.mock('../../../services/calendar', () => ({
+  useCalendarStatus: () => ({ google: { enabled: mockGoogleConnected, hasScope: mockGoogleConnected }, device: { enabled: false } }),
+}));
+
 const mockRemove = jest.fn();
 let mockMeeting: Meeting | null = null;
 let mockUse24Hour: boolean | null = null;
@@ -60,6 +65,10 @@ function EditStub() {
   return <Text testID="edit-screen">edit</Text>;
 }
 
+function CalendarSyncStub() {
+  return <Text testID="calendar-sync-screen">calendar sync</Text>;
+}
+
 async function renderDetails() {
   await render(
     <I18nProvider>
@@ -68,6 +77,7 @@ async function renderDetails() {
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="MeetingDetails" component={MeetingDetailsScreen} initialParams={{ meetingId: 'm1' }} />
             <Stack.Screen name="EditMeeting" component={EditStub} />
+            <Stack.Screen name="CalendarSync" component={CalendarSyncStub} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
@@ -86,6 +96,7 @@ beforeEach(async () => {
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   mockRemove.mockReset();
   mockUse24Hour = null;
+  mockGoogleConnected = true;
   mockMeeting = meeting();
 });
 
@@ -140,4 +151,23 @@ it('formats the time in the UI language and the 24-hour preference', async () =>
   await renderDetails();
   // (The year is shown only when it is not the current year.)
   expect(screen.getByTestId('meeting-when').props.children).toMatch(/^mar, 6 oct( 2026)? · 15:00 – 16:00$/);
+});
+
+it('promises a Meet link only when Google Calendar is connected, else offers to connect it', async () => {
+  mockMeeting = meeting({ conference: { provider: 'google_meet', url: null, password: null }, source: 'manual', external: {} });
+  await renderDetails();
+  expect(screen.getByTestId('meeting-meet-pending')).toBeTruthy();
+  expect(screen.queryByTestId('meeting-connect-calendar')).toBeNull();
+});
+
+it('asks to connect Google Calendar for a Meet meeting without sync', async () => {
+  mockGoogleConnected = false;
+  mockMeeting = meeting({ conference: { provider: 'google_meet', url: null, password: null }, source: 'manual', external: {} });
+  await renderDetails();
+  expect(screen.queryByTestId('meeting-meet-pending')).toBeNull();
+  expect(screen.getByTestId('meeting-meet-needs-calendar')).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('meeting-connect-calendar'));
+  });
+  expect(await screen.findByTestId('calendar-sync-screen')).toBeTruthy();
 });

@@ -112,12 +112,6 @@
       "label": "Post-meeting follow-ups",
       "description": "5 minutes after a meeting ends, get follow-up ideas from the AI assistant."
     },
-    "clock": {
-      "12": "12-hour",
-      "24": "24-hour",
-      "label": "Time format",
-      "auto": "Automatic"
-    },
     "dnd": {
       "title": "Do Not Disturb",
       "androidDescription": "Maximum alerts can ring during Do Not Disturb only if you allow it: open the settings of the maximum alerts and turn on “Override Do Not Disturb”.",

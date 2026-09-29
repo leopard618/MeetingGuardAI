@@ -191,6 +191,21 @@ it('shows an empty day with a create button', async () => {
   expect(screen.getByTestId('insight-all-clear')).toBeTruthy();
 });
 
+it('shows only the error, with Retry, when no meetings could be read (not "no meetings")', async () => {
+  const refresh = jest.fn(async () => undefined);
+  mockMeetings = meetingsResult([], { error: new AppError('permission_denied', 'rules'), refresh });
+  await renderDashboard();
+  expect(screen.getByTestId('dashboard-error')).toBeTruthy();
+  expect(screen.queryByTestId('today-empty')).toBeNull();
+  expect(screen.queryByText('No upcoming meetings')).toBeNull();
+  expect(screen.queryByTestId('insight-all-clear')).toBeNull();
+  expect(screen.queryByTestId('today-count')).toBeNull();
+  await act(async () => {
+    fireEvent.press(screen.getByText('Try again'));
+  });
+  expect(refresh).toHaveBeenCalled();
+});
+
 it('shows the loading state until the meetings are known', async () => {
   mockMeetings = meetingsResult([], { isLoading: true });
   await renderDashboard();

@@ -9,11 +9,13 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useMemo, useState, type ReactElement } from 'react';
 import { Pressable, SectionList, StyleSheet, View, type SectionListData } from 'react-native';
-import { ActivityIndicator, SegmentedButtons, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { ActivityIndicator, Button, SegmentedButtons, Text, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
 import type { RootStackParamList } from '../../core/contracts';
-import { errorMessageKey } from '../../core/errors';
+import { errorMessageKey, toAppError } from '../../core/errors';
+import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
@@ -31,6 +33,8 @@ import {
   type MeetingPair,
   type PeriodInsights,
 } from './meetingInsights';
+
+const log = createLogger('insights');
 
 type Props = StackScreenProps<RootStackParamList, 'AIInsights'>;
 
@@ -179,8 +183,9 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
   const insets = useSafeAreaInsets();
   const fmt = useFormatters();
   const { language } = useLanguage();
-  const { meetings, isLoading, error } = useMeetings();
+  const { meetings, isLoading, error, refresh } = useMeetings();
   const [period, setPeriod] = useState<InsightPeriod>('week');
+  const [retrying, setRetrying] = useState(false);
   const now = useLiveNow(60_000);
   const timeZone = getDeviceTimeZone();
 
@@ -191,6 +196,21 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
 
   const openMeeting = (meeting: Meeting): void => navigation.navigate('MeetingDetails', { meetingId: meeting.id });
   const hasMeetings = !isLoading && insights.count > 0;
+  // Nothing could be read: show the failure (with Retry), not an empty period.
+  const loadFailed = error !== null && !isLoading && meetings.length === 0;
+
+  const retry = async (): Promise<void> => {
+    setRetrying(true);
+    try {
+      await refresh();
+    } catch (caught) {
+      const failure = toAppError(caught);
+      log.warn('meeting refresh failed', failure.code);
+      Toast.show({ type: 'error', text1: t('insights:loadError', { reason: t(errorMessageKey(failure.code)) }) });
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const sections: PairSection[] = hasMeetings
     ? [
@@ -224,10 +244,22 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
         {t('insights:range', { from: fmt.date(insights.range.from, 'medium'), to: fmt.date(insights.range.to, 'medium') })}
       </Text>
       {error ? (
-        <View style={[styles.errorBox, { backgroundColor: theme.colors.errorContainer }]} accessibilityRole="alert">
+        <View style={[styles.errorBox, { backgroundColor: theme.colors.errorContainer }]} accessibilityRole="alert" testID="insights-error">
           <Text variant="bodyMedium" style={{ color: theme.colors.onErrorContainer }}>
             {t('insights:loadError', { reason: t(errorMessageKey(error.code)) })}
           </Text>
+          <Button
+            mode="text"
+            compact
+            onPress={() => void retry()}
+            loading={retrying}
+            disabled={retrying}
+            textColor={theme.colors.onErrorContainer}
+            style={styles.retry}
+            testID="insights-retry"
+          >
+            {t('common:actions.retry')}
+          </Button>
         </View>
       ) : null}
       {isLoading ? (
@@ -237,7 +269,7 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
             {t('insights:loading')}
           </Text>
         </View>
-      ) : hasMeetings ? (
+      ) : loadFailed ? null : hasMeetings ? (
         <View>
           <Stats insights={insights} />
           <LoadByDay insights={insights} />
@@ -312,6 +344,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
+  },
+  retry: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
   },
   loading: {
     alignItems: 'center',

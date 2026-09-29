@@ -33,10 +33,16 @@ jest.mock('../../../services/auth', () => {
     }),
   };
 });
+const mockUpdatePreferences = jest.fn(async () => ({}));
 jest.mock('../../../services/data', () => {
   const { createDefaultPreferences: defaults } = jest.requireActual('../../../core/types');
   return {
-    usePreferences: () => ({ preferences: defaults({ language: 'en', timezone: 'UTC' }), isLoaded: true, error: null }),
+    usePreferences: () => ({
+      preferences: defaults({ language: 'en', timezone: 'UTC' }),
+      isLoaded: true,
+      error: null,
+      update: (...args: unknown[]) => mockUpdatePreferences(...(args as [])),
+    }),
   };
 });
 
@@ -70,6 +76,7 @@ beforeEach(async () => {
   mockDeleteAccount.mockReset();
   (Toast.show as jest.Mock).mockClear();
   mockProviders = ['google.com'];
+  mockUpdatePreferences.mockClear();
 });
 
 afterEach(() => {
@@ -142,4 +149,19 @@ it('links to the alert settings', async () => {
   await renderSettings();
   expect(screen.getByText('Alert settings')).toBeTruthy();
   expect(screen.getByText(/Maximum · 15 min before, 5 min before, At start/)).toBeTruthy();
+});
+
+it('sets the time format for the whole app next to the language', async () => {
+  await renderSettings();
+  expect(screen.getByText('Time format')).toBeTruthy();
+  expect(screen.getByText(/for example 3:30/)).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('settings-time-format-24'));
+  });
+  expect(mockUpdatePreferences).toHaveBeenCalledWith({ use24HourClock: true });
+  // "Automatic" is the stored value already: nothing to write.
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('settings-time-format-auto'));
+  });
+  expect(mockUpdatePreferences).toHaveBeenCalledTimes(1);
 });

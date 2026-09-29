@@ -2,7 +2,7 @@
  * Alert preferences form shared by onboarding step 3 and Settings > Alerts:
  * master switch, intensity (+ visual preview and an audible sample), sound type (with the
  * "voice needs the app open" note), volume, vibration and default reminder times. `extended`
- * (settings screen) adds the snooze length, post-meeting follow-ups and the 12 h / 24 h clock.
+ * (settings screen) adds the snooze length and post-meeting follow-ups.
  *
  * AlertDeliverySection: notification permission, Android exact alarms and the MAX channel's
  * "Override Do Not Disturb" setting, and the iOS Focus explanation.
@@ -37,7 +37,7 @@ import {
 import { Section } from '../shared/Section';
 import type { AlertPermissionState, AlertSample } from './alertHooks';
 import { useOpenSystemSettings } from './alertHooks';
-import { CLOCK_OPTIONS, clockOptionOf, snoozeChoices, is24HourFromOption, type AlertSettingsDraft, type ClockOption } from './alertSettings';
+import { snoozeChoices, type AlertSettingsDraft } from './alertSettings';
 
 export interface AlertPreferencesFormProps<D extends AlertDraft> {
   draft: D;
@@ -169,7 +169,7 @@ export function AlertPreferencesForm<D extends AlertDraft>({ draft, onChange, sa
   );
 }
 
-/** Settings-only fields: snooze length, post-meeting follow-ups, clock. */
+/** Settings-only fields: snooze length and post-meeting follow-ups. */
 export function AlertExtraSettings({
   draft,
   onChange,
@@ -204,14 +204,6 @@ export function AlertExtraSettings({
             testID="alerts-followup"
           />
         </View>
-      </Section>
-
-      <Section title={t('alerts:settings.clock.label')}>
-        <SegmentedButtons
-          value={clockOptionOf(draft.use24HourClock)}
-          onValueChange={(value) => onChange({ use24HourClock: is24HourFromOption(value as ClockOption) })}
-          buttons={CLOCK_OPTIONS.map((option) => ({ value: option, label: t(`alerts:settings.clock.${option}`) }))}
-        />
       </Section>
     </View>
   );

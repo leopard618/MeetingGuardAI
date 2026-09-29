@@ -4,9 +4,14 @@
  * reporter; nothing is sent when Sentry is not configured) and shows a localized, theme-aware
  * fallback with "Try again" (remounts the children).
  *
- * It sits OUTSIDE the other providers at the root (core/contracts PROVIDER_ORDER), so the fallback
- * only relies on things that work without them: i18next's global instance, the optional theme
- * (else the OS scheme) and the optional safe-area context.
+ * Two scopes:
+ * - 'app' (default): OUTSIDE the other providers at the root (core/contracts PROVIDER_ORDER). Its
+ *   fallback replaces the whole app, so it says so, and "Try again" remounts every provider.
+ * - 'screen': around each screen of the root stack (RootNavigator `screenLayout`). Only the failed
+ *   screen is replaced; the header (back arrow, menu) keeps working and "Try again" remounts just
+ *   that screen.
+ * The fallback only relies on things that work without the other providers: i18next's global
+ * instance, the optional theme (else the OS scheme) and the optional safe-area context.
  */
 import { MaterialIcons } from '@expo/vector-icons';
 import { Component, useContext, type ErrorInfo, type ReactElement, type ReactNode } from 'react';
@@ -19,12 +24,15 @@ import { useT } from '../i18n';
 
 const log = createLogger('ui');
 
+export type ErrorBoundaryScope = 'app' | 'screen';
+
 export interface ErrorFallbackProps {
   error: Error;
   onRetry(): void;
+  scope?: ErrorBoundaryScope;
 }
 
-export function ErrorFallback({ error, onRetry }: ErrorFallbackProps): ReactElement {
+export function ErrorFallback({ error, onRetry, scope = 'app' }: ErrorFallbackProps): ReactElement {
   const t = useT();
   const theme = useOptionalTheme();
   const systemScheme = useColorScheme();
@@ -44,7 +52,9 @@ export function ErrorFallback({ error, onRetry }: ErrorFallbackProps): ReactElem
       <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
         {t('shell:errorBoundary.title')}
       </Text>
-      <Text style={[styles.message, { color: colors.textSecondary }]}>{t('shell:errorBoundary.message')}</Text>
+      <Text style={[styles.message, { color: colors.textSecondary }]}>
+        {scope === 'screen' ? t('shell:errorBoundary.screenMessage') : t('shell:errorBoundary.message')}
+      </Text>
       {__DEV__ ? (
         <View style={[styles.details, { backgroundColor: colors.surfaceVariant }]}>
           <Text style={[styles.detailsText, { color: colors.danger }]} selectable>
@@ -56,7 +66,7 @@ export function ErrorFallback({ error, onRetry }: ErrorFallbackProps): ReactElem
         onPress={onRetry}
         style={({ pressed }) => [styles.button, { backgroundColor: colors.primary }, pressed && styles.pressed]}
         accessibilityRole="button"
-        accessibilityHint={t('shell:errorBoundary.retryHint')}
+        accessibilityHint={scope === 'screen' ? t('shell:errorBoundary.screenRetryHint') : t('shell:errorBoundary.retryHint')}
         testID="error-boundary-retry"
       >
         <Text style={[styles.buttonText, { color: colors.onPrimary }]}>{t('common:actions.retry')}</Text>
@@ -69,6 +79,8 @@ export interface ErrorBoundaryProps {
   children?: ReactNode;
   /** Called before the children are remounted by "Try again". */
   onReset?: () => void;
+  /** What the fallback replaces (wording): the whole app (default) or one screen. */
+  scope?: ErrorBoundaryScope;
 }
 
 interface ErrorBoundaryState {
@@ -99,7 +111,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   render(): ReactNode {
     const { error } = this.state;
-    if (error) return <ErrorFallback error={error} onRetry={this.reset} />;
+    if (error) return <ErrorFallback error={error} onRetry={this.reset} scope={this.props.scope} />;
     return this.props.children;
   }
 }
