@@ -61,13 +61,15 @@ grants the function's service account access to it. To rotate it, set a new vers
 | `OPENAI_REASONING_EFFORT` | `low` | `none`, `minimal`, `low`, `medium` or `high`. Use `omit` for non-reasoning models such as `gpt-4.1-mini`, which reject the parameter. |
 | `ASSISTANT_GLOBAL_DAILY_LIMIT` | `5000` | Project-wide cap on assistant requests per UTC day that reach OpenAI (spend safeguard on top of the per-user quota). `0` disables it. Also set an OpenAI usage limit and a GCP budget alert. |
 
-Every param has a default, so no configuration file is required. To override them per project,
-create `functions/.env.<projectId>`:
+Every param has a default, but the CLI only uses values it finds in a dotenv file. Without
+`functions/.env.<projectId>`, an interactive `firebase deploy` asks for each param (press Enter to take
+the default) and a non-interactive deploy (CI) fails. So create the file once per project:
 
 ```dotenv
 OPENAI_MODEL=gpt-5.4-mini
 OPENAI_REASONING_EFFORT=low
 FUNCTIONS_REGION=us-central1
+ASSISTANT_GLOBAL_DAILY_LIMIT=5000
 ```
 
 The repository's `.gitignore` ignores `.env.*`, so these files stay on the machine that deploys.
