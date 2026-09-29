@@ -16,6 +16,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import Toast from 'react-native-toast-message';
 
 import { AlertHost } from '../components/alerts';
+import { toastConfig } from '../components/AppToast';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ThemeProvider, useAppThemes } from '../contexts/ThemeContext';
 import { toAppError } from '../core/errors';
@@ -56,7 +57,8 @@ function ThemedApp(): ReactElement {
             <RootNavigator />
             <AlertHost />
           </NavigationContainer>
-          <Toast topOffset={insets.top + 8} />
+          {/* Themed, multi-line layouts (the library default is one white line). */}
+          <Toast topOffset={insets.top + 8} config={toastConfig} />
           <StatusBar style={statusBarStyle} />
         </DataProvider>
       </AuthProvider>
