@@ -36,6 +36,7 @@ jest.mock('../../../contexts/ThemeContext', () => ({
 jest.mock('../../data', () => ({
   useEntitlement: jest.fn(() => ({ plan: 'free', isLoaded: true, entitlement: { plan: 'free' } })),
   useMeeting: jest.fn(() => ({ meeting: null, isLoading: false, error: null })),
+  usePreferences: jest.fn(() => ({ preferences: { use24HourClock: true }, isLoaded: true, error: null })),
 }));
 
 jest.mock('..', () => ({ useAssistant: jest.fn() }));

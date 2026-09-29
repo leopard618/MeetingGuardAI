@@ -110,5 +110,30 @@
   "refill": {
     "title": "Mantén al día tus alertas de reuniones",
     "body": "Abre MeetingGuard para que programe tus próximas alertas."
+  },
+  "settings": {
+    "voiceNeedsApp": "La lectura por voz necesita la app abierta. Con la app cerrada, las alertas reproducen el sonido de la notificación.",
+    "saved": "Ajustes de alertas guardados.",
+    "snooze": {
+      "label": "Duración del aplazamiento",
+      "minutes_one": "{{count}} min",
+      "minutes_other": "{{count}} min"
+    },
+    "followUp": {
+      "label": "Seguimiento después de las reuniones",
+      "description": "5 minutos después de que termine una reunión, recibe ideas de seguimiento del asistente de IA."
+    },
+    "clock": {
+      "label": "Formato de hora",
+      "auto": "Automático",
+      "12": "12 horas",
+      "24": "24 horas"
+    },
+    "dnd": {
+      "title": "No molestar",
+      "androidDescription": "Las alertas máximas solo pueden sonar con No molestar activado si lo permites: abre los ajustes de las alertas máximas y activa «Ignorar No molestar».",
+      "iosDescription": "Para recibir alertas durante un modo de concentración, añade MeetingGuard a las apps permitidas en Ajustes > Concentración.",
+      "open": "Permitir que las alertas máximas ignoren No molestar"
+    }
   }
 }

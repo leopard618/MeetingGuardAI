@@ -13,7 +13,10 @@
     "close": "Cerrar",
     "openSettings": "Abrir ajustes",
     "signOut": "Cerrar sesión",
-    "signOutAnyway": "Cerrar sesión de todos modos"
+    "signOutAnyway": "Cerrar sesión de todos modos",
+    "save": "Guardar",
+    "edit": "Editar",
+    "delete": "Eliminar"
   },
   "language": {
     "label": "Idioma",

@@ -1,0 +1,39 @@
+{
+  "account": {
+    "title": "Account",
+    "signedInAs": "Signed in as {{email}}",
+    "signedIn": "Signed in",
+    "deleteDescription": "Permanently delete your account and all your data",
+    "confirmIdentityTitle": "Confirm it's you",
+    "confirmIdentityPassword": "For your security, enter your password to delete your account.",
+    "passwordLabel": "Password"
+  },
+  "alerts": {
+    "title": "Alerts",
+    "open": "Alert settings",
+    "summaryOn": "{{intensity}} · {{times}}",
+    "summaryOff": "Alerts are off"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "language": {
+    "title": "Language"
+  },
+  "calendar": {
+    "title": "Calendars",
+    "sync": "Calendar sync",
+    "syncDescription": "Google Calendar and the calendars on this device"
+  },
+  "legal": {
+    "title": "Legal",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service"
+  },
+  "about": {
+    "version": "MeetingGuard AI {{version}}"
+  }
+}

@@ -14,13 +14,12 @@ import {
   Card,
   Title,
   Paragraph,
-  Button,
   FAB,
   ActivityIndicator,
 } from "react-native-paper";
-import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
 import { Meeting } from '../api/entities';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, parseISO } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday } from "date-fns";
 import { es, enUS } from "date-fns/locale";
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from '../components/translations.jsx';
@@ -31,8 +30,8 @@ import {
   getResponsiveCardDimensions,
   getDeviceType 
 } from '../utils/responsive.js';
-import GoogleCalendarService from '../api/googleCalendar';
-import { useGoogleAuth } from '../hooks/useGoogleAuth';
+import { useT } from '../i18n';
+import { useFormatters } from '../screens/shared/useFormatters';
 import { safeStringify } from '../utils/index.ts';
 
 const { width } = Dimensions.get('window');
@@ -40,96 +39,38 @@ const { width } = Dimensions.get('window');
 export default function Calendar({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
   const { t } = useTranslation(language);
-  const googleAuth = useGoogleAuth();
-  
+  const tr = useT();
+  const fmt = useFormatters();
+
   const [meetings, setMeetings] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
-  const [googleCalendarStatus, setGoogleCalendarStatus] = useState(null);
-  const [googleMeetings, setGoogleMeetings] = useState([]);
 
   const locale = language === "es" ? es : enUS;
 
-
   useEffect(() => {
     loadMeetings();
-    checkGoogleCalendarStatus();
-  }, [language]);
+  }, []);
 
+  // Every meeting (MeetingGuard, Google Calendar and device-calendar imports) comes from the data
+  // layer; `sourceKey` says where it came from.
   const loadMeetings = async () => {
     setIsLoading(true);
     try {
-      const allMeetings = await Meeting.list("-created_date");
-      setMeetings(allMeetings);
+      setMeetings(await Meeting.list("-created_date"));
     } catch (error) {
-      console.error("Error loading meetings:", error);
+      console.error("Error loading meetings:", error?.code || error?.name);
       Alert.alert(t('common.error'), t('calendar.loadError'));
     }
     setIsLoading(false);
   };
 
-  const checkGoogleCalendarStatus = async () => {
-    try {
-      // Check if user is signed in to Google
-      const isSignedIn = googleAuth.isSignedIn;
-      
-      if (isSignedIn) {
-        try {
-          // Get Google Calendar info
-          const calendarInfo = await GoogleCalendarService.getCalendarInfo();
-          setGoogleCalendarStatus(calendarInfo);
-          
-          // Load Google Calendar meetings
-          const todayMeetings = await GoogleCalendarService.getTodayMeetings();
-          const upcomingMeetings = await GoogleCalendarService.getUpcomingMeetings(7);
-          setGoogleMeetings([...todayMeetings, ...upcomingMeetings]);
-        } catch (calendarError) {
-          console.error("Error fetching Google Calendar data:", calendarError);
-          setGoogleMeetings([]);
-          setGoogleCalendarStatus({ isAuthenticated: false, isInitialized: false });
-        }
-      } else {
-        setGoogleMeetings([]);
-        setGoogleCalendarStatus({ isAuthenticated: false, isInitialized: false });
-      }
-    } catch (error) {
-      console.error("Error checking Google Calendar status:", error);
-      setGoogleMeetings([]);
-      setGoogleCalendarStatus({ isAuthenticated: false, isInitialized: false });
-    }
-  };
-
-  const refreshCalendar = async () => {
-    await loadMeetings();
-    await checkGoogleCalendarStatus();
-  };
-
+  /** Meetings on a calendar day (the view's `date` is the local calendar date), by start time. */
   const getMeetingsForDate = (date) => {
     const dateString = format(date, 'yyyy-MM-dd');
-    
-    // Get local meetings
-    const localMeetings = meetings.filter(meeting => meeting.date === dateString);
-    
-    // Get Google Calendar meetings
-    const googleMeetingsForDate = googleMeetings.filter(meeting => {
-      const meetingDate = format(new Date(meeting.start?.dateTime || meeting.start?.date), 'yyyy-MM-dd');
-      return meetingDate === dateString;
-    });
-    
-    // Combine and mark source
-    const allMeetings = [
-      ...localMeetings.map(m => ({ ...m, source: 'local' })),
-      ...googleMeetingsForDate.map(m => ({ 
-        ...m, 
-        source: 'google',
-        title: m.summary || m.title,
-        time: m.start?.dateTime ? format(new Date(m.start.dateTime), 'HH:mm') : '00:00',
-        duration: m.duration ? Math.round(m.duration / 60000) : 60, // Convert ms to minutes
-        date: format(new Date(m.start?.dateTime || m.start?.date), 'yyyy-MM-dd')
-      }))
-    ];
-    
-    return allMeetings;
+    return meetings
+      .filter(meeting => meeting.date === dateString)
+      .sort((a, b) => Date.parse(a.startTime || 0) - Date.parse(b.startTime || 0));
   };
 
   const navigateMonth = (direction) => {
@@ -142,27 +83,12 @@ export default function Calendar({ navigation, language = "en" }) {
     setCurrentDate(new Date());
   };
 
-  const handleMeetingClick = (meeting) => {
-    Alert.alert(
-      meeting.title,
-              `${meeting.description}\n\nTime: ${meeting.time}\nDuration: ${meeting.duration} minutes\nLocation: ${typeof meeting.location === 'string' ? meeting.location : (meeting.location?.address || 'Not specified')}`,
-      [
-        { text: t('common.close'), style: "cancel" },
-        { text: t('common.edit'), onPress: () => navigation.navigate('CreateMeeting', { meeting }) }
-      ]
-    );
+  const openMeeting = (meeting) => {
+    navigation.navigate('MeetingDetails', { meetingId: meeting.id });
   };
 
-  const formatTime = (timeString) => {
-    try {
-      const [hours, minutes] = timeString.split(':');
-      const date = new Date();
-      date.setHours(parseInt(hours), parseInt(minutes));
-      return format(date, 'h:mm a');
-    } catch (error) {
-      return timeString;
-    }
-  };
+  /** Locale-aware start time (UI language + the 12 h / 24 h preference). */
+  const meetingTime = (meeting) => (meeting.allDay ? tr('common:format.allDay') : fmt.time(meeting.startTime) || meeting.time);
 
   const renderCalendarGrid = () => {
     const start = startOfMonth(currentDate);
@@ -180,22 +106,32 @@ export default function Calendar({ navigation, language = "en" }) {
 
     const allDays = [...paddingDays, ...days];
     const dayWidth = (width - 40) / 7; // 40 for padding
+    // Localized weekday headers (Sunday first, like the grid).
+    const weekStart = new Date(start);
+    weekStart.setDate(start.getDate() - start.getDay());
+    const weekdayLabels = Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(weekStart);
+      day.setDate(weekStart.getDate() + index);
+      return format(day, 'EEEEEE', { locale });
+    });
 
     return (
       <View style={styles.calendarGrid}>
         {/* Day headers */}
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <View key={day} style={[styles.dayHeader, { width: dayWidth }]}>
+        {weekdayLabels.map((day, index) => (
+          <View key={`${index}-${day}`} style={[styles.dayHeader, { width: dayWidth }]}>
             <Text style={styles.dayHeaderText}>{day}</Text>
           </View>
         ))}
-        
+
         {/* Calendar days */}
         {allDays.map((date, index) => {
           const dayMeetings = getMeetingsForDate(date);
+          const googleCount = dayMeetings.filter(m => m.sourceKey === 'google').length;
+          const otherCount = dayMeetings.length - googleCount;
           const isCurrentMonth = isSameMonth(date, currentDate);
           const isTodayDate = isToday(date);
-          
+
           return (
             <TouchableOpacity
               key={index}
@@ -208,8 +144,8 @@ export default function Calendar({ navigation, language = "en" }) {
               onPress={() => {
                 if (dayMeetings.length > 0) {
                   Alert.alert(
-                    `${format(date, 'MMMM d, yyyy')}`,
-                    `${dayMeetings.length} meeting${dayMeetings.length > 1 ? 's' : ''} scheduled`,
+                    fmt.date(date, 'full'),
+                    tr('meetings:calendarView.count', { count: dayMeetings.length }),
                     [
                       { text: t('common.close'), style: "cancel" },
                       { text: t('common.view'), onPress: () => showDayMeetings(date, dayMeetings) }
@@ -227,20 +163,16 @@ export default function Calendar({ navigation, language = "en" }) {
               </Text>
               {dayMeetings.length > 0 && (
                 <View style={styles.meetingIndicators}>
-                  {/* Local meetings indicator */}
-                  {dayMeetings.filter(m => m.source === 'local').length > 0 && (
+                  {/* MeetingGuard / device meetings */}
+                  {otherCount > 0 && (
                     <View style={[styles.meetingIndicator, styles.localMeetingIndicator]}>
-                      <Text style={styles.meetingCount}>
-                        {dayMeetings.filter(m => m.source === 'local').length}
-                      </Text>
+                      <Text style={styles.meetingCount}>{otherCount}</Text>
                     </View>
                   )}
-                  {/* Google meetings indicator */}
-                  {dayMeetings.filter(m => m.source === 'google').length > 0 && (
+                  {/* Google Calendar meetings */}
+                  {googleCount > 0 && (
                     <View style={[styles.meetingIndicator, styles.googleMeetingIndicator]}>
-                      <Text style={styles.meetingCount}>
-                        {dayMeetings.filter(m => m.source === 'google').length}
-                      </Text>
+                      <Text style={styles.meetingCount}>{googleCount}</Text>
                     </View>
                   )}
                 </View>
@@ -253,29 +185,12 @@ export default function Calendar({ navigation, language = "en" }) {
   };
 
   const showDayMeetings = (date, dayMeetings) => {
-    const localMeetings = dayMeetings.filter(m => m.source === 'local');
-    const googleMeetings = dayMeetings.filter(m => m.source === 'google');
-    
-    let meetingList = '';
-    
-    if (localMeetings.length > 0) {
-      meetingList += '📱 Local Meetings:\n';
-      meetingList += localMeetings.map(meeting => 
-        `${meeting.time} - ${meeting.title}`
-      ).join('\n');
-    }
-    
-    if (googleMeetings.length > 0) {
-      if (meetingList) meetingList += '\n\n';
-      meetingList += '🌐 Google Calendar:\n';
-      meetingList += googleMeetings.map(meeting => 
-        `${meeting.time} - ${meeting.title}`
-      ).join('\n');
-    }
-    
+    const meetingList = dayMeetings
+      .map(meeting => `${meeting.sourceKey === 'google' ? '🌐 ' : ''}${meetingTime(meeting)} - ${meeting.title}`)
+      .join('\n');
     Alert.alert(
-      `Meetings for ${format(date, 'MMMM d, yyyy')}`,
-      meetingList || 'No meetings scheduled',
+      tr('meetings:calendarView.meetingsOn', { date: fmt.date(date, 'long') }),
+      meetingList || tr('meetings:calendarView.none'),
       [
         { text: t('common.close'), style: "cancel" },
         { text: t('calendar.addMeeting'), onPress: () => navigation.navigate('CreateMeeting') }
@@ -291,22 +206,24 @@ export default function Calendar({ navigation, language = "en" }) {
     }
 
     return (
-      <Card key={meeting.id} style={styles.meetingCard} onPress={() => handleMeetingClick(meeting)}>
+      <Card key={meeting.id} style={styles.meetingCard} onPress={() => openMeeting(meeting)}>
         <Card.Content>
           <View style={styles.meetingHeader}>
             <Title style={styles.meetingTitle}>{meeting.title || 'Untitled Meeting'}</Title>
             <View style={styles.meetingTime}>
               <MaterialIcons name="access-time" size={16} color="#666" />
-              <Text style={styles.timeText}>{formatTime(meeting.time)}</Text>
+              <Text style={styles.timeText}>{meetingTime(meeting)}</Text>
             </View>
           </View>
-          <Paragraph style={styles.meetingDescription} numberOfLines={2}>
-            {meeting.description || 'No description'}
-          </Paragraph>
+          {meeting.description ? (
+            <Paragraph style={styles.meetingDescription} numberOfLines={2}>
+              {meeting.description}
+            </Paragraph>
+          ) : null}
           <View style={styles.meetingMeta}>
             <View style={styles.metaItem}>
               <MaterialIcons name="schedule" size={14} color="#666" />
-              <Text style={styles.metaText}>{meeting.duration || 0} {t('totalMeetings.minutes')}</Text>
+              <Text style={styles.metaText}>{fmt.duration(meeting.duration || 0)}</Text>
             </View>
             {meeting.location && (
               <View style={styles.metaItem}>
@@ -381,7 +298,7 @@ export default function Calendar({ navigation, language = "en" }) {
         {/* Today's meetings */}
         <View style={styles.todayMeetingsSection}>
           <Title style={styles.sectionTitle}>
-            {t('dashboard.today')} - {format(new Date(), 'MMMM d, yyyy')}
+            {t('dashboard.today')} - {fmt.date(new Date(), 'long')}
           </Title>
           {getMeetingsForDate(new Date()).length > 0 ? (
             getMeetingsForDate(new Date()).map(renderMeetingCard)
@@ -395,67 +312,6 @@ export default function Calendar({ navigation, language = "en" }) {
           )}
         </View>
 
-        {/* Google Calendar Meetings */}
-        {googleCalendarStatus?.isAuthenticated && googleMeetings.length > 0 && (
-          <View style={styles.todayMeetingsSection}>
-            <Title style={styles.sectionTitle}>
-              Google Calendar Meetings
-            </Title>
-            {googleMeetings.map((meeting, index) => {
-              // Safety check for Google Calendar meetings
-              if (!meeting || typeof meeting !== 'object') {
-                console.warn('Calendar: skipping a Google entry that is not an object', typeof meeting);
-                return null;
-              }
-
-              // Use meeting.id or a unique identifier instead of index
-              const uniqueKey = meeting.id || `google-${meeting.startTime || Date.now()}-${index}`;
-
-              return (
-                <Card key={uniqueKey} style={[styles.meetingCard, { borderLeftColor: '#4caf50' }]}>
-                  <Card.Content>
-                    <View style={styles.meetingHeader}>
-                      <View style={styles.meetingTitleContainer}>
-                        <Text style={styles.meetingTitle}>{meeting.title || 'Untitled Meeting'}</Text>
-                        <View style={styles.googleBadge}>
-                          <MaterialIcons name="event" size={12} color="#4caf50" />
-                          <Text style={styles.googleBadgeText}>Google</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.timeText}>
-                        {meeting.startTime ? format(new Date(meeting.startTime), 'HH:mm') : 'TBD'}
-                      </Text>
-                    </View>
-                    <Paragraph style={styles.meetingDescription} numberOfLines={2}>
-                      {meeting.description || 'No description'}
-                    </Paragraph>
-                    <View style={styles.meetingMeta}>
-                      {meeting.location && (
-                        <View style={styles.metaItem}>
-                          <MaterialIcons name="location-on" size={14} color="#666" />
-                          <Text style={styles.metaText}>
-                            {typeof meeting.location === 'string' 
-                              ? meeting.location 
-                              : (meeting.location && typeof meeting.location === 'object' && meeting.location.address) 
-                                ? safeStringify(meeting.location.address) 
-                                : 'No address specified'
-                            }
-                          </Text>
-                        </View>
-                      )}
-                      <View style={styles.metaItem}>
-                        <MaterialIcons name="calendar-today" size={14} color="#666" />
-                        <Text style={styles.metaText}>
-                          {meeting.startTime ? format(new Date(meeting.startTime), 'MMM d, yyyy') : 'TBD'}
-                        </Text>
-                      </View>
-                    </View>
-                  </Card.Content>
-                </Card>
-              );
-            })}
-          </View>
-        )}
       </ScrollView>
 
       <FAB

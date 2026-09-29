@@ -20,6 +20,7 @@ export const ROUTES = {
   Calendar: 'Calendar',
   Notes: 'Notes',
   Settings: 'Settings',
+  AlertSettings: 'AlertSettings',
   Profile: 'Profile',
   AIChat: 'AIChat',
   AIInsights: 'AIInsights',

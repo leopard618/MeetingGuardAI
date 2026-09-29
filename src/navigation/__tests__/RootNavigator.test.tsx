@@ -49,13 +49,12 @@ function mockScreen(name: string) {
 
 jest.mock('../../pages/Dashboard', () => mockScreen('Dashboard'));
 jest.mock('../../pages/ChooseCreationMethod', () => mockScreen('ChooseCreationMethod'));
-jest.mock('../../components/ModernCreateMeeting', () => mockScreen('CreateMeeting'));
+jest.mock('../../screens/meetings/MeetingFormScreen', () => ({ MeetingFormScreen: mockScreen('MeetingForm').default }));
 jest.mock('../../pages/TotalMeetings', () => mockScreen('TotalMeetings'));
-jest.mock('../../pages/MeetingDetails', () => mockScreen('MeetingDetails'));
-jest.mock('../../pages/EditMeeting', () => mockScreen('EditMeeting'));
 jest.mock('../../pages/Calendar', () => mockScreen('Calendar'));
 jest.mock('../../pages/Notes', () => mockScreen('Notes'));
-jest.mock('../../pages/Settings', () => mockScreen('Settings'));
+jest.mock('../../screens/settings/SettingsScreen', () => ({ SettingsScreen: mockScreen('Settings').default }));
+jest.mock('../../screens/alerts/AlertSettingsScreen', () => ({ AlertSettingsScreen: mockScreen('AlertSettings').default }));
 jest.mock('../../pages/AIChat', () => mockScreen('AIChat'));
 jest.mock('../../pages/AIInsights', () => mockScreen('AIInsights'));
 jest.mock('../../pages/Privacy', () => mockScreen('Privacy'));
@@ -258,7 +257,8 @@ describe('language and navigation behaviour', () => {
         </NavigationContainer>
       </I18nProvider>,
     );
-    expect((await screen.findByTestId('screen-MeetingDetails')).props.children).toBe('MeetingDetails|en|Budget review');
+    // The real (TypeScript) details screen reads the live meeting from the deep-link id.
+    expect((await screen.findByTestId('meeting-title')).props.children).toBe('Budget review');
     expect(navigationRef.getRootState()?.routes.map((route) => route.name)).toEqual(['Dashboard', 'MeetingDetails']);
   });
 

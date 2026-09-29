@@ -10,7 +10,7 @@ import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import { getLanguage } from '../../i18n';
 import { googleCalendarService } from '../calendar';
-import { dataService, meetingRepository } from '../data';
+import { dataEngine, dataService, meetingRepository } from '../data';
 
 import { createActionExecutor, type AiActionExecutor } from './actionExecutor';
 import { createAssistantClient } from './assistantClient';
@@ -45,7 +45,7 @@ export const actionExecutor: AiActionExecutor = createActionExecutor({
   sharing: reactNativeShareAdapter,
   executed: createExecutedStore(AsyncStorage),
   getUid: activeUid,
-  getFormatter: () => createAssistantFormatter(),
+  getFormatter: () => createAssistantFormatter({ use24Hour: dataEngine.getSnapshot().preferences.use24HourClock }),
 });
 
 const sessionSource: SessionSource = {

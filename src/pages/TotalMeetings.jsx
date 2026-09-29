@@ -26,9 +26,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Meeting } from '../api/entities';
 import { safeStringify } from '../utils/index.ts';
 import { localStorageAPI } from '../api/localStorage';
-import googleCalendarService from '../api/googleCalendar';
 import calendarSyncManager from '../api/calendarSyncManager.js';
 import { useTranslation } from '../components/translations.jsx';
+import { useT } from '../i18n';
+import { useFormatters } from '../screens/shared/useFormatters';
 import { 
   getResponsiveFontSizes, 
   getResponsiveSpacing, 
@@ -41,6 +42,8 @@ import {
 export default function TotalMeetings({ navigation, language = 'en' }) {
   const { isDarkMode } = useTheme();
   const { t } = useTranslation(language);
+  const tr = useT();
+  const fmt = useFormatters();
   
   // State
   const [meetings, setMeetings] = useState([]);
@@ -61,130 +64,20 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
     filterMeetings();
   }, [meetings, searchQuery, selectedFilter]);
 
+  // Every meeting (MeetingGuard, Google Calendar and device-calendar imports) comes from the data
+  // layer; the view's `sourceKey` says where it came from. Nothing is relabeled here.
   const loadMeetings = async () => {
     try {
       setIsLoading(true);
-      console.log('=== STARTING MEETINGS LOAD ===');
-      
-      // Load local meetings
-      let localMeetings = [];
-      try {
-        localMeetings = await Meeting.list();
-        console.log('✅ Loaded local meetings:', localMeetings.length);
-        if (localMeetings.length > 0) {
-          console.log('Local meetings sample:', localMeetings[0]);
-        }
-      } catch (error) {
-        console.error('❌ Error loading local meetings:', error);
-        localMeetings = [];
-      }
-      
-      // Load Google Calendar meetings
-      let googleMeetings = [];
-      try {
-        console.log('🔄 Initializing Google Calendar service...');
-        const initResult = await googleCalendarService.initialize();
-        console.log('Google Calendar initialization result:', initResult);
-        
-        const hasAccess = await googleCalendarService.checkCalendarAccess();
-        console.log('Google Calendar access check result:', hasAccess);
-        
-        if (hasAccess) {
-          console.log('✅ Google Calendar access confirmed, fetching meetings...');
-          
-          // Fetch upcoming meetings (next 30 days)
-          console.log('🔄 Fetching upcoming meetings...');
-          const upcomingMeetings = await googleCalendarService.getUpcomingMeetings(30);
-          console.log('✅ Fetched upcoming meetings:', upcomingMeetings.length);
-          if (upcomingMeetings.length > 0) {
-            console.log('Upcoming meetings sample:', upcomingMeetings[0]);
-          }
-          
-          // Fetch today's meetings
-          console.log('🔄 Fetching today meetings...');
-          const todayMeetings = await googleCalendarService.getTodayMeetings();
-          console.log('✅ Fetched today meetings:', todayMeetings.length);
-          if (todayMeetings.length > 0) {
-            console.log('Today meetings sample:', todayMeetings[0]);
-          }
-          
-          // Combine and remove duplicates based on Google Calendar ID
-          const allGoogleMeetings = [...upcomingMeetings, ...todayMeetings];
-          console.log('Total Google meetings before deduplication:', allGoogleMeetings.length);
-          
-          const uniqueGoogleMeetings = allGoogleMeetings.filter((meeting, index, self) => 
-            index === self.findIndex(m => m.id === meeting.id)
-          );
-          
-          googleMeetings = uniqueGoogleMeetings;
-          console.log('✅ Total unique Google meetings:', googleMeetings.length);
-        } else {
-          console.log('❌ Google Calendar access not available');
-          googleMeetings = [];
-        }
-      } catch (error) {
-        console.error('❌ Error loading Google Calendar meetings:', error);
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
-        });
-        googleMeetings = [];
-      }
-
-      // Combine and sort meetings, ensuring unique IDs
-      const allMeetings = [];
-      
-      // Add local meetings with source identifier
-      localMeetings.forEach((meeting, index) => {
-        allMeetings.push({
-          ...meeting,
-          source: 'local',
-          uniqueId: `local-${meeting.id || `meeting-${index}`}`
-        });
-      });
-      
-      // Add Google meetings with source identifier
-      googleMeetings.forEach((meeting, index) => {
-        allMeetings.push({
-          ...meeting,
-          source: 'google',
-          uniqueId: `google-${meeting.id || `event-${index}`}`
-        });
-      });
-      
-      // Sort by date and time
-      allMeetings.sort((a, b) => {
-        try {
-          const dateA = new Date(a.date + ' ' + (a.time || '00:00'));
-          const dateB = new Date(b.date + ' ' + (b.time || '00:00'));
-          return dateA - dateB;
-        } catch (error) {
-          console.warn('Error sorting meetings:', error);
-          return 0;
-        }
-      });
-
-      console.log('=== MEETINGS LOAD SUMMARY ===');
-      console.log('Total meetings loaded:', allMeetings.length);
-      console.log('Meetings breakdown:', {
-        local: localMeetings.length,
-        google: googleMeetings.length,
-        total: allMeetings.length
-      });
-      
-      if (allMeetings.length === 0) {
-        console.log('⚠️ No meetings found. This could be because:');
-        console.log('1. No local meetings exist');
-        console.log('2. Google Calendar is not connected');
-        console.log('3. Google Calendar has no events in the specified time range');
-        console.log('4. There are authentication issues');
-      }
-      
+      const allMeetings = (await Meeting.list()).map((meeting, index) => ({
+        ...meeting,
+        uniqueId: `${meeting.sourceKey || 'meeting'}-${meeting.id || index}`,
+      }));
+      allMeetings.sort((a, b) => Date.parse(a.startTime || 0) - Date.parse(b.startTime || 0));
       setMeetings(allMeetings);
     } catch (error) {
-      console.error('❌ Error loading meetings:', error);
-      Alert.alert('Error', 'Failed to load meetings: ' + error.message);
+      console.error('Error loading meetings:', error?.code || error?.name);
+      Alert.alert(tr('common:errors.unknown'));
     } finally {
       setIsLoading(false);
     }
@@ -202,29 +95,20 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
       );
     }
 
-    // Apply date filter
+    // Apply date filter (the view's `date` is the local calendar date; `startTime` the UTC instant)
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    const pad = (value) => String(value).padStart(2, '0');
+    const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
     switch (selectedFilter) {
       case 'today':
-        filtered = filtered.filter(meeting => {
-          const meetingDate = new Date(meeting.date);
-          return meetingDate.getTime() === today.getTime();
-        });
+        filtered = filtered.filter(meeting => meeting.date === todayKey);
         break;
       case 'upcoming':
-        filtered = filtered.filter(meeting => {
-          const meetingDate = new Date(meeting.date + ' ' + meeting.time);
-          return meetingDate > now;
-        });
+        filtered = filtered.filter(meeting => Date.parse(meeting.startTime) > now.getTime());
         break;
       case 'past':
-        filtered = filtered.filter(meeting => {
-          const meetingDate = new Date(meeting.date + ' ' + meeting.time);
-          return meetingDate < now;
-        });
+        filtered = filtered.filter(meeting => Date.parse(meeting.startTime) < now.getTime());
         break;
       default:
         break;
@@ -239,30 +123,31 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
     setRefreshing(false);
   };
 
+  // Every meeting can be deleted: MeetingGuard and Google meetings are also removed from Google
+  // Calendar by the calendar engine; a device-calendar import stays in the device calendar.
   const handleDeleteMeeting = async (meeting) => {
+    const isDevice = meeting.sourceKey === 'device';
+    const isGoogle = meeting.sourceKey === 'google' || Boolean(meeting.googleEventId);
     Alert.alert(
-      'Delete Meeting',
-      `Are you sure you want to delete "${meeting.title}"?`,
+      tr('meetings:details.deleteTitle', { title: meeting.title }),
+      isDevice
+        ? tr('meetings:details.deleteMessageDevice')
+        : isGoogle
+          ? tr('meetings:details.deleteMessageGoogle')
+          : tr('meetings:details.deleteMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: tr('common:actions.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: tr('meetings:details.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
-              if (meeting.source === 'local') {
-                await Meeting.delete(meeting.id);
-              } else {
-                // For Google Calendar meetings, we can't delete them from the app
-                Alert.alert('Info', 'Google Calendar meetings can only be deleted from Google Calendar');
-                return;
-              }
-              
+              await Meeting.delete(meeting.id);
               await loadMeetings();
-              Alert.alert('Success', 'Meeting deleted successfully');
+              Alert.alert(tr('meetings:details.deleted'), isDevice ? tr('meetings:details.deletedDeviceNote') : undefined);
             } catch (error) {
-              console.error('Error deleting meeting:', error);
-              Alert.alert('Error', 'Failed to delete meeting');
+              console.error('Error deleting meeting:', error?.code || error?.name);
+              Alert.alert(tr(`common:errors.${error?.code || 'unknown'}`, { defaultValue: tr('common:errors.unknown') }));
             }
           }
         }
@@ -271,15 +156,11 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
   };
 
   const handleViewMeeting = (meeting) => {
-    navigation.navigate('MeetingDetails', { meeting });
+    navigation.navigate('MeetingDetails', { meetingId: meeting.id });
   };
 
   const handleEditMeeting = (meeting) => {
-    if (meeting.source === 'local') {
-      navigation.navigate('EditMeeting', { meeting });
-    } else {
-      Alert.alert('Info', 'Google Calendar meetings can only be edited from Google Calendar');
-    }
+    navigation.navigate('EditMeeting', { meetingId: meeting.id });
   };
 
   const handleClearAllMeetings = () => {
@@ -311,9 +192,7 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
   };
 
   const getMeetingStatus = (meeting) => {
-    const now = new Date();
-    const meetingDate = new Date(meeting.date + ' ' + meeting.time);
-    const diff = meetingDate - now;
+    const diff = Date.parse(meeting.startTime) - Date.now();
     
     if (diff < 0) {
       return { status: 'past', color: '#6b7280', text: t('totalMeetings.past') };
@@ -326,32 +205,24 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
     }
   };
 
-  const formatDate = (date, time) => {
-    const meetingDate = new Date(date + ' ' + time);
-    return meetingDate.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  // Locale-aware (UI language + the 12 h / 24 h preference).
+  const formatDate = (meeting) => fmt.legacyMeetingWhen(meeting);
+
+  const getSourceIcon = (sourceKey) => {
+    return sourceKey === 'google' ? '🌐' : sourceKey === 'device' ? '📅' : '📱';
   };
 
-  const getSourceIcon = (source) => {
-    return source === 'google' ? '🌐' : '📱';
-  };
-
-  const getSourceColor = (source) => {
-    return source === 'google' ? '#4285f4' : '#3b82f6';
+  const getSourceColor = (sourceKey) => {
+    return sourceKey === 'google' ? '#4285f4' : '#3b82f6';
   };
 
   const renderMeetingCard = (meeting, index) => {
     const status = getMeetingStatus(meeting);
-    const sourceIcon = getSourceIcon(meeting.source);
-    const sourceColor = getSourceColor(meeting.source);
-    
+    const sourceIcon = getSourceIcon(meeting.sourceKey);
+    const sourceColor = getSourceColor(meeting.sourceKey);
+
     // Use uniqueId for the key to prevent duplicate key errors
-    const uniqueKey = meeting.uniqueId || `${meeting.source}-${meeting.id}-${index}`;
+    const uniqueKey = meeting.uniqueId || `${meeting.sourceKey}-${meeting.id}-${index}`;
 
     return (
       <Card key={uniqueKey} style={styles.meetingCard}>
@@ -368,7 +239,7 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
                   textStyle={{ fontSize: 10 }}
                   style={[styles.sourceChip, { borderColor: sourceColor }]}
                 >
-                  {meeting.source === 'google' ? 'Google' : 'Local'}
+                  {tr(`meetings:source.${meeting.sourceKey || 'manual'}`)}
                 </Chip>
               </View>
             </View>
@@ -390,23 +261,21 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
                  title={t('totalMeetings.view')}
                  leadingIcon="eye"
                />
-               {meeting.source === 'local' && (
-                 <Menu.Item
-                   onPress={() => {
-                     setMenuVisible({ ...menuVisible, [uniqueKey]: false });
-                     handleEditMeeting(meeting);
-                   }}
-                   title="Edit Meeting"
-                   leadingIcon="pencil"
-                 />
-               )}
+               <Menu.Item
+                 onPress={() => {
+                   setMenuVisible({ ...menuVisible, [uniqueKey]: false });
+                   handleEditMeeting(meeting);
+                 }}
+                 title={tr('meetings:details.edit')}
+                 leadingIcon="pencil"
+               />
                <Divider />
                <Menu.Item
                  onPress={() => {
                    setMenuVisible({ ...menuVisible, [uniqueKey]: false });
                    handleDeleteMeeting(meeting);
                  }}
-                 title="Delete Meeting"
+                 title={tr('meetings:details.delete')}
                  leadingIcon="delete"
                  titleStyle={{ color: '#ef4444' }}
                />
@@ -416,7 +285,7 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
           <View style={styles.meetingInfo}>
             <View style={styles.infoRow}>
               <MaterialIcons name="schedule" size={16} color="#6b7280" />
-              <Text style={styles.infoText}>{formatDate(meeting.date, meeting.time)}</Text>
+              <Text style={styles.infoText}>{formatDate(meeting)}</Text>
             </View>
             
             {meeting.location?.address && (
@@ -431,7 +300,7 @@ export default function TotalMeetings({ navigation, language = 'en' }) {
             {meeting.duration && (
               <View style={styles.infoRow}>
                 <MaterialIcons name="timer" size={16} color="#6b7280" />
-                <Text style={styles.infoText}>{meeting.duration} {t('totalMeetings.minutes')}</Text>
+                <Text style={styles.infoText}>{fmt.duration(meeting.duration)}</Text>
               </View>
             )}
 

@@ -27,6 +27,7 @@ import { MAIN_INITIAL_ROUTE, ONBOARDING_STEPS } from './routes';
 import {
   AIChatScreen,
   AIInsightsScreen,
+  AlertSettingsScreen,
   CalendarScreen,
   CalendarSyncScreen,
   ChooseCreationMethodScreen,
@@ -135,6 +136,7 @@ export function RootNavigator(): ReactElement {
         <Stack.Screen name="Calendar" component={CalendarScreen} />
         <Stack.Screen name="Notes" component={NotesScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="AlertSettings" component={AlertSettingsScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="AIChat" component={AIChatScreen} />
         <Stack.Screen name="AIInsights" component={AIInsightsScreen} />

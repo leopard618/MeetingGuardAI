@@ -367,10 +367,20 @@ Deleted in stage 2 (no importers left): `googleCalendarConnectionManager.js`, `g
 
 The legacy `UserPreferences.update` never takes `google_calendar_sync_enabled` or `onboarding_completed` from the screen's (possibly stale) view: those fields belong to the calendar connect/disconnect and onboarding flows.
 
+Replaced by TypeScript screens (stage-2 review) and deleted: `pages/MeetingDetails.jsx`, `pages/EditMeeting.jsx`, `components/ModernCreateMeeting.jsx`, `pages/Settings.jsx`.
+
+**TypeScript screens** (`src/screens`, strings in the `meetings` and `settings` namespaces):
+
+- `meetings/MeetingDetailsScreen` (route `MeetingDetails`): the live meeting (deep links included); time in the UI language and the 12 h / 24 h preference; place, real join link and passcode, participants, description, preparation tips, reminders and intensity, notes. Every meeting can be edited and deleted (Google changes are pushed by the calendar engine; a device-calendar import stays in the device calendar and the user is told so).
+- `meetings/MeetingFormScreen` (routes `CreateMeeting` and `EditMeeting`; model in `meetingForm.ts`): links are only what the user pastes; Google Meet without a link is saved as `{ provider: 'google_meet', url: null }` so the Google push creates a real Meet link; custom reminders and an intensity override; device-local attachments.
+- `settings/SettingsScreen` (routes `Settings`, `Profile`): account (in-app account deletion with a fresh sign-in), alerts, theme, language, calendars, legal, version.
+- `alerts/AlertSettingsScreen` (route `AlertSettings`): every alert preference after onboarding (the form is shared with onboarding step 3), snooze length, follow-ups, clock, permission, exact alarms, "Override Do Not Disturb" (Android) / Focus (iOS).
+- `shared/useFormatters` gives legacy JS screens (Dashboard, TotalMeetings, Calendar, Notes) the same locale-aware formatting.
+
 ## 14. Deferred (not in this pass)
 
 - Outlook and Microsoft Graph
-- Recurring-meeting creation. Google recurring events are imported as single instances.
+- Recurring-meeting creation ("every Monday at 9am"): the assistant proposes only the next occurrence and says recurrence is not available yet (prompt rule 7). Google recurring events are imported as single instances. Planned shape: an RRULE on the create draft, pushed to Google as `event.recurrence`, with a local series id (the Google pull already expands occurrences, so alerts need no planner change).
 - WhatsApp bot
 - Full-screen intent
 - A native module to read the exact-alarm state

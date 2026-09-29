@@ -826,7 +826,18 @@ export interface BackgroundTasksModule {
 // =============================================================================================
 
 /** Namespaces; each area owns src/i18n/locales/{en,es}/<ns>.json. */
-export const I18N_NAMESPACE_LIST = ['common', 'navigation', 'onboarding', 'data', 'auth', 'calendar', 'alerts', 'ai'] as const;
+export const I18N_NAMESPACE_LIST = [
+  'common',
+  'navigation',
+  'onboarding',
+  'data',
+  'auth',
+  'calendar',
+  'alerts',
+  'ai',
+  'settings',
+  'meetings',
+] as const;
 export type I18nNamespace = (typeof I18N_NAMESPACE_LIST)[number];
 
 /**
@@ -899,7 +910,8 @@ export type OnboardingStackParamList = {
 export type MainStackParamList = {
   Dashboard: undefined;
   ChooseCreationMethod: undefined;
-  CreateMeeting: { meetingId?: string } | undefined;
+  /** Legacy screens may pass `meeting` (then the form edits that meeting). */
+  CreateMeeting: { meetingId?: string; meeting?: LegacyMeetingView } | undefined;
   TotalMeetings: undefined;
   /** Deep link meeting/:meetingId gives meetingId; legacy screens pass `meeting`. */
   MeetingDetails: { meetingId?: string; meeting?: LegacyMeetingView };
@@ -907,6 +919,8 @@ export type MainStackParamList = {
   Calendar: undefined;
   Notes: undefined;
   Settings: undefined;
+  /** Settings > Alerts: every alert preference after onboarding. */
+  AlertSettings: undefined;
   Profile: undefined;
   /**
    * Deep link assistant?followup=<meetingId>. `autoStart` is set ONLY by the app's own follow-up

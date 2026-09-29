@@ -110,5 +110,30 @@
   "refill": {
     "title": "Keep your meeting alerts up to date",
     "body": "Open MeetingGuard so it can schedule your next alerts."
+  },
+  "settings": {
+    "voiceNeedsApp": "The voice readout needs the app open. With the app closed, alerts play the notification sound.",
+    "saved": "Alert settings saved.",
+    "snooze": {
+      "label": "Snooze length",
+      "minutes_one": "{{count}} min",
+      "minutes_other": "{{count}} min"
+    },
+    "followUp": {
+      "label": "Post-meeting follow-ups",
+      "description": "5 minutes after a meeting ends, get follow-up ideas from the AI assistant."
+    },
+    "clock": {
+      "label": "Time format",
+      "auto": "Automatic",
+      "12": "12-hour",
+      "24": "24-hour"
+    },
+    "dnd": {
+      "title": "Do Not Disturb",
+      "androidDescription": "Maximum alerts can ring during Do Not Disturb only if you allow it: open the settings of the maximum alerts and turn on “Override Do Not Disturb”.",
+      "iosDescription": "To get alerts during a Focus, add MeetingGuard to the Focus's allowed apps in Settings > Focus.",
+      "open": "Allow maximum alerts to override Do Not Disturb"
+    }
   }
 }

@@ -315,15 +315,16 @@ function ActionDetails({ state, fmt, palette, onReject }) {
  *   onCancel: () => void,
  *   onReject?: ((actionId: string) => void) | null,
  *   isBusy?: boolean,
+ *   use24Hour?: boolean | null,
  * }} props
  */
-export default function MeetingConfirmationModal({ visible, actions, onConfirm, onCancel, onReject = null, isBusy = false }) {
+export default function MeetingConfirmationModal({ visible, actions, onConfirm, onCancel, onReject = null, isBusy = false, use24Hour = null }) {
   const t = useT();
   const { language } = useLanguage();
   const { isDarkMode } = /** @type {{ isDarkMode: boolean }} */ (useTheme());
   const insets = useSafeAreaInsets();
   const palette = assistantPalette(isDarkMode);
-  const fmt = useMemo(() => createAssistantFormatter({ t, language }), [t, language]);
+  const fmt = useMemo(() => createAssistantFormatter({ t, language, use24Hour }), [t, language, use24Hour]);
 
   const destructive = actions.some((state) => isDestructiveAction(state.action));
   const many = actions.length > 1;

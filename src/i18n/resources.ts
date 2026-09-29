@@ -11,16 +11,20 @@ import enAuth from './locales/en/auth.json';
 import enCalendar from './locales/en/calendar.json';
 import enCommon from './locales/en/common.json';
 import enData from './locales/en/data.json';
+import enMeetings from './locales/en/meetings.json';
 import enNavigation from './locales/en/navigation.json';
 import enOnboarding from './locales/en/onboarding.json';
+import enSettings from './locales/en/settings.json';
 import esAi from './locales/es/ai.json';
 import esAlerts from './locales/es/alerts.json';
 import esAuth from './locales/es/auth.json';
 import esCalendar from './locales/es/calendar.json';
 import esCommon from './locales/es/common.json';
 import esData from './locales/es/data.json';
+import esMeetings from './locales/es/meetings.json';
 import esNavigation from './locales/es/navigation.json';
 import esOnboarding from './locales/es/onboarding.json';
+import esSettings from './locales/es/settings.json';
 
 /** A namespace's JSON tree (nested objects, strings and string arrays). */
 export type TranslationTree = { readonly [key: string]: unknown };
@@ -35,6 +39,8 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     calendar: enCalendar,
     alerts: enAlerts,
     ai: enAi,
+    settings: enSettings,
+    meetings: enMeetings,
   },
   es: {
     common: esCommon,
@@ -45,5 +51,7 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     calendar: esCalendar,
     alerts: esAlerts,
     ai: esAi,
+    settings: esSettings,
+    meetings: esMeetings,
   },
 };

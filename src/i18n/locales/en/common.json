@@ -13,7 +13,10 @@
     "close": "Close",
     "openSettings": "Open settings",
     "signOut": "Sign out",
-    "signOutAnyway": "Sign out anyway"
+    "signOutAnyway": "Sign out anyway",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete"
   },
   "language": {
     "label": "Language",

@@ -44,7 +44,7 @@ import {
   formatWhen,
   isDestructiveAction,
 } from '../services/ai/presentation';
-import { useEntitlement, useMeeting } from '../services/data';
+import { useEntitlement, useMeeting, usePreferences } from '../services/data';
 
 /** @typedef {import('../core/contracts').ProposedActionState} ProposedActionState */
 /** @typedef {import('../core/contracts').ActionResult} ActionResult */
@@ -419,7 +419,9 @@ export default function AIChat({ navigation, route }) {
   const { language } = useLanguage();
   const { isDarkMode } = /** @type {{ isDarkMode: boolean }} */ (useTheme());
   const palette = assistantPalette(isDarkMode);
-  const fmt = useMemo(() => createAssistantFormatter({ t, language }), [t, language]);
+  const { preferences } = usePreferences();
+  const use24Hour = preferences.use24HourClock;
+  const fmt = useMemo(() => createAssistantFormatter({ t, language, use24Hour }), [t, language, use24Hour]);
 
   const params = route?.params ?? {};
   const followUpMeetingId = typeof params.followup === 'string' && params.followup !== '' ? params.followup : null;
@@ -694,6 +696,7 @@ export default function AIChat({ navigation, route }) {
       </KeyboardAvoidingView>
 
       <MeetingConfirmationModal
+        use24Hour={use24Hour}
         visible={reviewStates.length > 0}
         actions={reviewStates}
         onConfirm={() => void confirmReviewed()}

@@ -32,6 +32,7 @@ import AlertScheduler from '../components/AlertScheduler';
 import ImageSlider from '../components/ImageSlider';
 import calendarSyncManager from '../api/calendarSyncManager.js';
 import { useTranslation } from '../components/translations.jsx';
+import { useT } from '../i18n';
 import { 
   getResponsiveFontSizes, 
   getResponsiveSpacing, 
@@ -44,9 +45,11 @@ import { getLocationString, safeStringify } from '../utils/meetingHelpers.js';
 import GoogleCalendarConnectionPrompt from '../components/GoogleCalendarConnectionPrompt.jsx';
 import manualLoginGoogleCalendarService from '../api/manualLoginGoogleCalendarService.js';
 import { usePersistentNotification } from '../hooks/usePersistentNotification.js';
+import { useFormatters } from '../screens/shared/useFormatters';
 
-// Date and Time Display Component
+// Date and Time Display Component (locale-aware: UI language + the 12 h / 24 h preference)
 const DateTimeDisplay = ({ isDarkMode, styles }) => {
+  const fmt = useFormatters();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -57,23 +60,9 @@ const DateTimeDisplay = ({ isDarkMode, styles }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const formatDate = (date) => {
-    const options = { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    };
-    return date.toLocaleDateString('en-US', options);
-  };
+  const formatDate = (date) => fmt.date(date, 'full');
 
-  const formatTime = (date) => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
-    });
-  };
+  const formatTime = (date) => fmt.time(date);
 
   return (
     <TouchableOpacity style={styles.statusCard}>
@@ -119,10 +108,8 @@ function DashboardContent({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
   const { isAuthenticated, refreshUserPlan, user } = useAuth();
   const { t } = useTranslation(language);
-  
-  // Debug: Log the language and translation
-  console.log('Dashboard language:', language);
-  console.log('Dashboard translation for today:', t('dashboard.today'));
+  const fmt = useFormatters();
+  const tr = useT();
   
   const [meetings, setMeetings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -441,7 +428,7 @@ function DashboardContent({ navigation, language = "en" }) {
             <View style={styles.meetingTimeContainer}>
               <MaterialIcons name="schedule" size={16} color={isDarkMode ? "#a1a1aa" : "#666"} />
               <Text style={styles.meetingTime}>
-                {meeting.time} • {meeting.duration}min
+                {meeting.startTime ? fmt.time(meeting.startTime) : meeting.time} • {fmt.duration(meeting.duration)}
               </Text>
             </View>
             <Title style={styles.meetingTitle}>{meeting.title}</Title>
@@ -452,11 +439,21 @@ function DashboardContent({ navigation, language = "en" }) {
             )}
           </View>
           <View style={styles.meetingActions}>
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: isDarkMode ? '#262626' : '#f1f5f9' }]}>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: isDarkMode ? '#262626' : '#f1f5f9' }]}
+              onPress={() => navigation.navigate('EditMeeting', { meetingId: meeting.id })}
+              accessibilityRole="button"
+              accessibilityLabel={tr('meetings:details.edit')}
+            >
               <MaterialIcons name="edit" size={18} color={isDarkMode ? "#a1a1aa" : "#666"} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: isDarkMode ? '#262626' : '#f1f5f9' }]}>
-              <MaterialIcons name="delete" size={18} color={isDarkMode ? "#ef4444" : "#dc2626"} />
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: isDarkMode ? '#262626' : '#f1f5f9' }]}
+              onPress={() => navigation.navigate('MeetingDetails', { meetingId: meeting.id })}
+              accessibilityRole="button"
+              accessibilityLabel={tr('navigation:screens.MeetingDetails')}
+            >
+              <MaterialIcons name="chevron-right" size={18} color={isDarkMode ? "#a1a1aa" : "#666"} />
             </TouchableOpacity>
           </View>
         </View>

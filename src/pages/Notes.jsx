@@ -22,6 +22,7 @@ import {
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from '../components/translations.jsx';
+import { useFormatters } from '../screens/shared/useFormatters';
 import { 
   getResponsiveFontSizes, 
   getResponsiveSpacing, 
@@ -33,6 +34,7 @@ import {
 export default function Notes({ navigation, language = "en" }) {
   const { isDarkMode } = useTheme();
   const { t } = useTranslation(language);
+  const fmt = useFormatters();
   const [notes, setNotes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -107,18 +109,8 @@ export default function Notes({ navigation, language = "en" }) {
     return filtered.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   };
 
-  const formatDate = (date) => {
-    try {
-      const d = new Date(date);
-      return d.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
-      });
-    } catch (error) {
-      return 'Invalid date';
-    }
-  };
+  // Locale-aware (UI language); an unusable value renders as an empty string.
+  const formatDate = (date) => fmt.date(date, 'medium');
 
   const handleSaveNote = () => {
     if (!newNote.title.trim() || !newNote.content.trim()) {

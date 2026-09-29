@@ -1,6 +1,7 @@
 /**
- * Default AssistantFormatter: i18n `t` + src/utils/format.ts in the current UI language and the
- * device time zone. React code passes the hook-bound `t` (re-renders on language change);
+ * Default AssistantFormatter: i18n `t` + src/utils/format.ts in the current UI language, the
+ * device time zone and the user's 12 h / 24 h preference (Preferences.use24HourClock; null = the
+ * locale / device default). React code passes the hook-bound `t` (re-renders on language change);
  * non-React code (executor share text) uses the module-level `t`.
  */
 import type { TranslateFn } from '../../core/contracts';
@@ -17,10 +18,12 @@ import {
 
 import type { AssistantFormatter } from './types';
 
-export function createAssistantFormatter(options: { t?: TranslateFn; language?: Language; timeZone?: string } = {}): AssistantFormatter {
+export function createAssistantFormatter(
+  options: { t?: TranslateFn; language?: Language; timeZone?: string; use24Hour?: boolean | null } = {},
+): AssistantFormatter {
   const language = options.language ?? getLanguage();
   const timeZone = options.timeZone ?? getDeviceTimeZone();
-  const formatOptions = { language, timeZone };
+  const formatOptions = { language, timeZone, use24Hour: options.use24Hour ?? null };
   return {
     t: options.t ?? translate,
     language,

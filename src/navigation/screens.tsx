@@ -3,20 +3,17 @@
  * navigation, sidebar or language change never remounts a screen (fixes the old remount storm).
  *
  * - Legacy stage-3 screens get the live `language` prop through withLanguage().
- * - MeetingDetails / EditMeeting resolve a deep-link `meetingId` into the legacy `meeting` param
- *   (toLegacyMeetingView) because those screens read route.params.meeting.
+ * - TypeScript screens (src/screens): meeting details and the create / edit form (they read the
+ *   live meeting from `meetingId` or a legacy `meeting` param), settings (account deletion) and
+ *   alert settings.
  * - Landing gets the Terms/Privacy consent notice and a language switch (before sign-in).
  * - Privacy / Terms outside the Main group (no header there) get the top safe-area inset.
  */
-import type { StackScreenProps } from '@react-navigation/stack';
-import { useMemo, type ComponentType, type ReactElement } from 'react';
+import type { ComponentType, ReactElement } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, Button, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Text, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import ModernCreateMeeting from '../components/ModernCreateMeeting';
-import type { RootStackParamList } from '../core/contracts';
-import { toLegacyMeetingView } from '../core/legacy';
 import { useLanguage, useT } from '../i18n';
 import AIChat from '../pages/AIChat';
 import AIInsights from '../pages/AIInsights';
@@ -24,32 +21,32 @@ import Calendar from '../pages/Calendar';
 import CalendarSync from '../pages/CalendarSync';
 import ChooseCreationMethod from '../pages/ChooseCreationMethod';
 import Dashboard from '../pages/Dashboard';
-import EditMeeting from '../pages/EditMeeting';
 import LegacyLandingPage from '../pages/LandingPage';
-import MeetingDetails from '../pages/MeetingDetails';
 import Notes from '../pages/Notes';
 import Pricing from '../pages/Pricing';
 import Privacy from '../pages/Privacy';
-import Settings from '../pages/Settings';
 import Terms from '../pages/Terms';
 import TotalMeetings from '../pages/TotalMeetings';
 import WhatsAppBot from '../pages/WhatsAppBot';
-import { useMeeting } from '../services/data';
+import { AlertSettingsScreen as AlertSettings } from '../screens/alerts/AlertSettingsScreen';
+import { MeetingDetailsScreen as MeetingDetails } from '../screens/meetings/MeetingDetailsScreen';
+import { MeetingFormScreen } from '../screens/meetings/MeetingFormScreen';
+import { SettingsScreen as Settings } from '../screens/settings/SettingsScreen';
 import { ConsentNotice } from './ConsentNotice';
-import { navigateToTopLevel } from './navigationService';
 import { withLanguage, type LegacyComponent, type WithLanguageProps } from './withLanguage';
 
-// ---- Main group: legacy screens with the live language prop ---------------------------------
+// ---- Main group --------------------------------------------------------------------------------
 
 export const DashboardScreen = withLanguage(Dashboard);
 export const ChooseCreationMethodScreen = withLanguage(ChooseCreationMethod);
-export const CreateMeetingScreen = withLanguage(ModernCreateMeeting);
+export const CreateMeetingScreen = MeetingFormScreen;
 export const TotalMeetingsScreen = withLanguage(TotalMeetings);
 export const CalendarScreen = withLanguage(Calendar);
 export const NotesScreen = withLanguage(Notes);
-export const SettingsScreen = withLanguage(Settings);
-/** "Profile" shows the settings screen (account section). */
-export const ProfileScreen = withLanguage(Settings);
+export const SettingsScreen = Settings;
+/** "Profile" shows the settings screen (account section first). */
+export const ProfileScreen = Settings;
+export const AlertSettingsScreen = AlertSettings;
 export const AIChatScreen = withLanguage(AIChat);
 export const AIInsightsScreen = withLanguage(AIInsights);
 export const PrivacyScreen = withLanguage(Privacy);
@@ -58,65 +55,10 @@ export const WhatsAppBotScreen = withLanguage(WhatsAppBot);
 export const CalendarSyncScreen = withLanguage(CalendarSync);
 export const PricingScreen = withLanguage(Pricing);
 
-// ---- MeetingDetails / EditMeeting: meetingId -> legacy meeting ------------------------------
+// ---- Meetings (TypeScript): live meeting from `meetingId` or a legacy `meeting` param ----------
 
-type MeetingRouteProps = StackScreenProps<RootStackParamList, 'MeetingDetails' | 'EditMeeting'>;
-
-function MeetingStatus({ loading }: { loading: boolean }): ReactElement {
-  const t = useT();
-  const theme = usePaperTheme();
-  return (
-    <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
-      {loading ? (
-        <>
-          <ActivityIndicator size="large" />
-          <Text variant="bodyMedium" style={styles.statusText}>
-            {t('navigation:meeting.loading')}
-          </Text>
-        </>
-      ) : (
-        <>
-          <Text variant="titleMedium" style={styles.statusText} accessibilityRole="header">
-            {t('navigation:meeting.notFoundTitle')}
-          </Text>
-          <Text variant="bodyMedium" style={styles.statusText}>
-            {t('navigation:meeting.notFoundMessage')}
-          </Text>
-          <Button mode="contained" style={styles.statusButton} onPress={() => navigateToTopLevel('Dashboard')}>
-            {t('navigation:meeting.backToDashboard')}
-          </Button>
-        </>
-      )}
-    </View>
-  );
-}
-
-function createMeetingRouteScreen(Legacy: LegacyComponent, name: string): ComponentType<MeetingRouteProps> {
-  const LegacyWithLanguage = withLanguage(Legacy);
-  function MeetingRouteScreen({ navigation, route }: MeetingRouteProps): ReactElement {
-    const passedMeeting = route.params?.meeting;
-    const meetingId = route.params?.meetingId;
-    const lookupId = passedMeeting === undefined && typeof meetingId === 'string' ? meetingId : null;
-    const { meeting, isLoading } = useMeeting(lookupId);
-
-    // Legacy screens read route.params.meeting: give them the resolved meeting (kept live).
-    const resolvedRoute = useMemo(() => {
-      if (passedMeeting !== undefined) return route;
-      if (meeting === null) return null;
-      return { ...route, params: { ...route.params, meeting: toLegacyMeetingView(meeting) } };
-    }, [meeting, passedMeeting, route]);
-
-    if (resolvedRoute === null) {
-      return <MeetingStatus loading={lookupId !== null && isLoading} />;
-    }
-    return <LegacyWithLanguage navigation={navigation} route={resolvedRoute} />;
-  }
-  MeetingRouteScreen.displayName = `${name}Screen`;
-  return MeetingRouteScreen;
-}
-
-export const MeetingDetailsScreen = createMeetingRouteScreen(MeetingDetails, 'MeetingDetails');
-export const EditMeetingScreen = createMeetingRouteScreen(EditMeeting, 'EditMeeting');
+export const MeetingDetailsScreen = MeetingDetails;
+export const EditMeetingScreen = MeetingFormScreen;
 
 // ---- Auth group -----------------------------------------------------------------------------
 
@@ -185,19 +127,6 @@ export const StandaloneTermsScreen = withTopInset(TermsScreen, 'Terms');
 const styles = StyleSheet.create({
   fill: {
     flex: 1,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  statusText: {
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  statusButton: {
-    marginTop: 20,
   },
   landingOverlay: {
     justifyContent: 'flex-end',
