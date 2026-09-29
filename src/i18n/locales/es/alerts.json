@@ -1,0 +1,109 @@
+{
+  "lead": {
+    "minutes_one": "en {{count}} minuto",
+    "minutes_other": "en {{count}} minutos",
+    "hours_one": "en {{count}} hora",
+    "hours_other": "en {{count}} horas",
+    "days_one": "en {{count}} día",
+    "days_other": "en {{count}} días"
+  },
+  "provider": {
+    "zoom": "Zoom",
+    "teams": "Microsoft Teams",
+    "google_meet": "Google Meet",
+    "other": "Reunión en línea"
+  },
+  "notification": {
+    "upcomingTitle": "{{title}} empieza {{lead}}",
+    "nowTitle": "{{title}} empieza ahora",
+    "startedTitle": "{{title}} ya ha empezado",
+    "snoozeTitle": "Recordatorio: {{title}} empieza {{lead}}",
+    "followUpTitle": "¿Qué tal fue «{{title}}»?",
+    "followUpBody": "Registra notas, decisiones y próximos pasos con tu asistente de IA.",
+    "body": "{{time}}",
+    "bodyWithLocation": "{{time}} · {{location}}",
+    "untitled": "Reunión"
+  },
+  "channels": {
+    "max": {
+      "name": "Alertas máximas de reuniones",
+      "description": "Alarma sonora con vibración intensa para las reuniones que no te puedes perder."
+    },
+    "medium": {
+      "name": "Alertas estándar de reuniones",
+      "description": "Sonido y vibración antes de tus reuniones."
+    },
+    "light": {
+      "name": "Recordatorios suaves de reuniones",
+      "description": "Recordatorios breves y discretos antes de tus reuniones."
+    },
+    "followup": {
+      "name": "Seguimiento de reuniones",
+      "description": "Después de una reunión: registra notas y próximos pasos con tu asistente de IA."
+    }
+  },
+  "actions": {
+    "open": "Abrir",
+    "snooze_one": "Posponer {{count}} min",
+    "snooze_other": "Posponer {{count}} min",
+    "assistant": "Abrir asistente"
+  },
+  "when": {
+    "startsIn": "Empieza {{lead}}",
+    "now": "Empieza ahora",
+    "started_one": "Empezó hace {{count}} minuto",
+    "started_other": "Empezó hace {{count}} minutos",
+    "timeRange": "{{start}} – {{end}}"
+  },
+  "max": {
+    "heading": "Tu reunión está a punto de empezar",
+    "headingNow": "Tu reunión empieza ahora",
+    "headingStarted": "Tu reunión ya ha empezado",
+    "autoSnooze_one": "Se pospondrá automáticamente en {{count}} segundo",
+    "autoSnooze_other": "Se pospondrá automáticamente en {{count}} segundos",
+    "a11yCountdown": "La alerta se pospondrá automáticamente"
+  },
+  "medium": {
+    "heading": "Próxima reunión",
+    "pill": "{{title}} · {{when}}",
+    "a11yPill": "Alerta de reunión minimizada. Toca para ampliarla."
+  },
+  "light": {
+    "heading": "Recordatorio de reunión"
+  },
+  "followUp": {
+    "heading": "¿Qué tal fue?",
+    "body": "Registra notas y próximos pasos de «{{title}}» con tu asistente de IA."
+  },
+  "buttons": {
+    "acknowledge": "Entendido, voy",
+    "join": "Unirse ahora",
+    "snooze_one": "Posponer {{count}} min",
+    "snooze_other": "Posponer {{count}} min",
+    "details": "Ver detalles",
+    "minimize": "Minimizar",
+    "dismiss": "Cerrar",
+    "openAssistant": "Abrir asistente"
+  },
+  "voice": {
+    "upcoming": "Atención. Tu reunión {{title}} empieza {{lead}}. Hora de inicio: {{time}}.",
+    "now": "Atención. Tu reunión {{title}} está empezando ahora.",
+    "started": "Tu reunión {{title}} ya ha empezado.",
+    "location": "Lugar: {{location}}."
+  },
+  "permission": {
+    "granted": "Las notificaciones están permitidas",
+    "provisional": "Las notificaciones llegan de forma silenciosa",
+    "denied": "Las notificaciones están bloqueadas",
+    "undetermined": "Todavía no has permitido las notificaciones",
+    "request": "Permitir notificaciones",
+    "openSettings": "Abrir ajustes de notificaciones",
+    "exactAlarmsTitle": "Alarmas exactas",
+    "exactAlarmsHint": "Android puede retrasar las alertas para ahorrar batería. Permite «Alarmas y recordatorios» para que tus alertas suenen a la hora exacta.",
+    "openExactAlarmSettings": "Permitir alarmas exactas"
+  },
+  "errors": {
+    "snoozeFailed": "No se ha podido posponer la alerta.",
+    "openLinkFailed": "No se ha podido abrir el enlace de la reunión."
+  }
+}

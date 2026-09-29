@@ -1,0 +1,109 @@
+{
+  "lead": {
+    "minutes_one": "in {{count}} minute",
+    "minutes_other": "in {{count}} minutes",
+    "hours_one": "in {{count}} hour",
+    "hours_other": "in {{count}} hours",
+    "days_one": "in {{count}} day",
+    "days_other": "in {{count}} days"
+  },
+  "provider": {
+    "zoom": "Zoom",
+    "teams": "Microsoft Teams",
+    "google_meet": "Google Meet",
+    "other": "Online meeting"
+  },
+  "notification": {
+    "upcomingTitle": "{{title}} starts {{lead}}",
+    "nowTitle": "{{title}} is starting now",
+    "startedTitle": "{{title}} has started",
+    "snoozeTitle": "Reminder: {{title}} starts {{lead}}",
+    "followUpTitle": "How did “{{title}}” go?",
+    "followUpBody": "Capture notes, decisions and next steps with your AI assistant.",
+    "body": "{{time}}",
+    "bodyWithLocation": "{{time}} · {{location}}",
+    "untitled": "Meeting"
+  },
+  "channels": {
+    "max": {
+      "name": "Maximum meeting alerts",
+      "description": "Loud alarm with strong vibration for meetings you must not miss."
+    },
+    "medium": {
+      "name": "Standard meeting alerts",
+      "description": "Sound and vibration before your meetings."
+    },
+    "light": {
+      "name": "Light meeting reminders",
+      "description": "Short, discreet reminders before your meetings."
+    },
+    "followup": {
+      "name": "Meeting follow-ups",
+      "description": "After a meeting: capture notes and next steps with your AI assistant."
+    }
+  },
+  "actions": {
+    "open": "Open",
+    "snooze_one": "Snooze {{count}} min",
+    "snooze_other": "Snooze {{count}} min",
+    "assistant": "Open assistant"
+  },
+  "when": {
+    "startsIn": "Starts {{lead}}",
+    "now": "Starting now",
+    "started_one": "Started {{count}} minute ago",
+    "started_other": "Started {{count}} minutes ago",
+    "timeRange": "{{start}} – {{end}}"
+  },
+  "max": {
+    "heading": "Your meeting is about to start",
+    "headingNow": "Your meeting is starting now",
+    "headingStarted": "Your meeting has already started",
+    "autoSnooze_one": "Auto-snooze in {{count}} second",
+    "autoSnooze_other": "Auto-snooze in {{count}} seconds",
+    "a11yCountdown": "Alert will snooze automatically"
+  },
+  "medium": {
+    "heading": "Upcoming meeting",
+    "pill": "{{title}} · {{when}}",
+    "a11yPill": "Meeting alert minimized. Tap to expand."
+  },
+  "light": {
+    "heading": "Meeting reminder"
+  },
+  "followUp": {
+    "heading": "How did it go?",
+    "body": "Capture notes and next steps for “{{title}}” with your AI assistant."
+  },
+  "buttons": {
+    "acknowledge": "I'm on it",
+    "join": "Join now",
+    "snooze_one": "Snooze {{count}} min",
+    "snooze_other": "Snooze {{count}} min",
+    "details": "Meeting details",
+    "minimize": "Minimize",
+    "dismiss": "Dismiss",
+    "openAssistant": "Open assistant"
+  },
+  "voice": {
+    "upcoming": "Attention. Your meeting {{title}} starts {{lead}}, at {{time}}.",
+    "now": "Attention. Your meeting {{title}} is starting now.",
+    "started": "Your meeting {{title}} has already started.",
+    "location": "Location: {{location}}."
+  },
+  "permission": {
+    "granted": "Notifications are allowed",
+    "provisional": "Notifications are delivered quietly",
+    "denied": "Notifications are blocked",
+    "undetermined": "Notifications have not been allowed yet",
+    "request": "Allow notifications",
+    "openSettings": "Open notification settings",
+    "exactAlarmsTitle": "Exact alarms",
+    "exactAlarmsHint": "Android may delay alerts to save battery. Allow “Alarms & reminders” so your meeting alerts ring exactly on time.",
+    "openExactAlarmSettings": "Allow exact alarms"
+  },
+  "errors": {
+    "snoozeFailed": "The alert could not be snoozed.",
+    "openLinkFailed": "The meeting link could not be opened."
+  }
+}
