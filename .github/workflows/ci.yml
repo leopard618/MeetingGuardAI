@@ -64,12 +64,24 @@ jobs:
         run: |
           set -euo pipefail
           bundle_dir=dist/ci-export/_expo/static/js/android
+          # Fail closed: a missing folder or an empty export (e.g. a changed Expo output layout)
+          # must not pass as "no secrets found".
+          if [ ! -d "$bundle_dir" ] || ! compgen -G "$bundle_dir/*.js" > /dev/null; then
+            echo "::error::No JavaScript bundle in $bundle_dir: the export failed or its layout changed"
+            exit 1
+          fi
           # OpenAI keys (sk-... / sk-proj-..., which contain "T3BlbkFJ"), Google OAuth client
           # secrets (GOCSPX-), Supabase service_role keys and Stripe webhook secrets must never
           # be shipped. (A plain "sk-" also matches icon names such as "flask-", so the OpenAI
           # check looks for a standalone "sk-" token followed by a key-like string.)
-          if grep -rEo '(^|[^A-Za-z])sk-(proj-)?[A-Za-z0-9_-]{20,}|T3BlbkFJ|GOCSPX|service_role|whsec_' "$bundle_dir"; then
+          # grep exits 0 on a match, 1 on no match and 2+ on an error: only 1 passes.
+          status=0
+          grep -rEo '(^|[^A-Za-z])sk-(proj-)?[A-Za-z0-9_-]{20,}|T3BlbkFJ|GOCSPX|service_role|whsec_' "$bundle_dir" || status=$?
+          if [ "$status" -eq 0 ]; then
             echo "::error::Secret-like value found in the app bundle"
+            exit 1
+          elif [ "$status" -ne 1 ]; then
+            echo "::error::The secret scan could not read the bundle (grep exit $status)"
             exit 1
           fi
           echo "No secrets found in the bundle."

@@ -502,6 +502,11 @@ iOS has never been built. You need these first:
   (`app.config.js` sets that entitlement).
 - The iOS OAuth client (§4.3).
 - A 1024x1024 app icon (`assets/icon.png` is 512x512).
+- **iPad:** the first release is iPhone only (`ios.supportsTablet: false` in `app.config.js`; iPads
+  run it in iPhone compatibility mode). The layouts are portrait-only and nothing was tested on an
+  iPad. To support iPad, set `supportsTablet: true` (Expo then declares every iPad orientation, as
+  the App Store requires for multitasking), test the screens in iPad landscape and split view, and
+  add iPad screenshots to the App Store listing.
 - **Sign in with Apple** or another login that meets App Store guideline 4.8. The app offers Google
   sign-in, so Apple requires this.
 - The real Apple values in `eas.json` -> `submit.production.ios` (`appleId`, `ascAppId`,

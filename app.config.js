@@ -98,7 +98,10 @@ module.exports = {
       fallbackToCacheTimeout: 0,
     },
     ios: {
-      supportsTablet: true,
+      // iPhone only for the first iOS release: the layouts are portrait-only and untested on iPad
+      // (an iPad build must support every orientation and needs iPad screenshots). iPads run the
+      // iPhone app in compatibility mode. Turn on after iPad QA (docs/SETUP.md §8).
+      supportsTablet: false,
       bundleIdentifier: 'com.meetingguard.ai',
       // MAX / MEDIUM meeting alerts use interruptionLevel "timeSensitive" (they break through
       // Focus modes). The App ID needs the "Time Sensitive Notifications" capability.
@@ -111,10 +114,11 @@ module.exports = {
     },
     android: {
       package: 'com.meetingguard.ai',
-      // No Auto Backup / device-to-device transfer: AsyncStorage holds the Firebase session
-      // (refresh token), the meeting cache (conference passwords, third-party emails), the outbox
-      // and the assistant thread. A restore on another device must never recreate a signed-in
-      // session without authentication.
+      // No Auto Backup: AsyncStorage holds the Firebase session (refresh token), the meeting cache
+      // (conference passwords, third-party emails), the outbox and the assistant thread. A restore
+      // on another device must never recreate a signed-in session without authentication.
+      // allowBackup=false alone does not stop device-to-device transfers on some Android 12+
+      // phones: plugins/withNoDeviceTransfer.js adds dataExtractionRules that exclude everything.
       allowBackup: false,
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
@@ -201,6 +205,7 @@ module.exports = {
       ...googleSignInPlugin(),
       sentryPlugin(),
       'expo-dev-client',
+      './plugins/withNoDeviceTransfer',
     ],
     extra: {
       eas: {

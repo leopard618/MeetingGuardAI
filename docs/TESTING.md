@@ -18,7 +18,7 @@ npm test                          # all Jest suites (jest-expo preset)
 npx jest src/services/alerts      # one folder (any path or file-name pattern works)
 npx jest --watch                  # re-run the tests of changed files
 npm run typecheck                 # tsc --noEmit (strict TypeScript)
-npm run lint                      # ESLint; CI expects 0 warnings
+npm run lint                      # ESLint with --max-warnings 0 (a warning fails it, locally and in CI)
 npm run check:bundle              # does the Android bundle build? (output in dist/check-bundle)
 npx expo-doctor                   # dependency and config checks
 ```
@@ -75,7 +75,7 @@ Firestore emulator with the project id `demo-meetingguard`, so it never touches 
 
 | Job | Steps |
 |---|---|
-| `app` (Node 22 and 24) | `npm ci`, lint, type check, Jest, Android bundle with dummy public values, then a scan of the bundle for secret-like strings (`sk-...`, `GOCSPX`, `service_role`, `whsec_`) |
+| `app` (Node 22 and 24) | `npm ci`, lint (0 warnings), type check, Jest, Android bundle with dummy public values, then a scan of the bundle for secret-like strings (`sk-...`, `GOCSPX`, `service_role`, `whsec_`). The scan fails when the bundle folder is missing or empty, or when grep errors. |
 | `functions` (Node 22) | contract check, lint, type check, build, unit tests |
 | `firestore-rules` (Node 22 + Java 21) | rules tests on the emulator |
 
