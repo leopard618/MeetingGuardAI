@@ -29,18 +29,30 @@ describe('updates', () => {
     expect(shortUpdateLabel({ ...base, channel: null })).toEqual({ id: '1a2b3c4d', channel: '-' });
   });
 
-  it('reports an emergency launch (failed update) once, as an error', () => {
+  it('logs an emergency launch once as a warning, never as a second Sentry error', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     reportUpdateLaunch({ ...base, emergencyLaunch: true });
     reportUpdateLaunch({ ...base, emergencyLaunch: true });
-    expect(error).toHaveBeenCalledTimes(1);
-    expect(String(error.mock.calls[0]?.[1])).toContain('emergency launch');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[1])).toContain('emergency launch');
+    expect(error).not.toHaveBeenCalled();
   });
 
-  it('does not report a normal launch as an error', () => {
+  it('does not report a normal launch', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     reportUpdateLaunch(base);
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('reports nothing when updates are disabled (development, no expo-updates)', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    // A fresh latch: this call reaches the enabled check itself.
     reportUpdateLaunch({ ...base, enabled: false, emergencyLaunch: true });
+    expect(warn).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();
   });
 });

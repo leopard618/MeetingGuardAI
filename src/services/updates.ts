@@ -4,9 +4,18 @@
  * The native runtime does the work: `checkAutomatically: ON_LOAD` downloads a newer update for
  * this runtime (runtimeVersion policy "appVersion") in the background at a cold start, and
  * `fallbackToCacheTimeout: 0` never delays the launch; the update runs from the next cold start.
- * If a downloaded update crashes before it finishes launching, expo-updates falls back to the
- * previous working update or the embedded bundle ("emergency launch"). That fallback is reported
- * here, so a bad release shows up in Sentry and can be rolled back (docs/DEPLOYMENT.md).
+ *
+ * What the two failure paths look like (expo-updates 57):
+ * - A downloaded update that CRASHES on start is handled by expo-updates' error recovery: it is
+ *   marked as failed and the app relaunches with the previous update (or the embedded bundle).
+ *   `isEmergencyLaunch` stays false. The signal for a bad OTA update is therefore in Sentry: new
+ *   crashes / errors grouped by the tag `expo.updates.update_id` right after a publish, and a
+ *   falling crash-free rate (docs/DEPLOYMENT.md §8).
+ * - An "emergency launch" means expo-updates could not use its update store at all (database or
+ *   directory failure) and started the embedded bundle. The Sentry SDK already reports it
+ *   (`expoContextIntegration`: a warning event tagged `expo.updates.emergency_launch=true`) and
+ *   tags every event with the update id, channel and runtime version, so this module only logs a
+ *   warning (no second Sentry event).
  */
 import * as Updates from 'expo-updates';
 
@@ -24,7 +33,7 @@ export interface UpdateInfo {
   updateId: string | null;
   /** true when running the bundle shipped inside the binary (no OTA update applied). */
   embedded: boolean;
-  /** true when expo-updates fell back because the latest update failed to launch. */
+  /** true when expo-updates could not use its update store and started the embedded bundle. */
   emergencyLaunch: boolean;
 }
 
@@ -47,13 +56,16 @@ export function shortUpdateLabel(info: UpdateInfo): { id: string; channel: strin
 
 let reported = false;
 
-/** Called once at app start: reports an emergency launch (a failed OTA update) to Sentry. */
+/**
+ * Called once at app start: logs which bundle runs. An emergency launch is logged as a warning
+ * only; Sentry's own Expo integration already sends the event (see the header).
+ */
 export function reportUpdateLaunch(info: UpdateInfo = getUpdateInfo()): void {
   if (reported) return;
   reported = true;
   if (!info.enabled) return;
   if (info.emergencyLaunch) {
-    log.error('emergency launch: the latest update failed to start, running the previous bundle', new Error(Updates.emergencyLaunchReason ?? 'unknown reason'));
+    log.warn('emergency launch: the update store could not be used, running the embedded bundle', Updates.emergencyLaunchReason ?? 'unknown reason');
     return;
   }
   log.info('running', info.embedded ? 'embedded bundle' : `update ${info.updateId ?? '-'}`, `channel ${info.channel ?? '-'}`);

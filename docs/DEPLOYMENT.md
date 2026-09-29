@@ -192,9 +192,15 @@ gcloud was not available when this runbook was written, so check the flags of th
 
 - **Sentry** (production environment):
   - New issues and the crash-free rate per release.
-  - Filter by `expo.updates.update_id` after an OTA update.
-  - The message "emergency launch: the latest update failed to start" means a bad OTA update: roll
-    it back (§10).
+  - After an OTA update, filter by the tag `expo.updates.update_id` (Sentry adds it to every event,
+    together with `expo.updates.channel` and `expo.updates.runtime_version`). **This is the bad-OTA
+    signal:** new crash or error issues whose events carry the new update id, or a falling
+    crash-free rate right after the publish. Roll back (§10). Create a Sentry alert on "new issue"
+    and on the crash-free rate for the production environment.
+  - Events tagged `expo.updates.emergency_launch:true` (sent by the Sentry SDK) mean expo-updates
+    could not use its update store on that device and started the embedded bundle. That is a
+    device or storage problem, not proof of a bad update. Look at the reason in the message; many
+    of them after one publish are worth a rollback.
 - **Firebase / Google Cloud:**
   - Functions -> error rate and logs (`npm run logs`).
   - Firestore -> Usage.
@@ -235,9 +241,11 @@ gcloud was not available when this runbook was written, so check the flags of th
 
 ## 10. Rollback
 
-**Automatic protection.** If a downloaded update crashes before it finishes starting, expo-updates
-starts the previous working bundle ("emergency launch"). The app reports it to Sentry. Treat that as a
-signal to roll the channel back for everyone.
+**Automatic protection.** If a downloaded update crashes before it finishes starting, expo-updates'
+error recovery marks it as failed and relaunches the previous update (or the embedded bundle). This
+happens quietly on each device and sends no special event: what you see is the crash itself in
+Sentry, tagged with the bad `expo.updates.update_id` (§8). Devices that have not crashed yet still run
+the bad update, so roll the channel back for everyone.
 
 **Bad OTA update.** Choose one option, then check on a device and in Sentry:
 

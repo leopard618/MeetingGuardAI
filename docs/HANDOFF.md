@@ -97,7 +97,8 @@ State at the time of writing (2026-09-28):
   translation keys that only the old screens used.
 - New guard tests for translation keys and route titles.
 - OTA updates with EAS Update: channels per build profile, `runtimeVersion` from `version`, and
-  emergency-launch reporting to Sentry. The runbook is `docs/DEPLOYMENT.md`.
+  Sentry events tagged with the running update (the bad-OTA signal). The runbook is
+  `docs/DEPLOYMENT.md`.
 
 ### Stage 4: documentation (this commit)
 

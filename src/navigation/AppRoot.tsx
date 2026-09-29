@@ -69,7 +69,7 @@ function ThemedApp(): ReactElement {
 export function AppRoot(): ReactElement {
   useEffect(() => {
     registerCrashReporter();
-    // A failed OTA update (emergency launch back to the previous bundle) is reported to Sentry.
+    // Logs the running bundle (Sentry's Expo integration reports emergency launches itself).
     reportUpdateLaunch();
     alertEngine.init().catch((error: unknown) => {
       log.error('alert engine initialization failed', toAppError(error));
