@@ -50,7 +50,7 @@ These rules prevent import cycles:
 | shell | `src/contexts/ThemeContext.tsx` (`ThemeProvider`, `useTheme`, `useAppThemes`), `src/components/{CustomHeader,MobileSidebar,ThemeToggle,ErrorBoundary}.tsx`, `src/hooks/useResponsive.ts` | shell |
 | screens | `src/screens/<area>` (one folder per screen group, §13); `src/screens/shared` (`useFormatters`, `Section`, `MeetingStatus`) | screen groups |
 | release | `src/services/updates.ts` (OTA state), `app.config.js` (`updates`, `runtimeVersion`), `eas.json` channels, `docs/DEPLOYMENT.md` | release |
-| functions | `functions/src/index.ts` (`assistant`, `deleteAccount`); `functions/src/shared/aiContract.ts` is a **verbatim** copy of `src/core/aiContract.ts`, and CI diffs the two; `firestore.rules`, `firestore.indexes.json`, `firebase.json` | functions |
+| functions | `functions/src/index.ts` (`assistant`, `deleteAccount`, scheduled `dailyMaintenance`); `functions/src/shared/aiContract.ts` is a **verbatim** copy of `src/core/aiContract.ts`, and CI diffs the two; `firestore.rules`, `firestore.indexes.json`, `firebase.json` | functions |
 
 ## 3. Data model (summary; `types.ts` has the details)
 
@@ -78,7 +78,7 @@ These rules prevent import cycles:
 | `status` | `scheduled\|cancelled`. |
 | `external` | `{ googleEventId, googleCalendarId, googleEtag, googleUpdatedAt, deviceEventId, deviceCalendarId }` |
 | `createdAt`, `updatedAt` | |
-| `deletedAt` | Tombstone for soft delete. A tombstone keeps only what sync needs (ids, source, status, time slot, external refs, timestamps): title becomes `TOMBSTONE_TITLE`, and description, notes, participants, conference, location, tips and alert settings are cleared (`tombstoneMeeting` / `scrubMeetingContent`). Tombstones older than `TOMBSTONE_RETENTION_DAYS` (60) are hard-deleted, and older content-carrying tombstones are scrubbed, once per session after the first server snapshot. |
+| `deletedAt` | Tombstone for soft delete. A tombstone keeps only what sync needs (ids, source, status, time slot, external refs, timestamps): title becomes `TOMBSTONE_TITLE`, and description, notes, participants, conference, location, tips and alert settings are cleared (`tombstoneMeeting` / `scrubMeetingContent`). Tombstones older than `TOMBSTONE_RETENTION_DAYS` (60) are hard-deleted, and older content-carrying tombstones are scrubbed, once per session after the first server snapshot. The scheduled `dailyMaintenance` function also hard-deletes them on the server (users who never open the app again). |
 
 Storage rules:
 
@@ -114,9 +114,10 @@ Reads use `mergePreferences`, which merges field by field so one bad field never
 | `users/{uid}/settings/preferences` | Preferences | owner read and write; only doc id `preferences` |
 | `entitlements/{uid}` | Entitlement | owner read; **no client write** |
 | `usage/{uid}/days/{yyyy-mm-dd}` (UTC day) | `{ count, updatedAt }` | owner read; **no client write** |
+| `accountDeletions/{uid}` | `{ deletedAt }` (ISO), written by `deleteAccount`, purged after 30 days | **none** (server only; used to re-apply deletions after a backup restore) |
 | everything else | | deny |
 
-The indexes used are single-field only (`startAt`), so `firestore.indexes.json` can stay empty unless the functions add composite queries.
+The app's queries use single-field indexes only (`startAt`). `firestore.indexes.json` adds one field override: a collection-group index on `meetings.deletedAt` for the server's tombstone purge.
 
 ## 5. Session lifecycle (the auth area owns `sessionManager`)
 
@@ -295,6 +296,7 @@ useAssistant.send(text)
 - Replies are bilingual: they follow `request.language` and the user's time zone.
 - In follow-up mode, the post-meeting notification opens `AIChat` with `{ followup }`. The server loads that meeting and returns follow-up suggestions and actions.
 - The `deleteAccount` callable requires a recent sign-in (`auth_time` within 5 minutes; the app re-authenticates the user first with `authService.reauthenticate()`), then does these steps in order (every step tolerates data or a user that is already gone, so a retry is safe):
+  0. Records the deletion in `accountDeletions/{uid}` (after a Firestore restore, `functions/scripts/replay-account-deletions.mjs` deletes those accounts' documents again; DEPLOYMENT §7).
   1. Revokes the user's refresh tokens, so no device can mint a new ID token (an offline device with queued writes can only write while its current ID token lives, at most one hour).
   2. Recursively deletes `users/{uid}`.
   3. Deletes `entitlements/{uid}`.

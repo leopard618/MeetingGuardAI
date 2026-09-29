@@ -100,9 +100,11 @@
         "items": [
           "You can delete your account at any time in the app: Settings → Account → Delete account. This permanently deletes your account, meetings, notes, preferences, assistant usage records and subscription status from our servers, signs you out and removes the app’s access to your Google account.",
           "If you can’t sign in anymore, write to {{email}} from the email address of your account and ask us to delete it.",
-          "When you delete a meeting, a minimal record without its content (identifiers and time) is kept for up to 60 days so the deletion reaches your other devices and calendars; after that it is erased.",
+          "When you delete a meeting, a minimal record without its content (identifiers and time) is kept for up to 60 days so the deletion reaches your other devices and calendars; after that our server erases it automatically.",
           "Events that the app added to Google Calendar or to your phone’s calendar stay there until you delete them.",
           "Server logs contain only your anonymous user ID and are kept for up to 30 days.",
+          "Our database backups, which protect against data loss, still contain deleted information until they expire: daily backups are kept for up to 14 days and point-in-time recovery covers the last 7 days. Backups are not used for anything else.",
+          "When you delete your account, we keep a record with only your anonymous user ID and the date for 30 days. If we ever have to restore a backup, we use it to delete your data again, so a deleted account stays deleted.",
           "The copy stored on your device is deleted when you sign out or delete your account."
         ]
       },

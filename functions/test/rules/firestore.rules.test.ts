@@ -272,6 +272,13 @@ describe('server-owned collections', () => {
     await assertFails(deleteDoc(doc(alice(), 'usage/alice/days/2026-10-05')));
   });
 
+  it('keeps the account deletion log server-only', async () => {
+    await seed('accountDeletions/alice', { deletedAt: ISO });
+    await assertFails(getDoc(doc(alice(), 'accountDeletions/alice')));
+    await assertFails(setDoc(doc(alice(), 'accountDeletions/alice'), { deletedAt: ISO }));
+    await assertFails(deleteDoc(doc(alice(), 'accountDeletions/alice')));
+  });
+
   it('denies unknown paths', async () => {
     await assertFails(setDoc(doc(alice(), 'admin/config'), { open: true }));
     await assertFails(getDoc(doc(alice(), 'users/alice/tokens/google')));

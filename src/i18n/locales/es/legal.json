@@ -100,9 +100,11 @@
         "items": [
           "Puedes eliminar tu cuenta en cualquier momento desde la app: Ajustes → Cuenta → Eliminar cuenta. Así se borran para siempre de nuestros servidores tu cuenta, reuniones, notas, preferencias, registros de uso del asistente y estado de suscripción, se cierra tu sesión y se retira el acceso de la app a tu cuenta de Google.",
           "Si ya no puedes iniciar sesión, escribe a {{email}} desde el correo de tu cuenta y pídenos que la eliminemos.",
-          "Cuando borras una reunión, se conserva hasta 60 días un registro mínimo sin su contenido (identificadores y hora) para que el borrado llegue a tus otros dispositivos y calendarios; después se elimina.",
+          "Cuando borras una reunión, se conserva hasta 60 días un registro mínimo sin su contenido (identificadores y hora) para que el borrado llegue a tus otros dispositivos y calendarios; después nuestro servidor lo elimina automáticamente.",
           "Los eventos que la app añadió a Google Calendar o al calendario de tu teléfono siguen allí hasta que los borres.",
           "Los registros del servidor solo contienen tu identificador de usuario anónimo y se conservan hasta 30 días.",
+          "Las copias de seguridad de nuestra base de datos, que la protegen contra la pérdida de información, siguen conteniendo la información borrada hasta que caducan: las copias diarias se conservan hasta 14 días y la recuperación a un momento anterior cubre los últimos 7 días. Las copias no se usan para nada más.",
+          "Cuando eliminas tu cuenta, conservamos durante 30 días un registro que solo contiene tu identificador de usuario anónimo y la fecha. Si alguna vez tenemos que restaurar una copia de seguridad, lo usamos para volver a borrar tus datos, de modo que una cuenta eliminada siga eliminada.",
           "La copia guardada en tu dispositivo se borra al cerrar sesión o al eliminar tu cuenta."
         ]
       },

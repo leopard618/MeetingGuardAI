@@ -2,6 +2,9 @@
  * `deleteAccount` callable: permanently deletes the caller's data and Firebase Auth user.
  *
  * Order:
+ *   0. record the deletion (accountDeletions/{uid} = { deletedAt }): the anonymous user id and the
+ *      time, so a restore from a backup can re-apply the deletion (maintenance/core.ts); the
+ *      record is purged after DELETION_LOG_RETENTION_DAYS;
  *   1. revoke the user's refresh tokens: no device can mint a new ID token any more, so offline
  *      devices with queued writes can only write while their current ID token lives (<= 1 h);
  *   2. users/{uid} (recursively: profile, meetings, notes, settings) -> entitlements/{uid} ->
@@ -25,9 +28,12 @@ import { HttpsError, onCall } from 'firebase-functions/https';
 
 import { FUNCTIONS_REGION } from './config';
 import { adminAuth, adminDb } from './firebase';
+import { ACCOUNT_DELETIONS_COLLECTION } from './maintenance/core';
 import { deleteAccountRequestSchema, type DeleteAccountResponse } from './shared/aiContract';
 
 export interface AccountDeletionPorts {
+  /** Writes (or overwrites) the deletion record of the user. */
+  recordDeletion(uid: string, deletedAtIso: string): Promise<void>;
   /** Deletes a document and all of its subcollections (no-op when nothing exists). */
   recursiveDelete(path: string): Promise<void>;
   /** Deletes one document (no-op when missing). */
@@ -38,7 +44,9 @@ export interface AccountDeletionPorts {
   revokeRefreshTokens(uid: string): Promise<boolean>;
 }
 
-export async function deleteAccountData(uid: string, ports: AccountDeletionPorts): Promise<DeleteAccountResponse> {
+export async function deleteAccountData(uid: string, ports: AccountDeletionPorts, now: Date = new Date()): Promise<DeleteAccountResponse> {
+  // First, so a restore can always re-apply this deletion (even after a partial failure).
+  await ports.recordDeletion(uid, now.toISOString());
   await ports.revokeRefreshTokens(uid);
   await ports.recursiveDelete(`users/${uid}`);
   await ports.deleteDocument(`entitlements/${uid}`);
@@ -57,6 +65,9 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
   const db = adminDb();
   const auth = adminAuth();
   return {
+    async recordDeletion(uid, deletedAtIso) {
+      await db.collection(ACCOUNT_DELETIONS_COLLECTION).doc(uid).set({ deletedAt: deletedAtIso });
+    },
     async recursiveDelete(path) {
       await db.recursiveDelete(db.doc(path));
     },
@@ -118,7 +129,7 @@ export async function handleDeleteAccount(
     });
   }
   try {
-    const result = await deleteAccountData(uid, ports());
+    const result = await deleteAccountData(uid, ports(), new Date(now()));
     logger.info('deleteAccount.completed', { uid });
     return result;
   } catch (error) {

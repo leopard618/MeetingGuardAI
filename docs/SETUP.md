@@ -439,7 +439,9 @@ npm run deploy:rules    # firestore.rules + firestore.indexes.json
 - The first deploy turns on several Google Cloud APIs (Cloud Functions, Cloud Build, Artifact
   Registry, Cloud Run, Eventarc, Secret Manager). This can take a few minutes. If it fails the first
   time, wait a minute and run it again.
-- Check: Firebase console -> Functions lists `assistant` and `deleteAccount` in your region.
+- Check: Firebase console -> Functions lists `assistant`, `deleteAccount` and `dailyMaintenance` in
+  your region. `dailyMaintenance` is scheduled (the first deploy enables Cloud Scheduler); the next
+  day its log shows `dailyMaintenance.completed` with the counts.
 
 ### 6.5 Account deletion page (Firebase Hosting)
 

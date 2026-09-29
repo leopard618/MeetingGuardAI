@@ -264,7 +264,7 @@ Focus allows it. There is no exact-alarm setting on iOS.
 | 1 | Settings -> Account -> Delete account -> "Delete my account", then cancel the Google account picker. | Nothing is deleted. |
 | 2 | Try again while offline. | An error message. The account stays. |
 | 3 | Online: Delete account -> "Delete my account" -> pick the Google account again (identity check). | "Deleting your account..." and then the Landing screen. |
-| 4 | Look in the Firebase console. | The Auth user is gone, and so are `users/{uid}` (with its meetings and notes), `entitlements/{uid}` and `usage/{uid}`. |
+| 4 | Look in the Firebase console. | The Auth user is gone, and so are `users/{uid}` (with its meetings and notes), `entitlements/{uid}` and `usage/{uid}`. `accountDeletions/{uid}` exists and holds only `deletedAt`. |
 | 5 | Wait for a time when an alert of the deleted account was planned. | Nothing fires. |
 | 6 | Sign in again with the same Google account. | A new, empty account starts with onboarding. |
 | 7 | Open `https://<project-id>.web.app/delete-account`. | The page loads in English and Spanish with the real support email. |

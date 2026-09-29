@@ -22,6 +22,9 @@ jest.mock('firebase-functions/logger', () => ({
 function fakePorts(options: { failOn?: string; userExists?: boolean } = {}) {
   const calls: string[] = [];
   const ports: AccountDeletionPorts = {
+    recordDeletion: jest.fn(async (uid: string, deletedAtIso: string) => {
+      calls.push(`record:${uid}@${deletedAtIso}`);
+    }),
     recursiveDelete: jest.fn(async (path: string) => {
       calls.push(`recursive:${path}`);
       if (options.failOn === path) throw new Error('unavailable');
@@ -42,10 +45,11 @@ function fakePorts(options: { failOn?: string; userExists?: boolean } = {}) {
 }
 
 describe('deleteAccount', () => {
-  it('revokes tokens, deletes user data, entitlement, usage, the auth user, then sweeps late writes', async () => {
+  it('records the deletion, revokes tokens, deletes user data, entitlement, usage, the auth user, then sweeps late writes', async () => {
     const { ports, calls } = fakePorts();
-    await expect(deleteAccountData('u1', ports)).resolves.toEqual({ deleted: true });
+    await expect(deleteAccountData('u1', ports, new Date('2026-10-05T10:00:00.000Z'))).resolves.toEqual({ deleted: true });
     expect(calls).toEqual([
+      'record:u1@2026-10-05T10:00:00.000Z',
       'revoke:u1',
       'recursive:users/u1',
       'doc:entitlements/u1',

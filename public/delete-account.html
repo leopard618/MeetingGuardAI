@@ -129,6 +129,14 @@
           Server logs that contain only your anonymous user ID (no names, emails or meeting content) are kept for
           up to 30 days for security and then deleted automatically.
         </li>
+        <li>
+          Database backups, which exist only to recover from data loss, still contain your data until they
+          expire: daily backups are kept for up to 14 days, and point-in-time recovery covers the last 7 days.
+        </li>
+        <li>
+          A record with only your anonymous user ID and the deletion date is kept for 30 days. If a backup is ever
+          restored, it is used to delete your data again, so your account stays deleted.
+        </li>
       </ul>
 
       <div class="warning">
@@ -176,6 +184,16 @@
         <li>
           Los registros del servidor que solo contienen tu ID de usuario anónimo (sin nombres, correos ni contenido
           de reuniones) se conservan hasta 30 días por seguridad y luego se eliminan automáticamente.
+        </li>
+        <li>
+          Las copias de seguridad de la base de datos, que solo sirven para recuperarse de una pérdida de datos,
+          siguen conteniendo tus datos hasta que caducan: las copias diarias se conservan hasta 14 días y la
+          recuperación a un momento anterior cubre los últimos 7 días.
+        </li>
+        <li>
+          Se conserva durante 30 días un registro que solo contiene tu ID de usuario anónimo y la fecha de
+          eliminación. Si alguna vez se restaura una copia de seguridad, se usa para volver a borrar tus datos, de
+          modo que tu cuenta siga eliminada.
         </li>
       </ul>
 

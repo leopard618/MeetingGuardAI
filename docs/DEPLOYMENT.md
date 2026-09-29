@@ -113,8 +113,8 @@ Run these in `functions/`.
 
 | Action | Command |
 |---|---|
-| Deploy functions (lint, contract check and build run first) | `npm run deploy` |
-| Deploy Firestore rules + indexes | `npm run deploy:rules` |
+| Deploy functions (lint, contract check and build run first): `assistant`, `deleteAccount`, the scheduled `dailyMaintenance` | `npm run deploy` |
+| Deploy Firestore rules + indexes (the tombstone purge needs the `meetings.deletedAt` collection-group index) | `npm run deploy:rules` |
 | Deploy the account deletion page | `npx firebase deploy --only hosting` |
 | Read the function logs | `npm run logs` |
 
@@ -178,12 +178,33 @@ gcloud firestore export gs://<bucket>/manual-<date>
    - A point in time:
      `npx firebase firestore:databases:clone "(default)" restore-<date> --snapshot-time 2026-10-01T09:00:00Z`.
 2. Check the data in the console. The database picker is at the top of the Firestore page.
-3. Copy back what you need:
-   - `gcloud firestore export gs://<bucket>/restore-<date> --database=restore-<date>`
+3. Copy back only what you need. Prefer the affected collections over the whole database:
+   - `gcloud firestore export gs://<bucket>/restore-<date> --database=restore-<date> --collection-ids=<ids>`
    - then `gcloud firestore import gs://<bucket>/restore-<date>/<export-folder> --database="(default)"`
 
    An import overwrites documents with the same path and does not delete other documents.
-4. Delete the temporary database: `npx firebase firestore:databases:delete restore-<date>`.
+4. **Re-apply account deletions (required after every import into `(default)`).** The backup still
+   holds the data of accounts deleted after the backup time, and the import writes it back. The
+   `deleteAccount` callable records every deletion in `accountDeletions/{uid}` (kept 30 days, longer
+   than any backup), and those newer records are not in the backup, so they survive the import. Run
+   this in `functions/` right after the import, with the backup or snapshot time:
+
+   ```bash
+   npm run build
+   gcloud auth application-default login
+   node scripts/replay-account-deletions.mjs --project <project-id> --since <backup time, e.g. 2026-10-01T09:00:00Z> --dry-run
+   node scripts/replay-account-deletions.mjs --project <project-id> --since <backup time>
+   ```
+
+   It deletes `users/{uid}` (recursively), `entitlements/{uid}` and `usage/{uid}` of each of those
+   accounts again. The Auth users stay deleted (Firebase Auth is not part of a Firestore restore).
+5. Delete the temporary database: `npx firebase firestore:databases:delete restore-<date>`.
+
+**Retention of deleted data.** Deleted accounts and meetings stay in backups until those expire
+(daily backups 14 days, point-in-time recovery 7 days). The privacy policy and the account deletion
+page say so; keep them in step if you change the retention above. The scheduled `dailyMaintenance`
+function hard-deletes meeting tombstones older than 60 days (the privacy policy promises this) and
+deletion records older than 30 days.
 
 gcloud was not available when this runbook was written, so check the flags of the `gcloud` lines with
 `--help` before you depend on them.

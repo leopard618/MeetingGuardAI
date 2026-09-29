@@ -6,7 +6,11 @@ security rules and the public account-deletion page.
 | Callable | What it does |
 |---|---|
 | `assistant` | AI assistant. Validates the request, counts the daily quota, loads the user's meetings server-side, calls OpenAI with tool calling and returns a reply plus **proposed** actions. It never changes data: the app shows a confirmation card and executes confirmed actions itself. |
-| `deleteAccount` | Deletes `users/{uid}` (recursively), `entitlements/{uid}`, `usage/{uid}` (recursively) and the Firebase Auth user. Idempotent. |
+| `deleteAccount` | Records the deletion in `accountDeletions/{uid}` (anonymous id + time, kept 30 days for the restore runbook), then deletes `users/{uid}` (recursively), `entitlements/{uid}`, `usage/{uid}` (recursively) and the Firebase Auth user. Idempotent. |
+
+| Scheduled | What it does |
+|---|---|
+| `dailyMaintenance` | Every day at 03:30 UTC: hard-deletes meeting tombstones older than 60 days (a collection-group query on `deletedAt`; the index is in `../firestore.indexes.json`) and account deletion records older than 30 days. The privacy policy promises both. The first deploy enables Cloud Scheduler. |
 
 The request/response contract is `src/shared/aiContract.ts`, a **verbatim copy** of the app's
 `src/core/aiContract.ts`. `npm run check:contract`, a unit test and CI fail when the two differ. To
@@ -18,7 +22,9 @@ functions/
   src/config.ts                params (FUNCTIONS_REGION, OPENAI_MODEL, OPENAI_REASONING_EFFORT), secret OPENAI_API_KEY, limits
   src/assistant/               handler, quota, meeting context, prompt, tools, action mapping, OpenAI adapter, time zones
   src/deleteAccount.ts
+  src/maintenance/             retention: tombstone purge, deletion log (core.ts pure, index.ts schedule)
   src/shared/aiContract.ts     verbatim copy of src/core/aiContract.ts
+  scripts/replay-account-deletions.mjs   re-applies account deletions after a Firestore restore
   test/unit/                   Jest unit tests (no network, no emulator)
   test/rules/                  Firestore rules tests (emulator)
 ../firestore.rules, ../firestore.indexes.json, ../firebase.json, ../public/delete-account.html
@@ -89,6 +95,19 @@ Before deploying hosting, replace `REPLACE_WITH_SUPPORT_EMAIL@example.com` in
 explains in-app deletion (Settings → Delete account) and offers a `mailto:` fallback. Use its URL as
 the account-deletion link in Google Play Console.
 
+## After a Firestore restore
+
+A restore or import brings back the data of accounts deleted after the backup time. Right after
+importing into `(default)`, run (with Application Default Credentials):
+
+```bash
+npm run build
+node scripts/replay-account-deletions.mjs --project <project-id> --since <backup time, ISO 8601> --dry-run
+node scripts/replay-account-deletions.mjs --project <project-id> --since <backup time, ISO 8601>
+```
+
+The whole procedure is in `../docs/DEPLOYMENT.md` §7.
+
 ## Local development with the emulators
 
 ```bash
@@ -109,7 +128,7 @@ npm run serve    # builds, then starts the auth, firestore and functions emulato
 npm run lint             # ESLint (typescript-eslint)
 npm run typecheck        # tsc on sources and tests
 npm run build            # tsc -> lib/
-npm test                 # unit tests: quota, entitlement, time zones, context, prompt, tools, action mapping, handler, deleteAccount, contract copy
+npm test                 # unit tests: quota, entitlement, time zones, context, prompt, tools, action mapping, handler, deleteAccount, maintenance, contract copy
 npm run check:contract   # src/shared/aiContract.ts == ../src/core/aiContract.ts
 npm run test:rules       # Firestore rules tests inside `firebase emulators:exec` (Java 21+)
 ```
