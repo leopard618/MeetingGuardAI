@@ -21,6 +21,36 @@ function scrub(text: string | undefined): string | undefined {
   return text ? text.replace(EMAIL_PATTERN, '[email]') : text;
 }
 
+/** "https://host/path?query#hash" -> "https://host/path" (queries carry sync tokens, ids, times). */
+function stripQuery(url: unknown): unknown {
+  return typeof url === 'string' ? url.replace(/[?#].*$/, '') : url;
+}
+
+/** Minimal breadcrumb shape handled here (a subset of Sentry's Breadcrumb). */
+export interface BreadcrumbLike {
+  category?: string;
+  message?: string;
+  data?: Record<string, unknown>;
+}
+
+/**
+ * Removes user data from a breadcrumb before Sentry stores it:
+ * - console breadcrumbs keep only the (email-scrubbed) message; their raw `data.arguments` (whole
+ *   objects passed to console.warn / console.error by legacy screens) are dropped;
+ * - HTTP breadcrumbs lose the query string of their URL;
+ * - every message is email-scrubbed.
+ */
+export function scrubBreadcrumb<T extends BreadcrumbLike>(breadcrumb: T): T {
+  const next: T = { ...breadcrumb };
+  if (next.message) next.message = scrub(next.message);
+  if (next.category === 'console') {
+    delete next.data;
+  } else if ((next.category === 'xhr' || next.category === 'fetch') && next.data) {
+    next.data = { ...next.data, url: stripQuery(next.data.url) };
+  }
+  return next;
+}
+
 export function initSentry(): boolean {
   if (initialized) return true;
   const dsn = env.sentryDsn;
@@ -45,8 +75,7 @@ export function initSentry(): boolean {
         return event;
       },
       beforeBreadcrumb(breadcrumb) {
-        if (breadcrumb.message) breadcrumb.message = scrub(breadcrumb.message);
-        return breadcrumb;
+        return scrubBreadcrumb(breadcrumb);
       },
     });
     initialized = true;

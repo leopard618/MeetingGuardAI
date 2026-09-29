@@ -12,7 +12,10 @@ import {
   parseEntitlementDoc,
   parseMeetingDoc,
   parseNoteDoc,
+  meetingSchema,
   toMeetingDoc,
+  TOMBSTONE_TITLE,
+  tombstoneHasContent,
   tombstoneMeeting,
   type Meeting,
 } from '../types';
@@ -106,9 +109,48 @@ describe('applyMeetingPatch', () => {
     expect(next.createdAt).toBe(meeting.createdAt);
   });
 
-  it('tombstones', () => {
-    const dead = tombstoneMeeting(sampleMeeting(), '2026-10-03T00:00:00.000Z');
-    expect(dead.deletedAt).toBe('2026-10-03T00:00:00.000Z');
+  it('tombstones scrub the content and keep only what sync needs', () => {
+    const meeting = applyMeetingPatch(
+      sampleMeeting(),
+      {
+        description: 'Budget, salaries',
+        notes: 'Private notes',
+        conference: { provider: 'zoom', url: 'https://zoom.us/j/1', password: 'secret' },
+        location: { type: 'physical', address: 'Room 4', virtualUrl: null },
+        alertIntensity: 'max',
+        external: { googleEventId: 'mgabc', googleCalendarId: 'primary' },
+      },
+      '2026-10-02T00:00:00.000Z',
+    );
+    const dead = tombstoneMeeting(meeting, '2026-10-03T00:00:00.000Z');
+    expect(dead).toMatchObject({
+      id: meeting.id,
+      userId: meeting.userId,
+      source: meeting.source,
+      status: meeting.status,
+      startAt: meeting.startAt,
+      durationMinutes: meeting.durationMinutes,
+      timezone: meeting.timezone,
+      createdAt: meeting.createdAt,
+      external: meeting.external,
+      deletedAt: '2026-10-03T00:00:00.000Z',
+      updatedAt: '2026-10-03T00:00:00.000Z',
+      title: TOMBSTONE_TITLE,
+      description: '',
+      notes: null,
+      conference: null,
+      location: null,
+      participants: [],
+      preparationTips: [],
+      customAlertTimes: null,
+      alertIntensity: null,
+    });
+    expect(JSON.stringify(dead)).not.toMatch(/secret|Private|salaries|ana@example\.com|Weekly/);
+    // Still a valid document (the rules require a non-empty title).
+    expect(meetingSchema.safeParse(dead).success).toBe(true);
+    expect(tombstoneHasContent(dead)).toBe(false);
+    expect(tombstoneHasContent({ ...meeting, deletedAt: '2026-10-03T00:00:00.000Z' })).toBe(true);
+    expect(tombstoneHasContent(meeting)).toBe(false);
   });
 });
 

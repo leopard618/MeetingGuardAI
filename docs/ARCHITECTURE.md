@@ -71,7 +71,7 @@ These rules prevent import cycles:
 | `status` | `scheduled\|cancelled`. |
 | `external` | `{ googleEventId, googleCalendarId, googleEtag, googleUpdatedAt, deviceEventId, deviceCalendarId }` |
 | `createdAt`, `updatedAt` | |
-| `deletedAt` | Tombstone for soft delete. |
+| `deletedAt` | Tombstone for soft delete. A tombstone keeps only what sync needs (ids, source, status, time slot, external refs, timestamps): title becomes `TOMBSTONE_TITLE`, and description, notes, participants, conference, location, tips and alert settings are cleared (`tombstoneMeeting` / `scrubMeetingContent`). Tombstones older than `TOMBSTONE_RETENTION_DAYS` (60) are hard-deleted, and older content-carrying tombstones are scrubbed, once per session after the first server snapshot. |
 
 Storage rules:
 
@@ -327,6 +327,7 @@ useAssistant.send(text)
 
 - **Throw `AppError(code)`.** Never fake success. Never turn a failure into `[]` or null. Wrap external errors with `toAppError(e)`, which keeps `cause` and maps the provider code.
 - **User-facing text** is `t(errorMessageKey(code))`. `cancelled` is not shown as an error.
+- **Sentry.** `beforeBreadcrumb` (`scrubBreadcrumb`) drops the raw arguments of console breadcrumbs, strips query strings from HTTP breadcrumbs and email-scrubs messages.
 - **Logging.** Use `createLogger('area')`:
   - `debug` and `info` are dev-only.
   - `warn` and `error` are always on, and `error` is also reported to Sentry.

@@ -250,7 +250,38 @@ describe('offline writes and the outbox', () => {
     expect(await h.engine.listMeetings()).toEqual([]);
     expect((await h.engine.listMeetings({ includeDeleted: true })).map((m) => m.id)).toEqual([first.id]);
     expect(h.remote.docs.get(firestorePaths.meeting(UID, first.id))).toMatchObject({ deletedAt: expect.any(String) as string });
+    // The deleted meeting's content leaves the server and the cache.
+    expect(h.remote.docs.get(firestorePaths.meeting(UID, first.id))).toMatchObject({ title: 'Deleted meeting', description: '' });
+    expect(JSON.stringify(await readJson(cacheKeys.meeting(UID, first.id)))).not.toContain('From AI');
     await expect(h.engine.updateMeeting(first.id, { title: 'x' })).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('scrubs old tombstones that still carry content and hard-deletes expired ones', async () => {
+    const recent = {
+      ...storedMeeting('recent', 'Salary review', '2026-09-20T08:00:00.000Z', '2026-09-25T08:00:00.000Z'),
+      notes: 'Secret notes',
+      deletedAt: '2026-09-25T08:00:00.000Z',
+    };
+    const expired = {
+      ...storedMeeting('expired', 'Old one', '2026-06-01T08:00:00.000Z', '2026-07-01T08:00:00.000Z'),
+      deletedAt: '2026-07-01T08:00:00.000Z',
+    };
+    const alive = storedMeeting('alive', 'Alive', '2026-10-06T08:00:00.000Z');
+    const h = harness();
+    for (const meeting of [recent, expired, alive]) {
+      h.remote.docs.set(firestorePaths.meeting(UID, meeting.id), toMeetingDoc(meeting) as never);
+    }
+    await h.engine.startSession(UID);
+    await settle(20);
+    await h.engine.flushOutbox();
+    await settle(10);
+
+    expect(h.remote.docs.get(firestorePaths.meeting(UID, 'recent'))).toMatchObject({ title: 'Deleted meeting', notes: null });
+    expect(h.remote.docs.has(firestorePaths.meeting(UID, 'expired'))).toBe(false);
+    expect(h.remote.docs.get(firestorePaths.meeting(UID, 'alive'))).toMatchObject({ title: 'Alive' });
+    const ids = (await h.engine.listMeetings({ includeDeleted: true })).map((m) => m.id).sort();
+    expect(ids).toEqual(['alive', 'recent']);
+    expect(await h.engine.maintainTombstones()).toEqual({ scrubbed: 0, purged: 0 });
   });
 });
 

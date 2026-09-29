@@ -40,6 +40,9 @@ import {
   LANGUAGES,
   mergePreferences,
   parseEntitlementDoc,
+  scrubMeetingContent,
+  TOMBSTONE_RETENTION_DAYS,
+  tombstoneHasContent,
   tombstoneMeeting,
   userProfileSchema,
   type AuthUser,
@@ -220,6 +223,8 @@ interface Session {
 
 interface LocalChange {
   meetings?: readonly Meeting[];
+  /** Meetings removed from memory and cache (tombstone purge; the outbox deletes them remotely). */
+  removeMeetings?: readonly string[];
   notes?: readonly Note[];
   removeNotes?: readonly string[];
   preferences?: Preferences;
@@ -519,7 +524,10 @@ export class DataEngine {
     }
     if (change.profile) pairs.push([cacheKeys.profile(s.uid), JSON.stringify(change.profile)]);
     if (change.writes && change.writes.length > 0) pairs.push([cacheKeys.outbox(s.uid), JSON.stringify(outbox)]);
-    const removeKeys = (change.removeNotes ?? []).map((id) => cacheKeys.note(s.uid, id));
+    const removeKeys = [
+      ...(change.removeNotes ?? []).map((id) => cacheKeys.note(s.uid, id)),
+      ...(change.removeMeetings ?? []).map((id) => cacheKeys.meeting(s.uid, id)),
+    ];
 
     try {
       if (pairs.length > 0) await this.storage.multiSet(pairs);
@@ -530,8 +538,9 @@ export class DataEngine {
     this.assertCurrent(s);
 
     s.outbox = outbox;
-    if (change.meetings && change.meetings.length > 0) {
-      for (const meeting of change.meetings) s.meetings.set(meeting.id, meeting);
+    if ((change.meetings && change.meetings.length > 0) || (change.removeMeetings && change.removeMeetings.length > 0)) {
+      for (const meeting of change.meetings ?? []) s.meetings.set(meeting.id, meeting);
+      for (const id of change.removeMeetings ?? []) s.meetings.delete(id);
       this.bumpMeetings();
     }
     if ((change.notes && change.notes.length > 0) || (change.removeNotes && change.removeNotes.length > 0)) {
@@ -853,6 +862,56 @@ export class DataEngine {
     }
   }
 
+  /**
+   * Deleted meetings: tombstones written before content scrubbing are scrubbed (so a deleted
+   * meeting's password / notes / third-party emails leave the server and every device), and
+   * tombstones older than TOMBSTONE_RETENTION_DAYS are hard-deleted. Meetings with a queued
+   * write are left alone. Returns how many were scrubbed / purged.
+   */
+  async maintainTombstones(s?: Session): Promise<{ scrubbed: number; purged: number }> {
+    const session = s ?? (await this.readySession());
+    const cutoffIso = addMinutesIso(this.now(), -TOMBSTONE_RETENTION_DAYS * 24 * 60);
+    let scrubbed = 0;
+    let purged = 0;
+    await this.localWrite(session, () => {
+      const updates: Meeting[] = [];
+      const removals: string[] = [];
+      const writes: OutboxWrite[] = [];
+      for (const meeting of session.meetings.values()) {
+        if (meeting.deletedAt === null || hasPending(session.outbox, 'meeting', meeting.id)) continue;
+        if (meeting.deletedAt < cutoffIso) {
+          removals.push(meeting.id);
+          writes.push({ kind: 'meeting', docId: meeting.id, mode: 'delete', data: null, updatedAt: meeting.updatedAt, origin: 'system' });
+        } else if (tombstoneHasContent(meeting)) {
+          const updatedAt = nextTimestamp(this.now(), meeting.updatedAt);
+          const clean: Meeting = { ...scrubMeetingContent(meeting), updatedAt };
+          updates.push(clean);
+          writes.push({
+            kind: 'meeting',
+            docId: meeting.id,
+            mode: 'set',
+            data: meetingToDoc(clean) as unknown as RemoteData,
+            updatedAt,
+            origin: 'system',
+          });
+        }
+      }
+      scrubbed = updates.length;
+      purged = removals.length;
+      if (writes.length === 0) return { result: undefined, change: null };
+      return {
+        result: undefined,
+        change: { meetings: updates, removeMeetings: removals, writes },
+        after: () => {
+          this.notify();
+          this.scheduleFlush(session);
+        },
+      };
+    });
+    if (scrubbed + purged > 0) log.info(`tombstones: ${scrubbed} scrubbed, ${purged} purged`);
+    return { scrubbed, purged };
+  }
+
   private handleConnectivity(s: Session, online: boolean | null): void {
     if (!this.isCurrent(s)) return;
     const wasOffline = this.online === false;
@@ -940,6 +999,8 @@ export class DataEngine {
     if (read.kind === 'legacy' && !hasPending(s.outbox, 'meeting', id)) acc.migrations.push(read.meeting);
     const incoming = read.meeting;
     const local = s.meetings.get(id);
+    // A purged tombstone whose hard delete is still queued is never resurrected by a snapshot.
+    if (!local && pendingEntries(s.outbox, 'meeting', id).some((entry) => entry.mode === 'delete')) return;
     const forced = s.forceServer.delete(`meeting:${id}`);
     if (!forced && !shouldAcceptRemote(local, incoming)) return;
     if (local && deepEqual(local, incoming)) return;
@@ -959,9 +1020,11 @@ export class DataEngine {
       }
       this.mergeRemoteMeeting(s, change.id, change.data, ctx, acc);
     }
+    let firstBaseline = false;
     if (!snapshot.fromCache) {
       if (!s.meetingsBaseline) {
         s.meetingsBaseline = true;
+        firstBaseline = true;
         const serverIds = new Set(snapshot.ids);
         for (const id of [...s.meetings.keys()]) {
           if (!serverIds.has(id) && !hasPending(s.outbox, 'meeting', id)) {
@@ -980,6 +1043,12 @@ export class DataEngine {
     }
     this.notify();
     if (acc.migrations.length > 0) void this.enqueueMeetingMigrations(s, acc.migrations);
+    if (firstBaseline) {
+      // Once per session, when the server's meetings are known: scrub / purge tombstones.
+      void this.maintainTombstones(s).catch((error: unknown) => {
+        log.warn(`tombstone maintenance failed (${toAppError(error).code})`);
+      });
+    }
   }
 
   private async enqueueMeetingMigrations(s: Session, meetings: readonly Meeting[]): Promise<void> {

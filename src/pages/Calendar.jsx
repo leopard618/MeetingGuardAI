@@ -286,7 +286,7 @@ export default function Calendar({ navigation, language = "en" }) {
   const renderMeetingCard = (meeting) => {
     // Safety check to ensure meeting data is valid
     if (!meeting || typeof meeting !== 'object') {
-      console.warn('Invalid meeting data:', meeting);
+      console.warn('Calendar: skipping a meeting entry that is not an object', typeof meeting);
       return null;
     }
 
@@ -404,7 +404,7 @@ export default function Calendar({ navigation, language = "en" }) {
             {googleMeetings.map((meeting, index) => {
               // Safety check for Google Calendar meetings
               if (!meeting || typeof meeting !== 'object') {
-                console.warn('Invalid Google meeting data:', meeting);
+                console.warn('Calendar: skipping a Google entry that is not an object', typeof meeting);
                 return null;
               }
 

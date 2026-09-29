@@ -428,13 +428,17 @@ async function setHash(deps: GoogleSyncDeps, eventId: string, hash: string | nul
   await deps.state.update((current) => ({ ...current, hashes: applyHashUpdates(current.hashes, { [eventId]: hash }, null) }));
 }
 
-/** events.delete; a missing / already deleted event counts as deleted. */
+/**
+ * events.delete; a missing / already deleted event counts as deleted. Always `sendUpdates: 'all'`:
+ * deleted meetings are scrubbed (no participant list any more), and Google only notifies the
+ * event's actual guests (none: nothing is sent).
+ */
 export async function deleteGoogleEvent(deps: GoogleSyncDeps, meeting: Meeting): Promise<boolean> {
   const eventId = meeting.external.googleEventId;
   if (eventId === null) return false;
   const calendarId = meeting.external.googleCalendarId ?? GOOGLE_PRIMARY_CALENDAR;
   try {
-    await deps.api.deleteEvent(calendarId, eventId, { sendUpdates: meeting.participants.length > 0 ? 'all' : 'none' });
+    await deps.api.deleteEvent(calendarId, eventId, { sendUpdates: 'all' });
   } catch (error) {
     const status = googleHttpStatus(error);
     if (status !== 404 && status !== 410) throw error;

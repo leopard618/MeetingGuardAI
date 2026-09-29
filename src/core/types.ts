@@ -412,10 +412,62 @@ export function applyMeetingPatch(meeting: Meeting, patch: MeetingPatch, now: Da
   return checked.data;
 }
 
-/** Marks a meeting deleted (tombstone). Pure. */
+/** Title stored in tombstones (the rules require a non-empty title; the real one is dropped). */
+export const TOMBSTONE_TITLE = 'Deleted meeting';
+
+/** How long tombstones are kept before they are hard-deleted (every device has synced them). */
+export const TOMBSTONE_RETENTION_DAYS = 60;
+
+/**
+ * The meeting without its content: only what sync needs stays (ids, source, status, time slot,
+ * external refs, timestamps). Title, description, notes, participants (third-party emails),
+ * conference link/password, location, tips and alert settings are dropped. Pure.
+ */
+export function scrubMeetingContent(meeting: Meeting): Meeting {
+  return {
+    ...meeting,
+    title: TOMBSTONE_TITLE,
+    description: '',
+    location: null,
+    conference: null,
+    participants: [],
+    preparationTips: [],
+    customAlertTimes: null,
+    alertIntensity: null,
+    notes: null,
+    confidence: null,
+  };
+}
+
+/** True for a tombstone that still carries content (written before tombstones were scrubbed). */
+export function tombstoneHasContent(meeting: Meeting): boolean {
+  if (meeting.deletedAt === null) return false;
+  return !deepEqualShallowMeeting(meeting, scrubMeetingContent(meeting));
+}
+
+function deepEqualShallowMeeting(a: Meeting, b: Meeting): boolean {
+  return (
+    a.title === b.title &&
+    a.description === b.description &&
+    a.location === b.location &&
+    a.conference === b.conference &&
+    a.participants.length === b.participants.length &&
+    a.preparationTips.length === b.preparationTips.length &&
+    a.customAlertTimes === b.customAlertTimes &&
+    a.alertIntensity === b.alertIntensity &&
+    a.notes === b.notes &&
+    a.confidence === b.confidence
+  );
+}
+
+/**
+ * Marks a meeting deleted (tombstone) and scrubs its content: a user who deletes a meeting
+ * because it held sensitive data (a meeting password, third-party emails) must not keep it on
+ * the server and on every device. Pure.
+ */
 export function tombstoneMeeting(meeting: Meeting, now: DateInput): Meeting {
   const nowIso = toDate(now).toISOString();
-  return { ...meeting, deletedAt: nowIso, updatedAt: nowIso };
+  return { ...scrubMeetingContent(meeting), deletedAt: nowIso, updatedAt: nowIso };
 }
 
 /** Firestore/cache document shape for a meeting (drops `id`). */
