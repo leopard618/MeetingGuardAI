@@ -92,17 +92,6 @@
     "started": "Your meeting {{title}} has already started.",
     "location": "Location: {{location}}."
   },
-  "permission": {
-    "granted": "Notifications are allowed",
-    "provisional": "Notifications are delivered quietly",
-    "denied": "Notifications are blocked",
-    "undetermined": "Notifications have not been allowed yet",
-    "request": "Allow notifications",
-    "openSettings": "Open notification settings",
-    "exactAlarmsTitle": "Exact alarms",
-    "exactAlarmsHint": "Android may delay alerts to save battery. Allow “Alarms & reminders” so your meeting alerts ring exactly on time.",
-    "openExactAlarmSettings": "Allow exact alarms"
-  },
   "errors": {
     "snoozeFailed": "The alert could not be snoozed.",
     "openLinkFailed": "The meeting link could not be opened."
@@ -124,10 +113,10 @@
       "description": "5 minutes after a meeting ends, get follow-up ideas from the AI assistant."
     },
     "clock": {
-      "label": "Time format",
-      "auto": "Automatic",
       "12": "12-hour",
-      "24": "24-hour"
+      "24": "24-hour",
+      "label": "Time format",
+      "auto": "Automatic"
     },
     "dnd": {
       "title": "Do Not Disturb",

@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import { ConfidenceBadge, confidenceLevel, normalizeConfidence } from '../ConfidenceBadge';
-import { SourceBadge, sourceKey } from '../SourceBadge';
 
 jest.mock('../../i18n', () => {
   const { createTranslator } = jest.requireActual('../../services/ai/__fixtures__/aiTestKit');
@@ -51,25 +50,5 @@ describe('ConfidenceBadge', () => {
     await render(<ConfidenceBadge confidence={50} />);
     const dark = StyleSheet.flatten(screen.getByTestId('confidence-badge').props.style).backgroundColor;
     expect(dark).not.toBe(light);
-  });
-});
-
-describe('SourceBadge', () => {
-  it('accepts domain keys and legacy labels', () => {
-    expect(sourceKey('google')).toBe('google');
-    expect(sourceKey('ai_chat')).toBe('ai_chat');
-    expect(sourceKey('ChatGPT')).toBe('ai_chat');
-    expect(sourceKey('IA')).toBe('ai_chat');
-    expect(sourceKey('Google Calendar')).toBe('google');
-    expect(sourceKey('WhatsApp')).toBe('whatsapp');
-    expect(sourceKey('Device')).toBe('device');
-    expect(sourceKey('something else')).toBe('manual');
-    expect(sourceKey(null)).toBe('manual');
-  });
-
-  it('renders the localized label with an accessible description', async () => {
-    await render(<SourceBadge source="google" size="sm" />);
-    expect(screen.getByText('Google Calendar')).toBeTruthy();
-    expect(screen.getByLabelText('Source: Google Calendar')).toBeTruthy();
   });
 });

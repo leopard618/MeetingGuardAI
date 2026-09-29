@@ -212,14 +212,6 @@
       "system_share": "Share sheet"
     }
   },
-  "source": {
-    "manual": "Manual",
-    "ai_chat": "AI chat",
-    "whatsapp": "WhatsApp",
-    "google": "Google Calendar",
-    "device": "Device calendar",
-    "a11y": "Source: {{source}}"
-  },
   "confidence": {
     "high": "High",
     "medium": "Medium",

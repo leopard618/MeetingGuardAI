@@ -4,7 +4,7 @@
  * Attachments are NOT uploaded: the file stays in the app's document directory on this device and
  * every record says so (`localOnly: true`), so no screen can present a device path as if it were
  * available on other devices. Meetings in Firestore never contain attachment URIs.
- * The file copy itself is done by src/api/fileUpload.js; this module only stores metadata.
+ * The file copy itself is done by src/services/attachments; this module only stores metadata.
  */
 import { z } from 'zod';
 

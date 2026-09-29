@@ -12,6 +12,9 @@ import * as Sentry from '@sentry/react-native';
 import type { ComponentType } from 'react';
 
 import { env } from '../config/env';
+import { createLogger } from '../core/logger';
+
+const log = createLogger('sentry');
 
 let initialized = false;
 
@@ -36,7 +39,7 @@ export interface BreadcrumbLike {
 /**
  * Removes user data from a breadcrumb before Sentry stores it:
  * - console breadcrumbs keep only the (email-scrubbed) message; their raw `data.arguments` (whole
- *   objects passed to console.warn / console.error by legacy screens) are dropped;
+ *   objects passed to console.warn / console.error by libraries) are dropped;
  * - HTTP breadcrumbs lose the query string of their URL;
  * - every message is email-scrubbed.
  */
@@ -80,7 +83,7 @@ export function initSentry(): boolean {
     });
     initialized = true;
   } catch (error) {
-    console.error('[sentry] init failed:', error);
+    log.error('init failed', error);
   }
   return initialized;
 }

@@ -28,5 +28,5 @@ export const userRepository = repositories.userRepository;
 export const migrationService = repositories.migrationService;
 export const dataService = repositories.dataService;
 
-/** Device-local attachment metadata of the signed-in user (used by src/api/fileUpload.js). */
+/** Device-local attachment metadata of the signed-in user (used by src/services/attachments). */
 export const attachmentStore = createAttachmentStore(AsyncStorage, () => dataEngine.getActiveUid());

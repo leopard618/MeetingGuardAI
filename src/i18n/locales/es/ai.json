@@ -212,14 +212,6 @@
       "system_share": "Menú para compartir"
     }
   },
-  "source": {
-    "manual": "Manual",
-    "ai_chat": "Chat IA",
-    "whatsapp": "WhatsApp",
-    "google": "Google Calendar",
-    "device": "Calendario del dispositivo",
-    "a11y": "Origen: {{source}}"
-  },
   "confidence": {
     "high": "Alta",
     "medium": "Media",

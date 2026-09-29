@@ -107,7 +107,7 @@ function Welcome({
 export function AssistantScreen({ navigation, route }: Props): ReactElement {
   const t = useT();
   const { language } = useLanguage();
-  const { isDarkMode } = useTheme() as { isDarkMode: boolean };
+  const { isDarkMode } = useTheme();
   const palette = assistantPalette(isDarkMode);
   const insets = useSafeAreaInsets();
   const { rootRef, onRootLayout, keyboardVerticalOffset, keyboardVisible } = useKeyboardAvoidance();

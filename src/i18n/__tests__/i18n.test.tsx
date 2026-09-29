@@ -6,7 +6,6 @@ import { appEvents, type LanguageChangedEvent, type PreferencesChangedEvent } fr
 import { GLOBAL_STORAGE_KEYS } from '../../core/identifiers';
 import { getDeviceTimeZone } from '../../core/time';
 import { createDefaultPreferences } from '../../core/types';
-import { useTranslation as useLegacyTranslation, translations } from '../../components/translations';
 import {
   I18nProvider,
   getLanguage,
@@ -149,14 +148,7 @@ describe('React bindings', () => {
   function Probe() {
     const translate = useT();
     const { language } = useLanguage();
-    const legacy = useLegacyTranslation('en');
-    return (
-      <>
-        <Text testID="new">{`${language}:${translate('common:actions.continue')}`}</Text>
-        <Text testID="legacy">{legacy.t('nav.dashboard')}</Text>
-        <Text testID="legacy-common">{legacy.t('common.save')}</Text>
-      </>
-    );
+    return <Text testID="new">{`${language}:${translate('common:actions.continue')}`}</Text>;
   }
 
   it('re-renders every subscriber on a language change without remounting', async () => {
@@ -166,23 +158,10 @@ describe('React bindings', () => {
       </I18nProvider>,
     );
     expect(screen.getByTestId('new').props.children).toBe('es:Continuar');
-    // The legacy hook follows the live language (its argument is ignored).
-    expect(screen.getByTestId('legacy').props.children).toBe('Panel');
-    expect(screen.getByTestId('legacy-common').props.children).toBe('Guardar');
 
     await act(async () => {
       await setLanguage('en');
     });
     expect(screen.getByTestId('new').props.children).toBe('en:Continue');
-    expect(screen.getByTestId('legacy').props.children).toBe('Dashboard');
-    expect(screen.getByTestId('legacy-common').props.children).toBe('Save');
-  });
-});
-
-describe('translations.jsx compat', () => {
-  it('exposes the legacy dictionary shape for en and es', () => {
-    expect(translations.en.nav.dashboard).toBe('Dashboard');
-    expect(translations.es.common.save).toBe('Guardar');
-    expect(Array.isArray(translations.es.whatsAppBot.features)).toBe(true);
   });
 });

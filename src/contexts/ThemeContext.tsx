@@ -8,8 +8,6 @@
  *   (./themeColors, derived from the Paper MD3 themes).
  * - useAppThemes() gives the root composition (src/navigation/AppRoot.tsx) the matching Paper
  *   theme, React Navigation theme and status bar style, so every layer switches together.
- *
- * Kept API: useTheme() => { isDarkMode, toggleTheme, themeMode, setThemeMode, isLoaded }.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DarkTheme as NavigationDarkTheme, DefaultTheme as NavigationLightTheme, type Theme as NavigationTheme } from '@react-navigation/native';

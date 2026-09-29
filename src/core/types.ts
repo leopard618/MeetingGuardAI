@@ -170,7 +170,7 @@ export interface Meeting {
   /** IANA zone the meeting was scheduled in (user's zone at creation / calendar event zone). */
   timezone: string;
   allDay: boolean;
-  /** DERIVED local date "YYYY-MM-DD" of startAt in `timezone` (legacy screens / queries). */
+  /** DERIVED local date "YYYY-MM-DD" of startAt in `timezone` (all-day meetings, queries). */
   date: string;
   /** DERIVED local time "HH:mm" of startAt in `timezone`. */
   time: string;

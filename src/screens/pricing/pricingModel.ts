@@ -1,9 +1,9 @@
 /**
  * Pure view model of the Plans screen (owner: shell): plan cards from the catalog
- * (src/api/billingService.ts), prices in the UI language, and today's assistant usage.
+ * (src/services/billing.ts), prices in the UI language, and today's assistant usage.
  * Purchases are not available in this release: every paid card is informational.
  */
-import { PURCHASES_AVAILABLE, formatUsd, getPlans, type BillingCycle, type PlanId, type PlanTier } from '../../api/billingService';
+import { PURCHASES_AVAILABLE, formatUsd, getPlans, type BillingCycle, type PlanId, type PlanTier } from '../../services/billing';
 import { PLAN_DAILY_AI_LIMITS, type AssistantUsage, type Plan as EntitlementPlan } from '../../core/aiContract';
 import type { Language } from '../../core/types';
 

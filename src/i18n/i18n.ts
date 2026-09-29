@@ -89,14 +89,6 @@ export const t: TranslateFn = (key, options) => {
   return typeof result === 'string' ? result : key;
 };
 
-/**
- * Raw lookup that can return arrays/objects (legacy screens read string arrays such as
- * "whatsAppBot.features"). Only for the translations.jsx compat layer.
- */
-export function translateRaw(key: string, options: Record<string, unknown>): unknown {
-  return (i18n as unknown as { t: RawTranslate }).t(key, { ...options, returnObjects: true });
-}
-
 async function persistLanguage(language: Language): Promise<void> {
   try {
     await AsyncStorage.setItem(GLOBAL_STORAGE_KEYS.language, language);

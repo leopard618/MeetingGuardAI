@@ -15,45 +15,19 @@
     "MeetingDetails": "Detalles de la reunión",
     "EditMeeting": "Editar reunión",
     "Calendar": "Calendario",
-    "Notes": "Notas y tareas",
+    "Notes": "Notas",
     "Settings": "Ajustes",
     "AlertSettings": "Ajustes de alertas",
     "Profile": "Perfil",
     "AIChat": "Asistente de IA",
     "AIInsights": "Análisis de IA",
-    "WhatsAppBot": "Bot de WhatsApp",
     "CalendarSync": "Sincronizar calendarios",
     "Pricing": "Planes"
-  },
-  "header": {
-    "home": "Ir al panel",
-    "openMenu": "Abrir menú",
-    "account": "Cuenta",
-    "darkMode": "Cambiar a modo oscuro",
-    "lightMode": "Cambiar a modo claro",
-    "switchLanguage": "Cambiar el idioma a {{language}}",
-    "user": "Usuario"
-  },
-  "sidebar": {
-    "close": "Cerrar menú",
-    "language": "Idioma"
   },
   "meeting": {
     "loading": "Cargando reunión…",
     "notFoundTitle": "No encontramos la reunión",
     "notFoundMessage": "Puede que se haya eliminado o que todavía no se haya sincronizado en este dispositivo.",
     "backToDashboard": "Ir al panel"
-  },
-  "nav": {
-    "dashboard": "Panel",
-    "addMeeting": "Añadir Reunión",
-    "totalMeetings": "Todas las Reuniones",
-    "calendar": "Calendario",
-    "notes": "Notas y Tareas",
-    "aiChat": "Chat IA",
-    "settings": "Ajustes",
-    "apiKeys": "Claves API",
-    "pricing": "Precios",
-    "notificationDemo": "Demo de Notificaciones"
   }
 }

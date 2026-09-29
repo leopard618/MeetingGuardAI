@@ -132,9 +132,6 @@ describe('auth namespace resources', () => {
       (key) => typeof lookup(table as Json, key) !== 'string',
     );
     expect(missing).toEqual([]);
-    for (const key of ['signOut.pendingTitle', 'signOut.pendingMessage_one', 'signOut.pendingMessage_other']) {
-      expect(typeof lookup(table as Json, key)).toBe('string');
-    }
   });
 
   it('has the same keys in English and Spanish', () => {

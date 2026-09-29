@@ -1,11 +1,11 @@
 /**
- * Billing (subscriptions) - DISABLED in this release.
+ * Plan catalog (subscriptions) - purchases are DISABLED in this release.
  *
- * In-app subscriptions will be rebuilt later with a maintained store SDK and
- * server-side entitlement validation. Until then:
- *   - every user is treated as being on the Free plan,
- *   - no purchase flow is exposed (purchase/restore return "unavailable"),
- *   - there are NO external payment links anywhere in the app.
+ * In-app subscriptions will be built later with a maintained store SDK and server-side
+ * entitlement validation. Until then:
+ *   - the user's plan is the server-owned entitlement (entitlements/{uid}, read-only in the app;
+ *     a missing document means Free),
+ *   - no purchase flow is exposed and there are NO external payment links anywhere in the app.
  *
  * This module is the single source of truth for the plan catalog shown in the UI.
  * Contract pricing: Free (5 AI requests/day), Pro $7.99/month, Premium $14.99/month,
@@ -13,7 +13,6 @@
  * Daily AI quotas are the server-enforced ones (core/aiContract PLAN_DAILY_AI_LIMITS).
  */
 import { PLAN_DAILY_AI_LIMITS } from '../core/aiContract';
-
 
 export type PlanTier = 'free' | 'pro' | 'premium';
 export type BillingCycle = 'monthly' | 'yearly';
@@ -33,19 +32,6 @@ export interface Plan {
   /** Daily AI request quota (server-enforced, see PLAN_DAILY_AI_LIMITS). */
   aiRequestsPerDay: number;
   popular: boolean;
-}
-
-export type SubscriptionStatus = 'inactive';
-
-export interface Subscription {
-  plan: 'free';
-  status: SubscriptionStatus;
-  currentPeriodEnd: null;
-}
-
-export interface PurchaseResult {
-  success: false;
-  reason: 'purchases_unavailable';
 }
 
 /** Purchases are switched off until the new billing stack ships. */
@@ -86,28 +72,3 @@ export const formatUsd = (amount: number): string => `$${amount.toFixed(2).repla
 /** Plans to display for a billing cycle (Free is always included first). */
 export const getPlans = (cycle: BillingCycle): Plan[] =>
   PLANS.filter((plan) => plan.cycle === null || plan.cycle === cycle);
-
-/** Maps a stored plan value ('pro', 'pro_monthly', ...) to its tier. */
-export const getPlanTier = (planValue: string | null | undefined): PlanTier => {
-  if (!planValue) return 'free';
-  if (planValue.startsWith('premium')) return 'premium';
-  if (planValue.startsWith('pro')) return 'pro';
-  return 'free';
-};
-
-/** Every user is on the Free plan while billing is disabled. */
-export const getSubscription = async (): Promise<Subscription> => ({
-  plan: 'free',
-  status: 'inactive',
-  currentPeriodEnd: null,
-});
-
-export const purchaseSubscription = async (_planId: PlanId): Promise<PurchaseResult> => ({
-  success: false,
-  reason: 'purchases_unavailable',
-});
-
-export const restorePurchases = async (): Promise<PurchaseResult> => ({
-  success: false,
-  reason: 'purchases_unavailable',
-});

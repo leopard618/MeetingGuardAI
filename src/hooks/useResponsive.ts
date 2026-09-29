@@ -1,5 +1,5 @@
 /**
- * Window-size helpers for layouts (owner: shell; replaces the legacy utils/responsive.js):
+ * Window-size helpers for layouts (owner: shell):
  * sizes follow the CURRENT window (rotation, split screen, foldables) and fonts are never scaled
  * here (React Native already applies the user's font scale).
  */

@@ -17,7 +17,7 @@
  *   L6 session + React auth
  *                      src/services/auth (barrel: sessionManager, AuthProvider, useAuth)
  *   L7 entry/UI        index.js -> src/services/alerts/tasks.ts, App.js, src/navigation,
- *                      src/components/alerts, src/screens, src/pages, legacy shims
+ *                      src/components, src/contexts, src/screens, src/services/attachments
  * Areas import each other ONLY through the public paths in MODULES (never internal files).
  */
 import type { ComponentType, ReactNode } from 'react';
@@ -34,7 +34,6 @@ import type {
 import type { AppError, AppErrorCode } from './errors';
 import type { MeetingsChangedEvent, Unsubscribe, WriteOrigin } from './events';
 import type { AndroidChannelId, NotificationKind } from './identifiers';
-import type { LegacyMeetingView } from './legacy';
 import type {
   AlertIntensity,
   AuthUser,
@@ -67,7 +66,6 @@ export const MODULES = {
     errors: 'src/core/errors.ts', // AppError, toAppError, notImplemented
     logger: 'src/core/logger.ts', // createLogger, setErrorReporter
     time: 'src/core/time.ts',
-    legacy: 'src/core/legacy.ts',
   },
   data: {
     // dataService, meetingRepository, preferencesRepository, notesRepository, userRepository,
@@ -75,13 +73,14 @@ export const MODULES = {
     // useEntitlement, useSyncState
     index: 'src/services/data/index.ts',
     firebase: 'src/config/firebase.ts', // app, auth, db, functions, isFirebaseReady (nullable)
+    // Pre-rebuild data readers (v1.0.9 local-data migration, old-shape Firestore documents).
+    legacyInput: 'src/services/data/legacyInput.ts',
   },
   auth: {
     // authService only (L3) - calendar/ai/data-free code imports THIS path
     authService: 'src/services/auth/authService.ts',
     // authService, sessionManager, AuthProvider, useAuth (L6)
     index: 'src/services/auth/index.ts',
-    legacyContext: 'src/contexts/AuthContext.jsx', // compat re-export of AuthProvider/useAuth (stays .jsx)
   },
   calendar: {
     // googleCalendarService, deviceCalendarService, calendarSyncEngine, useCalendarStatus
@@ -101,7 +100,6 @@ export const MODULES = {
     // I18nProvider, useT, useLanguage
     index: 'src/i18n/index.ts',
     format: 'src/utils/format.ts', // formatDate, formatTime, formatDateTime, formatRelative, formatDuration, formatMeetingTimeRange, uses24HourClock
-    legacyTranslations: 'src/components/translations.jsx', // useTranslation(language) compat
   },
   navigation: {
     // navigationRef, navigate, openDeepLink, linking, RootNavigator, ROUTES
@@ -111,6 +109,16 @@ export const MODULES = {
   ai: {
     // assistantClient, actionExecutor, useAssistant
     index: 'src/services/ai/index.ts',
+  },
+  attachments: {
+    // attachmentService, useMeetingAttachments (device-local files; metadata in the data layer)
+    index: 'src/services/attachments/index.ts',
+  },
+  shell: {
+    // ThemeProvider, useTheme, useAppThemes (Paper + navigation + status bar themes)
+    theme: 'src/contexts/ThemeContext.tsx',
+    // ErrorBoundary (outermost provider; reports through the logger)
+    errorBoundary: 'src/components/ErrorBoundary.tsx',
   },
   functions: {
     entry: 'functions/src/index.ts', // exports: assistant, deleteAccount
@@ -441,51 +449,32 @@ export interface SessionManager {
   withHeadlessSession<T>(fn: (uid: string) => Promise<T>): Promise<T | null>;
 }
 
-/** Legacy `user` object shape screens read (user.id / user.email / user.name / user.picture). */
-export interface LegacyAuthUserView {
-  id: string;
-  uid: string;
-  email: string | null;
-  name: string | null;
-  displayName: string | null;
-  picture: string | null;
-  photoURL: string | null;
-  emailVerified: boolean;
-  providerIds: string[];
-}
-
-/** Legacy result shape of signInWithGoogle/Email (LandingPage checks `result.success`). */
-export interface LegacySignInResult {
+/** Result of the sign-in actions of useAuth() (the Landing screen checks `success` / `cancelled`). */
+export interface SignInActionResult {
   success: boolean;
   cancelled?: boolean;
-  user?: LegacyAuthUserView;
+  user?: AuthUser;
   /** Localized, user-presentable message. */
   error?: string;
 }
 
-/** useAuth() value (from src/services/auth, also re-exported by src/contexts/AuthContext.jsx). */
+/** useAuth() value (src/services/auth). */
 export interface AuthContextValue {
   status: SessionStatus;
   /** true while initializing / starting / ending or while a sign-in call is running. */
   isLoading: boolean;
   isAuthenticated: boolean;
-  user: LegacyAuthUserView | null;
   authUser: AuthUser | null;
+  /** Server-owned entitlement (read-only; effectivePlan() gives the plan). */
   entitlement: Entitlement;
-  /** Effective plan (compat name). */
-  userPlan: Plan;
   hasCalendarScope: boolean;
-  signInWithGoogle(): Promise<LegacySignInResult>;
-  signInWithEmail(email: string, password: string): Promise<LegacySignInResult>;
-  signUpWithEmail(email: string, password: string, name: string): Promise<LegacySignInResult>;
+  signInWithGoogle(): Promise<SignInActionResult>;
+  signInWithEmail(email: string, password: string): Promise<SignInActionResult>;
+  signUpWithEmail(email: string, password: string, name: string): Promise<SignInActionResult>;
+  /** Throws AppError('pending_writes') when unsynced writes exist and !force (see useSignOutFlow). */
   signOut(options?: { force?: boolean }): Promise<void>;
-  /** Compat alias of signOut(). */
-  logout(): Promise<void>;
   requestCalendarScope(): Promise<boolean>;
   deleteAccount(): Promise<void>;
-  /** Compat: re-reads the entitlement (optional delay in ms). */
-  refreshUserPlan(delayMs?: number): Promise<Plan>;
-  forceRefreshUserPlan(): Promise<Plan>;
 }
 
 export interface AuthProviderProps {
@@ -852,9 +841,7 @@ export type I18nNamespace = (typeof I18N_NAMESPACE_LIST)[number];
 
 /**
  * Translate. KEYS ARE ALWAYS NAMESPACE-QUALIFIED: t('alerts:max.title', { minutes: 5 }).
- * Unqualified keys are not allowed in new code: the legacy translations test
- * (src/components/__tests__/translations.test.js) treats any dotted key without a namespace as a
- * translations.jsx key and fails when it is missing there.
+ * src/i18n/__tests__/keysUsed.test.ts fails on unqualified keys and on keys missing in EN or ES.
  */
 export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
@@ -920,15 +907,12 @@ export type OnboardingStackParamList = {
 export type MainStackParamList = {
   Dashboard: undefined;
   ChooseCreationMethod: undefined;
-  /**
-   * Legacy screens may pass `meeting` (then the form edits that meeting). `date` ("YYYY-MM-DD",
-   * device zone) presets the day of a new meeting (Calendar screen: "New meeting on <day>").
-   */
-  CreateMeeting: { meetingId?: string; meeting?: LegacyMeetingView; date?: string } | undefined;
+  /** `date` ("YYYY-MM-DD", device zone) presets the day of a new meeting ("New meeting on <day>"). */
+  CreateMeeting: { date?: string } | undefined;
   TotalMeetings: undefined;
-  /** Deep link meeting/:meetingId gives meetingId; legacy screens pass `meeting`. */
-  MeetingDetails: { meetingId?: string; meeting?: LegacyMeetingView };
-  EditMeeting: { meetingId?: string; meeting?: LegacyMeetingView };
+  /** Also the deep link meeting/:meetingId. */
+  MeetingDetails: { meetingId: string };
+  EditMeeting: { meetingId: string };
   Calendar: undefined;
   Notes: undefined;
   Settings: undefined;

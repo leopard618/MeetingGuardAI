@@ -2,7 +2,7 @@
  * Plans (owner: shell). Honest catalog while billing is off:
  * - "Subscriptions coming soon" banner; paid cards show a disabled "Coming soon" state; there are
  *   no purchase flows and no external payment links.
- * - Prices from src/api/billingService.ts (Free, Pro $7.99, Premium $14.99, 25% off yearly),
+ * - Prices from src/services/billing.ts (Free, Pro $7.99, Premium $14.99, 25% off yearly),
  *   daily assistant quotas as enforced by the server (PLAN_DAILY_AI_LIMITS).
  * - The current plan comes from the server-owned entitlement (useEntitlement); today's assistant
  *   usage from the last assistant answer on this device (useAssistant().usage), when it is for
@@ -15,7 +15,7 @@ import { FlatList, StyleSheet, Text, View, type ListRenderItem } from 'react-nat
 import { ProgressBar, SegmentedButtons } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { BillingCycle } from '../../api/billingService';
+import type { BillingCycle } from '../../services/billing';
 import { useTheme, type AppColors } from '../../contexts/ThemeContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useLanguage, useT } from '../../i18n';

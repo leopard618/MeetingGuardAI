@@ -1,5 +1,5 @@
 /**
- * Calendar actions shared by the calendar sync screen and the "Connect Google Calendar" prompt.
+ * Calendar actions of the calendar sync screen (connect, reconnect, disconnect, sync now).
  * Each reports its real result in an alert; a cancelled Google sheet is not an error.
  */
 import { useCallback, useState } from 'react';

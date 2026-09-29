@@ -10,6 +10,7 @@
  *   by the session manager, not through events.
  */
 import type { AppErrorCode } from './errors';
+import { createLogger } from './logger';
 import type { AlertIntensity, Language, Preferences, PreferenceKey } from './types';
 
 // ---------------------------------------------------------------------------------------------
@@ -123,8 +124,10 @@ export interface EventBusOptions {
   onHandlerError?: (error: unknown, event: string) => void;
 }
 
+const log = createLogger('events');
+
 function defaultHandlerError(error: unknown, event: string): void {
-  console.error(`[events] handler for "${event}" failed:`, error);
+  log.error(`handler for "${event}" failed`, error);
 }
 
 export function createEventBus<M extends object>(options: EventBusOptions = {}): EventBus<M> {

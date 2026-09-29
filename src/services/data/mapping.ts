@@ -6,7 +6,7 @@
  * Documents in the pre-rebuild Firestore shape (snake_case, date/time strings, Timestamps,
  * "Manual"/"ChatGPT" sources, users/{uid}.preferences) are converted here.
  */
-import { fromLegacyMeetingInput, fromLegacyPreferencesPatch } from '../../core/legacy';
+import { fromLegacyMeetingInput, fromLegacyPreferencesPatch } from './legacyInput';
 import { AppError } from '../../core/errors';
 import {
   buildMeeting,

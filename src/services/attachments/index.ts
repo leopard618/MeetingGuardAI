@@ -1,5 +1,5 @@
 /**
- * ATTACHMENTS public API (device-local meeting attachments; replaces src/api/fileUpload.js).
+ * ATTACHMENTS public API (device-local meeting attachments).
  *
  * Files stay on this device (Paths.document/attachments/{uid}/); metadata lives in the data
  * layer's per-user store (`attachmentStore`, mg:{uid}:attachments, `localOnly: true`). Nothing is

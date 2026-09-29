@@ -29,7 +29,10 @@ import {
 } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
 
+import { createLogger } from '../core/logger';
 import { env } from './env';
+
+const log = createLogger('firebase');
 
 export const isFirebaseConfigured: boolean = env.isFirebaseConfigured;
 
@@ -72,9 +75,9 @@ function connectEmulators(services: FirebaseServices): void {
     connectFirestoreEmulator(services.db, host, 8080);
     connectFunctionsEmulator(services.functions, host, 5001);
     emulatorsConnected = true;
-    console.warn(`[firebase] Using local emulators on ${host}`);
+    log.warn(`Using local emulators on ${host}`);
   } catch (error) {
-    console.error('[firebase] Could not connect to the emulators:', error);
+    log.error('Could not connect to the emulators', error);
   }
 }
 
@@ -91,7 +94,7 @@ function initFirebase(): FirebaseServices | null {
     connectEmulators(services);
     return services;
   } catch (error) {
-    console.error('[firebase] Initialization failed:', error);
+    log.error('Initialization failed', error);
     return null;
   }
 }

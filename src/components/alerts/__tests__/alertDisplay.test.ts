@@ -1,5 +1,5 @@
 import { NOW, fakeFormatTime, minutesFrom, translator } from '../../../services/alerts/__fixtures__/alertFixtures';
-import { alertPhase, buildAlertDisplay, displayInputFromLegacyMeeting } from '../alertDisplay';
+import { alertPhase, buildAlertDisplay } from '../alertDisplay';
 
 function deps(uiLanguage: 'en' | 'es', now = NOW) {
   // The real app passes useT(); a translator that honours the `lng` option is enough here.
@@ -53,37 +53,5 @@ describe('buildAlertDisplay', () => {
     const started = buildAlertDisplay({ ...input, startAt: minutesFrom(NOW, -2), language: 'en' }, deps('en'));
     expect(started.whenText).toBe('Started 2 minutes ago');
     expect(started.voiceText).toBe('Your meeting Revisión semanal has already started. Location: Sala 2.');
-  });
-});
-
-describe('displayInputFromLegacyMeeting', () => {
-  it('reads the legacy view shape (startTime, location view, conference details)', () => {
-    expect(
-      displayInputFromLegacyMeeting(
-        {
-          title: 'Sync',
-          startTime: '2026-10-05T12:30:00.000Z',
-          duration: 45,
-          location: { type: 'virtual', address: null, virtualPlatform: 'Zoom', virtualLink: 'https://zoom.us/j/9' },
-          conference_details: { provider: 'zoom', url: 'https://zoom.us/j/9', password: null },
-          language: 'es',
-        },
-        'en',
-      ),
-    ).toEqual({
-      title: 'Sync',
-      startAt: '2026-10-05T12:30:00.000Z',
-      durationMinutes: 45,
-      locationText: 'Zoom',
-      joinUrl: 'https://zoom.us/j/9',
-      language: 'es',
-    });
-  });
-
-  it('reads ad-hoc objects with local date/time and a string location', () => {
-    const result = displayInputFromLegacyMeeting({ title: 'Test', date: '2026-10-05', time: '14:05', location: 'Room' }, 'en');
-    expect(result).toMatchObject({ title: 'Test', durationMinutes: 60, locationText: 'Room', joinUrl: null, language: 'en' });
-    expect(new Date(result!.startAt).getHours()).toBe(14);
-    expect(displayInputFromLegacyMeeting({ title: 'No time' }, 'en')).toBeNull();
   });
 });

@@ -2,10 +2,8 @@
  * MODULE-LEVEL screen components for the root stack. Nothing here is created during render, so a
  * navigation, sidebar or language change never remounts a screen (fixes the old remount storm).
  *
- * - Every screen reads the live language itself (useT / useLanguage); withLanguage() is unused.
- * - TypeScript screens (src/screens): meeting details and the create / edit form (they read the
- *   live meeting from `meetingId` or a legacy `meeting` param), settings (account deletion) and
- *   alert settings.
+ * - Every screen is TypeScript (src/screens) and reads the live language itself (useT /
+ *   useLanguage). Meeting details and the edit form read the live meeting from `meetingId`.
  * - Landing (src/screens/auth) has the language switch and the Terms/Privacy consent itself.
  * - Privacy / Terms (src/screens/legal): outside the Main group (no header there) the standalone
  *   variants draw their own top bar.
@@ -50,7 +48,7 @@ export const TermsScreen = Terms;
 export const CalendarSyncScreen = CalendarSync;
 export const PricingScreen = Pricing;
 
-// ---- Meetings (TypeScript): live meeting from `meetingId` or a legacy `meeting` param ----------
+// ---- Meetings: live meeting from `meetingId` -----------------------------------------------------
 
 export const MeetingDetailsScreen = MeetingDetails;
 export const EditMeetingScreen = MeetingFormScreen;

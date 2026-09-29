@@ -1,5 +1,5 @@
 import type { AuthUser } from '../../../core/types';
-import { legacyCancelled, legacyFailure, legacySuccess, sameIdentity, toLegacyAuthUserView } from '../legacyView';
+import { authCancelled, authFailure, authSuccess, sameIdentity } from '../authResults';
 import { createSerialQueue } from '../serialQueue';
 import { createSessionCleanupRegistry } from '../sessionCleanup';
 
@@ -12,25 +12,11 @@ const user: AuthUser = {
   providerIds: ['google.com'],
 };
 
-describe('legacy view', () => {
-  it('exposes the legacy and the new user field names', () => {
-    expect(toLegacyAuthUserView(user)).toEqual({
-      id: 'u1',
-      uid: 'u1',
-      email: 'ana@example.com',
-      name: 'Ana',
-      displayName: 'Ana',
-      picture: 'https://example.com/a.png',
-      photoURL: 'https://example.com/a.png',
-      emailVerified: true,
-      providerIds: ['google.com'],
-    });
-  });
-
-  it('builds the legacy sign-in result shapes', () => {
-    expect(legacySuccess(user)).toMatchObject({ success: true, user: { id: 'u1' } });
-    expect(legacyCancelled()).toEqual({ success: false, cancelled: true });
-    expect(legacyFailure('Nope', 'offline', null)).toEqual({
+describe('auth results', () => {
+  it('builds the sign-in result shapes', () => {
+    expect(authSuccess(user)).toEqual({ success: true, user });
+    expect(authCancelled()).toEqual({ success: false, cancelled: true });
+    expect(authFailure('Nope', 'offline', null)).toEqual({
       success: false,
       error: 'Nope',
       errorCode: 'offline',

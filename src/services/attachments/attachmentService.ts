@@ -1,5 +1,5 @@
 /**
- * Device-local meeting attachments (replaces src/api/fileUpload.js).
+ * Device-local meeting attachments.
  *
  * Attachments are NOT uploaded: a picked file is copied into the app's document directory
  * (attachments/{uid}/) on THIS device and its metadata goes to the data layer's per-user

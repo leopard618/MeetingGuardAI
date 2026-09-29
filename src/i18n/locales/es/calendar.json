@@ -74,23 +74,9 @@
       "device": "Calendarios del teléfono"
     }
   },
-  "prompt": {
-    "title": "Conectar Google Calendar",
-    "subtitle": "Trae tu Google Calendar a MeetingGuard",
-    "benefits": {
-      "alerts": "Recibe las alertas de MeetingGuard para tus eventos de Google Calendar",
-      "twoWay": "Las reuniones que creas aquí aparecen en Google Calendar, con invitaciones",
-      "meet": "Crea enlaces reales de Google Meet para tus reuniones"
-    },
-    "privacy": "MeetingGuard solo lee y escribe los eventos de tu calendario. Puedes desconectarlo cuando quieras en Sincronización de calendarios.",
-    "connect": "Conectar Google Calendar",
-    "notNow": "Ahora no",
-    "alreadyConnected": "Google Calendar está conectado."
-  },
   "actions": {
     "ok": "Aceptar",
-    "cancel": "Cancelar",
-    "close": "Cerrar"
+    "cancel": "Cancelar"
   },
   "errorTitle": "Algo salió mal"
 }

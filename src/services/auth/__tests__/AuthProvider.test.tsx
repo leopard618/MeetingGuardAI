@@ -3,7 +3,7 @@
  */
 import { act, render, screen } from '@testing-library/react-native';
 import { useEffect } from 'react';
-import { Alert, Text, type AlertButton } from 'react-native';
+import { Text } from 'react-native';
 
 import { AppError } from '../../../core/errors';
 import type { SessionState } from '../../../core/contracts';
@@ -142,7 +142,7 @@ describe('AuthProvider', () => {
     expect(authService.init).toHaveBeenCalled();
     expect(sessionManager.init).toHaveBeenCalled();
     expect(screen.getByText('status:initializing')).toBeTruthy();
-    expect(current()).toMatchObject({ isLoading: true, isAuthenticated: false, user: null, userPlan: 'free' });
+    expect(current()).toMatchObject({ isLoading: true, isAuthenticated: false, authUser: null, entitlement: { plan: 'free' } });
 
     await act(async () => {
       sessionManager.setMockState({ status: 'active', user: activeUser, error: null });
@@ -151,8 +151,8 @@ describe('AuthProvider', () => {
       status: 'active',
       isLoading: false,
       isAuthenticated: true,
-      user: { id: 'uid-1', uid: 'uid-1', name: 'Ana', email: 'ana@example.com' },
-      userPlan: 'pro',
+      authUser: { uid: 'uid-1', displayName: 'Ana', email: 'ana@example.com' },
+      entitlement: { plan: 'pro' },
       hasCalendarScope: true,
       calendarConnected: true,
     });
@@ -160,14 +160,14 @@ describe('AuthProvider', () => {
     await act(async () => {
       sessionManager.setMockState({ status: 'signed_out', user: null, error: null });
     });
-    expect(current()).toMatchObject({ isAuthenticated: false, user: null, userPlan: 'free', hasCalendarScope: false });
+    expect(current()).toMatchObject({ isAuthenticated: false, authUser: null, entitlement: { plan: 'free' }, hasCalendarScope: false });
   });
 
-  it('maps sign-in results to the legacy shape with localized errors', async () => {
+  it('maps sign-in results to success / cancelled / localized errors', async () => {
     await renderActive();
 
     authService.signInWithGoogle.mockResolvedValueOnce({ status: 'success', user: activeUser });
-    await expect(current().signInWithGoogle()).resolves.toMatchObject({ success: true, user: { id: 'uid-1' } });
+    await expect(current().signInWithGoogle()).resolves.toMatchObject({ success: true, user: { uid: 'uid-1' } });
 
     authService.signInWithGoogle.mockResolvedValueOnce({ status: 'cancelled' });
     await expect(current().signInWithGoogle()).resolves.toEqual({ success: false, cancelled: true });
@@ -181,42 +181,6 @@ describe('AuthProvider', () => {
       errorCode: 'unauthenticated',
       errorReason: 'invalid_credentials',
     });
-  });
-
-  it('logout asks before discarding unsynced changes, then forces the sign-out', async () => {
-    await renderActive();
-    sessionManager.signOut.mockRejectedValueOnce(new AppError('pending_writes', 'x', { details: { count: 2 } }));
-    const alert = jest
-      .spyOn(Alert, 'alert')
-      .mockImplementation((_title?: string, _message?: string, buttons?: AlertButton[]) => {
-        buttons?.find((button) => button.style === 'destructive')?.onPress?.();
-      });
-
-    await act(async () => {
-      await current().logout();
-    });
-
-    expect(alert).toHaveBeenCalledWith(
-      'auth:signOut.pendingTitle',
-      'auth:signOut.pendingMessage#2',
-      expect.any(Array),
-      expect.objectContaining({ cancelable: true }),
-    );
-    expect(sessionManager.signOut).toHaveBeenLastCalledWith({ force: true });
-  });
-
-  it('logout keeps the session when the user cancels', async () => {
-    await renderActive();
-    sessionManager.signOut.mockClear();
-    sessionManager.signOut.mockRejectedValueOnce(new AppError('pending_writes', 'x', { details: { count: 1 } }));
-    jest.spyOn(Alert, 'alert').mockImplementation((_title?: string, _message?: string, buttons?: AlertButton[]) => {
-      buttons?.find((button) => button.style === 'cancel')?.onPress?.();
-    });
-
-    await act(async () => {
-      await current().logout();
-    });
-    expect(sessionManager.signOut).toHaveBeenCalledTimes(1);
   });
 
   it('useAuth throws outside the provider', async () => {

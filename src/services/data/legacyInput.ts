@@ -1,43 +1,27 @@
 /**
- * Mappers between the domain model and the LEGACY shapes the stage-3 JS screens still use
- * (snake_case preferences, `date`/`time`/`duration`, "Manual"/"ChatGPT" source labels,
- * `location.virtualLink`, `preparation_tips`, `created_date`).
+ * Readers for PRE-REBUILD data (owner: data): the v1.0.9 AsyncStorage blob migrated once per
+ * account (migration.ts) and old-shape Firestore documents converted on read (mapping.ts):
+ * snake_case preferences, `date`/`time`/`duration` meetings, "Manual"/"ChatGPT" source labels,
+ * `location.virtualLink`, `preparation_tips`. PURE (no React Native / Firebase).
  *
- * Used by the compat shims (src/api/entities.js, src/api/googleCalendar.js, ...) and by the
- * v1.0.9 local-data migration. Delete together with the shims in stage 3.
+ * Input direction only: the app never writes these shapes again.
  */
-import { httpUrlSchema, type ConferenceDetails, type ConferenceProvider, type Language, type LocationType } from './aiContract';
-import { AppError } from './errors';
-import { getDeviceTimeZone, isLocalDate, toDate, toLocalDateTime, zonedDateTimeToUtcIso } from './time';
+import { httpUrlSchema, type ConferenceDetails, type ConferenceProvider, type Language, type LocationType } from '../../core/aiContract';
+import { AppError } from '../../core/errors';
+import { isLocalDate, toLocalDateTime, zonedDateTimeToUtcIso } from '../../core/time';
 import {
   DEFAULT_MEETING_DURATION_MINUTES,
   MEETING_SOURCES,
   type AlertIntensity,
-  type AlertSoundType,
-  type Meeting,
   type MeetingCreateInput,
-  type MeetingPatch,
   type MeetingSource,
-  type MeetingStatus,
   type ParticipantInput,
-  type ParticipantStatus,
-  type Preferences,
   type PreferencesPatch,
-} from './types';
+} from '../../core/types';
 
 // ---------------------------------------------------------------------------------------------
 // Sources, intensities, providers
 // ---------------------------------------------------------------------------------------------
-
-export type LegacySourceLabel = 'Manual' | 'ChatGPT' | 'WhatsApp' | 'Google' | 'Device';
-
-export const LEGACY_SOURCE_LABELS: Readonly<Record<MeetingSource, LegacySourceLabel>> = {
-  manual: 'Manual',
-  ai_chat: 'ChatGPT',
-  whatsapp: 'WhatsApp',
-  google: 'Google',
-  device: 'Device',
-};
 
 const SOURCE_ALIASES: Readonly<Record<string, MeetingSource>> = {
   manual: 'manual',
@@ -61,12 +45,6 @@ export function normalizeMeetingSource(raw: unknown): MeetingSource {
   return SOURCE_ALIASES[raw.trim().toLowerCase().replace(/\s+/g, '_')] ?? 'manual';
 }
 
-export type LegacyAlertIntensity = 'maximum' | 'medium' | 'light';
-
-export function toLegacyIntensity(intensity: AlertIntensity): LegacyAlertIntensity {
-  return intensity === 'max' ? 'maximum' : intensity;
-}
-
 /** 'maximum' | 'max' | 'medium' | 'light' => AlertIntensity; anything else => null. */
 export function fromLegacyIntensity(raw: unknown): AlertIntensity | null {
   if (raw === 'maximum' || raw === 'max') return 'max';
@@ -74,19 +52,8 @@ export function fromLegacyIntensity(raw: unknown): AlertIntensity | null {
   return null;
 }
 
-const PROVIDER_LABELS: Readonly<Record<ConferenceProvider, string>> = {
-  zoom: 'Zoom',
-  teams: 'Microsoft Teams',
-  google_meet: 'Google Meet',
-  other: 'Online',
-};
-
-export function conferenceProviderLabel(provider: ConferenceProvider): string {
-  return PROVIDER_LABELS[provider];
-}
-
 /** "Zoom" | "zoom" | "Teams" | "Microsoft Teams" | "Google Meet" | "meet" ... => provider. */
-export function normalizeConferenceProvider(raw: unknown): ConferenceProvider {
+function normalizeConferenceProvider(raw: unknown): ConferenceProvider {
   if (typeof raw !== 'string') return 'other';
   const key = raw.trim().toLowerCase();
   if (key.includes('zoom')) return 'zoom';
@@ -99,108 +66,6 @@ function validHttpUrl(raw: unknown): string | null {
   if (typeof raw !== 'string' || raw.trim() === '') return null;
   const parsed = httpUrlSchema.safeParse(raw.trim());
   return parsed.success ? parsed.data : null;
-}
-
-// ---------------------------------------------------------------------------------------------
-// Meeting -> legacy view
-// ---------------------------------------------------------------------------------------------
-
-export interface LegacyLocationView {
-  type: LocationType;
-  address: string | null;
-  virtualPlatform: string | null;
-  virtualLink: string | null;
-}
-
-export interface LegacyParticipantView {
-  email: string;
-  name: string;
-  status: ParticipantStatus | null;
-}
-
-/** The meeting object shape stage-3 screens read (from Meeting.list/get shims). */
-export interface LegacyMeetingView {
-  id: string;
-  title: string;
-  description: string;
-  /** Local date in the DEVICE zone (all-day: the meeting's own date). */
-  date: string;
-  /** Local "HH:mm" in the device zone ("00:00" for all-day). */
-  time: string;
-  duration: number;
-  /** ISO UTC start (Dashboard "next meeting" logic). */
-  startTime: string;
-  endTime: string;
-  /** Google-event-like fields (Calendar.jsx reads meeting.start?.dateTime). */
-  start: { dateTime: string; timeZone: string };
-  end: { dateTime: string; timeZone: string };
-  timezone: string;
-  allDay: boolean;
-  location: LegacyLocationView | null;
-  participants: LegacyParticipantView[];
-  source: LegacySourceLabel;
-  sourceKey: MeetingSource;
-  confidence: number | null;
-  language: Language;
-  preparation_tips: string[];
-  custom_alert_times: number[] | null;
-  alert_intensity: AlertIntensity | null;
-  conference_details: ConferenceDetails | null;
-  notes: string | null;
-  status: MeetingStatus;
-  googleEventId: string | null;
-  created_date: string;
-  updated_date: string;
-}
-
-export function toLegacyMeetingView(meeting: Meeting, options: { timeZone?: string } = {}): LegacyMeetingView {
-  const zone = options.timeZone ?? getDeviceTimeZone();
-  const local = meeting.allDay ? { date: meeting.date, time: '00:00' } : toLocalDateTime(meeting.startAt, zone);
-  const endTime = new Date(toDate(meeting.startAt).getTime() + meeting.durationMinutes * 60_000).toISOString();
-  const platform = meeting.conference ? conferenceProviderLabel(meeting.conference.provider) : null;
-  const link = meeting.conference?.url ?? meeting.location?.virtualUrl ?? null;
-
-  let location: LegacyLocationView | null = null;
-  if (meeting.location) {
-    location = {
-      type: meeting.location.type,
-      address: meeting.location.address,
-      virtualPlatform: platform,
-      virtualLink: link,
-    };
-  } else if (meeting.conference) {
-    location = { type: 'virtual', address: null, virtualPlatform: platform, virtualLink: link };
-  }
-
-  return {
-    id: meeting.id,
-    title: meeting.title,
-    description: meeting.description,
-    date: local.date,
-    time: local.time,
-    duration: meeting.durationMinutes,
-    startTime: meeting.startAt,
-    endTime,
-    start: { dateTime: meeting.startAt, timeZone: meeting.timezone },
-    end: { dateTime: endTime, timeZone: meeting.timezone },
-    timezone: meeting.timezone,
-    allDay: meeting.allDay,
-    location,
-    participants: meeting.participants.map((p) => ({ email: p.email, name: p.name ?? p.email, status: p.status })),
-    source: LEGACY_SOURCE_LABELS[meeting.source],
-    sourceKey: meeting.source,
-    confidence: meeting.confidence,
-    language: meeting.language,
-    preparation_tips: [...meeting.preparationTips],
-    custom_alert_times: meeting.customAlertTimes ? [...meeting.customAlertTimes] : null,
-    alert_intensity: meeting.alertIntensity,
-    conference_details: meeting.conference,
-    notes: meeting.notes,
-    status: meeting.status,
-    googleEventId: meeting.external.googleEventId,
-    created_date: meeting.createdAt,
-    updated_date: meeting.updatedAt,
-  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -235,7 +100,7 @@ export function parseLegacyTime(raw: unknown): string | null {
 }
 
 /** "YYYY-MM-DD" or an ISO date-time (converted to the local date in `timeZone`). */
-export function parseLegacyDate(raw: unknown, timeZone: string): string | null {
+function parseLegacyDate(raw: unknown, timeZone: string): string | null {
   if (typeof raw !== 'string' || raw.trim() === '') return null;
   const value = raw.trim();
   if (isLocalDate(value)) return value;
@@ -246,11 +111,11 @@ export function parseLegacyDate(raw: unknown, timeZone: string): string | null {
   return null;
 }
 
-function legacyStartAt(record: LegacyRecord, timeZone: string, fallback?: { date: string; time: string }): string | null {
+function legacyStartAt(record: LegacyRecord, timeZone: string): string | null {
   const explicit = str(record.startAt) ?? str(record.startTime);
   if (explicit && !Number.isNaN(new Date(explicit).getTime())) return new Date(explicit).toISOString();
-  const date = parseLegacyDate(record.date, timeZone) ?? fallback?.date ?? null;
-  const time = parseLegacyTime(record.time) ?? fallback?.time ?? null;
+  const date = parseLegacyDate(record.date, timeZone);
+  const time = parseLegacyTime(record.time);
   if (!date || !time) return null;
   return zonedDateTimeToUtcIso(date, time, timeZone);
 }
@@ -323,7 +188,7 @@ export interface LegacyInputContext {
 }
 
 /**
- * Converts a legacy create payload (ModernCreateMeeting / v1.0.9 local data) into a
+ * Converts a pre-rebuild meeting (v1.0.9 local data or an old-shape Firestore document) into a
  * MeetingCreateInput. Participants without a valid email cannot be kept (Meeting requires an
  * email); their names are appended to `notes` and returned in `droppedParticipantNames`.
  * Throws AppError('invalid_input') when title or start cannot be determined.
@@ -374,77 +239,9 @@ export function fromLegacyMeetingInput(
   return { input, droppedParticipantNames: dropped };
 }
 
-/**
- * Converts a legacy update payload (e.g. AIInsights `{ title, date, time, duration }` or
- * `{ confidence: 100 }`) into a MeetingPatch against `current`. Unknown keys are ignored.
- */
-export function fromLegacyMeetingPatch(raw: unknown, current: Meeting, context: { timeZone: string }): MeetingPatch {
-  const record = asRecord(raw);
-  const patch: MeetingPatch = {};
-  const title = str(record.title)?.trim();
-  if (title) patch.title = title.slice(0, 200);
-  if (typeof record.description === 'string') patch.description = record.description.slice(0, 4000);
-  const duration = legacyDuration(record.duration ?? record.durationMinutes);
-  if (duration !== undefined) patch.durationMinutes = duration;
-
-  if ('date' in record || 'time' in record || 'startTime' in record || 'startAt' in record) {
-    const currentLocal = current.allDay ? { date: current.date, time: '00:00' } : toLocalDateTime(current.startAt, context.timeZone);
-    const startAt = legacyStartAt(record, context.timeZone, currentLocal);
-    if (!startAt) throw new AppError('invalid_input', 'Invalid meeting date or time');
-    patch.startAt = startAt;
-    patch.timezone = context.timeZone;
-  }
-  if (typeof record.confidence === 'number' && Number.isFinite(record.confidence)) {
-    patch.confidence = Math.min(100, Math.max(0, Math.round(record.confidence)));
-  }
-  if ('location' in record || 'conference_details' in record) {
-    const { location, conference } = legacyLocationAndConference(record);
-    patch.location = location;
-    if (conference || 'conference_details' in record) patch.conference = conference;
-  }
-  if ('participants' in record) patch.participants = legacyParticipants(record.participants).participants;
-  const tips = legacyTips(record.preparation_tips);
-  if (tips) patch.preparationTips = tips;
-  if (typeof record.notes === 'string' || record.notes === null) patch.notes = (record.notes as string | null) ?? null;
-  const intensity = fromLegacyIntensity(record.alert_intensity);
-  if (intensity) patch.alertIntensity = intensity;
-  return patch;
-}
-
 // ---------------------------------------------------------------------------------------------
-// Preferences <-> legacy snake_case view
+// Preferences (users/{uid}.preferences map and the v1.0.9 blob)
 // ---------------------------------------------------------------------------------------------
-
-export interface LegacyPreferencesView {
-  /** Constant: there is exactly one preferences document per user. */
-  id: 'preferences';
-  language: Language;
-  timezone: string;
-  alert_enabled: boolean;
-  alert_intensity: LegacyAlertIntensity;
-  alert_sound_type: AlertSoundType;
-  alert_volume: number;
-  vibration_enabled: boolean;
-  google_calendar_sync_enabled: boolean;
-  onboarding_completed: boolean;
-  default_alert_times: number[];
-}
-
-export function toLegacyPreferencesView(prefs: Preferences): LegacyPreferencesView {
-  return {
-    id: 'preferences',
-    language: prefs.language,
-    timezone: prefs.timezone,
-    alert_enabled: prefs.alertEnabled,
-    alert_intensity: toLegacyIntensity(prefs.alertIntensity),
-    alert_sound_type: prefs.alertSoundType,
-    alert_volume: prefs.alertVolume,
-    vibration_enabled: prefs.vibrationEnabled,
-    google_calendar_sync_enabled: prefs.googleCalendarSyncEnabled,
-    onboarding_completed: prefs.onboardingCompleted,
-    default_alert_times: [...prefs.defaultAlertTimes],
-  };
-}
 
 /**
  * Legacy snake_case patch => PreferencesPatch. Unknown/legacy-only keys (id, created_by, theme,

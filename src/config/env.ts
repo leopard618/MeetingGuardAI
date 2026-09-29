@@ -15,6 +15,10 @@
 import { Platform } from 'react-native';
 import { z } from 'zod';
 
+import { createLogger } from '../core/logger';
+
+const log = createLogger('env');
+
 export type RawEnv = Record<EnvKey, string | undefined>;
 
 export type EnvKey =
@@ -199,7 +203,7 @@ function computeEnv(): AppEnv {
     return parseEnv(readRawEnv(), Platform.OS as AppPlatform);
   } catch (error) {
     // parseEnv does not throw; this is a last-resort guard so importing this module never crashes.
-    console.error('[env] Failed to read the app environment:', error);
+    log.error('Failed to read the app environment', error);
     return parseEnv({}, Platform.OS as AppPlatform);
   }
 }
@@ -207,8 +211,8 @@ function computeEnv(): AppEnv {
 export const env: AppEnv = computeEnv();
 
 if (__DEV__ && !env.isConfigured && process.env.NODE_ENV !== 'test') {
-  console.warn(
-    `[env] App is not fully configured. Missing: ${env.missingKeys.join(', ') || '-'}; ` +
+  log.warn(
+    `App is not fully configured. Missing: ${env.missingKeys.join(', ') || '-'}; ` +
       `invalid: ${env.invalidKeys.join(', ') || '-'}. See env.example.`,
   );
 }

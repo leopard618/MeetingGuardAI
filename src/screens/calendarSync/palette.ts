@@ -61,7 +61,7 @@ export function calendarPalette(isDarkMode: boolean): CalendarPalette {
 }
 
 export function useCalendarPalette(): CalendarPalette {
-  const { isDarkMode } = useTheme() as { isDarkMode: boolean };
+  const { isDarkMode } = useTheme();
   return calendarPalette(isDarkMode);
 }
 

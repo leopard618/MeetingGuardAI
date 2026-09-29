@@ -4,7 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 
-import { PLANS } from '../../../api/billingService';
+import { PLANS } from '../../../services/billing';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
 import { PLAN_DAILY_AI_LIMITS, type AssistantUsage } from '../../../core/aiContract';
 import { I18nProvider, i18n } from '../../../i18n';

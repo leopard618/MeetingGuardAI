@@ -19,7 +19,6 @@ const SOURCES = [
   'screens/assistant',
   'components/MeetingConfirmationModal.tsx',
   'components/ConfidenceBadge.tsx',
-  'components/SourceBadge.tsx',
 ].map((p) => path.join(ROOT, p));
 
 function sourceFiles(target: string): string[] {

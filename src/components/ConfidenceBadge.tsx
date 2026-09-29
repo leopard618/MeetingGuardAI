@@ -65,7 +65,7 @@ export interface ConfidenceBadgeProps {
 
 export function ConfidenceBadge({ confidence, showIcon = true, size = 'default' }: ConfidenceBadgeProps): ReactElement | null {
   const t = useT();
-  const { isDarkMode } = useTheme() as { isDarkMode: boolean };
+  const { isDarkMode } = useTheme();
   const value = normalizeConfidence(confidence);
   if (value === null) return null;
   const level = confidenceLevel(value);

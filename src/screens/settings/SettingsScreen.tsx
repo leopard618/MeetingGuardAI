@@ -13,7 +13,7 @@ import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Divider, List, SegmentedButtons, Text, useTheme as usePaperTheme } from 'react-native-paper';
 
-import { useTheme } from '../../contexts/ThemeContext';
+import { THEME_MODES, useTheme, type ThemeMode } from '../../contexts/ThemeContext';
 import type { RootStackParamList } from '../../core/contracts';
 import type { Language } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
@@ -24,14 +24,6 @@ import { ScreenBody, Section } from '../shared/Section';
 import { useDeleteAccountFlow } from './useDeleteAccountFlow';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '';
-const THEME_MODES = ['system', 'light', 'dark'] as const;
-type ThemeMode = (typeof THEME_MODES)[number];
-
-interface ThemeApi {
-  themeMode: ThemeMode;
-  setThemeMode(mode: ThemeMode): void;
-}
-
 export function SettingsScreen(): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
@@ -39,7 +31,7 @@ export function SettingsScreen(): ReactElement {
   const { authUser } = useAuth();
   const { preferences } = usePreferences();
   const { language, setLanguage, supportedLanguages } = useLanguage();
-  const { themeMode, setThemeMode } = useTheme() as ThemeApi;
+  const { themeMode, setThemeMode } = useTheme();
   const deletion = useDeleteAccountFlow();
 
   const alertSummary = preferences.alertEnabled

@@ -15,7 +15,7 @@
  */
 import { AppError, type AppErrorCode } from '../../core/errors';
 import { LEGACY_DATA_KEY, LEGACY_STORAGE_KEYS, LEGACY_STORAGE_PREFIXES } from '../../core/identifiers';
-import { fromLegacyPreferencesPatch } from '../../core/legacy';
+import { fromLegacyPreferencesPatch } from './legacyInput';
 import { buildNote, NOTE_CATEGORIES, type Language, type Meeting, type Note, type NoteCategory, type PreferencesPatch } from '../../core/types';
 import type { KeyValueStorage } from './cache';
 import { legacyRecordId } from './ids';

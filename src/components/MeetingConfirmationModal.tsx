@@ -369,7 +369,7 @@ export function MeetingConfirmationModal({
 }: MeetingConfirmationModalProps): ReactElement {
   const t = useT();
   const { language } = useLanguage();
-  const { isDarkMode } = useTheme() as { isDarkMode: boolean };
+  const { isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
   const palette = assistantPalette(isDarkMode);
   const fmt = useMemo(() => createAssistantFormatter({ t, language, use24Hour }), [t, language, use24Hour]);

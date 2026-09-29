@@ -92,17 +92,6 @@
     "started": "Tu reunión {{title}} ya ha empezado.",
     "location": "Lugar: {{location}}."
   },
-  "permission": {
-    "granted": "Las notificaciones están permitidas",
-    "provisional": "Las notificaciones llegan de forma silenciosa",
-    "denied": "Las notificaciones están bloqueadas",
-    "undetermined": "Todavía no has permitido las notificaciones",
-    "request": "Permitir notificaciones",
-    "openSettings": "Abrir ajustes de notificaciones",
-    "exactAlarmsTitle": "Alarmas exactas",
-    "exactAlarmsHint": "Android puede retrasar las alertas para ahorrar batería. Permite «Alarmas y recordatorios» para que tus alertas suenen a la hora exacta.",
-    "openExactAlarmSettings": "Permitir alarmas exactas"
-  },
   "errors": {
     "snoozeFailed": "No se ha podido posponer la alerta.",
     "openLinkFailed": "No se ha podido abrir el enlace de la reunión."
@@ -124,10 +113,10 @@
       "description": "5 minutos después de que termine una reunión, recibe ideas de seguimiento del asistente de IA."
     },
     "clock": {
-      "label": "Formato de hora",
-      "auto": "Automático",
       "12": "12 horas",
-      "24": "24 horas"
+      "24": "24 horas",
+      "label": "Formato de hora",
+      "auto": "Automático"
     },
     "dnd": {
       "title": "No molestar",

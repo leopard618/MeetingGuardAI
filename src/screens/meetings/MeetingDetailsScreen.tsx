@@ -1,5 +1,5 @@
 /**
- * Meeting details (route "MeetingDetails" { meetingId } or legacy { meeting }).
+ * Meeting details (route "MeetingDetails" { meetingId }).
  * Reads the live meeting from the data layer (deep links from notifications included) and shows
  * everything the meeting holds: time (locale-aware, 12 h / 24 h preference), duration, place,
  * video call (real join link + password), participants, description, preparation tips, alert
@@ -63,7 +63,7 @@ function whenText(meeting: Meeting, fmt: Formatters): { local: string; meetingZo
 }
 
 export function MeetingDetailsScreen({ navigation, route }: Props): ReactElement {
-  const id = route.params?.meetingId ?? route.params?.meeting?.id ?? null;
+  const id = route.params?.meetingId ?? null;
   const { meeting, isLoading } = useMeeting(id);
   if (!meeting) return <MeetingStatus loading={id !== null && isLoading} />;
   return <MeetingDetails meeting={meeting} onEdit={() => navigation.navigate('EditMeeting', { meetingId: meeting.id })} onDeleted={() => navigation.goBack()} />;

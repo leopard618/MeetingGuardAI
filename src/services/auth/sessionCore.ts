@@ -34,7 +34,7 @@ import type { AppEventMap, EventBus, SessionEndedEvent, Unsubscribe } from '../.
 import type { Logger } from '../../core/logger';
 import type { AuthUser } from '../../core/types';
 
-import { sameIdentity } from './legacyView';
+import { sameIdentity } from './authResults';
 import { createSerialQueue } from './serialQueue';
 import type { SessionCleanupContext, SessionCleanupFailure } from './sessionCleanup';
 

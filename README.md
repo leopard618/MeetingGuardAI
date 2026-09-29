@@ -17,8 +17,8 @@ Package / bundle id: `com.meetingguard.ai` (published on Google Play).
 - i18next + react-i18next + expo-localization (EN/ES, switchable without a restart)
 - `expo-notifications`, `expo-background-task`, `expo-task-manager`, `expo-calendar`, `expo-audio`
 - Sentry (`@sentry/react-native`, enabled only when `EXPO_PUBLIC_SENTRY_DSN` is set)
-- JavaScript with incremental TypeScript (`allowJs`, `strict`; new modules are `.ts`/`.tsx`,
-  `@/*` path alias -> `src/*`)
+- TypeScript (`strict`) for all of `src/` (no JavaScript left there; `@/*` path alias ->
+  `src/*`); only the entry files and tool configs at the root are JavaScript
 - Tooling: ESLint 9 (flat config, `eslint-config-expo`), Jest (`jest-expo`) +
   React Native Testing Library, GitHub Actions CI (`.github/workflows/ci.yml`)
 
@@ -116,13 +116,14 @@ index.js          # Entry: gesture handler, Intl polyfill, Sentry, i18n, backgro
 App.js            # Configuration gate -> src/navigation/AppRoot (providers + navigation)
 src/
   core/           # Pure TypeScript contracts, types, ids, events, errors, time (no RN/Expo)
-  services/       # data, auth, calendar, alerts, ai (one public entry per area)
-  navigation/     # Root navigator, deep links, app shell
-  screens/        # New screens (onboarding)
+  services/       # data, auth, calendar, alerts, ai, attachments (one public entry per area),
+                  # sentry, billing (plan catalog)
+  navigation/     # Root navigator, deep links, route registration
+  screens/        # Every screen, one folder per area (home, meetings, calendar, notes, ...)
   i18n/           # i18next setup + locales/{en,es}/<namespace>.json
-  components/     # Shared UI, alerts UI (alerts/)
-  pages/          # Legacy screens (migrated to the new services in stage 3)
-  api/, hooks/, contexts/, utils/   # Legacy modules, now thin shims over src/services
+  components/     # App shell (header, sidebar, error boundary), shared UI, alerts UI (alerts/)
+  contexts/       # Theme (system / light / dark)
+  hooks/, utils/  # useResponsive, locale-aware formatting
 functions/        # Firebase Cloud Functions (assistant, deleteAccount)
 public/           # Static web pages (account deletion instructions)
 docs/             # Architecture

@@ -2,35 +2,27 @@
  * React auth bindings (owner: auth) - layer L6.
  *
  * AuthProvider initializes GoogleSignin + the session manager on mount and exposes
- * AuthContextValue through useAuth(). src/contexts/AuthContext.jsx re-exports this module (it
- * stays .jsx because stage-3 screens import it with the extension).
+ * AuthContextValue through useAuth().
  *
  * - Session state comes only from sessionManager (Firebase onAuthStateChanged); nothing is read
  *   from or written to a persisted "user" key.
- * - Sign-in helpers return the legacy `{ success, cancelled?, user?, error? }` shape with a
- *   localized message (auth namespace) plus `errorCode` / `errorReason`.
- * - The plan comes from the server-owned entitlement (read-only here).
+ * - Sign-in actions return `{ success, cancelled?, user?, error? }` with a localized message
+ *   (auth namespace) plus `errorCode` / `errorReason`; they never throw.
+ * - The entitlement (plan) is server-owned and read-only here.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert } from 'react-native';
 
 import type { AuthContextValue, AuthProviderProps, SessionState } from '../../core/contracts';
 import { toAppError, type AppError, type AppErrorCode } from '../../core/errors';
 import { createLogger } from '../../core/logger';
-import { DEFAULT_ENTITLEMENT, effectivePlan, type AuthUser, type Entitlement, type Plan } from '../../core/types';
+import { DEFAULT_ENTITLEMENT, type AuthUser, type Entitlement } from '../../core/types';
 import { t } from '../../i18n';
 import { calendarSyncEngine, googleCalendarService } from '../calendar';
 import { userRepository } from '../data';
 
 import { authErrorMessageKey, getAuthErrorReason, isUnexpectedAuthError } from './authErrors';
+import { authCancelled, authFailure, authSuccess, type AuthActionResult } from './authResults';
 import { authService } from './authService';
-import {
-  legacyCancelled,
-  legacyFailure,
-  legacySuccess,
-  toLegacyAuthUserView,
-  type AuthActionResult,
-} from './legacyView';
 import { sessionManager } from './sessionManager';
 
 const log = createLogger('auth');
@@ -42,7 +34,7 @@ export interface AuthSimpleResult {
   errorCode?: AppErrorCode;
 }
 
-/** AuthContextValue plus backward-compatible extensions. */
+/** AuthContextValue plus the auth area's extensions. */
 export interface AuthContextValueImpl extends AuthContextValue {
   signInWithGoogle(): Promise<AuthActionResult>;
   signInWithEmail(email: string, password: string): Promise<AuthActionResult>;
@@ -75,43 +67,14 @@ function valueFor<T>(scoped: Scoped<T> | null, uid: string | null, fallback: T):
 
 function toFailure(error: unknown, context: string): AuthActionResult {
   const appError = toAppError(error);
-  if (appError.code === 'cancelled') return legacyCancelled();
+  if (appError.code === 'cancelled') return authCancelled();
   const reason = getAuthErrorReason(appError);
   if (isUnexpectedAuthError(appError)) {
     log.error(context, appError);
   } else {
     log.warn(context, appError.code, reason ?? '');
   }
-  return legacyFailure(t(authErrorMessageKey(appError)), appError.code, reason);
-}
-
-function confirmDiscardPendingWrites(count: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    Alert.alert(
-      t('auth:signOut.pendingTitle'),
-      t('auth:signOut.pendingMessage', { count }),
-      [
-        { text: t('auth:signOut.cancel'), style: 'cancel', onPress: () => resolve(false) },
-        { text: t('auth:signOut.confirm'), style: 'destructive', onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    );
-  });
-}
-
-function reportSignOutFailure(error: unknown): void {
-  const appError = toAppError(error);
-  log.error('Sign-out failed', appError);
-  Alert.alert(t('auth:signOut.failedTitle'), t(authErrorMessageKey(appError)));
-}
-
-function pendingCount(error: AppError): number {
-  const count = error.details?.count;
-  return typeof count === 'number' && count > 0 ? count : 1;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return authFailure(t(authErrorMessageKey(appError)), appError.code, reason);
 }
 
 export function AuthProvider({ children }: AuthProviderProps): ReactNode {
@@ -184,10 +147,6 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
   }, [activeUid]);
 
   const entitlement: Entitlement = valueFor<Entitlement>(entitlementState, activeUid, DEFAULT_ENTITLEMENT);
-  const entitlementRef = useRef(entitlement);
-  useEffect(() => {
-    entitlementRef.current = entitlement;
-  }, [entitlement]);
   const hasCalendarScope = valueFor(scopeState, activeUid, false);
   const calendarConnected = valueFor(calendarState, activeUid, false);
 
@@ -205,7 +164,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       runBusy(async (): Promise<AuthActionResult> => {
         try {
           const result = await authService.signInWithGoogle();
-          return result.status === 'success' ? legacySuccess(result.user) : legacyCancelled();
+          return result.status === 'success' ? authSuccess(result.user) : authCancelled();
         } catch (error) {
           return toFailure(error, 'Google sign-in failed');
         }
@@ -217,7 +176,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
     (email: string, password: string) =>
       runBusy(async (): Promise<AuthActionResult> => {
         try {
-          return legacySuccess(await authService.signInWithEmail(email, password));
+          return authSuccess(await authService.signInWithEmail(email, password));
         } catch (error) {
           return toFailure(error, 'Email sign-in failed');
         }
@@ -229,7 +188,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
     (email: string, password: string, name: string) =>
       runBusy(async (): Promise<AuthActionResult> => {
         try {
-          return legacySuccess(await authService.signUpWithEmail(email, password, name));
+          return authSuccess(await authService.signUpWithEmail(email, password, name));
         } catch (error) {
           return toFailure(error, 'Email sign-up failed');
         }
@@ -249,26 +208,6 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
 
   const signOut = useCallback((options?: { force?: boolean }) => sessionManager.signOut(options), []);
 
-  /** Compat: never rejects; asks before discarding unsynced changes and shows failures. */
-  const logout = useCallback(async (): Promise<void> => {
-    try {
-      await sessionManager.signOut();
-    } catch (error) {
-      const appError = toAppError(error);
-      if (appError.code !== 'pending_writes') {
-        reportSignOutFailure(appError);
-        return;
-      }
-      const confirmed = await confirmDiscardPendingWrites(pendingCount(appError));
-      if (!confirmed) return;
-      try {
-        await sessionManager.signOut({ force: true });
-      } catch (forcedError) {
-        reportSignOutFailure(forcedError);
-      }
-    }
-  }, []);
-
   const requestCalendarScope = useCallback(async (): Promise<boolean> => {
     const granted = await authService.requestCalendarScope();
     const uid = sessionManager.getState().user?.uid;
@@ -287,25 +226,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
     [],
   );
 
-  const refreshUserPlan = useCallback(async (delayMs: number = 0): Promise<Plan> => {
-    const uid = sessionManager.getState().status === 'active' ? sessionManager.getState().user?.uid : undefined;
-    if (!uid) return 'free';
-    if (delayMs > 0) await delay(delayMs);
-    try {
-      const value = await userRepository.getEntitlement();
-      if (mountedRef.current) setEntitlementState({ uid, value });
-      return effectivePlan(value);
-    } catch (error) {
-      // The live subscription keeps the plan current; report the failed re-read and keep it.
-      log.warn('Could not refresh the plan', toAppError(error).code);
-      return effectivePlan(entitlementRef.current);
-    }
-  }, []);
-
-  const forceRefreshUserPlan = useCallback(() => refreshUserPlan(0), [refreshUserPlan]);
-
   const authUser: AuthUser | null = session.user;
-  const legacyUser = useMemo(() => (authUser ? toLegacyAuthUserView(authUser) : null), [authUser]);
 
   const value = useMemo<AuthContextValueImpl>(
     () => ({
@@ -316,10 +237,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
         session.status === 'ending' ||
         busy > 0,
       isAuthenticated: activeUid !== null,
-      user: legacyUser,
       authUser,
       entitlement,
-      userPlan: effectivePlan(entitlement),
       hasCalendarScope,
       calendarConnected,
       sessionError: session.error,
@@ -328,20 +247,16 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       signUpWithEmail,
       sendPasswordReset,
       signOut,
-      logout,
       requestCalendarScope,
       requestCalendarAccess,
       deleteAccount,
       reauthenticate,
-      refreshUserPlan,
-      forceRefreshUserPlan,
     }),
     [
       session.status,
       session.error,
       busy,
       activeUid,
-      legacyUser,
       authUser,
       entitlement,
       hasCalendarScope,
@@ -351,13 +266,10 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       signUpWithEmail,
       sendPasswordReset,
       signOut,
-      logout,
       requestCalendarScope,
       requestCalendarAccess,
       deleteAccount,
       reauthenticate,
-      refreshUserPlan,
-      forceRefreshUserPlan,
     ],
   );
 

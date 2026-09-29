@@ -1,5 +1,4 @@
-import { toLegacyMeetingView } from '../../../core/legacy';
-import { dayRangeUtc, todayInZone } from '../../../core/time';
+import { dayRangeUtc, todayInZone, toLocalDateTime } from '../../../core/time';
 import { buildMeeting, type Meeting } from '../../../core/types';
 import { filterMeetings } from '../engine';
 import {
@@ -162,12 +161,13 @@ describe('time zones: derivation, DST and non-UTC "today"', () => {
     expect(today).toBe('2026-10-05');
     const range = dayRangeUtc(today, zone);
     expect(filterMeetings([late, early], range).map((m) => m.id)).toEqual(['late']);
-    expect(toLegacyMeetingView(late, { timeZone: zone })).toMatchObject({ date: '2026-10-05', time: '23:30' });
+    expect(toLocalDateTime(late.startAt, zone)).toEqual({ date: '2026-10-05', time: '23:30' });
   });
 
-  it('shows legacy views in the device zone while storing the meeting zone', () => {
+  it('shows local times in the device zone while storing the meeting zone', () => {
     const m = meeting({ id: 'tz', startAt: '2026-10-05T12:30:00.000Z', timezone: 'Europe/Madrid' });
-    expect(toLegacyMeetingView(m, { timeZone: 'America/New_York' })).toMatchObject({ date: '2026-10-05', time: '08:30', timezone: 'Europe/Madrid' });
+    expect(m).toMatchObject({ date: '2026-10-05', time: '14:30', timezone: 'Europe/Madrid' });
+    expect(toLocalDateTime(m.startAt, 'America/New_York')).toEqual({ date: '2026-10-05', time: '08:30' });
   });
 
   it('filters ranges on instants and rejects invalid bounds', () => {

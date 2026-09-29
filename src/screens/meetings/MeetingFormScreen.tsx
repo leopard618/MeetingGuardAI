@@ -1,6 +1,6 @@
 /**
- * Manual meeting form: create (route "CreateMeeting") and edit (route "EditMeeting" { meetingId },
- * or a legacy { meeting } param). The brief's "traditional detailed input".
+ * Manual meeting form: create (route "CreateMeeting" { date? }) and edit (route "EditMeeting"
+ * { meetingId }). The brief's "traditional detailed input".
  *
  * - Title, description, date / time (wall clock in the meeting's zone), all-day, duration.
  * - Place and video call. Links are ONLY what the user pastes (nothing is generated): Google Meet
@@ -62,8 +62,8 @@ interface AttachmentView {
 }
 
 export function MeetingFormScreen({ navigation, route }: Props): ReactElement {
-  const params = (route.params ?? {}) as { meetingId?: string; meeting?: { id?: string }; date?: string };
-  const editId = params.meetingId ?? params.meeting?.id ?? null;
+  const params = (route.params ?? {}) as { meetingId?: string; date?: string };
+  const editId = params.meetingId ?? null;
   // "New meeting on <day>" (Calendar screen): the day of a new meeting, validated by the model.
   const initialDate = editId === null ? params.date : undefined;
   const { meeting, isLoading } = useMeeting(editId);

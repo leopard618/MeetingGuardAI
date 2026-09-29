@@ -1,4 +1,4 @@
-# MeetingGuard AI architecture (stage 2: core services)
+# MeetingGuard AI architecture (stage 3: TypeScript app)
 
 The source of truth for types and contracts is the code in `src/core/`. This document explains how the pieces fit together. If the two ever disagree, the code wins; fix the document.
 
@@ -7,20 +7,22 @@ The source of truth for types and contracts is the code in `src/core/`. This doc
 - `src/core/contracts.ts`: service interfaces, module map, navigation params, lifecycle
 - `src/core/identifiers.ts`: every persistent id, key and path
 - `src/core/events.ts`: the typed event bus
-- `src/core/errors.ts`, `src/core/logger.ts`, `src/core/time.ts`, `src/core/legacy.ts`
+- `src/core/errors.ts`, `src/core/logger.ts`, `src/core/time.ts`
 - `src/core/conformance.ts`: compile-time checks that every module exports what the contracts promise
 
 ## 1. Layers
 
 ```
-L7  entry / UI     index.js, App.js, src/navigation, src/screens, src/components/alerts,
-                   src/services/alerts/tasks.ts (headless), src/pages (stage 3), legacy shims
+L7  entry / UI     index.js, App.js, src/navigation, src/screens, src/components, src/contexts,
+                   src/hooks, src/services/alerts/tasks.ts (headless)
 L6  session        src/services/auth (barrel): sessionManager, AuthProvider, useAuth
 L5  ai             src/services/ai
 L4  calendar       src/services/calendar          alerts engine   src/services/alerts
+                   attachments   src/services/attachments (device-local files)
 L3  identity       src/services/auth/authService.ts (Google/Firebase identity + Google tokens)
 L2  data           src/services/data (repositories, cache, outbox, React hooks)
-L1  config, i18n   src/config/firebase.ts, src/config/env.ts, src/i18n, src/utils/format.ts
+L1  config, i18n   src/config/firebase.ts, src/config/env.ts, src/i18n, src/utils/format.ts,
+                   src/services/sentry.ts, src/services/billing.ts (plan catalog)
 L0  core           src/core/* (pure TypeScript + zod; no React Native, Expo or Firebase)
 ```
 
@@ -38,11 +40,14 @@ These rules prevent import cycles:
 |---|---|---|
 | core | `src/core/*` | architect |
 | data | `src/services/data` (`dataService`, `meetingRepository`, `preferencesRepository`, `notesRepository`, `userRepository`, `migrationService`, `DataProvider`, `useMeetings`, `useMeeting`, `usePreferences`, `useNotes`, `useEntitlement`, `useSyncState`); `src/config/firebase.ts` | data |
-| auth | `src/services/auth/authService.ts` (`authService`); `src/services/auth` (`authService`, `sessionManager`, `AuthProvider`, `useAuth`); `src/contexts/AuthContext.jsx` re-exports these and **stays `.jsx`** because screens import it with the extension | auth |
+| auth | `src/services/auth/authService.ts` (`authService`); `src/services/auth` (`authService`, `sessionManager`, `AuthProvider`, `useAuth`) | auth |
 | calendar | `src/services/calendar` (`googleCalendarService`, `deviceCalendarService`, `calendarSyncEngine`, `useCalendarStatus`) | calendar |
 | alerts | `src/services/alerts` (`alertEngine`, `computeAlertPlan`, `usePendingAlerts`); `src/services/alerts/tasks.ts` (`registerBackgroundTasks`, `unregisterBackgroundTasks`, plus the module-scope task definitions); `src/components/alerts` (`AlertHost`) | alerts |
 | i18n + navigation | `src/i18n` (`i18n`, `initI18n`, `t`, `getLanguage`, `setLanguage`, `SUPPORTED_LANGUAGES`, `I18N_NAMESPACES`, `I18nProvider`, `useT`, `useLanguage`); `src/utils/format.ts`; `src/navigation` (`navigationRef`, `navigate`, `openDeepLink`, `isNavigationReady`, `linking`, `RootNavigator`, `ROUTES`); `src/screens/onboarding` | i18n-nav |
 | ai | `src/services/ai` (`assistantClient`, `actionExecutor`, `useAssistant`) | ai |
+| attachments | `src/services/attachments` (`attachmentService`, `useMeetingAttachments`); metadata in the data layer's `attachmentStore` | notes |
+| shell | `src/contexts/ThemeContext.tsx` (`ThemeProvider`, `useTheme`, `useAppThemes`), `src/components/{CustomHeader,MobileSidebar,ThemeToggle,ErrorBoundary}.tsx`, `src/hooks/useResponsive.ts` | shell |
+| screens | `src/screens/<area>` (one folder per screen group, §13); `src/screens/shared` (`useFormatters`, `Section`, `MeetingStatus`) | screen groups |
 | functions | `functions/src/index.ts` (`assistant`, `deleteAccount`); `functions/src/shared/aiContract.ts` is a **verbatim** copy of `src/core/aiContract.ts`, and CI diffs the two; `firestore.rules`, `firestore.indexes.json`, `firebase.json` | functions |
 
 ## 3. Data model (summary; `types.ts` has the details)
@@ -317,17 +322,30 @@ useAssistant.send(text)
 
 ## 10. i18n
 
-- **Setup.** i18next + react-i18next + expo-localization. Resources are bundled per namespace in `src/i18n/locales/{en,es}/{common,navigation,onboarding,data,auth,calendar,alerts,ai}.json`, and each area owns its own namespace file.
-- **Keys are always namespace-qualified**, for example `t('alerts:max.title')`. The legacy `translations.test.js` treats unqualified dotted keys as `translations.jsx` keys and fails when they are missing there.
+- **Setup.** i18next + react-i18next + expo-localization. Resources are bundled per namespace in `src/i18n/locales/{en,es}/<namespace>.json` and registered in `src/i18n/resources.ts`; the list is `I18N_NAMESPACE_LIST` in `contracts.ts`. Each area owns its namespace files:
+
+  | Namespaces | Owner |
+  |---|---|
+  | `common` (actions, language names, formatting words, session prompts, consent, `errors.<AppErrorCode>`), `navigation` (route titles), `onboarding` | i18n-nav |
+  | `data`, `auth`, `calendar`, `alerts`, `ai` | service areas |
+  | `settings`, `meetings` | stage-2 screens |
+  | `home`, `insights` | home |
+  | `calendarView`, `create` (and `meetings` list/actions keys) | meetings |
+  | `notes`, `attachments` | notes |
+  | `shell`, `landing`, `legal`, `pricing` | shell |
+
+- **Keys are always namespace-qualified**, for example `t('alerts:max.title')`. There are no unqualified keys and no namespace-bound translators.
+- **Tests.** `src/i18n/__tests__/resources.test.ts` fails when a key exists in one language only, or a value is empty. `src/i18n/__tests__/keysUsed.test.ts` scans every source file and fails when a key literal (static, or the static part of a dynamic `ns:a.b.${x}` key) is missing in EN or ES, or when `t()` gets an unqualified key. `src/navigation/__tests__/routeTitles.test.ts` keeps route titles and sidebar labels in step with `ROUTES`.
 - **Pluralization.** Use `_one` / `_other`. `intl-pluralrules` is imported first in `index.js`.
 - **Language.**
   - The default is the device language, persisted in `mg:language`.
   - `setLanguage` switches instantly and emits `language:changed`. For source `user`, the data layer writes `prefs.language`.
   - A remote change to `prefs.language` is applied with source `preferences`.
   - Alerts re-render pending notifications when the language changes.
-- **Formatting.** `src/utils/format.ts` uses date-fns locales and a 12 h or 24 h clock from `prefs.use24HourClock`, falling back to the locale.
+  - Every screen reads the live language itself (`useT`, `useLanguage`); nothing is passed down as a prop.
+- **Formatting.** `src/utils/format.ts` uses date-fns locales and a 12 h or 24 h clock from `prefs.use24HourClock`, falling back to the locale. Screens use `src/screens/shared/useFormatters` (bound to the live language and the clock preference). Week start follows the language (Sunday for English, Monday for Spanish).
 - **Error messages.** `common.json` has `errors.<AppErrorCode>` in EN and ES for every `APP_ERROR_CODES` entry.
-- **Compatibility.** Legacy screens receive a `language` prop through module-level wrappers, and `translations.jsx`'s `useTranslation(language)` keeps working.
+- **Exception.** `src/components/NotConfiguredScreen.tsx` (shown when the build has no `EXPO_PUBLIC_*` configuration) is bilingual with fixed text on purpose: no service, i18n included, is started on that path.
 
 ## 11. Error handling and logging conventions
 
@@ -338,7 +356,7 @@ useAssistant.send(text)
   - `debug` and `info` are dev-only.
   - `warn` and `error` are always on, and `error` is also reported to Sentry.
   - Never log tokens, emails, meeting text, chat text or notification bodies.
-- **No bare `console.log`** in new code (ESLint `no-console`).
+- **No `console.*`** outside `src/core/logger.ts` (ESLint `no-console`; config, Firebase, Sentry and the event bus log through `createLogger` too).
 
 ## 12. Testing conventions
 
@@ -346,36 +364,40 @@ useAssistant.send(text)
 - Put pure logic in pure modules with `__tests__/*.test.ts` next to them, for example `computeAlertPlan`, mappers, the outbox reducer, Google and device event mapping, the action executor with mocked repositories, and the i18n key parity between EN and ES.
 - Mock Firebase, Expo native modules and GoogleSignin inside each test file with `jest.mock`. `App.test.js` shows the Firebase stubs. Tests must not need network or `EXPO_PUBLIC_*` values.
 - `src/core/conformance.ts` must keep compiling (`npx tsc --noEmit`).
-- The checks are `npx tsc --noEmit`, `npm run lint`, `npm test`, and `npx expo export --platform android --output-dir <scratch>`.
+- Every screen has a render test (React Native Testing Library, hooks mocked) and its non-trivial logic lives in a pure model with unit tests (`homeModel`, `meetingInsights`, `meetingListModel`, `calendarModel`, `notesModel`, `chatModel`, `calendarSyncModel`, `pricingModel`, `meetingForm`, `legalContent`).
+- The checks are `npx tsc --noEmit`, `npm run lint` (0 warnings; the React Compiler hook rules `react-hooks/immutability`, `refs`, `purity` and `set-state-in-effect` are enabled at their recommended level), `npm test`, and `npx expo export --platform android --output-dir <scratch>`.
 
-## 13. Compat shims to remove in stage 3
+## 13. Screens (stage 3: everything is TypeScript)
 
-The legacy modules below keep their export names as thin shims over the new services, so the stage-3 screens keep bundling. A shim that cannot be supported must throw a typed `AppError` (`unsupported`); it must not fake success. All shims return `toLegacyMeetingView` / `toLegacyPreferencesView` shapes (`src/core/legacy.ts`).
+Every screen is strict TypeScript under `src/screens`, registered at module level in `src/navigation/screens.tsx` under the original route names (links, the sidebar and notifications keep working). There is no JavaScript left in `src/`, and the compat layers of stage 2 are gone (see the end of this section). Common rules: text through i18next (EN + ES), dates and times through `useFormatters`, colors from the Paper theme or `useTheme().colors` (light / dark), `FlatList` / `SectionList` for lists, safe-area insets, accessibility roles and labels on touchables, loading / empty / error states, `createLogger` instead of `console`, and no fake data or fake success.
 
-| Legacy module | Kept exports, delegating to the new services | Owner |
-|---|---|---|
-| `src/api/entities.js` | `Meeting.{list,get,create,update,delete}`; `UserPreferences.{filter→[view],create,update}` (`delete` throws `unsupported`); `Note.*`; `User.{me,signIn,signOut}`; `ApiKey.*` | data |
-| `src/api/localStorage.js`, `src/services/firestoreService.js`, `src/utils/storage.js`, `src/utils/meetingHelpers.js`, `src/utils/index.ts` (imported with the `.ts` extension), `src/api/fileUpload.js` (expo-file-system `/legacy` or the new API), `src/api/emailService.js` (no fake sends) | as used by the screens (`localStorageAPI.clearAllMeetings` must not fake success) | data |
-| `src/contexts/AuthContext.jsx` | `AuthProvider`, `useAuth` (re-exports) | auth |
-| `src/services/firebaseAuth.js`, `src/hooks/useGoogleAuth.js`, `src/api/googleTokenManager.js`, `src/api/manualLoginGoogleCalendarService.js` | `useGoogleAuth()` returns `{ user, isSignedIn, isLoading, signIn, signOut }`; `manualLoginGoogleCalendarService.isConnected()` | auth |
-| `src/api/googleCalendar.js` (default export: `initialize`, `checkCalendarAccess`, `getCalendarInfo`, ...; `getTodayMeetings` / `getUpcomingMeetings` and manual event writes reject with `unsupported` because Google events are part of the meetings list), `src/api/calendarSyncManager.js` (`setCallbacks` is a no-op because alerts are event-driven; `syncEventToGoogle(id)`, `initialize`), `CalendarSyncSettings.jsx`, `GoogleCalendarConnectionPrompt.jsx`, `pages/CalendarSync.jsx` | as used | calendar |
-| `src/components/AlertScheduler.jsx` (ref API `scheduleAlertsForMeeting`, `clearAlertsForMeeting`, `refreshAlerts` → `alertEngine.reconcile`), `NotificationSystem/NotificationManager.jsx` (props `meeting`, `isOpen`, `onClose`, `onSnooze`, `onPostpone`, `alertType`, `intensity`, `language`), `hooks/usePersistentNotification.js` | as used | alerts |
-| `src/components/translations.jsx` (`useTranslation(language)`), `CustomHeader.jsx` / `MobileSidebar.jsx` (`language`, `onLanguageToggle`, `setLanguage` props) | as used | i18n-nav |
-| `MeetingConfirmationModal.jsx`, `ConfidenceBadge.jsx`, `SourceBadge.jsx` (accept both the new keys and the legacy labels) | as used | ai |
+| Screen (file) | Route(s) | Namespaces | Notes |
+|---|---|---|---|
+| `home/DashboardScreen` | `Dashboard` | `home` | Greeting, offline banner (unsynced count from the data layer), next meeting with a focus- and foreground-aware countdown, quick actions (WhatsApp shown as "coming soon"), today's timeline, alert card (permission, exact alarms, DND hint), on-device insights summary; pull to refresh = meetings refresh + calendar sync. |
+| `insights/AIInsightsScreen` | `AIInsights` | `insights` | Week / month statistics computed on the device (`meetingInsights.ts`); optional AI suggestions through the shared assistant thread after an explicit quota notice. |
+| `meetings/list/MeetingsListScreen` | `TotalMeetings` | `meetings` (`list.*`, `actions.*`) | Day-grouped `SectionList` in the device zone, accent-insensitive search, upcoming / past / all and source filters, confirm-before-delete with the real calendar effect. |
+| `calendar/CalendarScreen` | `Calendar` | `calendarView` | 6-week month grid with per-source dots and spoken day labels; "New meeting on <day>" opens `CreateMeeting { date }`. |
+| `create/ChooseCreationMethodScreen` | `ChooseCreationMethod` | `create` | Manual form, assistant (notes the daily AI quota), WhatsApp disabled ("coming soon"). |
+| `meetings/MeetingDetailsScreen` | `MeetingDetails { meetingId }` | `meetings` | Live meeting (deep links included); attachments section. |
+| `meetings/MeetingFormScreen` (`meetingForm.ts`) | `CreateMeeting { date? }`, `EditMeeting { meetingId }` | `meetings` | Links are only what the user pastes; Google Meet without a link is saved as `{ provider: 'google_meet', url: null }` so the Google push creates a real link; device-local attachments. |
+| `notes/NotesScreen` | `Notes` | `notes` | Notes through `useNotes()` (offline outbox); pinned first; search; categories; full-screen editor with meeting link and discard prompt. |
+| `attachments/MeetingAttachmentsSection` | (inside MeetingDetails) | `attachments` | Files copied into the app's document folder, never uploaded; 50 MB limit; cleanup on sign-out, meeting deletion and after 24 h for unlinked files. |
+| `assistant/AssistantScreen` | `AIChat { followup?, prefill?, autoStart? }` | `ai` | Chat thread, action cards, `MeetingConfirmationModal` (nothing runs without confirmation), usage pill, errors with Retry / See plans. |
+| `calendarSync/CalendarSyncScreen` | `CalendarSync` | `calendar` | Google connect / reconnect / stop (optionally revoke), phone calendars (permission, import switches, export target), "Sync now" with the real per-provider result. |
+| `settings/SettingsScreen` | `Settings`, `Profile` | `settings` | Account (in-app deletion with a fresh sign-in), alerts, theme, language, calendars, legal, version. |
+| `alerts/AlertSettingsScreen` | `AlertSettings` | `alerts`, `onboarding` | Every alert preference after onboarding (form shared with onboarding step 3). |
+| `auth/LandingScreen` | `Landing` | `landing` | Value props that match the app, the free quota from `PLAN_DAILY_AI_LIMITS`, Google sign-in (cancel is not an error), language switch, Terms / Privacy links. |
+| `legal` (`legalContent.ts`, `LegalDocumentScreen`) | `Privacy`, `Terms` (standalone variants outside Main) | `legal` | Complete EN / ES texts. `LEGAL_ENTITY` and `legal:jurisdiction` are marked placeholders to fill before release. |
+| `pricing/PricingScreen` (`pricingModel.ts`) | `Pricing` | `pricing` | Catalog from `src/services/billing.ts` ($7.99 / $14.99, 25% off yearly); current plan from the entitlement; "subscriptions coming soon", no purchase or external links. |
+| `onboarding/*` | `Onboarding*` | `onboarding` | Stage 2 (§5). |
 
-Deleted in stage 2 (no importers left): `googleCalendarConnectionManager.js`, `googleCalendarReconnectService.js`, `googleCalendarInitializer.js`, `EnhancedNotificationManager.js`, `LocalNotificationScheduler.js`, `BackgroundTaskManager.native.js`, `NotificationPermissions.js`, `PersistentNotificationService.js`, `FloatingWidgetManager.js`, `FloatingMeetingWidget.jsx`, `FloatingWidgetContainer.jsx`, `NotificationSystem/{MaximumAlert,MediumAlert,LightAlert}.jsx`, `utils/notificationUtils.js`, `api/meetingManager.js`, `api/openai.js`, `utils/movedToServer.ts`, `config/api.js`, `assets/alert-sound.mp3`.
+**App shell (owner: shell).** `ThemeContext.tsx`: the saved choice (`system` / `light` / `dark`; the old `theme` key is migrated once); `useTheme()` returns `{ themeMode, setThemeMode, colorScheme, isDarkMode, toggleTheme, isLoaded, colors }`, and `useAppThemes()` gives `AppRoot` the matching Paper theme, React Navigation theme and status-bar style. `CustomHeader` shows a back arrow when the stack can go back, the live EN/ES switch, the theme toggle and the menu. `MobileSidebar` items are typed Main routes. `ErrorBoundary.tsx` reports through the logger (Sentry) and renders a localized, theme-aware fallback; the crash reporter is registered when `AppRoot` loads.
 
-The legacy `UserPreferences.update` never takes `google_calendar_sync_enabled` or `onboarding_completed` from the screen's (possibly stale) view: those fields belong to the calendar connect/disconnect and onboarding flows.
+**Navigation params.** `MeetingDetails` and `EditMeeting` take `{ meetingId }` (required); `CreateMeeting` takes an optional `{ date }` ("YYYY-MM-DD", device zone). The legacy `{ meeting }` view param no longer exists.
 
-Replaced by TypeScript screens (stage-2 review) and deleted: `pages/MeetingDetails.jsx`, `pages/EditMeeting.jsx`, `components/ModernCreateMeeting.jsx`, `pages/Settings.jsx`.
+**Removed in stage 3** (no importers left): the JS screens `src/pages/*` (Dashboard, TotalMeetings, Calendar, Notes, AIInsights, Pricing, ChooseCreationMethod, WhatsAppBot, LandingPage, Privacy, Terms, CalendarSync, AIChat) and the WhatsAppBot route; the JS components (CalendarSyncSettings, GoogleCalendarConnectionPrompt, MeetingConfirmationModal, ConfidenceBadge, SourceBadge, ErrorBoundary, ThemeToggle, ImageSlider, CustomHeader, MobileSidebar, translations, AlertScheduler, NotificationSystem/NotificationManager), `contexts/ThemeContext.jsx`, `contexts/AuthContext.jsx`, `config/imageSliderConfig.js`, `hooks/useGoogleAuth.js`, `hooks/usePersistentNotification.js`, `utils/{responsive,meetingHelpers,storage}.js`, `utils/index.ts`, `api/{entities,localStorage,googleCalendar,googleTokenManager,calendarSyncManager,manualLoginGoogleCalendarService,emailService,fileUpload}.js`, `services/{firebaseAuth,firestoreService}.js`, and the shim layers `core/legacy.ts`, `services/data/legacyFacade.ts`, `services/calendar/legacyCompat.ts`, `services/auth/legacyCompat.ts`, `navigation/withLanguage.tsx` and `useFormatters().legacyMeetingWhen`. `useAuth()` no longer returns the legacy `user` view, `userPlan`, `logout`, `refreshUserPlan` or `forceRefreshUserPlan` (use `authUser`, `entitlement` and `useSignOutFlow`). The unused assets `fab.png`, `favicon.png` and `alarm_mark.png` and the translation keys that only the old screens used were removed.
 
-**TypeScript screens** (`src/screens`, strings in the `meetings` and `settings` namespaces):
-
-- `meetings/MeetingDetailsScreen` (route `MeetingDetails`): the live meeting (deep links included); time in the UI language and the 12 h / 24 h preference; place, real join link and passcode, participants, description, preparation tips, reminders and intensity, notes. Every meeting can be edited and deleted (Google changes are pushed by the calendar engine; a device-calendar import stays in the device calendar and the user is told so).
-- `meetings/MeetingFormScreen` (routes `CreateMeeting` and `EditMeeting`; model in `meetingForm.ts`): links are only what the user pastes; Google Meet without a link is saved as `{ provider: 'google_meet', url: null }` so the Google push creates a real Meet link; custom reminders and an intensity override; device-local attachments.
-- `settings/SettingsScreen` (routes `Settings`, `Profile`): account (in-app account deletion with a fresh sign-in), alerts, theme, language, calendars, legal, version.
-- `alerts/AlertSettingsScreen` (route `AlertSettings`): every alert preference after onboarding (the form is shared with onboarding step 3), snooze length, follow-ups, clock, permission, exact alarms, "Override Do Not Disturb" (Android) / Focus (iOS).
-- `shared/useFormatters` gives legacy JS screens (Dashboard, TotalMeetings, Calendar, Notes) the same locale-aware formatting.
+**What stays for pre-rebuild data** (data migration, not UI shims): `src/services/data/legacyInput.ts` reads the v1.0.9 AsyncStorage blob (`migrateLegacyLocalData`, run once per account) and old-shape Firestore documents (`mapping.ts`); `legacyPurge.ts` deletes the old plaintext tokens at every start; `relinkLegacyAttachments` adopts old attachment metadata; `ThemeContext` migrates the old `theme` key.
 
 ## 14. Deferred (not in this pass)
 
@@ -387,3 +409,4 @@ Replaced by TypeScript screens (stage-2 review) and deleted: `pages/MeetingDetai
 - Home-screen widgets
 - Billing and IAP; entitlements are written only by server or admin tooling
 - Sign in with Apple, which is required before iOS App Store submission
+

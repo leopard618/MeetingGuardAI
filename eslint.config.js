@@ -25,15 +25,6 @@ module.exports = defineConfig([
       // console.error / console.warn stay in production builds; everything else is stripped by
       // babel (transform-remove-console) and should not be added in new code.
       'no-console': ['warn', { allow: ['warn', 'error'] }],
-      // eslint-plugin-react-hooks v7 "recommended" also enables React Compiler diagnostics as
-      // errors. This app does not use the React Compiler, and the legacy screens that trigger
-      // them (Animated refs read during render, handlers declared after the effect that calls
-      // them, Date.now() in handlers) are rewritten in later stages. They stay visible as
-      // warnings; the classic hook rules (rules-of-hooks) remain errors.
-      'react-hooks/immutability': 'warn',
-      'react-hooks/refs': 'warn',
-      'react-hooks/purity': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
       'no-restricted-imports': [
         'error',
         {

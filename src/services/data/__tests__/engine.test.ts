@@ -355,7 +355,7 @@ describe('preferences', () => {
     await new Promise((resolve) => setTimeout(resolve, 40));
     await settle(5);
 
-    // Readers (alerts, legacy shims) may use the defaults, but they are not settled.
+    // Non-gating readers (alerts) may use the defaults, but they are not settled.
     expect(h.engine.getSnapshot()).toMatchObject({ preferencesLoaded: true, preferencesSettled: false });
     expect(h.engine.getSnapshot().preferences.onboardingCompleted).toBe(false);
 
