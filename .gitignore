@@ -36,9 +36,11 @@ service-account*.json
 # Private client material (credentials, contracts) - must never be committed
 reference/
 
-# Firebase Cloud Functions build output
+# Firebase Cloud Functions build output, CLI cache and emulator data
 functions/lib/
 functions/node_modules/
+.firebase/
+.firebaserc
 
 # Metro
 .metro-health-check*

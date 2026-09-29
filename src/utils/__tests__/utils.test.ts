@@ -1,11 +1,5 @@
 import { getLocationString } from '../meetingHelpers';
 import { safeGet, safeStringify } from '../index';
-import {
-  MOVED_TO_SERVER_CODE,
-  MovedToServerError,
-  isMovedToServerError,
-  movedToServerMessage,
-} from '../movedToServer';
 
 describe('safeStringify', () => {
   it('handles primitives, null and objects', () => {
@@ -44,23 +38,5 @@ describe('getLocationString', () => {
       'HQ + Virtual (teams)',
     );
     expect(getLocationString({ address: 'Main St 1' })).toBe('Main St 1');
-  });
-});
-
-describe('MovedToServerError', () => {
-  it('carries a stable code and a bilingual message', () => {
-    const error = new MovedToServerError('ai-assistant', 'es');
-    expect(error).toBeInstanceOf(Error);
-    expect(error.code).toBe(MOVED_TO_SERVER_CODE);
-    expect(error.feature).toBe('ai-assistant');
-    expect(error.message).toBe(movedToServerMessage('ai-assistant', 'es'));
-    expect(isMovedToServerError(error)).toBe(true);
-    expect(isMovedToServerError(new Error('other'))).toBe(false);
-  });
-
-  it('falls back to English for unknown languages', () => {
-    expect(movedToServerMessage('google-sign-in', 'fr')).toBe(
-      movedToServerMessage('google-sign-in', 'en'),
-    );
   });
 });

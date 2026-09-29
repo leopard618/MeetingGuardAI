@@ -40,6 +40,10 @@ export default function LandingPage({ onGetStarted }) {
       console.log('=== LANDING PAGE: signInWithGoogle RESULT ===');
       console.log('Result:', result);
       
+      if (result.cancelled) {
+        // The user closed the Google account picker: not an error.
+        return;
+      }
       if (result.success) {
         console.log('=== LANDING PAGE: GOOGLE SIGN IN SUCCESS ===');
         // Authentication state will automatically trigger navigation to dashboard

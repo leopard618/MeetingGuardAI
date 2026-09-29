@@ -16,8 +16,8 @@ module.exports = defineConfig([
       'node_modules/*',
       'reference/*',
       'public/*',
-      'functions/lib/*',
-      'functions/node_modules/*',
+      // Cloud Functions have their own ESLint config and CI job (functions/eslint.config.mjs).
+      'functions/**',
     ],
   },
   {

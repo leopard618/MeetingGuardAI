@@ -1,6 +1,9 @@
 // Global Jest mocks for native modules that have no JS implementation under Jest.
 // (jest-expo already mocks the Expo SDK modules.)
 
+// react-native-gesture-handler native mocks (React Navigation stack, Paper touchables).
+require('react-native-gesture-handler/jestSetup');
+
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );

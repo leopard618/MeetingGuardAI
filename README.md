@@ -12,7 +12,9 @@ Package / bundle id: `com.meetingguard.ai` (published on Google Play).
 - Expo SDK 57 (React Native 0.86, React 19.2, New Architecture + Hermes), Continuous Native
   Generation, React Navigation 7 (stack)
 - React Native Paper, `@expo/vector-icons`, `react-native-safe-area-context` (edge-to-edge)
-- Firebase JS SDK 12 (Auth + Firestore; Cloud Functions client ready for the AI backend)
+- Firebase JS SDK 12 (Auth + Firestore + callable Cloud Functions), native Google Sign-In
+  (`@react-native-google-signin/google-signin`)
+- i18next + react-i18next + expo-localization (EN/ES, switchable without a restart)
 - `expo-notifications`, `expo-background-task`, `expo-task-manager`, `expo-calendar`, `expo-audio`
 - Sentry (`@sentry/react-native`, enabled only when `EXPO_PUBLIC_SENTRY_DSN` is set)
 - JavaScript with incremental TypeScript (`allowJs`, `strict`; new modules are `.ts`/`.tsx`,
@@ -20,14 +22,23 @@ Package / bundle id: `com.meetingguard.ai` (published on Google Play).
 - Tooling: ESLint 9 (flat config, `eslint-config-expo`), Jest (`jest-expo`) +
   React Native Testing Library, GitHub Actions CI (`.github/workflows/ci.yml`)
 
-### Temporarily unavailable in this build
+### What runs where
 
-- **AI assistant**: direct OpenAI calls were removed (the key was extractable from the APK). It
-  will come back as a Firebase callable Cloud Function.
-- **Google sign-in / Google Calendar connect / token refresh**: the old flows needed the Google
-  OAuth client secret in the app or the retired Render backend. Sign-in is being rebuilt with
-  `@react-native-google-signin/google-signin` + Firebase.
-- **Subscriptions**: purchase buttons are hidden ("coming soon").
+- **Sign-in**: Google (native SDK -> Firebase Auth credential) and email/password. No client
+  secret or refresh token is stored by the app; Google access tokens come from the native SDK on
+  demand.
+- **Data**: Firestore is the source of truth; the app keeps a per-user AsyncStorage cache and a
+  write outbox, so meetings can be created and edited offline.
+- **Google Calendar**: two-way sync on the device (incremental `calendar.events` scope); device
+  calendars (Apple / Android) through `expo-calendar`.
+- **Alerts**: OS notifications scheduled on the device (rolling window, Android channels per
+  intensity) plus the in-app MAX / MEDIUM / LIGHT alert UI.
+- **AI assistant**: the `assistant` callable Cloud Function calls OpenAI (server-side secret,
+  daily quota per plan) and only proposes actions; the app asks the user to confirm each one.
+- **Subscriptions**: purchase buttons are hidden ("coming soon"); plans are read from the
+  server-owned `entitlements/{uid}` document.
+
+See `docs/ARCHITECTURE.md` for the module map, contracts, session lifecycle and data layout.
 
 ## Getting started
 
@@ -78,21 +89,43 @@ eas build --profile development --platform android
 - **Private material** (credentials, contracts) must stay out of the repo; `reference/`,
   `.env*`, keystores and service-account JSON files are ignored by git and EAS.
 
+## Firebase backend
+
+`functions/` (TypeScript, Node 22, its own `package.json`), `firestore.rules`,
+`firestore.indexes.json` and `firebase.json` hold the backend. Copy `.firebaserc.example` to
+`.firebaserc` (git-ignored) with your project id, then:
+
+```bash
+cd functions && npm ci && npm run build && npm test
+firebase functions:secrets:set OPENAI_API_KEY      # never in the app or the repo
+firebase deploy --only functions,firestore:rules,firestore:indexes
+```
+
+- The functions region comes from the `FUNCTIONS_REGION` param (default `us-central1`) and must
+  match the app's `EXPO_PUBLIC_FUNCTIONS_REGION`.
+- `OPENAI_MODEL` (default `gpt-5.4-mini`) and `OPENAI_REASONING_EFFORT` are deploy-time params.
+- `npm run test:rules` (in `functions/`) runs the security-rules tests on the Firestore emulator
+  (Java 21); CI runs them on every push.
+- `public/delete-account.html` is the account-deletion page for Google Play (Firebase Hosting).
+  Replace the `REPLACE_WITH_SUPPORT_EMAIL@example.com` placeholders before deploying it.
+
 ## Project structure
 
 ```
-index.js          # Entry: Sentry init + registerRootComponent(App)
-App.js            # Providers + navigation
+index.js          # Entry: gesture handler, Intl polyfill, Sentry, i18n, background tasks
+App.js            # Configuration gate -> src/navigation/AppRoot (providers + navigation)
 src/
-  api/            # Data entities, Google Calendar, AI, billing catalog
-  components/     # Shared UI, alert system (NotificationSystem/)
-  config/         # env.ts (typed public env), firebase.ts, feature flags
-  contexts/       # Auth and theme contexts
-  hooks/          # React hooks
-  pages/          # Screens
-  services/       # Notifications, background tasks, Firebase services
-  utils/          # Helpers
-public/           # Static web pages (account deletion request form)
+  core/           # Pure TypeScript contracts, types, ids, events, errors, time (no RN/Expo)
+  services/       # data, auth, calendar, alerts, ai (one public entry per area)
+  navigation/     # Root navigator, deep links, app shell
+  screens/        # New screens (onboarding)
+  i18n/           # i18next setup + locales/{en,es}/<namespace>.json
+  components/     # Shared UI, alerts UI (alerts/)
+  pages/          # Legacy screens (migrated to the new services in stage 3)
+  api/, hooks/, contexts/, utils/   # Legacy modules, now thin shims over src/services
+functions/        # Firebase Cloud Functions (assistant, deleteAccount)
+public/           # Static web pages (account deletion instructions)
+docs/             # Architecture
 ```
 
 ## License
