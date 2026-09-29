@@ -378,6 +378,47 @@ describe('preferences', () => {
     expect(changes).toContainEqual(['local', 'vibrationEnabled']);
   });
 
+  it('never re-creates a preferences document that was deleted on the server (account deletion)', async () => {
+    const h = harness();
+    h.remote.docs.set(firestorePaths.preferences(UID), { language: 'es', alertIntensity: 'light', updatedAt: T0 });
+    await h.engine.startSession(UID);
+    await settle();
+    expect((await h.engine.getPreferences()).language).toBe('es');
+    const commitsBefore = h.remote.commits.length;
+
+    h.remote.serverDelete(firestorePaths.preferences(UID));
+    await settle(10);
+
+    expect(h.remote.docs.has(firestorePaths.preferences(UID))).toBe(false);
+    expect(h.remote.commits.length).toBe(commitsBefore);
+    expect(await h.engine.getPendingWriteCount()).toBe(0);
+    // The local copy stays usable.
+    expect((await h.engine.getPreferences()).language).toBe('es');
+  });
+
+  it('suspendRemote stops listeners and outbox sends until resumeRemote', async () => {
+    const h = harness();
+    h.remote.docs.set(firestorePaths.preferences(UID), { language: 'en', updatedAt: T0 });
+    await h.engine.startSession(UID);
+    await settle();
+
+    h.engine.suspendRemote();
+    const meeting = await h.engine.createMeeting({ title: 'Queued', startAt: '2026-10-06T08:00:00.000Z', source: 'manual' });
+    h.remote.serverSet(firestorePaths.meeting(UID, 'remote1'), toMeetingDoc(storedMeeting('remote1', 'Remote', '2026-10-07T08:00:00.000Z')) as never);
+    await h.engine.flushOutbox();
+    await settle(10);
+
+    // Nothing was sent, and the remote change was not applied while suspended.
+    expect(h.remote.docs.has(firestorePaths.meeting(UID, meeting.id))).toBe(false);
+    expect(await h.engine.getPendingWriteCount()).toBe(1);
+    expect((await h.engine.listMeetings()).map((m) => m.id)).toEqual([meeting.id]);
+
+    h.engine.resumeRemote();
+    await settle(10);
+    expect(h.remote.docs.has(firestorePaths.meeting(UID, meeting.id))).toBe(true);
+    expect((await h.engine.listMeetings()).map((m) => m.id).sort()).toEqual([meeting.id, 'remote1'].sort());
+  });
+
   it('writes prefs.language when the user switches language (language:changed source user)', async () => {
     const h = harness();
     h.remote.docs.set(firestorePaths.preferences(UID), { language: 'en' });

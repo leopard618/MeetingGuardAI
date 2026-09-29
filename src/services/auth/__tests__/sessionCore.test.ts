@@ -65,6 +65,12 @@ function createHarness(): Harness {
       }),
       getActiveUid: jest.fn(() => dataUid),
       getPendingWriteCount: jest.fn(async () => 0),
+      suspendRemote: jest.fn(() => {
+        calls.push('data.suspendRemote');
+      }),
+      resumeRemote: jest.fn(() => {
+        calls.push('data.resumeRemote');
+      }),
     },
     userRepository: {
       ensureProfile: jest.fn(async (user: AuthUser) => {
@@ -344,6 +350,8 @@ describe('deleteAccount', () => {
 
     expect(harness.calls).toEqual([
       'calendar.stop',
+      'alerts.endSession',
+      'data.suspendRemote',
       'auth.deleteAccountOnServer',
       'auth.revokeGoogleAccess',
       'alerts.endSession',
@@ -362,15 +370,35 @@ describe('deleteAccount', () => {
     expect(await manager.withHeadlessSession(async () => 'ran')).toBeNull();
   });
 
-  it('keeps the session (and restarts calendar sync) when the server call fails', async () => {
+  it('keeps the session (and resumes data, calendar and alerts) when the server call fails', async () => {
     const harness = createHarness();
     const manager = await startActive(harness);
     harness.calls.length = 0;
     (harness.deps.auth.deleteAccountOnServer as jest.Mock).mockRejectedValueOnce(new AppError('offline'));
 
     await expect(manager.deleteAccount()).rejects.toMatchObject({ code: 'offline' });
-    expect(harness.calls).toEqual(['calendar.stop', 'calendar.start:uid-a']);
+    await flushMicrotasks();
+    expect(harness.calls).toEqual([
+      'calendar.stop',
+      'alerts.endSession',
+      'data.suspendRemote',
+      'data.resumeRemote',
+      'calendar.start:uid-a',
+      'alerts.startSession:uid-a',
+    ]);
     expect(manager.getState().status).toBe('active');
+  });
+
+  it('pauses the remote data side before the server deletes anything', async () => {
+    const harness = createHarness();
+    const manager = await startActive(harness);
+    let suspendedDuringCall = false;
+    (harness.deps.auth.deleteAccountOnServer as jest.Mock).mockImplementationOnce(async () => {
+      suspendedDuringCall = (harness.deps.data.suspendRemote as jest.Mock).mock.calls.length === 1 &&
+        (harness.deps.data.resumeRemote as jest.Mock).mock.calls.length === 0;
+    });
+    await manager.deleteAccount();
+    expect(suspendedDuringCall).toBe(true);
   });
 
   it('still signs out locally when revoking Google access fails', async () => {

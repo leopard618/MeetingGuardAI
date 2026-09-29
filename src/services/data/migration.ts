@@ -171,7 +171,7 @@ export function planLegacyMigration(input: LegacyMigrationInput): LegacyMigratio
 }
 
 /** Removes legacy token/identity/alert keys (never the legacy data blob). Returns how many existed. */
-export async function removeLegacyKeys(storage: KeyValueStorage): Promise<number> {
+export async function removeLegacyKeys(storage: Pick<KeyValueStorage, 'getAllKeys' | 'multiRemove'>): Promise<number> {
   const names = new Set<string>(LEGACY_STORAGE_KEYS);
   names.delete(LEGACY_DATA_KEY);
   const keys = (await storage.getAllKeys()).filter(

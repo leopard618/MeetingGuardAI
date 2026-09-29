@@ -20,15 +20,19 @@ import { createSessionManager, type SessionManagerImpl } from './sessionCore';
 type LegacyStorageKey = (typeof LEGACY_STORAGE_KEYS)[number];
 
 /**
- * Plaintext credentials written by the pre-rebuild app. The data migration deletes every legacy
- * key after importing; these are also removed on every sign-out so no token outlives a session
- * (the legacy data blob and identity keys stay for the migration).
+ * Plaintext credentials written by the pre-rebuild app. They are deleted at every app start
+ * (data/legacyPurge.ts, from index.js) and after the migration; this hook also removes them on
+ * every sign-out so no token outlives a session (the legacy data blob stays for the migration).
  */
 export const LEGACY_CREDENTIAL_KEYS = [
   'authToken',
+  'auth_token',
+  'refresh_token',
+  'refreshToken',
   'google_access_token',
   'google_refresh_token',
   'google_token_expiry',
+  'google_code_verifier',
   'google_calendar_tokens',
   'google_calendar_access_token',
 ] as const satisfies readonly LegacyStorageKey[];

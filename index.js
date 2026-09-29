@@ -15,6 +15,11 @@ import './src/services/alerts/tasks';
 import { registerRootComponent } from 'expo';
 
 import App from './App';
+import { purgeLegacyCredentials } from './src/services/data/legacyPurge';
+
+// 6. Plaintext tokens of the pre-rebuild app are deleted at every start, before any session
+//    (upgraded users start signed out; the legacy data blob stays for the migration).
+void purgeLegacyCredentials();
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App) and sets up
 // the environment for both development builds and release builds.

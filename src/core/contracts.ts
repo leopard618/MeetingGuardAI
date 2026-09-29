@@ -287,6 +287,13 @@ export interface DataService {
   startSession(uid: string, options?: { mode?: 'foreground' | 'headless'; user?: AuthUser }): Promise<void>;
   /** Detaches listeners and clears memory; `wipeLocal` deletes every `mg:{uid}:*` key. */
   endSession(options: { wipeLocal: boolean }): Promise<void>;
+  /**
+   * Pauses the remote side of the active session (account deletion in progress): Firestore
+   * listeners detached, no outbox sends. Local reads keep working. No-op without a session.
+   */
+  suspendRemote(): void;
+  /** Undoes suspendRemote() (listeners re-attached, outbox flushed). */
+  resumeRemote(): void;
   getActiveUid(): string | null;
   getSyncState(): SyncState;
   subscribeSyncState(listener: (state: SyncState) => void): Unsubscribe;

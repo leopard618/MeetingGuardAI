@@ -16,6 +16,10 @@
  *
  * Other areas are shut down explicitly BEFORE the local data is wiped (alerts cancelled, calendar
  * stopped, cleanup hooks run), and `session:ended` is the final notification.
+ *
+ * DELETE ACCOUNT: calendar.stop -> alerts.endSession -> data.suspendRemote (no listener, no outbox
+ *        send may re-create a document while the server deletes it) -> deleteAccount callable
+ *        -> revokeGoogleAccess -> END. When the callable fails everything is resumed.
  */
 import type {
   AlertEngine,
@@ -45,7 +49,10 @@ export interface SessionAuthDeps {
 
 export interface SessionManagerDeps {
   auth: SessionAuthDeps;
-  data: Pick<DataService, 'startSession' | 'endSession' | 'getActiveUid' | 'getPendingWriteCount'>;
+  data: Pick<
+    DataService,
+    'startSession' | 'endSession' | 'getActiveUid' | 'getPendingWriteCount' | 'suspendRemote' | 'resumeRemote'
+  >;
   userRepository: Pick<UserRepository, 'ensureProfile'>;
   calendar: Pick<CalendarSyncEngine, 'start' | 'stop'>;
   alerts: Pick<AlertEngine, 'startSession' | 'endSession'>;
@@ -298,14 +305,25 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManagerIm
         const uid = activeUid ?? deps.auth.currentUser?.uid ?? null;
         if (uid === null) throw new AppError('unauthenticated', 'Nobody is signed in');
 
-        // No calendar import may write user data while the server deletes it.
+        // Nothing may write user data while the server deletes it: no calendar import, no alert
+        // work, and no Firestore listener / outbox send (a live preferences listener would see the
+        // deleted document as "not created yet" and write it again).
         const sessionUid = activeUid;
-        if (sessionUid !== null) await step('calendar.stop', () => deps.calendar.stop());
+        if (sessionUid !== null) {
+          await step('calendar.stop', () => deps.calendar.stop());
+          await step('alerts.endSession', () => deps.alerts.endSession());
+          await step('data.suspendRemote', () => deps.data.suspendRemote());
+        }
         try {
           await deps.auth.deleteAccountOnServer();
         } catch (error) {
           if (sessionUid !== null) {
+            // The account still exists: resume everything that was paused.
+            await step('data.resumeRemote', () => deps.data.resumeRemote());
             await step('calendar.start', () => deps.calendar.start(sessionUid));
+            void Promise.resolve()
+              .then(() => deps.alerts.startSession(sessionUid))
+              .catch((startError: unknown) => log.error('Alert engine failed to restart', toAppError(startError)));
           }
           throw toAppError(error);
         }

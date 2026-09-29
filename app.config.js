@@ -90,6 +90,11 @@ module.exports = {
     },
     android: {
       package: 'com.meetingguard.ai',
+      // No Auto Backup / device-to-device transfer: AsyncStorage holds the Firebase session
+      // (refresh token), the meeting cache (conference passwords, third-party emails), the outbox
+      // and the assistant thread. A restore on another device must never recreate a signed-in
+      // session without authentication.
+      allowBackup: false,
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',

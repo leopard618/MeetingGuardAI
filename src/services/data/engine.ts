@@ -203,6 +203,11 @@ interface Session {
   retryTimer: ReturnType<typeof setTimeout> | null;
   flushing: Promise<OutboxFlushResult> | null;
   bootstrappingPreferences: boolean;
+  /**
+   * Remote side paused (account deletion in progress): no Firestore listeners, no outbox sends.
+   * Local reads keep working. See suspendRemote() / resumeRemote().
+   */
+  remoteSuspended: boolean;
   /** users/{uid}.preferences of a pre-rebuild profile, captured before the profile is rewritten. */
   legacyProfilePreferences: PreferencesPatch | null;
   migration: Promise<MigrationReport> | null;
@@ -653,6 +658,7 @@ export class DataEngine {
       retryTimer: null,
       flushing: null,
       bootstrappingPreferences: false,
+      remoteSuspended: false,
       legacyProfilePreferences: null,
       migration: null,
       errors: { meetings: null, notes: null, preferences: null, entitlement: null },
@@ -759,6 +765,36 @@ export class DataEngine {
     s.retryTimer = null;
   }
 
+  /**
+   * Pauses the remote side of the active session: detaches the Firestore listeners and stops
+   * every outbox send (a send already in flight finishes; nothing new starts). Local reads keep
+   * working. Used while the server deletes the account: a live listener would otherwise see the
+   * deleted preferences document as "not created yet" and write it again, and a queued write would
+   * re-create its document. No-op without a session.
+   */
+  suspendRemote(): void {
+    const s = this.session;
+    if (!s || s.remoteSuspended) return;
+    s.remoteSuspended = true;
+    for (const unsubscribe of s.listeners.values()) this.safeUnsubscribe(unsubscribe);
+    s.listeners.clear();
+    if (s.flushTimer) clearTimeout(s.flushTimer);
+    if (s.retryTimer) clearTimeout(s.retryTimer);
+    s.flushTimer = null;
+    s.retryTimer = null;
+    this.notify();
+  }
+
+  /** Undoes suspendRemote() (the account deletion failed): listeners and outbox sends resume. */
+  resumeRemote(): void {
+    const s = this.session;
+    if (!s || !s.remoteSuspended) return;
+    s.remoteSuspended = false;
+    this.attachListeners(s);
+    this.scheduleFlush(s, 0);
+    this.notify();
+  }
+
   private safeUnsubscribe(unsubscribe: Unsubscribe): void {
     try {
       unsubscribe();
@@ -838,7 +874,7 @@ export class DataEngine {
 
   /** Attaches every listener that is not running (idempotent; re-attaches after an error). */
   private attachListeners(s: Session): void {
-    if (s.mode !== 'foreground' || !this.isCurrent(s)) return;
+    if (s.mode !== 'foreground' || s.remoteSuspended || !this.isCurrent(s)) return;
     const uid = s.uid;
     const attach = (key: ListenerKey, start: () => Unsubscribe): void => {
       if (s.listeners.has(key)) return;
@@ -912,7 +948,7 @@ export class DataEngine {
   }
 
   private onMeetingsSnapshot(s: Session, snapshot: RemoteCollectionSnapshot): void {
-    if (!this.isCurrent(s)) return;
+    if (!this.isCurrent(s) || s.remoteSuspended) return;
     const ctx = this.readContext(s);
     const acc = { changedIds: [] as string[], migrations: [] as Meeting[] };
     for (const change of snapshot.changes) {
@@ -972,7 +1008,7 @@ export class DataEngine {
   }
 
   private onNotesSnapshot(s: Session, snapshot: RemoteCollectionSnapshot): void {
-    if (!this.isCurrent(s)) return;
+    if (!this.isCurrent(s) || s.remoteSuspended) return;
     const changedIds: string[] = [];
     for (const change of snapshot.changes) {
       if (change.type === 'removed') {
@@ -1048,9 +1084,16 @@ export class DataEngine {
   }
 
   private onPreferencesSnapshot(s: Session, snapshot: RemoteDocSnapshot): void {
-    if (!this.isCurrent(s) || snapshot.fromCache) return;
+    if (!this.isCurrent(s) || s.remoteSuspended || snapshot.fromCache) return;
     s.lastSyncedAt = this.nowIso();
     if (!snapshot.exists) {
+      if (s.preferencesServerSeen && !this.hasPendingPreferencesCreate(s)) {
+        // The document existed and is gone: it was deleted on the server (account deletion from
+        // this or another device), not "not created yet". Re-creating it would resurrect the
+        // settings of a deleted account, so keep the local copy and write nothing.
+        log.warn('the preferences document was removed on the server; not re-creating it');
+        return;
+      }
       void this.bootstrapPreferences(s);
       return;
     }
@@ -1058,10 +1101,14 @@ export class DataEngine {
     this.applyRemotePreferences(s, this.withPendingPreferencePatches(s, merged));
   }
 
+  private hasPendingPreferencesCreate(s: Session): boolean {
+    return pendingEntries(s.outbox, 'preferences', PREFERENCES_DOC_ID).some((entry) => entry.mode === 'create');
+  }
+
   /** No preferences document yet: create it (importing the pre-rebuild users/{uid}.preferences once). */
   private async bootstrapPreferences(s: Session): Promise<void> {
-    if (s.bootstrappingPreferences) return;
-    if (pendingEntries(s.outbox, 'preferences', PREFERENCES_DOC_ID).some((entry) => entry.mode === 'create')) {
+    if (s.bootstrappingPreferences || s.remoteSuspended) return;
+    if (this.hasPendingPreferencesCreate(s)) {
       s.preferencesServerSeen = true;
       this.markPreferencesKnown(s);
       this.notify();
@@ -1122,7 +1169,7 @@ export class DataEngine {
   }
 
   private onEntitlementSnapshot(s: Session, snapshot: RemoteDocSnapshot): void {
-    if (!this.isCurrent(s) || snapshot.fromCache) return;
+    if (!this.isCurrent(s) || s.remoteSuspended || snapshot.fromCache) return;
     this.applyEntitlement(s, snapshot.exists ? snapshot.data : null);
   }
 
@@ -1210,7 +1257,7 @@ export class DataEngine {
   // ---- outbox flush ----------------------------------------------------------------------------
 
   private scheduleFlush(s: Session, delayMs: number = this.timeouts.flushDelayMs): void {
-    if (!this.isCurrent(s) || s.flushTimer) return;
+    if (!this.isCurrent(s) || s.remoteSuspended || s.flushTimer) return;
     s.flushTimer = setTimeout(() => {
       s.flushTimer = null;
       if (!this.isCurrent(s)) return;
@@ -1219,7 +1266,7 @@ export class DataEngine {
   }
 
   private scheduleRetry(s: Session, attempts: number): void {
-    if (!this.isCurrent(s) || s.mode !== 'foreground') return;
+    if (!this.isCurrent(s) || s.mode !== 'foreground' || s.remoteSuspended) return;
     if (s.retryTimer) clearTimeout(s.retryTimer);
     const delay = Math.min(MAX_RETRY_DELAY_MS, this.timeouts.retryBaseMs * 2 ** Math.max(0, attempts - 1));
     s.retryTimer = setTimeout(() => {
@@ -1268,7 +1315,7 @@ export class DataEngine {
       return { flushed, pending: pendingCount(), rejected };
     }
     for (;;) {
-      if (!this.isCurrent(s)) break;
+      if (!this.isCurrent(s) || s.remoteSuspended) break;
       const entry = orderedEntries(s.outbox)[0];
       if (!entry) break;
       let result: CommitResult;
@@ -2110,6 +2157,8 @@ export class DataEngine {
       dataService: {
         startSession: (uid, options) => this.startSession(uid, options),
         endSession: (options) => this.endSession(options),
+        suspendRemote: () => this.suspendRemote(),
+        resumeRemote: () => this.resumeRemote(),
         getActiveUid: () => this.getActiveUid(),
         getSyncState: () => this.getSyncState(),
         subscribeSyncState: (listener) => this.subscribeSyncState(listener),
