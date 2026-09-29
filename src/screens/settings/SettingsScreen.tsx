@@ -3,7 +3,8 @@
  * - Account: who is signed in, and "Delete account" (confirmation + identity check + the
  *   deleteAccount callable; required in-app by the App Store and Google Play).
  * - Alerts: summary + Settings > Alerts (every alert preference after onboarding).
- * - Appearance (theme), language (instant EN/ES), calendars, legal pages, version.
+ * - Appearance (theme), language (instant EN/ES), calendars, legal pages, version (and the OTA
+ *   update id / channel when an EAS update is running, for support and rollback checks).
  * Every string comes from the "settings" namespace (plus shared auth / onboarding keys).
  */
 import { useNavigation } from '@react-navigation/native';
@@ -19,11 +20,14 @@ import type { Language } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import { usePreferences } from '../../services/data';
+import { getUpdateInfo, shortUpdateLabel } from '../../services/updates';
 import { alertTimeLabel } from '../onboarding/alertOptions';
 import { ScreenBody, Section } from '../shared/Section';
 import { useDeleteAccountFlow } from './useDeleteAccountFlow';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '';
+// Fixed for the lifetime of the JS runtime (a new update only runs after a restart).
+const UPDATE_LABEL = shortUpdateLabel(getUpdateInfo());
 export function SettingsScreen(): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
@@ -128,6 +132,11 @@ export function SettingsScreen(): ReactElement {
         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
           {t('settings:about.version', { version: APP_VERSION })}
         </Text>
+        {UPDATE_LABEL ? (
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }} testID="settings-update-label">
+            {t('settings:about.update', UPDATE_LABEL)}
+          </Text>
+        ) : null}
       </View>
       {deletion.element}
     </ScreenBody>

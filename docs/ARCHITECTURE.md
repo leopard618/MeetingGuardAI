@@ -22,7 +22,8 @@ L4  calendar       src/services/calendar          alerts engine   src/services/a
 L3  identity       src/services/auth/authService.ts (Google/Firebase identity + Google tokens)
 L2  data           src/services/data (repositories, cache, outbox, React hooks)
 L1  config, i18n   src/config/firebase.ts, src/config/env.ts, src/i18n, src/utils/format.ts,
-                   src/services/sentry.ts, src/services/billing.ts (plan catalog)
+                   src/services/sentry.ts, src/services/updates.ts (OTA state),
+                   src/services/billing.ts (plan catalog)
 L0  core           src/core/* (pure TypeScript + zod; no React Native, Expo or Firebase)
 ```
 
@@ -48,6 +49,7 @@ These rules prevent import cycles:
 | attachments | `src/services/attachments` (`attachmentService`, `useMeetingAttachments`); metadata in the data layer's `attachmentStore` | notes |
 | shell | `src/contexts/ThemeContext.tsx` (`ThemeProvider`, `useTheme`, `useAppThemes`), `src/components/{CustomHeader,MobileSidebar,ThemeToggle,ErrorBoundary}.tsx`, `src/hooks/useResponsive.ts` | shell |
 | screens | `src/screens/<area>` (one folder per screen group, §13); `src/screens/shared` (`useFormatters`, `Section`, `MeetingStatus`) | screen groups |
+| release | `src/services/updates.ts` (OTA state), `app.config.js` (`updates`, `runtimeVersion`), `eas.json` channels, `docs/DEPLOYMENT.md` | release |
 | functions | `functions/src/index.ts` (`assistant`, `deleteAccount`); `functions/src/shared/aiContract.ts` is a **verbatim** copy of `src/core/aiContract.ts`, and CI diffs the two; `firestore.rules`, `firestore.indexes.json`, `firebase.json` | functions |
 
 ## 3. Data model (summary; `types.ts` has the details)
@@ -384,7 +386,7 @@ Every screen is strict TypeScript under `src/screens`, registered at module leve
 | `attachments/MeetingAttachmentsSection` | (inside MeetingDetails) | `attachments` | Files copied into the app's document folder, never uploaded; 50 MB limit; cleanup on sign-out, meeting deletion and after 24 h for unlinked files. |
 | `assistant/AssistantScreen` | `AIChat { followup?, prefill?, autoStart? }` | `ai` | Chat thread, action cards, `MeetingConfirmationModal` (nothing runs without confirmation), usage pill, errors with Retry / See plans. |
 | `calendarSync/CalendarSyncScreen` | `CalendarSync` | `calendar` | Google connect / reconnect / stop (optionally revoke), phone calendars (permission, import switches, export target), "Sync now" with the real per-provider result. |
-| `settings/SettingsScreen` | `Settings`, `Profile` | `settings` | Account (in-app deletion with a fresh sign-in), alerts, theme, language, calendars, legal, version. |
+| `settings/SettingsScreen` | `Settings`, `Profile` | `settings` | Account (in-app deletion with a fresh sign-in), alerts, theme, language, calendars, legal, version and the running OTA update. |
 | `alerts/AlertSettingsScreen` | `AlertSettings` | `alerts`, `onboarding` | Every alert preference after onboarding (form shared with onboarding step 3). |
 | `auth/LandingScreen` | `Landing` | `landing` | Value props that match the app, the free quota from `PLAN_DAILY_AI_LIMITS`, Google sign-in (cancel is not an error), language switch, Terms / Privacy links. |
 | `legal` (`legalContent.ts`, `LegalDocumentScreen`) | `Privacy`, `Terms` (standalone variants outside Main) | `legal` | Complete EN / ES texts. `LEGAL_ENTITY` and `legal:jurisdiction` are marked placeholders to fill before release. |
@@ -410,3 +412,10 @@ Every screen is strict TypeScript under `src/screens`, registered at module leve
 - Billing and IAP; entitlements are written only by server or admin tooling
 - Sign in with Apple, which is required before iOS App Store submission
 
+## 15. Releases and OTA updates
+
+- `expo-updates` with EAS Update: `updates.url` is the project's `u.expo.dev` URL, `runtimeVersion` uses the `appVersion` policy (an update only reaches binaries with the same `version`), `checkAutomatically: ON_LOAD` and `fallbackToCacheTimeout: 0` (the launch never waits for the network; a downloaded update runs from the next cold start).
+- Each `eas.json` build profile listens to its own channel (`development`, `preview`, `production`). `npm run update:preview -- "message"` / `npm run update:production -- "message"` publish with the matching EAS environment, so the `EXPO_PUBLIC_*` values are bundled.
+- A native change (new native module, permission, plugin option, SDK upgrade) needs a new `version` and a store build, never an OTA update.
+- `src/services/updates.ts` reads the running update; Settings shows its short id and channel, and an emergency launch (an update that failed to start, so expo-updates went back to the previous bundle) is reported to Sentry at start.
+- Release checklist, rollback and the Firebase side: `docs/DEPLOYMENT.md`.

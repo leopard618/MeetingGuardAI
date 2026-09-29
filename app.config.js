@@ -5,6 +5,12 @@
 // Versioning: `version` is the user-facing version. Android versionCode / iOS
 // buildNumber are managed remotely by EAS (eas.json: cli.appVersionSource = "remote").
 //
+// OTA updates (EAS Update, expo-updates): runtimeVersion follows `version` (policy
+// "appVersion"), so an update only reaches binaries with the same version. Bump `version`
+// whenever native code or native config changes (new native module, permission, plugin
+// option); JS/asset-only fixes ship with `npm run update:<channel>`. Each eas.json build
+// profile listens to its own channel. Runbook and rollback: docs/DEPLOYMENT.md.
+//
 // Expo SDK 57 platform defaults (no expo-build-properties needed): Android minSdk 24,
 // compileSdk/targetSdk 36, New Architecture + Hermes always on, edge-to-edge always on
 // (the old `edgeToEdgeEnabled` / `newArchEnabled` switches no longer exist). iOS min 16.4.
@@ -18,6 +24,8 @@ const PHOTOS_USAGE = 'MeetingGuard AI lets you attach photos from your library t
 const CAMERA_USAGE = 'MeetingGuard AI lets you take a photo and attach it to a meeting.';
 
 const trim = (value) => (typeof value === 'string' ? value.trim() : '');
+
+const EAS_PROJECT_ID = '139b18d2-655f-458f-854a-27e423530626';
 
 /**
  * iOS URL scheme required by @react-native-google-signin/google-signin: the "reversed" iOS
@@ -76,6 +84,19 @@ module.exports = {
     orientation: 'portrait',
     icon: './assets/icon.png',
     userInterfaceStyle: 'automatic',
+    runtimeVersion: {
+      policy: 'appVersion',
+    },
+    updates: {
+      url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+      enabled: true,
+      // Look for a newer update at every cold start, in the background.
+      checkAutomatically: 'ON_LOAD',
+      // Never delay the launch waiting for the network: the cached (or embedded) bundle starts
+      // at once and a downloaded update runs from the next cold start. This app is offline-first
+      // and its headless background tasks (alert refresh, snooze) start the same JS runtime.
+      fallbackToCacheTimeout: 0,
+    },
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.meetingguard.ai',
@@ -183,7 +204,7 @@ module.exports = {
     ],
     extra: {
       eas: {
-        projectId: '139b18d2-655f-458f-854a-27e423530626',
+        projectId: EAS_PROJECT_ID,
       },
     },
   },

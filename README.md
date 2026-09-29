@@ -17,6 +17,7 @@ Package / bundle id: `com.meetingguard.ai` (published on Google Play).
 - i18next + react-i18next + expo-localization (EN/ES, switchable without a restart)
 - `expo-notifications`, `expo-background-task`, `expo-task-manager`, `expo-calendar`, `expo-audio`
 - Sentry (`@sentry/react-native`, enabled only when `EXPO_PUBLIC_SENTRY_DSN` is set)
+- EAS Update (`expo-updates`) for over-the-air JavaScript updates per channel
 - TypeScript (`strict`) for all of `src/` (no JavaScript left there; `@/*` path alias ->
   `src/*`); only the entry files and tool configs at the root are JavaScript
 - Tooling: ESLint 9 (flat config, `eslint-config-expo`), Jest (`jest-expo`) +
@@ -38,7 +39,8 @@ Package / bundle id: `com.meetingguard.ai` (published on Google Play).
 - **Subscriptions**: purchase buttons are hidden ("coming soon"); plans are read from the
   server-owned `entitlements/{uid}` document.
 
-See `docs/ARCHITECTURE.md` for the module map, contracts, session lifecycle and data layout.
+See `docs/ARCHITECTURE.md` for the module map, contracts, session lifecycle and data layout, and
+`docs/DEPLOYMENT.md` for releases, OTA updates and rollback.
 
 ## Getting started
 
@@ -68,6 +70,8 @@ eas build --profile development --platform android
 | `npm test` | Jest (`jest-expo` preset) |
 | `npm run check:bundle` | Bundle the JS for Android into `dist/check-bundle` (quick "does it bundle" check) |
 | `npm run doctor` | `expo-doctor` dependency / config checks |
+| `npm run update:preview -- "message"` | Publish an OTA update to the `preview` channel (`eas update`, preview environment) |
+| `npm run update:production -- "message"` | Publish an OTA update to the `production` channel |
 
 ## Configuration
 
@@ -77,6 +81,10 @@ eas build --profile development --platform android
 - **Versioning**: `version` in `app.config.js` is the user-facing version. Android
   `versionCode` / iOS `buildNumber` are stored remotely by EAS (`appVersionSource: "remote"`)
   and auto-incremented for `production` builds.
+- **OTA updates**: `runtimeVersion` follows `version` (policy `appVersion`); each EAS build
+  profile listens to its own channel (`development`, `preview`, `production`). JS-only fixes
+  ship with `npm run update:<channel>`; native changes need a new `version` and a store build.
+  See `docs/DEPLOYMENT.md` (including rollback).
 - **Environment variables**: see `env.example`; they are read and validated (zod) only in
   `src/config/env.ts`. Only public values (`EXPO_PUBLIC_*` Firebase web config, OAuth client
   IDs, optional Sentry DSN) may be shipped in the app - never an OpenAI key or a client secret
@@ -117,7 +125,7 @@ App.js            # Configuration gate -> src/navigation/AppRoot (providers + na
 src/
   core/           # Pure TypeScript contracts, types, ids, events, errors, time (no RN/Expo)
   services/       # data, auth, calendar, alerts, ai, attachments (one public entry per area),
-                  # sentry, billing (plan catalog)
+                  # sentry, updates (OTA state), billing (plan catalog)
   navigation/     # Root navigator, deep links, route registration
   screens/        # Every screen, one folder per area (home, meetings, calendar, notes, ...)
   i18n/           # i18next setup + locales/{en,es}/<namespace>.json
@@ -126,7 +134,7 @@ src/
   hooks/, utils/  # useResponsive, locale-aware formatting
 functions/        # Firebase Cloud Functions (assistant, deleteAccount)
 public/           # Static web pages (account deletion instructions)
-docs/             # Architecture
+docs/             # Architecture, deployment and rollback
 ```
 
 ## License

@@ -25,6 +25,7 @@ import { alertEngine } from '../services/alerts';
 import { AuthProvider } from '../services/auth';
 import { DataProvider } from '../services/data';
 import { captureException } from '../services/sentry';
+import { reportUpdateLaunch } from '../services/updates';
 import { linking } from './linking';
 import { navigationRef, onNavigationReady } from './navigationService';
 import { RootNavigator } from './RootNavigator';
@@ -66,6 +67,8 @@ function ThemedApp(): ReactElement {
 export function AppRoot(): ReactElement {
   useEffect(() => {
     registerCrashReporter();
+    // A failed OTA update (emergency launch back to the previous bundle) is reported to Sentry.
+    reportUpdateLaunch();
     alertEngine.init().catch((error: unknown) => {
       log.error('alert engine initialization failed', toAppError(error));
     });
