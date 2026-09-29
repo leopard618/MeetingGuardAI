@@ -16,7 +16,8 @@
 // (the old `edgeToEdgeEnabled` / `newArchEnabled` switches no longer exist). iOS min 16.4.
 //
 // This file runs in Node at build/config time. It may read build-time env vars
-// (SENTRY_*, EXPO_PUBLIC_GOOGLE_IOS_*); nothing secret is written into the app config.
+// (SENTRY_*, EXPO_PUBLIC_GOOGLE_IOS_*, MG_LOCAL_TEST_BUILD); nothing secret is written into the app
+// config.
 
 const CALENDAR_USAGE =
   'MeetingGuard AI uses your calendar to show, create and update your meetings and to schedule meeting alerts.';
@@ -26,6 +27,12 @@ const CAMERA_USAGE = 'MeetingGuard AI lets you take a photo and attach it to a m
 const trim = (value) => (typeof value === 'string' ? value.trim() : '');
 
 const EAS_PROJECT_ID = '139b18d2-655f-458f-854a-27e423530626';
+
+// Local test APKs built on a PC (scripts/build-test-apk.mjs, `npm run apk:test`; docs/TESTING.md B.2)
+// set MG_LOCAL_TEST_BUILD=1. They listen to no EAS Update channel, so expo-updates is turned off in
+// them: the APK always runs the bundle it was built with and never contacts EAS Update. EAS builds
+// never set this variable, so their config is unchanged.
+const IS_LOCAL_TEST_BUILD = process.env.MG_LOCAL_TEST_BUILD === '1';
 
 /**
  * iOS URL scheme required by @react-native-google-signin/google-signin: the "reversed" iOS
@@ -89,7 +96,7 @@ module.exports = {
     },
     updates: {
       url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
-      enabled: true,
+      enabled: !IS_LOCAL_TEST_BUILD,
       // Look for a newer update at every cold start, in the background.
       checkAutomatically: 'ON_LOAD',
       // Never delay the launch waiting for the network: the cached (or embedded) bundle starts
@@ -206,6 +213,11 @@ module.exports = {
       sentryPlugin(),
       'expo-dev-client',
       './plugins/withNoDeviceTransfer',
+      // Signs local release builds with the test key outside the repository. Always listed because it
+      // does nothing unless MG_LOCAL_SIGNING=1 at prebuild time (and never on an EAS build server), so
+      // EAS builds get the same native project as before, and `MG_LOCAL_SIGNING=1 npx expo prebuild`
+      // also works without the build script. Details in the plugin file.
+      './plugins/withLocalReleaseSigning',
     ],
     extra: {
       eas: {
