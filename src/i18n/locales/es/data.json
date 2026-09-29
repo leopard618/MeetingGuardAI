@@ -1,0 +1,40 @@
+{
+  "sync": {
+    "offline": "No tienes conexión. Los cambios se guardan en este dispositivo y se sincronizarán automáticamente.",
+    "pending_one": "{{count}} cambio pendiente de sincronizar",
+    "pending_other": "{{count}} cambios pendientes de sincronizar",
+    "syncing": "Sincronizando…",
+    "upToDate": "Todos los cambios están sincronizados",
+    "lastSynced": "Última sincronización: {{time}}",
+    "signOutPending_one": "Hay {{count}} cambio sin sincronizar. Si cierras sesión ahora, se perderá.",
+    "signOutPending_other": "Hay {{count}} cambios sin sincronizar. Si cierras sesión ahora, se perderán."
+  },
+  "migration": {
+    "summary_one": "Hemos pasado {{count}} reunión de la versión anterior de la app a tu cuenta.",
+    "summary_other": "Hemos pasado {{count}} reuniones de la versión anterior de la app a tu cuenta.",
+    "notes_one": "También se ha pasado {{count}} nota.",
+    "notes_other": "También se han pasado {{count}} notas."
+  },
+  "attachments": {
+    "localOnly": "Guardado solo en este dispositivo",
+    "pickCancelled": "No se seleccionó ningún archivo",
+    "added_one": "Se añadió {{count}} archivo",
+    "added_other": "Se añadieron {{count}} archivos",
+    "failed_one": "No se pudo añadir {{count}} archivo",
+    "failed_other": "No se pudieron añadir {{count}} archivos",
+    "unsupportedType": "Este tipo de archivo no es compatible",
+    "tooLarge": "El archivo supera los {{maxMb}} MB",
+    "copyFailed": "No se pudo guardar el archivo en este dispositivo",
+    "cameraPermissionDenied": "Se denegó el acceso a la cámara. Puedes permitirlo en Ajustes.",
+    "typeNames": {
+      "documents": "Documentos (PDF, Word, Excel, PowerPoint, texto)",
+      "images": "Imágenes (JPEG, PNG, GIF, WebP, HEIC)",
+      "videos": "Vídeos (MP4, MOV, AVI)",
+      "audio": "Audio (MP3, WAV, OGG, AAC)",
+      "archives": "Archivos comprimidos (ZIP, RAR, 7Z, TAR)"
+    }
+  },
+  "email": {
+    "useCalendarInvites": "MeetingGuard no envía correos de invitación por sí mismo. Los participantes reciben la invitación de Google Calendar cuando la reunión se sincroniza con tu calendario conectado."
+  }
+}

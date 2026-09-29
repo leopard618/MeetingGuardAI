@@ -1,441 +1,284 @@
-// File Upload Service
-// Handles document and image uploads for meetings
-
+/**
+ * Meeting attachments (compat module used by ModernCreateMeeting; stage 3 moves it to TS).
+ *
+ * Attachments stay ON THIS DEVICE: files are copied into the app's document directory
+ * (Paths.document/attachments/{uid}/) with the expo-file-system SDK 57 object API, and their
+ * metadata lives in the user's local data (src/services/data attachmentStore). Every record is
+ * labeled `localOnly: true`; nothing is uploaded or synced, and meetings in Firestore never contain
+ * device paths. Signing out deletes the user's attachment files together with the local data.
+ *
+ * Every method either resolves with a real result or rejects with an AppError (never a fake
+ * success, never a crash from removed legacy APIs).
+ */
 import * as DocumentPicker from 'expo-document-picker';
+import { Directory, File, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
-// SDK 54+: the classic FileSystem API lives in expo-file-system/legacy (root import now throws).
-import * as FileSystem from 'expo-file-system/legacy';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { AppError, toAppError } from '../core/errors';
+import { appEvents } from '../core/events';
+import { createLogger } from '../core/logger';
+import { t } from '../i18n';
+import { attachmentStore, dataService } from '../services/data';
+
+const log = createLogger('attachments');
+
+const MAX_FILE_SIZE_MB = 50;
+const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ATTACHMENTS_DIR = 'attachments';
+
+const SUPPORTED_TYPES = {
+  documents: [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain',
+    'text/csv',
+  ],
+  images: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/heic', 'image/heif'],
+  videos: ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/avi', 'video/mov'],
+  audio: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/aac', 'audio/mp4'],
+  archives: ['application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed', 'application/x-tar', 'application/gzip'],
+};
+
+const TYPE_ICONS = { documents: '📄', images: '🖼️', videos: '🎥', audio: '🎵', archives: '📦' };
+
+function userDirectory(uid) {
+  return new Directory(Paths.document, ATTACHMENTS_DIR, uid);
+}
+
+function safeFileName(name) {
+  const cleaned = String(name || 'file').replace(/[^A-Za-z0-9._-]/g, '_');
+  return cleaned.slice(-120) || 'file';
+}
+
+function generateFileId() {
+  return `file_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function requireUid() {
+  const uid = dataService.getActiveUid();
+  if (!uid) throw new AppError('unauthenticated', 'Attachments need a signed-in user');
+  return uid;
+}
+
+function cancelledResult() {
+  return { success: false, cancelled: true, files: [], errors: [], message: t('data:attachments.pickCancelled') };
+}
+
+/** The shape ModernCreateMeeting renders (`type` is the MIME type, used for its icon). */
+function toLegacyFile(record) {
+  return {
+    ...record,
+    type: record.mimeType,
+    uploadedAt: record.createdAt,
+    thumbnail: record.category === 'images' ? record.uri : null,
+    localOnly: true,
+    localOnlyLabel: t('data:attachments.localOnly'),
+  };
+}
+
+// Signing out wipes the user's local data (including attachment metadata): delete the files too.
+appEvents.on('session:ended', ({ uid }) => {
+  try {
+    const directory = userDirectory(uid);
+    if (directory.exists) directory.delete();
+  } catch (error) {
+    log.warn(`could not delete local attachments (${toAppError(error).code})`);
+  }
+});
 
 class FileUploadService {
   constructor() {
-    this.supportedTypes = {
-      documents: [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-powerpoint',
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'text/plain',
-        'text/csv'
-      ],
-      images: [
-        'image/jpeg',
-        'image/png',
-        'image/gif',
-        'image/webp',
-        'image/bmp'
-      ],
-      videos: [
-        'video/mp4',
-        'video/avi',
-        'video/mov',
-        'video/wmv',
-        'video/flv'
-      ],
-      audio: [
-        'audio/mpeg',
-        'audio/wav',
-        'audio/ogg',
-        'audio/mp3',
-        'audio/aac'
-      ],
-      archives: [
-        'application/zip',
-        'application/x-rar-compressed',
-        'application/x-7z-compressed',
-        'application/x-tar',
-        'application/gzip'
-      ]
-    };
-    
-    this.maxFileSize = 50 * 1024 * 1024; // 50MB
+    this.supportedTypes = SUPPORTED_TYPES;
+    this.maxFileSize = MAX_FILE_SIZE;
   }
 
-  /**
-   * Pick a document from device
-   */
+  /** Picks documents. Resolves { success, cancelled?, files, errors, message }. */
   async pickDocument(options = {}) {
+    let result;
     try {
-      const result = await DocumentPicker.getDocumentAsync({
+      result = await DocumentPicker.getDocumentAsync({
         type: options.type || '*/*',
         copyToCacheDirectory: true,
-        multiple: options.multiple || false,
-        ...options
+        multiple: options.multiple === true,
       });
-
-      if (!result.canceled && result.assets) {
-        const files = Array.isArray(result.assets) ? result.assets : [result.assets];
-        return await this.processFiles(files);
-      }
-
-      return { success: false, message: 'Document picking cancelled' };
     } catch (error) {
-      console.error('Error picking document:', error);
-      throw new Error('Failed to pick document');
+      throw toAppError(error);
     }
+    if (result.canceled) return cancelledResult();
+    return this.processFiles(
+      result.assets.map((asset) => ({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? null, size: asset.size ?? null })),
+    );
   }
 
-  /**
-   * Pick images from device
-   */
+  /** Picks images with the system photo picker (no media-library permission needed). */
   async pickImages(options = {}) {
+    let result;
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
-        throw new Error('Permission to access media library was denied');
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'], // MediaTypeOptions is deprecated
-        allowsMultipleSelection: options.multiple || false,
-        quality: options.quality || 0.8,
-        aspect: options.aspect || [4, 3],
-        ...options
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: options.multiple === true,
+        quality: typeof options.quality === 'number' ? options.quality : 0.8,
       });
-
-      if (!result.canceled && result.assets) {
-        const files = Array.isArray(result.assets) ? result.assets : [result.assets];
-        return await this.processImageFiles(files);
-      }
-
-      return { success: false, message: 'Image picking cancelled' };
     } catch (error) {
-      console.error('Error picking images:', error);
-      throw new Error('Failed to pick images');
+      throw toAppError(error);
     }
+    if (result.canceled) return cancelledResult();
+    return this.processImageFiles(result.assets);
   }
 
-  /**
-   * Take a photo with camera
-   */
+  /** Takes a photo. Rejects with AppError('permission_denied') when camera access is refused. */
   async takePhoto(options = {}) {
+    let permission;
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      
-      if (status !== 'granted') {
-        throw new Error('Permission to access camera was denied');
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'], // MediaTypeOptions is deprecated
-        quality: options.quality || 0.8,
-        aspect: options.aspect || [4, 3],
-        ...options
-      });
-
-      if (!result.canceled && result.assets) {
-        const files = Array.isArray(result.assets) ? result.assets : [result.assets];
-        return await this.processImageFiles(files);
-      }
-
-      return { success: false, message: 'Photo capture cancelled' };
+      permission = await ImagePicker.requestCameraPermissionsAsync();
     } catch (error) {
-      console.error('Error taking photo:', error);
-      throw new Error('Failed to take photo');
+      throw toAppError(error);
     }
+    if (permission.status !== 'granted') {
+      throw new AppError('permission_denied', t('data:attachments.cameraPermissionDenied'));
+    }
+    let result;
+    try {
+      result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: typeof options.quality === 'number' ? options.quality : 0.8,
+      });
+    } catch (error) {
+      throw toAppError(error);
+    }
+    if (result.canceled) return cancelledResult();
+    return this.processImageFiles(result.assets);
   }
 
-  /**
-   * Process picked files
-   */
+  processImageFiles(assets) {
+    return this.processFiles(
+      assets.map((asset) => ({
+        uri: asset.uri,
+        name: asset.fileName || `image_${Date.now()}.jpg`,
+        mimeType: asset.mimeType || 'image/jpeg',
+        size: typeof asset.fileSize === 'number' ? asset.fileSize : null,
+      })),
+    );
+  }
+
+  /** Copies each file; per-file failures are reported in `errors` (code + message). */
   async processFiles(files) {
-    const processedFiles = [];
+    const processed = [];
     const errors = [];
-
     for (const file of files) {
       try {
-        const processedFile = await this.processFile(file);
-        if (processedFile) {
-          processedFiles.push(processedFile);
-        }
+        processed.push(await this.processFile(file));
       } catch (error) {
-        errors.push({ file: file.name, error: error.message });
+        const appError = toAppError(error);
+        errors.push({ file: file.name, code: appError.code, error: appError.message });
       }
     }
-
-    return {
-      success: processedFiles.length > 0,
-      files: processedFiles,
-      errors: errors,
-      message: `Processed ${processedFiles.length} files${errors.length > 0 ? `, ${errors.length} errors` : ''}`
-    };
+    const parts = [];
+    if (processed.length > 0) parts.push(t('data:attachments.added', { count: processed.length }));
+    if (errors.length > 0) parts.push(t('data:attachments.failed', { count: errors.length }));
+    return { success: processed.length > 0, files: processed, errors, message: parts.join('. ') };
   }
 
-  /**
-   * Process a single file
-   */
+  /** Copies one picked file into the user's attachment directory and records its metadata. */
   async processFile(file) {
-    try {
-      // Validate file size
-      if (file.size && file.size > this.maxFileSize) {
-        throw new Error(`File size exceeds ${this.maxFileSize / (1024 * 1024)}MB limit`);
-      }
-
-      // Validate file type
-      const fileType = this.getFileType(file.mimeType || file.type);
-      if (!fileType) {
-        throw new Error('Unsupported file type');
-      }
-
-      // Generate unique file ID
-      const fileId = this.generateFileId();
-      
-      // Copy file to app's document directory
-      const fileName = `${fileId}_${file.name}`;
-      const destinationUri = `${FileSystem.documentDirectory}uploads/${fileName}`;
-      
-      // Ensure uploads directory exists
-      await this.ensureUploadsDirectory();
-      
-      // Copy file
-      await FileSystem.copyAsync({
-        from: file.uri,
-        to: destinationUri
-      });
-
-      // Get file info
-      const fileInfo = await FileSystem.getInfoAsync(destinationUri);
-      
-      const processedFile = {
-        id: fileId,
-        name: file.name,
-        type: fileType,
-        mimeType: file.mimeType || file.type,
-        size: file.size || fileInfo.size,
-        uri: destinationUri,
-        originalUri: file.uri,
-        uploadedAt: new Date().toISOString(),
-        meetingId: null, // Will be set when attached to meeting
-        thumbnail: await this.generateThumbnail(file, fileType)
-      };
-
-      // Store file metadata
-      await this.storeFileMetadata(processedFile);
-
-      return processedFile;
-    } catch (error) {
-      console.error('Error processing file:', error);
-      throw error;
+    const mimeType = file.mimeType || file.type || null;
+    const category = this.getFileType(mimeType);
+    if (!category) throw new AppError('unsupported', t('data:attachments.unsupportedType'));
+    if (typeof file.size === 'number' && file.size > MAX_FILE_SIZE) {
+      throw new AppError('invalid_input', t('data:attachments.tooLarge', { maxMb: MAX_FILE_SIZE_MB }));
     }
-  }
-
-  /**
-   * Process image files (special handling for images)
-   */
-  async processImageFiles(files) {
-    const processedFiles = [];
-    const errors = [];
-
-    for (const file of files) {
+    const uid = requireUid();
+    const id = generateFileId();
+    let destination;
+    try {
+      const directory = userDirectory(uid);
+      directory.create({ intermediates: true, idempotent: true });
+      destination = new File(directory, `${id}_${safeFileName(file.name)}`);
+      await new File(file.uri).copy(destination);
+    } catch (error) {
+      throw new AppError('unknown', t('data:attachments.copyFailed'), { cause: error });
+    }
+    let size = typeof file.size === 'number' ? file.size : null;
+    if (size === null) {
       try {
-        // Convert ImagePicker result to standard format
-        const standardFile = {
-          uri: file.uri,
-          name: file.fileName || `image_${Date.now()}.jpg`,
-          type: 'image/jpeg',
-          size: file.fileSize,
-          width: file.width,
-          height: file.height
-        };
-
-        const processedFile = await this.processFile(standardFile);
-        if (processedFile) {
-          processedFiles.push(processedFile);
-        }
-      } catch (error) {
-        errors.push({ file: file.fileName, error: error.message });
+        size = destination.exists ? destination.size : null;
+      } catch {
+        size = null;
       }
     }
-
-    return {
-      success: processedFiles.length > 0,
-      files: processedFiles,
-      errors: errors,
-      message: `Processed ${processedFiles.length} images${errors.length > 0 ? `, ${errors.length} errors` : ''}`
-    };
+    const record = await attachmentStore.put({
+      id,
+      name: String(file.name || 'file').slice(0, 500),
+      category,
+      mimeType,
+      size,
+      uri: destination.uri,
+      meetingId: null,
+      createdAt: new Date().toISOString(),
+      localOnly: true,
+    });
+    return toLegacyFile(record);
   }
 
-  /**
-   * Generate thumbnail for file
-   */
-  async generateThumbnail(file, fileType) {
-    try {
-      if (fileType === 'images') {
-        // For images, use the file itself as thumbnail
-        return file.uri;
-      } else {
-        // For other file types, generate a placeholder or icon
-        return this.getFileTypeIcon(fileType);
-      }
-    } catch (error) {
-      console.error('Error generating thumbnail:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Get file type icon
-   */
-  getFileTypeIcon(fileType) {
-    const icons = {
-      documents: '📄',
-      images: '🖼️',
-      videos: '🎥',
-      audio: '🎵',
-      archives: '📦'
-    };
-    return icons[fileType] || '📎';
-  }
-
-  /**
-   * Determine file type from MIME type
-   */
-  getFileType(mimeType) {
-    if (!mimeType) return null;
-
-    for (const [type, mimeTypes] of Object.entries(this.supportedTypes)) {
-      if (mimeTypes.includes(mimeType)) {
-        return type;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Ensure uploads directory exists
-   */
-  async ensureUploadsDirectory() {
-    const uploadsDir = `${FileSystem.documentDirectory}uploads/`;
-    const dirInfo = await FileSystem.getInfoAsync(uploadsDir);
-    
-    if (!dirInfo.exists) {
-      await FileSystem.makeDirectoryAsync(uploadsDir, { intermediates: true });
-    }
-  }
-
-  /**
-   * Generate unique file ID
-   */
-  generateFileId() {
-    return `file_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-  }
-
-  /**
-   * Store file metadata
-   */
-  async storeFileMetadata(file) {
-    try {
-      const key = `file_${file.id}`;
-      await AsyncStorage.setItem(key, JSON.stringify(file));
-    } catch (error) {
-      console.error('Error storing file metadata:', error);
-    }
-  }
-
-  /**
-   * Get file metadata
-   */
-  async getFileMetadata(fileId) {
-    try {
-      const key = `file_${fileId}`;
-      const metadata = await AsyncStorage.getItem(key);
-      return metadata ? JSON.parse(metadata) : null;
-    } catch (error) {
-      console.error('Error getting file metadata:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Attach file to meeting
-   */
   async attachFileToMeeting(fileId, meetingId) {
-    try {
-      const file = await this.getFileMetadata(fileId);
-      if (!file) {
-        throw new Error('File not found');
-      }
-
-      file.meetingId = meetingId;
-      await this.storeFileMetadata(file);
-
-      return { success: true, file };
-    } catch (error) {
-      console.error('Error attaching file to meeting:', error);
-      throw error;
-    }
+    const record = await attachmentStore.attachToMeeting(fileId, meetingId);
+    return { success: true, file: toLegacyFile(record) };
   }
 
-  /**
-   * Get files for a meeting
-   */
   async getMeetingFiles(meetingId) {
-    try {
-      const keys = await AsyncStorage.getAllKeys();
-      const fileKeys = keys.filter(key => key.startsWith('file_'));
-      const files = [];
-
-      for (const key of fileKeys) {
-        const file = await this.getFileMetadata(key.replace('file_', ''));
-        if (file && file.meetingId === meetingId) {
-          files.push(file);
-        }
-      }
-
-      return files;
-    } catch (error) {
-      console.error('Error getting meeting files:', error);
-      return [];
-    }
+    return (await attachmentStore.forMeeting(meetingId)).map(toLegacyFile);
   }
 
-  /**
-   * Delete file
-   */
+  async getFileMetadata(fileId) {
+    const record = await attachmentStore.get(fileId);
+    return record ? toLegacyFile(record) : null;
+  }
+
+  /** Deletes the file and its metadata. Rejects with AppError('not_found') for unknown ids. */
   async deleteFile(fileId) {
+    const record = await attachmentStore.get(fileId);
+    if (!record) throw new AppError('not_found', 'Attachment not found');
     try {
-      const file = await this.getFileMetadata(fileId);
-      if (!file) {
-        throw new Error('File not found');
-      }
-
-      // Delete file from storage
-      await FileSystem.deleteAsync(file.uri, { idempotent: true });
-      
-      // Delete metadata
-      const key = `file_${fileId}`;
-      await AsyncStorage.removeItem(key);
-
-      return { success: true };
+      const file = new File(record.uri);
+      if (file.exists) file.delete();
     } catch (error) {
-      console.error('Error deleting file:', error);
-      throw error;
+      throw toAppError(error);
     }
+    await attachmentStore.remove(fileId);
+    return { success: true };
   }
 
-  /**
-   * Get supported file types
-   */
   getSupportedTypes() {
     return this.supportedTypes;
   }
 
-  /**
-   * Get file type display names
-   */
   getFileTypeNames() {
     return {
-      documents: 'Documents (PDF, Word, Excel, PowerPoint, Text)',
-      images: 'Images (JPEG, PNG, GIF, WebP)',
-      videos: 'Videos (MP4, AVI, MOV, WMV)',
-      audio: 'Audio (MP3, WAV, OGG, AAC)',
-      archives: 'Archives (ZIP, RAR, 7Z, TAR)'
+      documents: t('data:attachments.typeNames.documents'),
+      images: t('data:attachments.typeNames.images'),
+      videos: t('data:attachments.typeNames.videos'),
+      audio: t('data:attachments.typeNames.audio'),
+      archives: t('data:attachments.typeNames.archives'),
     };
+  }
+
+  /** Category ("documents" | "images" | ...) of a MIME type, or null when unsupported. */
+  getFileType(mimeType) {
+    if (!mimeType) return null;
+    const normalized = String(mimeType).toLowerCase();
+    for (const [category, types] of Object.entries(SUPPORTED_TYPES)) {
+      if (types.includes(normalized)) return category;
+    }
+    return null;
+  }
+
+  getFileTypeIcon(fileType) {
+    return TYPE_ICONS[fileType] || '📎';
   }
 }
 

@@ -1,107 +1,54 @@
 /**
- * Meeting Helper Utilities
- * Safe handling of meeting data to prevent React rendering errors
+ * Legacy meeting display helpers (stage-3 screens and the old alert components). They accept both
+ * the legacy view (core/legacy.ts toLegacyMeetingView) and older ad-hoc shapes, and never throw.
+ * New UI uses src/utils/format.ts and the domain Meeting type instead.
  */
 
-/**
- * Safely extract location string from meeting location object
- * @param {Object|string|null|undefined} location - The location data (can be string or object)
- * @returns {string} - A safe string representation of the location
- */
+/** Human-readable location ("Virtual Meeting (Zoom)", an address, ...). '' when there is none. */
 export const getLocationString = (location) => {
   if (!location) return '';
-  
-  // If it's already a string, return it
   if (typeof location === 'string') return location;
-  
-  // If it's an object, extract the appropriate field
-  if (typeof location === 'object') {
-    // For virtual meetings
-    if (location.type === 'virtual') {
-      const platform = location.virtualPlatform || location.virtual_platform || 'Online';
-      return `Virtual Meeting (${platform})`;
-    }
-    
-    // For hybrid meetings
-    if (location.type === 'hybrid') {
-      const platform = location.virtualPlatform || location.virtual_platform || 'Online';
-      const address = location.address || '';
-      if (address) {
-        return `${address} + Virtual (${platform})`;
-      }
-      return `Hybrid Meeting (${platform})`;
-    }
-    
-    // For physical meetings
-    if (location.address) {
-      return typeof location.address === 'string' 
-        ? location.address 
-        : JSON.stringify(location.address);
-    }
-    
-    // Fallback - try common location fields
-    if (location.name) return location.name;
-    if (location.location) return getLocationString(location.location);
-    
-    // Last resort - convert to string safely
-    return 'Location specified';
+  if (typeof location !== 'object') return String(location);
+
+  const platform = location.virtualPlatform || location.virtual_platform || 'Online';
+  if (location.type === 'virtual') return `Virtual Meeting (${platform})`;
+  if (location.type === 'hybrid') {
+    const address = typeof location.address === 'string' ? location.address : '';
+    return address ? `${address} + Virtual (${platform})` : `Hybrid Meeting (${platform})`;
   }
-  
-  // Fallback for any other type
-  return String(location);
+  if (location.address) {
+    return typeof location.address === 'string' ? location.address : JSON.stringify(location.address);
+  }
+  if (location.name) return location.name;
+  if (location.location) return getLocationString(location.location);
+  return 'Location specified';
 };
 
-/**
- * Safely extract meeting link
- * @param {Object} meeting - The meeting object
- * @returns {string|null} - The meeting link or null
- */
+/** Join link of a meeting (conference details first, then the legacy location fields); null if none. */
 export const getMeetingLink = (meeting) => {
   if (!meeting) return null;
-  
-  // Check direct link property
-  if (meeting.link && typeof meeting.link === 'string') {
-    return meeting.link;
+  const conferenceUrl = meeting.conference_details?.url ?? meeting.conference?.url;
+  if (typeof conferenceUrl === 'string' && conferenceUrl) return conferenceUrl;
+  if (typeof meeting.link === 'string' && meeting.link) return meeting.link;
+  const location = meeting.location;
+  if (location && typeof location === 'object') {
+    return location.virtualLink || location.virtual_link || location.virtualUrl || location.link || null;
   }
-  
-  // Check location object
-  if (meeting.location && typeof meeting.location === 'object') {
-    if (meeting.location.virtualLink) return meeting.location.virtualLink;
-    if (meeting.location.virtual_link) return meeting.location.virtual_link;
-    if (meeting.location.link) return meeting.location.link;
-  }
-  
   return null;
 };
 
-/**
- * Safely extract virtual platform name
- * @param {Object} meeting - The meeting object
- * @returns {string} - The platform name or 'Online'
- */
+/** Video platform name ('Online' when unknown). */
 export const getVirtualPlatform = (meeting) => {
   if (!meeting) return 'Online';
-  
-  // Check location object
-  if (meeting.location && typeof meeting.location === 'object') {
-    if (meeting.location.virtualPlatform) return meeting.location.virtualPlatform;
-    if (meeting.location.virtual_platform) return meeting.location.virtual_platform;
-    if (meeting.location.platform) return meeting.location.platform;
+  const location = meeting.location;
+  if (location && typeof location === 'object') {
+    const fromLocation = location.virtualPlatform || location.virtual_platform || location.platform;
+    if (fromLocation) return fromLocation;
   }
-  
-  // Check direct property
-  if (meeting.virtualPlatform) return meeting.virtualPlatform;
-  if (meeting.virtual_platform) return meeting.virtual_platform;
-  
-  return 'Online';
+  return meeting.virtualPlatform || meeting.virtual_platform || 'Online';
 };
 
-/**
- * Safely stringify any value for display
- * Prevents "Objects are not valid as React child" errors
- * @param {any} value - The value to stringify
- * @returns {string} - Safe string representation
- */
+/** Any value as display text ("Yes"/"No" for booleans, joined arrays, name/title/label of objects). */
 export const safeStringify = (value) => {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;
@@ -109,91 +56,42 @@ export const safeStringify = (value) => {
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'object') {
-    // Check for common displayable properties
     if (value.name) return value.name;
     if (value.title) return value.title;
     if (value.label) return value.label;
-    // Last resort
-    return JSON.stringify(value);
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '';
+    }
   }
   return String(value);
 };
 
-/**
- * Format meeting time safely
- * @param {string|Date} time - The time to format
- * @returns {string} - Formatted time string
- */
+/** "14:30" stays as is; ISO strings / Dates become a localized short time. '' when invalid. */
 export const formatMeetingTime = (time) => {
   if (!time) return '';
-  
-  try {
-    if (typeof time === 'string') {
-      // If it's already formatted (like "14:30"), return it
-      if (/^\d{1,2}:\d{2}/.test(time)) return time;
-      
-      // Try to parse as date
-      const date = new Date(time);
-      if (!isNaN(date.getTime())) {
-        return date.toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true 
-        });
-      }
-    }
-    
-    if (time instanceof Date) {
-      return time.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      });
-    }
-    
-    return String(time);
-  } catch (error) {
-    console.error('Error formatting meeting time:', error);
-    return '';
-  }
+  if (typeof time === 'string' && /^\d{1,2}:\d{2}/.test(time)) return time;
+  const date = time instanceof Date ? time : new Date(time);
+  if (Number.isNaN(date.getTime())) return typeof time === 'string' ? time : '';
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
 /**
- * Format meeting date safely
- * @param {string|Date} date - The date to format
- * @returns {string} - Formatted date string
+ * Localized short date. "YYYY-MM-DD" is read as a LOCAL calendar date (new Date('2026-10-05')
+ * would be UTC midnight and show the previous day west of UTC). '' when invalid.
  */
 export const formatMeetingDate = (date) => {
   if (!date) return '';
-  
-  try {
-    if (typeof date === 'string') {
-      // If it's already formatted (like "2025-10-01"), check if valid
-      const parsedDate = new Date(date);
-      if (!isNaN(parsedDate.getTime())) {
-        return parsedDate.toLocaleDateString('en-US', {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric'
-        });
-      }
-    }
-    
-    if (date instanceof Date) {
-      return date.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    }
-    
-    return String(date);
-  } catch (error) {
-    console.error('Error formatting meeting date:', error);
-    return '';
+  let parsed;
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [year, month, day] = date.split('-').map(Number);
+    parsed = new Date(year, month - 1, day);
+  } else {
+    parsed = date instanceof Date ? date : new Date(date);
   }
+  if (Number.isNaN(parsed.getTime())) return typeof date === 'string' ? date : '';
+  return parsed.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 export default {
@@ -204,4 +102,3 @@ export default {
   formatMeetingTime,
   formatMeetingDate,
 };
-

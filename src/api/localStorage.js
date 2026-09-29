@@ -1,107 +1,31 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+/**
+ * COMPAT SHIM (stage 3 removes it). The v1.0.9 device-only database ("meetingguard_data") is no
+ * longer used: its content is migrated into the user's account on first sign-in
+ * (src/services/data migrationService). Only the calls legacy screens still make are kept.
+ */
+import { legacyMeetings, legacyUser, unsupportedLegacyApi } from '../services/data/legacyFacade';
 
-// Local Storage API Client to replace base44 functionality
-class LocalStorageAPI {
-  constructor() {
-    this.storageKey = 'meetingguard_data';
-    this.initializeStorage();
-  }
-
-  async initializeStorage() {
-    try {
-      const existingData = await AsyncStorage.getItem(this.storageKey);
-      if (!existingData) {
-        const initialData = {
-          meetings: [],
-          userPreferences: [],
-          apiKeys: [],
-          notes: [],
-          users: []
-        };
-        await AsyncStorage.setItem(this.storageKey, JSON.stringify(initialData));
-      }
-    } catch (error) {
-      console.error('Error initializing storage:', error);
-    }
-  }
-
-  async getData() {
-    try {
-      const data = await AsyncStorage.getItem(this.storageKey);
-      return JSON.parse(data || '{}');
-    } catch (error) {
-      console.error('Error getting data from storage:', error);
-      return {};
-    }
-  }
-
-  async setData(data) {
-    try {
-      await AsyncStorage.setItem(this.storageKey, JSON.stringify(data));
-    } catch (error) {
-      console.error('Error setting data to storage:', error);
-    }
-  }
-
-  generateId() {
-    // Generate a proper UUID v4 format
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  }
-
-  async getCurrentUser() {
-    try {
-      // First try to get user from AsyncStorage (where AuthContext stores it)
-      const userFromAuth = await AsyncStorage.getItem('user');
-      if (userFromAuth) {
-        const parsedUser = JSON.parse(userFromAuth);
-        console.log('getCurrentUser: Found user from AuthContext:', parsedUser);
-        return parsedUser;
-      }
-      
-      // Fallback to the old method
-      const data = await this.getData();
-      const userFromData = data.users?.find(user => user.isCurrent);
-      if (userFromData) {
-        console.log('getCurrentUser: Found user from data.users:', userFromData);
-        return userFromData;
-      }
-      
-      // Final fallback
-      console.log('getCurrentUser: No user found, using default');
-      return {
-        id: 'default-user',
-        email: 'user@example.com',
-        name: 'Default User',
-        isCurrent: true
-      };
-    } catch (error) {
-      console.error('Error getting current user:', error);
-      return {
-        id: 'default-user',
-        email: 'user@example.com',
-        name: 'Default User',
-        isCurrent: true
-      };
-    }
-  }
-
-  // Clear all meetings from storage
-  async clearAllMeetings() {
-    try {
-      const data = await this.getData();
-      data.meetings = [];
-      await this.setData(data);
-      console.log('All meetings cleared from storage');
-      return true;
-    } catch (error) {
-      console.error('Error clearing meetings:', error);
-      return false;
-    }
-  }
+function randomId() {
+  const bytes = Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16));
+  return `${bytes.slice(0, 8).join('')}-${bytes.slice(8, 12).join('')}-4${bytes.slice(12, 15).join('')}-${Date.now().toString(16).slice(-12)}`;
 }
 
-export const localStorageAPI = new LocalStorageAPI();
+export const localStorageAPI = {
+  getData: async () => unsupportedLegacyApi('localStorageAPI.getData'),
+  setData: async () => unsupportedLegacyApi('localStorageAPI.setData'),
+
+  /** Random id made of [0-9a-f-] (valid as a document id). */
+  generateId: () => randomId(),
+
+  /** The signed-in user (legacy shape). Rejects with AppError('unauthenticated') when signed out. */
+  getCurrentUser: () => legacyUser.me(),
+
+  /**
+   * Deletes every MeetingGuard meeting of the account (synced to all devices). Meetings imported
+   * from Google/device calendars are kept. Resolves true when done; rejects with an AppError.
+   */
+  clearAllMeetings: async () => {
+    await legacyMeetings.clearAll();
+    return true;
+  },
+};

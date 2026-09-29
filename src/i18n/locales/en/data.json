@@ -1,0 +1,40 @@
+{
+  "sync": {
+    "offline": "You're offline. Changes are saved on this device and will sync automatically.",
+    "pending_one": "{{count}} change waiting to sync",
+    "pending_other": "{{count}} changes waiting to sync",
+    "syncing": "Syncing…",
+    "upToDate": "All changes are synced",
+    "lastSynced": "Last synced {{time}}",
+    "signOutPending_one": "{{count}} change has not been synced yet. If you sign out now it will be lost.",
+    "signOutPending_other": "{{count}} changes have not been synced yet. If you sign out now they will be lost."
+  },
+  "migration": {
+    "summary_one": "We moved {{count}} meeting from the previous version of the app to your account.",
+    "summary_other": "We moved {{count}} meetings from the previous version of the app to your account.",
+    "notes_one": "{{count}} note was moved as well.",
+    "notes_other": "{{count}} notes were moved as well."
+  },
+  "attachments": {
+    "localOnly": "Stored on this device only",
+    "pickCancelled": "No file selected",
+    "added_one": "{{count}} file added",
+    "added_other": "{{count}} files added",
+    "failed_one": "{{count}} file could not be added",
+    "failed_other": "{{count}} files could not be added",
+    "unsupportedType": "This file type is not supported",
+    "tooLarge": "The file is larger than {{maxMb}} MB",
+    "copyFailed": "The file could not be saved on this device",
+    "cameraPermissionDenied": "Camera access was denied. You can allow it in Settings.",
+    "typeNames": {
+      "documents": "Documents (PDF, Word, Excel, PowerPoint, text)",
+      "images": "Images (JPEG, PNG, GIF, WebP, HEIC)",
+      "videos": "Videos (MP4, MOV, AVI)",
+      "audio": "Audio (MP3, WAV, OGG, AAC)",
+      "archives": "Archives (ZIP, RAR, 7Z, TAR)"
+    }
+  },
+  "email": {
+    "useCalendarInvites": "MeetingGuard doesn't send invitation emails itself. Participants get an invitation from Google Calendar when the meeting syncs to your connected calendar."
+  }
+}
