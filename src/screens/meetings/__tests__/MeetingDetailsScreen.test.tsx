@@ -14,6 +14,11 @@ jest.mock('expo-localization', () => ({
   getCalendars: jest.fn(() => [{ timeZone: 'UTC', uses24hourClock: false }]),
 }));
 jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { show: jest.fn() } }));
+// The attachments section has its own tests (src/screens/attachments/__tests__).
+jest.mock('../../attachments/MeetingAttachmentsSection', () => {
+  const { Text: MockText } = jest.requireActual('react-native');
+  return { MeetingAttachmentsSection: ({ meetingId }: { meetingId: string }) => <MockText testID={`attachments-${meetingId}`} /> };
+});
 
 const mockRemove = jest.fn();
 let mockMeeting: Meeting | null = null;
@@ -96,6 +101,7 @@ it('shows everything the meeting holds and lets a Google meeting be edited', asy
   expect(screen.getByText('Passcode: pw1')).toBeTruthy();
   expect(screen.getByText('Ana <ana@example.com>')).toBeTruthy();
   expect(screen.getByTestId('meeting-join')).toBeTruthy();
+  expect(screen.getByTestId('attachments-m1')).toBeTruthy();
 
   await act(async () => {
     fireEvent.press(screen.getByTestId('meeting-edit'));

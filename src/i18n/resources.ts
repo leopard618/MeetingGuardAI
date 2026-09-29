@@ -7,6 +7,7 @@ import type { I18nNamespace } from '../core/contracts';
 import type { Language } from '../core/types';
 import enAi from './locales/en/ai.json';
 import enAlerts from './locales/en/alerts.json';
+import enAttachments from './locales/en/attachments.json';
 import enAuth from './locales/en/auth.json';
 import enCalendar from './locales/en/calendar.json';
 import enCalendarView from './locales/en/calendarView.json';
@@ -17,10 +18,12 @@ import enHome from './locales/en/home.json';
 import enInsights from './locales/en/insights.json';
 import enMeetings from './locales/en/meetings.json';
 import enNavigation from './locales/en/navigation.json';
+import enNotes from './locales/en/notes.json';
 import enOnboarding from './locales/en/onboarding.json';
 import enSettings from './locales/en/settings.json';
 import esAi from './locales/es/ai.json';
 import esAlerts from './locales/es/alerts.json';
+import esAttachments from './locales/es/attachments.json';
 import esAuth from './locales/es/auth.json';
 import esCalendar from './locales/es/calendar.json';
 import esCalendarView from './locales/es/calendarView.json';
@@ -31,6 +34,7 @@ import esHome from './locales/es/home.json';
 import esInsights from './locales/es/insights.json';
 import esMeetings from './locales/es/meetings.json';
 import esNavigation from './locales/es/navigation.json';
+import esNotes from './locales/es/notes.json';
 import esOnboarding from './locales/es/onboarding.json';
 import esSettings from './locales/es/settings.json';
 
@@ -51,6 +55,8 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     meetings: enMeetings,
     calendarView: enCalendarView,
     create: enCreate,
+    notes: enNotes,
+    attachments: enAttachments,
     home: enHome,
     insights: enInsights,
   },
@@ -67,6 +73,8 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     meetings: esMeetings,
     calendarView: esCalendarView,
     create: esCreate,
+    notes: esNotes,
+    attachments: esAttachments,
     home: esHome,
     insights: esInsights,
   },

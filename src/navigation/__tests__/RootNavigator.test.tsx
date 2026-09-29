@@ -52,7 +52,8 @@ jest.mock('../../screens/create/ChooseCreationMethodScreen', () => ({ ChooseCrea
 jest.mock('../../screens/meetings/MeetingFormScreen', () => ({ MeetingFormScreen: mockScreen('MeetingForm').default }));
 jest.mock('../../screens/meetings/list/MeetingsListScreen', () => ({ MeetingsListScreen: mockScreen('TotalMeetings').default }));
 jest.mock('../../screens/calendar/CalendarScreen', () => ({ CalendarScreen: mockScreen('Calendar').default }));
-jest.mock('../../pages/Notes', () => mockScreen('Notes'));
+jest.mock('../../screens/notes/NotesScreen', () => ({ NotesScreen: mockScreen('Notes').default }));
+jest.mock('../../screens/attachments/MeetingAttachmentsSection', () => ({ MeetingAttachmentsSection: () => null }));
 jest.mock('../../screens/settings/SettingsScreen', () => ({ SettingsScreen: mockScreen('Settings').default }));
 jest.mock('../../screens/alerts/AlertSettingsScreen', () => ({ AlertSettingsScreen: mockScreen('AlertSettings').default }));
 jest.mock('../../pages/AIChat', () => mockScreen('AIChat'));

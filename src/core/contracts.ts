@@ -839,6 +839,8 @@ export const I18N_NAMESPACE_LIST = [
   'meetings',
   'calendarView',
   'create',
+  'notes',
+  'attachments',
   'home',
   'insights',
 ] as const;

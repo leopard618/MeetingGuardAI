@@ -19,15 +19,16 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { Button, Chip, HelperText, IconButton, Switch, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
-import fileUploadService from '../../api/fileUpload';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
+import { attachmentService } from '../../services/attachments';
 import { useCalendarStatus } from '../../services/calendar';
 import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
+import { addErrorMessage, showAddResult } from '../attachments/attachmentMessages';
 import { alertTimeChoices, alertTimeLabel, toggleAlertTime } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
 import { ScreenBody, Section } from '../shared/Section';
@@ -53,7 +54,7 @@ const log = createLogger('meetings');
 
 type Props = StackScreenProps<RootStackParamList, 'CreateMeeting' | 'EditMeeting'>;
 
-/** What the legacy attachment service returns (device-local files). */
+/** Device-local attachments (src/services/attachments). */
 interface AttachmentView {
   id: string;
   name: string;
@@ -113,8 +114,8 @@ function MeetingForm({
   useEffect(() => {
     if (!meeting) return;
     let active = true;
-    fileUploadService
-      .getMeetingFiles(meeting.id)
+    attachmentService
+      .listForMeeting(meeting.id)
       .then((files: AttachmentView[]) => {
         if (active) setAttachments(files);
       })
@@ -138,16 +139,15 @@ function MeetingForm({
   const addAttachments = async (kind: 'document' | 'image'): Promise<void> => {
     setAttachmentBusy(true);
     try {
-      const result = (kind === 'document'
-        ? await fileUploadService.pickDocument({ multiple: true })
-        : await fileUploadService.pickImages({ multiple: true })) as { files: AttachmentView[]; message?: string; cancelled?: boolean };
+      const result = await attachmentService.add(kind, { multiple: true });
       if (result.cancelled) return;
-      setAttachments((current) => [...current, ...result.files]);
-      if (result.message) Toast.show({ type: result.files.length > 0 ? 'success' : 'error', text1: result.message });
+      setAttachments((current) => [...current, ...result.added]);
+      showAddResult(result, t);
     } catch (caught) {
       const error = toAppError(caught);
+      if (error.code === 'cancelled') return;
       log.warn('could not add an attachment', error.code);
-      Toast.show({ type: 'error', text1: t(errorMessageKey(error.code)) });
+      Toast.show({ type: 'error', text1: addErrorMessage(error, kind, t) });
     } finally {
       setAttachmentBusy(false);
     }
@@ -155,7 +155,7 @@ function MeetingForm({
 
   const removeAttachment = async (id: string): Promise<void> => {
     try {
-      await fileUploadService.deleteFile(id);
+      await attachmentService.remove(id);
       setAttachments((current) => current.filter((item) => item.id !== id));
     } catch (caught) {
       const error = toAppError(caught);
@@ -182,7 +182,7 @@ function MeetingForm({
       // Device-local attachments picked in this form belong to the meeting now.
       for (const attachment of attachments.filter((item) => item.meetingId !== saved.id)) {
         try {
-          await fileUploadService.attachFileToMeeting(attachment.id, saved.id);
+          await attachmentService.linkToMeeting(attachment.id, saved.id);
         } catch (caught) {
           log.warn('could not link an attachment', toAppError(caught).code);
           Toast.show({ type: 'error', text1: t('meetings:form.attachmentLinkFailed') });

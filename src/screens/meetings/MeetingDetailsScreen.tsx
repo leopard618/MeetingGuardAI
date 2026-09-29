@@ -23,6 +23,7 @@ import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
 import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
+import { MeetingAttachmentsSection } from '../attachments/MeetingAttachmentsSection';
 import { alertTimeLabel } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
 import { ScreenBody, Section } from '../shared/Section';
@@ -257,6 +258,8 @@ function MeetingDetails({ meeting, onEdit, onDeleted }: { meeting: Meeting; onEd
           </Text>
         </Section>
       ) : null}
+
+      <MeetingAttachmentsSection meetingId={meeting.id} />
 
       <Divider style={styles.divider} />
       {isDevice ? (

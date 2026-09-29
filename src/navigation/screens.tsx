@@ -22,7 +22,7 @@ import CalendarSync from '../pages/CalendarSync';
 import { ChooseCreationMethodScreen as ChooseCreationMethod } from '../screens/create/ChooseCreationMethodScreen';
 import { DashboardScreen as Dashboard } from '../screens/home/DashboardScreen';
 import LegacyLandingPage from '../pages/LandingPage';
-import Notes from '../pages/Notes';
+import { NotesScreen as NotesView } from '../screens/notes/NotesScreen';
 import Pricing from '../pages/Pricing';
 import Privacy from '../pages/Privacy';
 import Terms from '../pages/Terms';
@@ -41,7 +41,7 @@ export const ChooseCreationMethodScreen = ChooseCreationMethod;
 export const CreateMeetingScreen = MeetingFormScreen;
 export const TotalMeetingsScreen = MeetingsList;
 export const CalendarScreen = CalendarView;
-export const NotesScreen = withLanguage(Notes);
+export const NotesScreen = NotesView;
 export const SettingsScreen = Settings;
 /** "Profile" shows the settings screen (account section first). */
 export const ProfileScreen = Settings;
