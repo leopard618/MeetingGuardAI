@@ -17,8 +17,8 @@ State at the time of writing (2026-09-28):
 
 ## 0. Where the code is
 
-- `stabilization` has 33 commits on top of `main` (`3308b9d`), including this documentation commit.
-  **Nothing is pushed.**
+- `stabilization` has 45 commits on top of `main` (`3308b9d`) at the time of writing
+  (`git log --oneline main..stabilization` lists them). **Nothing is pushed.**
 - The commits are in a **separate git directory**,
   `C:/Users/Leopard/git-data/MeetingGuardAI-work/.git`, with the work tree
   `D:/WorkSpace/MeetingGuard_2025.7.28/Codebase`. git.exe could not write to the `.git` folder on D:
@@ -115,6 +115,21 @@ State at the time of writing (2026-09-28):
   `CHANGELOG.md`.
 - `docs/ARCHITECTURE.md` now describes only the final code.
 
+### Review fixes (after the documentation commit)
+
+- **Screens:** keyboard-aware forms, "Discard changes?" on Back (meeting form, alert settings),
+  attachment removals applied on Save only, themed multi-line toasts, one header per screen,
+  per-screen error boundaries, load failures shown with Retry instead of empty states, focus-aware
+  clocks, a Time format setting next to Language, honest MAX-alert and Google Meet texts.
+- **Assistant:** unknown or invalid proposed actions are dropped instead of failing the whole reply
+  (forward compatibility with newer servers); a safe sequential confirm loop.
+- **Backend:** `dailyMaintenance` (tombstone purge after 60 days, deletion-log pruning) and the
+  account deletion log with a restore replay script; backups disclosed in the privacy texts.
+- **Release:** a hard OAuth-verification gate before production, v1.0.9 fixture phones for T12,
+  corrected OTA monitoring (bad-update signal = Sentry crashes by `expo.updates.update_id`), a fuller
+  data safety list, a 1-2 page release / rollback summary, zero-warning lint in CI, a fail-closed
+  secret scan, Android data extraction rules (no device-to-device transfer), iPhone-only iOS.
+
 ### Milestone 5 status
 
 | Milestone 5 item | Status |
@@ -122,7 +137,7 @@ State at the time of writing (2026-09-28):
 | Production hosting, SSL, secure env | Ready to deploy on Firebase (HTTPS only; the OpenAI key in Secret Manager; only public values in the app). Not deployed yet: it needs the client's project access. |
 | Monitoring (errors, health) | Sentry is wired in; it needs `EXPO_PUBLIC_SENTRY_DSN`. The Cloud Monitoring and budget alerts are described in `docs/DEPLOYMENT.md` §8. There is no separate health endpoint (the backend is two callables). |
 | Backups | Commands are ready (`docs/DEPLOYMENT.md` §7); they must be turned on in the project. |
-| QA: calendars, alerts, EN/ES | Automated: 91 app suites (896 tests), 10 function suites (84 tests), and the rules tests. The device plan is written (`docs/TESTING.md` Part B) but **not run**. Outlook is not built. |
+| QA: calendars, alerts, EN/ES | Automated: 96 app suites (926 tests), 11 function suites (90 tests), and the rules tests. The device plan is written (`docs/TESTING.md` Part B) but **not run**. Outlook is not built. |
 | Test builds: Play internal testing, TestFlight | Android: ready once `docs/SETUP.md` is done. iOS: blocked (Apple account, Sign in with Apple). |
 | Deployment and rollback notes | `docs/DEPLOYMENT.md`, "Release and rollback in brief" (the 1-2 page summary at the top); the numbered sections are the full runbook. |
 

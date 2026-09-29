@@ -43,8 +43,8 @@ This version is a rebuild. It is compared here with **v1.0.9**, the version on G
     - **MEDIUM:** a banner that stays until you act.
     - **LIGHT:** a toast.
   - "Snooze" buttons on the notification, and a post-meeting follow-up notification.
-  - Settings for alert times, intensity per meeting, sound type, volume, vibration, snooze length and
-    the 12/24-hour clock.
+  - Settings for alert times, intensity per meeting, sound type, volume, vibration and snooze length.
+    The 12/24-hour time format is in Settings, next to the language.
 - **Calendars:**
   - Two-way Google Calendar sync: create, update and delete in both directions, with invitations for
     participants and real Google Meet links.
@@ -61,7 +61,8 @@ This version is a rebuild. It is compared here with **v1.0.9**, the version on G
   - Meetings list with search and filters.
   - A month calendar.
   - Notes that are saved and synced (they were sample data).
-  - AI insights computed on the phone.
+  - Insights computed on the phone.
+  - Forms keep the field you type in above the keyboard, and ask before discarding unsaved changes.
 - **Look and language:**
   - Instant English/Spanish switching without a restart, with local date and time formats.
   - Light, dark and system themes.
@@ -69,6 +70,9 @@ This version is a rebuild. It is compared here with **v1.0.9**, the version on G
   placeholders.
 - **Operations:**
   - Crash reporting with Sentry (optional).
+  - A daily Cloud Function (`dailyMaintenance`) erases deleted-meeting records after 60 days on the
+    server, as the privacy policy says, and account deletions are recorded for 30 days so that a
+    backup restore cannot bring a deleted account back (`functions/scripts/replay-account-deletions.mjs`).
   - Over-the-air JavaScript updates with EAS Update (channels development / preview / production).
   - GitHub Actions CI and about 1,000 automated tests (app, Cloud Functions, Firestore rules).
 
@@ -85,7 +89,8 @@ This version is a rebuild. It is compared here with **v1.0.9**, the version on G
   yearly) and "Subscriptions coming soon". There are no purchase buttons and no payment links.
 - **App name:** the launcher name is now "MeetingGuard AI" (it was `meeting-guard-ai`).
 - **Android:**
-  - Backup of app data is off (`allowBackup: false`).
+  - Backup of app data is off (`allowBackup: false`), and data extraction rules also exclude it from
+    device-to-device transfers (Android 12+).
   - `RECORD_AUDIO`, `READ_CONTACTS` and `SYSTEM_ALERT_WINDOW` are blocked.
   - `SCHEDULE_EXACT_ALARM` was added.
 - **Sign-in:** users must sign in again (with Google). The v1.0.9 backend session is not carried over.
@@ -128,7 +133,7 @@ This version is a rebuild. It is compared here with **v1.0.9**, the version on G
 
 ### Security
 
-- No secrets in the app bundle; CI scans the bundle on every push.
+- No secrets in the app bundle; CI scans the bundle on every push (and fails if it cannot scan it).
 - Firestore security rules, with emulator tests:
   - Users read and write only their own data.
   - Plans (`entitlements`) and usage counters are server-only.

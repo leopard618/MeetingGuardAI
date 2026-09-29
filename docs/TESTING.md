@@ -23,7 +23,7 @@ npm run check:bundle              # does the Android bundle build? (output in di
 npx expo-doctor                   # dependency and config checks
 ```
 
-At commit `90a0cc8`, `npm test` ran 91 suites and 896 tests, all passing.
+When this was last updated, `npm test` ran 96 suites and 926 tests, all passing.
 
 - **Where the tests are:** in `__tests__/` folders next to the code, plus `__tests__/App.test.js` and
   `__tests__/AppRoot.smoke.test.js` for the JavaScript entry.
@@ -66,7 +66,7 @@ npm run lint
 npm run build
 ```
 
-At `90a0cc8` the unit tests ran 10 suites and 84 tests, all passing. `npm run test:rules` starts the
+When this was last updated, the unit tests ran 11 suites and 90 tests, all passing. `npm run test:rules` starts the
 Firestore emulator with the project id `demo-meetingguard`, so it never touches a real project.
 
 ### A.3 CI
