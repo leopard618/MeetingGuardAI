@@ -15,10 +15,10 @@ import { Text, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useLanguage, useT } from '../i18n';
-import AIChat from '../pages/AIChat';
+import { AssistantScreen } from '../screens/assistant/AssistantScreen';
 import { AIInsightsScreen as AIInsights } from '../screens/insights/AIInsightsScreen';
 import { CalendarScreen as CalendarView } from '../screens/calendar/CalendarScreen';
-import CalendarSync from '../pages/CalendarSync';
+import { CalendarSyncScreen as CalendarSync } from '../screens/calendarSync/CalendarSyncScreen';
 import { ChooseCreationMethodScreen as ChooseCreationMethod } from '../screens/create/ChooseCreationMethodScreen';
 import { DashboardScreen as Dashboard } from '../screens/home/DashboardScreen';
 import LegacyLandingPage from '../pages/LandingPage';
@@ -46,11 +46,11 @@ export const SettingsScreen = Settings;
 /** "Profile" shows the settings screen (account section first). */
 export const ProfileScreen = Settings;
 export const AlertSettingsScreen = AlertSettings;
-export const AIChatScreen = withLanguage(AIChat);
+export const AIChatScreen = AssistantScreen;
 export const AIInsightsScreen = AIInsights;
 export const PrivacyScreen = withLanguage(Privacy);
 export const TermsScreen = withLanguage(Terms);
-export const CalendarSyncScreen = withLanguage(CalendarSync);
+export const CalendarSyncScreen = CalendarSync;
 export const PricingScreen = withLanguage(Pricing);
 
 // ---- Meetings (TypeScript): live meeting from `meetingId` or a legacy `meeting` param ----------

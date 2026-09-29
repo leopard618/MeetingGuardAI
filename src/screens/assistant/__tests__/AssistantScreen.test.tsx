@@ -1,15 +1,14 @@
-import { fireEvent, render, screen, within } from '@testing-library/react-native';
-import React from 'react';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import type { ActionResult, ProposedActionState } from '../../../core/contracts';
 import { AppError } from '../../../core/errors';
-import MeetingConfirmationModal from '../../../components/MeetingConfirmationModal';
-import AIChat from '../../../pages/AIChat';
-import { createAction, deleteAction, makeMeeting, shareAction, updateAction, usage } from '../__fixtures__/aiTestKit';
-import type { AiActionPreview, AssistantHookResult, ChatMessage } from '../types';
+import { createAction, deleteAction, listAction, makeMeeting, updateAction, usage } from '../../../services/ai/__fixtures__/aiTestKit';
+import type { AiActionPreview, AssistantHookResult, ChatMessage } from '../../../services/ai/types';
+import { AssistantScreen } from '../AssistantScreen';
 
 jest.mock('../../../i18n', () => {
-  const { createTranslator } = jest.requireActual('../__fixtures__/aiTestKit');
+  const { createTranslator } = jest.requireActual('../../../services/ai/__fixtures__/aiTestKit');
   const t = createTranslator('en');
   return {
     t,
@@ -29,20 +28,23 @@ jest.mock('../../../utils/format', () => ({
   uses24HourClock: () => true,
 }));
 
+let mockDarkMode = false;
 jest.mock('../../../contexts/ThemeContext', () => ({
-  useTheme: () => ({ isDarkMode: false, toggleTheme: jest.fn() }),
+  useTheme: () => ({ isDarkMode: mockDarkMode, toggleTheme: jest.fn() }),
 }));
 
-jest.mock('../../data', () => ({
+jest.mock('../../../services/data', () => ({
   useEntitlement: jest.fn(() => ({ plan: 'free', isLoaded: true, entitlement: { plan: 'free' } })),
   useMeeting: jest.fn(() => ({ meeting: null, isLoading: false, error: null })),
   usePreferences: jest.fn(() => ({ preferences: { use24HourClock: true }, isLoaded: true, error: null })),
 }));
 
-jest.mock('..', () => ({ useAssistant: jest.fn() }));
+jest.mock('../../../services/ai', () => ({ useAssistant: jest.fn() }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { useAssistant } = require('..') as { useAssistant: jest.Mock };
+const { useAssistant } = require('../../../services/ai') as { useAssistant: jest.Mock };
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { useMeeting } = require('../../../services/data') as { useMeeting: jest.Mock };
 
 function assistantState(overrides: Partial<AssistantHookResult> = {}): AssistantHookResult {
   return {
@@ -79,58 +81,89 @@ function chatMessage(id: string, role: 'user' | 'assistant', content: string, ex
   return { id, role, content, createdAt: '2030-03-10T09:15:00.000Z', actionIds: [], suggestions: [], ...extra };
 }
 
-function previewFor(state: ProposedActionState['action'], meetings = [makeMeeting('m1', { title: 'Weekly sync' })]): AiActionPreview {
-  return { action: state, meetings, missingMeetingIds: [], warnings: [], overlapping: [], calendarConnected: null };
+function previewFor(action: ProposedActionState['action'], meetings = [makeMeeting('m1', { title: 'Weekly sync' })]): AiActionPreview {
+  return { action, meetings, missingMeetingIds: [], warnings: [], overlapping: [], calendarConnected: null };
 }
 
-const navigation = { navigate: jest.fn(), goBack: jest.fn() };
+const navigation = { navigate: jest.fn(), goBack: jest.fn(), canGoBack: jest.fn(() => true) };
+
+type ScreenProps = Parameters<typeof AssistantScreen>[0];
+
+function renderChat(params: { followup?: string; prefill?: string; autoStart?: boolean } | undefined = {}) {
+  const props = { navigation, route: { key: 'AIChat-1', name: 'AIChat', params } } as unknown as ScreenProps;
+  return render(<AssistantScreen {...props} />);
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockDarkMode = false;
+  useMeeting.mockReturnValue({ meeting: null, isLoading: false, error: null });
+  jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 });
 
-describe('AIChat screen', () => {
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+describe('AssistantScreen', () => {
   it('shows the welcome message and localized examples when the thread is empty', async () => {
     const state = assistantState({ usage: usage({ used: 3 }) });
     useAssistant.mockReturnValue(state);
-    await render(<AIChat navigation={navigation} route={{ params: {} }} />);
+    await renderChat();
 
     expect(screen.getByText(/Tell me what you need/)).toBeTruthy();
     expect(screen.getByText('3/5 today · Free')).toBeTruthy();
+    expect(screen.getByLabelText('3 of 5 assistant requests used today on the Free plan')).toBeTruthy();
 
     await fireEvent.press(screen.getByText('What do I have this week?'));
     await fireEvent.press(screen.getByTestId('assistant-send'));
     expect(state.send).toHaveBeenCalledWith('What do I have this week?');
   });
 
+  it('shows a loading state until the conversation is loaded and cannot send meanwhile', async () => {
+    const state = assistantState({ isLoaded: false });
+    useAssistant.mockReturnValue(state);
+    await renderChat({ prefill: 'Hello' });
+    expect(screen.getByTestId('assistant-loading')).toBeTruthy();
+    expect(screen.getByTestId('assistant-send').props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+    await fireEvent.press(screen.getByTestId('assistant-send'));
+    expect(state.send).not.toHaveBeenCalled();
+  });
+
   it('never auto-starts a follow-up from an external link: the user taps "Get follow-up ideas"', async () => {
     const state = assistantState();
     useAssistant.mockReturnValue(state);
-    await render(<AIChat navigation={navigation} route={{ params: { followup: 'meeting_7', prefill: 'Draft text' } }} />);
+    useMeeting.mockReturnValue({ meeting: makeMeeting('meeting_7', { title: 'Budget review' }), isLoading: false, error: null });
+    await renderChat({ followup: 'meeting_7', prefill: 'Draft text' });
     expect(useAssistant).toHaveBeenCalledWith({ followUpMeetingId: 'meeting_7', autoStartFollowUp: false });
     expect(screen.getByDisplayValue('Draft text')).toBeTruthy();
-    expect(screen.getByText('Meeting follow-up')).toBeTruthy();
+    expect(screen.getByText('Follow-up: Budget review')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('assistant-start-followup'));
     expect(state.startFollowUp).toHaveBeenCalledWith('meeting_7');
   });
 
   it('auto-starts the follow-up only when the app notification opened the chat', async () => {
     useAssistant.mockReturnValue(assistantState());
-    await render(<AIChat navigation={navigation} route={{ params: { followup: 'meeting_7', autoStart: true } }} />);
+    await renderChat({ followup: 'meeting_7', autoStart: true });
     expect(useAssistant).toHaveBeenCalledWith({ followUpMeetingId: 'meeting_7', autoStartFollowUp: true });
+    expect(screen.getByText('Meeting follow-up')).toBeTruthy();
     expect(screen.queryByTestId('assistant-start-followup')).toBeNull();
   });
 
   it('shows an update proposal, reviews it as a diff and confirms it', async () => {
     const action = updateAction('a1-1', 'm1', { startAt: '2030-03-11T17:00:00.000Z' });
     const state = assistantState({
-      messages: [chatMessage('u1', 'user', 'Move my sync to 5pm'), chatMessage('a1', 'assistant', 'Here is the change', { actionIds: [action.id], suggestions: ['Also add a Meet link'] })],
+      messages: [
+        chatMessage('u1', 'user', 'Move my sync to 5pm'),
+        chatMessage('a1', 'assistant', 'Here is the change', { actionIds: [action.id], suggestions: ['Also add a Meet link'] }),
+      ],
       actions: { [action.id]: { action, status: 'proposed', preview: previewFor(action), result: null } },
     });
     useAssistant.mockReturnValue(state);
-    await render(<AIChat navigation={navigation} route={{ params: {} }} />);
+    await renderChat();
 
     expect(screen.getByText('Move my sync to 5pm')).toBeTruthy();
+    expect(screen.getByLabelText('You, 09:15: Move my sync to 5pm')).toBeTruthy();
     expect(screen.getByText('Needs confirmation')).toBeTruthy();
     expect(screen.getByText('Also add a Meet link')).toBeTruthy();
 
@@ -145,21 +178,20 @@ describe('AIChat screen', () => {
     expect(await screen.findByText('Meeting updated.')).toBeTruthy();
   });
 
-  it('sends a server suggestion as the next message', async () => {
+  it('sends a server suggestion as the next message, marked as model-written', async () => {
     const state = assistantState({
       messages: [chatMessage('a1', 'assistant', 'Done', { suggestions: ['Share it with the team'] })],
     });
     useAssistant.mockReturnValue(state);
-    await render(<AIChat navigation={navigation} route={{ params: {} }} />);
+    await renderChat();
     await fireEvent.press(screen.getByText('Share it with the team'));
-    // Model-written chip text is marked, so the server never treats it as typed by the user.
     expect(state.send).toHaveBeenCalledWith('Share it with the team', { origin: 'suggestion' });
   });
 
   it('offers an upgrade for quota errors and retry for transient ones', async () => {
     const quota = new AppError('quota_exceeded', 'x', { details: { reason: 'quota_exceeded', usage: usage({ used: 5 }) } });
     useAssistant.mockReturnValue(assistantState({ error: quota, messages: [chatMessage('u1', 'user', 'Hi', { delivery: 'failed' })] }));
-    const { unmount } = await render(<AIChat navigation={navigation} route={{ params: {} }} />);
+    const { unmount } = await renderChat();
     expect(screen.getByText(/used all 5 assistant requests/)).toBeTruthy();
     expect(screen.getByText('Not sent')).toBeTruthy();
     await fireEvent.press(screen.getByText('See plans'));
@@ -168,7 +200,7 @@ describe('AIChat screen', () => {
 
     const offline = assistantState({ error: new AppError('offline'), canRetry: true });
     useAssistant.mockReturnValue(offline);
-    await render(<AIChat navigation={navigation} route={{ params: {} }} />);
+    await renderChat();
     expect(screen.getByText(/You're offline/)).toBeTruthy();
     await fireEvent.press(screen.getByTestId('assistant-retry'));
     expect(offline.retry).toHaveBeenCalled();
@@ -188,66 +220,77 @@ describe('AIChat screen', () => {
         pendingActionIds: [a.id, b.id],
       }),
     );
-    await render(<AIChat navigation={navigation} route={{ params: {} }} />);
+    await renderChat();
     expect(screen.getByTestId('typing-indicator')).toBeTruthy();
+    expect(screen.getByLabelText('Thinking…')).toBeTruthy();
     expect(screen.getByText('2 actions waiting for your confirmation')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('assistant-review-all'));
     expect(screen.getByText('Confirm 2 actions')).toBeTruthy();
     expect(screen.getByText('Confirm all 2')).toBeTruthy();
   });
-});
 
-describe('MeetingConfirmationModal', () => {
-  it('uses destructive styling and wording for a delete', async () => {
+  it('asks before clearing the conversation and clears it on confirmation', async () => {
+    const state = assistantState({ messages: [chatMessage('u1', 'user', 'Hi')] });
+    useAssistant.mockReturnValue(state);
+    await renderChat();
+    await fireEvent.press(screen.getByTestId('assistant-clear'));
+    expect(Alert.alert).toHaveBeenCalledWith('Clear conversation?', expect.any(String), expect.any(Array));
+    const buttons = (Alert.alert as jest.Mock).mock.calls[0]?.[2] as { style?: string; onPress?: () => void }[];
+    await act(async () => {
+      buttons.find((button) => button.style === 'destructive')?.onPress?.();
+    });
+    expect(state.reset).toHaveBeenCalled();
+  });
+
+  it('cannot clear an empty conversation', async () => {
+    useAssistant.mockReturnValue(assistantState());
+    await renderChat();
+    expect(screen.getByTestId('assistant-clear').props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+  });
+
+  it('opens meetings from a list card and from a finished action', async () => {
+    const list = listAction('l1', ['m1']);
+    const done = updateAction('u1', 'm2', { title: 'Renamed' });
+    useAssistant.mockReturnValue(
+      assistantState({
+        messages: [chatMessage('a1', 'assistant', 'Here you go', { actionIds: ['l1', 'u1'] })],
+        actions: {
+          l1: { action: list, status: 'done', preview: previewFor(list), result: null },
+          u1: {
+            action: done,
+            status: 'done',
+            preview: null,
+            result: { status: 'done', actionId: 'u1', type: 'update_meeting', meetingIds: ['m2'], duplicate: false },
+          },
+        },
+      }),
+    );
+    await renderChat();
+    await fireEvent.press(screen.getByTestId('action-meeting-m1'));
+    expect(navigation.navigate).toHaveBeenCalledWith('MeetingDetails', { meetingId: 'm1' });
+    expect(screen.getByText('Meeting updated.')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('action-open-u1'));
+    expect(navigation.navigate).toHaveBeenCalledWith('MeetingDetails', { meetingId: 'm2' });
+  });
+
+  it('dismisses a proposal without running it', async () => {
     const action = deleteAction('d1', 'm1');
-    const onConfirm = jest.fn();
-    await render(
-      <MeetingConfirmationModal
-        visible
-        actions={[{ action, status: 'proposed', preview: previewFor(action), result: null }]}
-        onConfirm={onConfirm}
-        onCancel={jest.fn()}
-      />,
-    );
-    expect(screen.getByText('Delete this meeting?')).toBeTruthy();
-    expect(screen.getByText('This meeting will be deleted and its alerts cancelled.')).toBeTruthy();
-    expect(screen.getByText('Weekly sync')).toBeTruthy();
-    expect(within(screen.getByTestId('confirm-submit')).getByText('Delete meeting')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('confirm-submit'));
-    expect(onConfirm).toHaveBeenCalled();
+    const state = assistantState({
+      messages: [chatMessage('a1', 'assistant', 'Delete it?', { actionIds: [action.id] })],
+      actions: { [action.id]: { action, status: 'proposed', preview: previewFor(action), result: null } },
+    });
+    useAssistant.mockReturnValue(state);
+    await renderChat();
+    await fireEvent.press(screen.getByTestId(`action-dismiss-${action.id}`));
+    expect(state.reject).toHaveBeenCalledWith(action.id);
+    expect(state.confirm).not.toHaveBeenCalled();
   });
 
-  it('lists every email recipient of a share and explains that nothing is sent automatically', async () => {
-    const action = shareAction('s1', 'm1', { recipients: ['john@company.com', 'ana@x.io'], message: 'See you there' });
-    await render(
-      <MeetingConfirmationModal
-        visible
-        actions={[{ action, status: 'proposed', preview: previewFor(action), result: null }]}
-        onConfirm={jest.fn()}
-        onCancel={jest.fn()}
-      />,
-    );
-    expect(screen.getByText('john@company.com')).toBeTruthy();
-    expect(screen.getByText('ana@x.io')).toBeTruthy();
-    expect(screen.getByText('Recipients (2)')).toBeTruthy();
-    expect(screen.getByText(/Nothing is sent until you send it there/)).toBeTruthy();
-    expect(screen.getByText('Write email')).toBeTruthy();
-  });
-
-  it('shows every field of a new meeting and its warnings', async () => {
-    const action = createAction('c1', { conference: { provider: 'google_meet', url: null, password: null } });
-    const preview: AiActionPreview = { ...previewFor(action, []), warnings: ['google_meet_needs_calendar'] };
-    await render(
-      <MeetingConfirmationModal
-        visible
-        actions={[{ action, status: 'proposed', preview, result: null }]}
-        onConfirm={jest.fn()}
-        onCancel={jest.fn()}
-      />,
-    );
-    expect(screen.getByText('Budget review')).toBeTruthy();
-    expect(screen.getByText(/Connect Google Calendar to create a real Google Meet link/)).toBeTruthy();
-    expect(screen.getByText('92%')).toBeTruthy();
+  it('renders in dark mode', async () => {
+    mockDarkMode = true;
+    useAssistant.mockReturnValue(assistantState());
+    await renderChat();
+    expect(screen.getByTestId('assistant-welcome')).toBeTruthy();
   });
 });

@@ -20,7 +20,10 @@
     "pending_one": "{{count}} action waiting for your confirmation",
     "pending_other": "{{count}} actions waiting for your confirmation",
     "reviewAll": "Review all",
-    "followUpStart": "Get follow-up ideas"
+    "followUpStart": "Get follow-up ideas",
+    "loading": "Loading your conversation…",
+    "a11yUserMessage": "You, {{time}}: {{text}}",
+    "a11yAssistantMessage": "Assistant, {{time}}: {{text}}"
   },
   "examples": {
     "e1": "Schedule a meeting with Ana tomorrow at 4pm",
@@ -75,7 +78,8 @@
     "openMeeting": "Open meeting",
     "listEmpty": "No matching meetings.",
     "moreWarnings_one": "(+{{count}} more)",
-    "moreWarnings_other": "(+{{count}} more)"
+    "moreWarnings_other": "(+{{count}} more)",
+    "a11yMeeting": "{{title}}, {{when}}"
   },
   "confirm": {
     "title": {

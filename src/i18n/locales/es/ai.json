@@ -20,7 +20,10 @@
     "pending_one": "{{count}} acción pendiente de tu confirmación",
     "pending_other": "{{count}} acciones pendientes de tu confirmación",
     "reviewAll": "Revisar todas",
-    "followUpStart": "Obtener ideas de seguimiento"
+    "followUpStart": "Obtener ideas de seguimiento",
+    "loading": "Cargando tu conversación…",
+    "a11yUserMessage": "Tú, {{time}}: {{text}}",
+    "a11yAssistantMessage": "Asistente, {{time}}: {{text}}"
   },
   "examples": {
     "e1": "Programa una reunión con Ana mañana a las 4 p. m.",
@@ -75,7 +78,8 @@
     "openMeeting": "Abrir reunión",
     "listEmpty": "No hay reuniones que coincidan.",
     "moreWarnings_one": "(+{{count}} más)",
-    "moreWarnings_other": "(+{{count}} más)"
+    "moreWarnings_other": "(+{{count}} más)",
+    "a11yMeeting": "{{title}}, {{when}}"
   },
   "confirm": {
     "title": {

@@ -47,7 +47,8 @@
     "retry": "Reintentar",
     "import": {
       "title": "Importar eventos de",
-      "googleSynced": "Ya se sincroniza a través de Google Calendar"
+      "googleSynced": "Ya se sincroniza a través de Google Calendar",
+      "a11y": "Importar eventos de {{calendar}}"
     },
     "export": {
       "title": "Añadir las reuniones de MeetingGuard a",

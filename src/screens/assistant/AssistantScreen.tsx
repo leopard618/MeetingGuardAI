@@ -1,0 +1,488 @@
+/**
+ * AI assistant chat (route "AIChat", params { followup?: meetingId, prefill?: text, autoStart? }).
+ *
+ * Built on useAssistant(): the Firebase "assistant" callable proposes actions, this screen shows
+ * them as cards and nothing changes until the user confirms in MeetingConfirmationModal.
+ * - Chat bubbles (FlatList), typing indicator, quick-reply suggestion chips (examples when empty).
+ * - Usage pill ("3/5 today") and inline errors with Retry / See plans.
+ * - Follow-up mode (post-meeting notification -> assistant?followup=<meetingId>): only the app's
+ *   own notification starts the request by itself (`autoStart`); an external link shows a
+ *   "Get follow-up ideas" button, so no paid request is sent without a tap.
+ */
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { StackScreenProps } from '@react-navigation/stack';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Snackbar } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { MeetingConfirmationModal } from '../../components/MeetingConfirmationModal';
+import { useTheme } from '../../contexts/ThemeContext';
+import { AI_LIMITS, PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
+import type { ActionResult, RootStackParamList } from '../../core/contracts';
+import { useLanguage, useT } from '../../i18n';
+import { useAssistant } from '../../services/ai';
+import { createAssistantFormatter } from '../../services/ai/formatter';
+import { assistantPalette, describeUsage, feedbackColors, type AssistantPalette, type Feedback } from '../../services/ai/presentation';
+import type { AssistantFormatter, AssistantHookResult, ChatMessage } from '../../services/ai/types';
+import { useEntitlement, useMeeting, usePreferences } from '../../services/data';
+import { ActionCard } from './ActionCard';
+import { AssistantAvatar, ErrorNotice, MessageBubble, SuggestionChips, TypingIndicator, UsagePill, WelcomeBubble } from './ChatPieces';
+import {
+  EXAMPLE_KEYS,
+  USAGE_CLOCK_MS,
+  canStartFollowUp,
+  chatErrorDescription,
+  parseChatParams,
+  reviewableStates,
+  sendableText,
+  summarizeResults,
+  visibleSuggestions,
+} from './chatModel';
+import { useKeyboardAvoidance } from './useKeyboardAvoidance';
+
+type Props = StackScreenProps<RootStackParamList, 'AIChat'>;
+
+const ICON_HIT_SLOP = 8;
+
+/** One message and the action cards attached to it. */
+function MessageBlock({
+  message,
+  assistant,
+  fmt,
+  palette,
+  followUpTitle,
+  onReview,
+  onOpenMeeting,
+}: {
+  message: ChatMessage;
+  assistant: AssistantHookResult;
+  fmt: AssistantFormatter;
+  palette: AssistantPalette;
+  followUpTitle: string | null;
+  onReview: (actionId: string) => void;
+  onOpenMeeting: (meetingId: string) => void;
+}): ReactElement {
+  return (
+    <View style={styles.messageBlock}>
+      <MessageBubble message={message} fmt={fmt} palette={palette} followUpTitle={followUpTitle} />
+      {message.actionIds.map((actionId) => {
+        const state = assistant.actions[actionId];
+        if (!state) return null;
+        return (
+          <ActionCard
+            key={actionId}
+            state={state}
+            fmt={fmt}
+            palette={palette}
+            onReview={onReview}
+            onReject={assistant.reject}
+            onOpenMeeting={onOpenMeeting}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
+function Welcome({
+  fmt,
+  palette,
+  examples,
+  onExample,
+}: {
+  fmt: AssistantFormatter;
+  palette: AssistantPalette;
+  examples: string[];
+  onExample: (text: string) => void;
+}): ReactElement {
+  return (
+    <View style={styles.welcome} testID="assistant-welcome">
+      <WelcomeBubble palette={palette} text={fmt.t('ai:chat.welcome')} />
+      <SuggestionChips items={examples} onPress={onExample} palette={palette} disabled={false} title={fmt.t('ai:chat.examplesTitle')} />
+    </View>
+  );
+}
+
+export function AssistantScreen({ navigation, route }: Props): ReactElement {
+  const t = useT();
+  const { language } = useLanguage();
+  const { isDarkMode } = useTheme() as { isDarkMode: boolean };
+  const palette = assistantPalette(isDarkMode);
+  const insets = useSafeAreaInsets();
+  const { rootRef, onRootLayout, keyboardVerticalOffset, keyboardVisible } = useKeyboardAvoidance();
+  const { preferences } = usePreferences();
+  const use24Hour = preferences.use24HourClock;
+  const fmt = useMemo(() => createAssistantFormatter({ t, language, use24Hour }), [t, language, use24Hour]);
+
+  const { followUpMeetingId, prefill, autoStartFollowUp } = parseChatParams(route.params);
+  const assistant = useAssistant({ followUpMeetingId, autoStartFollowUp });
+  const { plan, isLoaded: planLoaded } = useEntitlement();
+  const { meeting: followUpMeeting } = useMeeting(followUpMeetingId);
+
+  const [input, setInput] = useState(prefill);
+  const [appliedPrefill, setAppliedPrefill] = useState(prefill);
+  if (prefill !== appliedPrefill) {
+    // A new prefill param while the screen stays mounted (adjusting state during render).
+    setAppliedPrefill(prefill);
+    if (prefill) setInput(prefill);
+  }
+  const [reviewIds, setReviewIds] = useState<string[] | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  const listRef = useRef<FlatList<ChatMessage> | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), USAGE_CLOCK_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  const usage = describeUsage(fmt, assistant.usage, planLoaded ? { plan, limit: PLAN_DAILY_AI_LIMITS[plan] } : null, now);
+  const errorDescription = chatErrorDescription(fmt, assistant, now);
+  const suggestions = visibleSuggestions(assistant.messages, assistant.isSending);
+  const examples = useMemo(() => EXAMPLE_KEYS.map((key) => fmt.t(`ai:examples.${key}`)), [fmt]);
+  const followUpTitle = followUpMeeting?.title ?? null;
+  const reviewStates = reviewableStates(reviewIds, assistant.actions);
+  const showFollowUpButton = canStartFollowUp({
+    followUpMeetingId,
+    autoStartFollowUp,
+    isLoaded: assistant.isLoaded,
+    isSending: assistant.isSending,
+    followUpsRequested: assistant.followUpsRequested,
+  });
+  const canSend = sendableText(input, assistant) !== null;
+  const hasMessages = assistant.messages.length > 0;
+  const pendingCount = assistant.pendingActionIds.length;
+  const feedbackStyle = feedback ? feedbackColors(palette, feedback.tone) : null;
+
+  const send = (): void => {
+    const text = sendableText(input, assistant);
+    if (text === null) return;
+    setInput('');
+    void assistant.send(text);
+  };
+
+  /** A tapped suggestion chip is sent as is and marked as model-written (never "typed"). */
+  const sendSuggestion = (chip: string): void => {
+    const text = sendableText(chip, assistant);
+    if (text === null) return;
+    void assistant.send(text, { origin: 'suggestion' });
+  };
+
+  const openMeeting = (meetingId: string): void => navigation.navigate('MeetingDetails', { meetingId });
+  const reviewOne = (actionId: string): void => setReviewIds([actionId]);
+
+  const confirmReviewed = async (): Promise<void> => {
+    const ids = reviewStates.map((state) => state.action.id);
+    if (ids.length === 0) return;
+    setConfirming(true);
+    setReviewIds(null);
+    const results: ActionResult[] = [];
+    try {
+      for (const id of ids) {
+        // Sequential: later actions may depend on earlier ones (create, then share).
+        results.push(await assistant.confirm(id));
+      }
+    } finally {
+      setConfirming(false);
+    }
+    const summary = summarizeResults(fmt, results);
+    if (summary) setFeedback(summary);
+  };
+
+  const clearConversation = (): void => {
+    Alert.alert(fmt.t('ai:chat.clearTitle'), fmt.t('ai:chat.clearMessage'), [
+      { text: fmt.t('ai:chat.cancel'), style: 'cancel' },
+      { text: fmt.t('ai:chat.clearConfirm'), style: 'destructive', onPress: () => void assistant.reset() },
+    ]);
+  };
+
+  const renderMessage = ({ item }: { item: ChatMessage }): ReactElement => (
+    <MessageBlock
+      message={item}
+      assistant={assistant}
+      fmt={fmt}
+      palette={palette}
+      followUpTitle={followUpTitle}
+      onReview={reviewOne}
+      onOpenMeeting={openMeeting}
+    />
+  );
+
+  const footer = (
+    <View style={styles.footerStack}>
+      {assistant.isSending ? (
+        <TypingIndicator palette={palette} label={assistant.followUpInFlight ? fmt.t('ai:chat.followUpLoading') : fmt.t('ai:chat.thinking')} />
+      ) : null}
+      {errorDescription && !assistant.isSending ? (
+        <ErrorNotice
+          description={errorDescription}
+          canRetry={assistant.canRetry}
+          onRetry={() => void assistant.retry()}
+          onUpgrade={() => navigation.navigate('Pricing')}
+          palette={palette}
+          fmt={fmt}
+        />
+      ) : null}
+      <SuggestionChips items={suggestions} onPress={sendSuggestion} palette={palette} disabled={assistant.isSending} />
+    </View>
+  );
+
+  return (
+    <View
+      ref={rootRef}
+      onLayout={onRootLayout}
+      style={[styles.container, { backgroundColor: palette.background, paddingLeft: insets.left, paddingRight: insets.right }]}
+    >
+      <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={keyboardVerticalOffset}>
+        <View style={[styles.topBar, { borderBottomColor: palette.border }]}>
+          <AssistantAvatar palette={palette} />
+          <View style={styles.flex}>
+            <Text style={[styles.topTitle, { color: palette.text }]} accessibilityRole="header">
+              {fmt.t('ai:chat.title')}
+            </Text>
+            <Text style={[styles.topSubtitle, { color: palette.textMuted }]} numberOfLines={2}>
+              {fmt.t('ai:chat.subtitle')}
+            </Text>
+          </View>
+          <UsagePill usage={usage} palette={palette} />
+          <Pressable
+            onPress={clearConversation}
+            disabled={!hasMessages}
+            hitSlop={ICON_HIT_SLOP}
+            style={[styles.iconButton, { opacity: hasMessages ? 1 : 0.4 }]}
+            accessibilityRole="button"
+            accessibilityLabel={fmt.t('ai:chat.clear')}
+            accessibilityState={{ disabled: !hasMessages }}
+            testID="assistant-clear"
+          >
+            <MaterialCommunityIcons name="delete-sweep-outline" size={24} color={palette.textMuted} />
+          </Pressable>
+        </View>
+
+        {followUpMeetingId ? (
+          <View style={[styles.banner, { backgroundColor: palette.infoSurface }]}>
+            <MaterialCommunityIcons name="calendar-check-outline" size={16} color={palette.info} />
+            <Text style={[styles.bannerText, { color: palette.info }]} numberOfLines={2}>
+              {followUpTitle ? fmt.t('ai:chat.followUpFor', { title: followUpTitle }) : fmt.t('ai:chat.followUpGeneric')}
+            </Text>
+            {showFollowUpButton ? (
+              <Pressable
+                onPress={() => void assistant.startFollowUp(followUpMeetingId)}
+                hitSlop={6}
+                style={[styles.bannerButton, { backgroundColor: palette.primary }]}
+                accessibilityRole="button"
+                testID="assistant-start-followup"
+              >
+                <Text style={[styles.bannerButtonText, { color: palette.onPrimary }]}>{fmt.t('ai:chat.followUpStart')}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        {!assistant.isLoaded ? (
+          <View style={styles.center} accessible accessibilityLabel={fmt.t('ai:chat.loading')} testID="assistant-loading">
+            <ActivityIndicator size="large" color={palette.primary} />
+          </View>
+        ) : (
+          <FlatList
+            ref={listRef}
+            data={assistant.messages}
+            keyExtractor={(message) => message.id}
+            renderItem={renderMessage}
+            extraData={assistant}
+            style={styles.flex}
+            contentContainerStyle={styles.messages}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            ListEmptyComponent={
+              assistant.isSending ? null : <Welcome fmt={fmt} palette={palette} examples={examples} onExample={setInput} />
+            }
+            ListFooterComponent={footer}
+            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            testID="assistant-messages"
+          />
+        )}
+
+        {pendingCount >= 2 ? (
+          <View style={[styles.pendingBar, { backgroundColor: palette.surface, borderTopColor: palette.border }]}>
+            <Text style={[styles.pendingText, { color: palette.text }]}>{fmt.t('ai:chat.pending', { count: pendingCount })}</Text>
+            <Pressable
+              onPress={() => setReviewIds([...assistant.pendingActionIds])}
+              hitSlop={6}
+              style={[styles.bannerButton, { backgroundColor: palette.primary }]}
+              accessibilityRole="button"
+              testID="assistant-review-all"
+            >
+              <Text style={[styles.bannerButtonText, { color: palette.onPrimary }]}>{fmt.t('ai:chat.reviewAll')}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <View
+          style={[
+            styles.composer,
+            {
+              borderTopColor: palette.border,
+              backgroundColor: palette.background,
+              paddingBottom: 8 + (keyboardVisible ? 0 : insets.bottom),
+            },
+          ]}
+        >
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder={fmt.t('ai:chat.placeholder')}
+            placeholderTextColor={palette.textMuted}
+            style={[styles.input, { color: palette.text, backgroundColor: palette.surface, borderColor: palette.border }]}
+            multiline
+            maxLength={AI_LIMITS.maxMessageChars}
+            editable={assistant.isLoaded}
+            accessibilityLabel={fmt.t('ai:chat.placeholder')}
+            testID="assistant-input"
+          />
+          <Pressable
+            onPress={send}
+            disabled={!canSend}
+            style={[styles.sendButton, { backgroundColor: palette.primary, opacity: canSend ? 1 : 0.4 }]}
+            accessibilityRole="button"
+            accessibilityLabel={fmt.t('ai:chat.send')}
+            accessibilityState={{ disabled: !canSend }}
+            testID="assistant-send"
+          >
+            <MaterialCommunityIcons name="send" size={20} color={palette.onPrimary} />
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+
+      <MeetingConfirmationModal
+        use24Hour={use24Hour}
+        visible={reviewStates.length > 0}
+        actions={reviewStates}
+        onConfirm={() => void confirmReviewed()}
+        onCancel={() => setReviewIds(null)}
+        onReject={assistant.reject}
+        isBusy={confirming}
+      />
+
+      <Snackbar
+        visible={feedback !== null}
+        onDismiss={() => setFeedback(null)}
+        duration={4000}
+        style={feedbackStyle ? { backgroundColor: feedbackStyle.background } : undefined}
+        wrapperStyle={{ paddingBottom: insets.bottom }}
+      >
+        <Text style={{ color: feedbackStyle?.color ?? palette.text }}>{feedback?.message ?? ''}</Text>
+      </Snackbar>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  flex: {
+    flex: 1,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  topTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  topSubtitle: {
+    fontSize: 12,
+  },
+  iconButton: {
+    padding: 6,
+    borderRadius: 18,
+  },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  bannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  bannerButton: {
+    minHeight: 36,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bannerButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  messages: {
+    padding: 16,
+    gap: 12,
+  },
+  welcome: {
+    gap: 12,
+  },
+  messageBlock: {
+    gap: 8,
+  },
+  footerStack: {
+    gap: 12,
+  },
+  pendingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  pendingText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  composer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  input: {
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 140,
+    borderWidth: 1,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 11,
+    paddingBottom: 11,
+    fontSize: 15,
+  },
+  sendButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

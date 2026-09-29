@@ -56,11 +56,11 @@ jest.mock('../../screens/notes/NotesScreen', () => ({ NotesScreen: mockScreen('N
 jest.mock('../../screens/attachments/MeetingAttachmentsSection', () => ({ MeetingAttachmentsSection: () => null }));
 jest.mock('../../screens/settings/SettingsScreen', () => ({ SettingsScreen: mockScreen('Settings').default }));
 jest.mock('../../screens/alerts/AlertSettingsScreen', () => ({ AlertSettingsScreen: mockScreen('AlertSettings').default }));
-jest.mock('../../pages/AIChat', () => mockScreen('AIChat'));
+jest.mock('../../screens/assistant/AssistantScreen', () => ({ AssistantScreen: mockScreen('AIChat').default }));
 jest.mock('../../screens/insights/AIInsightsScreen', () => ({ AIInsightsScreen: mockScreen('AIInsights').default }));
 jest.mock('../../pages/Privacy', () => mockScreen('Privacy'));
 jest.mock('../../pages/Terms', () => mockScreen('Terms'));
-jest.mock('../../pages/CalendarSync', () => mockScreen('CalendarSync'));
+jest.mock('../../screens/calendarSync/CalendarSyncScreen', () => ({ CalendarSyncScreen: mockScreen('CalendarSync').default }));
 jest.mock('../../pages/Pricing', () => mockScreen('Pricing'));
 jest.mock('../../pages/LandingPage', () => mockScreen('Landing'));
 jest.mock('../../components/CustomHeader', () => {
