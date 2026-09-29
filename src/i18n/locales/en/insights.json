@@ -1,0 +1,95 @@
+{
+  "subtitle": "Calculated on this device from the meetings in MeetingGuard. Nothing is sent anywhere unless you ask the assistant.",
+  "period": {
+    "week": "This week",
+    "month": "This month"
+  },
+  "range": "{{from}} – {{to}}",
+  "loading": "Loading your meetings…",
+  "loadError": "Your meetings could not be loaded: {{reason}}",
+  "empty": "No meetings in this period",
+  "emptyHint": "Insights appear once you have meetings here. Create one or connect a calendar.",
+  "meetings_one": "{{count}} meeting",
+  "meetings_other": "{{count}} meetings",
+  "stats": {
+    "meetings": "Meetings",
+    "time": "Time in meetings",
+    "average": "Average length",
+    "averageNone": "No timed meetings",
+    "allDay_one": "Includes {{count}} all-day event (no time counted)",
+    "allDay_other": "Includes {{count}} all-day events (no time counted)",
+    "busiest": "Busiest day",
+    "busiestValue": "{{date}} · {{meetings}} · {{duration}}"
+  },
+  "load": {
+    "title": "Load by day",
+    "monthHint": "Totals of the month for each day of the week.",
+    "rowA11y": "{{day}}: {{meetings}}, {{duration}}"
+  },
+  "weekday": {
+    "0": "Sun",
+    "1": "Mon",
+    "2": "Tue",
+    "3": "Wed",
+    "4": "Thu",
+    "5": "Fri",
+    "6": "Sat"
+  },
+  "weekdayLong": {
+    "0": "Sunday",
+    "1": "Monday",
+    "2": "Tuesday",
+    "3": "Wednesday",
+    "4": "Thursday",
+    "5": "Friday",
+    "6": "Saturday"
+  },
+  "sources": {
+    "title": "Where your meetings come from",
+    "manual": "Created in MeetingGuard",
+    "ai_chat": "AI assistant",
+    "whatsapp": "WhatsApp",
+    "google": "Google Calendar",
+    "device": "Device calendar"
+  },
+  "conflicts": {
+    "title": "Overlapping meetings",
+    "none": "No overlapping meetings in this period.",
+    "pair": "{{first}} and {{second}}",
+    "openA11y": "Open {{title}}"
+  },
+  "backToBack": {
+    "title": "Back-to-back meetings",
+    "hint": "Less than 5 minutes between the end of one meeting and the start of the next.",
+    "none": "No back-to-back meetings in this period.",
+    "item": "{{second}} starts right after {{first}}"
+  },
+  "attention": {
+    "title": "Coming up: worth a look",
+    "missingPlace_one": "{{count}} meeting has no link or place",
+    "missingPlace_other": "{{count}} meetings have no link or place",
+    "withTips_one": "{{count}} meeting has preparation tips",
+    "withTips_other": "{{count}} meetings have preparation tips",
+    "none": "Every upcoming meeting in this period has a link or a place."
+  },
+  "ai": {
+    "title": "AI suggestions",
+    "description": "Optional. The assistant reads your meetings and suggests how to handle conflicts, breaks and preparation. Nothing changes until you confirm it in the assistant.",
+    "button": "Get AI suggestions",
+    "confirmTitle": "Get AI suggestions?",
+    "confirmUsage": "This sends one request to the AI assistant and counts toward your daily AI limit ({{usage}}).",
+    "confirmNoUsage": "This sends one request to the AI assistant and counts toward your daily AI limit.",
+    "confirmPrivacy": "Your meetings from the last 7 days and the next 60 days are processed by OpenAI through our server to write the suggestions.",
+    "confirm": "Get suggestions",
+    "sending": "Asking the assistant…",
+    "busy": "The assistant is answering another request. Try again in a moment.",
+    "offline": "AI suggestions need an internet connection.",
+    "promptWeek": "Review my meetings for this week. Suggest how to resolve overlaps, where to add breaks between back-to-back meetings, and what I should prepare. Don't change anything yet.",
+    "promptMonth": "Review my meetings for this month. Suggest how to resolve overlaps, where to add breaks between back-to-back meetings, and what I should prepare. Don't change anything yet.",
+    "replyTitle": "The assistant says",
+    "proposed_one": "The assistant proposed {{count}} change. Review it in the assistant; nothing is saved until you confirm.",
+    "proposed_other": "The assistant proposed {{count}} changes. Review them in the assistant; nothing is saved until you confirm.",
+    "openChat": "Continue in the assistant",
+    "retry": "Try again"
+  }
+}

@@ -1,0 +1,282 @@
+import { NavigationContainer, type RouteProp } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
+import { Linking, Text } from 'react-native';
+import { PaperProvider } from 'react-native-paper';
+import Toast from 'react-native-toast-message';
+
+import type { RootStackParamList, ScheduledAlertInfo, UseMeetingsResult } from '../../../core/contracts';
+import { AppError } from '../../../core/errors';
+import type { Meeting } from '../../../core/types';
+import { I18nProvider, i18n } from '../../../i18n';
+import { makeMeeting } from '../../insights/__fixtures__/meetings';
+import { DashboardScreen } from '../DashboardScreen';
+
+jest.mock('expo-localization', () => ({
+  getLocales: jest.fn(() => [{ languageCode: 'en', languageTag: 'en-US' }]),
+  getCalendars: jest.fn(() => [{ timeZone: 'UTC', uses24hourClock: false }]),
+}));
+jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { show: jest.fn() } }));
+
+jest.mock('../../../services/auth', () => ({
+  useAuth: () => ({ authUser: { uid: 'u1', displayName: 'Ana López', email: 'ana@example.com' } }),
+}));
+
+let mockMeetings: UseMeetingsResult = { meetings: [], isLoading: false, error: null, refresh: jest.fn() };
+let mockOnline = true;
+let mockPendingWrites = 0;
+let mockAlertEnabled = true;
+jest.mock('../../../services/data', () => {
+  const { createDefaultPreferences: defaults } = jest.requireActual('../../../core/types');
+  return {
+    useMeetings: () => mockMeetings,
+    usePreferences: () => ({
+      preferences: { ...defaults({ language: 'en', timezone: 'UTC' }), alertEnabled: mockAlertEnabled, alertIntensity: 'max' },
+      isLoaded: true,
+      error: null,
+    }),
+    useSyncState: () => ({ online: mockOnline, pendingWrites: mockPendingWrites, lastSyncedAt: null }),
+  };
+});
+
+const mockSyncNow = jest.fn();
+jest.mock('../../../services/calendar', () => ({
+  calendarSyncEngine: { syncNow: (...args: unknown[]) => mockSyncNow(...args) },
+}));
+
+let mockPending: ScheduledAlertInfo[] = [];
+const mockRequestPermissions = jest.fn(async () => ({ notifications: 'granted', canAskAgain: true, exactAlarms: 'not_required' }));
+let mockPermission: { notifications: string; canAskAgain: boolean; exactAlarms: string } = {
+  notifications: 'granted',
+  canAskAgain: true,
+  exactAlarms: 'not_required',
+};
+jest.mock('../../../services/alerts', () => ({
+  usePendingAlerts: () => ({
+    pending: mockPending,
+    next: mockPending[0] ?? null,
+    permission: mockPermission,
+    isLoading: false,
+    refresh: jest.fn(async () => undefined),
+  }),
+  alertEngine: {
+    requestPermissions: () => mockRequestPermissions(),
+    openNotificationSettings: jest.fn(async () => undefined),
+    openExactAlarmSettings: jest.fn(async () => undefined),
+    openAlarmChannelSettings: jest.fn(async () => undefined),
+  },
+}));
+
+// Wednesday 30 September 2026, 10:00 UTC (only Date is faked; timers stay real).
+const NOW = new Date('2026-09-30T10:00:00.000Z');
+const minutesFromNow = (minutes: number): string => new Date(NOW.getTime() + minutes * 60_000).toISOString();
+
+const Stack = createStackNavigator<RootStackParamList>();
+
+function TargetStub({ route }: { route: RouteProp<RootStackParamList, keyof RootStackParamList> }) {
+  return <Text testID={`target-${route.name}`}>{JSON.stringify(route.params ?? null)}</Text>;
+}
+
+async function renderDashboard() {
+  await render(
+    <I18nProvider>
+      <PaperProvider>
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Dashboard" component={DashboardScreen} />
+            <Stack.Screen name="MeetingDetails" component={TargetStub} />
+            <Stack.Screen name="AIChat" component={TargetStub} />
+            <Stack.Screen name="AIInsights" component={TargetStub} />
+            <Stack.Screen name="AlertSettings" component={TargetStub} />
+            <Stack.Screen name="CreateMeeting" component={TargetStub} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </PaperProvider>
+    </I18nProvider>,
+  );
+}
+
+function meetingsResult(meetings: Meeting[], overrides: Partial<UseMeetingsResult> = {}): UseMeetingsResult {
+  return { meetings, isLoading: false, error: null, refresh: jest.fn(async () => undefined), ...overrides };
+}
+
+const CURRENT = makeMeeting({
+  id: 'current',
+  title: 'Design review',
+  startAt: minutesFromNow(-10),
+  durationMinutes: 40,
+  conference: { provider: 'zoom', url: 'https://zoom.us/j/123', password: null },
+});
+const OVERLAPPING = makeMeeting({ id: 'overlap', title: 'Vendor call', startAt: minutesFromNow(20), durationMinutes: 30 });
+const NO_LINK = makeMeeting({ id: 'later', title: 'Team lunch', startAt: minutesFromNow(240), durationMinutes: 60 });
+
+beforeEach(async () => {
+  jest.useFakeTimers({
+    now: NOW,
+    doNotFake: [
+      'hrtime',
+      'nextTick',
+      'performance',
+      'queueMicrotask',
+      'requestAnimationFrame',
+      'cancelAnimationFrame',
+      'requestIdleCallback',
+      'cancelIdleCallback',
+      'setImmediate',
+      'clearImmediate',
+      'setInterval',
+      'clearInterval',
+      'setTimeout',
+      'clearTimeout',
+    ],
+  });
+  await i18n.changeLanguage('en');
+  mockMeetings = meetingsResult([CURRENT, OVERLAPPING, NO_LINK]);
+  mockOnline = true;
+  mockPendingWrites = 0;
+  mockAlertEnabled = true;
+  mockPending = [];
+  mockPermission = { notifications: 'granted', canAskAgain: true, exactAlarms: 'not_required' };
+  mockSyncNow.mockReset().mockResolvedValue({ google: null, device: null, errors: [] });
+  (Toast.show as jest.Mock).mockClear();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
+
+it('shows the greeting, the meeting in progress and the next one with a live countdown', async () => {
+  await renderDashboard();
+  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Good morning, Ana');
+  expect(screen.getByTestId('current-meeting-title').props.children).toBe('Design review');
+  expect(screen.getByTestId('current-meeting-countdown').props.children).toBe('Ends in 30:00');
+  expect(screen.getByTestId('next-meeting-title').props.children).toBe('Vendor call');
+  expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('Starts in 20:00');
+  // Join only for the meeting with a real link.
+  expect(screen.getByTestId('current-meeting-join')).toBeTruthy();
+  expect(screen.queryByTestId('next-meeting-join')).toBeNull();
+});
+
+it('opens the real meeting link and the meeting details', async () => {
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  await renderDashboard();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('current-meeting-join'));
+  });
+  expect(openURL).toHaveBeenCalledWith('https://zoom.us/j/123');
+
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('next-meeting-details'));
+  });
+  expect(JSON.parse(String((await screen.findByTestId('target-MeetingDetails')).props.children))).toEqual({ meetingId: 'overlap' });
+});
+
+it("lists today's meetings and highlights overlaps", async () => {
+  await renderDashboard();
+  expect(screen.getByTestId('today-count').props.children).toBe('3 meetings');
+  expect(within(screen.getByTestId('timeline-current-overlap')).getByText('Overlaps with Vendor call')).toBeTruthy();
+  expect(within(screen.getByTestId('timeline-overlap-overlap')).getByText('Overlaps with Design review')).toBeTruthy();
+  expect(screen.queryByTestId('timeline-later-overlap')).toBeNull();
+  expect(screen.getByTestId('insight-overlaps')).toBeTruthy();
+  expect(screen.getByText('1 overlap between meetings')).toBeTruthy();
+  expect(screen.getByText('2 meetings have no link or place')).toBeTruthy();
+});
+
+it('shows an empty day with a create button', async () => {
+  mockMeetings = meetingsResult([]);
+  await renderDashboard();
+  expect(screen.getByTestId('today-empty')).toBeTruthy();
+  expect(screen.getByText('No upcoming meetings')).toBeTruthy();
+  expect(screen.getByTestId('insight-all-clear')).toBeTruthy();
+});
+
+it('shows the loading state until the meetings are known', async () => {
+  mockMeetings = meetingsResult([], { isLoading: true });
+  await renderDashboard();
+  expect(screen.getByTestId('dashboard-loading')).toBeTruthy();
+  expect(screen.queryByTestId('next-meeting-card')).toBeNull();
+});
+
+it('shows the alert status and links to the alert settings', async () => {
+  mockPending = [
+    { identifier: 'mg:overlap:15', meetingId: 'overlap', kind: 'alert', offsetMinutes: 15, fireAt: minutesFromNow(5), intensity: 'max' },
+  ];
+  await renderDashboard();
+  expect(screen.getByTestId('alert-status').props.children).toBe('Alerts are on');
+  expect(screen.getByTestId('next-alert').props.children).toBe('Next alert: in 5 minutes (10:05 AM) · Vendor call');
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('alert-settings-link'));
+  });
+  expect(await screen.findByTestId('target-AlertSettings')).toBeTruthy();
+});
+
+it('offers to allow notifications when they are not granted', async () => {
+  mockPermission = { notifications: 'undetermined', canAskAgain: true, exactAlarms: 'not_required' };
+  await renderDashboard();
+  await act(async () => {
+    fireEvent.press(screen.getByText('Allow notifications'));
+  });
+  expect(mockRequestPermissions).toHaveBeenCalled();
+});
+
+it('says when alerts are off', async () => {
+  mockAlertEnabled = false;
+  await renderDashboard();
+  expect(screen.getByTestId('alert-status').props.children).toBe('Alerts are off');
+  expect(screen.queryByText('Allow notifications')).toBeNull();
+});
+
+it('opens the assistant with a prefilled question and the insights screen', async () => {
+  await renderDashboard();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('insights-ask-assistant'));
+  });
+  const params = JSON.parse(String((await screen.findByTestId('target-AIChat')).props.children)) as { prefill: string };
+  expect(params.prefill).toContain('rest of this week');
+});
+
+it('offers manual and AI creation; WhatsApp is disabled ("coming soon")', async () => {
+  await renderDashboard();
+  expect(screen.getByTestId('quick-whatsapp').props.accessibilityState).toMatchObject({ disabled: true });
+  expect(screen.getByText('Coming soon')).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('quick-new-manual'));
+  });
+  expect(await screen.findByTestId('target-CreateMeeting')).toBeTruthy();
+});
+
+it('pull to refresh flushes and re-reads the meetings and syncs the calendars; failures are reported', async () => {
+  const refresh = jest.fn(async () => {
+    throw new AppError('offline', 'no network');
+  });
+  mockMeetings = meetingsResult([CURRENT], { refresh });
+  mockSyncNow.mockResolvedValue({ google: null, device: null, errors: [{ provider: 'google', code: 'calendar_scope_missing' }] });
+  await renderDashboard();
+  await act(async () => {
+    await screen.getByTestId('dashboard-list').props.onRefresh();
+  });
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(mockSyncNow).toHaveBeenCalledWith({ reason: 'manual' });
+  const messages = (Toast.show as jest.Mock).mock.calls.map(([options]) => (options as { text1: string }).text1);
+  expect(messages).toEqual([
+    expect.stringMatching(/^Could not refresh: /),
+    expect.stringMatching(/^Calendar sync failed: /),
+  ]);
+});
+
+it('shows the offline banner with the number of changes waiting to sync', async () => {
+  mockOnline = false;
+  mockPendingWrites = 2;
+  await renderDashboard();
+  expect(screen.getByTestId('offline-banner')).toBeTruthy();
+  expect(screen.getByText(/2 changes are waiting to sync\./)).toBeTruthy();
+});
+
+it('renders in Spanish', async () => {
+  await i18n.changeLanguage('es');
+  await renderDashboard();
+  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Buenos días, Ana');
+  expect(screen.getByText('Acciones rápidas')).toBeTruthy();
+  expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('Empieza en 20:00');
+});

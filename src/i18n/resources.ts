@@ -11,6 +11,8 @@ import enAuth from './locales/en/auth.json';
 import enCalendar from './locales/en/calendar.json';
 import enCommon from './locales/en/common.json';
 import enData from './locales/en/data.json';
+import enHome from './locales/en/home.json';
+import enInsights from './locales/en/insights.json';
 import enMeetings from './locales/en/meetings.json';
 import enNavigation from './locales/en/navigation.json';
 import enOnboarding from './locales/en/onboarding.json';
@@ -21,6 +23,8 @@ import esAuth from './locales/es/auth.json';
 import esCalendar from './locales/es/calendar.json';
 import esCommon from './locales/es/common.json';
 import esData from './locales/es/data.json';
+import esHome from './locales/es/home.json';
+import esInsights from './locales/es/insights.json';
 import esMeetings from './locales/es/meetings.json';
 import esNavigation from './locales/es/navigation.json';
 import esOnboarding from './locales/es/onboarding.json';
@@ -41,6 +45,8 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     ai: enAi,
     settings: enSettings,
     meetings: enMeetings,
+    home: enHome,
+    insights: enInsights,
   },
   es: {
     common: esCommon,
@@ -53,5 +59,7 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     ai: esAi,
     settings: esSettings,
     meetings: esMeetings,
+    home: esHome,
+    insights: esInsights,
   },
 };

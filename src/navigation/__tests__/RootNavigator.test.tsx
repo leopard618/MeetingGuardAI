@@ -47,7 +47,7 @@ function mockScreen(name: string) {
   return { __esModule: true, default: MockScreen };
 }
 
-jest.mock('../../pages/Dashboard', () => mockScreen('Dashboard'));
+jest.mock('../../screens/home/DashboardScreen', () => ({ DashboardScreen: mockScreen('Dashboard').default }));
 jest.mock('../../pages/ChooseCreationMethod', () => mockScreen('ChooseCreationMethod'));
 jest.mock('../../screens/meetings/MeetingFormScreen', () => ({ MeetingFormScreen: mockScreen('MeetingForm').default }));
 jest.mock('../../pages/TotalMeetings', () => mockScreen('TotalMeetings'));
@@ -56,7 +56,7 @@ jest.mock('../../pages/Notes', () => mockScreen('Notes'));
 jest.mock('../../screens/settings/SettingsScreen', () => ({ SettingsScreen: mockScreen('Settings').default }));
 jest.mock('../../screens/alerts/AlertSettingsScreen', () => ({ AlertSettingsScreen: mockScreen('AlertSettings').default }));
 jest.mock('../../pages/AIChat', () => mockScreen('AIChat'));
-jest.mock('../../pages/AIInsights', () => mockScreen('AIInsights'));
+jest.mock('../../screens/insights/AIInsightsScreen', () => ({ AIInsightsScreen: mockScreen('AIInsights').default }));
 jest.mock('../../pages/Privacy', () => mockScreen('Privacy'));
 jest.mock('../../pages/Terms', () => mockScreen('Terms'));
 jest.mock('../../pages/WhatsAppBot', () => mockScreen('WhatsAppBot'));
@@ -220,19 +220,19 @@ describe('RootNavigator gate', () => {
 
   it('shows the Main group with the header when onboarding is completed', async () => {
     await renderNavigator();
-    expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|en');
+    expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|-');
     expect(screen.getByTestId('header').props.children).toBe('header:Dashboard');
   });
 });
 
 describe('language and navigation behaviour', () => {
-  it('passes the live language to legacy screens without remounting them', async () => {
+  it('keeps the dashboard mounted when the language changes (TypeScript screens read it themselves)', async () => {
     await renderNavigator();
-    expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|en');
+    expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|-');
     await act(async () => {
       await i18n.changeLanguage('es');
     });
-    expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|es');
+    expect(screen.getByTestId('screen-Dashboard')).toBeTruthy();
     expect(mockMounts.Dashboard).toBe(1);
   });
 

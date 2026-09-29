@@ -1,0 +1,122 @@
+{
+  "greeting": {
+    "morning": "Buenos días, {{name}}",
+    "afternoon": "Buenas tardes, {{name}}",
+    "evening": "Buenas noches, {{name}}",
+    "morningNoName": "Buenos días",
+    "afternoonNoName": "Buenas tardes",
+    "eveningNoName": "Buenas noches"
+  },
+  "offline": {
+    "title": "Sin conexión",
+    "message": "Puedes seguir trabajando. Los cambios se guardan en este dispositivo y se sincronizan cuando vuelvas a tener conexión.",
+    "pending_one": "{{count}} cambio pendiente de sincronizar.",
+    "pending_other": "{{count}} cambios pendientes de sincronizar."
+  },
+  "loading": "Cargando tus reuniones…",
+  "loadError": "No se pudieron cargar tus reuniones: {{reason}}",
+  "refresh": {
+    "failed": "No se pudo actualizar: {{reason}}",
+    "calendarFailed": "Falló la sincronización del calendario: {{reason}}"
+  },
+  "next": {
+    "title": "Próxima reunión",
+    "current": "En curso",
+    "none": "No hay reuniones próximas",
+    "noneHint": "Crea una reunión o conecta un calendario para verla aquí.",
+    "startsIn": "Empieza en {{time}}",
+    "startsWhen": "Empieza {{when}}",
+    "startingNow": "Empieza ahora",
+    "endsIn": "Termina en {{time}}",
+    "join": "Unirse",
+    "joinA11y": "Unirse a {{title}}",
+    "details": "Detalles",
+    "detailsA11y": "Detalles de {{title}}",
+    "openLinkFailed": "No se pudo abrir el enlace de la reunión."
+  },
+  "today": {
+    "title": "Hoy",
+    "count_one": "{{count}} reunión",
+    "count_other": "{{count}} reuniones",
+    "empty": "No tienes reuniones hoy",
+    "emptyHint": "Disfruta del tiempo libre o planifica algo nuevo.",
+    "create": "Nueva reunión",
+    "now": "Ahora",
+    "done": "Terminada",
+    "cancelled": "Cancelada",
+    "allDay": "Todo el día",
+    "overlapsWith": "Se solapa con {{title}}",
+    "overlapsMany_one": "Se solapa con {{count}} reunión",
+    "overlapsMany_other": "Se solapa con {{count}} reuniones",
+    "rightAfter": "Empieza justo después de {{title}}",
+    "itemA11y": "{{time}}, {{title}}. {{state}}"
+  },
+  "alerts": {
+    "title": "Alertas",
+    "on": "Las alertas están activadas",
+    "off": "Las alertas están desactivadas",
+    "offHint": "No recibirás avisos de tus reuniones. Activa las alertas en los ajustes de alertas.",
+    "intensity": "Intensidad: {{intensity}}",
+    "intensityName": {
+      "max": "Máxima",
+      "medium": "Media",
+      "light": "Ligera"
+    },
+    "nextAlert": "Próxima alerta: {{time}} · {{title}}",
+    "nextAlertNoTitle": "Próxima alerta: {{time}}",
+    "noneScheduled": "No hay alertas programadas ahora mismo.",
+    "scheduled_one": "{{count}} alerta programada",
+    "scheduled_other": "{{count}} alertas programadas",
+    "permission": {
+      "checking": "Comprobando el permiso de notificaciones…",
+      "granted": "Las notificaciones están permitidas.",
+      "provisional": "Las notificaciones llegan en silencio. Permítelas del todo para que las alertas puedan avisarte.",
+      "undetermined": "Permite las notificaciones para recibir alertas con la app cerrada.",
+      "denied": "Las notificaciones están bloqueadas. Las alertas no te llegarán con la app cerrada.",
+      "allow": "Permitir notificaciones",
+      "openSettings": "Abrir ajustes"
+    },
+    "exactAlarms": {
+      "hint": "Android puede retrasar las alertas si MeetingGuard no tiene permiso para programar alarmas exactas («Alarmas y recordatorios»).",
+      "open": "Revisar alarmas exactas"
+    },
+    "dnd": {
+      "android": "Las alertas máximas solo suenan con No molestar si lo permites.",
+      "ios": "Para recibir alertas durante un modo de concentración, añade MeetingGuard a sus apps permitidas en Ajustes.",
+      "open": "Permitir anulación"
+    },
+    "settings": "Ajustes de alertas"
+  },
+  "insights": {
+    "title": "Resumen",
+    "subtitle": "Calculado en este dispositivo a partir de tus reuniones.",
+    "today": "Hoy",
+    "thisWeek": "Esta semana",
+    "meetings_one": "{{count}} reunión",
+    "meetings_other": "{{count}} reuniones",
+    "time": "{{duration}} en reuniones",
+    "restOfWeek": "Lo que queda de semana",
+    "overlaps_one": "{{count}} solapamiento entre reuniones",
+    "overlaps_other": "{{count}} solapamientos entre reuniones",
+    "backToBack_one": "{{count}} reunión empieza justo después de otra",
+    "backToBack_other": "{{count}} reuniones empiezan justo después de otra",
+    "missingPlace_one": "{{count}} reunión no tiene enlace ni lugar",
+    "missingPlace_other": "{{count}} reuniones no tienen enlace ni lugar",
+    "withTips_one": "{{count}} reunión tiene consejos de preparación",
+    "withTips_other": "{{count}} reuniones tienen consejos de preparación",
+    "allClear": "No hay solapamientos, reuniones seguidas ni enlaces pendientes en lo que queda de semana.",
+    "ask": "Preguntar al asistente",
+    "askPrompt": "Revisa mis reuniones de lo que queda de semana. ¿Cómo gestiono los solapamientos y las reuniones seguidas, y qué debería preparar?",
+    "seeAll": "Ver todo el resumen"
+  },
+  "actions": {
+    "title": "Acciones rápidas",
+    "manual": "Nueva reunión",
+    "manualHint": "Rellena un formulario",
+    "ai": "Nueva con IA",
+    "aiHint": "Descríbela con tus palabras",
+    "whatsapp": "WhatsApp",
+    "whatsappHint": "Próximamente",
+    "whatsappA11y": "WhatsApp: próximamente, aún no disponible"
+  }
+}

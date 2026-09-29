@@ -16,11 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useLanguage, useT } from '../i18n';
 import AIChat from '../pages/AIChat';
-import AIInsights from '../pages/AIInsights';
+import { AIInsightsScreen as AIInsights } from '../screens/insights/AIInsightsScreen';
 import Calendar from '../pages/Calendar';
 import CalendarSync from '../pages/CalendarSync';
 import ChooseCreationMethod from '../pages/ChooseCreationMethod';
-import Dashboard from '../pages/Dashboard';
+import { DashboardScreen as Dashboard } from '../screens/home/DashboardScreen';
 import LegacyLandingPage from '../pages/LandingPage';
 import Notes from '../pages/Notes';
 import Pricing from '../pages/Pricing';
@@ -37,7 +37,7 @@ import { withLanguage, type LegacyComponent, type WithLanguageProps } from './wi
 
 // ---- Main group --------------------------------------------------------------------------------
 
-export const DashboardScreen = withLanguage(Dashboard);
+export const DashboardScreen = Dashboard;
 export const ChooseCreationMethodScreen = withLanguage(ChooseCreationMethod);
 export const CreateMeetingScreen = MeetingFormScreen;
 export const TotalMeetingsScreen = withLanguage(TotalMeetings);
@@ -48,7 +48,7 @@ export const SettingsScreen = Settings;
 export const ProfileScreen = Settings;
 export const AlertSettingsScreen = AlertSettings;
 export const AIChatScreen = withLanguage(AIChat);
-export const AIInsightsScreen = withLanguage(AIInsights);
+export const AIInsightsScreen = AIInsights;
 export const PrivacyScreen = withLanguage(Privacy);
 export const TermsScreen = withLanguage(Terms);
 export const WhatsAppBotScreen = withLanguage(WhatsAppBot);

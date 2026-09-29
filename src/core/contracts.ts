@@ -837,6 +837,8 @@ export const I18N_NAMESPACE_LIST = [
   'ai',
   'settings',
   'meetings',
+  'home',
+  'insights',
 ] as const;
 export type I18nNamespace = (typeof I18N_NAMESPACE_LIST)[number];
 
