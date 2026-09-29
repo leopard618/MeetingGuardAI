@@ -2,7 +2,7 @@ import * as logger from 'firebase-functions/logger';
 import { HttpsError } from 'firebase-functions/https';
 
 import { UpstreamError } from '../../src/assistant/errors';
-import { handleAssistant, type AssistantDeps } from '../../src/assistant/handler';
+import { handleAssistant, type AssistantCaller, type AssistantDeps } from '../../src/assistant/handler';
 import type { LlmClient, LlmRequest, LlmResult } from '../../src/assistant/llm';
 import { assistantErrorDetailsSchema, assistantResponseSchema, type AssistantRequest } from '../../src/shared/aiContract';
 import { FakeMeetingReader, FakeQuotaStore } from './fakes';
@@ -16,6 +16,10 @@ jest.mock('firebase-functions/logger', () => ({
 }));
 
 const NOW = new Date('2026-09-28T14:15:00.000Z');
+
+function caller(overrides: Partial<AssistantCaller> = {}): AssistantCaller {
+  return { uid: 'u1', emailVerified: true, signInProvider: 'google.com', ...overrides };
+}
 const DAY = '2026-09-28';
 const PRIVATE_TEXT = 'Confidential merger with Acme';
 
@@ -88,22 +92,22 @@ describe('handleAssistant', () => {
 
   it('rejects invalid requests before counting quota', async () => {
     const { deps, quota } = setup();
-    await expectAssistantError(handleAssistant('u1', { messages: [] }, deps), 'invalid-argument', 'invalid_request');
-    await expectAssistantError(handleAssistant('u1', chatRequest({ timezone: 'Mars/Base' }), deps), 'invalid-argument', 'invalid_request');
+    await expectAssistantError(handleAssistant(caller(), { messages: [] }, deps), 'invalid-argument', 'invalid_request');
+    await expectAssistantError(handleAssistant(caller(), chatRequest({ timezone: 'Mars/Base' }), deps), 'invalid-argument', 'invalid_request');
     expect(quota.transactions).toBe(0);
   });
 
   it('enforces the daily quota without calling the model', async () => {
     const { deps, quota, llmFactory } = setup();
     quota.usage.set(`u1/${DAY}`, { count: 5, updatedAt: 'x' });
-    const details = await expectAssistantError(handleAssistant('u1', chatRequest(), deps), 'resource-exhausted', 'quota_exceeded');
+    const details = await expectAssistantError(handleAssistant(caller(), chatRequest(), deps), 'resource-exhausted', 'quota_exceeded');
     expect(details.usage).toEqual({ used: 5, limit: 5, plan: 'free', resetsAt: '2026-09-29T00:00:00.000Z' });
     expect(llmFactory).not.toHaveBeenCalled();
   });
 
   it('returns a validated reply with proposals and usage', async () => {
     const { deps, llm, quota } = setup();
-    const first = await handleAssistant('u1', chatRequest(), deps);
+    const first = await handleAssistant(caller(), chatRequest(), deps);
     expect(first).toEqual({
       reply: 'Done deal.',
       actions: [],
@@ -154,7 +158,7 @@ describe('handleAssistant', () => {
       }),
     );
     withTools.quota.usage.set(`u1/${DAY}`, { count: 2, updatedAt: 'x' });
-    const response = await handleAssistant('u1', chatRequest(), withTools.deps);
+    const response = await handleAssistant(caller(), chatRequest(), withTools.deps);
     expect(assistantResponseSchema.safeParse(response).success).toBe(true);
     expect(response.reply).toBe('I prepared the following for you. Please review and confirm.');
     expect(response.actions).toEqual([
@@ -177,7 +181,7 @@ describe('handleAssistant', () => {
       result({ content: null, toolCalls: [{ name: 'suggest_replies', arguments: '{"suggestions":["Enviar un resumen"]}' }] }),
     );
     const response = await handleAssistant(
-      'u1',
+      caller(),
       chatRequest({ mode: 'followup', followUpMeetingId: 'ended', messages: [], language: 'es' }),
       deps,
     );
@@ -191,7 +195,7 @@ describe('handleAssistant', () => {
   it('refunds the quota when the follow-up meeting does not exist', async () => {
     const { deps, quota, llmFactory } = setup();
     await expectAssistantError(
-      handleAssistant('u1', chatRequest({ mode: 'followup', followUpMeetingId: 'nope', messages: [] }), deps),
+      handleAssistant(caller(), chatRequest({ mode: 'followup', followUpMeetingId: 'nope', messages: [] }), deps),
       'invalid-argument',
       'invalid_request',
     );
@@ -201,35 +205,72 @@ describe('handleAssistant', () => {
 
   it('maps upstream failures to upstream_error and refunds the quota', async () => {
     const { deps, quota } = setup(new UpstreamError('rate_limited', 429));
-    await expectAssistantError(handleAssistant('u1', chatRequest(), deps), 'unavailable', 'upstream_error');
+    await expectAssistantError(handleAssistant(caller(), chatRequest(), deps), 'unavailable', 'upstream_error');
     expect(quota.count('u1', DAY)).toBe(0);
     expect(logger.warn).toHaveBeenCalledWith('assistant.upstream_failed', { uid: 'u1', kind: 'rate_limited', status: 429 });
 
     const config = setup(new UpstreamError('configuration', 401));
-    await expectAssistantError(handleAssistant('u1', chatRequest(), config.deps), 'unavailable', 'upstream_error');
+    await expectAssistantError(handleAssistant(caller(), chatRequest(), config.deps), 'unavailable', 'upstream_error');
     expect(logger.error).toHaveBeenCalledWith('assistant.upstream_failed', { uid: 'u1', kind: 'configuration', status: 401 });
 
+    // Failures after OpenAI started working are not refunded (they are billed).
     const unexpected = setup(new TypeError('boom'));
-    await expectAssistantError(handleAssistant('u1', chatRequest(), unexpected.deps), 'unavailable', 'upstream_error');
-    expect(unexpected.quota.count('u1', DAY)).toBe(0);
+    await expectAssistantError(handleAssistant(caller(), chatRequest(), unexpected.deps), 'unavailable', 'upstream_error');
+    expect(unexpected.quota.count('u1', DAY)).toBe(1);
+  });
+
+  it('never refunds requests OpenAI already worked on (timeouts, bad requests)', async () => {
+    for (const kind of ['timeout', 'bad_request', 'unknown'] as const) {
+      const { deps, quota } = setup(new UpstreamError(kind, kind === 'bad_request' ? 400 : null));
+      await expectAssistantError(handleAssistant(caller(), chatRequest(), deps), 'unavailable', 'upstream_error');
+      expect(quota.count('u1', DAY)).toBe(1);
+    }
+    for (const kind of ['connection', 'server'] as const) {
+      const { deps, quota } = setup(new UpstreamError(kind, kind === 'server' ? 503 : null));
+      await expectAssistantError(handleAssistant(caller(), chatRequest(), deps), 'unavailable', 'upstream_error');
+      expect(quota.count('u1', DAY)).toBe(0);
+    }
+  });
+
+  it('requires a verified account (email verified or Google) before counting quota', async () => {
+    const { deps, quota, llmFactory } = setup();
+    await expectAssistantError(
+      handleAssistant(caller({ emailVerified: false, signInProvider: 'password' }), chatRequest(), deps),
+      'unauthenticated',
+      'unauthenticated',
+    );
+    expect(quota.transactions).toBe(0);
+    expect(llmFactory).not.toHaveBeenCalled();
+    await expect(handleAssistant(caller({ emailVerified: true, signInProvider: 'password' }), chatRequest(), deps)).resolves.toMatchObject({
+      reply: 'Done deal.',
+    });
+  });
+
+  it('stops at the project-wide daily cap without calling OpenAI and gives the request back', async () => {
+    const { deps, quota, llmFactory } = setup();
+    const budget = { tryAcquire: jest.fn(async () => false) };
+    await expectAssistantError(handleAssistant(caller(), chatRequest(), { ...deps, globalBudget: budget }), 'unavailable', 'upstream_error');
+    expect(budget.tryAcquire).toHaveBeenCalledWith(DAY);
+    expect(llmFactory).not.toHaveBeenCalled();
+    expect(quota.count('u1', DAY)).toBe(0);
   });
 
   it('reports quota storage failures as upstream errors', async () => {
     const { deps, quota } = setup();
     quota.failNext = new Error('firestore down');
-    await expectAssistantError(handleAssistant('u1', chatRequest(), deps), 'unavailable', 'upstream_error');
+    await expectAssistantError(handleAssistant(caller(), chatRequest(), deps), 'unavailable', 'upstream_error');
   });
 
   it('uses the refusal text and truncates oversized replies', async () => {
     const refusal = setup(result({ content: null, refusal: 'I cannot help with that.' }));
-    expect((await handleAssistant('u1', chatRequest(), refusal.deps)).reply).toBe('I cannot help with that.');
+    expect((await handleAssistant(caller(), chatRequest(), refusal.deps)).reply).toBe('I cannot help with that.');
     const long = setup(result({ content: 'y'.repeat(9000) }));
-    expect((await handleAssistant('u1', chatRequest(), long.deps)).reply).toHaveLength(8000);
+    expect((await handleAssistant(caller(), chatRequest(), long.deps)).reply).toHaveLength(8000);
   });
 
   it('never logs message content or meeting titles', async () => {
     const { deps } = setup();
-    await handleAssistant('u1', chatRequest(), deps);
+    await handleAssistant(caller(), chatRequest(), deps);
     const logged = JSON.stringify([
       (logger.info as jest.Mock).mock.calls,
       (logger.warn as jest.Mock).mock.calls,

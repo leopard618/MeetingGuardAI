@@ -156,9 +156,18 @@ export type AiParticipant = z.infer<typeof aiParticipantSchema>;
 // Request
 // ---------------------------------------------------------------------------------------------
 
+export const MESSAGE_ORIGINS = ['typed', 'suggestion'] as const;
+export type MessageOrigin = (typeof MESSAGE_ORIGINS)[number];
+
 export const assistantMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string().min(1).max(AI_LIMITS.maxMessageChars),
+  /**
+   * User messages only: 'suggestion' when the user tapped a suggestion chip. Chip text is written
+   * by the model, so the server never treats it as something the user typed (links, passwords and
+   * email addresses in it are not accepted). Absent = typed.
+   */
+  origin: z.enum(MESSAGE_ORIGINS).optional(),
 });
 export type AssistantMessage = z.infer<typeof assistantMessageSchema>;
 

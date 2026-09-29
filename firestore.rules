@@ -61,6 +61,26 @@ service cloud.firestore {
       return v == null || isListMax(v, max);
     }
 
+    // A list of strings with a bounded total size: join() fails on any non-string element (the
+    // write is then denied), and the joined size bounds every element at once.
+    function isStringListMax(v, maxItems, maxTotalChars) {
+      return v is list && v.size() <= maxItems && v.join('').size() <= maxTotalChars;
+    }
+
+    // Element i of an alert-time list: absent, or an int minute offset in [0, 7 days].
+    function isAlertMinuteAt(l, i) {
+      return l.size() <= i || (l[i] is int && l[i] >= 0 && l[i] <= 10080);
+    }
+
+    // At most 10 "minutes before" offsets, every one checked (lists cannot be iterated in rules).
+    function isAlertTimes(v) {
+      return v is list && v.size() <= 10
+        && isAlertMinuteAt(v, 0) && isAlertMinuteAt(v, 1) && isAlertMinuteAt(v, 2)
+        && isAlertMinuteAt(v, 3) && isAlertMinuteAt(v, 4) && isAlertMinuteAt(v, 5)
+        && isAlertMinuteAt(v, 6) && isAlertMinuteAt(v, 7) && isAlertMinuteAt(v, 8)
+        && isAlertMinuteAt(v, 9);
+    }
+
     function isTimeZone(v) {
       return v is string && v.size() > 0 && v.size() <= 64
         && v.matches('[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*');
@@ -149,12 +169,14 @@ service cloud.firestore {
         && (d.get('time', null) == null || (d.time is string && d.time.matches('([01][0-9]|2[0-3]):[0-5][0-9]')))
         && isValidLocation(d.get('location', null))
         && isValidConference(d.get('conference', null))
+        // Participant maps cannot be iterated here: the assistant bounds what it loads instead
+        // (functions/src/assistant/context.ts field mask + byte budget).
         && isListMax(d.get('participants', []), 100)
         && d.source in ['manual', 'ai_chat', 'whatsapp', 'google', 'device']
         && (d.get('confidence', null) == null || isIntInRange(d.confidence, 0, 100))
         && isLanguage(d.get('language', 'en'))
-        && isListMax(d.get('preparationTips', []), 20)
-        && isNullableListMax(d.get('customAlertTimes', null), 10)
+        && isStringListMax(d.get('preparationTips', []), 20, 6000)
+        && (d.get('customAlertTimes', null) == null || isAlertTimes(d.customAlertTimes))
         && (d.get('alertIntensity', null) == null || d.alertIntensity in ['max', 'medium', 'light'])
         && isNullableStringMax(d.get('notes', null), 10000)
         && d.status in ['scheduled', 'cancelled']
@@ -196,13 +218,13 @@ service cloud.firestore {
         && (d.get('alertVolume', null) == null
             || (d.alertVolume is number && d.alertVolume >= 0 && d.alertVolume <= 1))
         && d.get('vibrationEnabled', true) is bool
-        && isListMax(d.get('defaultAlertTimes', []), 10)
+        && isAlertTimes(d.get('defaultAlertTimes', []))
         && (d.get('snoozeMinutes', null) == null || isIntInRange(d.snoozeMinutes, 1, 60))
         && d.get('followUpEnabled', true) is bool
         && (d.get('use24HourClock', null) == null || d.use24HourClock is bool)
         && d.get('onboardingCompleted', false) is bool
         && d.get('googleCalendarSyncEnabled', false) is bool
-        && isListMax(d.get('deviceCalendarImportIds', []), 50)
+        && isStringListMax(d.get('deviceCalendarImportIds', []), 50, 25600)
         && isNullableStringMax(d.get('deviceCalendarExportId', null), 512)
         && isNullableUtcIso(d.get('updatedAt', null));
     }

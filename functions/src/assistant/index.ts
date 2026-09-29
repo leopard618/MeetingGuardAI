@@ -10,6 +10,7 @@ import * as logger from 'firebase-functions/logger';
 import { onCall } from 'firebase-functions/https';
 
 import {
+  ASSISTANT_GLOBAL_DAILY_LIMIT,
   ASSISTANT_TUNING,
   FUNCTIONS_REGION,
   OPENAI_API_KEY,
@@ -20,9 +21,31 @@ import {
 import { adminDb } from '../firebase';
 import type { AssistantResponse } from '../shared/aiContract';
 import { firestoreMeetingReader } from './context';
-import { handleAssistant } from './handler';
+import { createGlobalBudget, firestoreGlobalBudgetStore, type GlobalBudget } from './globalBudget';
+import { handleAssistant, type AssistantCaller } from './handler';
 import { createOpenAiClient } from './llm';
 import { firestoreQuotaStore } from './quota';
+
+/** One per instance (its short cache is what keeps the check cheap). */
+let globalBudget: GlobalBudget | null = null;
+function instanceGlobalBudget(): GlobalBudget {
+  if (!globalBudget) {
+    globalBudget = createGlobalBudget(firestoreGlobalBudgetStore(adminDb()), {
+      limit: () => ASSISTANT_GLOBAL_DAILY_LIMIT.value(),
+    });
+  }
+  return globalBudget;
+}
+
+function callerOf(auth: { uid: string; token: Record<string, unknown> } | undefined): AssistantCaller | null {
+  if (!auth) return null;
+  const firebaseClaims = auth.token.firebase as { sign_in_provider?: unknown } | undefined;
+  return {
+    uid: auth.uid,
+    emailVerified: auth.token.email_verified === true,
+    signInProvider: typeof firebaseClaims?.sign_in_provider === 'string' ? firebaseClaims.sign_in_provider : null,
+  };
+}
 
 export const assistant = onCall(
   {
@@ -37,10 +60,14 @@ export const assistant = onCall(
   },
   async (request): Promise<AssistantResponse> => {
     const db = adminDb();
-    const uid = request.auth?.uid ?? null;
-    return handleAssistant(uid, request.data, {
+    const caller = callerOf(request.auth);
+    const uid = caller?.uid ?? null;
+    return handleAssistant(caller, request.data, {
       quota: firestoreQuotaStore(db),
-      meetings: firestoreMeetingReader(db, (count) => logger.warn('assistant.meetings_invalid', { uid, count })),
+      globalBudget: instanceGlobalBudget(),
+      meetings: firestoreMeetingReader(db, (count, truncated) =>
+        logger.warn('assistant.meetings_skipped', { uid, count, truncated }),
+      ),
       llm: () => {
         const effortSetting = OPENAI_REASONING_EFFORT.value();
         const reasoningEffort = parseReasoningEffort(effortSetting);

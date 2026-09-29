@@ -6,7 +6,7 @@
  * - String params come from `functions/.env.<projectId>` (or the CLI prompt on deploy). Every param
  *   here has a default, so a plain `firebase deploy --only functions` works without a .env file.
  */
-import { defineSecret, defineString } from 'firebase-functions/params';
+import { defineInt, defineSecret, defineString } from 'firebase-functions/params';
 
 import { DEFAULT_CALLABLE_REGION } from './shared/aiContract';
 
@@ -31,6 +31,15 @@ export const OPENAI_REASONING_EFFORT = defineString('OPENAI_REASONING_EFFORT', {
   description: 'reasoning_effort for the assistant model: omit | none | minimal | low | medium | high.',
 });
 
+/**
+ * Project-wide cap on assistant requests per UTC day that reach OpenAI (spend safeguard on top of
+ * the per-user plan quota). 0 disables it. Keep an OpenAI usage limit / GCP budget alert as well.
+ */
+export const ASSISTANT_GLOBAL_DAILY_LIMIT = defineInt('ASSISTANT_GLOBAL_DAILY_LIMIT', {
+  default: 5000,
+  description: 'Maximum assistant requests per UTC day for the whole project (0 = no cap).',
+});
+
 /** OpenAI API key (Secret Manager). Never logged, never returned. */
 export const OPENAI_API_KEY = defineSecret('OPENAI_API_KEY');
 
@@ -47,12 +56,13 @@ export const ASSISTANT_TUNING = {
   maxCompletionTokens: 3_000,
   /**
    * The handler mostly waits on OpenAI, so one instance serves many requests: 1 vCPU (needed for
-   * concurrency > 1; 256 MiB would default to 0.167 vCPU and concurrency 1) x 40 requests.
+   * concurrency > 1; 256 MiB would default to 0.167 vCPU and concurrency 1). Context loading is
+   * byte-bounded (CONTEXT_WINDOW), and 20 concurrent requests per 512 MiB leave headroom.
    */
   memory: '512MiB',
   cpu: 1,
-  concurrency: 40,
-  maxInstances: 10,
+  concurrency: 20,
+  maxInstances: 20,
 } as const;
 
 /** Meetings the assistant sees: [-7 d, +60 d] around now, at most 200 (closest to now first). */
@@ -65,8 +75,17 @@ export const CONTEXT_WINDOW = {
   maxTitleChars: 120,
   maxAddressChars: 160,
   maxParticipantsListed: 10,
+  maxParticipantNameChars: 80,
+  maxParticipantEmailChars: 254,
   /** Description is only sent for the follow-up meeting. */
   maxFollowUpDescriptionChars: 1_000,
+  /**
+   * Load budget (serialized characters of the field-masked documents). A normal meeting is well
+   * under 4 KB, so 400 meetings fit; oversized (abusive) documents are skipped, and reading stops
+   * at the total.
+   */
+  maxDocumentBytes: 64 * 1024,
+  maxContextBytes: 2 * 1024 * 1024,
 } as const;
 
 export const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high'] as const;

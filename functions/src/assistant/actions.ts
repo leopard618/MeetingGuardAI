@@ -6,8 +6,14 @@
  * into something the user did not ask for):
  * - refs that are not in the context (the model cannot target other meetings);
  * - dates/times that do not exist; empty updates; bulk updates without refs;
- * - conference URLs / passwords the user did not type, email addresses that are neither in the
- *   user's messages nor existing participants (never fabricated, never sent to strangers).
+ * - conference URLs / passwords the user did not type;
+ * - email addresses the user did not type, unless they already belong to the meeting the action
+ *   targets (share / update) or, in follow-up mode, to the meeting that just ended (create).
+ *   Addresses of OTHER meetings in the context are never accepted: calendar invitations are written
+ *   by third parties, so an injected instruction could otherwise route a meeting (with its link and
+ *   password) or an invitation to an attacker who is merely a participant of some other meeting.
+ * Text the user sent by tapping a suggestion chip is model-written and does not count as typed
+ * (collectUserText in ./prompt.ts leaves it out).
  */
 import { randomBytes } from 'node:crypto';
 
@@ -119,15 +125,17 @@ function clampConfidence(value: number): number {
 interface Provenance {
   userText: string;
   userTextLower: string;
-  knownEmails: Set<string>;
 }
 
+const NO_EMAILS: ReadonlySet<string> = new Set<string>();
+
 function buildProvenance(ctx: MappingContext): Provenance {
-  const knownEmails = new Set<string>();
-  for (const meeting of ctx.context.meetings) {
-    for (const email of meeting.participantEmails) knownEmails.add(email);
-  }
-  return { userText: ctx.userText, userTextLower: ctx.userText.toLowerCase(), knownEmails };
+  return { userText: ctx.userText, userTextLower: ctx.userText.toLowerCase() };
+}
+
+/** Participant addresses of one meeting (lower-cased): the only non-typed addresses an action may use. */
+function emailsOf(meeting: ContextMeeting | null): ReadonlySet<string> {
+  return meeting ? new Set(meeting.participantEmails) : NO_EMAILS;
 }
 
 function stripScheme(url: string): string {
@@ -154,19 +162,21 @@ function acceptTypedSecret(candidate: string | null, provenance: Provenance): st
   return provenance.userText.includes(trimmed) ? trimmed : null;
 }
 
-function acceptEmail(candidate: string, provenance: Provenance): string | null {
+/** An address the user typed, or one of `allowed` (participants of the targeted meeting). */
+function acceptEmail(candidate: string, provenance: Provenance, allowed: ReadonlySet<string>): string | null {
   const email = candidate.trim().toLowerCase();
   if (!emailSchema.safeParse(email).success) return null;
-  return provenance.userTextLower.includes(email) || provenance.knownEmails.has(email) ? email : null;
+  return provenance.userTextLower.includes(email) || allowed.has(email) ? email : null;
 }
 
 function acceptParticipants(
   list: readonly { email: string; name: string | null }[],
   provenance: Provenance,
+  allowed: ReadonlySet<string>,
 ): AiParticipant[] {
   const byEmail = new Map<string, AiParticipant>();
   for (const item of list) {
-    const email = acceptEmail(item.email, provenance);
+    const email = acceptEmail(item.email, provenance, allowed);
     if (!email || byEmail.has(email)) continue;
     const name = item.name ? clip(item.name, 200) : '';
     byEmail.set(email, { email, name: name.length > 0 ? name : null });
@@ -287,7 +297,9 @@ function mapCreate(raw: string, ctx: MappingContext, provenance: Provenance): Ai
     allDay: args.all_day,
     location: args.location ? toLocation(args.location, null) : null,
     conference,
-    participants: acceptParticipants(args.participants, provenance),
+    // A new meeting may only invite typed addresses, plus (follow-up mode) the participants of the
+    // meeting that just ended ("schedule the next one with the same people").
+    participants: acceptParticipants(args.participants, provenance, emailsOf(ctx.mode === 'followup' ? ctx.context.followUp : null)),
     preparationTips: acceptTips(args.preparation_tips),
     customAlertTimes: args.alert_minutes_before === null ? null : acceptAlertTimes(args.alert_minutes_before),
     language: ctx.language,
@@ -398,10 +410,18 @@ function mapUpdate(raw: string, ctx: MappingContext, provenance: Provenance): Ai
   if (c.participants !== null) {
     // The model only saw the first N participants; the others are kept as they are.
     const shown = new Set(meeting.participantEmails.slice(0, CONTEXT_WINDOW.maxParticipantsListed));
+    const storedNames = new Map(
+      meeting.doc.participants.map((participant) => [participant.email.trim().toLowerCase(), participant.name]),
+    );
     const hidden = meeting.doc.participants
       .filter((participant) => !shown.has(participant.email.trim().toLowerCase()))
       .map((participant) => ({ email: participant.email, name: participant.name }));
-    changes.participants = acceptParticipants([...c.participants, ...hidden], provenance);
+    // A participant the model returns without a name keeps the name already stored for it.
+    const proposed = c.participants.map((participant) => ({
+      email: participant.email,
+      name: participant.name ?? storedNames.get(participant.email.trim().toLowerCase()) ?? null,
+    }));
+    changes.participants = acceptParticipants([...proposed, ...hidden], provenance, emailsOf(meeting));
   }
   if (c.preparation_tips !== null) changes.preparationTips = acceptTips(c.preparation_tips);
 
@@ -428,8 +448,10 @@ function mapDelete(raw: string, ctx: MappingContext): AiAction {
 function mapShare(raw: string, ctx: MappingContext, provenance: Provenance): AiAction {
   const args = parseArgs(shareMeetingArgsSchema, raw);
   const meeting = resolveRef(args.meeting_ref, ctx);
+  // Recipients: typed by the user, or already participants of THIS meeting.
+  const allowed = emailsOf(meeting);
   const recipients = [
-    ...new Set(args.recipients.map((email) => acceptEmail(email, provenance)).filter((email) => email !== null)),
+    ...new Set(args.recipients.map((email) => acceptEmail(email, provenance, allowed)).filter((email) => email !== null)),
   ].slice(0, AI_LIMITS.maxRecipients);
   // Without an accepted address, fall back to the share sheet (the user picks the recipients).
   const channel = args.channel === 'email' && recipients.length > 0 ? 'email' : 'system_share';

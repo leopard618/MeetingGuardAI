@@ -102,7 +102,7 @@ Reads use `mergePreferences`, which merges field by field so one bad field never
 | Path | Content | Client access |
 |---|---|---|
 | `users/{uid}` | UserProfile | owner read and write; writes that contain any `SERVER_OWNED_PROFILE_KEYS` key are rejected |
-| `users/{uid}/meetings/{id}` | MeetingDoc | owner read and write; `userId == uid`; type and size checks on `title`, `startAt`, `durationMinutes`, `source` |
+| `users/{uid}/meetings/{id}` | MeetingDoc | owner read and write; `userId == uid`; type and size checks on `title`, `startAt`, `durationMinutes`, `source`; every alert-time element an int in [0, 10080]; string lists (`preparationTips`) join-checked for type and total size (participant maps cannot be iterated in rules: the assistant bounds what it loads) |
 | `users/{uid}/notes/{id}` | Note (without id) | owner read and write |
 | `users/{uid}/settings/preferences` | Preferences | owner read and write; only doc id `preferences` |
 | `entitlements/{uid}` | Entitlement | owner read; **no client write** |
@@ -264,12 +264,15 @@ Pulls happen on session start, on foreground (throttled), when connectivity retu
 useAssistant.send(text)
   -> assistantClient.send(AssistantRequest{messages, language, timezone, nowIso, mode, followUpMeetingId})
      httpsCallable(functions, 'assistant', { timeout: 70 s })   region = env.functionsRegion
-  -> server: auth required; zod-validate; quota transaction on usage/{uid}/days/{UTC day}
+  -> server: verified account required (email_verified or google.com); zod-validate;
+     quota transaction on usage/{uid}/days/{UTC day}; project-wide daily cap
      (plan from entitlements/{uid}, default free; limits free 5 / pro 100 / premium 500);
-     load the user's meetings (-7 d .. +60 d, not deleted) as an UNTRUSTED delimited data message
-     with ids; OpenAI (secret OPENAI_API_KEY via defineSecret, model param OPENAI_MODEL default
-     "gpt-5.4-mini") with tool calling; map tool calls -> AiAction; validate with aiActionSchema;
-     drop actions referencing unknown meeting ids; strip conference URLs not typed by the user
+     load the user's meetings (-7 d .. +60 d, not deleted; field mask + byte budget) as an UNTRUSTED
+     delimited data message with refs and participant names; OpenAI (secret OPENAI_API_KEY via
+     defineSecret, model param OPENAI_MODEL default "gpt-5.4-mini") with tool calling; map tool calls
+     -> AiAction; validate with aiActionSchema; drop actions referencing unknown meeting ids; strip
+     conference URLs not typed by the user; accept only typed emails or participants of the TARGET
+     meeting (suggestion-chip messages never count as typed)
   <- AssistantResponse { reply, actions[], suggestions[], usage }
   -> the chat shows a confirmation card per action (actionExecutor.preview resolves the meetings);
      on confirm, actionExecutor.execute(action) runs meetingRepository.* with origin 'ai',
@@ -277,11 +280,14 @@ useAssistant.send(text)
 ```
 
 - The server **never** mutates meetings.
+- The confirmation card lists recipients / participants that are not on the meeting yet (warning `new_people`).
+- Refunds only for failures before OpenAI did any work (never timeouts or bad requests).
+- A follow-up request starts by itself only when the app's own follow-up notification opened the chat (`autoStart`, never parsed from a URL); an external `assistant?followup=` link shows a "Get follow-up ideas" button.
 - Execution is idempotent per `action.id`: `mg:{uid}:assistant.executed`, plus `WriteOptions.id` on create.
 - Errors use `HttpsError` with `details.reason` set to `quota_exceeded`, `unauthenticated`, `invalid_request` or `upstream_error`.
 - Replies are bilingual: they follow `request.language` and the user's time zone.
 - In follow-up mode, the post-meeting notification opens `AIChat` with `{ followup }`. The server loads that meeting and returns follow-up suggestions and actions.
-- The `deleteAccount` callable does these steps in order (every step tolerates data or a user that is already gone, so a retry is safe):
+- The `deleteAccount` callable requires a recent sign-in (`auth_time` within 5 minutes; the app re-authenticates the user first with `authService.reauthenticate()`), then does these steps in order (every step tolerates data or a user that is already gone, so a retry is safe):
   1. Revokes the user's refresh tokens, so no device can mint a new ID token (an offline device with queued writes can only write while its current ID token lives, at most one hour).
   2. Recursively deletes `users/{uid}`.
   3. Deletes `entitlements/{uid}`.

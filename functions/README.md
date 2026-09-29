@@ -59,6 +59,7 @@ grants the function's service account access to it. To rotate it, set a new vers
 | `FUNCTIONS_REGION` | `us-central1` | Region of both callables. **Must equal `EXPO_PUBLIC_FUNCTIONS_REGION`** in the app. |
 | `OPENAI_MODEL` | `gpt-5.4-mini` | Any chat model with tool calling and strict schemas. Check that your key can use it (`GET /v1/models`) before launch. |
 | `OPENAI_REASONING_EFFORT` | `low` | `none`, `minimal`, `low`, `medium` or `high`. Use `omit` for non-reasoning models such as `gpt-4.1-mini`, which reject the parameter. |
+| `ASSISTANT_GLOBAL_DAILY_LIMIT` | `5000` | Project-wide cap on assistant requests per UTC day that reach OpenAI (spend safeguard on top of the per-user quota). `0` disables it. Also set an OpenAI usage limit and a GCP budget alert. |
 
 Every param has a default, so no configuration file is required. To override them per project,
 create `functions/.env.<projectId>`:
@@ -116,22 +117,33 @@ tests; the `firestore-rules` job runs the rules tests with Java 21.
 
 ## How the assistant works
 
-1. **Auth and validation.** It requires Firebase Auth and validates the request with
-   `assistantRequestSchema` and an IANA time-zone check.
+1. **Auth and validation.** It requires Firebase Auth with a verified account (`email_verified`, or
+   the `google.com` provider): throw-away email/password accounts created through the Auth REST API
+   cannot use the paid assistant. It validates the request with `assistantRequestSchema` and an IANA
+   time-zone check.
 2. **Quota.** One Firestore transaction reads `entitlements/{uid}` (missing means free; expired or
    revoked means free) and increments `usage/{uid}/days/{yyyy-mm-dd}`.
    - The day is the **UTC** day, per the shared contract (`usageDayKey`). The client cannot reset its
      quota by sending another time zone.
    - Limits: free 5, pro 100, premium 500 requests per day.
    - An over-quota call fails with `resource-exhausted` and `details.usage`, and never reaches OpenAI.
-   - Failures the user did not cause (OpenAI errors, a missing follow-up meeting) are refunded.
+   - A project-wide daily cap (`ASSISTANT_GLOBAL_DAILY_LIMIT`, sharded counter in
+     `usage_global/{day}/shards/*`, checked with a one-minute per-instance cache) stops requests before
+     OpenAI when reached.
+   - Refunds: only failures before OpenAI did any work (context loading, a missing follow-up meeting,
+     the global cap, configuration / connection errors, 429 and 5xx answers). Timeouts, bad requests
+     and anything after a completion are billed by OpenAI and are not refunded.
 3. **Meeting context.** It reads `users/{uid}/meetings` with `startAt` in [now − 7 d, now + 60 d]. It
    drops tombstones and keeps at most 200 meetings, closest to now first.
+   - Loading is bounded: a field mask (only the fields below), a streamed query, documents over 64 KB
+     skipped, and reading stops at 2 MB in total. Meeting documents are user-writable and the rules
+     cannot bound every participant entry, so one user must never be able to exhaust the memory of an
+     instance shared with other users (20 concurrent requests per 512 MiB instance).
    - Each meeting gets a short stable ref (`m` + 7 base32 characters of sha256(id)). Real ids never go
      to the model.
    - The model sees only: title, local start in the user's zone, weekday, duration, all-day, status,
      source, location type and address, conference provider and whether a link exists, and up to 10
-     participant emails.
+     participants (email and name, so "the 4pm meeting with Alejandro" resolves).
    - It never sees links, passwords, notes or descriptions. The one exception is the description of
      the meeting in follow-up mode.
 4. **Prompt.**
@@ -150,8 +162,15 @@ tests; the `firestore-rules` job runs the rules tests with Java 21.
    - The model gives local dates and times; the server resolves them to ISO-8601 with the zone offset,
      handling DST gaps and overlaps.
    - Refs that are not in the context are dropped. Invalid, empty and duplicate proposals are dropped.
-   - Conference URLs, passcodes and email addresses the user did not type (and that are not existing
-     participants) are removed.
+   - Conference URLs and passcodes the user did not type are removed.
+   - Email addresses the user did not type are accepted only when they already belong to the meeting
+     the action targets (share, update) or, in follow-up mode, to the meeting that just ended
+     (create). Addresses of other meetings in the context are never accepted: an attacker who is a
+     participant of their own invitation cannot get a meeting (with its link and password) or an
+     invitation routed to them through injected text.
+   - Messages the user sent by tapping a suggestion chip (`origin: 'suggestion'`) are model-written
+     and never count as typed.
+   - When the model returns a participant without a name, the stored name for that address is kept.
    - Every action is validated with `aiActionSchema`; there are at most 10 actions and 5 suggestions.
 7. **Errors.** Errors are `HttpsError` with `details: { reason, usage }`, where `reason` is
    `quota_exceeded`, `unauthenticated`, `invalid_request` or `upstream_error`.
@@ -169,6 +188,12 @@ Firebase console:
 ```
 
 Clients can read their own entitlement and usage documents but can never write them (`firestore.rules`).
+
+## deleteAccount
+
+Requires a recent sign-in (`auth_time` within 5 minutes, like Firebase's own `deleteUser`). The app
+re-authenticates the user (Google account picker, or the password) right before calling it; an old
+session gets `failed-precondition` with `details.reason: 'requires_recent_login'`.
 
 ## App Check
 

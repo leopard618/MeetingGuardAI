@@ -8,11 +8,16 @@
  *   only ever sees refs; real ids never leave the server, and refs that are not in this context
  *   are rejected when mapping tool calls (so the model cannot target other documents).
  * - The model view is minimal: no conference URLs or passwords, no notes, no descriptions
- *   (except the follow-up meeting), at most 10 participant emails.
+ *   (except the follow-up meeting), at most 10 participants (email + name, so "the meeting with
+ *   Alejandro" can be resolved).
+ * - Loading is bounded: only the fields the model view needs are read (field mask), documents are
+ *   streamed, an oversized document is skipped and reading stops at a total byte budget. Meeting
+ *   documents are user-writable and the rules cannot bound every list element, so a user must never
+ *   be able to make this function load hundreds of megabytes (shared instances serve other users).
  */
 import { createHash } from 'node:crypto';
 
-import type { Firestore } from 'firebase-admin/firestore';
+import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 
 import { CONTEXT_WINDOW } from '../config';
 import { aiMeetingContextDocSchema, type AiMeetingContextDoc } from '../shared/aiContract';
@@ -186,7 +191,7 @@ export interface MeetingModelView {
   meetingTimeZone?: string;
   location: { type: string; address: string | null } | null;
   conference: { provider: string; hasLink: boolean } | null;
-  participants: string[];
+  participants: { email: string; name: string | null }[];
   participantsTotal: number;
   /** Only for the follow-up meeting. */
   description?: string;
@@ -218,7 +223,13 @@ export function toModelView(meeting: ContextMeeting, userTimeZone: string, isFol
         }
       : null,
     conference: doc.conference ? { provider: doc.conference.provider, hasLink: doc.conference.url !== null } : null,
-    participants: meeting.participantEmails.slice(0, CONTEXT_WINDOW.maxParticipantsListed),
+    participants: meeting.doc.participants.slice(0, CONTEXT_WINDOW.maxParticipantsListed).map((participant) => {
+      const name = participant.name ? clip(participant.name, CONTEXT_WINDOW.maxParticipantNameChars) : '';
+      return {
+        email: clip(participant.email.trim().toLowerCase(), CONTEXT_WINDOW.maxParticipantEmailChars),
+        name: name.length > 0 ? name : null,
+      };
+    }),
     participantsTotal: meeting.participantEmails.length,
   };
   if (meetingZone !== userTimeZone) view.meetingTimeZone = meetingZone;
@@ -229,36 +240,120 @@ export function toModelView(meeting: ContextMeeting, userTimeZone: string, isFol
 }
 
 // ---------------------------------------------------------------------------------------------
+// Bounded loading
+// ---------------------------------------------------------------------------------------------
+
+/** The only document fields the context reads (Firestore field mask). */
+export const CONTEXT_FIELDS = [
+  'title',
+  'description',
+  'startAt',
+  'durationMinutes',
+  'timezone',
+  'allDay',
+  'status',
+  'deletedAt',
+  'source',
+  'participants',
+  'location',
+  'conference',
+] as const;
+
+/** Rough serialized size of a document (characters of its JSON). */
+export function approximateSize(data: unknown): number {
+  try {
+    return JSON.stringify(data)?.length ?? 0;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+export interface CollectResult {
+  records: MeetingRecord[];
+  /** Malformed or oversized documents that were skipped. */
+  skipped: number;
+  /** true when reading stopped at the byte budget. */
+  truncated: boolean;
+}
+
+/**
+ * Consumes `docs` until `limit` records or `maxTotalBytes` are reached (stopping the source early),
+ * skipping documents over `maxDocBytes` and documents that do not parse.
+ */
+export async function collectWithinBudget(
+  docs: AsyncIterable<{ id: string; data: unknown }>,
+  budget: { limit: number; maxDocBytes: number; maxTotalBytes: number },
+): Promise<CollectResult> {
+  const records: MeetingRecord[] = [];
+  let skipped = 0;
+  let total = 0;
+  let truncated = false;
+  for await (const item of docs) {
+    const size = approximateSize(item.data);
+    if (size > budget.maxDocBytes) {
+      skipped += 1;
+      continue;
+    }
+    if (total + size > budget.maxTotalBytes) {
+      truncated = true;
+      break;
+    }
+    total += size;
+    const parsed = aiMeetingContextDocSchema.safeParse(item.data);
+    if (parsed.success) records.push({ id: item.id, doc: parsed.data });
+    else skipped += 1;
+    if (records.length >= budget.limit) break;
+  }
+  return { records, skipped, truncated };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Firestore reader
 // ---------------------------------------------------------------------------------------------
 
-export function firestoreMeetingReader(db: Firestore, onInvalid: (count: number) => void = () => undefined): MeetingReader {
-  const parse = (id: string, data: unknown): MeetingRecord | null => {
-    const parsed = aiMeetingContextDocSchema.safeParse(data);
-    return parsed.success ? { id, doc: parsed.data } : null;
+async function* snapshots(stream: AsyncIterable<unknown>): AsyncGenerator<{ id: string; data: unknown }> {
+  for await (const doc of stream) {
+    const snapshot = doc as { id: string; data(): DocumentData };
+    yield { id: snapshot.id, data: snapshot.data() };
+  }
+}
+
+export function firestoreMeetingReader(
+  db: Firestore,
+  onSkipped: (count: number, truncated: boolean) => void = () => undefined,
+): MeetingReader {
+  const budget = {
+    maxDocBytes: CONTEXT_WINDOW.maxDocumentBytes,
+    maxTotalBytes: CONTEXT_WINDOW.maxContextBytes,
   };
   return {
     async listByStartRange(uid, fromIso, toIso, limit) {
-      const snapshot = await db
+      const query = db
         .collection(`users/${uid}/meetings`)
         .where('startAt', '>=', fromIso)
         .where('startAt', '<=', toIso)
         .orderBy('startAt')
-        .limit(limit)
-        .get();
-      const records: MeetingRecord[] = [];
-      let invalid = 0;
-      for (const doc of snapshot.docs) {
-        const record = parse(doc.id, doc.data());
-        if (record) records.push(record);
-        else invalid += 1;
-      }
-      if (invalid > 0) onInvalid(invalid);
-      return records;
+        .select(...CONTEXT_FIELDS)
+        .limit(limit);
+      // Streamed: leaving the loop early (budget reached) cancels the rest of the query.
+      const result = await collectWithinBudget(snapshots(query.stream() as unknown as AsyncIterable<unknown>), {
+        ...budget,
+        limit,
+      });
+      if (result.skipped > 0 || result.truncated) onSkipped(result.skipped, result.truncated);
+      return result.records;
     },
     async get(uid, meetingId) {
-      const snapshot = await db.doc(`users/${uid}/meetings/${meetingId}`).get();
-      return snapshot.exists ? parse(snapshot.id, snapshot.data()) : null;
+      const [snapshot] = await db.getAll(db.doc(`users/${uid}/meetings/${meetingId}`), { fieldMask: [...CONTEXT_FIELDS] });
+      if (!snapshot || !snapshot.exists) return null;
+      const result = await collectWithinBudget(
+        (async function* single() {
+          yield { id: snapshot.id, data: snapshot.data() };
+        })(),
+        { ...budget, limit: 1 },
+      );
+      if (result.skipped > 0) onSkipped(result.skipped, false);
+      return result.records[0] ?? null;
     },
   };
 }

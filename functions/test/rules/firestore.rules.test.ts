@@ -162,9 +162,20 @@ describe('meetings', () => {
     ['a stored Google token', { googleAccessToken: 'ya29.token' }],
     ['a bad conference provider', { conference: { provider: 'skype', url: null, password: null } }],
     ['too many alert times', { customAlertTimes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }],
+    ['a non-integer alert time', { customAlertTimes: [15, 'x'] }],
+    ['a huge alert time', { customAlertTimes: [5, 20000] }],
+    ['a negative alert time', { customAlertTimes: [-5] }],
+    ['a string list element that is not a string', { preparationTips: ['ok', { big: 'x'.repeat(10) }] }],
+    ['oversized preparation tips', { preparationTips: ['x'.repeat(4000), 'y'.repeat(4000)] }],
     ['an unknown language', { language: 'fr' }],
   ])('rejects a meeting with %s', async (_label, overrides) => {
     await assertFails(setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting(overrides)));
+  });
+
+  it('accepts valid alert times and tips', async () => {
+    await assertSucceeds(
+      setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting({ customAlertTimes: [10080, 60, 15, 5, 0], preparationTips: ['Agenda', 'Numbers'] })),
+    );
   });
 
   it('rejects missing required fields and invalid ids', async () => {
@@ -222,6 +233,9 @@ describe('preferences', () => {
     ['a Google access token', { google_access_token: 'ya29.token' }],
     ['a Google refresh token', { google_refresh_token: '1//token' }],
     ['a bad snooze', { snoozeMinutes: 0 }],
+    ['a non-integer default alert time', { defaultAlertTimes: [15, '5'] }],
+    ['a non-string import id', { deviceCalendarImportIds: ['dabcdefghijk1.3', 42] }],
+    ['oversized import ids', { deviceCalendarImportIds: Array.from({ length: 50 }, () => 'x'.repeat(600)) }],
   ])('rejects %s', async (_label, overrides) => {
     await assertFails(setDoc(doc(alice(), 'users/alice/settings/preferences'), preferences(overrides)));
   });

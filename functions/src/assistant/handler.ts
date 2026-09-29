@@ -1,11 +1,15 @@
 /**
  * The `assistant` callable's logic, independent of Firebase wiring (dependencies are injected).
  *
- * Order: auth -> request validation -> atomic quota (usage/{uid}/days/{UTC day}) -> meetings
- * context -> OpenAI (tools) -> proposals validated against the shared contract -> response.
+ * Order: auth (a verified account: email_verified or Google) -> request validation -> atomic
+ * quota (usage/{uid}/days/{UTC day}) -> project-wide daily cap -> meetings context -> OpenAI
+ * (tools) -> proposals validated against the shared contract -> response.
  * Nothing here writes meetings: the app confirms and executes every proposal itself.
- * A request that fails after the quota was counted for reasons the user did not cause
- * (upstream failure, missing follow-up meeting) is refunded.
+ *
+ * Refunds: the counted request is given back only when it failed BEFORE OpenAI did any work
+ * (context loading, the follow-up meeting is missing, the global cap, configuration / connection
+ * errors, rate limits and 5xx answers). Timeouts, bad requests and anything after a completion are
+ * not refunded: OpenAI bills them, so refunding would make those requests free.
  *
  * Logs contain the uid and counts only (never messages, titles, emails or model output).
  */
@@ -22,7 +26,8 @@ import {
 import { mapToolCalls } from './actions';
 import { FollowUpMeetingNotFoundError, loadMeetingContext, type MeetingReader } from './context';
 import { UpstreamError, assistantError } from './errors';
-import { safetyIdentifierFor, type LlmClient } from './llm';
+import type { GlobalBudget } from './globalBudget';
+import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
 import { buildPromptMessages, collectUserText, fallbackReply } from './prompt';
 import { consumeQuota, refundQuota, type QuotaDecision, type QuotaStore } from './quota';
 import { isValidTimeZone } from './time';
@@ -34,8 +39,42 @@ export interface AssistantDeps {
   /** Created lazily (reads the secret only for requests that passed auth + quota). */
   llm: () => LlmClient;
   now: () => Date;
+  /** Project-wide daily cap (optional: tests and the emulator run without one). */
+  globalBudget?: GlobalBudget;
   newActionId?: () => string;
   nonce?: () => string;
+}
+
+/** The signed-in caller (from request.auth). */
+export interface AssistantCaller {
+  uid: string;
+  /** request.auth.token.email_verified */
+  emailVerified: boolean;
+  /** request.auth.token.firebase.sign_in_provider ("google.com", "password", ...). */
+  signInProvider: string | null;
+}
+
+/**
+ * Only verified accounts may use the (paid) assistant: throw-away email/password accounts created
+ * through the Auth REST API would otherwise multiply the free quota.
+ */
+export function isVerifiedCaller(caller: AssistantCaller): boolean {
+  return caller.emailVerified || caller.signInProvider === 'google.com';
+}
+
+/** Upstream failures where OpenAI did no billable work: the user gets the request back. */
+const REFUNDABLE_UPSTREAM: ReadonlySet<UpstreamError['kind']> = new Set<UpstreamError['kind']>([
+  'configuration',
+  'connection',
+  'rate_limited',
+  'server',
+]);
+
+class GlobalBudgetExhaustedError extends Error {
+  constructor() {
+    super('Global assistant budget exhausted');
+    this.name = 'GlobalBudgetExhaustedError';
+  }
 }
 
 function parseRequest(data: unknown): AssistantRequest {
@@ -64,8 +103,17 @@ function logUpstream(uid: string, error: UpstreamError): void {
   }
 }
 
-export async function handleAssistant(uid: string | null, data: unknown, deps: AssistantDeps): Promise<AssistantResponse> {
-  if (!uid) throw assistantError('unauthenticated');
+export async function handleAssistant(
+  caller: AssistantCaller | null,
+  data: unknown,
+  deps: AssistantDeps,
+): Promise<AssistantResponse> {
+  if (!caller) throw assistantError('unauthenticated');
+  const uid = caller.uid;
+  if (!isVerifiedCaller(caller)) {
+    logger.info('assistant.unverified_account', { uid });
+    throw assistantError('unauthenticated', 'Verify your email address to use the assistant.');
+  }
   const request = parseRequest(data);
   const startedAt = Date.now();
   const now = deps.now();
@@ -83,7 +131,13 @@ export async function handleAssistant(uid: string | null, data: unknown, deps: A
     throw assistantError('quota_exceeded', undefined, quota.usage);
   }
 
+  /** Set right before the OpenAI call: from then on OpenAI may bill the request. */
+  let llmStarted = false;
   try {
+    if (deps.globalBudget && !(await deps.globalBudget.tryAcquire(quota.dayKey))) {
+      logger.error('assistant.global_budget_exhausted', { uid, day: quota.dayKey });
+      throw new GlobalBudgetExhaustedError();
+    }
     const context = await loadMeetingContext(deps.meetings, uid, now, request.followUpMeetingId);
     const { messages } = buildPromptMessages({
       language: request.language,
@@ -94,7 +148,9 @@ export async function handleAssistant(uid: string | null, data: unknown, deps: A
       messages: request.messages,
       ...(deps.nonce ? { nonce: deps.nonce() } : {}),
     });
-    const completion = await deps.llm().complete({
+    const llm = deps.llm();
+    llmStarted = true;
+    const completion: LlmResult = await llm.complete({
       messages,
       tools: ASSISTANT_TOOLS,
       toolChoice: request.mode === 'followup' ? 'required' : 'auto',
@@ -153,11 +209,16 @@ export async function handleAssistant(uid: string | null, data: unknown, deps: A
     });
     return checked.data;
   } catch (error) {
-    try {
-      await refundQuota(deps.quota, uid, quota.dayKey, deps.now());
-    } catch (refundError) {
-      logger.warn('assistant.refund_failed', { uid, ...describeError(refundError) });
+    const refundable =
+      !llmStarted || (error instanceof UpstreamError && REFUNDABLE_UPSTREAM.has(error.kind));
+    if (refundable) {
+      try {
+        await refundQuota(deps.quota, uid, quota.dayKey, deps.now());
+      } catch (refundError) {
+        logger.warn('assistant.refund_failed', { uid, ...describeError(refundError) });
+      }
     }
+    if (error instanceof GlobalBudgetExhaustedError) throw assistantError('upstream_error');
     if (error instanceof FollowUpMeetingNotFoundError) {
       logger.info('assistant.followup_not_found', { uid });
       throw assistantError('invalid_request', 'The follow-up meeting was not found.');

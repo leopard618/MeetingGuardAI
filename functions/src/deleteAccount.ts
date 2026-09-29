@@ -12,6 +12,11 @@
  * Idempotent: every step tolerates data or users that are already gone, so the app can retry
  * after a partial failure (the caller's ID token stays valid for up to an hour).
  *
+ * Requires a RECENT sign-in (auth_time within RECENT_LOGIN_MAX_AGE_SECONDS), like Firebase's own
+ * deleteUser: a stolen or long-lived session alone cannot destroy the account. The app
+ * re-authenticates the user (Google account picker / password) right before calling it; otherwise
+ * the call fails with failed-precondition and details.reason "requires_recent_login".
+ *
  * App Check: see the note in assistant/index.ts (`enforceAppCheck` is off until the app ships
  * an attestation provider).
  */
@@ -79,14 +84,38 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
   };
 }
 
+/** How old the caller's sign-in may be (seconds). */
+export const RECENT_LOGIN_MAX_AGE_SECONDS = 5 * 60;
+
+export interface DeletionCaller {
+  uid: string;
+  /** request.auth.token.auth_time (seconds since epoch): when the user last signed in. */
+  authTimeSeconds: number | null;
+}
+
+export function isRecentLogin(caller: DeletionCaller, nowMs: number): boolean {
+  if (caller.authTimeSeconds === null || !Number.isFinite(caller.authTimeSeconds)) return false;
+  const ageSeconds = nowMs / 1000 - caller.authTimeSeconds;
+  // A little clock skew into the future is tolerated.
+  return ageSeconds <= RECENT_LOGIN_MAX_AGE_SECONDS && ageSeconds >= -60;
+}
+
 export async function handleDeleteAccount(
-  uid: string | null,
+  caller: DeletionCaller | null,
   data: unknown,
   ports: () => AccountDeletionPorts,
+  now: () => number = () => Date.now(),
 ): Promise<DeleteAccountResponse> {
-  if (!uid) throw new HttpsError('unauthenticated', 'Sign in to delete your account.');
+  if (!caller) throw new HttpsError('unauthenticated', 'Sign in to delete your account.');
+  const uid = caller.uid;
   if (!deleteAccountRequestSchema.safeParse(data).success) {
     throw new HttpsError('invalid-argument', 'Account deletion must be confirmed.');
+  }
+  if (!isRecentLogin(caller, now())) {
+    logger.info('deleteAccount.requires_recent_login', { uid });
+    throw new HttpsError('failed-precondition', 'Sign in again to delete your account.', {
+      reason: 'requires_recent_login',
+    });
   }
   try {
     const result = await deleteAccountData(uid, ports());
@@ -111,5 +140,14 @@ export const deleteAccount = onCall(
     maxInstances: 10,
   },
   (request): Promise<DeleteAccountResponse> =>
-    handleDeleteAccount(request.auth?.uid ?? null, request.data, firebaseAccountDeletionPorts),
+    handleDeleteAccount(
+      request.auth
+        ? {
+            uid: request.auth.uid,
+            authTimeSeconds: typeof request.auth.token.auth_time === 'number' ? request.auth.token.auth_time : null,
+          }
+        : null,
+      request.data,
+      firebaseAccountDeletionPorts,
+    ),
 );

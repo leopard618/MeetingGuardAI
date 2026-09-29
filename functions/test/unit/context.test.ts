@@ -1,7 +1,9 @@
 import {
   FollowUpMeetingNotFoundError,
+  approximateSize,
   assignRefs,
   buildMeetingContext,
+  collectWithinBudget,
   loadMeetingContext,
   toModelView,
   type MeetingRecord,
@@ -110,12 +112,26 @@ describe('toModelView', () => {
       participantsTotal: 12,
     });
     expect(view.participants).toHaveLength(10);
-    expect(view.participants[0]).toBe('person0@example.com');
+    expect(view.participants[0]).toEqual({ email: 'person0@example.com', name: null });
     const json = JSON.stringify(view);
     expect(json).not.toContain('zoom.us');
     expect(json).not.toContain('pw123');
     expect(json).not.toContain('example.com/room');
     expect(json).not.toContain('Secret agenda');
+  });
+
+  it('sends participant names so "the meeting with Alejandro" can be resolved', () => {
+    const [meeting] = buildMeetingContext(
+      [
+        record('q3', '2026-10-05T14:00:00.000Z', {
+          title: 'Q3 planning',
+          participants: [{ email: 'APZ@corp.com', name: 'Alejandro Pérez' }],
+        }),
+      ],
+      NOW,
+      { followUpMeetingId: null },
+    ).meetings;
+    expect(toModelView(meeting!, 'UTC', false).participants).toEqual([{ email: 'apz@corp.com', name: 'Alejandro Pérez' }]);
   });
 
   it('includes the description of the follow-up meeting and shows all-day dates in their own zone', () => {
@@ -132,5 +148,57 @@ describe('toModelView', () => {
     const allDay = toModelView(context.meetings.find((meeting) => meeting.meetingId === 'd')!, 'America/Bogota', false);
     expect(allDay.start).toBe('2026-10-07');
     expect(allDay.weekday).toBe('Wednesday');
+  });
+});
+
+describe('collectWithinBudget', () => {
+  async function* source(items: { id: string; data: unknown }[], seen: string[]) {
+    for (const item of items) {
+      seen.push(item.id);
+      yield item;
+    }
+  }
+  const doc = (overrides: Parameters<typeof meetingDoc>[0] = {}) => meetingDoc({ startAt: '2026-10-06T10:00:00.000Z', ...overrides });
+
+  it('skips oversized documents and stops reading at the total budget', async () => {
+    const seen: string[] = [];
+    const huge = doc({ participants: Array.from({ length: 100 }, (_, index) => ({ email: `p${index}@x.com`, name: 'x'.repeat(5_000) })) });
+    const result = await collectWithinBudget(
+      source(
+        [
+          { id: 'a', data: doc() },
+          { id: 'huge', data: huge },
+          { id: 'b', data: doc() },
+          { id: 'c', data: doc() },
+          { id: 'd', data: doc() },
+        ],
+        seen,
+      ),
+      { limit: 100, maxDocBytes: 10_000, maxTotalBytes: approximateSize(doc()) * 3 + 1 },
+    );
+    expect(result.records.map((record) => record.id)).toEqual(['a', 'b', 'c']);
+    expect(result.skipped).toBe(1);
+    expect(result.truncated).toBe(true);
+    // The source is not drained past the budget.
+    expect(seen).toEqual(['a', 'huge', 'b', 'c', 'd']);
+  });
+
+  it('stops at the record limit and counts malformed documents', async () => {
+    const seen: string[] = [];
+    const result = await collectWithinBudget(
+      source(
+        [
+          { id: 'bad', data: { startAt: 42 } },
+          { id: 'a', data: doc() },
+          { id: 'b', data: doc() },
+          { id: 'never', data: doc() },
+        ],
+        seen,
+      ),
+      { limit: 2, maxDocBytes: 10_000, maxTotalBytes: 1_000_000 },
+    );
+    expect(result.records.map((record) => record.id)).toEqual(['a', 'b']);
+    expect(result.skipped).toBe(1);
+    expect(seen).not.toContain('never');
   });
 });

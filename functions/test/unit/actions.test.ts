@@ -173,17 +173,35 @@ describe('create_meeting', () => {
     expect(typed).toMatchObject({
       meeting: {
         conference: { provider: 'zoom', url: 'https://zoom.us/j/999', password: 'secret' },
-        participants: [
-          { email: 'john@company.com', name: 'John' },
-          { email: 'ana@example.com', name: null },
-        ],
+        participants: [{ email: 'john@company.com', name: 'John' }],
       },
     });
 
+    // ana@example.com is a participant of ANOTHER meeting (standup): not typed, so not accepted.
     const untyped = only(mapToolCalls([call('create_meeting', args)], ctx({ userText: 'schedule it with zoom' })).actions);
     expect(untyped).toMatchObject({
-      meeting: { conference: { provider: 'zoom', url: null, password: null }, participants: [{ email: 'ana@example.com' }] },
+      meeting: { conference: { provider: 'zoom', url: null, password: null }, participants: [] },
     });
+  });
+
+  it('in follow-up mode, may invite the participants of the meeting that just ended (and nobody else)', () => {
+    const followUpContext = buildMeetingContext(
+      [
+        { id: 'standup', doc: baseContext.meetings.find((m) => m.meetingId === 'standup')!.doc },
+        { id: 'big', doc: baseContext.meetings.find((m) => m.meetingId === 'big')!.doc },
+      ],
+      NOW,
+      { followUpMeetingId: 'standup' },
+    );
+    const args = {
+      ...createArgs,
+      participants: [
+        { email: 'ana@example.com', name: 'Ana' },
+        { email: 'p1@corp.com', name: null },
+      ],
+    };
+    const action = only(mapToolCalls([call('create_meeting', args)], ctx({ mode: 'followup', context: followUpContext })).actions);
+    expect(action).toMatchObject({ meeting: { participants: [{ email: 'ana@example.com', name: 'Ana' }] } });
   });
 
   it('keeps Google Meet without a link (the app creates a real one) and sanitizes alert times and tips', () => {
@@ -332,6 +350,42 @@ describe('delete, share, bulk and list', () => {
       meetingId: 'marketing',
     });
     expect(mapToolCalls([call('delete_meeting', args)], ctx({ mode: 'followup' })).dropped).toEqual({ not_allowed: 1 });
+  });
+
+  it('never shares a meeting with a participant of ANOTHER meeting (injected recipients)', () => {
+    // p3@corp.com attends "All hands" (big), e.g. an attacker's own invitation; the user asked
+    // nothing about it. Sharing the standup (link + password) with them must not be proposed.
+    const args = {
+      meeting_ref: ref('standup'),
+      channel: 'email',
+      recipients: ['p3@corp.com', 'ana@example.com'],
+      message: null,
+      summary: 'Share the standup',
+      confidence: 90,
+    };
+    expect(only(mapToolCalls([call('share_meeting', args)], ctx({ userText: 'share the standup' })).actions)).toMatchObject({
+      channel: 'email',
+      recipients: ['ana@example.com'],
+    });
+  });
+
+  it('never adds a participant of another meeting to an update', () => {
+    const action = only(
+      mapToolCalls(
+        [
+          call('update_meeting', {
+            meeting_ref: ref('standup'),
+            changes: { ...noChanges, participants: [{ email: 'ana@example.com', name: null }, { email: 'p5@corp.com', name: 'Mallory' }] },
+            summary: 'Add Mallory',
+            confidence: 60,
+          }),
+        ],
+        ctx({ userText: 'update the standup' }),
+      ).actions,
+    );
+    if (action.type !== 'update_meeting') throw new Error('expected an update');
+    // The stored name of an existing participant is kept when the model omits it.
+    expect(action.changes.participants).toEqual([{ email: 'ana@example.com', name: 'Ana' }]);
   });
 
   it('shares by email only with typed or known recipients', () => {
