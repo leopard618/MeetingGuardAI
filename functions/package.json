@@ -1,0 +1,43 @@
+{
+  "name": "meetingguard-functions",
+  "description": "MeetingGuard AI Cloud Functions (assistant + account deletion)",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "jest --config jest.config.js",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-meetingguard \"jest --config jest.rules.config.js --runInBand\"",
+    "check:contract": "node scripts/check-contract.mjs",
+    "serve": "npm run build && firebase emulators:start --only functions,firestore,auth --project demo-meetingguard",
+    "shell": "npm run build && firebase functions:shell",
+    "deploy": "firebase deploy --only functions",
+    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "14.5.0",
+    "firebase-functions": "7.4.0",
+    "openai": "7.23.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@firebase/rules-unit-testing": "5.0.2",
+    "@types/jest": "29.5.14",
+    "@types/node": "^22.20.4",
+    "eslint": "^9.39.5",
+    "firebase": "12.19.0",
+    "firebase-tools": "15.32.0",
+    "globals": "^16.5.0",
+    "jest": "~29.7.0",
+    "ts-jest": "^29.4.14",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0"
+  }
+}

@@ -74,4 +74,72 @@ jobs:
           fi
           echo "No secrets found in the bundle."
 
-  # A Cloud Functions job (/functions: build, lint, rules tests) is added in a later stage.
+  functions:
+    name: Cloud Functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Shared AI contract matches the app
+        # functions/src/shared/aiContract.ts must be a verbatim copy of src/core/aiContract.ts.
+        run: npm run check:contract
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check (sources and tests)
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test -- --ci
+
+  firestore-rules:
+    name: Firestore rules (emulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      # firebase-tools 15 emulators need Java 21+.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Cache emulator binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('functions/package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rules tests
+        # demo-* project id: the emulator never touches a real Firebase project.
+        run: npm run test:rules

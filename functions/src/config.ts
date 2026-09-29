@@ -1,0 +1,79 @@
+/**
+ * Deploy-time parameters, secrets and tuning constants.
+ *
+ * - Secrets (OPENAI_API_KEY) live in Cloud Secret Manager: `firebase functions:secrets:set OPENAI_API_KEY`.
+ *   `.value()` may only be read inside a function invocation.
+ * - String params come from `functions/.env.<projectId>` (or the CLI prompt on deploy). Every param
+ *   here has a default, so a plain `firebase deploy --only functions` works without a .env file.
+ */
+import { defineSecret, defineString } from 'firebase-functions/params';
+
+import { DEFAULT_CALLABLE_REGION } from './shared/aiContract';
+
+/** Region of every callable. Must equal EXPO_PUBLIC_FUNCTIONS_REGION in the app. */
+export const FUNCTIONS_REGION = defineString('FUNCTIONS_REGION', {
+  default: DEFAULT_CALLABLE_REGION,
+  description: 'Cloud Functions region for the callables. Must match EXPO_PUBLIC_FUNCTIONS_REGION in the app.',
+});
+
+/** OpenAI chat model used by the assistant (tool calling + strict schemas required). */
+export const OPENAI_MODEL = defineString('OPENAI_MODEL', {
+  default: 'gpt-5.4-mini',
+  description: 'OpenAI model for the assistant callable (must support tool calling with strict schemas).',
+});
+
+/**
+ * `reasoning_effort` sent to the model. "omit" sends nothing (use it for non-reasoning models such
+ * as gpt-4.1-mini, which reject the parameter).
+ */
+export const OPENAI_REASONING_EFFORT = defineString('OPENAI_REASONING_EFFORT', {
+  default: 'low',
+  description: 'reasoning_effort for the assistant model: omit | none | minimal | low | medium | high.',
+});
+
+/** OpenAI API key (Secret Manager). Never logged, never returned. */
+export const OPENAI_API_KEY = defineSecret('OPENAI_API_KEY');
+
+export const ASSISTANT_TUNING = {
+  /** Function timeout (the app's callable timeout is ASSISTANT_CALL_TIMEOUT_MS = 70 s). */
+  functionTimeoutSeconds: 60,
+  /** Per-attempt OpenAI HTTP timeout. */
+  openAiRequestTimeoutMs: 45_000,
+  /** Hard stop for the whole OpenAI call including the retry, so the function never hits 60 s. */
+  openAiDeadlineMs: 50_000,
+  /** One retry only helps with fast failures (429 / 5xx); the deadline caps slow ones. */
+  openAiMaxRetries: 1,
+  /** Upper bound for reasoning + visible output tokens. */
+  maxCompletionTokens: 3_000,
+  /**
+   * The handler mostly waits on OpenAI, so one instance serves many requests: 1 vCPU (needed for
+   * concurrency > 1; 256 MiB would default to 0.167 vCPU and concurrency 1) x 40 requests.
+   */
+  memory: '512MiB',
+  cpu: 1,
+  concurrency: 40,
+  maxInstances: 10,
+} as const;
+
+/** Meetings the assistant sees: [-7 d, +60 d] around now, at most 200 (closest to now first). */
+export const CONTEXT_WINDOW = {
+  pastDays: 7,
+  futureDays: 60,
+  maxMeetings: 200,
+  /** Firestore read cap before filtering tombstones. */
+  queryLimit: 400,
+  maxTitleChars: 120,
+  maxAddressChars: 160,
+  maxParticipantsListed: 10,
+  /** Description is only sent for the follow-up meeting. */
+  maxFollowUpDescriptionChars: 1_000,
+} as const;
+
+export const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high'] as const;
+export type ReasoningEffortSetting = (typeof REASONING_EFFORTS)[number];
+
+/** Parses the OPENAI_REASONING_EFFORT param; null = do not send the parameter. */
+export function parseReasoningEffort(value: string): ReasoningEffortSetting | null {
+  const normalized = value.trim().toLowerCase();
+  return (REASONING_EFFORTS as readonly string[]).includes(normalized) ? (normalized as ReasoningEffortSetting) : null;
+}
