@@ -8,7 +8,7 @@
  * - Theme-aware colors, safe-area insets, hardware back / scrim tap closes it, respects
  *   "reduce motion", keeps focus inside while open (accessibilityViewIsModal).
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState, type ComponentProps, type ReactElement } from 'react';
 import {
   AccessibilityInfo,

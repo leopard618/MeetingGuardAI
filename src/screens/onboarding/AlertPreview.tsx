@@ -2,7 +2,7 @@
  * Static visual preview of the three alert intensities (what AlertHost shows in the app). It
  * does not play sound or schedule anything; the real alerts belong to the alerts area.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState, type ReactElement } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';

@@ -6,7 +6,7 @@
  *   header) the `standalone` variant draws its own top bar (title, back button, top inset).
  * - Sections are a virtualized list; the date is formatted in the UI language.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useMemo, type ReactElement } from 'react';

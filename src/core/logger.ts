@@ -33,11 +33,9 @@ export function createLogger(scope: string): Logger {
   const prefix = `[${scope}]`;
   return {
     debug(message, ...args) {
-      // eslint-disable-next-line no-console
       if (isDev()) console.log(prefix, message, ...args);
     },
     info(message, ...args) {
-      // eslint-disable-next-line no-console
       if (isDev()) console.log(prefix, message, ...args);
     },
     warn(message, ...args) {

@@ -2,7 +2,7 @@
  * AI confidence badge (0-100). Renders nothing when the confidence is unknown (null for manual
  * and imported meetings). Labels come from the "ai" namespace; colors follow the app theme.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps, ReactElement } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 

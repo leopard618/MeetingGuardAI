@@ -2,7 +2,7 @@
  * Quick actions: new meeting (form), new meeting with the AI assistant, and WhatsApp shown as
  * "Coming soon" (disabled: the WhatsApp bot does not exist yet).
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text, useTheme as usePaperTheme } from 'react-native-paper';

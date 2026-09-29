@@ -3,7 +3,7 @@
  * action (Android back button blocked, no swipe dismissal). Looping alarm with a progressive
  * volume ramp, voice readout, repeating vibration (useAlertFeedback), and an auto-snooze countdown.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

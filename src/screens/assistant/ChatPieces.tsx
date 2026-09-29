@@ -3,7 +3,7 @@
  * chips, the inline error notice and the usage pill. Module-level components (never created
  * during render); colors come from the assistant palette (light / dark).
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState, type ReactElement } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 

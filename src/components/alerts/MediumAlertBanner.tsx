@@ -3,7 +3,7 @@
  * animation. It can be minimized to a pill but not dismissed: it stays until the user
  * acknowledges, snoozes, joins or opens the meeting. One chime + voice + vibration on appearance.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

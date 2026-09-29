@@ -2,7 +2,7 @@
  * Pure view-models for the assistant UI and the share text (no React / RN imports; unit-tested).
  * Every user-visible string comes from the "ai" namespace through the injected formatter.
  */
-import type { MaterialCommunityIcons } from '@expo/vector-icons';
+import type MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps } from 'react';
 
 import {

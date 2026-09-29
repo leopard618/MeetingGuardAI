@@ -9,7 +9,7 @@
  * - device-calendar imports (one-way): the change stays in MeetingGuard and the user is told the
  *   device calendar keeps its event.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useState, type ComponentProps, type ReactElement } from 'react';
 import { Alert, Linking, StyleSheet, View } from 'react-native';

@@ -3,7 +3,7 @@
  * a brief chime. It can be dismissed after 3 seconds and hides itself after a while (acknowledged).
  * The follow-up variant offers "Open assistant" (AI follow-up for the meeting).
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

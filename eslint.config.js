@@ -22,9 +22,10 @@ module.exports = defineConfig([
   },
   {
     rules: {
-      // console.error / console.warn stay in production builds; everything else is stripped by
-      // babel (transform-remove-console) and should not be added in new code.
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // Log through createLogger (src/core/logger.ts), never console.* directly (docs/ARCHITECTURE.md
+      // section 11). The logger is the one allowed caller (override below); babel strips
+      // console.log/info/debug from production bundles and keeps console.warn/error.
+      'no-console': 'error',
       'no-restricted-imports': [
         'error',
         {
@@ -46,9 +47,21 @@ module.exports = defineConfig([
               name: 'expo-background-fetch',
               message: 'Deprecated. Use expo-background-task.',
             },
+            {
+              name: '@expo/vector-icons',
+              message:
+                "Import one icon family, e.g. `import Ionicons from '@expo/vector-icons/Ionicons'`. The barrel bundles all 19 icon fonts (about 2 MB more).",
+            },
           ],
         },
       ],
+    },
+  },
+  {
+    // The logger itself, and the Node script that generates the alert sounds.
+    files: ['src/core/logger.ts', 'assets/sounds/*.js'],
+    rules: {
+      'no-console': 'off',
     },
   },
   {

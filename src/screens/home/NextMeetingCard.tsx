@@ -3,7 +3,7 @@
  * countdown (every second in the last hour, every 30 s otherwise), a Join button only when the
  * meeting has a real http(s) link, and a Details button.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useState, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Text, useTheme as usePaperTheme } from 'react-native-paper';

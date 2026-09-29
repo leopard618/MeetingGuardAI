@@ -8,7 +8,7 @@
  *   menu. Account actions (settings, sign-out) live in the sidebar.
  * - Theme-aware colors, top inset from the safe area (edge-to-edge), 44 pt touch targets.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ReactElement } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

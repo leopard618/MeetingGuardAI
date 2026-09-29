@@ -9,7 +9,7 @@
  *   screen-reader friendly links to the Terms and the Privacy Policy (both in the Auth stack).
  * - Scrolls, so it works with large fonts, small phones and landscape.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';

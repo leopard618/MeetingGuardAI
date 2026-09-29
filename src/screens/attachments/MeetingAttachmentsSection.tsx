@@ -3,7 +3,7 @@
  * labeled: not uploaded, not synced, not shared), open with another app, remove, and add a file,
  * a photo from the library or a new photo.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, HelperText, IconButton, Text, TouchableRipple, useTheme as usePaperTheme } from 'react-native-paper';

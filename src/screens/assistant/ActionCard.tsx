@@ -5,7 +5,7 @@
  *   Review / Dismiss / Try again / Open meeting buttons. Nothing runs from here: "Review" opens
  *   the confirmation sheet.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ReactElement } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 

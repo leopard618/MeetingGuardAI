@@ -2,7 +2,7 @@
  * Small building blocks of the calendar sync screen: primary button, provider sync line (real
  * last-sync time and last error), and the calendar rows (import switch, export radio).
  */
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { ComponentProps, ReactElement, ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 

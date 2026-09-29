@@ -4,7 +4,7 @@
  * Tap opens the details; long-press or the "more" button opens the action sheet; screen-reader
  * users get the same edit / delete actions as accessibility actions.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { memo, type ReactElement } from 'react';
 import { Pressable, StyleSheet, View, type AccessibilityActionEvent } from 'react-native';
 import { IconButton, Text, useTheme as usePaperTheme, type MD3Theme } from 'react-native-paper';

@@ -3,7 +3,7 @@
  * NetInfo (the same signal that pauses and resumes the outbox), plus the number of local changes
  * still waiting to reach the server.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text, useTheme as usePaperTheme } from 'react-native-paper';

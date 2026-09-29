@@ -1,5 +1,5 @@
 /** Icon and accent color of each note category (light and dark variants keep text contrast). */
-import type { MaterialCommunityIcons } from '@expo/vector-icons';
+import type MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps } from 'react';
 
 import type { NoteCategory } from '../../core/types';

@@ -2,7 +2,7 @@
  * Light / dark switch (owner: shell). Pressing it makes an explicit choice opposite to the scheme
  * on screen (ThemeContext persists it); "follow the system" is chosen in Settings or the sidebar.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ReactElement } from 'react';
 import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 

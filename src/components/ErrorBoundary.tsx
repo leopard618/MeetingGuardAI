@@ -13,7 +13,7 @@
  * The fallback only relies on things that work without the other providers: i18next's global
  * instance, the optional theme (else the OS scheme) and the optional safe-area context.
  */
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Component, useContext, type ErrorInfo, type ReactElement, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';

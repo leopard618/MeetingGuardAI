@@ -5,7 +5,7 @@
  * worth a look. Optional AI suggestions through the assistant (explained first; they use the
  * daily AI limit).
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useMemo, useState, type ReactElement } from 'react';
 import { Pressable, SectionList, StyleSheet, View, type SectionListData } from 'react-native';

@@ -3,7 +3,7 @@
  * (overlap in the error color, "starts right after" in the tertiary color, always with an icon and
  * text so the meaning never depends on color alone). Tapping opens the meeting.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ReactElement } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text, useTheme as usePaperTheme } from 'react-native-paper';

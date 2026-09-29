@@ -93,6 +93,9 @@ This version is a rebuild. It is compared here with **v1.0.9**, the version on G
     device-to-device transfers (Android 12+).
   - `RECORD_AUDIO`, `READ_CONTACTS` and `SYSTEM_ALERT_WINDOW` are blocked.
   - `SCHEDULE_EXACT_ALARM` was added.
+- **App size:** icons are imported per family (Ionicons, MaterialCommunityIcons, MaterialIcons), so
+  the bundle carries 3 icon fonts instead of all 19 (about 2 MB less). ESLint blocks the
+  `@expo/vector-icons` barrel import.
 - **Sign-in:** users must sign in again (with Google). The v1.0.9 backend session is not carried over.
 
 ### Removed

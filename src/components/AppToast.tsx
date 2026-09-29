@@ -7,7 +7,7 @@
  * - follow the Paper theme (light / dark): surface for success / info, errorContainer for errors;
  * - are announced by screen readers (accessibilityRole "alert", polite live region).
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Text, useTheme as usePaperTheme } from 'react-native-paper';

@@ -3,7 +3,7 @@
  * (CreateMeeting, or AIChat with an example prompt), then Preferences.onboardingCompleted is set;
  * the gate switches to the Main group and the queued intent opens on top of the Dashboard.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRef, useState, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text, TouchableRipple, useTheme as usePaperTheme } from 'react-native-paper';

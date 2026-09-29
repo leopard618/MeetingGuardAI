@@ -1,5 +1,5 @@
 /** Onboarding step 4: AI assistant introduction (capabilities, examples, daily quota, privacy). */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';

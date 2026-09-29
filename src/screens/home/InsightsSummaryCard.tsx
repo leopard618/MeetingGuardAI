@@ -4,7 +4,7 @@
  * chat with a prefilled question; nothing is sent until the user taps send) and a link to the
  * full insights screen.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Text, useTheme as usePaperTheme } from 'react-native-paper';

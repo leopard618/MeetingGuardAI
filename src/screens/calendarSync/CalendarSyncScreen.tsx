@@ -9,7 +9,7 @@
  * - "Sync now" with a per-provider summary.
  * Rendered as a SectionList (Google card, then the phone-calendar card and its rows).
  */
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Alert, Linking, SectionList, StyleSheet, Switch, Text, View } from 'react-native';

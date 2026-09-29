@@ -2,7 +2,7 @@
  * Chooses the meeting a note is linked to (inside the note editor): search, then upcoming
  * meetings (soonest first) and past meetings (most recent first) in a SectionList.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useMemo, useState, type ReactElement } from 'react';
 import { SectionList, StyleSheet, View } from 'react-native';
 import { IconButton, Searchbar, Text, TouchableRipple, useTheme as usePaperTheme } from 'react-native-paper';

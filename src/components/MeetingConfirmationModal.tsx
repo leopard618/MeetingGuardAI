@@ -9,7 +9,7 @@
  * plus the warnings from actionExecutor.preview (missing meeting, past time, overlap, Meet link,
  * new people). Several actions ("confirm all") are listed one after the other with one button.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useMemo, type ReactElement } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

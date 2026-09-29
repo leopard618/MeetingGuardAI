@@ -8,7 +8,7 @@
  *   usage from the last assistant answer on this device (useAssistant().usage), when it is for
  *   the current UTC day.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { FlatList, StyleSheet, Text, View, type ListRenderItem } from 'react-native';

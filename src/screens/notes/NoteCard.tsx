@@ -3,7 +3,7 @@
  * the linked meeting, pin and delete are separate controls (siblings of the body, so screen
  * readers can reach each of them).
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { memo, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { IconButton, Text, TouchableRipple, useTheme as usePaperTheme } from 'react-native-paper';

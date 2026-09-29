@@ -5,7 +5,7 @@
  * - WhatsApp: shown as "Coming soon" and disabled. There is no WhatsApp bot (no number, no
  *   webhook), so nothing here pretends otherwise.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import type { ComponentProps, ReactElement } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';

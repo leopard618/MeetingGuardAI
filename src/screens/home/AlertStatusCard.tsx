@@ -4,7 +4,7 @@
  * exact-alarm setting and the Do Not Disturb override of maximum alerts. Everything links to
  * Settings > Alerts, where the full settings live.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';

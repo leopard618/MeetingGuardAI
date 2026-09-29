@@ -9,7 +9,7 @@
  *   own notification starts the request by itself (`autoStart`); an external link shows a
  *   "Get follow-up ideas" button, so no paid request is sent without a tap.
  */
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useMemo, useRef, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
