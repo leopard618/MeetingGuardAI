@@ -21,6 +21,7 @@ import { MeetingListItem, sourceColor } from '../meetings/list/MeetingListItem';
 import { dayRelation, type SourceCategory } from '../meetings/list/meetingListModel';
 import { useMeetingsRefresh } from '../meetings/list/useMeetingsRefresh';
 import { useFormatters } from '../shared/useFormatters';
+import { capitalizeFirst } from '../shared/text';
 import { useLiveNow } from '../shared/useLiveNow';
 import {
   buildMonthGrid,
@@ -84,7 +85,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
 
   const relation = dayRelation(selectedKey, todayKey);
   const selectedDate = fmt.date(selectedKey, relation ? 'long' : 'full');
-  const agendaTitle = relation ? `${t(`calendarView:relation.${relation}`)} · ${selectedDate}` : selectedDate;
+  const agendaTitle = relation ? `${t(`calendarView:relation.${relation}`)} · ${selectedDate}` : capitalizeFirst(selectedDate);
   const shortDate = fmt.date(selectedKey, 'medium');
   const title = monthTitle(visibleMonth, language);
 

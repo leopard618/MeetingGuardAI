@@ -5,7 +5,7 @@
   "valueProps": {
     "alerts": {
       "title": "Avisos que llaman tu atención",
-      "body": "Elige una alarma a pantalla completa, un aviso que se queda hasta que actúes o un recordatorio discreto, con sonido y vibración. Los avisos por voz suenan mientras la app está abierta."
+      "body": "Elige cómo te avisamos: una alarma (a pantalla completa con MeetingGuard abierta y una notificación de alarma de alta prioridad cuando está cerrada), un aviso que se queda hasta que actúes o un recordatorio discreto. Con sonido y vibración; los avisos por voz suenan mientras la app está abierta."
     },
     "calendars": {
       "title": "Tus calendarios, juntos",

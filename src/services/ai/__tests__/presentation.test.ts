@@ -31,7 +31,18 @@ describe('confirmation cards', () => {
     expect(byField.title).toBe('Budget review');
     expect(byField.participants).toBe('Ana <ana@x.io>');
     expect(byField.conference).toBe('Google Meet · a Google Meet link will be created');
-    expect(byField.alerts).toBe('30, 5 min before');
+    expect(byField.alerts).toBe('30 min before, 5 min before');
+  });
+
+  it('labels custom alert offsets like the rest of the app (not raw minute counts)', () => {
+    // The app's real duration wording ("1 day", "1 h") instead of the kit's "<n> min" stub.
+    const duration = (minutes: number): string =>
+      minutes % 1440 === 0 ? `${minutes / 1440} day` : minutes % 60 === 0 ? `${minutes / 60} h` : `${minutes} min`;
+    const rows = describeDraft({ ...fmt, duration }, makeDraft({ customAlertTimes: [60, 1440, 0] }));
+    const byField = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+    expect(byField.alerts).toBe('1 day before, 1 h before, At start');
+    const rowsEs = describeDraft({ ...fmtEs, duration }, makeDraft({ customAlertTimes: [10, 0] }));
+    expect(Object.fromEntries(rowsEs.map((r) => [r.field, r.value])).alerts).toBe('10 min antes, Al empezar');
   });
 
   it('shows only the fields an update really changes (before and after)', () => {

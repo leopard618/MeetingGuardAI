@@ -65,7 +65,7 @@
     "item": "{{second}} empieza justo después de {{first}}"
   },
   "attention": {
-    "title": "Próximamente: conviene revisar",
+    "title": "Próximas reuniones: conviene revisar",
     "missingPlace_one": "{{count}} reunión no tiene enlace ni lugar",
     "missingPlace_other": "{{count}} reuniones no tienen enlace ni lugar",
     "withTips_one": "{{count}} reunión tiene consejos de preparación",

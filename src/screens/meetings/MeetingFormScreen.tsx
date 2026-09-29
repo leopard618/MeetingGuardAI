@@ -32,6 +32,7 @@ import { addErrorMessage, showAddResult } from '../attachments/attachmentMessage
 import { alertTimeChoices, alertTimeLabel, toggleAlertTime } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
 import { ScreenBody, Section } from '../shared/Section';
+import { capitalizeFirst } from '../shared/text';
 import { useDiscardChangesGuard } from '../shared/useDiscardChangesGuard';
 import { useFormatters } from '../shared/useFormatters';
 import {
@@ -243,7 +244,8 @@ function MeetingForm({
     change({ participants: draft.participants.map((row, i) => (i === index ? { ...row, ...patch } : row)) });
 
   const pickerValue = pickerDateOf(draft);
-  const whenLabel = draft.allDay ? fmt.date(draft.date, 'full') : `${fmt.date(draft.date, 'full')} · ${fmt.time(pickerValue)}`;
+  const dayLabel = capitalizeFirst(fmt.date(draft.date, 'full'));
+  const whenLabel = draft.allDay ? dayLabel : `${dayLabel} · ${fmt.time(pickerValue)}`;
   const durationChoices = [...new Set([...DURATION_OPTIONS, draft.durationMinutes])].sort((a, b) => a - b);
 
   return (

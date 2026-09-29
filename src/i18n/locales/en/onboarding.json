@@ -35,7 +35,7 @@
       "label": "Alert intensity",
       "max": {
         "title": "Maximum",
-        "description": "Full-screen alarm with sound, voice and vibration. You have to respond to it."
+        "description": "Alarm sound and vibration. While the app is open it fills the screen, reads the alert aloud and waits for you to respond. When the app is closed or the phone is locked, it is a high-priority alarm notification."
       },
       "medium": {
         "title": "Medium",

@@ -101,11 +101,18 @@ export function formatParticipants(fmt: AssistantFormatter, participants: readon
   return participants.map((p) => (p.name ? `${p.name} <${p.email}>` : p.email)).join(', ');
 }
 
+/** One reminder offset: "At start", "10 min before", "1 h before", "1 day before". */
+function formatAlertOffset(fmt: AssistantFormatter, minutes: number): string {
+  if (minutes === 0) return fmt.t('ai:values.alertAtStart');
+  return fmt.t('ai:values.alertBefore', { duration: fmt.duration(minutes) });
+}
+
+/** "1 day before, 1 h before, At start" (earliest reminder first), like the rest of the app. */
 export function formatAlertTimes(fmt: AssistantFormatter, times: readonly number[] | null): string {
   if (times === null) return fmt.t('ai:values.defaultAlerts');
   if (times.length === 0) return fmt.t('ai:values.noAlerts');
-  const sorted = [...times].sort((a, b) => b - a);
-  return fmt.t('ai:values.alertTimes', { list: sorted.join(', ') });
+  const sorted = [...new Set(times)].sort((a, b) => b - a);
+  return sorted.map((minutes) => formatAlertOffset(fmt, minutes)).join(', ');
 }
 
 function formatTips(fmt: AssistantFormatter, tips: readonly string[]): string {

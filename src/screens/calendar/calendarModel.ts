@@ -15,6 +15,7 @@ import { enUS, es } from 'date-fns/locale';
 import { addDaysToLocalDate, isLocalDate, toLocalDateTime } from '../../core/time';
 import type { Language, Meeting } from '../../core/types';
 import { compareWithinDay, meetingEndMs, sourceCategory, type SourceCategory } from '../meetings/list/meetingListModel';
+import { capitalizeFirst } from '../shared/text';
 
 export interface MonthRef {
   year: number;
@@ -134,13 +135,9 @@ export function dayDots(meetings: readonly Meeting[] | undefined): SourceCategor
   return DOT_ORDER.filter((category) => present.has(category));
 }
 
-function capitalize(value: string): string {
-  return value.charAt(0).toLocaleUpperCase() + value.slice(1);
-}
-
 /** "October 2026" / "Octubre 2026". */
 export function monthTitle(ref: MonthRef, language: Language): string {
-  return capitalize(format(new Date(ref.year, ref.month - 1, 1, 12), 'LLLL yyyy', { locale: LOCALES[language] }));
+  return capitalizeFirst(format(new Date(ref.year, ref.month - 1, 1, 12), 'LLLL yyyy', { locale: LOCALES[language] }));
 }
 
 /** Weekday column labels in grid order: short ("Mo" / "Lu") and full ("Monday" / "lunes"). */
@@ -150,7 +147,7 @@ export function weekdayLabels(firstWeekday: number, language: Language): { short
     const weekday = (firstWeekday + index) % 7;
     const date = new Date(2026, 0, 4 + weekday, 12);
     return {
-      short: capitalize(format(date, 'EEEEEE', { locale: LOCALES[language] })),
+      short: capitalizeFirst(format(date, 'EEEEEE', { locale: LOCALES[language] })),
       full: format(date, 'EEEE', { locale: LOCALES[language] }),
     };
   });

@@ -27,6 +27,7 @@ import { useAuth } from '../../services/auth';
 import { calendarSyncEngine } from '../../services/calendar';
 import { useMeetings, usePreferences } from '../../services/data';
 import { computeDashboardSummary, weekStartForLanguage, type InsightContext } from '../insights/meetingInsights';
+import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
 import { AlertStatusCard } from './AlertStatusCard';
 import { buildTodayTimeline, dayPeriodOf, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
@@ -60,7 +61,7 @@ function Greeting({ now, timeZone }: { now: Date; timeZone: string }): ReactElem
         {name ? t(`home:greeting.${period}`, { name }) : t(`home:greeting.${period}NoName`)}
       </Text>
       <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-        {fmt.date(now, 'full')}
+        {capitalizeFirst(fmt.date(now, 'full'))}
       </Text>
     </View>
   );

@@ -54,6 +54,8 @@ describe('pricing model', () => {
     expect(cards.filter((card) => card.isCurrent).map((card) => card.id)).toEqual(['pro_monthly']);
     expect(cards.some((card) => card.purchasable)).toBe(false);
     expect(buildPlanCards('monthly', null).some((card) => card.isCurrent)).toBe(false);
+    // No "Most popular" claim while nothing can be bought.
+    expect(cards.some((card) => card.popular)).toBe(false);
   });
 
   it('formats US dollar prices in the UI language', () => {
@@ -114,6 +116,7 @@ describe('PricingScreen', () => {
     expect(within(screen.getByTestId('pricing-plan-pro_monthly')).getByText('100 AI assistant requests per day')).toBeTruthy();
     expect(screen.getByTestId('pricing-coming-soon-pro_monthly').props.accessibilityState).toEqual({ disabled: true });
     expect(screen.queryByText(/Unlimited/i)).toBeNull();
+    expect(screen.queryByText('Most popular')).toBeNull();
     expect(screen.getByText('Today\'s count appears after you use the assistant.')).toBeTruthy();
   });
 

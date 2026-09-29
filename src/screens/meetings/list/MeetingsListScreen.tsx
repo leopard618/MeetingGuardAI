@@ -30,6 +30,7 @@ import type { Meeting } from '../../../core/types';
 import { useT } from '../../../i18n';
 import { useMeetings } from '../../../services/data';
 import { useFormatters } from '../../shared/useFormatters';
+import { capitalizeFirst } from '../../shared/text';
 import { useLiveNow } from '../../shared/useLiveNow';
 import { MeetingActionsSheet, useMeetingActions } from './meetingActions';
 import { MeetingListItem } from './MeetingListItem';
@@ -77,7 +78,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
 
   const sectionTitle = (dayKey: string): string => {
     const relation = dayRelation(dayKey, todayKey);
-    return relation ? `${t(`meetings:list.${relation}`)} · ${fmt.date(dayKey, 'long')}` : fmt.date(dayKey, 'full');
+    return relation ? `${t(`meetings:list.${relation}`)} · ${fmt.date(dayKey, 'long')}` : capitalizeFirst(fmt.date(dayKey, 'full'));
   };
 
   const renderSectionHeader = ({ section }: { section: SectionListData<Meeting, MeetingSection> }): ReactElement => (

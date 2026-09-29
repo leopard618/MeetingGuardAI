@@ -25,18 +25,22 @@ export interface PlanCard {
 
 /** Cards for a billing cycle (Free first). `currentTier` null = unknown (nothing is marked). */
 export function buildPlanCards(cycle: BillingCycle, currentTier: PlanTier | null): PlanCard[] {
-  return getPlans(cycle).map((plan) => ({
-    id: plan.id,
-    tier: plan.tier,
-    cycle: plan.cycle,
-    priceUsd: plan.priceUsd,
-    monthlyEquivalentUsd: plan.monthlyEquivalentUsd ?? null,
-    discountPercent: plan.discountPercent ?? null,
-    aiRequestsPerDay: plan.aiRequestsPerDay,
-    popular: plan.popular,
-    isCurrent: currentTier !== null && plan.tier === currentTier,
-    purchasable: PURCHASES_AVAILABLE && plan.tier !== 'free',
-  }));
+  return getPlans(cycle).map((plan) => {
+    const purchasable = PURCHASES_AVAILABLE && plan.tier !== 'free';
+    return {
+      id: plan.id,
+      tier: plan.tier,
+      cycle: plan.cycle,
+      priceUsd: plan.priceUsd,
+      monthlyEquivalentUsd: plan.monthlyEquivalentUsd ?? null,
+      discountPercent: plan.discountPercent ?? null,
+      aiRequestsPerDay: plan.aiRequestsPerDay,
+      // No "Most popular" claim on a plan nobody can buy yet.
+      popular: plan.popular && purchasable,
+      isCurrent: currentTier !== null && plan.tier === currentTier,
+      purchasable,
+    };
+  });
 }
 
 const PRICE_LOCALES: Readonly<Record<Language, string>> = { en: 'en-US', es: 'es-ES' };

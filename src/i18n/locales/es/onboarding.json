@@ -35,7 +35,7 @@
       "label": "Intensidad de las alertas",
       "max": {
         "title": "Máxima",
-        "description": "Alarma a pantalla completa con sonido, voz y vibración. Tienes que responder para cerrarla."
+        "description": "Sonido de alarma y vibración. Con la app abierta ocupa la pantalla, lee el aviso en voz alta y espera a que respondas. Con la app cerrada o el teléfono bloqueado, es una notificación de alarma de alta prioridad."
       },
       "medium": {
         "title": "Media",

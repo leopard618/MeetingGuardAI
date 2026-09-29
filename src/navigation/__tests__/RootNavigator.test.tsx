@@ -24,6 +24,10 @@ jest.mock('../../services/auth', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// The real MeetingDetails screen reads the Google Calendar connection (Meet link hint).
+jest.mock('../../services/calendar', () => ({
+  useCalendarStatus: () => ({ google: { enabled: false, hasScope: false }, device: { enabled: false } }),
+}));
 jest.mock('../../services/data', () => ({
   usePreferences: () => mockUsePreferences(),
   useMeeting: (id: string | null) => mockUseMeeting(id),
