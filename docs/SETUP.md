@@ -57,7 +57,9 @@ Also do these:
   `functions/README.md` "Granting a plan manually").
 
 The client must accept that v1.0.9 features break during the rotation. Do not wait for v1.1.0 to ship
-before you rotate.
+before you rotate. Just before you start, prepare the v1.0.9 fixture phones for the upgrade test
+(`docs/HANDOFF.md` §2 step 2, `docs/TESTING.md` T12): it takes minutes, and afterwards v1.0.9 can no
+longer sign in to create that data.
 
 ### 1.2 Clean the git history (after the rotation)
 
@@ -241,7 +243,10 @@ Google Auth Platform (older console: "OAuth consent screen"):
     `meetingguardai.com`).
   - A logo is optional, and adding one also triggers a review.
 - **Audience:** External. Start in **Testing**: only the test users you list (at most 100) can sign
-  in, and their grants expire after 7 days. Move to **In production** after verification.
+  in, and their grants expire after 7 days. Add every internal tester and the Google account you give
+  the Play reviewers (`docs/DEPLOYMENT.md` §9, App access). Move to **In production** after
+  verification. **Testing is enough for development and internal testing only:** a production
+  rollout needs In production and the verification (`docs/DEPLOYMENT.md` §4 item 4).
 - **Data access (scopes):**
   - `openid`, `.../auth/userinfo.email` and `.../auth/userinfo.profile` (not sensitive).
   - `https://www.googleapis.com/auth/calendar.events` (**sensitive**). The app asks for it only when the
@@ -533,7 +538,9 @@ You are done when all of these are true:
 - [ ] Android OAuth clients exist for the EAS upload key and the Play app signing key. The web client
       ID is in EAS.
 - [ ] The consent screen is set up with `calendar.events`. The Google Calendar API is enabled.
-      Verification is submitted (or you are still testing with test users).
+      Verification is submitted. While it is pending you may keep the Testing status, with every
+      tester and the Play reviewer account as test users, but only for development and internal
+      testing: the production rollout waits for `docs/DEPLOYMENT.md` §4 item 4.
 - [ ] `eas env:list` shows every required variable in all three environments.
       `eas build:version:get -p android` shows 20 (or higher after a production build).
 - [ ] `OPENAI_API_KEY` is set. `functions/.env.<project-id>` exists. The functions, rules and indexes

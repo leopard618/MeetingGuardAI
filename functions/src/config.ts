@@ -3,8 +3,10 @@
  *
  * - Secrets (OPENAI_API_KEY) live in Cloud Secret Manager: `firebase functions:secrets:set OPENAI_API_KEY`.
  *   `.value()` may only be read inside a function invocation.
- * - String params come from `functions/.env.<projectId>` (or the CLI prompt on deploy). Every param
- *   here has a default, so a plain `firebase deploy --only functions` works without a .env file.
+ * - String params come from `functions/.env.<projectId>`. The defaults below are only what the CLI
+ *   offers: without that file an interactive `firebase deploy` asks for every param and a
+ *   non-interactive deploy (CI) fails, so create the file once per project (functions/README.md,
+ *   docs/SETUP.md §6.3).
  */
 import { defineInt, defineSecret, defineString } from 'firebase-functions/params';
 

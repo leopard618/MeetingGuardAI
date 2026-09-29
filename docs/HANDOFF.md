@@ -36,9 +36,18 @@ State at the time of writing (2026-09-28):
   git fetch C:/Users/Leopard/git-data/MeetingGuardAI-work/.git stabilization:stabilization
   ```
 
-  Before you switch branches in that folder, check that nothing else changed there.
-  `git diff --stat stabilization` must be empty. Only then run `git checkout -f stabilization`,
-  because `-f` discards local changes.
+  Before you switch branches in that folder, check that nothing else changed there, because
+  `git checkout -f` discards local changes. `git diff --stat stabilization` does **not** work for
+  this: that folder's index is `main`, so every file that is new on `stabilization` is untracked
+  there and shows as deleted. Stage everything and compare the staged tree instead:
+
+  ```bash
+  git add -A
+  git diff --cached --stat stabilization   # must print nothing: the folder equals the branch
+  ```
+
+  If it prints files, those are real local changes: keep them first (`git stash push -u`, then review
+  the stash). When it is empty, run `git checkout -f stabilization`.
 - **Push only after the history clean-up** in `docs/SETUP.md` §1.2. The old history contains secrets,
   and this branch is built on it.
 
@@ -115,7 +124,7 @@ State at the time of writing (2026-09-28):
 | Backups | Commands are ready (`docs/DEPLOYMENT.md` §7); they must be turned on in the project. |
 | QA: calendars, alerts, EN/ES | Automated: 91 app suites (896 tests), 10 function suites (84 tests), and the rules tests. The device plan is written (`docs/TESTING.md` Part B) but **not run**. Outlook is not built. |
 | Test builds: Play internal testing, TestFlight | Android: ready once `docs/SETUP.md` is done. iOS: blocked (Apple account, Sign in with Apple). |
-| Deployment and rollback notes | `docs/DEPLOYMENT.md` |
+| Deployment and rollback notes | `docs/DEPLOYMENT.md`, "Release and rollback in brief" (the 1-2 page summary at the top); the numbered sections are the full runbook. |
 
 ---
 
@@ -126,21 +135,22 @@ Do these in order. **You** = the developer, **Client** = the product owner.
 | # | Task | Owner | Details |
 |---|---|---|---|
 | 1 | Get access: Firebase / Google Cloud (Owner), the Expo organization of the project, Play Console (Admin), OpenAI, Render, Supabase, Stripe, GitHub, and Apple if iOS is planned. | Client gives, you check | `docs/SETUP.md` intro |
-| 2 | Rotate every leaked secret and lock down the old Render backend. | You. The client accepts that v1.0.9 AI chat and login break. | `docs/SETUP.md` §1.1, §1.3 |
-| 3 | Clean the git history, then push `stabilization`. | You | `docs/SETUP.md` §1.2, §0 above |
-| 4 | Firebase project, OAuth clients (web, Android x2, iOS), consent screen, Calendar API. | You | `docs/SETUP.md` §3-4 |
-| 5 | Provide the legal entity, jurisdiction, support email and a domain. Have a lawyer review the texts. | Client | §3 below |
-| 6 | Fill `LEGAL_ENTITY`, `legal:jurisdiction` and the support email. Publish the privacy policy and terms at a public URL (only the delete page exists in `public/`). | You | `docs/DEPLOYMENT.md` §4 |
-| 7 | Submit the Google OAuth verification for `calendar.events`. Start early: it takes days to weeks. | You (form, video), Client (domain) | `docs/SETUP.md` §4.4 |
-| 8 | EAS environment variables, versionCode 20, keystore check, Play service account. | You | `docs/SETUP.md` §5 |
-| 9 | Set the OpenAI secret, create the params file, deploy the functions, rules, indexes and the delete page. Set the OpenAI and Google Cloud budgets. | You | `docs/SETUP.md` §6 |
-| 10 | Turn on Firestore PITR and daily backups, Sentry, and the monitoring alerts. | You | `docs/DEPLOYMENT.md` §7-8 |
-| 11 | Preview build. Run `docs/TESTING.md` T1-T11 and T13. Fix what fails. | You | `docs/TESTING.md` |
-| 12 | Production build to internal testing. Run the upgrade test T12 **before** Render is suspended. | You | `docs/DEPLOYMENT.md` §3 |
-| 13 | Play Console App content: data safety, account deletion URL, app access, exact alarms. | You. The client confirms the answers. | `docs/DEPLOYMENT.md` §9 |
-| 14 | Staged rollout to production, with monitoring. | You. The client approves the release. | `docs/DEPLOYMENT.md` §3, §8 |
-| 15 | When most users run 1.1.0: delete the Render service, the Supabase project and the Stripe webhooks and links. | You, after the client agrees | `docs/SETUP.md` §1.3 |
-| 16 | Make the decisions in §3. | Client | §3 below |
+| 2 | Prepare one or two **v1.0.9 fixture phones** for the upgrade test T12 **before** step 3: install v1.0.9 from Google Play, sign in, create the meetings, notes and settings of T12 row 1. Turn off auto-update for the app in the Play Store, keep the phones, and do not update them. After step 3, v1.0.9 can no longer sign in. | You | `docs/TESTING.md` T12 |
+| 3 | Rotate every leaked secret and lock down the old Render backend. | You. The client accepts that v1.0.9 AI chat and login break. | `docs/SETUP.md` §1.1, §1.3 |
+| 4 | Clean the git history, then push `stabilization`. | You | `docs/SETUP.md` §1.2, §0 above |
+| 5 | Firebase project, OAuth clients (web, Android x2, iOS), consent screen, Calendar API. | You | `docs/SETUP.md` §3-4 |
+| 6 | Provide the legal entity, jurisdiction, support email and a domain. Have a lawyer review the texts. | Client | §3 below |
+| 7 | Fill `LEGAL_ENTITY`, `legal:jurisdiction` and the support email. Publish the privacy policy and terms at a public URL (only the delete page exists in `public/`). | You | `docs/DEPLOYMENT.md` §4 |
+| 8 | Submit the Google OAuth verification for `calendar.events`. Start early: it takes days to weeks. | You (form, video), Client (domain) | `docs/SETUP.md` §4.4 |
+| 9 | EAS environment variables, versionCode 20, keystore check, Play service account. | You | `docs/SETUP.md` §5 |
+| 10 | Set the OpenAI secret, create the params file, deploy the functions, rules, indexes and the delete page. Set the OpenAI and Google Cloud budgets. | You | `docs/SETUP.md` §6 |
+| 11 | Turn on Firestore PITR and daily backups, Sentry, and the monitoring alerts. | You | `docs/DEPLOYMENT.md` §7-8 |
+| 12 | Preview build. Run `docs/TESTING.md` T1-T11 and T13. Fix what fails. | You | `docs/TESTING.md` |
+| 13 | Production build to internal testing. Run the upgrade test T12 on the fixture phones from step 2 (update them through the internal-testing link). | You | `docs/DEPLOYMENT.md` §3, `docs/TESTING.md` T12 |
+| 14 | Play Console App content: data safety, account deletion URL, app access, exact alarms. | You. The client confirms the answers. | `docs/DEPLOYMENT.md` §9 |
+| 15 | Staged rollout to production, with monitoring. Only after the OAuth consent screen is In production and `calendar.events` is verified (or the client accepts the unverified screen and the 100-user cap in writing). | You. The client approves the release. | `docs/DEPLOYMENT.md` §3, §4 item 4, §8 |
+| 16 | When most users run 1.1.0: delete the Render service, the Supabase project and the Stripe webhooks and links. | You, after the client agrees | `docs/SETUP.md` §1.3 |
+| 17 | Make the decisions in §3. | Client | §3 below |
 
 ---
 
@@ -199,7 +209,8 @@ These are true in v1.1.0. Some are platform limits, some are not built yet.
 - **Sign-in:** there is no email/password screen (the service supports it). There is no Sign in with
   Apple, which iOS requires.
 - **iOS has never been built.** The icon is 512 px (Apple needs 1024 px). `eas.json` has placeholder
-  Apple ids.
+  Apple ids. The first iOS release is iPhone only (`ios.supportsTablet: false`); iPad support needs
+  iPad landscape QA and iPad screenshots (`docs/SETUP.md` §8).
 - **Legal texts have placeholders** (`LEGAL_ENTITY`, `legal:jurisdiction`, the support email). They
   exist only inside the app, with no public URL.
 - **OTA reach.** OTA updates reach only builds from 1.1.0 on. A downloaded update runs from the next
@@ -224,7 +235,8 @@ The order assumes the client chooses RevenueCat and iOS. Adjust it after the dec
    - Add the RevenueCat SDK. It is a native module, so it needs a store build and a `version` bump.
    - Add a webhook Cloud Function that writes `entitlements/{uid}`. The rules already block client
      writes there.
-   - Add restore purchases, and turn on `PURCHASES_AVAILABLE` in the Pricing screen.
+   - Add restore purchases, and turn on `PURCHASES_AVAILABLE` in `src/services/billing.ts` (the Plans
+     screen then shows the purchase buttons and the "Most popular" badge).
 2. **Tier enforcement:**
    - The AI quota is **already server-side**: the `assistant` function reads `entitlements/{uid}` in
      its quota transaction (`PLAN_DAILY_AI_LIMITS`).
@@ -240,7 +252,8 @@ The order assumes the client chooses RevenueCat and iOS. Adjust it after the dec
    - Write a short admin guide.
 6. **Store listings:**
    - Play: screenshots EN/ES, descriptions, and data safety updated for purchases.
-   - App Store: privacy labels, IAP products and review notes.
+   - App Store: privacy labels, IAP products and review notes. iPad screenshots only if iPad
+     support is turned on (`docs/SETUP.md` §8).
 7. **iOS release:** Sign in with Apple, the 1024 px icon, TestFlight, then the App Store.
 8. **Final QA:** purchases with Play license testers and the App Store sandbox, the tier limits, and the
    performance targets (`docs/TESTING.md` T13).

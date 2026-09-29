@@ -9,6 +9,43 @@ This runbook covers shipping MeetingGuard AI:
 The one-time setup is in `docs/SETUP.md`, the tests in `docs/TESTING.md`, and the design in
 `docs/ARCHITECTURE.md` §15.
 
+## Release and rollback in brief
+
+This page is the short version (the Milestone 5 "deployment and rollback notes"). The numbered
+sections below have the details.
+
+**Release (Android)**
+
+1. Pass the checklist in §4. Two items block a production rollout on their own: the Google OAuth
+   consent screen is **In production** with `calendar.events` **verified** (§4 item 4), and Play
+   Console App content is complete (§9).
+2. Deploy the backend first if the release needs it: in `functions/`, `npm run deploy` and
+   `npm run deploy:rules`.
+3. Build and upload to internal testing:
+   `eas build --profile production --platform android`, then
+   `eas submit --profile production --platform android --latest`.
+4. Run the device plan (`docs/TESTING.md` Part B) on that build.
+5. Promote in Play Console to Production with a staged rollout: 10% -> 50% -> 100%, 24 to 48 hours
+   apart, watching Sentry and Android vitals (§8).
+6. Tag the commit: `git tag v<version>`.
+
+**JavaScript-only fix (OTA)**
+
+- `npm run update:preview -- "Fix: ..."`, test on a preview build, then
+  `npm run update:production -- "Fix: ..."`. Devices download it at a cold start and run it from the
+  next one.
+- Native changes (modules, permissions, plugins, SDK) always need a new `version` and a store build.
+
+**Rollback**
+
+| What went wrong | What to do |
+|---|---|
+| Bad OTA update (new Sentry crashes tagged with its `expo.updates.update_id`) | `eas update:rollback` (previous update), or `eas update:republish --group <last-good-group-id>`, or `eas update:roll-back-to-embedded --channel production`. Devices pick it up at the next cold start. (§10) |
+| Bad store build | Play Console -> Halt rollout. Build the last good tag again (higher versionCode, same `version` unless native code differs), submit, roll out. (§10) |
+| Bad functions deploy | Deploy the last good tag from a `git worktree` (copy `.firebaserc` and `functions/.env.<project-id>` in). Emergency: Cloud Run -> send 100% of traffic to the previous revision. (§6) |
+| Bad Firestore rules | Firebase console -> Firestore -> Rules -> publish the previous version, or `git checkout <tag> -- firestore.rules` and `npm run deploy:rules`. (§6) |
+| Lost or damaged data | Restore a backup or a point in time into a new database, import what is needed, then **re-apply account deletions** with `scripts/replay-account-deletions.mjs`. (§7) |
+
 ## 1. Build profiles and update channels
 
 | `eas.json` profile | Channel | Output | Signed with | Use |
@@ -59,7 +96,8 @@ Run these from the repository root.
    3. Each tester opens the link, accepts, and installs or updates the app from Google Play.
 5. Run the device plan in `docs/TESTING.md` on this build. It includes the upgrade from v1.0.9 and a
    low-end phone.
-6. **Promote:** Internal testing -> the release -> Promote release -> Production (or a closed track
+6. **Promote:** only when every item of §4 passes, including item 4 (Google OAuth in production and
+   verified). Internal testing -> the release -> Promote release -> Production (or a closed track
    first).
    - Use a **staged rollout**: 10% -> 50% -> 100%.
    - At each step, wait 24 to 48 hours and watch §8.
@@ -81,12 +119,24 @@ Run these from the repository root.
    - The support email replaces the placeholder in `public/delete-account.html`.
    - The privacy policy has a public URL.
 3. `docs/SETUP.md` §9 is complete. The functions and rules are deployed (§6). Backups are on (§7).
-4. `eas env:list --environment production` shows every required value, plus
+4. **Google OAuth is open to everyone (hard gate: do not start a production rollout without it).**
+   Google Cloud console -> Google Auth Platform:
+   - Audience -> Publishing status is **In production**. In **Testing**, only the listed test users
+     (at most 100) can sign in with Google or connect Google Calendar; every other user gets
+     "Access blocked" (`access_denied`).
+   - Verification Center shows the `calendar.events` verification as **approved**. While it is not,
+     users see the "Google hasn't verified this app" screen and the app is limited to 100 users.
+   - The only exception is a written decision by the client to launch unverified and accept that
+     screen and the 100-user cap.
+
+   Internal testing cannot catch this: every tester is on the test-user list. Check it in the
+   console before each promotion to production.
+5. `eas env:list --environment production` shows every required value, plus
    `EXPO_PUBLIC_SENTRY_DSN`. `eas build:version:get -p android` is 20 or higher.
-5. Play Console -> App content is complete (§9).
-6. The internal-testing QA passed, including the v1.0.9 upgrade. The release notes (EN + ES) say that
+6. Play Console -> App content is complete (§9).
+7. The internal-testing QA passed, including the v1.0.9 upgrade. The release notes (EN + ES) say that
    users must sign in again with Google.
-7. Tag the released commit: `git tag v1.1.0`. A rollback then knows what "last good" is.
+8. Tag the released commit: `git tag v1.1.0`. A rollback then knows what "last good" is.
 
 ## 5. OTA updates
 
@@ -242,21 +292,38 @@ gcloud was not available when this runbook was written, so check the flags of th
     `SYSTEM_ALERT_WINDOW` are blocked in `app.config.js`.
   - Libraries can add permissions at build time, so check the final list in Play Console -> App
     bundle explorer before you answer the forms.
-- **Data safety.** Confirm each answer against the final privacy policy:
+- **Data safety.** The form must match the privacy policy ("Information we collect" in
+  `src/i18n/locales/en/legal.json`). Confirm each answer against the final policy:
   - Collected:
-    - Personal info: name and email address (the Google account; account management).
+    - Personal info:
+      - Name and email address (the Google account; account management).
+      - User IDs: the Firebase user id and the Google account identifier (account management).
+      - Other info: the profile photo URL from the Google account (stored in `users/{uid}`).
     - Calendar events: meetings, including participant names and emails (app functionality).
     - Other user-generated content: notes, and assistant messages (sent through our server to OpenAI
       for processing).
+    - App activity:
+      - App interactions: the daily assistant request counters (`usage/{uid}/days/*`, used for the
+        plan quota).
+      - The app settings stored with the account (language, time zone, time format, alert settings,
+        synced calendars). Play has no exact category for settings; declare them with app activity,
+        or confirm with the Play definitions.
     - App info and performance: crash logs and diagnostics (Sentry, when the DSN is set).
+    - Device or other IDs: the Sentry native SDK attaches a random installation id to crash reports
+      (check `user.id` and the device data on a real Sentry event), and expo-updates sends a random
+      per-install id (`EAS-Client-ID`) to the Expo update server with each update check. Both are
+      app specific, not advertising ids.
   - Not collected: attachments stay on the phone.
   - Data is encrypted in transit.
-  - Users can delete their account and data.
+  - Users can delete their account and data. Deleted data stays in backups until they expire (up to
+    14 days); the privacy policy and the deletion page say so.
 - **Account deletion.**
   - In the app: Settings -> Account -> Delete account.
   - Web URL: `https://<project-id>.web.app/delete-account` (`public/delete-account.html`, deployed in
     §6).
 - **App access:** reviewers must sign in with Google. Give them a test Google account and the steps.
+  While the OAuth consent screen is still in Testing (internal or closed tracks only, see §4), add that
+  account to its test users, or the review fails at sign-in.
 - Also complete: the privacy policy URL, Ads (the app shows none), the content rating and the target
   audience.
 

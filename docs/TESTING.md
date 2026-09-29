@@ -271,8 +271,12 @@ Focus allows it. There is no exact-alarm setting on iOS.
 
 ### T12. Upgrade in place from v1.0.9 (versionCode 20)
 
-v1.0.9 signs in through the old Render backend. Run this test **before** the backend is suspended
-(`docs/SETUP.md` §1.3), or on a phone that already has v1.0.9 data.
+v1.0.9 signs in through the old Render backend, and the secret rotation and the Render lockdown
+(`docs/SETUP.md` §1.1, §1.3; `docs/HANDOFF.md` §2 step 3) break that sign-in. So row 1 is done
+**before** that step, on **fixture phones** (`docs/HANDOFF.md` §2 step 2): phones with v1.0.9 from
+Google Play, signed in, with the data of row 1, auto-update for the app turned off in the Play Store,
+and not opened again until this test. Rows 2 to 6 run later on those phones, with the v1.1.0
+internal-testing build. A phone that kept v1.0.9 data from earlier use works too.
 
 To update in place, the new build must have the same signature as the installed app:
 
@@ -288,7 +292,7 @@ To update in place, the new build must have the same signature as the installed 
 
 | # | Step | Expected result |
 |---|---|---|
-| 1 | On v1.0.9: sign in, and create 3 meetings (tomorrow, next week, one in the past) and 2 notes. Set the alert intensity to Light and the language to English. | The data shows in v1.0.9. |
+| 1 | Fixture phone, **before the Render lockdown**: on v1.0.9, sign in, and create 3 meetings (tomorrow and next week, relative to the planned test date, and one in the past) and 2 notes. Set the alert intensity to Light and the language to English. | The data shows in v1.0.9. |
 | 2 | Update to v1.1.0 **without uninstalling**. Open the app. | The Landing screen, because the old session is not kept. No crash. |
 | 3 | Sign in with a Google account that has the **same email** as the v1.0.9 account. | After onboarding, the v1.0.9 meetings and notes are in the app (their ids start with `legacy_` in Firestore). Future meetings get alerts, and the saved preferences are applied. |
 | 4 | Restart the app, then sign out and sign in again. | No duplicates. |
