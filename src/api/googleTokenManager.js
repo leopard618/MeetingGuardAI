@@ -1,274 +1,31 @@
-// Unified Google Calendar Token Manager
-// Handles all Google Calendar token operations with proper refresh logic
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-import { MovedToServerError } from '../utils/movedToServer';
+/**
+ * Compat shim (owner: auth) for the pre-rebuild Google token manager. Stage 3 removes it.
+ *
+ * Tokens are no longer stored or refreshed by the app: the native Google Sign-In SDK issues fresh
+ * access tokens on demand (authService.getGoogleAccessToken). New code uses authService directly.
+ */
+import { authService } from '../services/auth/authService';
+import { getCalendarAccessTokenOrNull } from '../services/auth/legacyCompat';
 
 class GoogleTokenManager {
-  constructor() {
-    this.tokenCache = new Map();
-    this.refreshPromise = null; // Prevent multiple simultaneous refresh attempts
+  /**
+   * Google access token with the Calendar scope, or null when Calendar is not connected.
+   * Other failures (offline, Google errors) reject with an AppError.
+   */
+  getValidAccessToken() {
+    return getCalendarAccessTokenOrNull();
   }
 
-  /**
-   * Get valid access token with automatic refresh
-   */
-  async getValidAccessToken() {
-    try {
-      console.log('🔄 [TokenManager] Getting valid access token...');
-
-      // Check cache first
-      const cachedToken = this.tokenCache.get('access_token');
-      const cachedExpiry = this.tokenCache.get('expiry');
-      
-      if (cachedToken && cachedExpiry && Date.now() < cachedExpiry) {
-        console.log('✅ [TokenManager] Using cached valid token');
-        return cachedToken;
-      }
-
-      // Get tokens from storage
-      const tokens = await this.getStoredTokens();
-      
-      if (!tokens.accessToken) {
-        console.log('❌ [TokenManager] No access token found');
-        return null;
-      }
-
-      // Check if token is expired or will expire soon (5 minutes buffer)
-      const fiveMinutesFromNow = Date.now() + (5 * 60 * 1000);
-      const isExpiredOrExpiringSoon = tokens.expiry && fiveMinutesFromNow > tokens.expiry;
-      
-      if (isExpiredOrExpiringSoon) {
-        const isAlreadyExpired = Date.now() > tokens.expiry;
-        
-        if (isAlreadyExpired) {
-          console.log('❌ [TokenManager] Access token has expired');
-        } else {
-          console.log('🔄 [TokenManager] Access token expires soon, refreshing proactively');
-        }
-        
-        console.log('❌ [TokenManager] Expiry time:', new Date(tokens.expiry).toISOString());
-        console.log('❌ [TokenManager] Current time:', new Date().toISOString());
-
-        // Try to refresh the token
-        if (tokens.refreshToken) {
-          console.log('🔄 [TokenManager] Attempting to refresh expired token...');
-          
-          // Prevent multiple simultaneous refresh attempts
-          if (this.refreshPromise) {
-            console.log('🔄 [TokenManager] Token refresh already in progress, waiting...');
-            return await this.refreshPromise;
-          }
-
-          this.refreshPromise = this.refreshAccessToken(tokens.refreshToken);
-          
-          try {
-            const newTokens = await this.refreshPromise;
-            if (newTokens && newTokens.access_token) {
-              console.log('✅ [TokenManager] Token refreshed successfully');
-              // Store the new tokens
-              await this.storeTokens(newTokens);
-              // Update cache
-              this.tokenCache.set('access_token', newTokens.access_token);
-              this.tokenCache.set('expiry', Date.now() + (newTokens.expires_in * 1000));
-              return newTokens.access_token;
-            }
-          } catch (refreshError) {
-            console.error('❌ [TokenManager] Token refresh failed:', refreshError);
-          } finally {
-            this.refreshPromise = null;
-          }
-        }
-
-        // Clear expired tokens if refresh failed
-        await this.clearTokens();
-        
-        // Trigger automatic logout when tokens can't be refreshed
-        console.log('🚨 [TokenManager] Google tokens expired and refresh failed - triggering logout');
-        await this.triggerLogout();
-        
-        return null;
-      }
-
-      console.log('✅ [TokenManager] Valid access token found');
-      // Update cache
-      this.tokenCache.set('access_token', tokens.accessToken);
-      this.tokenCache.set('expiry', tokens.expiry);
-      return tokens.accessToken;
-    } catch (error) {
-      console.error('❌ [TokenManager] Error getting valid access token:', error);
-      return null;
-    }
+  /** Whether the Calendar scope is granted on this device. */
+  hasValidAccess() {
+    return authService.hasCalendarScope();
   }
 
-  /**
-   * Get stored tokens from AsyncStorage
-   */
-  async getStoredTokens() {
-    try {
-      const accessToken = await AsyncStorage.getItem('google_access_token');
-      const refreshToken = await AsyncStorage.getItem('google_refresh_token');
-      const expiry = await AsyncStorage.getItem('google_token_expiry');
-
-      return {
-        accessToken,
-        refreshToken,
-        expiry: expiry ? parseInt(expiry) : null
-      };
-    } catch (error) {
-      console.error('❌ [TokenManager] Error getting stored tokens:', error);
-      return {
-        accessToken: null,
-        refreshToken: null,
-        expiry: null
-      };
-    }
-  }
-
-  /**
-   * Store tokens in AsyncStorage
-   */
-  async storeTokens(tokens) {
-    try {
-      console.log('🔄 [TokenManager] Storing tokens...');
-      
-      const tokenData = {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_in: tokens.expires_in,
-        expires_at: tokens.expires_at
-      };
-
-      // Store in AsyncStorage
-      await AsyncStorage.setItem('google_access_token', tokenData.access_token);
-      if (tokenData.refresh_token) {
-        await AsyncStorage.setItem('google_refresh_token', tokenData.refresh_token);
-      }
-      
-      // Calculate expiry time
-      const expiryTime = Date.now() + (tokenData.expires_in * 1000);
-      await AsyncStorage.setItem('google_token_expiry', expiryTime.toString());
-
-      // Update cache
-      this.tokenCache.set('access_token', tokenData.access_token);
-      this.tokenCache.set('expiry', expiryTime);
-
-      console.log('✅ [TokenManager] Tokens stored successfully');
-      return true;
-    } catch (error) {
-      console.error('❌ [TokenManager] Error storing tokens:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Refresh access token using refresh token.
-   *
-   * A refresh-token grant needs the OAuth client secret, which must never ship in the app.
-   * It will run in a Firebase Cloud Function (later stage); until then the refresh fails and
-   * the calendar is marked as needing a reconnect.
-   */
-  async refreshAccessToken(_refreshToken) {
-    await AsyncStorage.multiSet([
-      ['google_calendar_needs_reconnect', 'true'],
-      ['google_calendar_disconnect_reason', 'moved_to_server'],
-    ]).catch(() => {});
-    throw new MovedToServerError('google-token-refresh');
-  }
-
-  /**
-   * Clear all stored tokens
-   */
-  async clearTokens() {
-    try {
-      console.log('🔄 [TokenManager] Clearing all tokens...');
-      
-      await AsyncStorage.multiRemove([
-        'google_access_token',
-        'google_refresh_token', 
-        'google_token_expiry'
-      ]);
-
-      // Clear cache
-      this.tokenCache.clear();
-
-      console.log('✅ [TokenManager] All tokens cleared');
-      return true;
-    } catch (error) {
-      console.error('❌ [TokenManager] Error clearing tokens:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Trigger automatic logout when Google tokens can't be refreshed
-   */
-  async triggerLogout() {
-    try {
-      console.log('🚨 [TokenManager] Triggering automatic logout due to expired Google tokens');
-      
-      // Clear all authentication data
-      await AsyncStorage.multiRemove([
-        'user',
-        'authToken',
-        'google_access_token',
-        'google_refresh_token',
-        'google_token_expiry',
-        'google_calendar_connected',
-        'google_calendar_connected_at'
-      ]);
-      
-      console.log('✅ [TokenManager] All auth data cleared - user will be logged out');
-      
-      // The AuthContext will detect the cleared tokens and automatically log out the user
-      // This triggers a clean re-authentication flow
-      
-    } catch (error) {
-      console.error('❌ [TokenManager] Error during automatic logout:', error);
-    }
-  }
-
-  /**
-   * Check if user has valid Google Calendar access
-   */
-  async hasValidAccess() {
-    try {
-      const token = await this.getValidAccessToken();
-      return !!token;
-    } catch (error) {
-      console.error('❌ [TokenManager] Error checking access:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Validate token by making a test API call
-   */
-  async validateToken(accessToken) {
-    try {
-      console.log('🔄 [TokenManager] Validating token...');
-      
-      const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
-
-      if (response.ok) {
-        console.log('✅ [TokenManager] Token is valid');
-        return true;
-      } else {
-        console.log('❌ [TokenManager] Token validation failed:', response.status);
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ [TokenManager] Token validation error:', error);
-      return false;
-    }
+  /** After a 401 from a Google API: drop the cached token so the next request gets a new one. */
+  invalidateToken(token) {
+    return authService.invalidateGoogleAccessToken(token);
   }
 }
 
-// Export singleton instance
 export const googleTokenManager = new GoogleTokenManager();
 export default googleTokenManager;
