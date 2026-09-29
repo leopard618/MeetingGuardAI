@@ -391,6 +391,27 @@ function parseFingerprints(output) {
 
 // --- Build ----------------------------------------------------------------------------------------
 
+// Java options for every JVM of the build on Windows (Gradle, its daemon and workers, the Kotlin
+// daemon), through JAVA_TOOL_OPTIONS. VPN and proxy tools that install a Winsock layered service
+// provider (LSP; seen with Astrill VPN's ASProxy64.dll) break Java's socket selectors: the default
+// selector of Java 17+ (wepoll) crashes the JVM inside the LSP (EXCEPTION_ACCESS_VIOLATION), and the
+// classic select() selector fails with "not a socket" when its wake-up pipe is an AF_UNIX socket.
+// So the build uses the classic selector with a TCP loopback wake-up pipe, Java's defaults before
+// JDK 16/17: the invalid AF_UNIX temp folder "?" makes Java fall back to TCP for that pipe (nothing
+// else in the build uses AF_UNIX sockets). Without an LSP this works just the same.
+const WINDOWS_JAVA_TOOL_OPTIONS = Object.freeze([
+  '-Djava.nio.channels.spi.SelectorProvider=sun.nio.ch.WindowsSelectorProvider',
+  '-Djdk.net.unixdomain.tmpdir=?',
+]);
+
+/** JAVA_TOOL_OPTIONS for the build on Windows: the caller's options + WINDOWS_JAVA_TOOL_OPTIONS. */
+function windowsJavaToolOptions(existing) {
+  const current = isBlank(existing) ? '' : existing.trim();
+  // Someone who already chose a selector knows why: keep their options as they are.
+  if (current.includes('java.nio.channels.spi.SelectorProvider')) return current;
+  return [current, ...WINDOWS_JAVA_TOOL_OPTIONS].filter(Boolean).join(' ');
+}
+
 /** Sets `name` in an env object, replacing any differently-cased copy on Windows (Path vs PATH). */
 function setEnvVar(env, name, value, platform) {
   if (platform === 'win32') {
@@ -409,7 +430,8 @@ function getEnvVar(env, name, platform) {
 
 /**
  * Environment for `expo prebuild` and Gradle: local test build + local signing switches, the signing
- * values the generated build.gradle reads, the JDK first on PATH, and the SDK location.
+ * values the generated build.gradle reads, the JDK first on PATH, the SDK location and, on Windows,
+ * the Java options above.
  */
 function buildChildEnv({ baseEnv, platform, javaHome, androidHome, keystore, alias, storePassword, keyPassword }) {
   const env = { ...baseEnv };
@@ -418,6 +440,9 @@ function buildChildEnv({ baseEnv, platform, javaHome, androidHome, keystore, ali
   const currentPath = getEnvVar(env, 'PATH', platform) ?? '';
   setEnvVar(env, pathKey, currentPath ? `${p.join(javaHome, 'bin')}${p.delimiter}${currentPath}` : p.join(javaHome, 'bin'), platform);
   setEnvVar(env, 'JAVA_HOME', javaHome, platform);
+  if (platform === 'win32') {
+    setEnvVar(env, 'JAVA_TOOL_OPTIONS', windowsJavaToolOptions(getEnvVar(env, 'JAVA_TOOL_OPTIONS', platform)), platform);
+  }
   setEnvVar(env, 'ANDROID_HOME', androidHome, platform);
   setEnvVar(env, 'ANDROID_SDK_ROOT', androidHome, platform);
   setEnvVar(env, 'MG_LOCAL_TEST_BUILD', '1', platform);
@@ -492,6 +517,7 @@ module.exports = {
   REQUIRED_ENV_KEYS,
   SIGNING_ENV,
   USAGE,
+  WINDOWS_JAVA_TOOL_OPTIONS,
   adbPath,
   androidSdkCandidates,
   apkFileName,

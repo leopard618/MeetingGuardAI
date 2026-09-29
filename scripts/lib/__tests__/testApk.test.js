@@ -281,11 +281,25 @@ describe('scripts/lib/testApk', () => {
       expect(env.Path).toBe('C:\\Program Files\\Android\\Android Studio\\jbr\\bin;C:\\Windows');
     });
 
+    it('on Windows, gives every JVM the classic socket selector with a TCP wake-up pipe (VPN / LSP crash)', () => {
+      const selector = '-Djava.nio.channels.spi.SelectorProvider=sun.nio.ch.WindowsSelectorProvider';
+      expect(lib.WINDOWS_JAVA_TOOL_OPTIONS).toEqual([selector, '-Djdk.net.unixdomain.tmpdir=?']);
+      expect(lib.buildChildEnv({ ...base, baseEnv: {} }).JAVA_TOOL_OPTIONS).toBe(`${selector} -Djdk.net.unixdomain.tmpdir=?`);
+      // Keeps the caller's options (any spelling of the name) and adds these after them.
+      const env = lib.buildChildEnv({ ...base, baseEnv: { java_tool_options: ' -Xss4m ' } });
+      expect(Object.keys(env).filter((key) => key.toUpperCase() === 'JAVA_TOOL_OPTIONS')).toEqual(['JAVA_TOOL_OPTIONS']);
+      expect(env.JAVA_TOOL_OPTIONS).toBe(`-Xss4m ${selector} -Djdk.net.unixdomain.tmpdir=?`);
+      // A selector chosen by the caller wins.
+      const own = '-Djava.nio.channels.spi.SelectorProvider=com.example.Provider';
+      expect(lib.buildChildEnv({ ...base, baseEnv: { JAVA_TOOL_OPTIONS: own } }).JAVA_TOOL_OPTIONS).toBe(own);
+    });
+
     it('does not change the caller environment', () => {
       const baseEnv = { PATH: '/usr/bin' };
       const env = lib.buildChildEnv({ ...base, platform: 'linux', javaHome: '/opt/jdk', baseEnv });
       expect(baseEnv).toEqual({ PATH: '/usr/bin' });
       expect(env.PATH).toBe('/opt/jdk/bin:/usr/bin');
+      expect(env.JAVA_TOOL_OPTIONS).toBeUndefined();
     });
 
     it('runs Gradle for x86_64 and arm64-v8a, quoting the list for cmd.exe', () => {

@@ -317,6 +317,11 @@ If the build fails:
   then restart Windows), or build from a copy of the repository in a short folder such as `C:\mg`.
 - A file is busy or locked during "Generating the Android project": close Android Studio if it has the
   `android` folder open, then run the command again.
+- Every Java process prints `Picked up JAVA_TOOL_OPTIONS: -Djava.nio.channels.spi.SelectorProvider=...`:
+  on Windows the script sets this on purpose. VPN and proxy tools that hook into Windows networking (a
+  Winsock "LSP", for example Astrill VPN's `ASProxy64.dll`) make Java 17+ crash with
+  `EXCEPTION_ACCESS_VIOLATION` in that DLL as soon as Gradle starts; these options avoid it. Other
+  Java programs on the same PC, Android Studio included, can crash the same way.
 
 ### T1. Sign-in and sign-out
 
