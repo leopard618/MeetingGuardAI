@@ -1,0 +1,95 @@
+{
+  "screen": {
+    "title": "Sincronización de calendarios",
+    "subtitle": "Mantén MeetingGuard al día con Google Calendar y con los calendarios de este teléfono.",
+    "back": "Volver"
+  },
+  "status": {
+    "lastSynced": "Última sincronización: {{time}}",
+    "neverSynced": "Todavía no se ha sincronizado",
+    "syncing": "Sincronizando…"
+  },
+  "google": {
+    "title": "Google Calendar",
+    "description": "Sincronización en ambos sentidos con tu calendario principal de Google. Las reuniones que creas aquí aparecen en Google Calendar (con invitaciones para los participantes) y tus eventos de Google reciben las alertas de MeetingGuard.",
+    "state": {
+      "connected": "Conectado",
+      "notConnected": "Sin conectar",
+      "permissionNeeded": "Falta el acceso al calendario"
+    },
+    "permissionNeededHint": "MeetingGuard ya no tiene acceso a tu Google Calendar. Vuelve a darle acceso para seguir sincronizando.",
+    "twoWaySync": "Sincronización en ambos sentidos",
+    "connect": "Conectar Google Calendar",
+    "connecting": "Conectando…",
+    "grantAccess": "Dar acceso al calendario",
+    "connectedTitle": "Google Calendar conectado",
+    "firstSyncSummary": "Se importaron {{created}} eventos y se enviaron {{pushed}} reuniones a Google Calendar.",
+    "firstSyncFailed": "Conectado, pero la primera sincronización no terminó: {{error}} MeetingGuard lo volverá a intentar automáticamente.",
+    "scopeDenied": "No se concedió el acceso al calendario. Puedes volver a conectarlo cuando quieras.",
+    "disconnectTitle": "¿Dejar de sincronizar Google Calendar?",
+    "disconnectMessage": "Los eventos importados de Google Calendar se quitarán de MeetingGuard. No se borra nada de tu Google Calendar.",
+    "disconnect": "Dejar de sincronizar",
+    "disconnectAndRevoke": "Dejar de sincronizar y quitar el acceso",
+    "disconnecting": "Deteniendo la sincronización…",
+    "disconnectedTitle": "La sincronización con Google Calendar está desactivada",
+    "untitledEvent": "(Sin título)"
+  },
+  "device": {
+    "title": "Calendarios de este teléfono",
+    "description": "Importa eventos de los calendarios de este teléfono y, si quieres, añade tus reuniones de MeetingGuard a uno de ellos.",
+    "permission": {
+      "request": "Permitir acceso al calendario",
+      "denied": "El acceso al calendario está desactivado para MeetingGuard.",
+      "openSettings": "Abrir ajustes"
+    },
+    "loading": "Cargando calendarios…",
+    "empty": "No hay calendarios en este teléfono.",
+    "retry": "Reintentar",
+    "import": {
+      "title": "Importar eventos de",
+      "googleSynced": "Ya se sincroniza a través de Google Calendar"
+    },
+    "export": {
+      "title": "Añadir las reuniones de MeetingGuard a",
+      "none": "No añadirlas a un calendario del teléfono",
+      "hint": "Solo se añaden las reuniones de MeetingGuard, sin recordatorios del calendario (MeetingGuard te avisa)."
+    }
+  },
+  "sync": {
+    "now": "Sincronizar ahora",
+    "syncing": "Sincronizando…",
+    "doneTitle": "Sincronización completada",
+    "problemsTitle": "La sincronización terminó con problemas",
+    "googleResult": "Google Calendar: {{created}} nuevos, {{updated}} actualizados, {{removed}} eliminados, {{pushed}} enviados a Google.",
+    "deviceResult": "Calendarios del teléfono: {{created}} nuevos, {{updated}} actualizados, {{removed}} eliminados, {{pushed}} añadidos a tu calendario.",
+    "failedGoogle_one": "{{count}} cambio no se pudo enviar a Google Calendar.",
+    "failedGoogle_other": "{{count}} cambios no se pudieron enviar a Google Calendar.",
+    "failedDevice_one": "{{count}} reunión no se pudo añadir al calendario del teléfono.",
+    "failedDevice_other": "{{count}} reuniones no se pudieron añadir al calendario del teléfono.",
+    "providerError": "{{provider}}: {{error}}",
+    "nothingToSync": "Todavía no hay nada que sincronizar. Primero conecta Google Calendar o elige calendarios de este teléfono.",
+    "providers": {
+      "google": "Google Calendar",
+      "device": "Calendarios del teléfono"
+    }
+  },
+  "prompt": {
+    "title": "Conectar Google Calendar",
+    "subtitle": "Trae tu Google Calendar a MeetingGuard",
+    "benefits": {
+      "alerts": "Recibe las alertas de MeetingGuard para tus eventos de Google Calendar",
+      "twoWay": "Las reuniones que creas aquí aparecen en Google Calendar, con invitaciones",
+      "meet": "Crea enlaces reales de Google Meet para tus reuniones"
+    },
+    "privacy": "MeetingGuard solo lee y escribe los eventos de tu calendario. Puedes desconectarlo cuando quieras en Sincronización de calendarios.",
+    "connect": "Conectar Google Calendar",
+    "notNow": "Ahora no",
+    "alreadyConnected": "Google Calendar está conectado."
+  },
+  "actions": {
+    "ok": "Aceptar",
+    "cancel": "Cancelar",
+    "close": "Cerrar"
+  },
+  "errorTitle": "Algo salió mal"
+}

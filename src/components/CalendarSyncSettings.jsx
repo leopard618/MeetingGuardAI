@@ -1,523 +1,593 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import {
-  Card,
-  Title,
-  Paragraph,
-  Switch,
-  Button,
-  List,
-  Divider,
-  ActivityIndicator,
-} from 'react-native-paper';
+/**
+ * Calendar sync settings (owner: calendar). Shows the REAL state of Google Calendar sync and of the
+ * device calendars (src/services/calendar), and every action reports its real result.
+ */
 import { MaterialIcons } from '@expo/vector-icons';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
 import { useTheme } from '../contexts/ThemeContext.jsx';
-import { useTranslation } from './translations.jsx';
-import calendarSyncManager from '../api/calendarSyncManager';
-import googleCalendarService from '../api/googleCalendar';
+import { errorMessageKey, toAppError } from '../core/errors';
+import { createLogger } from '../core/logger';
+import { useT } from '../i18n';
+import {
+  calendarSyncEngine,
+  deviceCalendarService,
+  googleCalendarService,
+  useCalendarStatus,
+} from '../services/calendar';
+import { usePreferences } from '../services/data';
+import { formatRelative } from '../utils/format';
 
-export default function CalendarSyncSettings({ language = 'en' }) {
-  const { isDarkMode } = useTheme();
-  const { t } = useTranslation(language);
-  const [syncSettings, setSyncSettings] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatistics, setSyncStatistics] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState({
-    isConnected: false,
-    checking: true,
-    message: 'Checking connection...'
-  });
+const log = createLogger('calendar');
 
+function palette(isDarkMode) {
+  return {
+    background: isDarkMode ? '#0f172a' : '#f8fafc',
+    card: isDarkMode ? '#1e293b' : '#ffffff',
+    border: isDarkMode ? '#334155' : '#e2e8f0',
+    text: isDarkMode ? '#f1f5f9' : '#1e293b',
+    muted: isDarkMode ? '#94a3b8' : '#64748b',
+    accent: isDarkMode ? '#60a5fa' : '#2563eb',
+    success: isDarkMode ? '#34d399' : '#059669',
+    warning: isDarkMode ? '#fbbf24' : '#b45309',
+    danger: isDarkMode ? '#f87171' : '#dc2626',
+    buttonText: '#ffffff',
+  };
+}
+
+function errorText(t, code) {
+  return t(errorMessageKey(code));
+}
+
+function SyncLine({ provider, colors, t }) {
+  if (provider.syncing) {
+    return (
+      <View style={styles.inlineRow}>
+        <ActivityIndicator size="small" color={colors.accent} />
+        <Text style={[styles.meta, styles.inlineText, { color: colors.muted }]}>{t('calendar:status.syncing')}</Text>
+      </View>
+    );
+  }
+  return (
+    <View>
+      <Text style={[styles.meta, { color: colors.muted }]}>
+        {provider.lastSyncAt
+          ? t('calendar:status.lastSynced', { time: formatRelative(provider.lastSyncAt) })
+          : t('calendar:status.neverSynced')}
+      </Text>
+      {provider.lastError ? (
+        <Text style={[styles.meta, { color: colors.danger }]}>{errorText(t, provider.lastError)}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+function PrimaryButton({ label, onPress, disabled, busy, colors, icon }) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled, busy: !!busy }}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.button, { backgroundColor: disabled ? colors.muted : colors.accent }]}
+    >
+      {busy ? (
+        <ActivityIndicator size="small" color={colors.buttonText} />
+      ) : icon ? (
+        <MaterialIcons name={icon} size={18} color={colors.buttonText} />
+      ) : null}
+      <Text style={[styles.buttonText, { color: colors.buttonText }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function GoogleSection({ status, busy, onConnect, onDisconnect, colors, t }) {
+  const google = status.google;
+  let stateLabel = t('calendar:google.state.notConnected');
+  let stateColor = colors.muted;
+  if (google.connected) {
+    stateLabel = t('calendar:google.state.connected');
+    stateColor = colors.success;
+  } else if (google.enabled) {
+    stateLabel = t('calendar:google.state.permissionNeeded');
+    stateColor = colors.warning;
+  }
+
+  return (
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.cardHeader}>
+        <MaterialIcons name="event" size={24} color={colors.accent} />
+        <Text style={[styles.cardTitle, { color: colors.text }]} accessibilityRole="header">
+          {t('calendar:google.title')}
+        </Text>
+        <Text style={[styles.pill, { color: stateColor, borderColor: stateColor }]}>{stateLabel}</Text>
+      </View>
+      <Text style={[styles.body, { color: colors.muted }]}>{t('calendar:google.description')}</Text>
+
+      {google.enabled ? (
+        <View style={[styles.row, { borderColor: colors.border }]}>
+          <Text style={[styles.rowLabel, { color: colors.text }]}>{t('calendar:google.twoWaySync')}</Text>
+          <Switch
+            value
+            disabled={busy !== null}
+            onValueChange={(value) => {
+              if (!value) onDisconnect();
+            }}
+            accessibilityLabel={t('calendar:google.twoWaySync')}
+          />
+        </View>
+      ) : null}
+
+      {google.enabled && !google.hasScope ? (
+        <>
+          <Text style={[styles.body, { color: colors.warning }]}>{t('calendar:google.permissionNeededHint')}</Text>
+          <PrimaryButton
+            label={busy === 'connect' ? t('calendar:google.connecting') : t('calendar:google.grantAccess')}
+            onPress={onConnect}
+            disabled={busy !== null}
+            busy={busy === 'connect'}
+            colors={colors}
+            icon="lock-open"
+          />
+        </>
+      ) : null}
+
+      {!google.enabled ? (
+        <PrimaryButton
+          label={busy === 'connect' ? t('calendar:google.connecting') : t('calendar:google.connect')}
+          onPress={onConnect}
+          disabled={busy !== null}
+          busy={busy === 'connect'}
+          colors={colors}
+          icon="link"
+        />
+      ) : null}
+
+      {busy === 'disconnect' ? (
+        <View style={styles.inlineRow}>
+          <ActivityIndicator size="small" color={colors.accent} />
+          <Text style={[styles.meta, styles.inlineText, { color: colors.muted }]}>{t('calendar:google.disconnecting')}</Text>
+        </View>
+      ) : google.enabled ? (
+        <SyncLine provider={google} colors={colors} t={t} />
+      ) : null}
+    </View>
+  );
+}
+
+function CalendarRow({ calendar, colors, children, subtitle }) {
+  return (
+    <View style={[styles.row, { borderColor: colors.border }]}>
+      <View style={[styles.dot, { backgroundColor: calendar.color ?? colors.muted }]} />
+      <View style={styles.rowTextBlock}>
+        <Text style={[styles.rowLabel, { color: colors.text }]} numberOfLines={1}>
+          {calendar.title}
+        </Text>
+        {subtitle ? (
+          <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function RadioRow({ selected, label, onPress, colors, color }) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      onPress={onPress}
+      style={[styles.row, { borderColor: colors.border }]}
+    >
+      {color !== undefined ? <View style={[styles.dot, { backgroundColor: color ?? colors.muted }]} /> : null}
+      <Text style={[styles.rowLabel, styles.rowTextBlock, { color: colors.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <MaterialIcons
+        name={selected ? 'radio-button-checked' : 'radio-button-unchecked'}
+        size={22}
+        color={selected ? colors.accent : colors.muted}
+      />
+    </TouchableOpacity>
+  );
+}
+
+/** Device calendars view state; never throws (failures become phase 'error'). */
+async function loadDeviceCalendars() {
+  try {
+    const permission = await deviceCalendarService.getPermission();
+    if (permission !== 'granted') return { phase: 'no_permission', calendars: [], error: null };
+    const calendars = await deviceCalendarService.listCalendars();
+    return { phase: 'ready', calendars, error: null };
+  } catch (error) {
+    const appError = toAppError(error);
+    log.warn('Could not list device calendars', { code: appError.code });
+    return { phase: 'error', calendars: [], error: appError.code };
+  }
+}
+
+function DeviceSection({ status, preferences, onUpdatePreferences, colors, t, showError }) {
+  const permission = status.device.permission;
+  const [state, setState] = useState({ phase: 'loading', calendars: [], error: null });
+  const [reloadToken, setReloadToken] = useState(0);
+
+  // Reload when the permission changes (granted here or in the system settings) or on retry.
   useEffect(() => {
-    loadSyncData();
+    let active = true;
+    loadDeviceCalendars().then((next) => {
+      if (active) setState(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [permission, reloadToken]);
+
+  const requestPermission = async () => {
+    try {
+      const result = await deviceCalendarService.requestPermission();
+      if (result !== 'granted') {
+        Alert.alert(t('calendar:device.title'), t('calendar:device.permission.denied'), [
+          { text: t('calendar:actions.cancel'), style: 'cancel' },
+          { text: t('calendar:device.permission.openSettings'), onPress: () => void Linking.openSettings() },
+        ]);
+      }
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const retry = () => {
+    setState({ phase: 'loading', calendars: [], error: null });
+    setReloadToken((token) => token + 1);
+  };
+
+  const importIds = preferences.deviceCalendarImportIds;
+  const exportId = preferences.deviceCalendarExportId;
+  const googleSyncOn = preferences.googleCalendarSyncEnabled;
+
+  const toggleImport = (calendarId, enabled) => {
+    const next = enabled ? [...new Set([...importIds, calendarId])] : importIds.filter((id) => id !== calendarId);
+    void onUpdatePreferences({ deviceCalendarImportIds: next });
+  };
+
+  const writable = state.calendars.filter((calendar) => calendar.allowsModifications);
+  const exportIsOnThisDevice = exportId !== null && state.calendars.some((calendar) => calendar.id === exportId);
+
+  return (
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.cardHeader}>
+        <MaterialIcons name="phone-iphone" size={24} color={colors.accent} />
+        <Text style={[styles.cardTitle, { color: colors.text }]} accessibilityRole="header">
+          {t('calendar:device.title')}
+        </Text>
+      </View>
+      <Text style={[styles.body, { color: colors.muted }]}>{t('calendar:device.description')}</Text>
+
+      {state.phase === 'loading' ? (
+        <View style={styles.inlineRow}>
+          <ActivityIndicator size="small" color={colors.accent} />
+          <Text style={[styles.meta, styles.inlineText, { color: colors.muted }]}>{t('calendar:device.loading')}</Text>
+        </View>
+      ) : null}
+
+      {state.phase === 'no_permission' ? (
+        <PrimaryButton
+          label={t('calendar:device.permission.request')}
+          onPress={requestPermission}
+          colors={colors}
+          icon="event-available"
+        />
+      ) : null}
+
+      {state.phase === 'error' ? (
+        <>
+          <Text style={[styles.body, { color: colors.danger }]}>{errorText(t, state.error)}</Text>
+          <PrimaryButton label={t('calendar:device.retry')} onPress={retry} colors={colors} icon="refresh" />
+        </>
+      ) : null}
+
+      {state.phase === 'ready' && state.calendars.length === 0 ? (
+        <Text style={[styles.body, { color: colors.muted }]}>{t('calendar:device.empty')}</Text>
+      ) : null}
+
+      {state.phase === 'ready' && state.calendars.length > 0 ? (
+        <>
+          <Text style={[styles.sectionLabel, { color: colors.text }]}>{t('calendar:device.import.title')}</Text>
+          {state.calendars.map((calendar) => {
+            const coveredByGoogle = googleSyncOn && calendar.isGoogleAccount;
+            return (
+              <CalendarRow
+                key={calendar.id}
+                calendar={calendar}
+                colors={colors}
+                subtitle={coveredByGoogle ? t('calendar:device.import.googleSynced') : calendar.sourceName}
+              >
+                <Switch
+                  value={!coveredByGoogle && importIds.includes(calendar.id)}
+                  disabled={coveredByGoogle}
+                  onValueChange={(value) => toggleImport(calendar.id, value)}
+                  accessibilityLabel={calendar.title}
+                />
+              </CalendarRow>
+            );
+          })}
+
+          {writable.length > 0 ? (
+            <>
+              <Text style={[styles.sectionLabel, { color: colors.text }]}>{t('calendar:device.export.title')}</Text>
+              <RadioRow
+                selected={!exportIsOnThisDevice}
+                label={t('calendar:device.export.none')}
+                onPress={() => void onUpdatePreferences({ deviceCalendarExportId: null })}
+                colors={colors}
+              />
+              {writable.map((calendar) => (
+                <RadioRow
+                  key={calendar.id}
+                  selected={exportId === calendar.id}
+                  label={calendar.title}
+                  color={calendar.color}
+                  onPress={() => void onUpdatePreferences({ deviceCalendarExportId: calendar.id })}
+                  colors={colors}
+                />
+              ))}
+              <Text style={[styles.meta, { color: colors.muted }]}>{t('calendar:device.export.hint')}</Text>
+            </>
+          ) : null}
+          {status.device.enabled ? <SyncLine provider={status.device} colors={colors} t={t} /> : null}
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+export default function CalendarSyncSettings() {
+  const t = useT();
+  const { isDarkMode } = useTheme();
+  const colors = palette(isDarkMode);
+  const status = useCalendarStatus();
+  const { preferences, isLoaded, update } = usePreferences();
+  const [busy, setBusy] = useState(null);
+
+  // Re-read the Google state (sync switch + Calendar permission) into the shared status.
+  useEffect(() => {
+    googleCalendarService.isConnected().catch((error) =>
+      log.warn('Could not read the Google Calendar state', { code: toAppError(error).code }),
+    );
   }, []);
 
-  const checkRealConnectionStatus = async () => {
-    try {
-      console.log('🔍 Checking REAL Google Calendar connection status...');
-      setConnectionStatus(prev => ({ ...prev, checking: true }));
-      
-      // Check if Google Calendar service is actually available
-      const isGoogleAvailable = await googleCalendarService.isAvailable();
-      console.log('📊 Google Calendar service available:', isGoogleAvailable);
-      
-      if (!isGoogleAvailable) {
-        setConnectionStatus({
-          isConnected: false,
-          checking: false,
-          message: t('googleCalendar.notConnectedMessage')
-        });
-        return false;
-      }
-      
-      // Try to get a valid access token
-      const tokenManager = (await import('../api/googleTokenManager.js')).default;
-      const hasValidToken = await tokenManager.hasValidAccess();
-      console.log('🔑 Has valid Google access token:', hasValidToken);
-      
-      if (hasValidToken) {
-        setConnectionStatus({
-          isConnected: true,
-          checking: false,
-          message: t('googleCalendar.connectedMessage')
-        });
-        return true;
-      } else {
-        setConnectionStatus({
-          isConnected: false,
-          checking: false,
-          message: t('googleCalendar.disconnectedMessage')
-        });
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ Error checking Google Calendar connection:', error);
-      setConnectionStatus({
-        isConnected: false,
-        checking: false,
-        message: t('googleCalendar.connectionCheckFailed')
-      });
-      return false;
-    }
-  };
+  const showError = useCallback(
+    (error) => {
+      const appError = toAppError(error);
+      if (appError.code === 'cancelled') return;
+      Alert.alert(t('calendar:errorTitle'), errorText(t, appError.code));
+    },
+    [t],
+  );
 
-  const loadSyncData = async () => {
+  const updatePreferences = useCallback(
+    async (patch) => {
+      try {
+        await update(patch);
+      } catch (error) {
+        showError(error);
+      }
+    },
+    [update, showError],
+  );
+
+  const connectGoogle = async () => {
+    setBusy('connect');
     try {
-      setIsLoading(true);
-      
-      // Check real connection status first
-      const isConnected = await checkRealConnectionStatus();
-      
-      const [settings, stats] = await Promise.all([
-        googleCalendarService.getSyncSettings(),
-        calendarSyncManager.getSyncStatistics(),
-      ]);
-      
-      setSyncSettings(settings);
-      setSyncStatistics(stats);
-      
-      // If not connected, zero out the statistics to reflect reality
-      if (!isConnected) {
-        setSyncStatistics(prev => ({
-          ...prev,
-          totalSynced: 0,
-          successful: 0,
-          errors: prev?.totalAppEvents || 0,
-          lastSync: null
-        }));
+      const result = await googleCalendarService.connect();
+      if (result.status === 'connected') {
+        const lastError = calendarSyncEngine.getStatus().google.lastError;
+        const message = result.initialSync
+          ? t('calendar:google.firstSyncSummary', {
+              created: result.initialSync.counts.created,
+              pushed: result.initialSync.counts.pushed,
+            })
+          : t('calendar:google.firstSyncFailed', { error: lastError ? errorText(t, lastError) : '' });
+        Alert.alert(t('calendar:google.connectedTitle'), message);
+      } else if (result.status === 'scope_denied') {
+        Alert.alert(t('calendar:google.title'), t('calendar:google.scopeDenied'));
       }
     } catch (error) {
-      console.error('Error loading sync data:', error);
-      Alert.alert(t('common.error'), 'Failed to load sync settings');
+      showError(error);
     } finally {
-      setIsLoading(false);
+      setBusy(null);
     }
   };
 
-  const handleAutoSyncToggle = async (value) => {
+  const disconnectGoogle = async (revoke) => {
+    setBusy('disconnect');
     try {
-      // Update local state immediately for better UX
-      setSyncSettings(prev => ({ ...prev, autoSyncEnabled: value }));
-      
-      if (value) {
-        console.log('🔄 Starting auto sync...');
-        calendarSyncManager.startAutoSync();
-      } else {
-        console.log('🛑 Stopping auto sync...');
-        calendarSyncManager.stopAutoSync();
-      }
-      
-      console.log(`✅ Auto sync ${value ? 'enabled' : 'disabled'}`);
+      await googleCalendarService.disconnect({ revoke });
+      Alert.alert(t('calendar:google.disconnectedTitle'));
     } catch (error) {
-      console.error('Error updating auto sync:', error);
-      Alert.alert(t('common.error'), 'Failed to update auto sync setting');
-      // Revert state on error
-      setSyncSettings(prev => ({ ...prev, autoSyncEnabled: !value }));
-    }
-  };
-
-  const handleSyncIntervalChange = async (interval) => {
-    try {
-      await googleCalendarService.setSyncInterval(interval);
-      setSyncSettings(prev => ({ ...prev, syncInterval: interval }));
-      
-      // Restart auto sync with new interval
-      if (syncSettings?.autoSyncEnabled) {
-        calendarSyncManager.stopAutoSync();
-        calendarSyncManager.startAutoSync(interval);
-      }
-    } catch (error) {
-      console.error('Error updating sync interval:', error);
-      Alert.alert(t('common.error'), 'Failed to update sync interval');
-    }
-  };
-
-  const handleReconnectGoogle = async () => {
-    try {
-      console.log('🔄 Initiating Google Calendar reconnection...');
-      
-      Alert.alert(
-        t('googleCalendar.reconnectTitle'),
-        t('googleCalendar.reconnectMessage'),
-        [
-          {
-            text: t('common.cancel'),
-            style: 'cancel'
-          },
-          {
-            text: t('googleCalendar.reconnectButton'),
-            onPress: async () => {
-              try {
-                // Use the new simplified reconnect service
-                const reconnectService = (await import('../api/googleCalendarReconnectService')).default;
-                const result = await reconnectService.reconnectUsingExistingAuth();
-                
-                if (result.success) {
-                  Alert.alert(t('common.success'), result.message);
-                  // Reload the page to show updated status
-                  await loadSyncData();
-                } else if (result.requiresReauth) {
-                  Alert.alert(
-                    t('googleCalendar.freshSignInRequired'), 
-                    result.error + '\n\nWould you like to sign out and sign in again?',
-                    [
-                      { text: t('common.cancel'), style: 'cancel' },
-                      { 
-                        text: t('googleCalendar.signOutRestart'), 
-                        onPress: async () => {
-                          const { useAuth } = await import('../contexts/AuthContext');
-                          // This would need to be accessed differently, showing user the instructions
-                          Alert.alert(
-                            t('googleCalendar.manualActionRequired'),
-                            t('googleCalendar.signOutInstructions')
-                          );
-                        }
-                      }
-                    ]
-                  );
-                } else {
-                  Alert.alert(t('googleCalendar.reconnectFailed'), result.error || 'Failed to reconnect to Google Calendar');
-                }
-              } catch (error) {
-                console.error('❌ Reconnection failed:', error);
-                Alert.alert(t('common.error'), 'Failed to reconnect. Please try again.');
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('❌ Error initiating reconnection:', error);
-      Alert.alert(t('common.error'), 'Failed to initiate reconnection. Please try again.');
-    }
-  };
-
-  const handleForceSync = async () => {
-    try {
-      setIsSyncing(true);
-      console.log('🔄 Starting manual sync...');
-      
-      const results = await calendarSyncManager.forceSync();
-      console.log('📊 Sync results:', results);
-      
-      // Show results with better messaging
-      const message = `${t('googleCalendar.syncCompleted')}\n\n• ${t('googleCalendar.created')}: ${results.created || 0}\n• ${t('googleCalendar.updated')}: ${results.updated || 0}\n• ${t('googleCalendar.skipped')}: ${results.skipped || 0}\n• ${t('googleCalendar.errors')}: ${results.errors?.length || 0}`;
-      
-      if (results.errors?.length > 0) {
-        console.log('⚠️ Sync errors:', results.errors);
-        Alert.alert(t('googleCalendar.syncCompletedWithIssues'), `${message}\n\n${t('googleCalendar.syncIssuesNote')}`);
-      } else {
-        Alert.alert(t('common.success'), message);
-      }
-      
-      // Reload data
-      await loadSyncData();
-    } catch (error) {
-      console.error('❌ Error during force sync:', error);
-      Alert.alert(t('googleCalendar.syncError'), `${t('googleCalendar.syncFailed')}: ${error.message}`);
+      showError(error);
     } finally {
-      setIsSyncing(false);
+      setBusy(null);
     }
   };
 
+  const confirmDisconnect = () => {
+    Alert.alert(t('calendar:google.disconnectTitle'), t('calendar:google.disconnectMessage'), [
+      { text: t('calendar:actions.cancel'), style: 'cancel' },
+      { text: t('calendar:google.disconnect'), onPress: () => void disconnectGoogle(false) },
+      { text: t('calendar:google.disconnectAndRevoke'), style: 'destructive', onPress: () => void disconnectGoogle(true) },
+    ]);
+  };
 
-  const getSyncDirectionLabel = (direction) => {
-    switch (direction) {
-      case 'bidirectional':
-        return t('googleCalendar.bidirectionalSync');
-      case 'toGoogle':
-        return 'App → Google Calendar';
-      case 'fromGoogle':
-        return 'Google Calendar → App';
-      default:
-        return t('googleCalendar.bidirectionalSync');
+  const syncNow = async () => {
+    setBusy('sync');
+    try {
+      const report = await calendarSyncEngine.syncNow({ reason: 'manual' });
+      const lines = [];
+      if (report.google) {
+        lines.push(t('calendar:sync.googleResult', report.google.counts));
+        if (report.google.counts.failed > 0) lines.push(t('calendar:sync.failedGoogle', { count: report.google.counts.failed }));
+      }
+      if (report.device) {
+        lines.push(t('calendar:sync.deviceResult', report.device.counts));
+        if (report.device.counts.failed > 0) lines.push(t('calendar:sync.failedDevice', { count: report.device.counts.failed }));
+      }
+      for (const failure of report.errors) {
+        lines.push(
+          t('calendar:sync.providerError', {
+            provider: failure.provider === 'google' ? t('calendar:sync.providers.google') : t('calendar:sync.providers.device'),
+            error: errorText(t, failure.code),
+          }),
+        );
+      }
+      if (lines.length === 0) lines.push(t('calendar:sync.nothingToSync'));
+      Alert.alert(report.errors.length > 0 ? t('calendar:sync.problemsTitle') : t('calendar:sync.doneTitle'), lines.join('\n\n'));
+    } catch (error) {
+      showError(error);
+    } finally {
+      setBusy(null);
     }
   };
 
-  if (isLoading) {
+  if (!isLoaded) {
     return (
-      <View style={[styles.container, { backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc' }]}>
-        <ActivityIndicator size="large" color={isDarkMode ? '#60a5fa' : '#3b82f6'} />
-        <Text style={[styles.loadingText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-          {t('common.loading')}
-        </Text>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
+  const anySyncing = status.google.syncing || status.device.syncing;
   return (
-    <ScrollView style={[styles.container, { backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc' }]}>
-      {/* Google Calendar Connection Status */}
-      <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
-        <Card.Content>
-          <View style={styles.statusHeader}>
-            <MaterialIcons
-              name="sync"
-              size={24}
-              color={isDarkMode ? '#60a5fa' : '#3b82f6'}
-            />
-            <Title style={[styles.statusTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-              {t('googleCalendar.syncTitle')}
-            </Title>
-          </View>
-          
-          <View style={styles.connectionStatus}>
-            <View style={styles.statusIndicator}>
-              {connectionStatus.checking ? (
-                <ActivityIndicator size="small" color={isDarkMode ? '#60a5fa' : '#3b82f6'} />
-              ) : (
-                <View style={[
-                  styles.statusDot, 
-                  { backgroundColor: connectionStatus.isConnected 
-                    ? (isDarkMode ? '#10b981' : '#059669') 
-                    : (isDarkMode ? '#ef4444' : '#dc2626') 
-                  }
-                ]} />
-              )}
-              <Text style={[
-                styles.statusText, 
-                { color: connectionStatus.isConnected 
-                  ? (isDarkMode ? '#10b981' : '#059669') 
-                  : (isDarkMode ? '#ef4444' : '#dc2626') 
-                }
-              ]}>
-                {connectionStatus.checking ? t('googleCalendar.checking') : (connectionStatus.isConnected ? t('googleCalendar.connected') : t('googleCalendar.disconnected'))}
-              </Text>
-            </View>
-            <Text style={[styles.statusDescription, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-              {connectionStatus.message}
-            </Text>
-            
-            {/* Show reconnect button if disconnected */}
-            {!connectionStatus.isConnected && !connectionStatus.checking && (
-              <Button
-                mode="contained"
-                onPress={handleReconnectGoogle}
-                style={[styles.reconnectButton, { backgroundColor: isDarkMode ? '#3b82f6' : '#2563eb' }]}
-                icon="refresh"
-              >
-                        {t('googleCalendar.reconnectButton')}
-              </Button>
-            )}
-          </View>
-        </Card.Content>
-      </Card>
-
-      {/* Sync Statistics - TOP */}
-      <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
-        <Card.Content>
-          <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-            {t('googleCalendar.syncStatistics')}
-          </Title>
-          
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: isDarkMode ? '#60a5fa' : '#3b82f6' }]}>
-                {connectionStatus.isConnected ? (syncStatistics?.totalSynced || 0) : 0}
-              </Text>
-              <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                {t('googleCalendar.totalSynced')}
-              </Text>
-            </View>
-            
-            <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: isDarkMode ? '#10b981' : '#059669' }]}>
-                {connectionStatus.isConnected ? (syncStatistics?.successful || 0) : 0}
-              </Text>
-              <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                {t('googleCalendar.successful')}
-              </Text>
-            </View>
-            
-            <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: isDarkMode ? '#f59e0b' : '#d97706' }]}>
-                {connectionStatus.isConnected ? (syncStatistics?.errors || 0) : (syncStatistics?.totalAppEvents || 0)}
-              </Text>
-              <Text style={[styles.statLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                {connectionStatus.isConnected ? t('googleCalendar.errors') : t('googleCalendar.notSynced')}
-              </Text>
-            </View>
-          </View>
-          
-          {connectionStatus.isConnected && syncStatistics?.lastSync && (
-            <Text style={[styles.lastSyncText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-              {t('googleCalendar.lastSync')}: {new Date(syncStatistics.lastSync).toLocaleString()}
-            </Text>
-          )}
-          
-          {!connectionStatus.isConnected && !connectionStatus.checking && (
-            <Text style={[styles.lastSyncText, { color: isDarkMode ? '#ef4444' : '#dc2626' }]}>
-              {t('googleCalendar.notConnectedWarning')}
-            </Text>
-          )}
-        </Card.Content>
-      </Card>
-
-      {/* Sync Settings - MIDDLE */}
-      <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
-        <Card.Content>
-          <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-            {t('googleCalendar.syncSettings')}
-          </Title>
-          
-          <List.Item
-            title={t('googleCalendar.autoSync')}
-            description={t('googleCalendar.autoSyncDescription')}
-            left={props => <List.Icon {...props} icon="sync" />}
-            right={() => (
-              <Switch
-                value={syncSettings?.autoSyncEnabled || false}
-                onValueChange={handleAutoSyncToggle}
-                color={isDarkMode ? '#60a5fa' : '#3b82f6'}
-              />
-            )}
-            titleStyle={{ color: isDarkMode ? '#f1f5f9' : '#1e293b' }}
-            descriptionStyle={{ color: isDarkMode ? '#94a3b8' : '#64748b' }}
-          />
-          
-          <Divider style={{ backgroundColor: isDarkMode ? '#334155' : '#e2e8f0' }} />
-          
-          <List.Item
-            title={t('googleCalendar.syncDirection')}
-            description={getSyncDirectionLabel(syncSettings?.syncDirection)}
-            left={props => <List.Icon {...props} icon="swap-horizontal" />}
-            titleStyle={{ color: isDarkMode ? '#f1f5f9' : '#1e293b' }}
-            descriptionStyle={{ color: isDarkMode ? '#94a3b8' : '#64748b' }}
-          />
-        </Card.Content>
-      </Card>
-
-      {/* Sync Actions - BOTTOM */}
-      <Card style={[styles.card, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
-        <Card.Content>
-          <Title style={[styles.sectionTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-            {t('googleCalendar.syncActions')}
-          </Title>
-          
-          <Button
-            mode="contained"
-            onPress={handleForceSync}
-            loading={isSyncing}
-            disabled={isSyncing}
-            style={[styles.actionButton, { backgroundColor: isDarkMode ? '#3b82f6' : '#2563eb' }]}
-            icon="sync"
-          >
-            {isSyncing ? t('googleCalendar.syncing') : t('googleCalendar.syncNow')}
-          </Button>
-        </Card.Content>
-      </Card>
+    <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
+      <GoogleSection
+        status={status}
+        busy={busy}
+        onConnect={connectGoogle}
+        onDisconnect={confirmDisconnect}
+        colors={colors}
+        t={t}
+      />
+      <DeviceSection
+        status={status}
+        preferences={preferences}
+        onUpdatePreferences={updatePreferences}
+        colors={colors}
+        t={t}
+        showError={showError}
+      />
+      <PrimaryButton
+        label={busy === 'sync' || anySyncing ? t('calendar:sync.syncing') : t('calendar:sync.now')}
+        onPress={syncNow}
+        disabled={busy !== null || anySyncing}
+        busy={busy === 'sync'}
+        colors={colors}
+        icon="sync"
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  content: {
     padding: 16,
+    gap: 16,
   },
-  loadingText: {
-    textAlign: 'center',
-    marginTop: 16,
-    fontSize: 16,
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
   },
   card: {
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    gap: 12,
   },
-  statusHeader: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    gap: 8,
   },
-  statusTitle: {
-    marginLeft: 12,
-    fontSize: 20,
-    fontWeight: 'bold',
+  cardTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
   },
-  connectionStatus: {
-    marginTop: 12,
+  pill: {
+    fontSize: 12,
+    fontWeight: '600',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden',
   },
-  statusIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  statusText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  statusDescription: {
+  body: {
     fontSize: 14,
     lineHeight: 20,
   },
-  sectionTitle: {
-    fontSize: 18,
+  meta: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  sectionLabel: {
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 16,
-  },
-  actionButton: {
-    marginVertical: 8,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  statLabel: {
-    fontSize: 12,
     marginTop: 4,
   },
-  lastSyncText: {
-    fontSize: 12,
-    textAlign: 'center',
-    fontStyle: 'italic',
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  reconnectButton: {
-    marginTop: 12,
-    borderRadius: 8,
+  rowTextBlock: {
+    flex: 1,
+  },
+  rowLabel: {
+    fontSize: 15,
+    flexShrink: 1,
+  },
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  inlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inlineText: {
+    marginLeft: 8,
+  },
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  buttonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

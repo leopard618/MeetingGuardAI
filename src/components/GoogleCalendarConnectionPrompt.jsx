@@ -1,388 +1,136 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  Alert,
-} from 'react-native';
+/**
+ * "Connect Google Calendar" modal (owner: calendar). Connects through
+ * googleCalendarService.connect() (incremental Calendar consent + first two-way sync) and reports
+ * the real outcome. Props kept for the Dashboard: visible, onClose, onSuccess(result), userEmail.
+ */
 import { MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '../contexts/ThemeContext';
-import { useTranslation } from './translations.jsx';
-import manualLoginGoogleCalendarService from '../api/manualLoginGoogleCalendarService';
-import { 
-  getResponsiveFontSizes, 
-  getResponsiveSpacing, 
-  getResponsiveButtonDimensions,
-  isSmallDevice,
-  isTabletOrLarger,
-} from '../utils/responsive.js';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-const GoogleCalendarConnectionPrompt = ({ 
-  visible, 
-  onClose, 
-  onSuccess,
-  userEmail,
-  language = 'en' 
-}) => {
+import { useTheme } from '../contexts/ThemeContext.jsx';
+import { errorMessageKey, toAppError } from '../core/errors';
+import { createLogger } from '../core/logger';
+import { useT } from '../i18n';
+import { calendarSyncEngine, googleCalendarService, useCalendarStatus } from '../services/calendar';
+
+const log = createLogger('calendar');
+
+const BENEFITS = [
+  { icon: 'notifications-active', key: 'alerts' },
+  { icon: 'sync', key: 'twoWay' },
+  { icon: 'videocam', key: 'meet' },
+];
+
+function benefitText(t, key) {
+  if (key === 'alerts') return t('calendar:prompt.benefits.alerts');
+  if (key === 'twoWay') return t('calendar:prompt.benefits.twoWay');
+  return t('calendar:prompt.benefits.meet');
+}
+
+export default function GoogleCalendarConnectionPrompt({ visible, onClose, onSuccess, userEmail }) {
+  const t = useT();
   const { isDarkMode } = useTheme();
-  const { t } = useTranslation(language);
+  const status = useCalendarStatus();
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  const isConnected = status.google.connected;
+  const styles = getStyles(isDarkMode);
+  const accentColor = isDarkMode ? '#60a5fa' : '#2563eb';
 
-  // Get responsive values
-  const fonts = getResponsiveFontSizes();
-  const spacing = getResponsiveSpacing();
-  const buttonDims = getResponsiveButtonDimensions();
-  const isSmall = isSmallDevice();
-  const isTablet = isTabletOrLarger();
-
-  // Check if Google Calendar is already connected
+  // Refresh the shared status when the prompt opens (it may already be connected).
   useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        const connected = await manualLoginGoogleCalendarService.isConnected();
-        setIsConnected(connected);
-      } catch (error) {
-        console.error('Error checking Google Calendar connection:', error);
-      }
-    };
-
-    if (visible) {
-      checkConnection();
-    }
+    if (!visible) return;
+    googleCalendarService.isConnected().catch((error) =>
+      log.warn('Could not read the Google Calendar state', { code: toAppError(error).code }),
+    );
   }, [visible]);
+  const successColor = isDarkMode ? '#6ee7b7' : '#059669';
 
-  const handleConnectGoogleCalendar = async () => {
+  const close = () => {
+    if (!isConnecting) onClose?.();
+  };
+
+  const connect = async () => {
+    setIsConnecting(true);
     try {
-      setIsConnecting(true);
-      console.log('GoogleCalendarConnectionPrompt: Starting Google Calendar connection');
-
-      const result = await manualLoginGoogleCalendarService.connectGoogleCalendar();
-      
-      if (result.success) {
-        console.log('GoogleCalendarConnectionPrompt: Google Calendar connected successfully');
-        setIsConnected(true);
-        
-        Alert.alert(
-          t('common.success'),
-          t('googleCalendar.connectedSuccessfully'),
-          [
-            {
-              text: t('common.ok'),
-              onPress: () => {
-                onSuccess && onSuccess(result);
-                onClose && onClose();
-              }
-            }
-          ]
-        );
-      } else {
-        console.error('GoogleCalendarConnectionPrompt: Google Calendar connection failed:', result.error);
-        
-        Alert.alert(
-          t('common.error'),
-          result.error || t('googleCalendar.connectionFailed'),
-          [
-            {
-              text: t('common.ok'),
-              style: 'default'
-            }
-          ]
-        );
+      const result = await googleCalendarService.connect();
+      if (result.status === 'connected') {
+        const lastError = calendarSyncEngine.getStatus().google.lastError;
+        const message = result.initialSync
+          ? t('calendar:google.firstSyncSummary', {
+              created: result.initialSync.counts.created,
+              pushed: result.initialSync.counts.pushed,
+            })
+          : t('calendar:google.firstSyncFailed', { error: lastError ? t(errorMessageKey(lastError)) : '' });
+        Alert.alert(t('calendar:google.connectedTitle'), message, [
+          {
+            text: t('calendar:actions.ok'),
+            onPress: () => {
+              onSuccess?.(result);
+              onClose?.();
+            },
+          },
+        ]);
+      } else if (result.status === 'scope_denied') {
+        Alert.alert(t('calendar:prompt.title'), t('calendar:google.scopeDenied'));
       }
     } catch (error) {
-      console.error('GoogleCalendarConnectionPrompt: Error connecting Google Calendar:', error);
-      
-      Alert.alert(
-        t('common.error'),
-        error.message || t('googleCalendar.connectionError'),
-        [
-          {
-            text: t('common.ok'),
-            style: 'default'
-          }
-        ]
-      );
+      const appError = toAppError(error);
+      if (appError.code !== 'cancelled') {
+        Alert.alert(t('calendar:errorTitle'), t(errorMessageKey(appError.code)));
+      }
     } finally {
       setIsConnecting(false);
     }
   };
 
-  const handleSkip = () => {
-    Alert.alert(
-      t('googleCalendar.skipTitle'),
-      t('googleCalendar.skipMessage'),
-      [
-        {
-          text: t('common.cancel'),
-          style: 'cancel'
-        },
-        {
-          text: t('googleCalendar.skipConfirm'),
-          style: 'destructive',
-          onPress: () => {
-            onClose && onClose();
-          }
-        }
-      ]
-    );
-  };
-
-  const getStyles = () => {
-    return StyleSheet.create({
-      overlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: isSmall ? spacing['lg'] : spacing['xl'],
-      },
-      modal: {
-        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-        borderRadius: isSmall ? spacing['lg'] : spacing['xl'],
-        padding: isSmall ? spacing['lg'] : spacing['2xl'],
-        width: '100%',
-        maxWidth: isTablet ? 500 : 400,
-        maxHeight: '80%',
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 4,
-        },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
-      },
-      header: {
-        alignItems: 'center',
-        marginBottom: spacing['xl'],
-      },
-      icon: {
-        marginBottom: spacing['lg'],
-      },
-      title: {
-        fontSize: isSmall ? fonts['xl'] : isTablet ? fonts['2xl'] + 2 : fonts['2xl'],
-        fontWeight: 'bold',
-        color: isDarkMode ? '#f1f5f9' : '#1e293b',
-        textAlign: 'center',
-        marginBottom: spacing['sm'],
-      },
-      subtitle: {
-        fontSize: isSmall ? fonts['md'] : fonts['lg'],
-        color: isDarkMode ? '#94a3b8' : '#64748b',
-        textAlign: 'center',
-        lineHeight: isSmall ? fonts['md'] + 4 : fonts['lg'] + 4,
-      },
-      content: {
-        marginBottom: spacing['2xl'],
-      },
-      description: {
-        fontSize: isSmall ? fonts['sm'] : fonts['md'],
-        color: isDarkMode ? '#cbd5e1' : '#475569',
-        textAlign: 'center',
-        lineHeight: isSmall ? fonts['sm'] + 4 : fonts['md'] + 4,
-        marginBottom: spacing['lg'],
-      },
-      benefitsList: {
-        marginBottom: spacing['lg'],
-      },
-      benefitItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: spacing['sm'],
-      },
-      benefitIcon: {
-        marginRight: spacing['sm'],
-      },
-      benefitText: {
-        fontSize: isSmall ? fonts['sm'] : fonts['md'],
-        color: isDarkMode ? '#cbd5e1' : '#475569',
-        flex: 1,
-      },
-      userEmail: {
-        fontSize: isSmall ? fonts['sm'] : fonts['md'],
-        color: isDarkMode ? '#60a5fa' : '#3b82f6',
-        fontWeight: '600',
-        textAlign: 'center',
-        marginBottom: spacing['lg'],
-      },
-      buttonContainer: {
-        gap: spacing['md'],
-      },
-      connectButton: {
-        backgroundColor: '#3b82f6',
-        paddingVertical: buttonDims.paddingVertical,
-        paddingHorizontal: buttonDims.paddingHorizontal,
-        borderRadius: buttonDims.borderRadius,
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'row',
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 2,
-        },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 4,
-      },
-      connectButtonDisabled: {
-        backgroundColor: '#94a3b8',
-      },
-      connectButtonText: {
-        fontSize: buttonDims.fontSize,
-        fontWeight: 'bold',
-        color: '#ffffff',
-        marginLeft: spacing['sm'],
-      },
-      skipButton: {
-        paddingVertical: buttonDims.paddingVertical,
-        paddingHorizontal: buttonDims.paddingHorizontal,
-        borderRadius: buttonDims.borderRadius,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: isDarkMode ? '#475569' : '#d1d5db',
-      },
-      skipButtonText: {
-        fontSize: buttonDims.fontSize,
-        fontWeight: '600',
-        color: isDarkMode ? '#94a3b8' : '#64748b',
-      },
-      connectedContainer: {
-        alignItems: 'center',
-        padding: spacing['lg'],
-        backgroundColor: isDarkMode ? '#065f46' : '#d1fae5',
-        borderRadius: spacing['md'],
-        marginBottom: spacing['lg'],
-      },
-      connectedText: {
-        fontSize: isSmall ? fonts['sm'] : fonts['md'],
-        color: isDarkMode ? '#6ee7b7' : '#059669',
-        fontWeight: '600',
-        textAlign: 'center',
-      },
-    });
-  };
-
-  const styles = getStyles();
-
-  if (!visible) return null;
-
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={!!visible} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <View style={styles.header}>
-            <MaterialIcons 
-              name="calendar-today" 
-              size={isSmall ? 48 : isTablet ? 64 : 56} 
-              color={isDarkMode ? '#60a5fa' : '#3b82f6'} 
-              style={styles.icon}
-            />
-            <Text style={styles.title}>
-              {t('googleCalendar.connectTitle')}
+            <MaterialIcons name="calendar-today" size={52} color={accentColor} />
+            <Text style={styles.title} accessibilityRole="header">
+              {t('calendar:prompt.title')}
             </Text>
-            <Text style={styles.subtitle}>
-              {t('googleCalendar.connectSubtitle')}
-            </Text>
+            <Text style={styles.subtitle}>{t('calendar:prompt.subtitle')}</Text>
+            {userEmail ? <Text style={styles.email}>{userEmail}</Text> : null}
           </View>
 
-          <View style={styles.content}>
-            <Text style={styles.description}>
-              {t('googleCalendar.connectDescription')}
-            </Text>
-
-            {userEmail && (
-              <Text style={styles.userEmail}>
-                {userEmail}
-              </Text>
-            )}
-
-            {isConnected ? (
-              <View style={styles.connectedContainer}>
-                <MaterialIcons 
-                  name="check-circle" 
-                  size={24} 
-                  color={isDarkMode ? '#6ee7b7' : '#059669'} 
-                />
-                <Text style={styles.connectedText}>
-                  {t('googleCalendar.alreadyConnected')}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.benefitsList}>
-                <View style={styles.benefitItem}>
-                  <MaterialIcons 
-                    name="sync" 
-                    size={20} 
-                    color={isDarkMode ? '#60a5fa' : '#3b82f6'} 
-                    style={styles.benefitIcon}
-                  />
-                  <Text style={styles.benefitText}>
-                    {t('googleCalendar.benefit1')}
-                  </Text>
+          {isConnected ? (
+            <View style={styles.connected}>
+              <MaterialIcons name="check-circle" size={24} color={successColor} />
+              <Text style={styles.connectedText}>{t('calendar:prompt.alreadyConnected')}</Text>
+            </View>
+          ) : (
+            <View style={styles.benefits}>
+              {BENEFITS.map((benefit) => (
+                <View key={benefit.key} style={styles.benefit}>
+                  <MaterialIcons name={benefit.icon} size={20} color={accentColor} />
+                  <Text style={styles.benefitText}>{benefitText(t, benefit.key)}</Text>
                 </View>
-                <View style={styles.benefitItem}>
-                  <MaterialIcons 
-                    name="event" 
-                    size={20} 
-                    color={isDarkMode ? '#60a5fa' : '#3b82f6'} 
-                    style={styles.benefitIcon}
-                  />
-                  <Text style={styles.benefitText}>
-                    {t('googleCalendar.benefit2')}
-                  </Text>
-                </View>
-                <View style={styles.benefitItem}>
-                  <MaterialIcons 
-                    name="people" 
-                    size={20} 
-                    color={isDarkMode ? '#60a5fa' : '#3b82f6'} 
-                    style={styles.benefitIcon}
-                  />
-                  <Text style={styles.benefitText}>
-                    {t('googleCalendar.benefit3')}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
+              ))}
+              <Text style={styles.privacy}>{t('calendar:prompt.privacy')}</Text>
+            </View>
+          )}
 
-          <View style={styles.buttonContainer}>
-            {!isConnected && (
+          <View style={styles.buttons}>
+            {!isConnected ? (
               <TouchableOpacity
-                style={[
-                  styles.connectButton,
-                  isConnecting && styles.connectButtonDisabled
-                ]}
-                onPress={handleConnectGoogleCalendar}
+                style={[styles.primary, isConnecting && styles.primaryDisabled]}
+                onPress={connect}
                 disabled={isConnecting}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: isConnecting, busy: isConnecting }}
               >
-                <MaterialIcons 
-                  name="google" 
-                  size={20} 
-                  color="#ffffff" 
-                />
-                <Text style={styles.connectButtonText}>
-                  {isConnecting ? t('googleCalendar.connecting') : t('googleCalendar.connectButton')}
+                {isConnecting ? <ActivityIndicator size="small" color="#ffffff" /> : null}
+                <Text style={styles.primaryText}>
+                  {isConnecting ? t('calendar:google.connecting') : t('calendar:prompt.connect')}
                 </Text>
               </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={handleSkip}
-            >
-              <Text style={styles.skipButtonText}>
-                {isConnected ? t('common.close') : t('googleCalendar.skipButton')}
+            ) : null}
+            <TouchableOpacity style={styles.secondary} onPress={close} disabled={isConnecting} accessibilityRole="button">
+              <Text style={styles.secondaryText}>
+                {isConnected ? t('calendar:actions.close') : t('calendar:prompt.notNow')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -390,6 +138,114 @@ const GoogleCalendarConnectionPrompt = ({
       </View>
     </Modal>
   );
-};
+}
 
-export default GoogleCalendarConnectionPrompt;
+const getStyles = (isDarkMode) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    modal: {
+      width: '100%',
+      maxWidth: 440,
+      borderRadius: 16,
+      padding: 24,
+      gap: 20,
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+      elevation: 8,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+    },
+    header: {
+      alignItems: 'center',
+      gap: 8,
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: '700',
+      textAlign: 'center',
+      color: isDarkMode ? '#f1f5f9' : '#1e293b',
+    },
+    subtitle: {
+      fontSize: 15,
+      textAlign: 'center',
+      color: isDarkMode ? '#94a3b8' : '#64748b',
+    },
+    email: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: isDarkMode ? '#60a5fa' : '#2563eb',
+    },
+    benefits: {
+      gap: 10,
+    },
+    benefit: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    benefitText: {
+      flex: 1,
+      fontSize: 14,
+      lineHeight: 20,
+      color: isDarkMode ? '#cbd5e1' : '#475569',
+    },
+    privacy: {
+      fontSize: 12,
+      lineHeight: 18,
+      color: isDarkMode ? '#94a3b8' : '#64748b',
+    },
+    connected: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      padding: 16,
+      borderRadius: 12,
+      backgroundColor: isDarkMode ? '#065f46' : '#d1fae5',
+    },
+    connectedText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: isDarkMode ? '#d1fae5' : '#065f46',
+    },
+    buttons: {
+      gap: 12,
+    },
+    primary: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      borderRadius: 10,
+      paddingVertical: 14,
+      backgroundColor: '#2563eb',
+    },
+    primaryDisabled: {
+      backgroundColor: '#94a3b8',
+    },
+    primaryText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#ffffff',
+    },
+    secondary: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 10,
+      paddingVertical: 14,
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#475569' : '#d1d5db',
+    },
+    secondaryText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: isDarkMode ? '#94a3b8' : '#64748b',
+    },
+  });

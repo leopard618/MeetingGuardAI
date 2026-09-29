@@ -1,597 +1,66 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import googleCalendarService from './googleCalendar.js';
-import { Meeting } from './entities.js';
+/**
+ * COMPAT SHIM (owner: calendar; stage 3 deletes it). Sync is orchestrated by
+ * calendarSyncEngine (src/services/calendar), started by the session manager; local changes are
+ * pushed automatically and alerts react to data events, so there is nothing to initialize here.
+ *
+ * Kept exports (default object): setCallbacks (no-op), initialize, syncEventToGoogle,
+ * deleteEventFromBoth, forceSync, getSyncStatus, getSyncStatistics, updateSyncSettings (rejects).
+ */
+import { AppError } from '../core/errors';
+import { calendarSyncEngine, googleCalendarService } from '../services/calendar';
+import { isGoogleCalendarConnectedOrFalse, toLegacySyncResult } from '../services/calendar/legacyCompat';
+import { meetingRepository } from '../services/data';
 
-class CalendarSyncManager {
-  constructor() {
-    this.isSyncing = false;
-    this.syncInterval = null;
-    this.onMeetingCreated = null; // Callback for meeting creation
-    this.onMeetingUpdated = null; // Callback for meeting updates
-    this.onMeetingDeleted = null; // Callback for meeting deletion
-    this.syncEnabled = true; // Control sync to prevent date conflicts
-  }
-
-  // Set callbacks for meeting lifecycle events
-  setCallbacks({ onMeetingCreated, onMeetingUpdated, onMeetingDeleted }) {
-    this.onMeetingCreated = onMeetingCreated;
-    this.onMeetingUpdated = onMeetingUpdated;
-    this.onMeetingDeleted = onMeetingDeleted;
-  }
-
-  // Control sync to prevent date conflicts
-  enableSync() {
-    this.syncEnabled = true;
-    console.log('Calendar sync enabled');
-  }
-
-  disableSync() {
-    this.syncEnabled = false;
-    console.log('Calendar sync disabled to prevent date conflicts');
-  }
-
-  isSyncEnabled() {
-    return this.syncEnabled;
-  }
-
-  // Initialize sync manager
-  async initialize() {
-    try {
-      console.log('CalendarSyncManager: Starting initialization...');
-      
-      // Check if user is authenticated first
-      const user = await AsyncStorage.getItem('user');
-      const token = await AsyncStorage.getItem('authToken');
-      
-      if (!user || !token) {
-        console.log('CalendarSyncManager: User not authenticated, skipping sync initialization');
-        return false;
-      }
-
-      // Check if Google Calendar access is available
-      const hasAccess = await googleCalendarService.checkCalendarAccess();
-      if (!hasAccess) {
-        console.log('CalendarSyncManager: Google Calendar access not available');
-        return false;
-      }
-
-      // Load sync settings
-      const settings = await googleCalendarService.getSyncSettings();
-      
-      // Set up Google Calendar webhook for real-time sync
-      await this.setupGoogleCalendarWebhook();
-      
-      // Start auto-sync if enabled
-      if (settings.autoSync) {
-        this.startAutoSync(settings.syncInterval);
-      }
-
-      // Perform initial sync
-      console.log('CalendarSyncManager: Performing initial sync...');
-      await this.performSync();
-
-      return true;
-    } catch (error) {
-      console.error('CalendarSyncManager: Error initializing calendar sync manager:', error);
-      return false;
-    }
-  }
-
-  // Start automatic sync
-  startAutoSync(intervalMinutes = 15) {
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
-    }
-
-    this.syncInterval = setInterval(async () => {
-      await this.performSync();
-    }, intervalMinutes * 60 * 1000);
-
-    console.log(`Auto-sync started with ${intervalMinutes} minute interval`);
-  }
-
-  // Stop automatic sync
-  stopAutoSync() {
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
-      this.syncInterval = null;
-      console.log('Auto-sync stopped');
-    }
-  }
-
-  // Perform bidirectional sync
-  async performSync() {
-    if (this.isSyncing) {
-      console.log('Sync already in progress, skipping...');
-      return;
-    }
-
-    this.isSyncing = true;
-    console.log('Starting calendar sync...');
-
-    try {
-      const settings = await googleCalendarService.getSyncSettings();
-      const syncResults = {
-        created: 0,
-        updated: 0,
-        deleted: 0,
-        errors: [],
-        syncTime: new Date().toISOString(),
-      };
-
-      switch (settings.syncDirection) {
-        case 'bidirectional':
-          await this.performBidirectionalSync(syncResults);
-          break;
-        case 'toGoogle':
-          await this.syncToGoogleCalendar(syncResults);
-          break;
-        case 'fromGoogle':
-          await this.syncFromGoogleCalendar(syncResults);
-          break;
-        default:
-          await this.performBidirectionalSync(syncResults);
-      }
-
-      // Update last sync time
-      await googleCalendarService.setSyncSettings({
-        ...settings,
-        lastSyncTime: syncResults.syncTime,
-      });
-
-      console.log('Calendar sync completed:', syncResults);
-      return syncResults;
-    } catch (error) {
-      console.error('Error during calendar sync:', error);
-      throw error;
-    } finally {
-      this.isSyncing = false;
-    }
-  }
-
-  // Perform bidirectional sync
-  async performBidirectionalSync(syncResults) {
-    // First, sync from Google Calendar to app
-    await this.syncFromGoogleCalendar(syncResults);
-    
-    // Then, sync from app to Google Calendar
-    await this.syncToGoogleCalendar(syncResults);
-  }
-
-  // Sync from Google Calendar to app
-  async syncFromGoogleCalendar(syncResults) {
-    console.log('🚫 CalendarSyncManager: Google→App sync DISABLED to prevent errors and duplicates');
-    console.log('💡 CalendarSyncManager: App meetings are the single source of truth');
-    
-    // Completely disable Google→App sync to prevent:
-    // 1. Database schema errors (created column)
-    // 2. Duplicate meetings 
-    // 3. Sync conflicts
-    // 4. User confusion
-    
-    syncResults.skipped = (syncResults.skipped || 0) + 1;
-    
-    return; // Skip all Google→App sync
-  }
-
-  // Sync from app to Google Calendar
-  async syncToGoogleCalendar(syncResults) {
-    if (!this.syncEnabled) {
-      console.log('Sync disabled, skipping app to Google Calendar sync');
-      return;
-    }
-    
-    try {
-      // Get all app meetings
-      const appMeetings = await Meeting.list();
-      const mappings = await googleCalendarService.getEventMappings();
-
-      for (const meeting of appMeetings) {
-        try {
-          // Skip meetings that don't have proper date/time data
-          if (!meeting.date || !meeting.time) {
-            console.log('Skipping meeting without proper date/time:', meeting.id);
-            continue;
-          }
-
-          const googleEventId = mappings[meeting.id];
-          
-          if (googleEventId) {
-            // Update existing Google Calendar event
-            const result = await googleCalendarService.updateEvent(meeting);
-            if (result) {
-              syncResults.updated++;
-            }
-          } else {
-            // DISABLED: Frontend Google Calendar event creation
-            console.log('🚫 Skipping Google Calendar event creation for app meeting:', meeting.id);
-            console.log('💡 Google Calendar events are now created by backend to prevent data format issues');
-            // Backend handles Google Calendar integration properly with correct:
-            // - Location field separation (no concatenation)
-            // - Participant handling
-            // - Duplicate prevention
-            syncResults.skipped = (syncResults.skipped || 0) + 1;
-          }
-        } catch (error) {
-          console.error('Error syncing app meeting to Google:', meeting.id, error);
-          syncResults.errors.push({
-            type: 'app_to_google',
-            eventId: meeting.id,
-            error: error.message,
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error syncing to Google Calendar:', error);
-      // Don't throw error, just log it and continue
-      syncResults.errors.push({
-        type: 'app_to_google',
-        eventId: 'unknown',
-        error: error.message,
-      });
-    }
-  }
-
-  // Sync a single event to Google Calendar
-  async syncEventToGoogle(eventId) {
-    try {
-      const event = await Meeting.get(eventId);
-      if (!event) {
-        console.error('Event not found:', eventId);
-        return false;
-      }
-
-      console.log('Syncing event to Google Calendar:', {
-        eventId,
-        date: event.date,
-        time: event.time,
-        title: event.title
-      });
-
-      // Skip events without proper date/time data
-      if (!event.date || !event.time) {
-        console.log('Skipping event without proper date/time:', eventId);
-        return false;
-      }
-
-      const mappings = await googleCalendarService.getEventMappings();
-      const googleEventId = mappings[eventId];
-
-      if (googleEventId) {
-        // Update existing Google Calendar event
-        const result = await googleCalendarService.updateEvent(event);
-        if (result) {
-          console.log('Event synced to Google Calendar (updated):', eventId);
-          return true;
-        } else {
-          console.log('Failed to update event in Google Calendar:', eventId);
-          return false;
-        }
-      } else {
-        // DISABLED: Frontend Google Calendar event creation
-        console.log('🚫 Skipping Google Calendar event creation for event:', eventId);
-        console.log('💡 Backend handles Google Calendar integration to prevent data corruption');
-        // Frontend sync creation disabled to prevent:
-        // - Location/link concatenation errors
-        // - Missing participants 
-        // - Data format inconsistencies
-        return false; // Don't claim success for skipped operation
-      }
-    } catch (error) {
-      console.error('Error syncing event to Google Calendar:', error);
-      // Don't throw error, just return false
-      return false;
-    }
-  }
-
-  // Delete event from both app and Google Calendar
-  async deleteEventFromBoth(eventId) {
-    try {
-      console.log('Deleting event from both app and Google Calendar:', eventId);
-      
-      // Get the mapping before deleting
-      const mappings = await googleCalendarService.getEventMappings();
-      const googleEventId = mappings[eventId];
-      
-      // Delete from app first
-      await Meeting.delete(eventId);
-      console.log('Event deleted from app:', eventId);
-      
-      // Delete from Google Calendar if it exists
-      if (googleEventId) {
-        try {
-          await googleCalendarService.deleteMeeting(googleEventId);
-          console.log('Event deleted from Google Calendar:', googleEventId);
-        } catch (googleError) {
-          console.error('Error deleting from Google Calendar:', googleError);
-          // Continue even if Google Calendar deletion fails
-        }
-        
-        // Remove the mapping
-        await googleCalendarService.removeEventMapping(eventId);
-        console.log('Event mapping removed:', eventId);
-      }
-      
-      console.log('Event deleted from both app and Google Calendar:', eventId);
-      return true;
-    } catch (error) {
-      console.error('Error deleting event from both calendars:', error);
-      throw error;
-    }
-  }
-
-  // Get sync status
-  async getSyncStatus() {
-    try {
-      const settings = await googleCalendarService.getSyncSettings();
-      const hasAccess = await googleCalendarService.checkCalendarAccess();
-      
-      return {
-        isConnected: hasAccess,
-        autoSync: settings.autoSync,
-        syncDirection: settings.syncDirection,
-        lastSyncTime: settings.lastSyncTime,
-        isSyncing: this.isSyncing,
-        syncInterval: settings.syncInterval,
-      };
-    } catch (error) {
-      console.error('Error getting sync status:', error);
-      return {
-        isConnected: false,
-        autoSync: false,
-        syncDirection: 'bidirectional',
-        lastSyncTime: null,
-        isSyncing: false,
-        syncInterval: 15,
-      };
-    }
-  }
-
-  // Update sync settings
-  async updateSyncSettings(newSettings) {
-    try {
-      const currentSettings = await googleCalendarService.getSyncSettings();
-      const updatedSettings = { ...currentSettings, ...newSettings };
-      
-      await googleCalendarService.setSyncSettings(updatedSettings);
-      
-      // Restart auto-sync if settings changed
-      if (updatedSettings.autoSync && !this.syncInterval) {
-        this.startAutoSync(updatedSettings.syncInterval);
-      } else if (!updatedSettings.autoSync && this.syncInterval) {
-        this.stopAutoSync();
-      }
-      
-      console.log('Sync settings updated:', updatedSettings);
-      return updatedSettings;
-    } catch (error) {
-      console.error('Error updating sync settings:', error);
-      throw error;
-    }
-  }
-
-  // Force sync now
-  async forceSync() {
-    console.log('Force sync requested');
-    return await this.performSync();
-  }
-
-  // Get sync conflicts (events that exist in both calendars but have different data)
-  async getSyncConflicts() {
-    try {
-      const appMeetings = await Meeting.list();
-      const googleEvents = await googleCalendarService.getEvents();
-      const mappings = await googleCalendarService.getEventMappings();
-      
-      const conflicts = [];
-      
-      for (const meeting of appMeetings) {
-        const googleEventId = mappings[meeting.id];
-        if (googleEventId) {
-          const googleEvent = googleEvents.find(e => e.id === googleEventId);
-          if (googleEvent) {
-            const convertedGoogleEvent = googleCalendarService.convertFromGoogleEvent(googleEvent);
-            
-            // Compare key fields
-            if (
-              meeting.title !== convertedGoogleEvent.title ||
-              meeting.startTime !== convertedGoogleEvent.startTime ||
-              meeting.endTime !== convertedGoogleEvent.endTime ||
-              meeting.location !== convertedGoogleEvent.location
-            ) {
-              conflicts.push({
-                appEvent: meeting,
-                googleEvent: convertedGoogleEvent,
-                type: 'data_conflict',
-              });
-            }
-          }
-        }
-      }
-      
-      return conflicts;
-    } catch (error) {
-      console.error('Error getting sync conflicts:', error);
-      throw error;
-    }
-  }
-
-  // Resolve sync conflict by choosing which version to keep
-  async resolveConflict(conflict, resolution) {
-    try {
-      const { appEvent, googleEvent } = conflict;
-      
-      switch (resolution) {
-        case 'keep_app':
-          // Update Google Calendar with app data
-          await googleCalendarService.updateEvent(appEvent);
-          break;
-        case 'keep_google':
-          // Update app with Google Calendar data
-          await Meeting.update(appEvent.id, googleEvent);
-          break;
-        case 'merge':
-          // Merge data (keep app data but update with Google data for missing fields)
-          const mergedEvent = {
-            ...appEvent,
-            description: appEvent.description || googleEvent.description,
-            location: appEvent.location || googleEvent.location,
-            attendees: [...new Set([...appEvent.attendees, ...googleEvent.attendees])],
-          };
-          await Meeting.update(appEvent.id, mergedEvent);
-          await googleCalendarService.updateEvent(mergedEvent);
-          break;
-        default:
-          throw new Error('Invalid resolution type');
-      }
-      
-      console.log('Conflict resolved:', conflict.appEvent.id, resolution);
-      return true;
-    } catch (error) {
-      console.error('Error resolving conflict:', error);
-      throw error;
-    }
-  }
-
-  // Clean up orphaned mappings
-  async cleanupOrphanedMappings() {
-    try {
-      const mappings = await googleCalendarService.getEventMappings();
-      const appMeetings = await Meeting.list();
-      const googleEvents = await googleCalendarService.getEvents();
-      
-      let cleanedCount = 0;
-      
-      // Remove mappings for non-existent app events
-      for (const [appEventId, googleEventId] of Object.entries(mappings)) {
-        const appEventExists = appMeetings.some(m => m.id === appEventId);
-        const googleEventExists = googleEvents.some(e => e.id === googleEventId);
-        
-        if (!appEventExists || !googleEventExists) {
-          await googleCalendarService.removeEventMapping(appEventId);
-          cleanedCount++;
-        }
-      }
-      
-      console.log(`Cleaned up ${cleanedCount} orphaned mappings`);
-      return cleanedCount;
-    } catch (error) {
-      console.error('Error cleaning up orphaned mappings:', error);
-      throw error;
-    }
-  }
-
-  // Get sync statistics
-  async getSyncStatistics() {
-    try {
-      console.log('📊 Getting sync statistics...');
-      
-      // Import Meeting service dynamically with proper error handling
-      let Meeting;
-      try {
-        const entitiesModule = await import('./entities.js');
-        Meeting = entitiesModule.Meeting || entitiesModule.default;
-      } catch (importError) {
-        console.error('❌ Failed to import Meeting service:', importError);
-        throw new Error('Meeting service not available');
-      }
-      
-      if (!Meeting || typeof Meeting.list !== 'function') {
-        console.error('❌ Meeting service or list method not available');
-        throw new Error('Meeting.list method not available');
-      }
-      
-      const appMeetings = await Meeting.list();
-      console.log('📱 App meetings count:', appMeetings?.length || 0);
-      
-      const googleEvents = await googleCalendarService.getEvents();
-      console.log('📅 Google events count:', googleEvents?.length || 0);
-      
-      const mappings = await googleCalendarService.getEventMappings();
-      console.log('🗺️ Event mappings count:', Object.keys(mappings || {}).length);
-      
-      const settings = await googleCalendarService.getSyncSettings();
-      console.log('⚙️ Sync settings:', settings);
-      
-      const syncedAppEvents = appMeetings?.filter(m => mappings[m.id]) || [];
-      const syncedGoogleEvents = googleEvents?.filter(e => 
-        Object.values(mappings || {}).includes(e.id)
-      ) || [];
-      
-      const stats = {
-        totalSynced: syncedAppEvents.length,
-        successful: syncedAppEvents.length,
-        errors: Math.max(0, (appMeetings?.length || 0) - syncedAppEvents.length),
-        totalAppEvents: appMeetings?.length || 0,
-        totalGoogleEvents: googleEvents?.length || 0,
-        syncedAppEvents: syncedAppEvents.length,
-        syncedGoogleEvents: syncedGoogleEvents.length,
-        orphanedMappings: Object.keys(mappings || {}).length - syncedAppEvents.length,
-        syncDirection: settings?.syncDirection || 'bidirectional',
-        lastSyncTime: settings?.lastSyncTime,
-        lastSync: settings?.lastSyncTime,
-        autoSyncEnabled: settings?.autoSync !== false,
-      };
-      
-      console.log('📊 Final sync statistics:', stats);
-      return stats;
-    } catch (error) {
-      console.error('❌ Error getting sync statistics:', error);
-      // Return safe defaults
-      return {
-        totalSynced: 0,
-        successful: 0,
-        errors: 0,
-        totalAppEvents: 0,
-        totalGoogleEvents: 0,
-        syncedAppEvents: 0,
-        syncedGoogleEvents: 0,
-        orphanedMappings: 0,
-        syncDirection: 'bidirectional',
-        lastSyncTime: null,
-        lastSync: null,
-        autoSyncEnabled: true,
-      };
-    }
-  }
-
-  // Handle Google Calendar webhook events (for real-time sync)
-  async handleGoogleCalendarWebhook(event) {
-    try {
-      console.log('Handling Google Calendar webhook event:', event);
-      
-      const { resourceId, resourceUri, state } = event;
-      
-      if (state === 'sync') {
-        // Perform a full sync when Google Calendar changes
-        console.log('Google Calendar changed, performing full sync...');
-        await this.performSync();
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Error handling Google Calendar webhook:', error);
-      return false;
-    }
-  }
-
-  // Set up Google Calendar webhook for real-time sync
-  async setupGoogleCalendarWebhook() {
-    try {
-      if (!googleCalendarService.isAvailable()) {
-        console.log('Google Calendar not available, skipping webhook setup');
-        return false;
-      }
-
-      // This would typically involve setting up a webhook with Google Calendar API
-      // For now, we'll rely on periodic sync
-      console.log('Google Calendar webhook setup completed');
-      return true;
-    } catch (error) {
-      console.error('Error setting up Google Calendar webhook:', error);
-      return false;
-    }
-  }
+function statusSnapshot() {
+  const { google, device } = calendarSyncEngine.getStatus();
+  return {
+    isEnabled: google.enabled,
+    isConnected: google.connected,
+    isSyncing: google.syncing || device.syncing,
+    lastSync: google.lastSyncAt,
+    lastError: google.lastError,
+    device: {
+      isEnabled: device.enabled,
+      permission: device.permission,
+      lastSync: device.lastSyncAt,
+      lastError: device.lastError,
+    },
+  };
 }
 
-export default new CalendarSyncManager(); 
+const calendarSyncManagerShim = {
+  /** Screens and alerts are driven by `meetings:changed` now; nothing to register. */
+  setCallbacks() {},
+
+  /** Resolves to the real Google connection state (the engine itself is started by the session). */
+  initialize: () => isGoogleCalendarConnectedOrFalse(),
+
+  /** Pushes one meeting now. Rejects with AppError (e.g. calendar_not_connected, not_found). */
+  async syncEventToGoogle(meetingId) {
+    const meeting = await meetingRepository.get(meetingId);
+    if (!meeting) throw new AppError('not_found', 'Meeting not found', { details: { meetingId } });
+    const updated = await googleCalendarService.pushMeeting(meeting);
+    return { success: true, googleEventId: updated.external.googleEventId };
+  },
+
+  /** Deletes the meeting; the sync engine removes it from Google / the device calendar. */
+  async deleteEventFromBoth(meetingId) {
+    await meetingRepository.remove(meetingId, { origin: 'user' });
+    return { success: true };
+  },
+
+  async forceSync() {
+    return toLegacySyncResult(await calendarSyncEngine.syncNow({ reason: 'manual' }));
+  },
+
+  getSyncStatus: async () => statusSnapshot(),
+  getSyncStatistics: async () => statusSnapshot(),
+
+  updateSyncSettings() {
+    return Promise.reject(
+      new AppError('unsupported', 'Calendar sync settings live in Preferences (googleCalendarSyncEnabled) and the Calendar sync screen'),
+    );
+  },
+};
+
+export default calendarSyncManagerShim;
