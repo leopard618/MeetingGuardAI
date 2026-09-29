@@ -163,12 +163,45 @@ describe('calendarSyncEngine', () => {
     expect(report.errors).toEqual([{ provider: 'google', code: 'offline' }]);
   });
 
-  it('shares one run between concurrent syncNow calls', async () => {
+  it('coalesces calls made during a run into ONE follow-up run', async () => {
     const { engine, google } = setup();
-    const [a, b] = [engine.syncNow({ headless: true }), engine.syncNow({ headless: true })];
-    expect(a).toBe(b);
-    await a;
+    const [a, b, c] = [engine.syncNow({ headless: true }), engine.syncNow({ headless: true }), engine.syncNow({ headless: true })];
+    expect(b).toBe(c);
+    expect(a).not.toBe(b);
+    await Promise.all([a, b, c]);
+    expect(google.sync).toHaveBeenCalledTimes(2);
+    // Nothing queued afterwards.
+    await engine.syncNow({ headless: true });
+    expect(google.sync).toHaveBeenCalledTimes(3);
+  });
+
+  it('runs the Google pull when sync is enabled while the first (device-only) run is in flight', async () => {
+    const { engine, google, device, events, preferences } = setup({ googleCalendarSyncEnabled: false });
+    let releaseDevice: () => void = () => undefined;
+    device.sync.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseDevice = () => resolve(pullResult('device'));
+        }),
+    );
+    engine.start(UID);
+    await settle();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(device.sync).toHaveBeenCalledTimes(1);
+    expect(google.sync).not.toHaveBeenCalled();
+
+    // The server preferences arrive while the session-start run is still running.
+    events.emit('preferences:changed', {
+      uid: UID,
+      preferences: { ...preferences, googleCalendarSyncEnabled: true },
+      changedKeys: ['googleCalendarSyncEnabled'],
+      origin: 'remote',
+    });
+    await settle();
+    releaseDevice();
+    await jest.runAllTimersAsync();
     expect(google.sync).toHaveBeenCalledTimes(1);
+    engine.stop();
   });
 
   it('syncs when calendar settings change and resets on stop', async () => {

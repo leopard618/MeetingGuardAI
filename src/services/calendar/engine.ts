@@ -7,7 +7,9 @@
  *   calendar, then pushed after a short debounce. Remote, imported and calendar-origin writes are
  *   never pushed (loop prevention).
  * - syncNow() (UI "Sync now", background task, foreground/interval/connectivity): Google flush +
- *   pull, device import + export. Single-flight: concurrent calls share one run.
+ *   pull, device import + export. At most one run at a time; calls made while a run is in flight
+ *   are coalesced into ONE follow-up run that starts when it ends (the running one read its
+ *   preferences when it started, so a settings change during it must not be lost).
  */
 import type {
   CalendarStatus,
@@ -91,6 +93,9 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
   let debounceHandle: unknown = null;
   let intervalHandle: unknown = null;
   let inflight: Promise<CalendarSyncReport> | null = null;
+  /** The coalesced follow-up of the run in flight (shared by every call made meanwhile). */
+  let followUp: Promise<CalendarSyncReport> | null = null;
+  let followUpOptions: { reason: CalendarSyncReason; headless: boolean } | null = null;
   let lastAutoSyncAt = 0;
   const pendingGoogle = new Map<string, 'upsert' | 'delete'>();
   const pendingDevice = new Set<string>();
@@ -263,15 +268,40 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     return report;
   }
 
-  function syncNow(options: { reason?: CalendarSyncReason; headless?: boolean } = {}): Promise<CalendarSyncReport> {
-    if (inflight) return inflight;
-    const run = runSync({ reason: options.reason ?? 'manual', headless: options.headless === true });
+  function startRun(options: { reason: CalendarSyncReason; headless: boolean }): Promise<CalendarSyncReport> {
+    const run = runSync(options);
     inflight = run;
     const clear = (): void => {
       if (inflight === run) inflight = null;
     };
     run.then(clear, clear);
     return run;
+  }
+
+  function syncNow(options: { reason?: CalendarSyncReason; headless?: boolean } = {}): Promise<CalendarSyncReport> {
+    const requested = { reason: options.reason ?? 'manual', headless: options.headless === true };
+    const running = inflight;
+    if (!running) return startRun(requested);
+    // Latest reason wins; a foreground request upgrades a headless follow-up.
+    followUpOptions = {
+      reason: requested.reason,
+      headless: followUpOptions ? followUpOptions.headless && requested.headless : requested.headless,
+    };
+    if (!followUp) {
+      const next = running
+        .then(
+          () => undefined,
+          () => undefined,
+        )
+        .then(() => {
+          const nextOptions = followUpOptions ?? requested;
+          followUp = null;
+          followUpOptions = null;
+          return startRun(nextOptions);
+        });
+      followUp = next;
+    }
+    return followUp;
   }
 
   function autoSync(reason: CalendarSyncReason): void {

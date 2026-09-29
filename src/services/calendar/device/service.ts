@@ -3,6 +3,13 @@
  * expo-calendar. Import is one-way (device -> MeetingGuard, source 'device'); export copies
  * MeetingGuard's own meetings (never imported ones) to ONE calendar chosen on this device.
  * All stored device ids are device-scoped (see ./mapping.ts).
+ *
+ * Export links: each device can export the same meeting to its own calendar, so where THIS
+ * device's copy lives is kept locally (DeviceSyncState.exportLinks). The synced
+ * `external.deviceEventId` / `deviceCalendarId` are only a hint: claimed when free or already this
+ * device's, never overwritten with another device's ref and never cleared for another device.
+ * A copy without a local link (after a reinstall or a sign-out wipe) is adopted by matching the
+ * shared hint or by an exact title + start + end match in the export calendar, never duplicated.
  */
 import type {
   CalendarPullResult,
@@ -19,6 +26,22 @@ import { addMinutesIso, endIso, toDate } from '../../../core/time';
 import type { Meeting, MeetingPatch, Preferences } from '../../../core/types';
 import { chunk, createMutex, insideWindow, isOwnMeeting, syncWindow } from '../shared';
 import type { DeviceSyncState, StateStore } from '../stateStore';
+
+/** This device's exported copy of a meeting (raw device ids). */
+interface OwnCopy {
+  eventId: string;
+  /** null when only a legacy shared ref without calendar is known. */
+  calendarId: string | null;
+}
+
+/** Local link first; else a shared ref scoped to this device (states written before links existed). */
+function ownCopy(meeting: Meeting, key: string, state: DeviceSyncState): OwnCopy | null {
+  const link = state.exportLinks[meeting.id];
+  if (link) return link;
+  const raw = ownRawId(meeting.external.deviceEventId, key);
+  if (raw === null) return null;
+  return { eventId: raw, calendarId: ownRawId(meeting.external.deviceCalendarId, key) };
+}
 import type { CalendarStatusStore } from '../status';
 import type { DeviceCalendarPort } from './adapter';
 import {
@@ -33,6 +56,8 @@ import {
   parseScopedId,
   scopeId,
   toDeviceCalendarInfo,
+  type DeviceEventDetails,
+  type DeviceEventLike,
   type DevicePlatform,
 } from './mapping';
 
@@ -84,6 +109,20 @@ interface ImportCounts {
   updated: number;
   removed: number;
   unchanged: number;
+}
+
+function exportSignature(title: string, startIso: string, endIsoValue: string): string {
+  return `${title}|${toDate(startIso).getTime()}|${toDate(endIsoValue).getTime()}`;
+}
+
+/** An event identical (title, start, end) to one of our own meetings. */
+function isOwnExportLookalike(event: DeviceEventLike, ownSignatures: ReadonlySet<string>): boolean {
+  if (event.allDay || !event.title) return false;
+  try {
+    return ownSignatures.has(exportSignature(event.title, toDate(event.startDate).toISOString(), toDate(event.endDate).toISOString()));
+  } catch {
+    return false;
+  }
 }
 
 export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCalendarServiceInternal {
@@ -173,9 +212,16 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
 
     const locals = await deps.meetings.list({ includeDeleted: true, includeCancelled: true });
     const imported = new Map<string, Meeting>();
-    const exportedRawIds = new Set<string>();
+    const exportState = await deps.state.load();
+    const exportedRawIds = new Set<string>(Object.values(exportState.exportLinks).map((link) => link.eventId));
+    const exportTargetRaw = ownRawId(preferences.deviceCalendarExportId, key);
+    /** "title|start|end" of our own meetings: an identical event in the export calendar is our copy. */
+    const ownSignatures = new Set<string>();
     const orphans = new Map<string, Meeting>();
     for (const meeting of locals) {
+      if (isOwnMeeting(meeting) && meeting.deletedAt === null) {
+        ownSignatures.add(exportSignature(meeting.title, meeting.startAt, endIso(meeting)));
+      }
       const parsed = parseScopedId(meeting.external.deviceEventId);
       if (!parsed) continue;
       if (meeting.source !== 'device') {
@@ -202,8 +248,9 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
 
     for (const event of events) {
       if (!event.calendarId || !wanted.has(event.calendarId)) continue;
-      // Our own exported copies are not imported back.
+      // Our own exported copies are not imported back (also when the local link was lost).
       if (exportedRawIds.has(event.id)) continue;
+      if (event.calendarId === exportTargetRaw && isOwnExportLookalike(event, ownSignatures)) continue;
       let occurrence: string;
       try {
         occurrence = deviceOccurrenceKey(event);
@@ -279,30 +326,70 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
 
   // ---- export --------------------------------------------------------------------------------
 
-  async function findAdoptableCopy(meeting: Meeting, rawCalendarId: string, key: string): Promise<string | null> {
-    // A copy exported by a previous installation of the app on this device (different key).
+  /**
+   * A copy of `meeting` that this device made earlier but has no local link for (reinstall, or the
+   * sign-out wipe of the per-user state): the shared hint of a previous installation, else an event
+   * of the export calendar with exactly the same title, start and end that no other meeting owns.
+   */
+  async function findAdoptableCopy(
+    meeting: Meeting,
+    details: DeviceEventDetails,
+    rawCalendarId: string,
+    key: string,
+    linkedEventIds: ReadonlySet<string>,
+  ): Promise<string | null> {
     const event = parseScopedId(meeting.external.deviceEventId);
     const calendar = parseScopedId(meeting.external.deviceCalendarId);
-    if (!event || !calendar || event.deviceKey === key || calendar.rawId !== rawCalendarId) return null;
-    const found = await deps.port.findEvent(event.rawId);
-    if (!found || found.calendarId !== rawCalendarId || found.title !== meeting.title) return null;
-    return toDate(found.startDate).getTime() === toDate(meeting.startAt).getTime() ? event.rawId : null;
+    if (event && calendar && event.deviceKey !== key && calendar.rawId === rawCalendarId && !linkedEventIds.has(event.rawId)) {
+      const found = await deps.port.findEvent(event.rawId);
+      if (found && found.calendarId === rawCalendarId && found.title === meeting.title) {
+        if (toDate(found.startDate).getTime() === toDate(meeting.startAt).getTime()) return event.rawId;
+      }
+    }
+    const margin = 60_000;
+    const candidates = await deps.port.listEvents(
+      [rawCalendarId],
+      new Date(details.startDate.getTime() - margin),
+      new Date(details.endDate.getTime() + margin),
+    );
+    const match = candidates.find(
+      (candidate) =>
+        candidate.calendarId === rawCalendarId &&
+        !linkedEventIds.has(candidate.id) &&
+        candidate.title === details.title &&
+        toDate(candidate.startDate).getTime() === details.startDate.getTime() &&
+        toDate(candidate.endDate).getTime() === details.endDate.getTime(),
+    );
+    return match?.id ?? null;
+  }
+
+  /** The shared hint may be (re)written only when it is free or already this device's. */
+  function mayClaimSharedRef(meeting: Meeting, key: string): boolean {
+    const shared = parseScopedId(meeting.external.deviceEventId);
+    return shared === null || shared.deviceKey === key;
+  }
+
+  async function forgetCopy(meetingId: string): Promise<void> {
+    await deps.state.update((current) => {
+      const exportHashes = { ...current.exportHashes };
+      const exportLinks = { ...current.exportLinks };
+      delete exportHashes[meetingId];
+      delete exportLinks[meetingId];
+      return { ...current, exportHashes, exportLinks };
+    });
   }
 
   async function removeCopy(meeting: Meeting, key: string): Promise<boolean> {
     // Only copies of our own meetings: an imported meeting's deviceEventId is the user's original event.
     if (!isOwnMeeting(meeting)) return false;
-    const raw = ownRawId(meeting.external.deviceEventId, key);
-    if (raw === null) return false;
-    await deps.port.deleteEvent(raw);
-    if (meeting.deletedAt === null) {
+    const copy = ownCopy(meeting, key, await deps.state.load());
+    if (copy === null) return false;
+    await deps.port.deleteEvent(copy.eventId);
+    // Clear the shared hint only when it points at THIS device's copy: another device's ref stays.
+    if (meeting.deletedAt === null && ownRawId(meeting.external.deviceEventId, key) !== null) {
       await writeBack(meeting, { external: { deviceEventId: null, deviceCalendarId: null } });
     }
-    await deps.state.update((current) => {
-      const exportHashes = { ...current.exportHashes };
-      delete exportHashes[meeting.id];
-      return { ...current, exportHashes };
-    });
+    await forgetCopy(meeting.id);
     return true;
   }
 
@@ -316,37 +403,51 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
     const details = meetingToDeviceEvent(meeting, { platform: deps.platform, deviceTimeZone: deps.deviceTimeZone() });
     const calendarId = scopeId(key, rawCalendarId);
     const hash = deviceExportHash(details, calendarId);
-    const currentRaw = ownRawId(meeting.external.deviceEventId, key);
-    const currentCalendarRaw = ownRawId(meeting.external.deviceCalendarId, key);
     const state = await deps.state.load();
-    if (currentRaw !== null && currentCalendarRaw === rawCalendarId && state.exportHashes[meeting.id] === hash) {
+    const copy = ownCopy(meeting, key, state);
+    if (copy !== null && copy.calendarId === rawCalendarId && state.exportHashes[meeting.id] === hash) {
+      if (!state.exportLinks[meeting.id]) {
+        // Known only through the shared hint (older state): keep it locally from now on.
+        await deps.state.update((current) => ({
+          ...current,
+          exportLinks: { ...current.exportLinks, [meeting.id]: { eventId: copy.eventId, calendarId: rawCalendarId } },
+        }));
+      }
       return { meeting, changed: false };
     }
 
     let eventId: string | null = null;
-    if (currentRaw !== null) {
-      if (currentCalendarRaw === rawCalendarId && (await deps.port.findEvent(currentRaw))) {
-        await deps.port.updateEvent(currentRaw, details);
-        eventId = currentRaw;
-      } else if (currentCalendarRaw !== rawCalendarId) {
+    if (copy !== null) {
+      if (copy.calendarId === rawCalendarId && (await deps.port.findEvent(copy.eventId))) {
+        await deps.port.updateEvent(copy.eventId, details);
+        eventId = copy.eventId;
+      } else if (copy.calendarId !== rawCalendarId) {
         // The export calendar changed: move the copy.
-        await deps.port.deleteEvent(currentRaw);
+        await deps.port.deleteEvent(copy.eventId);
       }
+      // Else the copy was deleted in the calendar app: a new one is created below.
     } else {
-      const adoptable = await findAdoptableCopy(meeting, rawCalendarId, key);
+      const linked = new Set(Object.values(state.exportLinks).map((link) => link.eventId));
+      const adoptable = await findAdoptableCopy(meeting, details, rawCalendarId, key, linked);
       if (adoptable !== null) {
         await deps.port.updateEvent(adoptable, details);
         eventId = adoptable;
       }
     }
     if (eventId === null) eventId = await deps.port.createEvent(rawCalendarId, details);
+    const newEventId = eventId;
 
-    const deviceEventId = scopeId(key, eventId);
+    const deviceEventId = scopeId(key, newEventId);
     let updated = meeting;
-    if (meeting.external.deviceEventId !== deviceEventId || meeting.external.deviceCalendarId !== calendarId) {
+    const hintChanged = meeting.external.deviceEventId !== deviceEventId || meeting.external.deviceCalendarId !== calendarId;
+    if (hintChanged && mayClaimSharedRef(meeting, key)) {
       updated = await writeBack(meeting, { external: { deviceEventId, deviceCalendarId: calendarId } });
     }
-    await deps.state.update((current) => ({ ...current, exportHashes: { ...current.exportHashes, [meeting.id]: hash } }));
+    await deps.state.update((current) => ({
+      ...current,
+      exportHashes: { ...current.exportHashes, [meeting.id]: hash },
+      exportLinks: { ...current.exportLinks, [meeting.id]: { eventId: newEventId, calendarId: rawCalendarId } },
+    }));
     return { meeting: updated, changed: true };
   }
 
@@ -362,7 +463,8 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
     const result: ExportSyncResult = { exported: 0, removed: 0, failed: 0 };
 
     const locals = await deps.meetings.list({ includeDeleted: true, includeCancelled: true });
-    const { exportHashes } = await deps.state.load();
+    const state = await deps.state.load();
+    const { exportHashes } = state;
     let permissionChecked = false;
     for (const meeting of locals) {
       if (!isOwnMeeting(meeting) || (filter && !filter.has(meeting.id))) continue;
@@ -372,7 +474,8 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
         meeting.deletedAt !== null &&
         (checkedTombstones.has(meeting.id) ||
           (exportHashes[meeting.id] === undefined && meeting.deletedAt < tombstoneHorizonIso));
-      const copyRaw = tombstoneDone ? null : ownRawId(meeting.external.deviceEventId, key);
+      // This device's copy comes from its local link (never from another device's shared ref).
+      const copy = tombstoneDone ? null : ownCopy(meeting, key, state);
       if (meeting.deletedAt !== null) checkedTombstones.add(meeting.id);
       const shouldExport =
         targetRaw !== null &&
@@ -381,11 +484,8 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
         endIso(meeting) >= recentIso &&
         meeting.startAt < window.timeMax;
       const staleCopy =
-        copyRaw !== null &&
-        (meeting.deletedAt !== null ||
-          meeting.status === 'cancelled' ||
-          targetRaw === null ||
-          ownRawId(meeting.external.deviceCalendarId, key) !== targetRaw);
+        copy !== null &&
+        (meeting.deletedAt !== null || meeting.status === 'cancelled' || targetRaw === null || copy.calendarId !== targetRaw);
       if (!shouldExport && !staleCopy) continue;
       if (!permissionChecked) {
         await requirePermission();
@@ -446,7 +546,7 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
     removeExported(meeting) {
       return mutex.run(async () => {
         const key = await deps.deviceKey();
-        if (!isOwnMeeting(meeting) || ownRawId(meeting.external.deviceEventId, key) === null) return;
+        if (!isOwnMeeting(meeting) || ownCopy(meeting, key, await deps.state.load()) === null) return;
         await requirePermission();
         await removeCopy(meeting, key);
       });
@@ -467,8 +567,10 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
         }
         try {
           const result = await tracked(async (): Promise<CalendarPullResult> => {
-            const counts = await importLocked(preferences.deviceCalendarImportIds);
+            // Exports first: they adopt copies without a local link and record the links the
+            // import then uses to skip this device's own copies.
             const exports = await syncExportsLocked();
+            const counts = await importLocked(preferences.deviceCalendarImportIds);
             return {
               provider: 'device',
               fullSync: true,

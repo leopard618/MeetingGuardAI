@@ -80,11 +80,17 @@ export const deviceSyncStateSchema = z.object({
   importHashes: z.record(z.string(), z.string()),
   /** Meeting id -> hash of the exported fields (skip unchanged exports). */
   exportHashes: z.record(z.string(), z.string()),
+  /**
+   * Meeting id -> THIS device's exported copy (raw device ids). The synced
+   * `external.deviceEventId` holds a single value for all devices, so it cannot tell each device
+   * where its own copy is; this map can (older states have none: default {}).
+   */
+  exportLinks: z.record(z.string(), z.object({ eventId: z.string(), calendarId: z.string() })).default({}),
 });
 export type DeviceSyncState = z.infer<typeof deviceSyncStateSchema>;
 
 export function defaultDeviceSyncState(): DeviceSyncState {
-  return { v: 1, lastSyncAt: null, lastError: null, importHashes: {}, exportHashes: {} };
+  return { v: 1, lastSyncAt: null, lastError: null, importHashes: {}, exportHashes: {}, exportLinks: {} };
 }
 
 // ---------------------------------------------------------------------------------------------

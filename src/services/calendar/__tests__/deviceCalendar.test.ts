@@ -281,3 +281,80 @@ describe('deviceCalendarService', () => {
     await expect(service.importFrom([scopeId(KEY, '3')])).rejects.toMatchObject({ code: 'calendar_permission_denied' });
   });
 });
+
+describe('device calendar export on several devices', () => {
+  function device(key: string, meetings: FakeMeetings, clock: FakeClock, exportRaw: string | null) {
+    const port = new FakePort();
+    const state = memoryStateStore<DeviceSyncState>(defaultDeviceSyncState());
+    const preferences = {
+      ...createDefaultPreferences({ timezone: 'America/Los_Angeles' }),
+      deviceCalendarExportId: exportRaw === null ? null : scopeId(key, exportRaw),
+    };
+    const service = createDeviceCalendarService({
+      port,
+      meetings,
+      preferences: { get: async () => preferences },
+      state,
+      deviceKey: async () => key,
+      platform: 'android',
+      deviceTimeZone: () => 'America/Los_Angeles',
+      untitledTitle: () => '(No title)',
+      now: clock.now,
+      status: createCalendarStatusStore(),
+      events: createEventBus<AppEventMap>(),
+      getUid: () => 'user-1',
+    });
+    return { service, port, state, preferences };
+  }
+
+  function setupTwo() {
+    const clock = new FakeClock(new Date('2026-10-01T08:00:00.000Z'));
+    const meetings = new FakeMeetings(clock);
+    const own = meetings.add({ title: 'Review', startAt: '2026-10-05T16:00:00.000Z', source: 'manual' });
+    return { meetings, own, a: device(KEY, meetings, clock, '3'), b: device(OTHER_KEY, meetings, clock, '3') };
+  }
+
+  it('keeps one copy per device and never overwrites or clears the other device’s link', async () => {
+    const { meetings, own, a, b } = setupTwo();
+    await a.service.syncExports();
+    await b.service.syncExports();
+    expect(a.port.created).toHaveLength(1);
+    expect(b.port.created).toHaveLength(1);
+    // The synced hint stays with the first device; B keeps its own link locally.
+    expect(meetings.meetings.get(own.id)?.external.deviceEventId).toBe(scopeId(KEY, '501'));
+    expect(b.state.value.exportLinks[own.id]).toEqual({ eventId: '501', calendarId: '3' });
+
+    // Repeated syncs on both devices: no duplicates, nothing re-created.
+    await a.service.syncExports();
+    await b.service.syncExports();
+    await b.service.sync();
+    expect(a.port.created).toHaveLength(1);
+    expect(b.port.created).toHaveLength(1);
+    expect(meetings.all().filter((meeting) => meeting.source === 'device')).toHaveLength(0);
+
+    // B turns its export off: B removes ITS copy; A's copy and the shared hint are untouched.
+    b.preferences.deviceCalendarExportId = null;
+    expect(await b.service.syncExports()).toEqual({ exported: 0, removed: 1, failed: 0 });
+    expect(b.port.deleted).toEqual(['501']);
+    expect(a.port.deleted).toEqual([]);
+    expect(meetings.meetings.get(own.id)?.external.deviceEventId).toBe(scopeId(KEY, '501'));
+
+    // A turns its export off too: its own copy (known through the hint/link) is removed.
+    a.preferences.deviceCalendarExportId = null;
+    expect(await a.service.syncExports()).toEqual({ exported: 0, removed: 1, failed: 0 });
+    expect(a.port.deleted).toEqual(['501']);
+    expect(meetings.meetings.get(own.id)?.external.deviceEventId).toBeNull();
+  });
+
+  it('adopts its own copy instead of duplicating it after the local state was wiped (sign-out)', async () => {
+    const { a, b } = setupTwo();
+    await a.service.syncExports();
+    await b.service.syncExports();
+    expect(b.port.created).toHaveLength(1);
+
+    b.state.value = defaultDeviceSyncState();
+    await b.service.sync();
+    expect(b.port.created).toHaveLength(1);
+    expect(b.state.value.exportLinks).not.toEqual({});
+  });
+});
