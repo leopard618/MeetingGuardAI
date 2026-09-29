@@ -1,7 +1,7 @@
 /**
  * Keyboard handling for a screen that sits below the Main header (Android is edge-to-edge in SDK
- * 57, so the window is not resized for the keyboard and KeyboardAvoidingView uses "padding" on
- * both platforms):
+ * 57, so the window is not resized for the keyboard; a KeyboardAvoidingView with "padding" has to
+ * make room). Used by the assistant chat and by ScreenBody (forms):
  * - `keyboardVerticalOffset`: where the screen starts in the window (header + status bar),
  *   measured instead of hard-coded, because KeyboardAvoidingView compares its own frame (relative
  *   to its parent) with the keyboard's window coordinates;

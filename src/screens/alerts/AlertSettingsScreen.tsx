@@ -14,6 +14,7 @@ import { createLogger } from '../../core/logger';
 import { useT } from '../../i18n';
 import { usePreferences } from '../../services/data';
 import { ScreenBody } from '../shared/Section';
+import { useDiscardChangesGuard } from '../shared/useDiscardChangesGuard';
 import { useAlertPermission, useAlertSample } from './alertHooks';
 import { AlertDeliverySection, AlertExtraSettings, AlertPreferencesForm } from './AlertPreferencesForm';
 import {
@@ -36,6 +37,8 @@ export function AlertSettingsScreen(): ReactElement {
   const patch = buildAlertSettingsPatch(preferences, draft);
   const dirty = Object.keys(patch).length > 0;
   const valid = isSettingsDraftValid(draft);
+  // Back without saving asks first (the changes are only applied by Save).
+  const guard = useDiscardChangesGuard(dirty, { busy: saving, onDiscard: sample.stop });
 
   const change = (value: Partial<AlertSettingsDraft>): void => {
     setDraft((current) => ({ ...current, ...value }));
@@ -51,6 +54,7 @@ export function AlertSettingsScreen(): ReactElement {
     try {
       await update(patch);
       Toast.show({ type: 'success', text1: t('alerts:settings.saved') });
+      guard.allowLeave();
       navigation.goBack();
     } catch (caught) {
       const error = toAppError(caught);

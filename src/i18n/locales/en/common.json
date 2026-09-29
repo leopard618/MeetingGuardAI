@@ -67,5 +67,11 @@
     "calendar_permission_denied": "Calendar access was denied. You can allow it in your device settings.",
     "notification_permission_denied": "Notifications are turned off. Turn them on in your device settings so you never miss a meeting.",
     "unknown": "Something went wrong. Please try again."
+  },
+  "discard": {
+    "title": "Discard changes?",
+    "message": "Your changes are not saved. If you leave now, they are lost.",
+    "keepEditing": "Keep editing",
+    "discard": "Discard"
   }
 }

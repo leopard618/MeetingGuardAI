@@ -32,6 +32,7 @@ import { addErrorMessage, showAddResult } from '../attachments/attachmentMessage
 import { alertTimeChoices, alertTimeLabel, toggleAlertTime } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
 import { ScreenBody, Section } from '../shared/Section';
+import { useDiscardChangesGuard } from '../shared/useDiscardChangesGuard';
 import { useFormatters } from '../shared/useFormatters';
 import {
   CONFERENCE_CHOICES,
@@ -42,6 +43,7 @@ import {
   draftFromMeeting,
   draftToCreateInput,
   draftToPatch,
+  isMeetingDraftDirty,
   newMeetingDraft,
   pickerDateOf,
   timeFromPicker,
@@ -96,34 +98,57 @@ function MeetingForm({
   const { preferences } = usePreferences();
   const calendar = useCalendarStatus();
   const deviceZone = getDeviceTimeZone();
-  const [draft, setDraft] = useState<MeetingFormDraft>(() =>
+  const [original] = useState<MeetingFormDraft>(() =>
     meeting
       ? draftFromMeeting(meeting, { fallbackTimeZone: deviceZone, defaultAlertTimes: preferences.defaultAlertTimes })
       : newMeetingDraft({ now: new Date(), timeZone: deviceZone, defaultAlertTimes: preferences.defaultAlertTimes, date: initialDate }),
   );
+  const [draft, setDraft] = useState<MeetingFormDraft>(original);
   const [picker, setPicker] = useState<'date' | 'time' | null>(null);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [attachments, setAttachments] = useState<AttachmentView[]>([]);
+  // Attachments: the meeting's saved files, files picked in this form (not linked to any meeting
+  // until Save) and saved files the user removed (deleted from the device only on Save).
+  const [savedAttachments, setSavedAttachments] = useState<AttachmentView[]>([]);
+  const [addedAttachments, setAddedAttachments] = useState<AttachmentView[]>([]);
+  const [removedIds, setRemovedIds] = useState<readonly string[]>([]);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const errors = useMemo(() => validateMeetingDraft(draft), [draft]);
   const valid = Object.keys(errors).length === 0;
   const change = (patch: Partial<MeetingFormDraft>): void => setDraft((current) => ({ ...current, ...patch }));
   const googleConnected = calendar.google.enabled && calendar.google.hasScope;
+  const meetingId = meeting?.id ?? null;
+  const dirty = isMeetingDraftDirty(draft, original) || addedAttachments.length > 0 || removedIds.length > 0;
+  const attachments = [...savedAttachments.filter((item) => !removedIds.includes(item.id)), ...addedAttachments];
 
+  const guard = useDiscardChangesGuard(dirty, {
+    busy: saving,
+    // Files picked here were never linked to a meeting: delete the copies now (the clean-up of
+    // unlinked files would otherwise remove them after 24 hours).
+    onDiscard: () => {
+      for (const item of addedAttachments) {
+        attachmentService
+          .remove(item.id)
+          .catch((caught: unknown) => log.warn('could not delete a discarded attachment', toAppError(caught).code));
+      }
+    },
+  });
+
+  // Keyed on the id: live updates of the meeting (a Google write-back, a sync, another device)
+  // must not re-read the list, and the files picked in this form are kept apart anyway.
   useEffect(() => {
-    if (!meeting) return;
+    if (meetingId === null) return;
     let active = true;
     attachmentService
-      .listForMeeting(meeting.id)
+      .listForMeeting(meetingId)
       .then((files: AttachmentView[]) => {
-        if (active) setAttachments(files);
+        if (active) setSavedAttachments(files);
       })
       .catch((caught: unknown) => log.warn('could not read the attachments', toAppError(caught).code));
     return () => {
       active = false;
     };
-  }, [meeting]);
+  }, [meetingId]);
 
   const errorText = (field: keyof typeof errors): string | null =>
     submitted && errors[field] ? t(`meetings:form.errors.${errors[field]}`) : null;
@@ -141,7 +166,7 @@ function MeetingForm({
     try {
       const result = await attachmentService.add(kind, { multiple: true });
       if (result.cancelled) return;
-      setAttachments((current) => [...current, ...result.added]);
+      setAddedAttachments((current) => [...current, ...result.added]);
       showAddResult(result, t);
     } catch (caught) {
       const error = toAppError(caught);
@@ -154,9 +179,15 @@ function MeetingForm({
   };
 
   const removeAttachment = async (id: string): Promise<void> => {
+    if (!addedAttachments.some((item) => item.id === id)) {
+      // A saved file: deleted from the device only when the change is saved.
+      setRemovedIds((current) => (current.includes(id) ? current : [...current, id]));
+      return;
+    }
+    // A file picked in this form (an unlinked copy; the original stays where it was picked from).
     try {
       await attachmentService.remove(id);
-      setAttachments((current) => current.filter((item) => item.id !== id));
+      setAddedAttachments((current) => current.filter((item) => item.id !== id));
     } catch (caught) {
       const error = toAppError(caught);
       log.warn('could not remove an attachment', error.code);
@@ -180,7 +211,7 @@ function MeetingForm({
         saved = await meetingRepository.create(draftToCreateInput(draft), { origin: 'user' });
       }
       // Device-local attachments picked in this form belong to the meeting now.
-      for (const attachment of attachments.filter((item) => item.meetingId !== saved.id)) {
+      for (const attachment of addedAttachments) {
         try {
           await attachmentService.linkToMeeting(attachment.id, saved.id);
         } catch (caught) {
@@ -188,7 +219,17 @@ function MeetingForm({
           Toast.show({ type: 'error', text1: t('meetings:form.attachmentLinkFailed') });
         }
       }
+      // Saved files the user removed in this form.
+      for (const id of removedIds) {
+        try {
+          await attachmentService.remove(id);
+        } catch (caught) {
+          log.warn('could not remove an attachment', toAppError(caught).code);
+          Toast.show({ type: 'error', text1: t('meetings:form.attachmentRemoveFailed') });
+        }
+      }
       Toast.show({ type: 'success', text1: t(meeting ? 'meetings:form.updated' : 'meetings:form.created') });
+      guard.allowLeave();
       onSaved(saved, meeting === null);
     } catch (caught) {
       const error = toAppError(caught);
@@ -287,7 +328,12 @@ function MeetingForm({
           <Text variant="titleSmall" style={styles.flex}>
             {t('meetings:form.allDay')}
           </Text>
-          <Switch value={draft.allDay} onValueChange={(value) => change({ allDay: value, durationMinutes: value ? 1440 : 60 })} />
+          <Switch
+            value={draft.allDay}
+            onValueChange={(value) => change({ allDay: value, durationMinutes: value ? 1440 : 60 })}
+            accessibilityLabel={t('meetings:form.allDay')}
+            testID="meeting-form-all-day"
+          />
         </View>
         {!draft.allDay ? (
           <>
@@ -460,6 +506,7 @@ function MeetingForm({
             onValueChange={(value) =>
               change({ customAlerts: !value, alertTimes: value ? draft.alertTimes : draft.alertTimes.length > 0 ? draft.alertTimes : [...preferences.defaultAlertTimes] })
             }
+            accessibilityLabel={t('meetings:form.useDefaultAlerts')}
             testID="meeting-form-default-alerts"
           />
         </View>
@@ -505,7 +552,15 @@ function MeetingForm({
       </Section>
 
       <Section title={t('meetings:form.notes')}>
-        <TextInput mode="outlined" value={draft.notes} onChangeText={(value) => change({ notes: value })} multiline maxLength={10_000} />
+        <TextInput
+          mode="outlined"
+          label={t('meetings:form.notes')}
+          value={draft.notes}
+          onChangeText={(value) => change({ notes: value })}
+          multiline
+          maxLength={10_000}
+          testID="meeting-form-notes"
+        />
       </Section>
 
       <Section title={t('meetings:form.attachments')}>
@@ -513,19 +568,25 @@ function MeetingForm({
           {t('meetings:form.attachmentsHint')}
         </Text>
         {attachments.map((item) => (
-          <View key={item.id} style={styles.participantRow}>
+          <View key={item.id} style={styles.participantRow} testID={`meeting-form-attachment-${item.id}`}>
             <Text variant="bodyMedium" style={styles.flex} numberOfLines={1}>
               {item.name}
             </Text>
             <IconButton
               icon="close"
-              accessibilityLabel={t('meetings:form.removeAttachment')}
+              accessibilityLabel={t('attachments:remove', { name: item.name })}
               onPress={() => {
                 void removeAttachment(item.id);
               }}
+              testID={`meeting-form-remove-attachment-${item.id}`}
             />
           </View>
         ))}
+        {removedIds.length > 0 ? (
+          <HelperText type="info" visible testID="meeting-form-attachments-removed">
+            {t('meetings:form.attachmentsRemovedOnSave', { count: removedIds.length })}
+          </HelperText>
+        ) : null}
         <View style={styles.buttonRow}>
           <Button
             mode="text"

@@ -1,7 +1,7 @@
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import { Alert, Text } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 
 import { I18nProvider, i18n } from '../../../i18n';
@@ -94,4 +94,34 @@ it('explains Focus / Do Not Disturb and opens the system settings', async () => 
     fireEvent.press(screen.getAllByText('Open settings').at(-1)!);
   });
   expect(mockOpenAlarmChannelSettings).toHaveBeenCalled();
+});
+
+it('asks before dropping unsaved changes on back', async () => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  await renderScreen();
+  // Nothing changed: back leaves at once.
+  await act(async () => {
+    navigationRef.goBack();
+  });
+  expect(alert).not.toHaveBeenCalled();
+  expect(screen.getByTestId('home')).toBeTruthy();
+
+  await act(async () => {
+    navigationRef.navigate('AlertSettings');
+  });
+  await act(async () => {
+    fireEvent(screen.getByTestId('alerts-vibration'), 'valueChange', false);
+  });
+  await act(async () => {
+    navigationRef.goBack();
+  });
+  expect(alert).toHaveBeenCalledWith('Discard changes?', expect.any(String), expect.any(Array));
+  expect(mockUpdate).not.toHaveBeenCalled();
+  const buttons = alert.mock.calls[0]?.[2] as { style?: string; onPress?: () => void }[];
+  await act(async () => {
+    buttons.find((button) => button.style === 'destructive')?.onPress?.();
+  });
+  expect(await screen.findByTestId('home')).toBeTruthy();
+  expect(mockUpdate).not.toHaveBeenCalled();
+  alert.mockRestore();
 });

@@ -67,5 +67,11 @@
     "calendar_permission_denied": "Se denegó el acceso al calendario. Puedes permitirlo en los ajustes del dispositivo.",
     "notification_permission_denied": "Las notificaciones están desactivadas. Actívalas en los ajustes del dispositivo para no perderte ninguna reunión.",
     "unknown": "Algo salió mal. Inténtalo de nuevo."
+  },
+  "discard": {
+    "title": "¿Descartar los cambios?",
+    "message": "Tus cambios no están guardados. Si sales ahora, se perderán.",
+    "keepEditing": "Seguir editando",
+    "discard": "Descartar"
   }
 }

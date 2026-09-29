@@ -5,6 +5,7 @@ import {
   draftFromMeeting,
   draftToCreateInput,
   draftToPatch,
+  isMeetingDraftDirty,
   newMeetingDraft,
   normalizeTypedUrl,
   pickerDateOf,
@@ -160,5 +161,15 @@ describe('new meeting on a picked day (Calendar screen)', () => {
   it('ignores an invalid day', () => {
     const fresh = newMeetingDraft({ now: NOW, timeZone: 'Europe/Madrid', date: '2026-02-30' });
     expect([fresh.date, fresh.time]).toEqual(['2026-10-05', '13:00']);
+  });
+});
+
+describe('isMeetingDraftDirty', () => {
+  it('is false for the starting draft and true after any field changes', () => {
+    const original = draftFromMeeting(meeting(), { fallbackTimeZone: 'UTC' });
+    expect(isMeetingDraftDirty({ ...original }, original)).toBe(false);
+    expect(isMeetingDraftDirty({ ...original, title: 'Budget review v2' }, original)).toBe(true);
+    expect(isMeetingDraftDirty({ ...original, participants: [...original.participants, { email: '', name: '' }] }, original)).toBe(true);
+    expect(isMeetingDraftDirty({ ...original, alertTimes: [...original.alertTimes, 1] }, original)).toBe(true);
   });
 });

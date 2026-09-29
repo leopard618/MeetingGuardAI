@@ -221,6 +221,13 @@ export function isDraftValid(draft: MeetingFormDraft): boolean {
   return Object.keys(validateMeetingDraft(draft)).length === 0;
 }
 
+/** true when any field differs from the draft the form started with (unsaved changes). */
+export function isMeetingDraftDirty(draft: MeetingFormDraft, original: MeetingFormDraft): boolean {
+  return (Object.keys(original) as (keyof MeetingFormDraft)[]).some(
+    (key) => JSON.stringify(draft[key]) !== JSON.stringify(original[key]),
+  );
+}
+
 // ---------------------------------------------------------------------------------------------
 // Draft -> domain
 // ---------------------------------------------------------------------------------------------

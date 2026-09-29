@@ -39,7 +39,7 @@ import {
   summarizeResults,
   visibleSuggestions,
 } from './chatModel';
-import { useKeyboardAvoidance } from './useKeyboardAvoidance';
+import { useKeyboardAvoidance } from '../shared/useKeyboardAvoidance';
 
 type Props = StackScreenProps<RootStackParamList, 'AIChat'>;
 
