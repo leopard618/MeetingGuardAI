@@ -102,11 +102,21 @@ describe('assistantClient.send', () => {
   });
 
   it('treats a response that breaks the contract as an upstream error', async () => {
-    const bad = { ...response(), actions: [{ type: 'teleport_meeting', id: 'x', summary: 's', confidence: 10 }] };
+    const bad = { ...response(), reply: 42 };
     const client = createAssistantClient({ getTransport: () => transportReturning(bad) });
     const error = await captureError(client.send(request()));
     expect(error.code).toBe('upstream_error');
     expect(error.details?.issues).toBeDefined();
+  });
+
+  it('drops an action kind this version does not know instead of failing the whole reply', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const future = { ...response({ reply: 'Done' }), actions: [{ type: 'teleport_meeting', id: 'x', summary: 's', confidence: 10 }] };
+    const client = createAssistantClient({ getTransport: () => transportReturning(future) });
+    const result = await client.send(request());
+    expect(result.reply).toBe('Done');
+    expect(result.actions).toEqual([]);
+    warn.mockRestore();
   });
 
   it('rejects a response without usage', async () => {
@@ -181,8 +191,9 @@ describe('parseAssistantResponse', () => {
     expect(parseAssistantResponse(response()).actions).toEqual([]);
   });
 
-  it('rejects an email share without recipients', () => {
-    const bad = response({}, [
+  it('drops an invalid action (email share without recipients) and keeps the valid ones', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const mixed = response({ reply: 'Here you go' }, [
       {
         type: 'share_meeting',
         id: 'a1',
@@ -193,7 +204,32 @@ describe('parseAssistantResponse', () => {
         channel: 'email',
         message: null,
       },
+      createAction('act_2'),
     ]);
-    expect(() => parseAssistantResponse(bad)).toThrow(AppError);
+    const parsed = parseAssistantResponse(mixed);
+    expect(parsed.reply).toBe('Here you go');
+    expect(parsed.actions.map((action) => action.id)).toEqual(['act_2']);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('keeps working when a newer server sends an action kind this version does not know', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const future: unknown = {
+      ...response({ reply: 'Done' }),
+      actions: [
+        { type: 'set_recurrence', id: 'a9', summary: 'Every Monday', confidence: 90, meetingId: 'm1', rrule: 'FREQ=WEEKLY' },
+        createAction('act_1'),
+      ],
+    };
+    const parsed = parseAssistantResponse(future);
+    expect(parsed.actions.map((action) => action.type)).toEqual(['create_meeting']);
+    expect(String(warn.mock.calls[0]?.slice(1))).toContain('set_recurrence');
+    warn.mockRestore();
+  });
+
+  it('still rejects a broken envelope', () => {
+    expect(() => parseAssistantResponse({ reply: 42, actions: [], suggestions: [], usage: null })).toThrow(AppError);
+    expect(() => parseAssistantResponse({ ...response(), actions: 'nope' })).toThrow(AppError);
   });
 });

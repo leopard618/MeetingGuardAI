@@ -2,20 +2,27 @@
  * Assistant callable client (transport-agnostic core; the Firebase transport lives in
  * ./firebaseTransport.ts so this module stays pure and unit-testable).
  *
- * - Validates the request (assistantRequestSchema) before sending and the response
- *   (assistantResponseSchema) after receiving it. An invalid response is an upstream error,
- *   never a partially-trusted result.
+ * - Validates the request (assistantRequestSchema) before sending and the response after receiving
+ *   it. An invalid envelope (reply, suggestions, usage) is an upstream error, never a
+ *   partially-trusted result. Each proposed action is validated on its own (aiActionSchema): an
+ *   action this app version does not understand (a kind or enum value added on the server later)
+ *   is dropped and logged, so a newer server never breaks older installs (docs/DEPLOYMENT.md §6).
  * - Maps every failure to AppError:
  *     quota_exceeded (details.usage from HttpsError.details), unauthenticated, invalid_input,
  *     upstream_error, offline, timeout; not_configured when Firebase is not set up in this build.
  * - Never logs message content (only error codes / issue paths).
  */
+import { z } from 'zod';
+
 import {
+  AI_LIMITS,
   ASSISTANT_CALL_TIMEOUT_MS,
+  aiActionSchema,
   assistantErrorCodeFromFunctionsCode,
   assistantErrorDetailsSchema,
   assistantRequestSchema,
   assistantResponseSchema,
+  type AiAction,
   type AssistantErrorCode,
   type AssistantRequest,
   type AssistantResponse,
@@ -132,15 +139,39 @@ export function quotaUsageFromError(error: AppError | null | undefined): Assista
   return usage && typeof usage === 'object' ? (usage as AssistantUsage) : null;
 }
 
-/** Validates a raw callable result. Throws AppError('upstream_error') when it breaks the contract. */
+/** The response envelope with the actions still unchecked (they are validated one by one). */
+const responseEnvelopeSchema = assistantResponseSchema.extend({
+  actions: z.array(z.unknown()).max(AI_LIMITS.maxActions),
+});
+
+function actionTypeOf(value: unknown): string {
+  const type = typeof value === 'object' && value !== null ? (value as { type?: unknown }).type : undefined;
+  return typeof type === 'string' && /^[a-z_]{1,40}$/.test(type) ? type : 'unknown';
+}
+
+/**
+ * Validates a raw callable result. Throws AppError('upstream_error') when the envelope breaks the
+ * contract; drops (and logs) the actions that do not validate, keeping the valid ones.
+ */
 export function parseAssistantResponse(raw: unknown): AssistantResponse {
-  const parsed = assistantResponseSchema.safeParse(raw);
+  const parsed = responseEnvelopeSchema.safeParse(raw);
   if (!parsed.success) {
     const issues = issuePaths(parsed.error.issues);
     log.warn('assistant response failed validation', issues);
     throw new AppError('upstream_error', 'Invalid assistant response', { details: { issues } });
   }
-  return parsed.data;
+  const actions: AiAction[] = [];
+  const dropped: string[] = [];
+  for (const candidate of parsed.data.actions) {
+    const action = aiActionSchema.safeParse(candidate);
+    if (action.success) actions.push(action.data);
+    else dropped.push(actionTypeOf(candidate));
+  }
+  if (dropped.length > 0) {
+    // Only the action kinds (contract enum values), never their content.
+    log.warn('dropped assistant actions this version cannot use', dropped);
+  }
+  return { ...parsed.data, actions };
 }
 
 export function createAssistantClient(deps: AssistantClientDeps): AssistantClient {

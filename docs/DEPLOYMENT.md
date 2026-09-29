@@ -119,8 +119,18 @@ Run these in `functions/`.
 | Read the function logs | `npm run logs` |
 
 - **Compatibility rule:** the callable contract (`src/core/aiContract.ts`, copied to
-  `functions/src/shared/aiContract.ts`) must work with every app version still in use. Add fields;
-  never rename or remove them.
+  `functions/src/shared/aiContract.ts`) must work with every app version still in use:
+  - Add fields; never rename or remove them. The request schema is strict on the server, so a new
+    request field must be optional.
+  - **Actions:** from 1.1.0 the app validates each proposed action on its own and drops (and logs)
+    one it does not understand, so a new action kind, or a new enum value inside an action, does
+    not break older installs. Their users simply do not get that card, although the request still
+    counts against the quota, so make the reply text make sense without it.
+  - **Everything else in the response** (`reply`, `suggestions`, `usage`, including `usage.plan`)
+    is validated strictly. A new enum value there (a new plan, for example) makes every older
+    install show an error. Send such values only to app versions that declare support for them:
+    first add an optional request field (for example `clientVersion` or `capabilities`), ship it in
+    a store release, then gate the new value on it.
 - **Functions rollback:**
   1. Check out the last good tag in a separate folder: `git worktree add ../mg-last-good v1.1.0`.
   2. Copy `.firebaserc` and `functions/.env.<project-id>` into it (both are git-ignored).
