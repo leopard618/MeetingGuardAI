@@ -1,7 +1,8 @@
-import { Dimensions, PixelRatio } from 'react-native';
+import { Dimensions } from 'react-native';
 
-// Get screen dimensions
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+// The window size is read on every call (not once at import), so rotation, split screen and
+// foldables get the current size.
+const getWindow = () => Dimensions.get('window');
 
 // Responsive breakpoints
 export const BREAKPOINTS = {
@@ -14,6 +15,7 @@ export const BREAKPOINTS = {
 
 // Device type detection
 export const getDeviceType = () => {
+  const SCREEN_WIDTH = getWindow().width;
   if (SCREEN_WIDTH >= BREAKPOINTS.xl) return 'desktop';
   if (SCREEN_WIDTH >= BREAKPOINTS.lg) return 'tablet';
   if (SCREEN_WIDTH >= BREAKPOINTS.md) return 'large-phone';
@@ -21,11 +23,12 @@ export const getDeviceType = () => {
   return 'small-phone';
 };
 
-// Responsive font scaling
+// Responsive font scaling by screen size. The user's accessibility font scale is NOT applied
+// here: React Native <Text> already applies it (allowFontScaling), so multiplying by
+// PixelRatio.getFontScale() scaled text twice.
 export const scaleFont = (size) => {
   const deviceType = getDeviceType();
-  const scale = PixelRatio.getFontScale();
-  
+
   // Base scaling factors for different device types
   const deviceScales = {
     'small-phone': 0.85,
@@ -35,7 +38,7 @@ export const scaleFont = (size) => {
     'desktop': 1.1,
   };
   
-  return Math.round(size * deviceScales[deviceType] * scale);
+  return Math.round(size * deviceScales[deviceType]);
 };
 
 // Responsive width scaling
@@ -343,16 +346,20 @@ export const getResponsiveButtonDimensions = () => {
 
 // Export screen dimensions for direct use
 export const SCREEN_DIMENSIONS = {
-  width: SCREEN_WIDTH,
-  height: SCREEN_HEIGHT,
+  get width() {
+    return getWindow().width;
+  },
+  get height() {
+    return getWindow().height;
+  },
 };
 
 // Helper function to check if device is small
 export const isSmallDevice = () => {
-  return SCREEN_WIDTH < BREAKPOINTS.sm;
+  return getWindow().width < BREAKPOINTS.sm;
 };
 
 // Helper function to check if device is tablet or larger
 export const isTabletOrLarger = () => {
-  return SCREEN_WIDTH >= BREAKPOINTS.lg;
+  return getWindow().width >= BREAKPOINTS.lg;
 };

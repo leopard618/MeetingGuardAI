@@ -1,0 +1,58 @@
+{
+  "screens": {
+    "Landing": "Welcome",
+    "Privacy": "Privacy Policy",
+    "Terms": "Terms of Service",
+    "OnboardingLanguage": "Language",
+    "OnboardingCalendars": "Calendars",
+    "OnboardingAlerts": "Alerts",
+    "OnboardingAssistant": "AI assistant",
+    "OnboardingFirstMeeting": "First meeting",
+    "Dashboard": "MeetingGuard",
+    "ChooseCreationMethod": "New meeting",
+    "CreateMeeting": "Create meeting",
+    "TotalMeetings": "All meetings",
+    "MeetingDetails": "Meeting details",
+    "EditMeeting": "Edit meeting",
+    "Calendar": "Calendar",
+    "Notes": "Notes & Tasks",
+    "Settings": "Settings",
+    "Profile": "Profile",
+    "AIChat": "AI assistant",
+    "AIInsights": "AI insights",
+    "WhatsAppBot": "WhatsApp bot",
+    "CalendarSync": "Calendar sync",
+    "Pricing": "Plans"
+  },
+  "header": {
+    "home": "Go to dashboard",
+    "openMenu": "Open menu",
+    "account": "Account",
+    "darkMode": "Switch to dark mode",
+    "lightMode": "Switch to light mode",
+    "switchLanguage": "Change language to {{language}}",
+    "user": "User"
+  },
+  "sidebar": {
+    "close": "Close menu",
+    "language": "Language"
+  },
+  "meeting": {
+    "loading": "Loading meeting…",
+    "notFoundTitle": "Meeting not found",
+    "notFoundMessage": "It may have been deleted, or it has not synced to this device yet.",
+    "backToDashboard": "Go to dashboard"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "addMeeting": "Add Meeting",
+    "totalMeetings": "Total Meetings",
+    "calendar": "Calendar",
+    "notes": "Notes & Tasks",
+    "aiChat": "AI Chat",
+    "settings": "Settings",
+    "apiKeys": "API Keys",
+    "pricing": "Pricing",
+    "notificationDemo": "Notification Demo"
+  }
+}

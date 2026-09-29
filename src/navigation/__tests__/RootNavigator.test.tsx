@@ -1,0 +1,272 @@
+import { NavigationContainer } from '@react-navigation/native';
+import { act, render, screen } from '@testing-library/react-native';
+
+import type { AuthContextValue, UsePreferencesResult } from '../../core/contracts';
+import { createDefaultPreferences, type Meeting } from '../../core/types';
+import { I18nProvider, i18n } from '../../i18n';
+import { clearPendingNavigation, navigate, navigationRef, onNavigationReady } from '../navigationService';
+import { RootNavigator } from '../RootNavigator';
+
+jest.mock('expo-localization', () => ({
+  getLocales: jest.fn(() => [{ languageCode: 'en', languageTag: 'en-US' }]),
+  getCalendars: jest.fn(() => [{ timeZone: 'UTC', uses24hourClock: false }]),
+}));
+
+// ---- mocked contexts -----------------------------------------------------------------------------
+
+const mockUseAuth = jest.fn();
+const mockUsePreferences = jest.fn();
+const mockUseMeeting = jest.fn();
+const mockUseOnboardingResume = jest.fn();
+const mockMounts: Record<string, number> = {};
+
+jest.mock('../../services/auth', () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
+jest.mock('../../services/data', () => ({
+  usePreferences: () => mockUsePreferences(),
+  useMeeting: (id: string | null) => mockUseMeeting(id),
+}));
+
+/** A stand-in screen that renders its name + language prop and counts its mounts. */
+function mockScreen(name: string) {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  function MockScreen(props: { language?: string; route?: { params?: { meeting?: { title?: string } } } }) {
+    React.useEffect(() => {
+      mockMounts[name] = (mockMounts[name] ?? 0) + 1;
+    }, []);
+    const meetingTitle = props.route?.params?.meeting?.title;
+    return React.createElement(
+      Text,
+      { testID: `screen-${name}` },
+      `${name}|${props.language ?? '-'}${meetingTitle ? `|${meetingTitle}` : ''}`,
+    );
+  }
+  return { __esModule: true, default: MockScreen };
+}
+
+jest.mock('../../pages/Dashboard', () => mockScreen('Dashboard'));
+jest.mock('../../pages/ChooseCreationMethod', () => mockScreen('ChooseCreationMethod'));
+jest.mock('../../components/ModernCreateMeeting', () => mockScreen('CreateMeeting'));
+jest.mock('../../pages/TotalMeetings', () => mockScreen('TotalMeetings'));
+jest.mock('../../pages/MeetingDetails', () => mockScreen('MeetingDetails'));
+jest.mock('../../pages/EditMeeting', () => mockScreen('EditMeeting'));
+jest.mock('../../pages/Calendar', () => mockScreen('Calendar'));
+jest.mock('../../pages/Notes', () => mockScreen('Notes'));
+jest.mock('../../pages/Settings', () => mockScreen('Settings'));
+jest.mock('../../pages/AIChat', () => mockScreen('AIChat'));
+jest.mock('../../pages/AIInsights', () => mockScreen('AIInsights'));
+jest.mock('../../pages/Privacy', () => mockScreen('Privacy'));
+jest.mock('../../pages/Terms', () => mockScreen('Terms'));
+jest.mock('../../pages/WhatsAppBot', () => mockScreen('WhatsAppBot'));
+jest.mock('../../pages/CalendarSync', () => mockScreen('CalendarSync'));
+jest.mock('../../pages/Pricing', () => mockScreen('Pricing'));
+jest.mock('../../pages/LandingPage', () => mockScreen('Landing'));
+jest.mock('../../components/CustomHeader', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    __esModule: true,
+    default: ({ title }: { title: string }) => React.createElement(Text, { testID: 'header' }, `header:${title}`),
+  };
+});
+jest.mock('../../components/MobileSidebar', () => ({ __esModule: true, default: () => null }));
+jest.mock('../../screens/onboarding', () => {
+  const stepScreen = (name: string) => () => mockScreen(name).default({});
+  return {
+    OnboardingLanguageScreen: stepScreen('OnboardingLanguage'),
+    OnboardingCalendarsScreen: stepScreen('OnboardingCalendars'),
+    OnboardingAlertsScreen: stepScreen('OnboardingAlerts'),
+    OnboardingAssistantScreen: stepScreen('OnboardingAssistant'),
+    OnboardingFirstMeetingScreen: stepScreen('OnboardingFirstMeeting'),
+    useOnboardingResume: (uid: string | null) => mockUseOnboardingResume(uid),
+  };
+});
+
+// ---- helpers ---------------------------------------------------------------------------------------
+
+const USER = { uid: 'u1', email: 'user@example.com', displayName: 'User', photoURL: null, emailVerified: true, providerIds: ['google.com'] };
+
+function authState(status: AuthContextValue['status']): Partial<AuthContextValue> {
+  const signedIn = status === 'active';
+  return {
+    status,
+    isAuthenticated: signedIn,
+    isLoading: status !== 'active' && status !== 'signed_out',
+    authUser: signedIn ? USER : null,
+    signOut: jest.fn(async () => undefined),
+  };
+}
+
+function preferencesState(overrides: Partial<UsePreferencesResult> & { onboardingCompleted?: boolean } = {}): UsePreferencesResult {
+  const preferences = {
+    ...createDefaultPreferences({ language: 'en', timezone: 'UTC' }),
+    onboardingCompleted: overrides.onboardingCompleted ?? true,
+  };
+  return {
+    preferences,
+    isLoaded: overrides.isLoaded ?? true,
+    error: overrides.error ?? null,
+    update: jest.fn(),
+  };
+}
+
+function renderNavigator() {
+  return render(
+    <I18nProvider>
+      <NavigationContainer ref={navigationRef} onReady={onNavigationReady}>
+        <RootNavigator />
+      </NavigationContainer>
+    </I18nProvider>,
+  );
+}
+
+const MEETING: Meeting = {
+  id: 'm1',
+  userId: 'u1',
+  title: 'Budget review',
+  description: '',
+  startAt: '2026-10-05T13:00:00.000Z',
+  durationMinutes: 60,
+  timezone: 'UTC',
+  allDay: false,
+  date: '2026-10-05',
+  time: '13:00',
+  location: null,
+  conference: null,
+  participants: [],
+  source: 'manual',
+  confidence: null,
+  language: 'en',
+  preparationTips: [],
+  customAlertTimes: null,
+  alertIntensity: null,
+  notes: null,
+  status: 'scheduled',
+  external: {
+    googleEventId: null,
+    googleCalendarId: null,
+    googleEtag: null,
+    googleUpdatedAt: null,
+    deviceEventId: null,
+    deviceCalendarId: null,
+  },
+  createdAt: '2026-09-28T10:00:00.000Z',
+  updatedAt: '2026-09-28T10:00:00.000Z',
+  deletedAt: null,
+};
+
+beforeEach(async () => {
+  await i18n.changeLanguage('en');
+  clearPendingNavigation();
+  Object.keys(mockMounts).forEach((key) => delete mockMounts[key]);
+  mockUseAuth.mockReturnValue(authState('active'));
+  mockUsePreferences.mockReturnValue(preferencesState());
+  mockUseMeeting.mockReturnValue({ meeting: null, isLoading: false, error: null });
+  mockUseOnboardingResume.mockReturnValue({ loaded: true, step: null });
+});
+
+// ---- tests -------------------------------------------------------------------------------------------
+
+describe('RootNavigator gate', () => {
+  it('shows the splash while the session is restoring', async () => {
+    mockUseAuth.mockReturnValue(authState('initializing'));
+    await renderNavigator();
+    expect(screen.getByTestId('app-splash')).toBeTruthy();
+  });
+
+  it('shows the Landing screen with the consent notice when signed out', async () => {
+    mockUseAuth.mockReturnValue(authState('signed_out'));
+    mockUsePreferences.mockReturnValue(preferencesState({ isLoaded: false }));
+    await renderNavigator();
+    expect(screen.getByTestId('screen-Landing')).toBeTruthy();
+    expect(screen.getByText('Terms of Service')).toBeTruthy();
+    expect(screen.getByText('Privacy Policy')).toBeTruthy();
+  });
+
+  it('waits for the preferences, and reports a preferences failure', async () => {
+    mockUsePreferences.mockReturnValue(preferencesState({ isLoaded: false }));
+    const view = await renderNavigator();
+    expect(screen.getByTestId('app-splash')).toBeTruthy();
+
+    mockUsePreferences.mockReturnValue(
+      preferencesState({ isLoaded: false, error: { code: 'offline' } as UsePreferencesResult['error'] }),
+    );
+    await view.rerender(
+      <I18nProvider>
+        <NavigationContainer ref={navigationRef}>
+          <RootNavigator />
+        </NavigationContainer>
+      </I18nProvider>,
+    );
+    expect(screen.getByTestId('preferences-error')).toBeTruthy();
+  });
+
+  it('shows onboarding (resuming at the stored step) until it is completed', async () => {
+    mockUsePreferences.mockReturnValue(preferencesState({ onboardingCompleted: false }));
+    mockUseOnboardingResume.mockReturnValue({ loaded: true, step: 'OnboardingAlerts' });
+    await renderNavigator();
+    expect(screen.getByTestId('screen-OnboardingAlerts')).toBeTruthy();
+    expect(mockUseOnboardingResume).toHaveBeenCalledWith('u1');
+  });
+
+  it('shows the splash while the onboarding progress is being read', async () => {
+    mockUsePreferences.mockReturnValue(preferencesState({ onboardingCompleted: false }));
+    mockUseOnboardingResume.mockReturnValue({ loaded: false, step: null });
+    await renderNavigator();
+    expect(screen.getByTestId('app-splash')).toBeTruthy();
+  });
+
+  it('shows the Main group with the header when onboarding is completed', async () => {
+    await renderNavigator();
+    expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|en');
+    expect(screen.getByTestId('header').props.children).toBe('header:Dashboard');
+  });
+});
+
+describe('language and navigation behaviour', () => {
+  it('passes the live language to legacy screens without remounting them', async () => {
+    await renderNavigator();
+    expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|en');
+    await act(async () => {
+      await i18n.changeLanguage('es');
+    });
+    expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|es');
+    expect(mockMounts.Dashboard).toBe(1);
+  });
+
+  it('opens an intent queued during onboarding once the Main group mounts', async () => {
+    mockUsePreferences.mockReturnValue(preferencesState({ onboardingCompleted: false }));
+    mockUseMeeting.mockImplementation((id: string | null) => ({
+      meeting: id === 'm1' ? MEETING : null,
+      isLoading: false,
+      error: null,
+    }));
+    const view = await renderNavigator();
+    expect(screen.getByTestId('screen-OnboardingLanguage')).toBeTruthy();
+
+    await act(async () => {
+      navigate('MeetingDetails', { meetingId: 'm1' });
+    });
+    mockUsePreferences.mockReturnValue(preferencesState({ onboardingCompleted: true }));
+    await view.rerender(
+      <I18nProvider>
+        <NavigationContainer ref={navigationRef} onReady={onNavigationReady}>
+          <RootNavigator />
+        </NavigationContainer>
+      </I18nProvider>,
+    );
+    expect((await screen.findByTestId('screen-MeetingDetails')).props.children).toBe('MeetingDetails|en|Budget review');
+    expect(navigationRef.getRootState()?.routes.map((route) => route.name)).toEqual(['Dashboard', 'MeetingDetails']);
+  });
+
+  it('shows "meeting not found" for an unknown deep-link meeting', async () => {
+    await renderNavigator();
+    await act(async () => {
+      navigate('MeetingDetails', { meetingId: 'missing' });
+    });
+    expect(await screen.findByText('Meeting not found')).toBeTruthy();
+  });
+});

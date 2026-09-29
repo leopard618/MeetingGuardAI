@@ -1,0 +1,49 @@
+/**
+ * Bundled translation resources: one JSON file per namespace and language. Each area owns its
+ * namespace files (src/i18n/locales/{en,es}/<namespace>.json); this module only wires them up.
+ * Adding a namespace = add it to I18N_NAMESPACE_LIST (core/contracts) + both JSON files + here.
+ */
+import type { I18nNamespace } from '../core/contracts';
+import type { Language } from '../core/types';
+import enAi from './locales/en/ai.json';
+import enAlerts from './locales/en/alerts.json';
+import enAuth from './locales/en/auth.json';
+import enCalendar from './locales/en/calendar.json';
+import enCommon from './locales/en/common.json';
+import enData from './locales/en/data.json';
+import enNavigation from './locales/en/navigation.json';
+import enOnboarding from './locales/en/onboarding.json';
+import esAi from './locales/es/ai.json';
+import esAlerts from './locales/es/alerts.json';
+import esAuth from './locales/es/auth.json';
+import esCalendar from './locales/es/calendar.json';
+import esCommon from './locales/es/common.json';
+import esData from './locales/es/data.json';
+import esNavigation from './locales/es/navigation.json';
+import esOnboarding from './locales/es/onboarding.json';
+
+/** A namespace's JSON tree (nested objects, strings and string arrays). */
+export type TranslationTree = { readonly [key: string]: unknown };
+
+export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace, TranslationTree>>>> = {
+  en: {
+    common: enCommon,
+    navigation: enNavigation,
+    onboarding: enOnboarding,
+    data: enData,
+    auth: enAuth,
+    calendar: enCalendar,
+    alerts: enAlerts,
+    ai: enAi,
+  },
+  es: {
+    common: esCommon,
+    navigation: esNavigation,
+    onboarding: esOnboarding,
+    data: esData,
+    auth: esAuth,
+    calendar: esCalendar,
+    alerts: esAlerts,
+    ai: esAi,
+  },
+};

@@ -1,0 +1,138 @@
+{
+  "progress": "Step {{current}} of {{total}}",
+  "language": {
+    "title": "Welcome to MeetingGuard AI",
+    "subtitle": "Let's set things up so you never miss a meeting again. First, choose your language.",
+    "hint": "You can change it any time from the menu."
+  },
+  "calendars": {
+    "title": "Connect your calendars",
+    "subtitle": "MeetingGuard alerts you about the meetings in your calendars and keeps everything in sync.",
+    "later": "You can change this later in Settings.",
+    "google": {
+      "title": "Google Calendar",
+      "description": "Two-way sync: meetings you create here appear in Google Calendar, and your Google events get MeetingGuard alerts.",
+      "connect": "Connect Google Calendar",
+      "connected": "Connected",
+      "success": "Google Calendar is connected.",
+      "cancelled": "Google Calendar was not connected.",
+      "scopeDenied": "Calendar access was not granted. You can connect it later in Settings."
+    },
+    "device": {
+      "title": "Calendars on this device",
+      "description": "Import events from the calendars on your phone, such as iCloud or Outlook accounts.",
+      "allow": "Allow calendar access",
+      "denied": "Calendar access is off. You can turn it on in your device settings.",
+      "empty": "No calendars were found on this device.",
+      "googleNote": "Synced from Google: already covered by Google Calendar sync."
+    }
+  },
+  "alerts": {
+    "title": "How should we alert you?",
+    "subtitle": "Choose how hard MeetingGuard tries to get your attention before a meeting.",
+    "enabled": "Meeting alerts",
+    "intensity": {
+      "label": "Alert intensity",
+      "max": {
+        "title": "Maximum",
+        "description": "Full-screen alarm with sound, voice and vibration. You have to respond to it."
+      },
+      "medium": {
+        "title": "Medium",
+        "description": "A persistent banner with sound. You can minimize it, but it stays until you act."
+      },
+      "light": {
+        "title": "Light",
+        "description": "A short notification with a brief sound."
+      }
+    },
+    "preview": {
+      "label": "Preview",
+      "meetingTitle": "Weekly team sync",
+      "startsIn": "Starts in 5 minutes",
+      "acknowledge": "I'm on my way",
+      "snooze": "Snooze",
+      "lightText": "Weekly team sync starts in 5 minutes",
+      "play": "Play a sample",
+      "stop": "Stop"
+    },
+    "sound": {
+      "label": "Sound",
+      "voice_and_sound": "Voice + sound",
+      "voice_only": "Voice only",
+      "sound_only": "Sound only"
+    },
+    "volume": "Volume",
+    "vibration": "Vibrate",
+    "times": {
+      "label": "Remind me",
+      "hint": "Pick one or more.",
+      "atStart": "At start",
+      "minutesBefore": "{{count}} min before",
+      "hoursBefore": "{{count}} h before",
+      "required": "Choose at least one reminder time."
+    },
+    "permission": {
+      "title": "Notifications",
+      "description": "MeetingGuard needs notifications to alert you, even when the app is closed.",
+      "allow": "Allow notifications",
+      "granted": "Notifications are on.",
+      "denied": "Notifications are off. Turn them on in your device settings so alerts can reach you.",
+      "provisional": "Notifications are delivered quietly. Allow them fully in Settings to get sound and banners."
+    },
+    "exactAlarms": {
+      "title": "Exact alarms (Android)",
+      "description": "Android can delay alerts unless MeetingGuard is allowed to use exact alarms. Turn on \"Alarms & reminders\" for MeetingGuard so alerts ring right on time.",
+      "open": "Open alarm settings"
+    },
+    "timeSensitive": {
+      "title": "Time Sensitive alerts (iPhone)",
+      "description": "Meeting alerts are marked as Time Sensitive so they can break through Focus. If you use Focus, allow Time Sensitive notifications for MeetingGuard."
+    }
+  },
+  "assistant": {
+    "title": "Meet your AI assistant",
+    "subtitle": "Tell the assistant what you need in your own words, in English or Spanish.",
+    "capabilitiesTitle": "It can:",
+    "capabilities": {
+      "create": "Create meetings from a single sentence",
+      "update": "Move, rename or change meetings",
+      "delete": "Cancel meetings",
+      "share": "Share meeting details with other people",
+      "bulk": "Change several meetings at once"
+    },
+    "confirm": "The assistant never changes anything on its own: you always see a confirmation card first.",
+    "examplesTitle": "Try saying",
+    "examples": {
+      "create": "Schedule a team standup tomorrow at 9 am with a Google Meet link",
+      "move": "Move my 4 pm meeting to 5 pm",
+      "share": "Send the marketing meeting link to john@company.com",
+      "bulk": "Push all my meetings tomorrow 30 minutes later"
+    },
+    "quota_one": "Your {{plan}} plan includes {{count}} assistant request per day.",
+    "quota_other": "Your {{plan}} plan includes {{count}} assistant requests per day.",
+    "plans": {
+      "free": "Free",
+      "pro": "Pro",
+      "premium": "Premium"
+    },
+    "privacyTitle": "Privacy",
+    "privacy": "Your messages, together with your upcoming meetings, are sent to our server and processed by OpenAI to understand your request.",
+    "privacyLink": "Read the Privacy Policy"
+  },
+  "firstMeeting": {
+    "title": "Create your first meeting",
+    "subtitle": "Pick the way that suits you. You can always use the other one later.",
+    "manual": {
+      "title": "Fill in a form",
+      "description": "Enter the title, date, time and alerts yourself."
+    },
+    "ai": {
+      "title": "Ask the AI assistant",
+      "description": "Describe the meeting and the assistant prepares it for you to confirm."
+    },
+    "skip": "Skip and go to my dashboard",
+    "aiPrompt": "Schedule a meeting with my team tomorrow at 10 am for 30 minutes",
+    "finishing": "Finishing setup…"
+  }
+}

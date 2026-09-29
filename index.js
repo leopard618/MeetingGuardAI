@@ -1,9 +1,17 @@
-// App entry point (package.json "main").
-// react-native-gesture-handler must be imported before anything else (React Navigation stack).
+// App entry point (package.json "main"). Import order matters (core/contracts "APP COMPOSITION"):
+// 1. react-native-gesture-handler must be imported before anything else (React Navigation stack).
 import 'react-native-gesture-handler';
-// Sentry next, so it can report errors thrown while the other modules load
-// (it is a no-op when EXPO_PUBLIC_SENTRY_DSN is not set).
+// 2. Intl.PluralRules polyfill (only installed when Hermes' implementation is missing or
+//    incomplete) before i18next evaluates plural rules.
+import 'intl-pluralrules';
+// 3. Sentry, so it can report errors thrown while the other modules load
+//    (a no-op when EXPO_PUBLIC_SENTRY_DSN is not set).
 import './src/services/sentry';
+// 4. i18n initializes synchronously (device language) so headless tasks can translate.
+import './src/i18n';
+// 5. Background tasks and the notification handler must be defined at module scope, before the
+//    root component registers, so headless task runs (app killed) find them.
+import './src/services/alerts/tasks';
 import { registerRootComponent } from 'expo';
 
 import App from './App';
