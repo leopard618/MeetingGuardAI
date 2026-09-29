@@ -132,10 +132,37 @@ Meeting ids are in the Firestore console under `users/{uid}/meetings`.
 Without a real phone, run the plan on Android emulators on the PC. Install the **local test APK**:
 a release build like the preview build, made on your PC and signed with a local test key (step 6).
 
-**What you need:** Android Studio (default install, opened once with the setup wizard finished),
-about 30 GB of free disk space (SDK, emulators, build cache), 16 GB of RAM or more, and CPU
-virtualization turned on. If the emulator says acceleration is not available, turn on Intel VT-x or
+**What you need:** Android Studio (default install, opened once with the setup wizard finished; to
+only build the APK, the tools below are enough), about 30 GB of free disk space (SDK, emulators,
+build cache), 16 GB of RAM or more, and CPU virtualization turned on. If the emulator says acceleration is not available, turn on Intel VT-x or
 AMD-V (SVM) in the BIOS, and "Windows Hypervisor Platform" in Windows Features.
+
+**Build tools without Android Studio** (enough to build the test APK in step 6; nothing needs admin
+rights or system settings):
+
+- **JDK 17:** unpack the Eclipse Temurin 17 JDK zip for Windows x64
+  (https://adoptium.net/temurin/releases/?version=17) to `%LOCALAPPDATA%\Android\jdk-17`, so that
+  `jdk-17\bin\java.exe` exists. The build script finds a `jdk-17*` or `jdk-21*` folder there without
+  `JAVA_HOME` (its search order: `JAVA_HOME`, then `%LOCALAPPDATA%\Android\jdk-17*` / `jdk-21*`, then
+  Android Studio's `jbr`).
+- **Android SDK:** unpack the "Command line tools only" zip for Windows
+  (https://developer.android.com/studio#command-line-tools-only) and move its `cmdline-tools` folder
+  to `%LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest`, so that
+  `...\Sdk\cmdline-tools\latest\bin\sdkmanager.bat` exists. Then, in PowerShell:
+
+  ```powershell
+  $env:JAVA_HOME = "$env:LOCALAPPDATA\Android\jdk-17"
+  $sdk = "$env:LOCALAPPDATA\Android\Sdk"
+  & "$sdk\cmdline-tools\latest\bin\sdkmanager.bat" "--sdk_root=$sdk" platform-tools platforms/android-36 build-tools/36.0.0 ndk/27.1.12297006 cmake/3.22.1
+  & "$sdk\cmdline-tools\latest\bin\sdkmanager.bat" "--sdk_root=$sdk" --list_installed
+  ```
+
+  Write the package names with `/` (`platforms/android-36`): from PowerShell or cmd, the usual
+  `platforms;android-36` form reaches the batch file split at the `;`. Command-line tools 23 run the
+  new Android CLI (`cmdline-tools\latest\bin\android.exe`, the same as `android sdk install ...`)
+  behind `sdkmanager.bat`; it accepts the licence itself and ignores `--licenses`. Older
+  command-line tools need the `;` form (`"platforms;android-36"`) and `sdkmanager --licenses` first
+  (answer `y`).
 
 #### 1. Recommended emulators
 
@@ -281,8 +308,9 @@ How the test APK differs from an EAS preview build:
 
 If the build fails:
 
-- "Java was not found" / "The Android SDK was not found": install Android Studio and open it once.
-  Then use a new terminal window. The message lists where the script looked.
+- "Java was not found" / "The Android SDK was not found": install Android Studio and open it once,
+  or install the build tools without Android Studio (see "What you need"). Then use a new terminal
+  window. The message lists where the script looked.
 - "Filename longer than 260 characters" or another path-length error: turn on Windows long paths
   (PowerShell as administrator:
   `New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force`,

@@ -89,11 +89,33 @@ function parseCliArgs(argv) {
 
 // --- Java and the Android SDK ---------------------------------------------------------------------
 
-/** Where to look for a JDK, in order: JAVA_HOME, then the JDK bundled with Android Studio. */
-function javaHomeCandidates(env, platform) {
+/** %LOCALAPPDATA%, or %USERPROFILE%\AppData\Local when it is not set (Windows). */
+function windowsLocalAppData(env) {
+  if (!isBlank(env.LOCALAPPDATA)) return env.LOCALAPPDATA.trim();
+  return path.win32.join(isBlank(env.USERPROFILE) ? 'C:\\Users\\Default' : env.USERPROFILE.trim(), 'AppData', 'Local');
+}
+
+// A JDK unpacked by hand next to the Android SDK, without Android Studio (docs/TESTING.md B.2):
+// %LOCALAPPDATA%\Android\jdk-17, jdk-17.0.20.1+1, jdk-21, ...
+const USER_JDK_DIR = /^jdk-(?:17|21)(?:\D|$)/i;
+const newestNameFirst = (a, b) => b.localeCompare(a, 'en', { numeric: true, sensitivity: 'base' });
+
+/**
+ * Where to look for a JDK, in order: JAVA_HOME, a JDK 17 / 21 in %LOCALAPPDATA%\Android (folders
+ * named jdk-17* or jdk-21*, newest first; Windows), then the JDK bundled with Android Studio.
+ *
+ * @param listDirs (dir) => the names of the folders in `dir` ([] when it does not exist). Passed in
+ *   by the caller so this module stays free of file system access.
+ */
+function javaHomeCandidates(env, platform, listDirs = () => []) {
   const candidates = [];
   if (!isBlank(env.JAVA_HOME)) candidates.push({ source: 'JAVA_HOME', dir: env.JAVA_HOME.trim() });
   if (platform === 'win32') {
+    const androidDir = path.win32.join(windowsLocalAppData(env), 'Android');
+    const userJdks = listDirs(androidDir)
+      .filter((name) => USER_JDK_DIR.test(name))
+      .sort(newestNameFirst);
+    for (const name of userJdks) candidates.push({ source: 'user-installed JDK', dir: path.win32.join(androidDir, name) });
     const programFiles = isBlank(env.ProgramFiles) ? 'C:\\Program Files' : env.ProgramFiles.trim();
     candidates.push({ source: 'Android Studio', dir: path.win32.join(programFiles, 'Android', 'Android Studio', 'jbr') });
   } else if (platform === 'darwin') {
@@ -111,10 +133,7 @@ function androidSdkCandidates(env, platform) {
   if (!isBlank(env.ANDROID_HOME)) candidates.push({ source: 'ANDROID_HOME', dir: env.ANDROID_HOME.trim() });
   if (!isBlank(env.ANDROID_SDK_ROOT)) candidates.push({ source: 'ANDROID_SDK_ROOT', dir: env.ANDROID_SDK_ROOT.trim() });
   if (platform === 'win32') {
-    const localAppData = !isBlank(env.LOCALAPPDATA)
-      ? env.LOCALAPPDATA.trim()
-      : p.join(isBlank(env.USERPROFILE) ? 'C:\\Users\\Default' : env.USERPROFILE.trim(), 'AppData', 'Local');
-    candidates.push({ source: 'Android Studio default', dir: p.join(localAppData, 'Android', 'Sdk') });
+    candidates.push({ source: 'Android Studio default', dir: p.join(windowsLocalAppData(env), 'Android', 'Sdk') });
   } else if (!isBlank(env.HOME)) {
     const sdk = platform === 'darwin' ? p.join(env.HOME, 'Library', 'Android', 'sdk') : p.join(env.HOME, 'Android', 'Sdk');
     candidates.push({ source: 'Android Studio default', dir: sdk });
@@ -153,6 +172,9 @@ function javaMissingMessage(tried) {
     '  2. Open it once and finish the setup wizard (it also downloads the Android SDK).',
     '  3. Run this command again in a NEW terminal window.',
     '',
+    'Without Android Studio: unpack a JDK 17 (for example Eclipse Temurin 17) into',
+    '%LOCALAPPDATA%\\Android\\jdk-17 so that jdk-17\\bin\\java.exe exists (docs/TESTING.md B.2).',
+    '',
     'Looked in:',
     formatTried(tried),
     '',
@@ -168,6 +190,9 @@ function sdkMissingMessage(tried) {
     '  1. Install Android Studio from https://developer.android.com/studio (keep the default options).',
     '  2. Open it once and finish the setup wizard: it downloads the Android SDK to its default folder.',
     '  3. Run this command again in a NEW terminal window.',
+    '',
+    'Without Android Studio: install the Android command-line tools into %LOCALAPPDATA%\\Android\\Sdk',
+    'and the SDK packages with sdkmanager (docs/TESTING.md B.2).',
     '',
     'Looked in:',
     tried.length > 0 ? formatTried(tried) : '  (no location to check: set ANDROID_HOME)',

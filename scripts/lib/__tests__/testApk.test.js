@@ -44,6 +44,31 @@ describe('scripts/lib/testApk', () => {
       ]);
     });
 
+    it('then in a JDK 17 / 21 unpacked into %LOCALAPPDATA%\\Android (no Android Studio), newest first', () => {
+      const listDirs = jest.fn(() => ['Sdk', 'jdk-17', 'jdk-11.0.2', 'jdk-21.0.8+9', 'jdk-17.0.20.1+1', 'jdk-170', 'openjdk-17']);
+      const env = { JAVA_HOME: 'D:\\java', LOCALAPPDATA: 'C:\\Users\\Ana Lopez\\AppData\\Local', ProgramFiles: 'C:\\Program Files' };
+      const android = 'C:\\Users\\Ana Lopez\\AppData\\Local\\Android';
+      expect(lib.javaHomeCandidates(env, 'win32', listDirs)).toEqual([
+        { source: 'JAVA_HOME', dir: 'D:\\java' },
+        { source: 'user-installed JDK', dir: `${android}\\jdk-21.0.8+9` },
+        { source: 'user-installed JDK', dir: `${android}\\jdk-17.0.20.1+1` },
+        { source: 'user-installed JDK', dir: `${android}\\jdk-17` },
+        { source: 'Android Studio', dir: 'C:\\Program Files\\Android\\Android Studio\\jbr' },
+      ]);
+      expect(listDirs).toHaveBeenCalledWith(android);
+    });
+
+    it('finds the user-installed JDK from USERPROFILE when LOCALAPPDATA is not set, and only on Windows', () => {
+      const listDirs = jest.fn(() => ['jdk-17']);
+      expect(lib.javaHomeCandidates({ USERPROFILE: 'C:\\Users\\ana' }, 'win32', listDirs)[0]).toEqual({
+        source: 'user-installed JDK',
+        dir: 'C:\\Users\\ana\\AppData\\Local\\Android\\jdk-17',
+      });
+      listDirs.mockClear();
+      expect(lib.javaHomeCandidates({ HOME: '/home/ana' }, 'linux', listDirs)).toEqual([{ source: 'Android Studio', dir: '/opt/android-studio/jbr' }]);
+      expect(listDirs).not.toHaveBeenCalled();
+    });
+
     it('looks for the SDK in ANDROID_HOME, ANDROID_SDK_ROOT, then %LOCALAPPDATA%\\Android\\Sdk', () => {
       expect(lib.androidSdkCandidates({ LOCALAPPDATA: 'C:\\Users\\Ana Lopez\\AppData\\Local' }, 'win32')).toEqual([
         { source: 'Android Studio default', dir: 'C:\\Users\\Ana Lopez\\AppData\\Local\\Android\\Sdk' },
@@ -81,7 +106,9 @@ describe('scripts/lib/testApk', () => {
       expect(java).toContain('Install Android Studio from https://developer.android.com/studio');
       expect(java).toContain('C:\\Program Files\\Android\\Android Studio\\jbr (not found)');
       expect(java).toContain('JAVA_HOME');
+      expect(java).toContain('%LOCALAPPDATA%\\Android\\jdk-17');
       expect(lib.sdkMissingMessage([])).toContain('set ANDROID_HOME');
+      expect(lib.sdkMissingMessage([])).toContain('sdkmanager');
     });
   });
 

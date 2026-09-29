@@ -5,7 +5,8 @@
 //   npm run apk:test [-- --out <dir>]   build <dir>/MeetingGuardAI-<version>-test.apk
 //
 // What `apk:test` does:
-//   1. Checks Java (the JDK bundled with Android Studio), the Android SDK and the app's .env files.
+//   1. Checks Java (JAVA_HOME, a JDK in %LOCALAPPDATA%\Android\jdk-17*, or the JDK bundled with
+//      Android Studio), the Android SDK and the app's .env files.
 //      Only key names are printed, never values; secret-looking entries stop the build.
 //   2. Creates the test key once, outside the repository: %USERPROFILE%\.meetingguard\
 //      test-release.keystore (PKCS12, alias mgtest) with a random password stored next to it in
@@ -52,9 +53,20 @@ function isDirectory(dir) {
 
 // --- Checks ---------------------------------------------------------------------------------------
 
+function listDirs(dir) {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
 function findJava() {
   const tried = [];
-  for (const candidate of lib.javaHomeCandidates(process.env, PLATFORM)) {
+  for (const candidate of lib.javaHomeCandidates(process.env, PLATFORM, listDirs)) {
     const java = lib.javaTool(candidate.dir, 'java', PLATFORM);
     if (!fs.existsSync(java)) {
       tried.push({ ...candidate, problem: 'not found' });
@@ -217,7 +229,8 @@ async function gradleAssembleRelease(env) {
         '  - First build: Gradle, the Android build tools and the NDK are downloaded (several GB). Check the',
         '    internet connection and run the command again.',
         '  - SDK licences not accepted: open Android Studio > Settings > Languages & Frameworks > Android SDK',
-        '    once (or finish the setup wizard), then run the command again.',
+        '    once (or finish the setup wizard), or run "sdkmanager --licenses" without Android Studio, then',
+        '    run the command again.',
         '  - "Filename longer than 260 characters" / path too long: turn on Windows long paths or build from',
         '    a shorter folder (docs/TESTING.md B.2).',
         '  - Out of memory: close other programs; the build needs about 4 GB of free RAM.',
@@ -270,7 +283,8 @@ async function main() {
     if (sdk.dir) {
       out(`Android SDK: ${sdk.dir} (${sdk.source})`);
       if (!isDirectory(path.join(sdk.dir, 'licenses'))) {
-        out('Warning: no accepted SDK licences yet. Open Android Studio once and finish the setup wizard.');
+        out('Warning: no accepted SDK licences yet. Open Android Studio once and finish the setup wizard,');
+        out('or run "sdkmanager --licenses" from the command-line tools (docs/TESTING.md B.2).');
       }
     } else {
       problems.push(lib.sdkMissingMessage(sdk.tried));
