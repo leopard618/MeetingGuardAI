@@ -75,6 +75,9 @@ This version is a rebuild. It is compared here with **v1.0.9**, the version on G
     backup restore cannot bring a deleted account back (`functions/scripts/replay-account-deletions.mjs`).
   - Over-the-air JavaScript updates with EAS Update (channels development / preview / production).
   - GitHub Actions CI and about 1,000 automated tests (app, Cloud Functions, Firestore rules).
+  - Local test APKs for emulator testing without EAS: `npm run apk:test` builds a release APK signed
+    with a local test key (EAS Update off) and `npm run apk:sha1` prints that key's SHA-1
+    (`docs/TESTING.md` B.2).
 
 ### Changed
 

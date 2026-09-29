@@ -137,7 +137,7 @@ State at the time of writing (2026-09-28):
 | Production hosting, SSL, secure env | Ready to deploy on Firebase (HTTPS only; the OpenAI key in Secret Manager; only public values in the app). Not deployed yet: it needs the client's project access. |
 | Monitoring (errors, health) | Sentry is wired in; it needs `EXPO_PUBLIC_SENTRY_DSN`. The Cloud Monitoring and budget alerts are described in `docs/DEPLOYMENT.md` §8. There is no separate health endpoint (the backend is two callables). |
 | Backups | Commands are ready (`docs/DEPLOYMENT.md` §7); they must be turned on in the project. |
-| QA: calendars, alerts, EN/ES | Automated: 96 app suites (926 tests), 11 function suites (90 tests), and the rules tests. The device plan is written (`docs/TESTING.md` Part B) but **not run**. Outlook is not built. |
+| QA: calendars, alerts, EN/ES | Automated: 98 app suites (968 tests), 11 function suites (90 tests), and the rules tests. The device plan is written (`docs/TESTING.md` Part B) but **not run**. Outlook is not built. |
 | Test builds: Play internal testing, TestFlight | Android: ready once `docs/SETUP.md` is done. iOS: blocked (Apple account, Sign in with Apple). |
 | Deployment and rollback notes | `docs/DEPLOYMENT.md`, "Release and rollback in brief" (the 1-2 page summary at the top); the numbered sections are the full runbook. |
 

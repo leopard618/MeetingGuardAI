@@ -65,8 +65,16 @@ module.exports = defineConfig([
     },
   },
   {
-    // Node-side config files.
-    files: ['*.config.js', 'babel.config.js', 'metro.config.js', 'jest.config.js', 'plugins/**/*.js'],
+    // Node-side config files, config plugins and build scripts (scripts/ print with
+    // process.stdout.write, so no-console stays on).
+    files: [
+      '*.config.js',
+      'babel.config.js',
+      'metro.config.js',
+      'jest.config.js',
+      'plugins/**/*.js',
+      'scripts/**/*.{js,mjs}',
+    ],
     languageOptions: {
       globals: globals.node,
     },

@@ -12,6 +12,8 @@
     "test": "jest",
     "check:bundle": "expo export --platform android --output-dir dist/check-bundle",
     "doctor": "npx expo-doctor",
+    "apk:test": "node scripts/build-test-apk.mjs",
+    "apk:sha1": "node scripts/build-test-apk.mjs --sha1-only",
     "update:preview": "eas update --channel preview --environment preview --message",
     "update:production": "eas update --channel production --environment production --message"
   },

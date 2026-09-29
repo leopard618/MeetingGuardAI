@@ -205,6 +205,9 @@ installed app. You need one Android OAuth client per signing key:
 | (a) **EAS upload key** | Every APK/AAB built by EAS (development, preview, production), unless you created more than one keystore | Run `eas credentials -p android` in the repository root, choose the Android keystore. It prints the MD5, SHA-1 and SHA-256 fingerprints. |
 | (b) **Google Play app signing key** | Every app installed from Google Play, on any track (internal, closed, production) | Play Console -> MeetingGuard AI -> **App integrity** (left menu, under "Test and release"; "Release" -> "Setup" in older consoles) -> App signing -> "App signing key certificate" -> SHA-1 |
 | (c) Debug key (optional) | Local `npm run android` builds | After `npx expo prebuild`, run `cd android` then `./gradlew signingReport` (needs JDK 17). |
+| (d) Local test key (optional) | Test APKs built on your PC with `npm run apk:test`, for emulators (`docs/TESTING.md` B.2) | Run `npm run apk:sha1`. It creates the key once in `%USERPROFILE%\.meetingguard\` and prints the SHA-1 and SHA-256. |
+
+The local test keystore (`npm run apk:sha1`) needs its own Android OAuth client, like every other key.
 
 On the same App integrity page, the "Upload key certificate" SHA-1 must equal (a). If it does not, the
 EAS keystore is not the Play upload key and Play will reject uploads. Ask the client. The fix is the

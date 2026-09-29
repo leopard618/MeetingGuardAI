@@ -108,6 +108,8 @@ App (repository root):
 | `npm test` | Jest (all app tests) |
 | `npm run check:bundle` | Bundle the JS for Android into `dist/check-bundle` (quick "does it bundle" check). |
 | `npm run doctor` | `expo-doctor` |
+| `npm run apk:sha1` | Create the local test signing key once (outside the repository) and print its SHA-1 / SHA-256. |
+| `npm run apk:test` | Build a release test APK on this PC for emulators, signed with that key (`docs/TESTING.md` B.2). Needs Android Studio. |
 | `npm run update:preview -- "message"` | Publish an OTA update to the `preview` channel. |
 | `npm run update:production -- "message"` | Publish an OTA update to the `production` channel. |
 | `node assets/sounds/generate-sounds.js` | Regenerate the alert sounds in `assets/sounds/`. |
@@ -145,6 +147,8 @@ src/
 functions/          Firebase Cloud Functions: assistant, deleteAccount (own package.json)
 firestore.rules     Firestore security rules (tests in functions/test/rules)
 public/             Static web pages (account deletion page)
+plugins/            Expo config plugins: no device transfer, local test-APK signing
+scripts/            Local build tools: build-test-apk.mjs (npm run apk:test / apk:sha1)
 docs/               Setup, architecture, deployment, testing, handoff
 ```
 

@@ -23,7 +23,7 @@ npm run check:bundle              # does the Android bundle build? (output in di
 npx expo-doctor                   # dependency and config checks
 ```
 
-When this was last updated, `npm test` ran 96 suites and 926 tests, all passing.
+When this was last updated, `npm test` ran 98 suites and 968 tests, all passing.
 
 - **Where the tests are:** in `__tests__/` folders next to the code, plus `__tests__/App.test.js` and
   `__tests__/AppRoot.smoke.test.js` for the JavaScript entry.
@@ -49,6 +49,9 @@ What they cover:
     calls `t()` without a namespace.
   - `src/navigation/__tests__/routeTitles.test.ts` fails when routes, titles and sidebar labels
     drift apart.
+- **Build tooling:** the config plugins in `plugins/` (the release-signing edit runs on a real
+  generated `build.gradle`, `plugins/__tests__/fixtures/app-build.gradle`; regenerate it after an Expo
+  SDK upgrade) and the test-APK helpers in `scripts/lib/`.
 
 Rules for new tests are in `docs/ARCHITECTURE.md` §12. Tests must not need the network or any
 `EXPO_PUBLIC_*` value. Mock Firebase, Expo native modules and GoogleSignin with `jest.mock`.
@@ -91,11 +94,13 @@ Firestore emulator with the project id `demo-meetingguard`, so it never touches 
     before release.
   - Never measure alert timing or performance on the development build (its JavaScript runs in debug
     mode).
+  - No real phone yet: the **local test APK** (`npm run apk:test`) on emulators, see B.2.
 - **Phones:**
   - (1) Android 14 or 15: the main phone.
   - (2) Android 12 or 13: exact alarms behave differently.
   - (3) A low-end Android phone (2 to 3 GB RAM) for T13.
   - (4) An iPhone, only when iOS is in scope.
+  - Without phones, emulators cover most of the plan (B.2 lists what they cannot test).
 - **Accounts:**
   - Google account **A** (a test user on the OAuth consent screen) and Google account **B** (a
     meeting participant).
@@ -121,6 +126,169 @@ Useful commands (in PowerShell use `| Select-String meetingguard` instead of `| 
 | Open a deep link | `adb shell am start -a android.intent.action.VIEW -d "meetingguardai://meeting/<meetingId>" com.meetingguard.ai` |
 
 Meeting ids are in the Firestore console under `users/{uid}/meetings`.
+
+### B.2 Emulator testing (no real phone)
+
+Without a real phone, run the plan on Android emulators on the PC. Install the **local test APK**:
+a release build like the preview build, made on your PC and signed with a local test key (step 6).
+
+**What you need:** Android Studio (default install, opened once with the setup wizard finished),
+about 30 GB of free disk space (SDK, emulators, build cache), 16 GB of RAM or more, and CPU
+virtualization turned on. If the emulator says acceleration is not available, turn on Intel VT-x or
+AMD-V (SVM) in the BIOS, and "Windows Hypervisor Platform" in Windows Features.
+
+#### 1. Recommended emulators
+
+| Name | Represents | Resolution | Density (dpi) | Size in dp | Android (API) | RAM |
+|---|---|---|---|---|---|---|
+| MG Budget 360 | Redmi 13C/14C, Galaxy A05-class HD+ budget phones (very common in Latin America/Spain) | 720 x 1600 | 320 | 360 x 800 | Android 13 (33) | 2 GB |
+| MG Samsung 384 | Samsung Galaxy A15/A25/A35/A55, S23-class FHD+ | 1080 x 2340 | 450 | 384 x 832 | Android 14 (34) | 4 GB |
+| MG Pixel 411 | Pixel 7/8, Motorola Moto G-series FHD+ ("Medium Phone" built-in profile) | 1080 x 2400 | 420 | 411 x 914 | Android 15 (35) | 4 GB |
+
+Optional: **MG Android 12**, the same hardware as MG Budget 360 with Android 12 (API 31), for the
+exact-alarm behaviour of Android 12 (T2 row 3, T5 row 6).
+
+The layout depends on the size in dp (pixels / (dpi / 160)), so these three cover the narrow, the
+common and the wide phone. Run each test at least on MG Budget 360 (the smallest screen and the least
+RAM) and on one of the others.
+
+#### 2. Create the emulators in Android Studio
+
+1. Open **Device Manager**: on the welcome screen **More Actions -> Virtual Device Manager**, or in a
+   project **View -> Tool Windows -> Device Manager**. Click **+** -> **Create Virtual Device**.
+2. **Hardware** (category Phone):
+   - MG Pixel 411: choose **Medium Phone** (1080 x 2400, 420 dpi).
+   - MG Budget 360 and MG Samsung 384: click **New Hardware Profile**. Enter the name and the
+     resolution from the table, the screen size (5.48 inches for 720 x 1600, 5.73 inches for
+     1080 x 2340; that gives 320 and 450 dpi), and the RAM. Tick **Play Store** if the dialog offers
+     it. If your profile cannot use a Google Play image, choose **Medium Phone** instead; step 3 then
+     sets the exact resolution and density, and the app sees the same size in dp.
+3. **System image:** the API level from the table, **Services: Google Play Store** (not "Google
+   APIs" or "Android Open Source"), and the **x86_64** image. Click the download icon next to it if
+   it is not installed yet.
+4. **Additional settings:** the name from the table, the RAM (2048 or 4096 MB) and 8 GB of internal
+   storage.
+5. Click **Finish**, then the start button next to the new emulator. The first boot takes a few
+   minutes.
+
+#### 3. Match the resolution, density and font size exactly
+
+`adb` is in `%LOCALAPPDATA%\Android\Sdk\platform-tools`. To use it by name in the current
+PowerShell window: `$env:Path += ";$env:LOCALAPPDATA\Android\Sdk\platform-tools"`.
+
+Start the emulator, then check what it uses and set the values from the table (example: MG Samsung
+384). With more than one emulator running, add `-s <name from adb devices>` after `adb`
+(for example `adb -s emulator-5556 shell wm density 450`).
+
+```powershell
+adb devices                                        # emulator-5554, emulator-5556, ...
+adb shell wm size                                  # Physical size (and Override size, if set)
+adb shell wm density                               # Physical density (and Override density)
+adb shell wm size 1080x2340                        # MG Samsung 384 (720x1600 / 1080x2400 for the others)
+adb shell wm density 450                           # MG Samsung 384 (320 / 420 for the others)
+adb shell settings put system font_scale 1.3       # large text (many budget-phone users)
+adb shell settings put system font_scale 2.0       # Android 14+: the largest system font (T3 row 13)
+```
+
+Back to normal:
+
+```powershell
+adb shell wm size reset
+adb shell wm density reset
+adb shell settings put system font_scale 1.0
+```
+
+The values stay after a reboot until you reset them or wipe the emulator. Swipe the app away and open
+it again after a change.
+
+#### 4. Google account and Spanish voice
+
+- **Google account:** on the emulator, Settings -> **Passwords & accounts** (Android 14/15:
+  **Passwords, passkeys & accounts**) -> Add account -> Google, and sign in with account A (a test
+  user on the OAuth consent screen). Signing in to the Play Store app does the same. "Continue with
+  Google" in the app then offers this account. Sign-in fails with `DEVELOPER_ERROR` until the SHA-1
+  of the test key is registered (step 6).
+- **Spanish voice** (the MAX alert readout uses `es-ES`): Settings -> System -> Languages (& input) ->
+  **Text-to-speech output** (on some versions under Settings -> Accessibility). Preferred engine:
+  **Speech Services by Google**. Tap the gear next to it -> **Install voice data** -> **Spanish
+  (Spain)** -> download. Back on the Text-to-speech page, pick Spanish (Spain) as the language and tap
+  **Play** to hear a sample. If the engine is missing, install "Speech Recognition and Synthesis from
+  Google" from the Play Store.
+- **Sound** plays through the PC speakers. Check the emulator volume (side toolbar) and that Windows
+  is not muted.
+
+#### 5. What an emulator cannot test
+
+- **Real vibration:** an emulator has no vibration motor. `adb shell dumpsys vibrator_manager`
+  (Android 12+) only shows that the app asked for a vibration. T5 row 11 and the vibration in T5
+  rows 1 and 2 need a real phone.
+- **Manufacturer battery killers:** the emulator is plain Android. Samsung (sleeping apps, Device
+  care), Xiaomi / Redmi (Autostart, MIUI / HyperOS battery saver) and others stop background apps more
+  aggressively. Before release, run T5 rows 4, 5 and 9 and T6 row 3 at least once on a real Samsung
+  and a real Xiaomi / Redmi phone.
+- **Real performance:** the emulator uses the PC's CPU and GPU, so its speed says nothing about a
+  budget phone. T13 needs a real low-end phone.
+- **T12 (upgrade from v1.0.9):** it needs builds signed with the Google Play key. The local test APK
+  has its own key.
+
+The rest of the plan works on an emulator: notifications and channels, killed app, Doze commands,
+Do Not Disturb, exact alarms, `adb reboot`, deep links, Google sign-in and Calendar sync, phone
+calendars, both languages and the voice.
+
+#### 6. Build and install the test APK
+
+Once, before the first build:
+
+1. `npm ci` in the repository root.
+2. A `.env` (or `.env.local`) file with the public `EXPO_PUBLIC_*` values: copy `env.example` to
+   `.env` and fill it in, or run `eas env:pull --environment preview`. The script checks that the
+   required values are set and prints only the names of missing ones. It refuses to build when the
+   file contains something that looks like a secret (`OPENAI_API_KEY`, `*_CLIENT_SECRET`,
+   `*SERVICE_ROLE*`, `*_SECRET`, ...): remove those lines, the app never needs them.
+3. `npm run apk:sha1`. The first run creates the test key outside the repository:
+   `%USERPROFILE%\.meetingguard\test-release.keystore` (alias `mgtest`, valid 25 years) and
+   `test-release.properties` next to it with its random password. The password is never printed.
+   It prints the key's SHA-1 and SHA-256. Register the SHA-1 in Google Cloud as an Android OAuth
+   client for package `com.meetingguard.ai` (`docs/SETUP.md` §4.2). Keep both files private and never
+   use this key for Google Play. If you lose them, delete both, run `npm run apk:sha1` again and
+   register the new SHA-1.
+
+Every build:
+
+```powershell
+npm run apk:test                          # APK in ..\deliver (next to the repository folder)
+npm run apk:test -- --out D:\my-folder    # another output folder
+```
+
+The script regenerates `android/` (never edit files there), builds the release APK for x86_64
+(emulators) and arm64-v8a (real phones), and copies it to
+`MeetingGuardAI-<version>-test.apk`. It prints the path, the size and the SHA-256. The first build
+downloads several GB (Gradle, build tools, NDK) and takes 20 to 40 minutes. Later builds are faster.
+
+Install it on a running emulator: drag the APK file onto the emulator window, or run
+`adb install -r "<path of the APK>"`. `install -r` keeps the app's data when you install a newer test
+APK. If a build with another key is installed (EAS or Google Play), remove it first with
+`adb uninstall com.meetingguard.ai`.
+
+How the test APK differs from an EAS preview build:
+
+- It is signed with the local test key, so it needs its own OAuth client (step 3) and cannot update
+  an EAS or Google Play install in place.
+- EAS Update is off (`MG_LOCAL_TEST_BUILD=1` in `app.config.js`): it always runs the JavaScript it
+  was built with, and Settings shows no update line. To test a change, build a new APK.
+- The JavaScript is the same release build (no Metro, no dev client), so alert timing can be measured
+  on it.
+
+If the build fails:
+
+- "Java was not found" / "The Android SDK was not found": install Android Studio and open it once.
+  Then use a new terminal window. The message lists where the script looked.
+- "Filename longer than 260 characters" or another path-length error: turn on Windows long paths
+  (PowerShell as administrator:
+  `New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force`,
+  then restart Windows), or build from a copy of the repository in a short folder such as `C:\mg`.
+- A file is busy or locked during "Generating the Android project": close Android Studio if it has the
+  `android` folder open, then run the command again.
 
 ### T1. Sign-in and sign-out
 
