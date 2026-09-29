@@ -14,6 +14,9 @@
 //   3. Regenerates android/ with MG_LOCAL_TEST_BUILD=1 (EAS Update off, app.config.js) and
 //      MG_LOCAL_SIGNING=1 (plugins/withLocalReleaseSigning.js), then runs Gradle assembleRelease for
 //      x86_64 (emulators) + arm64-v8a (phones). Gradle gets the signing values as environment variables.
+//      On Windows: Java options against VPN socket layers, and the modules' build output on the
+//      system drive against busy files (testApk.js buildChildEnv, scripts/gradle/). Gradle runs
+//      again (up to 3 times) after a busy file or a stalled download.
 //   4. Copies the APK to the output folder and prints its path, size and SHA-256.
 // Nothing here runs on EAS or in CI. Pure helpers (with tests): scripts/lib/testApk.js.
 import { spawn, spawnSync } from 'node:child_process';
@@ -180,10 +183,25 @@ function printFingerprints(key) {
 
 // --- Build ----------------------------------------------------------------------------------------
 
-function runStreaming(command, args, options) {
+/**
+ * Runs a command with its output shown as it comes. With `onOutput`, the output is also passed to
+ * onOutput(text) (stdout and stderr, in pieces).
+ */
+function runStreaming(command, args, options, onOutput) {
   return new Promise((resolve, reject) => {
+    const spawnOptions = { ...options, stdio: onOutput ? ['inherit', 'pipe', 'pipe'] : 'inherit' };
     // With `shell: true` the whole command is one string (no args array: Node deprecates that, DEP0190).
-    const child = args.length > 0 ? spawn(command, args, { ...options, stdio: 'inherit' }) : spawn(command, { ...options, stdio: 'inherit' });
+    const child = args.length > 0 ? spawn(command, args, spawnOptions) : spawn(command, spawnOptions);
+    if (onOutput) {
+      child.stdout.on('data', (chunk) => {
+        process.stdout.write(chunk);
+        onOutput(chunk.toString('utf8'));
+      });
+      child.stderr.on('data', (chunk) => {
+        process.stderr.write(chunk);
+        onOutput(chunk.toString('utf8'));
+      });
+    }
     child.on('error', reject);
     child.on('close', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
   });
@@ -219,9 +237,31 @@ function writeLocalProperties(sdkDir) {
   if (next !== null) fs.writeFileSync(file, next, 'utf8');
 }
 
+/** One Gradle run. Resolves to { code, transient } (transient: see lib.TRANSIENT_GRADLE_FAILURES). */
+async function runGradleOnce(gradle, env) {
+  let transient = false;
+  let overlap = '';
+  const code = await runStreaming(gradle.command, gradle.args, { cwd: ANDROID_DIR, env, shell: gradle.shell }, (text) => {
+    // Keep the end of the previous piece so that a message split between two pieces is still found.
+    const window = overlap + text;
+    if (!transient && lib.hasTransientGradleFailure(window)) transient = true;
+    overlap = window.slice(-1024);
+  });
+  return { code, transient };
+}
+
 async function gradleAssembleRelease(env) {
   const gradle = lib.gradleInvocation(PLATFORM);
-  const code = await runStreaming(gradle.command, gradle.args, { cwd: ANDROID_DIR, env, shell: gradle.shell });
+  let code = 1;
+  for (let attempt = 1; attempt <= lib.GRADLE_ATTEMPTS; attempt += 1) {
+    const result = await runGradleOnce(gradle, env);
+    code = result.code;
+    if (code === 0 || !result.transient || attempt === lib.GRADLE_ATTEMPTS) break;
+    out('');
+    out('Gradle stopped because another program held a file for a moment (antivirus scanning, for example)');
+    out('or a download stalled. Gradle continues where it stopped, so it runs again.');
+    step(`Building the release APK again (attempt ${attempt + 1} of ${lib.GRADLE_ATTEMPTS})`);
+  }
   if (code !== 0) {
     throw new FriendlyError(
       [
@@ -234,6 +274,8 @@ async function gradleAssembleRelease(env) {
         '  - "Filename longer than 260 characters" / path too long: turn on Windows long paths or build from',
         '    a shorter folder (docs/TESTING.md B.2).',
         '  - Out of memory: close other programs; the build needs about 4 GB of free RAM.',
+        '  - "being used by another process", "EBUSY" or "deleting depfile": another program (antivirus',
+        '    scanning, for example) held a build file each time. Run the command again (docs/TESTING.md B.2).',
       ].join('\n'),
     );
   }

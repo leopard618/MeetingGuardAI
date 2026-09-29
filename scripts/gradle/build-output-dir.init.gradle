@@ -1,0 +1,62 @@
+// Gradle init script for the local test APK build on Windows only: scripts/build-test-apk.mjs passes
+// it with --init-script and sets MG_BUILD_OUTPUT_DIR (docs/TESTING.md B.2). Not used by EAS or CI.
+//
+// Why: on some Windows drives a file-system filter (antivirus scanning; on the owner's PC the D:
+// drive, not C:) holds every newly written file for a few milliseconds. Build tools that rename or
+// delete a file right after writing it then fail at random: React Native codegen (EBUSY), ninja
+// ("deleting depfile: Permission denied"), AGP ("linked.apk ... being used by another process").
+//
+// What: the "build" and ".cxx" folders of every Android module (android/app and each library, e.g.
+// node_modules/expo-modules-core/android) become directory junctions to folders under
+// MG_BUILD_OUTPUT_DIR on the system drive. The paths stay the same (the React Native autolinking
+// CMake file refers to <library>/android/build/generated/source/codegen), but the files are written
+// on the other drive. A junction needs no administrator rights. Old real folders are deleted first;
+// they only hold build output. Deleting a junction (expo prebuild --clean, npm ci) leaves the target.
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
+import java.security.MessageDigest
+
+def outputRoot = System.getenv('MG_BUILD_OUTPUT_DIR')
+if (outputRoot) {
+  gradle.allprojects { project ->
+    ['com.android.application', 'com.android.library'].each { pluginId ->
+      project.plugins.withId(pluginId) {
+        // One folder per repository (hash of its android folder) and module (":expo-modules-core").
+        byte[] digest = MessageDigest.getInstance('SHA-256').digest(project.rootDir.canonicalPath.toLowerCase().getBytes('UTF-8'))
+        def repoKey = (0..3).collect { String.format('%02x', digest[it]) }.join('')
+        def moduleDir = new File(new File(outputRoot, repoKey), project.path.substring(1).replace(':', '_'))
+        ['build', '.cxx'].each { name ->
+          linkToFolder(project, new File(project.projectDir, name), new File(moduleDir, name))
+        }
+      }
+    }
+  }
+}
+
+/** Makes `link` a directory junction to `target` (both absolute). */
+static void linkToFolder(project, File link, File target) {
+  target.mkdirs()
+  def linkPath = link.toPath()
+  if (Files.exists(linkPath, LinkOption.NOFOLLOW_LINKS)) {
+    def attributes = Files.readAttributes(linkPath, BasicFileAttributes, LinkOption.NOFOLLOW_LINKS)
+    if (attributes.isOther() || attributes.isSymbolicLink()) {
+      // A junction (or symbolic link) already: keep it when it points to `target`.
+      try {
+        if (linkPath.toRealPath() == target.toPath().toRealPath()) return
+      } catch (IOException ignored) {
+        // Broken link: replaced below.
+      }
+      Files.delete(linkPath) // removes the link only, never the folder it points to
+    } else {
+      project.delete(link) // a real folder with old build output
+    }
+  }
+  def process = new ProcessBuilder('cmd', '/c', 'mklink', '/J', link.absolutePath, target.absolutePath)
+    .redirectErrorStream(true)
+    .start()
+  def output = process.inputStream.text
+  if (process.waitFor() != 0) {
+    throw new GradleException("Could not link ${link} to ${target} (mklink /J): ${output.trim()}")
+  }
+}

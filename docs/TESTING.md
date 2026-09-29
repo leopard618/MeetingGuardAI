@@ -153,9 +153,14 @@ rights or system settings):
   ```powershell
   $env:JAVA_HOME = "$env:LOCALAPPDATA\Android\jdk-17"
   $sdk = "$env:LOCALAPPDATA\Android\Sdk"
-  & "$sdk\cmdline-tools\latest\bin\sdkmanager.bat" "--sdk_root=$sdk" platform-tools platforms/android-36 build-tools/36.0.0 ndk/27.1.12297006 cmake/3.22.1
+  & "$sdk\cmdline-tools\latest\bin\sdkmanager.bat" "--sdk_root=$sdk" platform-tools platforms/android-36 build-tools/36.0.0 build-tools/35.0.0 ndk/27.1.12297006 ndk/27.0.12077973 cmake/3.22.1
   & "$sdk\cmdline-tools\latest\bin\sdkmanager.bat" "--sdk_root=$sdk" --list_installed
   ```
+
+  The build needs two NDKs: 27.1.12297006 is the app's, and 27.0.12077973 is the Android Gradle
+  plugin's default, which `expo-updates` uses for its native code (build-tools 35.0.0 is that
+  plugin's default too). Gradle downloads a missing package itself during the first build, but
+  neither Gradle nor sdkmanager resumes a broken download (see "If the build fails" in step 6).
 
   Write the package names with `/` (`platforms/android-36`): from PowerShell or cmd, the usual
   `platforms;android-36` form reaches the batch file split at the `;`. Command-line tools 23 run the
@@ -322,6 +327,31 @@ If the build fails:
   Winsock "LSP", for example Astrill VPN's `ASProxy64.dll`) make Java 17+ crash with
   `EXCEPTION_ACCESS_VIOLATION` in that DLL as soon as Gradle starts; these options avoid it. Other
   Java programs on the same PC, Android Studio included, can crash the same way.
+- `The process cannot access the file because it is being used by another process`,
+  `EBUSY: resource busy or locked, rename` (in `generateCodegenArtifactsFromSchema`) or
+  `deleting depfile: Permission denied` (in a C++ build): another program held a file the build had
+  just written. On some drives a file-system filter such as antivirus scanning does this to every new
+  file for a few milliseconds (on the owner's PC: the D: drive, not C:). The script handles it on
+  Windows: `scripts/gradle/build-output-dir.init.gradle` turns the `build` and `.cxx` folders of every
+  Android module (`android\app` and each library in `node_modules`) into directory junctions to
+  `%LOCALAPPDATA%\MeetingGuardAI\build-output`, so the build writes its files on the system drive (no
+  administrator rights needed; you can delete that folder to free space, the next build recreates
+  it). Gradle also runs up to 3 times when its output shows such an error (it continues where it
+  stopped). If it still fails, run the command again, or keep the repository on the system drive (C:).
+- `Could not download ... Read timed out` on a slow or VPN connection: the script runs Gradle again
+  (up to 3 times); if that is not enough, run the command again (files that were downloaded
+  completely stay in the Gradle cache). To give Gradle more time for each file,
+  set in the same PowerShell window before the command:
+  `$env:JAVA_TOOL_OPTIONS = "-Dorg.gradle.internal.http.socketTimeout=180000 -Dorg.gradle.internal.repository.max.retries=8"`.
+- The build stops after `Preparing "Install NDK (Side by side) 27.0.12077973"`, or sdkmanager says
+  `Failed to download package archive ... Peer disconnected`: the NDK download (about 750 MB) broke
+  off, which happens on slow or VPN connections. Download the zip with a tool that resumes, for
+  example `curl.exe -L -C - -O https://dl.google.com/android/repository/android-ndk-r27-windows.zip`
+  (run it again until it finishes), check it with `certutil -hashfile android-ndk-r27-windows.zip SHA1`
+  (Google's value: `0ea2756e6815356831bda3af358cce4cdb6a981e`), and unpack its `android-ndk-r27`
+  folder as `%LOCALAPPDATA%\Android\Sdk\ndk\27.0.12077973`. The same works for 27.1.12297006 with
+  `android-ndk-r27b-windows.zip` (SHA-1 `3bb7efc850cd0af7707854b7e0d5c3b6a7153703`, folder
+  `android-ndk-r27b`).
 
 ### T1. Sign-in and sign-out
 

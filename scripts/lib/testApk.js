@@ -412,6 +412,17 @@ function windowsJavaToolOptions(existing) {
   return [current, ...WINDOWS_JAVA_TOOL_OPTIONS].filter(Boolean).join(' ');
 }
 
+// Gradle init script for Windows: the "build" and ".cxx" folders of every Android module become
+// junctions to MG_BUILD_OUTPUT_DIR, so build output is written on the system drive. On a drive where a
+// file-system filter (antivirus) holds each new file for a moment, codegen, ninja and AGP fail at
+// random when they rename or delete a file they just wrote (details in the script).
+const BUILD_OUTPUT_INIT_SCRIPT = path.join(__dirname, '..', 'gradle', 'build-output-dir.init.gradle');
+
+/** %LOCALAPPDATA%\MeetingGuardAI\build-output: where the test build writes its output (Windows). */
+function windowsBuildOutputDir(env) {
+  return path.win32.join(windowsLocalAppData(env), 'MeetingGuardAI', 'build-output');
+}
+
 /** Sets `name` in an env object, replacing any differently-cased copy on Windows (Path vs PATH). */
 function setEnvVar(env, name, value, platform) {
   if (platform === 'win32') {
@@ -431,7 +442,7 @@ function getEnvVar(env, name, platform) {
 /**
  * Environment for `expo prebuild` and Gradle: local test build + local signing switches, the signing
  * values the generated build.gradle reads, the JDK first on PATH, the SDK location and, on Windows,
- * the Java options above.
+ * the Java options and the build output folder above.
  */
 function buildChildEnv({ baseEnv, platform, javaHome, androidHome, keystore, alias, storePassword, keyPassword }) {
   const env = { ...baseEnv };
@@ -442,6 +453,7 @@ function buildChildEnv({ baseEnv, platform, javaHome, androidHome, keystore, ali
   setEnvVar(env, 'JAVA_HOME', javaHome, platform);
   if (platform === 'win32') {
     setEnvVar(env, 'JAVA_TOOL_OPTIONS', windowsJavaToolOptions(getEnvVar(env, 'JAVA_TOOL_OPTIONS', platform)), platform);
+    setEnvVar(env, 'MG_BUILD_OUTPUT_DIR', windowsBuildOutputDir(env), platform);
   }
   setEnvVar(env, 'ANDROID_HOME', androidHome, platform);
   setEnvVar(env, 'ANDROID_SDK_ROOT', androidHome, platform);
@@ -459,15 +471,33 @@ function buildChildEnv({ baseEnv, platform, javaHome, androidHome, keystore, ali
 /**
  * How to run `gradlew assembleRelease` for x86_64 + arm64-v8a. On Windows a .bat file needs cmd.exe,
  * so it is one command string for `spawn(command, { shell: true })`; the property is quoted because
- * cmd.exe treats commas as separators.
+ * cmd.exe treats commas as separators, and the build output init script is added.
  */
-function gradleInvocation(platform) {
+function gradleInvocation(platform, initScript = BUILD_OUTPUT_INIT_SCRIPT) {
   const property = `-PreactNativeArchitectures=${ARCHITECTURES.join(',')}`;
   const tasks = ['assembleRelease', '--no-daemon'];
   if (platform === 'win32') {
-    return { command: `.\\gradlew.bat ${tasks[0]} "${property}" ${tasks.slice(1).join(' ')}`, args: [], shell: true };
+    const command = `.\\gradlew.bat ${tasks[0]} "${property}" ${tasks.slice(1).join(' ')} --init-script "${initScript}"`;
+    return { command, args: [], shell: true };
   }
   return { command: './gradlew', args: [tasks[0], property, ...tasks.slice(1)], shell: false };
+}
+
+// Gradle output that means a file was busy for a moment (a file-system filter such as antivirus
+// scanning held a file the build had just written: Java, ninja and Node errors) or that a download
+// stalled. Gradle continues where it stopped, so running it again is enough.
+const TRANSIENT_GRADLE_FAILURES = Object.freeze([
+  /being used by another process/i,
+  /EBUSY: resource busy or locked/,
+  /deleting depfile: Permission denied/,
+  /Read timed out/,
+]);
+// First run + up to 2 more after a transient failure.
+const GRADLE_ATTEMPTS = 3;
+
+/** True when Gradle output contains one of TRANSIENT_GRADLE_FAILURES. */
+function hasTransientGradleFailure(output) {
+  return TRANSIENT_GRADLE_FAILURES.some((pattern) => pattern.test(String(output ?? '')));
 }
 
 /** android/local.properties text with sdk.dir (Java properties escaping), or null when already right. */
@@ -507,7 +537,9 @@ function formatDuration(ms) {
 module.exports = {
   APP_PACKAGE,
   ARCHITECTURES,
+  BUILD_OUTPUT_INIT_SCRIPT,
   FriendlyError,
+  GRADLE_ATTEMPTS,
   KEY_ALIAS,
   KEY_DNAME,
   KEY_VALIDITY_DAYS,
@@ -516,6 +548,7 @@ module.exports = {
   RELEASE_ENV_FILES,
   REQUIRED_ENV_KEYS,
   SIGNING_ENV,
+  TRANSIENT_GRADLE_FAILURES,
   USAGE,
   WINDOWS_JAVA_TOOL_OPTIONS,
   adbPath,
@@ -531,6 +564,7 @@ module.exports = {
   generatePassword,
   gradleInvocation,
   hasSecretLikeValue,
+  hasTransientGradleFailure,
   isSecretLikeKey,
   javaHomeCandidates,
   javaMissingMessage,

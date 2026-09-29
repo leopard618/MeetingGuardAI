@@ -1,3 +1,5 @@
+const path = require('node:path');
+
 const lib = require('../testApk');
 
 const COMPLETE_ENV = [
@@ -294,25 +296,51 @@ describe('scripts/lib/testApk', () => {
       expect(lib.buildChildEnv({ ...base, baseEnv: { JAVA_TOOL_OPTIONS: own } }).JAVA_TOOL_OPTIONS).toBe(own);
     });
 
+    it('on Windows, writes the build output to %LOCALAPPDATA%\\MeetingGuardAI\\build-output', () => {
+      const env = lib.buildChildEnv({ ...base, baseEnv: { LOCALAPPDATA: 'C:\\Users\\Ana Lopez\\AppData\\Local' } });
+      expect(env.MG_BUILD_OUTPUT_DIR).toBe('C:\\Users\\Ana Lopez\\AppData\\Local\\MeetingGuardAI\\build-output');
+      expect(lib.buildChildEnv({ ...base, baseEnv: { USERPROFILE: 'C:\\Users\\Bo' } }).MG_BUILD_OUTPUT_DIR).toBe(
+        'C:\\Users\\Bo\\AppData\\Local\\MeetingGuardAI\\build-output',
+      );
+    });
+
     it('does not change the caller environment', () => {
       const baseEnv = { PATH: '/usr/bin' };
       const env = lib.buildChildEnv({ ...base, platform: 'linux', javaHome: '/opt/jdk', baseEnv });
       expect(baseEnv).toEqual({ PATH: '/usr/bin' });
       expect(env.PATH).toBe('/opt/jdk/bin:/usr/bin');
       expect(env.JAVA_TOOL_OPTIONS).toBeUndefined();
+      expect(env.MG_BUILD_OUTPUT_DIR).toBeUndefined();
     });
 
     it('runs Gradle for x86_64 and arm64-v8a, quoting the list for cmd.exe', () => {
+      expect(lib.BUILD_OUTPUT_INIT_SCRIPT).toBe(path.join(__dirname, '..', '..', 'gradle', 'build-output-dir.init.gradle'));
       expect(lib.gradleInvocation('win32')).toEqual({
-        command: '.\\gradlew.bat assembleRelease "-PreactNativeArchitectures=x86_64,arm64-v8a" --no-daemon',
+        command: `.\\gradlew.bat assembleRelease "-PreactNativeArchitectures=x86_64,arm64-v8a" --no-daemon --init-script "${lib.BUILD_OUTPUT_INIT_SCRIPT}"`,
         args: [],
         shell: true,
       });
+      expect(lib.gradleInvocation('win32', 'D:\\My Work\\init.gradle').command).toMatch(/ --init-script "D:\\My Work\\init\.gradle"$/);
       expect(lib.gradleInvocation('darwin')).toEqual({
         command: './gradlew',
         args: ['assembleRelease', '-PreactNativeArchitectures=x86_64,arm64-v8a', '--no-daemon'],
         shell: false,
       });
+    });
+
+    it('recognises Gradle failures worth another run (busy files, stalled downloads)', () => {
+      expect(lib.GRADLE_ATTEMPTS).toBe(3);
+      expect(lib.TRANSIENT_GRADLE_FAILURES).toHaveLength(4);
+      const transient = [
+        '> D:\\x\\build\\intermediates\\verified_library_resources\\release\\verifyReleaseResources\\linked.apk: The process cannot access the file because it is being used by another process',
+        "Error: EBUSY: resource busy or locked, rename 'D:\\x\\codegen\\ShadowNodes.h' -> 'D:\\x\\codegen\\jni\\ShadowNodes.h'",
+        '  deleting depfile: Permission denied',
+        "> Could not get resource 'https://repo.maven.apache.org/maven2/x.aar'.\n            > Read timed out",
+      ];
+      for (const output of transient) expect(lib.hasTransientGradleFailure(`noise\n${output}\nBUILD FAILED`)).toBe(true);
+      expect(lib.hasTransientGradleFailure("e: file:///D:/x/Foo.kt:3:1 Unresolved reference 'bar'.\nBUILD FAILED")).toBe(false);
+      expect(lib.hasTransientGradleFailure('')).toBe(false);
+      expect(lib.hasTransientGradleFailure(undefined)).toBe(false);
     });
 
     it('writes sdk.dir to local.properties with Java properties escaping', () => {
