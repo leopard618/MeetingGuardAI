@@ -1,0 +1,223 @@
+{
+  "chat": {
+    "title": "AI Assistant",
+    "subtitle": "Schedule, move, cancel and share meetings by chatting",
+    "welcome": "Hi! Tell me what you need: schedule, move, cancel or share a meeting, or ask what's on your calendar. I'll always show you exactly what will change and wait for your confirmation.",
+    "examplesTitle": "Try asking",
+    "placeholder": "Message the assistant…",
+    "send": "Send",
+    "thinking": "Thinking…",
+    "followUpLoading": "Preparing follow-up suggestions…",
+    "followUpFor": "Follow-up: {{title}}",
+    "followUpGeneric": "Meeting follow-up",
+    "notSent": "Not sent",
+    "retry": "Retry",
+    "clear": "Clear conversation",
+    "clearTitle": "Clear conversation?",
+    "clearMessage": "This removes the conversation from this device. Your meetings are not affected.",
+    "clearConfirm": "Clear",
+    "cancel": "Cancel",
+    "pending_one": "{{count}} action waiting for your confirmation",
+    "pending_other": "{{count}} actions waiting for your confirmation",
+    "reviewAll": "Review all"
+  },
+  "examples": {
+    "e1": "Schedule a meeting with Ana tomorrow at 4pm",
+    "e2": "Move my 4pm meeting to 5pm",
+    "e3": "What do I have this week?",
+    "e4": "Move all my meetings tomorrow 30 minutes later",
+    "e5": "Send the marketing meeting link to john@company.com",
+    "e6": "Cancel my meeting on Friday"
+  },
+  "usage": {
+    "today": "{{used}}/{{limit}} today · {{plan}}",
+    "perDay": "{{limit}}/day · {{plan}}",
+    "a11y": "{{used}} of {{limit}} assistant requests used today on the {{plan}} plan",
+    "a11yPlan": "{{limit}} assistant requests per day on the {{plan}} plan",
+    "plan": {
+      "free": "Free",
+      "pro": "Pro",
+      "premium": "Premium"
+    }
+  },
+  "errors": {
+    "quota": "You've used all {{limit}} assistant requests for today on the {{plan}} plan. They reset {{reset}}.",
+    "quotaUnknown": "You've reached today's assistant limit for your plan.",
+    "upgrade": "See plans",
+    "offline": "You're offline. Check your connection and try again.",
+    "timeout": "The assistant took too long to answer. Please try again.",
+    "upstream": "The assistant is having trouble right now. Please try again in a moment.",
+    "unauthenticated": "Your session has expired. Please sign in again.",
+    "invalid": "I couldn't process that message. Try rephrasing it.",
+    "notConfigured": "The assistant isn't available in this build of the app.",
+    "notSent": "Your last message wasn't sent."
+  },
+  "actions": {
+    "type": {
+      "create_meeting": "New meeting",
+      "update_meeting": "Change meeting",
+      "delete_meeting": "Delete meeting",
+      "share_meeting": "Share meeting",
+      "bulk_update": "Change several meetings",
+      "list": "Meetings"
+    },
+    "status": {
+      "proposed": "Needs confirmation",
+      "executing": "Working…",
+      "done": "Done",
+      "failed": "Failed",
+      "rejected": "Dismissed"
+    },
+    "review": "Review",
+    "dismiss": "Dismiss",
+    "tryAgain": "Try again",
+    "openMeeting": "Open meeting",
+    "listEmpty": "No matching meetings.",
+    "moreWarnings_one": "(+{{count}} more)",
+    "moreWarnings_other": "(+{{count}} more)"
+  },
+  "confirm": {
+    "title": {
+      "create_meeting": "Create this meeting?",
+      "update_meeting": "Save these changes?",
+      "delete_meeting": "Delete this meeting?",
+      "share_meeting": "Share this meeting?",
+      "bulk_update": "Change these meetings?",
+      "list": "Meetings"
+    },
+    "titleMany_one": "Confirm {{count}} action",
+    "titleMany_other": "Confirm {{count}} actions",
+    "subtitle": "Nothing changes until you confirm.",
+    "button": {
+      "create_meeting": "Create meeting",
+      "update_meeting": "Save changes",
+      "delete_meeting": "Delete meeting",
+      "share_meeting": "Share",
+      "share_email": "Write email",
+      "bulk_update_one": "Change {{count}} meeting",
+      "bulk_update_other": "Change {{count}} meetings"
+    },
+    "confirm": "Confirm",
+    "confirmAll_one": "Confirm {{count}} action",
+    "confirmAll_other": "Confirm all {{count}}",
+    "cancel": "Not now",
+    "dismissOne": "Dismiss this one",
+    "noChanges": "These values are already set; nothing will change.",
+    "loadingDetails": "Checking your calendar…",
+    "deleteWarning": "This meeting will be deleted and its alerts cancelled.",
+    "deleteWarningSynced": "This meeting will be deleted, its alerts cancelled, and it will also be removed from your synced calendar.",
+    "channel": "Send via",
+    "recipients_one": "Recipient",
+    "recipients_other": "Recipients ({{count}})",
+    "emailNote": "Your email app opens with a ready-to-send draft. Nothing is sent until you send it there.",
+    "message": "Message",
+    "affected_one": "{{count}} meeting",
+    "affected_other": "{{count}} meetings",
+    "skippedAllDay": "All-day meeting: it can only move by whole days, so it will be left as is.",
+    "a11yBefore": "Before: {{value}}",
+    "a11yAfter": "After: {{value}}"
+  },
+  "fields": {
+    "title": "Title",
+    "when": "When",
+    "duration": "Duration",
+    "description": "Description",
+    "location": "Location",
+    "conference": "Video call",
+    "participants": "Participants",
+    "tips": "Preparation tips",
+    "alerts": "Alerts",
+    "language": "Language"
+  },
+  "values": {
+    "none": "None",
+    "allDay": "All day",
+    "timed": "Specific time",
+    "inZone": "{{when}} ({{zone}})",
+    "timezoneChange": "Time zone: {{zone}}",
+    "defaultAlerts": "Your default alerts",
+    "noAlerts": "No alerts",
+    "alertTimes": "{{list}} min before",
+    "meetLinkPending": "a Google Meet link will be created",
+    "noLinkYet": "no link yet",
+    "password": "password {{password}}",
+    "shiftLater": "Move {{amount}} later",
+    "shiftEarlier": "Move {{amount}} earlier",
+    "language": {
+      "en": "English",
+      "es": "Spanish"
+    },
+    "locationType": {
+      "physical": "In person",
+      "virtual": "Online",
+      "hybrid": "Hybrid"
+    },
+    "provider": {
+      "zoom": "Zoom",
+      "teams": "Microsoft Teams",
+      "google_meet": "Google Meet",
+      "other": "Video call"
+    }
+  },
+  "warnings": {
+    "meeting_not_found_one": "This meeting no longer exists.",
+    "meeting_not_found_other": "{{count}} of these meetings no longer exist.",
+    "start_in_past": "This time is already in the past.",
+    "overlaps_existing": "This overlaps with another meeting.",
+    "overlaps_with": "Overlaps with: {{titles}}",
+    "google_meet_needs_calendar": "Connect Google Calendar to create a real Google Meet link. Without it, the meeting is saved without a link.",
+    "no_recipients": "No email recipients were given."
+  },
+  "results": {
+    "created": "Meeting created.",
+    "updated": "Meeting updated.",
+    "deleted": "Meeting deleted.",
+    "bulkUpdated_one": "{{count}} meeting updated.",
+    "bulkUpdated_other": "{{count}} meetings updated.",
+    "bulkSkipped_one": "{{count}} meeting was left unchanged.",
+    "bulkSkipped_other": "{{count}} meetings were left unchanged.",
+    "meetLinkCreated": "Google Meet link added.",
+    "meetLinkNeedsCalendar": "No Google Meet link yet: connect Google Calendar to create one.",
+    "meetLinkFailed": "The Google Meet link couldn't be created. You can add it later from the meeting.",
+    "mailComposer": "Email draft opened for {{recipients}}.",
+    "googleInvite": "Google Calendar invitation sent.",
+    "systemShare": "Share sheet opened.",
+    "listed_one": "{{count}} meeting found.",
+    "listed_other": "{{count}} meetings found.",
+    "duplicate": "Already done.",
+    "cancelled": "Sharing cancelled.",
+    "failed": "Couldn't complete this: {{reason}}",
+    "allDone_one": "{{count}} action completed.",
+    "allDone_other": "All {{count}} actions completed.",
+    "someFailed": "{{done}} of {{total}} actions completed. Check the ones that failed."
+  },
+  "share": {
+    "subject": "Meeting: {{title}}",
+    "when": "When: {{when}}",
+    "duration": "Duration: {{duration}}",
+    "location": "Where: {{location}}",
+    "join": "Join: {{url}}",
+    "joinWith": "Join ({{provider}}): {{url}}",
+    "password": "Password: {{password}}",
+    "to": "To: {{recipients}}",
+    "footer": "Shared with MeetingGuard AI",
+    "channel": {
+      "email": "Email",
+      "system_share": "Share sheet"
+    }
+  },
+  "source": {
+    "manual": "Manual",
+    "ai_chat": "AI chat",
+    "whatsapp": "WhatsApp",
+    "google": "Google Calendar",
+    "device": "Device calendar",
+    "a11y": "Source: {{source}}"
+  },
+  "confidence": {
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
+    "a11y": "AI confidence {{value}}% ({{level}})"
+  }
+}

@@ -1,507 +1,579 @@
-import React, { useState, useEffect } from 'react';
+// @ts-check
+/**
+ * Confirmation sheet for assistant actions. Nothing the assistant proposes runs before the user
+ * confirms here. Shows exactly what will happen:
+ * - create: every field of the new meeting;
+ * - update: a before -> after diff of the fields that change;
+ * - delete: the meeting, in destructive styling;
+ * - share: the meeting, the channel and every recipient;
+ * - bulk_update: the change and the list of affected meetings (before -> after times);
+ * plus the warnings from actionExecutor.preview (missing meeting, past time, overlap, Meet link).
+ * Several actions ("confirm all") are listed one after the other with one confirm button.
+ */
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useMemo } from 'react';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage, useT } from '../i18n';
+import { createAssistantFormatter } from '../services/ai/formatter';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import {
-  Modal,
-  Portal,
-  Button,
-  Card,
-  Title,
-  Paragraph,
-  TextInput,
-  Chip,
-  ActivityIndicator,
-} from 'react-native-paper';
-import { MaterialIcons } from '@expo/vector-icons';
-import { format, parseISO } from 'date-fns';
-import { safeStringify } from '../utils/index.ts';
-import { useTranslation } from './translations.jsx';
+  actionIconName,
+  assistantPalette,
+  computeUpdateDiff,
+  describeBulk,
+  describeChangeRows,
+  describeDraft,
+  describeMeeting,
+  describeShare,
+  describeWarnings,
+  isDestructiveAction,
+} from '../services/ai/presentation';
 
-export default function MeetingConfirmationModal({
-  visible,
-  onDismiss,
-  meetingData,
-  action,
-  onConfirm,
-  onCancel,
-  isLoading = false,
-  language = 'en',
-}) {
-  console.log('MeetingConfirmationModal: Received meetingData:', meetingData);
-  console.log('MeetingConfirmationModal: Action:', action);
-  
-  const [editedData, setEditedData] = useState(meetingData || {});
-  const [isEditing, setIsEditing] = useState(false);
-  
-  // Update editedData when meetingData changes
-  useEffect(() => {
-    console.log('MeetingConfirmationModal: Updating editedData with:', meetingData);
-    setEditedData(meetingData || {});
-  }, [meetingData]);
+import ConfidenceBadge from './ConfidenceBadge';
 
-  const { t } = useTranslation(language);
+/** @typedef {import('../core/contracts').ProposedActionState} ProposedActionState */
+/** @typedef {import('../core/aiContract').AiAction} AiAction */
+/** @typedef {import('../services/ai/types').AssistantFormatter} AssistantFormatter */
+/** @typedef {import('../services/ai/types').AiActionPreview} AiActionPreview */
+/** @typedef {import('../services/ai/presentation').AssistantPalette} AssistantPalette */
+/** @typedef {import('../services/ai/presentation').DetailRow} DetailRow */
+/** @typedef {import('../services/ai/presentation').DiffRow} DiffRow */
 
-  const formatDate = (dateString) => {
-    console.log('MeetingConfirmationModal: Formatting date:', dateString);
-    if (!dateString) return '';
-    try {
-      return format(parseISO(dateString), 'EEEE, MMMM d, yyyy');
-    } catch (error) {
-      console.log('MeetingConfirmationModal: Error parsing date:', error);
-      return dateString;
-    }
-  };
+/**
+ * @param {ProposedActionState} state
+ * @returns {AiActionPreview | null}
+ */
+function previewOf(state) {
+  return /** @type {AiActionPreview | null} */ (state.preview);
+}
 
-  const formatTime = (timeString) => {
-    if (!timeString) return '';
-    try {
-      const [hours, minutes] = timeString.split(':');
-      const hour = parseInt(hours);
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const displayHour = hour % 12 || 12;
-      return `${displayHour}:${minutes} ${ampm}`;
-    } catch {
-      return timeString;
-    }
-  };
-
-  const handleConfirm = () => {
-    console.log('MeetingConfirmationModal: Confirming with data:', editedData);
-    console.log('MeetingConfirmationModal: Title value:', editedData.title);
-    console.log('MeetingConfirmationModal: Date value:', editedData.date);
-    console.log('MeetingConfirmationModal: Time value:', editedData.time);
-    console.log('MeetingConfirmationModal: Duration value:', editedData.duration);
-    console.log('MeetingConfirmationModal: Location value:', editedData.location);
-    console.log('MeetingConfirmationModal: Participants value:', editedData.participants);
-    console.log('MeetingConfirmationModal: Meeting ID value:', editedData.meetingId);
-    
-    // For delete operations, we only need meetingId
-    if (action === 'delete') {
-      if (!editedData.meetingId) {
-        console.error('MeetingConfirmationModal: ERROR - Meeting ID is missing for deletion!');
-        Alert.alert('Error', 'Meeting ID is required for deletion');
-        return;
-      }
-      
-      // If we have meetingId but missing other fields, that's okay for deletion
-      console.log('MeetingConfirmationModal: Proceeding with deletion using meeting ID:', editedData.meetingId);
-      
-      Alert.alert(
-        t('meetingConfirmationModal.confirmDelete'),
-        t('meetingConfirmationModal.confirmDeleteMessage'),
-        [
-          { text: t('meetingConfirmationModal.cancel'), style: 'cancel' },
-          { text: t('meetingConfirmationModal.delete'), style: 'destructive', onPress: () => onConfirm(editedData) },
-        ]
-      );
-      return;
-    }
-    
-    // For other operations (create/update), validate all required fields
-    if (!editedData.title || editedData.title.trim() === '') {
-      console.error('MeetingConfirmationModal: ERROR - Title is missing!');
-      Alert.alert('Error', 'Meeting title is required');
-      return;
-    }
-    
-    if (!editedData.date || editedData.date.trim() === '') {
-      console.error('MeetingConfirmationModal: ERROR - Date is missing!');
-      Alert.alert('Error', 'Meeting date is required');
-      return;
-    }
-    
-    if (!editedData.time || editedData.time.trim() === '') {
-      console.error('MeetingConfirmationModal: ERROR - Time is missing!');
-      Alert.alert('Error', 'Meeting time is required');
-      return;
-    }
-    
-    onConfirm(editedData);
-  };
-
-  const handleEdit = () => {
-    setIsEditing(true);
-  };
-
-  const handleSave = () => {
-    setIsEditing(false);
-    setEditedData(editedData);
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setEditedData(meetingData || {});
-  };
-
-  const addParticipant = () => {
-    Alert.prompt(
-      t('meetingConfirmationModal.addParticipant'),
-      t('meetingConfirmationModal.participantEmail'),
-      [
-        { text: t('meetingConfirmationModal.cancel'), style: 'cancel' },
-        {
-          text: 'Add',
-          onPress: (email) => {
-            if (email && email.trim()) {
-              setEditedData(prev => ({
-                ...prev,
-                participants: [...(prev.participants || []), email.trim()],
-              }));
-            }
-          },
-        },
-      ],
-      'plain-text'
-    );
-  };
-
-  const removeParticipant = (index) => {
-    setEditedData(prev => ({
-      ...prev,
-      participants: prev.participants.filter((_, i) => i !== index),
-    }));
-  };
-
-  const getActionButtonText = () => {
-    switch (action) {
-      case 'create':
-        return t('meetingConfirmationModal.confirmCreate');
-      case 'update':
-        return t('meetingConfirmationModal.confirmUpdate');
-      case 'delete':
-        return t('meetingConfirmationModal.confirmDelete');
-      default:
-        return 'Confirm';
-    }
-  };
-
-  const getActionButtonColor = () => {
-    switch (action) {
-      case 'create':
-        return '#10b981';
-      case 'update':
-        return '#3b82f6';
-      case 'delete':
-        return '#ef4444';
-      default:
-        return '#3b82f6';
-    }
-  };
-
-  if (!meetingData && action !== 'delete') {
-    return null;
+/**
+ * @param {AssistantFormatter} fmt
+ * @param {ProposedActionState[]} actions
+ */
+function confirmLabel(fmt, actions) {
+  if (actions.length > 1) return fmt.t('ai:confirm.confirmAll', { count: actions.length });
+  const action = actions[0]?.action;
+  if (!action) return fmt.t('ai:confirm.confirm');
+  switch (action.type) {
+    case 'create_meeting':
+      return fmt.t('ai:confirm.button.create_meeting');
+    case 'update_meeting':
+      return fmt.t('ai:confirm.button.update_meeting');
+    case 'delete_meeting':
+      return fmt.t('ai:confirm.button.delete_meeting');
+    case 'share_meeting':
+      return action.channel === 'email' ? fmt.t('ai:confirm.button.share_email') : fmt.t('ai:confirm.button.share_meeting');
+    case 'bulk_update':
+      return fmt.t('ai:confirm.button.bulk_update', { count: action.meetingIds.length });
+    default:
+      return fmt.t('ai:confirm.confirm');
   }
+}
+
+/** @param {{ rows: DetailRow[], palette: AssistantPalette }} props */
+function DetailRows({ rows, palette }) {
+  return (
+    <View style={styles.rows}>
+      {rows.map((row, index) => (
+        <View key={`${row.field}-${index}`} style={styles.row}>
+          <Text style={[styles.rowLabel, { color: palette.textMuted }]}>{row.label}</Text>
+          <Text style={[styles.rowValue, { color: palette.text }]} selectable>
+            {row.value}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** @param {{ rows: DiffRow[], palette: AssistantPalette, fmt: AssistantFormatter }} props */
+function DiffRows({ rows, palette, fmt }) {
+  if (rows.length === 0) {
+    return <Text style={[styles.note, { color: palette.textMuted }]}>{fmt.t('ai:confirm.noChanges')}</Text>;
+  }
+  return (
+    <View style={styles.rows}>
+      {rows.map((row, index) => (
+        <View key={`${row.field}-${index}`} style={styles.row}>
+          <Text style={[styles.rowLabel, { color: palette.textMuted }]}>{row.label}</Text>
+          <Text
+            style={[styles.diffBefore, { color: palette.textMuted }]}
+            accessibilityLabel={fmt.t('ai:confirm.a11yBefore', { value: row.before })}
+          >
+            {row.before}
+          </Text>
+          <View style={styles.diffAfterRow}>
+            <MaterialCommunityIcons name="arrow-right" size={14} color={palette.success} style={styles.diffArrow} />
+            <Text
+              style={[styles.diffAfter, { color: palette.text }]}
+              accessibilityLabel={fmt.t('ai:confirm.a11yAfter', { value: row.after })}
+            >
+              {row.after}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** @param {{ messages: string[], palette: AssistantPalette }} props */
+function Warnings({ messages, palette }) {
+  if (messages.length === 0) return null;
+  return (
+    <View style={[styles.notice, { backgroundColor: palette.warningSurface, borderColor: palette.warning }]}>
+      {messages.map((message, index) => (
+        <View key={index} style={styles.noticeLine}>
+          <MaterialCommunityIcons name="alert-outline" size={16} color={palette.warning} />
+          <Text style={[styles.noticeText, { color: palette.text }]}>{message}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** @param {{ palette: AssistantPalette, fmt: AssistantFormatter }} props */
+function LoadingDetails({ palette, fmt }) {
+  return (
+    <View style={styles.loading}>
+      <ActivityIndicator size="small" color={palette.primary} />
+      <Text style={[styles.note, { color: palette.textMuted }]}>{fmt.t('ai:confirm.loadingDetails')}</Text>
+    </View>
+  );
+}
+
+/**
+ * @param {{ action: AiAction, preview: AiActionPreview | null, fmt: AssistantFormatter, palette: AssistantPalette }} props
+ */
+function ActionBody({ action, preview, fmt, palette }) {
+  const meeting = preview?.meetings[0] ?? null;
+  switch (action.type) {
+    case 'create_meeting':
+      return <DetailRows rows={describeDraft(fmt, action.meeting)} palette={palette} />;
+    case 'update_meeting':
+      if (!preview) {
+        return (
+          <>
+            <DetailRows rows={describeChangeRows(fmt, action.changes)} palette={palette} />
+            <LoadingDetails palette={palette} fmt={fmt} />
+          </>
+        );
+      }
+      if (!meeting) return null;
+      return (
+        <>
+          <Text style={[styles.meetingTitle, { color: palette.text }]}>{meeting.title}</Text>
+          <DiffRows rows={computeUpdateDiff(fmt, meeting, action.changes)} palette={palette} fmt={fmt} />
+        </>
+      );
+    case 'delete_meeting': {
+      const synced = meeting && (meeting.external.googleEventId || meeting.external.deviceEventId);
+      return (
+        <View style={[styles.notice, { backgroundColor: palette.dangerSurface, borderColor: palette.danger }]}>
+          <View style={styles.noticeLine}>
+            <MaterialCommunityIcons name="delete-alert-outline" size={18} color={palette.danger} />
+            <Text style={[styles.noticeText, styles.bold, { color: palette.danger }]}>
+              {synced ? fmt.t('ai:confirm.deleteWarningSynced') : fmt.t('ai:confirm.deleteWarning')}
+            </Text>
+          </View>
+          {meeting ? <DetailRows rows={describeMeeting(fmt, meeting)} palette={palette} /> : null}
+          {!preview ? <LoadingDetails palette={palette} fmt={fmt} /> : null}
+        </View>
+      );
+    }
+    case 'share_meeting': {
+      const share = describeShare(fmt, action);
+      return (
+        <>
+          {meeting ? <DetailRows rows={describeMeeting(fmt, meeting)} palette={palette} /> : null}
+          {!preview ? <LoadingDetails palette={palette} fmt={fmt} /> : null}
+          <View style={styles.row}>
+            <Text style={[styles.rowLabel, { color: palette.textMuted }]}>{fmt.t('ai:confirm.channel')}</Text>
+            <Text style={[styles.rowValue, { color: palette.text }]}>{share.channel}</Text>
+          </View>
+          {share.recipients.length > 0 ? (
+            <View style={styles.row}>
+              <Text style={[styles.rowLabel, { color: palette.textMuted }]}>
+                {fmt.t('ai:confirm.recipients', { count: share.recipients.length })}
+              </Text>
+              <View style={styles.chips}>
+                {share.recipients.map((email) => (
+                  <View key={email} style={[styles.chip, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}>
+                    <MaterialCommunityIcons name="email-outline" size={14} color={palette.textMuted} />
+                    <Text style={[styles.chipText, { color: palette.text }]} selectable>
+                      {email}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={[styles.note, { color: palette.textMuted }]}>{fmt.t('ai:confirm.emailNote')}</Text>
+            </View>
+          ) : null}
+          {share.message ? (
+            <View style={styles.row}>
+              <Text style={[styles.rowLabel, { color: palette.textMuted }]}>{fmt.t('ai:confirm.message')}</Text>
+              <Text style={[styles.quote, { color: palette.text, borderColor: palette.border }]}>{share.message}</Text>
+            </View>
+          ) : null}
+        </>
+      );
+    }
+    case 'bulk_update': {
+      if (!preview) {
+        return (
+          <>
+            {action.changes ? <DetailRows rows={describeChangeRows(fmt, action.changes)} palette={palette} /> : null}
+            <LoadingDetails palette={palette} fmt={fmt} />
+          </>
+        );
+      }
+      const bulk = describeBulk(fmt, action, preview.meetings);
+      return (
+        <>
+          {bulk.changes.map((line, index) => (
+            <Text key={index} style={[styles.bulkChange, { color: palette.text }]}>
+              {line}
+            </Text>
+          ))}
+          <Text style={[styles.rowLabel, styles.spaced, { color: palette.textMuted }]}>
+            {fmt.t('ai:confirm.affected', { count: bulk.items.length })}
+          </Text>
+          {bulk.items.map((item) => (
+            <View key={item.meetingId} style={[styles.bulkItem, { borderColor: palette.border }]}>
+              <Text style={[styles.bulkTitle, { color: palette.text }]}>{item.title}</Text>
+              {item.after ? (
+                <>
+                  <Text style={[styles.diffBefore, { color: palette.textMuted }]}>{item.before}</Text>
+                  <Text style={[styles.diffAfter, { color: palette.text }]}>{item.after}</Text>
+                </>
+              ) : (
+                <Text style={[styles.note, { color: palette.textMuted }]}>{item.before}</Text>
+              )}
+              {item.skipped ? (
+                <Text style={[styles.note, { color: palette.warning }]}>{fmt.t('ai:confirm.skippedAllDay')}</Text>
+              ) : null}
+            </View>
+          ))}
+        </>
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * @param {{
+ *   state: ProposedActionState,
+ *   fmt: AssistantFormatter,
+ *   palette: AssistantPalette,
+ *   onReject?: ((actionId: string) => void) | null,
+ * }} props
+ */
+function ActionDetails({ state, fmt, palette, onReject }) {
+  const { action } = state;
+  const preview = previewOf(state);
+  const destructive = isDestructiveAction(action);
+  const warnings = preview ? describeWarnings(fmt, preview) : [];
+  const accent = destructive ? palette.danger : palette.primary;
 
   return (
-    <Portal>
-      <Modal
-        visible={visible}
-        onDismiss={onDismiss}
-        contentContainerStyle={styles.modal}
-      >
-        <Card style={styles.card}>
-          <Card.Content>
-            <View style={styles.header}>
-              <Title style={styles.title}>{t('meetingConfirmationModal.meetingDetails')}</Title>
-              {action !== 'delete' && (
-                <Button
-                  mode="text"
-                  onPress={isEditing ? handleSave : handleEdit}
-                  disabled={isLoading}
-                >
-                  {isEditing ? t('meetingConfirmationModal.save') : t('meetingConfirmationModal.edit')}
-                </Button>
-              )}
-            </View>
+    <View
+      style={[styles.card, { backgroundColor: palette.surface, borderColor: destructive ? palette.danger : palette.border }]}
+      testID={`confirm-action-${action.id}`}
+    >
+      <View style={styles.cardHeader}>
+        <MaterialCommunityIcons name={actionIconName(action.type)} size={20} color={accent} />
+        <Text style={[styles.cardType, { color: accent }]}>{fmt.t(`ai:actions.type.${action.type}`)}</Text>
+        <ConfidenceBadge confidence={action.confidence} size="sm" showIcon={false} />
+      </View>
+      <Text style={[styles.summary, { color: palette.text }]}>{action.summary}</Text>
+      <Warnings messages={warnings} palette={palette} />
+      <ActionBody action={action} preview={preview} fmt={fmt} palette={palette} />
+      {onReject ? (
+        <Pressable
+          onPress={() => onReject(action.id)}
+          style={styles.inlineDismiss}
+          accessibilityRole="button"
+          accessibilityLabel={fmt.t('ai:confirm.dismissOne')}
+        >
+          <Text style={[styles.inlineDismissText, { color: palette.textMuted }]}>{fmt.t('ai:confirm.dismissOne')}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
 
-            <ScrollView style={styles.content}>
-              {isEditing ? (
-                // Edit mode
-                <View style={styles.editForm}>
-                  <TextInput
-                    label={t('meetingConfirmationModal.title')}
-                    value={editedData.title || ''}
-                    onChangeText={(text) => setEditedData(prev => ({ ...prev, title: text }))}
-                    style={styles.input}
-                    mode="outlined"
-                  />
-                  
-                  <TextInput
-                    label={t('meetingConfirmationModal.date')}
-                    value={editedData.date || ''}
-                    onChangeText={(text) => setEditedData(prev => ({ ...prev, date: text }))}
-                    style={styles.input}
-                    mode="outlined"
-                    placeholder="YYYY-MM-DD"
-                  />
-                  
-                  <TextInput
-                    label={t('meetingConfirmationModal.time')}
-                    value={editedData.time || ''}
-                    onChangeText={(text) => setEditedData(prev => ({ ...prev, time: text }))}
-                    style={styles.input}
-                    mode="outlined"
-                    placeholder="HH:MM"
-                  />
-                  
-                  <TextInput
-                    label={t('meetingConfirmationModal.duration')}
-                    value={editedData.duration?.toString() || ''}
-                    onChangeText={(text) => setEditedData(prev => ({ ...prev, duration: parseInt(text) || 60 }))}
-                    style={styles.input}
-                    mode="outlined"
-                    keyboardType="numeric"
-                    right={<TextInput.Affix text={t('meetingConfirmationModal.minutes')} />}
-                  />
-                  
-                  <TextInput
-                    label={t('meetingConfirmationModal.location')}
-                    value={typeof editedData.location === 'string' 
-                      ? editedData.location 
-                      : (editedData.location && typeof editedData.location === 'object' && editedData.location.address)
-                      ? editedData.location.address
-                      : ''
-                    }
-                    onChangeText={(text) => setEditedData(prev => ({ ...prev, location: text }))}
-                    style={styles.input}
-                    mode="outlined"
-                  />
-                  
-                  <TextInput
-                    label={t('meetingConfirmationModal.description')}
-                    value={editedData.description || ''}
-                    onChangeText={(text) => setEditedData(prev => ({ ...prev, description: text }))}
-                    style={styles.input}
-                    mode="outlined"
-                    multiline
-                    numberOfLines={3}
-                  />
+/**
+ * @param {{
+ *   visible: boolean,
+ *   actions: ProposedActionState[],
+ *   onConfirm: () => void,
+ *   onCancel: () => void,
+ *   onReject?: ((actionId: string) => void) | null,
+ *   isBusy?: boolean,
+ * }} props
+ */
+export default function MeetingConfirmationModal({ visible, actions, onConfirm, onCancel, onReject = null, isBusy = false }) {
+  const t = useT();
+  const { language } = useLanguage();
+  const { isDarkMode } = /** @type {{ isDarkMode: boolean }} */ (useTheme());
+  const insets = useSafeAreaInsets();
+  const palette = assistantPalette(isDarkMode);
+  const fmt = useMemo(() => createAssistantFormatter({ t, language }), [t, language]);
 
-                  <View style={styles.participantsSection}>
-                    <Text style={styles.sectionTitle}>{t('meetingConfirmationModal.participants')}</Text>
-                    {editedData.participants?.map((participant, index) => (
-                      <Chip
-                        key={index}
-                        onClose={() => removeParticipant(index)}
-                        style={styles.participantChip}
-                      >
-                        {typeof participant === 'string' 
-                          ? participant 
-                          : (participant && typeof participant === 'object' && participant.name)
-                          ? participant.name
-                          : 'Unknown participant'
-                        }
-                      </Chip>
-                    ))}
-                    <Button
-                      mode="outlined"
-                      onPress={addParticipant}
-                      style={styles.addParticipantButton}
-                    >
-                      <MaterialIcons name="add" size={16} />
-                      {t('meetingConfirmationModal.addParticipant')}
-                    </Button>
-                  </View>
-                </View>
+  const destructive = actions.some((state) => isDestructiveAction(state.action));
+  const many = actions.length > 1;
+  const title = many
+    ? fmt.t('ai:confirm.titleMany', { count: actions.length })
+    : fmt.t(`ai:confirm.title.${actions[0]?.action.type ?? 'create_meeting'}`);
+
+  return (
+    <Modal visible={visible && actions.length > 0} transparent animationType="slide" onRequestClose={onCancel} statusBarTranslucent>
+      <View style={[styles.backdrop, { backgroundColor: palette.backdrop }]}>
+        <Pressable
+          style={styles.backdropTouch}
+          onPress={onCancel}
+          accessibilityRole="button"
+          accessibilityLabel={fmt.t('ai:confirm.cancel')}
+        />
+        <View style={[styles.sheet, { backgroundColor: palette.background, paddingBottom: 16 + insets.bottom }]}>
+          <View style={[styles.handle, { backgroundColor: palette.border }]} />
+          <Text style={[styles.title, { color: palette.text }]} accessibilityRole="header">
+            {title}
+          </Text>
+          <Text style={[styles.subtitle, { color: palette.textMuted }]}>{fmt.t('ai:confirm.subtitle')}</Text>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+            {actions.map((state) => (
+              <ActionDetails key={state.action.id} state={state} fmt={fmt} palette={palette} onReject={many ? onReject : null} />
+            ))}
+          </ScrollView>
+          <View style={styles.footer}>
+            <Pressable
+              onPress={onCancel}
+              style={[styles.button, styles.secondaryButton, { borderColor: palette.border }]}
+              accessibilityRole="button"
+              testID="confirm-cancel"
+            >
+              <Text style={[styles.buttonText, { color: palette.text }]}>{fmt.t('ai:confirm.cancel')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={onConfirm}
+              disabled={isBusy}
+              style={[
+                styles.button,
+                { backgroundColor: destructive ? palette.danger : palette.primary, opacity: isBusy ? 0.6 : 1 },
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isBusy }}
+              testID="confirm-submit"
+            >
+              {isBusy ? (
+                <ActivityIndicator size="small" color={destructive ? palette.onDanger : palette.onPrimary} />
               ) : (
-                // View mode
-                <View style={styles.viewForm}>
-                  {action === 'delete' && (!meetingData?.title || !meetingData?.date) ? (
-                    // For delete operations with incomplete data, show a simplified view
-                    <View style={styles.detailRow}>
-                      <Text style={styles.label}>Meeting ID:</Text>
-                      <Text style={styles.value}>{meetingData?.meetingId || 'Unknown'}</Text>
-                    </View>
-                  ) : (
-                    // Normal view for complete meeting data
-                    <>
-                      <View style={styles.detailRow}>
-                        <Text style={styles.label}>{t('meetingConfirmationModal.title')}:</Text>
-                        <Text style={styles.value}>{meetingData?.title || '-'}</Text>
-                      </View>
-                      
-                      <View style={styles.detailRow}>
-                        <Text style={styles.label}>{t('meetingConfirmationModal.date')}:</Text>
-                        <Text style={styles.value}>{formatDate(meetingData?.date) || '-'}</Text>
-                      </View>
-                      
-                      <View style={styles.detailRow}>
-                        <Text style={styles.label}>{t('meetingConfirmationModal.time')}:</Text>
-                        <Text style={styles.value}>{formatTime(meetingData?.time) || '-'}</Text>
-                      </View>
-                      
-                      <View style={styles.detailRow}>
-                        <Text style={styles.label}>{t('meetingConfirmationModal.duration')}:</Text>
-                        <Text style={styles.value}>
-                          {meetingData?.duration ? `${meetingData.duration} ${t('meetingConfirmationModal.minutes')}` : '-'}
-                        </Text>
-                      </View>
-                      
-                      <View style={styles.detailRow}>
-                        <Text style={styles.label}>{t('meetingConfirmationModal.location')}:</Text>
-                        <Text style={styles.value}>
-                          {typeof meetingData?.location === 'string' 
-                            ? meetingData.location 
-                            : (meetingData?.location && typeof meetingData.location === 'object' && meetingData.location.address)
-                            ? meetingData.location.address
-                            : (meetingData?.location && typeof meetingData.location === 'object' && meetingData.location.type)
-                            ? `${meetingData.location.type} meeting`
-                            : '-'
-                          }
-                        </Text>
-                      </View>
-                      
-                      {meetingData?.description && (
-                        <View style={styles.detailRow}>
-                          <Text style={styles.label}>{t('meetingConfirmationModal.description')}:</Text>
-                          <Text style={styles.value}>{meetingData.description}</Text>
-                        </View>
-                      )}
-                    </>
-                  )}
-                  
-                  {meetingData?.participants && meetingData.participants.length > 0 && (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.label}>{t('meetingConfirmationModal.participants')}:</Text>
-                      <View style={styles.participantsList}>
-                        {meetingData.participants.map((participant, index) => (
-                          <Chip key={index} style={styles.participantChip}>
-                            {typeof participant === 'string' 
-                              ? participant 
-                              : (participant && typeof participant === 'object' && participant.name)
-                              ? participant.name
-                              : 'Unknown participant'
-                            }
-                          </Chip>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-                </View>
+                <Text style={[styles.buttonText, { color: destructive ? palette.onDanger : palette.onPrimary }]}>
+                  {confirmLabel(fmt, actions)}
+                </Text>
               )}
-            </ScrollView>
-          </Card.Content>
-
-          <Card.Actions style={styles.actions}>
-            {isEditing ? (
-              <>
-                <Button onPress={handleCancel} disabled={isLoading}>
-                  {t('meetingConfirmationModal.cancel')}
-                </Button>
-                <Button onPress={handleSave} disabled={isLoading}>
-                  {t('meetingConfirmationModal.save')}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button onPress={onCancel || onDismiss} disabled={isLoading}>
-                  {t('meetingConfirmationModal.cancel')}
-                </Button>
-                <Button
-                  mode="contained"
-                  onPress={handleConfirm}
-                  disabled={isLoading}
-                  style={{ backgroundColor: getActionButtonColor() }}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    getActionButtonText()
-                  )}
-                </Button>
-              </>
-            )}
-          </Card.Actions>
-        </Card>
-      </Modal>
-    </Portal>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  modal: {
-    margin: 20,
-    maxHeight: '80%',
+  backdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
-  card: {
-    maxHeight: '100%',
+  backdropTouch: {
+    flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+  sheet: {
+    maxHeight: '88%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700',
   },
-  content: {
-    maxHeight: 400,
+  subtitle: {
+    fontSize: 13,
+    marginTop: 2,
+    marginBottom: 12,
   },
-  editForm: {
+  scroll: {
+    flexGrow: 0,
+  },
+  scrollContent: {
     gap: 12,
+    paddingBottom: 12,
   },
-  input: {
-    marginBottom: 8,
+  card: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    gap: 10,
   },
-  viewForm: {
-    gap: 12,
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  detailRow: {
+  cardType: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  summary: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  meetingTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  rows: {
+    gap: 10,
+  },
+  row: {
+    gap: 2,
+  },
+  rowLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  rowValue: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  diffBefore: {
+    fontSize: 14,
+    textDecorationLine: 'line-through',
+  },
+  diffAfterRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 8,
   },
-  label: {
-    fontWeight: '600',
-    width: 80,
-    marginRight: 8,
-    color: '#374151',
+  diffArrow: {
+    marginTop: 3,
+    marginRight: 4,
   },
-  value: {
+  diffAfter: {
     flex: 1,
-    color: '#1f2937',
-  },
-  participantsSection: {
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 8,
-    color: '#374151',
   },
-  participantsContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  notice: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
     gap: 8,
   },
-  participantsList: {
-    flex: 1,
+  noticeLine: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  bold: {
+    fontWeight: '700',
+  },
+  note: {
+    fontSize: 13,
+  },
+  loading: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  participantChip: {
-    marginBottom: 4,
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
   },
-  addParticipantButton: {
-    marginTop: 8,
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  noParticipants: {
+  chipText: {
+    fontSize: 13,
+  },
+  quote: {
+    fontSize: 14,
     fontStyle: 'italic',
-    color: '#6b7280',
+    borderLeftWidth: 3,
+    paddingLeft: 8,
   },
-  actions: {
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+  bulkChange: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  spaced: {
+    marginTop: 6,
+  },
+  bulkItem: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 8,
+    gap: 2,
+  },
+  bulkTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  inlineDismiss: {
+    alignSelf: 'flex-end',
+    paddingVertical: 4,
+  },
+  inlineDismissText: {
+    fontSize: 13,
+    textDecorationLine: 'underline',
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingTop: 8,
+  },
+  button: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  secondaryButton: {
+    borderWidth: 1,
+  },
+  buttonText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

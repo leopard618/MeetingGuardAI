@@ -1,1209 +1,985 @@
-
-import React, { useState, useEffect, useRef } from "react";
+// @ts-check
+/**
+ * AI assistant chat (route "AIChat", params { followup?: meetingId, prefill?: text }).
+ *
+ * Built on useAssistant(): the Firebase "assistant" callable proposes actions, this screen shows
+ * them as cards and nothing changes until the user confirms in MeetingConfirmationModal.
+ * - Chat bubbles, typing indicator, quick-reply suggestion chips (examples when empty).
+ * - Usage pill ("3/5 today") and inline errors with Retry / See plans.
+ * - Follow-up mode (post-meeting notification -> assistant?followup=<meetingId>).
+ * Screen-level pieces are module-level components (no inline component definitions).
+ */
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
+  ActivityIndicator,
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Platform,
-  Dimensions,
-  Animated,
-} from "react-native";
-import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  Card,
-  Title,
-  Paragraph,
-  Button,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
-  ActivityIndicator,
-  Chip,
-  Snackbar,
-  Avatar,
-} from "react-native-paper";
-import { MaterialIcons, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-import MeetingManager from '../api/meetingManager';
-import MeetingConfirmationModal from "../components/MeetingConfirmationModal";
-import { useTheme } from "../contexts/ThemeContext";
-import { useTranslation } from "../components/translations.jsx";
-import { isAIAvailable } from "../config/api.js";
-import { movedToServerMessage } from "../utils/movedToServer";
-import { safeStringify, makeMeetingDataSafe } from "../utils/index.ts";
-import { Meeting } from "../api/entities";
+  View,
+} from 'react-native';
+import { Snackbar } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { width } = Dimensions.get('window');
+import MeetingConfirmationModal from '../components/MeetingConfirmationModal';
+import { useTheme } from '../contexts/ThemeContext';
+import { AI_LIMITS, PLAN_DAILY_AI_LIMITS } from '../core/aiContract';
+import { useLanguage, useT } from '../i18n';
+import { useAssistant } from '../services/ai';
+import { createAssistantFormatter } from '../services/ai/formatter';
+import {
+  actionIconName,
+  assistantPalette,
+  describeAssistantError,
+  describeResult,
+  describeUsage,
+  describeWarnings,
+  feedbackColors,
+  formatWhen,
+  isDestructiveAction,
+} from '../services/ai/presentation';
+import { useEntitlement, useMeeting } from '../services/data';
 
-export default function AIChat({ navigation, language = "en" }) {
-  const { isDarkMode, toggleTheme } = useTheme();
-  const { t } = useTranslation(language);
-  const [messages, setMessages] = useState([]);
-  const [inputText, setInputText] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [serviceStatus, setServiceStatus] = useState({
-    isConnected: false,
-    autoSync: false,
-    syncDirection: 'none',
-    lastSyncTime: null,
-    isSyncing: false,
-    syncInterval: 0,
-    statistics: null,
-  });
-  const [confirmationModal, setConfirmationModal] = useState({
-    visible: false,
-    meetingData: null,
-    action: null,
-  });
-  const [snackbar, setSnackbar] = useState({
-    visible: false,
-    message: "",
-    type: "info",
-  });
-  const [showSuggestions, setShowSuggestions] = useState(true);
+/** @typedef {import('../core/contracts').ProposedActionState} ProposedActionState */
+/** @typedef {import('../core/contracts').ActionResult} ActionResult */
+/** @typedef {import('../services/ai/types').ChatMessage} ChatMessage */
+/** @typedef {import('../services/ai/types').AssistantFormatter} AssistantFormatter */
+/** @typedef {import('../services/ai/types').AiActionPreview} AiActionPreview */
+/** @typedef {import('../services/ai/types').AiActionResult} AiActionResult */
+/** @typedef {import('../services/ai/presentation').AssistantPalette} AssistantPalette */
+/** @typedef {import('../services/ai/presentation').Feedback} Feedback */
+/** @typedef {import('../services/ai/presentation').ErrorDescription} ErrorDescription */
+/** @typedef {import('../services/ai/presentation').UsageDescription} UsageDescription */
 
-  const scrollViewRef = useRef();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+const EXAMPLE_KEYS = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'];
+const USAGE_CLOCK_MS = 60_000;
 
+/**
+ * @param {AssistantFormatter} fmt
+ * @param {string} iso
+ */
+function timestamp(fmt, iso) {
+  try {
+    return fmt.time(iso);
+  } catch {
+    return '';
+  }
+}
 
-  const suggestions = t('aiChat.suggestionsList');
+/**
+ * @param {AssistantFormatter} fmt
+ * @param {ActionResult[]} results
+ * @returns {Feedback}
+ */
+function summarizeResults(fmt, results) {
+  if (results.length === 1 && results[0]) return describeResult(fmt, results[0]);
+  const done = results.filter((r) => r.status === 'done').length;
+  if (done === results.length) return { tone: 'success', message: fmt.t('ai:results.allDone', { count: done }) };
+  return { tone: 'warning', message: fmt.t('ai:results.someFailed', { done, total: results.length }) };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pieces
+// ---------------------------------------------------------------------------------------------
+
+/** @param {{ palette: AssistantPalette, label: string }} props */
+function TypingIndicator({ palette, label }) {
+  const [dots] = useState(() => [new Animated.Value(0.3), new Animated.Value(0.3), new Animated.Value(0.3)]);
 
   useEffect(() => {
-    initializeServices();
-    animateIn();
-  }, [language]);
-
-  const animateIn = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  const initializeServices = async () => {
-    try {
-      setIsInitializing(true);
-      
-      // The AI assistant is moving to a Firebase Cloud Function; skip initialization until then.
-      if (!isAIAvailable()) {
-        setServiceStatus({ openaiConnected: false, calendarConnected: false });
-        setMessages([
-          {
-            id: "welcome",
-            type: "ai",
-            content: t('aiChat.welcome'),
-            timestamp: new Date(),
-          },
-        ]);
-        return;
-      }
-
-      const initialized = await MeetingManager.initialize();
-      
-      if (!initialized) {
-        showSnackbar(t('aiChat.initializeError'), "error");
-      }
-      
-      const status = await MeetingManager.getStatus();
-      // Force OpenAI to be connected since we have the API key
-      setServiceStatus({
-        ...status,
-        openaiConnected: true
-      });
-      
-      // Add welcome message
-      setMessages([
-        {
-          id: "welcome",
-          type: "ai",
-          content: t('aiChat.welcome'),
-          timestamp: new Date(),
-        },
-      ]);
-    } catch (error) {
-      console.error("Initialization error:", error);
-        showSnackbar(t('aiChat.initializeError'), "error");
-    } finally {
-      setIsInitializing(false);
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if (!inputText.trim() || isLoading) return;
-
-    // The AI assistant is temporarily unavailable (moving to a secure server).
-    if (!isAIAvailable()) {
-      const unavailableText = movedToServerMessage('ai-assistant', language);
-      const errorMessage = {
-        id: (Date.now() + 1).toString(),
-        type: "ai",
-        content: unavailableText,
-        timestamp: new Date(),
-        isError: true,
-      };
-      setMessages(prev => [...prev, errorMessage]);
-      showSnackbar(unavailableText, "error");
-      return;
-    }
-
-    const userMessage = {
-      id: Date.now().toString(),
-      type: "user",
-      content: inputText,
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInputText("");
-    setIsLoading(true);
-    setShowSuggestions(false);
-
-    try {
-      // Process message with AI
-      const aiResponse = await MeetingManager.processMessage(messages, inputText);
-      
-      console.log('AIChat: Received AI response:', aiResponse);
-      
-      // Ensure content is always a string and clean it
-      let messageContent = safeStringify(aiResponse.message);
-      
-      // Remove any "Time slot is not available" messages that might have been added
-      messageContent = messageContent.replace(/Time slot is not available\.?\s*/gi, '');
-      messageContent = messageContent.trim();
-      
-      // If the message is empty after cleaning, provide a default response
-      if (!messageContent) {
-        messageContent = "I understand your request. How can I help you with your meetings?";
-      }
-
-      const aiMessage = {
-        id: (Date.now() + 1).toString(),
-        type: "ai",
-        content: messageContent,
-        timestamp: new Date(),
-        aiResponse: aiResponse, // Store full AI response for actions
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
-
-      // Handle meeting actions
-      if (aiResponse.action && aiResponse.meetingData && aiResponse.requiresConfirmation) {
-        console.log('AIChat: Setting confirmation modal for action:', aiResponse.action);
-        console.log('AIChat: Original meeting data:', aiResponse.meetingData);
-        
-        let safeMeetingData = makeMeetingDataSafe(aiResponse.meetingData, inputText);
-        console.log('AIChat: Safe meeting data for confirmation:', safeMeetingData);
-        
-        // For delete operations, if we only have meetingId, fetch the complete meeting data
-        if (aiResponse.action === 'delete' && safeMeetingData.meetingId && (!safeMeetingData.title || !safeMeetingData.date)) {
-          try {
-            console.log('AIChat: Fetching complete meeting data for deletion with ID:', safeMeetingData.meetingId);
-            const completeMeetingData = await Meeting.get(safeMeetingData.meetingId);
-            
-            if (completeMeetingData) {
-              console.log('AIChat: Found complete meeting data:', completeMeetingData);
-              safeMeetingData = {
-                ...completeMeetingData,
-                meetingId: safeMeetingData.meetingId // Preserve the original meetingId
-              };
-            } else {
-              console.error('AIChat: Meeting not found with ID:', safeMeetingData.meetingId);
-              showSnackbar(`Meeting not found with ID: ${safeMeetingData.meetingId}`, "error");
-              return;
-            }
-          } catch (error) {
-            console.error('AIChat: Error fetching meeting data for deletion:', error);
-            showSnackbar(`Error fetching meeting data: ${error.message}`, "error");
-            return;
-          }
-        }
-        
-        setConfirmationModal({
-          visible: true,
-          meetingData: safeMeetingData,
-          action: aiResponse.action,
-        });
-      } else if (aiResponse.action && aiResponse.meetingData) {
-        console.log('AIChat: Executing action without confirmation:', aiResponse.action);
-        // Execute action without confirmation
-        await executeMeetingAction(aiResponse);
-      } else {
-        console.log('AIChat: No action to execute, response:', aiResponse);
-      }
-    } catch (error) {
-      console.error("Error sending message:", error);
-      
-      // Test connectivity if it's a network error
-      if (error.message.includes('Network request failed') || error.message.includes('Network connectivity')) {
-        try {
-          const networkTest = await MeetingManager.openai.testNetworkConnectivity();
-          const openaiTest = await MeetingManager.openai.testOpenAIConnectivity();
-          
-          console.log('Connectivity test results:', { networkTest, openaiTest });
-          
-          let errorContent = "Network connectivity issue detected.\n\n";
-          if (!networkTest) {
-            errorContent += "• General internet connectivity is down\n";
-          } else if (!openaiTest) {
-            errorContent += "• Internet is working but OpenAI API is not accessible\n";
-          } else {
-            errorContent += "• Network tests passed but request still failed\n";
-          }
-          errorContent += "\nPlease check your internet connection and try again.";
-          
-          const errorMessage = {
-            id: (Date.now() + 1).toString(),
-            type: "ai",
-            content: errorContent,
-            timestamp: new Date(),
-            isError: true,
-          };
-          setMessages(prev => [...prev, errorMessage]);
-          showSnackbar("Network connectivity issue", "error");
-        } catch (testError) {
-          console.error("Connectivity test failed:", testError);
-          const errorMessage = {
-            id: (Date.now() + 1).toString(),
-            type: "ai",
-            content: error.message,
-            timestamp: new Date(),
-            isError: true,
-          };
-          setMessages(prev => [...prev, errorMessage]);
-          showSnackbar(error.message, "error");
-        }
-      } else {
-        const errorMessage = {
-          id: (Date.now() + 1).toString(),
-          type: "ai",
-          content: error.message,
-          timestamp: new Date(),
-          isError: true,
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        showSnackbar(error.message, "error");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const executeMeetingAction = async (aiResponse) => {
-    try {
-      console.log('AIChat: Executing meeting action:', aiResponse);
-      
-      const result = await MeetingManager.executeMeetingAction(aiResponse);
-      
-      console.log('AIChat: Meeting action result:', result);
-      
-      if (result.success) {
-        showSnackbar(result.message, "success");
-        
-        // Add success message to chat
-        const successMessage = {
-          id: Date.now().toString(),
-          type: "ai",
-          content: result.message,
-          timestamp: new Date(),
-          isSuccess: true,
-        };
-        setMessages(prev => [...prev, successMessage]);
-      } else {
-        showSnackbar(result.message, "error");
-      }
-    } catch (error) {
-      console.error("AIChat: Error executing meeting action:", error);
-      showSnackbar(`Failed to ${aiResponse.action} meeting: ${error.message}`, "error");
-    }
-  };
-
-  const handleConfirmMeeting = async (meetingData) => {
-    try {
-      const currentAction = confirmationModal.action;
-      setConfirmationModal(prev => ({ ...prev, visible: false }));
-      setIsLoading(true);
-
-      console.log('AIChat: handleConfirmMeeting called with data:', meetingData);
-      console.log('AIChat: Title in meetingData:', meetingData.title);
-      console.log('AIChat: Date in meetingData:', meetingData.date);
-      console.log('AIChat: Time in meetingData:', meetingData.time);
-      console.log('AIChat: Duration in meetingData:', meetingData.duration);
-      console.log('AIChat: Location in meetingData:', meetingData.location);
-      console.log('AIChat: Participants in meetingData:', meetingData.participants);
-
-      const aiResponse = {
-        action: currentAction,
-        meetingData: meetingData,
-        requiresConfirmation: false,
-      };
-
-      console.log('AIChat: Executing confirmed action:', currentAction);
-      console.log('AIChat: Meeting data for execution:', meetingData);
-
-      await executeMeetingAction(aiResponse);
-    } catch (error) {
-      console.error("Error confirming meeting:", error);
-      showSnackbar("Failed to process meeting action", "error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAuthenticate = async () => {
-    try {
-      setIsLoading(true);
-      // Initialize the meeting manager which will handle authentication
-      const success = await MeetingManager.initialize();
-      
-      if (success) {
-        showSnackbar("Successfully initialized services", "success");
-        // Update sync status after initialization
-        await updateSyncStatus();
-      } else {
-        showSnackbar("Initialization failed", "error");
-      }
-    } catch (error) {
-      console.error("Authentication error:", error);
-      showSnackbar("Initialization failed", "error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const findUserMessageForAIResponse = (aiMessageIndex) => {
-    // Find the user message that preceded this AI response
-    for (let i = aiMessageIndex - 1; i >= 0; i--) {
-      if (messages[i].type === 'user') {
-        return messages[i].content;
-      }
-    }
-    return '';
-  };
-
-  const handleSuggestionPress = (suggestion) => {
-    // Suggestions only pre-fill the input; every action still goes through the AI + confirmation flow.
-    setInputText(suggestion);
-  };
-
-  const handleClearChat = () => {
-    Alert.alert(
-      "Clear Chat",
-      "Are you sure you want to clear the chat history?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Clear", style: "destructive", onPress: () => {
-          setMessages([
-            {
-              id: "welcome",
-              type: "ai",
-              content: t('aiChat.welcome'),
-              timestamp: new Date(),
-            },
-          ]);
-          setShowSuggestions(true);
-        }}
-      ]
+    const loop = Animated.loop(
+      Animated.stagger(
+        160,
+        dots.map((dot) =>
+          Animated.sequence([
+            Animated.timing(dot, { toValue: 1, duration: 280, useNativeDriver: true }),
+            Animated.timing(dot, { toValue: 0.3, duration: 280, useNativeDriver: true }),
+          ]),
+        ),
+      ),
     );
-  };
-
-  const showSnackbar = (message, type = "info") => {
-    setSnackbar({
-      visible: true,
-      message,
-      type,
-    });
-  };
-
-  const updateSyncStatus = async () => {
-    try {
-      const status = await MeetingManager.getSyncStatus();
-      setServiceStatus(status);
-    } catch (error) {
-      console.error('Error updating sync status:', error);
-    }
-  };
-
-  const handleForceSync = async () => {
-    try {
-      setIsLoading(true);
-      const result = await MeetingManager.forceSync();
-      
-      if (result.success) {
-        showSnackbar(result.message, "success");
-        // Update sync status after successful sync
-        await updateSyncStatus();
-      } else {
-        showSnackbar(result.message, "error");
-      }
-    } catch (error) {
-      console.error('Error during force sync:', error);
-      showSnackbar("Failed to perform sync", "error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const renderMessage = (message) => (
-    <Animated.View
-      key={message.id}
-      style={[
-        styles.messageContainer,
-        message.type === "user" ? styles.userMessage : styles.aiMessage,
-        { opacity: fadeAnim }
-      ]}
-    >
-      <View style={styles.messageWrapper}>
-        {message.type === "ai" && (
-          <View style={styles.aiAvatar}>
-            <MaterialCommunityIcons 
-              name="robot" 
-              size={20} 
-              color={isDarkMode ? "#10b981" : "#059669"} 
-            />
-          </View>
-        )}
-        
-        <View
-          style={[
-            styles.messageBubble,
-            message.type === "user" ? styles.userBubble : styles.aiBubble,
-            message.isError && styles.errorBubble,
-            message.isSuccess && styles.successBubble,
-          ]}
-        >
-          <Text style={[
-            styles.messageText,
-            message.type === "user" ? styles.userText : styles.aiText,
-            message.isError && styles.errorText,
-            message.isSuccess && styles.successText,
-          ]}>
-            {safeStringify(message.content)}
-          </Text>
-          
-          {message.aiResponse?.action && message.aiResponse?.meetingData && (
-            <View style={styles.actionButtons}>
-              {message.aiResponse.action === 'create' && (
-                <Button
-                  mode="contained"
-                  onPress={() => {
-                    const messageIndex = messages.findIndex(m => m.id === message.id);
-                    const userMessage = findUserMessageForAIResponse(messageIndex);
-                    setConfirmationModal({
-                      visible: true,
-                      meetingData: makeMeetingDataSafe(message.aiResponse.meetingData, userMessage),
-                      action: 'create',
-                    });
-                  }}
-                  style={styles.createButton}
-                  compact
-                  icon="plus"
-                >
-                  Create Meeting
-                </Button>
-              )}
-              {message.aiResponse.action === 'update' && (
-                <Button
-                  mode="contained"
-                  onPress={() => {
-                    const messageIndex = messages.findIndex(m => m.id === message.id);
-                    const userMessage = findUserMessageForAIResponse(messageIndex);
-                    setConfirmationModal({
-                      visible: true,
-                      meetingData: makeMeetingDataSafe(message.aiResponse.meetingData, userMessage),
-                      action: 'update',
-                    });
-                  }}
-                  style={styles.updateButton}
-                  compact
-                  icon="pencil"
-                >
-                  Update Meeting
-                </Button>
-              )}
-              {message.aiResponse.action === 'delete' && (
-                <Button
-                  mode="contained"
-                  onPress={() => {
-                    const messageIndex = messages.findIndex(m => m.id === message.id);
-                    const userMessage = findUserMessageForAIResponse(messageIndex);
-                    setConfirmationModal({
-                      visible: true,
-                      meetingData: makeMeetingDataSafe(message.aiResponse.meetingData, userMessage),
-                      action: 'delete',
-                    });
-                  }}
-                  style={styles.deleteButton}
-                  compact
-                  icon="delete"
-                >
-                  Delete Meeting
-                </Button>
-              )}
-            </View>
-          )}
-          
-          <Text style={styles.timestamp}>
-            {message.timestamp.toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
-          </Text>
-        </View>
-      </View>
-    </Animated.View>
-  );
-
-  const renderSuggestions = () => (
-    <Animated.View 
-      style={[
-        styles.suggestionsContainer,
-        { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
-      ]}
-    >
-      <View style={styles.suggestionsHeader}>
-        <MaterialIcons 
-          name="lightbulb-outline" 
-          size={20} 
-          color={isDarkMode ? "#10b981" : "#059669"} 
-        />
-        <Text style={styles.suggestionsTitle}>{t('aiChat.suggestions')}</Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {suggestions.map((suggestion, index) => (
-          <TouchableOpacity
-            key={index}
-            onPress={() => handleSuggestionPress(suggestion)}
-            style={styles.suggestionChip}
-          >
-            <Text style={styles.suggestionText}>{suggestion}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </Animated.View>
-  );
-
-  const renderStatusIndicator = () => {
-    if (isInitializing) {
-      return (
-        <View style={styles.statusContainer}>
-          <View style={styles.statusContent}>
-            <ActivityIndicator size="small" color={isDarkMode ? "#10b981" : "#059669"} />
-            <Text style={styles.statusText}></Text>
-          </View>
-        </View>
-      );
-    }
-
-    if (!isAIAvailable()) {
-      return (
-        <View style={styles.statusContainer}>
-          <View style={styles.statusContent}>
-            <MaterialIcons name="error-outline" size={20} color="#ef4444" />
-            <Text style={styles.statusText}>{movedToServerMessage('ai-assistant', language)}</Text>
-          </View>
-        </View>
-      );
-    }
-
-    // if (!serviceStatus.calendarConnected) {
-    //   return (
-    //     <View style={styles.statusContainer}>
-    //       <View style={styles.statusContent}>
-    //         <MaterialIcons name="warning" size={20} color="#f59e0b" />
-    //         <Text style={styles.statusText}>{t('notAuthenticated}</Text>
-    //         <Button
-    //           mode="outlined"
-    //           onPress={handleAuthenticate}
-    //           compact
-    //           style={styles.authButton}
-    //           textColor={isDarkMode ? "#10b981" : "#059669"}
-    //         >
-    //           {t('authenticate}
-    //         </Button>
-    //       </View>
-    //     </View>
-    //   );
-    // }
-
-    // return (
-    //   <View style={styles.statusContainer}>
-    //     <View style={styles.statusContent}>
-    //       <MaterialIcons name="check-circle" size={20} color="#10b981" />
-    //       <Text style={styles.statusText}>{t('connected}</Text>
-    //     </View>
-    //   </View>
-    // );
-  };
-
-  const renderSyncStatus = () => {
-    // Only show sync status if connected and has meaningful data
-    if (!serviceStatus.isConnected || !serviceStatus.statistics) {
-      return null;
-    }
-
-    return (
-      <View style={styles.syncStatusContainer}>
-        <View style={styles.syncStatusRow}>
-          <Text style={[styles.syncStatusLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-            Calendar Sync:
-          </Text>
-          <Text style={[styles.syncStatusValue, { 
-            color: serviceStatus.autoSync ? '#10b981' : '#f59e0b' 
-          }]}>
-            {serviceStatus.autoSync ? 'Active' : 'Manual'}
-          </Text>
-        </View>
-        
-        {serviceStatus.statistics && (
-          <View style={styles.syncStatsContainer}>
-            <Text style={[styles.syncStatsTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-              Meeting Count:
-            </Text>
-            <View style={styles.syncStatsRow}>
-              <Text style={[styles.syncStatsText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                Local: {serviceStatus.statistics.totalAppEvents} | 
-                Google: {serviceStatus.statistics.totalGoogleEvents} | 
-                Synced: {serviceStatus.statistics.syncedAppEvents}
-              </Text>
-            </View>
-          </View>
-        )}
-        
-        {serviceStatus.lastSyncTime && (
-          <View style={styles.syncStatusRow}>
-            <Text style={[styles.syncStatusLabel, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-              Last Updated:
-            </Text>
-            <Text style={[styles.syncStatusValue, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-              {new Date(serviceStatus.lastSyncTime).toLocaleString()}
-            </Text>
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  const renderConnectionStatus = () => {
-    // Only show connection status if not connected
-    if (serviceStatus.isConnected) {
-      return null;
-    }
-
-  };
-
-  const getStyles = (isDarkMode) => StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
-    },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: isDarkMode ? '#334155' : '#e2e8f0',
-    },
-    headerLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-    },
-    backButton: {
-      padding: 8,
-      borderRadius: 12,
-      backgroundColor: isDarkMode ? "#262626" : "#f8fafc",
-    },
-    headerInfo: {
-      marginLeft: 12,
-    },
-    headerTitle: {
-      fontSize: 20,
-      fontWeight: 'bold',
-    },
-    headerSubtitle: {
-      fontSize: 12,
-    },
-    headerRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-    syncStatus: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    statusIndicator: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
-    },
-    statusText: {
-      fontSize: 12,
-      fontWeight: '500',
-    },
-    syncButton: {
-      padding: 8,
-      borderRadius: 12,
-      backgroundColor: isDarkMode ? "#262626" : "#f8fafc",
-    },
-    themeButton: {
-      padding: 8,
-      borderRadius: 12,
-      backgroundColor: isDarkMode ? "#262626" : "#f8fafc",
-    },
-    menuButton: {
-      padding: 8,
-      borderRadius: 12,
-      backgroundColor: isDarkMode ? "#262626" : "#f8fafc",
-    },
-    rotating: {
-      transform: [{ rotate: '90deg' }],
-    },
-    content: {
-      flex: 1,
-    },
-    messagesContainer: {
-      flex: 1,
-      padding: 16,
-    },
-    messageContainer: {
-      marginBottom: 20,
-    },
-    messageWrapper: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 12,
-    },
-    aiAvatar: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: isDarkMode ? "#1f2937" : "#f3f4f6",
-      justifyContent: "center",
-      alignItems: "center",
-      borderWidth: 2,
-      borderColor: isDarkMode ? "#374151" : "#e5e7eb",
-    },
-    userMessage: {
-      alignItems: "flex-end",
-    },
-    aiMessage: {
-      alignItems: "flex-start",
-    },
-    messageBubble: {
-      maxWidth: width * 0.75,
-      padding: 16,
-      borderRadius: 20,
-      elevation: 2,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDarkMode ? 0.3 : 0.1,
-      shadowRadius: 4,
-    },
-    userBubble: {
-      backgroundColor: isDarkMode ? "#10b981" : "#059669",
-      borderBottomRightRadius: 8,
-    },
-    aiBubble: {
-      backgroundColor: isDarkMode ? "#1f2937" : "#ffffff",
-      borderBottomLeftRadius: 8,
-      borderWidth: 1,
-      borderColor: isDarkMode ? "#374151" : "#e5e7eb",
-    },
-    loadingBubble: {
-      backgroundColor: isDarkMode ? "#1f2937" : "#f8fafc",
-      borderColor: isDarkMode ? "#374151" : "#e2e8f0",
-    },
-    errorBubble: {
-      backgroundColor: isDarkMode ? "#1f1f1f" : "#fef2f2",
-      borderColor: isDarkMode ? "#dc2626" : "#fecaca",
-      borderWidth: 1,
-    },
-    successBubble: {
-      backgroundColor: isDarkMode ? "#1f1f1f" : "#f0fdf4",
-      borderColor: isDarkMode ? "#10b981" : "#bbf7d0",
-      borderWidth: 1,
-    },
-    messageText: {
-      fontSize: 16,
-      lineHeight: 24,
-      fontWeight: "400",
-    },
-    userText: {
-      color: "#ffffff",
-    },
-    aiText: {
-      color: isDarkMode ? "#f3f4f6" : "#1e293b",
-    },
-    errorText: {
-      color: "#ef4444",
-    },
-    successText: {
-      color: "#10b981",
-    },
-    actionButtons: {
-      marginTop: 16,
-      marginBottom: 8,
-      gap: 8,
-    },
-    createButton: {
-      backgroundColor: "#10b981",
-      borderRadius: 12,
-    },
-    updateButton: {
-      backgroundColor: "#3b82f6",
-      borderRadius: 12,
-    },
-    deleteButton: {
-      backgroundColor: "#ef4444",
-      borderRadius: 12,
-    },
-    timestamp: {
-      fontSize: 12,
-      color: isDarkMode ? "#6b7280" : "#9ca3af",
-      marginTop: 8,
-      alignSelf: "flex-end",
-    },
-    loadingContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-    loadingText: {
-      fontSize: 14,
-      color: isDarkMode ? "#9ca3af" : "#6b7280",
-      fontStyle: "italic",
-    },
-    suggestionsContainer: {
-      padding: 20,
-      backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
-      borderTopWidth: 1,
-      borderTopColor: isDarkMode ? "#262626" : "#e2e8f0",
-    },
-    suggestionsHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginBottom: 16,
-    },
-    suggestionsTitle: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: isDarkMode ? "#f3f4f6" : "#374151",
-    },
-    suggestionChip: {
-      backgroundColor: isDarkMode ? "#374151" : "#f3f4f6",
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 24,
-      marginRight: 12,
-      borderWidth: 1,
-      borderColor: isDarkMode ? "#4b5563" : "#e5e7eb",
-      elevation: 1,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: isDarkMode ? 0.3 : 0.1,
-      shadowRadius: 2,
-    },
-    suggestionText: {
-      fontSize: 14,
-      color: isDarkMode ? "#f3f4f6" : "#374151",
-      fontWeight: "500",
-    },
-    inputContainer: {
-      padding: 20,
-      backgroundColor: isDarkMode ? "#1a1a1a" : "#ffffff",
-      borderTopWidth: 1,
-      borderTopColor: isDarkMode ? "#262626" : "#e2e8f0",
-      color: isDarkMode ? "#ffffff" : "#1e293b",
-      textColor: isDarkMode ? "#ffffff" : "#1e293b",
-    },
-    inputWrapper: {
-      borderRadius: 24,
-      overflow: "hidden",
-      elevation: 4,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDarkMode ? 0.3 : 0.1,
-      shadowRadius: 8,
-    },
-    textInput: {
-      backgroundColor: isDarkMode ? "#262626" : "#f8fafc",
-      color: isDarkMode ? "#ffffff" : "#1e293b",
-      borderRadius: 24,
-    },
-    snackbar: {
-      backgroundColor: isDarkMode ? "#10b981" : "#059669",
-      borderRadius: 12,
-      margin: 16,
-    },
-    errorSnackbar: {
-      backgroundColor: "#ef4444",
-    },
-    successSnackbar: {
-      backgroundColor: "#10b981",
-    },
-    syncStatusContainer: {
-      padding: 12,
-      backgroundColor: isDarkMode ? "#1e293b" : "#f8fafc",
-      borderRadius: 8,
-      marginHorizontal: 16,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: isDarkMode ? "#334155" : "#e2e8f0",
-      opacity: 0.9,
-    },
-    syncStatusRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 8,
-    },
-    syncStatusLabel: {
-      fontSize: 14,
-      fontWeight: "500",
-    },
-    syncStatusValue: {
-      fontSize: 14,
-      fontWeight: "600",
-    },
-    syncStatsContainer: {
-      marginTop: 12,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: isDarkMode ? "#374151" : "#e2e8f0",
-    },
-    syncStatsTitle: {
-      fontSize: 14,
-      fontWeight: "600",
-      marginBottom: 8,
-    },
-    syncStatsRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    syncStatsText: {
-      fontSize: 13,
-    },
-    connectionStatusContainer: {
-      padding: 16,
-      backgroundColor: isDarkMode ? "#1e293b" : "#f8fafc",
-      borderRadius: 8,
-      marginHorizontal: 16,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: isDarkMode ? "#334155" : "#e2e8f0",
-      opacity: 0.9,
-      alignItems: 'center',
-    },
-    connectionStatusRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 12,
-    },
-    connectionStatusText: {
-      fontSize: 14,
-      fontWeight: '500',
-    },
-    connectButton: {
-      backgroundColor: isDarkMode ? "#10b981" : "#059669",
-      paddingVertical: 10,
-      paddingHorizontal: 20,
-      borderRadius: 12,
-    },
-    connectButtonText: {
-      color: '#ffffff',
-      fontSize: 14,
-      fontWeight: '600',
-    },
-  });
-
-  const styles = getStyles(isDarkMode);
+    loop.start();
+    return () => loop.stop();
+  }, [dots]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color={isDarkMode ? '#f1f5f9' : '#1e293b'} />
-          </TouchableOpacity>
-          <View style={styles.headerInfo}>
-            <Text style={[styles.headerTitle, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}>
-              {t('aiChat.title')}
-            </Text>
-            <Text style={[styles.headerSubtitle, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-              {t('aiChat.subtitle')}
-            </Text>
-          </View>
+    <View style={styles.assistantRow} accessibilityLiveRegion="polite" accessibilityLabel={label} testID="typing-indicator">
+      <View style={[styles.avatar, { backgroundColor: palette.surfaceAlt }]}>
+        <MaterialCommunityIcons name="robot-outline" size={18} color={palette.primary} />
+      </View>
+      <View style={[styles.bubble, styles.typingBubble, { backgroundColor: palette.assistantBubble }]}>
+        <View style={styles.dots}>
+          {dots.map((dot, index) => (
+            <Animated.View key={index} style={[styles.dot, { backgroundColor: palette.textMuted, opacity: dot }]} />
+          ))}
         </View>
-        
-        <View style={styles.headerRight}>
-          {/* Sync Status - Only show when connected */}
-          {serviceStatus.isConnected && (
-            <View style={styles.syncStatus}>
-              <View style={[styles.statusIndicator, { 
-                backgroundColor: '#10b981' 
-              }]} />
-              <Text style={[styles.statusText, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>
-                {t('aiChat.connected')}
+        <Text style={[styles.typingText, { color: palette.textMuted }]}>{label}</Text>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * @param {{
+ *   message: ChatMessage,
+ *   fmt: AssistantFormatter,
+ *   palette: AssistantPalette,
+ *   followUpTitle: string | null,
+ * }} props
+ */
+function MessageBubble({ message, fmt, palette, followUpTitle }) {
+  const isUser = message.role === 'user';
+  const time = timestamp(fmt, message.createdAt);
+  const hasText = message.content.trim().length > 0;
+
+  if (isUser) {
+    return (
+      <View style={styles.userRow} testID={`message-${message.id}`}>
+        <View style={[styles.bubble, styles.userBubble, { backgroundColor: palette.userBubble }]}>
+          <Text style={[styles.messageText, { color: palette.onUserBubble }]} selectable>
+            {message.content}
+          </Text>
+          <Text style={[styles.time, { color: palette.onUserBubble }]}>{time}</Text>
+        </View>
+        {message.delivery === 'failed' ? (
+          <View style={styles.failedLine}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={14} color={palette.danger} />
+            <Text style={[styles.failedText, { color: palette.danger }]}>{fmt.t('ai:chat.notSent')}</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.assistantRow} testID={`message-${message.id}`}>
+      <View style={[styles.avatar, { backgroundColor: palette.surfaceAlt }]}>
+        <MaterialCommunityIcons name="robot-outline" size={18} color={palette.primary} />
+      </View>
+      <View style={styles.assistantColumn}>
+        {message.followUpMeetingId ? (
+          <Text style={[styles.followUpTag, { color: palette.primary }]}>
+            {followUpTitle ? fmt.t('ai:chat.followUpFor', { title: followUpTitle }) : fmt.t('ai:chat.followUpGeneric')}
+          </Text>
+        ) : null}
+        {hasText ? (
+          <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: palette.assistantBubble }]}>
+            <Text style={[styles.messageText, { color: palette.onAssistantBubble }]} selectable>
+              {message.content}
+            </Text>
+            <Text style={[styles.time, { color: palette.textMuted }]}>{time}</Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * @param {{
+ *   state: ProposedActionState,
+ *   fmt: AssistantFormatter,
+ *   palette: AssistantPalette,
+ *   onReview: (actionId: string) => void,
+ *   onReject: (actionId: string) => void,
+ *   onOpenMeeting: (meetingId: string) => void,
+ * }} props
+ */
+function ActionCard({ state, fmt, palette, onReview, onReject, onOpenMeeting }) {
+  const { action, status } = state;
+  const preview = /** @type {AiActionPreview | null} */ (state.preview);
+  const destructive = isDestructiveAction(action);
+  const accent = destructive ? palette.danger : palette.primary;
+
+  if (action.type === 'list') {
+    const meetings = preview?.meetings ?? [];
+    return (
+      <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]} testID={`action-${action.id}`}>
+        <View style={styles.cardHeader}>
+          <MaterialCommunityIcons name={actionIconName(action.type)} size={18} color={palette.primary} />
+          <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={2}>
+            {action.summary}
+          </Text>
+        </View>
+        {!preview ? <ActivityIndicator size="small" color={palette.primary} /> : null}
+        {preview && meetings.length === 0 ? (
+          <Text style={[styles.cardNote, { color: palette.textMuted }]}>{fmt.t('ai:actions.listEmpty')}</Text>
+        ) : null}
+        {meetings.map((meeting) => (
+          <Pressable
+            key={meeting.id}
+            onPress={() => onOpenMeeting(meeting.id)}
+            style={[styles.listItem, { borderColor: palette.border }]}
+            accessibilityRole="button"
+            accessibilityHint={fmt.t('ai:actions.openMeeting')}
+          >
+            <View style={styles.listItemText}>
+              <Text style={[styles.listItemTitle, { color: palette.text }]} numberOfLines={1}>
+                {meeting.title}
+              </Text>
+              <Text style={[styles.cardNote, { color: palette.textMuted }]} numberOfLines={1}>
+                {formatWhen(fmt, meeting)}
               </Text>
             </View>
-          )}
-          
-          {/* Sync Button - Only show when connected */}
-          {serviceStatus.isConnected && (
-            <TouchableOpacity 
-              onPress={handleForceSync} 
-              disabled={isLoading || serviceStatus.isSyncing}
-              style={[styles.syncButton, { opacity: (isLoading || serviceStatus.isSyncing) ? 0.5 : 1 }]}
-            >
-              <MaterialIcons 
-                name={serviceStatus.isSyncing ? "sync" : "sync"} 
-                size={20} 
-                color={isDarkMode ? '#f1f5f9' : '#1e293b'} 
-                style={serviceStatus.isSyncing ? styles.rotating : null}
-              />
-            </TouchableOpacity>
-          )}
-          
-          {/* <TouchableOpacity onPress={toggleTheme} style={styles.themeButton}>
-            <MaterialIcons 
-              name={isDarkMode ? "light-mode" : "dark-mode"} 
-              size={24} 
-              color={isDarkMode ? '#f1f5f9' : '#1e293b'} 
-            />
-          </TouchableOpacity> */}
-          
-          {/* <TouchableOpacity onPress={() => {}} style={styles.menuButton}>
-            <MaterialIcons name="more-vert" size={24} color={isDarkMode ? '#f1f5f9' : '#1e293b'} />
-          </TouchableOpacity> */}
+            <MaterialCommunityIcons name="chevron-right" size={20} color={palette.textMuted} />
+          </Pressable>
+        ))}
+        {preview && preview.missingMeetingIds.length > 0 ? (
+          <Text style={[styles.cardNote, { color: palette.warning }]}>
+            {fmt.t('ai:warnings.meeting_not_found', { count: preview.missingMeetingIds.length })}
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  const warnings = preview && status === 'proposed' ? describeWarnings(fmt, preview) : [];
+  const result = /** @type {AiActionResult | null} */ (state.result);
+  const feedback = result ? describeResult(fmt, result) : null;
+  const feedbackStyle = feedback ? feedbackColors(palette, feedback.tone) : null;
+  const openableId =
+    result && result.status === 'done' && action.type !== 'delete_meeting' && result.meetingIds.length === 1 ? result.meetingIds[0] : null;
+
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: palette.surface, borderColor: status === 'proposed' ? accent : palette.border },
+        status === 'rejected' ? styles.cardMuted : null,
+      ]}
+      testID={`action-${action.id}`}
+    >
+      <View style={styles.cardHeader}>
+        <MaterialCommunityIcons name={actionIconName(action.type)} size={18} color={accent} />
+        <Text style={[styles.cardType, { color: accent }]}>{fmt.t(`ai:actions.type.${action.type}`)}</Text>
+        <View style={[styles.statusChip, { backgroundColor: palette.surfaceAlt }]}>
+          <Text style={[styles.statusText, { color: palette.textMuted }]}>{fmt.t(`ai:actions.status.${status}`)}</Text>
         </View>
       </View>
+      <Text style={[styles.cardTitle, { color: palette.text }]}>{action.summary}</Text>
+      {warnings.length > 0 ? (
+        <View style={styles.warningLine}>
+          <MaterialCommunityIcons name="alert-outline" size={14} color={palette.warning} />
+          <Text style={[styles.cardNote, styles.flex, { color: palette.warning }]} numberOfLines={2}>
+            {warnings[0]}
+            {warnings.length > 1 ? ` ${fmt.t('ai:actions.moreWarnings', { count: warnings.length - 1 })}` : ''}
+          </Text>
+        </View>
+      ) : null}
 
-      {renderStatusIndicator()}
-      {renderSyncStatus()}
-      {renderConnectionStatus()}
+      {status === 'executing' ? (
+        <View style={styles.working}>
+          <ActivityIndicator size="small" color={accent} />
+          <Text style={[styles.cardNote, { color: palette.textMuted }]}>{fmt.t('ai:actions.status.executing')}</Text>
+        </View>
+      ) : null}
 
-      <KeyboardAvoidingView 
-        style={styles.content}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.messagesContainer}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-        >
-          {messages.map(renderMessage)}
-          
-          {isLoading && (
-            <Animated.View 
-              style={[
-                styles.messageContainer, 
-                styles.aiMessage,
-                { opacity: fadeAnim }
-              ]}
+      {feedback && feedbackStyle && (status === 'done' || status === 'failed') ? (
+        <View style={[styles.feedback, { backgroundColor: feedbackStyle.background }]}>
+          <Text style={[styles.cardNote, { color: feedbackStyle.color }]}>{feedback.message}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.cardActions}>
+        {status === 'proposed' || status === 'failed' ? (
+          <>
+            <Pressable
+              onPress={() => onReject(action.id)}
+              style={[styles.smallButton, styles.secondaryButton, { borderColor: palette.border }]}
+              accessibilityRole="button"
+              testID={`action-dismiss-${action.id}`}
             >
-              <View style={styles.messageWrapper}>
-                <View style={styles.aiAvatar}>
-                  <MaterialCommunityIcons 
-                    name="robot" 
-                    size={20} 
-                    color={isDarkMode ? "#10b981" : "#059669"} 
-                  />
-                </View>
-                <View style={[styles.messageBubble, styles.aiBubble, styles.loadingBubble]}>
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color={isDarkMode ? "#10b981" : "#059669"} />
-                    <Text style={styles.loadingText}>{t('aiChat.thinking')}</Text>
+              <Text style={[styles.smallButtonText, { color: palette.text }]}>{fmt.t('ai:actions.dismiss')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => onReview(action.id)}
+              style={[styles.smallButton, { backgroundColor: accent }]}
+              accessibilityRole="button"
+              testID={`action-review-${action.id}`}
+            >
+              <Text style={[styles.smallButtonText, { color: destructive ? palette.onDanger : palette.onPrimary }]}>
+                {status === 'failed' ? fmt.t('ai:actions.tryAgain') : fmt.t('ai:actions.review')}
+              </Text>
+            </Pressable>
+          </>
+        ) : null}
+        {openableId ? (
+          <Pressable
+            onPress={() => onOpenMeeting(openableId)}
+            style={[styles.smallButton, styles.secondaryButton, { borderColor: palette.border }]}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.smallButtonText, { color: palette.text }]}>{fmt.t('ai:actions.openMeeting')}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * @param {{ items: string[], onPress: (text: string) => void, palette: AssistantPalette, disabled: boolean, title?: string | null }} props
+ */
+function SuggestionChips({ items, onPress, palette, disabled, title = null }) {
+  if (items.length === 0) return null;
+  return (
+    <View style={styles.suggestions}>
+      {title ? <Text style={[styles.suggestionsTitle, { color: palette.textMuted }]}>{title}</Text> : null}
+      <View style={styles.chipWrap}>
+        {items.map((item) => (
+          <Pressable
+            key={item}
+            onPress={() => onPress(item)}
+            disabled={disabled}
+            style={[styles.chip, { backgroundColor: palette.surface, borderColor: palette.border, opacity: disabled ? 0.5 : 1 }]}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.chipText, { color: palette.text }]}>{item}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * @param {{
+ *   description: ErrorDescription,
+ *   canRetry: boolean,
+ *   onRetry: () => void,
+ *   onUpgrade: () => void,
+ *   palette: AssistantPalette,
+ *   fmt: AssistantFormatter,
+ * }} props
+ */
+function ErrorNotice({ description, canRetry, onRetry, onUpgrade, palette, fmt }) {
+  return (
+    <View
+      style={[styles.errorBox, { backgroundColor: palette.dangerSurface, borderColor: palette.danger }]}
+      accessibilityLiveRegion="assertive"
+      testID="assistant-error"
+    >
+      <View style={styles.warningLine}>
+        <MaterialCommunityIcons name="alert-circle-outline" size={18} color={palette.danger} />
+        <Text style={[styles.errorText, { color: palette.text }]}>{description.message}</Text>
+      </View>
+      <View style={styles.cardActions}>
+        {description.recovery === 'upgrade' ? (
+          <Pressable onPress={onUpgrade} style={[styles.smallButton, { backgroundColor: palette.primary }]} accessibilityRole="button">
+            <Text style={[styles.smallButtonText, { color: palette.onPrimary }]}>{fmt.t('ai:errors.upgrade')}</Text>
+          </Pressable>
+        ) : null}
+        {canRetry && description.recovery !== 'none' ? (
+          <Pressable
+            onPress={onRetry}
+            style={[styles.smallButton, styles.secondaryButton, { borderColor: palette.border }]}
+            accessibilityRole="button"
+            testID="assistant-retry"
+          >
+            <Text style={[styles.smallButtonText, { color: palette.text }]}>{fmt.t('ai:chat.retry')}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** @param {{ usage: UsageDescription | null, palette: AssistantPalette }} props */
+function UsagePill({ usage, palette }) {
+  if (!usage) return null;
+  const color = usage.exhausted ? palette.danger : palette.textMuted;
+  return (
+    <View
+      style={[styles.usagePill, { borderColor: usage.exhausted ? palette.danger : palette.border }]}
+      accessible
+      accessibilityLabel={usage.accessibilityLabel}
+      testID="assistant-usage"
+    >
+      <MaterialCommunityIcons name="lightning-bolt-outline" size={14} color={color} />
+      <Text style={[styles.usageText, { color }]}>{usage.label}</Text>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Screen
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * @param {{ navigation: any, route?: { params?: { followup?: string, prefill?: string } } }} props
+ */
+export default function AIChat({ navigation, route }) {
+  const t = useT();
+  const { language } = useLanguage();
+  const { isDarkMode } = /** @type {{ isDarkMode: boolean }} */ (useTheme());
+  const palette = assistantPalette(isDarkMode);
+  const fmt = useMemo(() => createAssistantFormatter({ t, language }), [t, language]);
+
+  const params = route?.params ?? {};
+  const followUpMeetingId = typeof params.followup === 'string' && params.followup !== '' ? params.followup : null;
+  const prefill = typeof params.prefill === 'string' ? params.prefill : '';
+
+  const assistant = useAssistant({ followUpMeetingId });
+  const { plan, isLoaded: planLoaded } = useEntitlement();
+  const { meeting: followUpMeeting } = useMeeting(followUpMeetingId);
+
+  const [input, setInput] = useState(prefill);
+  const [appliedPrefill, setAppliedPrefill] = useState(prefill);
+  if (prefill !== appliedPrefill) {
+    // New prefill param while the screen stays mounted (adjusting state during render).
+    setAppliedPrefill(prefill);
+    if (prefill) setInput(prefill);
+  }
+  const [reviewIds, setReviewIds] = useState(/** @type {string[] | null} */ (null));
+  const [confirming, setConfirming] = useState(false);
+  const [feedback, setFeedback] = useState(/** @type {Feedback | null} */ (null));
+  const [now, setNow] = useState(() => new Date());
+  const scrollRef = useRef(/** @type {ScrollView | null} */ (null));
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), USAGE_CLOCK_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  const usage = describeUsage(fmt, assistant.usage, planLoaded ? { plan, limit: PLAN_DAILY_AI_LIMITS[plan] } : null, now);
+  const lastMessage = assistant.messages[assistant.messages.length - 1] ?? null;
+  const lastFailed = lastMessage?.role === 'user' && lastMessage.delivery === 'failed';
+  /** @type {ErrorDescription | null} */
+  const errorDescription = assistant.error
+    ? describeAssistantError(fmt, assistant.error, now)
+    : lastFailed && assistant.canRetry
+      ? { message: fmt.t('ai:errors.notSent'), recovery: 'retry' }
+      : null;
+  const suggestions = lastMessage && lastMessage.role === 'assistant' && !assistant.isSending ? lastMessage.suggestions : [];
+  const examples = useMemo(() => EXAMPLE_KEYS.map((key) => fmt.t(`ai:examples.${key}`)), [fmt]);
+  const followUpTitle = followUpMeeting?.title ?? null;
+
+  /** @type {ProposedActionState[]} */
+  const reviewStates = (reviewIds ?? [])
+    .map((id) => assistant.actions[id])
+    .filter((state) => state !== undefined && (state.status === 'proposed' || state.status === 'failed'));
+
+  /** @param {string} text */
+  const send = (text) => {
+    const trimmed = text.trim();
+    if (!trimmed || assistant.isSending || !assistant.isLoaded) return;
+    setInput('');
+    void assistant.send(trimmed);
+  };
+
+  const openMeeting = useCallback(
+    /** @param {string} meetingId */
+    (meetingId) => navigation.navigate('MeetingDetails', { meetingId }),
+    [navigation],
+  );
+
+  const confirmReviewed = useCallback(async () => {
+    const ids = reviewStates.map((state) => state.action.id);
+    if (ids.length === 0) return;
+    setConfirming(true);
+    setReviewIds(null);
+    /** @type {ActionResult[]} */
+    const results = [];
+    try {
+      for (const id of ids) {
+        // Sequential: later actions may depend on earlier ones (create, then share).
+        results.push(await assistant.confirm(id));
+      }
+    } finally {
+      setConfirming(false);
+    }
+    const shown = results.filter((r) => !(r.status === 'failed' && r.error.code === 'cancelled'));
+    if (shown.length > 0) setFeedback(summarizeResults(fmt, shown));
+  }, [assistant, fmt, reviewStates]);
+
+  const clearConversation = useCallback(() => {
+    Alert.alert(fmt.t('ai:chat.clearTitle'), fmt.t('ai:chat.clearMessage'), [
+      { text: fmt.t('ai:chat.cancel'), style: 'cancel' },
+      { text: fmt.t('ai:chat.clearConfirm'), style: 'destructive', onPress: () => void assistant.reset() },
+    ]);
+  }, [assistant, fmt]);
+
+  const pendingCount = assistant.pendingActionIds.length;
+  const feedbackStyle = feedback ? feedbackColors(palette, feedback.tone) : null;
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['bottom', 'left', 'right']}>
+      <View style={[styles.topBar, { borderBottomColor: palette.border }]}>
+        <View style={[styles.avatar, { backgroundColor: palette.surfaceAlt }]}>
+          <MaterialCommunityIcons name="robot-outline" size={18} color={palette.primary} />
+        </View>
+        <View style={styles.flex}>
+          <Text style={[styles.topTitle, { color: palette.text }]} accessibilityRole="header">
+            {fmt.t('ai:chat.title')}
+          </Text>
+          <Text style={[styles.topSubtitle, { color: palette.textMuted }]} numberOfLines={1}>
+            {fmt.t('ai:chat.subtitle')}
+          </Text>
+        </View>
+        <UsagePill usage={usage} palette={palette} />
+        <Pressable
+          onPress={clearConversation}
+          disabled={assistant.messages.length === 0}
+          style={[styles.iconButton, { opacity: assistant.messages.length === 0 ? 0.4 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel={fmt.t('ai:chat.clear')}
+          testID="assistant-clear"
+        >
+          <MaterialCommunityIcons name="delete-sweep-outline" size={22} color={palette.textMuted} />
+        </Pressable>
+      </View>
+
+      {followUpMeetingId ? (
+        <View style={[styles.banner, { backgroundColor: palette.infoSurface }]}>
+          <MaterialCommunityIcons name="calendar-check-outline" size={16} color={palette.info} />
+          <Text style={[styles.bannerText, { color: palette.info }]} numberOfLines={1}>
+            {followUpTitle ? fmt.t('ai:chat.followUpFor', { title: followUpTitle }) : fmt.t('ai:chat.followUpGeneric')}
+          </Text>
+        </View>
+      ) : null}
+
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+        {!assistant.isLoaded ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={palette.primary} />
+          </View>
+        ) : (
+          <ScrollView
+            ref={scrollRef}
+            style={styles.flex}
+            contentContainerStyle={styles.messages}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          >
+            {assistant.messages.length === 0 && !assistant.isSending ? (
+              <View style={styles.welcome}>
+                <View style={styles.assistantRow}>
+                  <View style={[styles.avatar, { backgroundColor: palette.surfaceAlt }]}>
+                    <MaterialCommunityIcons name="robot-outline" size={18} color={palette.primary} />
+                  </View>
+                  <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: palette.assistantBubble }]}>
+                    <Text style={[styles.messageText, { color: palette.onAssistantBubble }]}>{fmt.t('ai:chat.welcome')}</Text>
                   </View>
                 </View>
-              </View>
-            </Animated.View>
-          )}
-        </ScrollView>
-
-        {showSuggestions && messages.length === 1 && renderSuggestions()}
-
-        <View style={styles.inputContainer}>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              mode="outlined"
-              placeholder={t('aiChat.placeholder')}
-              value={inputText}
-              onChangeText={setInputText}
-              style={[
-                styles.textInput
-              ]}
-              multiline
-              maxLength={500}
-              disabled={isLoading}
-              theme={{
-                colors: {
-                  primary: isDarkMode ? "#10b981" : "#059669",
-                  text: isDarkMode ? "#ffffff" : "#1e293b",
-                  placeholder: isDarkMode ? "#a1a1aa" : "#64748b",
-                  outline: isDarkMode ? "#374151" : "#e2e8f0",
-                  onSurface: isDarkMode ? "#ffffff" : "#1e293b",
-                  background: isDarkMode ? "#262626" : "#f8fafc",
-                }
-              }}
-              right={
-                <TextInput.Icon
-                  icon="send"
-                  onPress={handleSendMessage}
-                  disabled={!inputText.trim() || isLoading}
-                  color={isDarkMode ? "#ffffff" : "#1e293b"}
+                <SuggestionChips
+                  items={examples}
+                  onPress={setInput}
+                  palette={palette}
+                  disabled={false}
+                  title={fmt.t('ai:chat.examplesTitle')}
                 />
-              }
-              underlineColor="transparent"
-              selectionColor={isDarkMode ? "#ffffff" : "#1e293b"}
-              placeholderTextColor={isDarkMode ? "#a1a1aa" : "#64748b"}
-            />
+              </View>
+            ) : null}
+
+            {assistant.messages.map((message) => (
+              <View key={message.id} style={styles.messageBlock}>
+                <MessageBubble message={message} fmt={fmt} palette={palette} followUpTitle={followUpTitle} />
+                {message.actionIds.map((actionId) => {
+                  const state = assistant.actions[actionId];
+                  if (!state) return null;
+                  return (
+                    <ActionCard
+                      key={actionId}
+                      state={state}
+                      fmt={fmt}
+                      palette={palette}
+                      onReview={(id) => setReviewIds([id])}
+                      onReject={assistant.reject}
+                      onOpenMeeting={openMeeting}
+                    />
+                  );
+                })}
+              </View>
+            ))}
+
+            {assistant.isSending ? (
+              <TypingIndicator
+                palette={palette}
+                label={assistant.followUpInFlight ? fmt.t('ai:chat.followUpLoading') : fmt.t('ai:chat.thinking')}
+              />
+            ) : null}
+
+            {errorDescription && !assistant.isSending ? (
+              <ErrorNotice
+                description={errorDescription}
+                canRetry={assistant.canRetry}
+                onRetry={() => void assistant.retry()}
+                onUpgrade={() => navigation.navigate('Pricing')}
+                palette={palette}
+                fmt={fmt}
+              />
+            ) : null}
+
+            <SuggestionChips items={suggestions} onPress={send} palette={palette} disabled={assistant.isSending} />
+          </ScrollView>
+        )}
+
+        {pendingCount >= 2 ? (
+          <View style={[styles.pendingBar, { backgroundColor: palette.surface, borderTopColor: palette.border }]}>
+            <Text style={[styles.pendingText, { color: palette.text }]}>{fmt.t('ai:chat.pending', { count: pendingCount })}</Text>
+            <Pressable
+              onPress={() => setReviewIds([...assistant.pendingActionIds])}
+              style={[styles.smallButton, { backgroundColor: palette.primary }]}
+              accessibilityRole="button"
+              testID="assistant-review-all"
+            >
+              <Text style={[styles.smallButtonText, { color: palette.onPrimary }]}>{fmt.t('ai:chat.reviewAll')}</Text>
+            </Pressable>
           </View>
+        ) : null}
+
+        <View style={[styles.composer, { borderTopColor: palette.border, backgroundColor: palette.background }]}>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder={fmt.t('ai:chat.placeholder')}
+            placeholderTextColor={palette.textMuted}
+            style={[styles.input, { color: palette.text, backgroundColor: palette.surface, borderColor: palette.border }]}
+            multiline
+            maxLength={AI_LIMITS.maxMessageChars}
+            editable={assistant.isLoaded}
+            accessibilityLabel={fmt.t('ai:chat.placeholder')}
+            testID="assistant-input"
+          />
+          <Pressable
+            onPress={() => send(input)}
+            disabled={!input.trim() || assistant.isSending || !assistant.isLoaded}
+            style={[
+              styles.sendButton,
+              { backgroundColor: palette.primary, opacity: !input.trim() || assistant.isSending || !assistant.isLoaded ? 0.4 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={fmt.t('ai:chat.send')}
+            testID="assistant-send"
+          >
+            <MaterialCommunityIcons name="send" size={20} color={palette.onPrimary} />
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
 
       <MeetingConfirmationModal
-        visible={confirmationModal.visible}
-        onDismiss={() => setConfirmationModal(prev => ({ ...prev, visible: false }))}
-        meetingData={confirmationModal.meetingData}
-        action={confirmationModal.action}
-        onConfirm={handleConfirmMeeting}
-        isLoading={isLoading}
-        language={language}
+        visible={reviewStates.length > 0}
+        actions={reviewStates}
+        onConfirm={() => void confirmReviewed()}
+        onCancel={() => setReviewIds(null)}
+        onReject={assistant.reject}
+        isBusy={confirming}
       />
 
       <Snackbar
-        visible={snackbar.visible}
-        onDismiss={() => setSnackbar(prev => ({ ...prev, visible: false }))}
-        duration={3000}
-        style={[
-          styles.snackbar,
-          snackbar.type === 'error' && styles.errorSnackbar,
-          snackbar.type === 'success' && styles.successSnackbar,
-        ]}
+        visible={feedback !== null}
+        onDismiss={() => setFeedback(null)}
+        duration={4000}
+        style={feedbackStyle ? { backgroundColor: feedbackStyle.background } : undefined}
       >
-        {snackbar.message}
+        <Text style={{ color: feedbackStyle?.color ?? palette.text }}>{feedback?.message ?? ''}</Text>
       </Snackbar>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  flex: {
+    flex: 1,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  topTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  topSubtitle: {
+    fontSize: 12,
+  },
+  iconButton: {
+    padding: 6,
+    borderRadius: 18,
+  },
+  usagePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  usageText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  bannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  messages: {
+    padding: 16,
+    gap: 12,
+  },
+  welcome: {
+    gap: 12,
+  },
+  messageBlock: {
+    gap: 8,
+  },
+  userRow: {
+    alignItems: 'flex-end',
+  },
+  assistantRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  assistantColumn: {
+    flex: 1,
+    gap: 4,
+    alignItems: 'flex-start',
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bubble: {
+    maxWidth: '85%',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  userBubble: {
+    borderBottomRightRadius: 4,
+  },
+  assistantBubble: {
+    borderTopLeftRadius: 4,
+  },
+  typingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dots: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  typingText: {
+    fontSize: 13,
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  time: {
+    fontSize: 11,
+    marginTop: 4,
+    alignSelf: 'flex-end',
+    opacity: 0.8,
+  },
+  followUpTag: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  failedLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  failedText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  card: {
+    marginLeft: 40,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    gap: 8,
+  },
+  cardMuted: {
+    opacity: 0.6,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  cardType: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  cardTitle: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  cardNote: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  statusChip: {
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  warningLine: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  working: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  feedback: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  smallButton: {
+    minHeight: 36,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButton: {
+    borderWidth: 1,
+  },
+  smallButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 8,
+  },
+  listItemText: {
+    flex: 1,
+  },
+  listItemTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  suggestions: {
+    gap: 6,
+  },
+  suggestionsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  chipText: {
+    fontSize: 14,
+  },
+  errorBox: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  pendingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  pendingText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  composer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  input: {
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 140,
+    borderWidth: 1,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 11,
+    paddingBottom: 11,
+    fontSize: 15,
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
