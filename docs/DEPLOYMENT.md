@@ -120,8 +120,8 @@ Run these in `functions/`.
 
 - **Compatibility rule:** the callable contract (`src/core/aiContract.ts`, copied to
   `functions/src/shared/aiContract.ts`) must work with every app version still in use:
-  - Add fields; never rename or remove them. The request schema is strict on the server, so a new
-    request field must be optional.
+  - Add fields; never rename or remove them. A new request field must be optional, because older
+    apps do not send it (the server strips request fields it does not know).
   - **Actions:** from 1.1.0 the app validates each proposed action on its own and drops (and logs)
     one it does not understand, so a new action kind, or a new enum value inside an action, does
     not break older installs. Their users simply do not get that card, although the request still
