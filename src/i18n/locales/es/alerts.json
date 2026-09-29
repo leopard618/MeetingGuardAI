@@ -40,7 +40,8 @@
     "followup": {
       "name": "Seguimiento de reuniones",
       "description": "Después de una reunión: registra notas y próximos pasos con tu asistente de IA."
-    }
+    },
+    "noVibrationName": "{{name}} (sin vibración)"
   },
   "actions": {
     "open": "Abrir",
@@ -105,5 +106,9 @@
   "errors": {
     "snoozeFailed": "No se ha podido posponer la alerta.",
     "openLinkFailed": "No se ha podido abrir el enlace de la reunión."
+  },
+  "refill": {
+    "title": "Mantén al día tus alertas de reuniones",
+    "body": "Abre MeetingGuard para que programe tus próximas alertas."
   }
 }

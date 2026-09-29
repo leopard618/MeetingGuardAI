@@ -198,17 +198,50 @@ export function isMeetingGuardNotificationId(identifier: string): boolean {
   return parseNotificationId(identifier) !== null;
 }
 
-/** Android channels (immutable once created: change sound/vibration => bump the version). */
+/**
+ * Android channels (immutable once created: change sound / vibration / lock-screen visibility =>
+ * bump the version). Every channel exists twice: with vibration, and without it
+ * (Preferences.vibrationEnabled false), because an app cannot change a channel's vibration.
+ * v2: lock-screen visibility PRIVATE (the user's "hide sensitive content" setting applies) and
+ * the no-vibration variants.
+ */
 export const ANDROID_CHANNELS = {
-  max: 'mg-alert-max-v1',
-  medium: 'mg-alert-medium-v1',
-  light: 'mg-alert-light-v1',
-  followup: 'mg-followup-v1',
+  max: 'mg-alert-max-v2',
+  medium: 'mg-alert-medium-v2',
+  light: 'mg-alert-light-v2',
+  followup: 'mg-followup-v2',
+  maxNoVibration: 'mg-alert-max-novib-v2',
+  mediumNoVibration: 'mg-alert-medium-novib-v2',
+  lightNoVibration: 'mg-alert-light-novib-v2',
+  followupNoVibration: 'mg-followup-novib-v2',
 } as const;
 export type AndroidChannelId = (typeof ANDROID_CHANNELS)[keyof typeof ANDROID_CHANNELS];
+export type AndroidChannelKind = AlertIntensity | 'followup';
 
-export function channelForIntensity(intensity: AlertIntensity): AndroidChannelId {
-  return ANDROID_CHANNELS[intensity];
+/** Channels of earlier versions (deleted at start; their pending notifications are rescheduled). */
+export const SUPERSEDED_ANDROID_CHANNELS = [
+  'mg-alert-max-v1',
+  'mg-alert-medium-v1',
+  'mg-alert-light-v1',
+  'mg-followup-v1',
+] as const;
+
+/** Channel of an alert (or follow-up) given the vibration preference (default: vibration on). */
+export function channelFor(kind: AndroidChannelKind, vibrationEnabled = true): AndroidChannelId {
+  switch (kind) {
+    case 'max':
+      return vibrationEnabled ? ANDROID_CHANNELS.max : ANDROID_CHANNELS.maxNoVibration;
+    case 'medium':
+      return vibrationEnabled ? ANDROID_CHANNELS.medium : ANDROID_CHANNELS.mediumNoVibration;
+    case 'light':
+      return vibrationEnabled ? ANDROID_CHANNELS.light : ANDROID_CHANNELS.lightNoVibration;
+    default:
+      return vibrationEnabled ? ANDROID_CHANNELS.followup : ANDROID_CHANNELS.followupNoVibration;
+  }
+}
+
+export function channelForIntensity(intensity: AlertIntensity, vibrationEnabled = true): AndroidChannelId {
+  return channelFor(intensity, vibrationEnabled);
 }
 
 /** Notification categories (registered at every startup with localized button titles). */
@@ -232,6 +265,13 @@ export const NOTIFICATION_ACTIONS = {
   /** Opens the assistant in follow-up mode (opensAppToForeground: true). */
   assistant: 'mg-assistant',
 } as const;
+
+/**
+ * "Open MeetingGuard to keep your alerts up to date": scheduled when the budget cut real alerts,
+ * so the user refreshes the window before it runs out. Not tied to a meeting (never parsed by
+ * parseNotificationId); the alert engine manages it explicitly.
+ */
+export const REFILL_NOTIFICATION_ID = `${NOTIFICATION_ID_PREFIX}:refill`;
 
 /** Budget of pending MeetingGuard notifications (iOS keeps 64; stay well below). */
 export const ALERT_NOTIFICATION_BUDGET = 60;
@@ -293,21 +333,30 @@ export function parseDeepLink(url: string): ParsedDeepLink {
   const segments = pathPart.split('/').filter((segment) => segment.length > 0);
 
   if (segments[0] === 'meeting' && segments.length === 2) {
-    const meetingId = decodeURIComponent(segments[1] ?? '');
-    return MEETING_ID_PATTERN.test(meetingId) ? { type: 'meeting', meetingId } : { type: 'unknown' };
+    const meetingId = safeDecode(segments[1] ?? '');
+    return meetingId !== null && MEETING_ID_PATTERN.test(meetingId) ? { type: 'meeting', meetingId } : { type: 'unknown' };
   }
   if (segments[0] === 'assistant' && segments.length === 1) {
     let followUpMeetingId: string | null = null;
     for (const pair of queryPart.split('&')) {
       const [key, value = ''] = pair.split('=', 2);
       if (key === 'followup') {
-        const decoded = decodeURIComponent(value);
-        followUpMeetingId = MEETING_ID_PATTERN.test(decoded) ? decoded : null;
+        const decoded = safeDecode(value);
+        followUpMeetingId = decoded !== null && MEETING_ID_PATTERN.test(decoded) ? decoded : null;
       }
     }
     return { type: 'assistant', followUpMeetingId };
   }
   return { type: 'unknown' };
+}
+
+/** decodeURIComponent that returns null for malformed input ("%ZZ", "%E0") instead of throwing. */
+function safeDecode(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

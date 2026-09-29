@@ -1,6 +1,8 @@
 /**
  * Display model for the in-app alerts (owner: alerts). PURE given t / formatTime (unit-tested).
- * Texts are localized in the UI language; the voice readout uses the MEETING language.
+ * Every text, the voice readout included, follows the UI language (instant EN/ES switching): the
+ * meeting's stored language is only the language it was created in, and a Spanish screen with an
+ * English voice (or the reverse) is confusing. The title itself is read as written.
  */
 import type { FormatOptions, TranslateFn } from '../../core/contracts';
 import type { Language } from '../../core/types';
@@ -16,7 +18,7 @@ export interface AlertDisplayInput {
   durationMinutes: number;
   locationText: string | null;
   joinUrl: string | null;
-  /** Meeting language (voice). */
+  /** Meeting language (informational; the voice follows the UI language). */
   language: Language;
 }
 
@@ -73,8 +75,8 @@ export function buildAlertDisplay(input: AlertDisplayInput, deps: AlertDisplayDe
   });
   const locationText = input.locationText ? cleanText(input.locationText, 120) : null;
 
-  // Voice: meeting language.
-  const voiceLanguage = input.language;
+  // Voice: UI language, like every other alert text.
+  const voiceLanguage = deps.uiLanguage;
   const tv: TranslateFn = (key, options) => t(key, { ...options, lng: voiceLanguage });
   const voiceTime = deps.formatTime(input.startAt, { language: voiceLanguage, use24Hour: deps.use24Hour });
   let voiceText =

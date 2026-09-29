@@ -102,8 +102,14 @@ export const linking: LinkingOptions<RootStackParamList> = {
     return null;
   },
   subscribe() {
+    // Any app or web page can open meetingguardai:// links: a failure while routing one must
+    // never escape into the native event callback (React Native treats that as fatal).
     const urlSubscription = Linking.addEventListener('url', ({ url }) => {
-      openDeepLink(url);
+      try {
+        openDeepLink(url);
+      } catch (error) {
+        log.warn('could not open a deep link', toAppError(error).code);
+      }
     });
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
       handleNotificationResponse(response);

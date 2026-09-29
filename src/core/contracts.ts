@@ -657,6 +657,12 @@ export interface AlertPlan {
   truncated: boolean;
   /** fireAt of the last included item when truncated (reconcile again before it); else null. */
   refillBefore: string | null;
+  /**
+   * Set when the budget cut real ALERTS (not just follow-ups or the horizon): one budget slot is
+   * reserved for the "open MeetingGuard to keep your alerts up to date" notification, which fires
+   * at this instant (before the scheduled window runs out). null otherwise.
+   */
+  refillReminderAt: string | null;
 }
 
 export interface AlertPlanOptions {
@@ -671,9 +677,12 @@ export interface AlertPlanOptions {
  * - prefs.alertEnabled false => empty plan (master switch; also no follow-ups).
  * - Eligible: deletedAt null, status 'scheduled', allDay false, fireAt > now, fireAt <= now + horizon.
  * - Alert offsets: meeting.customAlertTimes ?? prefs.defaultAlertTimes (deduped).
- * - Intensity: meeting.alertIntensity ?? prefs.alertIntensity; channel = channelForIntensity.
+ * - Intensity: meeting.alertIntensity ?? prefs.alertIntensity; channel = channelForIntensity
+ *   (no-vibration variant when prefs.vibrationEnabled is false).
  * - Follow-up (prefs.followUpEnabled): fireAt = end + FOLLOW_UP_DELAY_MINUTES, channel followup.
- * - Ids: alertNotificationId / followUpNotificationId; sort by fireAt asc; cut at budget.
+ * - Ids: alertNotificationId / followUpNotificationId; sorted by fireAt asc.
+ * - Budget: alerts first (earliest first); follow-ups only use the space alerts leave. When the
+ *   alerts alone do not fit, one slot is reserved for the refill reminder (refillReminderAt).
  */
 export type ComputeAlertPlan = (
   meetings: readonly Meeting[],
@@ -761,6 +770,12 @@ export interface AlertEngine {
   /** Android 12+: IntentLauncher ActivityAction.REQUEST_SCHEDULE_EXACT_ALARM; no-op elsewhere. */
   openExactAlarmSettings(): Promise<void>;
   openNotificationSettings(): Promise<void>;
+  /**
+   * Android 8+: the system settings page of the MAX alert channel, where the user can turn on
+   * "Override Do Not Disturb" (an app cannot grant bypassDnd itself). iOS: the app's notification
+   * settings (Focus allow-lists are set by the user in iOS Settings).
+   */
+  openAlarmChannelSettings(): Promise<void>;
   startSession(uid: string): Promise<void>;
   endSession(): Promise<void>;
   reconcile(reason: ReconcileReason): Promise<ReconcileResult>;

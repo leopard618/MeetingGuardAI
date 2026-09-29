@@ -18,13 +18,13 @@ describe('computeAlertPlan', () => {
       meetingId: 'm1',
       offsetMinutes: 15,
       intensity: 'max',
-      channelId: 'mg-alert-max-v1',
+      channelId: 'mg-alert-max-v2',
       categoryId: 'mg-alert',
     });
     expect(plan.items[3]).toMatchObject({
       kind: 'followup',
       offsetMinutes: null,
-      channelId: 'mg-followup-v1',
+      channelId: 'mg-followup-v2',
       categoryId: 'mg-followup',
     });
     expect(plan.truncated).toBe(false);
@@ -42,11 +42,11 @@ describe('computeAlertPlan', () => {
     const meeting = makeMeeting('m1', minutesFrom(NOW, 60), { alertIntensity: 'light' });
     const plan = computeAlertPlan([meeting], makePrefs({ alertIntensity: 'max', followUpEnabled: false }), NOW);
     expect(new Set(plan.items.map((item) => item.intensity))).toEqual(new Set(['light']));
-    expect(new Set(plan.items.map((item) => item.channelId))).toEqual(new Set(['mg-alert-light-v1']));
+    expect(new Set(plan.items.map((item) => item.channelId))).toEqual(new Set(['mg-alert-light-v2']));
 
     const other = makeMeeting('m2', minutesFrom(NOW, 60));
     const planMedium = computeAlertPlan([other], makePrefs({ alertIntensity: 'medium', followUpEnabled: false }), NOW);
-    expect(planMedium.items[0]?.channelId).toBe('mg-alert-medium-v1');
+    expect(planMedium.items[0]?.channelId).toBe('mg-alert-medium-v2');
   });
 
   it('skips notifications in the past and meetings already over', () => {
@@ -75,6 +75,7 @@ describe('computeAlertPlan', () => {
       items: [],
       truncated: false,
       refillBefore: null,
+      refillReminderAt: null,
     });
   });
 
@@ -84,26 +85,59 @@ describe('computeAlertPlan', () => {
     expect(plan.items.some((item) => item.kind === 'followup')).toBe(false);
   });
 
-  it('keeps the nearest notifications within the budget and reports the refill point', () => {
+  it('keeps the nearest ALERTS within the budget, reserves a slot for the refill reminder and reports the refill point', () => {
     const meetings = Array.from({ length: 30 }, (_, index) => makeMeeting(`m${index}`, minutesFrom(NOW, 60 + index * 60)));
     const plan = computeAlertPlan(meetings, makePrefs(), NOW, { budget: 60 });
-    expect(plan.items).toHaveLength(60);
+    // 90 alerts + 30 follow-ups do not fit: 59 alerts + 1 slot for the refill reminder, no follow-ups.
+    expect(plan.items).toHaveLength(59);
+    expect(plan.items.every((item) => item.kind === 'alert')).toBe(true);
     expect(plan.truncated).toBe(true);
     const fireTimes = plan.items.map((item) => Date.parse(item.fireAt));
     expect([...fireTimes].sort((a, b) => a - b)).toEqual(fireTimes);
-    expect(plan.refillBefore).toBe(plan.items[59]?.fireAt);
-    // Everything left out fires after everything kept.
+    expect(plan.refillBefore).toBe(plan.items[58]?.fireAt);
+    // The reminder fires an hour before the last scheduled alert.
+    expect(plan.refillReminderAt).toBe(new Date(Date.parse(plan.items[58]!.fireAt) - 60 * 60_000).toISOString());
+    // Every alert left out fires after every alert kept.
     const all = computeAlertPlan(meetings, makePrefs(), NOW, { budget: 1000 });
     const kept = new Set(plan.items.map((item) => item.identifier));
     const lastKept = Date.parse(plan.refillBefore ?? '');
-    all.items.filter((item) => !kept.has(item.identifier)).forEach((item) => {
-      expect(Date.parse(item.fireAt)).toBeGreaterThanOrEqual(lastKept);
-    });
+    all.items
+      .filter((item) => item.kind === 'alert' && !kept.has(item.identifier))
+      .forEach((item) => {
+        expect(Date.parse(item.fireAt)).toBeGreaterThanOrEqual(lastKept);
+      });
+  });
+
+  it('never lets follow-ups push real alerts out of the budget', () => {
+    // 15 meetings: 45 alerts + 15 follow-ups = 60, but only 50 slots.
+    const meetings = Array.from({ length: 15 }, (_, index) => makeMeeting(`m${index}`, minutesFrom(NOW, 60 + index * 30)));
+    const plan = computeAlertPlan(meetings, makePrefs(), NOW, { budget: 50 });
+    expect(plan.items.filter((item) => item.kind === 'alert')).toHaveLength(45);
+    expect(plan.items.filter((item) => item.kind === 'followup')).toHaveLength(5);
+    // Follow-ups only lose: no refill reminder is needed.
+    expect(plan.refillReminderAt).toBeNull();
+    expect(plan.truncated).toBe(true);
+  });
+
+  it('never schedules the refill reminder sooner than 30 minutes from now', () => {
+    const meetings = Array.from({ length: 3 }, (_, index) => makeMeeting(`m${index}`, minutesFrom(NOW, 20 + index)));
+    const plan = computeAlertPlan(meetings, makePrefs({ followUpEnabled: false, defaultAlertTimes: [0] }), NOW, { budget: 2 });
+    expect(plan.items.map((item) => item.identifier)).toEqual(['mg:m0:0']);
+    expect(plan.refillReminderAt).toBe(minutesFrom(NOW, 30));
+  });
+
+  it('uses the no-vibration channels when vibration is off', () => {
+    const meeting = makeMeeting('m1', minutesFrom(NOW, 60));
+    const plan = computeAlertPlan([meeting], makePrefs({ vibrationEnabled: false }), NOW);
+    expect(new Set(plan.items.map((item) => item.channelId))).toEqual(
+      new Set(['mg-alert-max-novib-v2', 'mg-followup-novib-v2']),
+    );
   });
 
   it('defaults to the 60-notification budget', () => {
     const meetings = Array.from({ length: 40 }, (_, index) => makeMeeting(`m${index}`, minutesFrom(NOW, 60 + index * 30)));
-    expect(computeAlertPlan(meetings, makePrefs(), NOW).items).toHaveLength(60);
+    // 120 alerts do not fit: 59 alerts + the refill reminder slot.
+    expect(computeAlertPlan(meetings, makePrefs(), NOW).items).toHaveLength(59);
   });
 
   it('leaves out notifications beyond the horizon and marks the plan truncated', () => {

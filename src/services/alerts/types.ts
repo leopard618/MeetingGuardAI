@@ -49,19 +49,37 @@ export interface AlertNotificationSpec {
   fireAt: string;
   intensity: AlertIntensity;
   channelId: AndroidChannelId;
-  categoryId: string;
+  /** Notification category (action buttons); null = no actions. */
+  categoryId: string | null;
   title: string;
   body: string;
   /** Sound file name ("meeting_alarm.wav") or "default". */
   sound: string;
   interruptionLevel: InterruptionLevelName;
   androidPriority: AndroidPriorityName;
-  /** Pre-Android-8 vibration pattern (channels own it on 8+). */
+  /** Pre-Android-8 vibration pattern (channels own it on 8+); [] = no vibration. */
   vibrate: number[];
-  /** Android: cannot be swiped away (MAX alerts). */
+  /** Android: cannot be swiped away (MAX and MEDIUM alerts: "minimizable, not dismissible"). */
   sticky: boolean;
   data: StoredAlertData;
 }
+
+/** content.data of the refill reminder (REFILL_NOTIFICATION_ID; not tied to a meeting). */
+export interface RefillNotificationData {
+  v: 1;
+  kind: 'refill';
+  fireAt: string;
+  hash: string;
+}
+
+/** The "open MeetingGuard to keep your alerts up to date" notification. */
+export interface RefillNotificationSpec extends Omit<AlertNotificationSpec, 'kind' | 'meetingId' | 'intensity' | 'data'> {
+  kind: 'refill';
+  data: RefillNotificationData;
+}
+
+/** Anything the engine hands to the OS. */
+export type ScheduledSpec = AlertNotificationSpec | RefillNotificationSpec;
 
 /** Meeting fields needed to render notification text. */
 export interface MeetingSummary {
@@ -82,6 +100,8 @@ export interface AlertTextDeps {
   /** Device time zone (times are shown in the user's current zone). */
   timeZone: string;
   use24Hour: boolean | null;
+  /** Preferences.vibrationEnabled: picks the no-vibration channel and an empty pattern when false. */
+  vibrationEnabled: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -189,7 +209,7 @@ export interface NotificationsPort {
   getPermission(): Promise<RawPermission>;
   requestPermission(): Promise<RawPermission>;
   getScheduled(): Promise<ScheduledNotificationRecord[]>;
-  schedule(spec: AlertNotificationSpec): Promise<void>;
+  schedule(spec: ScheduledSpec): Promise<void>;
   cancel(identifier: string): Promise<void>;
   getPresented(): Promise<PresentedNotificationRecord[]>;
   dismiss(identifier: string): Promise<void>;
@@ -220,6 +240,8 @@ export interface AlertSettingsPort {
   readonly exactAlarmSettingsAvailable: boolean;
   openExactAlarmSettings(): Promise<void>;
   openNotificationSettings(): Promise<void>;
+  /** Android 8+: the system page of one notification channel ("Override Do Not Disturb" lives there). */
+  openChannelSettings(channelId: string): Promise<void>;
 }
 
 export type AppStateName = 'active' | 'background' | 'inactive' | 'unknown' | 'extension';

@@ -165,22 +165,36 @@ meetings:changed / preferences:changed / language:changed / session start / fore
 - Offsets come from `customAlertTimes`, falling back to `defaultAlertTimes`.
 - Intensity comes from the meeting override, falling back to the preference.
 - The follow-up fires at meeting end + 5 minutes when `followUpEnabled` is on.
-- Items are sorted by fire time and cut at the budget.
+- Budget: alerts first (earliest first); follow-ups only use the space the alerts leave. When the
+  alerts alone do not fit, one slot is reserved for the refill reminder `mg:refill` ("open
+  MeetingGuard to keep your alerts up to date"), which fires an hour before the last scheduled
+  alert (at least 30 minutes from now). Opening the app reconciles (every foreground does).
+- A scheduled notification that is due within 2 seconds and still planned is kept as it is (too
+  late to reschedule; cancelling it would lose the alert).
 
 **Identifiers:**
 
 - `mg:{meetingId}:{offsetMin}` for alerts
 - `mg:{meetingId}:followup` for the follow-up
 - `mg:{meetingId}:snooze` for a snooze
+- `mg:refill` for the refill reminder (not tied to a meeting; managed outside the diff)
 
-**Android channels** (they are immutable, so bump `-vN` to change one):
+**Android channels** (they are immutable, so bump `-vN` to change one). Each exists with and without
+vibration (`Preferences.vibrationEnabled` picks the channel; an app cannot change a channel's
+vibration). Lock-screen visibility is PRIVATE everywhere, so the user's "hide sensitive content"
+setting applies. The v1 channels are deleted at start and their notifications rescheduled.
 
-| Channel | Settings |
+| Channel (with / without vibration) | Settings |
 |---|---|
-| `mg-alert-max-v1` | importance MAX, `bypassDnd`, custom alarm `.wav`, ALARM audio usage, strong vibration |
-| `mg-alert-medium-v1` | importance HIGH |
-| `mg-alert-light-v1` | importance DEFAULT |
-| `mg-followup-v1` | |
+| `mg-alert-max-v2` / `mg-alert-max-novib-v2` | importance MAX, `bypassDnd` (effective only once the user allows "Override Do Not Disturb" on the channel: `openAlarmChannelSettings()`), custom alarm `.wav`, ALARM audio usage, strong vibration |
+| `mg-alert-medium-v2` / `mg-alert-medium-novib-v2` | importance HIGH, chime |
+| `mg-alert-light-v2` / `mg-alert-light-novib-v2` | importance DEFAULT, chime |
+| `mg-followup-v2` / `mg-followup-novib-v2` | importance DEFAULT, system sound (also used by `mg:refill`) |
+
+MAX and MEDIUM notifications are sticky (Android `ongoing`: "minimizable, not dismissible"); the
+tap, Open and Snooze actions and the tray sweep remove them. The OS notification always plays the
+channel sound, also with `alertSoundType: 'voice_only'` (the voice readout needs the app in the
+foreground); the alert settings screen says so.
 
 Create the channels **before** requesting permission.
 
@@ -194,14 +208,14 @@ Create the channels **before** requesting permission.
 
 | Event | Handled by | Result |
 |---|---|---|
-| Tap (default action, `mg-open` or `mg-assistant`) | Navigation `linking` | Routes to `data.url` (`meetingguardai://meeting/{id}` or `meetingguardai://assistant?followup={id}`) |
+| Tap (default action, `mg-open` or `mg-assistant`) | Navigation `linking` (routing) + alert engine (acknowledges the delivery and removes the sticky tray copy; at cold start from `getLastNotificationResponse()`) | Routes to `data.url` (`meetingguardai://meeting/{id}` or `meetingguardai://assistant?followup={id}`) |
 | `mg-snooze` in the foreground | Response listener | Snooze |
-| `mg-snooze` in the background (Android) | `BACKGROUND_TASKS.notificationResponse` | Snooze |
+| `mg-snooze` in the background (Android) | `BACKGROUND_TASKS.notificationResponse` (restores the persisted language and passes the signed-in uid, so the snooze uses the user's language and snooze length) | Snooze |
 | Notification received while foregrounded, or the in-app timer fires | `alertEngine` | Emits an `ActiveAlert` |
 
 `AlertHost` renders the active alerts:
 
-- **MAX:** full-screen modal that needs an explicit action. It plays the bundled sound on a loop with a volume ramp (expo-audio), reads the alert aloud in EN or ES (expo-speech), vibrates, and runs an auto-snooze countdown.
+- **MAX:** full-screen modal that needs an explicit action. It plays the bundled sound on a loop with a volume ramp (expo-audio), reads the alert aloud in the UI language (expo-speech), vibrates (never when vibration is off, haptics included), and runs an auto-snooze countdown.
 - **MEDIUM:** persistent banner that can be minimized, with a pulse.
 - **LIGHT:** toast that can be dismissed after 3 seconds.
 
@@ -212,7 +226,8 @@ Alerts that have already fired or been acknowledged are recorded in `mg:{uid}:al
 - iOS keeps 64 pending notifications and Android allows about 500 alarms, so the budget is 60 in total.
 - `SCHEDULE_EXACT_ALARM` is declared. `openExactAlarmSettings()` opens the setting through expo-intent-launcher. There is no JS API to check it, so reconcile again after the user returns (AppState active).
 - There is no full-screen intent.
-- expo-background-task (`mg-background-refresh`, every 60 minutes or more) calls `withHeadlessSession`, then `calendarSyncEngine.syncNow({ headless: true })`, then `alertEngine.reconcile('background')`. It only refreshes the rolling window. Delivery itself never depends on it.
+- expo-background-task (`mg-background-refresh`, every 60 minutes or more) restores the persisted language (`initI18n`), calls `withHeadlessSession`, then `calendarSyncEngine.syncNow({ headless: true })`, then `alertEngine.reconcile('background')`. Without an alert session the notification text follows `prefs.language`. It only refreshes the rolling window. Delivery itself never depends on it.
+- The notification-response task is registered on Android only (iOS delivers action responses to the listener).
 
 ## 7. Calendar sync pipeline (calendar area)
 

@@ -26,6 +26,7 @@ import type {
   PresentedNotificationRecord,
   RawPermission,
   ScheduledNotificationRecord,
+  ScheduledSpec,
 } from './types';
 
 const ACCENT_COLOR = '#1E40AF';
@@ -187,14 +188,14 @@ export function createExpoNotificationsPort(): NotificationsPort {
       }));
     },
 
-    async schedule(spec: AlertNotificationSpec) {
+    async schedule(spec: ScheduledSpec) {
       await Notifications.scheduleNotificationAsync({
         identifier: spec.identifier,
         content: {
           title: spec.title,
           body: spec.body,
           data: { ...spec.data },
-          categoryIdentifier: spec.categoryId,
+          ...(spec.categoryId !== null ? { categoryIdentifier: spec.categoryId } : {}),
           sound: spec.sound,
           interruptionLevel: spec.interruptionLevel,
           priority: priorityOf(spec.androidPriority),

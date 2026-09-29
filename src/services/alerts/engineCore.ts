@@ -32,10 +32,12 @@ import type { AppEventMap, EventBus } from '../../core/events';
 import {
   ALERT_HORIZON_DAYS,
   ALERT_NOTIFICATION_BUDGET,
-  ANDROID_CHANNELS,
   NOTIFICATION_ACTIONS,
   NOTIFICATION_CATEGORIES,
+  REFILL_NOTIFICATION_ID,
+  SUPERSEDED_ANDROID_CHANNELS,
   USER_STORAGE,
+  channelFor,
   parseNotificationId,
   snoozeNotificationId,
   userStorageKey,
@@ -66,7 +68,9 @@ import {
   meetingJoinUrl,
   meetingLocationText,
   parseAlertData,
+  parseRefillData,
   renderPlanItem,
+  renderRefillSpec,
   renderSnoozeSpec,
   summarizeMeeting,
   summaryFromAlertData,
@@ -110,6 +114,7 @@ import type {
   NotificationsPort,
   Preferences,
   ResolveAction,
+  ScheduledSpec,
   StoredAlertData,
   TimerPort,
 } from './types';
@@ -121,7 +126,9 @@ const LOOKBACK_MS = 2 * DAY_MS;
 /** Largest alert offset is 7 days (AI_LIMITS.maxAlertMinutes): load that far past the horizon. */
 const LOOKAHEAD_EXTRA_DAYS = 8;
 const REGISTRY_SAVE_DELAY_MS = 500;
-const EMPTY_PLAN: AlertPlan = { items: [], truncated: false, refillBefore: null };
+/** The in-app timer presents an alert at most this late (older ones fired while in the background). */
+const IN_APP_LATE_WINDOW_MS = 5 * MINUTE_MS;
+const EMPTY_PLAN: AlertPlan = { items: [], truncated: false, refillBefore: null, refillReminderAt: null };
 
 /** Reasons that skip the debounce. */
 const IMMEDIATE_REASONS: ReadonlySet<ReconcileReason> = new Set<ReconcileReason>([
@@ -142,6 +149,8 @@ const ALERT_PREFERENCE_KEYS: ReadonlySet<PreferenceKey> = new Set<PreferenceKey>
   'snoozeMinutes',
   'use24HourClock',
   'timezone',
+  // Picks the vibration / no-vibration channel of every notification.
+  'vibrationEnabled',
 ]);
 
 export interface AlertEngineDeps {
@@ -165,12 +174,23 @@ export interface ResolveOptions {
   snoozeMinutes?: number;
 }
 
+export interface ResponseOptions {
+  /**
+   * Signed-in user when no alert session runs (Android headless task): their cached preferences
+   * give the snooze length and the language/clock of the snooze notification.
+   */
+  uid?: string | null;
+}
+
 /** AlertEngine + the extras used by AlertHost, usePendingAlerts and the headless tasks. */
 export interface AlertEngineImpl extends AlertEngine {
   subscribeActiveAlerts(listener: (alerts: ActiveAlertView[]) => void): Unsubscribe;
   resolveActiveAlert(key: string, action: ResolveAction, options?: ResolveOptions): Promise<void>;
-  /** Handles a notification response (snooze actions; any response acknowledges the alert). */
-  handleNotificationResponse(response: IncomingResponse, via: 'foreground' | 'background'): Promise<void>;
+  /**
+   * Handles a notification response: any response acknowledges the delivery and removes it from
+   * the tray; snooze actions reschedule it.
+   */
+  handleNotificationResponse(response: IncomingResponse, via: 'foreground' | 'background', options?: ResponseOptions): Promise<void>;
   /** Installs the foreground presentation handler (idempotent; safe at module scope). */
   installPresentationHandler(): void;
   /** Called after every reconcile / permission refresh (usePendingAlerts). */
@@ -247,13 +267,23 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     return lastPrefs ?? { ...DEFAULT_PREFERENCES, defaultAlertTimes: [...DEFAULT_PREFERENCES.defaultAlertTimes] };
   }
 
-  function textDeps(prefs: Preferences | null): AlertTextDeps {
+  /**
+   * Rendering deps. In the foreground the UI language is authoritative (it switches instantly and
+   * preferences follow). With no alert session (Android headless task / background refresh) no
+   * React tree restored the user's choice, so the notification text follows the preferences'
+   * language instead of whatever the device language is.
+   */
+  function textDeps(prefs: Preferences | null, options: { headless?: boolean } = {}): AlertTextDeps {
+    const language = options.headless && prefs ? prefs.language : i18n.getLanguage();
+    const t: AlertTextDeps['t'] =
+      language === i18n.getLanguage() ? i18n.t : (key, tOptions) => i18n.t(key, { ...(tOptions ?? {}), lng: language });
     return {
-      t: i18n.t,
+      t,
       formatTime: i18n.formatTime,
-      language: i18n.getLanguage(),
+      language,
       timeZone: deps.deviceTimeZone(),
       use24Hour: prefs?.use24HourClock ?? null,
+      vibrationEnabled: prefs?.vibrationEnabled ?? true,
     };
   }
 
@@ -337,54 +367,38 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
   }
 
   // ---- channels + categories ---------------------------------------------------------------
+  /**
+   * Every channel exists with and without vibration (channels are immutable, so the vibration
+   * preference picks the channel). Lock-screen visibility is PRIVATE everywhere: Android then
+   * follows the user's "hide sensitive content" setting (meeting titles and addresses can come
+   * from third-party invitations). The in-app AlertHost shows the full details once unlocked.
+   */
   function channelSpecs(): ChannelSpec[] {
     const { t } = i18n;
-    return [
-      {
-        id: ANDROID_CHANNELS.max,
-        name: t('alerts:channels.max.name'),
-        description: t('alerts:channels.max.description'),
-        importance: 'max',
-        sound: ALARM_SOUND_FILE,
-        vibrationPattern: [...CHANNEL_VIBRATION.max],
-        bypassDnd: true,
-        lockscreenPublic: true,
-        alarmUsage: true,
-      },
-      {
-        id: ANDROID_CHANNELS.medium,
-        name: t('alerts:channels.medium.name'),
-        description: t('alerts:channels.medium.description'),
-        importance: 'high',
-        sound: CHIME_SOUND_FILE,
-        vibrationPattern: [...CHANNEL_VIBRATION.medium],
-        bypassDnd: false,
-        lockscreenPublic: true,
-        alarmUsage: false,
-      },
-      {
-        id: ANDROID_CHANNELS.light,
-        name: t('alerts:channels.light.name'),
-        description: t('alerts:channels.light.description'),
-        importance: 'default',
-        sound: CHIME_SOUND_FILE,
-        vibrationPattern: [...CHANNEL_VIBRATION.light],
-        bypassDnd: false,
-        lockscreenPublic: false,
-        alarmUsage: false,
-      },
-      {
-        id: ANDROID_CHANNELS.followup,
-        name: t('alerts:channels.followup.name'),
-        description: t('alerts:channels.followup.description'),
-        importance: 'default',
-        sound: 'default',
-        vibrationPattern: [...CHANNEL_VIBRATION.followup],
-        bypassDnd: false,
-        lockscreenPublic: false,
-        alarmUsage: false,
-      },
-    ];
+    const kinds = [
+      { kind: 'max', importance: 'max', sound: ALARM_SOUND_FILE, bypassDnd: true, alarmUsage: true },
+      { kind: 'medium', importance: 'high', sound: CHIME_SOUND_FILE, bypassDnd: false, alarmUsage: false },
+      { kind: 'light', importance: 'default', sound: CHIME_SOUND_FILE, bypassDnd: false, alarmUsage: false },
+      { kind: 'followup', importance: 'default', sound: 'default', bypassDnd: false, alarmUsage: false },
+    ] as const;
+    const specs: ChannelSpec[] = [];
+    for (const vibration of [true, false]) {
+      for (const item of kinds) {
+        const name = t(`alerts:channels.${item.kind}.name`);
+        specs.push({
+          id: channelFor(item.kind, vibration),
+          name: vibration ? name : t('alerts:channels.noVibrationName', { name }),
+          description: t(`alerts:channels.${item.kind}.description`),
+          importance: item.importance,
+          sound: item.sound,
+          vibrationPattern: vibration ? [...CHANNEL_VIBRATION[item.kind]] : [],
+          bypassDnd: item.bypassDnd,
+          lockscreenPublic: false,
+          alarmUsage: item.alarmUsage,
+        });
+      }
+    }
+    return specs;
   }
 
   function categorySpecs(): CategorySpec[] {
@@ -419,7 +433,9 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
 
   async function removeLegacyArtifacts(): Promise<void> {
     try {
-      await notifications.deleteChannels(LEGACY_CHANNEL_IDS);
+      // Pre-rebuild channels + earlier MeetingGuard channel versions (their pending notifications
+      // carry a different channel in their hash and are rescheduled by the next reconcile).
+      await notifications.deleteChannels([...LEGACY_CHANNEL_IDS, ...SUPERSEDED_ANDROID_CHANNELS]);
       const presented = await notifications.getPresented();
       for (const record of presented) {
         if (isLegacyNotification(record.identifier, record.data)) await notifications.dismiss(record.identifier);
@@ -437,6 +453,11 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       shouldPlaySound: true,
       shouldSetBadge: false,
     };
+    // The refill reminder only matters while the app is closed: in the foreground the app
+    // reconciles right away instead (received listener).
+    if (notification.identifier === REFILL_NOTIFICATION_ID) {
+      return { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false };
+    }
     if (!parseNotificationId(notification.identifier) || !hostAttached()) return show;
     const payload = parseAlertData(notification.data);
     const key = registryKey(notification.identifier, payload?.fireAt ?? new Date(notification.date).toISOString());
@@ -516,7 +537,15 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     const superseded = active.filter(
       (alert) => alert.key === view.key || (alert.meetingId === view.meetingId && (alert.kind === 'followup') === isFollowUp),
     );
-    superseded.forEach((alert) => activeRegistryKeys.delete(alert.key));
+    for (const alert of superseded) {
+      // A newer alert of the same meeting replaces this one: it counts as handled, so the tray
+      // sweep never brings it back (with sound) and its sticky tray copy goes away.
+      const oldKey = activeRegistryKeys.get(alert.key) ?? registryKey(alert.key, alert.firedAt);
+      if (oldKey !== regKey) updateRegistry(markAcknowledged(registry, oldKey, nowDate()));
+      // Same identifier = the tray now holds the NEW delivery: keep it.
+      if (alert.key !== view.key) void dismissQuietly(alert.key);
+      activeRegistryKeys.delete(alert.key);
+    }
     active = [...active.filter((alert) => !superseded.includes(alert)), view];
     activeRegistryKeys.set(view.key, regKey);
     notifyActive();
@@ -601,7 +630,9 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     const next = inAppQueue
       .filter((item) => !hasFired(registry, registryKey(item.identifier, item.fireAt)))
       .map((item) => Date.parse(item.fireAt))
-      .filter((at) => Number.isFinite(at))
+      // Items that fired too long ago (while the app was in the background) are never presented
+      // by the timer: arming for them would re-arm at 0 ms forever.
+      .filter((at) => Number.isFinite(at) && at > nowMs - IN_APP_LATE_WINDOW_MS)
       .sort((a, b) => a - b)[0];
     if (next === undefined) return;
     const delay = Math.min(MAX_TIMER_DELAY_MS, Math.max(0, next - nowMs));
@@ -615,9 +646,14 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     // Only present (and cancel the OS copy) while a host is visible in the foreground.
     if (!sessionUid || !hostAttached() || appState.current() !== 'active') return;
     const nowMs = nowDate().getTime();
+    // Drop items that are too late to present (the OS notification covered them).
+    inAppQueue = inAppQueue.filter((item) => {
+      const at = Date.parse(item.fireAt);
+      return Number.isFinite(at) && at > nowMs - IN_APP_LATE_WINDOW_MS;
+    });
     const due = inAppQueue.filter((item) => {
       const at = Date.parse(item.fireAt);
-      return at <= nowMs + 500 && at > nowMs - 5 * MINUTE_MS && !hasFired(registry, registryKey(item.identifier, item.fireAt));
+      return at <= nowMs + 500 && !hasFired(registry, registryKey(item.identifier, item.fireAt));
     });
     for (const item of due) {
       // The OS copy of an alert shown in-app would only be a late duplicate.
@@ -728,6 +764,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
         meetings = await data.getCachedUpcoming(uid, { horizonDays: ALERT_HORIZON_DAYS + LOOKAHEAD_EXTRA_DAYS, now });
       }
       if (gen !== generation) return skippedResult('no_session');
+      const headless = sessionUid === null;
 
       lastPrefs = prefs;
       meetingCache = new Map(meetings.map((meeting) => [meeting.id, meeting]));
@@ -747,27 +784,57 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
           })
         : EMPTY_PLAN;
 
-      const text = textDeps(prefs);
+      const text = textDeps(prefs, { headless });
       const desired: AlertNotificationSpec[] = [];
+      /** Planned items due within MIN_SCHEDULE_LEAD_MS: too late to hand to the OS again. */
+      const imminent = new Set<string>();
       for (const item of plan.items) {
-        if (Date.parse(item.fireAt) <= nowMs + MIN_SCHEDULE_LEAD_MS) continue;
+        const fireMs = Date.parse(item.fireAt);
+        if (fireMs <= nowMs + MIN_SCHEDULE_LEAD_MS) {
+          imminent.add(item.identifier);
+          continue;
+        }
         const meeting = meetingCache.get(item.meetingId);
         if (!meeting) continue;
         desired.push(renderPlanItem(item, summarizeMeeting(meeting, text.t), text));
       }
+      // An already scheduled notification that is about to fire (and is still planned) is kept
+      // as it is: cancelling it would lose the alert, and it is too late to schedule a new one.
+      const keepImminent = existing.filter((entry) => {
+        if (!imminent.has(entry.identifier) || entry.fireAt === null) return false;
+        const fireMs = Date.parse(entry.fireAt);
+        return fireMs > nowMs && fireMs <= nowMs + MIN_SCHEDULE_LEAD_MS;
+      });
 
       // Forced: every planned notification is re-created (hash mismatch => cancel + schedule).
       const existingForDiff = forceReschedule
         ? existing.map((entry) => (parseNotificationId(entry.identifier)?.kind === 'snooze' ? entry : { ...entry, data: null }))
         : existing;
-      const diff = diffNotifications(existingForDiff, desired, new Set(validSnoozes.map((entry) => entry.identifier)));
+      const diff = diffNotifications(
+        existingForDiff,
+        desired,
+        new Set([...validSnoozes, ...keepImminent].map((entry) => entry.identifier)),
+      );
       const canSchedule =
         currentPermission.notifications === 'granted' || currentPermission.notifications === 'provisional';
+
+      // Refill reminder ("open the app to keep your alerts up to date"), managed outside the diff.
+      const refillRecord = records.find((record) => record.identifier === REFILL_NOTIFICATION_ID) ?? null;
+      const refillSpec =
+        plan.refillReminderAt !== null && Date.parse(plan.refillReminderAt) > nowMs + MIN_SCHEDULE_LEAD_MS
+          ? renderRefillSpec(plan.refillReminderAt, text)
+          : null;
+      const refillKept =
+        refillRecord !== null && refillSpec !== null && parseRefillData(refillRecord.data)?.hash === refillSpec.data.hash;
+      const cancelIds = [...diff.cancel, ...legacyIds];
+      if (refillRecord !== null && !refillKept) cancelIds.push(REFILL_NOTIFICATION_ID);
+      const toSchedule: ScheduledSpec[] = [...diff.schedule];
+      if (refillSpec !== null && !refillKept) toSchedule.push(refillSpec);
 
       let cancelled = 0;
       let scheduled = 0;
       const failures: string[] = [];
-      for (const identifier of [...diff.cancel, ...legacyIds]) {
+      for (const identifier of cancelIds) {
         if (gen !== generation) break;
         try {
           await notifications.cancel(identifier);
@@ -778,7 +845,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
         }
       }
       if (canSchedule) {
-        for (const spec of diff.schedule) {
+        for (const spec of toSchedule) {
           if (gen !== generation) break;
           try {
             await notifications.schedule(spec);
@@ -792,6 +859,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       if (gen !== generation) return skippedResult('no_session');
 
       // In-app timer queue: the plan + kept snoozes.
+      const existingById = new Map(existing.map((entry) => [entry.identifier, entry]));
       inAppQueue = [
         ...plan.items.map<InAppItem>((item) => ({
           identifier: item.identifier,
@@ -800,7 +868,8 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
           offsetMinutes: item.offsetMinutes,
           fireAt: item.fireAt,
           intensity: item.intensity,
-          data: desired.find((spec) => spec.identifier === item.identifier)?.data ?? null,
+          data:
+            desired.find((spec) => spec.identifier === item.identifier)?.data ?? existingById.get(item.identifier)?.data ?? null,
         })),
         ...validSnoozes.map<InAppItem>((entry) => ({
           identifier: entry.identifier,
@@ -826,7 +895,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       return {
         scheduled,
         cancelled,
-        kept: diff.keep.length,
+        kept: diff.keep.length + (refillKept ? 1 : 0),
         truncated: plan.truncated,
         skipped: !prefs.alertEnabled ? 'alerts_disabled' : canSchedule ? null : 'no_permission',
       };
@@ -867,18 +936,24 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
   }
 
   // ---- snooze ------------------------------------------------------------------------------------
-  async function defaultSnoozeMinutes(): Promise<number> {
-    if (lastPrefs) return lastPrefs.snoozeMinutes;
-    const uid = sessionUid ?? data.getActiveUid();
-    if (uid) {
-      try {
-        const cached = await data.getCachedPreferences(uid);
-        if (cached) return cached.snoozeMinutes;
-      } catch (error) {
-        log.warn('could not read cached preferences for the snooze length', error);
-      }
+  /**
+   * The preferences a snooze is rendered with: the session's, else the signed-in user's cached
+   * ones (headless task: `uidHint` from auth), else null (device defaults).
+   */
+  async function preferencesForSnooze(uidHint: string | null = null): Promise<Preferences | null> {
+    if (lastPrefs) return lastPrefs;
+    const uid = sessionUid ?? data.getActiveUid() ?? uidHint;
+    if (!uid) return null;
+    try {
+      return await data.getCachedPreferences(uid);
+    } catch (error) {
+      log.warn('could not read cached preferences for a snooze', error);
+      return null;
     }
-    return DEFAULT_SNOOZE_MINUTES;
+  }
+
+  async function defaultSnoozeMinutes(uidHint: string | null = null): Promise<number> {
+    return (await preferencesForSnooze(uidHint))?.snoozeMinutes ?? DEFAULT_SNOOZE_MINUTES;
   }
 
   async function findPayloadForMeeting(meetingId: string): Promise<StoredAlertData | null> {
@@ -902,6 +977,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     minutes: number,
     hint: StoredAlertData | null,
     fallback: { summary: MeetingSummary; intensity: AlertIntensity } | null = null,
+    renderPrefs: Preferences | null = lastPrefs,
   ): Promise<void> {
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 120) {
       throw new AppError('invalid_input', `Invalid snooze length: ${minutes}`);
@@ -930,7 +1006,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     }
 
     const fireAt = new Date(nowDate().getTime() + minutes * MINUTE_MS).toISOString();
-    const spec = renderSnoozeSpec(summary, intensity, fireAt, textDeps(lastPrefs));
+    const spec = renderSnoozeSpec(summary, intensity, fireAt, textDeps(renderPrefs, { headless: sessionUid === null }));
     try {
       await notifications.cancel(snoozeNotificationId(meetingId));
     } catch (error) {
@@ -961,8 +1037,17 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
   }
 
   // ---- responses -----------------------------------------------------------------------------
-  async function handleNotificationResponse(response: IncomingResponse, via: 'foreground' | 'background'): Promise<void> {
+  async function handleNotificationResponse(
+    response: IncomingResponse,
+    via: 'foreground' | 'background',
+    options: ResponseOptions = {},
+  ): Promise<void> {
     const { notification, actionIdentifier } = response;
+    if (notification.identifier === REFILL_NOTIFICATION_ID) {
+      // Tapped "keep your alerts up to date": the app is opening; refresh the window.
+      if (sessionUid) requestReconcile('manual');
+      return;
+    }
     const parsed: ParsedNotificationId | null = parseNotificationId(notification.identifier);
     if (!parsed) return;
     const payload = parseAlertData(notification.data);
@@ -972,16 +1057,24 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     removeActive(notification.identifier);
 
     const snoozeAction = parseSnoozeAction(actionIdentifier);
-    if (!snoozeAction) return; // default tap / open / assistant: navigation routes via data.url
+    if (!snoozeAction) {
+      // Default tap / open / assistant: navigation routes via data.url. Android does not remove a
+      // notification whose ACTION button was tapped (and MAX/MEDIUM ones are sticky): remove the
+      // tray copy here so it cannot linger or be re-shown by the tray sweep.
+      await dismissQuietly(notification.identifier);
+      return;
+    }
 
     const responseKey = `${notification.identifier}|${notification.date}|${actionIdentifier}`;
     if (!(await claimResponse(responseKey))) {
       log.info(`duplicate snooze response ignored (${via})`);
+      await dismissQuietly(notification.identifier);
       return;
     }
     try {
-      const minutes = snoozeAction.minutes ?? (await defaultSnoozeMinutes());
-      await snoozeInternal(parsed.meetingId, minutes, payload);
+      const prefs = await preferencesForSnooze(options.uid ?? null);
+      const minutes = snoozeAction.minutes ?? prefs?.snoozeMinutes ?? DEFAULT_SNOOZE_MINUTES;
+      await snoozeInternal(parsed.meetingId, minutes, payload, null, prefs);
     } finally {
       await dismissQuietly(notification.identifier);
     }
@@ -993,6 +1086,12 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     listenersAttached = true;
 
     notifications.addReceivedListener((notification) => {
+      if (notification.identifier === REFILL_NOTIFICATION_ID) {
+        // Delivered while the app is open: refresh the window now instead of asking the user.
+        void dismissQuietly(notification.identifier);
+        if (sessionUid) requestReconcile('manual');
+        return;
+      }
       presentIncoming(notification, 'notification_received')
         .then(() => {
           if (sessionUid && parseNotificationId(notification.identifier)) requestReconcile('manual');
@@ -1059,8 +1158,12 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     attachListeners();
     await setupChannelsAndCategories();
     await removeLegacyArtifacts();
+    // The response that launched the app (cold start). Every MeetingGuard response is handled
+    // here, not only snoozes: the Android response task that also sees "Open" / "Assistant" taps
+    // may run in a separate headless runtime, so this runtime acknowledges the delivery and
+    // removes the (sticky) tray copy itself. Snoozes stay de-duplicated by claimResponse.
     const last = notifications.getLastResponse();
-    if (last && parseSnoozeAction(last.actionIdentifier)) {
+    if (last && (parseNotificationId(last.notification.identifier) || last.notification.identifier === REFILL_NOTIFICATION_ID)) {
       handleNotificationResponse(last, 'foreground').catch((error: unknown) =>
         log.error('could not handle the launch notification response', error),
       );
@@ -1125,12 +1228,20 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     notifyStatus();
   }
 
+  function isOwnOrLegacy(identifier: string, payload: unknown): boolean {
+    return (
+      parseNotificationId(identifier) !== null ||
+      identifier === REFILL_NOTIFICATION_ID ||
+      isLegacyNotification(identifier, payload)
+    );
+  }
+
   async function cancelAll(): Promise<void> {
     await init();
     let failed = 0;
     const records = await notifications.getScheduled();
     for (const record of records) {
-      if (!parseNotificationId(record.identifier) && !isLegacyNotification(record.identifier, record.data)) continue;
+      if (!isOwnOrLegacy(record.identifier, record.data)) continue;
       try {
         await notifications.cancel(record.identifier);
       } catch (error) {
@@ -1140,7 +1251,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     }
     const presented = await notifications.getPresented();
     for (const record of presented) {
-      if (!parseNotificationId(record.identifier) && !isLegacyNotification(record.identifier, record.data)) continue;
+      if (!isOwnOrLegacy(record.identifier, record.data)) continue;
       try {
         await notifications.dismiss(record.identifier);
       } catch (error) {
@@ -1220,6 +1331,16 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       await init();
       try {
         await settings.openNotificationSettings();
+      } catch (error) {
+        throw toAppError(error, 'unsupported');
+      }
+    },
+
+    async openAlarmChannelSettings() {
+      await init();
+      const vibration = (lastPrefs ?? prefsOrDefault()).vibrationEnabled;
+      try {
+        await settings.openChannelSettings(channelFor('max', vibration));
       } catch (error) {
         throw toAppError(error, 'unsupported');
       }

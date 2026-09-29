@@ -40,7 +40,8 @@
     "followup": {
       "name": "Meeting follow-ups",
       "description": "After a meeting: capture notes and next steps with your AI assistant."
-    }
+    },
+    "noVibrationName": "{{name}} (no vibration)"
   },
   "actions": {
     "open": "Open",
@@ -105,5 +106,9 @@
   "errors": {
     "snoozeFailed": "The alert could not be snoozed.",
     "openLinkFailed": "The meeting link could not be opened."
+  },
+  "refill": {
+    "title": "Keep your meeting alerts up to date",
+    "body": "Open MeetingGuard so it can schedule your next alerts."
   }
 }

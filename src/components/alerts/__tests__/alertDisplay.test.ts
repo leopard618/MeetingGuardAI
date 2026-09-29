@@ -28,7 +28,7 @@ describe('buildAlertDisplay', () => {
     language: 'es' as const,
   };
 
-  it('localizes the UI in the app language and the voice in the meeting language', () => {
+  it('localizes every text, the voice included, in the app language (not the meeting language)', () => {
     const display = buildAlertDisplay(input, deps('en'));
     expect(display).toMatchObject({
       title: 'Revisión semanal',
@@ -37,9 +37,13 @@ describe('buildAlertDisplay', () => {
       whenText: 'Starts in 5 minutes',
       timeText: '12:05 – 12:35',
       locationText: 'Sala 2',
-      voiceLanguage: 'es',
+      voiceLanguage: 'en',
     });
-    expect(display.voiceText).toBe(
+    expect(display.voiceText).toBe('Attention. Your meeting Revisión semanal starts in 5 minutes, at 12:05. Location: Sala 2.');
+
+    const spanish = buildAlertDisplay({ ...input, language: 'en' }, deps('es'));
+    expect(spanish.voiceLanguage).toBe('es');
+    expect(spanish.voiceText).toBe(
       'Atención. Tu reunión Revisión semanal empieza en 5 minutos. Hora de inicio: 12:05. Lugar: Sala 2.',
     );
   });

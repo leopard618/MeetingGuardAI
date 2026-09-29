@@ -7,7 +7,7 @@
  * - MEDIUM: one chime at alertVolume + one voice readout + one vibration burst.
  * - LIGHT / follow-up: one soft chime (voice only when the user chose voice-only) + light haptic.
  * - Preferences: alertSoundType (voice_and_sound | voice_only | sound_only), alertVolume,
- *   vibrationEnabled.
+ *   vibrationEnabled (also covers haptics: nothing vibrates when it is off).
  * Feedback failures never break the visual alert: they are logged (no content) and skipped.
  * Note: expo-audio plays on the media stream (there is no Android audio-usage option), so a muted
  * media volume silences the in-app alarm; the OS notification on the MAX channel uses the alarm
@@ -193,11 +193,21 @@ class FeedbackSession implements FeedbackHandle {
     safely('vibration', () => Vibration.vibrate([...pattern], repeat));
   }
 
+  /** Haptic tap; skipped when the user turned vibration off. */
+  private haptic(kind: 'warning' | 'light'): void {
+    if (!this.request.vibrationEnabled) return;
+    void safelyAsync('haptics', () =>
+      kind === 'warning'
+        ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+        : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
+    );
+  }
+
   private startMax(): void {
     const target = clampVolume(this.request.volume);
     const startLevel = target * ALARM_RAMP_START_FACTOR;
     this.vibrate(IN_APP_MAX_VIBRATION, true);
-    void safelyAsync('haptics', () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning));
+    this.haptic('warning');
 
     void (async () => {
       await this.prepareAudio({ playsInSilentMode: true, interruptionMode: 'doNotMix' });
@@ -258,7 +268,7 @@ class FeedbackSession implements FeedbackHandle {
 
   private startMedium(): void {
     this.vibrate(IN_APP_MEDIUM_VIBRATION, false);
-    void safelyAsync('haptics', () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning));
+    this.haptic('warning');
     const speakLater = () => {
       if (this.wantsVoice) this.later(this.wantsSound ? VOICE_FIRST_DELAY_MS : 0, () => this.speak());
     };
@@ -267,9 +277,7 @@ class FeedbackSession implements FeedbackHandle {
   }
 
   private startLight(): void {
-    if (this.request.vibrationEnabled) {
-      void safelyAsync('haptics', () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
-    }
+    this.haptic('light');
     if (this.wantsSound) this.playChimeOnce(clampVolume(this.request.volume) * 0.6, false);
     else if (this.request.soundType === 'voice_only') this.speak();
   }

@@ -1,6 +1,8 @@
 import {
+  REFILL_NOTIFICATION_ID,
   alertNotificationId,
   assistantDeepLink,
+  channelFor,
   channelForIntensity,
   firestorePaths,
   followUpNotificationId,
@@ -35,9 +37,17 @@ describe('notification identifiers', () => {
     expect(() => alertNotificationId('abc', -1)).toThrow(RangeError);
   });
 
-  it('maps intensities to channels', () => {
-    expect(channelForIntensity('max')).toBe('mg-alert-max-v1');
-    expect(channelForIntensity('light')).toBe('mg-alert-light-v1');
+  it('maps intensities to channels (with and without vibration)', () => {
+    expect(channelForIntensity('max')).toBe('mg-alert-max-v2');
+    expect(channelForIntensity('light')).toBe('mg-alert-light-v2');
+    expect(channelForIntensity('medium', false)).toBe('mg-alert-medium-novib-v2');
+    expect(channelFor('followup')).toBe('mg-followup-v2');
+    expect(channelFor('followup', false)).toBe('mg-followup-novib-v2');
+  });
+
+  it('never treats the refill reminder as a meeting notification', () => {
+    expect(REFILL_NOTIFICATION_ID).toBe('mg:refill');
+    expect(parseNotificationId(REFILL_NOTIFICATION_ID)).toBeNull();
   });
 });
 
@@ -68,6 +78,14 @@ describe('deep links', () => {
     expect(parseDeepLink('https://example.com/meeting/m1')).toEqual({ type: 'unknown' });
     expect(parseDeepLink('meetingguardai://meeting/')).toEqual({ type: 'unknown' });
     expect(parseDeepLink('meetingguardai://settings')).toEqual({ type: 'unknown' });
+  });
+
+  it('never throws on malformed percent-encoding (any app or web page can open these links)', () => {
+    expect(() => parseDeepLink('meetingguardai://meeting/%ZZ')).not.toThrow();
+    expect(parseDeepLink('meetingguardai://meeting/%ZZ')).toEqual({ type: 'unknown' });
+    expect(parseDeepLink('meetingguardai://meeting/%E0')).toEqual({ type: 'unknown' });
+    expect(parseDeepLink('meetingguardai://assistant?followup=%E0')).toEqual({ type: 'assistant', followUpMeetingId: null });
+    expect(parseDeepLink('meetingguardai://assistant?followup=%ZZ&x=1')).toEqual({ type: 'assistant', followUpMeetingId: null });
   });
 });
 

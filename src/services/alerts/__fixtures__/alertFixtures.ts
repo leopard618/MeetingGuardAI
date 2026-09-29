@@ -33,7 +33,7 @@ export function fakeFormatTime(value: string, options: FormatOptions): string {
 }
 
 export function textDeps(language: 'en' | 'es' = 'en', timeZone = 'UTC'): AlertTextDeps {
-  return { t: translator(language), formatTime: fakeFormatTime, language, timeZone, use24Hour: true };
+  return { t: translator(language), formatTime: fakeFormatTime, language, timeZone, use24Hour: true, vibrationEnabled: true };
 }
 
 export const NOW = new Date('2026-10-05T12:00:00.000Z');

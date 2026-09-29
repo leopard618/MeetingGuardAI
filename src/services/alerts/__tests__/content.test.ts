@@ -7,7 +7,9 @@ import {
   meetingJoinUrl,
   meetingLocationText,
   parseAlertData,
+  parseRefillData,
   renderAlertSpec,
+  renderRefillSpec,
   renderSnoozeSpec,
   summarizeMeeting,
   summaryFromAlertData,
@@ -38,7 +40,7 @@ describe('renderAlertSpec', () => {
     expect(spec.body).toBe('13:30 · Room 4');
     expect(spec).toMatchObject({
       identifier: 'mg:m1:15',
-      channelId: 'mg-alert-max-v1',
+      channelId: 'mg-alert-max-v2',
       categoryId: 'mg-alert',
       sound: 'meeting_alarm.wav',
       interruptionLevel: 'timeSensitive',
@@ -94,7 +96,7 @@ describe('renderAlertSpec', () => {
     expect(spec.title).toBe('How did “Weekly sync” go?');
     expect(spec.body).toBe('Capture notes, decisions and next steps with your AI assistant.');
     expect(spec).toMatchObject({
-      channelId: 'mg-followup-v1',
+      channelId: 'mg-followup-v2',
       categoryId: 'mg-followup',
       sound: 'default',
       sticky: false,
@@ -110,8 +112,11 @@ describe('renderAlertSpec', () => {
     const before = renderSnoozeSpec(summary, 'medium', minutesFrom(NOW, 80), deps);
     expect(before.identifier).toBe('mg:m1:snooze');
     expect(before.title).toBe('Reminder: Weekly sync starts in 10 minutes');
-    expect(before.channelId).toBe('mg-alert-medium-v1');
+    expect(before.channelId).toBe('mg-alert-medium-v2');
     expect(before.sound).toBe('meeting_chime.wav');
+    // MEDIUM is "minimizable, not dismissible": it cannot be swiped away either.
+    expect(before.sticky).toBe(true);
+    expect(renderSnoozeSpec(summary, 'light', minutesFrom(NOW, 80), deps).sticky).toBe(false);
     const after = renderSnoozeSpec(summary, 'max', minutesFrom(NOW, 95), deps);
     expect(after.title).toBe('Weekly sync has started');
   });
@@ -136,6 +141,29 @@ describe('renderAlertSpec', () => {
     ).not.toBe(base);
     const moved = minutesFrom(NOW, 100);
     expect(renderAlertSpec(alertInput('m1', 15, moved), { ...summary, startAt: moved }, textDeps('en')).data.hash).not.toBe(base);
+    expect(
+      renderAlertSpec(alertInput('m1', 15, startAt), summary, { ...textDeps('en'), vibrationEnabled: false }).data.hash,
+    ).not.toBe(base);
+  });
+
+  it('uses the no-vibration channel and no pattern when vibration is off', () => {
+    const deps = { ...textDeps('en'), vibrationEnabled: false };
+    const spec = renderAlertSpec(alertInput('m1', 15, startAt), summarizeMeeting(meeting, deps.t), deps);
+    expect(spec.channelId).toBe('mg-alert-max-novib-v2');
+    expect(spec.vibrate).toEqual([]);
+  });
+});
+
+describe('refill reminder', () => {
+  it('renders a localized, action-less notification with a verifiable payload', () => {
+    const spec = renderRefillSpec(minutesFrom(NOW, 600), textDeps('en'));
+    expect(spec).toMatchObject({ identifier: 'mg:refill', kind: 'refill', categoryId: null, channelId: 'mg-followup-v2', sticky: false });
+    expect(spec.title).toBe('Keep your meeting alerts up to date');
+    expect(parseRefillData(spec.data)).toEqual(spec.data);
+    expect(parseRefillData(JSON.stringify(spec.data))).toEqual(spec.data);
+    expect(renderRefillSpec(minutesFrom(NOW, 600), textDeps('es')).title).toBe('Mantén al día tus alertas de reuniones');
+    expect(renderRefillSpec(minutesFrom(NOW, 601), textDeps('en')).data.hash).not.toBe(spec.data.hash);
+    expect(parseRefillData({ v: 1, kind: 'alert' })).toBeNull();
   });
 });
 

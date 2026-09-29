@@ -31,6 +31,25 @@ async function openAppSettings(): Promise<void> {
   }
 }
 
+async function openNotificationSettings(): Promise<void> {
+  if (Platform.OS === 'android') {
+    try {
+      await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.APP_NOTIFICATION_SETTINGS, {
+        extra: { 'android.provider.extra.APP_PACKAGE': androidPackage() },
+      });
+      return;
+    } catch {
+      await openAppSettings();
+      return;
+    }
+  }
+  if (Platform.OS === 'ios') {
+    await openAppSettings();
+    return;
+  }
+  throw new AppError('unsupported', 'Notification settings are not available on this platform');
+}
+
 export function createSettingsPort(): AlertSettingsPort {
   const exactAlarmSettingsAvailable = Platform.OS === 'android' && androidApiLevel() >= 31;
   return {
@@ -48,24 +67,26 @@ export function createSettingsPort(): AlertSettingsPort {
       }
     },
 
-    async openNotificationSettings() {
-      if (Platform.OS === 'android') {
-        try {
-          await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.APP_NOTIFICATION_SETTINGS, {
-            extra: { 'android.provider.extra.APP_PACKAGE': androidPackage() },
-          });
-          return;
-        } catch {
-          await openAppSettings();
-          return;
-        }
-      }
-      if (Platform.OS === 'ios') {
-        await openAppSettings();
+    async openChannelSettings(channelId: string) {
+      // Channels exist on Android 8+ (API 26); elsewhere the app's notification settings.
+      if (Platform.OS !== 'android' || androidApiLevel() < 26) {
+        await openNotificationSettings();
         return;
       }
-      throw new AppError('unsupported', 'Notification settings are not available on this platform');
+      try {
+        await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.CHANNEL_NOTIFICATION_SETTINGS, {
+          extra: {
+            'android.provider.extra.APP_PACKAGE': androidPackage(),
+            'android.provider.extra.CHANNEL_ID': channelId,
+          },
+        });
+      } catch {
+        // OEM builds without the per-channel screen: the app's notification settings instead.
+        await openNotificationSettings();
+      }
     },
+
+    openNotificationSettings,
   };
 }
 

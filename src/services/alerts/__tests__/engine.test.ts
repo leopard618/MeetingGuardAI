@@ -132,6 +132,8 @@ interface SetupOptions {
   store?: Map<string, string>;
   appState?: AppStateName;
   exactAlarmSettings?: boolean;
+  /** i18n (UI / device) language of this runtime. */
+  language?: 'en' | 'es';
 }
 
 function setup(options: SetupOptions = {}) {
@@ -157,9 +159,13 @@ function setup(options: SetupOptions = {}) {
     getCachedPreferences: jest.fn(async () => data.cachedPrefs),
   };
   const manualTimers: ManualTimer[] = [];
+  const counters = { zeroDelayTimers: 0 };
   const timers: TimerPort = {
     setTimeout(callback, ms) {
-      if (ms <= 0) return setTimeout(callback, 0);
+      if (ms <= 0) {
+        counters.zeroDelayTimers += 1;
+        return setTimeout(callback, 0);
+      }
       const entry: ManualTimer = { callback, ms, cancelled: false };
       manualTimers.push(entry);
       return entry;
@@ -178,15 +184,18 @@ function setup(options: SetupOptions = {}) {
   let now = NOW;
   let appStateValue: AppStateName = options.appState ?? 'active';
   const appStateListeners = new Set<(state: AppStateName) => void>();
+  const language = options.language ?? 'en';
+  const settings = {
+    exactAlarmSettingsAvailable: options.exactAlarmSettings ?? false,
+    openExactAlarmSettings: jest.fn(async () => undefined),
+    openNotificationSettings: jest.fn(async () => undefined),
+    openChannelSettings: jest.fn(async (_channelId: string) => undefined),
+  };
   const engine = createAlertEngine({
     notifications: createExpoNotificationsPort(),
     data: dataPort,
-    i18n: { t: translator('en'), getLanguage: () => 'en', formatTime: fakeFormatTime },
-    settings: {
-      exactAlarmSettingsAvailable: options.exactAlarmSettings ?? false,
-      openExactAlarmSettings: jest.fn(async () => undefined),
-      openNotificationSettings: jest.fn(async () => undefined),
-    },
+    i18n: { t: translator(language), getLanguage: () => language, formatTime: fakeFormatTime },
+    settings,
     appState: {
       current: () => appStateValue,
       subscribe: (listener) => {
@@ -212,10 +221,21 @@ function setup(options: SetupOptions = {}) {
     engine,
     data,
     dataPort,
+    settings,
     store,
     events,
     feedback,
     manualTimers,
+    counters,
+    /** Runs every pending manual timer of `ms` (e.g. the 800 ms tray sweep). */
+    runTimers(ms: number) {
+      manualTimers
+        .filter((entry) => !entry.cancelled && entry.ms === ms)
+        .forEach((entry) => {
+          entry.cancelled = true;
+          entry.callback();
+        });
+    },
     setNow(value: Date) {
       now = value;
     },
@@ -261,7 +281,7 @@ describe('alert engine reconcile (mocked expo-notifications)', () => {
 
     expect(scheduledIds()).toEqual(['mg:m1:0', 'mg:m1:15', 'mg:m1:5', 'mg:m1:followup']);
     const alert = requestOf('mg:m1:15');
-    expect(alert.trigger).toEqual({ type: 'date', date: new Date(minutesFrom(NOW, 105)), channelId: 'mg-alert-max-v1' });
+    expect(alert.trigger).toEqual({ type: 'date', date: new Date(minutesFrom(NOW, 105)), channelId: 'mg-alert-max-v2' });
     expect(alert.content).toMatchObject({
       title: 'Weekly sync starts in 15 minutes',
       body: '14:00',
@@ -272,7 +292,7 @@ describe('alert engine reconcile (mocked expo-notifications)', () => {
       sticky: true,
     });
     expect(JSON.stringify(alert.content)).not.toContain('[object Object]');
-    expect(requestOf('mg:m1:followup').trigger).toMatchObject({ channelId: 'mg-followup-v1' });
+    expect(requestOf('mg:m1:followup').trigger).toMatchObject({ channelId: 'mg-followup-v2' });
     expect(requestOf('mg:m1:followup').content).toMatchObject({ categoryIdentifier: 'mg-followup' });
 
     expect(os.categories.get('mg-alert')?.map((action) => [action.identifier, action.buttonTitle])).toEqual([
@@ -450,7 +470,7 @@ describe('snooze', () => {
     );
     expect(snoozeCalls).toHaveLength(1);
     const snooze = requestOf('mg:m1:snooze');
-    expect(snooze.trigger).toEqual({ type: 'date', date: new Date(fireAt + 10 * 60_000), channelId: 'mg-alert-max-v1' });
+    expect(snooze.trigger).toEqual({ type: 'date', date: new Date(fireAt + 10 * 60_000), channelId: 'mg-alert-max-v2' });
     expect(snooze.content).toMatchObject({ title: 'Weekly sync has started', categoryIdentifier: 'mg-alert' });
     expect(Notifications.dismissNotificationAsync).toHaveBeenCalledWith('mg:m1:5');
 
@@ -591,5 +611,179 @@ describe('in-app alerts', () => {
     await flush();
     expect(engine.getActiveAlerts()).toEqual([]);
     expect(requestOf('mg:m1:snooze').trigger).toMatchObject({ date: new Date(minutesFrom(NOW, 5)) });
+  });
+});
+
+describe('review fixes', () => {
+  const meeting = () => makeMeeting('m1', minutesFrom(NOW, 30), { title: 'Weekly sync' });
+  const SWEEP_MS = 800;
+
+  it('acknowledges and removes the tray copy of an alert replaced by a newer one of the same meeting', async () => {
+    const h = setup({ meetings: [meeting()], prefs: makePrefs({ alertIntensity: 'medium' }) });
+    h.engine.subscribeActiveAlerts(() => undefined);
+    await h.engine.startSession('user-1');
+    const first = deliveredNotification('mg:m1:15', Date.parse(minutesFrom(NOW, 15)));
+    const second = deliveredNotification('mg:m1:5', Date.parse(minutesFrom(NOW, 25)));
+
+    h.setNow(new Date(minutesFrom(NOW, 15)));
+    os.presented.set('mg:m1:15', first);
+    os.received.forEach((listener) => listener(first));
+    await flush();
+    h.setNow(new Date(minutesFrom(NOW, 25)));
+    os.presented.set('mg:m1:5', second);
+    os.received.forEach((listener) => listener(second));
+    await flush();
+
+    expect(h.engine.getActiveAlerts().map((alert) => alert.key)).toEqual(['mg:m1:5']);
+    expect(os.presented.has('mg:m1:15')).toBe(false);
+    await h.engine.resolveActiveAlert('mg:m1:5', 'acknowledge');
+
+    // Even if the OS still shows the older delivery, coming back to the app never re-presents it.
+    os.presented.set('mg:m1:15', first);
+    h.setAppState('background');
+    h.setAppState('active');
+    await flush();
+    h.runTimers(SWEEP_MS);
+    await flush();
+    expect(h.engine.getActiveAlerts()).toEqual([]);
+    expect(os.presented.has('mg:m1:15')).toBe(false);
+  });
+
+  it('dismisses the tray copy for every action, not only snooze', async () => {
+    const h = setup({ meetings: [meeting()] });
+    await h.engine.startSession('user-1');
+    const notification = deliveredNotification('mg:m1:15', Date.parse(minutesFrom(NOW, 15)));
+    os.presented.set('mg:m1:15', notification);
+    jest.clearAllMocks();
+    os.responses.forEach((listener) => listener({ actionIdentifier: 'mg-open', notification }));
+    await flush();
+    expect(os.presented.has('mg:m1:15')).toBe(false);
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges the "Open" response that cold-started the app, so the sweep never re-opens the alert', async () => {
+    const store = new Map<string, string>();
+    const warm = setup({ meetings: [meeting()], store });
+    await warm.engine.startSession('user-1');
+    const notification = deliveredNotification('mg:m1:15', Date.parse(minutesFrom(NOW, 15)));
+    (Notifications as unknown as { getLastNotificationResponse: jest.Mock }).getLastNotificationResponse.mockReturnValueOnce({
+      actionIdentifier: 'mg-open',
+      notification,
+    });
+    os.presented.set('mg:m1:15', notification);
+
+    const cold = setup({ meetings: [meeting()], store });
+    cold.setNow(new Date(minutesFrom(NOW, 16)));
+    await cold.engine.init();
+    await flush();
+    expect(os.presented.has('mg:m1:15')).toBe(false);
+
+    // The sticky OS copy reappears in the tray list: the acknowledged delivery stays handled.
+    os.presented.set('mg:m1:15', notification);
+    cold.engine.subscribeActiveAlerts(() => undefined);
+    await cold.engine.startSession('user-1');
+    cold.runTimers(SWEEP_MS);
+    await flush();
+    expect(cold.engine.getActiveAlerts()).toEqual([]);
+  });
+
+  it('never spins the in-app timer on alerts that fired long ago while in the background', async () => {
+    const h = setup({ meetings: [meeting()] });
+    h.engine.subscribeActiveAlerts(() => undefined);
+    await h.engine.startSession('user-1');
+    // Every alert of the meeting fired more than 5 minutes ago, and the next reconcile fails.
+    h.setNow(new Date(minutesFrom(NOW, 40)));
+    h.data.failure = new AppError('offline', 'no network');
+    const before = h.counters.zeroDelayTimers;
+    h.setAppState('background');
+    h.setAppState('active');
+    await flush(20);
+    expect(h.counters.zeroDelayTimers - before).toBeLessThanOrEqual(3);
+  });
+
+  it('keeps a scheduled notification that is about to fire instead of cancelling it', async () => {
+    const h = setup({ meetings: [meeting()] });
+    await h.engine.startSession('user-1');
+    h.setNow(new Date(Date.parse(minutesFrom(NOW, 15)) - 1_000));
+    jest.clearAllMocks();
+    await h.engine.reconcile('meetings_changed');
+    expect(os.scheduled.has('mg:m1:15')).toBe(true);
+    expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalledWith('mg:m1:15');
+  });
+
+  it('renders background reconciles in the preferences language, not the device language', async () => {
+    const prefs = makePrefs({ language: 'es' });
+    const headless = setup({ meetings: [meeting()], prefs, language: 'en' });
+    await headless.engine.reconcile('background');
+    expect(requestOf('mg:m1:15').content).toMatchObject({ title: 'Weekly sync empieza en 15 minutos' });
+
+    // A foreground run whose UI is in Spanish produces the same notifications: nothing changes.
+    const foreground = setup({ meetings: [meeting()], prefs, language: 'es' });
+    jest.clearAllMocks();
+    await foreground.engine.startSession('user-1');
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it("renders a headless snooze with the signed-in user's cached preferences (length and language)", async () => {
+    const h = setup({ meetings: [meeting()] });
+    await h.engine.startSession('user-1');
+    const raw = { actionIdentifier: 'mg-snooze', notification: deliveredNotification('mg:m1:15', Date.parse(minutesFrom(NOW, 15))) };
+
+    const headless = setup({ meetings: [], language: 'en' });
+    headless.data.uid = null;
+    headless.data.cachedPrefs = makePrefs({ snoozeMinutes: 7, language: 'es' });
+    await headless.engine.handleNotificationResponse(toIncomingResponse(raw)!, 'background', { uid: 'user-1' });
+
+    expect(headless.dataPort.getCachedPreferences).toHaveBeenCalledWith('user-1');
+    expect(requestOf('mg:m1:snooze').trigger).toMatchObject({ date: new Date(NOW.getTime() + 7 * 60_000) });
+    expect(requestOf('mg:m1:snooze').content).toMatchObject({ title: 'Recordatorio: Weekly sync empieza en 23 minutos' });
+  });
+
+  it('schedules the refill reminder when alerts do not fit, removes it when they do, and cancels it at sign-out', async () => {
+    const many = Array.from({ length: 25 }, (_, index) => makeMeeting(`m${index}`, minutesFrom(NOW, 60 + index * 60)));
+    const h = setup({ meetings: many });
+    await h.engine.startSession('user-1');
+    expect(os.scheduled.size).toBe(60);
+    const refill = requestOf('mg:refill');
+    expect(refill.content).toMatchObject({ title: 'Keep your meeting alerts up to date' });
+    expect(refill.content.categoryIdentifier).toBeUndefined();
+    expect(refill.trigger).toMatchObject({ channelId: 'mg-followup-v2' });
+
+    jest.clearAllMocks();
+    await h.engine.reconcile('manual');
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+
+    h.data.meetings = [many[0]!];
+    await h.engine.reconcile('meetings_changed');
+    expect(os.scheduled.has('mg:refill')).toBe(false);
+
+    h.data.meetings = many;
+    await h.engine.reconcile('meetings_changed');
+    expect(os.scheduled.has('mg:refill')).toBe(true);
+    await h.engine.endSession();
+    expect(os.scheduled.size).toBe(0);
+  });
+
+  it('moves every notification to the no-vibration channels when vibration is turned off', async () => {
+    const h = setup({ meetings: [meeting()] });
+    await h.engine.startSession('user-1');
+    h.data.prefs = makePrefs({ vibrationEnabled: false });
+    h.events.emit('preferences:changed', {
+      uid: 'user-1',
+      preferences: h.data.prefs,
+      changedKeys: ['vibrationEnabled'],
+      origin: 'local',
+    });
+    await flush();
+    expect(requestOf('mg:m1:15').trigger).toMatchObject({ channelId: 'mg-alert-max-novib-v2' });
+    expect(requestOf('mg:m1:15').content).toMatchObject({ vibrate: [] });
+    expect(requestOf('mg:m1:followup').trigger).toMatchObject({ channelId: 'mg-followup-novib-v2' });
+  });
+
+  it('opens the system settings of the MAX channel (Do Not Disturb override)', async () => {
+    const h = setup();
+    await h.engine.openAlarmChannelSettings();
+    expect(h.settings.openChannelSettings).toHaveBeenCalledWith('mg-alert-max-v2');
   });
 });

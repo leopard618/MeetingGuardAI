@@ -11,10 +11,10 @@ import { z } from 'zod';
 
 import type { DesiredNotification } from '../../core/contracts';
 import {
-  ANDROID_CHANNELS,
   NOTIFICATION_CATEGORIES,
+  REFILL_NOTIFICATION_ID,
   assistantDeepLink,
-  channelForIntensity,
+  channelFor,
   meetingDeepLink,
   snoozeNotificationId,
 } from '../../core/identifiers';
@@ -29,6 +29,8 @@ import type {
   InterruptionLevelName,
   MeetingSummary,
   NotificationKind,
+  RefillNotificationData,
+  RefillNotificationSpec,
   StoredAlertData,
 } from './types';
 
@@ -219,13 +221,17 @@ export function renderAlertSpec(input: RenderInput, meeting: MeetingSummary, dep
   const title = cleanText(meeting.title, MAX_TITLE_CHARS) || deps.t('alerts:notification.untitled');
   const notificationTitle = renderTitle(input, meeting, title, deps);
   const body = renderBody(input, meeting, deps);
-  const channelId = input.kind === 'followup' ? ANDROID_CHANNELS.followup : channelForIntensity(input.intensity);
+  const channelId = channelFor(input.kind === 'followup' ? 'followup' : input.intensity, deps.vibrationEnabled);
   const categoryId = input.kind === 'followup' ? NOTIFICATION_CATEGORIES.followup : NOTIFICATION_CATEGORIES.alert;
   const sound = notificationSoundFor(input.kind, input.intensity);
   const interruptionLevel = interruptionLevelFor(input.kind, input.intensity);
   const androidPriority = androidPriorityFor(input.kind, input.intensity);
-  const sticky = input.kind !== 'followup' && input.intensity === 'max';
-  const vibrate = [...(input.kind === 'followup' ? CHANNEL_VIBRATION.followup : CHANNEL_VIBRATION[input.intensity])];
+  // MAX and MEDIUM must not be swiped away ("minimizable, not dismissible"); the tap / Open /
+  // Snooze actions and the tray sweep (30 min after the meeting ends) still remove them.
+  const sticky = input.kind !== 'followup' && input.intensity !== 'light';
+  const vibrate = deps.vibrationEnabled
+    ? [...(input.kind === 'followup' ? CHANNEL_VIBRATION.followup : CHANNEL_VIBRATION[input.intensity])]
+    : [];
   const url =
     input.kind === 'followup' ? assistantDeepLink({ followUpMeetingId: meeting.id }) : meetingDeepLink(meeting.id);
 
@@ -242,6 +248,7 @@ export function renderAlertSpec(input: RenderInput, meeting: MeetingSummary, dep
       interruptionLevel,
       androidPriority,
       sticky,
+      vibrate,
       url,
       input.intensity,
       deps.language,
@@ -320,6 +327,58 @@ export function renderSnoozeSpec(
     meeting,
     deps,
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Refill reminder
+// ---------------------------------------------------------------------------------------------
+
+const refillDataSchema = z.object({
+  v: z.literal(ALERT_DATA_VERSION),
+  kind: z.literal('refill'),
+  fireAt: isoString,
+  hash: z.string().min(1),
+});
+
+/** Parses the payload of the refill reminder (object or JSON string); null otherwise. */
+export function parseRefillData(raw: unknown): RefillNotificationData | null {
+  let value: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  const parsed = refillDataSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * "Open MeetingGuard to keep your alerts up to date" (the OS budget cut real alerts). Low-key
+ * follow-up channel, no actions; tapping it opens the app, which reconciles the alert window.
+ */
+export function renderRefillSpec(fireAt: string, deps: AlertTextDeps): RefillNotificationSpec {
+  const title = deps.t('alerts:refill.title', NO_ESCAPE);
+  const body = deps.t('alerts:refill.body', NO_ESCAPE);
+  const channelId = channelFor('followup', deps.vibrationEnabled);
+  const vibrate = deps.vibrationEnabled ? [...CHANNEL_VIBRATION.followup] : [];
+  const hash = fnv1a32(JSON.stringify([ALERT_DATA_VERSION, REFILL_NOTIFICATION_ID, fireAt, title, body, channelId, vibrate, deps.language]));
+  return {
+    identifier: REFILL_NOTIFICATION_ID,
+    kind: 'refill',
+    fireAt,
+    channelId,
+    categoryId: null,
+    title,
+    body,
+    sound: 'default',
+    interruptionLevel: 'active',
+    androidPriority: 'default',
+    vibrate,
+    sticky: false,
+    data: { v: ALERT_DATA_VERSION, kind: 'refill', fireAt, hash },
+  };
 }
 
 /** Rebuilds a MeetingSummary from a stored payload (headless snooze without a data session). */
