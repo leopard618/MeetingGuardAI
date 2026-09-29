@@ -45,7 +45,6 @@ import {
   StandaloneTermsScreen,
   TermsScreen,
   TotalMeetingsScreen,
-  WhatsAppBotScreen,
 } from './screens';
 import { MainSidebar, SidebarProvider, useSidebar } from './sidebar';
 import { PreferencesErrorScreen, SplashScreen } from './StatusScreens';
@@ -142,7 +141,6 @@ export function RootNavigator(): ReactElement {
         <Stack.Screen name="AIInsights" component={AIInsightsScreen} />
         <Stack.Screen name="Privacy" component={PrivacyScreen} />
         <Stack.Screen name="Terms" component={TermsScreen} />
-        <Stack.Screen name="WhatsAppBot" component={WhatsAppBotScreen} />
         <Stack.Screen name="CalendarSync" component={CalendarSyncScreen} />
         <Stack.Screen name="Pricing" component={PricingScreen} />
       </Stack.Navigator>

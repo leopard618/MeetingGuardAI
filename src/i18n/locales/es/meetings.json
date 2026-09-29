@@ -104,10 +104,69 @@
       "alertTimesRequired": "Elige al menos un recordatorio o usa tus recordatorios predeterminados."
     }
   },
-  "calendarView": {
-    "meetingsOn": "Reuniones del {{date}}",
+  "list": {
+    "searchPlaceholder": "Buscar reuniones",
+    "searchLabel": "Busca reuniones por título, lugar, personas o notas",
+    "clearSearch": "Borrar búsqueda",
+    "time": {
+      "upcoming": "Próximas",
+      "past": "Pasadas",
+      "all": "Todas"
+    },
+    "sourceLabel": "Filtrar por origen",
+    "sourceChip": "Mostrar: {{source}}",
+    "source": {
+      "all": "Todos los orígenes",
+      "meetingguard": "MeetingGuard",
+      "google": "Google Calendar",
+      "device": "Calendario del dispositivo"
+    },
+    "today": "Hoy",
+    "tomorrow": "Mañana",
+    "yesterday": "Ayer",
     "count_one": "{{count}} reunión",
     "count_other": "{{count}} reuniones",
-    "none": "No hay reuniones"
+    "now": "Ahora",
+    "online": "En línea",
+    "openHint": "Abre los detalles de la reunión",
+    "moreActions": "Más acciones para {{title}}",
+    "loading": "Cargando reuniones…",
+    "errorTitle": "No se pudieron cargar tus reuniones",
+    "newMeeting": "Nueva reunión",
+    "clearFilters": "Borrar búsqueda y filtros",
+    "showPast": "Ver reuniones pasadas",
+    "empty": {
+      "none": {
+        "title": "Aún no tienes reuniones",
+        "message": "Crea una, pídesela al asistente de IA o conecta tus calendarios en Ajustes para verlas aquí."
+      },
+      "noMatches": {
+        "title": "Ninguna reunión coincide",
+        "message": "Prueba con otras palabras o cambia los filtros."
+      },
+      "upcoming": {
+        "title": "No tienes nada próximamente",
+        "message": "No tienes reuniones próximas."
+      },
+      "past": {
+        "title": "No hay reuniones pasadas",
+        "message": "Aquí aparecen las reuniones que ya terminaron."
+      },
+      "all": {
+        "title": "No hay reuniones",
+        "message": "No hay reuniones que mostrar."
+      }
+    },
+    "refreshFailed": {
+      "meetings": "No se pudieron actualizar tus reuniones",
+      "calendars": "No se pudieron sincronizar tus calendarios",
+      "google": "No se pudo sincronizar Google Calendar",
+      "device": "No se pudieron sincronizar los calendarios del dispositivo"
+    }
+  },
+  "actions": {
+    "open": "Ver detalles",
+    "edit": "Editar",
+    "delete": "Eliminar"
   }
 }

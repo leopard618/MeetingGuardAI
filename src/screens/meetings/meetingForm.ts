@@ -100,15 +100,29 @@ function pad2(value: number): string {
   return String(value).padStart(2, '0');
 }
 
-/** Next full hour after `now`, in `timeZone`. */
-export function newMeetingDraft(options: { now: Date; timeZone: string; defaultAlertTimes?: readonly number[] }): MeetingFormDraft {
+/** Start time of a new meeting on a chosen day other than today. */
+export const DEFAULT_DAY_START_TIME = '09:00';
+
+/**
+ * Next full hour after `now`, in `timeZone`. With `date` (a day picked in the calendar, "YYYY-MM-DD"
+ * in `timeZone`): today keeps the next full hour, any other day starts at DEFAULT_DAY_START_TIME.
+ */
+export function newMeetingDraft(options: {
+  now: Date;
+  timeZone: string;
+  defaultAlertTimes?: readonly number[];
+  date?: string;
+}): MeetingFormDraft {
   const next = new Date(Math.ceil((options.now.getTime() + 60_000) / 3_600_000) * 3_600_000);
   const local = toLocalDateTime(next, options.timeZone);
+  const today = toLocalDateTime(options.now, options.timeZone).date;
+  const picked = options.date;
+  const pickedDay = picked !== undefined && isLocalDate(picked) && picked !== today && picked !== local.date ? picked : null;
   return {
     title: '',
     description: '',
-    date: local.date,
-    time: local.time,
+    date: pickedDay ?? local.date,
+    time: pickedDay !== null ? DEFAULT_DAY_START_TIME : local.time,
     allDay: false,
     durationMinutes: DEFAULT_MEETING_DURATION_MINUTES,
     timezone: options.timeZone,

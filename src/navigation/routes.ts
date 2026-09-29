@@ -24,7 +24,6 @@ export const ROUTES = {
   Profile: 'Profile',
   AIChat: 'AIChat',
   AIInsights: 'AIInsights',
-  WhatsAppBot: 'WhatsAppBot',
   CalendarSync: 'CalendarSync',
   Pricing: 'Pricing',
 } as const satisfies { [K in RouteName]: K };

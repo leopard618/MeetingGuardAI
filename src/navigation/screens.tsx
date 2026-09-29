@@ -17,17 +17,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage, useT } from '../i18n';
 import AIChat from '../pages/AIChat';
 import { AIInsightsScreen as AIInsights } from '../screens/insights/AIInsightsScreen';
-import Calendar from '../pages/Calendar';
+import { CalendarScreen as CalendarView } from '../screens/calendar/CalendarScreen';
 import CalendarSync from '../pages/CalendarSync';
-import ChooseCreationMethod from '../pages/ChooseCreationMethod';
+import { ChooseCreationMethodScreen as ChooseCreationMethod } from '../screens/create/ChooseCreationMethodScreen';
 import { DashboardScreen as Dashboard } from '../screens/home/DashboardScreen';
 import LegacyLandingPage from '../pages/LandingPage';
 import Notes from '../pages/Notes';
 import Pricing from '../pages/Pricing';
 import Privacy from '../pages/Privacy';
 import Terms from '../pages/Terms';
-import TotalMeetings from '../pages/TotalMeetings';
-import WhatsAppBot from '../pages/WhatsAppBot';
+import { MeetingsListScreen as MeetingsList } from '../screens/meetings/list/MeetingsListScreen';
 import { AlertSettingsScreen as AlertSettings } from '../screens/alerts/AlertSettingsScreen';
 import { MeetingDetailsScreen as MeetingDetails } from '../screens/meetings/MeetingDetailsScreen';
 import { MeetingFormScreen } from '../screens/meetings/MeetingFormScreen';
@@ -38,10 +37,10 @@ import { withLanguage, type LegacyComponent, type WithLanguageProps } from './wi
 // ---- Main group --------------------------------------------------------------------------------
 
 export const DashboardScreen = Dashboard;
-export const ChooseCreationMethodScreen = withLanguage(ChooseCreationMethod);
+export const ChooseCreationMethodScreen = ChooseCreationMethod;
 export const CreateMeetingScreen = MeetingFormScreen;
-export const TotalMeetingsScreen = withLanguage(TotalMeetings);
-export const CalendarScreen = withLanguage(Calendar);
+export const TotalMeetingsScreen = MeetingsList;
+export const CalendarScreen = CalendarView;
 export const NotesScreen = withLanguage(Notes);
 export const SettingsScreen = Settings;
 /** "Profile" shows the settings screen (account section first). */
@@ -51,7 +50,6 @@ export const AIChatScreen = withLanguage(AIChat);
 export const AIInsightsScreen = AIInsights;
 export const PrivacyScreen = withLanguage(Privacy);
 export const TermsScreen = withLanguage(Terms);
-export const WhatsAppBotScreen = withLanguage(WhatsAppBot);
 export const CalendarSyncScreen = withLanguage(CalendarSync);
 export const PricingScreen = withLanguage(Pricing);
 

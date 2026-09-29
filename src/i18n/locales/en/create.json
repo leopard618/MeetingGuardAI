@@ -1,0 +1,22 @@
+{
+  "title": "How would you like to create it?",
+  "subtitle": "Pick one. You can edit the meeting afterwards.",
+  "comingSoon": "Coming soon",
+  "methods": {
+    "manual": {
+      "title": "Fill in a form",
+      "description": "Enter the title, date and time, place, video call, participants and reminders yourself.",
+      "hint": "Opens the meeting form"
+    },
+    "ai": {
+      "title": "Ask the AI assistant",
+      "description": "Write it in your own words, for example “Lunch with Ana tomorrow at 2 pm”. You review it before anything is saved. Each message uses one of your daily AI requests.",
+      "hint": "Opens the AI assistant"
+    },
+    "whatsapp": {
+      "title": "WhatsApp",
+      "description": "Creating meetings by WhatsApp message is not available yet.",
+      "hint": "Not available yet"
+    }
+  }
+}

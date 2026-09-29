@@ -1,0 +1,26 @@
+{
+  "previousMonth": "Previous month",
+  "nextMonth": "Next month",
+  "today": "Today",
+  "goToToday": "Go to today",
+  "todayMarker": "today",
+  "relation": {
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "yesterday": "Yesterday"
+  },
+  "meetingCount_one": "{{count}} meeting",
+  "meetingCount_other": "{{count}} meetings",
+  "noMeetings": "No meetings",
+  "legend": {
+    "label": "Dot colors: {{sources}}",
+    "meetingguard": "MeetingGuard",
+    "google": "Google Calendar",
+    "device": "Device calendar"
+  },
+  "emptyDay": "No meetings on this day.",
+  "createOnDay": "New meeting on {{date}}",
+  "createOnDayHint": "Opens the meeting form on this day",
+  "loading": "Loading your meetings…",
+  "errorTitle": "Your meetings could not be loaded"
+}

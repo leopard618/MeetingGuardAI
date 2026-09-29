@@ -837,6 +837,8 @@ export const I18N_NAMESPACE_LIST = [
   'ai',
   'settings',
   'meetings',
+  'calendarView',
+  'create',
   'home',
   'insights',
 ] as const;
@@ -912,8 +914,11 @@ export type OnboardingStackParamList = {
 export type MainStackParamList = {
   Dashboard: undefined;
   ChooseCreationMethod: undefined;
-  /** Legacy screens may pass `meeting` (then the form edits that meeting). */
-  CreateMeeting: { meetingId?: string; meeting?: LegacyMeetingView } | undefined;
+  /**
+   * Legacy screens may pass `meeting` (then the form edits that meeting). `date` ("YYYY-MM-DD",
+   * device zone) presets the day of a new meeting (Calendar screen: "New meeting on <day>").
+   */
+  CreateMeeting: { meetingId?: string; meeting?: LegacyMeetingView; date?: string } | undefined;
   TotalMeetings: undefined;
   /** Deep link meeting/:meetingId gives meetingId; legacy screens pass `meeting`. */
   MeetingDetails: { meetingId?: string; meeting?: LegacyMeetingView };
@@ -933,7 +938,6 @@ export type MainStackParamList = {
   AIInsights: undefined;
   Privacy: undefined;
   Terms: undefined;
-  WhatsAppBot: undefined;
   CalendarSync: undefined;
   Pricing: undefined;
 };

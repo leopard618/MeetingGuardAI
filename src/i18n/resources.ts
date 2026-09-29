@@ -9,7 +9,9 @@ import enAi from './locales/en/ai.json';
 import enAlerts from './locales/en/alerts.json';
 import enAuth from './locales/en/auth.json';
 import enCalendar from './locales/en/calendar.json';
+import enCalendarView from './locales/en/calendarView.json';
 import enCommon from './locales/en/common.json';
+import enCreate from './locales/en/create.json';
 import enData from './locales/en/data.json';
 import enHome from './locales/en/home.json';
 import enInsights from './locales/en/insights.json';
@@ -21,7 +23,9 @@ import esAi from './locales/es/ai.json';
 import esAlerts from './locales/es/alerts.json';
 import esAuth from './locales/es/auth.json';
 import esCalendar from './locales/es/calendar.json';
+import esCalendarView from './locales/es/calendarView.json';
 import esCommon from './locales/es/common.json';
+import esCreate from './locales/es/create.json';
 import esData from './locales/es/data.json';
 import esHome from './locales/es/home.json';
 import esInsights from './locales/es/insights.json';
@@ -45,6 +49,8 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     ai: enAi,
     settings: enSettings,
     meetings: enMeetings,
+    calendarView: enCalendarView,
+    create: enCreate,
     home: enHome,
     insights: enInsights,
   },
@@ -59,6 +65,8 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     ai: esAi,
     settings: esSettings,
     meetings: esMeetings,
+    calendarView: esCalendarView,
+    create: esCreate,
     home: esHome,
     insights: esInsights,
   },

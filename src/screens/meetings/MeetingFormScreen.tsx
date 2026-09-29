@@ -61,14 +61,17 @@ interface AttachmentView {
 }
 
 export function MeetingFormScreen({ navigation, route }: Props): ReactElement {
-  const params = (route.params ?? {}) as { meetingId?: string; meeting?: { id?: string } };
+  const params = (route.params ?? {}) as { meetingId?: string; meeting?: { id?: string }; date?: string };
   const editId = params.meetingId ?? params.meeting?.id ?? null;
+  // "New meeting on <day>" (Calendar screen): the day of a new meeting, validated by the model.
+  const initialDate = editId === null ? params.date : undefined;
   const { meeting, isLoading } = useMeeting(editId);
   if (editId !== null && !meeting) return <MeetingStatus loading={isLoading} />;
   return (
     <MeetingForm
-      key={meeting?.id ?? 'new'}
+      key={meeting?.id ?? `new-${initialDate ?? ''}`}
       meeting={meeting}
+      initialDate={initialDate}
       onSaved={(saved, created) => {
         if (created) navigation.replace('MeetingDetails', { meetingId: saved.id });
         else navigation.goBack();
@@ -77,7 +80,15 @@ export function MeetingFormScreen({ navigation, route }: Props): ReactElement {
   );
 }
 
-function MeetingForm({ meeting, onSaved }: { meeting: Meeting | null; onSaved(meeting: Meeting, created: boolean): void }): ReactElement {
+function MeetingForm({
+  meeting,
+  initialDate,
+  onSaved,
+}: {
+  meeting: Meeting | null;
+  initialDate?: string;
+  onSaved(meeting: Meeting, created: boolean): void;
+}): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
   const fmt = useFormatters();
@@ -87,7 +98,7 @@ function MeetingForm({ meeting, onSaved }: { meeting: Meeting | null; onSaved(me
   const [draft, setDraft] = useState<MeetingFormDraft>(() =>
     meeting
       ? draftFromMeeting(meeting, { fallbackTimeZone: deviceZone, defaultAlertTimes: preferences.defaultAlertTimes })
-      : newMeetingDraft({ now: new Date(), timeZone: deviceZone, defaultAlertTimes: preferences.defaultAlertTimes }),
+      : newMeetingDraft({ now: new Date(), timeZone: deviceZone, defaultAlertTimes: preferences.defaultAlertTimes, date: initialDate }),
   );
   const [picker, setPicker] = useState<'date' | 'time' | null>(null);
   const [saving, setSaving] = useState(false);

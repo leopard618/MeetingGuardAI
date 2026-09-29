@@ -104,10 +104,69 @@
       "alertTimesRequired": "Choose at least one reminder time, or use your defaults."
     }
   },
-  "calendarView": {
-    "meetingsOn": "Meetings on {{date}}",
+  "list": {
+    "searchPlaceholder": "Search meetings",
+    "searchLabel": "Search meetings by title, place, people or notes",
+    "clearSearch": "Clear search",
+    "time": {
+      "upcoming": "Upcoming",
+      "past": "Past",
+      "all": "All"
+    },
+    "sourceLabel": "Filter by source",
+    "sourceChip": "Show: {{source}}",
+    "source": {
+      "all": "All sources",
+      "meetingguard": "MeetingGuard",
+      "google": "Google Calendar",
+      "device": "Device calendar"
+    },
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "yesterday": "Yesterday",
     "count_one": "{{count}} meeting",
     "count_other": "{{count}} meetings",
-    "none": "No meetings"
+    "now": "Now",
+    "online": "Online",
+    "openHint": "Opens the meeting details",
+    "moreActions": "More actions for {{title}}",
+    "loading": "Loading meetings…",
+    "errorTitle": "Your meetings could not be loaded",
+    "newMeeting": "New meeting",
+    "clearFilters": "Clear search and filters",
+    "showPast": "Show past meetings",
+    "empty": {
+      "none": {
+        "title": "No meetings yet",
+        "message": "Create one, ask the AI assistant, or connect your calendars in Settings to see your meetings here."
+      },
+      "noMatches": {
+        "title": "No meetings match",
+        "message": "Try other words or change the filters."
+      },
+      "upcoming": {
+        "title": "Nothing coming up",
+        "message": "You have no upcoming meetings."
+      },
+      "past": {
+        "title": "No past meetings",
+        "message": "Meetings that have ended show up here."
+      },
+      "all": {
+        "title": "No meetings",
+        "message": "There are no meetings to show."
+      }
+    },
+    "refreshFailed": {
+      "meetings": "Your meetings could not be refreshed",
+      "calendars": "Your calendars could not be synced",
+      "google": "Google Calendar could not be synced",
+      "device": "Your device calendars could not be synced"
+    }
+  },
+  "actions": {
+    "open": "Open details",
+    "edit": "Edit",
+    "delete": "Delete"
   }
 }

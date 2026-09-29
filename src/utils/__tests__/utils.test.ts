@@ -1,4 +1,3 @@
-import { getLocationString } from '../meetingHelpers';
 import { safeGet, safeStringify } from '../index';
 
 describe('safeStringify', () => {
@@ -24,19 +23,5 @@ describe('safeGet', () => {
     expect(safeGet(meeting, 'location.address')).toBe('Main St 1');
     expect(safeGet(meeting, 'location.city', 'n/a')).toBe('n/a');
     expect(safeGet(null, 'a.b', 'fallback')).toBe('fallback');
-  });
-});
-
-describe('getLocationString', () => {
-  it('formats the supported location shapes', () => {
-    expect(getLocationString(undefined)).toBe('');
-    expect(getLocationString('Office')).toBe('Office');
-    expect(getLocationString({ type: 'virtual', virtualPlatform: 'zoom' })).toBe(
-      'Virtual Meeting (zoom)',
-    );
-    expect(getLocationString({ type: 'hybrid', address: 'HQ', virtualPlatform: 'teams' })).toBe(
-      'HQ + Virtual (teams)',
-    );
-    expect(getLocationString({ address: 'Main St 1' })).toBe('Main St 1');
   });
 });

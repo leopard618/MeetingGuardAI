@@ -145,3 +145,20 @@ describe('meeting form model', () => {
     expect(timeFromPicker(new Date(2026, 0, 5, 7, 5))).toBe('07:05');
   });
 });
+
+describe('new meeting on a picked day (Calendar screen)', () => {
+  // NOW is 12:20 on Oct 5 in Madrid.
+  it('starts a future or past day at 09:00 and keeps the next full hour for today', () => {
+    const future = newMeetingDraft({ now: NOW, timeZone: 'Europe/Madrid', date: '2026-10-09' });
+    expect([future.date, future.time]).toEqual(['2026-10-09', '09:00']);
+    const past = newMeetingDraft({ now: NOW, timeZone: 'Europe/Madrid', date: '2026-10-01' });
+    expect([past.date, past.time]).toEqual(['2026-10-01', '09:00']);
+    const today = newMeetingDraft({ now: NOW, timeZone: 'Europe/Madrid', date: '2026-10-05' });
+    expect([today.date, today.time]).toEqual(['2026-10-05', '13:00']);
+  });
+
+  it('ignores an invalid day', () => {
+    const fresh = newMeetingDraft({ now: NOW, timeZone: 'Europe/Madrid', date: '2026-02-30' });
+    expect([fresh.date, fresh.time]).toEqual(['2026-10-05', '13:00']);
+  });
+});
