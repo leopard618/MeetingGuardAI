@@ -6,6 +6,9 @@
  *
  * - googleCalendarService: two-way sync with the user's primary Google Calendar (REST with
  *   GoogleSignin access tokens; no secrets, tokens never stored).
+ * - outlookCalendarService: two-way sync with the Microsoft account's default calendar over
+ *   Microsoft Graph (./outlook; registered with the engine only when EXPO_PUBLIC_MSAL_CLIENT_ID
+ *   is set).
  * - deviceCalendarService: Apple / Android calendars through expo-calendar (object API).
  * - calendarSyncEngine: per-session orchestration (session manager calls start/stop).
  * - useCalendarStatus(): live status for the settings UI.
@@ -35,6 +38,7 @@ import { createDeviceCalendarService } from './device/service';
 import { createCalendarSyncEngine, type AppStateStatus } from './engine';
 import { createGoogleCalendarApi } from './google/api';
 import { createGoogleCalendarService } from './google/service';
+import { outlookCalendarService, outlookInternal } from './outlook';
 import {
   createUserStateStore,
   defaultDeviceSyncState,
@@ -44,7 +48,7 @@ import {
   GOOGLE_STATE_NAME,
   googleSyncStateSchema,
 } from './stateStore';
-import { createCalendarStatusStore } from './status';
+import { calendarStatusStore } from './status';
 
 const log = createLogger('calendar');
 
@@ -77,7 +81,8 @@ function deviceKey(): Promise<string> {
   return deviceKeyPromise;
 }
 
-const status = createCalendarStatusStore();
+// Shared instance (status.ts): the outlook wiring reports to the same store.
+const status = calendarStatusStore;
 
 const googleApi = createGoogleCalendarApi({
   tokens: {
@@ -138,6 +143,8 @@ function googleAccessHook(): ((listener: () => void) => Unsubscribe) | undefined
 const engine = createCalendarSyncEngine({
   google: googleInternal,
   device: deviceInternal,
+  // The Outlook provider only exists for the engine when the build is configured for it.
+  outlook: outlookInternal.isConfigured() ? outlookInternal : undefined,
   preferences: preferencesRepository,
   getActiveUid: getUid,
   status,
@@ -166,6 +173,9 @@ export const googleCalendarService: GoogleCalendarService = {
   pullChanges: googleInternal.pullChanges,
   createMeetLink: googleInternal.createMeetLink,
 };
+
+/** Contract object (OutlookCalendarService; ./outlook owns the wiring). */
+export { outlookCalendarService };
 
 export const deviceCalendarService: DeviceCalendarService = {
   getPermission: deviceInternal.getPermission,
@@ -200,4 +210,10 @@ appEvents.on('session:started', ({ uid }) => {
 });
 appEvents.on('session:ended', () => engine.stop());
 
-export type { GoogleConnectResult, CalendarStatus, DeviceCalendarInfo, CalendarSyncReport } from '../../core/contracts';
+export type {
+  GoogleConnectResult,
+  OutlookConnectResult,
+  CalendarStatus,
+  DeviceCalendarInfo,
+  CalendarSyncReport,
+} from '../../core/contracts';

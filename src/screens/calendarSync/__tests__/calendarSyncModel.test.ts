@@ -10,6 +10,8 @@ import {
   googleStateView,
   loadDeviceCalendars,
   nextImportIds,
+  outlookConnectOutcome,
+  outlookStateView,
   syncReportSummary,
 } from '../calendarSyncModel';
 
@@ -20,7 +22,20 @@ function google(overrides: Partial<CalendarStatus['google']> = {}): CalendarStat
   return { enabled: false, syncing: false, lastSyncAt: null, lastError: null, connected: false, hasScope: false, ...overrides };
 }
 
-function pull(provider: 'google' | 'device', counts: Partial<CalendarPullResult['counts']> = {}): CalendarPullResult {
+function outlook(overrides: Partial<NonNullable<CalendarStatus['outlook']>> = {}): NonNullable<CalendarStatus['outlook']> {
+  return {
+    enabled: false,
+    syncing: false,
+    lastSyncAt: null,
+    lastError: null,
+    configured: true,
+    connected: false,
+    accountEmail: null,
+    ...overrides,
+  };
+}
+
+function pull(provider: 'google' | 'device' | 'outlook', counts: Partial<CalendarPullResult['counts']> = {}): CalendarPullResult {
   return {
     provider,
     fullSync: false,
@@ -80,6 +95,41 @@ describe('connectOutcome', () => {
   });
 });
 
+describe('outlookStateView', () => {
+  it('distinguishes connected and not connected', () => {
+    expect(outlookStateView(outlook({ connected: true, enabled: true }))).toEqual({
+      labelKey: 'calendar:outlook.state.connected',
+      tone: 'success',
+    });
+    expect(outlookStateView(outlook())).toEqual({ labelKey: 'calendar:outlook.state.notConnected', tone: 'muted' });
+  });
+});
+
+describe('outlookConnectOutcome', () => {
+  it('reports the first sync counts', () => {
+    const outcome = outlookConnectOutcome(t, { status: 'connected', initialSync: pull('outlook', { created: 4, pushed: 2 }) }, null);
+    expect(outcome).toEqual({
+      kind: 'connected',
+      title: 'calendar:outlook.connectedTitle',
+      message: 'calendar:outlook.firstSyncSummary {"created":4,"pushed":2}',
+    });
+  });
+
+  it('says so when the first sync did not finish, with the real error', () => {
+    const outcome = outlookConnectOutcome(t, { status: 'connected', initialSync: null }, 'offline');
+    expect(outcome?.message).toBe('calendar:outlook.firstSyncFailed {"error":"common:errors.offline"}');
+  });
+
+  it('explains a failed sign-in and stays quiet when the user cancelled', () => {
+    expect(outlookConnectOutcome(t, { status: 'failed', initialSync: null }, null)).toEqual({
+      kind: 'failed',
+      title: 'calendar:outlook.title',
+      message: 'calendar:outlook.connectFailed',
+    });
+    expect(outlookConnectOutcome(t, { status: 'cancelled', initialSync: null }, null)).toBeNull();
+  });
+});
+
 describe('syncReportSummary', () => {
   it('lists the per-provider counts, failed pushes and provider errors', () => {
     const summary = syncReportSummary(t, {
@@ -93,6 +143,19 @@ describe('syncReportSummary', () => {
     expect(lines[1]).toBe('calendar:sync.failedGoogle {"count":2}');
     expect(lines[2]).toContain('calendar:sync.deviceResult');
     expect(lines[3]).toBe('calendar:sync.providerError {"provider":"calendar:sync.providers.device","error":"common:errors.permission_denied"}');
+  });
+
+  it('includes the Outlook line, its failed pushes and its provider errors', () => {
+    const summary = syncReportSummary(t, {
+      google: null,
+      device: null,
+      outlook: pull('outlook', { failed: 1 }),
+      errors: [{ provider: 'outlook', code: 'upstream_error' }],
+    });
+    const lines = summary.message.split('\n\n');
+    expect(lines[0]).toContain('calendar:sync.outlookResult');
+    expect(lines[1]).toBe('calendar:sync.failedOutlook {"count":1}');
+    expect(lines[2]).toBe('calendar:sync.providerError {"provider":"calendar:sync.providers.outlook","error":"common:errors.upstream_error"}');
   });
 
   it('says when there is nothing to sync', () => {

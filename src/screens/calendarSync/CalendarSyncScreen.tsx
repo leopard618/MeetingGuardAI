@@ -4,10 +4,13 @@
  * reports its real result:
  * - Google: connect (incremental Calendar consent + first sync), grant access again when the
  *   permission is missing, stop sync (optionally revoking access), last sync / last error;
+ * - Outlook (only when EXPO_PUBLIC_MSAL_CLIENT_ID is set): connect through the Microsoft sign-in,
+ *   account, stop sync (optionally opening the Microsoft consent page), last sync / last error;
  * - phone calendars: permission, which calendars to import, which calendar receives MeetingGuard
  *   meetings (writable calendars only), last sync / last error;
  * - "Sync now" with a per-provider summary.
- * Rendered as a SectionList (Google card, then the phone-calendar card and its rows).
+ * Rendered as a SectionList (Google card, optional Outlook card, then the phone-calendar card and
+ * its rows).
  */
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -18,34 +21,36 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CalendarStatus, RootStackParamList, TranslateFn } from '../../core/contracts';
 import type { Language, PreferencesPatch } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
-import { calendarSyncEngine, deviceCalendarService, googleCalendarService, useCalendarStatus } from '../../services/calendar';
+import { calendarSyncEngine, deviceCalendarService, googleCalendarService, outlookCalendarService, useCalendarStatus } from '../../services/calendar';
 import { usePreferences } from '../../services/data';
 import {
   buildDeviceRows,
   errorText,
   googleStateView,
   nextImportIds,
+  outlookStateView,
   syncReportSummary,
   type DeviceCalendarsState,
   type DeviceRow,
 } from './calendarSyncModel';
 import { CardBottom, CardMiddle, CardTop, ImportRow, InlineProgress, PrimaryButton, RadioRow, SyncLine, partStyles } from './CalendarSyncParts';
 import { toneColor, useCalendarPalette, type CalendarPalette } from './palette';
-import { refreshGoogleState, showCalendarError, useGoogleConnect } from './useCalendarActions';
+import { refreshGoogleState, refreshOutlookState, showCalendarError, useGoogleConnect, useOutlookConnect } from './useCalendarActions';
 import { useLiveNow } from '../shared/useLiveNow';
 import { useDeviceCalendars } from './useDeviceCalendars';
 
 type Props = StackScreenProps<RootStackParamList, 'CalendarSync'>;
 
-type Busy = 'disconnect' | 'sync' | null;
+type Busy = 'disconnect' | 'outlookDisconnect' | 'sync' | null;
 
 const CLOCK_MS = 60_000;
 const INITIAL_ROWS = 40;
 
 type GoogleItem = { kind: 'google'; key: 'google' };
-type Item = GoogleItem | DeviceRow;
+type OutlookItem = { kind: 'outlook'; key: 'outlook' };
+type Item = GoogleItem | OutlookItem | DeviceRow;
 interface Section {
-  key: 'google' | 'device';
+  key: 'google' | 'outlook' | 'device';
   data: Item[];
 }
 
@@ -135,6 +140,89 @@ function GoogleCard({
         <InlineProgress label={t('calendar:google.disconnecting')} palette={palette} />
       ) : google.enabled ? (
         <SyncLine provider={google} palette={palette} t={t} language={language} now={now} testID="calendar-google-sync" />
+      ) : null}
+    </View>
+  );
+}
+
+function OutlookCard({
+  outlook,
+  busy,
+  connecting,
+  onConnect,
+  onDisconnect,
+  palette,
+  t,
+  language,
+  now,
+}: {
+  outlook: NonNullable<CalendarStatus['outlook']>;
+  busy: Busy;
+  connecting: boolean;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  palette: CalendarPalette;
+  t: TranslateFn;
+  language: Language;
+  now: Date;
+}): ReactElement {
+  const state = outlookStateView(outlook);
+  const stateColor = toneColor(palette, state.tone);
+  const locked = busy !== null || connecting;
+
+  return (
+    <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]} testID="calendar-outlook-card">
+      <View style={partStyles.cardHeader}>
+        <MaterialIcons name="event-note" size={24} color={palette.accent} />
+        <Text style={[partStyles.cardTitle, { color: palette.text }]} accessibilityRole="header">
+          {t('calendar:outlook.title')}
+        </Text>
+        <Text
+          style={[partStyles.pill, { color: stateColor, borderColor: stateColor }]}
+          maxFontSizeMultiplier={1.5}
+          testID="calendar-outlook-state"
+        >
+          {t(state.labelKey)}
+        </Text>
+      </View>
+      <Text style={[partStyles.body, { color: palette.muted }]}>{t('calendar:outlook.description')}</Text>
+
+      {outlook.connected && outlook.accountEmail !== null ? (
+        <Text style={[partStyles.meta, { color: palette.muted }]} testID="calendar-outlook-account">
+          {t('calendar:outlook.account', { email: outlook.accountEmail })}
+        </Text>
+      ) : null}
+
+      {outlook.connected ? (
+        <View style={[styles.switchRow, { borderColor: palette.border }]}>
+          <Text style={[styles.switchLabel, { color: palette.text }]}>{t('calendar:outlook.twoWaySync')}</Text>
+          <Switch
+            value
+            disabled={locked}
+            onValueChange={(value) => {
+              if (!value) onDisconnect();
+            }}
+            trackColor={{ true: palette.accent, false: palette.border }}
+            accessibilityLabel={t('calendar:outlook.twoWaySync')}
+            testID="calendar-outlook-switch"
+          />
+        </View>
+      ) : (
+        <PrimaryButton
+          label={connecting ? t('calendar:outlook.connecting') : t('calendar:outlook.connect')}
+          onPress={onConnect}
+          disabled={locked}
+          busy={connecting}
+          icon="link"
+          palette={palette}
+          testID="calendar-outlook-connect"
+        />
+      )}
+
+      {busy === 'outlookDisconnect' ? (
+        <InlineProgress label={t('calendar:outlook.disconnecting')} palette={palette} />
+      ) : outlook.connected ? (
+        <SyncLine provider={outlook} palette={palette} t={t} language={language} now={now} testID="calendar-outlook-sync" />
       ) : null}
     </View>
   );
@@ -255,9 +343,11 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
   // "Last synced 3 min ago"; paused behind other screens and in the background.
   const now = useLiveNow(CLOCK_MS);
   const google = useGoogleConnect();
+  const outlook = useOutlookConnect();
 
   useEffect(() => {
     refreshGoogleState();
+    refreshOutlookState();
   }, []);
 
   const updatePreferences = useCallback(
@@ -288,6 +378,26 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
       { text: t('calendar:actions.cancel'), style: 'cancel' },
       { text: t('calendar:google.disconnect'), onPress: () => void disconnectGoogle(false) },
       { text: t('calendar:google.disconnectAndRevoke'), style: 'destructive', onPress: () => void disconnectGoogle(true) },
+    ]);
+  };
+
+  const disconnectOutlook = async (revoke: boolean): Promise<void> => {
+    setBusy('outlookDisconnect');
+    try {
+      await outlookCalendarService.disconnect({ revoke });
+      Alert.alert(t('calendar:outlook.disconnectedTitle'));
+    } catch (error) {
+      showCalendarError(t, error);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const confirmDisconnectOutlook = (): void => {
+    Alert.alert(t('calendar:outlook.disconnectTitle'), t('calendar:outlook.disconnectMessage'), [
+      { text: t('calendar:actions.cancel'), style: 'cancel' },
+      { text: t('calendar:outlook.disconnect'), onPress: () => void disconnectOutlook(false) },
+      { text: t('calendar:outlook.disconnectAndRevoke'), style: 'destructive', onPress: () => void disconnectOutlook(true) },
     ]);
   };
 
@@ -345,29 +455,53 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
   }
 
   const deviceRows = devices.state.phase === 'ready' ? buildDeviceRows(devices.state.calendars, preferences) : [];
+  // The Outlook card exists only when the provider is registered (EXPO_PUBLIC_MSAL_CLIENT_ID set).
+  const outlookStatus = status.outlook;
   const sections: Section[] = [
     { key: 'google', data: [{ kind: 'google', key: 'google' }] },
+    ...(outlookStatus !== undefined ? [{ key: 'outlook', data: [{ kind: 'outlook', key: 'outlook' }] } satisfies Section] : []),
     { key: 'device', data: deviceRows },
   ];
-  const anySyncing = status.google.syncing || status.device.syncing;
+  const anySyncing = status.google.syncing || status.device.syncing || outlookStatus?.syncing === true;
   const syncing = busy === 'sync' || anySyncing;
+  const anyConnecting = google.connecting || outlook.connecting;
 
-  const renderItem = ({ item }: { item: Item }): ReactElement =>
-    item.kind === 'google' ? (
-      <GoogleCard
-        status={status}
-        busy={busy}
-        connecting={google.connecting}
-        onConnect={() => void google.connect()}
-        onDisconnect={confirmDisconnect}
-        palette={palette}
-        t={t}
-        language={language}
-        now={now}
-      />
-    ) : (
-      <DeviceRowView row={item} onToggleImport={toggleImport} onChooseExport={chooseExport} palette={palette} t={t} />
-    );
+  const renderItem = ({ item }: { item: Item }): ReactElement => {
+    if (item.kind === 'google') {
+      return (
+        <GoogleCard
+          status={status}
+          busy={busy}
+          connecting={google.connecting}
+          onConnect={() => void google.connect()}
+          onDisconnect={confirmDisconnect}
+          palette={palette}
+          t={t}
+          language={language}
+          now={now}
+        />
+      );
+    }
+    if (item.kind === 'outlook') {
+      // The section only exists when outlookStatus is defined.
+      return outlookStatus !== undefined ? (
+        <OutlookCard
+          outlook={outlookStatus}
+          busy={busy}
+          connecting={outlook.connecting}
+          onConnect={() => void outlook.connect()}
+          onDisconnect={confirmDisconnectOutlook}
+          palette={palette}
+          t={t}
+          language={language}
+          now={now}
+        />
+      ) : (
+        <View />
+      );
+    }
+    return <DeviceRowView row={item} onToggleImport={toggleImport} onChooseExport={chooseExport} palette={palette} t={t} />;
+  };
 
   const renderSectionHeader = ({ section }: { section: Section }): ReactElement | null =>
     section.key === 'device' ? (
@@ -406,7 +540,7 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
           <PrimaryButton
             label={syncing ? t('calendar:sync.syncing') : t('calendar:sync.now')}
             onPress={() => void syncNow()}
-            disabled={busy !== null || anySyncing || google.connecting}
+            disabled={busy !== null || anySyncing || anyConnecting}
             busy={busy === 'sync'}
             icon="sync"
             palette={palette}

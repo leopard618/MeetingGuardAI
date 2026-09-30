@@ -1,6 +1,6 @@
 {
   "screen": {
-    "subtitle": "Mantén MeetingGuard al día con Google Calendar y con los calendarios de este teléfono."
+    "subtitle": "Mantén MeetingGuard al día con tus calendarios conectados y con los calendarios de este teléfono."
   },
   "status": {
     "lastSynced": "Última sincronización: {{time}}",
@@ -32,6 +32,29 @@
     "disconnectedTitle": "La sincronización con Google Calendar está desactivada",
     "untitledEvent": "(Sin título)"
   },
+  "outlook": {
+    "title": "Calendario de Outlook",
+    "description": "Sincronización en ambos sentidos con el calendario de tu cuenta Microsoft (Outlook, Microsoft 365). Las reuniones que creas aquí aparecen en Outlook y tus eventos de Outlook reciben las alertas de MeetingGuard.",
+    "state": {
+      "connected": "Conectado",
+      "notConnected": "Sin conectar"
+    },
+    "account": "Cuenta Microsoft: {{email}}",
+    "twoWaySync": "Sincronización en ambos sentidos",
+    "connect": "Conectar Outlook",
+    "connecting": "Conectando…",
+    "connectedTitle": "Outlook conectado",
+    "firstSyncSummary": "Se importaron {{created}} eventos y se enviaron {{pushed}} reuniones a Outlook.",
+    "firstSyncFailed": "Conectado, pero la primera sincronización no terminó: {{error}} MeetingGuard lo volverá a intentar automáticamente.",
+    "connectFailed": "El inicio de sesión de Microsoft no terminó. Inténtalo de nuevo.",
+    "disconnectTitle": "¿Dejar de sincronizar Outlook?",
+    "disconnectMessage": "Los eventos importados de Outlook se quitarán de MeetingGuard. No se borra nada de tu calendario de Outlook.",
+    "disconnect": "Dejar de sincronizar",
+    "disconnectAndRevoke": "Dejar de sincronizar y revisar el acceso",
+    "disconnecting": "Deteniendo la sincronización…",
+    "disconnectedTitle": "La sincronización con Outlook está desactivada",
+    "untitledEvent": "(Sin título)"
+  },
   "device": {
     "title": "Calendarios de este teléfono",
     "description": "Importa eventos de los calendarios de este teléfono y, si quieres, añade tus reuniones de MeetingGuard a uno de ellos.",
@@ -60,15 +83,19 @@
     "doneTitle": "Sincronización completada",
     "problemsTitle": "La sincronización terminó con problemas",
     "googleResult": "Google Calendar: {{created}} nuevos, {{updated}} actualizados, {{removed}} eliminados, {{pushed}} enviados a Google.",
+    "outlookResult": "Outlook: {{created}} nuevos, {{updated}} actualizados, {{removed}} eliminados, {{pushed}} enviados a Outlook.",
     "deviceResult": "Calendarios del teléfono: {{created}} nuevos, {{updated}} actualizados, {{removed}} eliminados, {{pushed}} añadidos a tu calendario.",
     "failedGoogle_one": "{{count}} cambio no se pudo enviar a Google Calendar.",
     "failedGoogle_other": "{{count}} cambios no se pudieron enviar a Google Calendar.",
+    "failedOutlook_one": "{{count}} cambio no se pudo enviar a Outlook.",
+    "failedOutlook_other": "{{count}} cambios no se pudieron enviar a Outlook.",
     "failedDevice_one": "{{count}} reunión no se pudo añadir al calendario del teléfono.",
     "failedDevice_other": "{{count}} reuniones no se pudieron añadir al calendario del teléfono.",
     "providerError": "{{provider}}: {{error}}",
     "nothingToSync": "Todavía no hay nada que sincronizar. Primero conecta Google Calendar o elige calendarios de este teléfono.",
     "providers": {
       "google": "Google Calendar",
+      "outlook": "Outlook",
       "device": "Calendarios del teléfono"
     }
   },

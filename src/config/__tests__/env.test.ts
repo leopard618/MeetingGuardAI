@@ -52,6 +52,23 @@ describe('parseEnv', () => {
     expect(env.missingKeys).toEqual(['EXPO_PUBLIC_FIREBASE_API_KEY']);
   });
 
+  it('reads the optional Microsoft OAuth values with the "common" tenant default', () => {
+    expect(parseEnv(COMPLETE, 'android').msal).toEqual({ clientId: null, tenant: 'common' });
+    const env = parseEnv(
+      { ...COMPLETE, EXPO_PUBLIC_MSAL_CLIENT_ID: '11111111-2222-3333-4444-555555555555', EXPO_PUBLIC_MSAL_TENANT: 'organizations' },
+      'android',
+    );
+    expect(env.msal).toEqual({ clientId: '11111111-2222-3333-4444-555555555555', tenant: 'organizations' });
+    expect(env.isConfigured).toBe(true);
+  });
+
+  it('rejects a malformed MSAL client id without breaking the rest (optional key)', () => {
+    const env = parseEnv({ ...COMPLETE, EXPO_PUBLIC_MSAL_CLIENT_ID: 'not-a-guid' }, 'android');
+    expect(env.msal.clientId).toBeNull();
+    expect(env.invalidKeys).toContain('EXPO_PUBLIC_MSAL_CLIENT_ID');
+    expect(env.isConfigured).toBe(true);
+  });
+
   it('requires the iOS client ID only on iOS', () => {
     const withoutIos = { ...COMPLETE, EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: undefined };
     expect(parseEnv(withoutIos, 'android').isConfigured).toBe(true);

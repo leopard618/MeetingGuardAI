@@ -5,11 +5,13 @@
  * Every message reports the real result; nothing here claims success it did not get.
  */
 import type {
+  CalendarProvider,
   CalendarStatus,
   CalendarSyncReport,
   DeviceCalendarInfo,
   DeviceCalendarService,
   GoogleConnectResult,
+  OutlookConnectResult,
   TranslateFn,
 } from '../../core/contracts';
 import { errorMessageKey, toAppError, type AppErrorCode } from '../../core/errors';
@@ -31,6 +33,17 @@ export function googleStateView(google: CalendarStatus['google']): GoogleStateVi
 
 export function errorText(t: TranslateFn, code: AppErrorCode): string {
   return t(errorMessageKey(code));
+}
+
+export interface OutlookStateView {
+  labelKey: 'calendar:outlook.state.connected' | 'calendar:outlook.state.notConnected';
+  tone: Tone;
+}
+
+/** Connected, or not connected (Outlook has no half-connected "scope missing" state). */
+export function outlookStateView(outlook: NonNullable<CalendarStatus['outlook']>): OutlookStateView {
+  if (outlook.connected) return { labelKey: 'calendar:outlook.state.connected', tone: 'success' };
+  return { labelKey: 'calendar:outlook.state.notConnected', tone: 'muted' };
 }
 
 export interface AlertMessage {
@@ -63,12 +76,47 @@ export function connectOutcome(
   return null;
 }
 
+/**
+ * What to tell the user after outlookCalendarService.connect(): the first sync's real counts, or
+ * that it did not finish (with the engine's last error); a failed Microsoft sign-in; nothing when
+ * the user closed the browser sheet.
+ */
+export function outlookConnectOutcome(
+  t: TranslateFn,
+  result: OutlookConnectResult,
+  lastError: AppErrorCode | null,
+): (AlertMessage & { kind: 'connected' | 'failed' }) | null {
+  if (result.status === 'connected') {
+    const message = result.initialSync
+      ? t('calendar:outlook.firstSyncSummary', {
+          created: result.initialSync.counts.created,
+          pushed: result.initialSync.counts.pushed,
+        })
+      : t('calendar:outlook.firstSyncFailed', { error: lastError ? errorText(t, lastError) : '' });
+    return { kind: 'connected', title: t('calendar:outlook.connectedTitle'), message };
+  }
+  if (result.status === 'failed') {
+    return { kind: 'failed', title: t('calendar:outlook.title'), message: t('calendar:outlook.connectFailed') };
+  }
+  return null;
+}
+
+function providerLabel(t: TranslateFn, provider: CalendarProvider): string {
+  if (provider === 'google') return t('calendar:sync.providers.google');
+  if (provider === 'outlook') return t('calendar:sync.providers.outlook');
+  return t('calendar:sync.providers.device');
+}
+
 /** "Sync now" result: per-provider counts, failed pushes and provider errors. */
 export function syncReportSummary(t: TranslateFn, report: CalendarSyncReport): AlertMessage {
   const lines: string[] = [];
   if (report.google) {
     lines.push(t('calendar:sync.googleResult', { ...report.google.counts }));
     if (report.google.counts.failed > 0) lines.push(t('calendar:sync.failedGoogle', { count: report.google.counts.failed }));
+  }
+  if (report.outlook) {
+    lines.push(t('calendar:sync.outlookResult', { ...report.outlook.counts }));
+    if (report.outlook.counts.failed > 0) lines.push(t('calendar:sync.failedOutlook', { count: report.outlook.counts.failed }));
   }
   if (report.device) {
     lines.push(t('calendar:sync.deviceResult', { ...report.device.counts }));
@@ -77,7 +125,7 @@ export function syncReportSummary(t: TranslateFn, report: CalendarSyncReport): A
   for (const failure of report.errors) {
     lines.push(
       t('calendar:sync.providerError', {
-        provider: failure.provider === 'google' ? t('calendar:sync.providers.google') : t('calendar:sync.providers.device'),
+        provider: providerLabel(t, failure.provider),
         error: errorText(t, failure.code),
       }),
     );

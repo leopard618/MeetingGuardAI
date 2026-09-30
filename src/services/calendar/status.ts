@@ -10,7 +10,7 @@ import { createLogger } from '../../core/logger';
 
 const log = createLogger('calendar');
 
-export type CalendarProvider = 'google' | 'device';
+export type CalendarProvider = 'google' | 'device' | 'outlook';
 
 export function initialCalendarStatus(): CalendarStatus {
   return {
@@ -24,6 +24,21 @@ export function initialCalendarStatus(): CalendarStatus {
       importCalendarIds: [],
       exportCalendarId: null,
     },
+    // `outlook` stays absent until the provider is registered (EXPO_PUBLIC_MSAL_CLIENT_ID set):
+    // the first patchOutlook creates it.
+  };
+}
+
+/** The `outlook` entry the first patchOutlook starts from. */
+export function initialOutlookStatus(): NonNullable<CalendarStatus['outlook']> {
+  return {
+    enabled: false,
+    syncing: false,
+    lastSyncAt: null,
+    lastError: null,
+    configured: false,
+    connected: false,
+    accountEmail: null,
   };
 }
 
@@ -43,11 +58,22 @@ export interface DeviceStatusPatch {
   lastError?: AppErrorCode | null;
 }
 
+export interface OutlookStatusPatch {
+  configured?: boolean;
+  connected?: boolean;
+  enabled?: boolean;
+  accountEmail?: string | null;
+  lastSyncAt?: string | null;
+  lastError?: AppErrorCode | null;
+}
+
 export interface CalendarStatusStore {
   get(): CalendarStatus;
   subscribe(listener: (status: CalendarStatus) => void): Unsubscribe;
   patchGoogle(patch: GoogleStatusPatch): void;
   patchDevice(patch: DeviceStatusPatch): void;
+  /** Creates the (absent-by-default) outlook entry on first use, then merges. */
+  patchOutlook(patch: OutlookStatusPatch): void;
   /** Marks a provider operation as running; call the returned function when it settles. */
   beginSync(provider: CalendarProvider): () => void;
   /** Back to the signed-out state (session end). */
@@ -60,7 +86,7 @@ function sameArray(a: readonly string[], b: readonly string[]): boolean {
 
 export function createCalendarStatusStore(): CalendarStatusStore {
   let status = initialCalendarStatus();
-  const running: Record<CalendarProvider, number> = { google: 0, device: 0 };
+  const running: Record<CalendarProvider, number> = { google: 0, device: 0, outlook: 0 };
   const listeners = new Set<(status: CalendarStatus) => void>();
 
   function publish(next: CalendarStatus): void {
@@ -94,9 +120,19 @@ export function createCalendarStatusStore(): CalendarStatusStore {
     if (changed) publish({ ...status, device: merged });
   }
 
+  function withOutlook(patch: Partial<NonNullable<CalendarStatus['outlook']>>): void {
+    const current = status.outlook ?? initialOutlookStatus();
+    const merged = { ...current, ...patch };
+    const changed =
+      status.outlook === undefined ||
+      (Object.keys(merged) as (keyof typeof merged)[]).some((key) => merged[key] !== current[key]);
+    if (changed) publish({ ...status, outlook: merged });
+  }
+
   function setSyncing(provider: CalendarProvider): void {
     const syncing = running[provider] > 0;
     if (provider === 'google') withGoogle({ syncing } satisfies Partial<ProviderStatus>);
+    else if (provider === 'outlook') withOutlook({ syncing });
     else withDevice({ syncing });
   }
 
@@ -111,6 +147,7 @@ export function createCalendarStatusStore(): CalendarStatusStore {
     },
     patchGoogle: (patch) => withGoogle(patch),
     patchDevice: (patch) => withDevice(patch),
+    patchOutlook: (patch) => withOutlook(patch),
     beginSync(provider) {
       running[provider] += 1;
       setSyncing(provider);
@@ -125,7 +162,15 @@ export function createCalendarStatusStore(): CalendarStatusStore {
     reset() {
       running.google = 0;
       running.device = 0;
+      running.outlook = 0;
       publish(initialCalendarStatus());
     },
   };
 }
+
+/**
+ * The app-wide store instance. Shared here (not created in the barrel) so the provider wiring
+ * modules (src/services/calendar/index.ts and src/services/calendar/outlook/index.ts) report to
+ * the same status without importing each other.
+ */
+export const calendarStatusStore: CalendarStatusStore = createCalendarStatusStore();

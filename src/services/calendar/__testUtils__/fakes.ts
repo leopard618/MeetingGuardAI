@@ -129,7 +129,14 @@ export class FakeMeetings {
       const refs =
         item.provider === 'google'
           ? { googleEventId: item.externalId, googleCalendarId: item.calendarId, googleEtag: item.etag, googleUpdatedAt: item.providerUpdatedAt }
-          : { deviceEventId: item.externalId, deviceCalendarId: item.calendarId };
+          : item.provider === 'outlook'
+            ? {
+                outlookEventId: item.externalId,
+                outlookCalendarId: item.calendarId,
+                outlookChangeKey: item.etag,
+                outlookUpdatedAt: item.providerUpdatedAt,
+              }
+            : { deviceEventId: item.externalId, deviceCalendarId: item.calendarId };
       if (item.deleted) {
         if (existing && existing.deletedAt === null) {
           this.meetings.set(existing.id, tombstoneMeeting(existing, this.clock.now()));
@@ -151,7 +158,11 @@ export class FakeMeetings {
         result.created += 1;
         result.changedIds.push(created.id);
       }
-      this.writes.push({ id: existing?.id ?? 'new', origin: item.provider === 'google' ? 'calendar_google' : 'calendar_device', kind: 'upsert' });
+      this.writes.push({
+        id: existing?.id ?? 'new',
+        origin: item.provider === 'google' ? 'calendar_google' : item.provider === 'outlook' ? 'calendar_outlook' : 'calendar_device',
+        kind: 'upsert',
+      });
     }
     return result;
   }

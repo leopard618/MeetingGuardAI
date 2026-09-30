@@ -35,7 +35,9 @@ export type EnvKey =
   | 'EXPO_PUBLIC_APP_ENV'
   | 'EXPO_PUBLIC_FUNCTIONS_REGION'
   | 'EXPO_PUBLIC_USE_EMULATORS'
-  | 'EXPO_PUBLIC_EMULATOR_HOST';
+  | 'EXPO_PUBLIC_EMULATOR_HOST'
+  | 'EXPO_PUBLIC_MSAL_CLIENT_ID'
+  | 'EXPO_PUBLIC_MSAL_TENANT';
 
 export type AppPlatform = 'ios' | 'android' | 'web' | 'windows' | 'macos' | 'native';
 
@@ -66,6 +68,13 @@ export interface AppEnv {
     androidClientId: string | null;
   };
   sentryDsn: string | null;
+  /** Microsoft (Outlook) OAuth. `clientId` null hides the whole Outlook feature. */
+  msal: {
+    /** Azure app registration "Application (client) ID" (a GUID; public, like the Google ids). */
+    clientId: string | null;
+    /** 'common' | 'organizations' | 'consumers' | a tenant GUID/domain. Default 'common'. */
+    tenant: string;
+  };
   /** development | preview | production (free text, defaults to "development"). */
   appEnv: string;
   /** Region of the Firebase callable functions (must match the deployed functions). */
@@ -78,6 +87,8 @@ export interface AppEnv {
 export const DEFAULT_FUNCTIONS_REGION = 'us-central1';
 /** Android emulator alias for the host machine's loopback interface. */
 export const DEFAULT_EMULATOR_HOST = '10.0.2.2';
+/** Microsoft identity tenant when EXPO_PUBLIC_MSAL_TENANT is not set (any account type). */
+export const DEFAULT_MSAL_TENANT = 'common';
 
 const FIREBASE_KEYS = [
   'EXPO_PUBLIC_FIREBASE_API_KEY',
@@ -105,6 +116,10 @@ const validators: Record<EnvKey, z.ZodType<string>> = {
   EXPO_PUBLIC_FUNCTIONS_REGION: z.string().regex(/^[a-z]+-[a-z]+\d+$/),
   EXPO_PUBLIC_USE_EMULATORS: z.string(),
   EXPO_PUBLIC_EMULATOR_HOST: z.string().regex(/^[\w.-]+$/),
+  // Azure "Application (client) ID": always a GUID.
+  EXPO_PUBLIC_MSAL_CLIENT_ID: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/),
+  // 'common' | 'organizations' | 'consumers' | tenant GUID | verified domain.
+  EXPO_PUBLIC_MSAL_TENANT: z.string().regex(/^[\w.-]+$/),
 };
 
 /** Keys the app cannot run without, per platform. */
@@ -169,6 +184,10 @@ export function parseEnv(raw: Partial<RawEnv>, platform: AppPlatform): AppEnv {
       androidClientId: values.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? null,
     },
     sentryDsn: values.EXPO_PUBLIC_SENTRY_DSN ?? null,
+    msal: {
+      clientId: values.EXPO_PUBLIC_MSAL_CLIENT_ID ?? null,
+      tenant: values.EXPO_PUBLIC_MSAL_TENANT ?? DEFAULT_MSAL_TENANT,
+    },
     appEnv: values.EXPO_PUBLIC_APP_ENV ?? 'development',
     functionsRegion: values.EXPO_PUBLIC_FUNCTIONS_REGION ?? DEFAULT_FUNCTIONS_REGION,
     useEmulators: useEmulatorsRaw === '1' || useEmulatorsRaw === 'true',
@@ -195,6 +214,8 @@ export function readRawEnv(): RawEnv {
     EXPO_PUBLIC_FUNCTIONS_REGION: process.env.EXPO_PUBLIC_FUNCTIONS_REGION,
     EXPO_PUBLIC_USE_EMULATORS: process.env.EXPO_PUBLIC_USE_EMULATORS,
     EXPO_PUBLIC_EMULATOR_HOST: process.env.EXPO_PUBLIC_EMULATOR_HOST,
+    EXPO_PUBLIC_MSAL_CLIENT_ID: process.env.EXPO_PUBLIC_MSAL_CLIENT_ID,
+    EXPO_PUBLIC_MSAL_TENANT: process.env.EXPO_PUBLIC_MSAL_TENANT,
   };
 }
 

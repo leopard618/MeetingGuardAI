@@ -3,11 +3,12 @@
  *
  * - start(uid) (session manager, also on 'session:started'): subscribes to meetings:changed /
  *   preferences:changed, AppState (pull on foreground + every 5 min while active) and connectivity.
- * - LOCAL writes (origin 'user' | 'ai') are queued for Google (persisted) and for the device export
- *   calendar, then pushed after a short debounce. Remote, imported and calendar-origin writes are
- *   never pushed (loop prevention).
+ * - LOCAL writes (origin 'user' | 'ai') are queued for Google and Outlook (persisted) and for the
+ *   device export calendar, then pushed after a short debounce. Remote, imported and
+ *   calendar-origin writes are never pushed (loop prevention).
  * - syncNow() (UI "Sync now", background task, foreground/interval/connectivity): Google flush +
- *   pull, device import + export. At most one run at a time; calls made while a run is in flight
+ *   pull, Outlook flush + pull (when the optional provider is registered and connected), device
+ *   import + export. At most one run at a time; calls made while a run is in flight
  *   are coalesced into ONE follow-up run that starts when it ends (the running one read its
  *   preferences when it started, so a settings change during it must not be lost).
  */
@@ -24,6 +25,7 @@ import { createLogger } from '../../core/logger';
 import type { Preferences } from '../../core/types';
 import type { DeviceCalendarServiceInternal } from './device/service';
 import type { GoogleCalendarServiceInternal } from './google/service';
+import type { OutlookCalendarServiceInternal } from './outlook/service';
 import type { CalendarStatusStore } from './status';
 
 const log = createLogger('calendar');
@@ -38,6 +40,8 @@ export type AppStateStatus = 'active' | 'background' | 'inactive' | 'unknown' | 
 export interface EngineDeps {
   google: GoogleCalendarServiceInternal;
   device: DeviceCalendarServiceInternal;
+  /** Registered only when EXPO_PUBLIC_MSAL_CLIENT_ID is set (outlookInternal.isConfigured()). */
+  outlook?: OutlookCalendarServiceInternal;
   preferences: Pick<PreferencesRepository, 'get'>;
   getActiveUid(): string | null;
   status: CalendarStatusStore;
@@ -98,8 +102,14 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
   let followUpOptions: { reason: CalendarSyncReason; headless: boolean } | null = null;
   let lastAutoSyncAt = 0;
   const pendingGoogle = new Map<string, 'upsert' | 'delete'>();
+  const pendingOutlook = new Map<string, 'upsert' | 'delete'>();
   const pendingDevice = new Set<string>();
   let flushing: Promise<void> | null = null;
+
+  /** Cheap connected probe (the status store is kept current by the outlook service). */
+  function outlookConnected(): boolean {
+    return deps.outlook !== undefined && deps.status.get().outlook?.connected === true;
+  }
 
   function isCurrent(gen: number): boolean {
     return gen === generation && uid !== null;
@@ -134,13 +144,15 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
   async function flushLocalChanges(): Promise<void> {
     if (flushing) {
       await flushing;
-      if (pendingGoogle.size === 0 && pendingDevice.size === 0) return;
+      if (pendingGoogle.size === 0 && pendingOutlook.size === 0 && pendingDevice.size === 0) return;
     }
     const gen = generation;
     const run = (async () => {
       const prefs = await currentPreferences();
       const googleBatch = [...pendingGoogle.entries()];
       pendingGoogle.clear();
+      const outlookBatch = [...pendingOutlook.entries()];
+      pendingOutlook.clear();
       const deviceBatch = [...pendingDevice];
       pendingDevice.clear();
 
@@ -154,6 +166,18 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
           if (isCurrent(gen)) await deps.google.flushPending();
         } catch (error) {
           log.warn('Pushing local changes to Google failed', { code: toAppError(error).code });
+        }
+      }
+      const outlook = deps.outlook;
+      if (outlook !== undefined && outlookConnected() && outlookBatch.length > 0) {
+        try {
+          const upserts = outlookBatch.filter(([, op]) => op === 'upsert').map(([id]) => id);
+          const deletes = outlookBatch.filter(([, op]) => op === 'delete').map(([id]) => id);
+          await outlook.enqueue(upserts, 'upsert');
+          await outlook.enqueue(deletes, 'delete');
+          if (isCurrent(gen)) await outlook.flushPending();
+        } catch (error) {
+          log.warn('Pushing local changes to Outlook failed', { code: toAppError(error).code });
         }
       }
       if (deviceBatch.length > 0 && isCurrent(gen)) {
@@ -191,6 +215,17 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       .catch((error: unknown) => log.warn('Could not queue local changes for Google', { code: toAppError(error).code }));
   }
 
+  /** Persist-first for Outlook too: a change made just before the app dies still reaches Graph. */
+  function persistOutlookPushes(ids: readonly string[], op: 'upsert' | 'delete'): void {
+    const outlook = deps.outlook;
+    if (outlook === undefined || !outlookConnected()) return;
+    const gen = generation;
+    if (!isCurrent(gen)) return;
+    void outlook
+      .enqueue(ids, op)
+      .catch((error: unknown) => log.warn('Could not queue local changes for Outlook', { code: toAppError(error).code }));
+  }
+
   function onMeetingChanged(event: MeetingsChangedEvent): void {
     if (uid === null || event.uid !== uid) return;
     if (isPushableChange(event)) {
@@ -198,9 +233,11 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       const ids = event.changedIds ?? [];
       for (const id of ids) {
         pendingGoogle.set(id, op);
+        pendingOutlook.set(id, op);
         pendingDevice.add(id);
       }
       persistGooglePushes(ids, op);
+      persistOutlookPushes(ids, op);
       scheduleFlush();
       return;
     }
@@ -247,12 +284,22 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     const prefs = options.headless ? await deps.preferences.get() : await currentPreferences();
     await applyPreferencesToStatus(prefs);
     const report: CalendarSyncReport = { google: null, device: null, errors: [] };
+    if (deps.outlook !== undefined) report.outlook = null;
 
     if (prefs.googleCalendarSyncEnabled) {
       try {
         report.google = await deps.google.sync();
       } catch (error) {
         report.errors.push({ provider: 'google', code: toAppError(error).code });
+      }
+    }
+
+    if (deps.outlook !== undefined) {
+      try {
+        const { connected } = await deps.outlook.refreshStatus();
+        if (connected) report.outlook = await deps.outlook.sync();
+      } catch (error) {
+        report.errors.push({ provider: 'outlook', code: toAppError(error).code });
       }
     }
 
@@ -329,6 +376,15 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     if (!isCurrent(gen)) return;
     deps.status.patchGoogle({ lastSyncAt: googleState.lastSyncAt, lastError: googleState.lastError });
     deps.status.patchDevice({ lastSyncAt: deviceState.lastSyncAt, lastError: deviceState.lastError });
+    if (deps.outlook !== undefined) {
+      try {
+        const outlookState = await deps.outlook.loadState();
+        if (!isCurrent(gen)) return;
+        deps.status.patchOutlook({ lastSyncAt: outlookState.lastSyncAt, lastError: outlookState.lastError });
+      } catch (error) {
+        log.warn('Could not read the Outlook sync state', { code: toAppError(error).code });
+      }
+    }
     const prefs = await currentPreferences();
     if (!isCurrent(gen)) return;
     await applyPreferencesToStatus(prefs);
@@ -336,6 +392,9 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       deps.google.refreshStatus().catch((error: unknown) =>
         log.warn('Could not read the Google Calendar permission', { code: toAppError(error).code }),
       ),
+      deps.outlook?.refreshStatus().catch((error: unknown) =>
+        log.warn('Could not read the Outlook connection state', { code: toAppError(error).code }),
+      ) ?? Promise.resolve(),
       deps.device.getPermission().catch((error: unknown) =>
         log.warn('Could not read the calendar permission', { code: toAppError(error).code }),
       ),
@@ -405,6 +464,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       debounceHandle = null;
       stopInterval();
       pendingGoogle.clear();
+      pendingOutlook.clear();
       pendingDevice.clear();
       preferences = null;
       lastAutoSyncAt = 0;

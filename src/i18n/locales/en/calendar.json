@@ -1,6 +1,6 @@
 {
   "screen": {
-    "subtitle": "Keep MeetingGuard in step with Google Calendar and the calendars on this phone."
+    "subtitle": "Keep MeetingGuard in step with your connected calendars and the calendars on this phone."
   },
   "status": {
     "lastSynced": "Last synced {{time}}",
@@ -32,6 +32,29 @@
     "disconnectedTitle": "Google Calendar sync is off",
     "untitledEvent": "(No title)"
   },
+  "outlook": {
+    "title": "Outlook Calendar",
+    "description": "Two-way sync with the calendar of your Microsoft account (Outlook, Microsoft 365). Meetings you create here appear in Outlook, and your Outlook events get MeetingGuard alerts.",
+    "state": {
+      "connected": "Connected",
+      "notConnected": "Not connected"
+    },
+    "account": "Microsoft account: {{email}}",
+    "twoWaySync": "Two-way sync",
+    "connect": "Connect Outlook",
+    "connecting": "Connecting…",
+    "connectedTitle": "Outlook connected",
+    "firstSyncSummary": "Imported {{created}} events and sent {{pushed}} meetings to Outlook.",
+    "firstSyncFailed": "Connected, but the first sync did not finish: {{error}} MeetingGuard will try again automatically.",
+    "connectFailed": "The Microsoft sign-in did not finish. Please try again.",
+    "disconnectTitle": "Stop Outlook sync?",
+    "disconnectMessage": "Events imported from Outlook will be removed from MeetingGuard. Nothing is deleted from your Outlook calendar.",
+    "disconnect": "Stop sync",
+    "disconnectAndRevoke": "Stop sync and review access",
+    "disconnecting": "Stopping sync…",
+    "disconnectedTitle": "Outlook sync is off",
+    "untitledEvent": "(No title)"
+  },
   "device": {
     "title": "Calendars on this phone",
     "description": "Import events from the calendars on this phone and, if you like, add your MeetingGuard meetings to one of them.",
@@ -60,15 +83,19 @@
     "doneTitle": "Sync complete",
     "problemsTitle": "Sync finished with problems",
     "googleResult": "Google Calendar: {{created}} new, {{updated}} updated, {{removed}} removed, {{pushed}} sent to Google.",
+    "outlookResult": "Outlook: {{created}} new, {{updated}} updated, {{removed}} removed, {{pushed}} sent to Outlook.",
     "deviceResult": "Phone calendars: {{created}} new, {{updated}} updated, {{removed}} removed, {{pushed}} added to your phone calendar.",
     "failedGoogle_one": "{{count}} change could not be sent to Google Calendar.",
     "failedGoogle_other": "{{count}} changes could not be sent to Google Calendar.",
+    "failedOutlook_one": "{{count}} change could not be sent to Outlook.",
+    "failedOutlook_other": "{{count}} changes could not be sent to Outlook.",
     "failedDevice_one": "{{count}} meeting could not be added to your phone calendar.",
     "failedDevice_other": "{{count}} meetings could not be added to your phone calendar.",
     "providerError": "{{provider}}: {{error}}",
     "nothingToSync": "Nothing to sync yet. Connect Google Calendar or choose calendars on this phone first.",
     "providers": {
       "google": "Google Calendar",
+      "outlook": "Outlook",
       "device": "Phone calendars"
     }
   },
