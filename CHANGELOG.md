@@ -3,6 +3,37 @@
 All notable changes to MeetingGuard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
+## [1.3.1] - Unreleased (branch `stabilization`)
+
+UI modernization ("MG Indigo"): a visual-only restyle of every screen. No business logic,
+navigation, i18n keys (beyond two added alert-status strings) or alert behavior changed.
+
+### Changed
+
+- **One design language across the app.** A single brand hue (MG Indigo `#4646D3` light /
+  `#AFB4FF` dark) replaces Paper's stock purple plus the assistant's emerald and the calendar
+  sync screen's blue/slate; cool-slate neutrals, hairline-bordered flat cards, sentence-case
+  section headers, and one focal element per screen. All colors, typography, spacing, radii and
+  component metrics come from `src/theme/tokens.ts`; the ~93 distinct hard-coded hex colors that
+  screens used before are down to zero outside the theme (a WCAG-AA contrast guard test covers
+  every documented pairing in light AND dark mode).
+- **Shared component kit** (`src/components/ui/`): MGButton, Card, SectionHeader, ListGroup/
+  ListRow (incl. destructive rows), Badge, Banner (titled), EmptyState/ErrorState (retry with
+  spinner)/LoadingState/Skeleton, SheetHandle — now used by every screen for consistent cards,
+  rows, buttons, badges, banners and empty/error/loading states.
+- **Restyled screens:** landing, onboarding (incl. pixel-accurate alert previews), legal,
+  pricing, settings, alert preferences; dashboard (focal next-meeting card, quick actions,
+  timeline) and AI insights (stat tiles, load-by-day bars); meetings list/form/details,
+  calendar + month grid, create flow, attachments, confirmation modal; assistant chat,
+  calendar sync, notes, and the MAX/MEDIUM/LIGHT alert overlays (now token-driven,
+  mode-invariant always-dark, with AA-fixed join/ack buttons) plus AppToast and the error
+  fallback.
+- Meeting sources and note categories share one categorical palette (accent bars, dots,
+  legends) with ≥3:1 contrast in both modes; the hard-coded Google blue and Tailwind note hexes
+  are gone.
+- Accessibility: 44dp touch targets, font-scaling-safe layouts at 360dp (no fixed text
+  heights), kept/extended accessibility roles, labels and states throughout.
+
 ## [1.3.0] - Unreleased (branch `stabilization`)
 
 The version jumped because this release ships **new native code** (the widget module and the

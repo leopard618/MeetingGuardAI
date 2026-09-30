@@ -11,11 +11,11 @@
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { Alert, FlatList, ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Chip, FAB, HelperText, Searchbar, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { ActivityIndicator, Chip, FAB, HelperText, Searchbar, Text, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { EmptyState } from '../../components/ui';
+import { EmptyState, MGButton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -219,9 +219,9 @@ export function NotesScreen({ navigation }: Props): ReactElement {
       <View style={styles.centered}>
         <EmptyState icon="magnify" title={t('notes:noMatches.title')} body={t('notes:noMatches.body')} testID="notes-no-matches" />
         {filtered ? (
-          <Button mode="outlined" style={styles.clearButton} onPress={clearFilters} testID="notes-clear-filters">
+          <MGButton variant="tonal" style={styles.clearButton} onPress={clearFilters} testID="notes-clear-filters">
             {t('notes:noMatches.action')}
-          </Button>
+          </MGButton>
         ) : null}
       </View>
     );

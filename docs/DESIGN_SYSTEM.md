@@ -88,7 +88,11 @@ agree; exported as `sourceColorIndex` / `noteCategoryColorIndex` in tokens.ts):
 | whatsapp | 2 (amber) | | |
 
 This retires the hard-coded Google blue in `MeetingListItem.tsx` and the Tailwind hexes in
-`notes/categoryStyle.ts` (keep those modules' exported shapes; source the values from tokens).
+`notes/categoryStyle.ts` (both modules now source their values from these token maps —
+`MeetingListItem.tsx` exports `sourceColor(category, colors)` / `meetingSourceColor(source,
+colors)` and `notes/categoryStyle.ts` keeps its exported shape over `chartPalette`).
+`chart[0]` is additionally guarded ≥3:1 on `surfaceVariant` (LoadByDay's fill on its track) in
+`src/theme/__tests__/contrast.test.ts`.
 
 **Alert-intensity identities** (mode-invariant; `alertMax` / `alertMedium` / `alertLight` token
 groups, identical in both schemes — see §9).
@@ -145,21 +149,34 @@ Promised signatures (implementers may rely on these):
           size?="md"|"sm" {...PaperButtonProps} />                    // wraps Paper Button, h 48/40, labelL
 <Card onPress?={fn} accent?="none"|"primary" style? testID? >…</Card> // surface, r-lg, 1px outlineVariant,
                                                                       // p-16, elev 0; accent → primaryContainer
-<SectionHeader title action?={{label, onPress}} testID? />            // titleS onSurfaceVariant, mt 24 / mb 8
+<SectionHeader title action?={{label, onPress}} trailing?={node}
+               testID? />                                             // titleS onSurfaceVariant, mt 24 / mb 8;
+                                                                      // trailing = plain node (count label, Badge)
 <ListGroup>…</ListGroup>                                              // r-md container, internal hairlines
 <ListRow icon?="calendar" title supporting? trailing?={node|"chevron"}
+         tone?="default"|"destructive"                                // destructive: error title/icon + ripple
          onPress? selected? disabled? testID? accessibility* />       // minH 56, ripple onSurface@8%
 <EmptyState icon title body action?={{label, onPress}} testID? />     // 96px surfaceVariant circle, 48 icon,
                                                                       // headlineS + bodyM, pv 40
-<ErrorState body title? onRetry testID? />                            // errorContainer circle + filled Retry;
+<ErrorState body title? onRetry loading? testID? />                   // errorContainer circle + filled Retry;
+                                                                      // loading: spinner + blocks re-entry;
                                                                       // never rendered beside cached content
 <LoadingState testID? /> and <Skeleton width height radius? />        // spinner (primary) for first load;
                                                                       // skeleton only where layout is known:
                                                                       // surfaceVariant, r-sm, 700ms Animated 0.5→1
 <Badge label tone?="neutral"|"primary"|"success"|"warning"|"error"|"info" testID? /> // r-xs, labelM, Container pairs
-<Banner tone?="info"|"warning"|"error" icon? text action? testID? />  // r-md, Container bg, 20 icon, Animated slide
+<Banner tone?="info"|"warning"|"error" icon? title? text action? testID? /> // r-md, Container bg, 20 icon,
+                                                                      // labelL title line over bodyM text; slide-in
 <SheetHandle />                                                       // 32×4 outline bar, self-centered
 ```
+
+Known limitation: Paper's Button (and therefore MGButton) hard-codes
+`accessibilityState={{ disabled }}` on its touchable, so a custom `accessibilityState` (e.g.
+`busy`) never reaches the node. Surfaces whose tests or screen readers need `busy` keep bespoke
+MG-spec Pressables (h 48, pill, labelL): the landing sign-in, the pricing buy/manage/restore
+buttons and the confirmation-modal footer. Badge has no leading-icon slot and ListRow no
+`numberOfLines`/middle-ellipsis for titles — the meeting-list repeat marker and the attachments
+rows keep small local implementations for those.
 
 Chips stay Paper `Chip` (themed): selected = `secondaryContainer` + check; unselected =
 transparent + 1px `outline` + `onSurfaceVariant`. Inputs stay Paper `TextInput mode="outlined"`
@@ -205,8 +222,9 @@ radii only from tokens; hierarchy = one focal element per screen.
 
 ### Group A — auth, onboarding, legal, pricing, settings, alert settings
 - **LandingScreen** (`auth/LandingScreen.tsx`): keep bg.jpg hero; scrim → `scrim` token; content
-  card surface r-xl p-24; app name headlineL, tagline bodyM onSurfaceVariant; bespoke pill
-  buttons → `MGButton` filled (continue/Google) + ghost (secondary), h 48.
+  card surface r-xl p-24; app name headlineL, tagline bodyM onSurfaceVariant; buttons follow the
+  MG filled/ghost spec (the sign-in stays a bespoke MG-spec Pressable — it asserts `busy`, see
+  the §5 Paper Button limitation).
 - **Onboarding** (`OnboardingLayout` + 5 steps): bg background; ProgressBar themed (primary);
   step title headlineS (hero step displayS), body bodyM onSurfaceVariant; option pickers
   (language, alert intensity, calendars) → `ListGroup`+`ListRow` with `selected` tint or Paper
@@ -219,12 +237,13 @@ radii only from tokens; hierarchy = one focal element per screen.
 - **PricingScreen**: plan cards = `Card`; recommended plan: `accent="primary"` is NOT used —
   instead 2px `primary` border + `Badge tone="primary"` "recommended"; price headlineM
   tabular-nums + period bodyS; feature rows bodyM + 20px MCI check in `success`; period toggle →
-  Paper SegmentedButtons; bespoke pill buttons (audit #7) → `MGButton` filled/outline; keep
+  Paper SegmentedButtons; buy/manage/restore/retry follow the MG filled/outline pill spec as
+  bespoke Pressables (they assert `busy` — §5 Paper Button limitation); keep
   `PILL_MAX_FONT_SCALE` guards and all purchase logic untouched.
 - **SettingsScreen**: rows grouped in `ListGroup` per section (Settings pattern of §5);
   SectionHeader titleS; List.Item → `ListRow` (icon 24 onSurfaceVariant, trailing Switch/chevron);
   SegmentedButtons/Switch pick up the theme automatically; destructive (delete account) =
-  `MGButton variant="destructive"` ghost-style red text row; ThemeToggle stays Foundation's.
+  `ListRow tone="destructive"` (error title/icon, error ripple); ThemeToggle stays Foundation's.
 - **AlertSettingsScreen / AlertPreferencesForm** (`screens/alerts/`): same ListGroup pattern;
   intensity = choice chips (selected secondaryContainer); volume slider + switches themed; test
   buttons `MGButton tonal`; preview swatches from alert tokens.

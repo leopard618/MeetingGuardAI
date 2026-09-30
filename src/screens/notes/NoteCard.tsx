@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   },
   meetingLink: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: radii.md,
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginRight: 4,

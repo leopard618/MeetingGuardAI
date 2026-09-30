@@ -21,7 +21,7 @@ import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { Banner, EmptyState, ErrorState, Skeleton } from '../../components/ui';
+import { Banner, EmptyState, ErrorState, SectionHeader, Skeleton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -173,16 +173,16 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
       {showData ? <NextMeetingCard current={current} next={next} onOpen={openMeeting} onJoin={join} /> : null}
       <QuickActions onNewManual={() => navigation.navigate('CreateMeeting')} onNewWithAi={() => navigation.navigate('AIChat')} />
       {loadFailed ? null : (
-        <View style={styles.sectionHeader}>
-          <Text variant="titleSmall" accessibilityRole="header" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>
-            {t('home:today.title')}
-          </Text>
-          {showData ? (
-            <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }} testID="today-count">
-              {t('home:today.count', { count: summary.today.count })}
-            </Text>
-          ) : null}
-        </View>
+        <SectionHeader
+          title={t('home:today.title')}
+          trailing={
+            showData ? (
+              <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }} testID="today-count">
+                {t('home:today.count', { count: summary.today.count })}
+              </Text>
+            ) : null
+          }
+        />
       )}
     </View>
   );
@@ -247,17 +247,6 @@ const styles = StyleSheet.create({
   },
   errorBanner: {
     marginBottom: spacing.md,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    marginTop: spacing.xxl,
-    marginBottom: spacing.sm,
-  },
-  sectionTitle: {
-    flexShrink: 1,
   },
   skeletonRow: {
     marginBottom: spacing.sm,

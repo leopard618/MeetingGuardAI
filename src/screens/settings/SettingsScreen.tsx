@@ -9,12 +9,11 @@
  * Every string comes from the "settings" namespace (plus shared auth / onboarding keys).
  * Layout: sentence-case SectionHeaders over ListGroups (rows) and Cards (segmented choices).
  */
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
 import type { ReactElement } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SegmentedButtons, Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
@@ -28,7 +27,7 @@ import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import { usePreferences } from '../../services/data';
 import { getUpdateInfo, shortUpdateLabel } from '../../services/updates';
-import { componentMetrics, pressedOpacity, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../../theme';
+import { spacing, useAppTheme } from '../../theme';
 import { alertTimeLabel } from '../onboarding/alertOptions';
 import { ScreenBody } from '../shared/Section';
 import { useFormatters } from '../shared/useFormatters';
@@ -43,42 +42,6 @@ const UPDATE_LABEL = shortUpdateLabel(getUpdateInfo());
 // Example time shown under the time-format choice: 15:30, formatted in UTC so it reads 15:30
 // whatever the device zone.
 const SAMPLE_TIME = new Date(Date.UTC(2026, 0, 5, 15, 30));
-
-/** Destructive settings row (red title, error ripple; never opacity on the whole row). */
-function DestructiveRow({
-  title,
-  supporting,
-  onPress,
-  disabled,
-  testID,
-}: {
-  title: string;
-  supporting: string;
-  onPress: () => void;
-  disabled: boolean;
-  testID: string;
-}): ReactElement {
-  const { colors } = useAppTheme();
-  const titleColor = disabled ? colors.disabledText : colors.error;
-  const supportingColor = disabled ? colors.disabledText : colors.onSurfaceVariant;
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      android_ripple={{ color: withAlpha(colors.error, stateAlpha.rippleOnRow) }}
-      style={({ pressed }) => [styles.destructiveRow, pressed && Platform.OS !== 'android' && styles.pressed]}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: disabled || undefined }}
-      testID={testID}
-    >
-      <MaterialCommunityIcons name="account-remove-outline" size={componentMetrics.iconNav} color={titleColor} />
-      <View style={styles.destructiveTexts}>
-        <Text style={[styles.destructiveTitle, { color: titleColor }]}>{title}</Text>
-        <Text style={[styles.destructiveSupporting, { color: supportingColor }]}>{supporting}</Text>
-      </View>
-    </Pressable>
-  );
-}
 
 export function SettingsScreen(): ReactElement {
   const t = useT();
@@ -125,9 +88,11 @@ export function SettingsScreen(): ReactElement {
           title={authUser?.displayName ?? accountEmailLine}
           supporting={authUser?.displayName ? accountEmailLine : undefined}
         />
-        <DestructiveRow
+        <ListRow
+          icon="account-remove-outline"
           title={t('auth:deleteAccount.title')}
           supporting={t('settings:account.deleteDescription')}
+          tone="destructive"
           onPress={deletion.start}
           disabled={deletion.busy}
           testID="settings-delete-account"
@@ -239,25 +204,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.xxl,
     marginBottom: spacing.lg,
-  },
-  destructiveRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: componentMetrics.listRowTwoLineMinHeight,
-    paddingHorizontal: componentMetrics.listRowPaddingH,
-    paddingVertical: componentMetrics.listRowPaddingV,
-    gap: spacing.lg,
-  },
-  destructiveTexts: {
-    flex: 1,
-  },
-  destructiveTitle: {
-    ...typography.titleM,
-  },
-  destructiveSupporting: {
-    ...typography.bodyM,
-  },
-  pressed: {
-    opacity: pressedOpacity,
   },
 });

@@ -23,7 +23,8 @@ export function OfflineBanner(): ReactElement | null {
     <Banner
       tone="warning"
       icon="cloud-off-outline"
-      text={`${t('home:offline.title')}. ${message}`}
+      title={t('home:offline.title')}
+      text={message}
       style={styles.banner}
       testID="offline-banner"
     />

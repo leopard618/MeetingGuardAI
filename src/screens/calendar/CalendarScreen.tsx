@@ -192,6 +192,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
           onRetry={() => {
             if (!refreshing) onRefresh();
           }}
+          loading={refreshing}
           testID="calendar-error"
         />
       );

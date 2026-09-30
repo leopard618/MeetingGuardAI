@@ -293,6 +293,7 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
             onRetry={() => {
               if (!retrying) void retry();
             }}
+            loading={retrying}
             testID="insights-error"
           />
         ) : (

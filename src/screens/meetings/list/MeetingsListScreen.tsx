@@ -150,6 +150,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
           onRetry={() => {
             if (!refreshing) onRefresh();
           }}
+          loading={refreshing}
           style={styles.state}
           testID="meetings-error"
         />

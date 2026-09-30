@@ -89,7 +89,7 @@ module.exports = {
     // USE_FULL_SCREEN_INTENT). Builds of 1.1.0 must never receive 1.2.0 JS via OTA.
     // 1.3.0: mg-next-meeting-widget (new native module) + react-native-purchases (native SDK)
     // changed the runtime again: store/APK build only, never an OTA update onto 1.2.0.
-    version: '1.3.0',
+    version: '1.3.1',
     scheme: 'meetingguardai',
     platforms: ['ios', 'android'],
     orientation: 'portrait',

@@ -70,12 +70,6 @@ export function useCalendarPalette(): CalendarPalette {
   return calendarPalette(isDarkMode);
 }
 
-export function toneColor(palette: CalendarPalette, tone: Tone): string {
-  if (tone === 'success') return palette.success;
-  if (tone === 'warning') return palette.warning;
-  return palette.muted;
-}
-
 /** Container pair for the provider status badge (AA text in both schemes). */
 export function toneBadgeColors(palette: CalendarPalette, tone: Tone): { color: string; background: string } {
   if (tone === 'success') return { color: palette.onSuccessSurface, background: palette.successSurface };
