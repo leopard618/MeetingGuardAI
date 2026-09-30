@@ -11,11 +11,14 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native projects are generated on the build server (Continuous Native Generation)
+# Native projects are generated on the build server (Continuous Native Generation).
+# Only the TOP-LEVEL android/ios dirs: modules/*/android is the local Expo module's
+# source (mg-fullscreen-alarm) and MUST be uploaded, or EAS builds lose the module.
 /android
 /ios
-android/
-ios/
+
+# Local Expo modules: Gradle build output (generated when the app builds)
+modules/*/android/build/
 .kotlin/
 *.orig.*
 
