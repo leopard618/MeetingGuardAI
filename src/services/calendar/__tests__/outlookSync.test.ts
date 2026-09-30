@@ -368,6 +368,33 @@ describe('pushOutlookMeeting', () => {
     expect(api.calls).toHaveLength(0);
   });
 
+  it('a one-off already in Outlook that becomes recurring: the stale Graph event is deleted and the refs cleared', async () => {
+    const { api, meetings, deps } = setup();
+    const meeting = meetings.add({ title: 'Planning', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' });
+    const pushed = (await pushOutlookMeeting(deps, meeting)).meeting;
+    expect(api.events.size).toBe(1);
+
+    const recurring = await meetings.update(
+      pushed.id,
+      { recurrence: { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null } },
+      { origin: 'user' },
+    );
+    const outcome = await pushOutlookMeeting(deps, recurring);
+
+    // The old single event must not linger in Outlook (stale copy; an Outlook-side edit of it
+    // would rewrite the local series anchor), and the master is unlinked.
+    expect(outcome.sent).toBe(true);
+    expect(api.events.size).toBe(0);
+    expect(outcome.meeting.external.outlookEventId).toBeNull();
+    expect(outcome.meeting.external.outlookChangeKey).toBeNull();
+
+    // Re-pushing the now-unlinked series is a no-op (not pushable in v1).
+    api.calls = [];
+    const again = await pushOutlookMeeting(deps, outcome.meeting);
+    expect(again.sent).toBe(false);
+    expect(api.calls).toHaveLength(0);
+  });
+
   it('deletes the event of a deleted meeting (missing events count as deleted)', async () => {
     const { api, meetings, deps, clock } = setup();
     const meeting = meetings.add({ title: 'Old', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' });

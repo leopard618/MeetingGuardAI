@@ -43,8 +43,11 @@ const log = createLogger('home');
 
 type Props = StackScreenProps<RootStackParamList, 'Dashboard'>;
 
-/** How far the dashboard expands recurring meetings: today's timeline + a year for "next". */
-const DASHBOARD_PAST_DAYS = 1;
+/**
+ * How far the dashboard expands recurring meetings: the summary's "this week" needs the whole
+ * calendar week (up to 6 days back), today's timeline needs today, and "next" up to a year ahead.
+ */
+const DASHBOARD_PAST_DAYS = 7;
 const DASHBOARD_FUTURE_DAYS = 370;
 
 function Greeting({ now, timeZone }: { now: Date; timeZone: string }): ReactElement {
@@ -98,7 +101,9 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
     [meetings, timeZone, now],
   );
   const timeline = useMemo(() => buildTodayTimeline(displayMeetings, context), [displayMeetings, context]);
-  const summary = useMemo(() => computeDashboardSummary(meetings, context), [meetings, context]);
+  // The summary counts the same occurrence rows the timeline shows (a weekly series counts every
+  // occurrence of this week, not just its stored master).
+  const summary = useMemo(() => computeDashboardSummary(displayMeetings, context), [displayMeetings, context]);
   const { current, next } = useMemo(() => findNowAndNext(displayMeetings, now), [displayMeetings, now]);
   // Nothing could be read (first launch offline, permission denied): say so instead of showing
   // "no meetings" empty states next to the error (a failure is not an empty list).

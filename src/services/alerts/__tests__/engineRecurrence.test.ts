@@ -7,6 +7,7 @@ import { createEventBus, type AppEventMap } from '../../../core/events';
 import type { Logger } from '../../../core/logger';
 import type { Meeting, MeetingRecurrence, Preferences } from '../../../core/types';
 import { NOW, fakeFormatTime, makeMeeting, makePrefs, translator } from '../__fixtures__/alertFixtures';
+import { filterMeetings } from '../../data/engine';
 import { createAlertEngine } from '../engineCore';
 import type {
   AlertDataPort,
@@ -68,7 +69,9 @@ function setup(options: { meetings: Meeting[]; prefs?: Preferences }) {
   const data = { meetings: options.meetings, prefs: options.prefs ?? makePrefs() };
   const dataPort: AlertDataPort = {
     getActiveUid: () => 'user-1',
-    listMeetings: async () => data.meetings,
+    // The REAL range filter: the engine's reconcile window (now - 2 d .. now + 22 d) must keep
+    // recurring masters whose own startAt (their first occurrence) is already far in the past.
+    listMeetings: async (range) => filterMeetings(data.meetings, range),
     getMeeting: async (id) => data.meetings.find((meeting) => meeting.id === id) ?? null,
     getPreferences: async () => data.prefs,
     getCachedUpcoming: async () => data.meetings,
@@ -143,6 +146,29 @@ describe('reconcile with a recurring meeting', () => {
 
     const scheduled = await engine.getScheduled();
     expect(scheduled.map((info) => info.localDateKey)).toEqual(['2026-10-06', '2026-10-07', '2026-10-08']);
+  });
+
+  it('a series whose FIRST occurrence is weeks past still alerts, and its notifications survive a reconcile', async () => {
+    // Weekly Mondays 14:00 UTC anchored a month before NOW (2026-09-07): the master's own startAt
+    // is far outside the reconcile's 2-day lookback, but the series is still running.
+    const aged = makeMeeting('old1', '2026-09-07T14:00:00.000Z', {
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: ['MO'], byMonthDay: null, until: null, count: null },
+    });
+    const { engine, notifications } = setup({
+      meetings: [aged],
+      prefs: makePrefs({ defaultAlertTimes: [15], followUpEnabled: false }),
+    });
+    await engine.startSession('user-1');
+
+    // NOW is Monday 2026-10-05 12:00Z: today's 14:00 occurrence and the following Mondays.
+    const ids = [...notifications.scheduled.keys()].sort();
+    expect(ids).toContain('mg:old1:2026-10-05:15');
+    expect(ids).toContain('mg:old1:2026-10-12:15');
+    expect(ids.length).toBeGreaterThanOrEqual(2);
+
+    // The regression this guards: the reconcile diff must KEEP them, not cancel the series.
+    await engine.reconcile('manual');
+    expect([...notifications.scheduled.keys()].sort()).toEqual(ids);
   });
 
   it('renders a modified occurrence with its overridden title and time', async () => {

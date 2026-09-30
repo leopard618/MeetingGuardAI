@@ -96,4 +96,17 @@ describe('outbox reducer', () => {
     expect(parsed.state.seq).toBe(1);
     expect(parseOutbox(null).state.entries).toEqual([]);
   });
+
+  it('round-trips every write origin through the persisted schema (calendar_outlook included)', () => {
+    // A persisted entry whose origin is missing from the schema would be silently DROPPED at the
+    // next app start - queued Outlook imports would never reach the server.
+    const origins = ['user', 'ai', 'calendar_google', 'calendar_device', 'calendar_outlook', 'migration', 'system'] as const;
+    let state: OutboxState = EMPTY_OUTBOX;
+    for (const [index, origin] of origins.entries()) {
+      state = enqueueWrite(state, { kind: 'meeting', docId: `m${index}`, mode: 'create', data: { title: origin }, updatedAt: 'x', origin }, ctx());
+    }
+    const parsed = parseOutbox(JSON.parse(JSON.stringify(state)) as unknown);
+    expect(parsed.dropped).toBe(0);
+    expect(parsed.state.entries.map((entry) => entry.origin)).toEqual([...origins]);
+  });
 });

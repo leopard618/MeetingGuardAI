@@ -24,11 +24,14 @@ import { OfflineBanner } from '../home/OfflineBanner';
 import { useLiveNow } from '../shared/useLiveNow';
 import { Section } from '../shared/Section';
 import { useFormatters } from '../shared/useFormatters';
+import { displayWindowForDays, expandMeetingsForDisplay } from '../meetings/occurrences';
 import { AiSuggestionsSection } from './AiSuggestionsSection';
 import { LoadByDay } from './LoadByDay';
 import {
   computePeriodInsights,
+  periodRange,
   weekStartForLanguage,
+  type InsightContext,
   type InsightPeriod,
   type MeetingPair,
   type PeriodInsights,
@@ -189,10 +192,17 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
   const now = useLiveNow(60_000);
   const timeZone = getDeviceTimeZone();
 
-  const insights = useMemo(
-    () => computePeriodInsights(meetings, period, { now, timeZone, weekStartsOn: weekStartForLanguage(language) }),
-    [language, meetings, now, period, timeZone],
+  const context = useMemo<InsightContext>(
+    () => ({ now, timeZone, weekStartsOn: weekStartForLanguage(language) }),
+    [language, now, timeZone],
   );
+  // Recurring meetings count per OCCURRENCE (a weekly series adds every occurrence of the period
+  // to the counts, load chart and conflicts), so the expansion window matches the period's days.
+  const insights = useMemo(() => {
+    const range = periodRange(period, context);
+    const expanded = expandMeetingsForDisplay(meetings, displayWindowForDays(range.from, range.to, timeZone));
+    return computePeriodInsights(expanded, period, context);
+  }, [context, meetings, period, timeZone]);
 
   const openMeeting = (meeting: Meeting): void => navigation.navigate('MeetingDetails', { meetingId: meeting.id });
   const hasMeetings = !isLoading && insights.count > 0;

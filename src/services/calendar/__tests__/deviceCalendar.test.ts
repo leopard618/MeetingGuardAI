@@ -262,6 +262,23 @@ describe('deviceCalendarService', () => {
     expect(port.deleted).toHaveLength(1);
   });
 
+  it('never exports recurring masters and removes a copy exported before the repeat was added', async () => {
+    const { service, port, meetings, preferences } = setupService();
+    preferences.deviceCalendarExportId = scopeId(KEY, '3');
+    const weekly = { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null } as const;
+    // A master is one stored document: exporting it would freeze its FIRST occurrence in the
+    // phone calendar as a single stale event (ARCHITECTURE §16).
+    meetings.add({ title: 'Series', startAt: '2026-10-05T16:00:00.000Z', source: 'manual', recurrence: weekly });
+    const own = meetings.add({ title: 'One-off', startAt: '2026-10-05T17:00:00.000Z', source: 'manual' });
+    expect(await service.syncExports()).toEqual({ exported: 1, removed: 0, failed: 0 });
+    expect(port.created).toHaveLength(1);
+
+    // The exported one-off later becomes recurring: its copy is removed on the next sync.
+    await meetings.update(own.id, { recurrence: weekly }, { origin: 'user' });
+    expect(await service.syncExports()).toEqual({ exported: 0, removed: 1, failed: 0 });
+    expect(port.deleted).toHaveLength(1);
+  });
+
   it('removes the copy of a deleted meeting once', async () => {
     const { service, port, meetings, preferences } = setupService();
     preferences.deviceCalendarExportId = scopeId(KEY, '3');

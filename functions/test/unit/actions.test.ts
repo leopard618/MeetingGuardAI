@@ -620,6 +620,35 @@ describe('recurrence (v2)', () => {
     expect(Object.keys((action as { changes: object }).changes)).toEqual(['startAt']);
   });
 
+  it('a date-only occurrence move keeps the series wall clock in the MEETING zone across a DST divergence', () => {
+    // Series: Mondays 09:00 Europe/Madrid. User in America/New_York. Target date 2027-03-15 sits
+    // in the window where NY is already on DST (from Mar 14) and Madrid is not (until Mar 28):
+    // deriving the fallback time in the user's zone (03:00 NY) would land at 08:00 Madrid.
+    const action = only(
+      mapToolCalls(
+        [
+          call('update_meeting', {
+            meeting_ref: ref('series'),
+            changes: { ...noChanges, date: '2027-03-15' },
+            scope: 'occurrence',
+            occurrence_date: '2027-03-08',
+            summary: 'Move one standup a week later',
+            confidence: 80,
+          }),
+        ],
+        ctx({ userTimeZone: 'America/New_York' }),
+      ).actions,
+    );
+    expect(action).toMatchObject({
+      type: 'update_meeting',
+      meetingId: 'series',
+      scope: 'occurrence',
+      occurrenceDate: '2027-03-08',
+      // 09:00 Madrid (CET, +01:00) on the new date - the master's wall clock, not 03:00 NY.
+      changes: { startAt: '2027-03-15T09:00:00+01:00' },
+    });
+  });
+
   it('drops an occurrence update without usable changes or without a valid date', () => {
     const empty = mapToolCalls(
       [

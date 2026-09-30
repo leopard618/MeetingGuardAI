@@ -220,6 +220,9 @@ service cloud.firestore {
         // Recurring meetings (§16); stored sparsely: absent on one-offs and old documents.
         && isValidRecurrence(d.get('recurrence', null))
         && isValidRecurrenceOverrides(d.get('recurrenceOverrides', null))
+        // Overrides only make sense with a rule; clients null them when the rule is removed
+        // (buildMeeting / applyMeetingPatch), so this blocks override payloads on one-offs.
+        && (d.get('recurrenceOverrides', null) == null || d.get('recurrence', null) != null)
         && (d.get('seriesId', null) == null || isDocId(d.seriesId))
         && isUtcIso(d.createdAt)
         && isUtcIso(d.updatedAt)

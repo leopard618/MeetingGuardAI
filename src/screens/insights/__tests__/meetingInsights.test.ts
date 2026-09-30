@@ -1,3 +1,4 @@
+import { displayWindowAround, displayWindowForDays, expandMeetingsForDisplay } from '../../meetings/occurrences';
 import { makeMeeting } from '../__fixtures__/meetings';
 import {
   computeDashboardSummary,
@@ -8,6 +9,7 @@ import {
   meetingDates,
   meetingJoinLink,
   monthRange,
+  periodRange,
   weekRange,
   weekStartForLanguage,
   type InsightContext,
@@ -188,5 +190,48 @@ describe('computePeriodInsights', () => {
   it('reports nothing for an empty period', () => {
     const insights = computePeriodInsights([], 'week', UTC_MONDAY);
     expect(insights).toMatchObject({ count: 0, totalMinutes: 0, averageMinutes: null, busiestDay: null, sources: [], overlaps: [] });
+  });
+});
+
+describe('recurring meetings through the display expansion (screen wiring)', () => {
+  // Mirrors what DashboardScreen / AIInsightsScreen do: expand masters to occurrence rows first,
+  // then feed the SAME rows to the summary / insight models, so counts match the timeline.
+  const WEEKLY = { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null } as const;
+
+  it('the dashboard summary counts every occurrence of the week, not just the stored master', () => {
+    // Anchored weeks earlier on a Wednesday: the master's own startAt is far in the past, but
+    // NOW (Wednesday 2026-09-30) falls on an occurrence.
+    const series = makeMeeting({ id: 'standup', startAt: '2026-09-02T14:00:00.000Z', recurrence: WEEKLY });
+    const window = displayWindowAround(NOW, 'UTC', 7, 370);
+    const expanded = expandMeetingsForDisplay([series], window);
+
+    const raw = computeDashboardSummary([series], UTC_MONDAY);
+    expect(raw.today.count).toBe(0); // the master alone misses today's occurrence
+
+    const summary = computeDashboardSummary(expanded, UTC_MONDAY);
+    expect(summary.today).toEqual({ count: 1, minutes: 60 });
+    expect(summary.week).toEqual({ count: 1, minutes: 60 });
+  });
+
+  it('period insights count occurrences, chart their load and detect occurrence-level overlaps', () => {
+    const series = makeMeeting({ id: 'standup', startAt: '2026-09-02T14:00:00.000Z', recurrence: WEEKLY });
+    // One-off that overlaps THIS week's occurrence (Wed 2026-09-30 14:00-15:00).
+    const clash = makeMeeting({ id: 'clash', startAt: '2026-09-30T14:30:00.000Z' });
+    const range = periodRange('week', UTC_MONDAY);
+    const expanded = expandMeetingsForDisplay([series, clash], displayWindowForDays(range.from, range.to, 'UTC'));
+
+    const insights = computePeriodInsights(expanded, 'week', UTC_MONDAY);
+    expect(insights.count).toBe(2);
+    expect(insights.days.find((day) => day.date === '2026-09-30')).toMatchObject({ count: 2, minutes: 120 });
+    expect(insights.overlaps.map((pair) => [pair.first.id, pair.second.id])).toEqual([['standup', 'clash']]);
+
+    const monthRange2 = periodRange('month', UTC_MONDAY);
+    const monthly = computePeriodInsights(
+      expandMeetingsForDisplay([series], displayWindowForDays(monthRange2.from, monthRange2.to, 'UTC')),
+      'month',
+      UTC_MONDAY,
+    );
+    // September 2026 has five Wednesdays with an occurrence from the 2nd on.
+    expect(monthly.count).toBe(5);
   });
 });

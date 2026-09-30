@@ -235,6 +235,34 @@ describe('offline writes and the outbox', () => {
     expect((await h.engine.getMeeting(meeting.id))?.title).toBe('Server title');
   });
 
+  it('keeps a permission-rejected RECURRING write queued instead of rolling it back (rules-version skew)', async () => {
+    const h = harness();
+    await h.engine.startSession(UID);
+    await settle(10);
+    await h.engine.flushOutbox(); // drain session-start writes (profile) so only ours is queued
+    h.setOnline(false);
+    const meeting = await h.engine.createMeeting({
+      title: 'Standup',
+      startAt: '2026-10-05T08:00:00.000Z',
+      source: 'manual',
+      recurrence: { freq: 'daily', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: 5 },
+    });
+    // Deployed rules that predate phase 1 reject the sparse `recurrence` key with permission-denied.
+    h.remote.commitFailures.push(new FakeProviderError('permission-denied'));
+
+    h.setOnline(true);
+    const result = await h.engine.flushOutbox();
+
+    // Not dropped and not rolled back: the fresh create must NOT disappear locally.
+    expect(result).toMatchObject({ rejected: 0, pending: 1 });
+    expect((await h.engine.getMeeting(meeting.id))?.title).toBe('Standup');
+
+    // Once the phase-1 rules are live, the queued write goes through unchanged.
+    const retry = await h.engine.flushOutbox();
+    expect(retry).toMatchObject({ rejected: 0, pending: 0 });
+    expect(h.remote.docs.get(firestorePaths.meeting(UID, meeting.id))).toMatchObject({ title: 'Standup' });
+  });
+
   it('create with a caller-chosen id is idempotent and delete is a synced tombstone', async () => {
     const h = harness();
     await h.engine.startSession(UID);
@@ -282,6 +310,61 @@ describe('offline writes and the outbox', () => {
     const ids = (await h.engine.listMeetings({ includeDeleted: true })).map((m) => m.id).sort();
     expect(ids).toEqual(['alive', 'recent']);
     expect(await h.engine.maintainTombstones()).toEqual({ scrubbed: 0, purged: 0 });
+  });
+});
+
+describe('recurring masters in ranged reads', () => {
+  const RUNNING = { freq: 'daily', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: 60 } as const;
+  const ENDED = { freq: 'daily', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: 5 } as const;
+
+  it('a `from`-bounded list keeps a master whose first occurrence is long past while the series runs', async () => {
+    const h = harness();
+    await h.engine.startSession(UID);
+    // Anchor a month before T0: the master's own startAt is far behind the alert engine's window.
+    const running = await h.engine.createMeeting({
+      title: 'Running series',
+      startAt: '2026-09-01T08:00:00.000Z',
+      source: 'manual',
+      recurrence: RUNNING,
+    });
+    await h.engine.createMeeting({
+      title: 'Ended series',
+      startAt: '2026-09-01T09:00:00.000Z',
+      source: 'manual',
+      recurrence: ENDED,
+    });
+    await h.engine.createMeeting({ title: 'Past one-off', startAt: '2026-09-01T10:00:00.000Z', source: 'manual' });
+
+    // The alert engine's reconcile window: 2 days back to 22 days ahead of T0.
+    const listed = await h.engine.listMeetings({ from: '2026-09-29T10:00:00.000Z', to: '2026-10-23T10:00:00.000Z' });
+    expect(listed.map((m) => m.title)).toEqual(['Running series']);
+    // A master anchored after `to` stays out.
+    const before = await h.engine.listMeetings({ from: '2026-08-01T00:00:00.000Z', to: '2026-08-15T00:00:00.000Z' });
+    expect(before).toEqual([]);
+    expect(listed[0]?.id).toBe(running.id);
+  });
+
+  it('getCachedUpcoming keeps a running series for headless alert reconciles (and drops an ended one)', async () => {
+    const h = harness();
+    h.remote.online = false;
+    await h.engine.startSession(UID);
+    const running = await h.engine.createMeeting({
+      title: 'Running series',
+      startAt: '2026-09-01T08:00:00.000Z',
+      source: 'manual',
+      recurrence: RUNNING,
+    });
+    const ended = await h.engine.createMeeting({
+      title: 'Ended series',
+      startAt: '2026-09-01T09:00:00.000Z',
+      source: 'manual',
+      recurrence: ENDED,
+    });
+    await h.engine.endSession({ wipeLocal: false });
+
+    const upcoming = await h.engine.getCachedUpcoming(UID, { now: new Date(T0) });
+    expect(upcoming.map((m) => m.id)).toContain(running.id);
+    expect(upcoming.map((m) => m.id)).not.toContain(ended.id);
   });
 });
 

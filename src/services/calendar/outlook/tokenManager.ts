@@ -18,6 +18,8 @@ const log = createLogger('calendar');
 
 /** Refresh this long before the reported expiry. */
 export const TOKEN_EXPIRY_MARGIN_MS = 60_000;
+/** A stalled token-endpoint request must not hold a connect/refresh open (same as the Graph client). */
+export const TOKEN_REQUEST_TIMEOUT_MS = 30_000;
 /** Used when the token response has no expires_in. */
 const DEFAULT_TOKEN_LIFETIME_S = 3600;
 
@@ -105,15 +107,23 @@ export function createMicrosoftTokenManager(deps: TokenManagerDeps): MicrosoftTo
   }
 
   async function tokenRequest(params: Record<string, string>): Promise<TokenGrant> {
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), TOKEN_REQUEST_TIMEOUT_MS) : null;
     let response: Response;
     try {
       response = await fetchImpl(endpoints.tokenEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
         body: new URLSearchParams({ client_id: deps.clientId, scope, ...params }).toString(),
+        signal: controller?.signal,
       });
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new AppError('timeout', 'The Microsoft token request timed out', { cause: error });
+      }
       throw new AppError('offline', 'The Microsoft sign-in service is unreachable', { cause: error });
+    } finally {
+      if (timer) clearTimeout(timer);
     }
     let body: OAuthTokenResponse = {};
     try {

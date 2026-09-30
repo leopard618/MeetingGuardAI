@@ -34,7 +34,7 @@
   },
   "outlook": {
     "title": "Calendario de Outlook",
-    "description": "Sincronización en ambos sentidos con el calendario de tu cuenta Microsoft (Outlook, Microsoft 365). Las reuniones que creas aquí aparecen en Outlook y tus eventos de Outlook reciben las alertas de MeetingGuard.",
+    "description": "Sincronización en ambos sentidos con el calendario de tu cuenta Microsoft (Outlook, Microsoft 365). Las reuniones que creas aquí aparecen en Outlook y tus eventos de Outlook reciben las alertas de MeetingGuard. En esta versión, las reuniones que se repiten no se envían a Outlook.",
     "state": {
       "connected": "Conectado",
       "notConnected": "Sin conectar"
@@ -74,7 +74,7 @@
     "export": {
       "title": "Añadir las reuniones de MeetingGuard a",
       "none": "No añadirlas a un calendario del teléfono",
-      "hint": "Solo se añaden las reuniones de MeetingGuard, sin recordatorios del calendario (MeetingGuard te avisa)."
+      "hint": "Solo se añaden las reuniones de MeetingGuard, sin recordatorios del calendario (MeetingGuard te avisa). En esta versión, las reuniones que se repiten no se añaden."
     }
   },
   "sync": {

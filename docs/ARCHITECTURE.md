@@ -318,7 +318,7 @@ useAssistant.send(text)
   6. Send to Firestore in the background.
 
   The UI never awaits a server acknowledgement. Ids are generated on the client (`doc(collection(...)).id` works offline).
-- **Outbox flush** runs on session start, when connectivity returns (NetInfo), on foreground, and on `flushOutbox()`. Permanent rejections (permission or invalid) are dropped, logged and reported. Retryable failures stay queued.
+- **Outbox flush** runs on session start, when connectivity returns (NetInfo), on foreground, and on `flushOutbox()`. Permanent rejections (permission or invalid) are dropped, logged and reported, with one exception: a `permission_denied` on a meeting write that carries phase-1 fields (recurrence / Outlook, stored sparsely) most likely means the deployed rules predate phase 1, so it stays queued and retries (bounded by the send-attempt limit) instead of being rolled back. Retryable failures stay queued.
 - **Snapshots** merge into the cache. A document with a pending outbox write keeps its local version until the server acknowledges it (a note whose hard delete is pending is never resurrected by an older snapshot). Conflicts resolve last-writer-wins on `updatedAt`. Preferences merge field by field, so an offline change on one device and a change to a different field on another device are both kept.
 - **Old-shape documents.** The security rules reject updates that change `source`, `createdAt` or `userId` and profiles with extra keys, so meetings saved by the pre-rebuild app are migrated by a delete followed by a create, and old profiles are rewritten with the allowed keys only (their client-written `plan` / `preferences` fields are captured locally first).
 - **Repository details.** `findByExternalId` can return a tombstoned meeting (an active one is preferred) so imports restore instead of duplicating; `subscribe()` emits `[]` instead of throwing when signed out; `upsertExternal` also reports `invalid` (items rejected by validation); `create(input, { id })` returns an existing active meeting with that id and throws `conflict` for a tombstoned one.
@@ -463,6 +463,9 @@ and `types.ts`. One stored document per series (the **master**); occurrences are
   `mg:{meetingId}:{localDateKey}:followup` (`occurrence*NotificationId` in identifiers.ts; the
   parser handles 3- and 4-part ids, so the reconcile diff needs no change). One-off meetings keep
   their existing 3-part ids; snooze stays one per meeting.
+- **Device-calendar export:** recurring masters are NEVER exported to a phone calendar (the
+  export writes single plain events; a series would freeze its first occurrence and go stale).
+  A copy exported before the meeting became recurring is removed by the next export sync.
 - **Google mapping** (`toGoogleRecurrence` / `parseGoogleRecurrence`): masters push
   `event.recurrence` = one RRULE line (v1 subset) plus one EXDATE line per CANCELLED override
   (`EXDATE;TZID=<meeting tz>:<local date-time>` for timed series; all-day series use DATE values,
@@ -472,7 +475,9 @@ and `types.ts`. One stored document per series (the **master**); occurrences are
   `expandOccurrences` skips it. Time-modified overrides are NOT pushed (documented limitation; the
   occurrence keeps `overridden: true` locally). Import keeps `singleEvents=true`, with one rule:
   instances whose `recurringEventId` decodes via `meetingIdFromGoogleEventId` (an `mgev…` id)
-  are OUR pushed series - skip importing them (the local master already expands them).
+  are OUR pushed series - skip importing them (the local master already expands them). Removing
+  the repeat from a synced series pushes `recurrence: []`, which clears Google's RRULE (a PATCH
+  keeps fields it does not mention), so no phantom series is left in Google Calendar.
 - **AI contract v2** (`AI_CONTRACT_VERSION = 2`, additive): drafts/changes gain optional
   `recurrence`; `update_meeting`/`delete_meeting` gain optional `{ scope: 'occurrence'|'series',
   occurrenceDate }` (occurrence scope limits changes to startAt/durationMinutes/title). Old
@@ -486,7 +491,11 @@ in `src/services/calendar/outlook/` (api/mapping/sync/service mirror the Google 
 does not register the provider). The Microsoft account is independent of the app's
 Google/Firebase identity. v1 limitations (documented): MeetingGuard recurrence rules and meetings
 imported from Google/device calendars are never pushed to Graph, and a Teams link is only created
-with the event (Graph cannot reliably turn an existing event into a Teams meeting here).
+with the event (Graph cannot reliably turn an existing event into a Teams meeting here). When a
+one-off that was already pushed to Outlook gains a recurrence rule, the push DELETES the Graph
+event and clears the `external.outlook*` refs - a stale single event must not linger in Outlook,
+and an Outlook-side edit of it must not rewrite the local series anchor. Removing the rule again
+re-pushes the meeting as a one-off.
 
 - **Auth:** expo-auth-session PKCE against
   `https://login.microsoftonline.com/{EXPO_PUBLIC_MSAL_TENANT||'common'}/v2.0`, scopes `openid
@@ -525,6 +534,10 @@ receivers; a store build - never an OTA update - ships it, hence version 1.2.0).
   with `fullScreenIntent` (PendingIntent to MainActivity carrying the deepLink) on the meeting's
   EXISTING alert channel. Pending alarms persist in SharedPreferences; a `BOOT_COMPLETED`
   receiver restores them natively (no JS needed).
+- **Known tradeoff:** the native notification has no Snooze action buttons (the expo path's
+  `mg-alert` category does). A MAX alert delivered through the module in the background is
+  snoozed from the in-app full-screen alarm after tapping it; MEDIUM alerts keep the buttons.
+  Adding native snooze actions is future work (TESTING T14 tells testers it is not a bug).
 - **Engine integration** (spelled out in fsi.ts): during reconcile, when android + available +
   `fullScreenAllowed && notificationsAllowed`, desired entries with kind `alert` and intensity
   `max` are routed to `setAlarms` (id = the notification identifier, so the diff extends to the

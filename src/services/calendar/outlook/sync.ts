@@ -417,6 +417,14 @@ export async function pushOutlookMeeting(
     await deleteOutlookEvent(deps, meeting);
     return { meeting: await writeBack(deps, meeting, { external: { ...CLEARED_OUTLOOK_REFS } }), sent: true };
   }
+  if (meeting.recurrence !== null && meeting.external.outlookEventId !== null && meeting.source !== 'outlook') {
+    // A one-off already pushed to Outlook became a recurring series. Series are never pushed in
+    // v1 (§17), so the old single event would otherwise sit in Outlook forever - stale, never
+    // updated, and an Outlook-side edit of it would rewrite the local series anchor. Remove it
+    // and unlink the master (a Graph edit can then no longer patch this meeting).
+    await deleteOutlookEvent(deps, meeting);
+    return { meeting: await writeBack(deps, meeting, { external: { ...CLEARED_OUTLOOK_REFS } }), sent: true };
+  }
   if (!isOutlookPushable(meeting)) return { meeting, sent: false };
 
   const linkedId = meeting.external.outlookEventId;

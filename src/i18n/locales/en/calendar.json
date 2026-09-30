@@ -34,7 +34,7 @@
   },
   "outlook": {
     "title": "Outlook Calendar",
-    "description": "Two-way sync with the calendar of your Microsoft account (Outlook, Microsoft 365). Meetings you create here appear in Outlook, and your Outlook events get MeetingGuard alerts.",
+    "description": "Two-way sync with the calendar of your Microsoft account (Outlook, Microsoft 365). Meetings you create here appear in Outlook, and your Outlook events get MeetingGuard alerts. Repeating meetings are not sent to Outlook in this version.",
     "state": {
       "connected": "Connected",
       "notConnected": "Not connected"
@@ -74,7 +74,7 @@
     "export": {
       "title": "Add MeetingGuard meetings to",
       "none": "Don't add them to a phone calendar",
-      "hint": "Only MeetingGuard meetings are added, without calendar reminders (MeetingGuard alerts you)."
+      "hint": "Only MeetingGuard meetings are added, without calendar reminders (MeetingGuard alerts you). Repeating meetings are not added in this version."
     }
   },
   "sync": {

@@ -64,10 +64,21 @@ describe('meetingToGoogleEvent for recurring masters', () => {
     expect(body.recurrence).toEqual(['RRULE:FREQ=WEEKLY;BYDAY=MO', 'EXDATE;TZID=UTC:20261012T140000']);
   });
 
-  it('one-off meetings carry no recurrence field', () => {
+  it('one-off meetings send an EMPTY recurrence list (a PATCH keeps unmentioned fields)', () => {
     const { meetings } = setup();
     const meeting = meetings.add({ title: 'One-off', startAt: '2026-10-05T14:00:00.000Z', source: 'manual' }, 'one1');
-    expect(meetingToGoogleEvent(meeting).recurrence).toBeUndefined();
+    expect(meetingToGoogleEvent(meeting).recurrence).toEqual([]);
+  });
+
+  it('removing the repeat from a synced series clears the RRULE in the patch body', () => {
+    const { meetings } = setup();
+    const meeting = addSeries(meetings, 'ser1');
+    expect(meetingToGoogleEvent(meeting).recurrence).toEqual(['RRULE:FREQ=WEEKLY;BYDAY=MO']);
+    // The user removes the rule: the next push must actively clear Google's series, or the
+    // phantom occurrences would stay in the calendar forever (and the full-sync sweep would later
+    // tombstone the local meeting, since a series master never appears in singleEvents listings).
+    const oneOff: Meeting = { ...meeting, recurrence: null, recurrenceOverrides: null, seriesId: null };
+    expect(meetingToGoogleEvent(oneOff).recurrence).toEqual([]);
   });
 });
 

@@ -33,7 +33,20 @@ export type OutboxKind = (typeof OUTBOX_KINDS)[number];
 export const OUTBOX_MODES = ['create', 'set', 'migrate', 'delete', 'merge'] as const;
 export type OutboxMode = (typeof OUTBOX_MODES)[number];
 
-const WRITE_ORIGINS = ['user', 'ai', 'calendar_google', 'calendar_device', 'migration', 'system'] as const;
+/**
+ * Derived from a Record so the compiler fails when core's WriteOrigin gains a member this list
+ * misses (a missing origin would make parseOutbox silently DROP persisted entries on restart).
+ */
+const WRITE_ORIGIN_SET: Record<WriteOrigin, true> = {
+  user: true,
+  ai: true,
+  calendar_google: true,
+  calendar_device: true,
+  calendar_outlook: true,
+  migration: true,
+  system: true,
+};
+const WRITE_ORIGINS = Object.keys(WRITE_ORIGIN_SET) as [WriteOrigin, ...WriteOrigin[]];
 
 export interface OutboxEntry {
   /** Unique per enqueue; a coalesced replacement gets a new id. */

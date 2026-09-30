@@ -158,6 +158,13 @@ export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookC
     if (clientId === null) {
       throw new AppError('not_configured', 'EXPO_PUBLIC_MSAL_CLIENT_ID is not set');
     }
+    // Pin the uid across the browser round-trip: if the app account changes while the prompt or
+    // the token exchange is pending (sign out -> sign in as someone else), the grant must NOT be
+    // stored under the new uid - that would sync user A's Outlook calendar into user B's data.
+    const uid = deps.getUid();
+    if (uid === null) {
+      throw new AppError('unauthenticated', 'No active session for the Outlook connect');
+    }
     const prompt = await deps.auth.promptForCode({
       clientId,
       tenant: deps.config.tenant,
@@ -169,10 +176,18 @@ export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookC
       log.warn('Microsoft sign-in failed', { message: prompt.message ?? 'unknown' });
       return { status: 'failed', initialSync: null };
     }
+    if (deps.getUid() !== uid) {
+      log.warn('The app account changed during the Microsoft sign-in; discarding the grant');
+      return { status: 'cancelled', initialSync: null };
+    }
 
     let accountEmail: string | null = null;
     try {
       const grant = await deps.tokens.exchangeCode(prompt.code, prompt.codeVerifier, MS_REDIRECT_URI);
+      if (deps.getUid() !== uid) {
+        log.warn('The app account changed during the Microsoft token exchange; discarding the grant');
+        return { status: 'cancelled', initialSync: null };
+      }
       await deps.tokens.adoptGrant(grant);
       // A new connection starts from a clean slate (full listing, no stale queue).
       await deps.state.clear();

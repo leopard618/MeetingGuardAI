@@ -47,6 +47,7 @@ function setup(options: { clientId?: string | null; hasToken?: boolean; prompt?:
     dropMemory: jest.fn(),
   } satisfies MicrosoftTokenManager;
 
+  const session = { uid: UID as string | null };
   const auth = {
     promptForCode: jest.fn(async () => options.prompt ?? ({ type: 'success', code: 'code-1', codeVerifier: 'ver-1' } as PromptResult)),
     openConsentPage: jest.fn(async () => undefined),
@@ -71,14 +72,14 @@ function setup(options: { clientId?: string | null; hasToken?: boolean; prompt?:
     auth,
     status,
     events,
-    getUid: () => UID,
+    getUid: () => session.uid,
     now: clock.now,
     sleep: async () => undefined,
     defaultTimeZone: () => 'UTC',
     untitledTitle: () => '(No title)',
     config: { clientId: options.clientId === undefined ? '11111111-2222-3333-4444-555555555555' : options.clientId, tenant: 'common' },
   });
-  return { service, tokens, auth, api, state, status, meetings, events };
+  return { service, tokens, auth, api, state, status, meetings, events, session };
 }
 
 describe('outlook service', () => {
@@ -117,6 +118,26 @@ describe('outlook service', () => {
     const { service, tokens } = setup({ prompt: { type: 'cancelled' } });
     await expect(service.connect()).resolves.toEqual({ status: 'cancelled', initialSync: null });
     expect(tokens.exchangeCode).not.toHaveBeenCalled();
+  });
+
+  it('discards the grant when the app account changes during the browser round-trip (uid pinned)', async () => {
+    const { service, tokens, auth, session } = setup();
+    // Sign out + sign in as another profile while the Microsoft sheet is open: user A's grant
+    // must never be stored under user B's key (A's calendar would sync into B's meetings).
+    auth.promptForCode.mockImplementationOnce(async () => {
+      session.uid = 'user-2';
+      return { type: 'success', code: 'code-1', codeVerifier: 'ver-1' };
+    });
+    await expect(service.connect()).resolves.toEqual({ status: 'cancelled', initialSync: null });
+    expect(tokens.exchangeCode).not.toHaveBeenCalled();
+    expect(tokens.adoptGrant).not.toHaveBeenCalled();
+  });
+
+  it('refuses to connect while signed out', async () => {
+    const { service, session, auth } = setup();
+    session.uid = null;
+    await expect(service.connect()).rejects.toMatchObject({ code: 'unauthenticated' });
+    expect(auth.promptForCode).not.toHaveBeenCalled();
   });
 
   it('returns failed when the sign-in or the exchange fails (never fake success)', async () => {

@@ -343,6 +343,12 @@ export function meetingToGoogleEvent(meeting: GoogleWritableMeeting, options: Go
       recurrence: rule,
       recurrenceOverrides: meeting.recurrenceOverrides ?? null,
     });
+  } else {
+    // ALWAYS sent: a PATCH keeps fields it does not mention, so removing the repeat from a synced
+    // series must clear Google's RRULE explicitly or the phantom series would stay in the user's
+    // calendar (and the next full-sync sweep would tombstone the local meeting, since a series
+    // master never appears in singleEvents listings). Harmless on insert.
+    body.recurrence = [];
   }
   if (options.requestMeetLink) {
     body.conferenceData = {

@@ -478,15 +478,24 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
       // This device's copy comes from its local link (never from another device's shared ref).
       const copy = tombstoneDone ? null : ownCopy(meeting, key, state);
       if (meeting.deletedAt !== null) checkedTombstones.add(meeting.id);
+      // Recurring masters are never exported: the mapping writes a single plain event, which
+      // would freeze the series' FIRST occurrence in the phone calendar and go stale forever
+      // (docs/ARCHITECTURE.md §16). A copy exported before the meeting became recurring is
+      // removed below (staleCopy).
       const shouldExport =
         targetRaw !== null &&
         meeting.deletedAt === null &&
         meeting.status === 'scheduled' &&
+        meeting.recurrence === null &&
         endIso(meeting) >= recentIso &&
         meeting.startAt < window.timeMax;
       const staleCopy =
         copy !== null &&
-        (meeting.deletedAt !== null || meeting.status === 'cancelled' || targetRaw === null || copy.calendarId !== targetRaw);
+        (meeting.deletedAt !== null ||
+          meeting.status === 'cancelled' ||
+          meeting.recurrence !== null ||
+          targetRaw === null ||
+          copy.calendarId !== targetRaw);
       if (!shouldExport && !staleCopy) continue;
       if (!permissionChecked) {
         await requirePermission();

@@ -122,6 +122,19 @@ describe('createMicrosoftTokenManager', () => {
     expect(store.tokens.get(UID)).toBe('refresh-1');
   });
 
+  it('a stalled token request is aborted and surfaces as timeout (never hangs a connect)', async () => {
+    const { manager, fetchImpl, store } = setup();
+    const abortError = Object.assign(new Error('Aborted'), { name: 'AbortError' });
+    fetchImpl.mockImplementationOnce(async (_url, init) => {
+      // The request carries an abort signal wired to the 30 s timer; simulate the timer firing.
+      expect(init?.signal).toBeDefined();
+      throw abortError;
+    });
+    await expect(manager.getAccessToken()).rejects.toMatchObject({ code: 'timeout' });
+    // A timeout is transient: the stored refresh token survives for the next attempt.
+    await expect(store.get(UID)).resolves.toBe('refresh-1');
+  });
+
   it('a network failure surfaces as offline', async () => {
     const { manager, fetchImpl } = setup();
     fetchImpl.mockRejectedValueOnce(new TypeError('Network request failed'));

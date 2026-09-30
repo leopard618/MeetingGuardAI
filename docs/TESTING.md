@@ -386,6 +386,11 @@ If the build fails:
 
 ### T3. Create, edit, delete: manual and AI
 
+**Precondition for the recurring rows (10, 17-20):** the phase-1 Firestore rules must be deployed
+(`docs/HANDOFF.md` §2 step 10). Against the older rules the server rejects recurring-meeting
+writes; the outbox retries for a while, but persistent rejections are eventually dropped and the
+meeting is rolled back (a fresh recurring create disappears).
+
 | # | Step | Expected result |
 |---|---|---|
 | 1 | New meeting -> "Fill in a form". Enter a title, tomorrow at 10:00, 45 minutes, an address, a pasted Zoom link, participant B, custom alerts at 15 and 5 minutes, intensity MEDIUM. Save. | The meeting appears on the Dashboard, in All meetings and on the Calendar, at the right local time. Details show every field. The Firestore console has the document. `dumpsys alarm` shows new alarms. |
@@ -489,6 +494,7 @@ Focus allows it. There is no exact-alarm setting on iOS.
 | 3 | With Google sync on, look at the Google calendars in that list. | They show "Already synced through Google Calendar" and are not imported twice. |
 | 4 | Choose an export calendar under "Add MeetingGuard meetings to". Create a meeting in the app. | The meeting appears in that phone calendar, without calendar reminders. Editing and deleting it in the app update the phone calendar. |
 | 5 | Deny the calendar permission. | An explanation with a way to open the settings. No crash. |
+| 6 | With an export calendar chosen, create a repeating meeting in the app (or add a repeat rule to an already exported one). | Repeating meetings are NOT exported to the phone calendar in this version (documented in `docs/ARCHITECTURE.md` §16); a copy exported before the repeat was added is removed on the next sync. One-off meetings keep exporting. |
 
 ### T10. Language switch EN/ES, notifications and date formats
 
@@ -572,6 +578,11 @@ ships only in a store build (a new `version`; never an OTA update). Set the aler
 "Full-screen alarms" section only when the module is in the binary; on Android 12+ the "Exact
 alarms" section then shows a real granted/denied state instead of only a settings button.
 
+**Known limitation (not a bug):** notifications posted by the native full-screen module have no
+Snooze buttons - snoozing a MAX alert delivered this way happens through the in-app full-screen
+alarm after tapping it (MEDIUM alerts keep the notification Snooze buttons; `docs/ARCHITECTURE.md`
+§18).
+
 | # | Step | Expected result |
 |---|---|---|
 | 1 | Create a meeting with a MAX alert about 3 minutes away, lock the phone, and wait with the screen off. | At the alert time the screen wakes and shows the alarm over the lock screen (Android 13 and lower, and Android 14+ with full-screen allowed). The alarm sound and vibration come from the MAXIMUM channel. Unlocking on it opens the meeting details. |
@@ -588,9 +599,11 @@ alarms" section then shows a real granted/denied state instead of only a setting
 
 Needs the Azure app registration from `docs/SETUP.md` §10 and `EXPO_PUBLIC_MSAL_CLIENT_ID` in the
 build, plus a Microsoft account with a few calendar events. Without the client id the Outlook card
-does not exist and this section is skipped. The deployed Firestore rules must include the phase-1
-fields (`docs/HANDOFF.md` §2 step 10); before that redeploy, Outlook meetings stay on the phone
-with an "unsynced" count (expected, no data loss).
+does not exist and this section is skipped. **Precondition: the phase-1 Firestore rules must be
+deployed first** (`docs/HANDOFF.md` §2 step 10). Against the older rules, Outlook-imported and
+recurring-meeting writes are rejected by the server; the outbox retries them for a while (the
+"unsynced" count), but persistent rejections are eventually dropped and rolled back — do not run
+this section, or any recurring-meeting rows, before the rules redeploy.
 
 | # | Step | Expected result |
 |---|---|---|
@@ -602,6 +615,7 @@ with an "unsynced" count (expected, no data loss).
 | 6 | Delete the event in Outlook web, refresh. | The meeting disappears in the app (or is marked cancelled), and its alerts are gone. |
 | 7 | Check cross-provider isolation: a meeting imported from Google or from a phone calendar. | It never appears in Outlook, and an Outlook-imported meeting never appears in Google Calendar or the phone calendar. No duplicates anywhere. |
 | 8 | Create a recurring meeting while Outlook is connected. | The series syncs to Google (T3) but NOT to Outlook (v1 limitation, `docs/ARCHITECTURE.md` §17). One-off meetings keep syncing. |
+| 8b | Take a one-off meeting that is already in Outlook (row 3) and edit it to repeat weekly. | The single event is REMOVED from Outlook on the next sync (a stale copy is never left behind); the series stays in the app and in Google. Removing the repeat again pushes it back to Outlook as a one-off. |
 | 9 | Sign out of the app, sign back in. | Outlook shows Disconnected (the refresh token is deleted at session end); Connect works again. |
 | 10 | Tap **Disconnect** (with "remove access" if offered). | The card shows Disconnected, Outlook-imported meetings are removed from the app, app-created meetings stay (their Outlook link is cleared), and with revoke the Microsoft consent page opens. |
 | 11 | Repeat rows 2-6 in Spanish. | All Outlook card texts, states and toasts are natural Spanish. |

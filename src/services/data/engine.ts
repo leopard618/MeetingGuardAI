@@ -81,6 +81,7 @@ import {
   type ReadContext,
 } from './mapping';
 import { planLegacyMigration, removeLegacyKeys } from './migration';
+import { recurrenceEndsAt } from '../../core/recurrence';
 import { isSeriesOccurrenceDate } from './recurrence';
 import {
   ackEntry,
@@ -289,6 +290,23 @@ function pickPreferences(preferences: Preferences, keys: readonly PreferenceKey[
   return out;
 }
 
+/**
+ * A recurring master is in a `from`-bounded range while its series still runs: its own startAt is
+ * the FIRST occurrence (docs/ARCHITECTURE.md §16), which can be far behind the window start while
+ * future occurrences are still due (the consumers expand occurrences themselves and window them).
+ * `recurrenceEndsAt` is the last occurrence's start (null = endless series); the occurrence's
+ * duration is added so the final occurrence stays listed until it ends (its follow-up alert).
+ * Invalid rules fall back to the plain startAt check instead of hiding the meeting.
+ */
+function seriesReachesBeyond(meeting: Meeting, fromMs: number): boolean {
+  try {
+    const endsAt = recurrenceEndsAt(meeting);
+    return endsAt === null || Date.parse(endsAt) + meeting.durationMinutes * 60_000 >= fromMs;
+  } catch {
+    return Date.parse(meeting.startAt) >= fromMs;
+  }
+}
+
 /** Filters/sorts meetings for list(range) and the hooks. Throws AppError('invalid_input') for bad bounds. */
 export function filterMeetings(meetings: Iterable<Meeting>, range: MeetingRange = {}): Meeting[] {
   const fromMs = range.from !== undefined ? toDate(range.from).getTime() : null;
@@ -300,7 +318,7 @@ export function filterMeetings(meetings: Iterable<Meeting>, range: MeetingRange 
     if (!includeDeleted && meeting.deletedAt !== null) continue;
     if (!includeCancelled && meeting.status === 'cancelled') continue;
     const startMs = Date.parse(meeting.startAt);
-    if (fromMs !== null && startMs < fromMs) continue;
+    if (fromMs !== null && startMs < fromMs && !(meeting.recurrence !== null && seriesReachesBeyond(meeting, fromMs))) continue;
     if (toMs !== null && startMs >= toMs) continue;
     out.push(meeting);
   }
@@ -309,6 +327,25 @@ export function filterMeetings(meetings: Iterable<Meeting>, range: MeetingRange 
 
 function isPermanentFailure(error: AppError): boolean {
   return PERMANENT_FAILURES.has(error.code);
+}
+
+/**
+ * Meeting writes that carry phase-1 fields (recurrence / Outlook, stored sparsely: present only
+ * when set). A 'permission_denied' for one of these most likely means the DEPLOYED Firestore
+ * rules predate phase 1 (docs/HANDOFF.md §2 step 10), not a real ownership problem, so the entry
+ * stays queued and retries (bounded by MAX_SEND_ATTEMPTS) instead of being dropped and rolled
+ * back to the server copy - a rollback would DELETE a freshly created recurring meeting locally.
+ */
+function isRulesSkewEntry(entry: OutboxEntry): boolean {
+  if (entry.kind !== 'meeting' || entry.data === null) return false;
+  const doc = entry.data;
+  if (doc.recurrence !== undefined || doc.recurrenceOverrides !== undefined || doc.seriesId !== undefined) return true;
+  if (doc.source === 'outlook') return true;
+  const external = doc.external;
+  if (external !== null && typeof external === 'object' && !Array.isArray(external)) {
+    return Object.keys(external as Record<string, unknown>).some((key) => key.startsWith('outlook'));
+  }
+  return false;
 }
 
 function isNetworkFailure(error: AppError): boolean {
@@ -1409,7 +1446,10 @@ export class DataEngine {
       } catch (error) {
         const appError = toAppError(error);
         if (!this.isCurrent(s)) break;
-        if (isPermanentFailure(appError) || (!isNetworkFailure(appError) && entry.attempts + 1 >= MAX_SEND_ATTEMPTS)) {
+        // Rules-version skew (phase-1 fields against older deployed rules) waits in the outbox
+        // instead of being dropped; every other permanent rejection is final.
+        const permanent = isPermanentFailure(appError) && !(appError.code === 'permission_denied' && isRulesSkewEntry(entry));
+        if (permanent || (!isNetworkFailure(appError) && entry.attempts + 1 >= MAX_SEND_ATTEMPTS)) {
           log.error(`outbox ${entry.kind} write rejected (${appError.code}); restoring the server version`, appError);
           await this.mutateOutbox(s, (state) => dropEntry(state, entry.id));
           rejected += 1;
@@ -1821,8 +1861,12 @@ export class DataEngine {
       .filter((meeting) => {
         if (meeting.deletedAt !== null || meeting.status !== 'scheduled') return false;
         const startMs = Date.parse(meeting.startAt);
+        if (startMs > horizonMs) return false;
+        // A recurring master stays "upcoming" while its series runs, even when its own first
+        // occurrence (its startAt) is long over (§16); the alert planner expands the occurrences.
+        if (meeting.recurrence !== null) return seriesReachesBeyond(meeting, nowMs);
         const endMs = startMs + meeting.durationMinutes * 60_000;
-        return endMs > nowMs && startMs <= horizonMs;
+        return endMs > nowMs;
       })
       .sort(compareByStart);
   }

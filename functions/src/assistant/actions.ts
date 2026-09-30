@@ -441,8 +441,12 @@ function mapOccurrenceUpdate(
     const allDay = meeting.doc.allDay;
     const zone = meetingZone(meeting, ctx.userTimeZone);
     const date = c.date ?? occurrenceDate;
-    const time = allDay ? (c.time ?? '00:00') : (c.time ?? toLocalTime(meeting.start, ctx.userTimeZone));
-    const interpretZone = allDay && c.time === null ? zone : ctx.userTimeZone;
+    // Only the date changed: keep the series' wall clock in the MEETING's zone and interpret it
+    // there (§16 - wall-clock math runs in the meeting's zone). Deriving the fallback in the
+    // user's zone would drift the occurrence an hour when the zones' DST offsets diverge between
+    // the anchor date and the target date. An explicit time came from the model's user-zone view.
+    const time = allDay ? (c.time ?? '00:00') : (c.time ?? toLocalTime(meeting.start, zone));
+    const interpretZone = c.time === null ? zone : ctx.userTimeZone;
     changes.startAt = localStartIso(date, time, interpretZone);
   }
   if (c.duration_minutes !== null) changes.durationMinutes = c.duration_minutes;

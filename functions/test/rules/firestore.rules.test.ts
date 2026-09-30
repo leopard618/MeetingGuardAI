@@ -263,6 +263,16 @@ describe('meetings: recurrence and outlook (phase 1)', () => {
     );
   });
 
+  it('rejects recurrenceOverrides on a document without a recurrence rule', async () => {
+    const overrides = { '2026-10-12': { status: 'cancelled', startAt: null, durationMinutes: null, title: null } };
+    // Legitimate clients null the overrides whenever the rule is null (buildMeeting /
+    // applyMeetingPatch), so overrides without a rule can only be a hand-rolled payload.
+    await assertFails(setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting({ recurrenceOverrides: overrides })));
+    await assertSucceeds(
+      setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting({ recurrence: RULE, recurrenceOverrides: overrides })),
+    );
+  });
+
   it('lets an update add a rule to an existing one-off (seriesId becomes the meeting id)', async () => {
     await seed('users/alice/meetings/m1', meeting());
     await assertSucceeds(
