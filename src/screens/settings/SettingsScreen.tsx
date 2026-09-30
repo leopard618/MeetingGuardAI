@@ -7,15 +7,18 @@
  *   every time the app shows), calendars, legal pages, version (and the OTA update id / channel
  *   when an EAS update is running, for support and rollback checks).
  * Every string comes from the "settings" namespace (plus shared auth / onboarding keys).
+ * Layout: sentence-case SectionHeaders over ListGroups (rows) and Cards (segmented choices).
  */
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
 import type { ReactElement } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Divider, List, SegmentedButtons, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { SegmentedButtons, Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
+import { Card, ListGroup, ListRow, SectionHeader } from '../../components/ui';
 import { THEME_MODES, useTheme, type ThemeMode } from '../../contexts/ThemeContext';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
@@ -25,8 +28,9 @@ import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import { usePreferences } from '../../services/data';
 import { getUpdateInfo, shortUpdateLabel } from '../../services/updates';
+import { componentMetrics, pressedOpacity, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../../theme';
 import { alertTimeLabel } from '../onboarding/alertOptions';
-import { ScreenBody, Section } from '../shared/Section';
+import { ScreenBody } from '../shared/Section';
 import { useFormatters } from '../shared/useFormatters';
 import { CLOCK_OPTIONS, clockOptionOf, is24HourFromOption, isClockOption } from './timeFormat';
 import { useDeleteAccountFlow } from './useDeleteAccountFlow';
@@ -40,9 +44,45 @@ const UPDATE_LABEL = shortUpdateLabel(getUpdateInfo());
 // whatever the device zone.
 const SAMPLE_TIME = new Date(Date.UTC(2026, 0, 5, 15, 30));
 
+/** Destructive settings row (red title, error ripple; never opacity on the whole row). */
+function DestructiveRow({
+  title,
+  supporting,
+  onPress,
+  disabled,
+  testID,
+}: {
+  title: string;
+  supporting: string;
+  onPress: () => void;
+  disabled: boolean;
+  testID: string;
+}): ReactElement {
+  const { colors } = useAppTheme();
+  const titleColor = disabled ? colors.disabledText : colors.error;
+  const supportingColor = disabled ? colors.disabledText : colors.onSurfaceVariant;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      android_ripple={{ color: withAlpha(colors.error, stateAlpha.rippleOnRow) }}
+      style={({ pressed }) => [styles.destructiveRow, pressed && Platform.OS !== 'android' && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || undefined }}
+      testID={testID}
+    >
+      <MaterialCommunityIcons name="account-remove-outline" size={componentMetrics.iconNav} color={titleColor} />
+      <View style={styles.destructiveTexts}>
+        <Text style={[styles.destructiveTitle, { color: titleColor }]}>{title}</Text>
+        <Text style={[styles.destructiveSupporting, { color: supportingColor }]}>{supporting}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 export function SettingsScreen(): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { authUser } = useAuth();
   const { preferences, update } = usePreferences();
@@ -74,47 +114,50 @@ export function SettingsScreen(): ReactElement {
     });
   };
 
+  const accountEmailLine = authUser?.email ? t('settings:account.signedInAs', { email: authUser.email }) : t('settings:account.signedIn');
+
   return (
     <ScreenBody>
-      <Section title={t('settings:account.title')} testID="settings-account">
-        {authUser?.displayName ? <Text variant="titleSmall">{authUser.displayName}</Text> : null}
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-          {authUser?.email ? t('settings:account.signedInAs', { email: authUser.email }) : t('settings:account.signedIn')}
-        </Text>
-        <Divider style={styles.divider} />
-        <List.Item
+      <SectionHeader title={t('settings:account.title')} style={styles.firstHeader} />
+      <ListGroup testID="settings-account">
+        <ListRow
+          icon="account-circle-outline"
+          title={authUser?.displayName ?? accountEmailLine}
+          supporting={authUser?.displayName ? accountEmailLine : undefined}
+        />
+        <DestructiveRow
           title={t('auth:deleteAccount.title')}
-          description={t('settings:account.deleteDescription')}
-          titleStyle={{ color: theme.colors.error }}
-          left={(props) => <List.Icon {...props} icon="account-remove-outline" color={theme.colors.error} />}
+          supporting={t('settings:account.deleteDescription')}
           onPress={deletion.start}
           disabled={deletion.busy}
-          accessibilityRole="button"
           testID="settings-delete-account"
         />
-      </Section>
+      </ListGroup>
 
-      <Section title={t('settings:alerts.title')}>
-        <List.Item
+      <SectionHeader title={t('settings:alerts.title')} />
+      <ListGroup>
+        <ListRow
+          icon="bell-ring-outline"
           title={t('settings:alerts.open')}
-          description={alertSummary}
-          left={(props) => <List.Icon {...props} icon="bell-ring-outline" />}
-          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          supporting={alertSummary}
+          trailing="chevron"
           onPress={() => navigation.navigate('AlertSettings')}
           accessibilityRole="button"
           testID="settings-alerts"
         />
-      </Section>
+      </ListGroup>
 
-      <Section title={t('settings:appearance.title')}>
+      <SectionHeader title={t('settings:appearance.title')} />
+      <Card>
         <SegmentedButtons
           value={themeMode}
           onValueChange={(value) => setThemeMode(value as ThemeMode)}
           buttons={THEME_MODES.map((mode) => ({ value: mode, label: t(`settings:appearance.${mode}`) }))}
         />
-      </Section>
+      </Card>
 
-      <Section title={t('settings:language.title')}>
+      <SectionHeader title={t('settings:language.title')} />
+      <Card>
         <SegmentedButtons
           value={language}
           onValueChange={(value) => {
@@ -122,9 +165,10 @@ export function SettingsScreen(): ReactElement {
           }}
           buttons={supportedLanguages.map((code) => ({ value: code, label: t(`common:language.${code}`) }))}
         />
-      </Section>
+      </Card>
 
-      <Section title={t('settings:timeFormat.title')} testID="settings-time-format">
+      <SectionHeader title={t('settings:timeFormat.title')} />
+      <Card testID="settings-time-format">
         <SegmentedButtons
           value={clockOptionOf(preferences.use24HourClock)}
           onValueChange={setClock}
@@ -134,45 +178,47 @@ export function SettingsScreen(): ReactElement {
             testID: `settings-time-format-${option}`,
           }))}
         />
-        <Text variant="bodySmall" style={[styles.hint, { color: theme.colors.onSurfaceVariant }]}>
+        <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]}>
           {t('settings:timeFormat.hint', { example: fmt.time(SAMPLE_TIME, 'UTC') })}
         </Text>
-      </Section>
+      </Card>
 
-      <Section title={t('settings:calendar.title')}>
-        <List.Item
+      <SectionHeader title={t('settings:calendar.title')} />
+      <ListGroup>
+        <ListRow
+          icon="calendar-sync-outline"
           title={t('settings:calendar.sync')}
-          description={t('settings:calendar.syncDescription')}
-          left={(props) => <List.Icon {...props} icon="calendar-sync-outline" />}
-          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          supporting={t('settings:calendar.syncDescription')}
+          trailing="chevron"
           onPress={() => navigation.navigate('CalendarSync')}
           accessibilityRole="button"
         />
-      </Section>
+      </ListGroup>
 
-      <Section title={t('settings:legal.title')}>
-        <List.Item
+      <SectionHeader title={t('settings:legal.title')} />
+      <ListGroup>
+        <ListRow
+          icon="shield-outline"
           title={t('settings:legal.privacy')}
-          left={(props) => <List.Icon {...props} icon="shield-outline" />}
-          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          trailing="chevron"
           onPress={() => navigation.navigate('Privacy')}
           accessibilityRole="button"
         />
-        <List.Item
+        <ListRow
+          icon="file-document-outline"
           title={t('settings:legal.terms')}
-          left={(props) => <List.Icon {...props} icon="file-document-outline" />}
-          right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          trailing="chevron"
           onPress={() => navigation.navigate('Terms')}
           accessibilityRole="button"
         />
-      </Section>
+      </ListGroup>
 
       <View style={styles.about}>
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+        <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
           {t('settings:about.version', { version: APP_VERSION })}
         </Text>
         {UPDATE_LABEL ? (
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }} testID="settings-update-label">
+          <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }} testID="settings-update-label">
             {t('settings:about.update', UPDATE_LABEL)}
           </Text>
         ) : null}
@@ -183,14 +229,35 @@ export function SettingsScreen(): ReactElement {
 }
 
 const styles = StyleSheet.create({
-  divider: {
-    marginVertical: 8,
+  firstHeader: {
+    marginTop: spacing.xs,
   },
   hint: {
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   about: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginTop: spacing.xxl,
+    marginBottom: spacing.lg,
+  },
+  destructiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: componentMetrics.listRowTwoLineMinHeight,
+    paddingHorizontal: componentMetrics.listRowPaddingH,
+    paddingVertical: componentMetrics.listRowPaddingV,
+    gap: spacing.lg,
+  },
+  destructiveTexts: {
+    flex: 1,
+  },
+  destructiveTitle: {
+    ...typography.titleM,
+  },
+  destructiveSupporting: {
+    ...typography.bodyM,
+  },
+  pressed: {
+    opacity: pressedOpacity,
   },
 });

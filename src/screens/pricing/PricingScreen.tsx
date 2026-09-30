@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import type { BillingCycle } from '../../services/billing';
+import { Badge } from '../../components/ui';
 import { useTheme, type AppColors } from '../../contexts/ThemeContext';
 import { createLogger } from '../../core/logger';
 import { errorMessageKey, toAppError } from '../../core/errors';
@@ -33,6 +34,7 @@ import { useAuth } from '../../services/auth';
 import { effectivePlan } from '../../core/types';
 import { useEntitlement, userRepository } from '../../services/data';
 import { purchasesService } from '../../services/purchases';
+import { componentMetrics, pressedOpacity, radii, spacing, typography } from '../../theme';
 import { useFormatters } from '../shared/useFormatters';
 import {
   ACTIVATION_SLOW_AFTER_MS,
@@ -58,33 +60,33 @@ function UsageCard({ summary, colors }: { summary: UsageSummary; colors: AppColo
   const fmt = useFormatters();
   const plan = t(`pricing:plans.${summary.plan}.name`);
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} testID="pricing-usage">
-      <Text style={[styles.cardTitle, { color: colors.text }]} accessibilityRole="header">
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.outlineVariant }]} testID="pricing-usage">
+      <Text style={[styles.cardTitle, { color: colors.onSurface }]} accessibilityRole="header">
         {t('pricing:usage.title')}
       </Text>
-      <Text style={[styles.body, { color: colors.textSecondary }]}>{t('pricing:usage.plan', { plan })}</Text>
+      <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.plan', { plan })}</Text>
       {summary.kind === 'today' ? (
         <>
-          <Text style={[styles.usageNumbers, { color: colors.text }]}>
+          <Text style={[styles.usageNumbers, { color: colors.onSurface }]}>
             {t('pricing:usage.today', { used: summary.used, limit: summary.limit })}
           </Text>
           <ProgressBar
             progress={summary.fraction}
-            color={summary.remaining === 0 ? colors.danger : colors.primary}
+            color={summary.remaining === 0 ? colors.error : colors.primary}
             style={styles.progress}
             accessibilityLabel={t('pricing:usage.today', { used: summary.used, limit: summary.limit })}
           />
-          <Text style={[styles.caption, { color: colors.textSecondary }]}>
+          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>
             {summary.remaining === 0
               ? t('pricing:usage.exhausted', { time: fmt.dateTime(summary.resetsAt) })
               : t('pricing:usage.resets', { time: fmt.dateTime(summary.resetsAt) })}
           </Text>
-          <Text style={[styles.caption, { color: colors.textSecondary }]}>{t('pricing:usage.thisDevice')}</Text>
+          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.thisDevice')}</Text>
         </>
       ) : (
         <>
-          <Text style={[styles.usageNumbers, { color: colors.text }]}>{t('pricing:usage.perDay', { count: summary.limit })}</Text>
-          <Text style={[styles.caption, { color: colors.textSecondary }]}>{t('pricing:usage.unknownToday')}</Text>
+          <Text style={[styles.usageNumbers, { color: colors.onSurface }]}>{t('pricing:usage.perDay', { count: summary.limit })}</Text>
+          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.unknownToday')}</Text>
         </>
       )}
     </View>
@@ -118,33 +120,29 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.surface, borderColor: card.popular ? colors.primary : colors.border },
+        { backgroundColor: colors.surface, borderColor: card.popular ? colors.primary : colors.outlineVariant },
         card.popular && styles.popularCard,
       ]}
       testID={`pricing-plan-${card.id}`}
     >
       <View style={styles.planHeader}>
-        <Text style={[styles.planName, { color: colors.text }]} accessibilityRole="header">
+        <Text style={[styles.planName, { color: colors.onSurface }]} accessibilityRole="header">
           {name}
         </Text>
         {card.isCurrent ? (
-          <View style={[styles.badge, { backgroundColor: colors.primaryContainer }]}>
-            <Text style={[styles.badgeText, { color: colors.onPrimaryContainer }]}>{t('pricing:currentPlan')}</Text>
-          </View>
+          <Badge tone="primary" label={t('pricing:currentPlan')} />
         ) : card.popular ? (
-          <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-            <Text style={[styles.badgeText, { color: colors.onPrimary }]}>{t('pricing:popular')}</Text>
-          </View>
+          <Badge tone="primary" label={t('pricing:popular')} />
         ) : null}
       </View>
-      <Text style={[styles.body, { color: colors.textSecondary }]}>{t(`pricing:plans.${card.tier}.description`)}</Text>
+      <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>{t(`pricing:plans.${card.tier}.description`)}</Text>
 
       <View style={styles.priceRow} accessible accessibilityLabel={period ? t('pricing:priceA11y', { price, period }) : price}>
-        <Text style={[styles.price, { color: colors.text }]}>{price}</Text>
-        {period ? <Text style={[styles.period, { color: colors.textSecondary }]}>{` / ${period}`}</Text> : null}
+        <Text style={[styles.price, { color: colors.onSurface }]}>{price}</Text>
+        {period ? <Text style={[styles.period, { color: colors.onSurfaceVariant }]}>{` / ${period}`}</Text> : null}
       </View>
       {monthlyEquivalent !== null ? (
-        <Text style={[styles.caption, { color: colors.textSecondary }]}>{t('pricing:monthlyEquivalent', { price: monthlyEquivalent })}</Text>
+        <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>{t('pricing:monthlyEquivalent', { price: monthlyEquivalent })}</Text>
       ) : null}
       {card.discountPercent !== null ? (
         <Text style={[styles.savings, { color: colors.success }]}>{t('pricing:save', { percent: card.discountPercent })}</Text>
@@ -158,15 +156,21 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
       <View style={styles.features}>
         {features.map((feature) => (
           <View key={feature} style={styles.featureRow}>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success} accessibilityElementsHidden importantForAccessibility="no" />
-            <Text style={[styles.featureText, { color: colors.text }]}>{feature}</Text>
+            <Ionicons
+              name="checkmark-circle"
+              size={componentMetrics.iconInline}
+              color={colors.success}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+            <Text style={[styles.featureText, { color: colors.onSurface }]}>{feature}</Text>
           </View>
         ))}
       </View>
 
       {card.purchasable ? (
         <Pressable
-          style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.primary, opacity: busy || pressed ? 0.6 : 1 }]}
+          style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.primary, opacity: busy || pressed ? pressedOpacity : 1 }]}
           onPress={() => onBuy(card)}
           disabled={busy}
           accessibilityRole="button"
@@ -184,7 +188,7 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
 
       {card.switchCycleHint ? (
         <Text
-          style={[styles.caption, { color: colors.textSecondary }]}
+          style={[styles.caption, { color: colors.onSurfaceVariant }]}
           accessibilityLabel={t('pricing:store.switchCycleHint')}
           testID={`pricing-switch-cycle-${card.id}`}
         >
@@ -194,7 +198,7 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
 
       {card.downgradeHint ? (
         <Text
-          style={[styles.caption, { color: colors.textSecondary }]}
+          style={[styles.caption, { color: colors.onSurfaceVariant }]}
           accessibilityLabel={t('pricing:store.downgradeHint')}
           testID={`pricing-downgrade-${card.id}`}
         >
@@ -204,7 +208,7 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
 
       {configured && card.isCurrent && card.tier !== 'free' ? (
         <Pressable
-          style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.primary, opacity: pressed ? 0.6 : 1 }]}
+          style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.outline, opacity: pressed ? pressedOpacity : 1 }]}
           onPress={onManage}
           accessibilityRole="button"
           accessibilityLabel={t('pricing:store.manageA11y')}
@@ -216,14 +220,14 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
 
       {!configured && card.tier !== 'free' && !card.isCurrent ? (
         <View
-          style={[styles.comingSoon, { borderColor: colors.border, backgroundColor: colors.surfaceVariant }]}
+          style={[styles.comingSoon, { borderColor: colors.outline, backgroundColor: colors.surfaceVariant }]}
           accessible
           accessibilityRole="button"
           accessibilityState={{ disabled: true }}
           accessibilityLabel={t('pricing:comingSoonA11y', { plan: name })}
           testID={`pricing-coming-soon-${card.id}`}
         >
-          <Text style={[styles.comingSoonText, { color: colors.textSecondary }]}>{t('pricing:comingSoon')}</Text>
+          <Text style={[styles.comingSoonText, { color: colors.onSurfaceVariant }]}>{t('pricing:comingSoon')}</Text>
         </View>
       ) : null}
     </View>
@@ -252,31 +256,31 @@ function StoreBanner({ store, phase, slow, colors, t, onRetry }: { store: StoreS
   }
   if (store.kind === 'loading') {
     return (
-      <View style={[styles.banner, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth }]} testID="pricing-store-loading">
+      <View style={[styles.banner, { backgroundColor: colors.surface, borderColor: colors.outlineVariant, borderWidth: 1 }]} testID="pricing-store-loading">
         <ActivityIndicator color={colors.primary} accessibilityElementsHidden importantForAccessibility="no" />
         <View style={styles.bannerText}>
-          <Text style={[styles.body, { color: colors.textSecondary }]}>{t('pricing:store.loading')}</Text>
+          <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>{t('pricing:store.loading')}</Text>
         </View>
       </View>
     );
   }
   if (store.kind === 'error') {
     return (
-      <View style={[styles.banner, { backgroundColor: colors.surface, borderColor: colors.danger, borderWidth: 1 }]} testID="pricing-store-error">
-        <Ionicons name="cloud-offline-outline" size={22} color={colors.danger} accessibilityElementsHidden importantForAccessibility="no" />
+      <View style={[styles.banner, { backgroundColor: colors.errorContainer }]} testID="pricing-store-error">
+        <Ionicons name="cloud-offline-outline" size={22} color={colors.onErrorContainer} accessibilityElementsHidden importantForAccessibility="no" />
         <View style={styles.bannerText}>
-          <Text style={[styles.bannerTitle, { color: colors.text }]} accessibilityRole="header">
+          <Text style={[styles.bannerTitle, { color: colors.onErrorContainer }]} accessibilityRole="header">
             {t('pricing:store.loadErrorTitle')}
           </Text>
-          <Text style={[styles.body, { color: colors.textSecondary }]}>{t('pricing:store.loadError')}</Text>
+          <Text style={[styles.body, { color: colors.onErrorContainer }]}>{t('pricing:store.loadError')}</Text>
           <Pressable
-            style={({ pressed }) => [styles.retryButton, { borderColor: colors.primary, opacity: pressed ? 0.6 : 1 }]}
+            style={({ pressed }) => [styles.retryButton, { borderColor: colors.onErrorContainer, opacity: pressed ? pressedOpacity : 1 }]}
             onPress={onRetry}
             accessibilityRole="button"
             accessibilityLabel={t('pricing:store.retryA11y')}
             testID="pricing-store-retry"
           >
-            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>{t('pricing:store.retry')}</Text>
+            <Text style={[styles.secondaryButtonText, { color: colors.onErrorContainer }]}>{t('pricing:store.retry')}</Text>
           </Pressable>
         </View>
       </View>
@@ -502,7 +506,7 @@ export function PricingScreen(): ReactElement {
     <View style={columnStyle}>
       {configured ? (
         <Pressable
-          style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.primary, opacity: busy || pressed ? 0.6 : 1 }]}
+          style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.outline, opacity: busy || pressed ? pressedOpacity : 1 }]}
           onPress={() => void onRestore()}
           disabled={busy}
           accessibilityRole="button"
@@ -517,7 +521,7 @@ export function PricingScreen(): ReactElement {
           )}
         </Pressable>
       ) : null}
-      <Text style={[styles.footer, { color: colors.textSecondary }]}>{t('pricing:footer')}</Text>
+      <Text style={[styles.footer, { color: colors.onSurfaceVariant }]}>{t('pricing:footer')}</Text>
     </View>
   );
 
@@ -537,167 +541,148 @@ export function PricingScreen(): ReactElement {
 
 const styles = StyleSheet.create({
   content: {
-    paddingTop: 16,
+    paddingTop: spacing.lg,
   },
   banner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: radii.md,
+    padding: componentMetrics.cardPadding,
+    marginBottom: componentMetrics.cardGap,
   },
   bannerText: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: spacing.md,
   },
   bannerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
+    ...typography.titleM,
+    marginBottom: spacing.xs,
   },
   card: {
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    padding: componentMetrics.cardPadding,
+    marginBottom: componentMetrics.cardGap,
   },
   popularCard: {
     borderWidth: 2,
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    marginBottom: 4,
+    ...typography.titleM,
+    marginBottom: spacing.xs,
   },
   body: {
-    fontSize: 14,
-    lineHeight: 20,
+    ...typography.bodyM,
   },
   usageNumbers: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginTop: 8,
+    ...typography.headlineM,
+    fontVariant: ['tabular-nums'],
+    marginTop: spacing.sm,
   },
   progress: {
-    height: 8,
-    borderRadius: 4,
-    marginVertical: 8,
+    height: spacing.sm,
+    borderRadius: radii.full,
+    marginVertical: spacing.sm,
   },
   caption: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 2,
+    ...typography.bodyS,
+    marginTop: spacing.xs,
   },
   cycles: {
-    marginVertical: 8,
+    marginVertical: spacing.sm,
   },
   planHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   planName: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginRight: 8,
-  },
-  badge: {
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '700',
+    ...typography.titleL,
+    marginRight: spacing.sm,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     flexWrap: 'wrap',
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   price: {
-    fontSize: 28,
-    fontWeight: '800',
+    ...typography.headlineM,
+    fontVariant: ['tabular-nums'],
   },
   period: {
-    fontSize: 15,
+    ...typography.bodyS,
   },
   savings: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 4,
+    ...typography.labelL,
+    marginTop: spacing.xs,
   },
   trial: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 4,
+    ...typography.labelL,
+    marginTop: spacing.xs,
   },
   features: {
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   featureRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 6,
+    marginBottom: spacing.sm,
   },
   featureText: {
+    ...typography.bodyM,
     flex: 1,
-    fontSize: 15,
-    lineHeight: 20,
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   actionButton: {
-    minHeight: 48,
-    borderRadius: 24,
+    minHeight: componentMetrics.buttonHeight,
+    borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   actionButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
+    ...typography.labelL,
   },
   secondaryButton: {
-    minHeight: 48,
-    borderRadius: 24,
+    minHeight: componentMetrics.buttonHeight,
+    borderRadius: radii.full,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   secondaryButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
+    ...typography.labelL,
   },
   retryButton: {
-    minHeight: 44,
-    borderRadius: 22,
+    minHeight: componentMetrics.touchTargetMin,
+    borderRadius: radii.full,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
-    paddingHorizontal: 16,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
     alignSelf: 'flex-start',
   },
   comingSoon: {
-    minHeight: 48,
-    borderRadius: 24,
+    minHeight: componentMetrics.buttonHeight,
+    borderRadius: radii.full,
     borderWidth: 1,
+    borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   comingSoonText: {
-    fontSize: 15,
-    fontWeight: '600',
+    ...typography.labelL,
   },
   footer: {
-    fontSize: 13,
-    lineHeight: 18,
+    ...typography.bodyS,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: spacing.md,
   },
 });
 

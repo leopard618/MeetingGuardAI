@@ -3,11 +3,13 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 
+import { MGButton } from '../../components/ui';
 import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
 import { useT } from '../../i18n';
 import { useEntitlement } from '../../services/data';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { OnboardingLayout, OnboardingSection, useOnboardingNavigation, type OnboardingNavigation } from './OnboardingLayout';
 
 const CAPABILITIES = [
@@ -22,7 +24,7 @@ const EXAMPLES = ['create', 'move', 'share', 'bulk'] as const;
 
 export function OnboardingAssistantScreen(): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const navigation = useNavigation<OnboardingNavigation>();
   const { goNext } = useOnboardingNavigation('OnboardingAssistant');
   const { plan } = useEntitlement();
@@ -39,35 +41,37 @@ export function OnboardingAssistantScreen(): ReactElement {
       <OnboardingSection title={t('onboarding:assistant.capabilitiesTitle')}>
         {CAPABILITIES.map(({ key, icon }) => (
           <View key={key} style={styles.row}>
-            <MaterialCommunityIcons name={icon} size={20} color={theme.colors.primary} />
+            <View style={[styles.rowIcon, { backgroundColor: colors.tertiaryContainer }]}>
+              <MaterialCommunityIcons name={icon} size={componentMetrics.iconInline} color={colors.onTertiaryContainer} />
+            </View>
             <Text variant="bodyMedium" style={styles.rowText}>
               {t(`onboarding:assistant.capabilities.${key}`)}
             </Text>
           </View>
         ))}
-        <Text variant="bodySmall" style={[styles.note, { color: theme.colors.onSurfaceVariant }]}>
+        <Text variant="bodySmall" style={[styles.note, { color: colors.onSurfaceVariant }]}>
           {t('onboarding:assistant.confirm')}
         </Text>
       </OnboardingSection>
 
       <OnboardingSection title={t('onboarding:assistant.examplesTitle')}>
         {EXAMPLES.map((key) => (
-          <View key={key} style={[styles.example, { backgroundColor: theme.colors.secondaryContainer }]}>
-            <Text variant="bodyMedium" style={{ color: theme.colors.onSecondaryContainer }}>
+          <View key={key} style={[styles.example, { backgroundColor: colors.secondaryContainer }]}>
+            <Text variant="bodyMedium" style={{ color: colors.onSecondaryContainer }}>
               “{t(`onboarding:assistant.examples.${key}`)}”
             </Text>
           </View>
         ))}
-        <Text variant="bodySmall" style={[styles.note, { color: theme.colors.onSurfaceVariant }]}>
+        <Text variant="bodySmall" style={[styles.note, { color: colors.onSurfaceVariant }]}>
           {t('onboarding:assistant.quota', { count: dailyLimit, plan: t(`onboarding:assistant.plans.${plan}`) })}
         </Text>
       </OnboardingSection>
 
       <OnboardingSection title={t('onboarding:assistant.privacyTitle')}>
         <Text variant="bodyMedium">{t('onboarding:assistant.privacy')}</Text>
-        <Button mode="text" style={styles.link} onPress={() => navigation.navigate('Privacy')}>
+        <MGButton variant="ghost" size="sm" style={styles.link} onPress={() => navigation.navigate('Privacy')}>
           {t('onboarding:assistant.privacyLink')}
-        </Button>
+        </MGButton>
       </OnboardingSection>
     </OnboardingLayout>
   );
@@ -77,23 +81,30 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: spacing.xs,
+  },
+  rowIcon: {
+    width: spacing.xxxl,
+    height: spacing.xxxl,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rowText: {
-    marginLeft: 12,
+    marginLeft: spacing.md,
     flex: 1,
   },
   note: {
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   example: {
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 8,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.sm,
   },
   link: {
     alignSelf: 'flex-start',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
 });

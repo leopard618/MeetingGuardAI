@@ -1,18 +1,19 @@
 /** Onboarding step 1: language (switches instantly, synced to preferences) + terms consent. */
 import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { RadioButton, Text, TouchableRipple, useTheme as usePaperTheme } from 'react-native-paper';
+import { RadioButton, Text, TouchableRipple } from 'react-native-paper';
 
 import type { Language } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { ConsentNotice } from '../../navigation/ConsentNotice';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { OnboardingLayout, useOnboardingNavigation } from './OnboardingLayout';
 
 const FLAGS: Readonly<Record<Language, string>> = { en: '🇬🇧', es: '🇪🇸' };
 
 export function OnboardingLanguageScreen(): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const { language, setLanguage, supportedLanguages } = useLanguage();
   const { goNext } = useOnboardingNavigation('OnboardingLanguage');
 
@@ -41,8 +42,8 @@ export function OnboardingLanguageScreen(): ReactElement {
               style={[
                 styles.option,
                 {
-                  borderColor: selected ? theme.colors.primary : theme.colors.outlineVariant,
-                  backgroundColor: selected ? theme.colors.primaryContainer : theme.colors.surface,
+                  borderColor: selected ? colors.primary : colors.outline,
+                  backgroundColor: selected ? colors.primaryContainer : colors.surface,
                 },
               ]}
               accessibilityRole="radio"
@@ -50,7 +51,10 @@ export function OnboardingLanguageScreen(): ReactElement {
             >
               <View style={styles.optionRow}>
                 <Text style={styles.flag}>{FLAGS[code]}</Text>
-                <Text variant="titleMedium" style={styles.optionLabel}>
+                <Text
+                  variant="titleMedium"
+                  style={[styles.optionLabel, { color: selected ? colors.onPrimaryContainer : colors.onSurface }]}
+                >
                   {t(`common:language.${code}`)}
                 </Text>
                 <RadioButton value={code} />
@@ -59,7 +63,7 @@ export function OnboardingLanguageScreen(): ReactElement {
           );
         })}
       </RadioButton.Group>
-      <Text variant="bodySmall" style={[styles.hint, { color: theme.colors.onSurfaceVariant }]}>
+      <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]}>
         {t('onboarding:language.hint')}
       </Text>
       <ConsentNotice style={styles.consent} />
@@ -69,11 +73,13 @@ export function OnboardingLanguageScreen(): ReactElement {
 
 const styles = StyleSheet.create({
   option: {
-    marginTop: 12,
-    borderRadius: 16,
+    marginTop: spacing.md,
+    borderRadius: radii.lg,
     borderWidth: 2,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: componentMetrics.listRowPaddingH,
+    paddingVertical: componentMetrics.listRowPaddingV,
+    minHeight: componentMetrics.listRowMinHeight,
+    justifyContent: 'center',
   },
   optionRow: {
     flexDirection: 'row',
@@ -81,15 +87,15 @@ const styles = StyleSheet.create({
   },
   flag: {
     fontSize: 28,
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   optionLabel: {
     flex: 1,
   },
   hint: {
-    marginTop: 16,
+    marginTop: spacing.lg,
   },
   consent: {
-    marginTop: 32,
+    marginTop: spacing.xxxl,
   },
 });

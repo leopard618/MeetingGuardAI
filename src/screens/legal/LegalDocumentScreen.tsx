@@ -5,6 +5,7 @@
  * - In the Main group the stack header shows the title; in the Auth and Onboarding groups (no
  *   header) the `standalone` variant draws its own top bar (title, back button, top inset).
  * - Sections are a virtualized list; the date is formatted in the UI language.
+ * - Reads as a prose page (no cards): bodyL text, titleM section headings, bodyS meta.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -13,11 +14,11 @@ import { useMemo, type ReactElement } from 'react';
 import { FlatList, Linking, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme, type AppColors } from '../../contexts/ThemeContext';
 import { toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useResponsive } from '../../hooks/useResponsive';
 import { i18n, useLanguage, useT } from '../../i18n';
+import { componentMetrics, pressedOpacity, spacing, typography, useAppTheme, type MGColors } from '../../theme';
 import { formatDate } from '../../utils/format';
 import {
   LEGAL_ENTITY,
@@ -38,7 +39,7 @@ export interface LegalDocumentScreenProps {
   standalone?: boolean;
 }
 
-function Bullets({ items, colors }: { items: string[]; colors: AppColors }): ReactElement {
+function Bullets({ items, colors }: { items: string[]; colors: MGColors }): ReactElement {
   return (
     <View style={styles.items}>
       {items.map((item, index) => (
@@ -46,18 +47,18 @@ function Bullets({ items, colors }: { items: string[]; colors: AppColors }): Rea
           <Text style={[styles.bullet, { color: colors.primary }]} importantForAccessibility="no" accessibilityElementsHidden>
             •
           </Text>
-          <Text style={[styles.paragraph, styles.itemText, { color: colors.text }]}>{item}</Text>
+          <Text style={[styles.paragraph, styles.itemText, { color: colors.onSurface }]}>{item}</Text>
         </View>
       ))}
     </View>
   );
 }
 
-function Paragraphs({ paragraphs, colors, muted = false }: { paragraphs: string[]; colors: AppColors; muted?: boolean }): ReactElement {
+function Paragraphs({ paragraphs, colors, muted = false }: { paragraphs: string[]; colors: MGColors; muted?: boolean }): ReactElement {
   return (
     <>
       {paragraphs.map((paragraph, index) => (
-        <Text key={index} style={[styles.paragraph, { color: muted ? colors.textSecondary : colors.text }]}>
+        <Text key={index} style={[styles.paragraph, { color: muted ? colors.onSurfaceVariant : colors.onSurface }]}>
           {paragraph}
         </Text>
       ))}
@@ -68,7 +69,7 @@ function Paragraphs({ paragraphs, colors, muted = false }: { paragraphs: string[
 export function LegalDocumentScreen({ document, standalone = false }: LegalDocumentScreenProps): ReactElement {
   const t = useT();
   const { language } = useLanguage();
-  const { colors, isDarkMode } = useTheme();
+  const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const layout = useResponsive();
   const navigation = useNavigation();
@@ -94,8 +95,8 @@ export function LegalDocumentScreen({ document, standalone = false }: LegalDocum
   const columnStyle = { width: layout.contentWidth, alignSelf: 'center' as const };
 
   const renderSection: ListRenderItem<LegalSection> = ({ item }) => (
-    <View style={[styles.section, columnStyle, { backgroundColor: colors.surface, borderColor: colors.border }]} testID={`legal-section-${item.id}`}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]} accessibilityRole="header">
+    <View style={[styles.section, columnStyle]} testID={`legal-section-${item.id}`}>
+      <Text style={[styles.sectionTitle, { color: colors.onSurface }]} accessibilityRole="header">
         {item.title}
       </Text>
       <Paragraphs paragraphs={item.body} colors={colors} />
@@ -106,18 +107,18 @@ export function LegalDocumentScreen({ document, standalone = false }: LegalDocum
 
   const header = (
     <View style={[styles.intro, columnStyle]}>
-      <Text style={[styles.updated, { color: colors.textSecondary }]}>{t('legal:updated', { date: updated })}</Text>
-      <Text style={[styles.paragraph, { color: colors.text }]}>{t(`legal:${document}.intro`, { company: LEGAL_ENTITY.name })}</Text>
+      <Text style={[styles.updated, { color: colors.onSurfaceVariant }]}>{t('legal:updated', { date: updated })}</Text>
+      <Text style={[styles.paragraph, { color: colors.onSurface }]}>{t(`legal:${document}.intro`, { company: LEGAL_ENTITY.name })}</Text>
     </View>
   );
 
   const footer = (
-    <View style={[styles.section, columnStyle, { backgroundColor: colors.surface, borderColor: colors.border }]} testID="legal-contact">
-      <Text style={[styles.sectionTitle, { color: colors.text }]} accessibilityRole="header">
+    <View style={[styles.section, columnStyle]} testID="legal-contact">
+      <Text style={[styles.sectionTitle, { color: colors.onSurface }]} accessibilityRole="header">
         {t('legal:contact.title')}
       </Text>
-      <Text style={[styles.paragraph, { color: colors.text }]}>{t('legal:contact.body')}</Text>
-      <Text style={[styles.paragraph, { color: colors.text }]} selectable>
+      <Text style={[styles.paragraph, { color: colors.onSurface }]}>{t('legal:contact.body')}</Text>
+      <Text style={[styles.paragraph, { color: colors.onSurface }]} selectable>
         {LEGAL_ENTITY.name}
         {'\n'}
         {LEGAL_ENTITY.address}
@@ -136,7 +137,7 @@ export function LegalDocumentScreen({ document, standalone = false }: LegalDocum
           <Text style={[styles.emailText, { color: colors.primary }]}>{email}</Text>
         </Pressable>
       ) : (
-        <Text style={[styles.paragraph, { color: colors.text }]} selectable>
+        <Text style={[styles.paragraph, { color: colors.onSurface }]} selectable>
           {LEGAL_ENTITY.email}
         </Text>
       )}
@@ -147,10 +148,10 @@ export function LegalDocumentScreen({ document, standalone = false }: LegalDocum
     <View style={[styles.fill, { backgroundColor: colors.background }]} testID={`legal-${document}`}>
       {standalone ? (
         <View
-          style={[styles.topBar, { paddingTop: insets.top, backgroundColor: colors.surface, borderBottomColor: colors.border }]}
+          style={[styles.topBar, { paddingTop: insets.top, backgroundColor: colors.surface, borderBottomColor: colors.outlineVariant }]}
         >
           {/* Its own status bar style: the screen below (Landing) may have set light icons. */}
-          <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+          <StatusBar style={isDark ? 'light' : 'dark'} />
           <View style={styles.topBarRow}>
             {navigation.canGoBack() ? (
               <Pressable
@@ -161,10 +162,10 @@ export function LegalDocumentScreen({ document, standalone = false }: LegalDocum
                 hitSlop={4}
                 testID="legal-back"
               >
-                <Ionicons name="arrow-back" size={24} color={colors.text} />
+                <Ionicons name="arrow-back" size={componentMetrics.iconNav} color={colors.onSurface} />
               </Pressable>
             ) : null}
-            <Text style={[styles.topBarTitle, { color: colors.text }]} numberOfLines={1} accessibilityRole="header" maxFontSizeMultiplier={1.4}>
+            <Text style={[styles.topBarTitle, { color: colors.onSurface }]} numberOfLines={1} accessibilityRole="header" maxFontSizeMultiplier={1.4}>
               {title}
             </Text>
           </View>
@@ -176,7 +177,7 @@ export function LegalDocumentScreen({ document, standalone = false }: LegalDocum
         renderItem={renderSection}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24, paddingHorizontal: layout.gutter }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl, paddingHorizontal: layout.gutter }]}
         initialNumToRender={6}
       />
     </View>
@@ -193,59 +194,52 @@ const styles = StyleSheet.create({
   topBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 56,
-    paddingHorizontal: 8,
+    minHeight: componentMetrics.headerMinHeight,
+    paddingHorizontal: spacing.sm,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: componentMetrics.touchTargetMin,
+    height: componentMetrics.touchTargetMin,
+    borderRadius: componentMetrics.headerRippleRadius,
     alignItems: 'center',
     justifyContent: 'center',
   },
   topBarTitle: {
+    ...typography.titleL,
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    marginHorizontal: 8,
+    marginHorizontal: spacing.sm,
   },
   content: {
-    paddingTop: 16,
+    paddingTop: spacing.lg,
   },
   intro: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   updated: {
-    fontSize: 13,
-    marginBottom: 12,
+    ...typography.bodyS,
+    marginBottom: spacing.md,
   },
   section: {
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-    marginTop: 12,
+    marginTop: spacing.xxl,
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    marginBottom: 8,
+    ...typography.titleM,
+    marginBottom: spacing.sm,
   },
   paragraph: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 8,
+    ...typography.bodyL,
+    marginBottom: spacing.sm,
   },
   items: {
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
   bullet: {
-    width: 18,
-    fontSize: 15,
-    lineHeight: 22,
+    ...typography.bodyL,
+    width: spacing.xl,
   },
   itemText: {
     flex: 1,
@@ -253,16 +247,15 @@ const styles = StyleSheet.create({
   emailButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: componentMetrics.touchTargetMin,
   },
   emailText: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginLeft: 8,
+    ...typography.labelL,
+    marginLeft: spacing.sm,
     textDecorationLine: 'underline',
   },
   pressed: {
-    opacity: 0.6,
+    opacity: pressedOpacity,
   },
 });
 

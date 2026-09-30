@@ -1,6 +1,10 @@
 /**
  * Static visual preview of the three alert intensities (what AlertHost shows in the app). It
  * does not play sound or schedule anything; the real alerts belong to the alerts area.
+ *
+ * The mockups are built from the mode-invariant `alertMax` / `alertMedium` / `alertLight` token
+ * groups, so the preview matches the real overlays at card scale in both color schemes; the
+ * device frame around the MEDIUM / LIGHT mockups is `surfaceVariant` + 1px `outlineVariant`.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState, type ReactElement } from 'react';
@@ -9,6 +13,7 @@ import { Text } from 'react-native-paper';
 
 import type { AlertIntensity } from '../../core/types';
 import { useT } from '../../i18n';
+import { alertLight, alertMax, alertMedium, componentMetrics, radii, spacing, typography, useAppTheme } from '../../theme';
 
 function PulseDot(): ReactElement {
   const [opacity] = useState(() => new Animated.Value(1));
@@ -27,11 +32,13 @@ function PulseDot(): ReactElement {
 
 export function AlertPreview({ intensity }: { intensity: AlertIntensity }): ReactElement {
   const t = useT();
+  const { colors } = useAppTheme();
+  const frameStyle = { backgroundColor: colors.surfaceVariant, borderColor: colors.outlineVariant };
 
   if (intensity === 'max') {
     return (
       <View style={[styles.frame, styles.max]} accessibilityLabel={t('onboarding:alerts.preview.label')}>
-        <MaterialCommunityIcons name="alarm-light" size={36} color="#FFFFFF" />
+        <MaterialCommunityIcons name="alarm-light" size={36} color={alertMax.title} />
         <Text variant="titleMedium" style={styles.maxTitle}>
           {t('onboarding:alerts.preview.meetingTitle')}
         </Text>
@@ -52,8 +59,9 @@ export function AlertPreview({ intensity }: { intensity: AlertIntensity }): Reac
 
   if (intensity === 'medium') {
     return (
-      <View style={[styles.frame, styles.mediumFrame]} accessibilityLabel={t('onboarding:alerts.preview.label')}>
+      <View style={[styles.frame, styles.deviceFrame, frameStyle]} accessibilityLabel={t('onboarding:alerts.preview.label')}>
         <View style={styles.banner}>
+          <View style={styles.bannerAccent} />
           <PulseDot />
           <View style={styles.bannerText}>
             <Text variant="titleSmall" style={styles.bannerTitle}>
@@ -63,16 +71,16 @@ export function AlertPreview({ intensity }: { intensity: AlertIntensity }): Reac
               {t('onboarding:alerts.preview.startsIn')}
             </Text>
           </View>
-          <MaterialCommunityIcons name="chevron-up" size={22} color="#7C2D12" />
+          <MaterialCommunityIcons name="chevron-up" size={22} color={alertMedium.body} />
         </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.frame, styles.lightFrame]} accessibilityLabel={t('onboarding:alerts.preview.label')}>
+    <View style={[styles.frame, styles.deviceFrame, styles.lightFrame, frameStyle]} accessibilityLabel={t('onboarding:alerts.preview.label')}>
       <View style={styles.toast}>
-        <MaterialCommunityIcons name="bell-outline" size={18} color="#F8FAFC" />
+        <MaterialCommunityIcons name="bell-outline" size={18} color={alertLight.icon} />
         <Text variant="bodySmall" style={styles.toastText}>
           {t('onboarding:alerts.preview.lightText')}
         </Text>
@@ -83,94 +91,104 @@ export function AlertPreview({ intensity }: { intensity: AlertIntensity }): Reac
 
 const styles = StyleSheet.create({
   frame: {
-    marginTop: 12,
-    borderRadius: 16,
+    marginTop: spacing.md,
+    borderRadius: radii.lg,
     minHeight: 150,
     overflow: 'hidden',
   },
+  deviceFrame: {
+    borderWidth: 1,
+    padding: spacing.md,
+  },
   max: {
-    backgroundColor: '#B91C1C',
+    backgroundColor: alertMax.bg,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: spacing.lg,
   },
   maxTitle: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    marginTop: 8,
+    color: alertMax.title,
+    marginTop: spacing.sm,
     textAlign: 'center',
   },
   maxBody: {
-    color: '#FEE2E2',
-    marginTop: 4,
+    color: alertMax.when,
+    marginTop: spacing.xs,
   },
   maxActions: {
     flexDirection: 'row',
-    marginTop: 12,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: spacing.md,
   },
   fakeButton: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    marginHorizontal: 4,
+    borderRadius: radii.sm,
+    borderWidth: 1.5,
+    borderColor: alertMax.snoozeBorder,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    marginHorizontal: spacing.xs,
+    marginTop: spacing.xs,
   },
   fakeButtonPrimary: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
+    backgroundColor: alertMax.ackBg,
+    borderColor: alertMax.ackBg,
   },
   fakeButtonText: {
-    color: '#FFFFFF',
+    ...typography.labelL,
+    color: alertMax.snoozeText,
   },
   fakeButtonPrimaryText: {
-    color: '#B91C1C',
-    fontWeight: '700',
-  },
-  mediumFrame: {
-    backgroundColor: '#E2E8F0',
-    padding: 12,
+    ...typography.labelL,
+    color: alertMax.ackText,
   },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FDBA74',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: alertMedium.bg,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    overflow: 'hidden',
+  },
+  bannerAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: componentMetrics.accentBarWidth,
+    backgroundColor: alertMedium.accentBar,
   },
   pulse: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#C2410C',
-    marginRight: 12,
+    width: spacing.md,
+    height: spacing.md,
+    borderRadius: radii.full,
+    backgroundColor: alertMedium.accentBar,
+    marginLeft: spacing.xs,
+    marginRight: spacing.md,
   },
   bannerText: {
     flex: 1,
   },
   bannerTitle: {
-    color: '#431407',
-    fontWeight: '700',
+    color: alertMedium.title,
   },
   bannerBody: {
-    color: '#7C2D12',
+    color: alertMedium.body,
   },
   lightFrame: {
-    backgroundColor: '#E2E8F0',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    padding: 12,
   },
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    backgroundColor: alertLight.bg,
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
   },
   toastText: {
-    color: '#F8FAFC',
-    marginLeft: 8,
+    color: alertLight.title,
+    marginLeft: spacing.sm,
   },
 });

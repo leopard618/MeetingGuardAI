@@ -6,15 +6,17 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRef, useState, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Text, TouchableRipple, useTheme as usePaperTheme } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
+import { Card } from '../../components/ui';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useT } from '../../i18n';
 import { clearPendingNavigation, navigate, type NavigationIntent } from '../../navigation/navigationService';
 import { useAuth } from '../../services/auth';
 import { usePreferences } from '../../services/data';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { OnboardingLayout } from './OnboardingLayout';
 import { clearOnboardingStep } from './progress';
 
@@ -24,7 +26,7 @@ type Choice = 'manual' | 'ai' | 'skip';
 
 export function OnboardingFirstMeetingScreen(): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const { update } = usePreferences();
   const { authUser } = useAuth();
   const [busy, setBusy] = useState<Choice | null>(null);
@@ -77,28 +79,28 @@ export function OnboardingFirstMeetingScreen(): ReactElement {
       primaryDisabled={busy !== null}
     >
       {options.map(({ choice, icon }) => (
-        <TouchableRipple
+        <Card
           key={choice}
           disabled={busy !== null}
           onPress={() => {
             void finish(choice);
           }}
-          style={[styles.card, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]}
+          style={styles.card}
           accessibilityRole="button"
         >
           <View style={styles.cardRow}>
-            <View style={[styles.iconWrap, { backgroundColor: theme.colors.primaryContainer }]}>
-              <MaterialCommunityIcons name={icon} size={28} color={theme.colors.onPrimaryContainer} />
+            <View style={[styles.iconWrap, { backgroundColor: colors.primaryContainer }]}>
+              <MaterialCommunityIcons name={icon} size={24} color={colors.onPrimaryContainer} />
             </View>
             <View style={styles.cardText}>
               <Text variant="titleMedium">{t(`onboarding:firstMeeting.${choice}.title`)}</Text>
-              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+              <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }}>
                 {t(`onboarding:firstMeeting.${choice}.description`)}
               </Text>
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.onSurfaceVariant} />
+            <MaterialCommunityIcons name="chevron-right" size={componentMetrics.iconNav} color={colors.onSurfaceVariant} />
           </View>
-        </TouchableRipple>
+        </Card>
       ))}
     </OnboardingLayout>
   );
@@ -106,22 +108,19 @@ export function OnboardingFirstMeetingScreen(): ReactElement {
 
 const styles = StyleSheet.create({
   card: {
-    marginTop: 16,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
+    marginTop: spacing.lg,
   },
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: componentMetrics.avatarSize,
+    height: componentMetrics.avatarSize,
+    borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: spacing.lg,
   },
   cardText: {
     flex: 1,

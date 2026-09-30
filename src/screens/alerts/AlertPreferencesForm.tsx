@@ -9,21 +9,13 @@
  */
 import type { ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import {
-  Button,
-  Chip,
-  HelperText,
-  RadioButton,
-  SegmentedButtons,
-  Switch,
-  Text,
-  TouchableRipple,
-  useTheme as usePaperTheme,
-} from 'react-native-paper';
+import { Chip, HelperText, RadioButton, SegmentedButtons, Switch, Text, TouchableRipple } from 'react-native-paper';
 
+import { Badge, MGButton } from '../../components/ui';
 import { ALERT_INTENSITIES, ALERT_SOUND_TYPES, type AlertIntensity, type AlertSoundType } from '../../core/types';
 import { useT } from '../../i18n';
 import { alertEngine, fullScreenAlarm } from '../../services/alerts';
+import { radii, spacing, useAppTheme } from '../../theme';
 import { AlertPreview } from '../onboarding/AlertPreview';
 import {
   VOLUME_LEVELS,
@@ -47,7 +39,7 @@ export interface AlertPreferencesFormProps<D extends AlertDraft> {
 
 export function AlertPreferencesForm<D extends AlertDraft>({ draft, onChange, sample }: AlertPreferencesFormProps<D>): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const valid = isDraftValid(draft);
   const patch = (value: Partial<AlertDraft>): void => {
     sample.stop();
@@ -71,37 +63,41 @@ export function AlertPreferencesForm<D extends AlertDraft>({ draft, onChange, sa
       <View style={draft.alertEnabled ? undefined : styles.disabled} pointerEvents={draft.alertEnabled ? 'auto' : 'none'}>
         <Section title={t('onboarding:alerts.intensity.label')}>
           <RadioButton.Group value={draft.alertIntensity} onValueChange={(value) => patch({ alertIntensity: value as AlertIntensity })}>
-            {ALERT_INTENSITIES.map((intensity) => (
-              <TouchableRipple
-                key={intensity}
-                onPress={() => patch({ alertIntensity: intensity })}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: draft.alertIntensity === intensity }}
-              >
-                <View style={styles.radioRow}>
-                  <RadioButton value={intensity} />
-                  <View style={styles.flex}>
-                    <Text variant="titleSmall">{t(`onboarding:alerts.intensity.${intensity}.title`)}</Text>
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                      {t(`onboarding:alerts.intensity.${intensity}.description`)}
-                    </Text>
+            {ALERT_INTENSITIES.map((intensity) => {
+              const selected = draft.alertIntensity === intensity;
+              return (
+                <TouchableRipple
+                  key={intensity}
+                  onPress={() => patch({ alertIntensity: intensity })}
+                  style={[styles.radioOption, selected && { backgroundColor: colors.surfaceContainerHigh }]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                >
+                  <View style={styles.radioRow}>
+                    <RadioButton value={intensity} />
+                    <View style={styles.flex}>
+                      <Text variant="titleSmall">{t(`onboarding:alerts.intensity.${intensity}.title`)}</Text>
+                      <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+                        {t(`onboarding:alerts.intensity.${intensity}.description`)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </TouchableRipple>
-            ))}
+                </TouchableRipple>
+              );
+            })}
           </RadioButton.Group>
-          <Text variant="labelMedium" style={[styles.previewLabel, { color: theme.colors.onSurfaceVariant }]}>
+          <Text variant="labelMedium" style={[styles.previewLabel, { color: colors.onSurfaceVariant }]}>
             {t('onboarding:alerts.preview.label')}
           </Text>
           <AlertPreview intensity={draft.alertIntensity} />
-          <Button
-            mode="outlined"
+          <MGButton
+            variant="tonal"
             icon={sample.playing ? 'stop' : 'play'}
             style={styles.action}
             onPress={() => (sample.playing ? sample.stop() : sample.play(draft))}
           >
             {t(sample.playing ? 'onboarding:alerts.preview.stop' : 'onboarding:alerts.preview.play')}
-          </Button>
+          </MGButton>
         </Section>
 
         <Section title={t('onboarding:alerts.sound.label')}>
@@ -137,7 +133,7 @@ export function AlertPreferencesForm<D extends AlertDraft>({ draft, onChange, sa
         </Section>
 
         <Section title={t('onboarding:alerts.times.label')}>
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+          <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
             {t('onboarding:alerts.times.hint')}
           </Text>
           <View style={styles.chips}>
@@ -178,7 +174,7 @@ export function AlertExtraSettings({
   onChange(patch: Partial<AlertSettingsDraft>): void;
 }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   return (
     <View>
       <Section title={t('alerts:settings.snooze.label')}>
@@ -194,7 +190,7 @@ export function AlertExtraSettings({
 
       <Section title={t('alerts:settings.followUp.label')}>
         <View style={styles.switchRow}>
-          <Text variant="bodyMedium" style={[styles.flex, { color: theme.colors.onSurfaceVariant }]}>
+          <Text variant="bodyMedium" style={[styles.flex, { color: colors.onSurfaceVariant }]}>
             {t('alerts:settings.followUp.description')}
           </Text>
           <Switch
@@ -223,7 +219,6 @@ export function AlertDeliverySection({
   intensity: AlertIntensity;
 }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
   const openSettings = useOpenSystemSettings();
   const fullScreen = useFullScreenAlarmStatus();
   const status = permission.permission;
@@ -237,9 +232,7 @@ export function AlertDeliverySection({
       <Section title={t('onboarding:alerts.permission.title')}>
         <Text variant="bodyMedium">{t('onboarding:alerts.permission.description')}</Text>
         {notificationsGranted ? (
-          <Text variant="labelLarge" style={[styles.status, { color: theme.colors.primary }]}>
-            {t('onboarding:alerts.permission.granted')}
-          </Text>
+          <Badge tone="success" label={t('onboarding:alerts.permission.granted')} style={styles.status} />
         ) : null}
         {status?.notifications === 'provisional' ? (
           <HelperText type="info" visible>
@@ -247,8 +240,8 @@ export function AlertDeliverySection({
           </HelperText>
         ) : null}
         {status !== null && !notificationsGranted && !showOpenNotificationSettings ? (
-          <Button
-            mode="contained-tonal"
+          <MGButton
+            variant="tonal"
             icon="bell-ring-outline"
             style={styles.action}
             onPress={() => {
@@ -256,16 +249,16 @@ export function AlertDeliverySection({
             }}
           >
             {t('onboarding:alerts.permission.allow')}
-          </Button>
+          </MGButton>
         ) : null}
         {showOpenNotificationSettings ? (
           <View>
             <HelperText type="error" visible>
               {t('onboarding:alerts.permission.denied')}
             </HelperText>
-            <Button mode="text" onPress={() => openSettings(() => alertEngine.openNotificationSettings())}>
+            <MGButton variant="ghost" style={styles.action} onPress={() => openSettings(() => alertEngine.openNotificationSettings())}>
               {t('common:actions.openSettings')}
-            </Button>
+            </MGButton>
           </View>
         ) : null}
         {permission.error ? (
@@ -278,20 +271,18 @@ export function AlertDeliverySection({
       {status?.exactAlarms === 'unknown' ? (
         <Section title={t('onboarding:alerts.exactAlarms.title')}>
           {exactAllowed === true ? (
-            <Text variant="labelLarge" style={{ color: theme.colors.primary }} testID="alerts-exact-granted">
-              {t('alerts:settings.exactAlarms.granted')}
-            </Text>
+            <Badge tone="success" label={t('alerts:settings.exactAlarms.granted')} testID="alerts-exact-granted" />
           ) : (
             <View>
               <Text variant="bodyMedium">{t('onboarding:alerts.exactAlarms.description')}</Text>
-              <Button
-                mode="contained-tonal"
+              <MGButton
+                variant="tonal"
                 icon="alarm"
                 style={styles.action}
                 onPress={() => openSettings(() => alertEngine.openExactAlarmSettings())}
               >
                 {t('onboarding:alerts.exactAlarms.open')}
-              </Button>
+              </MGButton>
             </View>
           )}
         </Section>
@@ -302,9 +293,7 @@ export function AlertDeliverySection({
           <Text variant="bodyMedium">{t('alerts:settings.fullScreen.description')}</Text>
           {fullScreen.status !== null ? (
             fullScreen.status.fullScreenAllowed ? (
-              <Text variant="labelLarge" style={[styles.status, { color: theme.colors.primary }]} testID="alerts-fullscreen-allowed">
-                {t('alerts:settings.fullScreen.allowed')}
-              </Text>
+              <Badge tone="success" label={t('alerts:settings.fullScreen.allowed')} style={styles.status} testID="alerts-fullscreen-allowed" />
             ) : (
               // fullScreenAllowed can only be false on Android 14+, where the system settings
               // page (openFullScreenIntentSettings) exists.
@@ -312,15 +301,15 @@ export function AlertDeliverySection({
                 <HelperText type="error" visible>
                   {t('alerts:settings.fullScreen.denied')}
                 </HelperText>
-                <Button
-                  mode="contained-tonal"
+                <MGButton
+                  variant="tonal"
                   icon="cellphone-lock"
                   style={styles.action}
                   onPress={() => openSettings(() => fullScreenAlarm.openFullScreenIntentSettings())}
                   testID="alerts-fullscreen-open"
                 >
                   {t('alerts:settings.fullScreen.open')}
-                </Button>
+                </MGButton>
               </View>
             )
           ) : null}
@@ -330,15 +319,15 @@ export function AlertDeliverySection({
       {Platform.OS === 'android' && intensity === 'max' ? (
         <Section title={t('alerts:settings.dnd.title')}>
           <Text variant="bodyMedium">{t('alerts:settings.dnd.androidDescription')}</Text>
-          <Button
-            mode="contained-tonal"
+          <MGButton
+            variant="tonal"
             icon="bell-alert-outline"
             style={styles.action}
             onPress={() => openSettings(() => alertEngine.openAlarmChannelSettings())}
             testID="alerts-dnd-open"
           >
             {t('alerts:settings.dnd.open')}
-          </Button>
+          </MGButton>
         </Section>
       ) : null}
 
@@ -348,9 +337,9 @@ export function AlertDeliverySection({
           <Text variant="bodyMedium" style={styles.status}>
             {t('alerts:settings.dnd.iosDescription')}
           </Text>
-          <Button mode="text" onPress={() => openSettings(() => alertEngine.openAlarmChannelSettings())}>
+          <MGButton variant="ghost" style={styles.action} onPress={() => openSettings(() => alertEngine.openAlarmChannelSettings())}>
             {t('common:actions.openSettings')}
-          </Button>
+          </MGButton>
         </Section>
       ) : null}
     </View>
@@ -364,38 +353,42 @@ const styles = StyleSheet.create({
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 4,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
   disabled: {
     opacity: 0.4,
   },
+  radioOption: {
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.xs,
+  },
   radioRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: spacing.sm,
   },
   previewLabel: {
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   subheading: {
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   chip: {
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
   action: {
-    marginTop: 12,
+    marginTop: spacing.md,
     alignSelf: 'flex-start',
   },
   status: {
-    marginTop: 12,
+    marginTop: spacing.md,
   },
 });

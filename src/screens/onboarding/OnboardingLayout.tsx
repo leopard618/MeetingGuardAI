@@ -7,9 +7,10 @@ import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useCallback, type ReactElement, type ReactNode } from 'react';
 import { BackHandler, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, IconButton, ProgressBar, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { IconButton, ProgressBar, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MGButton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -22,6 +23,7 @@ import {
   type OnboardingStep,
 } from '../../navigation/routes';
 import { useAuth } from '../../services/auth';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { saveOnboardingStep } from './progress';
 
 const log = createLogger('onboarding');
@@ -79,7 +81,7 @@ export function OnboardingLayout({
   onSecondary,
 }: OnboardingLayoutProps): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { authUser } = useAuth();
   const uid = authUser?.uid ?? null;
@@ -100,12 +102,13 @@ export function OnboardingLayout({
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={styles.topBar}>
         {index > 0 ? (
           <IconButton
             icon="arrow-left"
             accessibilityLabel={t('common:actions.back')}
+            hitSlop={4}
             onPress={() => {
               goBack();
             }}
@@ -114,7 +117,7 @@ export function OnboardingLayout({
           <View style={styles.iconPlaceholder} />
         )}
         <View style={styles.progress}>
-          <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+          <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
             {t('onboarding:progress', { current: index + 1, total })}
           </Text>
           <ProgressBar progress={(index + 1) / total} style={styles.progressBar} />
@@ -127,43 +130,32 @@ export function OnboardingLayout({
           {title}
         </Text>
         {subtitle ? (
-          <Text variant="bodyLarge" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
+          <Text variant="bodyMedium" style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
             {subtitle}
           </Text>
         ) : null}
         {children}
       </ScrollView>
 
-      <View
-        style={[
-          styles.footer,
-          { paddingBottom: insets.bottom + 12, borderTopColor: theme.colors.outlineVariant },
-        ]}
-      >
-        <Button
-          mode="contained"
-          onPress={onPrimary}
-          disabled={primaryDisabled || primaryLoading}
-          loading={primaryLoading}
-          contentStyle={styles.buttonContent}
-        >
+      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md, borderTopColor: colors.outlineVariant }]}>
+        <MGButton onPress={onPrimary} disabled={primaryDisabled || primaryLoading} loading={primaryLoading}>
           {primaryLabel}
-        </Button>
+        </MGButton>
         {secondaryLabel && onSecondary ? (
-          <Button mode="text" onPress={onSecondary} disabled={primaryLoading} style={styles.secondary}>
+          <MGButton variant="ghost" onPress={onSecondary} disabled={primaryLoading} style={styles.secondary}>
             {secondaryLabel}
-          </Button>
+          </MGButton>
         ) : null}
       </View>
     </View>
   );
 }
 
-/** Card-like section used by the steps. */
+/** Card-like section used by the steps (MG card baseline: surface, r-lg, 1px outlineVariant). */
 export function OnboardingSection({ title, children }: { title?: string; children?: ReactNode }): ReactElement {
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   return (
-    <View style={[styles.section, { backgroundColor: theme.colors.elevation.level1, borderColor: theme.colors.outlineVariant }]}>
+    <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.outlineVariant }]}>
       {title ? (
         <Text variant="titleMedium" style={styles.sectionTitle}>
           {title}
@@ -181,8 +173,8 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 4,
-    paddingTop: 4,
+    paddingHorizontal: spacing.xs,
+    paddingTop: spacing.xs,
   },
   iconPlaceholder: {
     width: 48,
@@ -192,42 +184,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   progressBar: {
-    marginTop: 6,
+    marginTop: spacing.xs,
     width: 160,
-    height: 6,
-    borderRadius: 3,
+    height: spacing.xs,
+    borderRadius: radii.full,
   },
   body: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
   title: {
     fontWeight: '700',
   },
   subtitle: {
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
   footer: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  buttonContent: {
-    paddingVertical: 6,
-  },
   secondary: {
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   section: {
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: componentMetrics.cardPadding,
+    padding: componentMetrics.cardPadding,
+    borderRadius: radii.lg,
+    borderWidth: 1,
   },
   sectionTitle: {
-    marginBottom: 8,
-    fontWeight: '600',
+    marginBottom: spacing.sm,
   },
 });

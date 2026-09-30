@@ -8,6 +8,10 @@
  * - EN / ES switch (explicit choice, applied instantly) and the consent line with separate,
  *   screen-reader friendly links to the Terms and the Privacy Policy (both in the Auth stack).
  * - Scrolls, so it works with large fonts, small phones and landscape.
+ *
+ * The hero sits on a photo that is always dark, so its text colors are mode-invariant and come
+ * from the light token set (white on the scrimmed image); everything on the content card follows
+ * the active scheme.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
@@ -17,7 +21,6 @@ import { useState, type ComponentProps, type ReactElement } from 'react';
 import { ActivityIndicator, Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '../../contexts/ThemeContext';
 import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
 import type { AuthStackParamList } from '../../core/contracts';
 import { errorMessageKey } from '../../core/errors';
@@ -25,16 +28,21 @@ import { createLogger } from '../../core/logger';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
+import { componentMetrics, lightColors, pressedOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
 
 const log = createLogger('landing');
 
 const BACKGROUND = require('../../../assets/bg.jpg') as number;
 const LOGO_WITH_TITLE = require('../../../assets/mark_with_title.png') as number;
 
-/** Text on the hero image (always dark behind it). */
-const ON_HERO = '#FFFFFF';
-const ON_HERO_MUTED = 'rgba(255, 255, 255, 0.85)';
-const HERO_SCRIM = 'rgba(8, 10, 40, 0.35)';
+/** Text on the hero image (always dark behind it, whatever the scheme). */
+const ON_HERO = lightColors.onPrimary;
+const ON_HERO_MUTED = withAlpha(lightColors.onPrimary, 0.85);
+const ON_HERO_BORDER = withAlpha(lightColors.onPrimary, 0.7);
+const HERO_SCRIM = lightColors.scrim;
+const HERO_TEXT_SHADOW = withAlpha(lightColors.shadow, 0.35);
+/** Dark label on the selected (white) language chip. */
+const ON_HERO_INVERSE = lightColors.onSurface;
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -47,7 +55,7 @@ export const VALUE_PROPS: readonly { key: 'alerts' | 'calendars' | 'assistant' |
 
 export function LandingScreen(): ReactElement {
   const t = useT();
-  const { colors } = useTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const layout = useResponsive();
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
@@ -82,7 +90,7 @@ export function LandingScreen(): ReactElement {
       <View style={[StyleSheet.absoluteFill, { backgroundColor: HERO_SCRIM }]} />
       <ScrollView
         style={styles.fill}
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom + spacing.lg }]}
       >
         <View style={[styles.languageRow, columnStyle]} accessibilityRole="radiogroup" accessibilityLabel={t('landing:language')}>
           {supportedLanguages.map((code) => {
@@ -126,8 +134,8 @@ export function LandingScreen(): ReactElement {
                 <Ionicons name={icon} size={22} color={colors.onPrimaryContainer} />
               </View>
               <View style={styles.valueText}>
-                <Text style={[styles.valueTitle, { color: colors.text }]}>{t(`landing:valueProps.${key}.title`)}</Text>
-                <Text style={[styles.valueBody, { color: colors.textSecondary }]}>{t(`landing:valueProps.${key}.body`)}</Text>
+                <Text style={[styles.valueTitle, { color: colors.onSurface }]}>{t(`landing:valueProps.${key}.title`)}</Text>
+                <Text style={[styles.valueBody, { color: colors.onSurfaceVariant }]}>{t(`landing:valueProps.${key}.body`)}</Text>
               </View>
             </View>
           ))}
@@ -145,18 +153,18 @@ export function LandingScreen(): ReactElement {
             {busy ? (
               <ActivityIndicator color={colors.onPrimary} style={styles.signInIcon} />
             ) : (
-              <Ionicons name="logo-google" size={20} color={colors.onPrimary} style={styles.signInIcon} />
+              <Ionicons name="logo-google" size={componentMetrics.iconInline} color={colors.onPrimary} style={styles.signInIcon} />
             )}
             <Text style={[styles.signInText, { color: colors.onPrimary }]}>
               {busy ? t('landing:signIn.busy') : t('landing:signIn.google')}
             </Text>
           </Pressable>
 
-          <Text style={[styles.note, { color: colors.textSecondary }]}>
+          <Text style={[styles.note, { color: colors.onSurfaceVariant }]}>
             {t('landing:freePlan', { count: PLAN_DAILY_AI_LIMITS.free })}
           </Text>
 
-          <Text style={[styles.consent, { color: colors.textSecondary }]}>{t('landing:consent.text')}</Text>
+          <Text style={[styles.consent, { color: colors.onSurfaceVariant }]}>{t('landing:consent.text')}</Text>
           <View style={styles.links}>
             <Pressable
               onPress={() => navigation.navigate('Terms')}
@@ -197,28 +205,29 @@ const styles = StyleSheet.create({
   },
   languageChip: {
     minHeight: 36,
-    paddingHorizontal: 14,
+    paddingHorizontal: spacing.lg,
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: radii.full,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.7)',
-    marginLeft: 8,
+    borderColor: ON_HERO_BORDER,
+    marginLeft: spacing.sm,
   },
   languageChipSelected: {
     backgroundColor: ON_HERO,
     borderColor: ON_HERO,
   },
   languageText: {
+    ...typography.labelL,
+    fontWeight: '400',
     color: ON_HERO,
-    fontSize: 14,
   },
   languageTextSelected: {
-    color: '#1A1B3A',
-    fontWeight: '700',
+    ...typography.labelL,
+    color: ON_HERO_INVERSE,
   },
   hero: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: spacing.xxl,
   },
   logo: {
     width: 240,
@@ -229,96 +238,88 @@ const styles = StyleSheet.create({
     height: 90,
   },
   headline: {
+    ...typography.headlineL,
     color: ON_HERO,
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: '800',
     textAlign: 'center',
-    marginTop: 16,
-    textShadowColor: 'rgba(0, 0, 0, 0.35)',
+    marginTop: spacing.lg,
+    textShadowColor: HERO_TEXT_SHADOW,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
   subtitle: {
+    ...typography.bodyL,
     color: ON_HERO_MUTED,
-    fontSize: 16,
-    lineHeight: 22,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   card: {
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: radii.xl,
+    padding: spacing.xxl,
   },
   valueRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   valueIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: componentMetrics.avatarSize,
+    height: componentMetrics.avatarSize,
+    borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   valueText: {
     flex: 1,
   },
   valueTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    ...typography.titleM,
   },
   valueBody: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 2,
+    ...typography.bodyM,
+    marginTop: spacing.xs,
   },
   signInButton: {
-    minHeight: 52,
-    borderRadius: 26,
+    minHeight: componentMetrics.buttonHeight,
+    borderRadius: radii.full,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    marginTop: 8,
+    paddingHorizontal: spacing.xl,
+    marginTop: spacing.sm,
   },
   signInIcon: {
-    marginRight: 10,
+    marginRight: spacing.sm,
   },
   signInText: {
-    fontSize: 16,
-    fontWeight: '700',
+    ...typography.labelL,
   },
   pressed: {
-    opacity: 0.75,
+    opacity: pressedOpacity,
   },
   note: {
-    fontSize: 13,
+    ...typography.bodyS,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   consent: {
-    fontSize: 13,
-    lineHeight: 18,
+    ...typography.bodyS,
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: spacing.lg,
   },
   links: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   link: {
-    minHeight: 44,
+    minHeight: componentMetrics.touchTargetMin,
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md,
   },
   linkText: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.labelL,
     textDecorationLine: 'underline',
   },
 });

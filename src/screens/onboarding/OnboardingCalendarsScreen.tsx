@@ -7,15 +7,17 @@
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Checkbox, HelperText, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { ActivityIndicator, Checkbox, HelperText, Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
+import { Badge, MGButton } from '../../components/ui';
 import type { DeviceCalendarInfo, PermissionState } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useT } from '../../i18n';
 import { calendarSyncEngine, deviceCalendarService, googleCalendarService, useCalendarStatus } from '../../services/calendar';
 import { usePreferences } from '../../services/data';
+import { spacing, useAppTheme } from '../../theme';
 import { OnboardingLayout, OnboardingSection, useOnboardingNavigation } from './OnboardingLayout';
 
 const log = createLogger('onboarding');
@@ -26,7 +28,7 @@ function sameIds(a: readonly string[], b: readonly string[]): boolean {
 
 export function OnboardingCalendarsScreen(): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const { goNext } = useOnboardingNavigation('OnboardingCalendars');
   const { preferences, update } = usePreferences();
   const calendarStatus = useCalendarStatus();
@@ -147,12 +149,10 @@ export function OnboardingCalendarsScreen(): ReactElement {
       <OnboardingSection title={t('onboarding:calendars.google.title')}>
         <Text variant="bodyMedium">{t('onboarding:calendars.google.description')}</Text>
         {googleConnected ? (
-          <Text variant="labelLarge" style={[styles.status, { color: theme.colors.primary }]}>
-            {t('onboarding:calendars.google.connected')}
-          </Text>
+          <Badge tone="success" label={t('onboarding:calendars.google.connected')} style={styles.status} />
         ) : (
-          <Button
-            mode="contained-tonal"
+          <MGButton
+            variant="tonal"
             icon="google"
             style={styles.action}
             loading={googleBusy}
@@ -162,7 +162,7 @@ export function OnboardingCalendarsScreen(): ReactElement {
             }}
           >
             {t('onboarding:calendars.google.connect')}
-          </Button>
+          </MGButton>
         )}
         {googleMessage ? (
           <HelperText type={googleMessage.isError ? 'error' : 'info'} visible>
@@ -175,8 +175,8 @@ export function OnboardingCalendarsScreen(): ReactElement {
         <Text variant="bodyMedium">{t('onboarding:calendars.device.description')}</Text>
         {permission === null && deviceError === null ? <ActivityIndicator style={styles.action} /> : null}
         {permission === 'undetermined' ? (
-          <Button
-            mode="contained-tonal"
+          <MGButton
+            variant="tonal"
             icon="calendar"
             style={styles.action}
             onPress={() => {
@@ -184,15 +184,16 @@ export function OnboardingCalendarsScreen(): ReactElement {
             }}
           >
             {t('onboarding:calendars.device.allow')}
-          </Button>
+          </MGButton>
         ) : null}
         {permission === 'denied' ? (
           <View>
             <HelperText type="info" visible>
               {t('onboarding:calendars.device.denied')}
             </HelperText>
-            <Button
-              mode="text"
+            <MGButton
+              variant="ghost"
+              style={styles.action}
               onPress={() => {
                 Linking.openSettings().catch((caught: unknown) => {
                   log.warn('could not open the system settings', toAppError(caught).code);
@@ -200,7 +201,7 @@ export function OnboardingCalendarsScreen(): ReactElement {
               }}
             >
               {t('common:actions.openSettings')}
-            </Button>
+            </MGButton>
           </View>
         ) : null}
         {permission === 'granted' && calendars !== null && calendars.length === 0 ? (
@@ -224,7 +225,7 @@ export function OnboardingCalendarsScreen(): ReactElement {
                     style={styles.calendarItem}
                   />
                   {blocked ? (
-                    <Text variant="bodySmall" style={[styles.note, { color: theme.colors.onSurfaceVariant }]}>
+                    <Text variant="bodySmall" style={[styles.note, { color: colors.onSurfaceVariant }]}>
                       {t('onboarding:calendars.device.googleNote')}
                     </Text>
                   ) : null}
@@ -239,7 +240,7 @@ export function OnboardingCalendarsScreen(): ReactElement {
         ) : null}
       </OnboardingSection>
 
-      <Text variant="bodySmall" style={[styles.later, { color: theme.colors.onSurfaceVariant }]}>
+      <Text variant="bodySmall" style={[styles.later, { color: colors.onSurfaceVariant }]}>
         {t('onboarding:calendars.later')}
       </Text>
     </OnboardingLayout>
@@ -248,11 +249,11 @@ export function OnboardingCalendarsScreen(): ReactElement {
 
 const styles = StyleSheet.create({
   action: {
-    marginTop: 12,
+    marginTop: spacing.md,
     alignSelf: 'flex-start',
   },
   status: {
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   calendarItem: {
     paddingHorizontal: 0,
@@ -261,11 +262,10 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   note: {
-    marginLeft: 48,
-    marginTop: -4,
-    marginBottom: 4,
+    marginLeft: spacing.huge + spacing.sm,
+    marginBottom: spacing.xs,
   },
   later: {
-    marginTop: 16,
+    marginTop: spacing.lg,
   },
 });

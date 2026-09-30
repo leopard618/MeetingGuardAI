@@ -15,7 +15,7 @@ jest.mock('expo-localization', () => ({
 }));
 jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { show: jest.fn() } }));
 jest.mock('../../../contexts/ThemeContext', () => ({
-  THEME_MODES: ['system', 'light', 'dark'],
+  ...jest.requireActual<object>('../../../contexts/ThemeContext'),
   useTheme: () => ({ isDarkMode: false, themeMode: 'system', setThemeMode: jest.fn() }),
 }));
 

@@ -13,6 +13,7 @@ import { toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useT } from '../../i18n';
 import { authErrorMessageKey, useAuth } from '../../services/auth';
+import { radii, spacing, useAppTheme } from '../../theme';
 
 const log = createLogger('settings');
 
@@ -26,6 +27,7 @@ export interface DeleteAccountFlow {
 
 export function useDeleteAccountFlow(): DeleteAccountFlow {
   const t = useT();
+  const { colors } = useAppTheme();
   const { authUser, reauthenticate, deleteAccount } = useAuth();
   const [busy, setBusy] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -96,6 +98,7 @@ export function useDeleteAccountFlow(): DeleteAccountFlow {
           </Text>
           <TextInput
             mode="outlined"
+            outlineStyle={styles.inputOutline}
             label={t('settings:account.passwordLabel')}
             value={password}
             onChangeText={setPassword}
@@ -107,7 +110,7 @@ export function useDeleteAccountFlow(): DeleteAccountFlow {
         </Dialog.Content>
         <Dialog.Actions>
           <Button onPress={() => setPasswordVisible(false)}>{t('auth:deleteAccount.cancel')}</Button>
-          <Button onPress={submitPassword} disabled={password.length === 0} textColor="#B91C1C">
+          <Button onPress={submitPassword} disabled={password.length === 0} textColor={colors.error}>
             {t('auth:deleteAccount.confirm')}
           </Button>
         </Dialog.Actions>
@@ -130,14 +133,17 @@ export function useDeleteAccountFlow(): DeleteAccountFlow {
 
 const styles = StyleSheet.create({
   paragraph: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   busyRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   busyText: {
-    marginLeft: 16,
+    marginLeft: spacing.lg,
     flex: 1,
+  },
+  inputOutline: {
+    borderRadius: radii.md,
   },
 });
