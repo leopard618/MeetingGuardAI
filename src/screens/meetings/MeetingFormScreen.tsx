@@ -4,8 +4,10 @@
  *
  * - Title, description, date / time (wall clock in the meeting's zone), all-day, duration.
  * - Place and video call. Links are ONLY what the user pastes (nothing is generated): Google Meet
- *   without a link is saved as provider google_meet + url null, and the Google Calendar push then
- *   creates a REAL Meet link (or the form says Google Calendar must be connected first).
+ *   without a link is saved as provider google_meet + url null and the Google Calendar push then
+ *   creates a REAL Meet link; Teams without a link gets one from the Outlook push (when Outlook
+ *   is configured + connected, §22). The helper under the provider chips is DERIVED from
+ *   conferenceCapability with the LIVE calendar status, so it follows every chip change.
  * - Participants (Google Calendar sends the invitations when the meeting syncs), preparation
  *   tips, reminders (the defaults or custom minutes-before offsets) and an intensity override,
  *   notes, device-local attachments.
@@ -44,6 +46,9 @@ import {
   LOCATION_CHOICES,
   REPEAT_CHOICES,
   REPEAT_END_CHOICES,
+  conferenceConnectTarget,
+  conferenceFormHint,
+  conferenceLinkLabel,
   dateFromPicker,
   defaultRepeatWeekdays,
   draftFromMeeting,
@@ -54,6 +59,7 @@ import {
   newMeetingDraft,
   pickerDateOf,
   recurrenceRuleOf,
+  showConferencePassword,
   timeFromPicker,
   toggleRepeatWeekday,
   validateMeetingDraft,
@@ -90,6 +96,7 @@ export function MeetingFormScreen({ navigation, route }: Props): ReactElement {
         if (created) navigation.replace('MeetingDetails', { meetingId: saved.id });
         else navigation.goBack();
       }}
+      onOpenCalendarSync={() => navigation.navigate('CalendarSync')}
     />
   );
 }
@@ -98,10 +105,12 @@ function MeetingForm({
   meeting,
   initialDate,
   onSaved,
+  onOpenCalendarSync,
 }: {
   meeting: Meeting | null;
   initialDate?: string;
   onSaved(meeting: Meeting, created: boolean): void;
+  onOpenCalendarSync(): void;
 }): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
@@ -128,6 +137,11 @@ function MeetingForm({
   const valid = Object.keys(errors).length === 0;
   const change = (patch: Partial<MeetingFormDraft>): void => setDraft((current) => ({ ...current, ...patch }));
   const googleConnected = calendar.google.enabled && calendar.google.hasScope;
+  // §22: the video-call helper follows the chip selection AND the live calendar connections
+  // (plus the edited meeting's source / the repeat choice: an unreachable auto mode degrades
+  // to the paste hint instead of promising a link the sync never creates).
+  const conferenceHint = conferenceFormHint(draft, calendar, meeting?.source);
+  const connectTarget = conferenceConnectTarget(conferenceHint);
   const meetingId = meeting?.id ?? null;
   const dirty = isMeetingDraftDirty(draft, original) || addedAttachments.length > 0 || removedIds.length > 0;
   const attachments = [...savedAttachments.filter((item) => !removedIds.includes(item.id)), ...addedAttachments];
@@ -554,29 +568,44 @@ function MeetingForm({
 
       <Section title={t('meetings:form.videoCall')}>
         <View style={styles.chips}>
-          {CONFERENCE_CHOICES.map((choice) => (
-            <Chip
-              key={choice}
-              selected={draft.conferenceProvider === choice}
-              mode={draft.conferenceProvider === choice ? 'flat' : 'outlined'}
-              style={styles.chip}
-              onPress={() => change({ conferenceProvider: choice })}
-              testID={`meeting-form-conference-${choice}`}
-            >
-              {choice === 'none' ? t('meetings:form.noVideoCall') : t(`alerts:provider.${choice}`)}
-            </Chip>
-          ))}
+          {CONFERENCE_CHOICES.map((choice) => {
+            const label = choice === 'none' ? t('meetings:form.noVideoCall') : t(`alerts:provider.${choice}`);
+            return (
+              <Chip
+                key={choice}
+                selected={draft.conferenceProvider === choice}
+                mode={draft.conferenceProvider === choice ? 'flat' : 'outlined'}
+                style={styles.chip}
+                onPress={() => change({ conferenceProvider: choice })}
+                accessibilityLabel={label}
+                testID={`meeting-form-conference-${choice}`}
+              >
+                {label}
+              </Chip>
+            );
+          })}
         </View>
-        {draft.conferenceProvider === 'google_meet' && draft.conferenceUrl.trim() === '' ? (
-          <HelperText type="info" visible testID="meeting-form-meet-hint">
-            {googleConnected ? t('meetings:form.meetWillBeCreated') : t('meetings:form.meetNeedsCalendar')}
+        {conferenceHint !== null ? (
+          <HelperText type="info" visible testID="meeting-form-conference-hint">
+            {t(`meetings:form.${conferenceHint}`)}
           </HelperText>
+        ) : null}
+        {connectTarget !== null ? (
+          <Button
+            mode="outlined"
+            icon="calendar-sync-outline"
+            style={styles.alignStart}
+            onPress={onOpenCalendarSync}
+            testID="meeting-form-connect-calendar"
+          >
+            {connectTarget === 'google' ? t('meetings:details.connectCalendar') : t('calendar:outlook.connect')}
+          </Button>
         ) : null}
         {draft.conferenceProvider !== 'none' ? (
           <>
             <TextInput
               mode="outlined"
-              label={draft.conferenceProvider === 'google_meet' ? t('meetings:form.linkOptional') : t('meetings:form.link')}
+              label={t(`meetings:form.${conferenceLinkLabel(draft, calendar, meeting?.source)}`)}
               placeholder="https://"
               value={draft.conferenceUrl}
               onChangeText={(value) => change({ conferenceUrl: value })}
@@ -588,21 +617,19 @@ function MeetingForm({
               testID="meeting-form-link"
             />
             {errorText('conferenceUrl') ? <HelperText type="error">{errorText('conferenceUrl')}</HelperText> : null}
-            {draft.conferenceProvider !== 'google_meet' && draft.conferenceUrl.trim() === '' ? (
-              <HelperText type="info" visible>
-                {t('meetings:form.pasteLinkHint')}
-              </HelperText>
+            {showConferencePassword(draft) ? (
+              <TextInput
+                mode="outlined"
+                label={t('meetings:form.password')}
+                value={draft.conferencePassword}
+                onChangeText={(value) => change({ conferencePassword: value })}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.field}
+                maxLength={100}
+                testID="meeting-form-passcode"
+              />
             ) : null}
-            <TextInput
-              mode="outlined"
-              label={t('meetings:form.password')}
-              value={draft.conferencePassword}
-              onChangeText={(value) => change({ conferencePassword: value })}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.field}
-              maxLength={100}
-            />
           </>
         ) : null}
       </Section>

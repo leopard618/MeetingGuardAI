@@ -1,7 +1,12 @@
 import type { RecurrenceRule } from '../../../core/aiContract';
+import type { ConferenceCalendarState } from '../../../core/conference';
 import { zonedDateTimeToUtcIso } from '../../../core/time';
 import { buildMeeting, type Meeting } from '../../../core/types';
 import {
+  conferenceCardState,
+  conferenceConnectTarget,
+  conferenceFormHint,
+  conferenceLinkLabel,
   conferenceOf,
   dateFromPicker,
   defaultRepeatWeekdays,
@@ -14,6 +19,7 @@ import {
   normalizeTypedUrl,
   pickerDateOf,
   recurrenceRuleOf,
+  showConferencePassword,
   timeFromPicker,
   toggleRepeatWeekday,
   validateMeetingDraft,
@@ -283,5 +289,145 @@ describe('recurrence in the form (§16)', () => {
     expect(toggleRepeatWeekday(['MO'], 'FR')).toEqual(['MO', 'FR']);
     expect(toggleRepeatWeekday(['FR', 'MO'], 'WE')).toEqual(['MO', 'WE', 'FR']);
     expect(toggleRepeatWeekday(['MO', 'FR'], 'MO')).toEqual(['FR']);
+  });
+});
+
+describe('video call (§22)', () => {
+  const DISCONNECTED: ConferenceCalendarState = { google: { connected: false } };
+  const GOOGLE: ConferenceCalendarState = { google: { connected: true } };
+  const OUTLOOK_OFF: ConferenceCalendarState = { google: { connected: false }, outlook: { configured: false, connected: false } };
+  const OUTLOOK_CONFIGURED: ConferenceCalendarState = { google: { connected: false }, outlook: { configured: true, connected: false } };
+  const OUTLOOK_CONNECTED: ConferenceCalendarState = { google: { connected: true }, outlook: { configured: true, connected: true } };
+
+  it('derives the form hint from the provider chips AND the live calendar status (full matrix)', () => {
+    expect(conferenceFormHint(draft(), DISCONNECTED)).toBeNull();
+    expect(conferenceFormHint(draft({ conferenceProvider: 'zoom' }), OUTLOOK_CONNECTED)).toBe('pasteLinkHint');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'other' }), OUTLOOK_CONNECTED)).toBe('pasteLinkHint');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet' }), GOOGLE)).toBe('meetWillBeCreated');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet' }), DISCONNECTED)).toBe('meetNeedsCalendar');
+    // Teams never advertises the auto link while Outlook is hidden or unconfigured.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), DISCONNECTED)).toBe('pasteLinkHint');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_OFF)).toBe('pasteLinkHint');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONFIGURED)).toBe('teamsNeedsOutlook');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED)).toBe('teamsWillBeCreated');
+  });
+
+  it('never promises an auto link the sync cannot create (push-target degrade, §17/§22)', () => {
+    // Teams + recurrence: recurring meetings are never pushed to Graph.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', repeat: 'weekly' }), OUTLOOK_CONNECTED)).toBe('pasteLinkHint');
+    // ... and no "connect Outlook" CTA either: connecting would not help a recurring meeting.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', repeat: 'daily' }), OUTLOOK_CONFIGURED)).toBe('pasteLinkHint');
+    // Meet + recurrence keeps its promise: Google pushes recurring masters (insert AND patch).
+    expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet', repeat: 'weekly' }), GOOGLE)).toBe('meetWillBeCreated');
+    // Editing an imported meeting: Outlook never pushes google/device meetings, Google never
+    // pushes device/outlook meetings.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'google')).toBe('pasteLinkHint');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'device')).toBe('pasteLinkHint');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'outlook')).toBe('pasteLinkHint');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'device')).toBe('pasteLinkHint');
+    // A google-source meeting still gets its Meet link (the push patches it).
+    expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'google')).toBe('meetWillBeCreated');
+  });
+
+  it('a typed link always wins: the hint disappears', () => {
+    expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet', conferenceUrl: 'https://meet.example/x' }), GOOGLE)).toBeNull();
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', conferenceUrl: 'https://teams.example/x' }), OUTLOOK_CONNECTED)).toBeNull();
+    expect(conferenceFormHint(draft({ conferenceProvider: 'zoom', conferenceUrl: ' zoom.us/j/1 ' }), DISCONNECTED)).toBeNull();
+  });
+
+  it('offers the connect CTA exactly for the needs-connection hints', () => {
+    expect(conferenceConnectTarget('meetNeedsCalendar')).toBe('google');
+    expect(conferenceConnectTarget('teamsNeedsOutlook')).toBe('outlook');
+    expect(conferenceConnectTarget('meetWillBeCreated')).toBeNull();
+    expect(conferenceConnectTarget('teamsWillBeCreated')).toBeNull();
+    expect(conferenceConnectTarget('pasteLinkHint')).toBeNull();
+    expect(conferenceConnectTarget(null)).toBeNull();
+  });
+
+  it('marks the link input "optional" exactly for the two auto modes', () => {
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'google_meet' }), DISCONNECTED)).toBe('linkOptional');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'google_meet' }), GOOGLE)).toBe('linkOptional');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONFIGURED)).toBe('linkOptional');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams' }), OUTLOOK_OFF)).toBe('link');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'zoom' }), OUTLOOK_CONNECTED)).toBe('link');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'other' }), GOOGLE)).toBe('link');
+    // Degraded auto modes are plain paste: the link is the only way to get one.
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams', repeat: 'weekly' }), OUTLOOK_CONNECTED)).toBe('link');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'google_meet', repeat: 'weekly' }), GOOGLE)).toBe('linkOptional');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'device')).toBe('link');
+  });
+
+  it('shows the passcode input only once a link exists (or a stored passcode must stay editable)', () => {
+    expect(showConferencePassword(draft())).toBe(false);
+    expect(showConferencePassword(draft({ conferenceProvider: 'zoom' }))).toBe(false);
+    expect(showConferencePassword(draft({ conferenceProvider: 'zoom', conferenceUrl: 'https://zoom.us/j/1' }))).toBe(true);
+    expect(showConferencePassword(draft({ conferenceProvider: 'google_meet', conferenceUrl: ' x ' }))).toBe(true);
+    // A meeting saved with a passcode keeps the field visible so it can be cleared.
+    expect(showConferencePassword(draft({ conferenceProvider: 'teams', conferencePassword: 'pw' }))).toBe(true);
+    expect(showConferencePassword(draft({ conferenceUrl: 'https://zoom.us/j/1' }))).toBe(false);
+  });
+
+  it('details card: a real link (conference url or imported virtualUrl) always shows Join', () => {
+    expect(conferenceCardState(meeting(), DISCONNECTED)).toEqual({ kind: 'join', url: 'https://zoom.us/j/1' });
+    const imported = meeting({
+      conference: null,
+      location: { type: 'virtual', address: null, virtualUrl: 'https://webex.example/j/7' },
+    });
+    expect(conferenceCardState(imported, DISCONNECTED)).toEqual({ kind: 'join', url: 'https://webex.example/j/7' });
+    expect(conferenceCardState(meeting({ conference: null }), OUTLOOK_CONNECTED)).toEqual({ kind: 'hidden' });
+  });
+
+  it('details card: empty-url states follow the provider and the calendar status (full matrix)', () => {
+    // source 'manual': the push engines reach every provider for these meetings (§22).
+    const withProvider = (provider: 'google_meet' | 'zoom' | 'teams' | 'other') =>
+      meeting({ source: 'manual', conference: { provider, url: null, password: null } });
+    expect(conferenceCardState(withProvider('zoom'), OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    expect(conferenceCardState(withProvider('other'), GOOGLE)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    expect(conferenceCardState(withProvider('google_meet'), GOOGLE)).toEqual({ kind: 'info', key: 'meetPending', connect: null });
+    expect(conferenceCardState(withProvider('google_meet'), DISCONNECTED)).toEqual({ kind: 'info', key: 'meetNeedsCalendar', connect: 'google' });
+    expect(conferenceCardState(withProvider('teams'), DISCONNECTED)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    expect(conferenceCardState(withProvider('teams'), OUTLOOK_OFF)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    expect(conferenceCardState(withProvider('teams'), OUTLOOK_CONFIGURED)).toEqual({ kind: 'info', key: 'teamsNeedsOutlook', connect: 'outlook' });
+    expect(conferenceCardState(withProvider('teams'), OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'teamsPending', connect: null });
+  });
+
+  it('details card: a meeting already pushed to Outlook without a link never gets one (create-only, §17)', () => {
+    const pushed = meeting({
+      source: 'manual',
+      conference: { provider: 'teams', url: null, password: null },
+      external: { outlookEventId: 'AAMk1', outlookCalendarId: 'cal1' },
+    });
+    expect(conferenceCardState(pushed, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'teamsLinkTooLate', connect: null });
+    // Once Outlook writes the Teams link back, the card joins like any other.
+    const linked = meeting({
+      source: 'manual',
+      conference: { provider: 'teams', url: 'https://teams.microsoft.com/l/m/1', password: null },
+      external: { outlookEventId: 'AAMk1' },
+    });
+    expect(conferenceCardState(linked, OUTLOOK_CONNECTED)).toEqual({ kind: 'join', url: 'https://teams.microsoft.com/l/m/1' });
+    // A Google meeting that was pushed keeps its "waiting for sync" promise (insert AND patch).
+    const googlePushed = meeting({
+      conference: { provider: 'google_meet', url: null, password: null },
+      external: { googleEventId: 'evt1' },
+    });
+    expect(conferenceCardState(googlePushed, GOOGLE)).toEqual({ kind: 'info', key: 'meetPending', connect: null });
+  });
+
+  it('details card: never promises a link the sync cannot create (push-target degrade, §17/§22)', () => {
+    const weekly: RecurrenceRule = { freq: 'weekly', interval: 1, byWeekday: ['TU'], byMonthDay: null, until: null, count: null };
+    // Teams + recurrence: no promise, no CTA - the plain paste copy.
+    const recurringTeams = meeting({ source: 'manual', recurrence: weekly, conference: { provider: 'teams', url: null, password: null } });
+    expect(conferenceCardState(recurringTeams, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    expect(conferenceCardState(recurringTeams, OUTLOOK_CONFIGURED)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    // Meet + recurrence still syncs (Google pushes recurring masters).
+    const recurringMeet = meeting({ source: 'manual', recurrence: weekly, conference: { provider: 'google_meet', url: null, password: null } });
+    expect(conferenceCardState(recurringMeet, GOOGLE)).toEqual({ kind: 'info', key: 'meetPending', connect: null });
+    // Imported meetings: Outlook never pushes google/device ones, Google never pushes device/outlook ones.
+    const googleTeams = meeting({ source: 'google', conference: { provider: 'teams', url: null, password: null } });
+    expect(conferenceCardState(googleTeams, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    const outlookMeet = meeting({ source: 'outlook', conference: { provider: 'google_meet', url: null, password: null } });
+    expect(conferenceCardState(outlookMeet, GOOGLE)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    const deviceMeet = meeting({ source: 'device', conference: { provider: 'google_meet', url: null, password: null } });
+    expect(conferenceCardState(deviceMeet, GOOGLE)).toEqual({ kind: 'info', key: 'noLink', connect: null });
   });
 });

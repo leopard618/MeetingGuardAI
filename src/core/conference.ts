@@ -20,6 +20,7 @@
  * - zoom / other            => links are only ever pasted by the user.
  */
 import type { ConferenceProvider } from './aiContract';
+import type { MeetingSource } from './types';
 
 /**
  * What the calendar layer knows, reduced to what this helper needs (assignable from
@@ -54,6 +55,29 @@ export interface ConferenceCapability {
 }
 
 /**
+ * What the push engines know about the MEETING itself. The push filters refuse some meetings
+ * entirely, so their auto mode would be a promise the sync never keeps:
+ * - Google push (google/sync.ts `pushGoogleMeeting`): never pushes source 'device' or 'outlook'
+ *   meetings (recurring masters ARE pushed, so Meet + recurrence works).
+ * - Outlook push (outlook/sync.ts `isOutlookPushable`): never pushes source 'google' / 'device'
+ *   meetings NOR any meeting with a recurrence rule (§17; a one-off that gains a rule even has
+ *   its Graph event deleted).
+ * For a NEW meeting (create form) use source 'manual' and the draft's repeat choice.
+ */
+export interface ConferencePushTarget {
+  source: MeetingSource;
+  /** Meeting.recurrence !== null (or the form draft's repeat choice != 'none'). */
+  recurring: boolean;
+}
+
+/** True when the sync engines will never auto-create a link for this meeting in this mode. */
+function autoUnreachable(mode: ConferenceMode, target: ConferencePushTarget): boolean {
+  if (mode === 'auto_google') return target.source === 'device' || target.source === 'outlook';
+  if (mode === 'auto_outlook') return target.source === 'google' || target.source === 'device' || target.recurring;
+  return false;
+}
+
+/**
  * Pure derivation of the empty-url behavior from the chosen provider and the live calendar
  * status. `provider` is the form's choice ('none' = no video call). Rules:
  * - none                => { none, null }
@@ -63,11 +87,22 @@ export interface ConferenceCapability {
  * - teams, Outlook hidden or unconfigured => { paste, null } (never advertise a feature the
  *                          build cannot offer)
  * - teams, configured   => { auto_outlook, connected ? ready : needs_connection }
+ *
+ * When `target` is given, an auto mode the push engines cannot reach for THAT meeting (see
+ * `ConferencePushTarget`) degrades to { paste, null }: no "will be created" promise, no connect
+ * CTA that would not help. Without `target` the capability describes the providers alone.
  */
 export function conferenceCapability(
   provider: ConferenceProvider | 'none',
   calendar: ConferenceCalendarState,
+  target?: ConferencePushTarget,
 ): ConferenceCapability {
+  const capability = providerCapability(provider, calendar);
+  if (target !== undefined && autoUnreachable(capability.mode, target)) return { mode: 'paste', autoState: null };
+  return capability;
+}
+
+function providerCapability(provider: ConferenceProvider | 'none', calendar: ConferenceCalendarState): ConferenceCapability {
   switch (provider) {
     case 'none':
       return { mode: 'none', autoState: null };

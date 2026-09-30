@@ -49,8 +49,14 @@ jest.mock('../../../services/data', () => {
   };
 });
 
+// Mutable calendar status: the video-call section derives its copy from the LIVE value (§22).
+let mockCalendar: {
+  google: { enabled: boolean; hasScope: boolean; connected: boolean };
+  device: { enabled: boolean };
+  outlook?: { configured: boolean; connected: boolean };
+} = { google: { enabled: false, hasScope: false, connected: false }, device: { enabled: false } };
 jest.mock('../../../services/calendar', () => ({
-  useCalendarStatus: () => ({ google: { enabled: false, hasScope: false }, device: { enabled: false } }),
+  useCalendarStatus: () => mockCalendar,
 }));
 
 const mockAttachments = {
@@ -87,6 +93,10 @@ function Details() {
   return <Text testID="details">details</Text>;
 }
 
+function CalendarSyncStub() {
+  return <Text testID="calendar-sync-screen">calendar sync</Text>;
+}
+
 async function renderForm(target: 'CreateMeeting' | 'EditMeeting') {
   await render(
     <I18nProvider>
@@ -97,6 +107,7 @@ async function renderForm(target: 'CreateMeeting' | 'EditMeeting') {
             <Stack.Screen name="CreateMeeting" component={MeetingFormScreen} />
             <Stack.Screen name="EditMeeting" component={MeetingFormScreen} />
             <Stack.Screen name="MeetingDetails" component={Details} />
+            <Stack.Screen name="CalendarSync" component={CalendarSyncStub} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
@@ -117,6 +128,7 @@ function lastAlert(): { title: string; buttons: { text?: string; style?: string;
 beforeEach(async () => {
   await i18n.changeLanguage('en');
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  mockCalendar = { google: { enabled: false, hasScope: false, connected: false }, device: { enabled: false } };
   mockMeeting = meeting();
   mockCreate.mockReset();
   mockUpdate.mockReset();
@@ -303,4 +315,96 @@ it('notes that editing a recurring meeting changes the whole series', async () =
   await renderForm('EditMeeting');
   expect(screen.getByTestId('meeting-form-series-note')).toBeTruthy();
   expect(screen.getByTestId('meeting-form-repeat-summary').props.children).toBe('Repeats daily');
+});
+
+describe('video call section (§22)', () => {
+  const pickProvider = async (choice: string): Promise<void> => {
+    await act(async () => {
+      fireEvent.press(screen.getByTestId(`meeting-form-conference-${choice}`));
+    });
+  };
+
+  it('changes the helper text with the provider chips (nothing is connected)', async () => {
+    await renderForm('CreateMeeting');
+    expect(screen.queryByTestId('meeting-form-conference-hint')).toBeNull();
+    expect(screen.queryByTestId('meeting-form-link')).toBeNull();
+
+    await pickProvider('google_meet');
+    expect(screen.getByText(/^Connect Google Calendar \(Settings/)).toBeTruthy();
+    expect(screen.getByTestId('meeting-form-connect-calendar')).toBeTruthy();
+    // Paper renders an outlined input's label twice (label + outline cutout).
+    expect(screen.getAllByText('Existing link (optional)').length).toBeGreaterThan(0);
+
+    await pickProvider('zoom');
+    expect(screen.getByText(/^Paste the link from your Zoom/)).toBeTruthy();
+    expect(screen.queryByTestId('meeting-form-connect-calendar')).toBeNull();
+    expect(screen.getAllByText('Meeting link').length).toBeGreaterThan(0);
+
+    // Outlook is hidden in this build: Teams never advertises an auto link.
+    await pickProvider('teams');
+    expect(screen.getByText(/^Paste the link from your Zoom/)).toBeTruthy();
+    expect(screen.queryByTestId('meeting-form-connect-calendar')).toBeNull();
+
+    await pickProvider('other');
+    expect(screen.getByText(/^Paste the link from your Zoom/)).toBeTruthy();
+
+    await pickProvider('none');
+    expect(screen.queryByTestId('meeting-form-conference-hint')).toBeNull();
+  });
+
+  it('promises a real Meet link when Google Calendar is connected', async () => {
+    mockCalendar = { google: { enabled: true, hasScope: true, connected: true }, device: { enabled: false } };
+    await renderForm('CreateMeeting');
+    await pickProvider('google_meet');
+    expect(screen.getByText(/^A real Google Meet link will be created/)).toBeTruthy();
+    expect(screen.queryByTestId('meeting-form-connect-calendar')).toBeNull();
+  });
+
+  it('promises a real Teams link when Outlook is configured and connected', async () => {
+    mockCalendar = {
+      google: { enabled: false, hasScope: false, connected: false },
+      device: { enabled: false },
+      outlook: { configured: true, connected: true },
+    };
+    await renderForm('CreateMeeting');
+    await pickProvider('teams');
+    expect(screen.getByText(/^A real Microsoft Teams link will be created/)).toBeTruthy();
+    expect(screen.queryByTestId('meeting-form-connect-calendar')).toBeNull();
+    expect(screen.getAllByText('Existing link (optional)').length).toBeGreaterThan(0);
+  });
+
+  it('asks to connect Outlook for Teams when configured but not connected, and opens calendar sync', async () => {
+    mockCalendar = {
+      google: { enabled: false, hasScope: false, connected: false },
+      device: { enabled: false },
+      outlook: { configured: true, connected: false },
+    };
+    await renderForm('CreateMeeting');
+    await pickProvider('teams');
+    expect(screen.getByText(/^Connect Outlook \(Settings/)).toBeTruthy();
+    const connect = screen.getByTestId('meeting-form-connect-calendar');
+    await act(async () => {
+      fireEvent.press(connect);
+    });
+    expect(await screen.findByTestId('calendar-sync-screen')).toBeTruthy();
+  });
+
+  it('hides the hint once a link is pasted, and only then shows the passcode field', async () => {
+    await renderForm('CreateMeeting');
+    await pickProvider('zoom');
+    expect(screen.getByTestId('meeting-form-conference-hint')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-form-passcode')).toBeNull();
+
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('meeting-form-link'), 'https://zoom.us/j/42');
+    });
+    expect(screen.queryByTestId('meeting-form-conference-hint')).toBeNull();
+    expect(screen.getByTestId('meeting-form-passcode')).toBeTruthy();
+  });
+
+  it('keeps a stored passcode editable when the meeting is edited', async () => {
+    mockMeeting = meeting({ conference: { provider: 'zoom', url: 'https://zoom.us/j/1', password: 'pw1' } });
+    await renderForm('EditMeeting');
+    expect(screen.getByTestId('meeting-form-passcode').props.value).toBe('pw1');
+  });
 });

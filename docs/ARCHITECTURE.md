@@ -736,6 +736,14 @@ set) without a url never gets one.
 
 - A PASTED url always wins: the mode only describes the empty-url behavior, and the details
   card shows the Join button whenever a valid url exists.
+- **Push-target degrade** (`ConferencePushTarget`, third argument of `conferenceCapability`):
+  an auto mode the sync engines can never reach for THAT meeting falls back to `paste` (no
+  promise, no connect CTA). Ground truth from the push filters: the Outlook push never pushes
+  recurring meetings (§17) nor `source: 'google' | 'device'` ones (`isOutlookPushable`), and
+  the Google push never pushes `source: 'device' | 'outlook'` ones (`pushGoogleMeeting`) -
+  recurring masters ARE pushed to Google, so Meet + recurrence keeps its promise. The form
+  passes the draft's repeat choice + the edited meeting's source ('manual' for a new one);
+  the details card passes the stored meeting's `source` and `recurrence`.
 - The form derives the hint from `conferenceCapability(draft.conferenceProvider, status)` with
   the LIVE `useCalendarStatus()` value, so switching the provider chips or connecting a
   calendar updates the text immediately (the stage-3 bug: the hint was Google-only and partly

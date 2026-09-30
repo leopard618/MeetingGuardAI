@@ -21,8 +21,14 @@ jest.mock('../../attachments/MeetingAttachmentsSection', () => {
 });
 
 let mockGoogleConnected = true;
+// Absent by default, like a build without EXPO_PUBLIC_MSAL_CLIENT_ID (§22).
+let mockOutlook: { configured: boolean; connected: boolean } | undefined;
 jest.mock('../../../services/calendar', () => ({
-  useCalendarStatus: () => ({ google: { enabled: mockGoogleConnected, hasScope: mockGoogleConnected }, device: { enabled: false } }),
+  useCalendarStatus: () => ({
+    google: { enabled: mockGoogleConnected, hasScope: mockGoogleConnected, connected: mockGoogleConnected },
+    device: { enabled: false },
+    ...(mockOutlook ? { outlook: mockOutlook } : {}),
+  }),
 }));
 
 const mockRemove = jest.fn();
@@ -97,6 +103,7 @@ beforeEach(async () => {
   mockRemove.mockReset();
   mockUse24Hour = null;
   mockGoogleConnected = true;
+  mockOutlook = undefined;
   mockMeeting = meeting();
 });
 
@@ -156,7 +163,7 @@ it('formats the time in the UI language and the 24-hour preference', async () =>
 it('promises a Meet link only when Google Calendar is connected, else offers to connect it', async () => {
   mockMeeting = meeting({ conference: { provider: 'google_meet', url: null, password: null }, source: 'manual', external: {} });
   await renderDetails();
-  expect(screen.getByTestId('meeting-meet-pending')).toBeTruthy();
+  expect(screen.getByTestId('meeting-conference-meetPending')).toBeTruthy();
   expect(screen.queryByTestId('meeting-connect-calendar')).toBeNull();
 });
 
@@ -164,12 +171,68 @@ it('asks to connect Google Calendar for a Meet meeting without sync', async () =
   mockGoogleConnected = false;
   mockMeeting = meeting({ conference: { provider: 'google_meet', url: null, password: null }, source: 'manual', external: {} });
   await renderDetails();
-  expect(screen.queryByTestId('meeting-meet-pending')).toBeNull();
-  expect(screen.getByTestId('meeting-meet-needs-calendar')).toBeTruthy();
+  expect(screen.queryByTestId('meeting-conference-meetPending')).toBeNull();
+  expect(screen.getByTestId('meeting-conference-meetNeedsCalendar')).toBeTruthy();
   await act(async () => {
     fireEvent.press(screen.getByTestId('meeting-connect-calendar'));
   });
   expect(await screen.findByTestId('calendar-sync-screen')).toBeTruthy();
+});
+
+describe('Teams conference card (§22)', () => {
+  const teamsMeeting = (external: Record<string, string> = {}) =>
+    meeting({ conference: { provider: 'teams', url: null, password: null }, source: 'manual', external });
+
+  it('falls back to the paste hint while Outlook is hidden or unconfigured', async () => {
+    mockMeeting = teamsMeeting();
+    await renderDetails();
+    expect(screen.getByTestId('meeting-conference-noLink')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-connect-outlook')).toBeNull();
+
+    mockOutlook = { configured: false, connected: false };
+    await renderDetails();
+    expect(screen.getByTestId('meeting-conference-noLink')).toBeTruthy();
+  });
+
+  it('promises a Teams link when Outlook is connected ("waiting for sync")', async () => {
+    mockOutlook = { configured: true, connected: true };
+    mockMeeting = teamsMeeting();
+    await renderDetails();
+    expect(screen.getByTestId('meeting-conference-teamsPending')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-connect-outlook')).toBeNull();
+  });
+
+  it('asks to connect Outlook when configured but not connected, and opens calendar sync', async () => {
+    mockOutlook = { configured: true, connected: false };
+    mockMeeting = teamsMeeting();
+    await renderDetails();
+    expect(screen.getByTestId('meeting-conference-teamsNeedsOutlook')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-connect-outlook'));
+    });
+    expect(await screen.findByTestId('calendar-sync-screen')).toBeTruthy();
+  });
+
+  it('says it is too late for an auto link once the meeting is already in Outlook (create-only)', async () => {
+    mockOutlook = { configured: true, connected: true };
+    mockMeeting = teamsMeeting({ outlookEventId: 'AAMk1', outlookCalendarId: 'cal1' });
+    await renderDetails();
+    expect(screen.getByTestId('meeting-conference-teamsLinkTooLate')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-conference-teamsPending')).toBeNull();
+    expect(screen.queryByTestId('meeting-connect-outlook')).toBeNull();
+  });
+
+  it('joins through the written-back Teams link like any other meeting', async () => {
+    mockOutlook = { configured: true, connected: true };
+    mockMeeting = meeting({
+      conference: { provider: 'teams', url: 'https://teams.microsoft.com/l/m/1', password: null },
+      source: 'manual',
+      external: { outlookEventId: 'AAMk1' },
+    });
+    await renderDetails();
+    expect(screen.getByTestId('meeting-join')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-conference-teamsPending')).toBeNull();
+  });
 });
 
 

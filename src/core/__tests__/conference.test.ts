@@ -44,6 +44,33 @@ describe('conferenceCapability', () => {
       autoState: 'needs_connection',
     });
   });
+
+  it('an auto mode the push engines cannot reach for the target meeting degrades to paste', () => {
+    const both = calendar({ google: { connected: true }, outlook: { configured: true, connected: true } });
+    const paste = { mode: 'paste', autoState: null };
+    // Outlook push: never for recurring meetings (§17) nor google/device imports.
+    expect(conferenceCapability('teams', both, { source: 'manual', recurring: true })).toEqual(paste);
+    expect(conferenceCapability('teams', both, { source: 'google', recurring: false })).toEqual(paste);
+    expect(conferenceCapability('teams', both, { source: 'device', recurring: false })).toEqual(paste);
+    expect(conferenceCapability('teams', both, { source: 'manual', recurring: false })).toEqual({
+      mode: 'auto_outlook',
+      autoState: 'ready',
+    });
+    // Google push: recurring masters ARE pushed; only device/outlook imports are not.
+    expect(conferenceCapability('google_meet', both, { source: 'manual', recurring: true })).toEqual({
+      mode: 'auto_google',
+      autoState: 'ready',
+    });
+    expect(conferenceCapability('google_meet', both, { source: 'google', recurring: true })).toEqual({
+      mode: 'auto_google',
+      autoState: 'ready',
+    });
+    expect(conferenceCapability('google_meet', both, { source: 'device', recurring: false })).toEqual(paste);
+    expect(conferenceCapability('google_meet', both, { source: 'outlook', recurring: false })).toEqual(paste);
+    // The target never changes the non-auto modes.
+    expect(conferenceCapability('zoom', both, { source: 'device', recurring: true })).toEqual(paste);
+    expect(conferenceCapability('none', both, { source: 'device', recurring: true })).toEqual({ mode: 'none', autoState: null });
+  });
 });
 
 describe('teamsLinkOnCreateOnly', () => {

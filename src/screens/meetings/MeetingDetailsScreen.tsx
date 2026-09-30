@@ -2,8 +2,9 @@
  * Meeting details (route "MeetingDetails" { meetingId }).
  * Reads the live meeting from the data layer (deep links from notifications included) and shows
  * everything the meeting holds: time (locale-aware, 12 h / 24 h preference), duration, place,
- * video call (real join link + password), participants, description, preparation tips, alert
- * settings, notes. Every meeting can be edited and deleted:
+ * video call (real join link + password; without a link the card explains what happens next per
+ * provider and calendar connection - conferenceCardState, §22), participants, description,
+ * preparation tips, alert settings, notes. Every meeting can be edited and deleted:
  * - MeetingGuard meetings and Google events: edits / deletes are also sent to Google Calendar by
  *   the calendar engine (origin 'user');
  * - device-calendar imports (one-way): the change stays in MeetingGuard and the user is told the
@@ -32,6 +33,7 @@ import { MeetingStatus } from '../shared/MeetingStatus';
 import { ScreenBody, Section } from '../shared/Section';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
+import { conferenceCardState } from './meetingForm';
 
 const log = createLogger('meetings');
 
@@ -40,10 +42,6 @@ type Props = StackScreenProps<RootStackParamList, 'MeetingDetails'>;
 /** How far ahead the "next occurrences" list looks, and how many entries it shows. */
 const NEXT_OCCURRENCES_WINDOW_MS = 370 * 24 * 60 * 60 * 1000;
 const NEXT_OCCURRENCES_SHOWN = 3;
-
-function isHttpUrl(value: string | null | undefined): value is string {
-  return typeof value === 'string' && /^https?:\/\//i.test(value);
-}
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -100,8 +98,6 @@ function MeetingDetails({
   const fmt = useFormatters();
   const { preferences } = usePreferences();
   const calendar = useCalendarStatus();
-  // Only the Google Calendar push creates a Meet link (never invented here).
-  const googleConnected = calendar.google.enabled && calendar.google.hasScope;
   const [deleting, setDeleting] = useState(false);
   const when = whenText(meeting, fmt);
   const isDevice = meeting.source === 'device';
@@ -171,7 +167,9 @@ function MeetingDetails({
   };
 
   const conference = meeting.conference;
-  const joinUrl = conference?.url ?? meeting.location?.virtualUrl ?? null;
+  // §22: a real link (pasted or provider-created, incl. an imported virtualUrl) always wins;
+  // otherwise the card explains the empty url from the provider + the LIVE calendar status.
+  const card = conferenceCardState(meeting, calendar);
   const tips = meeting.preparationTips;
 
   return (
@@ -257,37 +255,35 @@ function MeetingDetails({
         </Section>
       ) : null}
 
-      {conference || joinUrl ? (
+      {card.kind !== 'hidden' ? (
         <Section title={t('meetings:details.videoCall')}>
           {conference ? <Text variant="bodyLarge">{t(`alerts:provider.${conference.provider}`)}</Text> : null}
-          {isHttpUrl(joinUrl) ? (
+          {card.kind === 'join' ? (
             <View>
               <Text variant="bodySmall" selectable style={{ color: theme.colors.onSurfaceVariant }}>
-                {joinUrl}
+                {card.url}
               </Text>
-              <Button mode="contained" icon="video" style={styles.action} onPress={() => openLink(joinUrl)} testID="meeting-join">
+              <Button mode="contained" icon="video" style={styles.action} onPress={() => openLink(card.url)} testID="meeting-join">
                 {t('alerts:buttons.join')}
               </Button>
             </View>
-          ) : conference?.provider === 'google_meet' ? (
-            googleConnected ? (
-              <HelperText type="info" visible testID="meeting-meet-pending">
-                {t('meetings:details.meetPending')}
-              </HelperText>
-            ) : (
-              <View>
-                <HelperText type="info" visible testID="meeting-meet-needs-calendar">
-                  {t('meetings:details.meetNeedsCalendar')}
-                </HelperText>
-                <Button mode="outlined" icon="calendar-sync-outline" style={styles.action} onPress={onOpenCalendarSync} testID="meeting-connect-calendar">
-                  {t('meetings:details.connectCalendar')}
-                </Button>
-              </View>
-            )
           ) : (
-            <HelperText type="info" visible>
-              {t('meetings:details.noLink')}
-            </HelperText>
+            <View>
+              <HelperText type="info" visible testID={`meeting-conference-${card.key}`}>
+                {t(`meetings:details.${card.key}`)}
+              </HelperText>
+              {card.connect !== null ? (
+                <Button
+                  mode="outlined"
+                  icon="calendar-sync-outline"
+                  style={styles.action}
+                  onPress={onOpenCalendarSync}
+                  testID={card.connect === 'google' ? 'meeting-connect-calendar' : 'meeting-connect-outlook'}
+                >
+                  {card.connect === 'google' ? t('meetings:details.connectCalendar') : t('calendar:outlook.connect')}
+                </Button>
+              ) : null}
+            </View>
           )}
           {conference?.password ? (
             <Text variant="bodyMedium" selectable style={styles.action}>

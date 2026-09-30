@@ -21,6 +21,12 @@ import {
   type RecurrenceRule,
   type RecurrenceWeekday,
 } from '../../core/aiContract';
+import {
+  conferenceCapability,
+  teamsLinkOnCreateOnly,
+  type ConferenceCalendarState,
+  type ConferencePushTarget,
+} from '../../core/conference';
 import { weekdayOfLocalDate } from '../../core/recurrence';
 import { isLocalDate, isLocalTime, isValidTimeZone, toLocalDateTime, zonedDateTimeToUtcIso } from '../../core/time';
 import {
@@ -32,6 +38,7 @@ import {
   type MeetingCreateInput,
   type MeetingLocation,
   type MeetingPatch,
+  type MeetingSource,
   type ParticipantInput,
 } from '../../core/types';
 
@@ -459,6 +466,137 @@ export function draftToPatch(meeting: Meeting, draft: MeetingFormDraft): Meeting
   const recurrence = recurrenceRuleOf(draft, meeting.recurrence);
   if (!same(recurrence, meeting.recurrence)) patch.recurrence = recurrence;
   return patch;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Video call (§22): what the form and the details card say about an EMPTY conference url is
+// DERIVED at render time from conferenceCapability + the live calendar status - never stored.
+// ---------------------------------------------------------------------------------------------
+
+/** "meetings:form.*" leaf of the helper text below the provider chips. */
+export type ConferenceFormHintKey =
+  | 'pasteLinkHint'
+  | 'meetWillBeCreated'
+  | 'meetNeedsCalendar'
+  | 'teamsWillBeCreated'
+  | 'teamsNeedsOutlook';
+
+/** The §22 push target of the meeting being edited (a new meeting is a one-off 'manual' one). */
+function draftPushTarget(draft: Pick<MeetingFormDraft, 'repeat'>, source: MeetingSource): ConferencePushTarget {
+  return { source, recurring: draft.repeat !== 'none' };
+}
+
+/**
+ * The helper below the video-call chips, per §22's table. null = no hint: no video call is
+ * selected, or a link is already typed (a pasted url always wins over the auto modes).
+ * `source` is the EDITED meeting's source ('manual' for a new one): an auto mode the sync can
+ * never reach (imported meeting, or Teams + recurrence, §17) falls back to the paste hint.
+ */
+export function conferenceFormHint(
+  draft: Pick<MeetingFormDraft, 'conferenceProvider' | 'conferenceUrl' | 'repeat'>,
+  calendar: ConferenceCalendarState,
+  source: MeetingSource = 'manual',
+): ConferenceFormHintKey | null {
+  if (draft.conferenceProvider === 'none' || draft.conferenceUrl.trim() !== '') return null;
+  const { mode, autoState } = conferenceCapability(draft.conferenceProvider, calendar, draftPushTarget(draft, source));
+  switch (mode) {
+    case 'none':
+      return null;
+    case 'paste':
+      return 'pasteLinkHint';
+    case 'auto_google':
+      return autoState === 'ready' ? 'meetWillBeCreated' : 'meetNeedsCalendar';
+    case 'auto_outlook':
+      return autoState === 'ready' ? 'teamsWillBeCreated' : 'teamsNeedsOutlook';
+  }
+}
+
+/** Which calendar a "connect" CTA under the hint should open (null = no CTA). */
+export function conferenceConnectTarget(hint: ConferenceFormHintKey | null): 'google' | 'outlook' | null {
+  if (hint === 'meetNeedsCalendar') return 'google';
+  if (hint === 'teamsNeedsOutlook') return 'outlook';
+  return null;
+}
+
+/**
+ * The link input label: "optional" exactly for the two auto modes (the provider creates a real
+ * link on sync, but pasting one still works), the plain label everywhere else - including the
+ * combinations the sync can never reach (they degrade to paste, so the link is not "optional").
+ */
+export function conferenceLinkLabel(
+  draft: Pick<MeetingFormDraft, 'conferenceProvider' | 'repeat'>,
+  calendar: ConferenceCalendarState,
+  source: MeetingSource = 'manual',
+): 'link' | 'linkOptional' {
+  const { mode } = conferenceCapability(draft.conferenceProvider, calendar, draftPushTarget(draft, source));
+  return mode === 'auto_google' || mode === 'auto_outlook' ? 'linkOptional' : 'link';
+}
+
+/**
+ * The passcode input only makes sense next to a real link: it appears once a link is typed (or
+ * kept visible while a stored passcode exists, so it can still be cleared).
+ */
+export function showConferencePassword(
+  draft: Pick<MeetingFormDraft, 'conferenceProvider' | 'conferenceUrl' | 'conferencePassword'>,
+): boolean {
+  if (draft.conferenceProvider === 'none') return false;
+  return draft.conferenceUrl.trim() !== '' || draft.conferencePassword.trim() !== '';
+}
+
+/** "meetings:details.*" leaf of the no-link explanation on the details card. */
+export type ConferenceCardInfoKey =
+  | 'meetPending'
+  | 'meetNeedsCalendar'
+  | 'teamsPending'
+  | 'teamsNeedsOutlook'
+  | 'teamsLinkTooLate'
+  | 'noLink';
+
+export type ConferenceCardState =
+  /** No conference and no join link: the details screen hides the section. */
+  | { kind: 'hidden' }
+  /** A real link exists (pasted or provider-created): show it with the Join button. */
+  | { kind: 'join'; url: string }
+  /** No link yet: what to say, and which calendar a connect CTA should open (null = none). */
+  | { kind: 'info'; key: ConferenceCardInfoKey; connect: 'google' | 'outlook' | null };
+
+function isHttpUrl(value: string | null): value is string {
+  return typeof value === 'string' && /^https?:\/\//i.test(value);
+}
+
+/**
+ * The details-screen conference card, per §22's table. A valid url (the conference's, or the
+ * imported `location.virtualUrl`) always wins; otherwise the copy mirrors conferenceFormHint,
+ * in "already saved" wording, plus the create-only special case: a meeting already pushed to
+ * Outlook (`external.outlookEventId` set) without a url never gets a Teams link (§17), so the
+ * card says it is too late instead of promising one "on the next sync". Combinations the sync
+ * can never reach (imported meeting, Teams + recurrence) show the plain no-link copy instead
+ * of a promise or a connect CTA that would not help.
+ */
+export function conferenceCardState(
+  meeting: Pick<Meeting, 'conference' | 'location' | 'external' | 'source' | 'recurrence'>,
+  calendar: ConferenceCalendarState,
+): ConferenceCardState {
+  const url = meeting.conference?.url ?? meeting.location?.virtualUrl ?? null;
+  if (isHttpUrl(url)) return { kind: 'join', url };
+  if (meeting.conference === null) return { kind: 'hidden' };
+  const { mode, autoState } = conferenceCapability(meeting.conference.provider, calendar, {
+    source: meeting.source,
+    recurring: meeting.recurrence !== null,
+  });
+  switch (mode) {
+    case 'auto_google':
+      return autoState === 'ready'
+        ? { kind: 'info', key: 'meetPending', connect: null }
+        : { kind: 'info', key: 'meetNeedsCalendar', connect: 'google' };
+    case 'auto_outlook':
+      if (autoState !== 'ready') return { kind: 'info', key: 'teamsNeedsOutlook', connect: 'outlook' };
+      return teamsLinkOnCreateOnly(meeting.external)
+        ? { kind: 'info', key: 'teamsLinkTooLate', connect: null }
+        : { kind: 'info', key: 'teamsPending', connect: null };
+    default:
+      return { kind: 'info', key: 'noLink', connect: null };
+  }
 }
 
 /** Local wall-clock Date for the pickers (they work in the device zone). */
