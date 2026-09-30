@@ -28,6 +28,7 @@ import {
   toUtcIso,
   zonedDateTimeToUtcIso,
 } from '../../../core/time';
+import { toGoogleRecurrence } from '../../../core/recurrence';
 import type { Meeting, ParticipantInput, ParticipantStatus } from '../../../core/types';
 import {
   clampDuration,
@@ -37,12 +38,14 @@ import {
   detectConferenceInText,
   DURATION_MAX_MINUTES,
   externalHash,
+  externalProjection,
   isHttpUrl,
   MINUTES_PER_DAY,
   PARTICIPANT_NAME_MAX,
   PARTICIPANTS_MAX,
   PASSWORD_MAX,
   renderLocationText,
+  stableHash,
   TITLE_MAX,
   truncate,
   type ExternalMeetingInput,
@@ -288,7 +291,9 @@ export interface GoogleWriteOptions {
 type GoogleWritableMeeting = Pick<
   Meeting,
   'title' | 'description' | 'startAt' | 'durationMinutes' | 'timezone' | 'allDay' | 'location' | 'conference' | 'participants'
->;
+> &
+  /** Present on full meetings; a recurring master pushes its rule as RRULE/EXDATE lines (§16). */
+  Partial<Pick<Meeting, 'recurrence' | 'recurrenceOverrides'>>;
 
 /** Meeting -> events.insert / events.patch body. */
 export function meetingToGoogleEvent(meeting: GoogleWritableMeeting, options: GoogleWriteOptions = {}): GoogleEventWrite {
@@ -321,6 +326,24 @@ export function meetingToGoogleEvent(meeting: GoogleWritableMeeting, options: Go
       },
     },
   };
+  const rule = meeting.recurrence ?? null;
+  if (rule !== null) {
+    // The master pushes its rule (one RRULE line) plus one EXDATE line per cancelled occurrence;
+    // time-modified overrides stay local (docs/ARCHITECTURE.md §16). date/time are re-derived
+    // from startAt + timezone, exactly like the stored derived fields.
+    const local = toLocalDateTime(meeting.startAt, meeting.timezone);
+    body.recurrence = toGoogleRecurrence({
+      id: 'master',
+      title: meeting.title,
+      date: local.date,
+      time: local.time,
+      timezone: meeting.timezone,
+      durationMinutes: meeting.durationMinutes,
+      allDay: meeting.allDay,
+      recurrence: rule,
+      recurrenceOverrides: meeting.recurrenceOverrides ?? null,
+    });
+  }
   if (options.requestMeetLink) {
     body.conferenceData = {
       createRequest: {
@@ -332,9 +355,24 @@ export function meetingToGoogleEvent(meeting: GoogleWritableMeeting, options: Go
   return body;
 }
 
-/** Hash of the Google-visible fields (meeting or import payload): unchanged => nothing to push. */
-export function googleVisibleHash(fields: ExternalVisibleFields, defaultTimeZone: string): string {
-  return externalHash(fields, defaultTimeZone);
+/**
+ * Hash of the Google-visible fields (meeting or import payload): unchanged => nothing to push.
+ * For a recurring master the rule and the CANCELLED override keys are part of the hash (they are
+ * pushed as RRULE/EXDATE); 'modified' overrides are not pushed and therefore not hashed, so a
+ * local-only occurrence edit never triggers a Google write. One-off meetings hash exactly as
+ * before, so hashes stored by earlier app versions stay valid.
+ */
+export function googleVisibleHash(
+  fields: ExternalVisibleFields & Partial<Pick<Meeting, 'recurrence' | 'recurrenceOverrides'>>,
+  defaultTimeZone: string,
+): string {
+  const rule = fields.recurrence ?? null;
+  if (rule === null) return externalHash(fields, defaultTimeZone);
+  const cancelled = Object.entries(fields.recurrenceOverrides ?? {})
+    .filter(([, override]) => override.status === 'cancelled')
+    .map(([key]) => key)
+    .sort();
+  return stableHash([externalProjection(fields, defaultTimeZone), rule, cancelled]);
 }
 
 /** Meeting wants a Meet link that does not exist yet. */

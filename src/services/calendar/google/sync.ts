@@ -21,6 +21,7 @@ import type {
 import { AppError, toAppError, type AppErrorCode } from '../../../core/errors';
 import { googleEventIdForMeeting, meetingIdFromGoogleEventId } from '../../../core/identifiers';
 import { createLogger } from '../../../core/logger';
+import { recurrenceEndsAt } from '../../../core/recurrence';
 import { addMinutesIso, toDate, toUtcIso } from '../../../core/time';
 import type { ExternalRefs, Meeting, MeetingPatch } from '../../../core/types';
 import { chunk, isOwnMeeting, overlapsWindow, syncWindow, type SyncWindow } from '../shared';
@@ -179,6 +180,14 @@ export function planGooglePull(input: PullPlanInput): PullPlan {
   for (const event of input.events) {
     if (!event.id) continue;
     plan.seen.add(event.id);
+    // Instances of OUR OWN pushed series: `recurringEventId` is the master's deterministic
+    // "mgev..." id. The local master already expands these occurrences, so importing them would
+    // duplicate the series one meeting per occurrence. They are skipped entirely - including
+    // per-instance cancellations/edits made in Google, a documented v1 limitation
+    // (docs/ARCHITECTURE.md §16: occurrence edits flow MeetingGuard -> Google only).
+    if (event.recurringEventId !== undefined && meetingIdFromGoogleEventId(event.recurringEventId) !== null) {
+      continue;
+    }
     const decodedId = meetingIdFromGoogleEventId(event.id);
     const local = byGoogleId.get(event.id) ?? (decodedId !== null ? byId.get(decodedId) : undefined);
     const linked = local !== undefined && local.external.googleEventId === event.id;
@@ -241,6 +250,10 @@ export function planGooglePull(input: PullPlanInput): PullPlan {
       const googleId = meeting.external.googleEventId;
       if (googleId === null || plan.seen.has(googleId)) continue;
       if (meeting.deletedAt !== null || pending[meeting.id] || meeting.source === 'device') continue;
+      // Recurring masters never appear in singleEvents listings (only their instances do), so
+      // their absence proves nothing: never sweep them. Deleting the whole series in Google
+      // therefore does not delete the local master (delete it in MeetingGuard) - documented §16.
+      if (meeting.recurrence !== null) continue;
       if (meeting.external.googleCalendarId !== null && meeting.external.googleCalendarId !== calendarId) continue;
       if (meeting.source !== 'google' && meeting.status !== 'scheduled') continue;
       if (!overlapsWindow(meeting, input.window)) continue;
@@ -455,6 +468,10 @@ export async function pushGoogleMeeting(deps: GoogleSyncDeps, meeting: Meeting, 
   if (meeting.source === 'device') {
     throw new AppError('unsupported', 'Device calendar meetings are not pushed to Google');
   }
+  if (meeting.source === 'outlook') {
+    // Imported from Outlook: only the outlook provider pushes it (no cross-provider duplicates).
+    return { meeting, sent: false };
+  }
   if (meeting.deletedAt !== null) {
     return { meeting, sent: await deleteGoogleEvent(deps, meeting) };
   }
@@ -631,9 +648,19 @@ export async function flushGooglePushes(deps: GoogleSyncDeps): Promise<FlushResu
 export async function enqueueUpcomingOwnMeetings(deps: GoogleSyncDeps): Promise<number> {
   const now = deps.now();
   const window = syncWindow(now);
-  const meetings = await deps.meetings.list({ from: addMinutesIso(now, -24 * 60), to: window.timeMax, includeCancelled: false });
+  const fromMs = toDate(addMinutesIso(now, -24 * 60)).getTime();
+  // No `from` bound: a recurring master's own startAt is its FIRST occurrence, which can be far
+  // in the past while the series is still running; it is filtered by its series end instead.
+  const meetings = await deps.meetings.list({ to: window.timeMax, includeCancelled: false });
   const ids = meetings
-    .filter((meeting) => isOwnMeeting(meeting) && meeting.status === 'scheduled' && meeting.external.googleEventId === null)
+    .filter((meeting) => {
+      if (!isOwnMeeting(meeting) || meeting.status !== 'scheduled' || meeting.external.googleEventId !== null) return false;
+      if (meeting.recurrence !== null) {
+        const endsAt = recurrenceEndsAt(meeting);
+        return endsAt === null || toDate(endsAt).getTime() >= fromMs;
+      }
+      return toDate(meeting.startAt).getTime() >= fromMs;
+    })
     .map((meeting) => meeting.id);
   await enqueueGooglePushes(deps, ids, 'upsert');
   return ids.length;

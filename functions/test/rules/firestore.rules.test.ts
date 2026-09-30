@@ -193,6 +193,88 @@ describe('meetings', () => {
   });
 });
 
+describe('meetings: recurrence and outlook (phase 1)', () => {
+  const RULE = { freq: 'daily', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: 10 };
+
+  it('accepts a sparse pre-phase-1 document unchanged (no new keys)', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting()));
+  });
+
+  it('accepts a recurring master with overrides, seriesId and outlook refs', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(alice(), 'users/alice/meetings/m1'),
+        meeting({
+          recurrence: { freq: 'weekly', interval: 2, byWeekday: ['MO', 'WE'], byMonthDay: null, until: null, count: null },
+          recurrenceOverrides: {
+            '2026-10-12': { status: 'cancelled', startAt: null, durationMinutes: null, title: null },
+            '2026-10-14': { status: 'modified', startAt: '2026-10-14T15:00:00.000Z', durationMinutes: 30, title: 'Moved' },
+          },
+          seriesId: 'm1',
+          source: 'outlook',
+          external: {
+            ...(meeting().external as Record<string, unknown>),
+            outlookEventId: 'AAMkAD=',
+            outlookCalendarId: 'calendar-1',
+            outlookChangeKey: 'CQAAABYA',
+            outlookUpdatedAt: ISO,
+          },
+        }),
+      ),
+    );
+  });
+
+  it.each([
+    ['an unknown freq', { recurrence: { ...RULE, freq: 'yearly' } }],
+    ['a zero interval', { recurrence: { ...RULE, interval: 0 } }],
+    ['an interval over 99', { recurrence: { ...RULE, interval: 100 } }],
+    ['a missing interval', { recurrence: { freq: 'daily', byWeekday: null, byMonthDay: null, until: null, count: 10 } }],
+    ['an extra rule key', { recurrence: { ...RULE, extra: true } }],
+    ['a bad weekday code', { recurrence: { ...RULE, byWeekday: ['XX'] } }],
+    ['a non-string weekday', { recurrence: { ...RULE, byWeekday: [1] } }],
+    ['an empty weekday list', { recurrence: { ...RULE, byWeekday: [] } }],
+    ['a byMonthDay of 0', { recurrence: { ...RULE, byMonthDay: 0 } }],
+    ['a byMonthDay over 31', { recurrence: { ...RULE, byMonthDay: 32 } }],
+    ['a count over 730', { recurrence: { ...RULE, count: 731 } }],
+    ['both until and count', { recurrence: { ...RULE, until: ISO, count: 5 } }],
+    ['a non-UTC until', { recurrence: { ...RULE, until: '2026-10-05T16:00:00+02:00', count: null } }],
+    ['a non-map recurrence', { recurrence: 'daily' }],
+    ['non-map overrides', { recurrence: RULE, recurrenceOverrides: 'x' }],
+    ['a non-id seriesId', { seriesId: 'bad:id' }],
+    ['an oversized outlook event id', { external: { ...(meeting().external as Record<string, unknown>), outlookEventId: 'x'.repeat(513) } }],
+    ['a non-ISO outlook update time', { external: { ...(meeting().external as Record<string, unknown>), outlookUpdatedAt: 'yesterday' } }],
+    ['an unknown external key', { external: { ...(meeting().external as Record<string, unknown>), icalUid: 'x' } }],
+  ])('rejects a meeting with %s', async (_label, overrides) => {
+    await assertFails(setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting(overrides)));
+  });
+
+  it('bounds the overrides map at 200 entries', async () => {
+    const overrides: Record<string, unknown> = {};
+    for (let i = 0; i < 201; i += 1) {
+      const day = new Date(Date.UTC(2026, 0, 1) + i * 86_400_000).toISOString().slice(0, 10);
+      overrides[day] = { status: 'cancelled', startAt: null, durationMinutes: null, title: null };
+    }
+    await assertFails(
+      setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting({ recurrence: RULE, recurrenceOverrides: overrides })),
+    );
+    const smaller = Object.fromEntries(Object.entries(overrides).slice(0, 200));
+    await assertSucceeds(
+      setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting({ recurrence: RULE, recurrenceOverrides: smaller })),
+    );
+  });
+
+  it('lets an update add a rule to an existing one-off (seriesId becomes the meeting id)', async () => {
+    await seed('users/alice/meetings/m1', meeting());
+    await assertSucceeds(
+      updateDoc(doc(alice(), 'users/alice/meetings/m1'), {
+        recurrence: RULE,
+        seriesId: 'm1',
+        updatedAt: '2026-10-06T00:00:00.000Z',
+      }),
+    );
+  });
+});
+
 describe('profile', () => {
   it('lets the owner write profile fields', async () => {
     await assertSucceeds(setDoc(doc(alice(), 'users/alice'), profile()));

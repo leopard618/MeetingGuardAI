@@ -13,10 +13,16 @@
  *   alerts leave, so they never push a real alert out of the OS schedule. When the alerts alone do
  *   not fit, one slot is reserved for the refill reminder (refillReminderAt): it fires before the
  *   scheduled window runs out and asks the user to open the app (which reconciles again).
+ * - Recurring meetings (docs/ARCHITECTURE.md §16): the master expands into occurrences over
+ *   [now - followUpDelay, horizon + largest offset] and each occurrence gets its own items with
+ *   4-part ids ("mg:{id}:{localDateKey}:{offset}" / ":followup") and `localDateKey` set; cancelled
+ *   occurrences get nothing; modified ones alert at their EFFECTIVE time. A series that continues
+ *   past the horizon marks the plan truncated exactly like a one-off beyond the horizon.
  * - Items are returned sorted by fireAt (ties: alerts before follow-ups, then identifier).
- * All arithmetic is on UTC instants, so offsets are exact across DST changes.
+ * All arithmetic is on UTC instants, so offsets are exact across DST changes (occurrence starts
+ * come from the meeting's wall clock via expandOccurrences, which is DST-safe by construction).
  */
-import { MEETING_ID_PATTERN } from '../../core/aiContract';
+import { LOCAL_DATE_KEY_PATTERN, MEETING_ID_PATTERN } from '../../core/aiContract';
 import type { AlertPlan, AlertPlanOptions, ComputeAlertPlan, DesiredNotification } from '../../core/contracts';
 import {
   ALERT_HORIZON_DAYS,
@@ -27,7 +33,11 @@ import {
   channelFor,
   channelForIntensity,
   followUpNotificationId,
+  occurrenceAlertNotificationId,
+  occurrenceFollowUpNotificationId,
 } from '../../core/identifiers';
+import { expandOccurrences, recurrenceEndsAt, type MeetingOccurrence } from '../../core/recurrence';
+import { zonedDateTimeToUtcIso } from '../../core/time';
 import type { Meeting, Preferences } from '../../core/types';
 
 const MINUTE_MS = 60_000;
@@ -120,48 +130,83 @@ export function computeAlertPlan(
     if (seen.has(meeting.id) || !isAlertEligibleMeeting(meeting)) continue;
     seen.add(meeting.id);
 
-    const startMs = Date.parse(meeting.startAt);
     const intensity = meeting.alertIntensity ?? preferences.alertIntensity;
+    const offsets = effectiveAlertOffsets(meeting, preferences);
 
-    for (const offset of effectiveAlertOffsets(meeting, preferences)) {
-      const fireMs = startMs - offset * MINUTE_MS;
-      if (fireMs <= nowMs) continue;
+    const pushAlert = (identifier: string, offset: number, fireMs: number, localDateKey?: string): void => {
+      if (fireMs <= nowMs) return;
       if (fireMs > horizonEndMs) {
         beyondHorizon = true;
-        continue;
+        return;
       }
-      if (isSuppressed(meeting.id, fireMs)) continue;
+      if (isSuppressed(meeting.id, fireMs)) return;
       alerts.push({
-        identifier: alertNotificationId(meeting.id, offset),
+        identifier,
         kind: 'alert',
         meetingId: meeting.id,
+        ...(localDateKey !== undefined ? { localDateKey } : {}),
         offsetMinutes: offset,
         fireAt: new Date(fireMs).toISOString(),
         intensity,
         channelId: channelForIntensity(intensity, vibration),
         categoryId: NOTIFICATION_CATEGORIES.alert,
       });
+    };
+    const pushFollowUp = (identifier: string, endMs: number, localDateKey?: string): void => {
+      if (!preferences.followUpEnabled) return;
+      const fireMs = endMs + FOLLOW_UP_DELAY_MINUTES * MINUTE_MS;
+      if (fireMs <= nowMs) return;
+      if (fireMs > horizonEndMs) {
+        beyondHorizon = true;
+        return;
+      }
+      followUps.push({
+        identifier,
+        kind: 'followup',
+        meetingId: meeting.id,
+        ...(localDateKey !== undefined ? { localDateKey } : {}),
+        offsetMinutes: null,
+        fireAt: new Date(fireMs).toISOString(),
+        intensity,
+        channelId: channelFor('followup', vibration),
+        categoryId: NOTIFICATION_CATEGORIES.followup,
+      });
+    };
+
+    if (meeting.recurrence !== null) {
+      const occurrences = expandForPlan(meeting, nowMs, horizonEndMs, offsets[0] ?? 0);
+      if (occurrences !== null) {
+        for (const occurrence of occurrences) {
+          const occurrenceStartMs = Date.parse(occurrence.startAt);
+          for (const offset of offsets) {
+            pushAlert(
+              occurrenceAlertNotificationId(meeting.id, occurrence.localDateKey, offset),
+              offset,
+              occurrenceStartMs - offset * MINUTE_MS,
+              occurrence.localDateKey,
+            );
+          }
+          pushFollowUp(
+            occurrenceFollowUpNotificationId(meeting.id, occurrence.localDateKey),
+            Date.parse(occurrence.endAt),
+            occurrence.localDateKey,
+          );
+        }
+        // A series running past the horizon needs a refresh before the window runs out, exactly
+        // like a one-off meeting beyond the horizon.
+        const endsAt = recurrenceEndsAt(meeting);
+        if (endsAt === null || Date.parse(endsAt) > horizonEndMs) beyondHorizon = true;
+        continue;
+      }
+      // Invalid rule (never stored by this app version): fall through to the one-off path so the
+      // master's own first occurrence still alerts instead of silently dropping the meeting.
     }
 
-    if (preferences.followUpEnabled) {
-      const fireMs = meetingEndMs(meeting) + FOLLOW_UP_DELAY_MINUTES * MINUTE_MS;
-      if (fireMs > nowMs) {
-        if (fireMs > horizonEndMs) {
-          beyondHorizon = true;
-        } else {
-          followUps.push({
-            identifier: followUpNotificationId(meeting.id),
-            kind: 'followup',
-            meetingId: meeting.id,
-            offsetMinutes: null,
-            fireAt: new Date(fireMs).toISOString(),
-            intensity,
-            channelId: channelFor('followup', vibration),
-            categoryId: NOTIFICATION_CATEGORIES.followup,
-          });
-        }
-      }
+    const startMs = Date.parse(meeting.startAt);
+    for (const offset of offsets) {
+      pushAlert(alertNotificationId(meeting.id, offset), offset, startMs - offset * MINUTE_MS);
     }
+    pushFollowUp(followUpNotificationId(meeting.id), meetingEndMs(meeting));
   }
 
   alerts.sort(compareItems);
@@ -193,6 +238,71 @@ export function computeAlertPlan(
     truncated,
     refillBefore: truncated && last ? last.fireAt : null,
     refillReminderAt,
+  };
+}
+
+/**
+ * Occurrences of a recurring meeting that can still need a notification: the window starts
+ * FOLLOW_UP_DELAY_MINUTES in the past (an occurrence that just ended still gets its follow-up)
+ * and ends `maxOffsetMinutes` past the horizon (an alert `offset` minutes before a start just
+ * beyond the horizon fires inside it). Returns null for an invalid rule instead of throwing:
+ * the planner must never lose every other meeting to one bad document.
+ */
+function expandForPlan(
+  meeting: Meeting,
+  nowMs: number,
+  horizonEndMs: number,
+  maxOffsetMinutes: number,
+): MeetingOccurrence[] | null {
+  const windowStart = new Date(nowMs - FOLLOW_UP_DELAY_MINUTES * MINUTE_MS).toISOString();
+  const windowEnd = new Date(horizonEndMs + maxOffsetMinutes * MINUTE_MS + MINUTE_MS).toISOString();
+  try {
+    return expandOccurrences(meeting, windowStart, windowEnd);
+  } catch {
+    return null;
+  }
+}
+
+/** Effective (post-override) values of one occurrence: what rendering and snoozes need. */
+export interface OccurrenceEffective {
+  localDateKey: string;
+  /** Effective start (UTC ISO), 'modified' override applied. */
+  startAt: string;
+  durationMinutes: number;
+  title: string;
+  /** True when a 'modified' override applies. */
+  overridden: boolean;
+}
+
+/**
+ * Direct (no expansion) lookup of one occurrence's effective values, given its ORIGINAL local
+ * date key. Returns null for non-recurring meetings, malformed keys, occurrences cancelled by an
+ * override, and invalid timezone data. It deliberately does NOT re-check the series pattern:
+ * callers hold identifiers the planner itself produced (notification ids, alert payloads).
+ */
+export function occurrenceEffective(
+  meeting: Pick<Meeting, 'title' | 'time' | 'timezone' | 'durationMinutes' | 'allDay' | 'recurrence' | 'recurrenceOverrides'>,
+  localDateKey: string,
+): OccurrenceEffective | null {
+  if (meeting.recurrence === null || !LOCAL_DATE_KEY_PATTERN.test(localDateKey)) return null;
+  const override = meeting.recurrenceOverrides?.[localDateKey] ?? null;
+  if (override !== null && override.status === 'cancelled') return null;
+  let startAt: string;
+  try {
+    startAt =
+      override?.startAt !== null && override?.startAt !== undefined
+        ? new Date(Date.parse(override.startAt)).toISOString()
+        : zonedDateTimeToUtcIso(localDateKey, meeting.allDay ? '00:00' : meeting.time, meeting.timezone);
+  } catch {
+    return null;
+  }
+  if (!Number.isFinite(Date.parse(startAt))) return null;
+  return {
+    localDateKey,
+    startAt,
+    durationMinutes: override?.durationMinutes ?? meeting.durationMinutes,
+    title: override?.title ?? meeting.title,
+    overridden: override !== null,
   };
 }
 

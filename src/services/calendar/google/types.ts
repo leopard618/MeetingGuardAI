@@ -63,6 +63,8 @@ export interface GoogleEvent {
   attendees?: GoogleAttendee[];
   conferenceData?: GoogleConferenceData;
   hangoutLink?: string;
+  /** RRULE/EXDATE/RDATE lines (only on masters; absent with singleEvents=true listings). */
+  recurrence?: string[];
   recurringEventId?: string;
   /** default | outOfOffice | focusTime | workingLocation | birthday | fromGmail */
   eventType?: string;
@@ -91,6 +93,8 @@ export interface GoogleEventWrite {
   conferenceData?: {
     createRequest: { requestId: string; conferenceSolutionKey: { type: 'hangoutsMeet' } };
   };
+  /** RRULE + EXDATE lines for recurring masters (toGoogleRecurrence, docs/ARCHITECTURE.md §16). */
+  recurrence?: string[];
   extendedProperties?: { private: Record<string, string> };
 }
 

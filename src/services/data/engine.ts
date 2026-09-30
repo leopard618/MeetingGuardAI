@@ -16,6 +16,7 @@ import type {
   DataService,
   ExternalMeetingUpsert,
   MeetingRange,
+  MeetingRecurrenceOps,
   MeetingRepository,
   MigrationReport,
   MigrationService,
@@ -39,6 +40,7 @@ import {
   createDefaultPreferences,
   DEFAULT_ENTITLEMENT,
   LANGUAGES,
+  CANCELLED_OVERRIDE,
   mergePreferences,
   parseEntitlementDoc,
   scrubMeetingContent,
@@ -46,6 +48,7 @@ import {
   tombstoneHasContent,
   tombstoneMeeting,
   userProfileSchema,
+  withRecurrenceOverride,
   type AuthUser,
   type Entitlement,
   type Language,
@@ -58,6 +61,7 @@ import {
   type PreferenceKey,
   type Preferences,
   type PreferencesPatch,
+  type RecurrenceOverride,
   type UserProfile,
 } from '../../core/types';
 import { relinkLegacyAttachments } from './attachments';
@@ -77,6 +81,7 @@ import {
   type ReadContext,
 } from './mapping';
 import { planLegacyMigration, removeLegacyKeys } from './migration';
+import { isSeriesOccurrenceDate } from './recurrence';
 import {
   ackEntry,
   dropEntry,
@@ -1620,6 +1625,108 @@ export class DataEngine {
     if (removed) this.afterMeetingWrite(s, [id], 'deleted', origin);
   }
 
+  // ---- recurring meetings (MeetingRecurrenceOps; docs/ARCHITECTURE.md §16) -------------------
+
+  /**
+   * Shared write path of the occurrence operations: validates the meeting (present, active,
+   * recurring, `localDateKey` addresses an occurrence of the series), computes the next override
+   * with `compute` (undefined = nothing to change: resolve with the unchanged meeting) and writes
+   * it through applyMeetingPatch, so updatedAt / schema validation / sparse serialization behave
+   * exactly like every other meeting write.
+   */
+  private async writeOccurrenceOverride(
+    id: string,
+    localDateKey: string,
+    origin: WriteOrigin,
+    compute: (current: Meeting) => RecurrenceOverride | null | undefined,
+    options: { allowStaleOverrideKey?: boolean } = {},
+  ): Promise<Meeting> {
+    const s = await this.readySession();
+    let changed = false;
+    const meeting = await this.localWrite(s, () => {
+      const current = s.meetings.get(id);
+      if (!current || current.deletedAt !== null) throw new AppError('not_found', 'Meeting not found');
+      const rule = current.recurrence;
+      if (rule === null) {
+        throw new AppError('invalid_input', 'Not a recurring meeting', { details: { meetingId: id } });
+      }
+      const hasOverride = current.recurrenceOverrides?.[localDateKey] !== undefined;
+      // restoreOccurrence may remove an override whose date the CURRENT rule no longer generates
+      // (the rule was edited after the override was written); cancel/update never address such dates.
+      const addressable =
+        isSeriesOccurrenceDate({ ...current, recurrence: rule }, localDateKey) ||
+        (options.allowStaleOverrideKey === true && hasOverride);
+      if (!addressable) {
+        throw new AppError('invalid_input', 'Not an occurrence of this series', { details: { meetingId: id, localDateKey } });
+      }
+      const nextOverride = compute(current);
+      if (nextOverride === undefined) return { result: current, change: null };
+      const overrides = withRecurrenceOverride(current.recurrenceOverrides, localDateKey, nextOverride);
+      const next = applyMeetingPatch(current, { recurrenceOverrides: overrides }, nextTimestamp(this.now(), current.updatedAt));
+      const { updatedAt: _a, ...nextRest } = next;
+      const { updatedAt: _b, ...currentRest } = current;
+      if (deepEqual(nextRest, currentRest)) return { result: current, change: null };
+      changed = true;
+      return {
+        result: next,
+        change: {
+          meetings: [next],
+          writes: [{ kind: 'meeting', docId: id, mode: 'set', data: meetingToDoc(next) as unknown as RemoteData, updatedAt: next.updatedAt, origin }],
+        },
+      };
+    });
+    if (changed) this.afterMeetingWrite(s, [id], 'updated', origin);
+    return meeting;
+  }
+
+  /** MeetingRecurrenceOps.updateOccurrence: writes/merges a 'modified' override for one occurrence. */
+  async updateOccurrence(
+    id: string,
+    localDateKey: string,
+    patch: Pick<MeetingPatch, 'startAt' | 'durationMinutes' | 'title'>,
+    options: { origin?: WriteOrigin } = {},
+  ): Promise<Meeting> {
+    // Normalize before the write closure so an invalid instant never half-applies (toDate throws).
+    const startAt = patch.startAt !== undefined ? toDate(patch.startAt).toISOString() : undefined;
+    return this.writeOccurrenceOverride(id, localDateKey, options.origin ?? 'user', (current) => {
+      const existing = current.recurrenceOverrides?.[localDateKey];
+      // Editing a cancelled occurrence restores it with the requested changes (an explicit edit
+      // is the strongest signal the user wants it back); a 'modified' override is merged into.
+      const base = existing?.status === 'modified' ? existing : null;
+      const next: RecurrenceOverride = {
+        status: 'modified',
+        startAt: startAt ?? base?.startAt ?? null,
+        durationMinutes: patch.durationMinutes ?? base?.durationMinutes ?? null,
+        title: patch.title ?? base?.title ?? null,
+      };
+      if (base !== null && deepEqual(base, next)) return undefined;
+      // An empty patch on an occurrence without changes would store a no-op override marking the
+      // occurrence "overridden": nothing to do.
+      if (existing === undefined && next.startAt === null && next.durationMinutes === null && next.title === null) {
+        return undefined;
+      }
+      return next;
+    });
+  }
+
+  /** MeetingRecurrenceOps.cancelOccurrence ("delete this occurrence"). Idempotent. */
+  async cancelOccurrence(id: string, localDateKey: string, options: { origin?: WriteOrigin } = {}): Promise<Meeting> {
+    return this.writeOccurrenceOverride(id, localDateKey, options.origin ?? 'user', (current) =>
+      current.recurrenceOverrides?.[localDateKey]?.status === 'cancelled' ? undefined : { ...CANCELLED_OVERRIDE },
+    );
+  }
+
+  /** MeetingRecurrenceOps.restoreOccurrence (back to the series pattern). Idempotent. */
+  async restoreOccurrence(id: string, localDateKey: string, options: { origin?: WriteOrigin } = {}): Promise<Meeting> {
+    return this.writeOccurrenceOverride(
+      id,
+      localDateKey,
+      options.origin ?? 'user',
+      (current) => (current.recurrenceOverrides?.[localDateKey] === undefined ? undefined : null),
+      { allowStaleOverrideKey: true },
+    );
+  }
+
   private afterMeetingWrite(s: Session, ids: string[], reason: 'created' | 'updated' | 'deleted' | 'imported', origin: WriteOrigin): void {
     this.notify();
     this.events.emit('meetings:changed', { uid: s.uid, changedIds: ids, reason, origin });
@@ -2186,7 +2293,8 @@ export class DataEngine {
   // ---- facades (contract objects) --------------------------------------------------------------
 
   createRepositories(): {
-    meetingRepository: MeetingRepository & { upsertExternal(items: readonly ExternalMeetingUpsert[]): Promise<ExternalUpsertResultWithInvalid> };
+    meetingRepository: MeetingRepository &
+      MeetingRecurrenceOps & { upsertExternal(items: readonly ExternalMeetingUpsert[]): Promise<ExternalUpsertResultWithInvalid> };
     preferencesRepository: PreferencesRepository;
     notesRepository: NotesRepository;
     userRepository: UserRepository;
@@ -2200,6 +2308,9 @@ export class DataEngine {
         create: (input, options) => this.createMeeting(input, options),
         update: (id, patch, options) => this.updateMeeting(id, patch, options),
         remove: (id, options) => this.removeMeeting(id, options),
+        updateOccurrence: (id, localDateKey, patch, options) => this.updateOccurrence(id, localDateKey, patch, options),
+        cancelOccurrence: (id, localDateKey, options) => this.cancelOccurrence(id, localDateKey, options),
+        restoreOccurrence: (id, localDateKey, options) => this.restoreOccurrence(id, localDateKey, options),
         subscribe: (listener, onError) => this.subscribeMeetings(listener, onError),
         upsertExternal: (items) => this.upsertExternal(items),
         findByExternalId: (provider, externalId) => this.findByExternalId(provider, externalId),

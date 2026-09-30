@@ -18,7 +18,7 @@ import {
   meetingDeepLink,
   snoozeNotificationId,
 } from '../../core/identifiers';
-import { MEETING_ID_PATTERN } from '../../core/aiContract';
+import { LOCAL_DATE_KEY_PATTERN, MEETING_ID_PATTERN } from '../../core/aiContract';
 import { alertIntensitySchema, languageSchema, type Meeting } from '../../core/types';
 import { CHANNEL_VIBRATION, notificationSoundFor } from './constants';
 import type {
@@ -49,6 +49,8 @@ const storedAlertDataSchema = z.object({
   v: z.literal(ALERT_DATA_VERSION),
   kind: z.enum(['alert', 'followup', 'snooze']),
   meetingId: z.string().regex(MEETING_ID_PATTERN),
+  /** Occurrence date key for recurring-meeting notifications; absent for one-offs. */
+  localDateKey: z.string().regex(LOCAL_DATE_KEY_PATTERN).optional(),
   offsetMinutes: z.number().int().min(0).nullable(),
   intensity: alertIntensitySchema,
   startAt: isoString,
@@ -169,6 +171,8 @@ export interface RenderInput {
   identifier: string;
   kind: NotificationKind;
   meetingId: string;
+  /** Occurrence date key when the notification belongs to one occurrence of a recurring meeting. */
+  localDateKey?: string;
   offsetMinutes: number | null;
   fireAt: string;
   intensity: AlertIntensity;
@@ -262,6 +266,7 @@ export function renderAlertSpec(input: RenderInput, meeting: MeetingSummary, dep
     v: ALERT_DATA_VERSION,
     kind: input.kind,
     meetingId: input.meetingId,
+    ...(input.localDateKey !== undefined ? { localDateKey: input.localDateKey } : {}),
     offsetMinutes: input.kind === 'alert' ? input.offsetMinutes : null,
     intensity: input.intensity,
     startAt: meeting.startAt,
@@ -292,13 +297,14 @@ export function renderAlertSpec(input: RenderInput, meeting: MeetingSummary, dep
   };
 }
 
-/** Renders a planner item. */
+/** Renders a planner item. For occurrence items, `meeting` must carry the OCCURRENCE's values. */
 export function renderPlanItem(item: DesiredNotification, meeting: MeetingSummary, deps: AlertTextDeps): AlertNotificationSpec {
   return renderAlertSpec(
     {
       identifier: item.identifier,
       kind: item.kind,
       meetingId: item.meetingId,
+      ...(item.localDateKey !== undefined ? { localDateKey: item.localDateKey } : {}),
       offsetMinutes: item.offsetMinutes,
       fireAt: item.fireAt,
       intensity: item.intensity,
@@ -308,18 +314,24 @@ export function renderPlanItem(item: DesiredNotification, meeting: MeetingSummar
   );
 }
 
-/** Renders the snooze notification "mg:{id}:snooze" firing at `fireAt`. */
+/**
+ * Renders the snooze notification "mg:{id}:snooze" firing at `fireAt`. For a snoozed occurrence
+ * of a recurring meeting, `localDateKey` names it (kept in the payload so the reconcile can keep
+ * validating the snooze against that occurrence).
+ */
 export function renderSnoozeSpec(
   meeting: MeetingSummary,
   intensity: AlertIntensity,
   fireAt: string,
   deps: AlertTextDeps,
+  localDateKey?: string,
 ): AlertNotificationSpec {
   return renderAlertSpec(
     {
       identifier: snoozeNotificationId(meeting.id),
       kind: 'snooze',
       meetingId: meeting.id,
+      ...(localDateKey !== undefined ? { localDateKey } : {}),
       offsetMinutes: null,
       fireAt,
       intensity,

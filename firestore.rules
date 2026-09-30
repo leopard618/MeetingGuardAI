@@ -141,13 +141,43 @@ service cloud.firestore {
     function isValidExternal(v) {
       return v is map
         && v.keys().hasOnly(['googleEventId', 'googleCalendarId', 'googleEtag', 'googleUpdatedAt',
-                             'deviceEventId', 'deviceCalendarId'])
+                             'deviceEventId', 'deviceCalendarId',
+                             'outlookEventId', 'outlookCalendarId', 'outlookChangeKey', 'outlookUpdatedAt'])
         && isNullableStringMax(v.get('googleEventId', null), 1024)
         && isNullableStringMax(v.get('googleCalendarId', null), 1024)
         && isNullableStringMax(v.get('googleEtag', null), 256)
         && isNullableUtcIso(v.get('googleUpdatedAt', null))
         && isNullableStringMax(v.get('deviceEventId', null), 512)
-        && isNullableStringMax(v.get('deviceCalendarId', null), 512);
+        && isNullableStringMax(v.get('deviceCalendarId', null), 512)
+        // Outlook refs (docs/ARCHITECTURE.md §17); stored sparsely, so old documents lack them.
+        && isNullableStringMax(v.get('outlookEventId', null), 512)
+        && isNullableStringMax(v.get('outlookCalendarId', null), 512)
+        && isNullableStringMax(v.get('outlookChangeKey', null), 256)
+        && isNullableUtcIso(v.get('outlookUpdatedAt', null));
+    }
+
+    // Recurrence rule (docs/ARCHITECTURE.md §16; recurrenceRuleSchema in src/core/aiContract.ts).
+    // Bounds mirror the client schema: interval 1-99, count 1-730, never until AND count.
+    function isValidRecurrence(v) {
+      return v == null || (v is map
+        && v.keys().hasOnly(['freq', 'interval', 'byWeekday', 'byMonthDay', 'until', 'count'])
+        && v.get('freq', null) in ['daily', 'weekly', 'monthly']
+        && isIntInRange(v.get('interval', null), 1, 99)
+        && (v.get('byWeekday', null) == null
+            || (v.byWeekday is list && v.byWeekday.size() >= 1 && v.byWeekday.size() <= 7
+                // join() fails on non-string elements (write denied); the pattern bounds each code.
+                && v.byWeekday.join('').matches('(MO|TU|WE|TH|FR|SA|SU){1,7}')))
+        && (v.get('byMonthDay', null) == null || isIntInRange(v.byMonthDay, 1, 31))
+        && isNullableUtcIso(v.get('until', null))
+        && (v.get('count', null) == null || isIntInRange(v.count, 1, 730))
+        && !(v.get('until', null) != null && v.get('count', null) != null));
+    }
+
+    // Per-occurrence overrides, keyed by local date. Map keys cannot be iterated in rules, so
+    // this is a size bound only; the client zod schema (recurrenceOverridesSchema) is
+    // authoritative for entry shapes. MAX_RECURRENCE_OVERRIDES = 200 in src/core/recurrence.ts.
+    function isValidRecurrenceOverrides(v) {
+      return v == null || (v is map && v.size() <= 200);
     }
 
     function isValidMeeting(uid, d) {
@@ -155,6 +185,7 @@ service cloud.firestore {
                                'allDay', 'date', 'time', 'location', 'conference', 'participants',
                                'source', 'confidence', 'language', 'preparationTips',
                                'customAlertTimes', 'alertIntensity', 'notes', 'status', 'external',
+                               'recurrence', 'recurrenceOverrides', 'seriesId',
                                'createdAt', 'updatedAt', 'deletedAt'])
         && d.keys().hasAll(['userId', 'title', 'startAt', 'durationMinutes', 'timezone', 'source',
                             'status', 'createdAt', 'updatedAt'])
@@ -172,7 +203,7 @@ service cloud.firestore {
         // Participant maps cannot be iterated here: the assistant bounds what it loads instead
         // (functions/src/assistant/context.ts field mask + byte budget).
         && isListMax(d.get('participants', []), 100)
-        && d.source in ['manual', 'ai_chat', 'whatsapp', 'google', 'device']
+        && d.source in ['manual', 'ai_chat', 'whatsapp', 'google', 'device', 'outlook']
         && (d.get('confidence', null) == null || isIntInRange(d.confidence, 0, 100))
         && isLanguage(d.get('language', 'en'))
         && isStringListMax(d.get('preparationTips', []), 20, 6000)
@@ -181,6 +212,10 @@ service cloud.firestore {
         && isNullableStringMax(d.get('notes', null), 10000)
         && d.status in ['scheduled', 'cancelled']
         && isValidExternal(d.get('external', {}))
+        // Recurring meetings (§16); stored sparsely: absent on one-offs and old documents.
+        && isValidRecurrence(d.get('recurrence', null))
+        && isValidRecurrenceOverrides(d.get('recurrenceOverrides', null))
+        && (d.get('seriesId', null) == null || isDocId(d.seriesId))
         && isUtcIso(d.createdAt)
         && isUtcIso(d.updatedAt)
         && isNullableUtcIso(d.get('deletedAt', null));
