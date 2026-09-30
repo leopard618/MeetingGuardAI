@@ -1,9 +1,10 @@
 /**
  * Section heading above cards / list groups (owner: shell / Foundation; docs/DESIGN_SYSTEM.md
  * §5): titleS onSurfaceVariant, sentence case (never UPPERCASE), mt 24 / mb 8, optional trailing
- * text action ("See all") with a 44dp touch target via hitSlop.
+ * text action ("See all") with a 44dp touch target via hitSlop, or a plain non-pressable
+ * `trailing` node (count label, Badge).
  */
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { pressedOpacity, spacing, typography, useAppTheme } from '../../theme';
@@ -16,17 +17,20 @@ export interface SectionHeaderAction {
 export interface SectionHeaderProps {
   title: string;
   action?: SectionHeaderAction;
+  /** Plain (non-pressable) trailing node — e.g. a count label or Badge. */
+  trailing?: ReactNode;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-export function SectionHeader({ title, action, style, testID }: SectionHeaderProps): ReactElement {
+export function SectionHeader({ title, action, trailing, style, testID }: SectionHeaderProps): ReactElement {
   const { colors } = useAppTheme();
   return (
     <View style={[styles.row, style]} testID={testID}>
       <Text style={[styles.title, { color: colors.onSurfaceVariant }]} accessibilityRole="header">
         {title}
       </Text>
+      {trailing ?? null}
       {action ? (
         <Pressable
           onPress={action.onPress}

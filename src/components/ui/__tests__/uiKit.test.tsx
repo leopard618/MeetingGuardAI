@@ -137,6 +137,12 @@ describe('SectionHeader', () => {
     });
     expect(onPress).toHaveBeenCalledTimes(1);
   });
+
+  it('renders a plain trailing node', async () => {
+    await renderKit(<SectionHeader title="Today" trailing={<Text>4 meetings</Text>} testID="header-trailing" />);
+    expect(screen.getByRole('header', { name: 'Today' })).toBeTruthy();
+    expect(screen.getByText('4 meetings')).toBeTruthy();
+  });
 });
 
 describe('ListGroup / ListRow', () => {
@@ -177,6 +183,17 @@ describe('ListGroup / ListRow', () => {
     await renderKit(<ListRow title="Active" selected testID="row-tinted" />);
     expect(backgroundOf('row-tinted')).toBe(lightColors.surfaceContainerHigh);
   });
+
+  it('renders destructive rows with the error title color', async () => {
+    const onPress = jest.fn();
+    await renderKit(<ListRow icon="trash-can-outline" title="Delete account" tone="destructive" onPress={onPress} testID="row-destructive" />);
+    const title = StyleSheet.flatten(screen.getByText('Delete account').props.style) as { color?: string };
+    expect(title.color).toBe(lightColors.error);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('row-destructive'));
+    });
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('EmptyState / ErrorState / LoadingState / Skeleton', () => {
@@ -201,6 +218,15 @@ describe('EmptyState / ErrorState / LoadingState / Skeleton', () => {
       fireEvent.press(screen.getByText('Try again'));
     });
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables Retry while loading', async () => {
+    const onRetry = jest.fn();
+    await renderKit(<ErrorState body="Something failed." onRetry={onRetry} loading testID="error-loading" />);
+    await act(async () => {
+      fireEvent.press(screen.getByText('Try again'));
+    });
+    expect(onRetry).not.toHaveBeenCalled();
   });
 
   it('renders the loading spinner and the skeleton block', async () => {
@@ -237,7 +263,8 @@ describe('Badge', () => {
 describe('Banner', () => {
   it('announces itself and fires the action', async () => {
     const onPress = jest.fn();
-    await renderKit(<Banner tone="warning" text="You are offline." action={{ label: 'Sync', onPress }} testID="banner" />);
+    await renderKit(<Banner tone="warning" title="Offline" text="You are offline." action={{ label: 'Sync', onPress }} testID="banner" />);
+    expect(screen.getByText('Offline')).toBeTruthy();
     const banner = screen.getByTestId('banner');
     expect(banner.props.accessibilityRole).toBe('alert');
     expect(screen.getByText('You are offline.')).toBeTruthy();

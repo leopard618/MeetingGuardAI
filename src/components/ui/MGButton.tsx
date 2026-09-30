@@ -6,6 +6,11 @@
  * Variants: filled (the one primary action), tonal (secondary emphasis), outline, ghost (low
  * emphasis / dialog actions), destructive (ghost-style red text; confirmation stays with the
  * caller).
+ *
+ * Known Paper limitation: Paper's Button hard-codes `accessibilityState={{ disabled }}` on its
+ * touchable, so a custom `accessibilityState` (e.g. `busy`) passed here never reaches the node.
+ * Where a test or screen reader needs `busy`/other states, keep a bespoke Pressable styled to
+ * this spec instead (LandingScreen sign-in, pricing buy buttons, confirmation modal footer).
  */
 import type { ComponentProps, ReactElement } from 'react';
 import { StyleSheet } from 'react-native';

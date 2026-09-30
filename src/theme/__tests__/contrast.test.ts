@@ -88,6 +88,10 @@ describe.each(['light', 'dark'] as const)('%s scheme tokens', (scheme) => {
       expect(contrastRatio(color, colors.background)).toBeGreaterThanOrEqual(AA_GRAPHICS);
     }
   });
+
+  it('keeps chart[0] >= 3:1 on surfaceVariant (LoadByDay bar fill on its track, §7)', () => {
+    expect(contrastRatio(colors.chart[0], colors.surfaceVariant)).toBeGreaterThanOrEqual(AA_GRAPHICS);
+  });
 });
 
 describe('mode-invariant alert overlay identities', () => {

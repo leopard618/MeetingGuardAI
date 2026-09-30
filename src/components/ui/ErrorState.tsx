@@ -16,11 +16,13 @@ export interface ErrorStateProps {
   body: string;
   title?: string;
   onRetry: () => void;
+  /** While true the Retry button shows Paper's spinner and is disabled (guards re-entry). */
+  loading?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-export function ErrorState({ body, title, onRetry, style, testID }: ErrorStateProps): ReactElement {
+export function ErrorState({ body, title, onRetry, loading = false, style, testID }: ErrorStateProps): ReactElement {
   const { colors } = useAppTheme();
   const t = useT();
   return (
@@ -36,7 +38,13 @@ export function ErrorState({ body, title, onRetry, style, testID }: ErrorStatePr
       </View>
       {title ? <Text style={[styles.title, { color: colors.onSurface }]}>{title}</Text> : null}
       <Text style={[styles.body, { color: colors.onSurfaceVariant }, !title && styles.bodyAlone]}>{body}</Text>
-      <MGButton onPress={onRetry} style={styles.retry} testID={testID ? `${testID}-retry` : 'error-state-retry'}>
+      <MGButton
+        onPress={onRetry}
+        loading={loading}
+        disabled={loading}
+        style={styles.retry}
+        testID={testID ? `${testID}-retry` : 'error-state-retry'}
+      >
         {t('common:actions.retry')}
       </MGButton>
     </View>

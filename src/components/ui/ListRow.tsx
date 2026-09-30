@@ -3,6 +3,7 @@
  * (72 with supporting text), leading 24dp MCI icon in onSurfaceVariant, title titleM, supporting
  * bodyM, trailing node or chevron. Selected rows tint surfaceContainerHigh; disabled rows use
  * disabledText (never opacity on the whole row). Ripple onSurface@8%.
+ * tone="destructive" (delete-account-style rows): error title + icon, error@8% ripple.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement, ReactNode } from 'react';
@@ -12,11 +13,15 @@ import { componentMetrics, pressedOpacity, spacing, stateAlpha, typography, useA
 
 export type ListRowIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
+export type ListRowTone = 'default' | 'destructive';
+
 export interface ListRowProps extends AccessibilityProps {
   /** MaterialCommunityIcons name, 24dp, onSurfaceVariant. */
   icon?: ListRowIconName;
   title: string;
   supporting?: string;
+  /** "destructive" renders the title and icon in `error` with an error-tinted ripple. */
+  tone?: ListRowTone;
   /** A custom trailing node (Switch, Badge, value text) or "chevron" for navigation rows. */
   trailing?: ReactNode | 'chevron';
   onPress?: () => void;
@@ -30,6 +35,7 @@ export function ListRow({
   icon,
   title,
   supporting,
+  tone = 'default',
   trailing,
   onPress,
   selected = false,
@@ -39,9 +45,11 @@ export function ListRow({
   ...accessibility
 }: ListRowProps): ReactElement {
   const { colors } = useAppTheme();
-  const titleColor = disabled ? colors.disabledText : colors.onSurface;
+  const destructive = tone === 'destructive';
+  const titleColor = disabled ? colors.disabledText : destructive ? colors.error : colors.onSurface;
   const supportingColor = disabled ? colors.disabledText : colors.onSurfaceVariant;
-  const iconColor = disabled ? colors.disabledText : colors.onSurfaceVariant;
+  const iconColor = disabled ? colors.disabledText : destructive ? colors.error : colors.onSurfaceVariant;
+  const rippleColor = withAlpha(destructive ? colors.error : colors.onSurface, stateAlpha.rippleOnRow);
 
   const content = (
     <>
@@ -77,7 +85,7 @@ export function ListRow({
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnRow) }}
+      android_ripple={{ color: rippleColor }}
       style={({ pressed }) => [...rowStyle, pressed && Platform.OS !== 'android' && styles.pressed]}
       testID={testID}
       {...accessibility}

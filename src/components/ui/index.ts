@@ -14,7 +14,7 @@ export { Card, type CardAccent, type CardProps } from './Card';
 export { EmptyState, type EmptyStateAction, type EmptyStateProps } from './EmptyState';
 export { ErrorState, type ErrorStateProps } from './ErrorState';
 export { ListGroup, type ListGroupProps } from './ListGroup';
-export { ListRow, type ListRowIconName, type ListRowProps } from './ListRow';
+export { ListRow, type ListRowIconName, type ListRowProps, type ListRowTone } from './ListRow';
 export { LoadingState, type LoadingStateProps } from './LoadingState';
 export { MGButton, type MGButtonProps, type MGButtonSize, type MGButtonVariant } from './MGButton';
 export { SectionHeader, type SectionHeaderAction, type SectionHeaderProps } from './SectionHeader';
