@@ -69,6 +69,21 @@ describe('parseEnv', () => {
     expect(env.isConfigured).toBe(true);
   });
 
+  it('reads the optional RevenueCat Android key and defaults it to null', () => {
+    expect(parseEnv(COMPLETE, 'android').revenueCat).toEqual({ androidKey: null });
+    const env = parseEnv({ ...COMPLETE, EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: 'goog_AbCdEfGhIjKlMnOp01' }, 'android');
+    expect(env.revenueCat.androidKey).toBe('goog_AbCdEfGhIjKlMnOp01');
+    expect(env.isConfigured).toBe(true);
+  });
+
+  it('rejects a malformed RevenueCat key without blocking the app (optional key)', () => {
+    // A secret API key ("sk_...") or garbage must never be accepted as the public SDK key.
+    const env = parseEnv({ ...COMPLETE, EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: 'sk_not_a_public_key' }, 'android');
+    expect(env.revenueCat.androidKey).toBeNull();
+    expect(env.invalidKeys).toContain('EXPO_PUBLIC_REVENUECAT_ANDROID_KEY');
+    expect(env.isConfigured).toBe(true);
+  });
+
   it('requires the iOS client ID only on iOS', () => {
     const withoutIos = { ...COMPLETE, EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: undefined };
     expect(parseEnv(withoutIos, 'android').isConfigured).toBe(true);

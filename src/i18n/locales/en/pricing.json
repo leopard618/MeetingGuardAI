@@ -48,5 +48,27 @@
     "perDay_other": "{{count}} requests per day",
     "unknownToday": "Today's count appears after you use the assistant."
   },
+  "store": {
+    "loading": "Loading prices from Google Play…",
+    "loadErrorTitle": "Prices unavailable",
+    "loadError": "We couldn't load the prices from Google Play, so purchases are paused for now. The prices below are for reference only.",
+    "retry": "Retry",
+    "retryA11y": "Retry loading the Google Play prices",
+    "buy": "Get {{plan}}",
+    "buyA11y": "Buy the {{plan}} plan for {{price}} per {{period}}",
+    "trial": "3-day free trial",
+    "purchaseFailed": "The purchase didn't go through",
+    "activatingTitle": "Almost there",
+    "activating": "Payment received. Activating your plan…",
+    "activatingSlow": "This is taking longer than usual. Your plan will activate on its own in a few minutes; you can leave this screen.",
+    "activated": "Your {{plan}} plan is now active.",
+    "restore": "Restore purchases",
+    "restoreA11y": "Restore purchases made with this Google account",
+    "restored": "Purchase found. Updating your plan…",
+    "nothingToRestore": "No previous purchases were found for this account.",
+    "restoreFailed": "Purchases couldn't be restored",
+    "manage": "Manage subscription",
+    "manageA11y": "Open your subscription in Google Play"
+  },
   "footer": "Prices are in US dollars. Before any purchase, the App Store or Google Play will show the final price in your currency, including taxes."
 }

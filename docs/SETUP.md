@@ -626,3 +626,87 @@ Both values are public identifiers (like the Google client IDs): they may appear
       account and "Connected".
 - [ ] "Sync now" reports an Outlook line; an event created in Outlook on the web appears in
       MeetingGuard within one sync, and a meeting created in MeetingGuard appears in Outlook.
+
+---
+
+## 11. RevenueCat + Google Play subscriptions (in-app purchases)
+
+Optional: paid plans (docs/ARCHITECTURE.md §20). Without `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`
+the Plans screen keeps its catalog-only "Subscriptions coming soon" view - the app builds and
+runs fine without this section. RevenueCat's free tier covers this app until real revenue.
+
+Two secrets are involved and they must never swap places:
+
+- the **public SDK key** (`goog_...`) goes in the app env (`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`);
+- the **webhook Authorization value** (a random string you invent) goes ONLY in the Functions
+  secret `REVENUECAT_WEBHOOK_AUTH`. The RevenueCat **secret** API key (`sk_...`) is used nowhere.
+
+### 11.1 Play Console: the four subscriptions
+
+Play Console -> your app -> Monetize -> Products -> Subscriptions. The app must already have at
+least one build uploaded to a Play track (internal testing is enough) before products can be
+created. Create these EXACT product ids (the app and functions match on them):
+
+| Product id | Base plan (id suggestion) | Price | Offer |
+|---|---|---|---|
+| `pro_monthly` | monthly, auto-renewing (`p1m`) | $7.99 / month | 3-day free trial |
+| `pro_yearly` | yearly, auto-renewing (`p1y`) | $71.91 / year | 3-day free trial |
+| `premium_monthly` | monthly, auto-renewing (`p1m`) | $14.99 / month | 3-day free trial |
+| `premium_yearly` | yearly, auto-renewing (`p1y`) | $134.91 / year | 3-day free trial |
+
+For each product: add one base plan, then an **offer** on that base plan with a single "free
+trial" phase of 3 days (eligibility: new customer acquisition). Activate products, base plans
+and offers. Prices are the catalog values from `src/services/billing.ts`; Google converts them
+to local currencies. The trial copy in the app ("3-day free trial") only appears when the store
+actually reports the trial, so a missing offer is visible immediately.
+
+### 11.2 RevenueCat project
+
+1. <https://app.revenuecat.com> -> create a project (e.g. "MeetingGuard") -> add an **Android
+   (Play Store)** app with package `com.meetingguard.ai`.
+2. Connect Play: RevenueCat needs a Google Cloud **service account** with the Play Android
+   Publisher + Pub/Sub roles (follow RevenueCat's "Google Play service credentials" wizard,
+   including the real-time developer notifications Pub/Sub topic). Wait for the green check -
+   credentials can take ~half an hour to propagate.
+3. **Entitlements**: create exactly `pro` and `premium`. Attach `pro_monthly` + `pro_yearly` to
+   `pro`, and `premium_monthly` + `premium_yearly` to `premium` (the products appear after the
+   Play import in "Products").
+4. **Offering**: create/keep the offering marked **current** (id `default` is fine) with four
+   packages pointing at the four products. Package identifiers do not matter to the app (it
+   matches by product id), the standard `$rc_monthly`/`$rc_annual` plus two customs work.
+
+### 11.3 Webhook (writes entitlements/{uid})
+
+1. Invent a long random string, e.g. `openssl rand -base64 32`, and set it as the secret:
+   `firebase functions:secrets:set REVENUECAT_WEBHOOK_AUTH` (paste the value when prompted).
+2. Deploy functions (`firebase deploy --only functions`). Copy the `revenuecatWebhook` URL from
+   the deploy output (or Firebase console -> Functions; a v2 URL looks like
+   `https://revenuecatwebhook-....a.run.app`).
+3. RevenueCat -> Project -> Integrations -> **Webhooks**: URL = that function URL,
+   "Authorization header value" = the SAME random string. Leave "send all events" on.
+4. Press "Send test event": the function logs `revenuecat.ignored` with reason `test_event`
+   and RevenueCat shows 200. A 401 means the header value and the secret differ.
+
+The webhook writes `entitlements/{uid}` (uid = `app_user_id` = Firebase uid) and an idempotency
+marker in `revenuecatEvents/{event.id}`. Firestore rules stay untouched: clients can only READ
+their own entitlement; the Admin SDK bypasses the rules.
+
+### 11.4 App build
+
+1. `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` = RevenueCat -> Project -> API keys -> Public SDK key
+   for the Play app (`goog_...`), in `.env` and in the EAS environments.
+2. The SDK (`react-native-purchases`) is a NATIVE module: purchases need a new dev/store build
+   with a bumped `version` (docs/ARCHITECTURE.md §15 - never OTA). Expo Go stays catalog-only.
+
+### 11.5 Check
+
+- [ ] Plans screen (configured build): prices come from Google Play (local currency), paid cards
+      show "Get Pro"/"Get Premium" and the 3-day free trial line; no "coming soon" banner.
+- [ ] With a **license tester** account (Play Console -> Settings -> License testing): buying
+      Pro completes, the screen shows "Activating your plan…", and within seconds
+      `entitlements/{uid}` appears in Firestore (`source: "revenuecat"`) and the app shows
+      "Current plan" on Pro. The assistant quota rises to the Pro limit.
+- [ ] "Restore purchases" on a reinstalled build finds the subscription; on a fresh account it
+      says no purchases were found.
+- [ ] Cancelling in Play -> the webhook logs a CANCELLATION event and the entitlement stays
+      `active` until the expiry date, then EXPIRATION flips it to `expired` (plan back to Free).

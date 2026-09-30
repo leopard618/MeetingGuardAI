@@ -1,18 +1,25 @@
 /**
- * Plan catalog (subscriptions) - purchases are DISABLED in this release.
+ * Plan catalog (subscriptions) - owner: billing; docs/ARCHITECTURE.md §20.
  *
- * In-app subscriptions will be built later with a maintained store SDK and server-side
- * entitlement validation. Until then:
+ * Purchases run through RevenueCat + Google Play (src/services/purchases) and are enabled per
+ * build by EXPO_PUBLIC_REVENUECAT_ANDROID_KEY. Whether or not purchases are available:
  *   - the user's plan is the server-owned entitlement (entitlements/{uid}, read-only in the app;
- *     a missing document means Free),
- *   - no purchase flow is exposed and there are NO external payment links anywhere in the app.
+ *     a missing document means Free) - the RevenueCat webhook and the admin callable are the
+ *     only writers;
+ *   - there are NO external payment links anywhere in the app (only Google Play's own flow).
  *
- * This module is the single source of truth for the plan catalog shown in the UI.
+ * This module is the single source of truth for the CATALOG shown in the UI (tiers, USD
+ * reference prices, quotas). With purchases configured, the Plans screen shows the localized
+ * store prices from the current RevenueCat offering instead; the catalog stays the fallback
+ * for the unconfigured build and for offering-load failures.
  * Contract pricing: Free (5 AI requests/day), Pro $7.99/month, Premium $14.99/month,
  * annual plans = 25% discount on 12 x monthly (Pro $71.91/yr, Premium $134.91/yr).
+ * Play product ids: PLAY_PRODUCT_IDS in src/core/contracts.ts (pro_monthly, pro_yearly,
+ * premium_monthly, premium_yearly - each with a 3-day free trial configured in Play Console).
  * Daily AI quotas are the server-enforced ones (core/aiContract PLAN_DAILY_AI_LIMITS).
  */
 import { PLAN_DAILY_AI_LIMITS } from '../core/aiContract';
+import { purchasesService } from './purchases';
 
 export type PlanTier = 'free' | 'pro' | 'premium';
 export type BillingCycle = 'monthly' | 'yearly';
@@ -34,8 +41,13 @@ export interface Plan {
   popular: boolean;
 }
 
-/** Purchases are switched off until the new billing stack ships. */
-export const PURCHASES_AVAILABLE = false;
+/**
+ * True when this build can sell subscriptions: EXPO_PUBLIC_REVENUECAT_ANDROID_KEY is set AND the
+ * react-native-purchases native module is present (Android store/dev builds). Stable for the
+ * lifetime of the process. False => the Plans screen shows exactly the old catalog-only
+ * "subscriptions coming soon" behavior.
+ */
+export const PURCHASES_AVAILABLE: boolean = purchasesService.isConfigured();
 
 export const FREE_AI_REQUESTS_PER_DAY = PLAN_DAILY_AI_LIMITS.free;
 export const ANNUAL_DISCOUNT_PERCENT = 25;

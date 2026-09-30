@@ -37,7 +37,8 @@ export type EnvKey =
   | 'EXPO_PUBLIC_USE_EMULATORS'
   | 'EXPO_PUBLIC_EMULATOR_HOST'
   | 'EXPO_PUBLIC_MSAL_CLIENT_ID'
-  | 'EXPO_PUBLIC_MSAL_TENANT';
+  | 'EXPO_PUBLIC_MSAL_TENANT'
+  | 'EXPO_PUBLIC_REVENUECAT_ANDROID_KEY';
 
 export type AppPlatform = 'ios' | 'android' | 'web' | 'windows' | 'macos' | 'native';
 
@@ -74,6 +75,13 @@ export interface AppEnv {
     clientId: string | null;
     /** 'common' | 'organizations' | 'consumers' | a tenant GUID/domain. Default 'common'. */
     tenant: string;
+  };
+  /**
+   * RevenueCat public Android SDK key ("goog_..."). null disables in-app purchases entirely:
+   * the Pricing screen keeps its catalog-only "coming soon" behavior (§20).
+   */
+  revenueCat: {
+    androidKey: string | null;
   };
   /** development | preview | production (free text, defaults to "development"). */
   appEnv: string;
@@ -120,6 +128,8 @@ const validators: Record<EnvKey, z.ZodType<string>> = {
   EXPO_PUBLIC_MSAL_CLIENT_ID: z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/),
   // 'common' | 'organizations' | 'consumers' | tenant GUID | verified domain.
   EXPO_PUBLIC_MSAL_TENANT: z.string().regex(/^[\w.-]+$/),
+  // RevenueCat public Android SDK key (dashboard -> Project -> API keys). Public by design.
+  EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: z.string().regex(/^goog_[A-Za-z0-9]{10,}$/),
 };
 
 /** Keys the app cannot run without, per platform. */
@@ -188,6 +198,9 @@ export function parseEnv(raw: Partial<RawEnv>, platform: AppPlatform): AppEnv {
       clientId: values.EXPO_PUBLIC_MSAL_CLIENT_ID ?? null,
       tenant: values.EXPO_PUBLIC_MSAL_TENANT ?? DEFAULT_MSAL_TENANT,
     },
+    revenueCat: {
+      androidKey: values.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY ?? null,
+    },
     appEnv: values.EXPO_PUBLIC_APP_ENV ?? 'development',
     functionsRegion: values.EXPO_PUBLIC_FUNCTIONS_REGION ?? DEFAULT_FUNCTIONS_REGION,
     useEmulators: useEmulatorsRaw === '1' || useEmulatorsRaw === 'true',
@@ -216,6 +229,7 @@ export function readRawEnv(): RawEnv {
     EXPO_PUBLIC_EMULATOR_HOST: process.env.EXPO_PUBLIC_EMULATOR_HOST,
     EXPO_PUBLIC_MSAL_CLIENT_ID: process.env.EXPO_PUBLIC_MSAL_CLIENT_ID,
     EXPO_PUBLIC_MSAL_TENANT: process.env.EXPO_PUBLIC_MSAL_TENANT,
+    EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY,
   };
 }
 
