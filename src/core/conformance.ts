@@ -33,13 +33,16 @@ import type {
   DataService,
   DeviceCalendarService,
   FormatApi,
+  FullScreenAlarmModule,
   GoogleCalendarService,
   I18nApi,
   MeetingRange,
+  MeetingRecurrenceOps,
   MeetingRepository,
   MigrationService,
   NavigationApi,
   NotesRepository,
+  OutlookCalendarService,
   PreferencesRepository,
   SessionManager,
   SyncState,
@@ -85,6 +88,7 @@ export type DomainSchemaConformance = [
 // ---- data ------------------------------------------------------------------------------------
 export type DataConformance = [
   Assert<Extends<typeof DataModule.meetingRepository, MeetingRepository>>,
+  Assert<Extends<typeof DataModule.meetingRepository, MeetingRecurrenceOps>>,
   Assert<Extends<typeof DataModule.preferencesRepository, PreferencesRepository>>,
   Assert<Extends<typeof DataModule.notesRepository, NotesRepository>>,
   Assert<Extends<typeof DataModule.userRepository, UserRepository>>,
@@ -111,6 +115,7 @@ export type AuthConformance = [
 // ---- calendar --------------------------------------------------------------------------------
 export type CalendarConformance = [
   Assert<Extends<typeof CalendarModule.googleCalendarService, GoogleCalendarService>>,
+  Assert<Extends<typeof CalendarModule.outlookCalendarService, OutlookCalendarService>>,
   Assert<Extends<typeof CalendarModule.deviceCalendarService, DeviceCalendarService>>,
   Assert<Extends<typeof CalendarModule.calendarSyncEngine, CalendarSyncEngine>>,
   Assert<Extends<typeof CalendarModule.useCalendarStatus, () => CalendarStatus>>,
@@ -120,6 +125,7 @@ export type CalendarConformance = [
 export type AlertsConformance = [
   Assert<Extends<typeof AlertsModule.alertEngine, AlertEngine>>,
   Assert<Extends<typeof AlertsModule.computeAlertPlan, ComputeAlertPlan>>,
+  Assert<Extends<typeof AlertsModule.fullScreenAlarm, FullScreenAlarmModule>>,
   Assert<Extends<typeof AlertsModule.usePendingAlerts, () => UsePendingAlertsResult>>,
   Assert<Extends<typeof AlertTasksModule.registerBackgroundTasks, BackgroundTasksModule['registerBackgroundTasks']>>,
   Assert<Extends<typeof AlertTasksModule.unregisterBackgroundTasks, BackgroundTasksModule['unregisterBackgroundTasks']>>,

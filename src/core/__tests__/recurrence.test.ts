@@ -329,6 +329,23 @@ describe('Google RRULE mapping', () => {
     expect(toGoogleRecurrence(meeting)[0]).toBe('RRULE:FREQ=WEEKLY;UNTIL=20260630T130000Z');
   });
 
+  it('writes DATE values (UNTIL + EXDATE) for all-day series, in the meeting timezone', () => {
+    // 2026-07-01T03:00Z is still 2026-06-30 in New York: the local date keeps UNTIL inclusive.
+    const meeting = series({
+      allDay: true,
+      recurrence: rule({ freq: 'daily', until: '2026-07-01T03:00:00.000Z' }),
+      recurrenceOverrides: { '2026-01-19': { ...CANCELLED_OVERRIDE } },
+    });
+    expect(toGoogleRecurrence(meeting)).toEqual([
+      'RRULE:FREQ=DAILY;UNTIL=20260630',
+      'EXDATE;VALUE=DATE:20260119',
+    ]);
+    // The parser accepts its own all-day output (UNTIL becomes the inclusive end of day in UTC).
+    const parsed = parseGoogleRecurrence(toGoogleRecurrence(meeting));
+    expect(parsed?.rule.until).toBe('2026-06-30T23:59:59.000Z');
+    expect(parsed?.cancelledDateKeys).toEqual(['2026-01-19']);
+  });
+
   it('parses its own output (round trip)', () => {
     const original = rule({ freq: 'weekly', interval: 2, byWeekday: ['MO', 'WE'], count: 10 });
     const meeting = series({ recurrence: original, recurrenceOverrides: { '2026-01-19': { ...CANCELLED_OVERRIDE } } });

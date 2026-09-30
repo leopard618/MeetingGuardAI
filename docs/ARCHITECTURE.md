@@ -464,8 +464,10 @@ and `types.ts`. One stored document per series (the **master**); occurrences are
   parser handles 3- and 4-part ids, so the reconcile diff needs no change). One-off meetings keep
   their existing 3-part ids; snooze stays one per meeting.
 - **Google mapping** (`toGoogleRecurrence` / `parseGoogleRecurrence`): masters push
-  `event.recurrence` = one RRULE line (v1 subset) plus one `EXDATE;TZID=<meeting tz>` line per
-  CANCELLED override. Time-modified overrides are NOT pushed (documented limitation; the
+  `event.recurrence` = one RRULE line (v1 subset) plus one EXDATE line per CANCELLED override
+  (`EXDATE;TZID=<meeting tz>:<local date-time>` for timed series; all-day series use DATE values,
+  `EXDATE;VALUE=DATE:<yyyymmdd>` and a date-only UNTIL, as RFC 5545 / Google require for all-day
+  events). Time-modified overrides are NOT pushed (documented limitation; the
   occurrence keeps `overridden: true` locally). Import keeps `singleEvents=true`, with one rule:
   instances whose `recurringEventId` decodes via `meetingIdFromGoogleEventId` (an `mgev…` id)
   are OUR pushed series - skip importing them (the local master already expands them).
@@ -477,8 +479,12 @@ and `types.ts`. One stored document per series (the **master**); occurrences are
 ## 17. Outlook calendar (Microsoft Graph)
 
 Contract: `OutlookCalendarService` + `MICROSOFT_OAUTH` in `src/core/contracts.ts`; implementation
-in `src/services/calendar/outlook/` (stubbed until the outlook pass lands: `isConfigured()` false
-hides the whole UI). The Microsoft account is independent of the app's Google/Firebase identity.
+in `src/services/calendar/outlook/` (api/mapping/sync/service mirror the Google provider; without
+`EXPO_PUBLIC_MSAL_CLIENT_ID`, `isConfigured()` is false, the whole UI is hidden and the engine
+does not register the provider). The Microsoft account is independent of the app's
+Google/Firebase identity. v1 limitations (documented): MeetingGuard recurrence rules and meetings
+imported from Google/device calendars are never pushed to Graph, and a Teams link is only created
+with the event (Graph cannot reliably turn an existing event into a Teams meeting here).
 
 - **Auth:** expo-auth-session PKCE against
   `https://login.microsoftonline.com/{EXPO_PUBLIC_MSAL_TENANT||'common'}/v2.0`, scopes `openid
@@ -505,9 +511,10 @@ hides the whole UI). The Microsoft account is independent of the app's Google/Fi
 ## 18. Full-screen alarm (Android)
 
 Contract: `FullScreenAlarmModule` in `src/core/contracts.ts`; glue `src/services/alerts/fsi.ts`
-(stub: `isAvailable()` false); native side: local Expo module `modules/mg-fullscreen-alarm`
-(Kotlin + config plugin adding `USE_FULL_SCREEN_INTENT` and its receivers; a store build - never
-an OTA update - ships it).
+(IMPLEMENTED: wraps the native module, `isAvailable()` false on iOS/web or in binaries without
+the module, and every method is then a safe no-op); native side: local Expo module
+`modules/mg-fullscreen-alarm` (Kotlin + config plugin adding `USE_FULL_SCREEN_INTENT` and its
+receivers; a store build - never an OTA update - ships it, hence version 1.2.0).
 
 - **Native contract:** `setAlarms(alarms)` is DECLARATIVE (replaces the whole pending set);
   `clearAlarms(ids?)`; `getStatus() -> { exactAllowed, fullScreenAllowed, notificationsAllowed }`

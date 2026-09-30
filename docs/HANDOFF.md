@@ -1,4 +1,4 @@
-# Handoff: MeetingGuard AI v1.1.0 (stabilization)
+# Handoff: MeetingGuard AI v1.2.0 (stabilization)
 
 This is the starting point for the developer who owns the repository. It covers:
 
@@ -6,9 +6,11 @@ This is the starting point for the developer who owns the repository. It covers:
 - what is still open, and who must do it
 - which decisions the client must make
 
-State at the time of writing (2026-09-28):
+State at the time of writing (2026-09-29):
 
-- Branch `stabilization`, version 1.1.0, not released.
+- Branch `stabilization`, version 1.2.0, not released. Phase 1 is code-complete: recurring
+  meetings, Outlook/Microsoft 365 sync and Android full-screen alarms are implemented (each with
+  the v1 caveats in §4); WhatsApp stays out of scope.
 - Every automated check passes.
 - **Nothing has been run on a real device.**
 - Google Play still serves v1.0.9 (versionCode 20).
@@ -17,7 +19,7 @@ State at the time of writing (2026-09-28):
 
 ## 0. Where the code is
 
-- `stabilization` has 45 commits on top of `main` (`3308b9d`) at the time of writing
+- `stabilization` has 57 commits on top of `main` (`3308b9d`) at the time of writing
   (`git log --oneline main..stabilization` lists them). **Nothing is pushed.**
 - The commits are in a **separate git directory**,
   `C:/Users/Leopard/git-data/MeetingGuardAI-work/.git`, with the work tree
@@ -137,7 +139,7 @@ State at the time of writing (2026-09-28):
 | Production hosting, SSL, secure env | Ready to deploy on Firebase (HTTPS only; the OpenAI key in Secret Manager; only public values in the app). Not deployed yet: it needs the client's project access. |
 | Monitoring (errors, health) | Sentry is wired in; it needs `EXPO_PUBLIC_SENTRY_DSN`. The Cloud Monitoring and budget alerts are described in `docs/DEPLOYMENT.md` §8. There is no separate health endpoint (the backend is two callables). |
 | Backups | Commands are ready (`docs/DEPLOYMENT.md` §7); they must be turned on in the project. |
-| QA: calendars, alerts, EN/ES | Automated: 98 app suites (968 tests), 11 function suites (90 tests), and the rules tests. The device plan is written (`docs/TESTING.md` Part B) but **not run**. Outlook is not built. |
+| QA: calendars, alerts, EN/ES | Automated: 116 app suites (1221 tests), 11 function suites (101 tests), and the rules tests. The device plan is written (`docs/TESTING.md` Part B, now incl. T14 full-screen alarms and T15 Outlook) but **not run**. |
 | Test builds: Play internal testing, TestFlight | Android: ready once `docs/SETUP.md` is done. iOS: blocked (Apple account, Sign in with Apple). |
 | Deployment and rollback notes | `docs/DEPLOYMENT.md`, "Release and rollback in brief" (the 1-2 page summary at the top); the numbered sections are the full runbook. |
 
@@ -158,13 +160,13 @@ Do these in order. **You** = the developer, **Client** = the product owner.
 | 7 | Fill `LEGAL_ENTITY`, `legal:jurisdiction` and the support email. Publish the privacy policy and terms at a public URL (only the delete page exists in `public/`). | You | `docs/DEPLOYMENT.md` §4 |
 | 8 | Submit the Google OAuth verification for `calendar.events`. Start early: it takes days to weeks. | You (form, video), Client (domain) | `docs/SETUP.md` §4.4 |
 | 9 | EAS environment variables, versionCode 20, keystore check, Play service account. | You | `docs/SETUP.md` §5 |
-| 10 | Set the OpenAI secret, create the params file, deploy the functions, rules, indexes and the delete page. Set the OpenAI and Google Cloud budgets. | You | `docs/SETUP.md` §6 |
+| 10 | Set the OpenAI secret, create the params file, deploy the functions, rules, indexes and the delete page. Set the OpenAI and Google Cloud budgets. **The Firestore rules and the assistant changed in phase 1 (recurrence + Outlook fields, recurrence tools): redeploy both even if an older deploy exists — until the rules deploy, recurring-meeting and Outlook writes are rejected by the live rules and wait in the outbox (everything else keeps working).** | You | `docs/SETUP.md` §6 |
 | 11 | Turn on Firestore PITR and daily backups, Sentry, and the monitoring alerts. | You | `docs/DEPLOYMENT.md` §7-8 |
-| 12 | Preview build. Run `docs/TESTING.md` T1-T11 and T13. Fix what fails. | You | `docs/TESTING.md` |
+| 12 | Preview build. Run `docs/TESTING.md` T1-T11 and T13-T15 (T14 full-screen alarms, T15 Outlook - T15 needs the Azure registration from §3). Fix what fails. | You | `docs/TESTING.md` |
 | 13 | Production build to internal testing. Run the upgrade test T12 on the fixture phones from step 2 (update them through the internal-testing link). | You | `docs/DEPLOYMENT.md` §3, `docs/TESTING.md` T12 |
-| 14 | Play Console App content: data safety, account deletion URL, app access, exact alarms. | You. The client confirms the answers. | `docs/DEPLOYMENT.md` §9 |
+| 14 | Play Console App content: data safety, account deletion URL, app access, exact alarms, and the full-screen-intent declaration (new in 1.2.0). | You. The client confirms the answers. | `docs/DEPLOYMENT.md` §9 |
 | 15 | Staged rollout to production, with monitoring. Only after the OAuth consent screen is In production and `calendar.events` is verified (or the client accepts the unverified screen and the 100-user cap in writing). | You. The client approves the release. | `docs/DEPLOYMENT.md` §3, §4 item 4, §8 |
-| 16 | When most users run 1.1.0: delete the Render service, the Supabase project and the Stripe webhooks and links. | You, after the client agrees | `docs/SETUP.md` §1.3 |
+| 16 | When most users run 1.2.0: delete the Render service, the Supabase project and the Stripe webhooks and links. | You, after the client agrees | `docs/SETUP.md` §1.3 |
 | 17 | Make the decisions in §3. | Client | §3 below |
 
 ---
@@ -176,7 +178,7 @@ Do these in order. **You** = the developer, **Client** = the product owner.
 | **WhatsApp bot** | (a) Provide a Meta-verified WhatsApp Business account and number, and pay for a webhook service. (b) Take it out of scope. | The WhatsApp creation channel. The app shows "coming soon". |
 | **iOS launch and Apple account** | Who owns the Apple Developer account, and when iOS should launch. | TestFlight and the App Store. iOS also needs Sign in with Apple, a 1024 px icon and the iOS OAuth client (`docs/SETUP.md` §8). |
 | **Billing stack** | (a) RevenueCat: one SDK for Play and the App Store, webhooks to our server, a revenue fee. (b) Custom: Play Billing + StoreKit + our own receipt checks and store notifications. Also: build a web app for Stripe (7-day trial) or drop Stripe. | Subscriptions and trials (Milestone 6). We recommend RevenueCat. |
-| **Outlook / Microsoft 365** | (a) Build a Microsoft Graph integration (Azure app registration, admin consent for some companies). (b) Take it out of scope. Outlook accounts that are added to the phone's calendar can already be imported through phone calendars. | Direct Outlook sync. |
+| **Outlook / Microsoft 365** | The Microsoft Graph integration is built (`docs/ARCHITECTURE.md` §17). Decide who owns the Azure tenant, create the app registration per `docs/SETUP.md` §10 and set `EXPO_PUBLIC_MSAL_CLIENT_ID` in the build. Until then the Outlook card is hidden and nothing changes for users. Company accounts may need admin consent. | Turning Outlook sync on. |
 | **AI model** | Confirm the model (the contract says GPT-4 Turbo; the server default is `gpt-5.4-mini`, and a change is a parameter plus a redeploy), a monthly OpenAI budget, and the daily limits. Free 5 is from the contract; pro 100 and premium 500 are our proposal. | Assistant cost and quality. |
 | **Legal entity for the privacy policy and terms** | Company legal name, registered address, contact email, governing law and courts, and a lawyer's review. | The store release, the OAuth verification and the Play data safety form. |
 | **Support email** | One address for users. | The delete-account page, the Play listing, the OAuth consent screen and the legal texts. |
@@ -187,14 +189,17 @@ Do these in order. **You** = the developer, **Client** = the product owner.
 
 ## 4. Known limitations
 
-These are true in v1.1.0. Some are platform limits, some are not built yet.
+These are true in v1.2.0. Some are platform limits, some are not built yet.
 
-- **No full-screen intent.**
-  - The MAX alert is full screen only while the app is open.
-  - When the phone is locked or the app is closed, MAX is a high-priority alarm notification. It
-    cannot be swiped away, and it plays the alarm sound on the alarm audio stream.
-  - `expo-notifications` 57 has no full-screen intent. Adding one needs a native module and a Play
-    declaration.
+- **Full-screen alarms are Android-only and need the module in the binary.**
+  - MAX alerts show over the lock screen through the local native module `mg-fullscreen-alarm`
+    (AlarmManager + a full-screen-intent notification), also when the app is closed, and pending
+    alarms are restored after a reboot.
+  - On Android 14+ the user can revoke the full-screen permission; the app then falls back to the
+    high-priority alarm notification (never lost, never doubled). Builds without the module (an OTA
+    onto an older binary, iOS) keep the plain expo-notifications path - which is why shipping this
+    needs the 1.2.0 store/APK build, never an OTA update.
+  - The Play release needs the Play Console full-screen-intent declaration (calendar/alarm app).
 - **Exact alarms need the user's permission.**
   - Android 12+ asks for "Alarms & reminders". On Android 14+ it is off by default for new installs.
   - Without it, Android may deliver alerts late under Doze.
@@ -210,9 +215,16 @@ These are true in v1.1.0. Some are platform limits, some are not built yet.
   - Alerts are scheduled up to 14 days ahead, with at most 60 pending (an iOS limit).
   - When more are needed, a "refill" reminder asks the user to open the app.
   - Background refresh runs at most about once an hour, when the OS allows it.
-- **Recurring meetings are not supported.** The app cannot create a repeating meeting. The assistant
-  proposes only the next one. Google recurring events are imported as single occurrences.
-- **Outlook is not implemented** (only through the phone-calendar import).
+- **Recurring meetings are v1 scope** (`docs/ARCHITECTURE.md` §16). Daily / weekly / monthly with an
+  interval and an end; the edit scopes are "this occurrence" and "the whole series" - there is no
+  "this and following" and no series split. Moving one occurrence is not pushed to Google, occurrence
+  edits and whole-series deletes made in Google web do not import back, and the phone-calendar export
+  writes at most the series' first occurrence.
+- **Outlook sync is off until it is configured** (`docs/SETUP.md` §10): it needs an Azure app
+  registration and `EXPO_PUBLIC_MSAL_CLIENT_ID`; the Outlook card is hidden without them. It syncs
+  the account's default calendar; recurring series and meetings that came from Google or the phone
+  calendars are never pushed to Outlook (and Google/device never receive Outlook-sourced meetings);
+  Teams links are create-only.
 - **Google Calendar** syncs the primary calendar only, from 30 days back to 180 days ahead.
 - **App Check is deferred** (`enforceAppCheck: false`). The callables are protected by Firebase Auth, a
   verified-account check, per-user quotas and a project-wide daily cap. `functions/README.md` says how
@@ -228,7 +240,7 @@ These are true in v1.1.0. Some are platform limits, some are not built yet.
   iPad landscape QA and iPad screenshots (`docs/SETUP.md` §8).
 - **Legal texts have placeholders** (`LEGAL_ENTITY`, `legal:jurisdiction`, the support email). They
   exist only inside the app, with no public URL.
-- **OTA reach.** OTA updates reach only builds from 1.1.0 on. A downloaded update runs from the next
+- **OTA reach.** OTA updates reach only builds from 1.2.0 on. A downloaded update runs from the next
   cold start.
 - **Small items:**
   - The sign-out prompt uses a generic "unsynced changes" text, without a count.
@@ -272,5 +284,6 @@ The order assumes the client chooses RevenueCat and iOS. Adjust it after the dec
 7. **iOS release:** Sign in with Apple, the 1024 px icon, TestFlight, then the App Store.
 8. **Final QA:** purchases with Play license testers and the App Store sandbox, the tier limits, and the
    performance targets (`docs/TESTING.md` T13).
-9. **Optional, after the decisions:** App Check, a native full-screen-intent module for MAX, Outlook,
-   the WhatsApp bot, and recurring meetings (the planned shape is in `docs/ARCHITECTURE.md` §14).
+9. **Optional, after the decisions:** App Check and the WhatsApp bot (out of scope unless the client
+   provides the Meta business account). Recurring meetings, Outlook and the full-screen alarm module
+   shipped in v1.2.0 (`docs/ARCHITECTURE.md` §16-§18).

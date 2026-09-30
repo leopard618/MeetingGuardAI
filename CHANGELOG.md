@@ -3,11 +3,15 @@
 All notable changes to MeetingGuard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
-## [1.1.0] - Unreleased (branch `stabilization`)
+## [1.2.0] - Unreleased (branch `stabilization`)
 
 This version is a rebuild. It is compared here with **v1.0.9**, the version on Google Play
 (versionCode 20, built in September 2025 from commit `ef4963f`). None of the later v1.0.x work on
 `main` (up to `3308b9d`) was ever released. The developer handoff is in `docs/HANDOFF.md`.
+
+The version number jumped from 1.1.0 (test builds only, never published) to 1.2.0 when the
+full-screen alarm native module was added: a new native module changes the runtime version, so it
+needs a new store/APK build and must never ship as an OTA update onto a 1.1.0 binary.
 
 ### Draft store release notes
 
@@ -43,12 +47,36 @@ This version is a rebuild. It is compared here with **v1.0.9**, the version on G
     - **MEDIUM:** a banner that stays until you act.
     - **LIGHT:** a toast.
   - "Snooze" buttons on the notification, and a post-meeting follow-up notification.
+  - **Full-screen MAX alarms on Android** (new native module `mg-fullscreen-alarm`): a MAX alert
+    shows over the lock screen even when the app is closed, on the meeting's alert channel, and
+    pending alarms are restored after a reboot. When the module or the permission is missing
+    (revocable on Android 14+) the alert falls back to a normal notification, never lost and never
+    doubled. Alert settings and onboarding show the real full-screen and exact-alarm permission
+    state on devices with the module.
   - Settings for alert times, intensity per meeting, sound type, volume, vibration and snooze length.
     The 12/24-hour time format is in Settings, next to the language.
 - **Calendars:**
   - Two-way Google Calendar sync: create, update and delete in both directions, with invitations for
     participants and real Google Meet links.
+  - **Outlook / Microsoft 365 sync (phase 1):** connect a Microsoft account (PKCE sign-in, no
+    server); two-way sync with the account's default calendar over Microsoft Graph delta queries,
+    with Teams links for online meetings. Needs an Azure app registration
+    (`EXPO_PUBLIC_MSAL_CLIENT_ID`, `docs/SETUP.md` §10); the Outlook card is hidden when it is not
+    configured. In this version recurring series, and meetings that came from Google or the phone
+    calendars, are not pushed to Outlook.
   - Import from and export to the calendars on the phone (Apple / Android).
+- **Recurring meetings (phase 1):**
+  - A "Repeat" section in the meeting form: daily / weekly (with weekday chips) / monthly, an
+    interval ("every 2 weeks"), and an end (never, on a date, or after N times). English and Spanish.
+  - The dashboard, list and calendar show one row per occurrence; details show the rule in words and
+    the next occurrences.
+  - Editing or deleting an occurrence asks the scope: "This meeting only" (that occurrence) or
+    "The whole series". One occurrence can be moved, resized, renamed or removed without touching the
+    rest of the series.
+  - The assistant understands repeat requests ("every Monday at 9", "cada lunes a las 9") and scoped
+    changes ("delete only tomorrow's standup"); confirmation cards state the rule and the scope.
+  - Google Calendar sync pushes the series as a real recurring event (cancelled occurrences
+    included). Time changes of a single occurrence stay in MeetingGuard in this version.
 - **AI assistant:**
   - It runs on our server (Cloud Function) and understands English and Spanish.
   - It can create, update, delete, share, bulk-update and list meetings.
@@ -154,9 +182,16 @@ This version is a rebuild. It is compared here with **v1.0.9**, the version on G
 
 See `docs/HANDOFF.md` §4. The main ones:
 
-- There is no full-screen alert over the lock screen.
+- Full-screen alarms over the lock screen are Android-only and need the `mg-fullscreen-alarm`
+  native module in the build (revocable by the user on Android 14+; the app then falls back to a
+  high-priority notification).
 - Exact alarms and the Do Not Disturb override need the user's permission.
-- Recurring meetings, Outlook, WhatsApp and subscriptions are not built.
+- Outlook sync needs an Azure app registration and pushes neither recurring series nor meetings
+  that came from Google or the phone calendars. Deleting or editing our own series occurrence by
+  occurrence in Google/Outlook web does not import back.
+- WhatsApp and subscriptions are not built.
+- Recurring meetings: "this and following" edits do not exist, and moving a single occurrence is not
+  pushed to Google Calendar (the change is only in MeetingGuard).
 - Attachments stay on the phone.
 - iOS has not been built.
 - **Nothing was tested on a device.**

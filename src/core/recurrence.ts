@@ -42,7 +42,7 @@ import {
   type RecurrenceWeekday,
 } from './aiContract';
 import { AppError } from './errors';
-import { addDaysToLocalDate, addMinutesIso, isLocalDate, zonedDateTimeToUtcIso } from './time';
+import { addDaysToLocalDate, addMinutesIso, isLocalDate, toLocalDateTime, zonedDateTimeToUtcIso } from './time';
 
 export {
   RECURRENCE_FREQS,
@@ -410,9 +410,13 @@ const RRULE_FREQ: Readonly<Record<RecurrenceFreq, string>> = {
 
 /**
  * Google `event.recurrence` lines for the rule + cancelled overrides:
- * - "RRULE:FREQ=...;INTERVAL=...[;BYDAY=...|;BYMONTHDAY=...][;UNTIL=...Z|;COUNT=n]"
- * - one "EXDATE;TZID=<meeting timezone>:<yyyymmddThhmmss>" line per cancelled occurrence.
- * Time-modified overrides are NOT pushed in v1 (kept local; see docs/ARCHITECTURE.md §16).
+ * - "RRULE:FREQ=...;INTERVAL=...[;BYDAY=...|;BYMONTHDAY=...][;UNTIL=...|;COUNT=n]"
+ * - one EXDATE line per cancelled occurrence: `EXDATE;TZID=<meeting timezone>:<yyyymmddThhmmss>`
+ *   for timed series, `EXDATE;VALUE=DATE:<yyyymmdd>` for all-day series.
+ * All-day series use DATE values for UNTIL and EXDATE (RFC 5545 requires the DTSTART value type
+ * and Google rejects date-times on an all-day event); the UNTIL date is the instant's local date
+ * in the meeting's timezone, which keeps the inclusive-day semantics (original starts are local
+ * midnights). Time-modified overrides are NOT pushed in v1 (docs/ARCHITECTURE.md §16).
  */
 export function toGoogleRecurrence(meeting: RecurringMeetingLike): string[] {
   const rule = meeting.recurrence;
@@ -424,18 +428,24 @@ export function toGoogleRecurrence(meeting: RecurringMeetingLike): string[] {
   }
   if (rule.freq === 'monthly' && rule.byMonthDay !== null) parts.push(`BYMONTHDAY=${rule.byMonthDay}`);
   if (rule.until !== null) {
-    parts.push(`UNTIL=${rule.until.replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')}`);
+    parts.push(
+      meeting.allDay
+        ? `UNTIL=${toLocalDateTime(rule.until, meeting.timezone).date.replace(/-/g, '')}`
+        : `UNTIL=${rule.until.replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')}`,
+    );
   } else if (rule.count !== null) {
     parts.push(`COUNT=${rule.count}`);
   }
   const lines = [`RRULE:${parts.join(';')}`];
-  const time = (meeting.allDay ? '00:00' : meeting.time).replace(':', '');
+  const time = meeting.allDay ? null : meeting.time.replace(':', '');
   const cancelled = Object.entries(meeting.recurrenceOverrides ?? {})
     .filter(([, override]) => override.status === 'cancelled')
     .map(([key]) => key.replace(/-/g, ''))
     .sort();
   for (const date of cancelled) {
-    lines.push(`EXDATE;TZID=${meeting.timezone}:${date}T${time}00`);
+    lines.push(
+      time === null ? `EXDATE;VALUE=DATE:${date}` : `EXDATE;TZID=${meeting.timezone}:${date}T${time}00`,
+    );
   }
   return lines;
 }

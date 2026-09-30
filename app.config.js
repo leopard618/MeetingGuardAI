@@ -85,7 +85,9 @@ module.exports = {
   expo: {
     name: 'MeetingGuard AI',
     slug: 'meeting-guard-ai',
-    version: '1.1.0',
+    // 1.2.0: the mg-fullscreen-alarm native module changed the native runtime (new module +
+    // USE_FULL_SCREEN_INTENT). Builds of 1.1.0 must never receive 1.2.0 JS via OTA.
+    version: '1.2.0',
     scheme: 'meetingguardai',
     platforms: ['ios', 'android'],
     orientation: 'portrait',
@@ -144,6 +146,10 @@ module.exports = {
         // User-granted on Android 12+; lets expo-notifications use exact alarms for meeting
         // alerts once the user allows it (otherwise the OS may delay alerts under Doze).
         'android.permission.SCHEDULE_EXACT_ALARM',
+        // Full-screen MAX alarms over the lock screen (modules/mg-fullscreen-alarm). Normal
+        // permission; on Android 14+ the user can revoke it and the app falls back to ordinary
+        // notifications (the module's app.plugin.js declares it too).
+        'android.permission.USE_FULL_SCREEN_INTENT',
       ],
       // Prevent libraries from merging sensitive permissions back in.
       blockedPermissions: [
@@ -211,6 +217,10 @@ module.exports = {
       ],
       ...googleSignInPlugin(),
       sentryPlugin(),
+      // Local full-screen alarm module (modules/mg-fullscreen-alarm): the plugin only ensures the
+      // USE_FULL_SCREEN_INTENT permission; autolinking picks the module itself up from modules/.
+      // Native code: shipping it needs a NEW `version` and a store build, never an OTA update.
+      './modules/mg-fullscreen-alarm/app.plugin.js',
       'expo-dev-client',
       './plugins/withNoDeviceTransfer',
       // Signs local release builds with the test key outside the repository. Always listed because it

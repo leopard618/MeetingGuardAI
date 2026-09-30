@@ -55,7 +55,7 @@ sections below have the details.
 | `production` | `production` | AAB (Android) / IPA (iOS) | Play app signing key (after upload) | Play tracks and the App Store |
 
 - **Runtime version.** `runtimeVersion` follows `version` in `app.config.js` (policy `appVersion`).
-  An OTA update for 1.1.0 only reaches 1.1.0 binaries.
+  An OTA update for 1.2.0 only reaches 1.2.0 binaries.
 - **Build numbers.** EAS keeps `versionCode` / `buildNumber` (`appVersionSource: "remote"`), and
   `production` adds 1 before each build. Check with `eas build:version:get -p android`.
 - **Environment.** Every build and every update reads the `EXPO_PUBLIC_*` values of its EAS
@@ -136,7 +136,7 @@ Run these from the repository root.
 6. Play Console -> App content is complete (§9).
 7. The internal-testing QA passed, including the v1.0.9 upgrade. The release notes (EN + ES) say that
    users must sign in again with Google.
-8. Tag the released commit: `git tag v1.1.0`. A rollback then knows what "last good" is.
+8. Tag the released commit: `git tag v1.2.0`. A rollback then knows what "last good" is.
 
 ## 5. OTA updates
 
@@ -154,7 +154,7 @@ npm run update:production -- "Fix: <what changed>"    # the same commit, after Q
   `expo.updates.update_id`, `expo.updates.channel` and `expo.updates.runtime_version`.
 - **Sentry source maps:** after an update, run `npx sentry-expo-upload-sourcemaps dist`
   (`docs/SETUP.md` §7).
-- **Old versions:** OTA only reaches binaries that contain `expo-updates`, which means 1.1.0 and
+- **Old versions:** OTA only reaches binaries that contain `expo-updates`, which means 1.2.0 and
   later. v1.0.9 users must install the store update first.
 
 ## 6. Backend deploy and rollback
@@ -172,7 +172,7 @@ Run these in `functions/`.
   `functions/src/shared/aiContract.ts`) must work with every app version still in use:
   - Add fields; never rename or remove them. A new request field must be optional, because older
     apps do not send it (the server strips request fields it does not know).
-  - **Actions:** from 1.1.0 the app validates each proposed action on its own and drops (and logs)
+  - **Actions:** from 1.2.0 the app validates each proposed action on its own and drops (and logs)
     one it does not understand, so a new action kind, or a new enum value inside an action, does
     not break older installs. Their users simply do not get that card, although the request still
     counts against the quota, so make the reply text make sense without it.
@@ -182,7 +182,7 @@ Run these in `functions/`.
     first add an optional request field (for example `clientVersion` or `capabilities`), ship it in
     a store release, then gate the new value on it.
 - **Functions rollback:**
-  1. Check out the last good tag in a separate folder: `git worktree add ../mg-last-good v1.1.0`.
+  1. Check out the last good tag in a separate folder: `git worktree add ../mg-last-good v1.2.0`.
   2. Copy `.firebaserc` and `functions/.env.<project-id>` into it (both are git-ignored).
   3. In its `functions/` folder, run `npm ci`, then `npm run deploy`.
   4. For an emergency: every v2 function is a Cloud Run service. In the Cloud Run console, send 100%

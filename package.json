@@ -1,6 +1,6 @@
 {
   "name": "meeting-guard-mobile",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "main": "index.js",
   "scripts": {
@@ -31,6 +31,7 @@
     "expo": "~57.0.25",
     "expo-asset": "~57.0.18",
     "expo-audio": "~57.0.5",
+    "expo-auth-session": "~57.0.13",
     "expo-background-task": "~57.0.20",
     "expo-calendar": "~57.0.5",
     "expo-constants": "~57.0.19",
@@ -53,6 +54,7 @@
     "expo-system-ui": "~57.0.4",
     "expo-task-manager": "~57.0.20",
     "expo-updates": "~57.0.23",
+    "expo-web-browser": "~57.0.3",
     "firebase": "^12.19.0",
     "i18next": "^26.4.2",
     "intl-pluralrules": "^2.0.1",
