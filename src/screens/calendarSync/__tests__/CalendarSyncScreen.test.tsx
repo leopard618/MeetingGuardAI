@@ -15,6 +15,9 @@ jest.mock('expo-localization', () => ({
 let mockDarkMode = false;
 jest.mock('../../../contexts/ThemeContext', () => ({
   useTheme: () => ({ isDarkMode: mockDarkMode }),
+  // For useAppTheme (src/theme) in any nested MG kit component.
+  useOptionalTheme: () => ({ colorScheme: mockDarkMode ? 'dark' : 'light' }),
+  resolveColorScheme: (_preference: string, system: 'light' | 'dark' | null | undefined) => system ?? 'light',
 }));
 
 const mockStatus: { current: CalendarStatus } = { current: status() };

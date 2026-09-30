@@ -26,6 +26,7 @@ import { createAssistantFormatter } from '../../services/ai/formatter';
 import { assistantPalette, describeUsage, feedbackColors, type AssistantPalette, type Feedback } from '../../services/ai/presentation';
 import type { AssistantFormatter, AssistantHookResult, ChatMessage } from '../../services/ai/types';
 import { useEntitlement, useMeeting, usePreferences } from '../../services/data';
+import { componentMetrics, radii, spacing, typography } from '../../theme';
 import { ActionCard } from './ActionCard';
 import { AssistantAvatar, ErrorNotice, MessageBubble, SuggestionChips, TypingIndicator, UsagePill, WelcomeBubble } from './ChatPieces';
 import {
@@ -233,7 +234,7 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
       style={[styles.container, { backgroundColor: palette.background, paddingLeft: insets.left, paddingRight: insets.right }]}
     >
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={keyboardVerticalOffset}>
-        <View style={[styles.topBar, { borderBottomColor: palette.border }]}>
+        <View style={[styles.topBar, { backgroundColor: palette.surface, borderBottomColor: palette.border }]}>
           <AssistantAvatar palette={palette} />
           {/* The stack header already shows the screen title ("AI assistant"). */}
           <Text style={[styles.flex, styles.topSubtitle, { color: palette.textMuted }]} numberOfLines={2}>
@@ -318,7 +319,7 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
             styles.composer,
             {
               borderTopColor: palette.border,
-              backgroundColor: palette.background,
+              backgroundColor: palette.surface,
               paddingBottom: 8 + (keyboardVisible ? 0 : insets.bottom),
             },
           ]}
@@ -328,7 +329,7 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
             onChangeText={setInput}
             placeholder={fmt.t('ai:chat.placeholder')}
             placeholderTextColor={palette.textMuted}
-            style={[styles.input, { color: palette.text, backgroundColor: palette.surface, borderColor: palette.border }]}
+            style={[styles.input, { color: palette.text, backgroundColor: palette.inputSurface }]}
             multiline
             maxLength={AI_LIMITS.maxMessageChars}
             editable={assistant.isLoaded}
@@ -384,94 +385,94 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Reads as one surface with the stack header: surface bg + a single 1px hairline below.
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
   },
   topSubtitle: {
-    fontSize: 13,
-    lineHeight: 18,
+    ...typography.titleS,
   },
   iconButton: {
-    padding: 6,
-    borderRadius: 18,
+    width: componentMetrics.touchTargetMin,
+    height: componentMetrics.touchTargetMin,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    gap: spacing.sm,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingVertical: spacing.sm,
   },
   bannerText: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
+    ...typography.labelM,
   },
   bannerButton: {
-    minHeight: 36,
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    minHeight: componentMetrics.buttonHeightSmall,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   bannerButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.labelL,
   },
   messages: {
-    padding: 16,
-    gap: 12,
+    padding: componentMetrics.screenGutter,
+    gap: componentMetrics.cardGap,
   },
   welcome: {
-    gap: 12,
+    gap: componentMetrics.cardGap,
   },
   messageBlock: {
-    gap: 8,
+    gap: spacing.sm,
   },
   footerStack: {
-    gap: 12,
+    gap: componentMetrics.cardGap,
   },
   pendingBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    gap: spacing.md,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingVertical: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   pendingText: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.labelL,
   },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
   },
   input: {
     flex: 1,
-    minHeight: 44,
+    minHeight: componentMetrics.touchTargetMin,
     maxHeight: 140,
-    borderWidth: 1,
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingTop: 11,
-    paddingBottom: 11,
-    fontSize: 15,
+    borderRadius: radii.full,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    ...typography.bodyL,
   },
   sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: componentMetrics.touchTargetMin,
+    height: componentMetrics.touchTargetMin,
+    borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
   },

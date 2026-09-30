@@ -15,16 +15,18 @@ import { ActivityIndicator, Button, Chip, FAB, HelperText, Searchbar, Text, useT
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
+import { EmptyState } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import type { Meeting, Note } from '../../core/types';
 import { useT } from '../../i18n';
 import { useMeetings, useNotes, useSyncState } from '../../services/data';
+import { componentMetrics, radii, spacing } from '../../theme';
 import { formatRelative } from '../../utils/format';
 import { useFormatters } from '../shared/useFormatters';
 import { useLiveNow } from '../shared/useLiveNow';
-import { categoryIcon } from './categoryStyle';
+import { categoryColor } from './categoryStyle';
 import { NoteCard } from './NoteCard';
 import { NoteEditor } from './NoteEditor';
 import { NOTE_FILTERS, countByCategory, draftToInput, draftToPatch, filterNotes, type NoteDraft, type NoteFilter } from './notesModel';
@@ -195,41 +197,29 @@ export function NotesScreen({ navigation }: Props): ReactElement {
     }
     if (error && notes.length === 0) {
       return (
-        <View style={styles.centered} testID="notes-error">
-          <Text variant="titleMedium" accessibilityRole="header" style={styles.centeredText}>
-            {t('notes:loadError.title')}
-          </Text>
-          <Text variant="bodyMedium" style={[styles.centeredText, { color: theme.colors.onSurfaceVariant }]}>
-            {t(errorMessageKey(error.code))}
-          </Text>
+        <View style={styles.centered}>
+          <EmptyState icon="cloud-alert" title={t('notes:loadError.title')} body={t(errorMessageKey(error.code))} testID="notes-error" />
         </View>
       );
     }
     if (notes.length === 0) {
       return (
-        <View style={styles.centered} testID="notes-empty">
-          <Text variant="titleMedium" accessibilityRole="header" style={styles.centeredText}>
-            {t('notes:empty.title')}
-          </Text>
-          <Text variant="bodyMedium" style={[styles.centeredText, { color: theme.colors.onSurfaceVariant }]}>
-            {t('notes:empty.body')}
-          </Text>
-          <Button mode="contained" icon="note-plus-outline" style={styles.centeredButton} onPress={() => openEditor({ mode: 'create' })}>
-            {t('notes:empty.action')}
-          </Button>
+        <View style={styles.centered}>
+          <EmptyState
+            icon="note-text-outline"
+            title={t('notes:empty.title')}
+            body={t('notes:empty.body')}
+            action={{ label: t('notes:empty.action'), onPress: () => openEditor({ mode: 'create' }) }}
+            testID="notes-empty"
+          />
         </View>
       );
     }
     return (
-      <View style={styles.centered} testID="notes-no-matches">
-        <Text variant="titleMedium" accessibilityRole="header" style={styles.centeredText}>
-          {t('notes:noMatches.title')}
-        </Text>
-        <Text variant="bodyMedium" style={[styles.centeredText, { color: theme.colors.onSurfaceVariant }]}>
-          {t('notes:noMatches.body')}
-        </Text>
+      <View style={styles.centered}>
+        <EmptyState icon="magnify" title={t('notes:noMatches.title')} body={t('notes:noMatches.body')} testID="notes-no-matches" />
         {filtered ? (
-          <Button mode="outlined" style={styles.centeredButton} onPress={clearFilters} testID="notes-clear-filters">
+          <Button mode="outlined" style={styles.clearButton} onPress={clearFilters} testID="notes-clear-filters">
             {t('notes:noMatches.action')}
           </Button>
         ) : null}
@@ -262,7 +252,11 @@ export function NotesScreen({ navigation }: Props): ReactElement {
                 key={option}
                 selected={filter === option}
                 showSelectedOverlay
-                icon={option === 'all' ? 'notebook-multiple' : categoryIcon(option)}
+                icon={
+                  option === 'all'
+                    ? 'notebook-multiple'
+                    : () => <View style={[styles.chipDot, { backgroundColor: categoryColor(option, theme.dark) }]} />
+                }
                 onPress={() => setFilter(option)}
                 style={styles.filterChip}
                 accessibilityRole="radio"
@@ -334,35 +328,39 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   top: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: spacing.md,
   },
   filters: {
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
   },
   filterChip: {
-    marginRight: 8,
+    marginRight: spacing.sm,
+  },
+  chipDot: {
+    width: componentMetrics.sourceDotSize,
+    height: componentMetrics.sourceDotSize,
+    borderRadius: radii.full,
   },
   list: {
     flexGrow: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: componentMetrics.screenGutter,
   },
   count: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 48,
+    paddingVertical: spacing.xxl,
   },
   centeredText: {
-    marginTop: 8,
+    marginTop: spacing.sm,
     textAlign: 'center',
   },
-  centeredButton: {
-    marginTop: 20,
+  clearButton: {
+    alignSelf: 'center',
   },
   fab: {
     position: 'absolute',

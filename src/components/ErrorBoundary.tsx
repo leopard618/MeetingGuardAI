@@ -18,9 +18,12 @@ import { Component, useContext, type ErrorInfo, type ReactElement, type ReactNod
 import { Platform, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
-import { APP_COLORS, resolveColorScheme, useOptionalTheme } from '../contexts/ThemeContext';
+import { useOptionalTheme } from '../contexts/ThemeContext';
 import { createLogger } from '../core/logger';
 import { useT } from '../i18n';
+// This fallback may render with NO providers (app scope wraps the whole provider tree), so it
+// takes the MG tokens directly — no Paper, no theme barrel (docs/DESIGN_SYSTEM.md §7 group D).
+import { componentMetrics, darkColors, lightColors, pressedOpacity, radii, spacing, typography } from '../theme/tokens';
 
 const log = createLogger('ui');
 
@@ -36,7 +39,9 @@ export function ErrorFallback({ error, onRetry, scope = 'app' }: ErrorFallbackPr
   const t = useT();
   const theme = useOptionalTheme();
   const systemScheme = useColorScheme();
-  const colors = theme?.colors ?? APP_COLORS[resolveColorScheme('system', systemScheme)];
+  // Below ThemeProvider (screen scope) follow the user's choice; above it, the OS scheme.
+  const isDark = theme ? theme.colorScheme === 'dark' : systemScheme === 'dark';
+  const colors = isDark ? darkColors : lightColors;
   const insets = useContext(SafeAreaInsetsContext);
 
   return (
@@ -44,20 +49,28 @@ export function ErrorFallback({ error, onRetry, scope = 'app' }: ErrorFallbackPr
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={[
         styles.container,
-        { paddingTop: (insets?.top ?? 24) + 24, paddingBottom: (insets?.bottom ?? 16) + 24 },
+        { paddingTop: (insets?.top ?? spacing.xxl) + spacing.xxl, paddingBottom: (insets?.bottom ?? spacing.lg) + spacing.xxl },
       ]}
       testID="error-boundary-fallback"
     >
-      <MaterialIcons name="error-outline" size={56} color={colors.danger} accessibilityElementsHidden importantForAccessibility="no" />
-      <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
+      <View style={[styles.circle, { backgroundColor: colors.errorContainer }]}>
+        <MaterialIcons
+          name="error-outline"
+          size={componentMetrics.emptyStateIcon}
+          color={colors.onErrorContainer}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+      </View>
+      <Text style={[styles.title, { color: colors.onSurface }]} accessibilityRole="header">
         {t('shell:errorBoundary.title')}
       </Text>
-      <Text style={[styles.message, { color: colors.textSecondary }]}>
+      <Text style={[styles.message, { color: colors.onSurfaceVariant }]}>
         {scope === 'screen' ? t('shell:errorBoundary.screenMessage') : t('shell:errorBoundary.message')}
       </Text>
       {__DEV__ ? (
         <View style={[styles.details, { backgroundColor: colors.surfaceVariant }]}>
-          <Text style={[styles.detailsText, { color: colors.danger }]} selectable>
+          <Text style={[styles.detailsText, { color: colors.onSurface }]} selectable>
             {error.message}
           </Text>
         </View>
@@ -121,45 +134,50 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.xxl,
+  },
+  circle: {
+    width: componentMetrics.emptyStateCircle,
+    height: componentMetrics.emptyStateCircle,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
+    ...typography.headlineS,
     textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
   message: {
-    fontSize: 16,
-    lineHeight: 22,
+    ...typography.bodyM,
     textAlign: 'center',
-    marginBottom: 24,
+    maxWidth: 320,
+    marginBottom: spacing.xxl,
   },
   details: {
     alignSelf: 'stretch',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 24,
+    borderRadius: radii.sm,
+    padding: spacing.md,
+    marginBottom: spacing.xxl,
   },
   detailsText: {
-    fontSize: 12,
+    ...typography.bodyS,
     fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
   },
   button: {
-    minHeight: 48,
+    minHeight: componentMetrics.buttonHeight,
     minWidth: 160,
-    paddingHorizontal: 24,
-    borderRadius: 24,
+    paddingHorizontal: spacing.xxl,
+    borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.labelL,
   },
   pressed: {
-    opacity: 0.8,
+    opacity: pressedOpacity,
   },
 });
 

@@ -10,6 +10,7 @@ import { IconButton, Text, TouchableRipple, useTheme as usePaperTheme } from 're
 
 import type { Meeting, Note } from '../../core/types';
 import { useT } from '../../i18n';
+import { componentMetrics, radii } from '../../theme';
 import { categoryColor, categoryIcon } from './categoryStyle';
 
 export interface NoteCardProps {
@@ -32,7 +33,7 @@ function NoteCardView({ note, meeting, meetingWhen, updatedText, onOpen, onToggl
 
   return (
     <View
-      style={[styles.card, { backgroundColor: theme.colors.elevation.level1, borderColor: theme.colors.outlineVariant, borderLeftColor: accent }]}
+      style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant, borderLeftColor: accent }]}
       testID={`note-card-${note.id}`}
     >
       <TouchableRipple
@@ -49,8 +50,8 @@ function NoteCardView({ note, meeting, meetingWhen, updatedText, onOpen, onToggl
             {note.pinned ? (
               <MaterialCommunityIcons
                 name="pin"
-                size={18}
-                color={theme.colors.primary}
+                size={16}
+                color={theme.colors.onSurfaceVariant}
                 style={styles.pinIcon}
                 accessibilityLabel={t('notes:card.pinned')}
               />
@@ -60,13 +61,13 @@ function NoteCardView({ note, meeting, meetingWhen, updatedText, onOpen, onToggl
             </Text>
           </View>
           {note.content.trim().length > 0 ? (
-            <Text variant="bodyMedium" numberOfLines={4} style={[styles.preview, { color: theme.colors.onSurfaceVariant }]}>
+            <Text variant="bodyMedium" numberOfLines={2} style={[styles.preview, { color: theme.colors.onSurfaceVariant }]}>
               {note.content}
             </Text>
           ) : null}
           <View style={styles.metaRow}>
             <MaterialCommunityIcons name={categoryIcon(note.category)} size={16} color={accent} />
-            <Text variant="labelMedium" style={[styles.category, { color: accent }]}>
+            <Text variant="labelMedium" style={[styles.category, { color: theme.colors.onSurfaceVariant }]}>
               {categoryLabel}
             </Text>
             <Text variant="bodySmall" style={[styles.flex, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
@@ -133,10 +134,10 @@ export const NoteCard = memo(NoteCardView);
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: 4,
-    marginBottom: 12,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderLeftWidth: componentMetrics.accentBarWidth,
+    marginBottom: componentMetrics.cardGap,
     overflow: 'hidden',
   },
   body: {

@@ -1,7 +1,7 @@
 /**
  * Building blocks of the assistant chat: avatar, message bubbles, typing indicator, suggestion
  * chips, the inline error notice and the usage pill. Module-level components (never created
- * during render); colors come from the assistant palette (light / dark).
+ * during render); colors come from the assistant palette (MG tokens, light / dark).
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState, type ReactElement } from 'react';
@@ -9,11 +9,12 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AssistantPalette, ErrorDescription, UsageDescription } from '../../services/ai/presentation';
 import type { AssistantFormatter, ChatMessage } from '../../services/ai/types';
+import { componentMetrics, radii, spacing, typography } from '../../theme';
 import { messageTime } from './chatModel';
 
 /** Small pills and chips stay usable at large font sizes. */
 export const PILL_MAX_FONT_SCALE = 1.5;
-/** Extra touch area for the 36 dp buttons (48 dp targets). */
+/** Extra touch area for the 40 dp buttons (48 dp targets). */
 export const SMALL_HIT_SLOP = { top: 6, bottom: 6, left: 4, right: 4 } as const;
 
 export function AssistantAvatar({ palette }: { palette: AssistantPalette }): ReactElement {
@@ -98,8 +99,8 @@ export function MessageBubble({
           <Text style={[styles.messageText, { color: palette.onUserBubble }]} selectable>
             {message.content}
           </Text>
-          <Text style={[styles.time, { color: palette.onUserBubble }]}>{time}</Text>
         </View>
+        <Text style={[styles.time, { color: palette.textMuted }]}>{time}</Text>
         {message.delivery === 'failed' ? (
           <View style={styles.failedLine}>
             <MaterialCommunityIcons name="alert-circle-outline" size={14} color={palette.danger} />
@@ -120,16 +121,18 @@ export function MessageBubble({
           </Text>
         ) : null}
         {hasText ? (
-          <View
-            style={[styles.bubble, styles.assistantBubble, { backgroundColor: palette.assistantBubble }]}
-            accessible
-            accessibilityLabel={fmt.t('ai:chat.a11yAssistantMessage', { time, text: message.content })}
-          >
-            <Text style={[styles.messageText, { color: palette.onAssistantBubble }]} selectable>
-              {message.content}
-            </Text>
-            <Text style={[styles.time, { color: palette.textMuted }]}>{time}</Text>
-          </View>
+          <>
+            <View
+              style={[styles.bubble, styles.assistantBubble, { backgroundColor: palette.assistantBubble }]}
+              accessible
+              accessibilityLabel={fmt.t('ai:chat.a11yAssistantMessage', { time, text: message.content })}
+            >
+              <Text style={[styles.messageText, { color: palette.onAssistantBubble }]} selectable>
+                {message.content}
+              </Text>
+            </View>
+            <Text style={[styles.time, styles.timeStart, { color: palette.textMuted }]}>{time}</Text>
+          </>
         ) : null}
       </View>
     </View>
@@ -164,11 +167,11 @@ export function SuggestionChips({
             onPress={() => onPress(item)}
             disabled={disabled}
             hitSlop={SMALL_HIT_SLOP}
-            style={[styles.chip, { backgroundColor: palette.surface, borderColor: palette.border, opacity: disabled ? 0.5 : 1 }]}
+            style={[styles.chip, { borderColor: palette.outline, opacity: disabled ? 0.5 : 1 }]}
             accessibilityRole="button"
             accessibilityState={{ disabled }}
           >
-            <Text style={[styles.chipText, { color: palette.text }]}>{item}</Text>
+            <Text style={[styles.chipText, { color: palette.textMuted }]}>{item}</Text>
           </Pressable>
         ))}
       </View>
@@ -193,13 +196,13 @@ export function ErrorNotice({
 }): ReactElement {
   return (
     <View
-      style={[styles.errorBox, { backgroundColor: palette.dangerSurface, borderColor: palette.danger }]}
+      style={[styles.errorBox, { backgroundColor: palette.dangerSurface }]}
       accessibilityLiveRegion="assertive"
       testID="assistant-error"
     >
       <View style={styles.errorLine}>
-        <MaterialCommunityIcons name="alert-circle-outline" size={18} color={palette.danger} />
-        <Text style={[styles.errorText, { color: palette.text }]}>{description.message}</Text>
+        <MaterialCommunityIcons name="alert-circle-outline" size={18} color={palette.onDangerSurface} />
+        <Text style={[styles.errorText, { color: palette.onDangerSurface }]}>{description.message}</Text>
       </View>
       <View style={styles.buttonRow}>
         {description.recovery === 'upgrade' ? (
@@ -217,11 +220,11 @@ export function ErrorNotice({
           <Pressable
             onPress={onRetry}
             hitSlop={SMALL_HIT_SLOP}
-            style={[styles.smallButton, styles.secondaryButton, { borderColor: palette.border }]}
+            style={[styles.smallButton, styles.secondaryButton, { borderColor: palette.onDangerSurface }]}
             accessibilityRole="button"
             testID="assistant-retry"
           >
-            <Text style={[styles.smallButtonText, { color: palette.text }]}>{fmt.t('ai:chat.retry')}</Text>
+            <Text style={[styles.smallButtonText, { color: palette.onDangerSurface }]}>{fmt.t('ai:chat.retry')}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -234,7 +237,7 @@ export function UsagePill({ usage, palette }: { usage: UsageDescription | null; 
   const color = usage.exhausted ? palette.danger : palette.textMuted;
   return (
     <View
-      style={[styles.usagePill, { borderColor: usage.exhausted ? palette.danger : palette.border }]}
+      style={[styles.usagePill, { borderColor: usage.exhausted ? palette.danger : palette.outline }]}
       accessible
       accessibilityLabel={usage.accessibilityLabel}
       testID="assistant-usage"
@@ -249,9 +252,9 @@ export function UsagePill({ usage, palette }: { usage: UsageDescription | null; 
 
 export const chatStyles = StyleSheet.create({
   smallButton: {
-    minHeight: 36,
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    minHeight: componentMetrics.buttonHeightSmall,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -259,14 +262,13 @@ export const chatStyles = StyleSheet.create({
     borderWidth: 1,
   },
   smallButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.labelL,
   },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
 });
 
@@ -275,7 +277,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -285,18 +287,18 @@ const styles = StyleSheet.create({
   assistantRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: spacing.sm,
   },
   assistantColumn: {
     flex: 1,
-    gap: 4,
+    gap: spacing.xs,
     alignItems: 'flex-start',
   },
   bubble: {
-    maxWidth: '85%',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    maxWidth: '80%',
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   userBubble: {
     borderBottomRightRadius: 4,
@@ -307,96 +309,91 @@ const styles = StyleSheet.create({
   typingBubble: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   dots: {
     flexDirection: 'row',
-    gap: 4,
+    gap: spacing.xs,
   },
   dot: {
     width: 7,
     height: 7,
-    borderRadius: 4,
+    borderRadius: radii.full,
   },
   typingText: {
-    fontSize: 13,
+    ...typography.bodyS,
   },
   messageText: {
-    fontSize: 15,
-    lineHeight: 21,
+    ...typography.bodyL,
   },
   time: {
-    fontSize: 11,
-    marginTop: 4,
+    ...typography.bodyS,
+    marginTop: spacing.xs,
     alignSelf: 'flex-end',
-    opacity: 0.8,
+  },
+  timeStart: {
+    marginTop: 0,
+    alignSelf: 'flex-start',
   },
   followUpTag: {
-    fontSize: 12,
-    fontWeight: '700',
+    ...typography.labelM,
   },
   failedLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
+    gap: spacing.xs,
+    marginTop: spacing.xs,
   },
   failedText: {
-    fontSize: 12,
-    fontWeight: '600',
+    ...typography.labelM,
   },
   suggestions: {
-    gap: 6,
+    gap: spacing.sm,
   },
   suggestionsTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    ...typography.titleS,
   },
   chipWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   chip: {
     minHeight: 36,
     justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   chipText: {
-    fontSize: 14,
+    ...typography.labelL,
+    fontWeight: '500',
   },
   errorBox: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   errorLine: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 6,
+    gap: spacing.sm,
   },
   errorText: {
     flex: 1,
-    fontSize: 14,
-    lineHeight: 19,
+    ...typography.bodyM,
   },
   usagePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.xs,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   usageText: {
-    fontSize: 12,
-    fontWeight: '600',
+    ...typography.labelM,
   },
 });

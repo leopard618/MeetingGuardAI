@@ -2,6 +2,9 @@
  * MAXIMUM alert (owner: alerts): full-screen modal that cannot be dismissed without an explicit
  * action (Android back button blocked, no swipe dismissal). Looping alarm with a progressive
  * volume ramp, voice readout, repeating vibration (useAlertFeedback), and an auto-snooze countdown.
+ *
+ * Visuals are the mode-invariant `alertMax` identity (docs/DESIGN_SYSTEM.md §9): always dark so a
+ * MAX alarm reads identically day or night, every pair AA-checked by the theme contrast guard.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
@@ -10,6 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '../../i18n';
 import type { FeedbackRequest } from '../../services/alerts';
+import { alertMax, componentMetrics, pressedOpacity, radii, spacing, typography } from '../../theme';
+import { useReducedMotion } from '../ui';
 import type { AlertDisplayModel } from './alertDisplay';
 import { useAlertFeedback, useBlockBackButton, useLatest } from './hooks';
 
@@ -26,9 +31,15 @@ export interface MaxAlertModalProps {
   onDetails: (() => void) | null;
 }
 
+/** Alarm-ring pulse (scale 1 -> 1.15); stays still when the system asks for reduced motion. */
 function usePulse(): Animated.Value {
   const [scale] = useState(() => new Animated.Value(1));
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
+    if (reduceMotion) {
+      scale.setValue(1);
+      return undefined;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(scale, { toValue: 1.15, duration: 550, easing: Easing.out(Easing.quad), useNativeDriver: true }),
@@ -37,7 +48,7 @@ function usePulse(): Animated.Value {
     );
     loop.start();
     return () => loop.stop();
-  }, [scale]);
+  }, [scale, reduceMotion]);
   return scale;
 }
 
@@ -95,10 +106,10 @@ export function MaxAlertModal(props: MaxAlertModalProps): ReactElement {
       allowSwipeDismissal={false}
       onRequestClose={() => undefined}
     >
-      <View style={[styles.screen, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 16 }]}>
+      <View style={[styles.screen, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.lg }]}>
         <ScrollView contentContainerStyle={styles.content} bounces={false}>
           <Animated.View style={[styles.iconRing, { transform: [{ scale: pulse }] }]}>
-            <Ionicons name="alarm" size={56} color="#FFFFFF" />
+            <Ionicons name="alarm" size={56} color={alertMax.title} />
           </Animated.View>
           <Text style={styles.heading} accessibilityRole="header">
             {heading}
@@ -108,12 +119,12 @@ export function MaxAlertModal(props: MaxAlertModalProps): ReactElement {
           </Text>
           <Text style={styles.when}>{display.whenText}</Text>
           <View style={styles.detailRow}>
-            <Ionicons name="time-outline" size={18} color="#FECACA" />
+            <Ionicons name="time-outline" size={18} color={alertMax.heading} />
             <Text style={styles.detailText}>{display.timeText}</Text>
           </View>
           {display.locationText ? (
             <View style={styles.detailRow}>
-              <Ionicons name="location-outline" size={18} color="#FECACA" />
+              <Ionicons name="location-outline" size={18} color={alertMax.heading} />
               <Text style={styles.detailText} numberOfLines={2}>
                 {display.locationText}
               </Text>
@@ -126,7 +137,7 @@ export function MaxAlertModal(props: MaxAlertModalProps): ReactElement {
               onPress={once(onAcknowledge)}
               accessibilityRole="button"
             >
-              <Ionicons name="checkmark-circle" size={22} color="#991B1B" />
+              <Ionicons name="checkmark-circle" size={22} color={alertMax.ackText} />
               <Text style={styles.primaryText}>{t('alerts:buttons.acknowledge')}</Text>
             </Pressable>
 
@@ -136,7 +147,7 @@ export function MaxAlertModal(props: MaxAlertModalProps): ReactElement {
                 onPress={once(onJoin)}
                 accessibilityRole="button"
               >
-                <Ionicons name="videocam" size={20} color="#FFFFFF" />
+                <Ionicons name="videocam" size={20} color={alertMax.joinText} />
                 <Text style={styles.joinText}>{t('alerts:buttons.join')}</Text>
               </Pressable>
             ) : null}
@@ -149,7 +160,7 @@ export function MaxAlertModal(props: MaxAlertModalProps): ReactElement {
                   onPress={once(() => onSnooze(minutes))}
                   accessibilityRole="button"
                 >
-                  <Ionicons name="alarm-outline" size={18} color="#FFFFFF" />
+                  <Ionicons name="alarm-outline" size={18} color={alertMax.snoozeText} />
                   <Text style={styles.snoozeText}>{t('alerts:buttons.snooze', { count: minutes })}</Text>
                 </Pressable>
               ))}
@@ -179,146 +190,153 @@ export function MaxAlertModal(props: MaxAlertModalProps): ReactElement {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#7F1D1D',
-    paddingHorizontal: 20,
+    backgroundColor: alertMax.bg,
+    paddingHorizontal: spacing.xl,
   },
   content: {
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
   },
   iconRing: {
     width: 104,
     height: 104,
-    borderRadius: 52,
-    backgroundColor: '#DC2626',
+    borderRadius: radii.full,
+    backgroundColor: alertMax.ring,
     borderWidth: 4,
-    borderColor: '#FCA5A5',
+    borderColor: alertMax.ringBorder,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   heading: {
-    color: '#FECACA',
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.labelL,
+    color: alertMax.heading,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
+    ...typography.displayS,
+    color: alertMax.title,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: spacing.sm,
   },
   when: {
-    color: '#FDE68A',
-    fontSize: 22,
-    fontWeight: '700',
+    ...typography.titleM,
+    fontVariant: ['tabular-nums'],
+    color: alertMax.when,
     textAlign: 'center',
-    marginBottom: 14,
+    marginBottom: spacing.lg,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
     maxWidth: '100%',
   },
   detailText: {
-    color: '#FEE2E2',
-    fontSize: 16,
-    marginLeft: 6,
+    ...typography.bodyL,
+    fontVariant: ['tabular-nums'],
+    color: alertMax.heading,
     flexShrink: 1,
   },
   actions: {
     width: '100%',
     maxWidth: 420,
-    marginTop: 24,
-    gap: 12,
+    marginTop: spacing.xxl,
+    gap: componentMetrics.cardGap,
   },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingVertical: 18,
-    gap: 8,
+    minHeight: componentMetrics.alertButtonHeight,
+    backgroundColor: alertMax.ackBg,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
   },
   primaryText: {
-    color: '#991B1B',
-    fontSize: 18,
-    fontWeight: '800',
+    ...typography.labelL,
+    color: alertMax.ackText,
   },
   joinButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#16A34A',
-    borderRadius: 14,
-    paddingVertical: 16,
-    gap: 8,
+    minHeight: componentMetrics.alertButtonHeight,
+    backgroundColor: alertMax.joinBg,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
   },
   joinText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
+    ...typography.labelL,
+    color: alertMax.joinText,
   },
   snoozeRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: componentMetrics.cardGap,
   },
   snoozeButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FCA5A5',
-    borderRadius: 14,
-    paddingVertical: 14,
-    gap: 6,
+    minHeight: componentMetrics.alertButtonHeight,
+    borderWidth: 1.5,
+    borderColor: alertMax.snoozeBorder,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    gap: spacing.sm,
   },
   snoozeText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
+    ...typography.labelL,
+    color: alertMax.snoozeText,
+    flexShrink: 1,
   },
   linkButton: {
     alignItems: 'center',
-    paddingVertical: 10,
+    minHeight: componentMetrics.touchTargetMin,
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
   },
   linkText: {
-    color: '#FECACA',
-    fontSize: 15,
+    ...typography.labelL,
+    color: alertMax.heading,
     textDecorationLine: 'underline',
   },
   pressed: {
-    opacity: 0.75,
+    opacity: pressedOpacity,
   },
   countdown: {
     width: '100%',
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: spacing.sm,
   },
   countdownTrack: {
     width: '100%',
     maxWidth: 420,
     height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: radii.full,
+    backgroundColor: alertMax.countdownTrack,
     overflow: 'hidden',
   },
   countdownBar: {
     height: 6,
-    backgroundColor: '#FDE68A',
+    borderRadius: radii.full,
+    backgroundColor: alertMax.countdownFill,
   },
   countdownText: {
-    color: '#FECACA',
-    fontSize: 13,
-    marginTop: 6,
+    ...typography.labelS,
+    fontVariant: ['tabular-nums'],
+    color: alertMax.heading,
+    marginTop: spacing.sm,
   },
 });

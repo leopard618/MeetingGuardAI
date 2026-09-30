@@ -33,8 +33,9 @@ import {
   type DeviceCalendarsState,
   type DeviceRow,
 } from './calendarSyncModel';
+import { componentMetrics, radii, spacing, typography } from '../../theme/tokens';
 import { CardBottom, CardMiddle, CardTop, ImportRow, InlineProgress, PrimaryButton, RadioRow, SyncLine, partStyles } from './CalendarSyncParts';
-import { toneColor, useCalendarPalette, type CalendarPalette } from './palette';
+import { toneBadgeColors, useCalendarPalette, type CalendarPalette } from './palette';
 import { refreshGoogleState, refreshOutlookState, showCalendarError, useGoogleConnect, useOutlookConnect } from './useCalendarActions';
 import { useLiveNow } from '../shared/useLiveNow';
 import { useDeviceCalendars } from './useDeviceCalendars';
@@ -77,7 +78,7 @@ function GoogleCard({
 }): ReactElement {
   const google = status.google;
   const state = googleStateView(google);
-  const stateColor = toneColor(palette, state.tone);
+  const stateBadge = toneBadgeColors(palette, state.tone);
   const locked = busy !== null || connecting;
 
   return (
@@ -87,7 +88,11 @@ function GoogleCard({
         <Text style={[partStyles.cardTitle, { color: palette.text }]} accessibilityRole="header">
           {t('calendar:google.title')}
         </Text>
-        <Text style={[partStyles.pill, { color: stateColor, borderColor: stateColor }]} maxFontSizeMultiplier={1.5} testID="calendar-google-state">
+        <Text
+          style={[partStyles.pill, { color: stateBadge.color, backgroundColor: stateBadge.background }]}
+          maxFontSizeMultiplier={1.5}
+          testID="calendar-google-state"
+        >
           {t(state.labelKey)}
         </Text>
       </View>
@@ -102,7 +107,7 @@ function GoogleCard({
             onValueChange={(value) => {
               if (!value) onDisconnect();
             }}
-            trackColor={{ true: palette.accent, false: palette.border }}
+            trackColor={{ true: palette.accent, false: palette.neutralSurface }}
             accessibilityLabel={t('calendar:google.twoWaySync')}
             testID="calendar-google-switch"
           />
@@ -167,7 +172,7 @@ function OutlookCard({
   now: Date;
 }): ReactElement {
   const state = outlookStateView(outlook);
-  const stateColor = toneColor(palette, state.tone);
+  const stateBadge = toneBadgeColors(palette, state.tone);
   const locked = busy !== null || connecting;
 
   return (
@@ -178,7 +183,7 @@ function OutlookCard({
           {t('calendar:outlook.title')}
         </Text>
         <Text
-          style={[partStyles.pill, { color: stateColor, borderColor: stateColor }]}
+          style={[partStyles.pill, { color: stateBadge.color, backgroundColor: stateBadge.background }]}
           maxFontSizeMultiplier={1.5}
           testID="calendar-outlook-state"
         >
@@ -202,7 +207,7 @@ function OutlookCard({
             onValueChange={(value) => {
               if (!value) onDisconnect();
             }}
-            trackColor={{ true: palette.accent, false: palette.border }}
+            trackColor={{ true: palette.accent, false: palette.neutralSurface }}
             accessibilityLabel={t('calendar:outlook.twoWaySync')}
             testID="calendar-outlook-switch"
           />
@@ -564,40 +569,39 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: spacing.xxl,
   },
   introBox: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: componentMetrics.screenGutter,
   },
   intro: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 16,
+    ...typography.bodyM,
+    marginBottom: componentMetrics.screenGutter,
   },
   content: {
-    padding: 16,
+    padding: componentMetrics.screenGutter,
   },
   card: {
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-    gap: 12,
-    marginBottom: 16,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    padding: componentMetrics.cardPadding,
+    gap: componentMetrics.cardGap,
+    marginBottom: componentMetrics.screenGutter,
   },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    minHeight: 48,
-    paddingVertical: 10,
+    gap: componentMetrics.cardGap,
+    minHeight: componentMetrics.listRowMinHeight,
+    paddingVertical: componentMetrics.listRowPaddingV,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   switchLabel: {
     flex: 1,
-    fontSize: 15,
+    ...typography.bodyL,
   },
   hint: {
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
 });

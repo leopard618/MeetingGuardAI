@@ -50,10 +50,20 @@ export default function NotConfiguredScreen({ missingKeys, invalidKeys }: Props)
   );
 }
 
+// Renders before any provider or theme exists, so the colors are fixed local constants —
+// aligned by hand to the MG Indigo dark scheme (src/theme/tokens.ts darkColors).
+const COLORS = {
+  background: '#0C1320',
+  title: '#E7EDF6',
+  body: '#9AA8BE',
+  divider: '#27324A',
+  detailsBg: '#131C2B',
+} as const;
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0b1020',
+    backgroundColor: COLORS.background,
   },
   content: {
     flexGrow: 1,
@@ -61,30 +71,32 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   title: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: '700',
+    color: COLORS.title,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '600',
     marginBottom: 8,
   },
   body: {
-    color: '#cbd5e1',
+    color: COLORS.body,
     fontSize: 16,
-    lineHeight: 22,
+    lineHeight: 24,
   },
   divider: {
     height: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: COLORS.divider,
     marginVertical: 24,
   },
   details: {
     marginTop: 32,
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#111827',
+    backgroundColor: COLORS.detailsBg,
   },
   detailText: {
-    color: '#94a3b8',
+    color: COLORS.body,
     fontSize: 12,
+    lineHeight: 16,
     fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
   },
 });

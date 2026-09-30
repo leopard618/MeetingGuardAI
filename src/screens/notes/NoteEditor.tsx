@@ -8,8 +8,10 @@ import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, View } from
 import { Button, Chip, HelperText, IconButton, Switch, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MGButton } from '../../components/ui';
 import { NOTE_CATEGORIES, type Meeting, type Note } from '../../core/types';
 import { useT } from '../../i18n';
+import { componentMetrics, radii, spacing } from '../../theme';
 import type { Formatters } from '../shared/useFormatters';
 import { categoryColor, categoryIcon } from './categoryStyle';
 import { MeetingPicker } from './MeetingPicker';
@@ -131,9 +133,9 @@ export function NoteEditor({
               <Text variant="titleLarge" accessibilityRole="header" style={styles.headerTitle} numberOfLines={1}>
                 {note ? t('notes:editor.editTitle') : t('notes:editor.newTitle')}
               </Text>
-              <Button mode="contained" onPress={() => void save()} loading={saving} disabled={saving} testID="note-editor-save">
+              <MGButton variant="ghost" size="sm" onPress={() => void save()} loading={saving} disabled={saving} testID="note-editor-save">
                 {t('notes:editor.save')}
-              </Button>
+              </MGButton>
             </View>
             <KeyboardAvoidingView behavior="padding" style={styles.container}>
               <ScrollView
@@ -147,6 +149,7 @@ export function NoteEditor({
                 ) : null}
                 <TextInput
                   mode="outlined"
+                  outlineStyle={styles.inputOutline}
                   label={t('notes:editor.titleLabel')}
                   value={draft.title}
                   onChangeText={(title) => change({ title })}
@@ -187,6 +190,7 @@ export function NoteEditor({
 
                 <TextInput
                   mode="outlined"
+                  outlineStyle={styles.inputOutline}
                   label={t('notes:editor.contentLabel')}
                   placeholder={t('notes:editor.contentPlaceholder')}
                   value={draft.content}
@@ -218,7 +222,7 @@ export function NoteEditor({
                   />
                 </View>
 
-                <View style={[styles.meetingBox, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.elevation.level1 }]}>
+                <View style={[styles.meetingBox, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]}>
                   <Text variant="labelLarge">{t('notes:editor.meeting')}</Text>
                   {linkedMeeting ? (
                     <View style={styles.meetingInfo}>
@@ -291,28 +295,32 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: 16,
-    paddingVertical: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    minHeight: componentMetrics.headerMinHeight,
+    paddingRight: componentMetrics.screenGutter,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
   },
   headerTitle: {
     flex: 1,
   },
   body: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: componentMetrics.screenGutter,
   },
   label: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
+  },
+  inputOutline: {
+    borderRadius: radii.md,
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 16,
+    marginBottom: componentMetrics.screenGutter,
   },
   chip: {
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
   content: {
     minHeight: 180,
@@ -320,31 +328,31 @@ const styles = StyleSheet.create({
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: componentMetrics.screenGutter,
   },
   meetingBox: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    borderWidth: 1,
+    borderRadius: radii.lg,
+    padding: componentMetrics.cardPadding,
+    marginBottom: componentMetrics.screenGutter,
   },
   meetingInfo: {
-    marginTop: 6,
+    marginTop: spacing.sm,
   },
   meetingActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 12,
+    marginTop: componentMetrics.cardGap,
   },
   meetingButton: {
-    marginRight: 8,
-    marginBottom: 4,
+    marginRight: spacing.sm,
+    marginBottom: spacing.xs,
   },
   delete: {
     alignSelf: 'flex-start',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   saveError: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
 });

@@ -20,6 +20,7 @@ import {
   type AssistantPalette,
 } from '../../services/ai/presentation';
 import type { AiActionPreview, AiActionResult, AssistantFormatter } from '../../services/ai/types';
+import { componentMetrics, radii, spacing, typography } from '../../theme';
 import { chatStyles, PILL_MAX_FONT_SCALE, SMALL_HIT_SLOP } from './ChatPieces';
 
 export interface ActionCardProps {
@@ -38,6 +39,20 @@ export function openableMeetingId(state: ProposedActionState): string | null {
   return result.meetingIds.length === 1 ? (result.meetingIds[0] ?? null) : null;
 }
 
+/** 32dp tertiaryContainer circle around the action-type glyph (errorContainer when destructive). */
+function ActionIcon({ state, palette }: { state: ProposedActionState; palette: AssistantPalette }): ReactElement {
+  const destructive = isDestructiveAction(state.action);
+  return (
+    <View style={[styles.iconCircle, { backgroundColor: destructive ? palette.dangerSurface : palette.accentSurface }]}>
+      <MaterialCommunityIcons
+        name={actionIconName(state.action.type)}
+        size={componentMetrics.iconInline}
+        color={destructive ? palette.onDangerSurface : palette.onAccentSurface}
+      />
+    </View>
+  );
+}
+
 function ListCard({ state, fmt, palette, onOpenMeeting }: Omit<ActionCardProps, 'onReview' | 'onReject'>): ReactElement {
   const { action } = state;
   const preview = state.preview as AiActionPreview | null;
@@ -45,7 +60,7 @@ function ListCard({ state, fmt, palette, onOpenMeeting }: Omit<ActionCardProps, 
   return (
     <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]} testID={`action-${action.id}`}>
       <View style={styles.cardHeader}>
-        <MaterialCommunityIcons name={actionIconName(action.type)} size={18} color={palette.primary} />
+        <ActionIcon state={state} palette={palette} />
         <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={2}>
           {action.summary}
         </Text>
@@ -114,7 +129,7 @@ export function ActionCard({ state, fmt, palette, onReview, onReject, onOpenMeet
       testID={`action-${action.id}`}
     >
       <View style={styles.cardHeader} accessible accessibilityLabel={`${typeLabel}, ${statusLabel}`}>
-        <MaterialCommunityIcons name={actionIconName(action.type)} size={18} color={accent} />
+        <ActionIcon state={state} palette={palette} />
         <Text style={[styles.cardType, { color: accent }]}>{typeLabel}</Text>
         <View style={[styles.statusChip, { backgroundColor: palette.surfaceAlt }]}>
           <Text style={[styles.statusText, { color: palette.textMuted }]} maxFontSizeMultiplier={PILL_MAX_FONT_SCALE}>
@@ -152,7 +167,7 @@ export function ActionCard({ state, fmt, palette, onReview, onReject, onOpenMeet
             <Pressable
               onPress={() => onReject(action.id)}
               hitSlop={SMALL_HIT_SLOP}
-              style={[chatStyles.smallButton, chatStyles.secondaryButton, { borderColor: palette.border }]}
+              style={[chatStyles.smallButton, chatStyles.secondaryButton, { borderColor: palette.outline }]}
               accessibilityRole="button"
               testID={`action-dismiss-${action.id}`}
             >
@@ -175,7 +190,7 @@ export function ActionCard({ state, fmt, palette, onReview, onReject, onOpenMeet
           <Pressable
             onPress={() => onOpenMeeting(openableId)}
             hitSlop={SMALL_HIT_SLOP}
-            style={[chatStyles.smallButton, chatStyles.secondaryButton, { borderColor: palette.border }]}
+            style={[chatStyles.smallButton, chatStyles.secondaryButton, { borderColor: palette.outline }]}
             accessibilityRole="button"
             testID={`action-open-${action.id}`}
           >
@@ -191,12 +206,12 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  // Full width inside the chat gutter (the old 40dp left inset wasted a tenth of a 360dp screen).
   card: {
-    marginLeft: 40,
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    gap: 8,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   cardMuted: {
     opacity: 0.6,
@@ -204,55 +219,57 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.sm,
+  },
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardType: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: '700',
+    ...typography.labelL,
   },
   cardTitle: {
     flex: 1,
-    fontSize: 15,
-    lineHeight: 20,
+    ...typography.bodyM,
   },
   cardNote: {
-    fontSize: 13,
-    lineHeight: 18,
+    ...typography.bodyS,
   },
   statusChip: {
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    borderRadius: radii.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '600',
+    ...typography.labelM,
   },
   warningLine: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 6,
+    gap: spacing.sm,
   },
   working: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   feedback: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: componentMetrics.touchTargetMin,
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 8,
+    paddingTop: spacing.sm,
   },
   listItemTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.titleS,
   },
 });

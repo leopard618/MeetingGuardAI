@@ -1,29 +1,29 @@
-/** Icon and accent color of each note category (light and dark variants keep text contrast). */
+/**
+ * Icon and accent color of each note category. Colors come from the canonical chart palette and
+ * note-category index in src/theme/tokens.ts (docs/DESIGN_SYSTEM.md §2), so the hue of a
+ * category never forks from the rest of the app; both variants keep >= 3:1 on surface.
+ */
 import type MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps } from 'react';
 
 import type { NoteCategory } from '../../core/types';
+// Tokens directly (pure module, no hooks needed here).
+import { chartPalette, noteCategoryColorIndex } from '../../theme/tokens';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
-interface CategoryStyle {
-  icon: IconName;
-  light: string;
-  dark: string;
-}
-
-const CATEGORY_STYLES: Readonly<Record<NoteCategory, CategoryStyle>> = {
-  general: { icon: 'note-text-outline', light: '#475569', dark: '#CBD5E1' },
-  work: { icon: 'briefcase-outline', light: '#1D4ED8', dark: '#93C5FD' },
-  ideas: { icon: 'lightbulb-on-outline', light: '#B45309', dark: '#FCD34D' },
-  personal: { icon: 'account-heart-outline', light: '#047857', dark: '#6EE7B7' },
+const CATEGORY_ICONS: Readonly<Record<NoteCategory, IconName>> = {
+  general: 'note-text-outline',
+  work: 'briefcase-outline',
+  ideas: 'lightbulb-on-outline',
+  personal: 'account-heart-outline',
 };
 
 export function categoryIcon(category: NoteCategory): IconName {
-  return CATEGORY_STYLES[category].icon;
+  return CATEGORY_ICONS[category];
 }
 
 export function categoryColor(category: NoteCategory, dark: boolean): string {
-  const style = CATEGORY_STYLES[category];
-  return dark ? style.dark : style.light;
+  const palette = dark ? chartPalette.dark : chartPalette.light;
+  return palette[noteCategoryColorIndex[category]];
 }

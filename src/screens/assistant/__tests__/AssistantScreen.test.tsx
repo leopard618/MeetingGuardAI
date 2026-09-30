@@ -31,6 +31,9 @@ jest.mock('../../../utils/format', () => ({
 let mockDarkMode = false;
 jest.mock('../../../contexts/ThemeContext', () => ({
   useTheme: () => ({ isDarkMode: mockDarkMode, toggleTheme: jest.fn() }),
+  // For useAppTheme (src/theme) in nested MG components (e.g. MeetingConfirmationModal).
+  useOptionalTheme: () => ({ colorScheme: mockDarkMode ? 'dark' : 'light' }),
+  resolveColorScheme: (_preference: string, system: 'light' | 'dark' | null | undefined) => system ?? 'light',
 }));
 
 jest.mock('../../../services/data', () => ({

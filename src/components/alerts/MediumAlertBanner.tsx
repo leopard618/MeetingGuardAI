@@ -2,6 +2,9 @@
  * MEDIUM alert (owner: alerts): large persistent banner at the top of the screen with a pulse
  * animation. It can be minimized to a pill but not dismissed: it stays until the user
  * acknowledges, snoozes, joins or opens the meeting. One chime + voice + vibration on appearance.
+ *
+ * Visuals are the mode-invariant `alertMedium` identity (docs/DESIGN_SYSTEM.md §9): an elevated
+ * dark card with a 4dp amber accent bar, identical in light and dark mode, every pair AA-checked.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
@@ -10,6 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '../../i18n';
 import type { FeedbackRequest } from '../../services/alerts';
+import { alertMax, alertMedium, componentMetrics, darkColors, pressedOpacity, radii, spacing, typography } from '../../theme';
+import { useReducedMotion } from '../ui';
 import type { AlertDisplayModel } from './alertDisplay';
 import { useAlertFeedback } from './hooks';
 
@@ -23,9 +28,15 @@ export interface MediumAlertBannerProps {
   onDetails: (() => void) | null;
 }
 
+/** Soft dot/card pulse; stays still when the system asks for reduced motion. */
 function usePulse(): Animated.Value {
   const [value] = useState(() => new Animated.Value(0));
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
+    if (reduceMotion) {
+      value.setValue(0);
+      return undefined;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(value, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
@@ -34,7 +45,7 @@ function usePulse(): Animated.Value {
     );
     loop.start();
     return () => loop.stop();
-  }, [value]);
+  }, [value, reduceMotion]);
   return value;
 }
 
@@ -60,7 +71,7 @@ export function MediumAlertBanner(props: MediumAlertBannerProps): ReactElement {
 
   if (minimized) {
     return (
-      <View pointerEvents="box-none" style={[styles.pillWrap, { top: insets.top + 8 }]}>
+      <View pointerEvents="box-none" style={[styles.pillWrap, { top: insets.top + spacing.sm }]}>
         <Pressable
           style={styles.pill}
           onPress={() => setMinimized(false)}
@@ -75,25 +86,25 @@ export function MediumAlertBanner(props: MediumAlertBannerProps): ReactElement {
               interpolation: { escapeValue: false },
             })}
           </Text>
-          <Ionicons name="chevron-down" size={16} color="#FDE68A" />
+          <Ionicons name="chevron-down" size={16} color={alertMedium.accentBar} />
         </Pressable>
       </View>
     );
   }
 
   return (
-    <View pointerEvents="box-none" style={[styles.wrap, { top: insets.top + 8 }]}>
+    <View pointerEvents="box-none" style={[styles.wrap, { top: insets.top + spacing.sm }]}>
       <Animated.View style={[styles.banner, { transform: [{ scale: cardScale }] }]} accessibilityRole="alert">
         <View style={styles.headerRow}>
           <Animated.View style={[styles.dot, { transform: [{ scale: dotScale }], opacity: dotOpacity }]} />
           <Text style={styles.heading}>{t('alerts:medium.heading')}</Text>
           <Pressable
             onPress={() => setMinimized(true)}
-            hitSlop={12}
+            style={styles.minimize}
             accessibilityRole="button"
             accessibilityLabel={t('alerts:buttons.minimize')}
           >
-            <Ionicons name="chevron-up" size={22} color="#E5E7EB" />
+            <Ionicons name="chevron-up" size={22} color={alertMedium.body} />
           </Pressable>
         </View>
         <Pressable onPress={onDetails ? once(onDetails) : undefined} disabled={!onDetails}>
@@ -138,16 +149,16 @@ export function MediumAlertBanner(props: MediumAlertBannerProps): ReactElement {
 const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
-    left: 12,
-    right: 12,
+    left: spacing.md,
+    right: spacing.md,
   },
   banner: {
-    backgroundColor: 'rgba(17, 24, 39, 0.94)',
-    borderRadius: 16,
-    borderLeftWidth: 6,
-    borderLeftColor: '#F59E0B',
-    padding: 16,
-    shadowColor: '#000',
+    backgroundColor: alertMedium.bg,
+    borderRadius: radii.md,
+    borderLeftWidth: componentMetrics.accentBarWidth,
+    borderLeftColor: alertMedium.accentBar,
+    padding: componentMetrics.cardPadding,
+    shadowColor: darkColors.shadow,
     shadowOpacity: 0.35,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
@@ -156,103 +167,111 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   dot: {
     width: 10,
     height: 10,
-    borderRadius: 5,
-    backgroundColor: '#F59E0B',
-    marginRight: 8,
+    borderRadius: radii.full,
+    backgroundColor: alertMedium.accentBar,
+    marginRight: spacing.sm,
   },
   heading: {
     flex: 1,
-    color: '#FDE68A',
-    fontSize: 14,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    ...typography.labelM,
+    color: alertMedium.accentBar,
+  },
+  minimize: {
+    width: componentMetrics.touchTargetMin,
+    height: componentMetrics.touchTargetMin,
+    marginVertical: -spacing.xs,
+    marginRight: -spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 19,
-    fontWeight: '700',
-    marginBottom: 4,
+    ...typography.titleM,
+    color: alertMedium.title,
+    marginBottom: spacing.xs,
   },
   when: {
-    color: '#FBBF24',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
+    ...typography.titleS,
+    fontVariant: ['tabular-nums'],
+    color: alertMedium.accentBar,
+    marginBottom: spacing.xs,
   },
   detail: {
-    color: '#D1D5DB',
-    fontSize: 14,
+    ...typography.bodyM,
+    fontVariant: ['tabular-nums'],
+    color: alertMedium.body,
   },
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 14,
+    gap: spacing.sm,
+    marginTop: spacing.lg,
   },
   primary: {
-    backgroundColor: '#F59E0B',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    minHeight: componentMetrics.buttonHeightSmall,
+    justifyContent: 'center',
+    backgroundColor: alertMedium.actionBg,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: componentMetrics.cardPadding,
   },
   primaryText: {
-    color: '#111827',
-    fontWeight: '700',
-    fontSize: 15,
+    ...typography.labelL,
+    color: alertMedium.actionText,
   },
   join: {
-    backgroundColor: '#16A34A',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    minHeight: componentMetrics.buttonHeightSmall,
+    justifyContent: 'center',
+    backgroundColor: alertMax.joinBg,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: componentMetrics.cardPadding,
   },
   joinText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 15,
+    ...typography.labelL,
+    color: alertMax.joinText,
   },
   secondary: {
+    minHeight: componentMetrics.buttonHeightSmall,
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#6B7280',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    borderColor: alertMedium.body,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: componentMetrics.cardPadding,
   },
   secondaryText: {
-    color: '#E5E7EB',
-    fontWeight: '600',
-    fontSize: 15,
+    ...typography.labelL,
+    color: alertMedium.title,
   },
   pressed: {
-    opacity: 0.75,
+    opacity: pressedOpacity,
   },
   pillWrap: {
     position: 'absolute',
-    right: 12,
+    right: spacing.md,
     maxWidth: '80%',
   },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(17, 24, 39, 0.94)',
-    borderRadius: 20,
+    minHeight: componentMetrics.touchTargetMin,
+    backgroundColor: alertMedium.bg,
+    borderRadius: radii.full,
     borderWidth: 1,
-    borderColor: '#F59E0B',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    gap: 6,
+    borderColor: alertMedium.accentBar,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
     elevation: 10,
   },
   pillText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
+    ...typography.labelM,
+    color: alertMedium.title,
     flexShrink: 1,
   },
 });

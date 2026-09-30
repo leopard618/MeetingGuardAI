@@ -1,6 +1,7 @@
 /**
  * Small building blocks of the calendar sync screen: primary button, provider sync line (real
  * last-sync time and last error), and the calendar rows (import switch, export radio).
+ * All colors come from the calendar palette (MG tokens, light / dark).
  */
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { ComponentProps, ReactElement, ReactNode } from 'react';
@@ -8,6 +9,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 're
 
 import type { DeviceCalendarInfo, ProviderStatus, TranslateFn } from '../../core/contracts';
 import type { Language } from '../../core/types';
+// Tokens directly (not the src/theme barrel): the sync screen's tests mock ThemeContext.
+import { componentMetrics, pressedOpacity, radii, spacing, typography } from '../../theme/tokens';
 import { formatRelative } from '../../utils/format';
 import { errorText } from './calendarSyncModel';
 import type { CalendarPalette } from './palette';
@@ -31,21 +34,25 @@ export function PrimaryButton({
   palette: CalendarPalette;
   testID?: string;
 }): ReactElement {
+  const contentColor = disabled ? palette.disabledText : palette.onAccent;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled, busy }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.button, { backgroundColor: disabled ? palette.disabled : palette.accent, opacity: pressed ? 0.85 : 1 }]}
+      style={({ pressed }) => [
+        styles.button,
+        { backgroundColor: disabled ? palette.disabled : palette.accent, opacity: pressed ? pressedOpacity : 1 },
+      ]}
       testID={testID}
     >
       {busy ? (
-        <ActivityIndicator size="small" color={palette.onAccent} />
+        <ActivityIndicator size="small" color={contentColor} />
       ) : icon ? (
-        <MaterialIcons name={icon} size={18} color={palette.onAccent} />
+        <MaterialIcons name={icon} size={18} color={contentColor} />
       ) : null}
-      <Text style={[styles.buttonText, { color: palette.onAccent }]}>{label}</Text>
+      <Text style={[styles.buttonText, { color: contentColor }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -126,7 +133,7 @@ export function ImportRow({
         disabled={disabled}
         onValueChange={onChange}
         accessibilityLabel={accessibilityLabel}
-        trackColor={{ true: palette.accent, false: palette.border }}
+        trackColor={{ true: palette.accent, false: palette.neutralSurface }}
         testID={`device-import-switch-${calendar.id}`}
       />
     </View>
@@ -188,34 +195,29 @@ export const partStyles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   cardTitle: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
+    ...typography.titleM,
   },
   body: {
-    fontSize: 14,
-    lineHeight: 20,
+    ...typography.bodyM,
   },
   sectionLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    paddingTop: 8,
-    paddingBottom: 4,
+    ...typography.titleS,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
   },
   meta: {
-    fontSize: 13,
-    lineHeight: 18,
+    ...typography.bodyS,
   },
+  /** Status badge: labelM on a Container pair (see toneBadgeColors). */
   pill: {
-    fontSize: 12,
-    fontWeight: '600',
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    ...typography.labelM,
+    borderRadius: radii.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     overflow: 'hidden',
   },
 });
@@ -226,67 +228,66 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    minHeight: 48,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    gap: spacing.sm,
+    minHeight: componentMetrics.buttonHeight,
+    borderRadius: radii.full,
+    paddingVertical: spacing.md,
+    paddingHorizontal: componentMetrics.cardPadding,
   },
   buttonText: {
-    fontSize: 15,
-    fontWeight: '600',
+    ...typography.labelL,
   },
   inlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   inlineText: {
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    minHeight: 48,
-    paddingVertical: 10,
+    gap: spacing.md,
+    minHeight: componentMetrics.listRowMinHeight,
+    paddingVertical: componentMetrics.listRowPaddingV,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   rowTextBlock: {
     flex: 1,
   },
   rowLabel: {
-    fontSize: 15,
+    ...typography.bodyL,
     flexShrink: 1,
   },
   dot: {
     width: 12,
     height: 12,
-    borderRadius: 6,
+    borderRadius: radii.full,
   },
   cardTop: {
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    borderWidth: 1,
     borderBottomWidth: 0,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 4,
-    gap: 12,
+    paddingHorizontal: componentMetrics.cardPadding,
+    paddingTop: componentMetrics.cardPadding,
+    paddingBottom: spacing.xs,
+    gap: componentMetrics.cardGap,
   },
   cardMiddle: {
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 16,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    paddingHorizontal: componentMetrics.cardPadding,
   },
   cardBottom: {
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomLeftRadius: radii.lg,
+    borderBottomRightRadius: radii.lg,
+    borderWidth: 1,
     borderTopWidth: 0,
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 16,
-    marginBottom: 16,
-    gap: 8,
+    paddingHorizontal: componentMetrics.cardPadding,
+    paddingTop: spacing.xs,
+    paddingBottom: componentMetrics.cardPadding,
+    marginBottom: componentMetrics.screenGutter,
+    gap: spacing.sm,
   },
 });

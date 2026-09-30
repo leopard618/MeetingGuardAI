@@ -25,6 +25,9 @@ import {
 import type { ActionResult, ActionWarning } from '../../core/contracts';
 import { AppError, isAppError, type AppErrorCode } from '../../core/errors';
 import type { Meeting } from '../../core/types';
+// Service-layer file: tokens are imported directly (never the src/theme barrel, which pulls in
+// React hooks) — docs/DESIGN_SYSTEM.md §7 group D.
+import { mgColors, type MGColors } from '../../theme/tokens';
 
 import { quotaUsageFromError } from './assistantClient';
 import { draftLocalDate, shiftedStartAt, windowAfterChanges } from './mapping';
@@ -602,11 +605,23 @@ export function buildMailtoUrl(recipients: readonly string[], content: ShareCont
 // Colors (light / dark), shared by the chat screen and the confirmation modal
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * Every value is an MG Indigo token (src/theme/tokens.ts) — docs/DESIGN_SYSTEM.md §7 group D.
+ * The legacy emerald/slate literals are gone; the field names stay so consumers compile, and a
+ * few token-named fields were added for the restyled chat pieces. All pairings are AA in both
+ * schemes (see src/theme/__tests__/contrast.test.ts for the documented pairs).
+ */
 export interface AssistantPalette {
   background: string;
   surface: string;
+  /** surfaceContainerHigh: assistant bubble, avatar circle, status chips. */
   surfaceAlt: string;
+  /** outlineVariant: decorative hairlines (card edges, dividers). */
   border: string;
+  /** outline: functional borders (unselected suggestion chips). */
+  outline: string;
+  /** surfaceContainerLow: the composer input at rest. */
+  inputSurface: string;
   text: string;
   textMuted: string;
   primary: string;
@@ -615,81 +630,78 @@ export interface AssistantPalette {
   onUserBubble: string;
   assistantBubble: string;
   onAssistantBubble: string;
+  /** tertiaryContainer / onTertiaryContainer: action-card icon circles. */
+  accentSurface: string;
+  onAccentSurface: string;
   danger: string;
   onDanger: string;
   dangerSurface: string;
+  onDangerSurface: string;
   warning: string;
   warningSurface: string;
+  onWarningSurface: string;
   success: string;
   successSurface: string;
+  onSuccessSurface: string;
   info: string;
   infoSurface: string;
+  onInfoSurface: string;
   backdrop: string;
 }
 
-const LIGHT: AssistantPalette = {
-  background: '#ffffff',
-  surface: '#f8fafc',
-  surfaceAlt: '#f1f5f9',
-  border: '#e2e8f0',
-  text: '#0f172a',
-  textMuted: '#64748b',
-  primary: '#059669',
-  onPrimary: '#ffffff',
-  userBubble: '#059669',
-  onUserBubble: '#ffffff',
-  assistantBubble: '#f1f5f9',
-  onAssistantBubble: '#0f172a',
-  danger: '#dc2626',
-  onDanger: '#ffffff',
-  dangerSurface: '#fef2f2',
-  warning: '#b45309',
-  warningSurface: '#fffbeb',
-  success: '#047857',
-  successSurface: '#ecfdf5',
-  info: '#1d4ed8',
-  infoSurface: '#eff6ff',
-  backdrop: 'rgba(15, 23, 42, 0.55)',
-};
+function paletteFromTokens(c: MGColors): AssistantPalette {
+  return {
+    background: c.background,
+    surface: c.surface,
+    surfaceAlt: c.surfaceContainerHigh,
+    border: c.outlineVariant,
+    outline: c.outline,
+    inputSurface: c.surfaceContainerLow,
+    text: c.onSurface,
+    textMuted: c.onSurfaceVariant,
+    primary: c.primary,
+    onPrimary: c.onPrimary,
+    userBubble: c.primary,
+    onUserBubble: c.onPrimary,
+    assistantBubble: c.surfaceContainerHigh,
+    onAssistantBubble: c.onSurface,
+    accentSurface: c.tertiaryContainer,
+    onAccentSurface: c.onTertiaryContainer,
+    danger: c.error,
+    onDanger: c.onError,
+    dangerSurface: c.errorContainer,
+    onDangerSurface: c.onErrorContainer,
+    warning: c.warning,
+    warningSurface: c.warningContainer,
+    onWarningSurface: c.onWarningContainer,
+    success: c.success,
+    successSurface: c.successContainer,
+    onSuccessSurface: c.onSuccessContainer,
+    info: c.info,
+    infoSurface: c.infoContainer,
+    onInfoSurface: c.onInfoContainer,
+    backdrop: c.backdrop,
+  };
+}
 
-const DARK: AssistantPalette = {
-  background: '#0f172a',
-  surface: '#1e293b',
-  surfaceAlt: '#273549',
-  border: '#334155',
-  text: '#f1f5f9',
-  textMuted: '#94a3b8',
-  primary: '#10b981',
-  onPrimary: '#052e1f',
-  userBubble: '#10b981',
-  onUserBubble: '#052e1f',
-  assistantBubble: '#1e293b',
-  onAssistantBubble: '#f1f5f9',
-  danger: '#f87171',
-  onDanger: '#1f0707',
-  dangerSurface: '#3b1414',
-  warning: '#fbbf24',
-  warningSurface: '#3a2a0a',
-  success: '#34d399',
-  successSurface: '#0b3326',
-  info: '#93c5fd',
-  infoSurface: '#172554',
-  backdrop: 'rgba(0, 0, 0, 0.65)',
-};
+const LIGHT: AssistantPalette = paletteFromTokens(mgColors.light);
+
+const DARK: AssistantPalette = paletteFromTokens(mgColors.dark);
 
 export function assistantPalette(isDarkMode: boolean): AssistantPalette {
   return isDarkMode ? DARK : LIGHT;
 }
 
+/** Container trio per tone (on-color on container — AA in both schemes by the contrast guard). */
 export function feedbackColors(palette: AssistantPalette, tone: FeedbackTone): { color: string; background: string } {
   switch (tone) {
     case 'success':
-      return { color: palette.success, background: palette.successSurface };
+      return { color: palette.onSuccessSurface, background: palette.successSurface };
     case 'warning':
-      return { color: palette.warning, background: palette.warningSurface };
+      return { color: palette.onWarningSurface, background: palette.warningSurface };
     case 'error':
-      return { color: palette.danger, background: palette.dangerSurface };
+      return { color: palette.onDangerSurface, background: palette.dangerSurface };
     case 'info':
-      return { color: palette.info, background: palette.infoSurface };
+      return { color: palette.onInfoSurface, background: palette.infoSurface };
   }
 }
