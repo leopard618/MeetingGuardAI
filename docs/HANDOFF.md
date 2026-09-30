@@ -1,4 +1,4 @@
-# Handoff: MeetingGuard AI v1.2.0 (stabilization)
+# Handoff: MeetingGuard AI v1.3.0 (stabilization)
 
 This is the starting point for the developer who owns the repository. It covers:
 
@@ -6,20 +6,23 @@ This is the starting point for the developer who owns the repository. It covers:
 - what is still open, and who must do it
 - which decisions the client must make
 
-State at the time of writing (2026-09-29):
+State at the time of writing (2026-09-30):
 
-- Branch `stabilization`, version 1.2.0, not released. Phase 1 is code-complete: recurring
-  meetings, Outlook/Microsoft 365 sync and Android full-screen alarms are implemented (each with
-  the v1 caveats in §4); WhatsApp stays out of scope.
+- Branch `stabilization`, version 1.3.0, not released. Phase 1 (recurring meetings,
+  Outlook/Microsoft 365 sync, Android full-screen alarms) and phase 2 (the "this and following"
+  edit scope, the Android next-meeting home-screen widget, Google Play subscriptions via
+  RevenueCat behind an env flag, and the admin dashboard) are code-complete, each with the
+  caveats in §4; WhatsApp stays out of scope. The version is 1.3.0 because the widget module and
+  the purchases SDK are native: store/APK build only, never an OTA update onto 1.2.0.
 - Every automated check passes.
-- **Nothing has been run on a real device.**
+- Only v1.2.0 has been exercised on a device (LDPlayer 9); the phase-2 features have not.
 - Google Play still serves v1.0.9 (versionCode 20).
 
 ---
 
 ## 0. Where the code is
 
-- `stabilization` has 60 commits on top of `main` (`3308b9d`) at the time of writing
+- `stabilization` has about 70 commits on top of `main` (`3308b9d`) at the time of writing
   (`git log --oneline main..stabilization` lists them). **Nothing is pushed.**
 - The commits are in a **separate git directory**,
   `C:/Users/Leopard/git-data/MeetingGuardAI-work/.git`, with the work tree
@@ -139,7 +142,7 @@ State at the time of writing (2026-09-29):
 | Production hosting, SSL, secure env | Ready to deploy on Firebase (HTTPS only; the OpenAI key in Secret Manager; only public values in the app). Not deployed yet: it needs the client's project access. |
 | Monitoring (errors, health) | Sentry is wired in; it needs `EXPO_PUBLIC_SENTRY_DSN`. The Cloud Monitoring and budget alerts are described in `docs/DEPLOYMENT.md` §8. There is no separate health endpoint (the backend is two callables). |
 | Backups | Commands are ready (`docs/DEPLOYMENT.md` §7); they must be turned on in the project. |
-| QA: calendars, alerts, EN/ES | Automated: 116 app suites (1221 tests), 11 function suites (101 tests), and the rules tests. The device plan is written (`docs/TESTING.md` Part B, now incl. T14 full-screen alarms and T15 Outlook) but **not run**. |
+| QA: calendars, alerts, EN/ES | Automated: 125 app suites (1363 tests), 14 function suites (159 tests), and the rules tests. The device plan (`docs/TESTING.md` Part B, now incl. T16 widget and T17 subscriptions) had a first v1.2.0 pass on LDPlayer 9; the v1.3.0 additions are **not run**. |
 | Test builds: Play internal testing, TestFlight | Android: ready once `docs/SETUP.md` is done. iOS: blocked (Apple account, Sign in with Apple). |
 | Deployment and rollback notes | `docs/DEPLOYMENT.md`, "Release and rollback in brief" (the 1-2 page summary at the top); the numbered sections are the full runbook. |
 
@@ -160,13 +163,13 @@ Do these in order. **You** = the developer, **Client** = the product owner.
 | 7 | Fill `LEGAL_ENTITY`, `legal:jurisdiction` and the support email. Publish the privacy policy and terms at a public URL (only the delete page exists in `public/`). | You | `docs/DEPLOYMENT.md` §4 |
 | 8 | Submit the Google OAuth verification for `calendar.events`. Start early: it takes days to weeks. | You (form, video), Client (domain) | `docs/SETUP.md` §4.4 |
 | 9 | EAS environment variables, versionCode 20, keystore check, Play service account. | You | `docs/SETUP.md` §5 |
-| 10 | Set the OpenAI secret, create the params file, deploy the functions, rules, indexes and the delete page. Set the OpenAI and Google Cloud budgets. **The Firestore rules and the assistant changed in phase 1 (recurrence + Outlook fields, recurrence tools): redeploy both even if an older deploy exists, and deploy the rules BEFORE installing the 1.2.0 APK on any test device.** Against the older rules a recurring-meeting or Outlook write is rejected with permission-denied; the outbox keeps it queued and retries (the meeting shows in the unsynced count), but after enough failed retries the write is dropped and rolled back to the server copy — a freshly created recurring meeting then disappears from the app. Deploying the rules first avoids the whole situation. | You | `docs/SETUP.md` §6 |
+| 10 | Set the OpenAI secret, create the params file, deploy the functions, rules, indexes and the delete page. Set the OpenAI and Google Cloud budgets. **The Firestore rules and the functions changed in phases 1-2 (recurrence + Outlook fields, recurrence tools incl. the 'following' scope, the admin callables and the RevenueCat webhook): redeploy both even if an older deploy exists, and deploy the rules BEFORE installing the 1.3.0 APK on any test device.** Against the older rules a recurring-meeting or Outlook write is rejected with permission-denied; the outbox keeps it queued and retries (the meeting shows in the unsynced count), but after enough failed retries the write is dropped and rolled back to the server copy — a freshly created recurring meeting then disappears from the app. Deploying the rules first avoids the whole situation. | You | `docs/SETUP.md` §6 |
 | 11 | Turn on Firestore PITR and daily backups, Sentry, and the monitoring alerts. | You | `docs/DEPLOYMENT.md` §7-8 |
 | 12 | Preview build. Run `docs/TESTING.md` T1-T11 and T13-T15 (T14 full-screen alarms, T15 Outlook - T15 needs the Azure registration from §3). Fix what fails. | You | `docs/TESTING.md` |
 | 13 | Production build to internal testing. Run the upgrade test T12 on the fixture phones from step 2 (update them through the internal-testing link). | You | `docs/DEPLOYMENT.md` §3, `docs/TESTING.md` T12 |
 | 14 | Play Console App content: data safety, account deletion URL, app access, exact alarms, and the full-screen-intent declaration (new in 1.2.0). | You. The client confirms the answers. | `docs/DEPLOYMENT.md` §9 |
 | 15 | Staged rollout to production, with monitoring. Only after the OAuth consent screen is In production and `calendar.events` is verified (or the client accepts the unverified screen and the 100-user cap in writing). | You. The client approves the release. | `docs/DEPLOYMENT.md` §3, §4 item 4, §8 |
-| 16 | When most users run 1.2.0: delete the Render service, the Supabase project and the Stripe webhooks and links. | You, after the client agrees | `docs/SETUP.md` §1.3 |
+| 16 | When most users run 1.3.0: delete the Render service, the Supabase project and the Stripe webhooks and links. | You, after the client agrees | `docs/SETUP.md` §1.3 |
 | 17 | Make the decisions in §3. | Client | §3 below |
 
 ---
@@ -189,7 +192,7 @@ Do these in order. **You** = the developer, **Client** = the product owner.
 
 ## 4. Known limitations
 
-These are true in v1.2.0. Some are platform limits, some are not built yet.
+These are true in v1.3.0. Some are platform limits, some are not built yet.
 
 - **Full-screen alarms are Android-only and need the module in the binary.**
   - MAX alerts show over the lock screen through the local native module `mg-fullscreen-alarm`
@@ -215,11 +218,14 @@ These are true in v1.2.0. Some are platform limits, some are not built yet.
   - Alerts are scheduled up to 14 days ahead, with at most 60 pending (an iOS limit).
   - When more are needed, a "refill" reminder asks the user to open the app.
   - Background refresh runs at most about once an hour, when the OS allows it.
-- **Recurring meetings are v1 scope** (`docs/ARCHITECTURE.md` §16). Daily / weekly / monthly with an
-  interval and an end; the edit scopes are "this occurrence" and "the whole series" - there is no
-  "this and following" and no series split. Moving one occurrence is not pushed to Google, occurrence
-  edits and whole-series deletes made in Google web do not import back, and the phone-calendar export
-  writes at most the series' first occurrence.
+- **Recurring meetings** (`docs/ARCHITECTURE.md` §16). Daily / weekly / monthly with an interval
+  and an end; the edit scopes are "this occurrence", "this and following" (splits the series;
+  Google shows the shortened original plus a new series event) and "the whole series". A
+  "following" edit uses the occurrence-sheet surface (title/date/time/duration); the full form
+  edits the whole series. Still true: moving one occurrence is not pushed to Google, occurrence
+  edits and whole-series deletes made in Google web do not import back, the phone-calendar export
+  writes at most the series' first occurrence, and on Android the scope dialogs have no Cancel
+  button (3-button OS limit; dismiss = back / tap outside).
 - **Outlook sync is off until it is configured** (`docs/SETUP.md` §10): it needs an Azure app
   registration and `EXPO_PUBLIC_MSAL_CLIENT_ID`; the Outlook card is hidden without them. It syncs
   the account's default calendar; recurring series and meetings that came from Google or the phone
@@ -229,8 +235,17 @@ These are true in v1.2.0. Some are platform limits, some are not built yet.
 - **App Check is deferred** (`enforceAppCheck: false`). The callables are protected by Firebase Auth, a
   verified-account check, per-user quotas and a project-wide daily cap. `functions/README.md` says how
   to enable App Check.
-- **Subscriptions are not implemented.** There is no purchase flow. Plans are set by hand in
-  `entitlements/{uid}`, and the server enforces the AI quota per plan.
+- **Subscriptions are built but OFF until configured** (`docs/ARCHITECTURE.md` §20,
+  `docs/SETUP.md` §11): without `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` (and the Play/RevenueCat
+  dashboard setup + a deployed `revenuecatWebhook`) the Plans screen keeps saying "coming soon".
+  The server enforces the AI quota per plan either way. Android/Play only; iOS billing is open.
+  Entitlement writes and their precedence: §6 below.
+- **The home-screen widget is Android-only** (`docs/ARCHITECTURE.md` §19) and needs the 1.3.0
+  binary (native module). The "Happening now" swap uses an inexact alarm: under Doze it can lag
+  until the device wakes. Dark widget colors need Android 10+.
+- **The admin dashboard needs deploys and a claim** (`docs/ADMIN.md`): hosting + functions +
+  the `days.updatedAt` collection-group index deployed, and the admin custom claim granted with
+  `functions/scripts/set-admin-claim.mjs` (then sign out/in on the page). English only.
 - **Attachments are device-local.** They are copied into the app's folder, never uploaded or synced.
   They are removed on sign-out and meeting deletion, and lost on uninstall. The limit is 50 MB per file.
 - **Sign-in:** there is no email/password screen (the service supports it). There is no Sign in with
@@ -256,27 +271,40 @@ These are true in v1.2.0. Some are platform limits, some are not built yet.
 
 The order assumes the client chooses RevenueCat and iOS. Adjust it after the decisions in §3.
 
-1. **Billing (RevenueCat):**
-   - Create the products in Play Console and App Store Connect: Pro and Premium, monthly and yearly,
-     with 3-day trials. The prices are in `src/services/billing.ts`: $7.99 / $14.99, 25% off yearly.
-   - Add the RevenueCat SDK. It is a native module, so it needs a store build and a `version` bump.
-   - Add a webhook Cloud Function that writes `entitlements/{uid}`. The rules already block client
-     writes there.
-   - Add restore purchases, and turn on `PURCHASES_AVAILABLE` in `src/services/billing.ts` (the Plans
-     screen then shows the purchase buttons and the "Most popular" badge).
+1. **Billing (RevenueCat) - CODE COMPLETE (Android/Play), needs dashboard setup:**
+   - Shipped in this pass (`docs/ARCHITECTURE.md` §20): the purchases service
+     (`src/services/purchases`, react-native-purchases behind the optional
+     `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`), the full Plans screen purchase flow (store prices
+     from the current offering, "3-day free trial" copy when the store reports it, buy /
+     restore / manage-subscription, an "activating" state that waits for the webhook-written
+     entitlement), and the `revenuecatWebhook` Cloud Function that writes `entitlements/{uid}`
+     (secret `Authorization` header via `REVENUECAT_WEBHOOK_AUTH`, idempotent per event id,
+     TRANSFER moves the plan between uids). The client still NEVER writes entitlements; the
+     rules are unchanged.
+   - `PURCHASES_AVAILABLE` is no longer a hand-flipped switch: it derives from the env key +
+     native SDK at runtime. Without the key the Plans screen keeps the old "coming soon" view.
+   - What the owner does (full guide: `docs/SETUP.md` §11): create the four Play subscriptions
+     (`pro_monthly`, `pro_yearly`, `premium_monthly`, `premium_yearly` - $7.99 / $71.91 /
+     $14.99 / $134.91, each with a 3-day free trial offer), the RevenueCat project
+     (entitlements `pro` + `premium`, a current offering), set `REVENUECAT_WEBHOOK_AUTH`,
+     deploy functions, point the RevenueCat webhook at `revenuecatWebhook`, and put the public
+     `goog_...` key in the env. The SDK is native: purchases need a store/dev build with a
+     `version` bump (never OTA).
+   - Still open for later: iOS (App Store Connect products + `EXPO_PUBLIC_REVENUECAT_IOS_KEY`
+     equivalent) and any Stripe web checkout (item 3).
 2. **Tier enforcement:**
    - The AI quota is **already server-side**: the `assistant` function reads `entitlements/{uid}` in
      its quota transaction (`PLAN_DAILY_AI_LIMITS`).
    - Only features beyond the AI quota need new gates, both in the rules / functions and in the UI.
 3. **Stripe web checkout** (7-day trial), only if the client wants a web app. It writes the same
    entitlement document through a webhook.
-4. **Widgets:** an Android "Next meeting" widget and an iOS WidgetKit widget with an App Group. Both are
-   native, so they need a store build.
-5. **Admin web (MVP):**
-   - A small app on Firebase Hosting, with callable functions protected by an `admin` custom claim.
-   - It lists users, enables and disables them, shows the entitlement and usage, grants plans and shows
-     basic metrics (users, subscribers).
-   - Write a short admin guide.
+4. **Widgets - Android DONE** (`docs/ARCHITECTURE.md` §19; device plan `docs/TESTING.md` §T16):
+   the "Next meeting" widget ships in 1.3.0 (`modules/mg-next-meeting-widget`). Still open: the
+   iOS WidgetKit widget with an App Group (native; needs the iOS effort in item 7).
+5. **Admin web (MVP) - DONE** (`docs/ARCHITECTURE.md` §21; guide `docs/ADMIN.md`): `/admin` on
+   Firebase Hosting, callables behind the `admin` custom claim (user list with entitlement +
+   today's usage, disable/enable, set plan, metrics). Owner steps: deploy hosting/functions/
+   indexes, grant the claim (`functions/scripts/set-admin-claim.mjs`).
 6. **Store listings:**
    - Play: screenshots EN/ES, descriptions, and data safety updated for purchases.
    - App Store: privacy labels, IAP products and review notes. iPad screenshots only if iPad
@@ -286,4 +314,37 @@ The order assumes the client chooses RevenueCat and iOS. Adjust it after the dec
    performance targets (`docs/TESTING.md` T13).
 9. **Optional, after the decisions:** App Check and the WhatsApp bot (out of scope unless the client
    provides the Meta business account). Recurring meetings, Outlook and the full-screen alarm module
-   shipped in v1.2.0 (`docs/ARCHITECTURE.md` §16-§18).
+   shipped in v1.2.0 (`docs/ARCHITECTURE.md` §16-§18); the "this and following" scope, the Android
+   widget, Play billing and the admin dashboard shipped in v1.3.0 (§16 v2, §19-§21).
+
+---
+
+## 6. Who writes `entitlements/{uid}`, and who wins
+
+The entitlement document is **server-written only** (the Firestore rules allow no client write).
+There are exactly two writers, both through the Admin SDK, and the rule is **last writer wins** -
+`source` records who wrote the document, it is not a priority:
+
+- the **RevenueCat webhook** (`revenuecatWebhook`, source `'revenuecat'`), on every subscription
+  event (purchase, renewal, billing retry, cancellation, expiration, transfer);
+- the **admin callable** (`adminSetUserPlan`, source `'admin'`), when an admin sets a plan by hand
+  (also `'free'`: an explicit downgrade).
+
+Consequences, and how to use them:
+
+- An admin write **overrides everything now**, but only until the user's next RevenueCat event:
+  a renewal, billing-retry or cancellation event overwrites the admin document without looking at
+  its `source` (deliberate - the store's truth must never be maskable by a stale admin write).
+- **Comping a user who has no store subscription is safe**: RevenueCat sends no events for them,
+  so the admin document stays. Prefer setting an `expiresAt` so the grant ends by itself
+  (`effectivePlan()` treats an expired document as free).
+- **Overriding an ACTIVE subscriber long-term with `adminSetUserPlan` does not work** (the next
+  renewal event reverts it, usually within a month). Use RevenueCat's *granted entitlements* in
+  their dashboard instead - those flow through the webhook like any purchase, and survive it.
+- The webhook is idempotent per event id (`revenuecatEvents/{id}` markers) - a RevenueCat retry
+  never double-writes - but idempotency does not serialize the two writers; the last write is
+  simply the newest state, which is the intended semantics.
+- The AI quota and the app read the same document through `effectivePlan()` /
+  `resolveEffectivePlan()` (expired/revoked or a past `expiresAt` mean free), so admin and
+  webhook writes take effect everywhere at once, entitlement listeners included (the Pricing
+  screen's "activating..." state completes on the webhook write).

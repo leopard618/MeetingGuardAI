@@ -38,7 +38,7 @@ Only the kind of each secret is listed here, never a value. Keep the old values 
 |---|---|---|---|---|
 | 1 | OpenAI API key (A) | Inside the published v1.0.9 APK | platform.openai.com -> the project -> API keys -> revoke the key. Create a new key only for the Firebase secret (§6.2). Set a monthly budget or usage limit on the project. | AI chat in v1.0.9 stops (it calls OpenAI directly with this key). |
 | 2 | OpenAI API key (B, a different key) | Git history | Revoke it the same way. | None. |
-| 3 | Google OAuth client secret (one value) | The APK and the git history | Google Cloud console -> APIs & Services -> Credentials -> the OAuth client that owns it -> **Add secret**, give the new secret to the old backend if it must keep running, then **disable and delete** the old secret. If nothing uses the client any more, delete the client. v1.2.0 uses **no** client secret. | Google login in v1.0.9 goes through the Render backend, which uses this secret. Login breaks until the backend has the new secret. |
+| 3 | Google OAuth client secret (one value) | The APK and the git history | Google Cloud console -> APIs & Services -> Credentials -> the OAuth client that owns it -> **Add secret**, give the new secret to the old backend if it must keep running, then **disable and delete** the old secret. If nothing uses the client any more, delete the client. v1.3.0 uses **no** client secret. | Google login in v1.0.9 goes through the Render backend, which uses this secret. Login breaks until the backend has the new secret. |
 | 4 | Supabase anon key and **service_role** key | Git history | Supabase dashboard -> the project -> Project Settings -> JWT Keys (older dashboards: Settings -> API) -> rotate the JWT secret. This makes new anon and service_role keys. If the project is not needed any more, export what you need (paid users, see §1.3), then pause or delete it. | The Render backend uses Supabase. Put the new keys in its environment, or v1.0.9 stops working. |
 | 5 | JWT signing secret of the old backend | Git history | Render dashboard -> the backend service -> Environment -> change the value -> redeploy. | All v1.0.9 sessions end; users sign in again. |
 | 6 | Stripe webhook signing secrets (two values) | Git history | Stripe dashboard -> Developers -> Webhooks -> the endpoint -> **Roll secret** (or delete the endpoint if nothing uses it). Update the backend environment. | Payment webhooks of the old backend fail until it has the new secret. |
@@ -56,7 +56,7 @@ Also do these:
   links. The client decides what happens to paying users (refund, or grant the plan by hand as in
   `functions/README.md` "Granting a plan manually").
 
-The client must accept that v1.0.9 features break during the rotation. Do not wait for v1.2.0 to ship
+The client must accept that v1.0.9 features break during the rotation. Do not wait for v1.3.0 to ship
 before you rotate. Just before you start, prepare the v1.0.9 fixture phones for the upgrade test
 (`docs/HANDOFF.md` §2 step 2, `docs/TESTING.md` T12): it takes minutes, and afterwards v1.0.9 can no
 longer sign in to create that data.
@@ -98,13 +98,13 @@ What to do:
 
 1. **Now:** check in the Render dashboard whether the service is running. If it is, deploy a version
    with those routes removed, or suspend the service. Suspending it stops sign-in in v1.0.9. The
-   meetings in v1.0.9 are stored on the phones, so they are not lost; v1.2.0 imports them after the
+   meetings in v1.0.9 are stored on the phones, so they are not lost; v1.3.0 imports them after the
    update.
-2. **After v1.2.0 is live and most users have updated:**
+2. **After v1.3.0 is live and most users have updated:**
    - Delete the Render service.
    - Export what you need from Supabase, then pause or delete the project.
    - Delete the Stripe webhook endpoints and payment links.
-3. In the Play "What's new" text for 1.2.0, tell users to sign in again with Google.
+3. In the Play "What's new" text for 1.3.0, tell users to sign in again with Google.
 
 ---
 
@@ -348,7 +348,7 @@ eas build:version:set -p android      # asks for the new value: enter 20
 eas build:version:get -p android      # must show 20
 ```
 
-Do not put `android.versionCode` in `app.config.js`. `version` (1.2.0) is the user-facing version and
+Do not put `android.versionCode` in `app.config.js`. `version` (1.3.0) is the user-facing version and
 also the OTA runtime version (`docs/DEPLOYMENT.md`).
 
 ### 5.4 Signing credentials

@@ -3,6 +3,53 @@
 All notable changes to MeetingGuard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
+## [1.3.0] - Unreleased (branch `stabilization`)
+
+The version jumped because this release ships **new native code** (the widget module and the
+purchases SDK): it needs a store/APK build and must never reach a 1.2.0 binary as an OTA update.
+
+### Added
+
+- **Home-screen widget (Android)** (new native module `mg-next-meeting-widget`): shows the next
+  meeting (title, time, date) in the app's language, flips to "Happening now" at start time,
+  updates when meetings change (background sync included), survives a reboot, and opens the
+  meeting when tapped. Signed out or without upcoming meetings it shows an empty state.
+- **Recurring meetings: "This and following"** as a third scope next to "This meeting only" and
+  "The whole series", in the list and details dialogs, the occurrence edit sheet and the AI
+  assistant ("move the standup to 10 from next week on"). The series is split: earlier
+  occurrences keep the old rule, the edited part becomes its own series. Google Calendar shows
+  the original series shortened plus a new series event.
+- **Subscriptions (Google Play + RevenueCat), behind a build flag:** with
+  `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` set, the Pricing screen sells Pro/Premium
+  (monthly/yearly, 3-day free trials, prices straight from Google Play), with purchase,
+  restore and "Manage subscription". Plans are activated by the server (RevenueCat webhook
+  `revenuecatWebhook`); the app never writes its own plan. Without the key the screen keeps
+  saying "Subscriptions coming soon" exactly as before. Setup: `docs/SETUP.md` §11.
+- **Admin dashboard** (`/admin` on Firebase Hosting, admins only via a custom claim): user list
+  with plan and today's AI usage, disable/enable accounts, set a plan manually, and usage
+  metrics. Guide: `docs/ADMIN.md`.
+- **Video-call links:** the meeting form and details now derive their link text from the chosen
+  provider AND the live calendar connections. Teams links are created automatically when a
+  meeting is first pushed to a connected Outlook account; Google Meet keeps working on every
+  sync. Where a link can never be auto-created (Teams + repeat, meetings imported from another
+  calendar, an event already in Outlook without a link) the app says so instead of promising
+  one.
+
+### Fixed
+
+- The helper text under the video-call options did not change when switching the provider, and
+  claimed a link would be generated even when it never would (the auto-link text was
+  Google-only and partly static). It now updates immediately per provider and connection
+  state, with a "Connect" button when connecting a calendar would enable the link.
+- The AI delete-confirmation card showed the whole-meeting warning for a "this and following"
+  delete; it now says only the occurrences from that date on are removed.
+
+### Changed
+
+- Version 1.3.0 (new native modules; store build only, never OTA - §15 of the architecture).
+- `react-native-purchases` 10.10.2 added; the entitlement document gained the sources
+  `revenuecat` and `admin` (server-written, as before).
+
 ## [1.2.0] - Unreleased (branch `stabilization`)
 
 This version is a rebuild. It is compared here with **v1.0.9**, the version on Google Play

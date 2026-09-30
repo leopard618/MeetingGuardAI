@@ -4,7 +4,8 @@ This document has two parts:
 
 - **Part A:** the automated tests (app, Cloud Functions, Firestore rules). They run on every push in
   CI.
-- **Part B:** the on-device test plan. Nobody has run it yet. v1.2.0 must pass it before a
+- **Part B:** the on-device test plan. v1.2.0 passed a first pass on LDPlayer 9; the v1.3.0
+  additions (T3 rows 21-23, T16, T17) have not been run. v1.3.0 must pass it before a
   production release.
 
 ---
@@ -23,7 +24,7 @@ npm run check:bundle              # does the Android bundle build? (output in di
 npx expo-doctor                   # dependency and config checks
 ```
 
-When this was last updated, `npm test` ran 116 suites and 1221 tests, all passing.
+When this was last updated, `npm test` ran 125 suites and 1363 tests, all passing.
 
 - **Where the tests are:** in `__tests__/` folders next to the code, plus `__tests__/App.test.js` and
   `__tests__/AppRoot.smoke.test.js` for the JavaScript entry.
@@ -69,7 +70,7 @@ npm run lint
 npm run build
 ```
 
-When this was last updated, the unit tests ran 11 suites and 101 tests, all passing, and
+When this was last updated, the unit tests ran 14 suites and 159 tests, all passing, and
 `npm run test:rules` ran 68 rules tests, all passing (Firestore emulator v1.22.0). The emulator
 uses the project id `demo-meetingguard`, so it never touches a real project.
 
@@ -386,7 +387,7 @@ If the build fails:
 
 ### T3. Create, edit, delete: manual and AI
 
-**Precondition for the recurring rows (10, 17-20):** the phase-1 Firestore rules must be deployed
+**Precondition for the recurring rows (10, 17-23):** the phase-1 Firestore rules must be deployed
 (`docs/HANDOFF.md` §2 step 10). Against the older rules the server rejects recurring-meeting
 writes; the outbox retries for a while, but persistent rejections are eventually dropped and the
 meeting is rolled back (a fresh recurring create disappears).
@@ -413,6 +414,9 @@ meeting is rolled back (a fresh recurring create disappears).
 | 18 | In All meetings, long-press one occurrence of "Gym" -> Delete. | A "Delete repeating meeting" dialog asks: **This meeting only** or **The whole series**. "This meeting only" removes just that day's row (Google loses only that day after the next sync). Repeat and pick "The whole series": every row disappears and the Google event is gone. |
 | 19 | Long-press another occurrence -> Edit -> **This meeting only**. Move it 1 hour later and rename it. | Only that day's row moves and shows the new title; the other days are unchanged. Details mark that occurrence as edited. (The time change is NOT pushed to Google in this version.) Edit -> **The whole series** opens the normal form and notes that changes apply to the whole series. |
 | 20 | Assistant, in Spanish: "Elimina solo la reunión de mañana del standup". | A delete card that says it applies **only to the occurrence on that date** ("Solo la repetición del …"). Confirm removes only that occurrence; the other days stay. |
+| 21 | In All meetings, long-press a MIDDLE occurrence of "Gym" -> Edit -> **This and following** (Android shows the three scope choices without a Cancel button; dismiss with Back or a tap outside). Move it 1 hour later. | The sheet is titled "This and following". After saving, that day **and every later day** show the new time; the earlier days keep the old time. In Google Calendar (after a sync) the old series now **ends the day before** and a **new repeating event** starts on the edited day - two separate series. |
+| 22 | Long-press another middle occurrence -> Delete -> **This and following**. | That day and every later row disappear; the earlier rows stay. The toast says this and the following occurrences were deleted. Google keeps only the shortened old series. Picking it on the FIRST occurrence deletes the whole series instead. |
+| 23 | Assistant: "From next Monday, move the standup to 10:00" (or in Spanish: "Desde el lunes, pasa el standup a las 10:00"). | An update card whose "Applies to" row says **"This and the following occurrences from <date>"**. Confirm: the earlier occurrences keep 9:00, the ones from that Monday on are at 10:00 (the list shows both patterns). "Cancela el resto de los standups" produces a delete card with the same scope row and a warning that earlier occurrences stay. |
 
 ### T4. Offline create, then reconnect
 
@@ -619,6 +623,57 @@ this section, or any recurring-meeting rows, before the rules redeploy.
 | 9 | Sign out of the app, sign back in. | Outlook shows Disconnected (the refresh token is deleted at session end); Connect works again. |
 | 10 | Tap **Disconnect** (with "remove access" if offered). | The card shows Disconnected, Outlook-imported meetings are removed from the app, app-created meetings stay (their Outlook link is cleared), and with revoke the Microsoft consent page opens. |
 | 11 | Repeat rows 2-6 in Spanish. | All Outlook card texts, states and toasts are natural Spanish. |
+
+### T16. Next-meeting home-screen widget (Android)
+
+The mg-next-meeting-widget native module shows the next meeting on the home screen. It ships
+only in a store build (a new `version`; never an OTA update). On LDPlayer 9: long-press an empty
+spot on the home screen -> **Widgets** -> drag the "Next meeting" MeetingGuard AI widget onto the
+home screen. The widget updates when the app pushes (session start, any meeting change, calendar
+sync, language change) - there is no polling.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Sign in, create a meeting for later today, go to the home screen and add the widget. | The widget shows the meeting title with the time and "Today" (e.g. "3:00 PM · Today"), matching the app's 12/24-hour setting. |
+| 2 | Tap the widget. | The app opens directly on that meeting's details. |
+| 3 | In the app, change the meeting's time, then return to the home screen. | The widget shows the new time without reopening the app. |
+| 4 | Delete the meeting (no other upcoming meetings within 7 days). | The widget shows "No upcoming meetings / Open MeetingGuard to plan one". Tapping it opens the app's dashboard. |
+| 5 | Create a meeting 2-3 minutes away, wait past its start with the app closed. | Around the start time the widget line changes to "Happening now" on its own (no exact-alarm permission involved; a small delay is normal - the refresh is deliberately inexact). It stays the "next" meeting until the next feed after the 5-minute grace (opening the app, a meeting change, or the hourly background refresh) - staying on "Happening now" longer with the app closed is expected. |
+| 6 | Create a weekly meeting whose first occurrence is past; check the widget. | The widget shows the NEXT occurrence of the series (date label "Today"/"Tomorrow" or the date, e.g. "Oct 12"). Editing "only this occurrence" to another time moves the widget line with it. |
+| 7 | Reboot the emulator (do not open the app). | After the reboot the widget still shows the meeting (data is restored natively; no JS run needed). |
+| 8 | Switch the app language to Spanish, return to the home screen. | The widget texts are Spanish ("Hoy"/"Mañana"; empty state "No hay reuniones próximas..."), even if the emulator's system language is English. |
+| 9 | Sign out. | The widget returns to the empty state (localized in the device language until the next sign-in pushes app-language strings). |
+| 10 | Remove the widget, change meetings in the app, add the widget again. | The freshly added widget immediately shows the current next meeting. |
+
+### T17. Subscriptions (Google Play + RevenueCat, only when configured)
+
+Needs ALL of `docs/SETUP.md` §11 first: the four Play subscriptions with their 3-day trial
+offers, the RevenueCat project (entitlements `pro`/`premium`, a current offering), the deployed
+`revenuecatWebhook` with `REVENUECAT_WEBHOOK_AUTH` set and the webhook URL in the RevenueCat
+dashboard, and `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` in the build env. Without the key this
+section is skipped and the Plans screen must show exactly the old "Subscriptions coming soon"
+view. Use a **license-tester** Google account (Play Console -> License testing) and prefer a
+**real device**: LDPlayer 9's Play services may not support test subscriptions. The build must
+be installed through Play (internal testing) for purchases to work.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Build WITHOUT the RevenueCat key, open Plans. | Exactly the old screen: catalog prices, "Subscriptions coming soon", no purchase buttons. |
+| 2 | Build with the key, open Plans. | Prices come from Google Play (store currency), "3-day free trial" appears on the plans whose Play offer has one, and Buy buttons exist. |
+| 3 | Turn the network off, open Plans. | Catalog prices plus an error banner with Retry; NO buy buttons (never a fake purchasable state). Retry with network restores row 2. |
+| 4 | Buy Pro monthly with the license tester, complete the Play sheet. | The Play test purchase completes, the screen shows "activating"; within seconds (webhook latency) the plan flips to Pro everywhere: Plans header, Settings, and the AI quota (100/day). |
+| 5 | Cancel the Play sheet instead of paying. | No error UI (cancel is silent), the screen stays purchasable. |
+| 6 | Uninstall, reinstall, sign in, open Plans, tap Restore. | The plan comes back without a new purchase. On an account with nothing to restore, its own "nothing to restore" message (not an error). |
+| 7 | With an active plan, open Plans. | Current-plan display + "Manage subscription" opens the Play subscriptions screen for the product. No Buy button for the ACTIVE tier; Premium upgrade stays offered on Pro. |
+| 8 | Cancel the subscription in Play, wait for expiry (test subscriptions renew/expire in minutes). | On expiry the plan drops to Free in the app (webhook `EXPIRATION`), AI quota back to 5/day. |
+| 9 | Repeat rows 2, 4, 5 in Spanish. | All purchase states, banners and toasts are natural Spanish. |
+
+Row 4 stuck on "activating" for minutes -> the webhook is not reachable or its secret is wrong:
+check the RevenueCat webhook log and the function logs, then `docs/SETUP.md` §11. The screen
+also says the plan will finish activating on its own - verify it does once the webhook works.
+
+**Admin dashboard** verification (not a device test): `docs/ADMIN.md` - deploy steps, granting
+the admin claim, and a per-callable checklist (user list, disable/enable, set plan, metrics).
 
 If iOS is in scope, repeat T1 to T11 on an iPhone. Sign in with Apple has to be built first
 (`docs/HANDOFF.md`).
