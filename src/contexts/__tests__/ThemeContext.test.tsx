@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Pressable, Text, useColorScheme } from 'react-native';
-import { MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
 
+import { darkColors, lightColors } from '../../theme/tokens';
+import { PAPER_THEMES } from '../themeColors';
 import {
   APP_COLORS,
   THEME_STORAGE_KEY,
@@ -65,10 +66,16 @@ describe('pure helpers', () => {
     expect(isThemeMode(null)).toBe(false);
   });
 
-  it('derives both palettes from the Paper themes', () => {
-    expect(APP_COLORS.light.background).toBe(MD3LightTheme.colors.background);
-    expect(APP_COLORS.dark.background).toBe(MD3DarkTheme.colors.background);
-    expect(APP_COLORS.dark.text).toBe(MD3DarkTheme.colors.onSurface);
+  it('derives both palettes and the Paper themes from the MG tokens', () => {
+    expect(APP_COLORS.light.background).toBe(lightColors.background);
+    expect(APP_COLORS.dark.background).toBe(darkColors.background);
+    expect(APP_COLORS.dark.text).toBe(darkColors.onSurface);
+    expect(APP_COLORS.light.border).toBe(lightColors.outlineVariant);
+    expect(APP_COLORS.light.danger).toBe(lightColors.error);
+    expect(PAPER_THEMES.light.colors.primary).toBe(lightColors.primary);
+    expect(PAPER_THEMES.dark.colors.primary).toBe(darkColors.primary);
+    expect(PAPER_THEMES.light.colors.elevation.level1).toBe(lightColors.elevation.level1);
+    expect(PAPER_THEMES.light.fonts.titleMedium.fontWeight).toBe('600');
   });
 
   it('migrates the legacy "theme" key once', async () => {

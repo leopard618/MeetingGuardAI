@@ -488,6 +488,35 @@ export const radii = {
 
 export type MGRadii = typeof radii;
 
+/**
+ * Alpha levels for pressed / ripple feedback (docs/DESIGN_SYSTEM.md §8), applied with withAlpha:
+ * cards ripple primary@10%, list rows onSurface@8%, 44dp icon buttons onSurface@12%.
+ */
+export const stateAlpha = {
+  rippleOnCard: 0.1,
+  rippleOnRow: 0.08,
+  rippleOnIcon: 0.12,
+} as const;
+
+/** iOS pressed-state fallback opacity (Android uses ripples). */
+export const pressedOpacity = 0.96;
+
+/**
+ * `#RRGGBB` (or `#RGB`) -> `rgba(r,g,b,alpha)`. The only sanctioned way to derive a translucent
+ * color (ripples, pressed tints) from a token. Non-hex input is returned unchanged.
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const match = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(hex);
+  if (!match) return hex;
+  let digits = match[1] ?? '';
+  if (digits.length === 3) digits = digits.replace(/./g, (d) => d + d);
+  const r = parseInt(digits.slice(0, 2), 16);
+  const g = parseInt(digits.slice(2, 4), 16);
+  const b = parseInt(digits.slice(4, 6), 16);
+  const a = Math.min(1, Math.max(0, alpha));
+  return `rgba(${r},${g},${b},${a})`;
+}
+
 /** Fixed component metrics at 360dp-and-up (dp). Touch targets never below touchTargetMin. */
 export const componentMetrics = {
   touchTargetMin: 44,

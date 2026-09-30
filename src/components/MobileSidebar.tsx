@@ -31,6 +31,7 @@ import { useLanguage, useT } from '../i18n';
 import { navigateToTopLevel } from '../navigation/navigationService';
 import { useSignOutFlow } from '../navigation/useSignOut';
 import { useAuth } from '../services/auth';
+import { componentMetrics, radii, spacing, typography } from '../theme';
 
 const APP_LOGO = require('../../assets/icon.png') as number;
 
@@ -140,6 +141,7 @@ export function MobileSidebar({ visible, onClose, currentRouteName = null }: Mob
             {
               width: panelWidth,
               backgroundColor: colors.surface,
+              shadowColor: colors.shadow,
               paddingTop: insets.top,
               paddingBottom: insets.bottom,
               paddingLeft: insets.left,
@@ -221,16 +223,16 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
                 onPress={() => go(item.route)}
                 style={({ pressed }) => [
                   styles.item,
-                  active && { backgroundColor: colors.primaryContainer },
+                  active && { backgroundColor: colors.secondaryContainer },
                   pressed && styles.pressed,
                 ]}
                 accessibilityRole="menuitem"
                 accessibilityState={{ selected: active }}
                 testID={`sidebar-item-${item.route}`}
               >
-                <Ionicons name={item.icon} size={22} color={active ? colors.onPrimaryContainer : colors.textSecondary} />
+                <Ionicons name={item.icon} size={22} color={active ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
                 <Text
-                  style={[styles.itemText, { color: active ? colors.onPrimaryContainer : colors.text }, active && styles.itemTextActive]}
+                  style={[styles.itemText, { color: active ? colors.onSecondaryContainer : colors.onSurfaceVariant }]}
                   numberOfLines={2}
                 >
                   {t(`shell:sidebar.items.${item.route}`)}
@@ -253,14 +255,14 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
                   }}
                   style={[
                     styles.chip,
-                    { borderColor: selected ? colors.primary : colors.border },
-                    selected && { backgroundColor: colors.primary },
+                    { borderColor: selected ? colors.secondaryContainer : colors.outline },
+                    selected && { backgroundColor: colors.secondaryContainer },
                   ]}
                   accessibilityRole="radio"
                   accessibilityState={{ selected }}
                   testID={`sidebar-language-${code}`}
                 >
-                  <Text style={[styles.chipText, { color: selected ? colors.onPrimary : colors.text }]}>
+                  <Text style={[styles.chipText, { color: selected ? colors.onSecondaryContainer : colors.onSurfaceVariant }]}>
                     {t(`common:language.${code}`)}
                   </Text>
                 </Pressable>
@@ -279,15 +281,15 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
                   style={[
                     styles.chip,
                     styles.themeChip,
-                    { borderColor: selected ? colors.primary : colors.border },
-                    selected && { backgroundColor: colors.primary },
+                    { borderColor: selected ? colors.secondaryContainer : colors.outline },
+                    selected && { backgroundColor: colors.secondaryContainer },
                   ]}
                   accessibilityRole="radio"
                   accessibilityState={{ selected }}
                   testID={`sidebar-theme-${mode}`}
                 >
-                  <Ionicons name={THEME_ICONS[mode]} size={16} color={selected ? colors.onPrimary : colors.textSecondary} />
-                  <Text style={[styles.chipText, styles.themeChipText, { color: selected ? colors.onPrimary : colors.text }]}>
+                  <Ionicons name={THEME_ICONS[mode]} size={16} color={selected ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
+                  <Text style={[styles.chipText, styles.themeChipText, { color: selected ? colors.onSecondaryContainer : colors.onSurfaceVariant }]}>
                     {t(`shell:sidebar.themeModes.${mode}`)}
                   </Text>
                 </Pressable>
@@ -307,8 +309,8 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
           accessibilityRole="button"
           testID="sidebar-sign-out"
         >
-          <Ionicons name="log-out-outline" size={22} color={colors.danger} />
-          <Text style={[styles.itemText, styles.itemTextActive, { color: colors.danger }]}>{t('common:actions.signOut')}</Text>
+          <Ionicons name="log-out-outline" size={22} color={colors.error} />
+          <Text style={[styles.itemText, { color: colors.error }]}>{t('common:actions.signOut')}</Text>
         </Pressable>
       </View>
     </View>
@@ -328,7 +330,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     elevation: 16,
-    shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -336,111 +337,102 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 16,
-    paddingRight: 4,
-    minHeight: 60,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.xs,
+    minHeight: componentMetrics.headerMinHeight,
+    borderBottomWidth: 1,
   },
   logo: {
     width: 32,
     height: 32,
-    borderRadius: 8,
-    marginRight: 10,
+    borderRadius: radii.sm,
+    marginRight: spacing.md,
   },
   brandText: {
+    ...typography.titleM,
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
   },
   closeButton: {
-    width: 44,
-    height: 44,
+    width: componentMetrics.touchTargetMin,
+    height: componentMetrics.touchTargetMin,
+    borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scrollContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.md,
   },
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    padding: 12,
-    marginHorizontal: 4,
-    marginBottom: 12,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginHorizontal: spacing.xs,
+    marginBottom: spacing.md,
   },
   userText: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: spacing.md,
   },
   userName: {
-    fontSize: 15,
-    fontWeight: '600',
+    ...typography.titleM,
   },
   userEmail: {
-    fontSize: 13,
-    marginTop: 2,
+    ...typography.bodyS,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 48,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 24,
-    marginVertical: 1,
+    minHeight: componentMetrics.touchTargetMin + spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.full,
   },
   itemText: {
+    ...typography.labelL,
     flex: 1,
-    fontSize: 15,
-    marginLeft: 14,
-  },
-  itemTextActive: {
-    fontWeight: '600',
+    marginLeft: spacing.md,
   },
   section: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    marginTop: 12,
-    paddingTop: 12,
-    paddingHorizontal: 8,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 8,
+    ...typography.titleS,
+    marginBottom: spacing.sm,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   chip: {
-    minHeight: 40,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    minHeight: componentMetrics.buttonHeightSmall,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.sm,
     borderWidth: 1,
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   chipText: {
-    fontSize: 14,
+    ...typography.labelL,
   },
   themeChip: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md,
   },
   themeChipText: {
-    marginLeft: 6,
+    marginLeft: spacing.sm,
   },
   footer: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
   },
   pressed: {
     opacity: 0.6,

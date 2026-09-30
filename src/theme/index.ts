@@ -11,8 +11,9 @@
  * this barrel imports ThemeContext, so importing it from the contexts layer would be a cycle.
  */
 import { useMemo } from 'react';
+import { useColorScheme } from 'react-native';
 
-import { useTheme, type ColorScheme } from '../contexts/ThemeContext';
+import { resolveColorScheme, useOptionalTheme, type ColorScheme } from '../contexts/ThemeContext';
 import {
   componentMetrics,
   darkColors,
@@ -27,6 +28,7 @@ import {
   type MGTypography,
 } from './tokens';
 
+export * from './contrast';
 export * from './tokens';
 
 /** Everything a screen needs to style itself, resolved for the scheme being rendered. */
@@ -41,11 +43,15 @@ export interface AppTheme {
 }
 
 /**
- * MG Indigo tokens for the current scheme. Must be used below ThemeProvider (throws otherwise,
- * same contract as useTheme). Referentially stable per scheme.
+ * MG Indigo tokens for the current scheme. Below ThemeProvider it follows the user's choice
+ * (system/light/dark, persisted); without one (bare test harnesses, surfaces above the
+ * providers) it follows the OS scheme, so kit components never crash a partial tree.
+ * Referentially stable per scheme.
  */
 export function useAppTheme(): AppTheme {
-  const { colorScheme } = useTheme();
+  const context = useOptionalTheme();
+  const systemScheme = useColorScheme();
+  const colorScheme: ColorScheme = context ? context.colorScheme : resolveColorScheme('system', systemScheme);
   return useMemo(
     () => ({
       scheme: colorScheme,

@@ -12,18 +12,20 @@
  */
 import type { ReactElement, ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Text, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MGButton } from '../../components/ui';
+import { componentMetrics, radii, spacing } from '../../theme';
 import { useKeyboardAvoidance } from './useKeyboardAvoidance';
 
-/** Card-like section (same look as the onboarding sections). */
+/** Card-like section (MG card baseline: surface, r-lg, 1px outlineVariant, p-16, elevation 0). */
 export function Section({ title, children, testID }: { title?: string; children?: ReactNode; testID?: string }): ReactElement {
   const theme = usePaperTheme();
   return (
     <View
       testID={testID}
-      style={[styles.section, { backgroundColor: theme.colors.elevation.level1, borderColor: theme.colors.outlineVariant }]}
+      style={[styles.section, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}
     >
       {title ? (
         <Text variant="titleMedium" style={styles.sectionTitle} accessibilityRole="header">
@@ -71,7 +73,7 @@ export function ScreenBody({
         keyboardVerticalOffset={keyboardVerticalOffset}
       >
         <ScrollView
-          contentContainerStyle={[styles.body, { paddingBottom: hasFooter ? 24 : bottomInset + 24 }]}
+          contentContainerStyle={[styles.body, { paddingBottom: hasFooter ? spacing.xxl : bottomInset + spacing.xxl }]}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={!AVOID_WITH_PADDING}
           testID="screen-body-scroll"
@@ -79,17 +81,15 @@ export function ScreenBody({
           {children}
         </ScrollView>
         {hasFooter ? (
-          <View style={[styles.footer, { paddingBottom: bottomInset + 12, borderTopColor: theme.colors.outlineVariant }]}>
-            <Button
-              mode="contained"
+          <View style={[styles.footer, { paddingBottom: bottomInset + spacing.md, borderTopColor: theme.colors.outlineVariant }]}>
+            <MGButton
               onPress={onPrimary}
               disabled={primaryDisabled || primaryLoading}
               loading={primaryLoading}
-              contentStyle={styles.buttonContent}
               testID={primaryTestID}
             >
               {primaryLabel}
-            </Button>
+            </MGButton>
           </View>
         ) : null}
       </KeyboardAvoidingView>
@@ -102,24 +102,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   body: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: spacing.md,
   },
   section: {
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    padding: componentMetrics.cardPadding,
+    marginBottom: spacing.lg,
   },
   sectionTitle: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   footer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  buttonContent: {
-    paddingVertical: 6,
   },
 });

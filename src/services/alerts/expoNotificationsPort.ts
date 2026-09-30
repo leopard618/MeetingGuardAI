@@ -14,6 +14,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import type { Unsubscribe } from '../../core/contracts';
+import { lightColors } from '../../theme/tokens';
 import { extractContentData } from './content';
 import type {
   AlertNotificationSpec,
@@ -29,7 +30,9 @@ import type {
   ScheduledSpec,
 } from './types';
 
-const ACCENT_COLOR = '#1E40AF';
+// MG Indigo brand primary; notification accents are rendered by the OS on its own surfaces, so
+// the light-scheme brand hue is used in both modes.
+const ACCENT_COLOR = lightColors.primary;
 
 /** Seconds (iOS) or milliseconds (Android) since epoch -> milliseconds. */
 export function normalizeEpochMs(value: unknown): number {

@@ -6,11 +6,13 @@
  * - Left: back arrow when the stack can go back, otherwise the logo (goes to the dashboard).
  * - Right: language switch (EN <-> ES, instant, saved as the user's choice), light/dark switch,
  *   menu. Account actions (settings, sign-out) live in the sidebar.
- * - Theme-aware colors, top inset from the safe area (edge-to-edge), 44 pt touch targets.
+ * - MG Indigo shell chrome (docs/DESIGN_SYSTEM.md §6): surface bg, 1px outlineVariant bottom
+ *   hairline, titleL, 44dp icon targets with onSurface@12% borderless ripples, labelM language
+ *   pill. Top inset from the safe area (edge-to-edge).
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ReactElement } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '../contexts/ThemeContext';
@@ -18,6 +20,7 @@ import type { Language } from '../core/types';
 import { useLanguage, useT } from '../i18n';
 import { navigateToTopLevel } from '../navigation/navigationService';
 import { ROUTES } from '../navigation/routes';
+import { componentMetrics, radii, spacing, stateAlpha, typography, withAlpha } from '../theme';
 import { ThemeToggle } from './ThemeToggle';
 
 const APP_LOGO = require('../../assets/icon.png') as number;
@@ -48,28 +51,35 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
   const appName = t('common:app.name');
   const displayTitle = title !== undefined && title in ROUTES ? t(`navigation:screens.${title}`) : appName;
   const next = nextLanguage(language, supportedLanguages);
+  const iconRipple = {
+    color: withAlpha(colors.onSurface, stateAlpha.rippleOnIcon),
+    borderless: true,
+    radius: componentMetrics.headerRippleRadius,
+  } as const;
 
   return (
     <View
-      style={[styles.header, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: colors.surface, borderBottomColor: colors.border }]}
+      style={[styles.header, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: colors.surface, borderBottomColor: colors.outlineVariant }]}
       testID="main-header"
     >
       <View style={styles.row}>
         {onBackPress ? (
           <Pressable
             onPress={onBackPress}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+            android_ripple={iconRipple}
+            style={({ pressed }) => [styles.iconButton, pressed && Platform.OS !== 'android' && styles.pressed]}
             accessibilityRole="button"
             accessibilityLabel={t('shell:header.back')}
             hitSlop={4}
             testID="header-back"
           >
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <Ionicons name="arrow-back" size={componentMetrics.iconNav} color={colors.onSurface} />
           </Pressable>
         ) : (
           <Pressable
             onPress={() => navigateToTopLevel('Dashboard')}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+            android_ripple={iconRipple}
+            style={({ pressed }) => [styles.iconButton, pressed && Platform.OS !== 'android' && styles.pressed]}
             accessibilityRole="button"
             accessibilityLabel={t('shell:header.home')}
             hitSlop={4}
@@ -80,7 +90,7 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
         )}
 
         <Text
-          style={[styles.title, { color: colors.text }]}
+          style={[styles.title, { color: colors.onSurface }]}
           numberOfLines={1}
           accessibilityRole="header"
           maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE}
@@ -98,7 +108,7 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
           hitSlop={4}
           testID="header-language"
         >
-          <Text style={[styles.languageText, { color: colors.text }]} maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE}>
+          <Text style={[styles.languageText, { color: colors.onSurface }]} maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE}>
             {language.toUpperCase()}
           </Text>
         </Pressable>
@@ -108,13 +118,14 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
         {showMenu && onMenuPress ? (
           <Pressable
             onPress={onMenuPress}
-            style={({ pressed }) => [styles.iconButton, styles.spaced, pressed && styles.pressed]}
+            android_ripple={iconRipple}
+            style={({ pressed }) => [styles.iconButton, styles.spaced, pressed && Platform.OS !== 'android' && styles.pressed]}
             accessibilityRole="button"
             accessibilityLabel={t('shell:header.openMenu')}
             hitSlop={4}
             testID="header-menu"
           >
-            <Ionicons name="menu" size={26} color={colors.text} />
+            <Ionicons name="menu" size={componentMetrics.iconNav} color={colors.onSurface} />
           </Pressable>
         ) : null}
       </View>
@@ -124,46 +135,44 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
 
 const styles = StyleSheet.create({
   header: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 56,
-    paddingHorizontal: 8,
+    minHeight: componentMetrics.headerMinHeight,
+    paddingHorizontal: spacing.sm,
   },
   iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: componentMetrics.touchTargetMin,
+    height: componentMetrics.touchTargetMin,
+    borderRadius: componentMetrics.headerRippleRadius,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logo: {
     width: 32,
     height: 32,
-    borderRadius: 8,
+    borderRadius: radii.sm,
   },
   title: {
+    ...typography.titleL,
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    marginHorizontal: 8,
+    marginHorizontal: spacing.sm,
   },
   languageButton: {
-    minWidth: 44,
-    height: 40,
-    borderRadius: 20,
-    paddingHorizontal: 10,
+    minWidth: componentMetrics.touchTargetMin,
+    minHeight: componentMetrics.buttonHeightSmall,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   languageText: {
-    fontSize: 14,
-    fontWeight: '700',
+    ...typography.labelM,
   },
   spaced: {
-    marginLeft: 4,
+    marginLeft: spacing.xs,
   },
   pressed: {
     opacity: 0.6,

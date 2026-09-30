@@ -1,12 +1,21 @@
 /**
- * App color tokens for both schemes (owner: shell), derived from the react-native-paper MD3 themes
- * the app renders with, so Paper components and hand-styled views always agree. Pure module (no
- * React): ThemeContext picks the palette for the resolved scheme.
+ * App color tokens and Paper themes for both schemes (owner: shell), built from the MG Indigo
+ * design tokens (src/theme/tokens.ts) so Paper components and hand-styled views always agree.
+ * Pure module (no React): ThemeContext picks the palette for the resolved scheme.
+ *
+ * NOTE: this file imports `src/theme/tokens` DIRECTLY, never the `src/theme` barrel — the barrel
+ * imports ThemeContext, which imports this file (cycle otherwise).
+ *
+ * `AppColors` extends the full MG color set with the legacy field names the pre-redesign screens
+ * read (`text`, `textSecondary`, `border`, `danger`, `onDanger`), so every existing
+ * `useTheme().colors` consumer compiles unchanged while new code uses the MD3-role names.
  */
-import { MD3DarkTheme, MD3LightTheme, type MD3Theme } from 'react-native-paper';
+import { configureFonts, MD3DarkTheme, MD3LightTheme, type MD3Theme } from 'react-native-paper';
+
+import { darkColors, lightColors, paperColorOverrides, typography, type MGColors, type MGSchemeName } from '../theme/tokens';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
-export type ColorScheme = 'light' | 'dark';
+export type ColorScheme = MGSchemeName;
 
 export const THEME_MODES: readonly ThemeMode[] = ['system', 'light', 'dark'];
 
@@ -23,71 +32,77 @@ export function resolveColorScheme(mode: ThemeMode, systemScheme: string | null 
   return systemScheme === 'dark' ? 'dark' : 'light';
 }
 
-export interface AppColors {
-  /** Screen background. */
-  background: string;
-  /** Cards, sheets, header, sidebar. */
-  surface: string;
-  /** Slightly raised surfaces (selected rows, chips, inputs). */
-  surfaceVariant: string;
-  /** Primary text. */
+export interface AppColors extends MGColors {
+  /** Legacy alias of `onSurface` (primary text). */
   text: string;
-  /** Secondary text (descriptions, captions). */
+  /** Legacy alias of `onSurfaceVariant` (secondary text). */
   textSecondary: string;
-  /** Hairlines and outlines. */
+  /** Legacy alias of `outlineVariant` (decorative hairlines). */
   border: string;
-  primary: string;
-  onPrimary: string;
-  primaryContainer: string;
-  onPrimaryContainer: string;
+  /** Legacy alias of `error`. */
   danger: string;
+  /** Legacy alias of `onError`. */
   onDanger: string;
-  success: string;
-  warning: string;
-  /** Warning banners (background / text on it). */
-  warningContainer: string;
-  onWarningContainer: string;
-  /** Dimmed backdrop behind modals and the sidebar. */
-  scrim: string;
 }
 
-function fromPaper(theme: MD3Theme, extras: Pick<AppColors, 'success' | 'warning' | 'warningContainer' | 'onWarningContainer' | 'scrim'>): AppColors {
-  const { colors } = theme;
+function toAppColors(colors: MGColors): AppColors {
   return {
-    background: colors.background,
-    surface: colors.surface,
-    surfaceVariant: colors.surfaceVariant,
+    ...colors,
     text: colors.onSurface,
     textSecondary: colors.onSurfaceVariant,
     border: colors.outlineVariant,
-    primary: colors.primary,
-    onPrimary: colors.onPrimary,
-    primaryContainer: colors.primaryContainer,
-    onPrimaryContainer: colors.onPrimaryContainer,
     danger: colors.error,
     onDanger: colors.onError,
-    ...extras,
   };
 }
 
 export const APP_COLORS: Readonly<Record<ColorScheme, AppColors>> = {
-  light: fromPaper(MD3LightTheme, {
-    success: '#1B7F3B',
-    warning: '#8A5300',
-    warningContainer: '#FFEFD6',
-    onWarningContainer: '#3D2400',
-    scrim: 'rgba(0, 0, 0, 0.45)',
-  }),
-  dark: fromPaper(MD3DarkTheme, {
-    success: '#7BDA95',
-    warning: '#FFB951',
-    warningContainer: '#4A3000',
-    onWarningContainer: '#FFDDB0',
-    scrim: 'rgba(0, 0, 0, 0.6)',
-  }),
+  light: toAppColors(lightColors),
+  dark: toAppColors(darkColors),
+};
+
+/**
+ * Weight bumps so Paper `<Text variant>` matches the token type scale (docs/DESIGN_SYSTEM.md §3);
+ * MD3 default sizes stay as they are.
+ */
+const MG_FONTS = configureFonts({
+  config: {
+    displaySmall: { fontWeight: typography.displayS.fontWeight },
+    headlineLarge: { fontWeight: typography.headlineL.fontWeight },
+    headlineMedium: { fontWeight: typography.headlineM.fontWeight },
+    headlineSmall: { fontWeight: typography.headlineM.fontWeight },
+    titleLarge: { fontWeight: typography.titleL.fontWeight },
+    titleMedium: { fontWeight: typography.titleM.fontWeight },
+    titleSmall: { fontWeight: typography.titleS.fontWeight },
+    labelLarge: { fontWeight: typography.labelL.fontWeight },
+  },
+});
+
+/** MG Indigo MD3 themes: every Paper color role overridden from tokens (no stock-purple leaks). */
+export const MG_LIGHT_THEME: MD3Theme = {
+  ...MD3LightTheme,
+  roundness: 3,
+  fonts: MG_FONTS,
+  colors: {
+    ...MD3LightTheme.colors,
+    ...paperColorOverrides.light,
+    // Spread into Paper's own elevation object to keep MD3ElevationColors' index signature.
+    elevation: { ...MD3LightTheme.colors.elevation, ...paperColorOverrides.light.elevation },
+  },
+};
+
+export const MG_DARK_THEME: MD3Theme = {
+  ...MD3DarkTheme,
+  roundness: 3,
+  fonts: MG_FONTS,
+  colors: {
+    ...MD3DarkTheme.colors,
+    ...paperColorOverrides.dark,
+    elevation: { ...MD3DarkTheme.colors.elevation, ...paperColorOverrides.dark.elevation },
+  },
 };
 
 export const PAPER_THEMES: Readonly<Record<ColorScheme, MD3Theme>> = {
-  light: MD3LightTheme,
-  dark: MD3DarkTheme,
+  light: MG_LIGHT_THEME,
+  dark: MG_DARK_THEME,
 };
