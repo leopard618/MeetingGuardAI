@@ -12,6 +12,9 @@ import './src/i18n';
 // 5. Background tasks and the notification handler must be defined at module scope, before the
 //    root component registers, so headless task runs (app killed) find them.
 import './src/services/alerts/tasks';
+// 5b. The home-screen widget feeder subscribes to app events (after alerts/tasks, so headless
+//     background runs feed the widget too). A no-op where the native module is absent.
+import './src/services/widget/register';
 import { registerRootComponent } from 'expo';
 
 import App from './App';

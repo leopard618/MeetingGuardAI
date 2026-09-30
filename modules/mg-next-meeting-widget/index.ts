@@ -8,12 +8,12 @@
  * function is a safe no-op and `isNativeModuleAvailable()` is false, so the feeder
  * (src/services/widget) can skip work without special-casing platforms.
  *
- * NATIVE SIDE (widget pass; not in this commit): ./android with an expo-module.config.json
- * registering com.meetingguard.nextmeetingwidget.MgNextMeetingWidgetModule. The
- * expo-module.config.json MUST NOT be added before the Kotlin sources exist, or autolinking
- * breaks the Gradle build. Contract details: ARCHITECTURE §19 (SharedPreferences data handoff,
- * AppWidgetProvider + RemoteViews, AlarmManager re-render at startAtMs, BOOT_COMPLETED restore,
- * deep-link tap PendingIntent, res/values(-es) fallback strings).
+ * NATIVE SIDE: ./android (Kotlin), registered by expo-module.config.json as
+ * com.meetingguard.nextmeetingwidget.MgNextMeetingWidgetModule. Contract details:
+ * ARCHITECTURE §19 (SharedPreferences data handoff via WidgetStore, AppWidgetProvider +
+ * RemoteViews in WidgetRenderer, inexact AlarmManager tick at startAtMs, BOOT_COMPLETED
+ * restore, deep-link tap PendingIntent, res/values(-es) fallback strings). Native code ships
+ * only in a store build (§15), never an OTA update.
  */
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';

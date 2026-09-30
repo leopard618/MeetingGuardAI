@@ -1,5 +1,7 @@
 {
   "emptyTitle": "No upcoming meetings",
   "emptyBody": "Open MeetingGuard to plan one",
-  "nowLabel": "Happening now"
+  "nowLabel": "Happening now",
+  "today": "Today",
+  "tomorrow": "Tomorrow"
 }

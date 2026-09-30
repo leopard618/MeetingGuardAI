@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4x1 cells, horizontally resizable, home screen only. updatePeriodMillis=0: the app pushes
+     (docs/ARCHITECTURE.md §19), the system never polls. description/previewLayout/targetCell*
+     are API 31 attributes; Android 9 (LDPlayer) simply ignores them. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/mg_next_meeting_widget"
+    android:previewLayout="@layout/mg_next_meeting_widget"
+    android:resizeMode="horizontal"
+    android:widgetCategory="home_screen"
+    android:description="@string/mg_widget_description" />
