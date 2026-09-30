@@ -69,8 +69,17 @@ npm run lint
 npm run build
 ```
 
-When this was last updated, the unit tests ran 11 suites and 101 tests, all passing. `npm run test:rules` starts the
-Firestore emulator with the project id `demo-meetingguard`, so it never touches a real project.
+When this was last updated, the unit tests ran 11 suites and 101 tests, all passing, and
+`npm run test:rules` ran 68 rules tests, all passing (Firestore emulator v1.22.0). The emulator
+uses the project id `demo-meetingguard`, so it never touches a real project.
+
+On a PC with a VPN Winsock layer (the same one that crashes Gradle, `scripts/lib/testApk.js`),
+give the emulator's JVM the classic selector before `npm run test:rules`, or its Java process
+dies in the VPN DLL at startup:
+
+```bash
+export JAVA_TOOL_OPTIONS='-Djava.nio.channels.spi.SelectorProvider=sun.nio.ch.WindowsSelectorProvider -Djdk.net.unixdomain.tmpdir=?'
+```
 
 ### A.3 CI
 

@@ -61,10 +61,15 @@ service cloud.firestore {
       return v == null || isListMax(v, max);
     }
 
-    // A list of strings with a bounded total size: join() fails on any non-string element (the
-    // write is then denied), and the joined size bounds every element at once.
+    // A list of strings with a bounded total size; the joined size bounds every element at once.
+    // Non-string elements are denied on every Firestore version: older ones ERROR in join()
+    // (error = deny), newer ones coerce the element to text, and then join('\u0001') +
+    // split('\u0001') does not round-trip back to the original list ("42" != 42). An element
+    // containing the \u0001 separator also breaks the round trip and is denied (no legitimate
+    // value contains control characters; client zod is the authoritative shape check).
     function isStringListMax(v, maxItems, maxTotalChars) {
-      return v is list && v.size() <= maxItems && v.join('').size() <= maxTotalChars;
+      return v is list && v.size() <= maxItems && v.join('').size() <= maxTotalChars
+        && (v.size() == 0 || v.join('\u0001').split('\u0001') == v);
     }
 
     // Element i of an alert-time list: absent, or an int minute offset in [0, 7 days].

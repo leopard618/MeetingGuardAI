@@ -19,7 +19,7 @@ State at the time of writing (2026-09-29):
 
 ## 0. Where the code is
 
-- `stabilization` has 57 commits on top of `main` (`3308b9d`) at the time of writing
+- `stabilization` has 58 commits on top of `main` (`3308b9d`) at the time of writing
   (`git log --oneline main..stabilization` lists them). **Nothing is pushed.**
 - The commits are in a **separate git directory**,
   `C:/Users/Leopard/git-data/MeetingGuardAI-work/.git`, with the work tree
