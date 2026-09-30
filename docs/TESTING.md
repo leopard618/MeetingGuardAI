@@ -638,7 +638,8 @@ sync, language change) - there is no polling.
 | 2 | Tap the widget. | The app opens directly on that meeting's details. |
 | 3 | In the app, change the meeting's time, then return to the home screen. | The widget shows the new time without reopening the app. |
 | 4 | Delete the meeting (no other upcoming meetings within 7 days). | The widget shows "No upcoming meetings / Open MeetingGuard to plan one". Tapping it opens the app's dashboard. |
-| 5 | Create a meeting 2-3 minutes away, wait past its start with the app closed. | Around the start time the widget line changes to "Happening now" on its own (no exact-alarm permission involved; a small delay is normal - the refresh is deliberately inexact). It stays the "next" meeting until the next feed after the 5-minute grace (opening the app, a meeting change, or the hourly background refresh) - staying on "Happening now" longer with the app closed is expected. |
+| 5 | Create a meeting 2-3 minutes away, wait past its start with the app closed. | Around the start time the widget line changes to "Happening now" on its own (no exact-alarm permission involved; a small delay is normal - the refresh is deliberately inexact). About 5 minutes after the start (the grace) a second native tick degrades it again: the empty state when nothing else is upcoming - it never shows "Happening now" overnight. |
+| 5b | With the widget showing a timed meeting, change the emulator's timezone (Settings -> Date & time), stay on the home screen, then open the app once. | The zone change alone re-evaluates the started/"Happening now" presentation natively; the printed clock time may briefly stay in the old zone (it is a pre-formatted string) and is re-formatted to the new zone on the next app foreground. |
 | 6 | Create a weekly meeting whose first occurrence is past; check the widget. | The widget shows the NEXT occurrence of the series (date label "Today"/"Tomorrow" or the date, e.g. "Oct 12"). Editing "only this occurrence" to another time moves the widget line with it. |
 | 7 | Reboot the emulator (do not open the app). | After the reboot the widget still shows the meeting (data is restored natively; no JS run needed). |
 | 8 | Switch the app language to Spanish, return to the home screen. | The widget texts are Spanish ("Hoy"/"Mañana"; empty state "No hay reuniones próximas..."), even if the emulator's system language is English. |
@@ -664,13 +665,19 @@ be installed through Play (internal testing) for purchases to work.
 | 4 | Buy Pro monthly with the license tester, complete the Play sheet. | The Play test purchase completes, the screen shows "activating"; within seconds (webhook latency) the plan flips to Pro everywhere: Plans header, Settings, and the AI quota (100/day). |
 | 5 | Cancel the Play sheet instead of paying. | No error UI (cancel is silent), the screen stays purchasable. |
 | 6 | Uninstall, reinstall, sign in, open Plans, tap Restore. | The plan comes back without a new purchase. On an account with nothing to restore, its own "nothing to restore" message (not an error). |
-| 7 | With an active plan, open Plans. | Current-plan display + "Manage subscription" opens the Play subscriptions screen for the product. No Buy button for the ACTIVE tier; Premium upgrade stays offered on Pro. |
+| 7 | With an active plan, open Plans. | Current-plan display + "Manage subscription" opens the Play subscriptions screen for the purchased product (the generic subscriptions list when the product cannot be resolved). No Buy button for the ACTIVE tier; Premium upgrade stays offered on Pro. On the OTHER billing cycle of your tier there is no "Current plan" badge and no Buy button - a "change your billing period in Google Play" note instead. On Premium, the Pro cards carry the "switch in Google Play" note instead of dead space. |
+| 7b | On active Pro monthly, buy Premium monthly and complete the Play sheet. | The Play sheet shows a PLAN CHANGE (upgrade with credit for unused Pro time), not a second subscription. After the webhook lands, Play -> Payments & subscriptions shows exactly ONE active subscription (Premium); Pro is replaced, never billed alongside. |
 | 8 | Cancel the subscription in Play, wait for expiry (test subscriptions renew/expire in minutes). | On expiry the plan drops to Free in the app (webhook `EXPIRATION`), AI quota back to 5/day. |
 | 9 | Repeat rows 2, 4, 5 in Spanish. | All purchase states, banners and toasts are natural Spanish. |
 
+License-tester purchases are SANDBOX events: the webhook ignores them unless it was deployed
+with `REVENUECAT_ALLOW_SANDBOX=true` (`docs/SETUP.md` §11) - set it for this section and turn it
+back off afterwards, or rows 4-8 never flip the plan.
+
 Row 4 stuck on "activating" for minutes -> the webhook is not reachable or its secret is wrong:
-check the RevenueCat webhook log and the function logs, then `docs/SETUP.md` §11. The screen
-also says the plan will finish activating on its own - verify it does once the webhook works.
+check the RevenueCat webhook log and the function logs, then `docs/SETUP.md` §11. After ~2
+minutes the screen honestly returns to idle ("Still processing"); the plan still flips on its
+own once the webhook works - verify it does.
 
 **Admin dashboard** verification (not a device test): `docs/ADMIN.md` - deploy steps, granting
 the admin claim, and a per-callable checklist (user list, disable/enable, set plan, metrics).

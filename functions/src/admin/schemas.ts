@@ -20,7 +20,16 @@ export const ADMIN_CALLABLES = {
   getMetrics: 'adminGetMetrics',
 } as const;
 
-const uidSchema = z.string().min(1).max(128);
+/**
+ * Target uid of a WRITE request: same charset the RevenueCat webhook enforces (SAFE_DOC_ID in
+ * functions/src/revenuecat/index.ts). Every Firebase-generated uid matches; a '/' (legal in
+ * Admin-SDK-created uids) would otherwise splice extra path segments into the
+ * `entitlements/${uid}` / `usage/${uid}/days/...` document paths.
+ */
+const uidSchema = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
+
+/** uid as REPORTED in responses (listUsers must render whatever Auth returns, not reject it). */
+const reportedUidSchema = z.string().min(1).max(200);
 
 // ---- adminListUsers (paginated auth listing + entitlement/usage join) ------------------------
 
@@ -31,7 +40,7 @@ export const listUsersRequestSchema = z.object({
 });
 
 export const adminUserRowSchema = z.object({
-  uid: uidSchema,
+  uid: reportedUidSchema,
   email: z.string().nullable(),
   displayName: z.string().nullable(),
   disabled: z.boolean(),

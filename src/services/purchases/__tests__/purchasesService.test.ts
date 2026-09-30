@@ -6,6 +6,8 @@
 import { AppError } from '../../../core/errors';
 import { PLAY_PRODUCT_IDS } from '../../../core/contracts';
 import {
+  PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION,
+  activeCatalogProductIds,
   createPurchasesService,
   isRcUserCancelled,
   mapRcError,
@@ -14,7 +16,7 @@ import {
   tierFromCustomerInfo,
   toStorePackage,
 } from '../service';
-import type { PurchasesSdkLike, RcCustomerInfoLike, RcOfferingsLike, RcPackageLike } from '../sdk';
+import type { PurchasesSdkLike, RcCustomerInfoLike, RcOfferingsLike, RcPackageLike, RcProductChangeInfoLike } from '../sdk';
 
 const API_KEY = 'goog_TestPublicSdkKey01';
 
@@ -33,8 +35,11 @@ function pkg(productId: string, overrides: Partial<RcPackageLike['product']> = {
   };
 }
 
-function customerInfo(activeIds: string[]): RcCustomerInfoLike {
-  return { entitlements: { active: Object.fromEntries(activeIds.map((id) => [id, { isActive: true }])) } };
+function customerInfo(activeIds: string[], activeSubscriptions: string[] = []): RcCustomerInfoLike {
+  return {
+    entitlements: { active: Object.fromEntries(activeIds.map((id) => [id, { isActive: true }])) },
+    activeSubscriptions,
+  };
 }
 
 function fakeSdk(offerings: RcOfferingsLike = { current: null }): PurchasesSdkLike & {
@@ -43,7 +48,10 @@ function fakeSdk(offerings: RcOfferingsLike = { current: null }): PurchasesSdkLi
   offeringsError: unknown;
   restoreInfo: RcCustomerInfoLike;
   restoreError: unknown;
+  customerInfoState: RcCustomerInfoLike;
+  customerInfoError: unknown;
   lastPurchasedPackage: RcPackageLike | null;
+  lastProductChange: RcProductChangeInfoLike | null | undefined;
 } {
   const sdk = {
     calls: [] as string[],
@@ -51,7 +59,10 @@ function fakeSdk(offerings: RcOfferingsLike = { current: null }): PurchasesSdkLi
     offeringsError: null as unknown,
     restoreInfo: customerInfo([]),
     restoreError: null as unknown,
+    customerInfoState: customerInfo([]),
+    customerInfoError: null as unknown,
     lastPurchasedPackage: null as RcPackageLike | null,
+    lastProductChange: undefined as RcProductChangeInfoLike | null | undefined,
     configure(configuration: { apiKey: string; appUserID?: string | null }): void {
       sdk.calls.push(`configure:${configuration.apiKey}:${configuration.appUserID ?? ''}`);
     },
@@ -64,11 +75,17 @@ function fakeSdk(offerings: RcOfferingsLike = { current: null }): PurchasesSdkLi
       if (sdk.offeringsError !== null) throw sdk.offeringsError;
       return offerings;
     },
-    async purchasePackage(purchased: RcPackageLike) {
+    async purchasePackage(purchased: RcPackageLike, _upgradeInfo?: null, productChangeInfo?: RcProductChangeInfoLike | null) {
       sdk.calls.push(`purchase:${purchased.product.identifier}`);
       sdk.lastPurchasedPackage = purchased;
+      sdk.lastProductChange = productChangeInfo;
       if (sdk.purchaseError !== null) throw sdk.purchaseError;
       return { customerInfo: customerInfo(['pro']), productIdentifier: purchased.product.identifier };
+    },
+    async getCustomerInfo() {
+      sdk.calls.push('getCustomerInfo');
+      if (sdk.customerInfoError !== null) throw sdk.customerInfoError;
+      return sdk.customerInfoState;
     },
     async restorePurchases() {
       sdk.calls.push('restore');
@@ -186,12 +203,38 @@ describe('getOffering', () => {
 });
 
 describe('purchase', () => {
-  it('purchases the ORIGINAL package object for the tier+cycle product', async () => {
+  it('purchases the ORIGINAL package object for the tier+cycle product (no product change without an active sub)', async () => {
     const sdk = fakeSdk(FULL_OFFERING);
     const svc = service(sdk);
     await expect(svc.purchase('premium', 'yearly')).resolves.toEqual({ status: 'purchased', tier: 'premium', cycle: 'yearly' });
     // The bridge needs the exact object returned by getOfferings, not a mapped copy.
     expect(sdk.lastPurchasedPackage).toBe(FULL_OFFERING.current!.availablePackages[3]);
+    expect(sdk.lastProductChange).toBeNull();
+  });
+
+  it('passes the Google product change when a DIFFERENT catalog product is active (upgrade replaces, never double-bills)', async () => {
+    const sdk = fakeSdk(FULL_OFFERING);
+    sdk.customerInfoState = customerInfo(['pro'], ['pro_monthly:p1m']);
+    const svc = service(sdk);
+    await expect(svc.purchase('premium', 'monthly')).resolves.toEqual({ status: 'purchased', tier: 'premium', cycle: 'monthly' });
+    expect(sdk.lastProductChange).toEqual({
+      oldProductIdentifier: 'pro_monthly',
+      prorationMode: PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION,
+    });
+  });
+
+  it('does not pass a product change when the active product IS the one being bought', async () => {
+    const sdk = fakeSdk(FULL_OFFERING);
+    sdk.customerInfoState = customerInfo(['pro'], ['pro_monthly']);
+    await service(sdk).purchase('pro', 'monthly');
+    expect(sdk.lastProductChange).toBeNull();
+  });
+
+  it('aborts the purchase when the active subscriptions cannot be read (no double-billing risk)', async () => {
+    const sdk = fakeSdk(FULL_OFFERING);
+    sdk.customerInfoError = { code: '10', message: 'network' };
+    await expect(service(sdk).purchase('premium', 'monthly')).rejects.toMatchObject({ code: 'offline' });
+    expect(sdk.lastPurchasedPackage).toBeNull();
   });
 
   it('returns cancelled when the user closes the Play sheet (userCancelled flag or code 1)', async () => {
@@ -239,6 +282,19 @@ describe('restore', () => {
   });
 });
 
+describe('getActiveProductId', () => {
+  it('returns the active catalog product (premium first), or null when none / unreadable / unconfigured', async () => {
+    const sdk = fakeSdk(FULL_OFFERING);
+    sdk.customerInfoState = customerInfo(['premium'], ['premium_yearly:p1y', 'other_app_product']);
+    await expect(service(sdk).getActiveProductId()).resolves.toBe('premium_yearly');
+    sdk.customerInfoState = customerInfo([]);
+    await expect(service(sdk).getActiveProductId()).resolves.toBeNull();
+    sdk.customerInfoError = { code: '10' };
+    await expect(service(sdk).getActiveProductId()).resolves.toBeNull(); // contract: never throws
+    await expect(service(null).getActiveProductId()).resolves.toBeNull();
+  });
+});
+
 describe('manageUrl', () => {
   it('deep-links to the product when known, otherwise the generic subscriptions page', () => {
     const svc = service(fakeSdk());
@@ -269,6 +325,15 @@ describe('pure helpers', () => {
   it('tierFromCustomerInfo ranks premium over pro', () => {
     expect(tierFromCustomerInfo(customerInfo(['premium', 'pro']))).toBe('premium');
     expect(tierFromCustomerInfo(customerInfo([]))).toBeNull();
+  });
+
+  it('activeCatalogProductIds strips base plans, drops foreign products, dedupes and ranks premium first', () => {
+    expect(activeCatalogProductIds(customerInfo([], ['pro_monthly:p1m', 'pro_monthly', 'premium_yearly', 'other_thing']))).toEqual([
+      'premium_yearly',
+      'pro_monthly',
+    ]);
+    expect(activeCatalogProductIds(customerInfo([]))).toEqual([]);
+    expect(activeCatalogProductIds({ entitlements: { active: {} } })).toEqual([]);
   });
 
   it('isRcUserCancelled and mapRcError classify RevenueCat errors', () => {

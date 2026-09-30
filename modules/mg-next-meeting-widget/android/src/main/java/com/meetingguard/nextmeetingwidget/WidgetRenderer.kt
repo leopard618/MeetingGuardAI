@@ -25,6 +25,15 @@ internal object WidgetRenderer {
   /** " · " between timeText and dateText (language-neutral punctuation; text comes from JS). */
   private const val SEPARATOR = " · "
 
+  /**
+   * How long "Happening now" stays after the start, matching the JS model's
+   * WIDGET_STARTED_GRACE_MINUTES (src/services/widget/model.ts). A second tick at the grace
+   * end degrades the widget to the empty state natively: without it, the last meeting of the
+   * day would show "Happening now" until the next JS feed - possibly overnight (background
+   * tasks are unreliable on aggressive OEMs).
+   */
+  internal const val STARTED_GRACE_MS: Long = 5L * 60_000L
+
   private fun provider(context: Context): ComponentName =
     ComponentName(context, NextMeetingWidgetProvider::class.java)
 
@@ -34,13 +43,17 @@ internal object WidgetRenderer {
   fun hasWidgets(context: Context): Boolean =
     widgetIds(context, AppWidgetManager.getInstance(context)).isNotEmpty()
 
+  /** The stored meeting while it is still presentable; null once the started grace has passed. */
+  private fun presentableData(data: StoredMeeting?): StoredMeeting? =
+    data?.takeIf { System.currentTimeMillis() < it.startAtMs + STARTED_GRACE_MS }
+
   /** Renders every placed instance from the store and (re)schedules or cancels the tick. */
   fun renderAll(context: Context) {
     val manager = AppWidgetManager.getInstance(context)
     val ids = widgetIds(context, manager)
     val data = WidgetStore.data(context)
     if (ids.isNotEmpty()) {
-      manager.updateAppWidget(ids, buildViews(context, data))
+      manager.updateAppWidget(ids, buildViews(context, presentableData(data)))
     }
     scheduleTick(context, data, ids.isNotEmpty())
   }
@@ -49,7 +62,7 @@ internal object WidgetRenderer {
   fun render(context: Context, manager: AppWidgetManager, ids: IntArray) {
     if (ids.isEmpty()) return
     val data = WidgetStore.data(context)
-    manager.updateAppWidget(ids, buildViews(context, data))
+    manager.updateAppWidget(ids, buildViews(context, presentableData(data)))
     scheduleTick(context, data, true)
   }
 
@@ -105,15 +118,25 @@ internal object WidgetRenderer {
   }
 
   /**
-   * One pending tick at startAtMs while a future meeting is shown on at least one instance.
-   * RTC without wakeup: if the device sleeps past the start, the tick fires on the next wake,
-   * exactly when the widget can be seen again.
+   * One pending tick while a meeting is shown on at least one instance: at startAtMs (swap to
+   * the nowLabel presentation) and then once more at the grace end (degrade to the empty
+   * state), so the widget always returns to a truthful state without JS. RTC without wakeup:
+   * if the device sleeps past the target, the tick fires on the next wake, exactly when the
+   * widget can be seen again.
    */
   private fun scheduleTick(context: Context, data: StoredMeeting?, hasWidgets: Boolean) {
     val manager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
     val operation = tickPendingIntent(context)
-    if (data != null && hasWidgets && data.startAtMs > System.currentTimeMillis()) {
-      manager.set(AlarmManager.RTC, data.startAtMs, operation)
+    val now = System.currentTimeMillis()
+    val nextTickAt =
+      when {
+        data == null || !hasWidgets -> null
+        data.startAtMs > now -> data.startAtMs
+        data.startAtMs + STARTED_GRACE_MS > now -> data.startAtMs + STARTED_GRACE_MS
+        else -> null
+      }
+    if (nextTickAt != null) {
+      manager.set(AlarmManager.RTC, nextTickAt, operation)
     } else {
       manager.cancel(operation)
     }

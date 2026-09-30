@@ -206,6 +206,71 @@ describe('editFollowing', () => {
     expect(h.meetingEvents).toEqual([]);
   });
 
+  it('re-anchors byWeekday when a date-moving patch lands on the tail (the moved occurrence must exist)', async () => {
+    // Weekly Monday series (form rules always carry byWeekday = [anchor weekday]).
+    const { h } = await startWithSeries({
+      ...SERIES_INPUT,
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: ['MO'], byMonthDay: null, until: null, count: 10 },
+    });
+
+    // "This and following" from Mon 2026-10-12, moved to Tue 2026-10-13 09:00 Madrid.
+    const { master, created } = await h.engine.editFollowing('series1', '2026-10-12', {
+      startAt: '2026-10-13T07:00:00.000Z',
+    });
+
+    expect(master.recurrence?.byWeekday).toEqual(['MO']);
+    expect(created!.date).toBe('2026-10-13');
+    // Without the swap the tail would keep ['MO'] and skip its own Tuesday anchor entirely.
+    expect(created!.recurrence?.byWeekday).toEqual(['TU']);
+  });
+
+  it('re-anchors byMonthDay for monthly rules and keeps an explicitly patched rule verbatim', async () => {
+    const { h } = await startWithSeries({
+      ...SERIES_INPUT,
+      recurrence: { freq: 'monthly', interval: 1, byWeekday: null, byMonthDay: 5, until: null, count: 6 },
+    });
+    // Nov 2026 in Madrid is CET: 09:00 local = 08:00Z.
+    const { created } = await h.engine.editFollowing('series1', '2026-11-05', { startAt: '2026-11-10T08:00:00.000Z' });
+    expect(created!.date).toBe('2026-11-10');
+    expect(created!.recurrence?.byMonthDay).toBe(10);
+
+    // An explicit patch.recurrence is the caller's rule choice: no reconciliation on top.
+    const explicitRule = { freq: 'weekly', interval: 1, byWeekday: ['FR'], byMonthDay: null, until: null, count: null } as const;
+    const second = await h.engine.editFollowing(created!.id, '2027-01-10', {
+      startAt: '2027-01-12T08:00:00.000Z',
+      recurrence: { ...explicitRule, byWeekday: [...explicitRule.byWeekday] },
+    });
+    expect(second.created!.recurrence).toEqual(explicitRule);
+  });
+
+  it("rejects a patched start past the tail rule's until (the series would have zero occurrences)", async () => {
+    const { h } = await startWithSeries({
+      ...SERIES_INPUT,
+      recurrence: { freq: 'daily', interval: 1, byWeekday: null, byMonthDay: null, until: '2026-10-10T07:00:00.000Z', count: null },
+    });
+
+    await expect(
+      h.engine.editFollowing('series1', '2026-10-08', { startAt: '2026-10-20T07:00:00.000Z' }),
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    // Nothing was written: no truncated master without a live tail.
+    expect(h.meetingEvents).toEqual([]);
+  });
+
+  it('re-anchors the rule on the series_edit collapse too (date move from the FIRST occurrence)', async () => {
+    const { h } = await startWithSeries({
+      ...SERIES_INPUT,
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: ['MO'], byMonthDay: null, until: null, count: 10 },
+    });
+
+    const { master, created } = await h.engine.editFollowing('series1', '2026-10-05', {
+      startAt: '2026-10-06T07:00:00.000Z',
+    });
+
+    expect(created).toBeNull();
+    expect(master.date).toBe('2026-10-06');
+    expect(master.recurrence?.byWeekday).toEqual(['TU']);
+  });
+
   it('applies the patch to the tail only, with the caller origin', async () => {
     const { h } = await startWithSeries();
 

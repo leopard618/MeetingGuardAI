@@ -210,6 +210,11 @@ describe('handleSetUserDisabled', () => {
     await expect(handleSetUserDisabled(admin, { uid: '', disabled: true }, ports)).rejects.toMatchObject({ code: 'invalid-argument' });
     await expect(handleSetUserDisabled(admin, { uid: 'u1', disabled: 'yes' }, ports)).rejects.toMatchObject({ code: 'invalid-argument' });
     await expect(handleSetUserDisabled(admin, null, ports)).rejects.toMatchObject({ code: 'invalid-argument' });
+    // A '/' would splice extra Firestore path segments (entitlements/${uid}): same charset as
+    // the RevenueCat webhook's SAFE_DOC_ID.
+    await expect(handleSetUserDisabled(admin, { uid: 'x/extra/y', disabled: true }, ports)).rejects.toMatchObject({
+      code: 'invalid-argument',
+    });
     expect(calls).toEqual([]);
   });
 
@@ -266,6 +271,9 @@ describe('handleSetUserPlan', () => {
       code: 'invalid-argument',
     });
     await expect(handleSetUserPlan(admin, { uid: 'u1', plan: 'pro' }, ports, now)).rejects.toMatchObject({
+      code: 'invalid-argument',
+    });
+    await expect(handleSetUserPlan(admin, { uid: 'x/extra/y', plan: 'pro', expiresAt: null }, ports, now)).rejects.toMatchObject({
       code: 'invalid-argument',
     });
     expect(entitlementWrites).toEqual([]);

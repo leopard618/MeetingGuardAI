@@ -43,6 +43,31 @@ purchases SDK): it needs a store/APK build and must never reach a 1.2.0 binary a
   state, with a "Connect" button when connecting a calendar would enable the link.
 - The AI delete-confirmation card showed the whole-meeting warning for a "this and following"
   delete; it now says only the occurrences from that date on are removed.
+- **"This and following" with a date change kept the old weekly/monthly pattern**, so the moved
+  occurrence silently vanished (a Tuesday series moved to Wednesday still met on Tuesdays). The
+  rule now follows the new day, and a move past the series' end date is rejected instead of
+  producing an empty series.
+- Saving an unrelated edit in the meeting form could wipe a Meet/Teams link the calendar sync
+  had just created (the form diffed against a stale snapshot). An untouched link field now
+  keeps the live link.
+- The recurring-meeting dialogs' question named only two of the three buttons; it now describes
+  "this and all following occurrences" too (EN + ES).
+- **Upgrading Pro -> Premium now replaces the Play subscription** (with credit for unused time)
+  instead of opening a second, parallel subscription that billed twice.
+- The "Current plan" badge follows the actually purchased billing cycle; the other cycle's card
+  and the blocked downgrade card explain that the switch happens in Google Play instead of
+  showing an untrue badge or dead space. "Manage subscription" deep-links to the purchased
+  product.
+- The "Activating your plan..." wait now ends honestly after ~2 minutes ("Still processing")
+  instead of spinning forever with Retry/Restore disabled; the plan still activates by itself.
+- The RevenueCat webhook ignores out-of-order stale events (a delayed expiration can no longer
+  downgrade a resubscribed user) and ignores SANDBOX test events unless explicitly enabled for
+  the test phase (`REVENUECAT_ALLOW_SANDBOX`).
+- The widget degrades from "Happening now" to the empty state on its own 5 minutes after the
+  start (it no longer shows a past meeting overnight) and re-renders on timezone/clock changes;
+  the app re-feeds it after a zone change.
+- Admin hardening: callable uids are restricted to the safe document-id charset, and the
+  `/admin` CSP is pinned to this project's hosts instead of multi-tenant wildcards.
 
 ### Changed
 

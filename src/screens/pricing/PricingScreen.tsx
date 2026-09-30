@@ -36,6 +36,7 @@ import { purchasesService } from '../../services/purchases';
 import { useFormatters } from '../shared/useFormatters';
 import {
   ACTIVATION_SLOW_AFTER_MS,
+  ACTIVATION_TIMEOUT_MS,
   STORE_UNCONFIGURED,
   buildPlanCards,
   formatPriceUsd,
@@ -181,6 +182,26 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
         </Pressable>
       ) : null}
 
+      {card.switchCycleHint ? (
+        <Text
+          style={[styles.caption, { color: colors.textSecondary }]}
+          accessibilityLabel={t('pricing:store.switchCycleHint')}
+          testID={`pricing-switch-cycle-${card.id}`}
+        >
+          {t('pricing:store.switchCycleHint')}
+        </Text>
+      ) : null}
+
+      {card.downgradeHint ? (
+        <Text
+          style={[styles.caption, { color: colors.textSecondary }]}
+          accessibilityLabel={t('pricing:store.downgradeHint')}
+          testID={`pricing-downgrade-${card.id}`}
+        >
+          {t('pricing:store.downgradeHint')}
+        </Text>
+      ) : null}
+
       {configured && card.isCurrent && card.tier !== 'free' ? (
         <Pressable
           style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.primary, opacity: pressed ? 0.6 : 1 }]}
@@ -279,6 +300,8 @@ export function PricingScreen(): ReactElement {
   const [store, setStore] = useState<StoreState>(() => (configured ? { kind: 'loading' } : STORE_UNCONFIGURED));
   const [phase, setPhase] = useState<PurchasePhase>(IDLE);
   const [slow, setSlow] = useState(false);
+  /** The PURCHASED Play product (CustomerInfo), when the store can tell; null = unknown. */
+  const [activeProductId, setActiveProductId] = useState<string | null>(null);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -295,7 +318,12 @@ export function PricingScreen(): ReactElement {
     try {
       if (uid !== null) await purchasesService.configure(uid);
       const offering = await purchasesService.getOffering();
-      if (mountedRef.current) setStore({ kind: 'ready', offering });
+      // Which product is actually purchased (marks the true cycle's card; never throws).
+      const productId = await purchasesService.getActiveProductId();
+      if (mountedRef.current) {
+        setActiveProductId(productId);
+        setStore({ kind: 'ready', offering });
+      }
     } catch (caught) {
       const error = toAppError(caught);
       log.warn('offering load failed', error.code);
@@ -320,13 +348,23 @@ export function PricingScreen(): ReactElement {
   useFocusEffect(useCallback(() => setNow(new Date()), []));
 
   // The 'activating' wait ends when the webhook-written entitlement (an external system,
-  // subscribed here) grants the purchased tier; after a while the copy switches to "slow".
+  // subscribed here) grants the purchased tier; after a while the copy switches to "slow",
+  // and after ACTIVATION_TIMEOUT_MS the screen honestly returns to idle: the entitlement may
+  // never flip here (a same-user restore emits no webhook event; functions not deployed), and
+  // staying in 'activating' would keep Retry/Restore disabled forever. The plan still updates
+  // automatically whenever the entitlement write lands.
   useEffect(() => {
     if (phase.kind !== 'activating') return;
     const tier = phase.tier;
     const timer = setTimeout(() => {
       if (mountedRef.current) setSlow(true);
     }, ACTIVATION_SLOW_AFTER_MS);
+    const timeout = setTimeout(() => {
+      if (!mountedRef.current) return;
+      Toast.show({ type: 'info', text1: t('pricing:store.activationTimeoutTitle'), text2: t('pricing:store.activationTimeout') });
+      setPhase(IDLE);
+      setSlow(false);
+    }, ACTIVATION_TIMEOUT_MS);
     const unsubscribe = userRepository.subscribeEntitlement((entitlement) => {
       if (!isActivated(tier, effectivePlan(entitlement))) return;
       Toast.show({ type: 'success', text1: t('pricing:store.activated', { plan: t(`pricing:plans.${tier}.name`) }) });
@@ -334,9 +372,17 @@ export function PricingScreen(): ReactElement {
         setPhase(IDLE);
         setSlow(false);
       }
+      // The purchased product changed: refresh which card carries the "Current plan" badge.
+      purchasesService
+        .getActiveProductId()
+        .then((productId) => {
+          if (mountedRef.current) setActiveProductId(productId);
+        })
+        .catch(() => undefined);
     });
     return () => {
       clearTimeout(timer);
+      clearTimeout(timeout);
       unsubscribe();
     };
   }, [phase, t]);
@@ -390,13 +436,17 @@ export function PricingScreen(): ReactElement {
   }, [phase.kind, t]);
 
   const onManage = useCallback(() => {
-    Linking.openURL(purchasesService.manageUrl()).catch((caught: unknown) => {
+    // Deep link to the purchased product when known; the generic subscriptions list otherwise.
+    Linking.openURL(purchasesService.manageUrl(activeProductId ?? undefined)).catch((caught: unknown) => {
       log.warn('could not open the Play subscriptions page', toAppError(caught).code);
       Toast.show({ type: 'error', text1: t(errorMessageKey('unsupported')) });
     });
-  }, [t]);
+  }, [activeProductId, t]);
 
-  const cards = useMemo(() => buildPlanCards(cycle, isLoaded ? plan : null, store, language), [cycle, isLoaded, plan, store, language]);
+  const cards = useMemo(
+    () => buildPlanCards(cycle, isLoaded ? plan : null, store, language, activeProductId),
+    [cycle, isLoaded, plan, store, language, activeProductId],
+  );
   const summary = useMemo(() => summarizeUsage(usage, plan, now), [usage, plan, now]);
   const columnStyle = { width: layout.contentWidth, alignSelf: 'center' as const };
   const busy = phase.kind !== 'idle';

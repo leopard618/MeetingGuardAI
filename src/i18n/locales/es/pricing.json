@@ -68,7 +68,11 @@
     "nothingToRestore": "No se encontraron compras anteriores en esta cuenta.",
     "restoreFailed": "No se pudieron restaurar las compras",
     "manage": "Gestionar suscripción",
-    "manageA11y": "Abrir tu suscripción en Google Play"
+    "manageA11y": "Abrir tu suscripción en Google Play",
+    "activationTimeoutTitle": "Todavía en proceso",
+    "activationTimeout": "Tu compra está confirmada, pero tu plan aún no se ha actualizado aquí. Se actualizará automáticamente cuando termine el proceso; no hace falta volver a comprar.",
+    "switchCycleHint": "Tienes este plan con otro periodo de facturación. Para cambiar entre mensual y anual, gestiona tu suscripción en Google Play.",
+    "downgradeHint": "Para cambiar a este plan, gestiona tu suscripción en Google Play."
   },
   "footer": "Los precios están en dólares estadounidenses. Antes de cualquier compra, App Store o Google Play te mostrarán el precio final en tu moneda, con impuestos incluidos."
 }

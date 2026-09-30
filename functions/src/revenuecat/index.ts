@@ -20,7 +20,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 
 import * as logger from 'firebase-functions/logger';
 import { onRequest } from 'firebase-functions/https';
-import { defineSecret } from 'firebase-functions/params';
+import { defineBoolean, defineSecret } from 'firebase-functions/params';
 
 import { FUNCTIONS_REGION } from '../config';
 import { adminDb } from '../firebase';
@@ -35,6 +35,16 @@ import {
 
 /** The exact Authorization header value RevenueCat is configured to send (never logged). */
 export const REVENUECAT_WEBHOOK_AUTH = defineSecret('REVENUECAT_WEBHOOK_AUTH');
+
+/**
+ * true ONLY during the Play license-tester verification phase (docs/SETUP.md §11): sandbox
+ * events then write entitlements like production ones. Default false, so a sandbox purchase
+ * (license tester, no real charge) can never grant - or expire - a production entitlement.
+ */
+export const REVENUECAT_ALLOW_SANDBOX = defineBoolean('REVENUECAT_ALLOW_SANDBOX', {
+  default: false,
+  description: 'Apply RevenueCat SANDBOX webhook events to entitlements (license-tester phase only).',
+});
 
 export const REVENUECAT_EVENTS_COLLECTION = 'revenuecatEvents';
 export const ENTITLEMENTS_COLLECTION = 'entitlements';
@@ -53,10 +63,17 @@ export function timingSafeStringEqual(a: string, b: string): boolean {
 /** Firestore document ids we accept for uids and event ids (no '/', '.', '$' path tricks). */
 const SAFE_DOC_ID = /^[A-Za-z0-9_-]{1,200}$/;
 
-/** One entitlements/{uid} write. */
+/**
+ * One entitlements/{uid} write. `eventTimestampMs` is when the event HAPPENED at RevenueCat
+ * (event_timestamp_ms), not when it was delivered: deliveries are retried with backoff for
+ * hours and arrive in any order, so the store compares it against the stored document before
+ * writing (an older event must never overwrite a newer entitlement - e.g. a delayed EXPIRATION
+ * retry landing after the user already resubscribed).
+ */
 export interface EntitlementTarget {
   uid: string;
   write: EntitlementWrite;
+  eventTimestampMs: number | null;
 }
 
 export type WebhookDecision =
@@ -92,8 +109,14 @@ function markerOf(event: RevenueCatEvent, now: Date): Record<string, unknown> {
  * Maps a request body to the writes to apply (pure; §20 decision table via entitlementFromEvent).
  * TRANSFER is resolved here because it writes TWO uids: `transferred_to` gains the plan,
  * `transferred_from` is expired.
+ *
+ * SANDBOX events (Play license testers, developer test purchases - no real charge) are IGNORED
+ * unless `options.allowSandbox` is set: a sandbox INITIAL_PURCHASE would otherwise grant a real
+ * production entitlement, and a developer's sandbox EXPIRATION for a uid that also holds a real
+ * subscription would downgrade a paying user. The REVENUECAT_ALLOW_SANDBOX param turns them on
+ * for the T17 license-tester verification phase (docs/SETUP.md §11) and off afterwards.
  */
-export function decideWebhook(body: unknown, now: Date): WebhookDecision {
+export function decideWebhook(body: unknown, now: Date, options: { allowSandbox?: boolean } = {}): WebhookDecision {
   const parsed = revenueCatWebhookBodySchema.safeParse(body);
   if (!parsed.success) return { kind: 'bad_request', reason: 'malformed_body' };
   const event = parsed.data.event;
@@ -101,7 +124,12 @@ export function decideWebhook(body: unknown, now: Date): WebhookDecision {
 
   if (!SAFE_DOC_ID.test(event.id)) return { kind: 'ignored', reason: 'unsafe_event_id', eventId: null, eventType: event.type };
   if (event.type === 'TEST') return { kind: 'ignored', reason: 'test_event', ...base };
+  if ((event.environment ?? '').toUpperCase() === 'SANDBOX' && options.allowSandbox !== true) {
+    return { kind: 'ignored', reason: 'sandbox_environment', ...base };
+  }
 
+  const eventTimestampMs =
+    typeof event.event_timestamp_ms === 'number' && Number.isFinite(event.event_timestamp_ms) ? event.event_timestamp_ms : null;
   const updatedAt = now.toISOString();
   if (event.type === 'TRANSFER') {
     const plan = planFromEvent(event);
@@ -115,10 +143,10 @@ export function decideWebhook(body: unknown, now: Date): WebhookDecision {
         ? new Date(event.expiration_at_ms).toISOString()
         : null;
     const writes: EntitlementTarget[] = [
-      { uid: toUid, write: { plan, status: 'active', expiresAt, source: 'revenuecat', updatedAt } },
+      { uid: toUid, write: { plan, status: 'active', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs },
     ];
     if (fromUid !== null && fromUid !== toUid) {
-      writes.push({ uid: fromUid, write: { plan, status: 'expired', expiresAt, source: 'revenuecat', updatedAt } });
+      writes.push({ uid: fromUid, write: { plan, status: 'expired', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs });
     }
     return { kind: 'apply', ...base, marker: markerOf(event, now), writes };
   }
@@ -130,7 +158,22 @@ export function decideWebhook(body: unknown, now: Date): WebhookDecision {
 
   const write = entitlementFromEvent(event, now);
   if (write === null) return { kind: 'ignored', reason: 'unhandled_type_or_plan', ...base };
-  return { kind: 'apply', ...base, marker: markerOf(event, now), writes: [{ uid: appUserId, write }] };
+  return { kind: 'apply', ...base, marker: markerOf(event, now), writes: [{ uid: appUserId, write, eventTimestampMs }] };
+}
+
+/**
+ * Out-of-order delivery guard (pure; used inside the applyOnce transaction): skip the write
+ * when the stored entitlement was already written by a NEWER RevenueCat event. Admin-written
+ * documents (source 'admin') are always overwritten - an admin grant is not ordered against
+ * store events and the newest actor wins there (HANDOFF §6). Without a comparable timestamp on
+ * either side, the write applies (pre-guard documents and events without event_timestamp_ms).
+ */
+export function shouldApplyEntitlementWrite(stored: unknown, eventTimestampMs: number | null): boolean {
+  if (eventTimestampMs === null) return true;
+  if (typeof stored !== 'object' || stored === null) return true;
+  const doc = stored as { source?: unknown; eventTimestampMs?: unknown };
+  if (doc.source !== 'revenuecat') return true;
+  return !(typeof doc.eventTimestampMs === 'number' && doc.eventTimestampMs > eventTimestampMs);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -159,7 +202,7 @@ export interface WebhookResponseLike {
 export async function handleRevenueCatWebhook(
   req: WebhookRequestLike,
   res: WebhookResponseLike,
-  deps: { store: () => RevenueCatStore; secret: () => string; now?: () => Date },
+  deps: { store: () => RevenueCatStore; secret: () => string; now?: () => Date; allowSandbox?: () => boolean },
 ): Promise<void> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method_not_allowed' });
@@ -173,7 +216,9 @@ export async function handleRevenueCatWebhook(
     return;
   }
 
-  const decision = decideWebhook(req.body, deps.now ? deps.now() : new Date());
+  const decision = decideWebhook(req.body, deps.now ? deps.now() : new Date(), {
+    allowSandbox: deps.allowSandbox ? deps.allowSandbox() : false,
+  });
   if (decision.kind === 'bad_request') {
     logger.warn('revenuecat.bad_request', { reason: decision.reason });
     res.status(400).json({ error: decision.reason });
@@ -216,9 +261,22 @@ export function firestoreRevenueCatStore(): RevenueCatStore {
       return db.runTransaction(async (tx) => {
         const existing = await tx.get(markerRef);
         if (existing.exists) return 'duplicate' as const;
+        // All reads before any write (Firestore transaction rule): the stored entitlements
+        // decide whether this event is stale (shouldApplyEntitlementWrite).
+        const refs = writes.map(({ uid }) => db.collection(ENTITLEMENTS_COLLECTION).doc(uid));
+        const stored = await Promise.all(refs.map((ref) => tx.get(ref)));
         tx.set(markerRef, marker);
-        for (const { uid, write } of writes) {
-          tx.set(db.collection(ENTITLEMENTS_COLLECTION).doc(uid), write);
+        for (let index = 0; index < writes.length; index += 1) {
+          const target = writes[index];
+          const ref = refs[index];
+          if (target === undefined || ref === undefined) continue;
+          if (!shouldApplyEntitlementWrite(stored[index]?.data(), target.eventTimestampMs)) {
+            logger.info('revenuecat.stale_event_skipped', { eventId, uid: target.uid, eventTimestampMs: target.eventTimestampMs });
+            continue;
+          }
+          // eventTimestampMs is persisted for the next comparison; the app's entitlement
+          // parser (z.object, non-strict) ignores the extra key.
+          tx.set(ref, { ...target.write, eventTimestampMs: target.eventTimestampMs });
         }
         return 'applied' as const;
       });
@@ -240,5 +298,6 @@ export const revenuecatWebhook = onRequest(
     handleRevenueCatWebhook({ method: req.method, header: (name) => req.get(name), body: req.body }, res, {
       store: firestoreRevenueCatStore,
       secret: () => REVENUECAT_WEBHOOK_AUTH.value(),
+      allowSandbox: () => REVENUECAT_ALLOW_SANDBOX.value(),
     }),
 );

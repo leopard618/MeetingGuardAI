@@ -285,6 +285,40 @@ describe('recurrence in the form (§16)', () => {
     expect(draftToPatch(recurring, { ...form, repeat: 'none' })).toMatchObject({ recurrence: null });
   });
 
+  it('an untouched link field never clobbers a provider-created url that arrived mid-edit', () => {
+    // Saved as google_meet without a link; the Google push wrote the Meet link back while the
+    // form was open (the form's draft was seeded BEFORE that write-back).
+    const seeded = meeting({ source: 'manual', conference: { provider: 'google_meet', url: null, password: null } });
+    const original = draftFromMeeting(seeded, { fallbackTimeZone: 'UTC', defaultAlertTimes: [15, 5, 0] });
+    const live = meeting({ source: 'manual', conference: { provider: 'google_meet', url: 'https://meet.google.com/abc', password: null } });
+
+    // Unrelated edit (a passcode): the live link is kept, not wiped and re-requested.
+    const patch = draftToPatch(live, { ...original, conferencePassword: 'pw' }, original);
+    expect(patch.conference).toEqual({ provider: 'google_meet', url: 'https://meet.google.com/abc', password: 'pw' });
+
+    // Nothing touched at all: no conference patch (the live url alone is not a form change).
+    expect(draftToPatch(live, original, original).conference).toBeUndefined();
+
+    // The user REALLY cleared a link they could see (it was in the seeded draft): wipe intended.
+    const linked = meeting({ source: 'manual', conference: { provider: 'google_meet', url: 'https://meet.google.com/abc', password: null } });
+    const linkedDraft = draftFromMeeting(linked, { fallbackTimeZone: 'UTC', defaultAlertTimes: [] });
+    expect(draftToPatch(linked, { ...linkedDraft, conferenceUrl: '' }, linkedDraft).conference).toEqual({
+      provider: 'google_meet',
+      url: null,
+      password: null,
+    });
+
+    // Provider changed: the old provider's link is not carried over.
+    expect(draftToPatch(live, { ...original, conferenceProvider: 'zoom' }, original).conference).toEqual({
+      provider: 'zoom',
+      url: null,
+      password: null,
+    });
+
+    // Without the original snapshot (legacy callers) the old diff-against-live behavior stands.
+    expect(draftToPatch(live, original).conference).toEqual({ provider: 'google_meet', url: null, password: null });
+  });
+
   it('toggleRepeatWeekday keeps MO..SU order', () => {
     expect(toggleRepeatWeekday(['MO'], 'FR')).toEqual(['MO', 'FR']);
     expect(toggleRepeatWeekday(['FR', 'MO'], 'WE')).toEqual(['MO', 'WE', 'FR']);
@@ -327,6 +361,24 @@ describe('video call (§22)', () => {
     expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'device')).toBe('pasteLinkHint');
     // A google-source meeting still gets its Meet link (the push patches it).
     expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'google')).toBe('meetWillBeCreated');
+  });
+
+  it('form hint and link label degrade for a meeting already pushed to Outlook (create-only, §17)', () => {
+    const pushed = { outlookEventId: 'AAMk1' };
+    const fresh = { outlookEventId: null };
+    // Connected: the "will be created" promise would be false the moment it is shown.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', pushed)).toBe('pasteLinkHint');
+    // Configured but disconnected: connecting would not produce a link either - no CTA.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONFIGURED, 'manual', pushed)).toBe('pasteLinkHint');
+    // Not pushed yet (or no refs passed): unchanged.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', fresh)).toBe('teamsWillBeCreated');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', null)).toBe('teamsWillBeCreated');
+    // Google Meet ignores the Outlook refs (insert AND patch both create the link).
+    expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'manual', pushed)).toBe('meetWillBeCreated');
+    // The link is not "optional" when pasting is the only way to get one.
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', pushed)).toBe('link');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', fresh)).toBe('linkOptional');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'manual', pushed)).toBe('linkOptional');
   });
 
   it('a typed link always wins: the hint disappears', () => {
@@ -398,6 +450,8 @@ describe('video call (§22)', () => {
       external: { outlookEventId: 'AAMk1', outlookCalendarId: 'cal1' },
     });
     expect(conferenceCardState(pushed, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'teamsLinkTooLate', connect: null });
+    // Disconnected too: a "Connect Outlook" CTA could not produce a link for this meeting.
+    expect(conferenceCardState(pushed, OUTLOOK_CONFIGURED)).toEqual({ kind: 'info', key: 'teamsLinkTooLate', connect: null });
     // Once Outlook writes the Teams link back, the card joins like any other.
     const linked = meeting({
       source: 'manual',

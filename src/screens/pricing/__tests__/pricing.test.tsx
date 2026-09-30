@@ -14,6 +14,7 @@ import { I18nProvider, i18n } from '../../../i18n';
 import { purchasesService } from '../../../services/purchases';
 import { PricingScreen } from '../PricingScreen';
 import {
+  ACTIVATION_TIMEOUT_MS,
   buildPlanCards,
   computeStoreDiscount,
   formatPriceUsd,
@@ -75,6 +76,7 @@ jest.mock('../../../services/purchases', () => ({
     getOffering: jest.fn(),
     purchase: jest.fn(),
     restore: jest.fn(),
+    getActiveProductId: jest.fn(async (): Promise<string | null> => null),
     manageUrl: jest.fn(() => 'https://play.google.com/store/account/subscriptions'),
   },
   registerPurchasesSessionHook: jest.fn(),
@@ -141,6 +143,27 @@ describe('pricing model', () => {
     expect(asPro.find((card) => card.id === 'premium_monthly')!.purchasable).toBe(true); // upgrade
     const asPremium = buildPlanCards('monthly', 'premium', READY, 'en');
     expect(asPremium.find((card) => card.id === 'pro_monthly')!.purchasable).toBe(false); // downgrade via Play
+  });
+
+  it('narrows "Current plan" to the purchased cycle when the active product is known', () => {
+    const monthly = buildPlanCards('monthly', 'pro', READY, 'en', 'pro_monthly');
+    expect(monthly.find((card) => card.id === 'pro_monthly')!).toMatchObject({ isCurrent: true, switchCycleHint: false });
+    const yearly = buildPlanCards('yearly', 'pro', READY, 'en', 'pro_monthly');
+    // The OTHER cycle of the same tier: no untrue badge, no dead buy button, a Play note instead.
+    expect(yearly.find((card) => card.id === 'pro_yearly')!).toMatchObject({
+      isCurrent: false,
+      switchCycleHint: true,
+      purchasable: false,
+    });
+    // Without the product id (unconfigured, store hiccup) the tier-based badge stays on both views.
+    expect(buildPlanCards('yearly', 'pro', READY, 'en').find((card) => card.id === 'pro_yearly')!.isCurrent).toBe(true);
+  });
+
+  it('explains the downgrade path on the blocked pro card for premium holders', () => {
+    const asPremium = buildPlanCards('monthly', 'premium', READY, 'en');
+    expect(asPremium.find((card) => card.id === 'pro_monthly')!).toMatchObject({ purchasable: false, downgradeHint: true });
+    // Catalog-only view: no store, nothing to explain.
+    expect(buildPlanCards('monthly', 'premium').find((card) => card.id === 'pro_monthly')!.downgradeHint).toBe(false);
   });
 
   it('a store load error keeps catalog prices and nothing purchasable', () => {
@@ -269,6 +292,7 @@ describe('PricingScreen (purchases configured)', () => {
     mockPurchasesService.isConfigured.mockReturnValue(true);
     mockPurchasesService.configure.mockResolvedValue(undefined);
     mockPurchasesService.getOffering.mockResolvedValue(OFFERING);
+    mockPurchasesService.getActiveProductId.mockResolvedValue(null);
     mockPurchasesService.purchase.mockReset();
     mockPurchasesService.restore.mockReset();
   });
@@ -370,7 +394,51 @@ describe('PricingScreen (purchases configured)', () => {
     expect(within(premium).getByText('Plan actual')).toBeTruthy();
     expect(screen.getByTestId('pricing-manage')).toBeTruthy();
     expect(screen.getByText('Gestionar suscripción')).toBeTruthy();
-    // The premium holder cannot "buy" pro (downgrades go through Google Play).
+    // The premium holder cannot "buy" pro (downgrades go through Google Play), and the card
+    // says how the switch actually happens instead of showing dead space.
     expect(screen.queryByTestId('pricing-buy-pro_monthly')).toBeNull();
+    expect(screen.getByTestId('pricing-downgrade-pro_monthly')).toBeTruthy();
+    expect(screen.getByText('Para cambiar a este plan, gestiona tu suscripción en Google Play.')).toBeTruthy();
+  });
+
+  it("the other billing cycle of the purchased tier shows the switch-cycle note, not 'Current plan'", async () => {
+    mockPlan = 'pro';
+    mockPurchasesService.getActiveProductId.mockResolvedValue('pro_monthly');
+    await renderPricing();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('pricing-cycle-yearly'));
+    });
+    const proYearly = screen.getByTestId('pricing-plan-pro_yearly');
+    expect(within(proYearly).queryByText('Current plan')).toBeNull();
+    expect(within(proYearly).getByTestId('pricing-switch-cycle-pro_yearly')).toBeTruthy();
+    expect(within(proYearly).queryByTestId('pricing-buy-pro_yearly')).toBeNull();
+    // The truly purchased cycle keeps the badge and the manage action.
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('pricing-cycle-monthly'));
+    });
+    expect(within(screen.getByTestId('pricing-plan-pro_monthly')).getByText('Current plan')).toBeTruthy();
+    expect(screen.getByTestId('pricing-manage')).toBeTruthy();
+  });
+
+  it('activating times out honestly back to idle when the entitlement never flips', async () => {
+    jest.useFakeTimers();
+    try {
+      mockPurchasesService.purchase.mockResolvedValue({ status: 'purchased', tier: 'pro', cycle: 'monthly' });
+      await renderPricing();
+      await act(async () => {
+        fireEvent.press(screen.getByTestId('pricing-buy-pro_monthly'));
+      });
+      expect(screen.getByTestId('pricing-activating')).toBeTruthy();
+      await act(async () => {
+        jest.advanceTimersByTime(ACTIVATION_TIMEOUT_MS + 1_000);
+      });
+      expect(screen.queryByTestId('pricing-activating')).toBeNull();
+      expect(toastShow).toHaveBeenCalledWith(expect.objectContaining({ type: 'info', text1: 'Still processing' }));
+      // Retry/Restore are usable again instead of being disabled forever.
+      expect(screen.getByTestId('pricing-buy-pro_monthly')).toBeTruthy();
+      expect(screen.getByTestId('pricing-restore')).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

@@ -138,9 +138,10 @@ function MeetingForm({
   const change = (patch: Partial<MeetingFormDraft>): void => setDraft((current) => ({ ...current, ...patch }));
   const googleConnected = calendar.google.enabled && calendar.google.hasScope;
   // §22: the video-call helper follows the chip selection AND the live calendar connections
-  // (plus the edited meeting's source / the repeat choice: an unreachable auto mode degrades
-  // to the paste hint instead of promising a link the sync never creates).
-  const conferenceHint = conferenceFormHint(draft, calendar, meeting?.source);
+  // (plus the edited meeting's source / repeat choice / external refs: an auto mode the sync
+  // can never reach - imported meeting, Teams + recurrence, or a meeting already pushed to
+  // Outlook - degrades to the paste hint instead of promising a link the sync never creates).
+  const conferenceHint = conferenceFormHint(draft, calendar, meeting?.source, meeting?.external);
   const connectTarget = conferenceConnectTarget(conferenceHint);
   const meetingId = meeting?.id ?? null;
   const dirty = isMeetingDraftDirty(draft, original) || addedAttachments.length > 0 || removedIds.length > 0;
@@ -240,7 +241,7 @@ function MeetingForm({
     try {
       let saved: Meeting;
       if (meeting) {
-        const patch = draftToPatch(meeting, draft);
+        const patch = draftToPatch(meeting, draft, original);
         saved = Object.keys(patch).length > 0 ? await meetingRepository.update(meeting.id, patch, { origin: 'user' }) : meeting;
       } else {
         saved = await meetingRepository.create(draftToCreateInput(draft), { origin: 'user' });
@@ -605,7 +606,7 @@ function MeetingForm({
           <>
             <TextInput
               mode="outlined"
-              label={t(`meetings:form.${conferenceLinkLabel(draft, calendar, meeting?.source)}`)}
+              label={t(`meetings:form.${conferenceLinkLabel(draft, calendar, meeting?.source, meeting?.external)}`)}
               placeholder="https://"
               value={draft.conferenceUrl}
               onChangeText={(value) => change({ conferenceUrl: value })}

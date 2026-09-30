@@ -22,7 +22,11 @@
 
     <!-- Re-renders and re-schedules the "meeting started" tick after a reboot / app update
          (AlarmManager forgets alarms; SharedPreferences keep the data). BOOT_COMPLETED is a
-         protected broadcast, so exported="false" still receives it. -->
+         protected broadcast, so exported="false" still receives it. TIMEZONE_CHANGED and
+         TIME_SET re-evaluate the started/grace presentation after a clock or zone change
+         (both are on the implicit-broadcast exception list, so a manifest receiver works);
+         the pre-formatted time strings are refreshed by the next JS feed (the feeder re-feeds
+         on foreground when the device zone changed). -->
     <receiver
       android:name=".WidgetBootReceiver"
       android:enabled="true"
@@ -33,6 +37,8 @@
         <action android:name="android.intent.action.QUICKBOOT_POWERON" />
         <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
         <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+        <action android:name="android.intent.action.TIME_SET" />
       </intent-filter>
     </receiver>
   </application>

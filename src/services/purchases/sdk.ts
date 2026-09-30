@@ -63,6 +63,18 @@ export interface RcCustomerInfoLike {
     /** Keyed by RevenueCat entitlement id; ours are exactly 'pro' and 'premium'. */
     active: Record<string, RcEntitlementInfoLike>;
   };
+  /** Active subscription product ids ("productId" or "productId:basePlanId" on Android). */
+  activeSubscriptions?: string[];
+}
+
+/**
+ * Google Play product change (react-native-purchases GoogleProductChangeInfo): buying a
+ * different subscription tier must REPLACE the active product, never open a second one.
+ */
+export interface RcProductChangeInfoLike {
+  oldProductIdentifier: string;
+  /** PRORATION_MODE numeric value (see PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION). */
+  prorationMode?: number;
 }
 
 export interface RcPurchaseResultLike {
@@ -76,8 +88,18 @@ export interface PurchasesSdkLike {
   /** Switches the current app user (used when a different Firebase uid signs in). */
   logIn(appUserID: string): Promise<{ customerInfo: RcCustomerInfoLike }>;
   getOfferings(): Promise<RcOfferingsLike>;
-  /** MUST receive a package object returned by getOfferings (the bridge maps its fields). */
-  purchasePackage(pkg: RcPackageLike): Promise<RcPurchaseResultLike>;
+  /**
+   * MUST receive a package object returned by getOfferings (the bridge maps its fields).
+   * The real 10.x signature is purchasePackage(pkg, upgradeInfo?, productChangeInfo?, ...):
+   * `upgradeInfo` is the DEPRECATED slot (always passed as null here) and `productChangeInfo`
+   * carries the Google product change for tier upgrades (docs/ARCHITECTURE.md §20).
+   */
+  purchasePackage(
+    pkg: RcPackageLike,
+    upgradeInfo?: null,
+    productChangeInfo?: RcProductChangeInfoLike | null,
+  ): Promise<RcPurchaseResultLike>;
+  getCustomerInfo(): Promise<RcCustomerInfoLike>;
   restorePurchases(): Promise<RcCustomerInfoLike>;
 }
 

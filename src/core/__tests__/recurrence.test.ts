@@ -8,6 +8,7 @@ import {
   occurrenceIdFor,
   parseGoogleRecurrence,
   parseOccurrenceId,
+  reconcileRecurrenceAnchor,
   recurrenceEndsAt,
   recurrenceOverridesSchema,
   toGoogleRecurrence,
@@ -304,6 +305,51 @@ describe('recurrenceEndsAt', () => {
     expect(recurrenceEndsAt(series({ recurrence: null }))).toBeNull();
     expect(isRecurringMeeting(series({}))).toBe(true);
     expect(isRecurringMeeting(series({ recurrence: null }))).toBe(false);
+  });
+});
+
+describe('reconcileRecurrenceAnchor', () => {
+  it('swaps the old anchor weekday for the new one (form rules carry byWeekday = [anchor day])', () => {
+    // 2026-10-13 is a Tuesday, 2026-10-14 a Wednesday.
+    expect(reconcileRecurrenceAnchor(rule({ byWeekday: ['TU'] }), '2026-10-13', '2026-10-14')).toEqual(
+      rule({ byWeekday: ['WE'] }),
+    );
+    // Drop-and-add on a multi-day rule, kept in MO..SU order.
+    expect(reconcileRecurrenceAnchor(rule({ byWeekday: ['TU', 'FR'] }), '2026-10-13', '2026-10-14')).toEqual(
+      rule({ byWeekday: ['WE', 'FR'] }),
+    );
+    // New day already selected: the old one is still dropped (drop-and-add, no duplicate).
+    expect(reconcileRecurrenceAnchor(rule({ byWeekday: ['TU', 'WE'] }), '2026-10-13', '2026-10-14')).toEqual(
+      rule({ byWeekday: ['WE'] }),
+    );
+  });
+
+  it('leaves rules alone when nothing needs re-anchoring (same object back)', () => {
+    const sameDay = rule({ byWeekday: ['TU'] });
+    expect(reconcileRecurrenceAnchor(sameDay, '2026-10-13', '2026-10-13')).toBe(sameDay);
+    // Same weekday one week later.
+    expect(reconcileRecurrenceAnchor(sameDay, '2026-10-13', '2026-10-20')).toBe(sameDay);
+    // Imported off-pattern anchor (old day never selected): untouched.
+    const offPattern = rule({ byWeekday: ['FR'] });
+    expect(reconcileRecurrenceAnchor(offPattern, '2026-10-13', '2026-10-14')).toBe(offPattern);
+    // No byWeekday: the anchor's own weekday is implicit, nothing stored to fix.
+    const implicit = rule({});
+    expect(reconcileRecurrenceAnchor(implicit, '2026-10-13', '2026-10-14')).toBe(implicit);
+    const daily = rule({ freq: 'daily' });
+    expect(reconcileRecurrenceAnchor(daily, '2026-10-13', '2026-10-14')).toBe(daily);
+  });
+
+  it('follows the new day of month for anchored monthly rules', () => {
+    expect(reconcileRecurrenceAnchor(rule({ freq: 'monthly', byMonthDay: 13 }), '2026-10-13', '2026-10-20')).toEqual(
+      rule({ freq: 'monthly', byMonthDay: 20 }),
+    );
+    // A byMonthDay that never matched the anchor (imported) is untouched.
+    const imported = rule({ freq: 'monthly', byMonthDay: 28 });
+    expect(reconcileRecurrenceAnchor(imported, '2026-10-13', '2026-10-20')).toBe(imported);
+  });
+
+  it('rejects malformed anchor dates', () => {
+    expect(() => reconcileRecurrenceAnchor(rule({}), 'nope', '2026-10-14')).toThrow(AppError);
   });
 });
 

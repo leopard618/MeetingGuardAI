@@ -512,6 +512,47 @@ export function splitRecurrenceAt(meeting: RecurringMeetingLike, fromDateKey: st
   };
 }
 
+/**
+ * Re-anchors a rule after the meeting's anchor moved to a different local date (a "this and
+ * following" edit whose patch changes the date, §16). Form-created weekly rules always carry
+ * `byWeekday = [anchor weekday]`, so keeping the old day would make `expandOccurrences` skip
+ * the moved anchor entirely: the occurrence the user just placed would not exist anywhere.
+ *
+ * - weekly: when `byWeekday` contained the OLD anchor's weekday, that day is swapped for the
+ *   NEW anchor's weekday (drop-and-add, kept in MO..SU order; a single-day rule becomes
+ *   `[new weekday]`). A rule that never contained the old anchor day (an imported off-pattern
+ *   rule) is left alone.
+ * - monthly: a `byMonthDay` equal to the OLD anchor's day of month follows the new anchor's day.
+ * - daily rules and unchanged dates come back as-is (the same object, so callers can compare
+ *   by identity).
+ */
+export function reconcileRecurrenceAnchor(
+  rule: MeetingRecurrence,
+  oldDateKey: string,
+  newDateKey: string,
+): MeetingRecurrence {
+  if (oldDateKey === newDateKey) return rule;
+  if (!isLocalDate(oldDateKey) || !isLocalDate(newDateKey)) {
+    throw new AppError('invalid_input', `Invalid anchor date: ${oldDateKey} -> ${newDateKey}`);
+  }
+  if (rule.freq === 'weekly' && rule.byWeekday !== null && rule.byWeekday.length > 0) {
+    const oldDay = weekdayOfLocalDate(oldDateKey);
+    const newDay = weekdayOfLocalDate(newDateKey);
+    if (oldDay === newDay || !rule.byWeekday.includes(oldDay)) return rule;
+    const days = new Set<RecurrenceWeekday>(rule.byWeekday);
+    days.delete(oldDay);
+    days.add(newDay);
+    return { ...rule, byWeekday: RECURRENCE_WEEKDAYS.filter((day) => days.has(day)) };
+  }
+  if (rule.freq === 'monthly' && rule.byMonthDay !== null) {
+    const oldDay = Number(oldDateKey.slice(8, 10));
+    const newDay = Number(newDateKey.slice(8, 10));
+    if (rule.byMonthDay !== oldDay || oldDay === newDay) return rule;
+    return { ...rule, byMonthDay: newDay };
+  }
+  return rule;
+}
+
 const RRULE_FREQ: Readonly<Record<RecurrenceFreq, string>> = {
   daily: 'DAILY',
   weekly: 'WEEKLY',

@@ -6,6 +6,7 @@
 import {
   decideWebhook,
   handleRevenueCatWebhook,
+  shouldApplyEntitlementWrite,
   timingSafeStringEqual,
   type EntitlementTarget,
   type RevenueCatStore,
@@ -142,6 +143,7 @@ describe('bodies and decisions', () => {
           source: 'revenuecat',
           updatedAt: '2026-09-30T11:59:00.000Z',
         },
+        eventTimestampMs: Date.parse('2026-09-30T11:59:00.000Z'),
       },
     ]);
   });
@@ -191,10 +193,12 @@ describe('bodies and decisions', () => {
       {
         uid: 'uid-new',
         write: { plan: 'premium', status: 'active', expiresAt: '2026-10-30T12:00:00.000Z', source: 'revenuecat', updatedAt: NOW.toISOString() },
+        eventTimestampMs: Date.parse('2026-09-30T11:59:00.000Z'),
       },
       {
         uid: 'uid-old',
         write: { plan: 'premium', status: 'expired', expiresAt: '2026-10-30T12:00:00.000Z', source: 'revenuecat', updatedAt: NOW.toISOString() },
+        eventTimestampMs: Date.parse('2026-09-30T11:59:00.000Z'),
       },
     ]);
   });
@@ -228,5 +232,64 @@ describe('decideWebhook details', () => {
     if (decision.kind === 'apply') {
       expect(decision.writes[0]!.write.status).toBe('revoked');
     }
+  });
+
+  it('ignores SANDBOX events by default: a license tester must never gain (or expire) a production entitlement', () => {
+    expect(decideWebhook(body({ environment: 'SANDBOX' }), NOW)).toMatchObject({ kind: 'ignored', reason: 'sandbox_environment' });
+    expect(decideWebhook(body({ environment: 'sandbox', type: 'EXPIRATION' }), NOW)).toMatchObject({
+      kind: 'ignored',
+      reason: 'sandbox_environment',
+    });
+    // The T17 test-phase toggle applies them like production events.
+    expect(decideWebhook(body({ environment: 'SANDBOX' }), NOW, { allowSandbox: true }).kind).toBe('apply');
+    expect(decideWebhook(body(), NOW).kind).toBe('apply');
+  });
+
+  it('the handler passes the sandbox toggle through', async () => {
+    const { store, calls } = fakeStore();
+    const record = await (async () => {
+      const { res, record: rec } = fakeRes();
+      await handleRevenueCatWebhook(request(body({ environment: 'SANDBOX' })), res, {
+        store: () => store,
+        secret: () => SECRET,
+        now: () => NOW,
+      });
+      return rec;
+    })();
+    expect(record.code).toBe(200);
+    expect((record.body as { ignored?: string }).ignored).toBe('sandbox_environment');
+    expect(calls).toEqual([]);
+
+    const { res, record: allowed } = fakeRes();
+    await handleRevenueCatWebhook(request(body({ environment: 'SANDBOX' })), res, {
+      store: () => store,
+      secret: () => SECRET,
+      now: () => NOW,
+      allowSandbox: () => true,
+    });
+    expect(allowed.code).toBe(200);
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe('shouldApplyEntitlementWrite (out-of-order deliveries)', () => {
+  const T1 = Date.parse('2026-09-30T10:00:00.000Z');
+  const T2 = Date.parse('2026-09-30T11:00:00.000Z');
+
+  it('skips a delayed OLDER event: an EXPIRATION retry must not downgrade a resubscribed user', () => {
+    const storedAfterRepurchase = { plan: 'pro', status: 'active', source: 'revenuecat', eventTimestampMs: T2 };
+    expect(shouldApplyEntitlementWrite(storedAfterRepurchase, T1)).toBe(false);
+    // Newer or equal events apply (equal: RevenueCat retries reuse the event id, which the
+    // marker already de-duplicates; a distinct event with the same timestamp must still land).
+    expect(shouldApplyEntitlementWrite(storedAfterRepurchase, T2)).toBe(true);
+    expect(shouldApplyEntitlementWrite({ ...storedAfterRepurchase, eventTimestampMs: T1 }, T2)).toBe(true);
+  });
+
+  it('always applies over missing docs, non-revenuecat sources and untimestamped data', () => {
+    expect(shouldApplyEntitlementWrite(undefined, T1)).toBe(true);
+    expect(shouldApplyEntitlementWrite(null, T1)).toBe(true);
+    expect(shouldApplyEntitlementWrite({ plan: 'pro', source: 'admin', eventTimestampMs: T2 }, T1)).toBe(true);
+    expect(shouldApplyEntitlementWrite({ plan: 'pro', source: 'revenuecat' }, T1)).toBe(true);
+    expect(shouldApplyEntitlementWrite({ plan: 'pro', source: 'revenuecat', eventTimestampMs: T2 }, null)).toBe(true);
   });
 });

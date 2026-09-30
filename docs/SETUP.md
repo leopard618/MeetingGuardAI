@@ -686,6 +686,13 @@ actually reports the trial, so a missing offer is visible immediately.
    "Authorization header value" = the SAME random string. Leave "send all events" on.
 4. Press "Send test event": the function logs `revenuecat.ignored` with reason `test_event`
    and RevenueCat shows 200. A 401 means the header value and the secret differ.
+5. **Sandbox toggle.** License-tester and developer test purchases arrive as `SANDBOX` events,
+   which the webhook IGNORES by default (a test purchase must never grant - or expire - a real
+   production entitlement). For the §11.5 / T17 verification phase deploy with the param set:
+   `firebase deploy --only functions` and answer `true` when prompted for
+   `REVENUECAT_ALLOW_SANDBOX` (or put `REVENUECAT_ALLOW_SANDBOX=true` in `functions/.env.<project>`).
+   **After the tests, set it back to `false` and redeploy**; optionally also switch the
+   RevenueCat webhook to production-only events in the dashboard.
 
 The webhook writes `entitlements/{uid}` (uid = `app_user_id` = Firebase uid) and an idempotency
 marker in `revenuecatEvents/{event.id}`. Firestore rules stay untouched: clients can only READ
@@ -702,7 +709,8 @@ their own entitlement; the Admin SDK bypasses the rules.
 
 - [ ] Plans screen (configured build): prices come from Google Play (local currency), paid cards
       show "Get Pro"/"Get Premium" and the 3-day free trial line; no "coming soon" banner.
-- [ ] With a **license tester** account (Play Console -> Settings -> License testing): buying
+- [ ] With a **license tester** account (Play Console -> Settings -> License testing) and the
+      webhook deployed with `REVENUECAT_ALLOW_SANDBOX=true` (11.3 step 5): buying
       Pro completes, the screen shows "Activating your plan…", and within seconds
       `entitlements/{uid}` appears in Firestore (`source: "revenuecat"`) and the app shows
       "Current plan" on Pro. The assistant quota rises to the Pro limit.
@@ -710,3 +718,5 @@ their own entitlement; the Admin SDK bypasses the rules.
       says no purchases were found.
 - [ ] Cancelling in Play -> the webhook logs a CANCELLATION event and the entitlement stays
       `active` until the expiry date, then EXPIRATION flips it to `expired` (plan back to Free).
+- [ ] When the sandbox checks are done: `REVENUECAT_ALLOW_SANDBOX` back to `false` + redeploy
+      (11.3 step 5).

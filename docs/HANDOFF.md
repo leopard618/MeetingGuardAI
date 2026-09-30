@@ -344,6 +344,21 @@ Consequences, and how to use them:
 - The webhook is idempotent per event id (`revenuecatEvents/{id}` markers) - a RevenueCat retry
   never double-writes - but idempotency does not serialize the two writers; the last write is
   simply the newest state, which is the intended semantics.
+- Between RevenueCat events themselves, delivery order is NOT guaranteed (failed deliveries are
+  retried for hours), so the webhook also compares `event_timestamp_ms` against the stored
+  document's `eventTimestampMs` and SKIPS a stale event (a delayed EXPIRATION retry can no
+  longer downgrade a user who has already resubscribed). This ordering guard only applies
+  between `source: 'revenuecat'` writes; an admin write is still overwritten by the next event
+  as described above.
+- `SANDBOX` events (license testers, developer test purchases) are ignored unless the function
+  was deployed with `REVENUECAT_ALLOW_SANDBOX=true` (test phase only; `docs/SETUP.md` §11.3).
+- A **same-user Restore emits no webhook event** (RevenueCat only sends state CHANGES), so a
+  drifted entitlement - e.g. an admin `'free'` on an active subscriber - is not repaired by
+  Restore; it corrects on the next real subscription event (renewal), possibly weeks later.
+  The Pricing screen therefore times its "activating" wait out after ~2 minutes with an honest
+  "still processing" message instead of spinning forever. If a paying user reports a stuck free
+  plan, fix it with `adminSetUserPlan` (or RevenueCat granted entitlements) rather than telling
+  them to Restore.
 - The AI quota and the app read the same document through `effectivePlan()` /
   `resolveEffectivePlan()` (expired/revoked or a past `expiresAt` mean free), so admin and
   webhook writes take effect everywhere at once, entitlement listeners included (the Pricing

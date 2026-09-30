@@ -81,7 +81,7 @@ import {
   type ReadContext,
 } from './mapping';
 import { planLegacyMigration, removeLegacyKeys } from './migration';
-import { recurrenceEndsAt, splitRecurrenceAt, type SeriesSplit } from '../../core/recurrence';
+import { recurrenceEndsAt, reconcileRecurrenceAnchor, splitRecurrenceAt, type SeriesSplit } from '../../core/recurrence';
 import { isSeriesOccurrenceDate } from './recurrence';
 import {
   ackEntry,
@@ -1808,6 +1808,26 @@ export class DataEngine {
   }
 
   /**
+   * §16: a "this and following" patch that moves the meeting's DATE re-anchors the rule (form
+   * rules carry byWeekday = [anchor weekday] / an anchored byMonthDay, so keeping the old day
+   * would make expandOccurrences skip the moved anchor: the edited occurrence would vanish from
+   * every surface while the toast claims success). A patch that sets `recurrence` itself is an
+   * explicit rule choice and is kept verbatim. A patched start past the rule's inclusive `until`
+   * would leave a series with ZERO occurrences, so it is rejected before anything is written.
+   */
+  private reconcilePatchedSeries(before: Meeting, after: Meeting, patch: MeetingPatch): Meeting {
+    let result = after;
+    if (result.recurrence !== null && patch.recurrence === undefined && result.date !== before.date) {
+      const rule = reconcileRecurrenceAnchor(result.recurrence, before.date, result.date);
+      if (rule !== result.recurrence) result = applyMeetingPatch(result, { recurrence: rule }, result.updatedAt);
+    }
+    if (result.recurrence !== null && result.recurrence.until !== null && Date.parse(result.startAt) > Date.parse(result.recurrence.until)) {
+      throw new AppError('invalid_input', 'The new start is past the end of the series');
+    }
+    return result;
+  }
+
+  /**
    * MeetingRecurrenceOps.editFollowing (§16 "this and following"): splits the series at
    * `fromDateKey` via core `splitRecurrenceAt` - the master is truncated (rule.until = 1 s before
    * the split occurrence's original start, count converted, overrides < split kept) and a NEW
@@ -1835,8 +1855,9 @@ export class DataEngine {
       if (!current || current.deletedAt !== null) throw new AppError('not_found', 'Meeting not found');
       const split = splitRecurrenceAt(current, fromDateKey); // throws invalid_input as the contract requires
       if (split === 'series_edit') {
-        // "This and following" from the first occurrence is the whole series: plain update.
-        const next = applyMeetingPatch(current, patch, nextTimestamp(this.now(), current.updatedAt));
+        // "This and following" from the first occurrence is the whole series: plain update
+        // (with the same date-move rule re-anchoring as the tail path).
+        const next = this.reconcilePatchedSeries(current, applyMeetingPatch(current, patch, nextTimestamp(this.now(), current.updatedAt)), patch);
         const { updatedAt: _a, ...nextRest } = next;
         const { updatedAt: _b, ...currentRest } = current;
         if (deepEqual(nextRest, currentRest)) return { result: { master: current, created: null }, change: null };
@@ -1861,7 +1882,10 @@ export class DataEngine {
       const built = this.buildFollowingTail(s, current, split, tailId);
       // The patch lands on the tail only (it edits the new series master); it is validated by
       // applyMeetingPatch BEFORE anything is persisted, so an invalid patch changes nothing.
-      const tail = Object.keys(patch).length > 0 ? applyMeetingPatch(built, patch, built.updatedAt) : built;
+      // A date-moving patch then re-anchors the tail's rule (reconcilePatchedSeries), or the
+      // moved occurrence would fall off its own byWeekday/byMonthDay pattern and disappear.
+      const tail =
+        Object.keys(patch).length > 0 ? this.reconcilePatchedSeries(built, applyMeetingPatch(built, patch, built.updatedAt), patch) : built;
       wroteMaster = true;
       wroteTail = true;
       return {

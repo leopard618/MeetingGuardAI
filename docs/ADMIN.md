@@ -54,6 +54,14 @@ and basic usage metrics. It is an internal tool, so the UI is English only.
    root `default-src 'none'` policy alone, the header entries in `firebase.json` are in the
    wrong order (the `/admin` entries must come after the catch-all `**`).
 
+   The `connect-src` / `frame-src` sources are PINNED to this project's hosts
+   (`https://us-central1-meetingguard-ai-app.cloudfunctions.net`,
+   `https://meetingguard-ai-app.firebaseapp.com`) instead of the multi-tenant wildcards
+   `*.cloudfunctions.net` / `*.run.app` / `*.web.app` (any GCP customer's service matches those,
+   which would let an injected script exfiltrate the admin's ID token). If the callable region
+   or the project id ever changes, update these two hosts in `firebase.json` together with
+   `FUNCTIONS_REGION` / `config.js`.
+
 ## Operations
 
 - **Users**: paged table (50 per page, "Load more" fetches the next Firebase Auth page). The

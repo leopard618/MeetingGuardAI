@@ -434,8 +434,18 @@ function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** Only what the form changed (empty object = nothing to save). */
-export function draftToPatch(meeting: Meeting, draft: MeetingFormDraft): MeetingPatch {
+/**
+ * Only what the form changed (empty object = nothing to save).
+ *
+ * `original` is the draft the form STARTED with (the snapshot the user edited). The live
+ * `meeting` can move while the form is open - most importantly the app itself races the form:
+ * a google_meet/teams meeting saved without a link gets its provider-created url written back
+ * by the calendar push seconds later. When the user never touched the link field
+ * (`draft.conferenceUrl` equals the original's), the live url is kept instead of being diffed
+ * away - otherwise saving an unrelated edit would wipe the fresh Meet link (and a Teams link
+ * is created on insert ONLY, §17/§22, so it would be lost for good).
+ */
+export function draftToPatch(meeting: Meeting, draft: MeetingFormDraft, original?: MeetingFormDraft): MeetingPatch {
   const patch: MeetingPatch = {};
   const title = draft.title.trim();
   if (title !== meeting.title) patch.title = title;
@@ -450,6 +460,17 @@ export function draftToPatch(meeting: Meeting, draft: MeetingFormDraft): Meeting
   const location = locationOf(draft);
   if (!same(location, meeting.location)) patch.location = location;
   const conference = conferenceOf(draft);
+  if (
+    conference !== null &&
+    meeting.conference !== null &&
+    conference.provider === meeting.conference.provider &&
+    original !== undefined &&
+    draft.conferenceUrl.trim() === original.conferenceUrl.trim()
+  ) {
+    // The link field was never edited: the LIVE url (e.g. a Meet/Teams link the sync wrote back
+    // while the form was open) is the truth, not the stale snapshot the draft was seeded from.
+    conference.url = meeting.conference.url;
+  }
   if (!same(conference, meeting.conference)) patch.conference = conference;
   const participants = participantsOf(draft, meeting.participants);
   const current = meeting.participants.map((participant) => ({ email: participant.email, name: participant.name, status: participant.status }));
@@ -486,16 +507,23 @@ function draftPushTarget(draft: Pick<MeetingFormDraft, 'repeat'>, source: Meetin
   return { source, recurring: draft.repeat !== 'none' };
 }
 
+/** The edited meeting's external refs (only what §22 needs); null/absent for a new meeting. */
+export type ConferenceExternalRefs = Pick<Meeting['external'], 'outlookEventId'>;
+
 /**
  * The helper below the video-call chips, per §22's table. null = no hint: no video call is
  * selected, or a link is already typed (a pasted url always wins over the auto modes).
  * `source` is the EDITED meeting's source ('manual' for a new one): an auto mode the sync can
  * never reach (imported meeting, or Teams + recurrence, §17) falls back to the paste hint.
+ * `external` is the EDITED meeting's refs: a meeting already pushed to Outlook can never get an
+ * auto Teams link (create-only, §17), so `auto_outlook` degrades to the paste hint instead of
+ * promising a link that will not appear.
  */
 export function conferenceFormHint(
   draft: Pick<MeetingFormDraft, 'conferenceProvider' | 'conferenceUrl' | 'repeat'>,
   calendar: ConferenceCalendarState,
   source: MeetingSource = 'manual',
+  external?: ConferenceExternalRefs | null,
 ): ConferenceFormHintKey | null {
   if (draft.conferenceProvider === 'none' || draft.conferenceUrl.trim() !== '') return null;
   const { mode, autoState } = conferenceCapability(draft.conferenceProvider, calendar, draftPushTarget(draft, source));
@@ -507,6 +535,7 @@ export function conferenceFormHint(
     case 'auto_google':
       return autoState === 'ready' ? 'meetWillBeCreated' : 'meetNeedsCalendar';
     case 'auto_outlook':
+      if (external != null && teamsLinkOnCreateOnly(external)) return 'pasteLinkHint';
       return autoState === 'ready' ? 'teamsWillBeCreated' : 'teamsNeedsOutlook';
   }
 }
@@ -521,14 +550,17 @@ export function conferenceConnectTarget(hint: ConferenceFormHintKey | null): 'go
 /**
  * The link input label: "optional" exactly for the two auto modes (the provider creates a real
  * link on sync, but pasting one still works), the plain label everywhere else - including the
- * combinations the sync can never reach (they degrade to paste, so the link is not "optional").
+ * combinations the sync can never reach (they degrade to paste, so the link is not "optional"),
+ * and Teams on a meeting already pushed to Outlook (create-only, §17: no link will come).
  */
 export function conferenceLinkLabel(
   draft: Pick<MeetingFormDraft, 'conferenceProvider' | 'repeat'>,
   calendar: ConferenceCalendarState,
   source: MeetingSource = 'manual',
+  external?: ConferenceExternalRefs | null,
 ): 'link' | 'linkOptional' {
   const { mode } = conferenceCapability(draft.conferenceProvider, calendar, draftPushTarget(draft, source));
+  if (mode === 'auto_outlook' && external != null && teamsLinkOnCreateOnly(external)) return 'link';
   return mode === 'auto_google' || mode === 'auto_outlook' ? 'linkOptional' : 'link';
 }
 
@@ -590,10 +622,11 @@ export function conferenceCardState(
         ? { kind: 'info', key: 'meetPending', connect: null }
         : { kind: 'info', key: 'meetNeedsCalendar', connect: 'google' };
     case 'auto_outlook':
+      // Create-only comes FIRST: a meeting already pushed to Outlook never gets an auto link
+      // (§17), connected or not - a "Connect Outlook" CTA would promise a link that cannot come.
+      if (teamsLinkOnCreateOnly(meeting.external)) return { kind: 'info', key: 'teamsLinkTooLate', connect: null };
       if (autoState !== 'ready') return { kind: 'info', key: 'teamsNeedsOutlook', connect: 'outlook' };
-      return teamsLinkOnCreateOnly(meeting.external)
-        ? { kind: 'info', key: 'teamsLinkTooLate', connect: null }
-        : { kind: 'info', key: 'teamsPending', connect: null };
+      return { kind: 'info', key: 'teamsPending', connect: null };
     default:
       return { kind: 'info', key: 'noLink', connect: null };
   }

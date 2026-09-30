@@ -23,13 +23,22 @@ import {
   type StoreOffering,
   type StorePackage,
 } from '../../core/contracts';
-import type { PurchasesSdkLike, RcCustomerInfoLike, RcPackageLike, RcStoreProductLike } from './sdk';
+import type { PurchasesSdkLike, RcCustomerInfoLike, RcPackageLike, RcProductChangeInfoLike, RcStoreProductLike } from './sdk';
 
 const log = createLogger('purchases');
 
 /** Google Play subscription management (deep link when the product is known). */
 export const PLAY_SUBSCRIPTIONS_URL = 'https://play.google.com/store/account/subscriptions';
 export const ANDROID_PACKAGE = 'com.meetingguard.ai';
+
+/**
+ * react-native-purchases PRORATION_MODE.IMMEDIATE_WITH_TIME_PRORATION (numeric value 1, from
+ * @revenuecat/purchases-typescript-internal): a tier upgrade replaces the running subscription
+ * immediately and the unused time of the old one is credited - Google's recommended mode for
+ * upgrades. Declared locally because the SDK is an optional dependency (never imported
+ * statically, see ./sdk.ts).
+ */
+export const PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION = 1;
 
 export interface PurchasesServiceDeps {
   /** The loaded SDK, or null when unavailable (package missing, no native module, not Android). */
@@ -122,6 +131,24 @@ export function tierFromCustomerInfo(info: RcCustomerInfoLike): PaidPlanTier | n
   return null;
 }
 
+/**
+ * The CATALOG product ids currently active on the store account (base-plan suffixes stripped,
+ * non-catalog products ignored, premium products first, deduplicated). Normally zero or one;
+ * two would mean a double subscription that Play should have replaced.
+ */
+export function activeCatalogProductIds(info: RcCustomerInfoLike): string[] {
+  const ids = new Set<string>();
+  for (const raw of info.activeSubscriptions ?? []) {
+    if (typeof raw !== 'string') continue;
+    const productId = productIdOf({ identifier: raw });
+    if (PRODUCT_TO_PLAN.has(productId)) ids.add(productId);
+  }
+  return [...ids].sort((a, b) => {
+    const tierOf = (id: string): number => (PRODUCT_TO_PLAN.get(id)?.tier === 'premium' ? 0 : 1);
+    return tierOf(a) - tierOf(b) || a.localeCompare(b);
+  });
+}
+
 // ---------------------------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------------------------
@@ -211,13 +238,28 @@ export function createPurchasesService(deps: PurchasesServiceDeps): PurchasesSer
           details: { productId, offeringId: offerings.current?.identifier ?? null },
         });
       }
+      // A DIFFERENT catalog product already active means this purchase is a tier upgrade (or a
+      // cycle change): Google Play only replaces the running subscription when the old product
+      // id is passed - without it the user ends up paying for TWO subscriptions. When the store
+      // cannot answer, the purchase is aborted (retryable) instead of risking a double billing.
+      let info: RcCustomerInfoLike;
       try {
-        await sdk.purchasePackage(rawPackage);
+        info = await sdk.getCustomerInfo();
+      } catch (error) {
+        throw mapRcError(error, 'Could not read the current subscriptions before purchasing');
+      }
+      const oldProductId = activeCatalogProductIds(info).find((id) => id !== productId) ?? null;
+      const productChange: RcProductChangeInfoLike | null =
+        oldProductId !== null
+          ? { oldProductIdentifier: oldProductId, prorationMode: PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION }
+          : null;
+      try {
+        await sdk.purchasePackage(rawPackage, null, productChange);
       } catch (error) {
         if (isRcUserCancelled(error)) return { status: 'cancelled' };
         throw mapRcError(error, 'The purchase could not be completed');
       }
-      log.info('purchase completed', { productId });
+      log.info('purchase completed', { productId, replaced: oldProductId });
       // entitlements/{uid} is written by the webhook; the UI polls useEntitlement() (§20).
       return { status: 'purchased', tier, cycle };
     },
@@ -235,6 +277,21 @@ export function createPurchasesService(deps: PurchasesServiceDeps): PurchasesSer
       if (tier === null) return { status: 'nothing_to_restore' };
       log.info('restore found an active entitlement', { tier });
       return { status: 'restored', tier };
+    },
+
+    async getActiveProductId(): Promise<string | null> {
+      // Best effort (contract: never throws): the pricing UI uses it to mark the purchased
+      // (tier, cycle) card; null just means "unknown" and the UI falls back to tier-based state.
+      const sdk = deps.sdk();
+      if (!sdk || deps.androidKey() === null) return null;
+      try {
+        await configuring.catch(() => undefined);
+        const info = await sdk.getCustomerInfo();
+        return activeCatalogProductIds(info)[0] ?? null;
+      } catch (error) {
+        log.warn('could not read the active subscriptions', mapRcError(error, 'getCustomerInfo failed').code);
+        return null;
+      }
     },
 
     manageUrl(productId?: string): string {

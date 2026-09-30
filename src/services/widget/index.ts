@@ -16,6 +16,8 @@
  * - language:changed / preferences:changed -> setStrings (t('widget:...')) + re-feed.
  * - session:ended -> clear().
  */
+import { AppState } from 'react-native';
+
 import type { FormatOptions } from '../../core/contracts';
 import { appEvents } from '../../core/events';
 import { createLogger } from '../../core/logger';
@@ -53,9 +55,20 @@ const feeder: WidgetFeederImpl = createWidgetFeeder({
   logger: createLogger('widget'),
 });
 
+let appStateHookRegistered = false;
+
 /** Subscribes to app events and starts feeding the widget. Idempotent. */
 export function registerWidgetFeeder(): void {
   feeder.register();
+  if (appStateHookRegistered) return;
+  appStateHookRegistered = true;
+  // A user who travelled across timezones (or changed the device zone) sees the widget's
+  // PRE-FORMATTED times in the old zone until something feeds again - so the next foreground
+  // re-feeds when the device zone differs from the one the last feed used (cheap otherwise).
+  AppState.addEventListener('change', (state) => {
+    if (state !== 'active') return;
+    void feeder.refreshIfZoneChanged();
+  });
 }
 
 /** Recompute + push now (hook for the background refresh task; never throws). */

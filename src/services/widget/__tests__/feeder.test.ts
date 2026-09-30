@@ -58,6 +58,7 @@ interface Harness {
   };
   warnings: string[];
   language: 'en' | 'es';
+  zone: string;
   setLanguage(next: 'en' | 'es'): void;
 }
 
@@ -90,6 +91,7 @@ function makeHarness(options: { available?: boolean } = {}): Harness {
     data,
     warnings,
     language: 'en',
+    zone: 'UTC',
     setLanguage(next) {
       harness.language = next;
     },
@@ -114,7 +116,7 @@ function makeHarness(options: { available?: boolean } = {}): Harness {
         formatTime: (value: string, opts: FormatOptions) => `time(${value}|${String(opts.use24Hour)})`,
         formatDate: (value: string, style, _opts: FormatOptions) => `date(${value}|${style})`,
       },
-      deviceTimeZone: () => 'UTC',
+      deviceTimeZone: () => harness.zone,
       logger,
       now: () => NOW,
     },
@@ -243,6 +245,33 @@ it('registration is idempotent (no duplicate subscriptions)', async () => {
   h.events.emit('session:ended', { uid: UID, reason: 'sign_out' });
   await flush();
   expect(h.widget.clear).toHaveBeenCalledTimes(1);
+});
+
+it('re-feeds only when the device timezone changed since the last feed (pre-formatted times go stale)', async () => {
+  const h = makeHarness();
+  h.data.meetings = [makeMeeting('m1', '2026-10-05T15:00:00.000Z')];
+  const feeder = createWidgetFeeder(h.deps);
+  feeder.register();
+
+  // Nothing fed yet: the check is a cheap no-op.
+  await feeder.refreshIfZoneChanged();
+  await flush();
+  expect(h.widget.setNextMeeting).not.toHaveBeenCalled();
+
+  h.events.emit('meetings:changed', { uid: UID, reason: 'updated' });
+  await flush();
+  expect(h.widget.setNextMeeting).toHaveBeenCalledTimes(1);
+
+  // Same zone: no extra feed.
+  await feeder.refreshIfZoneChanged();
+  await flush();
+  expect(h.widget.setNextMeeting).toHaveBeenCalledTimes(1);
+
+  // The device moved zones: one re-feed, so timeText/dateText are re-formatted.
+  h.zone = 'America/New_York';
+  await feeder.refreshIfZoneChanged();
+  await flush();
+  expect(h.widget.setNextMeeting).toHaveBeenCalledTimes(2);
 });
 
 it('widgetStringsOf reads the widget namespace', () => {

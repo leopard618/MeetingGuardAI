@@ -1380,10 +1380,20 @@ export interface PurchasesService {
   configure(uid: string): Promise<void>;
   /** Current offering mapped to StoreOffering; AppError('not_configured') when unconfigured, 'offline'/'upstream_error' on store failures. */
   getOffering(): Promise<StoreOffering>;
-  /** Launches the store purchase flow for the tier+cycle package of the current offering. */
+  /**
+   * Launches the store purchase flow for the tier+cycle package of the current offering.
+   * When a DIFFERENT catalog product is already active (a tier upgrade), the Google product
+   * change is passed so Play REPLACES the running subscription instead of opening a second one.
+   */
   purchase(tier: PaidPlanTier, cycle: BillingCycle): Promise<PurchaseOutcome>;
   /** Purchases.restorePurchases(); the webhook (TRANSFER/INITIAL_PURCHASE) updates the entitlement. */
   restore(): Promise<RestoreOutcome>;
+  /**
+   * The ACTIVE catalog Play product id from CustomerInfo (premium over pro when both appear),
+   * or null when none is active or the store cannot answer (never throws): lets the pricing UI
+   * mark the truly purchased (tier, cycle) card and deep-link "Manage subscription".
+   */
+  getActiveProductId(): Promise<string | null>;
   /** Play subscription management deep link for the active product (or the generic subscriptions page). */
   manageUrl(productId?: string): string;
 }

@@ -64,6 +64,13 @@ export interface WidgetFeederImpl {
   register(): void;
   /** Recompute + push now (background task hook; resolves after the queued run completes). */
   refresh(): Promise<void>;
+  /**
+   * Re-feed when the device timezone differs from the one the last feed formatted with
+   * (foreground hook): timeText/dateText are pre-formatted strings, so after a zone change
+   * they would show the OLD zone's wall-clock time until some other event feeds again.
+   * A cheap no-op when nothing was fed yet or the zone is unchanged.
+   */
+  refreshIfZoneChanged(): Promise<void>;
 }
 
 /**
@@ -85,6 +92,8 @@ export function createWidgetFeeder(deps: WidgetFeederDeps): WidgetFeederImpl {
   let registered = false;
   let chain: Promise<void> = Promise.resolve();
   let feedQueued = false;
+  /** Device zone the last completed feed formatted with (null until something was fed). */
+  let lastFedZone: string | null = null;
 
   function enqueue(task: () => Promise<void>): Promise<void> {
     chain = chain.then(task).catch((error: unknown) => {
@@ -118,6 +127,7 @@ export function createWidgetFeeder(deps: WidgetFeederDeps): WidgetFeederImpl {
     const uid = deps.data.getActiveUid();
     // Signed out: leave the widget alone (session:ended already cleared it).
     if (uid === null) return;
+    lastFedZone = deps.deviceTimeZone();
     const now = nowDate();
     const meetings = await deps.data.getCachedUpcoming(uid, { horizonDays: WIDGET_HORIZON_DAYS, now });
     const entry = computeNextWidgetEntry(meetings, now);
@@ -184,5 +194,9 @@ export function createWidgetFeeder(deps: WidgetFeederDeps): WidgetFeederImpl {
   return {
     register,
     refresh: () => enqueueFeed(),
+    refreshIfZoneChanged: () => {
+      if (lastFedZone === null || deps.deviceTimeZone() === lastFedZone) return Promise.resolve();
+      return enqueueFeed();
+    },
   };
 }

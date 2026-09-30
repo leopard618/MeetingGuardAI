@@ -41,13 +41,13 @@
       {
         "source": "/admin",
         "headers": [
-          { "key": "Content-Security-Policy", "value": "default-src 'none'; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app; frame-src https://*.firebaseapp.com https://*.web.app; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" }
+          { "key": "Content-Security-Policy", "value": "default-src 'none'; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://us-central1-meetingguard-ai-app.cloudfunctions.net; frame-src https://meetingguard-ai-app.firebaseapp.com; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" }
         ]
       },
       {
         "source": "/admin/**",
         "headers": [
-          { "key": "Content-Security-Policy", "value": "default-src 'none'; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app; frame-src https://*.firebaseapp.com https://*.web.app; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" }
+          { "key": "Content-Security-Policy", "value": "default-src 'none'; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://us-central1-meetingguard-ai-app.cloudfunctions.net; frame-src https://meetingguard-ai-app.firebaseapp.com; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" }
         ]
       }
     ]
