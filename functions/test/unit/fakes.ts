@@ -53,6 +53,7 @@ export function meetingDoc(overrides: Partial<AiMeetingContextDoc> = {}): AiMeet
     participants: [],
     location: null,
     conference: null,
+    recurrence: null,
     ...overrides,
   };
 }
@@ -77,4 +78,13 @@ export class FakeMeetingReader implements MeetingReader {
   async get(_uid: string, meetingId: string): Promise<MeetingRecord | null> {
     return this.records.get(meetingId) ?? null;
   }
+
+  async listRecurring(_uid: string, limit: number): Promise<MeetingRecord[]> {
+    this.recurringCalls.push({ limit });
+    return [...this.records.values()]
+      .filter((record) => record.doc.recurrence !== null && record.doc.recurrence !== undefined)
+      .slice(0, limit);
+  }
+
+  recurringCalls: { limit: number }[] = [];
 }

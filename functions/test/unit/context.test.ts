@@ -4,10 +4,12 @@ import {
   assignRefs,
   buildMeetingContext,
   collectWithinBudget,
+  compactRecurrence,
   loadMeetingContext,
   toModelView,
   type MeetingRecord,
 } from '../../src/assistant/context';
+import type { RecurrenceRule } from '../../src/shared/aiContract';
 import { FakeMeetingReader, meetingDoc } from './fakes';
 
 const NOW = new Date('2026-10-05T10:00:00.000Z');
@@ -200,5 +202,56 @@ describe('collectWithinBudget', () => {
     expect(result.records.map((record) => record.id)).toEqual(['a', 'b']);
     expect(result.skipped).toBe(1);
     expect(seen).not.toContain('never');
+  });
+});
+
+describe('recurrence in the context (v2)', () => {
+  const weekly: RecurrenceRule = { freq: 'weekly', interval: 1, byWeekday: ['MO', 'WE'], byMonthDay: null, until: null, count: null };
+
+  it('loads recurring masters whose first occurrence left the startAt window', async () => {
+    const reader = new FakeMeetingReader()
+      .add('inWindow', { startAt: '2026-10-06T10:00:00.000Z' })
+      .add('oldSeries', { startAt: '2026-01-05T09:00:00.000Z', recurrence: { ...weekly, byWeekday: ['MO'] } });
+    const context = await loadMeetingContext(reader, 'u1', NOW, null);
+    expect(reader.recurringCalls).toEqual([{ limit: 100 }]);
+    expect(context.meetings.map((meeting) => meeting.meetingId).sort()).toEqual(['inWindow', 'oldSeries']);
+  });
+
+  it('does not duplicate a master returned by both queries', async () => {
+    const reader = new FakeMeetingReader().add('series', {
+      startAt: '2026-10-06T10:00:00.000Z',
+      recurrence: { ...weekly },
+    });
+    const context = await loadMeetingContext(reader, 'u1', NOW, null);
+    expect(context.meetings).toHaveLength(1);
+  });
+
+  it('describes the rule compactly and marks the view as recurring', () => {
+    expect(compactRecurrence({ ...weekly }, 'UTC')).toBe('every week on MO,WE');
+    expect(compactRecurrence({ ...weekly, interval: 2, byWeekday: null }, 'UTC')).toBe('every 2 weeks');
+    expect(compactRecurrence({ freq: 'daily', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: 10 }, 'UTC')).toBe(
+      'every day x10',
+    );
+    // The until instant is 23:59 on Dec 31 in Madrid = 22:59Z; shown as the MEETING-zone day.
+    expect(
+      compactRecurrence(
+        { freq: 'monthly', interval: 1, byWeekday: null, byMonthDay: 15, until: '2026-12-31T22:59:00.000Z', count: null },
+        'Europe/Madrid',
+      ),
+    ).toBe('every month on day 15 until 2026-12-31');
+
+    const [meeting] = buildMeetingContext(
+      [record('m1', '2026-10-05T14:00:00.000Z', { timezone: 'UTC', recurrence: { ...weekly } })],
+      NOW,
+      { followUpMeetingId: null },
+    ).meetings;
+    const view = toModelView(meeting!, 'UTC', false);
+    expect(view.recurring).toBe(true);
+    expect(view.repeats).toBe('every week on MO,WE');
+
+    const oneOff = buildMeetingContext([record('m2', '2026-10-05T14:00:00.000Z')], NOW, { followUpMeetingId: null }).meetings[0]!;
+    const plainView = toModelView(oneOff, 'UTC', false);
+    expect(plainView.recurring).toBeUndefined();
+    expect(plainView.repeats).toBeUndefined();
   });
 });

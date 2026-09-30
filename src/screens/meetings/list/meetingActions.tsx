@@ -1,11 +1,13 @@
 /**
- * Row actions shared by the meetings list and the calendar agenda: open, edit, delete (with a
- * confirmation that says what happens in Google Calendar / the device calendar), and the action
- * sheet that long-press and the "more" button open.
+ * Row actions shared by the meetings list, the calendar agenda and the dashboard timeline: open,
+ * edit, delete (with a confirmation that says what happens in Google Calendar / the device
+ * calendar), and the action sheet that long-press and the "more" button open.
  *
- * Deletes go through meetingRepository.remove with origin 'user' (soft delete; the calendar engine
- * removes a synced event from Google Calendar; a device-calendar import stays in the device
- * calendar and the user is told so). Success is only reported after the repository resolved.
+ * Recurring meetings (§16): a row is one OCCURRENCE, so edit and delete first ask the scope -
+ * "This meeting only" writes an override on the master (cancelOccurrence / the occurrence edit
+ * sheet), "The whole series" edits or soft-deletes the master. One-off meetings keep the old
+ * single-step flow. Deletes go through meetingRepository with origin 'user'; success is only
+ * reported after the repository resolved.
  */
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -15,35 +17,69 @@ import { List, Modal, Portal, Text, useTheme as usePaperTheme } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import type { RootStackParamList } from '../../../core/contracts';
-import { errorMessageKey, toAppError } from '../../../core/errors';
+import type { MeetingRecurrenceOps, MeetingRepository, RootStackParamList } from '../../../core/contracts';
+import { AppError, errorMessageKey, toAppError } from '../../../core/errors';
 import { createLogger } from '../../../core/logger';
 import type { Meeting } from '../../../core/types';
 import { useT } from '../../../i18n';
 import { meetingRepository } from '../../../services/data';
+import { useFormatters } from '../../shared/useFormatters';
+import type { DisplayMeeting } from '../occurrences';
 
 const log = createLogger('meetings');
 
-export interface MeetingActions {
-  open(meeting: Meeting): void;
-  edit(meeting: Meeting): void;
-  /** Asks for confirmation, then deletes. */
-  confirmDelete(meeting: Meeting): void;
-  /** Id of the meeting being deleted, or null. */
-  deletingId: string | null;
+/** An occurrence row whose "This meeting only" edit is open in the occurrence sheet. */
+export interface OccurrenceEditTarget {
+  entry: DisplayMeeting;
+  localDateKey: string;
 }
 
-/** The confirmation text for a delete (what happens in the connected calendars). */
-export function deleteMessageKey(meeting: Pick<Meeting, 'source' | 'external'>): string {
+export interface MeetingActions {
+  open(meeting: DisplayMeeting): void;
+  /** Recurring occurrence rows ask for the scope first. */
+  edit(meeting: DisplayMeeting): void;
+  /** Asks for confirmation (and, for recurring occurrence rows, the scope), then deletes. */
+  confirmDelete(meeting: DisplayMeeting): void;
+  /** Id of the meeting being deleted, or null. */
+  deletingId: string | null;
+  /** Occurrence the user chose to edit "this meeting only", rendered by OccurrenceEditSheet. */
+  occurrenceEdit: OccurrenceEditTarget | null;
+  dismissOccurrenceEdit(): void;
+}
+
+/**
+ * The recurrence ops land on meetingRepository together with this UI (rec-core); until both are
+ * wired, occurrence-scoped actions fail with 'not_implemented' instead of pretending success.
+ */
+function recurrenceOps(): MeetingRecurrenceOps {
+  const repository = meetingRepository as MeetingRepository & Partial<MeetingRecurrenceOps>;
+  if (!repository.cancelOccurrence || !repository.updateOccurrence || !repository.restoreOccurrence) {
+    throw new AppError('not_implemented', 'Recurring-meeting operations are not available');
+  }
+  return repository as MeetingRepository & MeetingRecurrenceOps;
+}
+
+/** The confirmation text for a delete (what happens in the connected calendars / the series). */
+export function deleteMessageKey(meeting: Pick<Meeting, 'source' | 'external' | 'recurrence'>): string {
   if (meeting.source === 'device') return 'meetings:details.deleteMessageDevice';
-  if (meeting.source === 'google' || meeting.external.googleEventId !== null) return 'meetings:details.deleteMessageGoogle';
-  return 'meetings:details.deleteMessage';
+  const google = meeting.source === 'google' || meeting.external.googleEventId !== null;
+  if (meeting.recurrence !== null) {
+    return google ? 'meetings:details.deleteMessageSeriesGoogle' : 'meetings:details.deleteMessageSeries';
+  }
+  return google ? 'meetings:details.deleteMessageGoogle' : 'meetings:details.deleteMessage';
+}
+
+/** Whether a row needs the occurrence/series question (a real occurrence of a recurring meeting). */
+export function needsScopeChoice(meeting: DisplayMeeting): boolean {
+  return meeting.occurrence !== undefined && meeting.recurrence !== null;
 }
 
 export function useMeetingActions(): MeetingActions {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const t = useT();
+  const fmt = useFormatters();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [occurrenceEdit, setOccurrenceEdit] = useState<OccurrenceEditTarget | null>(null);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -53,11 +89,34 @@ export function useMeetingActions(): MeetingActions {
     };
   }, []);
 
-  const open = useCallback((meeting: Meeting) => navigation.navigate('MeetingDetails', { meetingId: meeting.id }), [navigation]);
-  const edit = useCallback((meeting: Meeting) => navigation.navigate('EditMeeting', { meetingId: meeting.id }), [navigation]);
+  const open = useCallback((meeting: DisplayMeeting) => navigation.navigate('MeetingDetails', { meetingId: meeting.id }), [navigation]);
+  const editSeries = useCallback((meeting: DisplayMeeting) => navigation.navigate('EditMeeting', { meetingId: meeting.id }), [navigation]);
 
-  const remove = useCallback(
-    async (meeting: Meeting): Promise<void> => {
+  const edit = useCallback(
+    (meeting: DisplayMeeting) => {
+      const occurrence = meeting.occurrence;
+      if (!occurrence || !needsScopeChoice(meeting)) {
+        editSeries(meeting);
+        return;
+      }
+      Alert.alert(
+        t('meetings:actions.scopeEditTitle'),
+        t('meetings:actions.scopeEditMessage', { title: meeting.title, date: fmt.date(occurrence.localDateKey, 'long') }),
+        [
+          { text: t('common:actions.cancel'), style: 'cancel' },
+          {
+            text: t('meetings:actions.scopeThisOnly'),
+            onPress: () => setOccurrenceEdit({ entry: meeting, localDateKey: occurrence.localDateKey }),
+          },
+          { text: t('meetings:actions.scopeWholeSeries'), onPress: () => editSeries(meeting) },
+        ],
+      );
+    },
+    [t, fmt, editSeries],
+  );
+
+  const removeSeries = useCallback(
+    async (meeting: DisplayMeeting): Promise<void> => {
       setDeletingId(meeting.id);
       try {
         await meetingRepository.remove(meeting.id, { origin: 'user' });
@@ -77,17 +136,60 @@ export function useMeetingActions(): MeetingActions {
     [t],
   );
 
-  const confirmDelete = useCallback(
-    (meeting: Meeting) => {
-      Alert.alert(t('meetings:details.deleteTitle', { title: meeting.title }), t(deleteMessageKey(meeting)), [
-        { text: t('common:actions.cancel'), style: 'cancel' },
-        { text: t('meetings:details.delete'), style: 'destructive', onPress: () => void remove(meeting) },
-      ]);
+  const removeOccurrence = useCallback(
+    async (meeting: DisplayMeeting, localDateKey: string): Promise<void> => {
+      setDeletingId(meeting.id);
+      try {
+        await recurrenceOps().cancelOccurrence(meeting.id, localDateKey, { origin: 'user' });
+        Toast.show({ type: 'success', text1: t('meetings:actions.occurrenceDeleted') });
+      } catch (caught) {
+        const error = toAppError(caught);
+        log.warn('could not cancel an occurrence', error.code);
+        Toast.show({ type: 'error', text1: t(errorMessageKey(error.code)) });
+      } finally {
+        if (mounted.current) setDeletingId(null);
+      }
     },
-    [t, remove],
+    [t],
   );
 
-  return useMemo(() => ({ open, edit, confirmDelete, deletingId }), [open, edit, confirmDelete, deletingId]);
+  const confirmDelete = useCallback(
+    (meeting: DisplayMeeting) => {
+      const occurrence = meeting.occurrence;
+      if (occurrence && needsScopeChoice(meeting)) {
+        Alert.alert(
+          t('meetings:actions.scopeDeleteTitle'),
+          t('meetings:actions.scopeDeleteMessage', { title: meeting.title, date: fmt.date(occurrence.localDateKey, 'long') }),
+          [
+            { text: t('common:actions.cancel'), style: 'cancel' },
+            {
+              text: t('meetings:actions.scopeThisOnly'),
+              style: 'destructive',
+              onPress: () => void removeOccurrence(meeting, occurrence.localDateKey),
+            },
+            {
+              text: t('meetings:actions.scopeWholeSeries'),
+              style: 'destructive',
+              onPress: () => void removeSeries(meeting),
+            },
+          ],
+        );
+        return;
+      }
+      Alert.alert(t('meetings:details.deleteTitle', { title: meeting.title }), t(deleteMessageKey(meeting)), [
+        { text: t('common:actions.cancel'), style: 'cancel' },
+        { text: t('meetings:details.delete'), style: 'destructive', onPress: () => void removeSeries(meeting) },
+      ]);
+    },
+    [t, fmt, removeSeries, removeOccurrence],
+  );
+
+  const dismissOccurrenceEdit = useCallback(() => setOccurrenceEdit(null), []);
+
+  return useMemo(
+    () => ({ open, edit, confirmDelete, deletingId, occurrenceEdit, dismissOccurrenceEdit }),
+    [open, edit, confirmDelete, deletingId, occurrenceEdit, dismissOccurrenceEdit],
+  );
 }
 
 /** Bottom action sheet for one meeting (long-press or the row's "more" button). */
@@ -96,7 +198,7 @@ export function MeetingActionsSheet({
   actions,
   onDismiss,
 }: {
-  meeting: Meeting | null;
+  meeting: DisplayMeeting | null;
   actions: MeetingActions;
   onDismiss(): void;
 }): ReactElement {
@@ -104,7 +206,7 @@ export function MeetingActionsSheet({
   const theme = usePaperTheme();
   const insets = useSafeAreaInsets();
 
-  const run = (action: (meeting: Meeting) => void) => () => {
+  const run = (action: (meeting: DisplayMeeting) => void) => () => {
     onDismiss();
     if (meeting) action(meeting);
   };
@@ -125,6 +227,11 @@ export function MeetingActionsSheet({
             <Text variant="titleMedium" numberOfLines={2} accessibilityRole="header" style={styles.title}>
               {meeting.title}
             </Text>
+            {needsScopeChoice(meeting) ? (
+              <Text variant="bodySmall" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]} testID="meeting-actions-repeats">
+                {t('meetings:list.repeats')}
+              </Text>
+            ) : null}
             <List.Item
               title={t('meetings:actions.open')}
               left={(props) => <List.Icon {...props} icon="eye-outline" />}
@@ -173,6 +280,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   title: {
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+  },
+  subtitle: {
     paddingHorizontal: 16,
     paddingBottom: 4,
   },

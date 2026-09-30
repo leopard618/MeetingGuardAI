@@ -19,12 +19,14 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { Button, Chip, HelperText, IconButton, Switch, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
+import { RECURRENCE_WEEKDAYS } from '../../core/aiContract';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
+import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { attachmentService } from '../../services/attachments';
 import { useCalendarStatus } from '../../services/calendar';
 import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
@@ -40,17 +42,25 @@ import {
   DURATION_OPTIONS,
   INTENSITY_CHOICES,
   LOCATION_CHOICES,
+  REPEAT_CHOICES,
+  REPEAT_END_CHOICES,
   dateFromPicker,
+  defaultRepeatWeekdays,
   draftFromMeeting,
   draftToCreateInput,
   draftToPatch,
   isMeetingDraftDirty,
+  monthlyRepeatDay,
   newMeetingDraft,
   pickerDateOf,
+  recurrenceRuleOf,
   timeFromPicker,
+  toggleRepeatWeekday,
   validateMeetingDraft,
   type MeetingFormDraft,
   type ParticipantDraft,
+  type RepeatChoice,
+  type RepeatEndChoice,
 } from './meetingForm';
 
 const log = createLogger('meetings');
@@ -105,7 +115,7 @@ function MeetingForm({
       : newMeetingDraft({ now: new Date(), timeZone: deviceZone, defaultAlertTimes: preferences.defaultAlertTimes, date: initialDate }),
   );
   const [draft, setDraft] = useState<MeetingFormDraft>(original);
-  const [picker, setPicker] = useState<'date' | 'time' | null>(null);
+  const [picker, setPicker] = useState<'date' | 'time' | 'until' | null>(null);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   // Attachments: the meeting's saved files, files picked in this form (not linked to any meeting
@@ -159,7 +169,17 @@ function MeetingForm({
     setPicker(Platform.OS === 'ios' ? mode : null);
     if (event.type !== 'set' || !value || mode === null) return;
     if (mode === 'date') change({ date: dateFromPicker(value) });
+    else if (mode === 'until') change({ repeatUntilDate: dateFromPicker(value) });
     else change({ time: timeFromPicker(value) });
+  };
+
+  const setRepeat = (choice: RepeatChoice): void => {
+    // Switching to weekly preselects the meeting's own weekday (deselectable afterwards).
+    if (choice === 'weekly' && draft.repeatWeekdays.length === 0) {
+      change({ repeat: choice, repeatWeekdays: defaultRepeatWeekdays(draft) });
+    } else {
+      change({ repeat: choice });
+    }
   };
 
   const addAttachments = async (kind: 'document' | 'image'): Promise<void> => {
@@ -309,7 +329,7 @@ function MeetingForm({
             </Button>
           ) : null}
         </View>
-        {picker !== null ? (
+        {picker === 'date' || picker === 'time' ? (
           <View>
             <DateTimePicker
               value={pickerValue}
@@ -355,6 +375,153 @@ function MeetingForm({
                 </Chip>
               ))}
             </View>
+          </>
+        ) : null}
+      </Section>
+
+      <Section title={t('meetings:form.repeat.title')}>
+        <View style={styles.chips}>
+          {REPEAT_CHOICES.map((choice) => (
+            <Chip
+              key={choice}
+              selected={draft.repeat === choice}
+              mode={draft.repeat === choice ? 'flat' : 'outlined'}
+              style={styles.chip}
+              onPress={() => setRepeat(choice)}
+              accessibilityLabel={t(`meetings:form.repeat.choice.${choice}`)}
+              testID={`meeting-form-repeat-${choice}`}
+            >
+              {t(`meetings:form.repeat.choice.${choice}`)}
+            </Chip>
+          ))}
+        </View>
+        {draft.repeat !== 'none' ? (
+          <>
+            {meeting?.recurrence ? (
+              <HelperText type="info" visible testID="meeting-form-series-note">
+                {t('meetings:form.repeat.seriesNote')}
+              </HelperText>
+            ) : null}
+            <View style={styles.intervalRow}>
+              <Text variant="bodyMedium">{t('meetings:form.repeat.everyLabel')}</Text>
+              <TextInput
+                mode="outlined"
+                dense
+                value={draft.repeatInterval}
+                onChangeText={(value) => change({ repeatInterval: value })}
+                keyboardType="number-pad"
+                maxLength={2}
+                style={styles.intervalInput}
+                error={errorText('repeatInterval') !== null}
+                accessibilityLabel={t('meetings:form.repeat.intervalInput')}
+                testID="meeting-form-repeat-interval"
+              />
+              <Text variant="bodyMedium">
+                {t(`meetings:form.repeat.unit.${draft.repeat}`, { count: Number(draft.repeatInterval) || 0 })}
+              </Text>
+            </View>
+            {errorText('repeatInterval') ? <HelperText type="error">{errorText('repeatInterval')}</HelperText> : null}
+            {draft.repeat === 'weekly' ? (
+              <>
+                <Text variant="titleSmall" style={styles.subheading}>
+                  {t('meetings:form.repeat.weekdaysLabel')}
+                </Text>
+                <View style={styles.chips}>
+                  {RECURRENCE_WEEKDAYS.map((code) => {
+                    const selected = draft.repeatWeekdays.includes(code);
+                    return (
+                      <Chip
+                        key={code}
+                        selected={selected}
+                        showSelectedCheck
+                        mode={selected ? 'flat' : 'outlined'}
+                        style={styles.chip}
+                        onPress={() => change({ repeatWeekdays: toggleRepeatWeekday(draft.repeatWeekdays, code) })}
+                        accessibilityLabel={t(`ai:recurrence.weekday.${code}`)}
+                        testID={`meeting-form-repeat-day-${code}`}
+                      >
+                        {t(`meetings:form.repeat.weekdayShort.${code}`)}
+                      </Chip>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
+            {draft.repeat === 'monthly' ? (
+              <HelperText type="info" visible>
+                {t('meetings:form.repeat.monthDayNote', { day: monthlyRepeatDay(draft, meeting?.recurrence ?? null) })}
+              </HelperText>
+            ) : null}
+            <Text variant="titleSmall" style={styles.subheading}>
+              {t('meetings:form.repeat.endsLabel')}
+            </Text>
+            <View style={styles.chips}>
+              {REPEAT_END_CHOICES.map((choice: RepeatEndChoice) => (
+                <Chip
+                  key={choice}
+                  selected={draft.repeatEnd === choice}
+                  mode={draft.repeatEnd === choice ? 'flat' : 'outlined'}
+                  style={styles.chip}
+                  onPress={() => change({ repeatEnd: choice })}
+                  accessibilityLabel={t(`meetings:form.repeat.end.${choice}`)}
+                  testID={`meeting-form-repeat-end-${choice}`}
+                >
+                  {t(`meetings:form.repeat.end.${choice}`)}
+                </Chip>
+              ))}
+            </View>
+            {draft.repeatEnd === 'onDate' ? (
+              <>
+                {draft.repeatUntilDate !== '' ? (
+                  <Text variant="bodyMedium" testID="meeting-form-repeat-until">
+                    {t('meetings:form.repeat.untilOn', { date: capitalizeFirst(fmt.date(draft.repeatUntilDate, 'long')) })}
+                  </Text>
+                ) : null}
+                <Button mode="outlined" icon="calendar-end" onPress={() => setPicker('until')} style={styles.alignStart} testID="meeting-form-pick-until">
+                  {t('meetings:form.repeat.pickUntilDate')}
+                </Button>
+                {picker === 'until' ? (
+                  <View>
+                    <DateTimePicker
+                      value={pickerDateOf({ date: draft.repeatUntilDate !== '' ? draft.repeatUntilDate : draft.date, time: '09:00' })}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={onPicked}
+                    />
+                    {Platform.OS === 'ios' ? (
+                      <Button mode="text" style={styles.alignStart} onPress={() => setPicker(null)}>
+                        {t('common:actions.done')}
+                      </Button>
+                    ) : null}
+                  </View>
+                ) : null}
+                {errorText('repeatUntil') ? <HelperText type="error">{errorText('repeatUntil')}</HelperText> : null}
+              </>
+            ) : null}
+            {draft.repeatEnd === 'afterCount' ? (
+              <>
+                <TextInput
+                  mode="outlined"
+                  dense
+                  label={t('meetings:form.repeat.countLabel')}
+                  value={draft.repeatCount}
+                  onChangeText={(value) => change({ repeatCount: value })}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  style={styles.countInput}
+                  error={errorText('repeatCount') !== null}
+                  testID="meeting-form-repeat-count"
+                />
+                {errorText('repeatCount') ? <HelperText type="error">{errorText('repeatCount')}</HelperText> : null}
+              </>
+            ) : null}
+            <Text variant="bodySmall" style={[styles.field, { color: theme.colors.onSurfaceVariant }]} testID="meeting-form-repeat-summary">
+              {recurrenceSummary(t, recurrenceRuleOf(draft, meeting?.recurrence ?? null), {
+                formatDate: (localDate) => fmt.date(localDate, 'medium'),
+                anchorDate: draft.date,
+                timezone: draft.timezone,
+              })}
+            </Text>
           </>
         ) : null}
       </Section>
@@ -660,5 +827,19 @@ const styles = StyleSheet.create({
   },
   alignStart: {
     alignSelf: 'flex-start',
+  },
+  intervalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  intervalInput: {
+    width: 64,
+    textAlign: 'center',
+  },
+  countInput: {
+    marginTop: 8,
+    width: 160,
   },
 });

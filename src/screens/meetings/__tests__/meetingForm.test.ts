@@ -1,15 +1,21 @@
+import type { RecurrenceRule } from '../../../core/aiContract';
+import { zonedDateTimeToUtcIso } from '../../../core/time';
 import { buildMeeting, type Meeting } from '../../../core/types';
 import {
   conferenceOf,
   dateFromPicker,
+  defaultRepeatWeekdays,
   draftFromMeeting,
   draftToCreateInput,
   draftToPatch,
   isMeetingDraftDirty,
+  monthlyRepeatDay,
   newMeetingDraft,
   normalizeTypedUrl,
   pickerDateOf,
+  recurrenceRuleOf,
   timeFromPicker,
+  toggleRepeatWeekday,
   validateMeetingDraft,
   type MeetingFormDraft,
 } from '../meetingForm';
@@ -171,5 +177,111 @@ describe('isMeetingDraftDirty', () => {
     expect(isMeetingDraftDirty({ ...original, title: 'Budget review v2' }, original)).toBe(true);
     expect(isMeetingDraftDirty({ ...original, participants: [...original.participants, { email: '', name: '' }] }, original)).toBe(true);
     expect(isMeetingDraftDirty({ ...original, alertTimes: [...original.alertTimes, 1] }, original)).toBe(true);
+  });
+});
+
+describe('recurrence in the form (§16)', () => {
+  const weekly: RecurrenceRule = { freq: 'weekly', interval: 1, byWeekday: ['MO'], byMonthDay: null, until: null, count: null };
+
+  it('a new draft does not repeat and creates recurrence null', () => {
+    const fresh = draft();
+    expect(fresh.repeat).toBe('none');
+    expect(recurrenceRuleOf(fresh)).toBeNull();
+    expect(draftToCreateInput(fresh).recurrence).toBeNull();
+  });
+
+  it('builds the rule from the repeat fields (weekly days, interval, ends)', () => {
+    const weeklyDraft = draft({ repeat: 'weekly', repeatWeekdays: ['MO', 'WE'], repeatInterval: '2' });
+    expect(recurrenceRuleOf(weeklyDraft)).toEqual({
+      freq: 'weekly',
+      interval: 2,
+      byWeekday: ['MO', 'WE'],
+      byMonthDay: null,
+      until: null,
+      count: null,
+    });
+
+    const counted = draft({ repeat: 'daily', repeatEnd: 'afterCount', repeatCount: '10' });
+    expect(recurrenceRuleOf(counted)).toMatchObject({ freq: 'daily', count: 10, until: null });
+
+    // Until = the picked day's end in the MEETING zone (inclusive), DST-independent.
+    const until = draft({ repeat: 'monthly', repeatEnd: 'onDate', repeatUntilDate: '2026-12-31' });
+    expect(recurrenceRuleOf(until)).toMatchObject({ freq: 'monthly', until: '2026-12-31T22:59:00.000Z', count: null });
+  });
+
+  it('weekly without selected days means "the meeting weekday" (byWeekday null)', () => {
+    expect(recurrenceRuleOf(draft({ repeat: 'weekly' }))).toMatchObject({ byWeekday: null });
+    // 2026-10-05 is a Monday; switching to weekly preselects it.
+    expect(defaultRepeatWeekdays(draft())).toEqual(['MO']);
+  });
+
+  it('validates interval, until day and count', () => {
+    expect(validateMeetingDraft(draft({ repeat: 'daily', repeatInterval: '0' }))).toMatchObject({ repeatInterval: 'invalidRepeatInterval' });
+    expect(validateMeetingDraft(draft({ repeat: 'daily', repeatInterval: '100' }))).toMatchObject({ repeatInterval: 'invalidRepeatInterval' });
+    expect(validateMeetingDraft(draft({ repeat: 'daily', repeatEnd: 'onDate', repeatUntilDate: '' }))).toMatchObject({
+      repeatUntil: 'invalidRepeatUntil',
+    });
+    // The last day cannot be before the first occurrence.
+    expect(validateMeetingDraft(draft({ repeat: 'daily', repeatEnd: 'onDate', repeatUntilDate: '2026-10-01' }))).toMatchObject({
+      repeatUntil: 'invalidRepeatUntil',
+    });
+    expect(validateMeetingDraft(draft({ repeat: 'daily', repeatEnd: 'afterCount', repeatCount: '0' }))).toMatchObject({
+      repeatCount: 'invalidRepeatCount',
+    });
+    expect(validateMeetingDraft(draft({ repeat: 'weekly', repeatInterval: '4', repeatEnd: 'afterCount', repeatCount: '12' }))).toEqual({});
+    // One-off drafts ignore the repeat inputs entirely.
+    expect(validateMeetingDraft(draft({ repeat: 'none', repeatInterval: 'x' }))).toEqual({});
+  });
+
+  it('round-trips a stored rule through the form without producing a patch', () => {
+    const untilInstant = zonedDateTimeToUtcIso('2026-12-31', '23:59', 'Europe/Madrid');
+    const stored = meeting({ recurrence: { ...weekly, until: untilInstant, count: null } });
+    const form = draftFromMeeting(stored, { fallbackTimeZone: 'UTC', defaultAlertTimes: [15, 5, 0] });
+    expect(form).toMatchObject({
+      repeat: 'weekly',
+      repeatInterval: '1',
+      repeatWeekdays: ['MO'],
+      repeatEnd: 'onDate',
+      repeatUntilDate: '2026-12-31',
+    });
+    expect(draftToPatch(stored, form)).toEqual({});
+  });
+
+  it('preserves an imported byMonthDay and the exact until instant while their day is unchanged', () => {
+    const stored = meeting({
+      recurrence: { freq: 'monthly', interval: 1, byWeekday: null, byMonthDay: 20, until: '2026-12-31T10:00:00.000Z', count: null },
+    });
+    const form = draftFromMeeting(stored, { fallbackTimeZone: 'UTC' });
+    const rule = recurrenceRuleOf(form, stored.recurrence);
+    // Same local day => the stored instant is kept verbatim; byMonthDay survives the round trip.
+    expect(rule).toEqual(stored.recurrence);
+    expect(monthlyRepeatDay(form, stored.recurrence)).toBe(20);
+
+    const moved = recurrenceRuleOf({ ...form, repeatUntilDate: '2027-01-15' }, stored.recurrence);
+    expect(moved?.until).toBe(zonedDateTimeToUtcIso('2027-01-15', '23:59', stored.timezone));
+  });
+
+  it('adds, changes and removes the rule through draftToPatch', () => {
+    const oneOff = meeting();
+    const withRule = draftFromMeeting(oneOff, { fallbackTimeZone: 'UTC' });
+    expect(draftToPatch(oneOff, { ...withRule, repeat: 'daily' }).recurrence).toEqual({
+      freq: 'daily',
+      interval: 1,
+      byWeekday: null,
+      byMonthDay: null,
+      until: null,
+      count: null,
+    });
+
+    const recurring = meeting({ recurrence: weekly });
+    const form = draftFromMeeting(recurring, { fallbackTimeZone: 'UTC' });
+    expect(draftToPatch(recurring, { ...form, repeatInterval: '3' }).recurrence).toMatchObject({ interval: 3 });
+    expect(draftToPatch(recurring, { ...form, repeat: 'none' })).toMatchObject({ recurrence: null });
+  });
+
+  it('toggleRepeatWeekday keeps MO..SU order', () => {
+    expect(toggleRepeatWeekday(['MO'], 'FR')).toEqual(['MO', 'FR']);
+    expect(toggleRepeatWeekday(['FR', 'MO'], 'WE')).toEqual(['MO', 'WE', 'FR']);
+    expect(toggleRepeatWeekday(['MO', 'FR'], 'MO')).toEqual(['FR']);
   });
 });

@@ -33,6 +33,16 @@ const baseContext: MeetingContext = buildMeetingContext(
         participants: Array.from({ length: 12 }, (_, index) => ({ email: `p${index}@corp.com`, name: null })),
       }),
     },
+    {
+      // Recurring master: every Monday 09:00 Madrid since the first of the month.
+      id: 'series',
+      doc: meetingDoc({
+        title: 'Weekly standup',
+        startAt: '2026-09-07T07:00:00.000Z',
+        durationMinutes: 15,
+        recurrence: { freq: 'weekly', interval: 1, byWeekday: ['MO'], byMonthDay: null, until: null, count: null },
+      }),
+    },
   ],
   NOW,
   { followUpMeetingId: null },
@@ -511,5 +521,234 @@ describe('robustness', () => {
     const ids = result.actions.map((action) => action.id);
     expect(ids[0]).toMatch(/^act_[0-9a-f]{20}$/);
     expect(ids[0]).not.toBe(ids[1]);
+  });
+});
+
+describe('recurrence (v2)', () => {
+  it('maps a create recurrence: defaults interval, keeps weekly days, resolves until as end of day', () => {
+    const action = only(
+      mapToolCalls(
+        [
+          call('create_meeting', {
+            ...createArgs,
+            recurrence: { freq: 'weekly', interval: null, by_weekday: ['MO', 'WE'], by_month_day: null, until_date: '2026-12-31', count: null },
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect(action).toMatchObject({
+      type: 'create_meeting',
+      meeting: {
+        recurrence: {
+          freq: 'weekly',
+          interval: 1,
+          byWeekday: ['MO', 'WE'],
+          byMonthDay: null,
+          // Inclusive last local day in Madrid (CET): stored as that day's 23:59 instant.
+          until: '2026-12-31T22:59:00.000Z',
+          count: null,
+        },
+      },
+    });
+  });
+
+  it('normalizes weekday/month-day fields to the frequency; until wins over count; bad dates drop', () => {
+    const normalized = only(
+      mapToolCalls(
+        [
+          call('create_meeting', {
+            ...createArgs,
+            recurrence: { freq: 'daily', interval: 2, by_weekday: ['MO'], by_month_day: 5, until_date: null, count: 10 },
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect(normalized).toMatchObject({
+      meeting: { recurrence: { freq: 'daily', interval: 2, byWeekday: null, byMonthDay: null, until: null, count: 10 } },
+    });
+
+    const both = mapToolCalls(
+      [
+        call('create_meeting', {
+          ...createArgs,
+          recurrence: { freq: 'daily', interval: 1, by_weekday: null, by_month_day: null, until_date: '2026-12-31', count: 5 },
+        }),
+      ],
+      ctx(),
+    );
+    expect(only(both.actions)).toMatchObject({ meeting: { recurrence: { until: '2026-12-31T22:59:00.000Z', count: null } } });
+
+    const badDate = mapToolCalls(
+      [
+        call('create_meeting', {
+          ...createArgs,
+          recurrence: { freq: 'daily', interval: 1, by_weekday: null, by_month_day: null, until_date: '2026-13-40', count: null },
+        }),
+      ],
+      ctx(),
+    );
+    expect(badDate.actions).toEqual([]);
+    expect(badDate.dropped).toEqual({ invalid_datetime: 1 });
+  });
+
+  it('maps an occurrence-scoped update: original date kept, only start/duration/title accepted', () => {
+    const action = only(
+      mapToolCalls(
+        [
+          call('update_meeting', {
+            meeting_ref: ref('series'),
+            changes: { ...noChanges, time: '10:30', clear_location: true, participants: [{ email: 'x@y.com', name: null }] },
+            scope: 'occurrence',
+            occurrence_date: '2026-10-05',
+            summary: 'Move one standup',
+            confidence: 80,
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect(action).toMatchObject({
+      type: 'update_meeting',
+      meetingId: 'series',
+      scope: 'occurrence',
+      occurrenceDate: '2026-10-05',
+      // 10:30 on the occurrence's own (original) date, user zone; location/participants ignored.
+      changes: { startAt: '2026-10-05T10:30:00+02:00' },
+    });
+    expect(Object.keys((action as { changes: object }).changes)).toEqual(['startAt']);
+  });
+
+  it('drops an occurrence update without usable changes or without a valid date', () => {
+    const empty = mapToolCalls(
+      [
+        call('update_meeting', {
+          meeting_ref: ref('series'),
+          changes: { ...noChanges, clear_conference: true },
+          scope: 'occurrence',
+          occurrence_date: '2026-10-05',
+          summary: 's',
+          confidence: 50,
+        }),
+      ],
+      ctx(),
+    );
+    expect(empty.dropped).toEqual({ empty_changes: 1 });
+
+    const badDate = mapToolCalls(
+      [
+        call('update_meeting', {
+          meeting_ref: ref('series'),
+          changes: { ...noChanges, time: '10:30' },
+          scope: 'occurrence',
+          occurrence_date: 'next monday',
+          summary: 's',
+          confidence: 50,
+        }),
+      ],
+      ctx(),
+    );
+    expect(badDate.dropped).toEqual({ invalid_datetime: 1 });
+  });
+
+  it('ignores the occurrence scope on a one-off meeting (plain series update)', () => {
+    const action = only(
+      mapToolCalls(
+        [
+          call('update_meeting', {
+            meeting_ref: ref('marketing'),
+            changes: { ...noChanges, title: 'Marketing sync' },
+            scope: 'occurrence',
+            occurrence_date: '2026-09-30',
+            summary: 's',
+            confidence: 50,
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect(action).toMatchObject({ type: 'update_meeting', changes: { title: 'Marketing sync' } });
+    expect((action as { scope?: string }).scope).toBeUndefined();
+  });
+
+  it('sets and clears the series rule through update changes, skipping no-ops', () => {
+    const set = only(
+      mapToolCalls(
+        [
+          call('update_meeting', {
+            meeting_ref: ref('marketing'),
+            changes: {
+              ...noChanges,
+              recurrence: { freq: 'monthly', interval: 1, by_weekday: null, by_month_day: 15, until_date: null, count: null },
+            },
+            summary: 's',
+            confidence: 50,
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect(set).toMatchObject({
+      changes: { recurrence: { freq: 'monthly', interval: 1, byWeekday: null, byMonthDay: 15, until: null, count: null } },
+    });
+
+    const cleared = only(
+      mapToolCalls(
+        [call('update_meeting', { meeting_ref: ref('series'), changes: { ...noChanges, clear_recurrence: true }, summary: 's', confidence: 50 })],
+        ctx(),
+      ).actions,
+    );
+    expect(cleared).toMatchObject({ changes: { recurrence: null } });
+
+    const noop = mapToolCalls(
+      [
+        call('update_meeting', {
+          meeting_ref: ref('series'),
+          changes: {
+            ...noChanges,
+            recurrence: { freq: 'weekly', interval: null, by_weekday: ['MO'], by_month_day: null, until_date: null, count: null },
+          },
+          summary: 's',
+          confidence: 50,
+        }),
+        call('update_meeting', { meeting_ref: ref('marketing'), changes: { ...noChanges, clear_recurrence: true }, summary: 's', confidence: 50 }),
+      ],
+      ctx(),
+    );
+    expect(noop.actions).toEqual([]);
+    expect(noop.dropped).toEqual({ empty_changes: 2 });
+  });
+
+  it('maps an occurrence-scoped delete and validates its date', () => {
+    const action = only(
+      mapToolCalls(
+        [
+          call('delete_meeting', {
+            meeting_ref: ref('series'),
+            scope: 'occurrence',
+            occurrence_date: '2026-10-05',
+            summary: 'Skip one',
+            confidence: 90,
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect(action).toMatchObject({ type: 'delete_meeting', meetingId: 'series', scope: 'occurrence', occurrenceDate: '2026-10-05' });
+
+    const oneOff = only(
+      mapToolCalls(
+        [call('delete_meeting', { meeting_ref: ref('marketing'), scope: 'occurrence', occurrence_date: '2026-09-30', summary: 's', confidence: 50 })],
+        ctx(),
+      ).actions,
+    );
+    expect((oneOff as { scope?: string }).scope).toBeUndefined();
+
+    const badDate = mapToolCalls(
+      [call('delete_meeting', { meeting_ref: ref('series'), scope: 'occurrence', occurrence_date: 'tomorrow', summary: 's', confidence: 50 })],
+      ctx(),
+    );
+    expect(badDate.dropped).toEqual({ invalid_datetime: 1 });
   });
 });

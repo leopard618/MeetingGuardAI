@@ -11,7 +11,7 @@
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
-import { useState, type ComponentProps, type ReactElement } from 'react';
+import { useMemo, useState, type ComponentProps, type ReactElement } from 'react';
 import { Alert, Linking, StyleSheet, View } from 'react-native';
 import { Button, Chip, Divider, HelperText, Text, useTheme as usePaperTheme } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
@@ -19,20 +19,27 @@ import Toast from 'react-native-toast-message';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
+import { expandOccurrences, type MeetingOccurrence } from '../../core/recurrence';
 import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
+import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { useCalendarStatus } from '../../services/calendar';
 import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
 import { MeetingAttachmentsSection } from '../attachments/MeetingAttachmentsSection';
 import { alertTimeLabel } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
 import { ScreenBody, Section } from '../shared/Section';
+import { capitalizeFirst } from '../shared/text';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
 
 const log = createLogger('meetings');
 
 type Props = StackScreenProps<RootStackParamList, 'MeetingDetails'>;
+
+/** How far ahead the "next occurrences" list looks, and how many entries it shows. */
+const NEXT_OCCURRENCES_WINDOW_MS = 370 * 24 * 60 * 60 * 1000;
+const NEXT_OCCURRENCES_SHOWN = 3;
 
 function isHttpUrl(value: string | null | undefined): value is string {
   return typeof value === 'string' && /^https?:\/\//i.test(value);
@@ -99,6 +106,19 @@ function MeetingDetails({
   const when = whenText(meeting, fmt);
   const isDevice = meeting.source === 'device';
   const isGoogle = meeting.source === 'google' || meeting.external.googleEventId !== null;
+  const isRecurring = meeting.recurrence !== null;
+  // The next few occurrences of a series (details show the master; §16 expands on demand).
+  const nextOccurrences = useMemo<MeetingOccurrence[]>(() => {
+    if (meeting.recurrence === null) return [];
+    try {
+      const from = new Date();
+      const to = new Date(from.getTime() + NEXT_OCCURRENCES_WINDOW_MS);
+      return expandOccurrences(meeting, from.toISOString(), to.toISOString(), { max: NEXT_OCCURRENCES_SHOWN });
+    } catch (caught) {
+      log.warn('could not expand the meeting occurrences', toAppError(caught).code);
+      return [];
+    }
+  }, [meeting]);
   const alertTimes = meeting.customAlertTimes ?? preferences.defaultAlertTimes;
   const alertTimesText = alertTimes
     .map((minutes) => {
@@ -126,11 +146,17 @@ function MeetingDetails({
   };
 
   const confirmDelete = (): void => {
+    // From the details of a recurring meeting the whole SERIES is deleted (occurrence-scoped
+    // deletes live on the list / calendar rows, where one occurrence is in hand).
     const message = isDevice
       ? t('meetings:details.deleteMessageDevice')
-      : isGoogle
-        ? t('meetings:details.deleteMessageGoogle')
-        : t('meetings:details.deleteMessage');
+      : isRecurring
+        ? isGoogle
+          ? t('meetings:details.deleteMessageSeriesGoogle')
+          : t('meetings:details.deleteMessageSeries')
+        : isGoogle
+          ? t('meetings:details.deleteMessageGoogle')
+          : t('meetings:details.deleteMessage');
     Alert.alert(t('meetings:details.deleteTitle', { title: meeting.title }), message, [
       { text: t('common:actions.cancel'), style: 'cancel' },
       { text: t('meetings:details.delete'), style: 'destructive', onPress: () => void remove() },
@@ -158,6 +184,11 @@ function MeetingDetails({
           <Chip compact style={styles.chip} icon="source-branch">
             {t(`meetings:source.${meeting.source}`)}
           </Chip>
+          {isRecurring ? (
+            <Chip compact style={styles.chip} icon="repeat" testID="meeting-repeats-chip">
+              {t('meetings:details.repeats')}
+            </Chip>
+          ) : null}
           {meeting.status === 'cancelled' ? (
             <Chip compact style={styles.chip} icon="cancel">
               {t('meetings:details.cancelled')}
@@ -195,6 +226,36 @@ function MeetingDetails({
           </Row>
         ) : null}
       </Section>
+
+      {meeting.recurrence !== null ? (
+        <Section>
+          <Row icon="repeat" label={t('meetings:details.repeats')}>
+            <Text variant="bodyLarge" testID="meeting-repeats-summary">
+              {recurrenceSummary(t, meeting.recurrence, {
+                formatDate: (localDate) => fmt.date(localDate, 'long'),
+                anchorDate: meeting.date,
+                timezone: meeting.timezone,
+              })}
+            </Text>
+          </Row>
+          <Row icon="calendar-arrow-right" label={t('meetings:details.repeatsNext')}>
+            <View>
+              {nextOccurrences.length === 0 ? (
+                <Text variant="bodyMedium" testID="meeting-repeats-none">
+                  {t('meetings:details.repeatsNone')}
+                </Text>
+              ) : (
+                nextOccurrences.map((occurrence) => (
+                  <Text key={occurrence.occurrenceId} variant="bodyMedium" style={styles.listItem} testID={`meeting-occurrence-${occurrence.localDateKey}`}>
+                    {capitalizeFirst(meeting.allDay ? fmt.date(occurrence.localDateKey, 'full') : fmt.dateTime(occurrence.startAt))}
+                    {occurrence.overridden ? ` · ${t('meetings:details.occurrenceModified')}` : ''}
+                  </Text>
+                ))
+              )}
+            </View>
+          </Row>
+        </Section>
+      ) : null}
 
       {conference || joinUrl ? (
         <Section title={t('meetings:details.videoCall')}>

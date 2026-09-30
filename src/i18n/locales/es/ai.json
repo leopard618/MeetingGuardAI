@@ -119,7 +119,8 @@
     "affected_other": "{{count}} reuniones",
     "skippedAllDay": "Reunión de todo el día: solo puede moverse por días completos, así que se quedará como está.",
     "a11yBefore": "Antes: {{value}}",
-    "a11yAfter": "Después: {{value}}"
+    "a11yAfter": "Después: {{value}}",
+    "deleteOccurrenceWarning": "Solo se elimina esta repetición. El resto de la serie se mantiene."
   },
   "fields": {
     "title": "Título",
@@ -131,7 +132,9 @@
     "participants": "Participantes",
     "tips": "Consejos de preparación",
     "alerts": "Alertas",
-    "language": "Idioma"
+    "language": "Idioma",
+    "repeats": "Repetición",
+    "scope": "Se aplica a"
   },
   "values": {
     "none": "Ninguno",
@@ -217,5 +220,30 @@
     "medium": "Media",
     "low": "Baja",
     "a11y": "Confianza de la IA {{value}} % ({{level}})"
+  },
+  "recurrence": {
+    "none": "No se repite",
+    "daily_one": "Se repite a diario",
+    "daily_other": "Se repite cada {{count}} días",
+    "weekly_one": "Se repite cada semana",
+    "weekly_other": "Se repite cada {{count}} semanas",
+    "monthly_one": "Se repite cada mes",
+    "monthly_other": "Se repite cada {{count}} meses",
+    "onWeekdays": "{{rule}} los {{days}}",
+    "onMonthDay": "{{rule}} el día {{day}}",
+    "untilDate": "{{rule}}, hasta el {{date}}",
+    "forTimes_one": "{{rule}}, {{count}} vez en total",
+    "forTimes_other": "{{rule}}, {{count}} veces en total",
+    "weekday": {
+      "MO": "lunes",
+      "TU": "martes",
+      "WE": "miércoles",
+      "TH": "jueves",
+      "FR": "viernes",
+      "SA": "sábado",
+      "SU": "domingo"
+    },
+    "scopeOccurrence": "Solo la repetición del {{date}}",
+    "scopeSeries": "Toda la serie repetida"
   }
 }

@@ -1,6 +1,7 @@
 import type { ConferenceDetails } from '../../../core/aiContract';
 import type { MeetingRange, WriteOptions } from '../../../core/contracts';
 import { AppError } from '../../../core/errors';
+import { CANCELLED_OVERRIDE, withRecurrenceOverride } from '../../../core/recurrence';
 import { applyMeetingPatch, buildMeeting, tombstoneMeeting, type Meeting, type MeetingCreateInput, type MeetingPatch } from '../../../core/types';
 import {
   NOW,
@@ -62,6 +63,54 @@ class FakeMeetings {
     const current = this.byId.get(id);
     if (current) this.byId.set(id, tombstoneMeeting(current, NOW));
     this.calls.push({ op: 'remove', id, options });
+  });
+
+  // MeetingRecurrenceOps (rec-core implements these on the real repository).
+  updateOccurrence = jest.fn(
+    async (id: string, localDateKey: string, patch: Pick<MeetingPatch, 'startAt' | 'durationMinutes' | 'title'>, options?: WriteOptions) => {
+      const current = this.byId.get(id);
+      if (!current || current.deletedAt || current.recurrence === null) throw new AppError('invalid_input');
+      const override = {
+        status: 'modified' as const,
+        startAt: patch.startAt !== undefined ? new Date(patch.startAt).toISOString() : null,
+        durationMinutes: patch.durationMinutes ?? null,
+        title: patch.title ?? null,
+      };
+      const next = applyMeetingPatch(
+        current,
+        { recurrenceOverrides: withRecurrenceOverride(current.recurrenceOverrides, localDateKey, override) },
+        NOW,
+      );
+      this.byId.set(id, next);
+      this.calls.push({ op: 'updateOccurrence', id, options, patch });
+      return next;
+    },
+  );
+
+  cancelOccurrence = jest.fn(async (id: string, localDateKey: string, options?: WriteOptions) => {
+    const current = this.byId.get(id);
+    if (!current || current.deletedAt || current.recurrence === null) throw new AppError('invalid_input');
+    const next = applyMeetingPatch(
+      current,
+      { recurrenceOverrides: withRecurrenceOverride(current.recurrenceOverrides, localDateKey, { ...CANCELLED_OVERRIDE }) },
+      NOW,
+    );
+    this.byId.set(id, next);
+    this.calls.push({ op: 'cancelOccurrence', id, options });
+    return next;
+  });
+
+  restoreOccurrence = jest.fn(async (id: string, localDateKey: string, options?: WriteOptions) => {
+    const current = this.byId.get(id);
+    if (!current || current.deletedAt || current.recurrence === null) throw new AppError('invalid_input');
+    const next = applyMeetingPatch(
+      current,
+      { recurrenceOverrides: withRecurrenceOverride(current.recurrenceOverrides, localDateKey, null) },
+      NOW,
+    );
+    this.byId.set(id, next);
+    this.calls.push({ op: 'restoreOccurrence', id, options });
+    return next;
   });
 }
 
@@ -412,5 +461,111 @@ describe('preview', () => {
 
     const known = await executor.preview(shareAction('a_7-7', 'm1', { recipients: ['ana@example.com'] }));
     expect(known.warnings).not.toContain('new_people');
+  });
+});
+
+describe('recurrence scopes (v2)', () => {
+  const rule = { freq: 'weekly' as const, interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null };
+  const series = () => makeMeeting('series', { startAt: '2030-03-11T15:00:00.000Z', recurrence: rule });
+
+  it('applies an occurrence-scoped update as an override, never as a series update', async () => {
+    const { executor, meetings } = setup({ meetings: [series()] });
+    const action = {
+      ...updateAction('a_occ1', 'series', { startAt: '2030-03-18T16:30:00.000Z', title: 'Moved standup' }),
+      scope: 'occurrence' as const,
+      occurrenceDate: '2030-03-18',
+    };
+    const result = expectDone(await executor.execute(action));
+    expect(result.meetingIds).toEqual(['series']);
+    expect(meetings.updateOccurrence).toHaveBeenCalledWith(
+      'series',
+      '2030-03-18',
+      { startAt: '2030-03-18T16:30:00.000Z', title: 'Moved standup' },
+      { origin: 'ai' },
+    );
+    expect(meetings.update).not.toHaveBeenCalled();
+    expect(meetings.byId.get('series')?.recurrenceOverrides?.['2030-03-18']).toMatchObject({ status: 'modified' });
+  });
+
+  it('ignores the occurrence scope on a one-off meeting (plain update, as the contract requires)', async () => {
+    const { executor, meetings } = setup({ meetings: [makeMeeting('single')] });
+    const action = {
+      ...updateAction('a_occ2', 'single', { title: 'Renamed' }),
+      scope: 'occurrence' as const,
+      occurrenceDate: '2030-03-11',
+    };
+    expectDone(await executor.execute(action));
+    expect(meetings.update).toHaveBeenCalledWith('single', expect.objectContaining({ title: 'Renamed' }), { origin: 'ai' });
+    expect(meetings.updateOccurrence).not.toHaveBeenCalled();
+  });
+
+  it('cancels one occurrence on delete with scope occurrence; the series survives', async () => {
+    const { executor, meetings } = setup({ meetings: [series()] });
+    const action = { ...deleteAction('a_occ3', 'series'), scope: 'occurrence' as const, occurrenceDate: '2030-03-25' };
+    const result = expectDone(await executor.execute(action));
+    expect(result.meetingIds).toEqual(['series']);
+    expect(meetings.cancelOccurrence).toHaveBeenCalledWith('series', '2030-03-25', { origin: 'ai' });
+    expect(meetings.remove).not.toHaveBeenCalled();
+    const stored = meetings.byId.get('series')!;
+    expect(stored.deletedAt).toBeNull();
+    expect(stored.recurrenceOverrides?.['2030-03-25']).toMatchObject({ status: 'cancelled' });
+  });
+
+  it('deletes the whole series without a scope (v1 behavior)', async () => {
+    const { executor, meetings } = setup({ meetings: [series()] });
+    expectDone(await executor.execute(deleteAction('a_occ4', 'series')));
+    expect(meetings.remove).toHaveBeenCalledWith('series', { origin: 'ai' });
+    expect(meetings.cancelOccurrence).not.toHaveBeenCalled();
+  });
+
+  it('fails loudly (never fakes success) when the repository lacks the recurrence ops', async () => {
+    const { executor, meetings } = setup({ meetings: [series()] });
+    // Simulate an older repository without MeetingRecurrenceOps.
+    (meetings as { updateOccurrence?: unknown }).updateOccurrence = undefined;
+    (meetings as { cancelOccurrence?: unknown }).cancelOccurrence = undefined;
+    (meetings as { restoreOccurrence?: unknown }).restoreOccurrence = undefined;
+    const action = { ...deleteAction('a_occ5', 'series'), scope: 'occurrence' as const, occurrenceDate: '2030-03-25' };
+    const result = await executor.execute(action);
+    expect(result.status).toBe('failed');
+    if (result.status === 'failed') expect(result.error.code).toBe('not_implemented');
+    expect(meetings.byId.get('series')?.deletedAt).toBeNull();
+  });
+
+  it('is idempotent per action id for occurrence-scoped actions', async () => {
+    const { executor, meetings } = setup({ meetings: [series()] });
+    const action = { ...deleteAction('a_occ6', 'series'), scope: 'occurrence' as const, occurrenceDate: '2030-03-25' };
+    expectDone(await executor.execute(action));
+    const again = expectDone(await executor.execute(action));
+    expect(again.duplicate).toBe(true);
+    expect(meetings.cancelOccurrence).toHaveBeenCalledTimes(1);
+  });
+
+  it('previews an occurrence move: overlap and past checks use the moved occurrence window', async () => {
+    const clash = makeMeeting('clash', { startAt: '2030-03-18T16:00:00.000Z', durationMinutes: 60 });
+    const { executor } = setup({ meetings: [series(), clash] });
+    const move = {
+      ...updateAction('a_occ7', 'series', { startAt: '2030-03-18T16:30:00.000Z' }),
+      scope: 'occurrence' as const,
+      occurrenceDate: '2030-03-18',
+    };
+    const preview = await executor.preview(move);
+    expect(preview.warnings).toContain('overlaps_existing');
+    expect(preview.overlapping.map((m) => m.id)).toEqual(['clash']);
+
+    const rename = {
+      ...updateAction('a_occ8', 'series', { title: 'No time change' }),
+      scope: 'occurrence' as const,
+      occurrenceDate: '2030-03-18',
+    };
+    const renamePreview = await executor.preview(rename);
+    expect(renamePreview.warnings).toEqual([]);
+
+    const past = {
+      ...updateAction('a_occ9', 'series', { startAt: '2030-03-01T10:00:00.000Z' }),
+      scope: 'occurrence' as const,
+      occurrenceDate: '2030-03-04',
+    };
+    const pastPreview = await executor.preview(past);
+    expect(pastPreview.warnings).toContain('start_in_past');
   });
 });

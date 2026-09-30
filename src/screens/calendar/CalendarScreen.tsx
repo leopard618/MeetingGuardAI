@@ -13,13 +13,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey } from '../../core/errors';
 import { getDeviceTimeZone, todayInZone } from '../../core/time';
-import type { Meeting } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useMeetings } from '../../services/data';
 import { MeetingActionsSheet, useMeetingActions } from '../meetings/list/meetingActions';
 import { MeetingListItem, sourceColor } from '../meetings/list/MeetingListItem';
 import { dayRelation, type SourceCategory } from '../meetings/list/meetingListModel';
 import { useMeetingsRefresh } from '../meetings/list/useMeetingsRefresh';
+import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay, type DisplayMeeting } from '../meetings/occurrences';
+import { OccurrenceEditSheet } from '../meetings/OccurrenceEditSheet';
 import { useFormatters } from '../shared/useFormatters';
 import { capitalizeFirst } from '../shared/text';
 import { useLiveNow } from '../shared/useLiveNow';
@@ -52,14 +53,21 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
   const todayKey = todayInZone(timeZone, now);
   const [selectedKey, setSelectedKey] = useState(todayKey);
   const [visibleMonth, setVisibleMonth] = useState<MonthRef>(() => monthOf(todayKey));
-  const [sheetMeeting, setSheetMeeting] = useState<Meeting | null>(null);
+  const [sheetMeeting, setSheetMeeting] = useState<DisplayMeeting | null>(null);
   const { meetings, isLoading, error, refresh } = useMeetings();
   const actions = useMeetingActions();
   const { refreshing, onRefresh } = useMeetingsRefresh(refresh);
 
   const firstWeekday = weekStartsOn(language);
-  const index = useMemo(() => indexMeetingsByDay(meetings, timeZone), [meetings, timeZone]);
   const grid = useMemo(() => buildMonthGrid(visibleMonth, firstWeekday), [visibleMonth, firstWeekday]);
+  // Recurring meetings render one entry per occurrence inside the visible grid (occurrences.ts).
+  const displayMeetings = useMemo(() => {
+    const firstKey = grid[0]?.key;
+    const lastKey = grid[grid.length - 1]?.key;
+    if (!firstKey || !lastKey) return meetings;
+    return expandMeetingsForDisplay(meetings, displayWindowForDays(firstKey, lastKey, timeZone));
+  }, [meetings, grid, timeZone]);
+  const index = useMemo(() => indexMeetingsByDay(displayMeetings, timeZone), [displayMeetings, timeZone]);
   const weekdays = useMemo(() => weekdayLabels(firstWeekday, language), [firstWeekday, language]);
   const dayMeetings = index.get(selectedKey) ?? [];
   const showingToday = selectedKey === todayKey && sameMonth(visibleMonth, monthOf(todayKey));
@@ -202,7 +210,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <FlatList
         data={dayMeetings}
-        keyExtractor={(meeting) => meeting.id}
+        keyExtractor={(meeting) => displayKeyOf(meeting)}
         ListHeaderComponent={header}
         ListEmptyComponent={renderEmpty}
         renderItem={({ item }) => (
@@ -231,6 +239,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
         testID="calendar-agenda"
       />
       <MeetingActionsSheet meeting={sheetMeeting} actions={actions} onDismiss={() => setSheetMeeting(null)} />
+      <OccurrenceEditSheet target={actions.occurrenceEdit} onDismiss={actions.dismissOccurrenceEdit} />
     </View>
   );
 }

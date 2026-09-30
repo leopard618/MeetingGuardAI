@@ -20,6 +20,9 @@ jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { sh
 jest.mock('../../../shared/useLiveNow', () => ({ useLiveNow: () => new Date('2026-10-06T03:00:00.000Z') }));
 
 const mockRemove = jest.fn();
+const mockCancelOccurrence = jest.fn();
+const mockUpdateOccurrence = jest.fn();
+const mockRestoreOccurrence = jest.fn();
 const mockRefresh = jest.fn();
 const mockSyncNow = jest.fn();
 let mockMeetings: Meeting[] = [];
@@ -31,7 +34,12 @@ jest.mock('../../../../services/data', () => {
   return {
     useMeetings: () => ({ meetings: mockMeetings, isLoading: mockLoading, error: mockError, refresh: mockRefresh }),
     usePreferences: () => ({ preferences: defaults({ language: 'en', timezone: 'UTC' }), isLoaded: true, error: null }),
-    meetingRepository: { remove: (...args: unknown[]) => mockRemove(...args) },
+    meetingRepository: {
+      remove: (...args: unknown[]) => mockRemove(...args),
+      cancelOccurrence: (...args: unknown[]) => mockCancelOccurrence(...args),
+      updateOccurrence: (...args: unknown[]) => mockUpdateOccurrence(...args),
+      restoreOccurrence: (...args: unknown[]) => mockRestoreOccurrence(...args),
+    },
   };
 });
 jest.mock('../../../../services/calendar', () => ({
@@ -91,6 +99,9 @@ beforeEach(async () => {
   mockLoading = false;
   mockError = null;
   mockRemove.mockReset();
+  mockCancelOccurrence.mockReset();
+  mockUpdateOccurrence.mockReset();
+  mockRestoreOccurrence.mockReset();
   mockRefresh.mockReset().mockResolvedValue(undefined);
   mockSyncNow.mockReset().mockResolvedValue({ google: null, device: null, errors: [] });
   (Toast.show as jest.Mock).mockClear();
@@ -240,4 +251,109 @@ it('invites to create the first meeting when there are none (in Spanish too)', a
     fireEvent.press(screen.getByTestId('meetings-new'));
   });
   expect(await screen.findByTestId('stub-ChooseCreationMethod')).toBeTruthy();
+});
+
+
+it('shows one row per occurrence of a recurring meeting and deletes with a scope', async () => {
+  mockCancelOccurrence.mockResolvedValue(undefined);
+  mockRemove.mockResolvedValue(undefined);
+  // Weekly standup, Tuesdays 10:00 Mexico City (Oct 6, 2026 is a Tuesday).
+  mockMeetings = [
+    meeting('series', {
+      title: 'Weekly standup',
+      startAt: '2026-10-06T16:00:00.000Z',
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null },
+    }),
+  ];
+  await renderList();
+  // Several rows exist for the same series (one per Tuesday), each flagged as repeating.
+  expect(screen.getAllByTestId('meeting-row-series').length).toBeGreaterThan(1);
+  expect(screen.getAllByTestId('meeting-row-repeats-series').length).toBeGreaterThan(1);
+
+  await act(async () => {
+    fireEvent.press(screen.getAllByTestId('meeting-row-more-series')[0]!);
+  });
+  await act(async () => {
+    fireEvent.press(await screen.findByTestId('meeting-action-delete'));
+  });
+  // The scope question replaces the plain confirmation; nothing ran yet.
+  expect(Alert.alert).toHaveBeenCalledWith('Delete repeating meeting', expect.stringContaining('repeats'), expect.any(Array));
+  expect(mockRemove).not.toHaveBeenCalled();
+  expect(mockCancelOccurrence).not.toHaveBeenCalled();
+  await act(async () => {
+    pressAlertButton('destructive'); // first destructive button = "This meeting only"
+  });
+  expect(mockCancelOccurrence).toHaveBeenCalledWith('series', '2026-10-06', { origin: 'user' });
+  expect(mockRemove).not.toHaveBeenCalled();
+  expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
+});
+
+it('asks the scope when editing an occurrence: series opens the form, occurrence opens the sheet', async () => {
+  mockMeetings = [
+    meeting('series', {
+      title: 'Weekly standup',
+      startAt: '2026-10-06T16:00:00.000Z',
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null },
+    }),
+  ];
+  await renderList();
+  await act(async () => {
+    fireEvent(screen.getAllByTestId('meeting-row-series')[0]!, 'longPress');
+  });
+  await act(async () => {
+    fireEvent.press(await screen.findByTestId('meeting-action-edit'));
+  });
+  expect(Alert.alert).toHaveBeenCalledWith('Edit repeating meeting', expect.any(String), expect.any(Array));
+  const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+  await act(async () => {
+    buttons.find((button) => button.text === 'This meeting only')?.onPress?.();
+  });
+  // The occurrence edit sheet opens with the occurrence values.
+  expect(await screen.findByTestId('occurrence-edit-sheet')).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('occurrence-edit-cancel'));
+  });
+
+  await act(async () => {
+    fireEvent(screen.getAllByTestId('meeting-row-series')[0]!, 'longPress');
+  });
+  await act(async () => {
+    fireEvent.press(await screen.findByTestId('meeting-action-edit'));
+  });
+  const seriesButtons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+  await act(async () => {
+    seriesButtons.find((button) => button.text === 'The whole series')?.onPress?.();
+  });
+  expect((await screen.findByTestId('stub-EditMeeting')).props.children).toBe('EditMeeting:series');
+});
+
+it('saves an occurrence edit through updateOccurrence with origin user', async () => {
+  mockUpdateOccurrence.mockResolvedValue(undefined);
+  mockMeetings = [
+    meeting('series', {
+      title: 'Weekly standup',
+      startAt: '2026-10-06T16:00:00.000Z',
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null },
+    }),
+  ];
+  await renderList();
+  await act(async () => {
+    fireEvent(screen.getAllByTestId('meeting-row-series')[0]!, 'longPress');
+  });
+  await act(async () => {
+    fireEvent.press(await screen.findByTestId('meeting-action-edit'));
+  });
+  const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+  await act(async () => {
+    buttons.find((button) => button.text === 'This meeting only')?.onPress?.();
+  });
+  await screen.findByTestId('occurrence-edit-sheet');
+  await act(async () => {
+    fireEvent.changeText(screen.getByTestId('occurrence-edit-title'), 'Standup (moved)');
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('occurrence-edit-save'));
+  });
+  expect(mockUpdateOccurrence).toHaveBeenCalledWith('series', '2026-10-06', { title: 'Standup (moved)' }, { origin: 'user' });
+  expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
 });

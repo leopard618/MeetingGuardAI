@@ -171,3 +171,45 @@ it('asks to connect Google Calendar for a Meet meeting without sync', async () =
   });
   expect(await screen.findByTestId('calendar-sync-screen')).toBeTruthy();
 });
+
+
+it('shows the repeat rule and the next occurrences of a recurring meeting', async () => {
+  jest.useFakeTimers().setSystemTime(new Date('2026-10-01T00:00:00.000Z'));
+  mockMeeting = meeting({
+    source: 'manual',
+    external: {},
+    startAt: '2026-10-05T15:00:00.000Z',
+    recurrence: { freq: 'weekly', interval: 1, byWeekday: ['MO'], byMonthDay: null, until: null, count: null },
+    recurrenceOverrides: { '2026-10-12': { status: 'cancelled', startAt: null, durationMinutes: null, title: null } },
+  });
+  try {
+    await renderDetails();
+    expect(screen.getByTestId('meeting-repeats-chip')).toBeTruthy();
+    expect(screen.getByTestId('meeting-repeats-summary').props.children).toBe('Repeats weekly on Monday');
+    // Oct 12 is cancelled, so the next three are Oct 5, 19 and 26.
+    expect(screen.getByTestId('meeting-occurrence-2026-10-05')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-occurrence-2026-10-12')).toBeNull();
+    expect(screen.getByTestId('meeting-occurrence-2026-10-19')).toBeTruthy();
+    expect(screen.getByTestId('meeting-occurrence-2026-10-26')).toBeTruthy();
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+it('warns that deleting a recurring meeting removes the whole series', async () => {
+  mockRemove.mockResolvedValue(undefined);
+  mockMeeting = meeting({
+    source: 'manual',
+    external: {},
+    recurrence: { freq: 'daily', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null },
+  });
+  await renderDetails();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('meeting-delete'));
+  });
+  expect(Alert.alert).toHaveBeenCalledWith(expect.any(String), expect.stringContaining('whole series'), expect.any(Array));
+  await act(async () => {
+    pressDestructive();
+  });
+  expect(mockRemove).toHaveBeenCalledWith('m1', { origin: 'user' });
+});

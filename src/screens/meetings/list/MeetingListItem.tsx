@@ -14,6 +14,7 @@ import { endIso, toLocalDateTime } from '../../../core/time';
 import type { Meeting } from '../../../core/types';
 import { useT } from '../../../i18n';
 import type { Formatters } from '../../shared/useFormatters';
+import type { DisplayMeeting } from '../occurrences';
 import { isInProgress, sourceCategory, type SourceCategory } from './meetingListModel';
 
 const MINUTES_PER_DAY = 1440;
@@ -50,16 +51,17 @@ function placeText(meeting: Meeting, t: TranslateFn): { icon: 'map-marker-outlin
 }
 
 export interface MeetingListItemProps {
-  meeting: Meeting;
+  /** A meeting, or one materialized occurrence of a recurring meeting (occurrences.ts). */
+  meeting: DisplayMeeting;
   now: Date;
   timeZone: string;
   /** The screen's formatters (UI language + clock preference). */
   fmt: Formatters;
   deleting?: boolean;
-  onOpen(meeting: Meeting): void;
-  onMore(meeting: Meeting): void;
-  onEdit(meeting: Meeting): void;
-  onDelete(meeting: Meeting): void;
+  onOpen(meeting: DisplayMeeting): void;
+  onMore(meeting: DisplayMeeting): void;
+  onEdit(meeting: DisplayMeeting): void;
+  onDelete(meeting: DisplayMeeting): void;
 }
 
 function MeetingListItemComponent({
@@ -83,10 +85,12 @@ function MeetingListItemComponent({
   const live = !cancelled && isInProgress(meeting, now);
   const source = t(`meetings:source.${meeting.source}`);
   const muted = theme.colors.onSurfaceVariant;
+  const repeats = meeting.recurrence !== null;
 
   const labelParts = [meeting.title, when];
   if (live) labelParts.push(t('meetings:list.now'));
   if (cancelled) labelParts.push(t('meetings:details.cancelled'));
+  if (repeats) labelParts.push(t('meetings:list.repeats'));
   if (place) labelParts.push(place.text);
   labelParts.push(source);
 
@@ -166,6 +170,14 @@ function MeetingListItemComponent({
               <Text variant="labelSmall" style={[styles.badge, { backgroundColor: theme.colors.errorContainer, color: theme.colors.onErrorContainer }]}>
                 {t('meetings:details.cancelled')}
               </Text>
+            ) : null}
+            {repeats ? (
+              <View style={styles.repeatBadge} testID={`meeting-row-repeats-${meeting.id}`}>
+                <MaterialCommunityIcons name="repeat" size={13} color={muted} />
+                <Text variant="labelSmall" numberOfLines={1} style={{ color: muted }}>
+                  {t('meetings:list.repeats')}
+                </Text>
+              </View>
             ) : null}
             <Text variant="labelSmall" numberOfLines={1} style={[styles.source, { color: muted }]}>
               {source}
@@ -247,6 +259,12 @@ const styles = StyleSheet.create({
   },
   source: {
     flexShrink: 1,
+  },
+  repeatBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginRight: 6,
   },
   more: {
     margin: 0,

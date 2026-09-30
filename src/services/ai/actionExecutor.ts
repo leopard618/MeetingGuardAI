@@ -15,8 +15,8 @@
  * - Never throws: failures resolve `{ status: 'failed', error: AppError }`. A dismissed share
  *   sheet resolves failed with code 'cancelled' (not recorded, so it can run again).
  */
-import type { AiAction, AiMeetingChanges, BulkUpdateAction, ConferenceDetails } from '../../core/aiContract';
-import type { ActionExecutor, ActionWarning } from '../../core/contracts';
+import type { AiAction, AiMeetingChanges, BulkUpdateAction, ConferenceDetails, UpdateMeetingAction } from '../../core/aiContract';
+import type { ActionExecutor, ActionWarning, MeetingRecurrenceOps } from '../../core/contracts';
 import { AppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import type { Meeting, MeetingPatch } from '../../core/types';
@@ -27,6 +27,7 @@ import {
   draftToCreateInput,
   findOverlaps,
   isInPast,
+  occurrencePatchOf,
   shiftedStartAt,
   wantsMeetLink,
   windowAfterChanges,
@@ -90,6 +91,31 @@ function failed(action: AiAction, error: AppError): AiActionResult {
 
 function changesTouchTime(changes: AiMeetingChanges | null): boolean {
   return !!changes && (changes.startAt !== undefined || changes.durationMinutes !== undefined || changes.allDay !== undefined);
+}
+
+/**
+ * v2 scope: an action targets one occurrence only when it says so AND the meeting really recurs
+ * (on a one-off meeting the scope is ignored, as the contract requires).
+ */
+function occurrenceTarget(
+  action: Pick<UpdateMeetingAction, 'scope' | 'occurrenceDate'>,
+  meeting: Meeting | null | undefined,
+): string | null {
+  if (action.scope !== 'occurrence' || action.occurrenceDate == null) return null;
+  return meeting && meeting.recurrence !== null ? action.occurrenceDate : null;
+}
+
+/** The recurrence ops (rec-core lands them on meetingRepository in the same release as this code). */
+function recurrenceOps(meetings: ActionExecutorDeps['meetings']): MeetingRecurrenceOps {
+  const { updateOccurrence, cancelOccurrence, restoreOccurrence } = meetings;
+  if (!updateOccurrence || !cancelOccurrence || !restoreOccurrence) {
+    throw new AppError('not_implemented', 'Recurring-meeting operations are not available');
+  }
+  return {
+    updateOccurrence: updateOccurrence.bind(meetings),
+    cancelOccurrence: cancelOccurrence.bind(meetings),
+    restoreOccurrence: restoreOccurrence.bind(meetings),
+  };
 }
 
 export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor {
@@ -167,7 +193,18 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
         if (action.changes.participants) {
           newPeople = notYetOn(meeting, action.changes.participants.map((participant) => participant.email));
         }
-        if (meeting && changesTouchTime(action.changes)) {
+        if (meeting && occurrenceTarget(action, meeting) !== null) {
+          // One occurrence: check the moved occurrence's own window (only a start change moves it).
+          if (action.changes.startAt !== undefined) {
+            const window: TimeWindow = {
+              startAt: new Date(action.changes.startAt).toISOString(),
+              durationMinutes: action.changes.durationMinutes ?? meeting.durationMinutes,
+              allDay: false,
+            };
+            if (isInPast(window, at)) warnings.push('start_in_past');
+            overlapping = await overlapsFor([window], [meeting.id]);
+          }
+        } else if (meeting && changesTouchTime(action.changes)) {
           const window = windowAfterChanges(meeting, action.changes);
           if (isInPast(window, at)) warnings.push('start_in_past');
           overlapping = await overlapsFor([window], [meeting.id]);
@@ -240,6 +277,17 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
   async function runUpdate(action: Extract<AiAction, { type: 'update_meeting' }>): Promise<AiDoneResult> {
     const current = await deps.meetings.get(action.meetingId);
     if (!isActive(current)) throw new AppError('not_found', 'Meeting not found', { details: { meetingId: action.meetingId } });
+    const occurrenceDate = occurrenceTarget(action, current);
+    if (occurrenceDate !== null) {
+      // "This occurrence only": a modified override on the master (never a new document).
+      const updated = await recurrenceOps(deps.meetings).updateOccurrence(
+        current.id,
+        occurrenceDate,
+        occurrencePatchOf(action.changes),
+        { origin: 'ai' },
+      );
+      return { status: 'done', actionId: action.id, type: action.type, meetingIds: [updated.id], duplicate: false };
+    }
     const updated = await deps.meetings.update(current.id, changesToPatch(action.changes, current), { origin: 'ai' });
     const result: AiDoneResult = { status: 'done', actionId: action.id, type: action.type, meetingIds: [updated.id], duplicate: false };
     if (wantsMeetLink(action.changes.conference) && !updated.conference?.url) {
@@ -253,6 +301,12 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
   async function runDelete(action: Extract<AiAction, { type: 'delete_meeting' }>): Promise<AiDoneResult> {
     const current = await deps.meetings.get(action.meetingId);
     if (!isActive(current)) throw new AppError('not_found', 'Meeting not found', { details: { meetingId: action.meetingId } });
+    const occurrenceDate = occurrenceTarget(action, current);
+    if (occurrenceDate !== null) {
+      // "Delete only this occurrence": a cancelled override; the series stays.
+      await recurrenceOps(deps.meetings).cancelOccurrence(current.id, occurrenceDate, { origin: 'ai' });
+      return { status: 'done', actionId: action.id, type: action.type, meetingIds: [current.id], duplicate: false };
+    }
     await deps.meetings.remove(current.id, { origin: 'ai' });
     return { status: 'done', actionId: action.id, type: action.type, meetingIds: [current.id], duplicate: false };
   }

@@ -39,7 +39,13 @@
     "deleteMessageGoogle": "Se eliminarán la reunión y sus alertas. Si la sincronización con Google Calendar está activada, el evento también se eliminará de Google Calendar y se avisará a los invitados.",
     "deleteMessageDevice": "Se eliminarán la reunión y sus alertas de MeetingGuard. El calendario del dispositivo conservará su evento.",
     "deleted": "Reunión eliminada.",
-    "deletedDeviceNote": "El calendario del dispositivo todavía tiene el evento."
+    "deletedDeviceNote": "El calendario del dispositivo todavía tiene el evento.",
+    "repeats": "Se repite",
+    "repeatsNext": "Próximas repeticiones",
+    "repeatsNone": "No hay próximas repeticiones.",
+    "occurrenceModified": "editada",
+    "deleteMessageSeries": "Esta reunión se repite: se eliminarán toda la serie y sus alertas.",
+    "deleteMessageSeriesGoogle": "Esta reunión se repite: se eliminarán toda la serie y sus alertas. Si la sincronización con Google Calendar está activada, la serie también se eliminará de Google Calendar y se avisará a los invitados."
   },
   "form": {
     "title": "Título",
@@ -106,7 +112,50 @@
       "tooMany": "Una reunión puede tener hasta 100 participantes.",
       "invalidEmail": "Revisa los correos electrónicos de los participantes.",
       "tooManyTips": "Hasta 20 consejos de 300 caracteres como máximo.",
-      "alertTimesRequired": "Elige al menos un recordatorio o usa tus recordatorios predeterminados."
+      "alertTimesRequired": "Elige al menos un recordatorio o usa tus recordatorios predeterminados.",
+      "invalidRepeatInterval": "Indica cada cuánto se repite (1–99).",
+      "invalidRepeatUntil": "Elige un último día igual o posterior a la primera reunión.",
+      "invalidRepeatCount": "Indica cuántas veces se repite (1–730)."
+    },
+    "repeat": {
+      "title": "Repetición",
+      "choice": {
+        "none": "No se repite",
+        "daily": "Cada día",
+        "weekly": "Cada semana",
+        "monthly": "Cada mes"
+      },
+      "everyLabel": "Repetir cada",
+      "intervalInput": "Cada cuánto se repite",
+      "unit": {
+        "daily_one": "día",
+        "daily_other": "días",
+        "weekly_one": "semana",
+        "weekly_other": "semanas",
+        "monthly_one": "mes",
+        "monthly_other": "meses"
+      },
+      "weekdaysLabel": "Estos días",
+      "weekdayShort": {
+        "MO": "lun",
+        "TU": "mar",
+        "WE": "mié",
+        "TH": "jue",
+        "FR": "vie",
+        "SA": "sáb",
+        "SU": "dom"
+      },
+      "monthDayNote": "El día {{day}} de cada mes. Los meses sin ese día se omiten.",
+      "endsLabel": "Termina",
+      "end": {
+        "never": "Nunca",
+        "onDate": "En una fecha",
+        "afterCount": "Tras un número de veces"
+      },
+      "pickUntilDate": "Elegir el último día",
+      "untilOn": "Último día: {{date}}",
+      "countLabel": "Número de veces (1–730)",
+      "seriesNote": "Esta reunión se repite. Los cambios que guardes aquí se aplican a toda la serie."
     }
   },
   "list": {
@@ -166,12 +215,31 @@
       "meetings": "No se pudieron actualizar tus reuniones",
       "calendars": "No se pudieron sincronizar tus calendarios",
       "google": "No se pudo sincronizar Google Calendar",
-      "device": "No se pudieron sincronizar los calendarios del dispositivo"
-    }
+      "device": "No se pudieron sincronizar los calendarios del dispositivo",
+      "outlook": "No se pudo sincronizar Outlook"
+    },
+    "repeats": "Se repite"
   },
   "actions": {
     "open": "Ver detalles",
     "edit": "Editar",
-    "delete": "Eliminar"
+    "delete": "Eliminar",
+    "scopeDeleteTitle": "Eliminar reunión repetida",
+    "scopeEditTitle": "Editar reunión repetida",
+    "scopeDeleteMessage": "«{{title}}» se repite. ¿Eliminar solo la repetición del {{date}} o toda la serie?",
+    "scopeEditMessage": "«{{title}}» se repite. ¿Editar solo la repetición del {{date}} o toda la serie?",
+    "scopeThisOnly": "Solo esta reunión",
+    "scopeWholeSeries": "Toda la serie",
+    "occurrenceDeleted": "Esta repetición se eliminó de la serie."
+  },
+  "occurrence": {
+    "editTitle": "Editar esta repetición",
+    "editSubtitle": "Solo cambia el {{date}}. El resto de la serie no cambia.",
+    "titleLabel": "Título",
+    "dateLabel": "Fecha",
+    "timeLabel": "Hora",
+    "durationLabel": "Duración",
+    "updated": "Repetición actualizada.",
+    "invalid": "Revisa el título, la fecha y la hora de la repetición."
   }
 }

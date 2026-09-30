@@ -20,7 +20,7 @@ import { createHash } from 'node:crypto';
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 
 import { CONTEXT_WINDOW } from '../config';
-import { aiMeetingContextDocSchema, type AiMeetingContextDoc } from '../shared/aiContract';
+import { RECURRENCE_FREQS, aiMeetingContextDocSchema, type AiMeetingContextDoc, type RecurrenceRule } from '../shared/aiContract';
 import { isValidTimeZone, parseInstant, toLocalDate, toLocalTime, WEEKDAY_NAMES, getZonedParts } from './time';
 
 export interface MeetingRecord {
@@ -32,7 +32,16 @@ export interface MeetingReader {
   /** Meetings with startAt in [fromIso, toIso] (tombstones included; the caller filters). */
   listByStartRange(uid: string, fromIso: string, toIso: string, limit: number): Promise<MeetingRecord[]>;
   get(uid: string, meetingId: string): Promise<MeetingRecord | null>;
+  /**
+   * Recurring masters regardless of their (first-occurrence) startAt: an old series' master falls
+   * outside the startAt window, but its occurrences are still current, so the assistant must see
+   * it ("delete tomorrow's standup"). Optional for older fakes; absent = no extra lookup.
+   */
+  listRecurring?(uid: string, limit: number): Promise<MeetingRecord[]>;
 }
+
+/** How many recurring masters are loaded on top of the startAt window. */
+export const RECURRING_MASTERS_LIMIT = 100;
 
 export interface ContextMeeting {
   ref: string;
@@ -160,14 +169,16 @@ export async function loadMeetingContext(
 ): Promise<MeetingContext> {
   const fromIso = new Date(now.getTime() - CONTEXT_WINDOW.pastDays * DAY_MS).toISOString();
   const toIso = new Date(now.getTime() + CONTEXT_WINDOW.futureDays * DAY_MS).toISOString();
-  const [records, followUpRecord] = await Promise.all([
+  const [records, recurringRecords, followUpRecord] = await Promise.all([
     reader.listByStartRange(uid, fromIso, toIso, CONTEXT_WINDOW.queryLimit),
+    reader.listRecurring ? reader.listRecurring(uid, RECURRING_MASTERS_LIMIT) : Promise.resolve([]),
     followUpMeetingId ? reader.get(uid, followUpMeetingId) : Promise.resolve(null),
   ]);
   if (followUpMeetingId && (!followUpRecord || !isVisibleMeeting(followUpRecord.doc))) {
     throw new FollowUpMeetingNotFoundError();
   }
-  const all = followUpRecord ? [followUpRecord, ...records] : records;
+  // Masters inside the window come back from both queries; buildMeetingContext deduplicates.
+  const all = [...(followUpRecord ? [followUpRecord] : []), ...records, ...recurringRecords];
   const context = buildMeetingContext(all, now, { followUpMeetingId });
   if (followUpMeetingId && !context.followUp) throw new FollowUpMeetingNotFoundError();
   return context;
@@ -195,6 +206,31 @@ export interface MeetingModelView {
   participantsTotal: number;
   /** Only for the follow-up meeting. */
   description?: string;
+  /** Recurring meetings only. `start` is the FIRST occurrence of the series. */
+  recurring?: true;
+  /** Compact rule, e.g. "every 2 weeks on MO,WE until 2026-12-31" (see compactRecurrence). */
+  repeats?: string;
+}
+
+/**
+ * Deterministic compact description of a recurrence rule for the data block (English, machine
+ * readable): "every day" / "every 2 weeks on MO,WE" / "every month on day 15 x10" /
+ * "... until 2026-12-31" (the until instant's local day in the meeting's zone).
+ */
+export function compactRecurrence(rule: RecurrenceRule, meetingZone: string): string {
+  const unit = rule.freq === 'daily' ? 'day' : rule.freq === 'weekly' ? 'week' : 'month';
+  let text = rule.interval === 1 ? `every ${unit}` : `every ${rule.interval} ${unit}s`;
+  if (rule.freq === 'weekly' && rule.byWeekday !== null && rule.byWeekday.length > 0) {
+    text += ` on ${rule.byWeekday.join(',')}`;
+  }
+  if (rule.freq === 'monthly' && rule.byMonthDay !== null) text += ` on day ${rule.byMonthDay}`;
+  if (rule.until !== null) {
+    const until = parseInstant(rule.until);
+    text += ` until ${until ? toLocalDate(until, meetingZone) : rule.until.slice(0, 10)}`;
+  } else if (rule.count !== null) {
+    text += ` x${rule.count}`;
+  }
+  return text;
 }
 
 function clip(value: string, max: number): string {
@@ -233,6 +269,10 @@ export function toModelView(meeting: ContextMeeting, userTimeZone: string, isFol
     participantsTotal: meeting.participantEmails.length,
   };
   if (meetingZone !== userTimeZone) view.meetingTimeZone = meetingZone;
+  if (doc.recurrence !== null && doc.recurrence !== undefined) {
+    view.recurring = true;
+    view.repeats = compactRecurrence(doc.recurrence, meetingZone);
+  }
   if (isFollowUp && doc.description.trim().length > 0) {
     view.description = clip(doc.description, CONTEXT_WINDOW.maxFollowUpDescriptionChars);
   }
@@ -257,6 +297,7 @@ export const CONTEXT_FIELDS = [
   'participants',
   'location',
   'conference',
+  'recurrence',
 ] as const;
 
 /** Rough serialized size of a document (characters of its JSON). */
@@ -336,6 +377,21 @@ export function firestoreMeetingReader(
         .select(...CONTEXT_FIELDS)
         .limit(limit);
       // Streamed: leaving the loop early (budget reached) cancels the rest of the query.
+      const result = await collectWithinBudget(snapshots(query.stream() as unknown as AsyncIterable<unknown>), {
+        ...budget,
+        limit,
+      });
+      if (result.skipped > 0 || result.truncated) onSkipped(result.skipped, result.truncated);
+      return result.records;
+    },
+    async listRecurring(uid, limit) {
+      // Sparse storage: one-off meetings have no `recurrence` field, so this only matches masters
+      // (automatic single-field index on recurrence.freq; no composite index needed).
+      const query = db
+        .collection(`users/${uid}/meetings`)
+        .where('recurrence.freq', 'in', [...RECURRENCE_FREQS])
+        .select(...CONTEXT_FIELDS)
+        .limit(limit);
       const result = await collectWithinBudget(snapshots(query.stream() as unknown as AsyncIterable<unknown>), {
         ...budget,
         limit,

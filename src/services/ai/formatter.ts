@@ -9,6 +9,7 @@ import { getDeviceTimeZone } from '../../core/time';
 import type { Language } from '../../core/types';
 import { getLanguage, t as translate } from '../../i18n';
 import {
+  formatDate,
   formatDateTime,
   formatDuration,
   formatMeetingTimeRange,
@@ -31,6 +32,7 @@ export function createAssistantFormatter(
     meetingTime: (meeting) => formatMeetingTimeRange(meeting, formatOptions),
     duration: (minutes) => formatDuration(minutes, formatOptions),
     dateTime: (value) => formatDateTime(value, formatOptions),
+    date: (value) => formatDate(value, 'medium', formatOptions),
     time: (value) => formatTime(value, formatOptions),
     relative: (value, now) => formatRelative(value, { ...formatOptions, now }),
   };

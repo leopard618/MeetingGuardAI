@@ -13,6 +13,7 @@ import type {
   ActionPreview,
   ActionResult,
   AssistantChatMessage,
+  MeetingRecurrenceOps,
   MeetingRepository,
   ProposedActionState,
   TranslateFn,
@@ -99,7 +100,13 @@ export interface CalendarLinkPort {
   createMeetLink(meetingId: string): Promise<ConferenceDetails>;
 }
 
-export type MeetingsPort = Pick<MeetingRepository, 'get' | 'list' | 'create' | 'update' | 'remove'>;
+/**
+ * The recurrence ops are optional so the executor keeps compiling (and failing loudly with
+ * 'not_implemented' instead of crashing) while `meetingRepository` gains MeetingRecurrenceOps in
+ * the same release; scoped actions on a repository without them resolve `failed`.
+ */
+export type MeetingsPort = Pick<MeetingRepository, 'get' | 'list' | 'create' | 'update' | 'remove'> &
+  Partial<MeetingRecurrenceOps>;
 
 // ---------------------------------------------------------------------------------------------
 // Presentation
@@ -114,6 +121,8 @@ export interface AssistantFormatter {
   meetingTime(meeting: Pick<Meeting, 'startAt' | 'durationMinutes' | 'allDay' | 'date'>): string;
   duration(minutes: number): string;
   dateTime(value: string): string;
+  /** A calendar date without a time ("YYYY-MM-DD" or an instant), e.g. for recurrence end dates. */
+  date(value: string): string;
   time(value: string): string;
   relative(value: string, now?: Date): string;
 }

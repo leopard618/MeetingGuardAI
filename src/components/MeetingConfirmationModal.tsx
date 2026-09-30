@@ -27,9 +27,11 @@ import {
   describeChangeRows,
   describeDraft,
   describeMeeting,
+  describeScopeRow,
   describeShare,
   describeWarnings,
   isDestructiveAction,
+  isOccurrenceDelete,
   type AssistantPalette,
   type DetailRow,
   type DiffRow,
@@ -258,10 +260,12 @@ function ActionBody({
   switch (action.type) {
     case 'create_meeting':
       return <DetailRows rows={describeDraft(fmt, action.meeting)} palette={palette} />;
-    case 'update_meeting':
+    case 'update_meeting': {
+      const scopeRow = describeScopeRow(fmt, action, meeting);
       if (!preview) {
         return (
           <>
+            {scopeRow ? <DetailRows rows={[scopeRow]} palette={palette} /> : null}
             <DetailRows rows={describeChangeRows(fmt, action.changes)} palette={palette} />
             <LoadingDetails palette={palette} fmt={fmt} />
           </>
@@ -271,19 +275,27 @@ function ActionBody({
       return (
         <>
           <Text style={[styles.meetingTitle, { color: palette.text }]}>{meeting.title}</Text>
+          {scopeRow ? <DetailRows rows={[scopeRow]} palette={palette} /> : null}
           <DiffRows rows={computeUpdateDiff(fmt, meeting, action.changes)} palette={palette} fmt={fmt} />
         </>
       );
+    }
     case 'delete_meeting': {
       const synced = meeting !== null && (meeting.external.googleEventId !== null || meeting.external.deviceEventId !== null);
+      const occurrenceOnly = isOccurrenceDelete(action, meeting);
+      const scopeRow = describeScopeRow(fmt, action, meeting);
+      const warningText = occurrenceOnly
+        ? fmt.t('ai:confirm.deleteOccurrenceWarning')
+        : synced
+          ? fmt.t('ai:confirm.deleteWarningSynced')
+          : fmt.t('ai:confirm.deleteWarning');
       return (
         <View style={[styles.notice, { backgroundColor: palette.dangerSurface, borderColor: palette.danger }]}>
           <View style={styles.noticeLine}>
             <MaterialCommunityIcons name="delete-alert-outline" size={18} color={palette.danger} />
-            <Text style={[styles.noticeText, styles.bold, { color: palette.danger }]}>
-              {synced ? fmt.t('ai:confirm.deleteWarningSynced') : fmt.t('ai:confirm.deleteWarning')}
-            </Text>
+            <Text style={[styles.noticeText, styles.bold, { color: palette.danger }]}>{warningText}</Text>
           </View>
+          {scopeRow ? <DetailRows rows={[scopeRow]} palette={palette} /> : null}
           {meeting ? <DetailRows rows={describeMeeting(fmt, meeting)} palette={palette} /> : null}
           {!preview ? <LoadingDetails palette={palette} fmt={fmt} /> : null}
         </View>

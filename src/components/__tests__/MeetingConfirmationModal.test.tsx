@@ -121,6 +121,45 @@ describe('MeetingConfirmationModal', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
+
+  it('shows what an occurrence-scoped delete really removes (one occurrence, series stays)', async () => {
+    const rule = { freq: 'weekly' as const, interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null };
+    const series = makeMeeting('m1', { title: 'Weekly standup', recurrence: rule });
+    const action = { ...deleteAction('d2', 'm1'), scope: 'occurrence' as const, occurrenceDate: '2030-03-18' };
+    await render(
+      <MeetingConfirmationModal visible actions={[proposed(action, previewFor(action, [series]))]} onConfirm={jest.fn()} onCancel={jest.fn()} />,
+    );
+    expect(screen.getByText('Only this occurrence is removed. The rest of the series stays.')).toBeTruthy();
+    expect(screen.getByText('Only the occurrence on 2030-03-18')).toBeTruthy();
+    expect(screen.queryByText('This meeting will be deleted and its alerts cancelled.')).toBeNull();
+  });
+
+  it('says a plain delete of a recurring meeting removes the whole series', async () => {
+    const rule = { freq: 'daily' as const, interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null };
+    const series = makeMeeting('m1', { title: 'Daily focus', recurrence: rule });
+    const action = deleteAction('d3', 'm1');
+    await render(
+      <MeetingConfirmationModal visible actions={[proposed(action, previewFor(action, [series]))]} onConfirm={jest.fn()} onCancel={jest.fn()} />,
+    );
+    expect(screen.getByText('The whole repeating series')).toBeTruthy();
+    expect(screen.getByText('Repeats daily')).toBeTruthy();
+  });
+
+  it('shows the scope and the repeat rule on update cards', async () => {
+    const rule = { freq: 'weekly' as const, interval: 1, byWeekday: ['MO' as const], byMonthDay: null, until: null, count: null };
+    const series = makeMeeting('m1', { title: 'Weekly standup', recurrence: rule });
+    const action = {
+      ...updateAction('u2', 'm1', { startAt: '2030-03-18T16:30:00.000Z' }),
+      scope: 'occurrence' as const,
+      occurrenceDate: '2030-03-18',
+    };
+    await render(
+      <MeetingConfirmationModal visible actions={[proposed(action, previewFor(action, [series]))]} onConfirm={jest.fn()} onCancel={jest.fn()} />,
+    );
+    expect(screen.getByText('Only the occurrence on 2030-03-18')).toBeTruthy();
+    expect(screen.getByText('Applies to')).toBeTruthy();
+  });
+
   it('renders nothing without actions', async () => {
     await render(<MeetingConfirmationModal visible actions={[]} onConfirm={jest.fn()} onCancel={jest.fn()} />);
     expect(screen.queryByTestId('confirm-submit')).toBeNull();

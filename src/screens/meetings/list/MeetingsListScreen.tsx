@@ -32,6 +32,15 @@ import { useMeetings } from '../../../services/data';
 import { useFormatters } from '../../shared/useFormatters';
 import { capitalizeFirst } from '../../shared/text';
 import { useLiveNow } from '../../shared/useLiveNow';
+import {
+  LIST_FUTURE_DAYS,
+  LIST_PAST_DAYS,
+  displayKeyOf,
+  displayWindowAround,
+  expandMeetingsForDisplay,
+  type DisplayMeeting,
+} from '../occurrences';
+import { OccurrenceEditSheet } from '../OccurrenceEditSheet';
 import { MeetingActionsSheet, useMeetingActions } from './meetingActions';
 import { MeetingListItem } from './MeetingListItem';
 import {
@@ -59,12 +68,20 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
   const timeZone = getDeviceTimeZone();
   const { meetings, isLoading, error, refresh } = useMeetings();
   const [filters, setFilters] = useState<MeetingFilters>(DEFAULT_FILTERS);
-  const [sheetMeeting, setSheetMeeting] = useState<Meeting | null>(null);
+  const [sheetMeeting, setSheetMeeting] = useState<DisplayMeeting | null>(null);
   const actions = useMeetingActions();
   const { refreshing, onRefresh } = useMeetingsRefresh(refresh);
 
   const todayKey = todayInZone(timeZone, now);
-  const sections = useMemo(() => buildMeetingSections(meetings, filters, { timeZone, now }), [meetings, filters, timeZone, now]);
+  // Recurring meetings render one row per occurrence (bounded window; occurrences.ts).
+  const displayMeetings = useMemo(
+    () => expandMeetingsForDisplay(meetings, displayWindowAround(now, timeZone, LIST_PAST_DAYS, LIST_FUTURE_DAYS)),
+    [meetings, timeZone, now],
+  );
+  const sections = useMemo(
+    () => buildMeetingSections(displayMeetings, filters, { timeZone, now }),
+    [displayMeetings, filters, timeZone, now],
+  );
   const resultCount = useMemo(() => sections.reduce((total, section) => total + section.data.length, 0), [sections]);
   const filtered = hasActiveFilters(filters);
 
@@ -223,7 +240,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
 
       <SectionList
         sections={sections}
-        keyExtractor={(meeting) => meeting.id}
+        keyExtractor={(meeting) => displayKeyOf(meeting)}
         renderItem={renderItem}
         renderSectionHeader={renderSectionHeader}
         ListEmptyComponent={renderEmpty}
@@ -254,6 +271,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
       />
 
       <MeetingActionsSheet meeting={sheetMeeting} actions={actions} onDismiss={() => setSheetMeeting(null)} />
+      <OccurrenceEditSheet target={actions.occurrenceEdit} onDismiss={actions.dismissOccurrenceEdit} />
     </View>
   );
 }

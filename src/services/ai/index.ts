@@ -25,12 +25,16 @@ export {
   describeDraft,
   describeMeeting,
   describeResult,
+  describeScopeRow,
   describeShare,
   describeUsage,
   describeWarnings,
+  formatRecurrence,
   formatShift,
   isDestructiveAction,
+  isOccurrenceDelete,
 } from './presentation';
+export { recurrenceScopeText, recurrenceSummary, untilLocalDate } from './recurrenceText';
 export type { BulkDescription, BulkItem, DetailRow, DiffRow, ErrorDescription, Feedback, UsageDescription } from './presentation';
 export { MAX_REQUEST_MESSAGES, MAX_STORED_MESSAGES } from './conversation';
 export type {

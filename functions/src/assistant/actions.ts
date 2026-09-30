@@ -23,6 +23,7 @@ import {
   aiActionSchema,
   emailSchema,
   httpUrlSchema,
+  recurrenceRuleSchema,
   type AiAction,
   type AiMeetingChanges,
   type AiMeetingDraft,
@@ -31,6 +32,7 @@ import {
   type ConferenceDetails,
   type Language,
   type MeetingLocation,
+  type RecurrenceRule,
 } from '../shared/aiContract';
 import type { ContextMeeting, MeetingContext } from './context';
 import {
@@ -52,6 +54,7 @@ import {
   suggestRepliesArgsSchema,
   updateMeetingArgsSchema,
   type BulkChangesArgs,
+  type RecurrenceArgs,
   type UpdateChangesArgs,
 } from './tools';
 
@@ -216,6 +219,29 @@ function resolveZone(candidate: string | null, fallback: string): string {
   return candidate !== null && isValidTimeZone(candidate) ? candidate : fallback;
 }
 
+/**
+ * Tool recurrence args -> the shared RecurrenceRule. `zone` is the MEETING's zone: `until_date`
+ * is the inclusive last local day there (stored as the end-of-day instant, so every occurrence of
+ * that day is still included). Anything outside the v1 subset is dropped, never repaired.
+ */
+function mapRecurrence(args: RecurrenceArgs, zone: string): RecurrenceRule {
+  let until: string | null = null;
+  if (args.until_date !== null) {
+    if (!isValidLocalDate(args.until_date)) drop('invalid_datetime');
+    until = zonedDateTimeToInstant(args.until_date, '23:59', zone).toISOString();
+  }
+  const candidate: RecurrenceRule = {
+    freq: args.freq,
+    interval: args.interval ?? 1,
+    byWeekday: args.freq === 'weekly' && args.by_weekday !== null && args.by_weekday.length > 0 ? args.by_weekday : null,
+    byMonthDay: args.freq === 'monthly' ? args.by_month_day : null,
+    until,
+    count: until !== null ? null : args.count,
+  };
+  const checked = recurrenceRuleSchema.safeParse(candidate);
+  return checked.success ? checked.data : drop('bad_args');
+}
+
 function meetingZone(meeting: ContextMeeting, userTimeZone: string): string {
   return isValidTimeZone(meeting.doc.timezone) ? meeting.doc.timezone : userTimeZone;
 }
@@ -303,6 +329,7 @@ function mapCreate(raw: string, ctx: MappingContext, provenance: Provenance): Ai
     preparationTips: acceptTips(args.preparation_tips),
     customAlertTimes: args.alert_minutes_before === null ? null : acceptAlertTimes(args.alert_minutes_before),
     language: ctx.language,
+    recurrence: args.recurrence === null ? null : mapRecurrence(args.recurrence, zone),
   };
   return { type: 'create_meeting', ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].create_meeting), meeting };
 }
@@ -391,9 +418,52 @@ function mapScheduleChanges(
   if (allDayChanged && allDay && changes.duration_minutes === null) out.durationMinutes = ALL_DAY_MINUTES;
 }
 
+/**
+ * Scope 'occurrence' (a real occurrence of a recurring meeting): only startAt / duration / title
+ * may change (OCCURRENCE_CHANGE_KEYS in the contract); every other requested change is ignored.
+ * A date/time given without the other half defaults to the occurrence's ORIGINAL date and the
+ * master's wall-clock time, so "move tomorrow's standup to 10:00" moves only the time.
+ */
+function mapOccurrenceUpdate(
+  args: { changes: UpdateChangesArgs; occurrence_date: string | null; summary: string; confidence: number },
+  meeting: ContextMeeting,
+  ctx: MappingContext,
+): AiAction {
+  const occurrenceDate =
+    args.occurrence_date !== null && isValidLocalDate(args.occurrence_date) ? args.occurrence_date : drop('invalid_datetime');
+  const c = args.changes;
+  const changes: AiMeetingChanges = {};
+  if (c.title !== null) {
+    const title = clip(c.title, AI_LIMITS.maxTitleChars);
+    if (title.length > 0) changes.title = title;
+  }
+  if (c.date !== null || c.time !== null) {
+    const allDay = meeting.doc.allDay;
+    const zone = meetingZone(meeting, ctx.userTimeZone);
+    const date = c.date ?? occurrenceDate;
+    const time = allDay ? (c.time ?? '00:00') : (c.time ?? toLocalTime(meeting.start, ctx.userTimeZone));
+    const interpretZone = allDay && c.time === null ? zone : ctx.userTimeZone;
+    changes.startAt = localStartIso(date, time, interpretZone);
+  }
+  if (c.duration_minutes !== null) changes.durationMinutes = c.duration_minutes;
+  if (Object.keys(changes).length === 0) drop('empty_changes');
+  return {
+    type: 'update_meeting',
+    ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].update_meeting),
+    meetingId: meeting.meetingId,
+    changes,
+    scope: 'occurrence',
+    occurrenceDate,
+  };
+}
+
 function mapUpdate(raw: string, ctx: MappingContext, provenance: Provenance): AiAction {
   const args = parseArgs(updateMeetingArgsSchema, raw);
   const meeting = resolveRef(args.meeting_ref, ctx);
+  // Scope only means something for a meeting that really repeats; on a one-off it is ignored.
+  if (args.scope === 'occurrence' && meeting.doc.recurrence !== null) {
+    return mapOccurrenceUpdate(args, meeting, ctx);
+  }
   const c = args.changes;
   const changes: AiMeetingChanges = {};
 
@@ -407,6 +477,12 @@ function mapUpdate(raw: string, ctx: MappingContext, provenance: Provenance): Ai
   }
   mapScheduleChanges(c, meeting, ctx.userTimeZone, changes);
   mapCommonChanges(c, meeting, provenance, changes);
+  if (c.clear_recurrence) {
+    if (meeting.doc.recurrence !== null) changes.recurrence = null;
+  } else if (c.recurrence !== null) {
+    const rule = mapRecurrence(c.recurrence, meetingZone(meeting, ctx.userTimeZone));
+    if (JSON.stringify(rule) !== JSON.stringify(meeting.doc.recurrence)) changes.recurrence = rule;
+  }
   if (c.participants !== null) {
     // The model only saw the first N participants; the others are kept as they are.
     const shown = new Set(meeting.participantEmails.slice(0, CONTEXT_WINDOW.maxParticipantsListed));
@@ -438,6 +514,18 @@ function mapDelete(raw: string, ctx: MappingContext): AiAction {
   const args = parseArgs(deleteMeetingArgsSchema, raw);
   if (ctx.mode === 'followup') drop('not_allowed');
   const meeting = resolveRef(args.meeting_ref, ctx);
+  if (args.scope === 'occurrence' && meeting.doc.recurrence !== null) {
+    // "Delete only tomorrow's standup": cancel one occurrence, keep the series.
+    const occurrenceDate =
+      args.occurrence_date !== null && isValidLocalDate(args.occurrence_date) ? args.occurrence_date : drop('invalid_datetime');
+    return {
+      type: 'delete_meeting',
+      ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].delete_meeting),
+      meetingId: meeting.meetingId,
+      scope: 'occurrence',
+      occurrenceDate,
+    };
+  }
   return {
     type: 'delete_meeting',
     ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].delete_meeting),

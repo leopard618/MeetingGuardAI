@@ -30,6 +30,7 @@ import { computeDashboardSummary, weekStartForLanguage, type InsightContext } fr
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
 import { AlertStatusCard } from './AlertStatusCard';
+import { displayKeyOf, displayWindowAround, expandMeetingsForDisplay } from '../meetings/occurrences';
 import { buildTodayTimeline, dayPeriodOf, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
 import { InsightsSummaryCard } from './InsightsSummaryCard';
 import { NextMeetingCard } from './NextMeetingCard';
@@ -41,6 +42,10 @@ import { useLiveNow } from '../shared/useLiveNow';
 const log = createLogger('home');
 
 type Props = StackScreenProps<RootStackParamList, 'Dashboard'>;
+
+/** How far the dashboard expands recurring meetings: today's timeline + a year for "next". */
+const DASHBOARD_PAST_DAYS = 1;
+const DASHBOARD_FUTURE_DAYS = 370;
 
 function Greeting({ now, timeZone }: { now: Date; timeZone: string }): ReactElement {
   const t = useT();
@@ -87,9 +92,14 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   }, []);
 
   const context = useMemo<InsightContext>(() => ({ now, timeZone, weekStartsOn: weekStartForLanguage(language) }), [now, timeZone, language]);
-  const timeline = useMemo(() => buildTodayTimeline(meetings, context), [meetings, context]);
+  // Recurring meetings appear as their occurrences (today's timeline, next meeting; occurrences.ts).
+  const displayMeetings = useMemo(
+    () => expandMeetingsForDisplay(meetings, displayWindowAround(now, timeZone, DASHBOARD_PAST_DAYS, DASHBOARD_FUTURE_DAYS)),
+    [meetings, timeZone, now],
+  );
+  const timeline = useMemo(() => buildTodayTimeline(displayMeetings, context), [displayMeetings, context]);
   const summary = useMemo(() => computeDashboardSummary(meetings, context), [meetings, context]);
-  const { current, next } = useMemo(() => findNowAndNext(meetings, now), [meetings, now]);
+  const { current, next } = useMemo(() => findNowAndNext(displayMeetings, now), [displayMeetings, now]);
   // Nothing could be read (first launch offline, permission denied): say so instead of showing
   // "no meetings" empty states next to the error (a failure is not an empty list).
   const loadFailed = error !== null && !isLoading && meetings.length === 0;
@@ -198,7 +208,7 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   return (
     <FlatList
       data={showData ? timeline : []}
-      keyExtractor={(item) => item.meeting.id}
+      keyExtractor={(item) => displayKeyOf(item.meeting)}
       renderItem={renderItem}
       ListHeaderComponent={header}
       ListEmptyComponent={empty}

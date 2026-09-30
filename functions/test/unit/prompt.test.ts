@@ -42,6 +42,23 @@ describe('system prompt', () => {
     expect(prompt).not.toContain('Follow-up mode');
   });
 
+  it('explains recurring meetings: the rule shape, the repeats field and the scope question', () => {
+    const prompt = buildSystemPrompt({
+      language: 'en',
+      timeZone: 'Europe/Madrid',
+      now: NOW,
+      mode: 'chat',
+      followUpRef: null,
+      nonce: 'n0nce',
+    });
+    expect(prompt).toContain('Recurring meetings');
+    expect(prompt).toContain('freq daily|weekly|monthly');
+    expect(prompt).toContain('`recurring: true`');
+    expect(prompt).toContain('"occurrence" with occurrence_date');
+    expect(prompt).toContain('ask which one before calling the tool');
+    expect(prompt).not.toContain('not supported');
+  });
+
   it('adds follow-up instructions with the meeting ref only', () => {
     const prompt = buildSystemPrompt({
       language: 'en',

@@ -1,7 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 
-import { AI_ACTION_TYPES, CONFERENCE_PROVIDERS, LANGUAGES, LOCATION_TYPES, PLANS, SHARE_CHANNELS } from '../../../core/aiContract';
+import {
+  AI_ACTION_TYPES,
+  CONFERENCE_PROVIDERS,
+  LANGUAGES,
+  LOCATION_TYPES,
+  PLANS,
+  RECURRENCE_FREQS,
+  RECURRENCE_WEEKDAYS,
+  SHARE_CHANNELS,
+} from '../../../core/aiContract';
 import { MEETING_SOURCES } from '../../../core/types';
 import en from '../../../i18n/locales/en/ai.json';
 import es from '../../../i18n/locales/es/ai.json';
@@ -45,7 +54,9 @@ const DYNAMIC: Record<string, readonly string[]> = {
   'confirm.title': AI_ACTION_TYPES,
   'confidence': ['high', 'medium', 'low'],
   'examples': ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'],
-  'fields': ['title', 'when', 'duration', 'description', 'location', 'conference', 'participants', 'tips', 'alerts', 'language'],
+  'fields': ['title', 'when', 'duration', 'description', 'location', 'conference', 'participants', 'tips', 'alerts', 'language', 'repeats', 'scope'],
+  'recurrence': RECURRENCE_FREQS,
+  'recurrence.weekday': RECURRENCE_WEEKDAYS,
   'share.channel': SHARE_CHANNELS,
   'source': MEETING_SOURCES,
   'usage.plan': PLANS,

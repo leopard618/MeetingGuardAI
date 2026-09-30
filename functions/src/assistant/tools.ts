@@ -9,7 +9,14 @@
  */
 import { z } from 'zod';
 
-import { CONFERENCE_PROVIDERS, LOCATION_TYPES, SHARE_CHANNELS } from '../shared/aiContract';
+import {
+  CONFERENCE_PROVIDERS,
+  LOCATION_TYPES,
+  RECURRENCE_EDIT_SCOPES,
+  RECURRENCE_FREQS,
+  RECURRENCE_WEEKDAYS,
+  SHARE_CHANNELS,
+} from '../shared/aiContract';
 
 type JsonSchema = Record<string, unknown>;
 
@@ -88,6 +95,27 @@ const participantSchema = object({
 const alertTimes = (description: string): JsonSchema =>
   nullableArray({ type: 'integer' }, `${description} Minutes before the start (0 = at start, max 10080), at most 10 values.`);
 
+/** Repeat rule (v1 subset shared with the app; see the recurrence rules in the system prompt). */
+const recurrenceSchema = object({
+  freq: enumeration(RECURRENCE_FREQS, 'How often the meeting repeats: daily, weekly or monthly.'),
+  interval: nullableInteger('Repeat every N days/weeks/months (1-99). Null = 1.'),
+  by_weekday: nullableArray(
+    { type: 'string', enum: [...RECURRENCE_WEEKDAYS] },
+    'Weekly only: the weekdays it repeats on (MO..SU). Null = the weekday of the first occurrence.',
+  ),
+  by_month_day: nullableInteger('Monthly only: the day of month 1-31. Null = the day of the first occurrence.'),
+  until_date: nullableString(`Last possible day of the series (inclusive). ${DATE} Null if the user gave a count or no end.`),
+  count: nullableInteger('Total number of occurrences including the first (1-730). Null if the user gave an end date or no end. Never set both until_date and count.'),
+});
+const SCOPE = enumeration(
+  RECURRENCE_EDIT_SCOPES,
+  'For a repeating meeting: "occurrence" changes/deletes only the one occurrence at occurrence_date; "series" applies to the whole series. Ask the user which one they mean when it is ambiguous.',
+);
+const nullableScope: JsonSchema = { anyOf: [SCOPE, { type: 'null' }], description: 'Null (or "series") for one-off meetings and whole-series changes.' };
+const OCCURRENCE_DATE = nullableString(
+  'With scope "occurrence": the ORIGINAL local date "YYYY-MM-DD" of that occurrence (from the meeting\'s repeats info), even when moving it to another day. Null otherwise.',
+);
+
 function meetingChangesSchema(options: { includeSchedule: boolean; includeTextAndPeople: boolean }): JsonSchema {
   const properties: Record<string, JsonSchema> = {};
   if (options.includeTextAndPeople) {
@@ -99,6 +127,8 @@ function meetingChangesSchema(options: { includeSchedule: boolean; includeTextAn
     properties.time = nullableString(`New ${TIME} Null keeps the current time.`);
     properties.all_day = nullableBoolean('Set true/false to change whether it is an all-day meeting, or null.');
     properties.timezone = nullableString('New IANA time zone of the meeting, only if the user explicitly asks; otherwise null.');
+    properties.recurrence = nullable(recurrenceSchema, 'New repeat rule for the whole series, or null to keep the current one. Only with scope "series".');
+    properties.clear_recurrence = boolean('true only if the user wants the meeting to stop repeating (it becomes a single meeting).');
   }
   properties.duration_minutes = nullableInteger('New duration in minutes, or null to keep it.');
   properties.location = nullable(locationSchema, 'New location, or null to keep it.');
@@ -141,6 +171,7 @@ export const ASSISTANT_TOOLS: readonly ToolDefinition[] = [
         participants: array(participantSchema, 'Participants to invite (only addresses the user wrote), [] if none.'),
         preparation_tips: array({ type: 'string' }, 'Up to 3 short, specific preparation tips, [] if none.'),
         alert_minutes_before: alertTimes('Custom alert times only if the user asked for them; null = the user default.'),
+        recurrence: nullable(recurrenceSchema, 'Repeat rule ("every Monday at 9" => weekly, by_weekday ["MO"]), or null for a one-off meeting.'),
         summary: SUMMARY,
         confidence: CONFIDENCE,
       }),
@@ -150,11 +181,14 @@ export const ASSISTANT_TOOLS: readonly ToolDefinition[] = [
     type: 'function',
     function: {
       name: TOOL_NAMES.update,
-      description: 'Propose changing one existing meeting. Only the fields in `changes` that are not null change.',
+      description:
+        'Propose changing one existing meeting. Only the fields in `changes` that are not null change. For a repeating meeting, scope "occurrence" (with occurrence_date) changes just that occurrence: then only date, time, duration_minutes and title may change.',
       strict: true,
       parameters: object({
         meeting_ref: MEETING_REF,
         changes: meetingChangesSchema({ includeSchedule: true, includeTextAndPeople: true }),
+        scope: nullableScope,
+        occurrence_date: OCCURRENCE_DATE,
         summary: SUMMARY,
         confidence: CONFIDENCE,
       }),
@@ -164,9 +198,16 @@ export const ASSISTANT_TOOLS: readonly ToolDefinition[] = [
     type: 'function',
     function: {
       name: TOOL_NAMES.delete,
-      description: 'Propose deleting one existing meeting.',
+      description:
+        'Propose deleting one existing meeting (or, with scope "occurrence", cancelling a single occurrence of a repeating meeting).',
       strict: true,
-      parameters: object({ meeting_ref: MEETING_REF, summary: SUMMARY, confidence: CONFIDENCE }),
+      parameters: object({
+        meeting_ref: MEETING_REF,
+        scope: nullableScope,
+        occurrence_date: OCCURRENCE_DATE,
+        summary: SUMMARY,
+        confidence: CONFIDENCE,
+      }),
     },
   },
   {
@@ -244,6 +285,27 @@ const conferenceArgs = z.object({
 const participantArgs = z.object({ email: z.string(), name: z.string().nullable() });
 const summaryArgs = { summary: z.string(), confidence: z.number() };
 
+/**
+ * Shape only; values are range-checked against recurrenceRuleSchema when building the action.
+ * The nested fields default to null so a model that omits an optional-feeling key (despite strict
+ * mode) degrades to "not set" instead of dropping the whole call.
+ */
+export const recurrenceArgsSchema = z.object({
+  freq: z.enum(RECURRENCE_FREQS),
+  interval: z.number().int().nullable().default(null),
+  by_weekday: z.array(z.enum(RECURRENCE_WEEKDAYS)).nullable().default(null),
+  by_month_day: z.number().int().nullable().default(null),
+  until_date: z.string().nullable().default(null),
+  count: z.number().int().nullable().default(null),
+});
+export type RecurrenceArgs = z.infer<typeof recurrenceArgsSchema>;
+
+/** v2 additive: absent = null/"series", so v1-shaped calls keep parsing. */
+const scopeArgs = {
+  scope: z.enum(RECURRENCE_EDIT_SCOPES).nullable().default(null),
+  occurrence_date: z.string().nullable().default(null),
+};
+
 export const createMeetingArgsSchema = z.object({
   title: z.string(),
   description: z.string(),
@@ -257,6 +319,7 @@ export const createMeetingArgsSchema = z.object({
   participants: z.array(participantArgs),
   preparation_tips: z.array(z.string()),
   alert_minutes_before: z.array(z.number().int()).nullable(),
+  recurrence: recurrenceArgsSchema.nullable().default(null),
   ...summaryArgs,
 });
 export type CreateMeetingArgs = z.infer<typeof createMeetingArgsSchema>;
@@ -278,6 +341,8 @@ export const updateChangesArgsSchema = z.object({
   time: z.string().nullable(),
   all_day: z.boolean().nullable(),
   timezone: z.string().nullable(),
+  recurrence: recurrenceArgsSchema.nullable().default(null),
+  clear_recurrence: z.boolean().default(false),
   participants: z.array(participantArgs).nullable(),
   preparation_tips: z.array(z.string()).nullable(),
   ...commonChangeArgs,
@@ -290,10 +355,11 @@ export type BulkChangesArgs = z.infer<typeof bulkChangesArgsSchema>;
 export const updateMeetingArgsSchema = z.object({
   meeting_ref: z.string(),
   changes: updateChangesArgsSchema,
+  ...scopeArgs,
   ...summaryArgs,
 });
 
-export const deleteMeetingArgsSchema = z.object({ meeting_ref: z.string(), ...summaryArgs });
+export const deleteMeetingArgsSchema = z.object({ meeting_ref: z.string(), ...scopeArgs, ...summaryArgs });
 
 export const shareMeetingArgsSchema = z.object({
   meeting_ref: z.string(),

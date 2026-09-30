@@ -10,7 +10,18 @@
  * - Alerts: "use my defaults" (customAlertTimes null) or custom minutes-before offsets, plus an
  *   optional intensity override (alertIntensity null = the preference).
  */
-import { AI_LIMITS, emailSchema, httpUrlSchema, type ConferenceProvider, type LocationType } from '../../core/aiContract';
+import {
+  AI_LIMITS,
+  RECURRENCE_WEEKDAYS,
+  emailSchema,
+  httpUrlSchema,
+  recurrenceRuleSchema,
+  type ConferenceProvider,
+  type LocationType,
+  type RecurrenceRule,
+  type RecurrenceWeekday,
+} from '../../core/aiContract';
+import { weekdayOfLocalDate } from '../../core/recurrence';
 import { isLocalDate, isLocalTime, isValidTimeZone, toLocalDateTime, zonedDateTimeToUtcIso } from '../../core/time';
 import {
   DEFAULT_MEETING_DURATION_MINUTES,
@@ -34,6 +45,15 @@ export const INTENSITY_CHOICES = ['default', 'max', 'medium', 'light'] as const;
 export type IntensityChoice = (typeof INTENSITY_CHOICES)[number];
 
 export const DURATION_OPTIONS: readonly number[] = [15, 30, 45, 60, 90, 120];
+
+export const REPEAT_CHOICES = ['none', 'daily', 'weekly', 'monthly'] as const;
+export type RepeatChoice = (typeof REPEAT_CHOICES)[number];
+
+export const REPEAT_END_CHOICES = ['never', 'onDate', 'afterCount'] as const;
+export type RepeatEndChoice = (typeof REPEAT_END_CHOICES)[number];
+
+export const MAX_REPEAT_INTERVAL = AI_LIMITS.maxRecurrenceInterval;
+export const MAX_REPEAT_COUNT = AI_LIMITS.maxRecurrenceCount;
 
 const MAX_TITLE = 200;
 const MAX_DESCRIPTION = 4000;
@@ -76,6 +96,17 @@ export interface MeetingFormDraft {
   alertTimes: number[];
   alertIntensity: IntensityChoice;
   notes: string;
+  /** Recurrence (§16). 'none' = a one-off meeting; the other repeat fields are then ignored. */
+  repeat: RepeatChoice;
+  /** Free-text "every N" (validated 1..99). */
+  repeatInterval: string;
+  /** Weekly only. Empty = the meeting's own weekday. */
+  repeatWeekdays: RecurrenceWeekday[];
+  repeatEnd: RepeatEndChoice;
+  /** "YYYY-MM-DD" (inclusive last day, meeting zone) when repeatEnd is 'onDate'. */
+  repeatUntilDate: string;
+  /** Total occurrences (validated 1..730) when repeatEnd is 'afterCount'. */
+  repeatCount: string;
 }
 
 export type MeetingFormField =
@@ -91,7 +122,10 @@ export type MeetingFormField =
   | 'tips'
   | 'alertTimes'
   | 'notes'
-  | 'timezone';
+  | 'timezone'
+  | 'repeatInterval'
+  | 'repeatUntil'
+  | 'repeatCount';
 
 /** Field -> i18n key of the problem ("meetings:form.errors.<key>"). */
 export type MeetingFormErrors = Partial<Record<MeetingFormField, string>>;
@@ -138,12 +172,19 @@ export function newMeetingDraft(options: {
     alertTimes: [...(options.defaultAlertTimes ?? [])],
     alertIntensity: 'default',
     notes: '',
+    repeat: 'none',
+    repeatInterval: '1',
+    repeatWeekdays: [],
+    repeatEnd: 'never',
+    repeatUntilDate: '',
+    repeatCount: '',
   };
 }
 
 export function draftFromMeeting(meeting: Meeting, options: { fallbackTimeZone: string; defaultAlertTimes?: readonly number[] }): MeetingFormDraft {
   const timezone = isValidTimeZone(meeting.timezone) ? meeting.timezone : options.fallbackTimeZone;
   const local = meeting.allDay ? { date: meeting.date, time: '09:00' } : toLocalDateTime(meeting.startAt, timezone);
+  const rule = meeting.recurrence;
   return {
     title: meeting.title,
     description: meeting.description,
@@ -164,6 +205,13 @@ export function draftFromMeeting(meeting: Meeting, options: { fallbackTimeZone: 
     alertTimes: [...(meeting.customAlertTimes ?? options.defaultAlertTimes ?? [])],
     alertIntensity: meeting.alertIntensity ?? 'default',
     notes: meeting.notes ?? '',
+    repeat: rule === null ? 'none' : rule.freq,
+    repeatInterval: String(rule?.interval ?? 1),
+    repeatWeekdays: rule?.byWeekday ? [...rule.byWeekday] : [],
+    repeatEnd: rule === null || (rule.until === null && rule.count === null) ? 'never' : rule.until !== null ? 'onDate' : 'afterCount',
+    // The stored `until` is an inclusive instant; the form edits its local calendar day.
+    repeatUntilDate: rule?.until != null ? toLocalDateTime(rule.until, timezone).date : '',
+    repeatCount: rule?.count != null ? String(rule.count) : '',
   };
 }
 
@@ -184,6 +232,70 @@ export function parseTips(text: string): string[] {
 
 function participantRows(draft: MeetingFormDraft): ParticipantDraft[] {
   return draft.participants.filter((row) => row.email.trim() !== '' || row.name.trim() !== '');
+}
+
+// ---------------------------------------------------------------------------------------------
+// Recurrence
+// ---------------------------------------------------------------------------------------------
+
+/** Parsed "repeat every N" (null when it is not a whole number in 1..99). */
+export function parsedRepeatInterval(draft: Pick<MeetingFormDraft, 'repeatInterval'>): number | null {
+  const value = Number(draft.repeatInterval.trim());
+  return Number.isInteger(value) && value >= 1 && value <= MAX_REPEAT_INTERVAL ? value : null;
+}
+
+/** Parsed "after N times" (null when it is not a whole number in 1..730). */
+export function parsedRepeatCount(draft: Pick<MeetingFormDraft, 'repeatCount'>): number | null {
+  const value = Number(draft.repeatCount.trim());
+  return Number.isInteger(value) && value >= 1 && value <= MAX_REPEAT_COUNT ? value : null;
+}
+
+/** Weekday chips in MO..SU order; toggling the last selected day leaves the meeting's own weekday. */
+export function toggleRepeatWeekday(selected: readonly RecurrenceWeekday[], code: RecurrenceWeekday): RecurrenceWeekday[] {
+  const next = selected.includes(code) ? selected.filter((day) => day !== code) : [...selected, code];
+  return RECURRENCE_WEEKDAYS.filter((day) => next.includes(day));
+}
+
+/** The day of month a monthly rule fires on (an imported byMonthDay wins over the meeting's day). */
+export function monthlyRepeatDay(draft: Pick<MeetingFormDraft, 'date'>, existing: RecurrenceRule | null): number {
+  if (existing !== null && existing.freq === 'monthly' && existing.byMonthDay !== null) return existing.byMonthDay;
+  return isLocalDate(draft.date) ? Number(draft.date.slice(8, 10)) : 1;
+}
+
+/**
+ * The draft's recurrence rule (null for 'none'). `existing` (the edited meeting's stored rule)
+ * keeps values the form does not edit: an imported `byMonthDay`, and the exact `until` instant
+ * when its local day is unchanged (so re-saving an untouched form never produces a patch).
+ * Invalid repeat inputs fall back to safe values; validateMeetingDraft reports them.
+ */
+export function recurrenceRuleOf(draft: MeetingFormDraft, existing: RecurrenceRule | null = null): RecurrenceRule | null {
+  if (draft.repeat === 'none') return null;
+  const freq = draft.repeat;
+  let until: string | null = null;
+  let count: number | null = null;
+  if (draft.repeatEnd === 'onDate' && isLocalDate(draft.repeatUntilDate) && isValidTimeZone(draft.timezone)) {
+    const sameDay = existing?.until != null && toLocalDateTime(existing.until, draft.timezone).date === draft.repeatUntilDate;
+    until = sameDay && existing !== null && existing.until !== null
+      ? existing.until
+      : zonedDateTimeToUtcIso(draft.repeatUntilDate, '23:59', draft.timezone);
+  } else if (draft.repeatEnd === 'afterCount') {
+    count = parsedRepeatCount(draft) ?? 1;
+  }
+  const rule: RecurrenceRule = {
+    freq,
+    interval: parsedRepeatInterval(draft) ?? 1,
+    byWeekday: freq === 'weekly' && draft.repeatWeekdays.length > 0 ? [...draft.repeatWeekdays] : null,
+    byMonthDay: freq === 'monthly' && existing !== null && existing.freq === 'monthly' ? existing.byMonthDay : null,
+    until,
+    count,
+  };
+  const checked = recurrenceRuleSchema.safeParse(rule);
+  return checked.success ? checked.data : rule;
+}
+
+/** Preselects the meeting's own weekday when the user switches a draft to weekly. */
+export function defaultRepeatWeekdays(draft: Pick<MeetingFormDraft, 'date'>): RecurrenceWeekday[] {
+  return isLocalDate(draft.date) ? [weekdayOfLocalDate(draft.date)] : [];
 }
 
 export function validateMeetingDraft(draft: MeetingFormDraft): MeetingFormErrors {
@@ -214,6 +326,13 @@ export function validateMeetingDraft(draft: MeetingFormDraft): MeetingFormErrors
   const tips = parseTips(draft.tipsText);
   if (tips.length > MAX_TIPS || tips.some((tip) => tip.length > MAX_TIP_CHARS)) errors.tips = 'tooManyTips';
   if (draft.customAlerts && draft.alertTimes.length === 0) errors.alertTimes = 'alertTimesRequired';
+  if (draft.repeat !== 'none') {
+    if (parsedRepeatInterval(draft) === null) errors.repeatInterval = 'invalidRepeatInterval';
+    if (draft.repeatEnd === 'onDate' && (!isLocalDate(draft.repeatUntilDate) || draft.repeatUntilDate < draft.date)) {
+      errors.repeatUntil = 'invalidRepeatUntil';
+    }
+    if (draft.repeatEnd === 'afterCount' && parsedRepeatCount(draft) === null) errors.repeatCount = 'invalidRepeatCount';
+  }
   return errors;
 }
 
@@ -300,6 +419,7 @@ export function draftToCreateInput(draft: MeetingFormDraft): MeetingCreateInput 
     customAlertTimes: alertTimesOf(draft),
     alertIntensity: intensityOf(draft),
     notes: notes === '' ? null : notes,
+    recurrence: recurrenceRuleOf(draft),
   };
 }
 
@@ -336,6 +456,8 @@ export function draftToPatch(meeting: Meeting, draft: MeetingFormDraft): Meeting
   const notes = draft.notes.trim();
   const nextNotes = notes === '' ? null : notes;
   if (nextNotes !== meeting.notes) patch.notes = nextNotes;
+  const recurrence = recurrenceRuleOf(draft, meeting.recurrence);
+  if (!same(recurrence, meeting.recurrence)) patch.recurrence = recurrence;
   return patch;
 }
 

@@ -1,17 +1,32 @@
 import { AppError } from '../../../core/errors';
-import { NOW, bulkAction, createTestFormatter, createTranslator, makeDraft, makeMeeting, shareAction, usage } from '../__fixtures__/aiTestKit';
+import {
+  NOW,
+  bulkAction,
+  createTestFormatter,
+  createTranslator,
+  deleteAction,
+  makeDraft,
+  makeMeeting,
+  shareAction,
+  updateAction,
+  usage,
+} from '../__fixtures__/aiTestKit';
 import {
   buildMailtoUrl,
   buildShareContent,
   computeUpdateDiff,
   describeAssistantError,
   describeBulk,
+  describeChangeRows,
   describeDraft,
+  describeMeeting,
   describeResult,
+  describeScopeRow,
   describeShare,
   describeUsage,
   describeWarnings,
   formatShift,
+  isOccurrenceDelete,
 } from '../presentation';
 
 const fmt = createTestFormatter();
@@ -207,5 +222,68 @@ describe('translator coverage', () => {
     }
     expect(en.missing).toEqual([]);
     expect(es.missing).toEqual([]);
+  });
+});
+
+describe('recurrence on the cards (v2)', () => {
+  const rule = { freq: 'weekly' as const, interval: 1, byWeekday: ['MO' as const], byMonthDay: null, until: null, count: null };
+
+  it('adds a repeats row to create drafts and to existing-meeting rows', () => {
+    const draftRows = describeDraft(fmt, makeDraft({ startAt: '2030-03-11T09:00:00.000Z', recurrence: rule }));
+    const draftByField = Object.fromEntries(draftRows.map((r) => [r.field, r.value]));
+    expect(draftByField.repeats).toBe('Repeats weekly on Monday');
+
+    const meetingRows = describeMeeting(fmt, makeMeeting('series', { recurrence: rule }));
+    const meetingByField = Object.fromEntries(meetingRows.map((r) => [r.field, r.value]));
+    expect(meetingByField.repeats).toBe('Repeats weekly on Monday');
+
+    // One-off drafts show no repeats row.
+    expect(describeDraft(fmt, makeDraft()).some((r) => r.field === 'repeats')).toBe(false);
+  });
+
+  it('diffs a rule change and a rule removal', () => {
+    const meeting = makeMeeting('series', { recurrence: rule });
+    const changed = computeUpdateDiff(fmt, meeting, {
+      recurrence: { ...rule, freq: 'daily', byWeekday: null, interval: 2 },
+    });
+    expect(changed).toEqual([
+      expect.objectContaining({ field: 'repeats', before: 'Repeats weekly on Monday', after: 'Repeats every 2 days' }),
+    ]);
+
+    const removed = computeUpdateDiff(fmt, meeting, { recurrence: null });
+    expect(removed).toEqual([expect.objectContaining({ field: 'repeats', after: 'Does not repeat' })]);
+
+    // Change rows without the meeting loaded still name the new rule.
+    const rows = describeChangeRows(fmt, { recurrence: { ...rule, count: 5 } });
+    expect(rows).toEqual([expect.objectContaining({ field: 'repeats', value: 'Repeats weekly on Monday, 5 times in total' })]);
+  });
+
+  it('spells out the scope of update/delete actions on recurring meetings', () => {
+    const meeting = makeMeeting('series', { recurrence: rule });
+    const occurrenceUpdate = {
+      ...updateAction('a1', 'series', { title: 'x' }),
+      scope: 'occurrence' as const,
+      occurrenceDate: '2030-03-18',
+    };
+    expect(describeScopeRow(fmt, occurrenceUpdate, meeting)).toEqual(
+      expect.objectContaining({ field: 'scope', value: 'Only the occurrence on 2030-03-18' }),
+    );
+    // A recurring target without a scope means the whole series - say so.
+    expect(describeScopeRow(fmt, deleteAction('a2', 'series'), meeting)).toEqual(
+      expect.objectContaining({ value: 'The whole repeating series' }),
+    );
+    // One-off meetings get no scope row.
+    expect(describeScopeRow(fmt, deleteAction('a3', 'single'), makeMeeting('single'))).toBeNull();
+
+    const occurrenceDelete = { ...deleteAction('a4', 'series'), scope: 'occurrence' as const, occurrenceDate: '2030-03-18' };
+    expect(isOccurrenceDelete(occurrenceDelete, meeting)).toBe(true);
+    expect(isOccurrenceDelete(occurrenceDelete, makeMeeting('single'))).toBe(false);
+    expect(isOccurrenceDelete(deleteAction('a5', 'series'), meeting)).toBe(false);
+  });
+
+  it('reads naturally in Spanish', () => {
+    const rows = describeDraft(fmtEs, makeDraft({ recurrence: { ...rule, until: '2030-06-30T21:59:00.000Z' } }));
+    const byField = Object.fromEntries(rows.map((r) => [r.field, r.value]));
+    expect(byField.repeats).toBe('Se repite cada semana los lunes, hasta el 2030-06-30');
   });
 });

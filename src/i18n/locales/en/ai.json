@@ -119,7 +119,8 @@
     "affected_other": "{{count}} meetings",
     "skippedAllDay": "All-day meeting: it can only move by whole days, so it will be left as is.",
     "a11yBefore": "Before: {{value}}",
-    "a11yAfter": "After: {{value}}"
+    "a11yAfter": "After: {{value}}",
+    "deleteOccurrenceWarning": "Only this occurrence is removed. The rest of the series stays."
   },
   "fields": {
     "title": "Title",
@@ -131,7 +132,9 @@
     "participants": "Participants",
     "tips": "Preparation tips",
     "alerts": "Alerts",
-    "language": "Language"
+    "language": "Language",
+    "repeats": "Repeats",
+    "scope": "Applies to"
   },
   "values": {
     "none": "None",
@@ -217,5 +220,30 @@
     "medium": "Medium",
     "low": "Low",
     "a11y": "AI confidence {{value}}% ({{level}})"
+  },
+  "recurrence": {
+    "none": "Does not repeat",
+    "daily_one": "Repeats daily",
+    "daily_other": "Repeats every {{count}} days",
+    "weekly_one": "Repeats weekly",
+    "weekly_other": "Repeats every {{count}} weeks",
+    "monthly_one": "Repeats monthly",
+    "monthly_other": "Repeats every {{count}} months",
+    "onWeekdays": "{{rule}} on {{days}}",
+    "onMonthDay": "{{rule}} on day {{day}}",
+    "untilDate": "{{rule}}, until {{date}}",
+    "forTimes_one": "{{rule}}, {{count}} time in total",
+    "forTimes_other": "{{rule}}, {{count}} times in total",
+    "weekday": {
+      "MO": "Monday",
+      "TU": "Tuesday",
+      "WE": "Wednesday",
+      "TH": "Thursday",
+      "FR": "Friday",
+      "SA": "Saturday",
+      "SU": "Sunday"
+    },
+    "scopeOccurrence": "Only the occurrence on {{date}}",
+    "scopeSeries": "The whole repeating series"
   }
 }

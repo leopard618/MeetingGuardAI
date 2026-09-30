@@ -17,7 +17,10 @@ import {
   type Language,
   type MeetingLocation,
   type Plan,
+  type RecurrenceRule,
   type ShareMeetingAction,
+  type UpdateMeetingAction,
+  type DeleteMeetingAction,
 } from '../../core/aiContract';
 import type { ActionResult, ActionWarning } from '../../core/contracts';
 import { AppError, isAppError, type AppErrorCode } from '../../core/errors';
@@ -25,6 +28,7 @@ import type { Meeting } from '../../core/types';
 
 import { quotaUsageFromError } from './assistantClient';
 import { draftLocalDate, shiftedStartAt, windowAfterChanges } from './mapping';
+import { recurrenceScopeText, recurrenceSummary } from './recurrenceText';
 import type { AiActionPreview, AiActionResult, AssistantFormatter } from './types';
 
 // ---------------------------------------------------------------------------------------------
@@ -41,7 +45,9 @@ export type MeetingField =
   | 'participants'
   | 'tips'
   | 'alerts'
-  | 'language';
+  | 'language'
+  | 'repeats'
+  | 'scope';
 
 export interface DetailRow {
   field: MeetingField;
@@ -127,6 +133,19 @@ function formatDescription(fmt: AssistantFormatter, description: string): string
   return description.trim() === '' ? fmt.t('ai:values.none') : truncate(description.trim(), DESCRIPTION_PREVIEW_CHARS);
 }
 
+/** "Repeats every 2 weeks on Monday, until <date>" / "Does not repeat" (rule null). */
+export function formatRecurrence(
+  fmt: AssistantFormatter,
+  rule: RecurrenceRule | null,
+  context: { anchorDate?: string | null; timezone?: string | null },
+): string {
+  return recurrenceSummary(fmt.t, rule, {
+    formatDate: (localDate) => fmt.date(localDate),
+    anchorDate: context.anchorDate ?? null,
+    timezone: context.timezone ?? fmt.timeZone,
+  });
+}
+
 // ---------------------------------------------------------------------------------------------
 // Cards
 // ---------------------------------------------------------------------------------------------
@@ -138,6 +157,13 @@ export function describeDraft(fmt: AssistantFormatter, draft: AiMeetingDraft): D
     { field: 'when', label: fieldLabel(fmt, 'when'), value: formatWhen(fmt, draft) },
     { field: 'duration', label: fieldLabel(fmt, 'duration'), value: draft.allDay ? fmt.t('ai:values.allDay') : fmt.duration(draft.durationMinutes) },
   ];
+  if (draft.recurrence != null) {
+    rows.push({
+      field: 'repeats',
+      label: fieldLabel(fmt, 'repeats'),
+      value: formatRecurrence(fmt, draft.recurrence, { anchorDate: draftLocalDate(draft), timezone: draft.timezone }),
+    });
+  }
   if (draft.location) rows.push({ field: 'location', label: fieldLabel(fmt, 'location'), value: formatLocation(fmt, draft.location) });
   if (draft.conference) rows.push({ field: 'conference', label: fieldLabel(fmt, 'conference'), value: formatConference(fmt, draft.conference) });
   if (draft.participants.length > 0) {
@@ -157,6 +183,13 @@ export function describeMeeting(fmt: AssistantFormatter, meeting: Meeting): Deta
     { field: 'title', label: fieldLabel(fmt, 'title'), value: meeting.title },
     { field: 'when', label: fieldLabel(fmt, 'when'), value: formatWhen(fmt, meeting) },
   ];
+  if (meeting.recurrence !== null) {
+    rows.push({
+      field: 'repeats',
+      label: fieldLabel(fmt, 'repeats'),
+      value: formatRecurrence(fmt, meeting.recurrence, { anchorDate: meeting.date, timezone: meeting.timezone }),
+    });
+  }
   if (meeting.location) rows.push({ field: 'location', label: fieldLabel(fmt, 'location'), value: formatLocation(fmt, meeting.location) });
   if (meeting.conference) rows.push({ field: 'conference', label: fieldLabel(fmt, 'conference'), value: formatConference(fmt, meeting.conference) });
   if (meeting.participants.length > 0) {
@@ -198,6 +231,10 @@ export function computeUpdateDiff(fmt: AssistantFormatter, meeting: Meeting, cha
     push('alerts', formatAlertTimes(fmt, meeting.customAlertTimes), formatAlertTimes(fmt, changes.customAlertTimes));
   }
   if (changes.language !== undefined) push('language', formatLanguage(fmt, meeting.language), formatLanguage(fmt, changes.language));
+  if (changes.recurrence !== undefined) {
+    const context = { anchorDate: meeting.date, timezone: meeting.timezone };
+    push('repeats', formatRecurrence(fmt, meeting.recurrence, context), formatRecurrence(fmt, changes.recurrence, context));
+  }
   return rows;
 }
 
@@ -248,10 +285,37 @@ export function describeChangeRows(fmt: AssistantFormatter, changes: AiMeetingCh
   if (changes.preparationTips !== undefined) add('tips', formatTips(fmt, changes.preparationTips));
   if (changes.customAlertTimes !== undefined) add('alerts', formatAlertTimes(fmt, changes.customAlertTimes));
   if (changes.language !== undefined) add('language', formatLanguage(fmt, changes.language));
+  if (changes.recurrence !== undefined) {
+    add('repeats', formatRecurrence(fmt, changes.recurrence, { timezone: changes.timezone ?? null }));
+  }
   if (changes.timezone !== undefined && changes.startAt === undefined) {
     rows.push({ field: 'when', label: fieldLabel(fmt, 'when'), value: fmt.t('ai:values.timezoneChange', { zone: changes.timezone }) });
   }
   return rows;
+}
+
+/**
+ * The "Applies to" row of an update/delete card: "Only the occurrence on <date>" for scoped
+ * actions, "The whole repeating series" when the target repeats, null for plain one-off actions.
+ */
+export function describeScopeRow(
+  fmt: AssistantFormatter,
+  action: UpdateMeetingAction | DeleteMeetingAction,
+  targetMeeting: Meeting | null,
+): DetailRow | null {
+  const value = recurrenceScopeText(fmt.t, {
+    scope: action.scope,
+    occurrenceDate: action.occurrenceDate ?? null,
+    targetRecurring: targetMeeting !== null && targetMeeting.recurrence !== null,
+    formatDate: (localDate) => fmt.date(localDate),
+  });
+  if (value === null) return null;
+  return { field: 'scope', label: fieldLabel(fmt, 'scope'), value };
+}
+
+/** True when a delete action removes one occurrence, not the meeting (softer card copy). */
+export function isOccurrenceDelete(action: DeleteMeetingAction, targetMeeting: Meeting | null): boolean {
+  return action.scope === 'occurrence' && action.occurrenceDate != null && targetMeeting?.recurrence != null;
 }
 
 export function describeBulk(fmt: AssistantFormatter, action: BulkUpdateAction, meetings: readonly Meeting[]): BulkDescription {

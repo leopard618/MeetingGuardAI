@@ -35,6 +35,7 @@ export function draftToCreateInput(draft: AiMeetingDraft, confidence: number): M
     language: draft.language,
     source: 'ai_chat',
     confidence,
+    recurrence: draft.recurrence ?? null,
   };
 }
 
@@ -56,6 +57,17 @@ export function changesToPatch(changes: AiMeetingChanges, current?: Meeting | nu
   if (changes.preparationTips !== undefined) patch.preparationTips = changes.preparationTips;
   if (changes.customAlertTimes !== undefined) patch.customAlertTimes = changes.customAlertTimes;
   if (changes.language !== undefined) patch.language = changes.language;
+  // v2: a rule (or null = stop repeating). applyMeetingPatch also clears the overrides with it.
+  if (changes.recurrence !== undefined) patch.recurrence = changes.recurrence;
+  return patch;
+}
+
+/** The occurrence-scope subset of an update's changes (contract OCCURRENCE_CHANGE_KEYS). */
+export function occurrencePatchOf(changes: AiMeetingChanges): Pick<MeetingPatch, 'startAt' | 'durationMinutes' | 'title'> {
+  const patch: Pick<MeetingPatch, 'startAt' | 'durationMinutes' | 'title'> = {};
+  if (changes.startAt !== undefined) patch.startAt = changes.startAt;
+  if (changes.durationMinutes !== undefined) patch.durationMinutes = changes.durationMinutes;
+  if (changes.title !== undefined) patch.title = changes.title;
   return patch;
 }
 

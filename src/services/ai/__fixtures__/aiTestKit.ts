@@ -69,6 +69,7 @@ export function createTestFormatter(options: { language?: 'en' | 'es'; timeZone?
     meetingTime: (m) => (m.allDay ? `${m.date} (all day)` : `${m.startAt.slice(0, 16)}Z+${m.durationMinutes}m`),
     duration: (minutes) => `${minutes} min`,
     dateTime: (value) => value.slice(0, 16),
+    date: (value) => value.slice(0, 10),
     time: (value) => value.slice(11, 16),
     relative: (value) => `at ${value}`,
   };

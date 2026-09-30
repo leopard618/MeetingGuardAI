@@ -253,3 +253,54 @@ it('opens the new meeting after a create without asking to discard', async () =>
   expect(Alert.alert).not.toHaveBeenCalled();
   expect(await screen.findByTestId('details')).toBeTruthy();
 });
+
+
+it('creates a weekly meeting through the repeat picker (own weekday preselected)', async () => {
+  mockCreate.mockImplementation(async (input: unknown) => meeting(input as Partial<Parameters<typeof buildMeeting>[0]>));
+  await renderForm('CreateMeeting');
+  await act(async () => {
+    fireEvent.changeText(screen.getByTestId('meeting-form-title'), 'Standup');
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('meeting-form-repeat-weekly'));
+  });
+  // The meeting's own weekday chip is preselected and the summary describes the rule.
+  expect(screen.getByTestId('meeting-form-repeat-summary').props.children).toMatch(/^Repeats weekly on /);
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('meeting-form-repeat-end-afterCount'));
+  });
+  await act(async () => {
+    fireEvent.changeText(screen.getByTestId('meeting-form-repeat-count'), '8');
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('meeting-form-save'));
+  });
+  expect(mockCreate).toHaveBeenCalledTimes(1);
+  const input = mockCreate.mock.calls[0]![0] as { recurrence: unknown };
+  expect(input.recurrence).toMatchObject({ freq: 'weekly', interval: 1, count: 8, until: null });
+});
+
+it('rejects an invalid repeat interval instead of saving', async () => {
+  await renderForm('CreateMeeting');
+  await act(async () => {
+    fireEvent.changeText(screen.getByTestId('meeting-form-title'), 'Standup');
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('meeting-form-repeat-daily'));
+  });
+  await act(async () => {
+    fireEvent.changeText(screen.getByTestId('meeting-form-repeat-interval'), '0');
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('meeting-form-save'));
+  });
+  expect(mockCreate).not.toHaveBeenCalled();
+  expect(screen.getByText('Enter how often it repeats (1–99).')).toBeTruthy();
+});
+
+it('notes that editing a recurring meeting changes the whole series', async () => {
+  mockMeeting = meeting({ recurrence: { freq: 'daily', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null } });
+  await renderForm('EditMeeting');
+  expect(screen.getByTestId('meeting-form-series-note')).toBeTruthy();
+  expect(screen.getByTestId('meeting-form-repeat-summary').props.children).toBe('Repeats daily');
+});

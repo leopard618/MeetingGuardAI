@@ -39,7 +39,13 @@
     "deleteMessageGoogle": "The meeting and its alerts are removed. If Google Calendar sync is on, the event is also deleted from Google Calendar and guests are notified.",
     "deleteMessageDevice": "The meeting and its alerts are removed from MeetingGuard. Your device calendar keeps its event.",
     "deleted": "Meeting deleted.",
-    "deletedDeviceNote": "Your device calendar still has the event."
+    "deletedDeviceNote": "Your device calendar still has the event.",
+    "repeats": "Repeats",
+    "repeatsNext": "Next occurrences",
+    "repeatsNone": "No upcoming occurrences.",
+    "occurrenceModified": "edited",
+    "deleteMessageSeries": "This meeting repeats: the whole series and its alerts will be deleted.",
+    "deleteMessageSeriesGoogle": "This meeting repeats: the whole series and its alerts will be deleted. If Google Calendar sync is on, the series is also removed from Google Calendar and guests are notified."
   },
   "form": {
     "title": "Title",
@@ -106,7 +112,50 @@
       "tooMany": "A meeting can have up to 100 participants.",
       "invalidEmail": "Check the participants' email addresses.",
       "tooManyTips": "Up to 20 tips of at most 300 characters each.",
-      "alertTimesRequired": "Choose at least one reminder time, or use your defaults."
+      "alertTimesRequired": "Choose at least one reminder time, or use your defaults.",
+      "invalidRepeatInterval": "Enter how often it repeats (1–99).",
+      "invalidRepeatUntil": "Pick a last day on or after the first meeting.",
+      "invalidRepeatCount": "Enter how many times it repeats (1–730)."
+    },
+    "repeat": {
+      "title": "Repeat",
+      "choice": {
+        "none": "Does not repeat",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly"
+      },
+      "everyLabel": "Repeat every",
+      "intervalInput": "How often it repeats",
+      "unit": {
+        "daily_one": "day",
+        "daily_other": "days",
+        "weekly_one": "week",
+        "weekly_other": "weeks",
+        "monthly_one": "month",
+        "monthly_other": "months"
+      },
+      "weekdaysLabel": "On these days",
+      "weekdayShort": {
+        "MO": "Mon",
+        "TU": "Tue",
+        "WE": "Wed",
+        "TH": "Thu",
+        "FR": "Fri",
+        "SA": "Sat",
+        "SU": "Sun"
+      },
+      "monthDayNote": "On day {{day}} of each month. Months without that day are skipped.",
+      "endsLabel": "Ends",
+      "end": {
+        "never": "Never",
+        "onDate": "On a date",
+        "afterCount": "After a number of times"
+      },
+      "pickUntilDate": "Pick the last day",
+      "untilOn": "Last day: {{date}}",
+      "countLabel": "Number of times (1–730)",
+      "seriesNote": "This meeting repeats. Changes saved here apply to the whole series."
     }
   },
   "list": {
@@ -166,12 +215,31 @@
       "meetings": "Your meetings could not be refreshed",
       "calendars": "Your calendars could not be synced",
       "google": "Google Calendar could not be synced",
-      "device": "Your device calendars could not be synced"
-    }
+      "device": "Your device calendars could not be synced",
+      "outlook": "Outlook could not be synced"
+    },
+    "repeats": "Repeats"
   },
   "actions": {
     "open": "Open details",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "scopeDeleteTitle": "Delete repeating meeting",
+    "scopeEditTitle": "Edit repeating meeting",
+    "scopeDeleteMessage": "“{{title}}” repeats. Delete only the occurrence on {{date}}, or the whole series?",
+    "scopeEditMessage": "“{{title}}” repeats. Edit only the occurrence on {{date}}, or the whole series?",
+    "scopeThisOnly": "This meeting only",
+    "scopeWholeSeries": "The whole series",
+    "occurrenceDeleted": "This occurrence was removed from the series."
+  },
+  "occurrence": {
+    "editTitle": "Edit this occurrence",
+    "editSubtitle": "Only {{date}} changes. The rest of the series stays the same.",
+    "titleLabel": "Title",
+    "dateLabel": "Date",
+    "timeLabel": "Time",
+    "durationLabel": "Duration",
+    "updated": "Occurrence updated.",
+    "invalid": "Check the occurrence's title, date and time."
   }
 }
