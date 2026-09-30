@@ -1,35 +1,32 @@
 /** Loading / "meeting not found" state of the meeting screens (deep links can outrun the sync). */
 import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { ActivityIndicator, Text } from 'react-native-paper';
 
+import { EmptyState } from '../../components/ui';
 import { useT } from '../../i18n';
 import { navigateToTopLevel } from '../../navigation/navigationService';
+import { spacing, useAppTheme } from '../../theme';
 
 export function MeetingStatus({ loading }: { loading: boolean }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   return (
-    <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.centered, { backgroundColor: colors.background }]}>
       {loading ? (
         <>
           <ActivityIndicator size="large" />
-          <Text variant="bodyMedium" style={styles.statusText}>
+          <Text variant="bodyMedium" style={[styles.statusText, { color: colors.onSurfaceVariant }]}>
             {t('navigation:meeting.loading')}
           </Text>
         </>
       ) : (
-        <>
-          <Text variant="titleMedium" style={styles.statusText} accessibilityRole="header">
-            {t('navigation:meeting.notFoundTitle')}
-          </Text>
-          <Text variant="bodyMedium" style={styles.statusText}>
-            {t('navigation:meeting.notFoundMessage')}
-          </Text>
-          <Button mode="contained" style={styles.statusButton} onPress={() => navigateToTopLevel('Dashboard')}>
-            {t('navigation:meeting.backToDashboard')}
-          </Button>
-        </>
+        <EmptyState
+          icon="calendar-remove-outline"
+          title={t('navigation:meeting.notFoundTitle')}
+          body={t('navigation:meeting.notFoundMessage')}
+          action={{ label: t('navigation:meeting.backToDashboard'), onPress: () => navigateToTopLevel('Dashboard') }}
+        />
       )}
     </View>
   );
@@ -40,13 +37,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: spacing.xxxl,
   },
   statusText: {
-    marginTop: 12,
+    marginTop: spacing.md,
     textAlign: 'center',
-  },
-  statusButton: {
-    marginTop: 20,
   },
 });

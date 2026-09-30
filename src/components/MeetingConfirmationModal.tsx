@@ -14,14 +14,13 @@ import { useMemo, type ReactElement } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '../contexts/ThemeContext';
+import { SheetHandle } from './ui';
 import type { AiAction } from '../core/aiContract';
 import type { ProposedActionState } from '../core/contracts';
 import { useLanguage, useT } from '../i18n';
 import { createAssistantFormatter } from '../services/ai/formatter';
 import {
   actionIconName,
-  assistantPalette,
   computeUpdateDiff,
   deleteWarningKey,
   describeBulk,
@@ -32,11 +31,11 @@ import {
   describeShare,
   describeWarnings,
   isDestructiveAction,
-  type AssistantPalette,
   type DetailRow,
   type DiffRow,
 } from '../services/ai/presentation';
 import type { AiActionPreview, AssistantFormatter } from '../services/ai/types';
+import { componentMetrics, pressedOpacity, radii, spacing, typography, useAppTheme, type MGColors } from '../theme';
 import { ConfidenceBadge } from './ConfidenceBadge';
 
 function previewOf(state: ProposedActionState): AiActionPreview | null {
@@ -70,13 +69,13 @@ export function confirmTitle(fmt: AssistantFormatter, actions: readonly Proposed
   return fmt.t(`ai:confirm.title.${actions[0]?.action.type ?? 'create_meeting'}`);
 }
 
-function DetailRows({ rows, palette }: { rows: DetailRow[]; palette: AssistantPalette }): ReactElement {
+function DetailRows({ rows, colors }: { rows: DetailRow[]; colors: MGColors }): ReactElement {
   return (
     <View style={styles.rows}>
       {rows.map((row, index) => (
         <View key={`${row.field}-${index}`} style={styles.row} accessible accessibilityLabel={`${row.label}: ${row.value}`}>
-          <Text style={[styles.rowLabel, { color: palette.textMuted }]}>{row.label}</Text>
-          <Text style={[styles.rowValue, { color: palette.text }]} selectable>
+          <Text style={[styles.rowLabel, { color: colors.onSurfaceVariant }]}>{row.label}</Text>
+          <Text style={[styles.rowValue, { color: colors.onSurface }]} selectable>
             {row.value}
           </Text>
         </View>
@@ -85,25 +84,25 @@ function DetailRows({ rows, palette }: { rows: DetailRow[]; palette: AssistantPa
   );
 }
 
-function DiffRows({ rows, palette, fmt }: { rows: DiffRow[]; palette: AssistantPalette; fmt: AssistantFormatter }): ReactElement {
+function DiffRows({ rows, colors, fmt }: { rows: DiffRow[]; colors: MGColors; fmt: AssistantFormatter }): ReactElement {
   if (rows.length === 0) {
-    return <Text style={[styles.note, { color: palette.textMuted }]}>{fmt.t('ai:confirm.noChanges')}</Text>;
+    return <Text style={[styles.note, { color: colors.onSurfaceVariant }]}>{fmt.t('ai:confirm.noChanges')}</Text>;
   }
   return (
     <View style={styles.rows}>
       {rows.map((row, index) => (
         <View key={`${row.field}-${index}`} style={styles.row}>
-          <Text style={[styles.rowLabel, { color: palette.textMuted }]}>{row.label}</Text>
+          <Text style={[styles.rowLabel, { color: colors.onSurfaceVariant }]}>{row.label}</Text>
           <Text
-            style={[styles.diffBefore, { color: palette.textMuted }]}
+            style={[styles.diffBefore, { color: colors.onSurfaceVariant }]}
             accessibilityLabel={fmt.t('ai:confirm.a11yBefore', { value: row.before })}
           >
             {row.before}
           </Text>
           <View style={styles.diffAfterRow}>
-            <MaterialCommunityIcons name="arrow-right" size={14} color={palette.success} style={styles.diffArrow} />
+            <MaterialCommunityIcons name="arrow-right" size={14} color={colors.onSurfaceVariant} style={styles.diffArrow} />
             <Text
-              style={[styles.diffAfter, { color: palette.text }]}
+              style={[styles.diffAfter, { color: colors.onSurface }]}
               accessibilityLabel={fmt.t('ai:confirm.a11yAfter', { value: row.after })}
             >
               {row.after}
@@ -115,25 +114,25 @@ function DiffRows({ rows, palette, fmt }: { rows: DiffRow[]; palette: AssistantP
   );
 }
 
-function Warnings({ messages, palette }: { messages: string[]; palette: AssistantPalette }): ReactElement | null {
+function Warnings({ messages, colors }: { messages: string[]; colors: MGColors }): ReactElement | null {
   if (messages.length === 0) return null;
   return (
-    <View style={[styles.notice, { backgroundColor: palette.warningSurface, borderColor: palette.warning }]}>
+    <View style={[styles.notice, { backgroundColor: colors.warningContainer }]}>
       {messages.map((message, index) => (
         <View key={index} style={styles.noticeLine}>
-          <MaterialCommunityIcons name="alert-outline" size={16} color={palette.warning} />
-          <Text style={[styles.noticeText, { color: palette.text }]}>{message}</Text>
+          <MaterialCommunityIcons name="alert-outline" size={16} color={colors.onWarningContainer} />
+          <Text style={[styles.noticeText, { color: colors.onWarningContainer }]}>{message}</Text>
         </View>
       ))}
     </View>
   );
 }
 
-function LoadingDetails({ palette, fmt }: { palette: AssistantPalette; fmt: AssistantFormatter }): ReactElement {
+function LoadingDetails({ colors, fmt }: { colors: MGColors; fmt: AssistantFormatter }): ReactElement {
   return (
     <View style={styles.loading} accessibilityLiveRegion="polite">
-      <ActivityIndicator size="small" color={palette.primary} />
-      <Text style={[styles.note, { color: palette.textMuted }]}>{fmt.t('ai:confirm.loadingDetails')}</Text>
+      <ActivityIndicator size="small" color={colors.primary} />
+      <Text style={[styles.note, { color: colors.onSurfaceVariant }]}>{fmt.t('ai:confirm.loadingDetails')}</Text>
     </View>
   );
 }
@@ -142,45 +141,45 @@ function ShareBody({
   action,
   preview,
   fmt,
-  palette,
+  colors,
 }: {
   action: Extract<AiAction, { type: 'share_meeting' }>;
   preview: AiActionPreview | null;
   fmt: AssistantFormatter;
-  palette: AssistantPalette;
+  colors: MGColors;
 }): ReactElement {
   const meeting = preview?.meetings[0] ?? null;
   const share = describeShare(fmt, action);
   return (
     <>
-      {meeting ? <DetailRows rows={describeMeeting(fmt, meeting)} palette={palette} /> : null}
-      {!preview ? <LoadingDetails palette={palette} fmt={fmt} /> : null}
+      {meeting ? <DetailRows rows={describeMeeting(fmt, meeting)} colors={colors} /> : null}
+      {!preview ? <LoadingDetails colors={colors} fmt={fmt} /> : null}
       <View style={styles.row}>
-        <Text style={[styles.rowLabel, { color: palette.textMuted }]}>{fmt.t('ai:confirm.channel')}</Text>
-        <Text style={[styles.rowValue, { color: palette.text }]}>{share.channel}</Text>
+        <Text style={[styles.rowLabel, { color: colors.onSurfaceVariant }]}>{fmt.t('ai:confirm.channel')}</Text>
+        <Text style={[styles.rowValue, { color: colors.onSurface }]}>{share.channel}</Text>
       </View>
       {share.recipients.length > 0 ? (
         <View style={styles.row}>
-          <Text style={[styles.rowLabel, { color: palette.textMuted }]}>
+          <Text style={[styles.rowLabel, { color: colors.onSurfaceVariant }]}>
             {fmt.t('ai:confirm.recipients', { count: share.recipients.length })}
           </Text>
           <View style={styles.chips}>
             {share.recipients.map((email) => (
-              <View key={email} style={[styles.chip, { backgroundColor: palette.surfaceAlt, borderColor: palette.border }]}>
-                <MaterialCommunityIcons name="email-outline" size={14} color={palette.textMuted} />
-                <Text style={[styles.chipText, { color: palette.text }]} selectable>
+              <View key={email} style={[styles.chip, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.outlineVariant }]}>
+                <MaterialCommunityIcons name="email-outline" size={14} color={colors.onSurfaceVariant} />
+                <Text style={[styles.chipText, { color: colors.onSurface }]} selectable>
                   {email}
                 </Text>
               </View>
             ))}
           </View>
-          <Text style={[styles.note, { color: palette.textMuted }]}>{fmt.t('ai:confirm.emailNote')}</Text>
+          <Text style={[styles.note, { color: colors.onSurfaceVariant }]}>{fmt.t('ai:confirm.emailNote')}</Text>
         </View>
       ) : null}
       {share.message ? (
         <View style={styles.row}>
-          <Text style={[styles.rowLabel, { color: palette.textMuted }]}>{fmt.t('ai:confirm.message')}</Text>
-          <Text style={[styles.quote, { color: palette.text, borderColor: palette.border }]}>{share.message}</Text>
+          <Text style={[styles.rowLabel, { color: colors.onSurfaceVariant }]}>{fmt.t('ai:confirm.message')}</Text>
+          <Text style={[styles.quote, { color: colors.onSurface, borderColor: colors.outlineVariant }]}>{share.message}</Text>
         </View>
       ) : null}
     </>
@@ -191,18 +190,18 @@ function BulkBody({
   action,
   preview,
   fmt,
-  palette,
+  colors,
 }: {
   action: Extract<AiAction, { type: 'bulk_update' }>;
   preview: AiActionPreview | null;
   fmt: AssistantFormatter;
-  palette: AssistantPalette;
+  colors: MGColors;
 }): ReactElement {
   if (!preview) {
     return (
       <>
-        {action.changes ? <DetailRows rows={describeChangeRows(fmt, action.changes)} palette={palette} /> : null}
-        <LoadingDetails palette={palette} fmt={fmt} />
+        {action.changes ? <DetailRows rows={describeChangeRows(fmt, action.changes)} colors={colors} /> : null}
+        <LoadingDetails colors={colors} fmt={fmt} />
       </>
     );
   }
@@ -210,35 +209,37 @@ function BulkBody({
   return (
     <>
       {bulk.changes.map((line, index) => (
-        <Text key={index} style={[styles.bulkChange, { color: palette.text }]}>
+        <Text key={index} style={[styles.bulkChange, { color: colors.onSurface }]}>
           {line}
         </Text>
       ))}
-      <Text style={[styles.rowLabel, styles.spaced, { color: palette.textMuted }]}>
+      <Text style={[styles.rowLabel, styles.spaced, { color: colors.onSurfaceVariant }]}>
         {fmt.t('ai:confirm.affected', { count: bulk.items.length })}
       </Text>
       {bulk.items.map((item) => (
-        <View key={item.meetingId} style={[styles.bulkItem, { borderColor: palette.border }]}>
-          <Text style={[styles.bulkTitle, { color: palette.text }]}>{item.title}</Text>
+        <View key={item.meetingId} style={[styles.bulkItem, { borderColor: colors.outlineVariant }]}>
+          <Text style={[styles.bulkTitle, { color: colors.onSurface }]}>{item.title}</Text>
           {item.after ? (
             <>
               <Text
-                style={[styles.diffBefore, { color: palette.textMuted }]}
+                style={[styles.diffBefore, { color: colors.onSurfaceVariant }]}
                 accessibilityLabel={fmt.t('ai:confirm.a11yBefore', { value: item.before })}
               >
                 {item.before}
               </Text>
               <Text
-                style={[styles.diffAfter, { color: palette.text }]}
+                style={[styles.diffAfter, { color: colors.onSurface }]}
                 accessibilityLabel={fmt.t('ai:confirm.a11yAfter', { value: item.after })}
               >
                 {item.after}
               </Text>
             </>
           ) : (
-            <Text style={[styles.note, { color: palette.textMuted }]}>{item.before}</Text>
+            <Text style={[styles.note, { color: colors.onSurfaceVariant }]}>{item.before}</Text>
           )}
-          {item.skipped ? <Text style={[styles.note, { color: palette.warning }]}>{fmt.t('ai:confirm.skippedAllDay')}</Text> : null}
+          {item.skipped ? (
+            <Text style={[styles.note, { color: colors.onSurfaceVariant }]}>{fmt.t('ai:confirm.skippedAllDay')}</Text>
+          ) : null}
         </View>
       ))}
     </>
@@ -249,34 +250,34 @@ function ActionBody({
   action,
   preview,
   fmt,
-  palette,
+  colors,
 }: {
   action: AiAction;
   preview: AiActionPreview | null;
   fmt: AssistantFormatter;
-  palette: AssistantPalette;
+  colors: MGColors;
 }): ReactElement | null {
   const meeting = preview?.meetings[0] ?? null;
   switch (action.type) {
     case 'create_meeting':
-      return <DetailRows rows={describeDraft(fmt, action.meeting)} palette={palette} />;
+      return <DetailRows rows={describeDraft(fmt, action.meeting)} colors={colors} />;
     case 'update_meeting': {
       const scopeRow = describeScopeRow(fmt, action, meeting);
       if (!preview) {
         return (
           <>
-            {scopeRow ? <DetailRows rows={[scopeRow]} palette={palette} /> : null}
-            <DetailRows rows={describeChangeRows(fmt, action.changes)} palette={palette} />
-            <LoadingDetails palette={palette} fmt={fmt} />
+            {scopeRow ? <DetailRows rows={[scopeRow]} colors={colors} /> : null}
+            <DetailRows rows={describeChangeRows(fmt, action.changes)} colors={colors} />
+            <LoadingDetails colors={colors} fmt={fmt} />
           </>
         );
       }
       if (!meeting) return null;
       return (
         <>
-          <Text style={[styles.meetingTitle, { color: palette.text }]}>{meeting.title}</Text>
-          {scopeRow ? <DetailRows rows={[scopeRow]} palette={palette} /> : null}
-          <DiffRows rows={computeUpdateDiff(fmt, meeting, action.changes)} palette={palette} fmt={fmt} />
+          <Text style={[styles.meetingTitle, { color: colors.onSurface }]}>{meeting.title}</Text>
+          {scopeRow ? <DetailRows rows={[scopeRow]} colors={colors} /> : null}
+          <DiffRows rows={computeUpdateDiff(fmt, meeting, action.changes)} colors={colors} fmt={fmt} />
         </>
       );
     }
@@ -285,21 +286,21 @@ function ActionBody({
       const scopeRow = describeScopeRow(fmt, action, meeting);
       const warningText = fmt.t(deleteWarningKey(action, meeting, synced));
       return (
-        <View style={[styles.notice, { backgroundColor: palette.dangerSurface, borderColor: palette.danger }]}>
+        <View style={[styles.notice, { backgroundColor: colors.errorContainer }]}>
           <View style={styles.noticeLine}>
-            <MaterialCommunityIcons name="delete-alert-outline" size={18} color={palette.danger} />
-            <Text style={[styles.noticeText, styles.bold, { color: palette.danger }]}>{warningText}</Text>
+            <MaterialCommunityIcons name="delete-alert-outline" size={18} color={colors.onErrorContainer} />
+            <Text style={[styles.noticeText, styles.bold, { color: colors.onErrorContainer }]}>{warningText}</Text>
           </View>
-          {scopeRow ? <DetailRows rows={[scopeRow]} palette={palette} /> : null}
-          {meeting ? <DetailRows rows={describeMeeting(fmt, meeting)} palette={palette} /> : null}
-          {!preview ? <LoadingDetails palette={palette} fmt={fmt} /> : null}
+          {scopeRow ? <DetailRows rows={[scopeRow]} colors={colors} /> : null}
+          {meeting ? <DetailRows rows={describeMeeting(fmt, meeting)} colors={colors} /> : null}
+          {!preview ? <LoadingDetails colors={colors} fmt={fmt} /> : null}
         </View>
       );
     }
     case 'share_meeting':
-      return <ShareBody action={action} preview={preview} fmt={fmt} palette={palette} />;
+      return <ShareBody action={action} preview={preview} fmt={fmt} colors={colors} />;
     case 'bulk_update':
-      return <BulkBody action={action} preview={preview} fmt={fmt} palette={palette} />;
+      return <BulkBody action={action} preview={preview} fmt={fmt} colors={colors} />;
     default:
       return null;
   }
@@ -308,23 +309,23 @@ function ActionBody({
 function ActionDetails({
   state,
   fmt,
-  palette,
+  colors,
   onReject,
 }: {
   state: ProposedActionState;
   fmt: AssistantFormatter;
-  palette: AssistantPalette;
+  colors: MGColors;
   onReject: ((actionId: string) => void) | null;
 }): ReactElement {
   const { action } = state;
   const preview = previewOf(state);
   const destructive = isDestructiveAction(action);
   const warnings = preview ? describeWarnings(fmt, preview) : [];
-  const accent = destructive ? palette.danger : palette.primary;
+  const accent = destructive ? colors.error : colors.primary;
 
   return (
     <View
-      style={[styles.card, { backgroundColor: palette.surface, borderColor: destructive ? palette.danger : palette.border }]}
+      style={[styles.card, { backgroundColor: colors.surface, borderColor: destructive ? colors.error : colors.outlineVariant }]}
       testID={`confirm-action-${action.id}`}
     >
       <View style={styles.cardHeader}>
@@ -334,9 +335,9 @@ function ActionDetails({
         </Text>
         <ConfidenceBadge confidence={action.confidence} size="sm" showIcon={false} />
       </View>
-      <Text style={[styles.summary, { color: palette.text }]}>{action.summary}</Text>
-      <Warnings messages={warnings} palette={palette} />
-      <ActionBody action={action} preview={preview} fmt={fmt} palette={palette} />
+      <Text style={[styles.summary, { color: colors.onSurface }]}>{action.summary}</Text>
+      <Warnings messages={warnings} colors={colors} />
+      <ActionBody action={action} preview={preview} fmt={fmt} colors={colors} />
       {onReject ? (
         <Pressable
           onPress={() => onReject(action.id)}
@@ -346,7 +347,7 @@ function ActionDetails({
           accessibilityLabel={fmt.t('ai:confirm.dismissOne')}
           testID={`confirm-dismiss-${action.id}`}
         >
-          <Text style={[styles.inlineDismissText, { color: palette.textMuted }]}>{fmt.t('ai:confirm.dismissOne')}</Text>
+          <Text style={[styles.inlineDismissText, { color: colors.onSurfaceVariant }]}>{fmt.t('ai:confirm.dismissOne')}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -376,15 +377,14 @@ export function MeetingConfirmationModal({
 }: MeetingConfirmationModalProps): ReactElement {
   const t = useT();
   const { language } = useLanguage();
-  const { isDarkMode } = useTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const palette = assistantPalette(isDarkMode);
   const fmt = useMemo(() => createAssistantFormatter({ t, language, use24Hour }), [t, language, use24Hour]);
 
   const destructive = actions.some((state) => isDestructiveAction(state.action));
   const many = actions.length > 1;
-  const confirmColor = destructive ? palette.danger : palette.primary;
-  const onConfirmColor = destructive ? palette.onDanger : palette.onPrimary;
+  const confirmColor = destructive ? colors.error : colors.primary;
+  const onConfirmColor = destructive ? colors.onError : colors.onPrimary;
 
   return (
     <Modal
@@ -395,7 +395,7 @@ export function MeetingConfirmationModal({
       statusBarTranslucent
       navigationBarTranslucent
     >
-      <View style={[styles.backdrop, { backgroundColor: palette.backdrop }]}>
+      <View style={[styles.backdrop, { backgroundColor: colors.backdrop }]}>
         <Pressable
           style={styles.backdropTouch}
           onPress={onCancel}
@@ -405,19 +405,24 @@ export function MeetingConfirmationModal({
         <View
           style={[
             styles.sheet,
-            { backgroundColor: palette.background, paddingBottom: 16 + insets.bottom, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
+            {
+              backgroundColor: colors.surface,
+              paddingBottom: spacing.lg + insets.bottom,
+              paddingLeft: spacing.lg + insets.left,
+              paddingRight: spacing.lg + insets.right,
+            },
           ]}
           accessibilityViewIsModal
         >
-          <View style={[styles.handle, { backgroundColor: palette.border }]} />
-          <Text style={[styles.title, { color: palette.text }]} accessibilityRole="header">
+          <SheetHandle />
+          <Text style={[styles.title, { color: colors.onSurface }]} accessibilityRole="header">
             {confirmTitle(fmt, actions)}
           </Text>
-          <Text style={[styles.subtitle, { color: palette.textMuted }]}>{fmt.t('ai:confirm.subtitle')}</Text>
+          <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>{fmt.t('ai:confirm.subtitle')}</Text>
           <FlatList
             data={actions}
             keyExtractor={(state) => state.action.id}
-            renderItem={({ item }) => <ActionDetails state={item} fmt={fmt} palette={palette} onReject={many ? onReject : null} />}
+            renderItem={({ item }) => <ActionDetails state={item} fmt={fmt} colors={colors} onReject={many ? onReject : null} />}
             style={styles.list}
             contentContainerStyle={styles.listContent}
             ItemSeparatorComponent={Separator}
@@ -425,16 +430,19 @@ export function MeetingConfirmationModal({
           <View style={styles.footer}>
             <Pressable
               onPress={onCancel}
-              style={[styles.button, styles.secondaryButton, { borderColor: palette.border }]}
+              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
               accessibilityRole="button"
               testID="confirm-cancel"
             >
-              <Text style={[styles.buttonText, { color: palette.text }]}>{fmt.t('ai:confirm.cancel')}</Text>
+              <Text style={[styles.buttonText, { color: colors.primary }]}>{fmt.t('ai:confirm.cancel')}</Text>
             </Pressable>
             <Pressable
               onPress={onConfirm}
               disabled={isBusy}
-              style={[styles.button, { backgroundColor: confirmColor, opacity: isBusy ? 0.6 : 1 }]}
+              style={({ pressed }) => [
+                styles.button,
+                { backgroundColor: confirmColor, opacity: isBusy ? 0.6 : pressed ? pressedOpacity : 1 },
+              ]}
               accessibilityRole="button"
               accessibilityLabel={confirmLabel(fmt, actions)}
               accessibilityState={{ disabled: isBusy, busy: isBusy }}
@@ -469,77 +477,63 @@ const styles = StyleSheet.create({
   },
   sheet: {
     maxHeight: '88%',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 8,
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    marginBottom: 12,
+    borderTopLeftRadius: radii.sheet,
+    borderTopRightRadius: radii.sheet,
+    paddingTop: spacing.xs,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
+    ...typography.headlineS,
+    marginTop: spacing.xs,
   },
   subtitle: {
-    fontSize: 13,
-    marginTop: 2,
-    marginBottom: 12,
+    ...typography.bodyM,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
   },
   list: {
     flexGrow: 0,
   },
   listContent: {
-    paddingBottom: 12,
+    paddingBottom: spacing.md,
   },
   separator: {
-    height: 12,
+    height: componentMetrics.cardGap,
   },
   card: {
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    gap: 10,
+    borderRadius: radii.lg,
+    padding: componentMetrics.cardPadding,
+    gap: componentMetrics.cardGap,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   cardType: {
+    ...typography.labelL,
     flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
   },
   summary: {
-    fontSize: 15,
-    lineHeight: 21,
+    ...typography.bodyM,
   },
   meetingTitle: {
-    fontSize: 15,
-    fontWeight: '600',
+    ...typography.titleM,
   },
   rows: {
-    gap: 10,
+    gap: spacing.md,
   },
   row: {
-    gap: 2,
+    gap: spacing.xs,
   },
   rowLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    ...typography.bodyS,
   },
   rowValue: {
-    fontSize: 15,
-    lineHeight: 21,
+    ...typography.bodyL,
   },
   diffBefore: {
-    fontSize: 14,
+    ...typography.bodyM,
     textDecorationLine: 'line-through',
   },
   diffAfterRow: {
@@ -547,107 +541,103 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   diffArrow: {
-    marginTop: 3,
-    marginRight: 4,
+    marginTop: spacing.xs,
+    marginRight: spacing.xs,
   },
   diffAfter: {
+    ...typography.bodyL,
     flex: 1,
-    fontSize: 15,
     fontWeight: '600',
   },
   notice: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 10,
-    gap: 8,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   noticeLine: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 6,
+    gap: spacing.sm,
   },
   noticeText: {
+    ...typography.bodyM,
     flex: 1,
-    fontSize: 14,
-    lineHeight: 19,
   },
   bold: {
     fontWeight: '700',
   },
   note: {
-    fontSize: 13,
+    ...typography.bodyS,
   },
   loading: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
+    gap: spacing.sm,
+    marginTop: spacing.xs,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.xs,
     borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
   chipText: {
-    fontSize: 13,
+    ...typography.bodyS,
   },
   quote: {
-    fontSize: 14,
+    ...typography.bodyM,
     fontStyle: 'italic',
     borderLeftWidth: 3,
-    paddingLeft: 8,
+    paddingLeft: spacing.sm,
   },
   bulkChange: {
-    fontSize: 15,
-    fontWeight: '600',
+    ...typography.titleM,
   },
   spaced: {
-    marginTop: 6,
+    marginTop: spacing.sm,
   },
   bulkItem: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 8,
-    gap: 2,
+    paddingTop: spacing.sm,
+    gap: spacing.xs,
   },
   bulkTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.titleM,
   },
   inlineDismiss: {
     alignSelf: 'flex-end',
-    paddingVertical: 4,
+    paddingVertical: spacing.xs,
   },
   inlineDismissText: {
-    fontSize: 13,
+    ...typography.labelL,
     textDecorationLine: 'underline',
   },
   footer: {
     flexDirection: 'row',
-    gap: 12,
-    paddingTop: 8,
+    gap: spacing.md,
+    paddingTop: spacing.sm,
   },
   button: {
     flex: 1,
-    minHeight: 48,
-    borderRadius: 12,
+    minHeight: componentMetrics.buttonHeight,
+    borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md,
   },
-  secondaryButton: {
-    borderWidth: 1,
+  buttonPressed: {
+    opacity: pressedOpacity,
   },
   buttonText: {
-    fontSize: 15,
-    fontWeight: '700',
+    ...typography.labelL,
+    textAlign: 'center',
   },
 });

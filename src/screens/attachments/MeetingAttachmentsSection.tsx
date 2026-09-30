@@ -6,9 +6,10 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, HelperText, IconButton, Text, TouchableRipple, useTheme as usePaperTheme } from 'react-native-paper';
+import { ActivityIndicator, HelperText, IconButton, Text, TouchableRipple } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
+import { ListGroup, MGButton, SectionHeader } from '../../components/ui';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useLanguage, useT } from '../../i18n';
@@ -19,7 +20,7 @@ import {
   type AttachmentRecord,
   type AttachmentSource,
 } from '../../services/attachments';
-import { Section } from '../shared/Section';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { useFormatters } from '../shared/useFormatters';
 import { addErrorMessage, formatFileSize, showAddResult } from './attachmentMessages';
 
@@ -47,7 +48,7 @@ function AttachmentRow({
   onRemove(item: AttachmentRecord): void;
 }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   return (
     <View style={styles.row} testID={`attachment-${item.id}`}>
       <TouchableRipple
@@ -61,8 +62,8 @@ function AttachmentRow({
         <View style={styles.rowContent}>
           <MaterialCommunityIcons
             name={CATEGORY_ICONS[item.category]}
-            size={26}
-            color={theme.colors.primary}
+            size={componentMetrics.iconNav}
+            color={colors.onSurfaceVariant}
             accessibilityLabel={t(`attachments:category.${item.category}`)}
           />
           <View style={styles.rowText}>
@@ -70,7 +71,7 @@ function AttachmentRow({
               {item.name}
             </Text>
             {meta ? (
-              <Text variant="bodySmall" numberOfLines={1} style={{ color: theme.colors.onSurfaceVariant }}>
+              <Text variant="bodySmall" numberOfLines={1} style={{ color: colors.onSurfaceVariant }}>
                 {meta}
               </Text>
             ) : null}
@@ -79,7 +80,7 @@ function AttachmentRow({
       </TouchableRipple>
       <IconButton
         icon="close-circle-outline"
-        iconColor={theme.colors.error}
+        iconColor={colors.error}
         onPress={() => onRemove(item)}
         accessibilityLabel={t('attachments:remove', { name: item.name })}
         testID={`attachment-remove-${item.id}`}
@@ -90,7 +91,7 @@ function AttachmentRow({
 
 export function MeetingAttachmentsSection({ meetingId }: { meetingId: string }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const { language } = useLanguage();
   const fmt = useFormatters();
   const { attachments, isLoading, error, busy, reload, add, remove, open } = useMeetingAttachments(meetingId);
@@ -142,10 +143,11 @@ export function MeetingAttachmentsSection({ meetingId }: { meetingId: string }):
   };
 
   return (
-    <Section title={t('attachments:title')} testID="meeting-attachments">
+    <View testID="meeting-attachments">
+      <SectionHeader title={t('attachments:title')} />
       <View style={styles.notice}>
-        <MaterialCommunityIcons name="cellphone-lock" size={18} color={theme.colors.onSurfaceVariant} style={styles.noticeIcon} />
-        <Text variant="bodySmall" style={[styles.flex, { color: theme.colors.onSurfaceVariant }]} testID="attachments-local-only">
+        <MaterialCommunityIcons name="cellphone-lock" size={componentMetrics.iconInline} color={colors.onSurfaceVariant} style={styles.noticeIcon} />
+        <Text variant="bodySmall" style={[styles.flex, { color: colors.onSurfaceVariant }]} testID="attachments-local-only">
           {t('attachments:localOnly')}
         </Text>
       </View>
@@ -153,7 +155,7 @@ export function MeetingAttachmentsSection({ meetingId }: { meetingId: string }):
       {isLoading ? (
         <View style={styles.status}>
           <ActivityIndicator size="small" />
-          <Text variant="bodySmall" style={styles.statusText}>
+          <Text variant="bodySmall" style={[styles.statusText, { color: colors.onSurfaceVariant }]}>
             {t('attachments:loading')}
           </Text>
         </View>
@@ -162,38 +164,38 @@ export function MeetingAttachmentsSection({ meetingId }: { meetingId: string }):
           <HelperText type="error" visible>
             {t('attachments:loadError')}
           </HelperText>
-          <Button mode="text" icon="refresh" onPress={reload} style={styles.retry} testID="attachments-retry">
+          <MGButton variant="ghost" size="sm" icon="refresh" onPress={reload} style={styles.retry} testID="attachments-retry">
             {t('common:actions.retry')}
-          </Button>
+          </MGButton>
         </View>
       ) : attachments.length === 0 ? (
-        <Text variant="bodyMedium" style={[styles.empty, { color: theme.colors.onSurfaceVariant }]} testID="attachments-empty">
+        <Text variant="bodyMedium" style={[styles.empty, { color: colors.onSurfaceVariant }]} testID="attachments-empty">
           {t('attachments:empty')}
         </Text>
       ) : (
-        <View style={styles.list}>
+        <ListGroup style={styles.list}>
           {attachments.map((item) => (
             <AttachmentRow key={item.id} item={item} meta={metaOf(item)} onOpen={openItem} onRemove={confirmRemove} />
           ))}
-        </View>
+        </ListGroup>
       )}
 
       <View style={styles.actions}>
-        <Button mode="contained-tonal" icon="paperclip" onPress={() => void addFrom('document')} disabled={busy} style={styles.action} testID="attachments-add-file">
+        <MGButton variant="tonal" size="sm" icon="paperclip" onPress={() => void addFrom('document')} disabled={busy} style={styles.action} testID="attachments-add-file">
           {t('attachments:addFile')}
-        </Button>
-        <Button mode="contained-tonal" icon="image-outline" onPress={() => void addFrom('image')} disabled={busy} style={styles.action} testID="attachments-add-photo">
+        </MGButton>
+        <MGButton variant="tonal" size="sm" icon="image-outline" onPress={() => void addFrom('image')} disabled={busy} style={styles.action} testID="attachments-add-photo">
           {t('attachments:addPhoto')}
-        </Button>
-        <Button mode="contained-tonal" icon="camera-outline" onPress={() => void addFrom('camera')} disabled={busy} style={styles.action} testID="attachments-take-photo">
+        </MGButton>
+        <MGButton variant="tonal" size="sm" icon="camera-outline" onPress={() => void addFrom('camera')} disabled={busy} style={styles.action} testID="attachments-take-photo">
           {t('attachments:takePhoto')}
-        </Button>
+        </MGButton>
       </View>
       {busy ? <ActivityIndicator size="small" style={styles.busy} testID="attachments-busy" /> : null}
-      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+      <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
         {t('attachments:limits', { maxMb: MAX_ATTACHMENT_MB })}
       </Text>
-    </Section>
+    </View>
   );
 }
 
@@ -204,39 +206,39 @@ const styles = StyleSheet.create({
   notice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   noticeIcon: {
-    marginRight: 8,
-    marginTop: 1,
+    marginRight: spacing.sm,
   },
   status: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   statusText: {
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   retry: {
     alignSelf: 'flex-start',
   },
   empty: {
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   list: {
-    marginVertical: 4,
+    marginVertical: spacing.xs,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingLeft: spacing.xs,
   },
   rowMain: {
     flex: 1,
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    minHeight: 48,
+    borderRadius: radii.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    minHeight: componentMetrics.listRowMinHeight,
     justifyContent: 'center',
   },
   rowContent: {
@@ -245,19 +247,19 @@ const styles = StyleSheet.create({
   },
   rowText: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: spacing.md,
   },
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 8,
+    marginTop: spacing.md,
   },
   action: {
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
   busy: {
     alignSelf: 'flex-start',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
 });

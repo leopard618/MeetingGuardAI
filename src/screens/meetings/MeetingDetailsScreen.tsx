@@ -12,11 +12,12 @@
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
-import { useMemo, useState, type ComponentProps, type ReactElement } from 'react';
+import { useMemo, useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { Alert, Linking, StyleSheet, View } from 'react-native';
-import { Button, Chip, Divider, HelperText, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Chip, HelperText, Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
+import { Card, ListGroup, MGButton, SectionHeader } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -27,10 +28,11 @@ import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { useCalendarStatus } from '../../services/calendar';
 import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
+import { componentMetrics, spacing, useAppTheme } from '../../theme';
 import { MeetingAttachmentsSection } from '../attachments/MeetingAttachmentsSection';
 import { alertTimeLabel } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
-import { ScreenBody, Section } from '../shared/Section';
+import { ScreenBody } from '../shared/Section';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
 import { conferenceCardState } from './meetingForm';
@@ -45,13 +47,14 @@ const NEXT_OCCURRENCES_SHOWN = 3;
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
-function Row({ icon, label, children }: { icon: IconName; label: string; children: ReactElement | string }): ReactElement {
-  const theme = usePaperTheme();
+/** One detail row inside a ListGroup: 24dp icon, bodyS label, bodyL value (§7 details spec). */
+function Row({ icon, label, children }: { icon: IconName; label: string; children: ReactNode }): ReactElement {
+  const { colors } = useAppTheme();
   return (
     <View style={styles.row}>
-      <MaterialCommunityIcons name={icon} size={22} color={theme.colors.onSurfaceVariant} style={styles.rowIcon} />
+      <MaterialCommunityIcons name={icon} size={componentMetrics.iconNav} color={colors.onSurfaceVariant} style={styles.rowIcon} />
       <View style={styles.flex}>
-        <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+        <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
           {label}
         </Text>
         {typeof children === 'string' ? <Text variant="bodyLarge">{children}</Text> : children}
@@ -94,7 +97,7 @@ function MeetingDetails({
   onOpenCalendarSync(): void;
 }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const { preferences } = usePreferences();
   const calendar = useCalendarStatus();
@@ -179,35 +182,35 @@ function MeetingDetails({
           {meeting.title}
         </Text>
         <View style={styles.chips}>
-          <Chip compact style={styles.chip} icon="source-branch">
+          <Chip compact mode="outlined" style={styles.chip} icon="source-branch">
             {t(`meetings:source.${meeting.source}`)}
           </Chip>
           {isRecurring ? (
-            <Chip compact style={styles.chip} icon="repeat" testID="meeting-repeats-chip">
+            <Chip compact mode="outlined" style={styles.chip} icon="repeat" testID="meeting-repeats-chip">
               {t('meetings:details.repeats')}
             </Chip>
           ) : null}
           {meeting.status === 'cancelled' ? (
-            <Chip compact style={styles.chip} icon="cancel">
+            <Chip compact mode="outlined" style={styles.chip} icon="cancel">
               {t('meetings:details.cancelled')}
             </Chip>
           ) : null}
           {meeting.confidence !== null && meeting.source === 'ai_chat' ? (
-            <Chip compact style={styles.chip} icon="robot-outline">
+            <Chip compact mode="outlined" style={styles.chip} icon="robot-outline">
               {t('meetings:details.confidence', { value: meeting.confidence })}
             </Chip>
           ) : null}
         </View>
       </View>
 
-      <Section>
+      <ListGroup style={styles.firstGroup}>
         <Row icon="clock-outline" label={t('meetings:details.when')}>
           <View>
             <Text variant="bodyLarge" testID="meeting-when">
               {when.local}
             </Text>
             {when.meetingZone ? (
-              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+              <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
                 {t('meetings:details.meetingZone', { when: when.meetingZone })}
               </Text>
             ) : null}
@@ -223,10 +226,7 @@ function MeetingDetails({
             {meeting.location.address}
           </Row>
         ) : null}
-      </Section>
-
-      {meeting.recurrence !== null ? (
-        <Section>
+        {meeting.recurrence !== null ? (
           <Row icon="repeat" label={t('meetings:details.repeats')}>
             <Text variant="bodyLarge" testID="meeting-repeats-summary">
               {recurrenceSummary(t, meeting.recurrence, {
@@ -236,6 +236,8 @@ function MeetingDetails({
               })}
             </Text>
           </Row>
+        ) : null}
+        {meeting.recurrence !== null ? (
           <Row icon="calendar-arrow-right" label={t('meetings:details.repeatsNext')}>
             <View>
               {nextOccurrences.length === 0 ? (
@@ -252,76 +254,92 @@ function MeetingDetails({
               )}
             </View>
           </Row>
-        </Section>
-      ) : null}
+        ) : null}
+      </ListGroup>
 
       {card.kind !== 'hidden' ? (
-        <Section title={t('meetings:details.videoCall')}>
-          {conference ? <Text variant="bodyLarge">{t(`alerts:provider.${conference.provider}`)}</Text> : null}
-          {card.kind === 'join' ? (
-            <View>
-              <Text variant="bodySmall" selectable style={{ color: theme.colors.onSurfaceVariant }}>
-                {card.url}
+        <>
+          <SectionHeader title={t('meetings:details.videoCall')} />
+          <Card>
+            {conference ? <Text variant="bodyLarge">{t(`alerts:provider.${conference.provider}`)}</Text> : null}
+            {card.kind === 'join' ? (
+              <View>
+                <Text variant="bodySmall" selectable style={{ color: colors.onSurfaceVariant }}>
+                  {card.url}
+                </Text>
+                <MGButton icon="video" style={styles.action} onPress={() => openLink(card.url)} testID="meeting-join">
+                  {t('alerts:buttons.join')}
+                </MGButton>
+              </View>
+            ) : (
+              <View>
+                <HelperText type="info" visible style={styles.helper} testID={`meeting-conference-${card.key}`}>
+                  {t(`meetings:details.${card.key}`)}
+                </HelperText>
+                {card.connect !== null ? (
+                  <MGButton
+                    variant="outline"
+                    icon="calendar-sync-outline"
+                    style={styles.action}
+                    onPress={onOpenCalendarSync}
+                    testID={card.connect === 'google' ? 'meeting-connect-calendar' : 'meeting-connect-outlook'}
+                  >
+                    {card.connect === 'google' ? t('meetings:details.connectCalendar') : t('calendar:outlook.connect')}
+                  </MGButton>
+                ) : null}
+              </View>
+            )}
+            {conference?.password ? (
+              <Text variant="bodyMedium" selectable style={styles.action}>
+                {t('meetings:details.password', { password: conference.password })}
               </Text>
-              <Button mode="contained" icon="video" style={styles.action} onPress={() => openLink(card.url)} testID="meeting-join">
-                {t('alerts:buttons.join')}
-              </Button>
-            </View>
-          ) : (
-            <View>
-              <HelperText type="info" visible testID={`meeting-conference-${card.key}`}>
-                {t(`meetings:details.${card.key}`)}
-              </HelperText>
-              {card.connect !== null ? (
-                <Button
-                  mode="outlined"
-                  icon="calendar-sync-outline"
-                  style={styles.action}
-                  onPress={onOpenCalendarSync}
-                  testID={card.connect === 'google' ? 'meeting-connect-calendar' : 'meeting-connect-outlook'}
-                >
-                  {card.connect === 'google' ? t('meetings:details.connectCalendar') : t('calendar:outlook.connect')}
-                </Button>
-              ) : null}
-            </View>
-          )}
-          {conference?.password ? (
-            <Text variant="bodyMedium" selectable style={styles.action}>
-              {t('meetings:details.password', { password: conference.password })}
-            </Text>
-          ) : null}
-        </Section>
+            ) : null}
+          </Card>
+        </>
       ) : null}
 
       {meeting.participants.length > 0 ? (
-        <Section title={t('meetings:details.participants', { count: meeting.participants.length })}>
-          {meeting.participants.map((participant) => (
-            <Text key={participant.email} variant="bodyMedium" selectable style={styles.listItem}>
-              {participant.name ? `${participant.name} <${participant.email}>` : participant.email}
-            </Text>
-          ))}
-        </Section>
+        <>
+          <SectionHeader title={t('meetings:details.participants', { count: meeting.participants.length })} />
+          <ListGroup>
+            {meeting.participants.map((participant) => (
+              <View key={participant.email} style={styles.participantRow}>
+                <MaterialCommunityIcons name="account-outline" size={componentMetrics.iconNav} color={colors.onSurfaceVariant} style={styles.rowIcon} />
+                <Text variant="bodyMedium" selectable style={styles.flex}>
+                  {participant.name ? `${participant.name} <${participant.email}>` : participant.email}
+                </Text>
+              </View>
+            ))}
+          </ListGroup>
+        </>
       ) : null}
 
       {meeting.description ? (
-        <Section title={t('meetings:details.description')}>
-          <Text variant="bodyMedium" selectable>
-            {meeting.description}
-          </Text>
-        </Section>
+        <>
+          <SectionHeader title={t('meetings:details.description')} />
+          <Card>
+            <Text variant="bodyMedium" selectable>
+              {meeting.description}
+            </Text>
+          </Card>
+        </>
       ) : null}
 
       {tips.length > 0 ? (
-        <Section title={t('meetings:details.tips')}>
-          {tips.map((tip, index) => (
-            <Text key={`${index}-${tip}`} variant="bodyMedium" style={styles.listItem}>
-              {`• ${tip}`}
-            </Text>
-          ))}
-        </Section>
+        <>
+          <SectionHeader title={t('meetings:details.tips')} />
+          <Card>
+            {tips.map((tip, index) => (
+              <Text key={`${index}-${tip}`} variant="bodyMedium" style={index > 0 ? styles.listItem : undefined}>
+                {`• ${tip}`}
+              </Text>
+            ))}
+          </Card>
+        </>
       ) : null}
 
-      <Section title={t('meetings:details.alerts')}>
+      <SectionHeader title={t('meetings:details.alerts')} />
+      <Card>
         <Text variant="bodyMedium" testID="meeting-alert-times">
           {meeting.customAlertTimes
             ? t('meetings:details.alertTimesCustom', { times: alertTimesText })
@@ -334,44 +352,45 @@ function MeetingDetails({
           {meeting.alertIntensity === null ? ` ${t('meetings:details.intensityDefault')}` : ''}
         </Text>
         {!preferences.alertEnabled ? (
-          <HelperText type="info" visible>
+          <HelperText type="info" visible style={styles.helper}>
             {t('meetings:details.alertsOff')}
           </HelperText>
         ) : null}
-      </Section>
+      </Card>
 
       {meeting.notes ? (
-        <Section title={t('meetings:details.notes')}>
-          <Text variant="bodyMedium" selectable>
-            {meeting.notes}
-          </Text>
-        </Section>
+        <>
+          <SectionHeader title={t('meetings:details.notes')} />
+          <Card>
+            <Text variant="bodyMedium" selectable>
+              {meeting.notes}
+            </Text>
+          </Card>
+        </>
       ) : null}
 
       <MeetingAttachmentsSection meetingId={meeting.id} />
 
-      <Divider style={styles.divider} />
       {isDevice ? (
-        <HelperText type="info" visible>
+        <HelperText type="info" visible style={styles.deviceNote}>
           {t('meetings:details.deviceNote')}
         </HelperText>
       ) : null}
       <View style={styles.actions}>
-        <Button mode="contained-tonal" icon="pencil" onPress={onEdit} style={styles.actionButton} disabled={deleting} testID="meeting-edit">
+        <MGButton variant="tonal" icon="pencil" onPress={onEdit} style={styles.actionButton} disabled={deleting} testID="meeting-edit">
           {t('meetings:details.edit')}
-        </Button>
-        <Button
-          mode="outlined"
+        </MGButton>
+        <MGButton
+          variant="destructive"
           icon="delete"
           onPress={confirmDelete}
-          textColor={theme.colors.error}
           style={styles.actionButton}
           loading={deleting}
           disabled={deleting}
           testID="meeting-delete"
         >
           {t('meetings:details.delete')}
-        </Button>
+        </MGButton>
       </View>
     </ScreenBody>
   );
@@ -382,44 +401,60 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    marginBottom: 12,
+    marginBottom: spacing.xs,
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   chip: {
-    marginRight: 8,
-    marginBottom: 4,
+    marginRight: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  firstGroup: {
+    marginTop: spacing.md,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    paddingHorizontal: componentMetrics.listRowPaddingH,
+    paddingVertical: componentMetrics.listRowPaddingV,
+    minHeight: componentMetrics.listRowMinHeight,
+  },
+  participantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: componentMetrics.listRowPaddingH,
+    paddingVertical: componentMetrics.listRowPaddingV,
+    minHeight: componentMetrics.listRowMinHeight,
   },
   rowIcon: {
-    marginRight: 12,
-    marginTop: 2,
+    marginRight: componentMetrics.listRowPaddingH,
+    marginTop: spacing.xs,
   },
   listItem: {
-    marginTop: 4,
+    marginTop: spacing.xs,
+  },
+  helper: {
+    paddingHorizontal: 0,
   },
   action: {
-    marginTop: 8,
+    marginTop: spacing.sm,
     alignSelf: 'flex-start',
   },
-  divider: {
-    marginVertical: 8,
+  deviceNote: {
+    paddingHorizontal: 0,
+    marginTop: spacing.md,
   },
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
   },
   actionButton: {
-    marginRight: 12,
-    marginBottom: 8,
+    marginRight: spacing.md,
+    marginBottom: spacing.sm,
   },
 });

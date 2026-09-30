@@ -6,24 +6,42 @@
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { memo, type ReactElement } from 'react';
-import { Pressable, StyleSheet, View, type AccessibilityActionEvent } from 'react-native';
-import { IconButton, Text, useTheme as usePaperTheme, type MD3Theme } from 'react-native-paper';
+import { Platform, Pressable, StyleSheet, View, type AccessibilityActionEvent } from 'react-native';
+import { IconButton, Text } from 'react-native-paper';
 
 import type { TranslateFn } from '../../../core/contracts';
 import { endIso, toLocalDateTime } from '../../../core/time';
-import type { Meeting } from '../../../core/types';
+import type { Meeting, MeetingSource } from '../../../core/types';
 import { useT } from '../../../i18n';
+import { Badge } from '../../../components/ui';
+import {
+  componentMetrics,
+  pressedOpacity,
+  radii,
+  sourceColorIndex,
+  spacing,
+  stateAlpha,
+  typography,
+  useAppTheme,
+  withAlpha,
+  type MGColors,
+} from '../../../theme';
 import type { Formatters } from '../../shared/useFormatters';
 import type { DisplayMeeting } from '../occurrences';
-import { isInProgress, sourceCategory, type SourceCategory } from './meetingListModel';
+import { isInProgress, type SourceCategory } from './meetingListModel';
 
 const MINUTES_PER_DAY = 1440;
 
-/** Dot / accent color of a source category (theme-aware). */
-export function sourceColor(category: SourceCategory, theme: MD3Theme): string {
-  if (category === 'google') return theme.dark ? '#8AB4F8' : '#1A73E8';
-  if (category === 'device') return theme.colors.tertiary;
-  return theme.colors.primary;
+/** Dot / legend color of a source category (canonical §2 map: meetingguard = manual's hue). */
+export function sourceColor(category: SourceCategory, colors: MGColors): string {
+  if (category === 'google') return colors.chart[sourceColorIndex.google];
+  if (category === 'device') return colors.chart[sourceColorIndex.device];
+  return colors.chart[sourceColorIndex.manual];
+}
+
+/** Accent color of one meeting's exact source (row accent bars). */
+export function meetingSourceColor(source: MeetingSource, colors: MGColors): string {
+  return colors.chart[sourceColorIndex[source]];
 }
 
 /**
@@ -76,15 +94,14 @@ function MeetingListItemComponent({
   onDelete,
 }: MeetingListItemProps): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
-  const category = sourceCategory(meeting.source);
-  const accent = sourceColor(category, theme);
+  const { colors } = useAppTheme();
+  const accent = meetingSourceColor(meeting.source, colors);
   const when = meetingTimeText(meeting, fmt, timeZone, t);
   const place = placeText(meeting, t);
   const cancelled = meeting.status === 'cancelled';
   const live = !cancelled && isInProgress(meeting, now);
   const source = t(`meetings:source.${meeting.source}`);
-  const muted = theme.colors.onSurfaceVariant;
+  const muted = colors.onSurfaceVariant;
   const repeats = meeting.recurrence !== null;
 
   const labelParts = [meeting.title, when];
@@ -117,13 +134,13 @@ function MeetingListItemComponent({
     <View
       style={[
         styles.card,
-        { backgroundColor: theme.colors.elevation.level1, borderColor: theme.colors.outlineVariant },
+        { backgroundColor: colors.surface, borderColor: colors.outlineVariant },
         deleting && styles.deleting,
       ]}
     >
       <Pressable
-        style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
-        android_ripple={{ color: theme.colors.surfaceVariant }}
+        style={({ pressed }) => [styles.pressable, pressed && Platform.OS !== 'android' && styles.pressed]}
+        android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnRow) }}
         onPress={() => onOpen(meeting)}
         onLongPress={() => onMore(meeting)}
         disabled={deleting}
@@ -142,7 +159,10 @@ function MeetingListItemComponent({
       >
         <View style={[styles.accent, { backgroundColor: accent }]} />
         <View style={styles.body}>
-          <Text variant="labelLarge" style={{ color: live ? theme.colors.primary : muted }} testID={`meeting-row-time-${meeting.id}`}>
+          <Text
+            style={[styles.time, { color: live ? colors.primary : muted }]}
+            testID={`meeting-row-time-${meeting.id}`}
+          >
             {when}
           </Text>
           <Text
@@ -161,16 +181,8 @@ function MeetingListItemComponent({
             </View>
           ) : null}
           <View style={styles.badges}>
-            {live ? (
-              <Text variant="labelSmall" style={[styles.badge, { backgroundColor: theme.colors.primaryContainer, color: theme.colors.onPrimaryContainer }]}>
-                {t('meetings:list.now')}
-              </Text>
-            ) : null}
-            {cancelled ? (
-              <Text variant="labelSmall" style={[styles.badge, { backgroundColor: theme.colors.errorContainer, color: theme.colors.onErrorContainer }]}>
-                {t('meetings:details.cancelled')}
-              </Text>
-            ) : null}
+            {live ? <Badge label={t('meetings:list.now')} tone="primary" /> : null}
+            {cancelled ? <Badge label={t('meetings:details.cancelled')} tone="error" /> : null}
             {repeats ? (
               <View style={styles.repeatBadge} testID={`meeting-row-repeats-${meeting.id}`}>
                 <MaterialCommunityIcons name="repeat" size={13} color={muted} />
@@ -204,10 +216,10 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginHorizontal: 16,
-    marginBottom: 10,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    marginHorizontal: componentMetrics.screenGutter,
+    marginBottom: componentMetrics.cardGap,
     overflow: 'hidden',
   },
   deleting: {
@@ -216,22 +228,29 @@ const styles = StyleSheet.create({
   pressable: {
     flex: 1,
     flexDirection: 'row',
-    minHeight: 64,
+    minHeight: componentMetrics.listRowMinHeight,
   },
   pressed: {
-    opacity: 0.85,
+    opacity: pressedOpacity,
   },
   accent: {
-    width: 5,
+    width: componentMetrics.accentBarWidth,
+    borderRadius: radii.full,
+    marginVertical: spacing.md,
+    marginLeft: spacing.sm,
   },
   body: {
     flex: 1,
-    paddingVertical: 10,
-    paddingLeft: 12,
-    paddingRight: 4,
+    paddingVertical: spacing.md,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
   },
   flex: {
     flex: 1,
+  },
+  time: {
+    ...typography.bodyM,
+    fontVariant: ['tabular-nums'],
   },
   cancelledTitle: {
     textDecorationLine: 'line-through',
@@ -239,23 +258,17 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    marginTop: spacing.xs,
   },
   metaIcon: {
-    marginRight: 4,
+    marginRight: spacing.xs,
   },
   badges: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginTop: 4,
-  },
-  badge: {
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    marginRight: 6,
-    overflow: 'hidden',
+    marginTop: spacing.xs,
+    gap: spacing.sm,
   },
   source: {
     flexShrink: 1,
@@ -263,11 +276,10 @@ const styles = StyleSheet.create({
   repeatBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
-    marginRight: 6,
+    gap: spacing.xs,
   },
   more: {
     margin: 0,
-    marginRight: 4,
+    marginRight: spacing.xs,
   },
 });

@@ -8,12 +8,14 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import type { ComponentProps, ReactElement } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Badge, Card } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { useT } from '../../i18n';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 
 type Props = StackScreenProps<RootStackParamList, 'ChooseCreationMethod'>;
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -34,74 +36,66 @@ export function isMethodAvailable(method: CreationMethod): boolean {
 
 function MethodCard({ method, onPress }: { method: CreationMethod; onPress?: () => void }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const available = isMethodAvailable(method) && onPress !== undefined;
   const title = t(`create:methods.${method}.title`);
   const description = t(`create:methods.${method}.description`);
   const comingSoon = t('create:comingSoon');
-  const iconBackground = available ? theme.colors.primaryContainer : theme.colors.surfaceDisabled;
-  const iconColor = available ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceDisabled;
+  const iconBackground = available ? colors.primaryContainer : colors.surfaceDisabled;
+  const iconColor = available ? colors.onPrimaryContainer : colors.onSurfaceDisabled;
 
   return (
-    <Pressable
+    <Card
       onPress={available ? onPress : undefined}
-      disabled={!available}
-      android_ripple={available ? { color: theme.colors.surfaceVariant } : undefined}
-      style={({ pressed }) => [
-        styles.card,
-        { backgroundColor: theme.colors.elevation.level1, borderColor: theme.colors.outlineVariant },
-        pressed && available && styles.pressed,
-      ]}
+      style={styles.card}
       accessibilityRole="button"
       accessibilityLabel={available ? `${title}. ${description}` : `${title}, ${comingSoon}. ${description}`}
       accessibilityHint={available ? t(`create:methods.${method}.hint`) : undefined}
       accessibilityState={{ disabled: !available }}
       testID={`create-method-${method}`}
     >
-      <View style={[styles.icon, { backgroundColor: iconBackground }]}>
-        <MaterialCommunityIcons name={ICONS[method]} size={28} color={iconColor} />
-      </View>
-      <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <Text variant="titleMedium" style={[styles.title, !available && { color: theme.colors.onSurfaceDisabled }]}>
-            {title}
-          </Text>
-          {!available ? (
-            <Text
-              variant="labelSmall"
-              style={[styles.badge, { backgroundColor: theme.colors.secondaryContainer, color: theme.colors.onSecondaryContainer }]}
-              testID={`create-method-${method}-soon`}
-            >
-              {comingSoon}
-            </Text>
-          ) : null}
+      <View style={styles.row}>
+        <View style={[styles.icon, { backgroundColor: iconBackground }]}>
+          <MaterialCommunityIcons name={ICONS[method]} size={componentMetrics.iconNav} color={iconColor} />
         </View>
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-          {description}
-        </Text>
+        <View style={styles.body}>
+          <View style={styles.titleRow}>
+            <Text variant="titleMedium" style={!available && { color: colors.disabledText }}>
+              {title}
+            </Text>
+            {!available ? <Badge label={comingSoon} tone="neutral" testID={`create-method-${method}-soon`} /> : null}
+          </View>
+          <Text variant="bodyMedium" style={{ color: available ? colors.onSurfaceVariant : colors.disabledText }}>
+            {description}
+          </Text>
+        </View>
+        {available ? <MaterialCommunityIcons name="chevron-right" size={componentMetrics.iconNav} color={colors.onSurfaceVariant} /> : null}
       </View>
-      {available ? <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.onSurfaceVariant} /> : null}
-    </Pressable>
+    </Card>
   );
 }
 
 export function ChooseCreationMethodScreen({ navigation }: Props): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   return (
     <ScrollView
-      style={{ backgroundColor: theme.colors.background }}
+      style={{ backgroundColor: colors.background }}
       contentContainerStyle={[
         styles.content,
-        { paddingBottom: insets.bottom + 24, paddingLeft: insets.left + 16, paddingRight: insets.right + 16 },
+        {
+          paddingBottom: insets.bottom + spacing.xxl,
+          paddingLeft: insets.left + componentMetrics.screenGutter,
+          paddingRight: insets.right + componentMetrics.screenGutter,
+        },
       ]}
     >
       <Text variant="headlineSmall" accessibilityRole="header" style={styles.heading}>
         {t('create:title')}
       </Text>
-      <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
+      <Text variant="bodyMedium" style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
         {t('create:subtitle')}
       </Text>
       <MethodCard method="manual" onPress={() => navigation.navigate('CreateMeeting')} />
@@ -113,51 +107,39 @@ export function ChooseCreationMethodScreen({ navigation }: Props): ReactElement 
 
 const styles = StyleSheet.create({
   content: {
-    paddingTop: 20,
+    paddingTop: spacing.xl,
   },
   heading: {
-    marginBottom: 6,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   card: {
+    marginBottom: componentMetrics.cardGap,
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-    marginBottom: 14,
-    minHeight: 72,
-  },
-  pressed: {
-    opacity: 0.85,
+    minHeight: componentMetrics.avatarSize,
   },
   icon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+    width: componentMetrics.avatarSize,
+    height: componentMetrics.avatarSize,
+    borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
+    marginRight: spacing.lg,
   },
   body: {
     flex: 1,
-    marginRight: 4,
+    marginRight: spacing.xs,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginBottom: 4,
-  },
-  title: {
-    marginRight: 8,
-  },
-  badge: {
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    overflow: 'hidden',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
 });

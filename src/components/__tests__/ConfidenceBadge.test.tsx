@@ -12,6 +12,8 @@ jest.mock('../../i18n', () => {
 let mockDarkMode = false;
 jest.mock('../../contexts/ThemeContext', () => ({
   useTheme: () => ({ isDarkMode: mockDarkMode }),
+  // The badge reads its colors through useAppTheme (src/theme), which resolves the scheme here.
+  useOptionalTheme: () => ({ colorScheme: mockDarkMode ? 'dark' : 'light' }),
 }));
 
 beforeEach(() => {

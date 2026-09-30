@@ -1,22 +1,17 @@
 /**
  * AI confidence badge (0-100). Renders nothing when the confidence is unknown (null for manual
- * and imported meetings). Labels come from the "ai" namespace; colors follow the app theme.
+ * and imported meetings). Labels come from the "ai" namespace; colors are the MG semantic
+ * Container pairs (high → success, medium → warning, low → error; AA in both schemes).
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps, ReactElement } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useTheme } from '../contexts/ThemeContext';
 import { useT } from '../i18n';
+import { radii, spacing, typography, useAppTheme, type MGColors } from '../theme';
 
 export type BadgeSize = 'sm' | 'default' | 'lg';
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
-
-interface BadgeColors {
-  backgroundColor: string;
-  textColor: string;
-  borderColor: string;
-}
 
 const LEVEL_ICONS: Readonly<Record<ConfidenceLevel, ComponentProps<typeof Ionicons>['name']>> = {
   high: 'checkmark-circle',
@@ -24,22 +19,22 @@ const LEVEL_ICONS: Readonly<Record<ConfidenceLevel, ComponentProps<typeof Ionico
   low: 'close-circle',
 };
 
-const LIGHT: Readonly<Record<ConfidenceLevel, BadgeColors>> = {
-  high: { backgroundColor: '#DCFCE7', textColor: '#166534', borderColor: '#BBF7D0' },
-  medium: { backgroundColor: '#FEF3C7', textColor: '#92400E', borderColor: '#FDE68A' },
-  low: { backgroundColor: '#FEE2E2', textColor: '#991B1B', borderColor: '#FECACA' },
-};
+function levelColors(colors: MGColors, level: ConfidenceLevel): { backgroundColor: string; textColor: string } {
+  switch (level) {
+    case 'high':
+      return { backgroundColor: colors.successContainer, textColor: colors.onSuccessContainer };
+    case 'medium':
+      return { backgroundColor: colors.warningContainer, textColor: colors.onWarningContainer };
+    default:
+      return { backgroundColor: colors.errorContainer, textColor: colors.onErrorContainer };
+  }
+}
 
-const DARK: Readonly<Record<ConfidenceLevel, BadgeColors>> = {
-  high: { backgroundColor: '#052E1A', textColor: '#86EFAC', borderColor: '#166534' },
-  medium: { backgroundColor: '#3A2A0A', textColor: '#FCD34D', borderColor: '#92400E' },
-  low: { backgroundColor: '#3B1414', textColor: '#FCA5A5', borderColor: '#991B1B' },
-};
-
-export const BADGE_SIZES: Readonly<Record<BadgeSize, { fontSize: number; paddingHorizontal: number; paddingVertical: number; icon: number }>> = {
-  sm: { fontSize: 12, paddingHorizontal: 8, paddingVertical: 4, icon: 12 },
-  default: { fontSize: 14, paddingHorizontal: 10, paddingVertical: 6, icon: 14 },
-  lg: { fontSize: 16, paddingHorizontal: 12, paddingVertical: 8, icon: 16 },
+/** Badge type scale per size (labelS / labelM / labelL) with 4pt-grid padding. */
+export const BADGE_SIZES: Readonly<Record<BadgeSize, { fontSize: number; lineHeight: number; paddingHorizontal: number; paddingVertical: number; icon: number }>> = {
+  sm: { fontSize: typography.labelS.fontSize, lineHeight: typography.labelS.lineHeight, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, icon: 12 },
+  default: { fontSize: typography.labelM.fontSize, lineHeight: typography.labelM.lineHeight, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, icon: 14 },
+  lg: { fontSize: typography.labelL.fontSize, lineHeight: typography.labelL.lineHeight, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, icon: 16 },
 };
 
 /** Badges stay readable at large font sizes without breaking the row they sit in. */
@@ -65,11 +60,11 @@ export interface ConfidenceBadgeProps {
 
 export function ConfidenceBadge({ confidence, showIcon = true, size = 'default' }: ConfidenceBadgeProps): ReactElement | null {
   const t = useT();
-  const { isDarkMode } = useTheme();
+  const { colors } = useAppTheme();
   const value = normalizeConfidence(confidence);
   if (value === null) return null;
   const level = confidenceLevel(value);
-  const colors = (isDarkMode ? DARK : LIGHT)[level];
+  const { backgroundColor, textColor } = levelColors(colors, level);
   const sizing = BADGE_SIZES[size] ?? BADGE_SIZES.default;
 
   return (
@@ -77,8 +72,7 @@ export function ConfidenceBadge({ confidence, showIcon = true, size = 'default' 
       style={[
         styles.badge,
         {
-          backgroundColor: colors.backgroundColor,
-          borderColor: colors.borderColor,
+          backgroundColor,
           paddingHorizontal: sizing.paddingHorizontal,
           paddingVertical: sizing.paddingVertical,
         },
@@ -88,8 +82,11 @@ export function ConfidenceBadge({ confidence, showIcon = true, size = 'default' 
       accessibilityLabel={t('ai:confidence.a11y', { value, level: t(`ai:confidence.${level}`) })}
       testID="confidence-badge"
     >
-      {showIcon ? <Ionicons name={LEVEL_ICONS[level]} size={sizing.icon} color={colors.textColor} style={styles.icon} /> : null}
-      <Text style={[styles.text, { color: colors.textColor, fontSize: sizing.fontSize }]} maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
+      {showIcon ? <Ionicons name={LEVEL_ICONS[level]} size={sizing.icon} color={textColor} style={styles.icon} /> : null}
+      <Text
+        style={[styles.text, { color: textColor, fontSize: sizing.fontSize, lineHeight: sizing.lineHeight }]}
+        maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}
+      >
         {`${value}%`}
       </Text>
     </View>
@@ -102,12 +99,11 @@ const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: radii.xs,
     alignSelf: 'flex-start',
   },
   icon: {
-    marginRight: 4,
+    marginRight: spacing.xs,
   },
   text: {
     fontWeight: '500',

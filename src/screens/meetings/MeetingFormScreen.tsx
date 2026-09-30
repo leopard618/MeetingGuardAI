@@ -18,8 +18,11 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { Button, Chip, HelperText, IconButton, Switch, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';
+import { Chip, HelperText, IconButton, Switch, Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
+
+import { ListGroup, ListRow, MGButton } from '../../components/ui';
+import { radii, spacing, useAppTheme } from '../../theme';
 
 import { RECURRENCE_WEEKDAYS } from '../../core/aiContract';
 import type { RootStackParamList } from '../../core/contracts';
@@ -113,7 +116,7 @@ function MeetingForm({
   onOpenCalendarSync(): void;
 }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const { preferences } = usePreferences();
   const calendar = useCalendarStatus();
@@ -280,7 +283,6 @@ function MeetingForm({
 
   const pickerValue = pickerDateOf(draft);
   const dayLabel = capitalizeFirst(fmt.date(draft.date, 'full'));
-  const whenLabel = draft.allDay ? dayLabel : `${dayLabel} · ${fmt.time(pickerValue)}`;
   const durationChoices = [...new Set([...DURATION_OPTIONS, draft.durationMinutes])].sort((a, b) => a - b);
 
   return (
@@ -306,6 +308,7 @@ function MeetingForm({
       <Section>
         <TextInput
           mode="outlined"
+          outlineStyle={styles.inputOutline}
           label={t('meetings:form.title')}
           value={draft.title}
           onChangeText={(value) => change({ title: value })}
@@ -316,6 +319,7 @@ function MeetingForm({
         {errorText('title') ? <HelperText type="error">{errorText('title')}</HelperText> : null}
         <TextInput
           mode="outlined"
+          outlineStyle={styles.inputOutline}
           label={t('meetings:form.description')}
           value={draft.description}
           onChangeText={(value) => change({ description: value })}
@@ -326,24 +330,29 @@ function MeetingForm({
       </Section>
 
       <Section title={t('meetings:form.when')}>
-        <Text variant="bodyLarge" testID="meeting-form-when">
-          {whenLabel}
-        </Text>
+        <ListGroup testID="meeting-form-when">
+          <ListRow
+            icon="calendar"
+            title={t('meetings:form.pickDate')}
+            supporting={dayLabel}
+            trailing="chevron"
+            onPress={() => setPicker('date')}
+          />
+          {!draft.allDay ? (
+            <ListRow
+              icon="clock-outline"
+              title={t('meetings:form.pickTime')}
+              supporting={fmt.time(pickerValue)}
+              trailing="chevron"
+              onPress={() => setPicker('time')}
+            />
+          ) : null}
+        </ListGroup>
         {draft.timezone !== deviceZone ? (
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+          <Text variant="bodySmall" style={[styles.zoneNote, { color: colors.onSurfaceVariant }]}>
             {t('meetings:form.timeZone', { zone: draft.timezone })}
           </Text>
         ) : null}
-        <View style={styles.buttonRow}>
-          <Button mode="outlined" icon="calendar" onPress={() => setPicker('date')} style={styles.inlineButton}>
-            {t('meetings:form.pickDate')}
-          </Button>
-          {!draft.allDay ? (
-            <Button mode="outlined" icon="clock-outline" onPress={() => setPicker('time')} style={styles.inlineButton}>
-              {t('meetings:form.pickTime')}
-            </Button>
-          ) : null}
-        </View>
         {picker === 'date' || picker === 'time' ? (
           <View>
             <DateTimePicker
@@ -354,9 +363,9 @@ function MeetingForm({
               is24Hour={fmt.options.use24Hour ?? undefined}
             />
             {Platform.OS === 'ios' ? (
-              <Button mode="text" style={styles.alignStart} onPress={() => setPicker(null)}>
+              <MGButton variant="ghost" size="sm" style={styles.alignStart} onPress={() => setPicker(null)}>
                 {t('common:actions.done')}
-              </Button>
+              </MGButton>
             ) : null}
           </View>
         ) : null}
@@ -421,6 +430,7 @@ function MeetingForm({
               <Text variant="bodyMedium">{t('meetings:form.repeat.everyLabel')}</Text>
               <TextInput
                 mode="outlined"
+                outlineStyle={styles.inputOutline}
                 dense
                 value={draft.repeatInterval}
                 onChangeText={(value) => change({ repeatInterval: value })}
@@ -492,9 +502,9 @@ function MeetingForm({
                     {t('meetings:form.repeat.untilOn', { date: capitalizeFirst(fmt.date(draft.repeatUntilDate, 'long')) })}
                   </Text>
                 ) : null}
-                <Button mode="outlined" icon="calendar-end" onPress={() => setPicker('until')} style={styles.alignStart} testID="meeting-form-pick-until">
+                <MGButton variant="outline" size="sm" icon="calendar-end" onPress={() => setPicker('until')} style={styles.alignStart} testID="meeting-form-pick-until">
                   {t('meetings:form.repeat.pickUntilDate')}
-                </Button>
+                </MGButton>
                 {picker === 'until' ? (
                   <View>
                     <DateTimePicker
@@ -504,9 +514,9 @@ function MeetingForm({
                       onChange={onPicked}
                     />
                     {Platform.OS === 'ios' ? (
-                      <Button mode="text" style={styles.alignStart} onPress={() => setPicker(null)}>
+                      <MGButton variant="ghost" size="sm" style={styles.alignStart} onPress={() => setPicker(null)}>
                         {t('common:actions.done')}
-                      </Button>
+                      </MGButton>
                     ) : null}
                   </View>
                 ) : null}
@@ -517,6 +527,7 @@ function MeetingForm({
               <>
                 <TextInput
                   mode="outlined"
+                  outlineStyle={styles.inputOutline}
                   dense
                   label={t('meetings:form.repeat.countLabel')}
                   value={draft.repeatCount}
@@ -530,7 +541,7 @@ function MeetingForm({
                 {errorText('repeatCount') ? <HelperText type="error">{errorText('repeatCount')}</HelperText> : null}
               </>
             ) : null}
-            <Text variant="bodySmall" style={[styles.field, { color: theme.colors.onSurfaceVariant }]} testID="meeting-form-repeat-summary">
+            <Text variant="bodySmall" style={[styles.field, { color: colors.onSurfaceVariant }]} testID="meeting-form-repeat-summary">
               {recurrenceSummary(t, recurrenceRuleOf(draft, meeting?.recurrence ?? null), {
                 formatDate: (localDate) => fmt.date(localDate, 'medium'),
                 anchorDate: draft.date,
@@ -558,6 +569,7 @@ function MeetingForm({
         {draft.locationType === 'physical' || draft.locationType === 'hybrid' ? (
           <TextInput
             mode="outlined"
+            outlineStyle={styles.inputOutline}
             label={t('meetings:form.address')}
             value={draft.address}
             onChangeText={(value) => change({ address: value })}
@@ -592,20 +604,22 @@ function MeetingForm({
           </HelperText>
         ) : null}
         {connectTarget !== null ? (
-          <Button
-            mode="outlined"
+          <MGButton
+            variant="outline"
+            size="sm"
             icon="calendar-sync-outline"
             style={styles.alignStart}
             onPress={onOpenCalendarSync}
             testID="meeting-form-connect-calendar"
           >
             {connectTarget === 'google' ? t('meetings:details.connectCalendar') : t('calendar:outlook.connect')}
-          </Button>
+          </MGButton>
         ) : null}
         {draft.conferenceProvider !== 'none' ? (
           <>
             <TextInput
               mode="outlined"
+              outlineStyle={styles.inputOutline}
               label={t(`meetings:form.${conferenceLinkLabel(draft, calendar, meeting?.source, meeting?.external)}`)}
               placeholder="https://"
               value={draft.conferenceUrl}
@@ -621,6 +635,7 @@ function MeetingForm({
             {showConferencePassword(draft) ? (
               <TextInput
                 mode="outlined"
+                outlineStyle={styles.inputOutline}
                 label={t('meetings:form.password')}
                 value={draft.conferencePassword}
                 onChangeText={(value) => change({ conferencePassword: value })}
@@ -641,6 +656,7 @@ function MeetingForm({
             <View style={styles.flex}>
               <TextInput
                 mode="outlined"
+                outlineStyle={styles.inputOutline}
                 dense
                 label={t('meetings:form.participantEmail')}
                 value={row.email}
@@ -651,6 +667,7 @@ function MeetingForm({
               />
               <TextInput
                 mode="outlined"
+                outlineStyle={styles.inputOutline}
                 dense
                 label={t('meetings:form.participantName')}
                 value={row.name}
@@ -666,14 +683,15 @@ function MeetingForm({
           </View>
         ))}
         {errorText('participants') ? <HelperText type="error">{errorText('participants')}</HelperText> : null}
-        <Button
-          mode="text"
+        <MGButton
+          variant="ghost"
+          size="sm"
           icon="account-plus-outline"
           style={styles.alignStart}
           onPress={() => change({ participants: [...draft.participants, { email: '', name: '' }] })}
         >
           {t('meetings:form.addParticipant')}
-        </Button>
+        </MGButton>
         {draft.participants.length > 0 ? (
           <HelperText type="info" visible>
             {googleConnected ? t('meetings:form.invitesByGoogle') : t('meetings:form.invitesNeedCalendar')}
@@ -684,6 +702,7 @@ function MeetingForm({
       <Section title={t('meetings:form.tips')}>
         <TextInput
           mode="outlined"
+          outlineStyle={styles.inputOutline}
           label={t('meetings:form.tipsLabel')}
           value={draft.tipsText}
           onChangeText={(value) => change({ tipsText: value })}
@@ -751,6 +770,7 @@ function MeetingForm({
       <Section title={t('meetings:form.notes')}>
         <TextInput
           mode="outlined"
+          outlineStyle={styles.inputOutline}
           label={t('meetings:form.notes')}
           value={draft.notes}
           onChangeText={(value) => change({ notes: value })}
@@ -761,7 +781,7 @@ function MeetingForm({
       </Section>
 
       <Section title={t('meetings:form.attachments')}>
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+        <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
           {t('meetings:form.attachmentsHint')}
         </Text>
         {attachments.map((item) => (
@@ -785,8 +805,9 @@ function MeetingForm({
           </HelperText>
         ) : null}
         <View style={styles.buttonRow}>
-          <Button
-            mode="text"
+          <MGButton
+            variant="ghost"
+            size="sm"
             icon="file-document-outline"
             disabled={attachmentBusy}
             onPress={() => {
@@ -794,9 +815,10 @@ function MeetingForm({
             }}
           >
             {t('meetings:form.addDocument')}
-          </Button>
-          <Button
-            mode="text"
+          </MGButton>
+          <MGButton
+            variant="ghost"
+            size="sm"
             icon="image-outline"
             disabled={attachmentBusy}
             onPress={() => {
@@ -804,7 +826,7 @@ function MeetingForm({
             }}
           >
             {t('meetings:form.addPhoto')}
-          </Button>
+          </MGButton>
         </View>
       </Section>
     </ScreenBody>
@@ -816,42 +838,44 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   field: {
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   fieldTight: {
-    marginTop: 6,
+    marginTop: spacing.sm,
+  },
+  inputOutline: {
+    borderRadius: radii.md,
+  },
+  zoneNote: {
+    marginTop: spacing.sm,
   },
   buttonRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 8,
-  },
-  inlineButton: {
-    marginRight: 8,
-    marginBottom: 8,
+    marginTop: spacing.sm,
   },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   subheading: {
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   chip: {
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
   participantRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   alignStart: {
     alignSelf: 'flex-start',
@@ -859,15 +883,16 @@ const styles = StyleSheet.create({
   intervalRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   intervalInput: {
-    width: 64,
+    minWidth: 64,
     textAlign: 'center',
   },
   countInput: {
-    marginTop: 8,
-    width: 160,
+    marginTop: spacing.sm,
+    minWidth: 160,
+    alignSelf: 'flex-start',
   },
 });

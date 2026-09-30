@@ -1,6 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { Text } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 
@@ -61,7 +61,8 @@ it('shows WhatsApp as a disabled "Coming soon" option that goes nowhere', async 
   const whatsapp = screen.getByTestId('create-method-whatsapp');
   expect(whatsapp.props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
   expect(whatsapp.props.accessibilityLabel).toMatch(/^WhatsApp, Coming soon\./);
-  expect(screen.getByTestId('create-method-whatsapp-soon').props.children).toBe('Coming soon');
+  // The "Coming soon" marker is a kit Badge (a View wrapping the label text).
+  expect(within(screen.getByTestId('create-method-whatsapp-soon')).getByText('Coming soon')).toBeTruthy();
   await act(async () => {
     fireEvent.press(whatsapp);
   });
@@ -75,5 +76,5 @@ it('is translated to Spanish', async () => {
   await i18n.changeLanguage('es');
   await renderChooser();
   expect(screen.getByText('Rellenar un formulario')).toBeTruthy();
-  expect(screen.getByTestId('create-method-whatsapp-soon').props.children).toBe('Próximamente');
+  expect(within(screen.getByTestId('create-method-whatsapp-soon')).getByText('Próximamente')).toBeTruthy();
 });

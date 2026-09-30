@@ -11,16 +11,18 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { Button, Chip, HelperText, Modal, Portal, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';
+import { Chip, HelperText, Modal, Portal, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
+import { ListGroup, ListRow, MGButton, SheetHandle } from '../../components/ui';
 import type { MeetingRecurrenceOps, MeetingRepository } from '../../core/contracts';
 import { AppError, errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import { useT } from '../../i18n';
 import { meetingRepository } from '../../services/data';
+import { radii, spacing } from '../../theme';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
 import type { OccurrenceEditTarget } from './list/meetingActions';
@@ -116,9 +118,13 @@ function SheetBody({ target, onDismiss }: { target: OccurrenceEditTarget; onDism
       visible
       onDismiss={saving ? undefined : onDismiss}
       style={styles.modal}
-      contentContainerStyle={[styles.sheet, { backgroundColor: theme.colors.elevation.level3, marginBottom: insets.bottom + 12 }]}
+      contentContainerStyle={[
+        styles.sheet,
+        { backgroundColor: theme.colors.elevation.level3, paddingBottom: insets.bottom + spacing.lg },
+      ]}
     >
       <View testID="occurrence-edit-sheet">
+        <SheetHandle />
         <Text variant="titleMedium" accessibilityRole="header" style={styles.heading}>
           {scope === 'following' ? t('meetings:actions.scopeFollowing') : t('meetings:occurrence.editTitle')}
         </Text>
@@ -135,25 +141,33 @@ function SheetBody({ target, onDismiss }: { target: OccurrenceEditTarget; onDism
           value={draft.title}
           onChangeText={(value) => change({ title: value })}
           maxLength={200}
+          outlineStyle={styles.inputOutline}
           error={submitted && !valid && draft.title.trim().length === 0}
           testID="occurrence-edit-title"
         />
-        <Text variant="bodyLarge" style={styles.when} testID="occurrence-edit-when">
-          {`${dayLabel} · ${fmt.time(pickerDateOf(draft))}`}
-        </Text>
         {entry.timezone !== deviceZone ? (
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+          <Text variant="bodySmall" style={[styles.zoneNote, { color: theme.colors.onSurfaceVariant }]}>
             {t('meetings:form.timeZone', { zone: entry.timezone })}
           </Text>
         ) : null}
-        <View style={styles.buttonRow}>
-          <Button mode="outlined" icon="calendar" onPress={() => setPicker('date')} style={styles.inlineButton} testID="occurrence-edit-pick-date">
-            {t('meetings:occurrence.dateLabel')}
-          </Button>
-          <Button mode="outlined" icon="clock-outline" onPress={() => setPicker('time')} style={styles.inlineButton} testID="occurrence-edit-pick-time">
-            {t('meetings:occurrence.timeLabel')}
-          </Button>
-        </View>
+        <ListGroup style={styles.pickerGroup} testID="occurrence-edit-when">
+          <ListRow
+            icon="calendar"
+            title={t('meetings:occurrence.dateLabel')}
+            supporting={dayLabel}
+            trailing="chevron"
+            onPress={() => setPicker('date')}
+            testID="occurrence-edit-pick-date"
+          />
+          <ListRow
+            icon="clock-outline"
+            title={t('meetings:occurrence.timeLabel')}
+            supporting={fmt.time(pickerDateOf(draft))}
+            trailing="chevron"
+            onPress={() => setPicker('time')}
+            testID="occurrence-edit-pick-time"
+          />
+        </ListGroup>
         {picker !== null ? (
           <View>
             <DateTimePicker
@@ -164,13 +178,13 @@ function SheetBody({ target, onDismiss }: { target: OccurrenceEditTarget; onDism
               is24Hour={fmt.options.use24Hour ?? undefined}
             />
             {Platform.OS === 'ios' ? (
-              <Button mode="text" style={styles.alignStart} onPress={() => setPicker(null)}>
+              <MGButton variant="ghost" size="sm" style={styles.alignStart} onPress={() => setPicker(null)}>
                 {t('common:actions.done')}
-              </Button>
+              </MGButton>
             ) : null}
           </View>
         ) : null}
-        <Text variant="titleSmall" style={styles.durationLabel}>
+        <Text variant="titleSmall" style={[styles.durationLabel, { color: theme.colors.onSurfaceVariant }]}>
           {t('meetings:occurrence.durationLabel')}
         </Text>
         <View style={styles.chips}>
@@ -192,11 +206,10 @@ function SheetBody({ target, onDismiss }: { target: OccurrenceEditTarget; onDism
           </HelperText>
         ) : null}
         <View style={styles.footer}>
-          <Button mode="outlined" onPress={onDismiss} disabled={saving} style={styles.footerButton} testID="occurrence-edit-cancel">
+          <MGButton variant="ghost" onPress={onDismiss} disabled={saving} style={styles.footerButton} testID="occurrence-edit-cancel">
             {t('common:actions.cancel')}
-          </Button>
-          <Button
-            mode="contained"
+          </MGButton>
+          <MGButton
             onPress={() => {
               void save();
             }}
@@ -206,7 +219,7 @@ function SheetBody({ target, onDismiss }: { target: OccurrenceEditTarget; onDism
             testID="occurrence-edit-save"
           >
             {t('meetings:form.saveChanges')}
-          </Button>
+          </MGButton>
         </View>
       </View>
     </Modal>
@@ -218,49 +231,47 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    marginHorizontal: 12,
-    borderRadius: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    borderTopLeftRadius: radii.sheet,
+    borderTopRightRadius: radii.sheet,
+    paddingTop: spacing.xs,
+    paddingHorizontal: spacing.lg,
   },
   heading: {
-    marginBottom: 2,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
   },
   subheading: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
-  when: {
-    marginTop: 12,
+  inputOutline: {
+    borderRadius: radii.md,
   },
-  buttonRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
+  zoneNote: {
+    marginTop: spacing.sm,
   },
-  inlineButton: {
-    marginRight: 8,
-    marginBottom: 8,
+  pickerGroup: {
+    marginTop: spacing.md,
   },
   alignStart: {
     alignSelf: 'flex-start',
   },
   durationLabel: {
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
   },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   chip: {
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 12,
-    gap: 12,
+    marginTop: spacing.md,
+    gap: spacing.md,
   },
   footerButton: {
     minWidth: 120,

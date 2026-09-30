@@ -9,26 +9,18 @@
  */
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useMemo, useState, type ReactElement } from 'react';
-import { RefreshControl, ScrollView, SectionList, StyleSheet, View, type SectionListData } from 'react-native';
-import {
-  ActivityIndicator,
-  Button,
-  Chip,
-  FAB,
-  HelperText,
-  Searchbar,
-  SegmentedButtons,
-  Text,
-  useTheme as usePaperTheme,
-} from 'react-native-paper';
+import { Animated, RefreshControl, ScrollView, SectionList, StyleSheet, View, type SectionListData } from 'react-native';
+import { ActivityIndicator, Chip, FAB, Searchbar, SegmentedButtons, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Banner, EmptyState, ErrorState, MGButton } from '../../../components/ui';
 import type { RootStackParamList } from '../../../core/contracts';
 import { errorMessageKey } from '../../../core/errors';
 import { getDeviceTimeZone, todayInZone } from '../../../core/time';
 import type { Meeting } from '../../../core/types';
 import { useT } from '../../../i18n';
 import { useMeetings } from '../../../services/data';
+import { componentMetrics, spacing, useAppTheme } from '../../../theme';
 import { useFormatters } from '../../shared/useFormatters';
 import { capitalizeFirst } from '../../shared/text';
 import { useLiveNow } from '../../shared/useLiveNow';
@@ -56,12 +48,22 @@ import {
   type SourceFilter,
 } from './meetingListModel';
 import { useMeetingsRefresh } from './useMeetingsRefresh';
+import { FAB_SLIDE_DP, useHideOnScroll } from './useHideOnScroll';
 
 type Props = StackScreenProps<RootStackParamList, 'TotalMeetings'>;
 
+/** Empty-state icon per variant (kit EmptyState, §8). */
+const EMPTY_ICONS = {
+  none: 'calendar-blank-outline',
+  noMatches: 'calendar-search',
+  upcoming: 'calendar-check-outline',
+  past: 'calendar-clock-outline',
+  all: 'calendar-blank-outline',
+} as const;
+
 export function MeetingsListScreen({ navigation }: Props): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const fmt = useFormatters();
   const now = useLiveNow(60_000);
@@ -71,6 +73,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
   const [sheetMeeting, setSheetMeeting] = useState<DisplayMeeting | null>(null);
   const actions = useMeetingActions();
   const { refreshing, onRefresh } = useMeetingsRefresh(refresh);
+  const fab = useHideOnScroll();
 
   const todayKey = todayInZone(timeZone, now);
   // Recurring meetings render one row per occurrence (bounded window; occurrences.ts).
@@ -99,11 +102,16 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
   };
 
   const renderSectionHeader = ({ section }: { section: SectionListData<Meeting, MeetingSection> }): ReactElement => (
-    <View style={[styles.sectionHeader, { backgroundColor: theme.colors.background }]}>
-      <Text variant="titleSmall" accessibilityRole="header" style={styles.flex} testID={`meetings-section-${section.dayKey}`}>
+    <View style={[styles.sectionHeader, { backgroundColor: colors.background }]}>
+      <Text
+        variant="titleSmall"
+        accessibilityRole="header"
+        style={[styles.flex, { color: colors.onSurfaceVariant }]}
+        testID={`meetings-section-${section.dayKey}`}
+      >
         {sectionTitle(section.dayKey)}
       </Text>
-      <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+      <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
         {t('meetings:list.count', { count: section.data.length })}
       </Text>
     </View>
@@ -128,7 +136,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
       return (
         <View style={styles.state} testID="meetings-loading">
           <ActivityIndicator size="large" />
-          <Text variant="bodyMedium" style={styles.stateText}>
+          <Text variant="bodyMedium" style={[styles.stateText, { color: colors.onSurfaceVariant }]}>
             {t('meetings:list.loading')}
           </Text>
         </View>
@@ -136,55 +144,51 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
     }
     if (error && meetings.length === 0) {
       return (
-        <View style={styles.state} testID="meetings-error">
-          <Text variant="titleMedium" style={styles.stateText} accessibilityRole="header">
-            {t('meetings:list.errorTitle')}
-          </Text>
-          <Text variant="bodyMedium" style={[styles.stateText, { color: theme.colors.onSurfaceVariant }]}>
-            {t(errorMessageKey(error.code))}
-          </Text>
-          <Button mode="contained" style={styles.stateButton} onPress={onRefresh} loading={refreshing} disabled={refreshing}>
-            {t('common:actions.retry')}
-          </Button>
-        </View>
+        <ErrorState
+          title={t('meetings:list.errorTitle')}
+          body={t(errorMessageKey(error.code))}
+          onRetry={() => {
+            if (!refreshing) onRefresh();
+          }}
+          style={styles.state}
+          testID="meetings-error"
+        />
       );
     }
     const variant = meetings.length === 0 ? 'none' : filtered ? 'noMatches' : filters.time;
     return (
       <View style={styles.state} testID={`meetings-empty-${variant}`}>
-        <Text variant="titleMedium" style={styles.stateText} accessibilityRole="header">
-          {t(`meetings:list.empty.${variant}.title`)}
-        </Text>
-        <Text variant="bodyMedium" style={[styles.stateText, { color: theme.colors.onSurfaceVariant }]}>
-          {t(`meetings:list.empty.${variant}.message`)}
-        </Text>
+        <EmptyState
+          icon={EMPTY_ICONS[variant]}
+          title={t(`meetings:list.empty.${variant}.title`)}
+          body={t(`meetings:list.empty.${variant}.message`)}
+          style={styles.emptyBody}
+        />
         {variant === 'noMatches' ? (
-          <Button mode="outlined" style={styles.stateButton} onPress={clearFilters} testID="meetings-clear-filters">
+          <MGButton variant="tonal" onPress={clearFilters} testID="meetings-clear-filters">
             {t('meetings:list.clearFilters')}
-          </Button>
+          </MGButton>
         ) : variant === 'upcoming' ? (
-          <Button mode="outlined" style={styles.stateButton} onPress={() => setTime('past')}>
+          <MGButton variant="tonal" onPress={() => setTime('past')}>
             {t('meetings:list.showPast')}
-          </Button>
+          </MGButton>
         ) : (
-          <Button mode="contained" style={styles.stateButton} onPress={createMeeting}>
-            {t('meetings:list.newMeeting')}
-          </Button>
+          <MGButton onPress={createMeeting}>{t('meetings:list.newMeeting')}</MGButton>
         )}
       </View>
     );
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.controls, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.controls, { paddingLeft: insets.left + componentMetrics.screenGutter, paddingRight: insets.right + componentMetrics.screenGutter }]}>
         <Searchbar
           value={filters.query}
           onChangeText={setQuery}
           placeholder={t('meetings:list.searchPlaceholder')}
           accessibilityLabel={t('meetings:list.searchLabel')}
           clearAccessibilityLabel={t('meetings:list.clearSearch')}
-          style={styles.search}
+          style={[styles.search, { backgroundColor: colors.surfaceVariant }]}
           autoCorrect={false}
           returnKeyType="search"
           testID="meetings-search"
@@ -210,7 +214,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
             <Chip
               key={value}
               selected={filters.source === value}
-              showSelectedOverlay
+              mode={filters.source === value ? 'flat' : 'outlined'}
               compact
               onPress={() => setSource(value)}
               style={styles.chip}
@@ -224,7 +228,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
         {meetings.length > 0 ? (
           <Text
             variant="labelMedium"
-            style={[styles.resultCount, { color: theme.colors.onSurfaceVariant }]}
+            style={[styles.resultCount, { color: colors.onSurfaceVariant }]}
             accessibilityLiveRegion="polite"
             testID="meetings-result-count"
           >
@@ -232,9 +236,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
           </Text>
         ) : null}
         {error && meetings.length > 0 ? (
-          <HelperText type="error" visible testID="meetings-error-banner">
-            {t(errorMessageKey(error.code))}
-          </HelperText>
+          <Banner tone="error" text={t(errorMessageKey(error.code))} style={styles.errorBanner} testID="meetings-error-banner" />
         ) : null}
       </View>
 
@@ -248,27 +250,39 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         initialNumToRender={12}
+        onScroll={fab.onScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: insets.bottom + 96, flexGrow: 1 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[theme.colors.primary]}
-            tintColor={theme.colors.primary}
-            progressBackgroundColor={theme.colors.surface}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+            progressBackgroundColor={colors.surface}
           />
         }
         testID="meetings-list"
       />
 
-      <FAB
-        icon="plus"
-        label={t('meetings:list.newMeeting')}
-        onPress={createMeeting}
-        style={[styles.fab, { bottom: insets.bottom + 16, right: insets.right + 16 }]}
-        accessibilityLabel={t('meetings:list.newMeeting')}
-        testID="meetings-new"
-      />
+      <Animated.View
+        style={[
+          styles.fab,
+          { bottom: insets.bottom + componentMetrics.screenGutter, right: insets.right + componentMetrics.screenGutter },
+          {
+            opacity: fab.visible,
+            transform: [{ translateY: fab.visible.interpolate({ inputRange: [0, 1], outputRange: [FAB_SLIDE_DP, 0] }) }],
+          },
+        ]}
+      >
+        <FAB
+          icon="plus"
+          label={t('meetings:list.newMeeting')}
+          onPress={createMeeting}
+          accessibilityLabel={t('meetings:list.newMeeting')}
+          testID="meetings-new"
+        />
+      </Animated.View>
 
       <MeetingActionsSheet meeting={sheetMeeting} actions={actions} onDismiss={() => setSheetMeeting(null)} />
       <OccurrenceEditSheet target={actions.occurrenceEdit} onDismiss={actions.dismissOccurrenceEdit} />
@@ -284,44 +298,48 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   controls: {
-    paddingTop: 12,
+    paddingTop: spacing.md,
   },
   search: {
-    marginBottom: 10,
+    marginBottom: spacing.md,
   },
   segments: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   chips: {
-    paddingVertical: 2,
+    paddingVertical: spacing.xs,
   },
   chip: {
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   resultCount: {
-    marginTop: 6,
-    marginBottom: 2,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  errorBanner: {
+    marginBottom: spacing.sm,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 6,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    gap: spacing.md,
   },
   state: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 48,
+    paddingHorizontal: spacing.xxxl,
+    paddingVertical: spacing.xxl,
   },
   stateText: {
-    marginTop: 8,
+    marginTop: spacing.sm,
     textAlign: 'center',
   },
-  stateButton: {
-    marginTop: 16,
+  emptyBody: {
+    paddingBottom: spacing.xl,
   },
   fab: {
     position: 'absolute',

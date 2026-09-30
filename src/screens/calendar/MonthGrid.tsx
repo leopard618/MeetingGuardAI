@@ -1,22 +1,24 @@
 /**
  * Month grid of the calendar screen: 6 x 7 day cells with one dot per meeting source on the day,
- * today outlined, the selected day filled. Every cell is a button whose label reads the full date,
- * the number of meetings and "today" / "selected".
+ * today tinted (primaryContainer), the selected day filled (primary). Every cell is a button
+ * whose label reads the full date, the number of meetings and "today" / "selected". Day circles
+ * scale with the available width and never drop below 40dp (docs/DESIGN_SYSTEM.md §7).
  */
 import { memo, useState, type ReactElement } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
-import { Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { sourceColor } from '../meetings/list/MeetingListItem';
 import { useFormatters } from '../shared/useFormatters';
 import { dayDots, type GridDay } from './calendarModel';
 
-const MIN_CELL_HEIGHT = 44;
-const MAX_CELL_HEIGHT = 56;
 /** Day numbers may grow with the system font size, up to what a cell can hold. */
 const MAX_FONT_SCALE = 1.4;
+/** Largest day circle; below componentMetrics.calendarDayMinSize it never shrinks. */
+const MAX_CIRCLE = 48;
 
 export interface MonthGridProps {
   grid: readonly GridDay[];
@@ -29,12 +31,14 @@ export interface MonthGridProps {
 
 function MonthGridComponent({ grid, weekdays, index, selectedKey, todayKey, onSelect }: MonthGridProps): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const dimensions = useWindowDimensions();
   const [width, setWidth] = useState(Math.max(0, Math.min(dimensions.width, 560) - 32));
   const cellWidth = width / 7;
-  const cellHeight = Math.min(MAX_CELL_HEIGHT, Math.max(MIN_CELL_HEIGHT, cellWidth));
+  // The day circle grows with the cell (min 40dp); the cell leaves room for the dot row below.
+  const circleSize = Math.min(MAX_CIRCLE, Math.max(componentMetrics.calendarDayMinSize, cellWidth - spacing.xs));
+  const cellHeight = circleSize + componentMetrics.calendarDotSize + spacing.md;
 
   const onLayout = (event: LayoutChangeEvent): void => {
     const next = event.nativeEvent.layout.width;
@@ -49,7 +53,7 @@ function MonthGridComponent({ grid, weekdays, index, selectedKey, todayKey, onSe
             key={weekday.full}
             variant="labelMedium"
             maxFontSizeMultiplier={MAX_FONT_SCALE}
-            style={[styles.weekday, { width: cellWidth, color: theme.colors.onSurfaceVariant }]}
+            style={[styles.weekday, { width: cellWidth, color: colors.onSurfaceVariant }]}
           >
             {weekday.short}
           </Text>
@@ -63,12 +67,12 @@ function MonthGridComponent({ grid, weekdays, index, selectedKey, todayKey, onSe
           const selected = day.key === selectedKey;
           const today = day.key === todayKey;
           const numberColor = selected
-            ? theme.colors.onPrimary
+            ? colors.onPrimary
             : today
-              ? theme.colors.primary
+              ? colors.onPrimaryContainer
               : day.inMonth
-                ? theme.colors.onSurface
-                : theme.colors.onSurfaceDisabled;
+                ? colors.onSurface
+                : colors.onSurfaceDisabled;
           const label = [
             fmt.date(day.key, 'full'),
             count > 0 ? t('calendarView:meetingCount', { count }) : t('calendarView:noMeetings'),
@@ -89,8 +93,9 @@ function MonthGridComponent({ grid, weekdays, index, selectedKey, todayKey, onSe
               <View
                 style={[
                   styles.number,
-                  selected && { backgroundColor: theme.colors.primary },
-                  !selected && today && { borderColor: theme.colors.primary, borderWidth: 1.5 },
+                  { minWidth: circleSize, height: circleSize, borderRadius: radii.full },
+                  selected && { backgroundColor: colors.primary },
+                  !selected && today && { backgroundColor: colors.primaryContainer },
                 ]}
               >
                 <Text
@@ -105,7 +110,7 @@ function MonthGridComponent({ grid, weekdays, index, selectedKey, todayKey, onSe
                 {dots.map((category) => (
                   <View
                     key={category}
-                    style={[styles.dot, { backgroundColor: sourceColor(category, theme), opacity: day.inMonth ? 1 : 0.5 }]}
+                    style={[styles.dot, { backgroundColor: sourceColor(category, colors), opacity: day.inMonth ? 1 : 0.5 }]}
                     testID={`calendar-dot-${day.key}-${category}`}
                   />
                 ))}
@@ -127,33 +132,30 @@ const styles = StyleSheet.create({
   },
   weekday: {
     textAlign: 'center',
-    paddingVertical: 6,
+    paddingVertical: spacing.sm,
   },
   cell: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   number: {
-    minWidth: 32,
-    height: 32,
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.xs,
   },
   bold: {
     fontWeight: '700',
   },
   dots: {
     flexDirection: 'row',
-    height: 8,
-    marginTop: 2,
+    height: componentMetrics.calendarDotSize + spacing.xs,
+    marginTop: spacing.xs,
     alignItems: 'center',
+    gap: spacing.xs,
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginHorizontal: 1,
+    width: componentMetrics.calendarDotSize,
+    height: componentMetrics.calendarDotSize,
+    borderRadius: radii.full,
   },
 });

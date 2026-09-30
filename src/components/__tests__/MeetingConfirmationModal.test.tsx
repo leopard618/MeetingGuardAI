@@ -28,6 +28,8 @@ jest.mock('../../utils/format', () => ({
 
 jest.mock('../../contexts/ThemeContext', () => ({
   useTheme: () => ({ isDarkMode: false, toggleTheme: jest.fn() }),
+  // The modal and its kit pieces read colors through useAppTheme (src/theme).
+  useOptionalTheme: () => ({ colorScheme: 'light' }),
 }));
 
 function previewFor(action: ProposedActionState['action'], meetings = [makeMeeting('m1', { title: 'Weekly sync' })]): AiActionPreview {

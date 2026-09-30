@@ -18,6 +18,9 @@ import { List, Modal, Portal, Text, useTheme as usePaperTheme } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
+import { SheetHandle } from '../../../components/ui';
+import { radii, spacing } from '../../../theme';
+
 import type { MeetingRecurrenceOps, MeetingRepository, RootStackParamList } from '../../../core/contracts';
 import { AppError, errorMessageKey, toAppError } from '../../../core/errors';
 import { createLogger } from '../../../core/logger';
@@ -269,11 +272,12 @@ export function MeetingActionsSheet({
         style={styles.modal}
         contentContainerStyle={[
           styles.sheet,
-          { backgroundColor: theme.colors.elevation.level3, marginBottom: insets.bottom + 12 },
+          { backgroundColor: theme.colors.elevation.level3, paddingBottom: insets.bottom + spacing.sm },
         ]}
       >
         {meeting ? (
           <View testID="meeting-actions-sheet">
+            <SheetHandle />
             <Text variant="titleMedium" numberOfLines={2} accessibilityRole="header" style={styles.title}>
               {meeting.title}
             </Text>
@@ -324,17 +328,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    marginHorizontal: 12,
-    borderRadius: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    borderTopLeftRadius: radii.sheet,
+    borderTopRightRadius: radii.sheet,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
   title: {
-    paddingHorizontal: 16,
-    paddingBottom: 4,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
   },
   subtitle: {
-    paddingHorizontal: 16,
-    paddingBottom: 4,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xs,
   },
 });

@@ -1,24 +1,27 @@
 /**
  * Calendar (route "Calendar"): a month grid with one dot per meeting source on each day (every
  * meeting from the data layer: MeetingGuard, AI assistant, Google Calendar and device-calendar
- * imports; no direct Google API call here), the agenda of the selected day, and "New meeting on
- * <day>" which opens the manual form preset to that day. Days are local days in the user's zone.
+ * imports; no direct Google API call here), the agenda of the selected day, and a FAB that
+ * creates a meeting preset to the selected day. Days are local days in the user's zone.
  */
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
-import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Divider, IconButton, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Animated, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Divider, FAB, IconButton, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Banner, ErrorState, MGButton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey } from '../../core/errors';
 import { getDeviceTimeZone, todayInZone } from '../../core/time';
 import { useLanguage, useT } from '../../i18n';
 import { useMeetings } from '../../services/data';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { MeetingActionsSheet, useMeetingActions } from '../meetings/list/meetingActions';
 import { MeetingListItem, sourceColor } from '../meetings/list/MeetingListItem';
 import { dayRelation, type SourceCategory } from '../meetings/list/meetingListModel';
 import { useMeetingsRefresh } from '../meetings/list/useMeetingsRefresh';
+import { FAB_SLIDE_DP, useHideOnScroll } from '../meetings/list/useHideOnScroll';
 import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay, type DisplayMeeting } from '../meetings/occurrences';
 import { OccurrenceEditSheet } from '../meetings/OccurrenceEditSheet';
 import { useFormatters } from '../shared/useFormatters';
@@ -44,7 +47,7 @@ const LEGEND: readonly SourceCategory[] = ['meetingguard', 'google', 'device'];
 
 export function CalendarScreen({ navigation }: Props): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const fmt = useFormatters();
   const { language } = useLanguage();
@@ -57,6 +60,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
   const { meetings, isLoading, error, refresh } = useMeetings();
   const actions = useMeetingActions();
   const { refreshing, onRefresh } = useMeetingsRefresh(refresh);
+  const fab = useHideOnScroll();
 
   const firstWeekday = weekStartsOn(language);
   const grid = useMemo(() => buildMonthGrid(visibleMonth, firstWeekday), [visibleMonth, firstWeekday]);
@@ -98,12 +102,13 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
   const title = monthTitle(visibleMonth, language);
 
   const header = (
-    <View style={[styles.header, { paddingLeft: insets.left + 16, paddingRight: insets.right + 16 }]}>
+    <View style={[styles.header, { paddingLeft: insets.left + componentMetrics.screenGutter, paddingRight: insets.right + componentMetrics.screenGutter }]}>
       <View style={styles.monthRow}>
         <IconButton
           icon="chevron-left"
           onPress={() => changeMonth(-1)}
           accessibilityLabel={t('calendarView:previousMonth')}
+          style={styles.navButton}
           hitSlop={4}
           testID="calendar-prev"
         />
@@ -114,14 +119,23 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
           icon="chevron-right"
           onPress={() => changeMonth(1)}
           accessibilityLabel={t('calendarView:nextMonth')}
+          style={styles.navButton}
           hitSlop={4}
           testID="calendar-next"
         />
       </View>
       {!showingToday ? (
-        <Button mode="text" icon="calendar-today" onPress={goToToday} style={styles.todayButton} accessibilityLabel={t('calendarView:goToToday')} testID="calendar-today">
+        <MGButton
+          variant="ghost"
+          size="sm"
+          icon="calendar-today"
+          onPress={goToToday}
+          style={styles.todayButton}
+          accessibilityLabel={t('calendarView:goToToday')}
+          testID="calendar-today"
+        >
           {t('calendarView:today')}
-        </Button>
+        </MGButton>
       ) : null}
       <View style={styles.gridWrap}>
         <MonthGrid grid={grid} weekdays={weekdays} index={index} selectedKey={selectedKey} todayKey={todayKey} onSelect={selectDay} />
@@ -135,8 +149,8 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
       >
         {LEGEND.map((category) => (
           <View key={category} style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: sourceColor(category, theme) }]} />
-            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+            <View style={[styles.legendDot, { backgroundColor: sourceColor(category, colors) }]} />
+            <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
               {t(`calendarView:legend.${category}`)}
             </Text>
           </View>
@@ -148,25 +162,13 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
           <Text variant="titleMedium" accessibilityRole="header" testID="calendar-agenda-title">
             {agendaTitle}
           </Text>
-          <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+          <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
             {dayMeetings.length > 0 ? t('calendarView:meetingCount', { count: dayMeetings.length }) : t('calendarView:noMeetings')}
           </Text>
         </View>
       </View>
-      <Button
-        mode="contained-tonal"
-        icon="plus"
-        onPress={createOnDay}
-        style={styles.createButton}
-        accessibilityHint={t('calendarView:createOnDayHint')}
-        testID="calendar-create"
-      >
-        {t('calendarView:createOnDay', { date: shortDate })}
-      </Button>
       {error && meetings.length > 0 ? (
-        <Text variant="bodySmall" style={[styles.inlineError, { color: theme.colors.error }]} testID="calendar-error-banner">
-          {t(errorMessageKey(error.code))}
-        </Text>
+        <Banner tone="error" text={t(errorMessageKey(error.code))} style={styles.inlineError} testID="calendar-error-banner" />
       ) : null}
     </View>
   );
@@ -176,7 +178,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
       return (
         <View style={styles.state} testID="calendar-loading">
           <ActivityIndicator />
-          <Text variant="bodyMedium" style={styles.stateText}>
+          <Text variant="bodyMedium" style={[styles.stateText, { color: colors.onSurfaceVariant }]}>
             {t('calendarView:loading')}
           </Text>
         </View>
@@ -184,22 +186,19 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
     }
     if (error && meetings.length === 0) {
       return (
-        <View style={styles.state} testID="calendar-error">
-          <Text variant="titleSmall" style={styles.stateText}>
-            {t('calendarView:errorTitle')}
-          </Text>
-          <Text variant="bodyMedium" style={[styles.stateText, { color: theme.colors.onSurfaceVariant }]}>
-            {t(errorMessageKey(error.code))}
-          </Text>
-          <Button mode="outlined" style={styles.stateButton} onPress={onRefresh} loading={refreshing} disabled={refreshing}>
-            {t('common:actions.retry')}
-          </Button>
-        </View>
+        <ErrorState
+          title={t('calendarView:errorTitle')}
+          body={t(errorMessageKey(error.code))}
+          onRetry={() => {
+            if (!refreshing) onRefresh();
+          }}
+          testID="calendar-error"
+        />
       );
     }
     return (
       <View style={styles.state} testID="calendar-empty-day">
-        <Text variant="bodyMedium" style={[styles.stateText, { color: theme.colors.onSurfaceVariant }]}>
+        <Text variant="bodyMedium" style={[styles.stateText, { color: colors.onSurfaceVariant }]}>
           {t('calendarView:emptyDay')}
         </Text>
       </View>
@@ -207,7 +206,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
         data={dayMeetings}
         keyExtractor={(meeting) => displayKeyOf(meeting)}
@@ -226,18 +225,39 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
             onDelete={actions.confirmDelete}
           />
         )}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        onScroll={fab.onScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 96 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[theme.colors.primary]}
-            tintColor={theme.colors.primary}
-            progressBackgroundColor={theme.colors.surface}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+            progressBackgroundColor={colors.surface}
           />
         }
         testID="calendar-agenda"
       />
+      <Animated.View
+        style={[
+          styles.fab,
+          { bottom: insets.bottom + componentMetrics.screenGutter, right: insets.right + componentMetrics.screenGutter },
+          {
+            opacity: fab.visible,
+            transform: [{ translateY: fab.visible.interpolate({ inputRange: [0, 1], outputRange: [FAB_SLIDE_DP, 0] }) }],
+          },
+        ]}
+      >
+        <FAB
+          icon="plus"
+          label={t('meetings:list.newMeeting')}
+          onPress={createOnDay}
+          accessibilityLabel={t('calendarView:createOnDay', { date: shortDate })}
+          accessibilityHint={t('calendarView:createOnDayHint')}
+          testID="calendar-create"
+        />
+      </Animated.View>
       <MeetingActionsSheet meeting={sheetMeeting} actions={actions} onDismiss={() => setSheetMeeting(null)} />
       <OccurrenceEditSheet target={actions.occurrenceEdit} onDismiss={actions.dismissOccurrenceEdit} />
     </View>
@@ -252,7 +272,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 4,
+    paddingTop: spacing.xs,
   },
   monthRow: {
     flexDirection: 'row',
@@ -262,6 +282,11 @@ const styles = StyleSheet.create({
   monthTitle: {
     flex: 1,
     textAlign: 'center',
+  },
+  navButton: {
+    width: componentMetrics.touchTargetMin,
+    height: componentMetrics.touchTargetMin,
+    margin: 0,
   },
   todayButton: {
     alignSelf: 'center',
@@ -275,46 +300,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 8,
-    marginVertical: 2,
+    marginHorizontal: spacing.sm,
+    marginVertical: spacing.xs,
   },
   legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 4,
+    width: componentMetrics.sourceDotSize,
+    height: componentMetrics.sourceDotSize,
+    borderRadius: radii.full,
+    marginRight: spacing.xs,
   },
   divider: {
-    marginTop: 12,
-    marginBottom: 12,
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
   },
   agendaHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  createButton: {
-    alignSelf: 'flex-start',
-    marginTop: 10,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   inlineError: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   state: {
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 24,
+    paddingHorizontal: spacing.xxxl,
+    paddingVertical: spacing.xxl,
   },
   stateText: {
-    marginTop: 8,
+    marginTop: spacing.sm,
     textAlign: 'center',
   },
-  stateButton: {
-    marginTop: 12,
+  fab: {
+    position: 'absolute',
   },
 });
