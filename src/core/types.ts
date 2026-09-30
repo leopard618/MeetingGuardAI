@@ -98,7 +98,12 @@ export type NoteCategory = (typeof NOTE_CATEGORIES)[number];
 export const ENTITLEMENT_STATUSES = ['active', 'grace_period', 'expired', 'revoked'] as const;
 export type EntitlementStatus = (typeof ENTITLEMENT_STATUSES)[number];
 
-export const ENTITLEMENT_SOURCES = ['default', 'google_play', 'app_store', 'stripe', 'manual'] as const;
+/**
+ * Who wrote the entitlement: 'revenuecat' = the RevenueCat webhook (functions/src/revenuecat,
+ * §20), 'admin' = an admin callable (functions/src/admin, §21). Both write via the Admin SDK;
+ * the client only ever reads. The store-specific values predate RevenueCat and stay parseable.
+ */
+export const ENTITLEMENT_SOURCES = ['default', 'google_play', 'app_store', 'stripe', 'manual', 'revenuecat', 'admin'] as const;
 export type EntitlementSource = (typeof ENTITLEMENT_SOURCES)[number];
 
 export const DEFAULT_MEETING_DURATION_MINUTES = 60;

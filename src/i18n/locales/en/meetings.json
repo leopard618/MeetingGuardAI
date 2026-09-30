@@ -230,6 +230,9 @@
     "scopeEditMessage": "“{{title}}” repeats. Edit only the occurrence on {{date}}, or the whole series?",
     "scopeThisOnly": "This meeting only",
     "scopeWholeSeries": "The whole series",
+    "scopeFollowing": "This and following",
+    "followingDeleted": "This and the following occurrences were deleted.",
+    "followingUpdated": "This and the following occurrences were updated.",
     "occurrenceDeleted": "This occurrence was removed from the series."
   },
   "occurrence": {

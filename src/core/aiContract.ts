@@ -22,8 +22,17 @@ import { z } from 'zod';
  * rule, and update/delete actions gain an optional `{ scope, occurrenceDate }` for series
  * targets. Both sides tolerate the other being on v1: zod object parsing strips unknown keys,
  * and every new field is optional.
+ *
+ * v3: scope 'following' (ADDITIVE only). update/delete on a recurring meeting may target "this
+ * and the following occurrences": `occurrenceDate` doubles as the split date (the FIRST affected
+ * occurrence's ORIGINAL local date). The executor splits the series at that date
+ * (docs/ARCHITECTURE.md §16): the master is truncated and a NEW series carries the remaining
+ * occurrences with the changes applied (update) or is simply never created (delete). Unlike
+ * 'occurrence', a 'following' update accepts the full change surface (it edits a series master).
+ * A v2 server never sends 'following'; a v2 client rejects the unknown enum value, so servers
+ * only propose it to clients that sent a v3-capable request (same release train here).
  */
-export const AI_CONTRACT_VERSION = 2;
+export const AI_CONTRACT_VERSION = 3;
 
 // ---------------------------------------------------------------------------------------------
 // Callables
@@ -88,8 +97,12 @@ export type RecurrenceFreq = (typeof RECURRENCE_FREQS)[number];
 export const RECURRENCE_WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const;
 export type RecurrenceWeekday = (typeof RECURRENCE_WEEKDAYS)[number];
 
-/** How an update/delete applies to a recurring meeting. Absent scope = 'series' (v1 behavior). */
-export const RECURRENCE_EDIT_SCOPES = ['occurrence', 'series'] as const;
+/**
+ * How an update/delete applies to a recurring meeting. Absent scope = 'series' (v1 behavior).
+ * 'following' (v3) = this and every later occurrence: the series is SPLIT at `occurrenceDate`
+ * (src/core/recurrence.ts splitRecurrenceAt; repo ops editFollowing / deleteFollowing).
+ */
+export const RECURRENCE_EDIT_SCOPES = ['occurrence', 'series', 'following'] as const;
 export type RecurrenceEditScope = (typeof RECURRENCE_EDIT_SCOPES)[number];
 
 // ---------------------------------------------------------------------------------------------
@@ -308,17 +321,27 @@ export const updateMeetingActionSchema = z
     changes: aiMeetingChangesSchema,
     /**
      * v2, additive: when `meetingId` is a recurring meeting, 'occurrence' changes only the
-     * occurrence at `occurrenceDate`, 'series' changes the whole series. Absent (v1 client or
+     * occurrence at `occurrenceDate`, 'series' changes the whole series. v3 adds 'following':
+     * this and every later occurrence (the series is split at `occurrenceDate`; the changes
+     * apply to the new tail series, full change surface allowed). Absent (older client or
      * one-off meeting) = 'series'. Executors ignore the scope on non-recurring meetings.
      */
     scope: z.enum(RECURRENCE_EDIT_SCOPES).optional(),
-    /** Required with scope 'occurrence': the occurrence's ORIGINAL local date in the meeting's timezone. */
+    /**
+     * Required with scope 'occurrence' or 'following': the ORIGINAL local date (meeting's
+     * timezone) of the targeted / first affected occurrence.
+     */
     occurrenceDate: localDateKeySchema.nullable().optional(),
   })
-  .refine((a) => a.scope !== 'occurrence' || (a.occurrenceDate !== null && a.occurrenceDate !== undefined), {
-    message: 'scope "occurrence" needs occurrenceDate',
-    path: ['occurrenceDate'],
-  })
+  .refine(
+    (a) =>
+      (a.scope !== 'occurrence' && a.scope !== 'following') ||
+      (a.occurrenceDate !== null && a.occurrenceDate !== undefined),
+    {
+      message: 'scopes "occurrence" and "following" need occurrenceDate',
+      path: ['occurrenceDate'],
+    },
+  )
   .refine(
     (a) => a.scope !== 'occurrence' || Object.keys(a.changes).every((key) => (OCCURRENCE_CHANGE_KEYS as readonly string[]).includes(key)),
     { message: 'occurrence-scoped changes may only set startAt, durationMinutes or title', path: ['changes'] },
@@ -329,14 +352,23 @@ export const deleteMeetingActionSchema = z
     type: z.literal('delete_meeting'),
     ...actionBase,
     meetingId: meetingIdSchema,
-    /** v2, additive: 'occurrence' cancels one occurrence of a series; 'series' (or absent) deletes the meeting. */
+    /**
+     * v2, additive: 'occurrence' cancels one occurrence of a series; 'series' (or absent)
+     * deletes the meeting. v3 adds 'following': ends the series the day before
+     * `occurrenceDate` (this and every later occurrence disappear; earlier ones stay).
+     */
     scope: z.enum(RECURRENCE_EDIT_SCOPES).optional(),
     occurrenceDate: localDateKeySchema.nullable().optional(),
   })
-  .refine((a) => a.scope !== 'occurrence' || (a.occurrenceDate !== null && a.occurrenceDate !== undefined), {
-    message: 'scope "occurrence" needs occurrenceDate',
-    path: ['occurrenceDate'],
-  });
+  .refine(
+    (a) =>
+      (a.scope !== 'occurrence' && a.scope !== 'following') ||
+      (a.occurrenceDate !== null && a.occurrenceDate !== undefined),
+    {
+      message: 'scopes "occurrence" and "following" need occurrenceDate',
+      path: ['occurrenceDate'],
+    },
+  );
 
 export const shareMeetingActionSchema = z
   .object({

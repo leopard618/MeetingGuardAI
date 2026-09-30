@@ -244,6 +244,7 @@
       "SU": "domingo"
     },
     "scopeOccurrence": "Solo la repetición del {{date}}",
+    "scopeFollowing": "Esta y las siguientes repeticiones desde el {{date}}",
     "scopeSeries": "Toda la serie repetida"
   }
 }

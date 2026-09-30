@@ -25,6 +25,7 @@ import enOnboarding from './locales/en/onboarding.json';
 import enPricing from './locales/en/pricing.json';
 import enSettings from './locales/en/settings.json';
 import enShell from './locales/en/shell.json';
+import enWidget from './locales/en/widget.json';
 import esAi from './locales/es/ai.json';
 import esAlerts from './locales/es/alerts.json';
 import esAttachments from './locales/es/attachments.json';
@@ -45,6 +46,7 @@ import esOnboarding from './locales/es/onboarding.json';
 import esPricing from './locales/es/pricing.json';
 import esSettings from './locales/es/settings.json';
 import esShell from './locales/es/shell.json';
+import esWidget from './locales/es/widget.json';
 
 /** A namespace's JSON tree (nested objects, strings and string arrays). */
 export type TranslationTree = { readonly [key: string]: unknown };
@@ -71,6 +73,7 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     landing: enLanding,
     legal: enLegal,
     pricing: enPricing,
+    widget: enWidget,
   },
   es: {
     common: esCommon,
@@ -93,5 +96,6 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     landing: esLanding,
     legal: esLegal,
     pricing: esPricing,
+    widget: esWidget,
   },
 };

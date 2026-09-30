@@ -78,7 +78,7 @@ export function recurrenceSummary(t: TranslateFn, rule: RecurrenceRule | null, o
 export function recurrenceScopeText(
   t: TranslateFn,
   input: {
-    scope: 'occurrence' | 'series' | undefined;
+    scope: 'occurrence' | 'series' | 'following' | undefined;
     occurrenceDate: string | null | undefined;
     /** Whether the targeted meeting is known to repeat (shows "whole series" even without a scope). */
     targetRecurring: boolean;
@@ -87,6 +87,9 @@ export function recurrenceScopeText(
 ): string | null {
   if (input.scope === 'occurrence' && input.occurrenceDate && isLocalDate(input.occurrenceDate)) {
     return t('ai:recurrence.scopeOccurrence', { date: input.formatDate(input.occurrenceDate) });
+  }
+  if (input.scope === 'following' && input.occurrenceDate && isLocalDate(input.occurrenceDate)) {
+    return t('ai:recurrence.scopeFollowing', { date: input.formatDate(input.occurrenceDate) });
   }
   if (input.scope === 'series' || (input.scope === undefined && input.targetRecurring)) {
     return t('ai:recurrence.scopeSeries');

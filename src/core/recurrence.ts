@@ -9,10 +9,10 @@
  * - Exceptions live ON the master in `recurrenceOverrides`, keyed by the occurrence's
  *   `localDateKey` (the ORIGINAL occurrence date "YYYY-MM-DD" in the meeting's timezone):
  *   `{ status: 'cancelled' }` removes one occurrence; `{ status: 'modified', startAt?,
- *   durationMinutes?, title? }` changes one occurrence. Anything else ("this and following",
- *   per-occurrence participants/notes, ...) is NOT in v1.
- * - Edit scopes: 'occurrence' (writes an override) or 'series' (edits the master). There is no
- *   series split in v1.
+ *   durationMinutes?, title? }` changes one occurrence. Per-occurrence participants/notes are
+ *   NOT in the model.
+ * - Edit scopes: 'occurrence' (writes an override), 'series' (edits the master) or 'following'
+ *   ("this and the following": splits the series via `splitRecurrenceAt`, §16).
  * - All wall-clock math runs in the MEETING's timezone via core/time helpers: an occurrence keeps
  *   its wall-clock time across DST changes (a 09:00 meeting stays at 09:00; its UTC instant moves).
  *
@@ -394,9 +394,123 @@ export function recurrenceEndsAt(meeting: RecurringMeetingLike): string | null {
 // Edit scopes
 // ---------------------------------------------------------------------------------------------
 
-/** How an update/delete applies to a recurring meeting. v1 has no "this and following". */
-export const RECURRENCE_EDIT_SCOPES = ['occurrence', 'series'] as const;
+/**
+ * How an update/delete applies to a recurring meeting. v2 of the recurrence model adds
+ * 'following' ("this and the following occurrences"): the series is SPLIT at the target
+ * occurrence's ORIGINAL local date (splitRecurrenceAt below; repository ops
+ * editFollowing / deleteFollowing in MeetingRecurrenceOps, docs/ARCHITECTURE.md §16).
+ */
+export const RECURRENCE_EDIT_SCOPES = ['occurrence', 'series', 'following'] as const;
 export type RecurrenceEditScope = (typeof RECURRENCE_EDIT_SCOPES)[number];
+
+// ---------------------------------------------------------------------------------------------
+// Series split ("this and following"; scope v2)
+// ---------------------------------------------------------------------------------------------
+
+/** What splitting a series at an occurrence produces (pure data; no ids are chosen here). */
+export interface SeriesSplit {
+  /**
+   * Rule for the TRUNCATED master: `until` = 1 second before the split occurrence's ORIGINAL
+   * start (inclusive-until semantics keep every earlier occurrence and drop the split one and
+   * everything after it). A `count` rule is converted to `until`; `count` is always null.
+   */
+  masterRule: MeetingRecurrence;
+  /** Overrides that stay on the master (keys BEFORE fromDateKey), or null when none remain. */
+  masterOverrides: RecurrenceOverrides | null;
+  /**
+   * ORIGINAL start (UTC ISO) of the split occurrence = the tail master's `startAt` (its
+   * date/time derive from it in the meeting's timezone). A 'modified' override on the split
+   * date stays an override on the tail (`tailOverrides`), never the tail's own start.
+   */
+  tailStartAt: string;
+  /**
+   * Rule for the NEW tail series: same freq/interval/byWeekday/byMonthDay. An `until` rule
+   * keeps its `until`; a `count` rule keeps the REMAINING count (occurrences generated before
+   * the split - cancelled ones included, they consume count - are subtracted); an endless rule
+   * stays endless.
+   */
+  tailRule: MeetingRecurrence;
+  /** Overrides that move to the tail (keys AT or AFTER fromDateKey), or null when none. */
+  tailOverrides: RecurrenceOverrides | null;
+}
+
+/**
+ * Splits a recurring meeting's series at `fromDateKey` (an ORIGINAL occurrence local date in the
+ * meeting's timezone).
+ *
+ * - Returns `'series_edit'` when `fromDateKey` is the FIRST original occurrence of the series:
+ *   "this and following" from the first occurrence is the whole series, so callers apply a plain
+ *   series update / delete instead of splitting.
+ * - Returns a `SeriesSplit` otherwise. The caller (repository op) writes the truncated master
+ *   (rule + overrides replaced) and, for an edit, creates the tail as a NEW meeting (new id, new
+ *   seriesId = the new id, `startAt` = `tailStartAt`, every other content field copied from the
+ *   master, then the patch applied); for a delete it only truncates the master.
+ * - Throws AppError('invalid_input') when the meeting is not recurring or `fromDateKey` is not an
+ *   ORIGINAL occurrence date of the series (off-pattern date, past the rule's until/count end,
+ *   malformed). Cancelled occurrences ARE valid split points (their date is part of the series).
+ */
+export function splitRecurrenceAt(meeting: RecurringMeetingLike, fromDateKey: string): SeriesSplit | 'series_edit' {
+  const rule = meeting.recurrence;
+  if (rule === null) throw new AppError('invalid_input', 'splitRecurrenceAt needs a recurring meeting');
+  const checkedRule = meetingRecurrenceSchema.safeParse(rule);
+  if (!checkedRule.success) throw new AppError('invalid_input', 'Invalid recurrence rule', { cause: checkedRule.error });
+  if (!LOCAL_DATE_KEY_PATTERN.test(fromDateKey) || !isLocalDate(fromDateKey)) {
+    throw new AppError('invalid_input', `Invalid occurrence date key: ${fromDateKey}`);
+  }
+  if (!isLocalDate(meeting.date)) throw new AppError('invalid_input', `Invalid meeting date: ${meeting.date}`);
+
+  const time = meeting.allDay ? '00:00' : meeting.time;
+  const untilMs = checkedRule.data.until !== null ? Date.parse(checkedRule.data.until) : null;
+
+  // Walk the ORIGINAL dates (override-independent; cancelled occurrences consume count exactly
+  // like expansion) until the split date, counting how many occurrences come before it.
+  let generatedBefore = 0;
+  let first: string | null = null;
+  let found = false;
+  let iterations = 0;
+  for (const date of candidateDates(meeting.date, checkedRule.data)) {
+    iterations += 1;
+    if (iterations > MAX_EXPANSION_ITERATIONS) break;
+    if (daysBetweenLocalDates(fromDateKey, date) > 0) break; // walked past the split date: not an occurrence
+    const originalStartMs = Date.parse(zonedDateTimeToUtcIso(date, time, meeting.timezone));
+    if (untilMs !== null && originalStartMs > untilMs) break;
+    if (checkedRule.data.count !== null && generatedBefore + 1 > checkedRule.data.count) break;
+    if (first === null) first = date;
+    if (date === fromDateKey) {
+      found = true;
+      break;
+    }
+    generatedBefore += 1;
+  }
+  if (!found) {
+    throw new AppError('invalid_input', `Not an occurrence of this series: ${fromDateKey}`, {
+      details: { meetingId: meeting.id, fromDateKey },
+    });
+  }
+  if (first === fromDateKey) return 'series_edit';
+
+  const tailStartAt = zonedDateTimeToUtcIso(fromDateKey, time, meeting.timezone);
+  const masterUntil = new Date(Date.parse(tailStartAt) - 1000).toISOString();
+
+  const masterOverrides: RecurrenceOverrides = {};
+  const tailOverrides: RecurrenceOverrides = {};
+  for (const [key, override] of Object.entries(meeting.recurrenceOverrides ?? {})) {
+    if (daysBetweenLocalDates(fromDateKey, key) >= 0) tailOverrides[key] = override;
+    else masterOverrides[key] = override;
+  }
+
+  return {
+    masterRule: { ...checkedRule.data, until: masterUntil, count: null },
+    masterOverrides: Object.keys(masterOverrides).length > 0 ? masterOverrides : null,
+    tailStartAt,
+    tailRule: {
+      ...checkedRule.data,
+      until: checkedRule.data.until,
+      count: checkedRule.data.count !== null ? checkedRule.data.count - generatedBefore : null,
+    },
+    tailOverrides: Object.keys(tailOverrides).length > 0 ? tailOverrides : null,
+  };
+}
 
 const RRULE_FREQ: Readonly<Record<RecurrenceFreq, string>> = {
   daily: 'DAILY',

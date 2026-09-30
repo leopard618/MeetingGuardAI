@@ -244,6 +244,7 @@
       "SU": "Sunday"
     },
     "scopeOccurrence": "Only the occurrence on {{date}}",
+    "scopeFollowing": "This and the following occurrences from {{date}}",
     "scopeSeries": "The whole repeating series"
   }
 }

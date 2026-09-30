@@ -230,6 +230,9 @@
     "scopeEditMessage": "«{{title}}» se repite. ¿Editar solo la repetición del {{date}} o toda la serie?",
     "scopeThisOnly": "Solo esta reunión",
     "scopeWholeSeries": "Toda la serie",
+    "scopeFollowing": "Esta y las siguientes",
+    "followingDeleted": "Se eliminaron esta y las siguientes repeticiones.",
+    "followingUpdated": "Se actualizaron esta y las siguientes repeticiones.",
     "occurrenceDeleted": "Esta repetición se eliminó de la serie."
   },
   "occurrence": {

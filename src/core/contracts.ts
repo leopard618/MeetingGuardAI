@@ -66,6 +66,8 @@ export const MODULES = {
     errors: 'src/core/errors.ts', // AppError, toAppError, notImplemented
     logger: 'src/core/logger.ts', // createLogger, setErrorReporter
     time: 'src/core/time.ts',
+    // conferenceCapability, teamsLinkOnCreateOnly (video-call link modes, §22)
+    conference: 'src/core/conference.ts',
   },
   data: {
     // dataService, meetingRepository, preferencesRepository, notesRepository, userRepository,
@@ -128,9 +130,23 @@ export const MODULES = {
     // ErrorBoundary (outermost provider; reports through the logger)
     errorBoundary: 'src/components/ErrorBoundary.tsx',
   },
+  widget: {
+    // TS wrapper of the local Expo module "MgNextMeetingWidget" (Android home-screen widget, §19)
+    module: 'modules/mg-next-meeting-widget/index.ts',
+    // registerWidgetFeeder + the pure next-entry model (feeds the widget from app events)
+    index: 'src/services/widget/index.ts',
+  },
+  billing: {
+    // Plan catalog (PLANS, PURCHASES_AVAILABLE); §20
+    catalog: 'src/services/billing.ts',
+    // purchasesService (react-native-purchases behind EXPO_PUBLIC_REVENUECAT_ANDROID_KEY)
+    purchases: 'src/services/purchases/index.ts',
+  },
   functions: {
-    entry: 'functions/src/index.ts', // exports: assistant, deleteAccount
+    entry: 'functions/src/index.ts', // exports: assistant, deleteAccount (+ revenuecatWebhook, admin callables when wired)
     contractCopy: 'functions/src/shared/aiContract.ts', // VERBATIM copy of src/core/aiContract.ts
+    revenuecat: 'functions/src/revenuecat/index.ts', // RevenueCat webhook (entitlements writer, §20)
+    admin: 'functions/src/admin/index.ts', // admin callables (custom claim "admin", §21)
   },
 } as const;
 
@@ -255,6 +271,32 @@ export interface MeetingRecurrenceOps {
   cancelOccurrence(id: string, localDateKey: string, options?: WriteOptions): Promise<Meeting>;
   /** Removes an override (the occurrence returns to the series pattern). Idempotent. */
   restoreOccurrence(id: string, localDateKey: string, options?: WriteOptions): Promise<Meeting>;
+  /**
+   * "This and following" EDIT (scope v2, §16): splits the series at `fromDateKey` (an ORIGINAL
+   * occurrence local date; core splitRecurrenceAt): the master is truncated (rule.until = 1 s
+   * before the split occurrence's original start, count converted, overrides < split kept) and a
+   * NEW meeting (new id = new seriesId, startAt = the split occurrence's original start, content
+   * copied, overrides >= split moved over, remaining rule) is created with `patch` applied to it.
+   * When `fromDateKey` is the FIRST occurrence this collapses to a plain series update
+   * (`created` is null). Both writes emit `meetings:changed` and sync like any user edit: Google
+   * receives the truncated RRULE (UNTIL) on the old event and a brand-new series event; Outlook
+   * is untouched (recurring meetings are never pushed to Graph, §17).
+   * Throws AppError('invalid_input') when the meeting is not recurring or `fromDateKey` is not
+   * an original occurrence date (off-pattern or past the series end); 'not_found' when missing.
+   */
+  editFollowing(
+    id: string,
+    fromDateKey: string,
+    patch: MeetingPatch,
+    options?: WriteOptions,
+  ): Promise<{ master: Meeting; created: Meeting | null }>;
+  /**
+   * "This and following" DELETE: truncates the master exactly like editFollowing but creates
+   * nothing (the split occurrence and everything after it disappear; earlier occurrences and
+   * their overrides stay). When `fromDateKey` is the FIRST occurrence this collapses to a plain
+   * series remove() and resolves null. Same validation and sync behavior as editFollowing.
+   */
+  deleteFollowing(id: string, fromDateKey: string, options?: WriteOptions): Promise<Meeting | null>;
 }
 
 export interface PreferencesRepository {
@@ -955,6 +997,81 @@ export interface BackgroundTasksModule {
   unregisterBackgroundTasks(): Promise<void>;
 }
 
+// ---- Next-meeting home-screen widget (modules/mg-next-meeting-widget; Android only, §19) -----
+
+/**
+ * What the widget renders (all text PRE-LOCALIZED and PRE-FORMATTED by JS: the native side
+ * never formats dates or translates - it draws strings). null = no upcoming meeting.
+ */
+export interface WidgetMeetingData {
+  title: string;
+  /** Start instant, epoch ms (native re-render boundary; not displayed). */
+  startAtMs: number;
+  /** e.g. "3:00 PM" / "15:00" (user's clock preference applied by JS). */
+  timeText: string;
+  /** e.g. "Today" / "Mon, Oct 5" (localized by JS). */
+  dateText: string;
+  /** Opened on tap (meetingDeepLink). The empty state opens the app's launch intent. */
+  deepLink: string;
+}
+
+/**
+ * Static widget strings, localized by JS (the app language, not the system locale) and persisted
+ * natively next to the data. The module's own res/values(-es) strings are only the fallback for
+ * a widget added before the app ever ran. Keys live in the 'widget' i18n namespace.
+ */
+export interface WidgetStrings {
+  /** Card title of the empty state ("No upcoming meetings"). */
+  emptyTitle: string;
+  /** Second line of the empty state ("Open MeetingGuard to plan one"). */
+  emptyBody: string;
+  /** Shown once `startAtMs` has passed ("Happening now"). */
+  nowLabel: string;
+}
+
+/**
+ * TS surface of the local Expo module "MgNextMeetingWidget" (glue: src/services/widget).
+ * Android: SharedPreferences hold the last data + strings; an AppWidgetProvider renders them
+ * with RemoteViews; `setNextMeeting` triggers an immediate update of every widget instance and
+ * (for non-null data) schedules ONE inexact AlarmManager broadcast at `startAtMs`, so the
+ * provider re-renders with the `nowLabel` presentation without JS running; BOOT_COMPLETED
+ * re-renders and re-schedules from SharedPreferences. On iOS / a binary without the module,
+ * isAvailable() is false and every method is a safe no-op.
+ */
+export interface NextMeetingWidgetModule {
+  /** Native module present and platform android. Synchronous so callers can branch cheaply. */
+  isAvailable(): boolean;
+  /**
+   * true when at least one widget instance is on a home screen. Informational only: the feeder
+   * always writes (a widget added later must render current data immediately).
+   */
+  hasWidgets(): Promise<boolean>;
+  /** Replaces the stored data (null = empty state) and re-renders every widget instance. */
+  setNextMeeting(data: WidgetMeetingData | null): Promise<void>;
+  /** Replaces the stored localized strings and re-renders. Called at start and on language change. */
+  setStrings(strings: WidgetStrings): Promise<void>;
+  /** Clears data AND strings (sign-out; the widget falls back to its res-string empty state). */
+  clear(): Promise<void>;
+}
+
+/**
+ * JS feeder (src/services/widget). `registerWidgetFeeder()` is idempotent, subscribes once to
+ * appEvents and is imported from index.js AFTER alerts/tasks (so headless background runs feed
+ * the widget too):
+ * - session:started / meetings:changed / calendar:synced -> recompute + setNextMeeting
+ * - language:changed / preferences:changed (clock format) -> setStrings + re-feed
+ * - session:ended -> clear()
+ * The next entry comes from the pure model (computeNextWidgetEntry): active, status 'scheduled',
+ * non-all-day meetings and expanded recurring occurrences within the next 7 days, earliest
+ * effective start AFTER now - 5 min (a meeting that just started stays "next" briefly with the
+ * nowLabel presentation handled natively). Headless-safe (getCachedUpcoming when no session).
+ */
+export interface WidgetFeeder {
+  registerWidgetFeeder(): void;
+  /** Recompute + push now (background task hook; no-op when the module is unavailable). */
+  refreshWidget(): Promise<void>;
+}
+
 // =============================================================================================
 // I18N + FORMAT + NAVIGATION  (src/i18n, src/utils/format.ts, src/navigation)
 // =============================================================================================
@@ -981,6 +1098,7 @@ export const I18N_NAMESPACE_LIST = [
   'landing',
   'legal',
   'pricing',
+  'widget',
 ] as const;
 export type I18nNamespace = (typeof I18N_NAMESPACE_LIST)[number];
 
@@ -1196,6 +1314,78 @@ export interface UseAssistantResult {
   retry(): Promise<void>;
   /** Clears the persisted thread. */
   reset(): Promise<void>;
+}
+
+// =============================================================================================
+// BILLING  (src/services/billing.ts catalog + src/services/purchases; §20)
+// =============================================================================================
+
+/** Paid tiers map 1:1 to RevenueCat entitlement ids ('pro', 'premium'). */
+export type PaidPlanTier = Exclude<Plan, 'free'>;
+export type BillingCycle = 'monthly' | 'yearly';
+
+/** Google Play product (subscription) ids; RevenueCat packages reference exactly these. */
+export const PLAY_PRODUCT_IDS: Readonly<Record<PaidPlanTier, Record<BillingCycle, string>>> = {
+  pro: { monthly: 'pro_monthly', yearly: 'pro_yearly' },
+  premium: { monthly: 'premium_monthly', yearly: 'premium_yearly' },
+};
+
+/** One purchasable package resolved from the current RevenueCat offering. */
+export interface StorePackage {
+  tier: PaidPlanTier;
+  cycle: BillingCycle;
+  /** Play product id (PLAY_PRODUCT_IDS). */
+  productId: string;
+  /** Localized price string straight from the store (e.g. "$7.99", "€7,99"). Never computed. */
+  priceString: string;
+  /** Localized per-period price of yearly packages ("$5.99/mo" equivalents are computed by UI from priceAmountMicros). */
+  priceAmountMicros: number;
+  currencyCode: string;
+  /** Store-configured intro offer (the 3-day free trial) present on this package. */
+  hasFreeTrial: boolean;
+}
+
+export interface StoreOffering {
+  /** RevenueCat offering identifier (the "current" offering). */
+  offeringId: string;
+  packages: StorePackage[];
+}
+
+export type PurchaseOutcome =
+  /** Store purchase went through; entitlements/{uid} is written by the WEBHOOK (seconds later). */
+  | { status: 'purchased'; tier: PaidPlanTier; cycle: BillingCycle }
+  | { status: 'cancelled' };
+
+export type RestoreOutcome =
+  | { status: 'restored'; tier: PaidPlanTier }
+  | { status: 'nothing_to_restore' };
+
+/**
+ * react-native-purchases behind the optional EXPO_PUBLIC_REVENUECAT_ANDROID_KEY (absent, or the
+ * native module missing, or platform != android => isConfigured() false and the Pricing screen
+ * behaves exactly like today: catalog display + "subscriptions coming soon").
+ *
+ * THE CLIENT NEVER WRITES entitlements/{uid}. The RevenueCat webhook (functions/src/revenuecat)
+ * is the only writer for purchases; the app keeps reading the entitlement through the existing
+ * useEntitlement()/effectivePlan(). After 'purchased' the UI shows a processing state until the
+ * entitlement listener flips (webhook latency is seconds).
+ *
+ * configure(uid) runs on session start (Purchases.configure({ apiKey, appUserID: uid })), so
+ * `app_user_id` in webhook events IS the Firebase uid. logOut on session end is NOT called
+ * (RevenueCat would create an anonymous user); the next session's configure/logIn switches user.
+ */
+export interface PurchasesService {
+  isConfigured(): boolean;
+  /** Idempotent per uid. Safe no-op when not configured. */
+  configure(uid: string): Promise<void>;
+  /** Current offering mapped to StoreOffering; AppError('not_configured') when unconfigured, 'offline'/'upstream_error' on store failures. */
+  getOffering(): Promise<StoreOffering>;
+  /** Launches the store purchase flow for the tier+cycle package of the current offering. */
+  purchase(tier: PaidPlanTier, cycle: BillingCycle): Promise<PurchaseOutcome>;
+  /** Purchases.restorePurchases(); the webhook (TRANSFER/INITIAL_PURCHASE) updates the entitlement. */
+  restore(): Promise<RestoreOutcome>;
+  /** Play subscription management deep link for the active product (or the generic subscriptions page). */
+  manageUrl(productId?: string): string;
 }
 
 // =============================================================================================

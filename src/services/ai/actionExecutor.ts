@@ -111,10 +111,19 @@ function recurrenceOps(meetings: ActionExecutorDeps['meetings']): MeetingRecurre
   if (!updateOccurrence || !cancelOccurrence || !restoreOccurrence) {
     throw new AppError('not_implemented', 'Recurring-meeting operations are not available');
   }
+  const { editFollowing, deleteFollowing } = meetings;
   return {
     updateOccurrence: updateOccurrence.bind(meetings),
     cancelOccurrence: cancelOccurrence.bind(meetings),
     restoreOccurrence: restoreOccurrence.bind(meetings),
+    // 'following' ops land with the same release train (§16); an older repository without them
+    // fails honestly instead of silently editing the whole series.
+    editFollowing: editFollowing
+      ? editFollowing.bind(meetings)
+      : () => Promise.reject(new AppError('not_implemented', '"This and following" operations are not available')),
+    deleteFollowing: deleteFollowing
+      ? deleteFollowing.bind(meetings)
+      : () => Promise.reject(new AppError('not_implemented', '"This and following" operations are not available')),
   };
 }
 

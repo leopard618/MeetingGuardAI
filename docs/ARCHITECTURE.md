@@ -50,6 +50,9 @@ These rules prevent import cycles:
 | shell | `src/contexts/ThemeContext.tsx` (`ThemeProvider`, `useTheme`, `useAppThemes`), `src/components/{CustomHeader,MobileSidebar,ThemeToggle,ErrorBoundary,AppToast}.tsx`, `src/hooks/useResponsive.ts` | shell |
 | screens | `src/screens/<area>` (one folder per screen group, §13); `src/screens/shared` (`useFormatters`, `Section` / `ScreenBody`, `MeetingStatus`, `useLiveNow`, `useKeyboardAvoidance`, `useDiscardChangesGuard`, `text`) | screen groups |
 | release | `src/services/updates.ts` (OTA state), `app.config.js` (`updates`, `runtimeVersion`), `eas.json` channels, `docs/DEPLOYMENT.md` | release |
+| widget | `modules/mg-next-meeting-widget` (local Expo module), `src/services/widget` (`registerWidgetFeeder`, `refreshWidget`, `widgetStringsOf`, `computeNextWidgetEntry`), i18n namespace `widget` (§19) | widget |
+| billing | `src/services/billing.ts` (catalog), `src/services/purchases` (`purchasesService`), `functions/src/revenuecat` (webhook), `src/screens/pricing`, i18n namespace `pricing` (§20) | billing |
+| admin | `public/admin` (build-free web app), `functions/src/admin` (callables), `functions/scripts/set-admin-claim.mjs`, `docs/ADMIN.md` (§21) | admin |
 | functions | `functions/src/index.ts` (`assistant`, `deleteAccount`, scheduled `dailyMaintenance`); `functions/src/shared/aiContract.ts` is a **verbatim** copy of `src/core/aiContract.ts`, and CI diffs the two; `firestore.rules`, `firestore.indexes.json`, `firebase.json` | functions |
 
 ## 3. Data model (summary; `types.ts` has the details)
@@ -337,7 +340,8 @@ useAssistant.send(text)
   | `home`, `insights` | home |
   | `calendarView`, `create` (and `meetings` list/actions keys) | meetings |
   | `notes`, `attachments` | notes |
-  | `shell`, `landing`, `legal`, `pricing` | shell |
+  | `shell`, `landing`, `legal`, `pricing` | shell (`pricing` content changes in §20 belong to billing) |
+  | `widget` | widget (§19; strings are passed to the native side pre-localized) |
 
 - **Keys are always namespace-qualified**, for example `t('alerts:max.title')`. There are no unqualified keys and no namespace-bound translators.
 - **Tests.** `src/i18n/__tests__/resources.test.ts` fails when a key exists in one language only, or a value is empty. `src/i18n/__tests__/keysUsed.test.ts` scans every source file and fails when a key literal (static, or the static part of a dynamic `ns:a.b.${x}` key) is missing in EN or ES, or when `t()` gets an unqualified key. `src/navigation/__tests__/routeTitles.test.ts` keeps route titles and sidebar labels in step with `ROUTES`.
@@ -414,14 +418,15 @@ Shared screen pieces (`src/screens/shared`):
 ## 14. Deferred (not in this pass)
 
 - WhatsApp bot
-- Home-screen widgets
-- Billing and IAP; entitlements are written only by server or admin tooling
 - Sign in with Apple, which is required before iOS App Store submission
-- Recurrence "this and following" edits and series splitting (§16 covers what v1 does)
-- Pushing time-modified occurrence overrides to Google/Outlook (kept local in v1; §16)
+- Pushing time-modified occurrence overrides to Google/Outlook (kept local; §16)
+- iOS widget (§19 is Android-only), iOS billing (§20 ships Android/Play products only)
 
 Moved out of this list by the phase-1 contracts: recurring meetings (§16), Outlook (§17),
-full-screen intent + exact-alarm state via the local module (§18).
+full-screen intent + exact-alarm state via the local module (§18). Moved out by the phase-2
+contracts: "this and following" edits / series splitting (§16), the Android home-screen widget
+(§19), billing/IAP via RevenueCat (§20; entitlements stay server-written - now by the webhook
+and admin callables) and the admin dashboard (§21).
 
 ## 15. Releases and OTA updates
 
@@ -450,9 +455,41 @@ and `types.ts`. One stored document per series (the **master**); occurrences are
   date+time via `zonedDateTimeToUtcIso`, so a 09:00 meeting stays at 09:00 across DST and the
   result is independent of the device zone. Cancelled occurrences are omitted; `count` is consumed
   by cancelled ones; a modified occurrence sorts and windows by its EFFECTIVE time.
-- **Edit scopes** (v1): `'occurrence'` writes an override (repository ops `updateOccurrence` /
+- **Edit scopes**: `'occurrence'` writes an override (repository ops `updateOccurrence` /
   `cancelOccurrence` / `restoreOccurrence`, `MeetingRecurrenceOps` in contracts.ts);
-  `'series'` is a plain update/remove of the master. **"This and following" does not exist in v1.**
+  `'series'` is a plain update/remove of the master; `'following'` splits the series (below).
+- **"This and following" (scope v2).** The pure math is `splitRecurrenceAt(meeting, fromDateKey)`
+  in `src/core/recurrence.ts` (unit-tested; `fromDateKey` = the FIRST affected occurrence's
+  ORIGINAL local date):
+  - **Master truncation:** `rule.until` becomes 1 second before the split occurrence's ORIGINAL
+    start (inclusive-until keeps every earlier occurrence); a `count` rule is CONVERTED to
+    `until` (count is always null afterwards). Overrides with keys before the split date stay.
+  - **Tail series:** a NEW meeting (new id; `seriesId` = the new id - series identity is not
+    shared across the split) with `startAt` = the split occurrence's original start, every
+    content field copied from the master, overrides with keys >= the split date moved over
+    (including a 'modified' override ON the split date - it stays an override), and the
+    remaining rule: `until` rules keep their `until`; `count` rules keep `count - occurrences
+    generated before the split` (cancelled ones consume count); endless stays endless.
+  - **Edge cases:** a split at the FIRST original occurrence returns `'series_edit'` (callers
+    apply a plain series update / remove; `editFollowing` then returns `created: null`,
+    `deleteFollowing` resolves null). A date the series never generates, or one past the
+    rule's end, throws `AppError('invalid_input')`.
+  - **Repository ops** (`MeetingRecurrenceOps`): `editFollowing(id, fromDateKey, patch,
+    options?) -> { master, created }` writes the truncated master and creates the tail with
+    `patch` applied to it (full MeetingPatch surface - it edits a series master);
+    `deleteFollowing(id, fromDateKey, options?) -> Meeting | null` only truncates. Both emit
+    `meetings:changed` for every written id with the caller's origin (`user` / `ai`).
+  - **External calendars:** the split IS two ordinary local writes, so the existing Google push
+    handles it: the old event gets a PATCH with the truncated RRULE (`UNTIL=...`) and the tail
+    is INSERTED as a brand-new series event (`googleEventIdForMeeting(newId)`). Expected Google
+    result: the original series ends the day before the split, a new independent series starts
+    at it; EXDATEs follow the override partition. A Google-side edit of either event keeps
+    syncing to its own local meeting. Outlook: unchanged - recurring meetings are never pushed
+    to Graph (§17), so neither side of the split appears in Outlook.
+  - **UI:** the occurrence/series choice dialogs (`src/screens/meetings/list/meetingActions.tsx`)
+    gain the third option `meetings:actions.scopeFollowing`; a "following" EDIT uses the
+    occurrence sheet surface (title/date/time/duration -> `editFollowing` patch), the full form
+    stays series-only.
 - **Sparse storage:** `toMeetingDoc` leaves `recurrence`, `recurrenceOverrides`, `seriesId` (and
   the `external.outlook*` refs) out while null, so documents written by this app version keep
   passing the PREVIOUS deployed rules; `parseMeetingDoc` fills nulls back in and drops overrides
@@ -478,10 +515,17 @@ and `types.ts`. One stored document per series (the **master**); occurrences are
   are OUR pushed series - skip importing them (the local master already expands them). Removing
   the repeat from a synced series pushes `recurrence: []`, which clears Google's RRULE (a PATCH
   keeps fields it does not mention), so no phantom series is left in Google Calendar.
-- **AI contract v2** (`AI_CONTRACT_VERSION = 2`, additive): drafts/changes gain optional
-  `recurrence`; `update_meeting`/`delete_meeting` gain optional `{ scope: 'occurrence'|'series',
+- **AI contract v2** (additive): drafts/changes gain optional `recurrence`;
+  `update_meeting`/`delete_meeting` gain optional `{ scope: 'occurrence'|'series',
   occurrenceDate }` (occurrence scope limits changes to startAt/durationMinutes/title). Old
   clients strip the unknown fields; old servers simply never send them.
+- **AI contract v3** (`AI_CONTRACT_VERSION = 3`, additive): scope gains `'following'`;
+  `occurrenceDate` doubles as the split date and is required for it. A 'following' update
+  allows the FULL change surface (the executor calls `editFollowing` and the patch lands on the
+  tail master); a 'following' delete calls `deleteFollowing`. The executor ignores the scope on
+  one-off meetings exactly like 'occurrence'. The assistant tool schemas / prompt / mapping in
+  `functions/src/assistant/{tools,prompt,actions}.ts` describe the new scope with the same
+  validation (occurrence_date required, invalid dates dropped like v2 does for 'occurrence').
 
 ## 17. Outlook calendar (Microsoft Graph)
 
@@ -547,3 +591,183 @@ receivers; a store build - never an OTA update - ships it, hence version 1.2.0).
   `endSession`/`cancelAll` also `clearAlarms()`. Status surfaces as
   `AlertEngineStatus.fullScreenAlarms`; alert settings + onboarding step 3 show the new
   permission state on Android 14+.
+
+## 19. Next-meeting home-screen widget (Android)
+
+Contract: `NextMeetingWidgetModule` + `WidgetFeeder` in `src/core/contracts.ts`; TS wrapper
+`modules/mg-next-meeting-widget/index.ts` (IMPLEMENTED: safe no-ops when the native module is
+missing); JS glue `src/services/widget` (feeder + pure `computeNextWidgetEntry` model); native
+side: local Expo module `modules/mg-next-meeting-widget` (Kotlin), built like
+`modules/mg-fullscreen-alarm` (§18). Native code ships only in a store build (new `version`).
+
+- **Rendering model:** JS pushes PRE-LOCALIZED, PRE-FORMATTED strings
+  (`{ title, startAtMs, timeText, dateText, deepLink } | null` + static strings
+  `{ emptyTitle, emptyBody, nowLabel }` from the `widget` i18n namespace); the native side never
+  formats or translates. Strings follow the APP language; the module's `res/values` +
+  `res/values-es` strings are only the fallback for a widget added before the app first runs.
+- **Native contract:** SharedPreferences hold the last data + strings. `setNextMeeting` re-renders
+  every widget instance and, for non-null data, schedules ONE INEXACT AlarmManager broadcast at
+  `startAtMs` (never `setExact`: no exact-alarm entanglement) so the provider swaps to the
+  `nowLabel` presentation without JS. `BOOT_COMPLETED` re-renders and re-schedules from
+  SharedPreferences. Tap = `PendingIntent` (FLAG_IMMUTABLE) with ACTION_VIEW on the stored
+  `deepLink`; the empty state opens the app's launch intent. `clear()` wipes data + strings.
+- **AppWidget wiring (config-plugin-free):** the `AppWidgetProvider` receiver
+  (`android.appwidget.action.APPWIDGET_UPDATE` filter + `android.appwidget.provider` meta-data
+  pointing at `res/xml/mg_next_meeting_widget_info.xml`) lives in the module's OWN
+  `android/src/main/AndroidManifest.xml` and is merged by Gradle - **app.config.js does not
+  change** (no plugin needed; add one only if a real manifest need appears). Widget info:
+  `minWidth/minHeight` for 4x1 cells, `updatePeriodMillis=0` (we push), `resizeMode`
+  horizontal, `widgetCategory` home_screen. Layout uses RemoteViews-safe views only
+  (LinearLayout/FrameLayout + TextView/ImageView; NO ConstraintLayout or custom views) - works
+  on Android 9 / LDPlayer 9. `expo-module.config.json` (android module
+  `com.meetingguard.nextmeetingwidget.MgNextMeetingWidgetModule`) is added TOGETHER with the
+  Kotlin sources, never before (autolinking would break the Gradle build).
+- **Feeder lifecycle** (`registerWidgetFeeder()`, idempotent; imported once from `index.js`
+  AFTER `./src/services/alerts/tasks`, so headless background runs feed the widget too):
+  `session:started` / `meetings:changed` / `calendar:synced` -> recompute + `setNextMeeting`;
+  `language:changed` / `preferences:changed` -> `setStrings(widgetStringsOf(t))` + re-feed;
+  `session:ended` -> `clear()`. The background refresh task's sync/reconcile emits the events
+  the feeder already listens to; `refreshWidget()` exists as an explicit hook.
+- **Next entry** (`computeNextWidgetEntry`, pure, unit-tested): active, `scheduled`, non-all-day
+  meetings; recurring masters expanded over `[now - 5 min, now + 7 d)`; earliest effective start
+  wins; a meeting keeps the slot for 5 minutes after starting (native shows `nowLabel` once
+  `startAtMs` passes). Signed out / no meetings -> null -> empty state.
+
+## 20. Billing (RevenueCat + Google Play)
+
+Contract: `PurchasesService`, `PLAY_PRODUCT_IDS`, `StoreOffering` etc. in `src/core/contracts.ts`;
+stub `src/services/purchases/index.ts` (isConfigured() false => exactly today's behavior);
+webhook mapping `functions/src/revenuecat/mapping.ts` (pure, IMPLEMENTED); catalog stays
+`src/services/billing.ts`. Setup guide: docs/SETUP.md §11 (RevenueCat project, Play Console
+subscriptions `pro_monthly` / `pro_yearly` / `premium_monthly` / `premium_yearly`, each with a
+3-day free trial; RevenueCat entitlements `pro` and `premium`; webhook + Authorization value).
+
+- **SDK:** `react-native-purchases` (10.x; peer RN >= 0.73, no Expo config plugin; requires a dev
+  or store build - Expo Go's preview mode counts as unconfigured). Installed by the INTEGRATOR
+  via `npx expo install react-native-purchases`.
+- **Configuration:** optional `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` (a public `goog_...` SDK key)
+  in `src/config/env.ts` + `env.example`. Absent, or platform != android, or the native module
+  missing => `purchasesService.isConfigured()` false and the Pricing screen behaves exactly as
+  today ("subscriptions coming soon", no purchase UI). `configure(uid)` runs on session start,
+  so RevenueCat's `app_user_id` IS the Firebase uid.
+- **THE CLIENT NEVER WRITES `entitlements/{uid}`.** Firestore rules stay as they are (owner
+  read, no client write). Writers are the RevenueCat webhook and the admin callable, both via
+  the Admin SDK. `EntitlementSource` gained `'revenuecat'` and `'admin'` (types.ts).
+- **Pricing UI state machine** (`pricingModel.ts` + `PricingScreen`): unconfigured -> today's
+  catalog view. Configured -> load the current offering (`getOffering()`): show STORE price
+  strings (never computed prices); load failure -> catalog prices + error banner with Retry and
+  NO purchase buttons (no fake purchasable state). Purchase: `purchase(tier, cycle)`;
+  'cancelled' is silent; success -> "processing" state until the existing entitlement listener
+  (`useEntitlement`) flips (webhook latency is seconds); failures -> localized AppError.
+  Restore button when configured (`restore()`; 'nothing_to_restore' gets its own message).
+  Active paid plan -> current-plan display + "Manage subscription" (`manageUrl(productId)`,
+  the Play subscriptions deep link). All states have a11y labels, EN + ES.
+- **Webhook** (`functions/src/revenuecat/index.ts`, exported from `functions/src/index.ts` as
+  `revenuecatWebhook`): v2 `onRequest`, POST only, secret `REVENUECAT_WEBHOOK_AUTH`
+  (`defineSecret`) compared (timing-safe) against the raw `Authorization` header value that the
+  RevenueCat dashboard sends verbatim; 401 on mismatch. Body `{ api_version, event }`
+  (`revenueCatWebhookBodySchema`). **Idempotency:** `create()` of `revenuecatEvents/{event.id}`
+  in a transaction with the entitlement write; an existing marker => 200 no-op (event ids are
+  stable across retries). Mapping = `entitlementFromEvent` (decision table in mapping.ts;
+  TRANSFER writes `transferred_to` active + `transferred_from` expired). Anonymous
+  `$RCAnonymousID:` ids and unknown event types are acknowledged with 200 and logged; malformed
+  bodies get 400. Always 200 for handled events (never let RevenueCat retry a success).
+- **Tests:** mapping unit tests per event type; webhook handler tests (auth, idempotency,
+  TRANSFER, malformed body) with mocked firestore; app-side purchases service tests with a
+  mocked `react-native-purchases`; pricing model tests for every UI state.
+
+## 21. Admin dashboard
+
+Contract: `functions/src/admin/schemas.ts` (zod, IMPLEMENTED - the callable names and shapes are
+fixed there); callables in `functions/src/admin/index.ts` exported from `functions/src/index.ts`;
+web app in `public/admin/` served by Firebase Hosting (firebase.json already serves `public/`);
+short guide docs/ADMIN.md (EN).
+
+- **Auth:** every callable requires `request.auth.token.admin === true` (custom claim), else
+  `permission-denied` (`unauthenticated` without auth). The claim is set offline with
+  `functions/scripts/set-admin-claim.mjs <uid-or-email> [--remove]` (Admin SDK, ADC creds).
+  Custom claims travel INSIDE the ID token: after setting the claim, an already-signed-in admin
+  must refresh (`getIdToken(true)`); the page does that once automatically after sign-in before
+  deciding whether to show the UI, and shows a "not an admin" block state otherwise.
+- **Callables** (zod-validated, `invalid-argument` on bad input):
+  - `adminListUsers({ pageToken?, pageSize? (1-100, default 50) })` -> `{ users, nextPageToken }`
+    - Auth `listUsers` page joined (`getAll`) with `entitlements/{uid}` and today's
+    `usage/{uid}/days/{key}` (`usageToday`, 0 when absent).
+  - `adminSetUserDisabled({ uid, disabled })` - `updateUser` + revoke refresh tokens when
+    disabling.
+  - `adminSetUserPlan({ uid, plan, expiresAt })` - writes `entitlements/{uid}`
+    `{ plan, status: 'active', expiresAt, source: 'admin', updatedAt }` (also for 'free': an
+    explicit downgrade overrides a stale paid doc).
+  - `adminGetMetrics({})` -> `{ totalUsers, planCounts, assistantRequests: { today, last7Days } }`
+    - usage summed over collection group `days` filtered on `updatedAt`; requires a
+    collection-group index on `days.updatedAt` (add to `firestore.indexes.json`).
+- **Web app** (`public/admin/index.html` + `admin.js` + `admin.css`): build-free ES modules
+  loading the Firebase JS SDK from `https://www.gstatic.com/firebasejs/<version>/...`
+  (app/auth/functions); Google sign-in popup (hosting runs on the authDomain, so the popup
+  works); pages: Users (paged table, disable/enable, set plan), Metrics. English only. The
+  hosting CSP in firebase.json currently blocks ALL scripts and connections
+  (`default-src 'none'`); the admin area adds a `/admin/**` headers entry allowing
+  `script-src https://www.gstatic.com`, `connect-src https://*.googleapis.com` (+ the callable
+  region host) - scoped to `/admin/**` only, the root CSP stays locked down.
+- **Rules:** nothing changes in firestore.rules (callables use the Admin SDK).
+
+## 22. Video-call link modes (conference)
+
+Contract: `conferenceCapability(provider, calendarStatus)` + `teamsLinkOnCreateOnly(external)`
+in `src/core/conference.ts` (pure, IMPLEMENTED, unit-tested). The mode is DERIVED at render
+time, never stored; `Meeting.conference` stays `{ provider, url, password } | null` and a link
+is only ever a real one (pasted or provider-created; §8's "never fabricated" rule).
+
+Ground truth (verified in the sync code): Google pushes request a real Meet link for
+`google_meet + url null` on INSERT AND PATCH (`wantsMeetLink`, google/sync.ts), so a connected
+account only needs Save. Outlook creates a Teams link for `teams + url null` ON INSERT ONLY
+(outlook/mapping.ts; §17) - a meeting already pushed to Outlook (`external.outlookEventId`
+set) without a url never gets one.
+
+| provider | calendar state | mode / autoState | form hint (below the chips) | details card (no url) |
+|---|---|---|---|---|
+| none | - | `none` | - | section hidden (unless a pasted `location.virtualUrl` exists) |
+| zoom, other | - | `paste` | `meetings:form.pasteLinkHint` | `meetings:details.noLink` |
+| google_meet | google connected | `auto_google` / `ready` | `meetings:form.meetWillBeCreated` | `meetings:details.meetPending` ("waiting for sync") |
+| google_meet | not connected | `auto_google` / `needs_connection` | `meetings:form.meetNeedsCalendar` | `meetings:details.meetNeedsCalendar` + "Connect Google Calendar" CTA |
+| teams | outlook hidden/unconfigured | `paste` | `meetings:form.pasteLinkHint` | `meetings:details.noLink` |
+| teams | outlook configured + connected | `auto_outlook` / `ready` | new `meetings:form.teamsWillBeCreated` | new `meetings:details.teamsPending`; but `teamsLinkOnCreateOnly` (already pushed, no link) -> new `meetings:details.teamsLinkTooLate` (paste fallback) |
+| teams | configured, not connected | `auto_outlook` / `needs_connection` | new `meetings:form.teamsNeedsOutlook` | new `meetings:details.teamsNeedsOutlook` + "Connect Outlook" CTA |
+
+- A PASTED url always wins: the mode only describes the empty-url behavior, and the details
+  card shows the Join button whenever a valid url exists.
+- The form derives the hint from `conferenceCapability(draft.conferenceProvider, status)` with
+  the LIVE `useCalendarStatus()` value, so switching the provider chips or connecting a
+  calendar updates the text immediately (the stage-3 bug: the hint was Google-only and partly
+  static). The url input label stays "optional" exactly for the two auto modes.
+- The AI executor keeps its own Meet path (`createMeetLink`); nothing changes there.
+
+## 23. Phase-2 file ownership (exact lists; parallel implementers must not cross them)
+
+- **videocall**: `src/screens/meetings/MeetingFormScreen.tsx`, `src/screens/meetings/meetingForm.ts`,
+  `src/screens/meetings/MeetingDetailsScreen.tsx`, their tests under
+  `src/screens/meetings/__tests__/`, i18n `meetings.json` (`form.*`, `details.*` keys only) and
+  `create.json` in both languages. Reads `useCalendarStatus` + `src/core/conference.ts` only.
+- **recscope**: `src/services/data/**` (editFollowing/deleteFollowing implementation replacing
+  the engine stubs, + tests), `src/screens/meetings/list/meetingActions.tsx`,
+  `src/screens/meetings/OccurrenceEditSheet.tsx`, `src/screens/meetings/occurrences.ts` (+ their
+  tests), `src/services/ai/actionExecutor.ts` + `src/services/ai/presentation.ts` +
+  `src/services/ai/recurrenceText.ts` ('following' execution/preview),
+  `functions/src/assistant/{tools,prompt,actions}.ts` (+ functions tests). i18n: the
+  `meetings:actions.scopeFollowing/followingDeleted/followingUpdated` and
+  `ai:recurrence.scopeFollowing` keys ALREADY EXIST (architect) - recscope edits no JSON unless
+  adding `ai.json` keys of its own. NEVER touches MeetingFormScreen/MeetingDetailsScreen.
+- **widget**: `modules/mg-next-meeting-widget/**` (Kotlin + expo-module.config.json + widget res;
+  the TS wrapper exists), `src/services/widget/**`, the ONE feeder import line in `index.js`,
+  i18n `widget.json` (extending the three existing keys is fine). app.config.js only if a
+  plugin becomes unavoidable (§19 says none is expected).
+- **billing**: `src/services/billing.ts`, `src/services/purchases/**`, `src/screens/pricing/**`,
+  `src/config/env.ts` + `env.example` (EXPO_PUBLIC_REVENUECAT_ANDROID_KEY),
+  `functions/src/revenuecat/**` + the `revenuecatWebhook` export line in
+  `functions/src/index.ts`, functions tests, i18n `pricing.json`, docs/SETUP.md §11.
+- **admin**: `public/admin/**`, `functions/src/admin/**` + the admin export lines in
+  `functions/src/index.ts`, `functions/scripts/set-admin-claim.mjs`, functions tests,
+  `firebase.json` (the scoped `/admin/**` headers entry ONLY), `firestore.indexes.json`
+  (the `days.updatedAt` collection-group index ONLY), docs/ADMIN.md.
+- **shared**: `src/i18n/resources.ts` and navigation registrations - own lines only. Version
+  bump, CHANGELOG, HANDOFF/TESTING updates: integrator.

@@ -26,7 +26,7 @@ import type {
   SyncState,
   UserRepository,
 } from '../../core/contracts';
-import { AppError, toAppError, type AppErrorCode } from '../../core/errors';
+import { AppError, notImplemented, toAppError, type AppErrorCode } from '../../core/errors';
 import { appEvents, type AppEventMap, type EventBus, type Unsubscribe, type WriteOrigin } from '../../core/events';
 import { ALERT_HORIZON_DAYS, firestorePaths, LEGACY_DATA_KEY, PREFERENCES_DOC_ID } from '../../core/identifiers';
 import { createLogger } from '../../core/logger';
@@ -1767,6 +1767,32 @@ export class DataEngine {
     );
   }
 
+  /**
+   * STUB (recscope pass, §16 "this and following"): splits the series at `fromDateKey` via
+   * core splitRecurrenceAt - truncated master + NEW tail meeting with `patch` applied
+   * (contract: MeetingRecurrenceOps.editFollowing in src/core/contracts.ts).
+   */
+  async editFollowing(
+    id: string,
+    fromDateKey: string,
+    patch: MeetingPatch,
+    options: { origin?: WriteOrigin } = {},
+  ): Promise<{ master: Meeting; created: Meeting | null }> {
+    void id;
+    void fromDateKey;
+    void patch;
+    void options;
+    throw notImplemented('meetingRepository.editFollowing');
+  }
+
+  /** STUB (recscope pass, §16): truncates the series at `fromDateKey` (MeetingRecurrenceOps.deleteFollowing). */
+  async deleteFollowing(id: string, fromDateKey: string, options: { origin?: WriteOrigin } = {}): Promise<Meeting | null> {
+    void id;
+    void fromDateKey;
+    void options;
+    throw notImplemented('meetingRepository.deleteFollowing');
+  }
+
   private afterMeetingWrite(s: Session, ids: string[], reason: 'created' | 'updated' | 'deleted' | 'imported', origin: WriteOrigin): void {
     this.notify();
     this.events.emit('meetings:changed', { uid: s.uid, changedIds: ids, reason, origin });
@@ -2355,6 +2381,8 @@ export class DataEngine {
         updateOccurrence: (id, localDateKey, patch, options) => this.updateOccurrence(id, localDateKey, patch, options),
         cancelOccurrence: (id, localDateKey, options) => this.cancelOccurrence(id, localDateKey, options),
         restoreOccurrence: (id, localDateKey, options) => this.restoreOccurrence(id, localDateKey, options),
+        editFollowing: (id, fromDateKey, patch, options) => this.editFollowing(id, fromDateKey, patch, options),
+        deleteFollowing: (id, fromDateKey, options) => this.deleteFollowing(id, fromDateKey, options),
         subscribe: (listener, onError) => this.subscribeMeetings(listener, onError),
         upsertExternal: (items) => this.upsertExternal(items),
         findByExternalId: (provider, externalId) => this.findByExternalId(provider, externalId),
