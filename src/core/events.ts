@@ -18,7 +18,7 @@ import type { AlertIntensity, Language, Preferences, PreferenceKey } from './typ
 // ---------------------------------------------------------------------------------------------
 
 /** Who caused a data write. Calendar sync only pushes changes whose origin is 'user' or 'ai'. */
-export type WriteOrigin = 'user' | 'ai' | 'calendar_google' | 'calendar_device' | 'migration' | 'system';
+export type WriteOrigin = 'user' | 'ai' | 'calendar_google' | 'calendar_device' | 'calendar_outlook' | 'migration' | 'system';
 
 export type MeetingsChangeReason =
   /** Local create/update/delete through MeetingRepository (see `origin`). */
@@ -77,7 +77,7 @@ export interface AlertFiredEvent {
 
 export interface CalendarSyncedEvent {
   uid: string;
-  provider: 'google' | 'device';
+  provider: 'google' | 'device' | 'outlook';
   created: number;
   updated: number;
   removed: number;

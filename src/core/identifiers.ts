@@ -6,7 +6,7 @@
  * Changing any value here is a data migration: notification ids and channel ids live on
  * devices, storage keys hold user data, Google event ids live in users' calendars.
  */
-import { MEETING_ID_PATTERN } from './aiContract';
+import { LOCAL_DATE_KEY_PATTERN, MEETING_ID_PATTERN } from './aiContract';
 import type { AlertIntensity } from './types';
 
 // ---------------------------------------------------------------------------------------------
@@ -83,6 +83,8 @@ export const USER_STORAGE = {
   googleCalendar: 'calendar.google',
   /** Device calendar sync state. Owner: calendar. */
   deviceCalendar: 'calendar.device',
+  /** Outlook sync state: deltaLink, lastSyncAt, pending pushes (never tokens). Owner: calendar. */
+  outlookCalendar: 'calendar.outlook',
   /** Fired/acknowledged alerts, snoozes, last reconcile. Owner: alerts. */
   alerts: 'alerts.state',
   /** Assistant conversation. Owner: ai. */
@@ -143,6 +145,19 @@ export const LEGACY_STORAGE_PREFIXES = ['alertSchedule_'] as const;
 export const LEGACY_DATA_KEY = 'meetingguard_data';
 
 // ---------------------------------------------------------------------------------------------
+// Secure storage (expo-secure-store; keys must match [A-Za-z0-9._-]+; uids are alphanumeric)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The ONLY tokens the app persists: the Microsoft refresh token for Outlook sync (Google tokens
+ * stay inside the GoogleSignin SDK and are never stored by us). Deleted on Outlook disconnect and
+ * on session end. Owner: auth (src/services/auth/microsoftTokens.ts).
+ */
+export const SECURE_STORE_KEYS = {
+  microsoftRefreshToken: (uid: string): string => `mg.ms.refresh.${uid}`,
+} as const;
+
+// ---------------------------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------------------------
 
@@ -150,14 +165,24 @@ export const NOTIFICATION_ID_PREFIX = 'mg';
 
 export type NotificationKind = 'alert' | 'followup' | 'snooze';
 
+/**
+ * `localDateKey` is present for OCCURRENCE notifications of a recurring meeting (the occurrence's
+ * ORIGINAL local date in the meeting's timezone) and absent for one-off meetings.
+ */
 export type ParsedNotificationId =
-  | { kind: 'alert'; meetingId: string; offsetMinutes: number }
-  | { kind: 'followup'; meetingId: string }
+  | { kind: 'alert'; meetingId: string; offsetMinutes: number; localDateKey?: string }
+  | { kind: 'followup'; meetingId: string; localDateKey?: string }
   | { kind: 'snooze'; meetingId: string };
 
 function assertMeetingId(meetingId: string): void {
   if (!MEETING_ID_PATTERN.test(meetingId)) {
     throw new RangeError(`Invalid meeting id for a notification identifier: ${meetingId}`);
+  }
+}
+
+function assertLocalDateKey(localDateKey: string): void {
+  if (!LOCAL_DATE_KEY_PATTERN.test(localDateKey)) {
+    throw new RangeError(`Invalid occurrence date for a notification identifier: ${localDateKey}`);
   }
 }
 
@@ -170,13 +195,33 @@ export function alertNotificationId(meetingId: string, offsetMinutes: number): s
   return `${NOTIFICATION_ID_PREFIX}:${meetingId}:${offsetMinutes}`;
 }
 
+/** "mg:{meetingId}:{localDateKey}:{offsetMin}" - alert for ONE occurrence of a recurring meeting. */
+export function occurrenceAlertNotificationId(meetingId: string, localDateKey: string, offsetMinutes: number): string {
+  assertMeetingId(meetingId);
+  assertLocalDateKey(localDateKey);
+  if (!Number.isInteger(offsetMinutes) || offsetMinutes < 0) {
+    throw new RangeError(`Invalid alert offset: ${offsetMinutes}`);
+  }
+  return `${NOTIFICATION_ID_PREFIX}:${meetingId}:${localDateKey}:${offsetMinutes}`;
+}
+
 /** "mg:{meetingId}:followup" - post-meeting follow-up (end + FOLLOW_UP_DELAY_MINUTES). */
 export function followUpNotificationId(meetingId: string): string {
   assertMeetingId(meetingId);
   return `${NOTIFICATION_ID_PREFIX}:${meetingId}:followup`;
 }
 
-/** "mg:{meetingId}:snooze" - at most one pending snooze per meeting (re-snooze replaces it). */
+/** "mg:{meetingId}:{localDateKey}:followup" - follow-up of ONE occurrence of a recurring meeting. */
+export function occurrenceFollowUpNotificationId(meetingId: string, localDateKey: string): string {
+  assertMeetingId(meetingId);
+  assertLocalDateKey(localDateKey);
+  return `${NOTIFICATION_ID_PREFIX}:${meetingId}:${localDateKey}:followup`;
+}
+
+/**
+ * "mg:{meetingId}:snooze" - at most one pending snooze per meeting (re-snooze replaces it; for a
+ * recurring meeting the one slot covers whichever occurrence was snoozed last).
+ */
 export function snoozeNotificationId(meetingId: string): string {
   assertMeetingId(meetingId);
   return `${NOTIFICATION_ID_PREFIX}:${meetingId}:snooze`;
@@ -184,13 +229,24 @@ export function snoozeNotificationId(meetingId: string): string {
 
 export function parseNotificationId(identifier: string): ParsedNotificationId | null {
   const parts = identifier.split(':');
-  if (parts.length !== 3 || parts[0] !== NOTIFICATION_ID_PREFIX) return null;
+  if (parts[0] !== NOTIFICATION_ID_PREFIX) return null;
   const meetingId = parts[1] ?? '';
-  const tail = parts[2] ?? '';
   if (!MEETING_ID_PATTERN.test(meetingId)) return null;
-  if (tail === 'followup') return { kind: 'followup', meetingId };
-  if (tail === 'snooze') return { kind: 'snooze', meetingId };
-  if (/^\d{1,5}$/.test(tail)) return { kind: 'alert', meetingId, offsetMinutes: Number(tail) };
+  if (parts.length === 3) {
+    const tail = parts[2] ?? '';
+    if (tail === 'followup') return { kind: 'followup', meetingId };
+    if (tail === 'snooze') return { kind: 'snooze', meetingId };
+    if (/^\d{1,5}$/.test(tail)) return { kind: 'alert', meetingId, offsetMinutes: Number(tail) };
+    return null;
+  }
+  if (parts.length === 4) {
+    const localDateKey = parts[2] ?? '';
+    if (!LOCAL_DATE_KEY_PATTERN.test(localDateKey)) return null;
+    const tail = parts[3] ?? '';
+    if (tail === 'followup') return { kind: 'followup', meetingId, localDateKey };
+    if (/^\d{1,5}$/.test(tail)) return { kind: 'alert', meetingId, offsetMinutes: Number(tail), localDateKey };
+    return null;
+  }
   return null;
 }
 
@@ -300,6 +356,14 @@ export const BACKGROUND_REFRESH_INTERVAL_MINUTES = 60;
 
 export const APP_SCHEME = 'meetingguardai';
 export const DEEP_LINK_PREFIX = `${APP_SCHEME}://`;
+
+/**
+ * OAuth redirect path for the Microsoft/Outlook PKCE flow (expo-auth-session):
+ * `meetingguardai://auth/microsoft`. Handled by expo-auth-session's pending session, never by
+ * navigation (parseDeepLink returns 'unknown' for it, which openDeepLink ignores). This exact URI
+ * must be registered on the Azure app registration (docs/SETUP.md §10).
+ */
+export const MS_AUTH_REDIRECT_PATH = 'auth/microsoft';
 
 /** React Navigation linking paths (navigation/linking.ts must use exactly these). */
 export const LINKING_PATHS = {

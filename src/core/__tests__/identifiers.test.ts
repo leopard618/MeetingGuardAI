@@ -9,6 +9,8 @@ import {
   googleEventIdForMeeting,
   isMeetingGuardNotificationId,
   meetingDeepLink,
+  occurrenceAlertNotificationId,
+  occurrenceFollowUpNotificationId,
   meetingIdFromGoogleEventId,
   parseDeepLink,
   parseNotificationId,
@@ -48,6 +50,32 @@ describe('notification identifiers', () => {
   it('never treats the refill reminder as a meeting notification', () => {
     expect(REFILL_NOTIFICATION_ID).toBe('mg:refill');
     expect(parseNotificationId(REFILL_NOTIFICATION_ID)).toBeNull();
+  });
+
+  it('builds and parses occurrence identifiers (recurring meetings)', () => {
+    expect(occurrenceAlertNotificationId('abc123', '2026-01-05', 15)).toBe('mg:abc123:2026-01-05:15');
+    expect(occurrenceFollowUpNotificationId('abc123', '2026-01-05')).toBe('mg:abc123:2026-01-05:followup');
+    expect(parseNotificationId('mg:abc123:2026-01-05:0')).toEqual({
+      kind: 'alert',
+      meetingId: 'abc123',
+      offsetMinutes: 0,
+      localDateKey: '2026-01-05',
+    });
+    expect(parseNotificationId('mg:abc123:2026-01-05:followup')).toEqual({
+      kind: 'followup',
+      meetingId: 'abc123',
+      localDateKey: '2026-01-05',
+    });
+    expect(isMeetingGuardNotificationId('mg:abc123:2026-01-05:15')).toBe(true);
+  });
+
+  it('rejects malformed occurrence identifiers', () => {
+    expect(parseNotificationId('mg:abc:2026-1-05:15')).toBeNull();
+    expect(parseNotificationId('mg:abc:2026-01-05:snooze')).toBeNull();
+    expect(parseNotificationId('mg:abc:2026-01-05:15:extra')).toBeNull();
+    expect(() => occurrenceAlertNotificationId('abc', 'nope', 5)).toThrow(RangeError);
+    expect(() => occurrenceAlertNotificationId('abc', '2026-01-05', -1)).toThrow(RangeError);
+    expect(() => occurrenceFollowUpNotificationId('bad:id', '2026-01-05')).toThrow(RangeError);
   });
 });
 

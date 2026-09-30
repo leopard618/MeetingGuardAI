@@ -1,0 +1,54 @@
+/**
+ * Full-screen alarm glue (owner: alerts/fsi pass) over the local Expo module
+ * modules/mg-fullscreen-alarm. Contract: FullScreenAlarmModule in src/core/contracts.ts and
+ * docs/ARCHITECTURE.md §18.
+ *
+ * ARCHITECT STUB: `isAvailable()` is false until the native module lands, so the alert engine
+ * keeps using expo-notifications everywhere and nothing double-fires.
+ *
+ * Engine integration contract (implemented in engineCore.ts by the fsi pass):
+ * - AlertEngineDeps gains optional `fsi?: FullScreenAlarmModule` (engine.ts wires this module).
+ * - During reconcile, AFTER the desired specs are rendered: when platform is 'android' and
+ *   fsi.isAvailable() and getStatus().fullScreenAllowed && notificationsAllowed, the desired
+ *   entries with kind 'alert' and intensity 'max' are routed to `fsi.setAlarms(...)` (id =
+ *   notification identifier, atMs = Date.parse(fireAt), deepLink = data.url, channelId =
+ *   spec.channelId) and EXCLUDED from the expo-notifications desired set BEFORE the diff, so:
+ *   each identifier is scheduled through exactly one path, stale expo copies of rerouted ids are
+ *   cancelled by the ordinary diff, and setAlarms being declarative (replace-all) is the module
+ *   side of the diff. Snoozes, follow-ups and non-MAX alerts stay on expo-notifications.
+ * - When the module is unavailable or the permission is denied/revoked, the same entries fall
+ *   back to the expo path in the SAME reconcile (never dropped), and `fsi.clearAlarms()` runs
+ *   when FSI was active before but is not now.
+ * - endSession()/cancelAll() also call `fsi.clearAlarms()`.
+ * - getStatus() surfaces AlertEngineStatus.fullScreenAlarms; permission changes reconcile on
+ *   AppState 'active' like the exact-alarm setting.
+ */
+import type { FullScreenAlarmModule, FullScreenAlarmSpec, FullScreenAlarmStatus } from '../../core/contracts';
+import { notImplemented } from '../../core/errors';
+
+export const fullScreenAlarm: FullScreenAlarmModule = {
+  isAvailable(): boolean {
+    return false;
+  },
+  setAlarms(_alarms: readonly FullScreenAlarmSpec[]): Promise<void> {
+    return Promise.reject(stub('setAlarms'));
+  },
+  clearAlarms(_ids?: readonly string[]): Promise<void> {
+    return Promise.reject(stub('clearAlarms'));
+  },
+  getStatus(): Promise<FullScreenAlarmStatus> {
+    return Promise.reject(stub('getStatus'));
+  },
+  openFullScreenIntentSettings(): Promise<void> {
+    return Promise.reject(stub('openFullScreenIntentSettings'));
+  },
+};
+
+function stub(name: string): Error {
+  try {
+    notImplemented(`fullScreenAlarm.${name}`);
+  } catch (error) {
+    return error as Error;
+  }
+  return new Error(name);
+}

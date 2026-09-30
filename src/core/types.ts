@@ -29,6 +29,12 @@ import {
   type Plan,
 } from './aiContract';
 import { AppError } from './errors';
+import {
+  meetingRecurrenceSchema,
+  recurrenceOverridesSchema,
+  type MeetingRecurrence,
+  type RecurrenceOverrides,
+} from './recurrence';
 import { isValidTimeZone, toDate, toLocalDateTime, type DateInput } from './time';
 
 export {
@@ -46,6 +52,24 @@ export {
   timeZoneSchema,
 } from './aiContract';
 export type { ConferenceDetails, ConferenceProvider, Language, LocationType, MeetingLocation, Plan } from './aiContract';
+export {
+  CANCELLED_OVERRIDE,
+  RECURRENCE_EDIT_SCOPES,
+  RECURRENCE_FREQS,
+  RECURRENCE_WEEKDAYS,
+  meetingRecurrenceSchema,
+  recurrenceOverrideSchema,
+  recurrenceOverridesSchema,
+  withRecurrenceOverride,
+} from './recurrence';
+export type {
+  MeetingRecurrence,
+  RecurrenceEditScope,
+  RecurrenceFreq,
+  RecurrenceOverride,
+  RecurrenceOverrides,
+  RecurrenceWeekday,
+} from './recurrence';
 
 // ---------------------------------------------------------------------------------------------
 // Enums
@@ -57,8 +81,8 @@ export type AlertIntensity = (typeof ALERT_INTENSITIES)[number];
 export const ALERT_SOUND_TYPES = ['voice_and_sound', 'voice_only', 'sound_only'] as const;
 export type AlertSoundType = (typeof ALERT_SOUND_TYPES)[number];
 
-/** Brief: ChatGPT -> ai_chat, WhatsApp -> whatsapp, Manual -> manual; imports: google, device. */
-export const MEETING_SOURCES = ['manual', 'ai_chat', 'whatsapp', 'google', 'device'] as const;
+/** Brief: ChatGPT -> ai_chat, WhatsApp -> whatsapp, Manual -> manual; imports: google, device, outlook. */
+export const MEETING_SOURCES = ['manual', 'ai_chat', 'whatsapp', 'google', 'device', 'outlook'] as const;
 export type MeetingSource = (typeof MEETING_SOURCES)[number];
 
 export const MEETING_STATUSES = ['scheduled', 'cancelled'] as const;
@@ -137,6 +161,13 @@ export interface ExternalRefs {
   googleUpdatedAt: string | null;
   deviceEventId: string | null;
   deviceCalendarId: string | null;
+  /** Microsoft Graph event id (Outlook sync; see docs/ARCHITECTURE.md §17). */
+  outlookEventId: string | null;
+  outlookCalendarId: string | null;
+  /** Graph `changeKey` of the last pulled/pushed version. */
+  outlookChangeKey: string | null;
+  /** Graph `lastModifiedDateTime` of the last pulled/pushed version (conflict resolution). */
+  outlookUpdatedAt: string | null;
 }
 
 export const externalRefsSchema = z.object({
@@ -146,6 +177,10 @@ export const externalRefsSchema = z.object({
   googleUpdatedAt: utcIsoSchema.nullable(),
   deviceEventId: z.string().min(1).max(512).nullable(),
   deviceCalendarId: z.string().min(1).max(512).nullable(),
+  outlookEventId: z.string().min(1).max(512).nullable(),
+  outlookCalendarId: z.string().min(1).max(512).nullable(),
+  outlookChangeKey: z.string().max(256).nullable(),
+  outlookUpdatedAt: utcIsoSchema.nullable(),
 });
 
 export const EMPTY_EXTERNAL_REFS: Readonly<ExternalRefs> = Object.freeze({
@@ -155,7 +190,20 @@ export const EMPTY_EXTERNAL_REFS: Readonly<ExternalRefs> = Object.freeze({
   googleUpdatedAt: null,
   deviceEventId: null,
   deviceCalendarId: null,
+  outlookEventId: null,
+  outlookCalendarId: null,
+  outlookChangeKey: null,
+  outlookUpdatedAt: null,
 });
+
+/**
+ * Fields added after the v1.1 rules deploy. They are serialized SPARSELY: `toMeetingDoc` leaves
+ * them out when null, so documents written by this app version keep passing the LIVE Firestore
+ * rules until the updated rules (which allow the keys) are deployed, and unchanged meetings keep
+ * their exact stored shape. `parseMeetingDoc` fills nulls back in.
+ */
+export const SPARSE_MEETING_KEYS = ['recurrence', 'recurrenceOverrides', 'seriesId'] as const;
+export const SPARSE_EXTERNAL_KEYS = ['outlookEventId', 'outlookCalendarId', 'outlookChangeKey', 'outlookUpdatedAt'] as const;
 
 export interface Meeting {
   id: string;
@@ -190,6 +238,15 @@ export interface Meeting {
   /** `cancelled` = still visible, marked cancelled, no alerts. */
   status: MeetingStatus;
   external: ExternalRefs;
+  /**
+   * Repeat rule (null = one-off). The meeting itself is the series master and first occurrence;
+   * occurrences are expanded, never stored (src/core/recurrence.ts, ARCHITECTURE §16).
+   */
+  recurrence: MeetingRecurrence | null;
+  /** Per-occurrence exceptions keyed by the ORIGINAL occurrence date in `timezone`; null = none. */
+  recurrenceOverrides: RecurrenceOverrides | null;
+  /** Stable series identity (= the master's id in v1); null for one-off meetings. */
+  seriesId: string | null;
   createdAt: string;
   updatedAt: string;
   /** Soft-delete tombstone (hidden everywhere, kept for sync). */
@@ -219,13 +276,26 @@ export const meetingSchema = z.object({
   notes: z.string().max(10_000).nullable(),
   status: meetingStatusSchema,
   external: externalRefsSchema,
+  recurrence: meetingRecurrenceSchema.nullable(),
+  recurrenceOverrides: recurrenceOverridesSchema.nullable(),
+  seriesId: meetingIdSchema.nullable(),
   createdAt: utcIsoSchema,
   updatedAt: utcIsoSchema,
   deletedAt: utcIsoSchema.nullable(),
 });
 
-/** Firestore document users/{uid}/meetings/{id}: the Meeting without `id` (the doc id). */
-export type MeetingDoc = Omit<Meeting, 'id'>;
+type SparseMeetingKey = (typeof SPARSE_MEETING_KEYS)[number];
+type SparseExternalKey = (typeof SPARSE_EXTERNAL_KEYS)[number];
+
+/** ExternalRefs as stored: the Outlook keys are left out while null (SPARSE_EXTERNAL_KEYS). */
+export type ExternalRefsDoc = Omit<ExternalRefs, SparseExternalKey> & Partial<Pick<ExternalRefs, SparseExternalKey>>;
+
+/**
+ * Firestore document users/{uid}/meetings/{id}: the Meeting without `id` (the doc id).
+ * The post-v1.1 fields (SPARSE_MEETING_KEYS / SPARSE_EXTERNAL_KEYS) are left out while null.
+ */
+export type MeetingDoc = Omit<Meeting, 'id' | 'external' | SparseMeetingKey> &
+  Partial<Pick<Meeting, SparseMeetingKey>> & { external: ExternalRefsDoc };
 
 /** Payload to create a meeting. Omitted fields get defaults in `buildMeeting`. */
 export interface MeetingCreateInput {
@@ -251,6 +321,12 @@ export interface MeetingCreateInput {
   notes?: string | null;
   status?: MeetingStatus;
   external?: Partial<ExternalRefs>;
+  /** Repeat rule; null/absent = one-off. */
+  recurrence?: MeetingRecurrence | null;
+  /** Only meaningful with `recurrence` (calendar imports carry cancelled occurrences here). */
+  recurrenceOverrides?: RecurrenceOverrides | null;
+  /** Default: the meeting's own id when `recurrence` is set. Create-only (not patchable). */
+  seriesId?: string | null;
 }
 
 export const meetingCreateInputSchema = z.object({
@@ -272,15 +348,19 @@ export const meetingCreateInputSchema = z.object({
   notes: z.string().max(10_000).nullable().optional(),
   status: meetingStatusSchema.optional(),
   external: externalRefsSchema.partial().optional(),
+  recurrence: meetingRecurrenceSchema.nullable().optional(),
+  recurrenceOverrides: recurrenceOverridesSchema.nullable().optional(),
+  seriesId: meetingIdSchema.nullable().optional(),
 });
 
 /**
  * Patch for an existing meeting: absent key = unchanged, `null` = clear (nullable fields only).
- * `external` is shallow-merged into the current refs. `source`, `userId`, timestamps are immutable.
+ * `external` is shallow-merged into the current refs. `source`, `userId`, `seriesId` and the
+ * timestamps are immutable. Clearing `recurrence` also clears `recurrenceOverrides`.
  */
-export type MeetingPatch = Partial<Omit<MeetingCreateInput, 'source'>>;
+export type MeetingPatch = Partial<Omit<MeetingCreateInput, 'source' | 'seriesId'>>;
 
-export const meetingPatchSchema = meetingCreateInputSchema.omit({ source: true }).partial();
+export const meetingPatchSchema = meetingCreateInputSchema.omit({ source: true, seriesId: true }).partial();
 
 export interface MeetingBuildContext {
   id: string;
@@ -360,6 +440,10 @@ export function buildMeeting(input: MeetingCreateInput, ctx: MeetingBuildContext
     notes: value.notes ?? null,
     status: value.status ?? 'scheduled',
     external: { ...EMPTY_EXTERNAL_REFS, ...(value.external ?? {}) },
+    recurrence: value.recurrence ?? null,
+    // Overrides without a rule are meaningless; drop them instead of storing dead data.
+    recurrenceOverrides: (value.recurrence ?? null) !== null ? (value.recurrenceOverrides ?? null) : null,
+    seriesId: value.seriesId ?? ((value.recurrence ?? null) !== null ? ctx.id : null),
     createdAt: nowIso,
     updatedAt: nowIso,
     deletedAt: null,
@@ -405,8 +489,17 @@ export function applyMeetingPatch(meeting: Meeting, patch: MeetingPatch, now: Da
     notes: value.notes !== undefined ? value.notes : meeting.notes,
     status: value.status ?? meeting.status,
     external: { ...meeting.external, ...(value.external ?? {}) },
+    recurrence: value.recurrence !== undefined ? value.recurrence : meeting.recurrence,
+    recurrenceOverrides:
+      value.recurrenceOverrides !== undefined ? value.recurrenceOverrides : meeting.recurrenceOverrides,
     updatedAt: toDate(now).toISOString(),
   };
+  if (next.recurrence === null) {
+    next.recurrenceOverrides = null;
+  } else if (meeting.recurrence === null && next.seriesId === null) {
+    // A one-off upgraded to a series gets its series identity now.
+    next.seriesId = meeting.id;
+  }
   const checked = meetingSchema.safeParse(next);
   if (!checked.success) throw zodToAppError(checked.error, 'meeting');
   return checked.data;
@@ -436,6 +529,10 @@ export function scrubMeetingContent(meeting: Meeting): Meeting {
     alertIntensity: null,
     notes: null,
     confidence: null,
+    // The rule itself is not needed for sync (deletes go by event id) and overrides may carry
+    // per-occurrence titles; seriesId (an id) is kept.
+    recurrence: null,
+    recurrenceOverrides: null,
   };
 }
 
@@ -456,7 +553,9 @@ function deepEqualShallowMeeting(a: Meeting, b: Meeting): boolean {
     a.customAlertTimes === b.customAlertTimes &&
     a.alertIntensity === b.alertIntensity &&
     a.notes === b.notes &&
-    a.confidence === b.confidence
+    a.confidence === b.confidence &&
+    a.recurrence === b.recurrence &&
+    a.recurrenceOverrides === b.recurrenceOverrides
   );
 }
 
@@ -470,10 +569,20 @@ export function tombstoneMeeting(meeting: Meeting, now: DateInput): Meeting {
   return { ...scrubMeetingContent(meeting), deletedAt: nowIso, updatedAt: nowIso };
 }
 
-/** Firestore/cache document shape for a meeting (drops `id`). */
+/**
+ * Firestore/cache document shape for a meeting (drops `id`). Post-v1.1 fields are left out while
+ * null (SPARSE_MEETING_KEYS / SPARSE_EXTERNAL_KEYS): see their doc comment.
+ */
 export function toMeetingDoc(meeting: Meeting): MeetingDoc {
   const { id: _id, ...doc } = meeting;
-  return doc;
+  const sparse: MeetingDoc = { ...doc, external: { ...doc.external } };
+  for (const key of SPARSE_MEETING_KEYS) {
+    if (sparse[key] === null) delete sparse[key];
+  }
+  for (const key of SPARSE_EXTERNAL_KEYS) {
+    if (sparse.external[key] === null) delete sparse.external[key];
+  }
+  return sparse;
 }
 
 const meetingDocReadSchema = meetingSchema.omit({ id: true, date: true, time: true }).extend({
@@ -496,6 +605,9 @@ const meetingDocReadSchema = meetingSchema.omit({ id: true, date: true, time: tr
     .partial()
     .default({})
     .transform((refs): ExternalRefs => ({ ...EMPTY_EXTERNAL_REFS, ...refs })),
+  recurrence: meetingRecurrenceSchema.nullable().default(null),
+  recurrenceOverrides: recurrenceOverridesSchema.nullable().default(null),
+  seriesId: meetingIdSchema.nullable().default(null),
   deletedAt: utcIsoSchema.nullable().default(null),
 });
 
@@ -521,7 +633,9 @@ export function parseMeetingDoc(id: string, raw: unknown): Meeting | null {
     date = date ?? local.date;
     time = time ?? local.time;
   }
-  return { ...doc, id, date, time };
+  // Overrides without a rule (a rule cleared by an older client) are dead data: drop them.
+  const recurrenceOverrides = doc.recurrence !== null ? doc.recurrenceOverrides : null;
+  return { ...doc, id, date, time, recurrenceOverrides };
 }
 
 /** Meetings that are visible (not tombstoned). */

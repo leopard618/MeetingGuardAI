@@ -4,7 +4,8 @@
     "ai_chat": "Creada con el asistente de IA",
     "whatsapp": "Creada desde WhatsApp",
     "google": "Google Calendar",
-    "device": "Calendario del dispositivo"
+    "device": "Calendario del dispositivo",
+    "outlook": "Calendario de Outlook"
   },
   "details": {
     "when": "Cuándo",

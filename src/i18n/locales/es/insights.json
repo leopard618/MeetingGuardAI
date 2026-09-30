@@ -50,7 +50,8 @@
     "ai_chat": "Asistente de IA",
     "whatsapp": "WhatsApp",
     "google": "Google Calendar",
-    "device": "Calendario del dispositivo"
+    "device": "Calendario del dispositivo",
+    "outlook": "Calendario de Outlook"
   },
   "conflicts": {
     "title": "Reuniones que se solapan",

@@ -50,7 +50,8 @@
     "ai_chat": "AI assistant",
     "whatsapp": "WhatsApp",
     "google": "Google Calendar",
-    "device": "Device calendar"
+    "device": "Device calendar",
+    "outlook": "Outlook calendar"
   },
   "conflicts": {
     "title": "Overlapping meetings",

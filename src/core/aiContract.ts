@@ -17,7 +17,13 @@
  */
 import { z } from 'zod';
 
-export const AI_CONTRACT_VERSION = 1;
+/**
+ * v2: recurring meetings (ADDITIVE only). create/update drafts gain an optional `recurrence`
+ * rule, and update/delete actions gain an optional `{ scope, occurrenceDate }` for series
+ * targets. Both sides tolerate the other being on v1: zod object parsing strips unknown keys,
+ * and every new field is optional.
+ */
+export const AI_CONTRACT_VERSION = 2;
 
 // ---------------------------------------------------------------------------------------------
 // Callables
@@ -75,6 +81,17 @@ export type AiActionType = (typeof AI_ACTION_TYPES)[number];
 export const SHARE_CHANNELS = ['email', 'system_share'] as const;
 export type ShareChannel = (typeof SHARE_CHANNELS)[number];
 
+export const RECURRENCE_FREQS = ['daily', 'weekly', 'monthly'] as const;
+export type RecurrenceFreq = (typeof RECURRENCE_FREQS)[number];
+
+/** ISO weekday codes, Monday first (weeks start on Monday for weekly rules). */
+export const RECURRENCE_WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const;
+export type RecurrenceWeekday = (typeof RECURRENCE_WEEKDAYS)[number];
+
+/** How an update/delete applies to a recurring meeting. Absent scope = 'series' (v1 behavior). */
+export const RECURRENCE_EDIT_SCOPES = ['occurrence', 'series'] as const;
+export type RecurrenceEditScope = (typeof RECURRENCE_EDIT_SCOPES)[number];
+
 // ---------------------------------------------------------------------------------------------
 // Limits
 // ---------------------------------------------------------------------------------------------
@@ -101,6 +118,9 @@ export const AI_LIMITS = {
   /** Longest meeting (14 days, for multi-day all-day events). */
   maxDurationMinutes: 20_160,
   maxShiftMinutes: 10_080,
+  maxRecurrenceInterval: 99,
+  /** Two years of daily occurrences. */
+  maxRecurrenceCount: 730,
 } as const;
 
 // ---------------------------------------------------------------------------------------------
@@ -151,6 +171,38 @@ export const aiParticipantSchema = z.object({
   name: z.string().max(200).nullable(),
 });
 export type AiParticipant = z.infer<typeof aiParticipantSchema>;
+
+/** Local calendar date "YYYY-MM-DD" (an occurrence key in a meeting's timezone). */
+export const LOCAL_DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+export const localDateKeySchema = z.string().regex(LOCAL_DATE_KEY_PATTERN);
+
+/**
+ * Recurrence rule (v1 subset; shared by the stored meeting model - src/core/recurrence.ts - and
+ * the AI drafts, so the assistant proposes exactly what is stored). Every field is present and
+ * nullable (strict tool schemas). Semantics:
+ * - The first occurrence is the meeting's own start; the rule's timezone is the meeting's.
+ * - byWeekday: weekly only; null = the first occurrence's weekday.
+ * - byMonthDay: monthly only (1-31; months without that day are skipped); null = the first
+ *   occurrence's day of month.
+ * - until: INCLUSIVE UTC instant compared against original occurrence starts. count: total
+ *   occurrences including the first. Never both; both null = endless.
+ */
+export const recurrenceRuleSchema = z
+  .object({
+    freq: z.enum(RECURRENCE_FREQS),
+    interval: z.number().int().min(1).max(AI_LIMITS.maxRecurrenceInterval),
+    byWeekday: z.array(z.enum(RECURRENCE_WEEKDAYS)).min(1).max(7).nullable(),
+    byMonthDay: z.number().int().min(1).max(31).nullable(),
+    until: isoDateTimeSchema.nullable(),
+    count: z.number().int().min(1).max(AI_LIMITS.maxRecurrenceCount).nullable(),
+  })
+  .refine((r) => r.until === null || r.count === null, { message: 'until and count are exclusive', path: ['count'] })
+  .refine((r) => r.byWeekday === null || r.freq === 'weekly', { message: 'byWeekday is weekly-only', path: ['byWeekday'] })
+  .refine((r) => r.byMonthDay === null || r.freq === 'monthly', {
+    message: 'byMonthDay is monthly-only',
+    path: ['byMonthDay'],
+  });
+export type RecurrenceRule = z.infer<typeof recurrenceRuleSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Request
@@ -215,6 +267,12 @@ export const aiMeetingDraftSchema = z.object({
   /** Minutes-before alert offsets; null = user's default alert times. */
   customAlertTimes: alertTimesSchema.nullable(),
   language: languageSchema,
+  /**
+   * v2, additive: repeat rule ("every Monday at 9"), or null for a one-off meeting. OPTIONAL so
+   * v1 responses still parse; a missing value means null. In changes, null REMOVES the rule
+   * (the series collapses to a single meeting).
+   */
+  recurrence: recurrenceRuleSchema.nullable().optional(),
 });
 export type AiMeetingDraft = z.infer<typeof aiMeetingDraftSchema>;
 
@@ -239,18 +297,46 @@ export const createMeetingActionSchema = z.object({
   meeting: aiMeetingDraftSchema,
 });
 
-export const updateMeetingActionSchema = z.object({
-  type: z.literal('update_meeting'),
-  ...actionBase,
-  meetingId: meetingIdSchema,
-  changes: aiMeetingChangesSchema,
-});
+/** update_meeting changes allowed with scope 'occurrence' (the v1 per-occurrence override surface). */
+export const OCCURRENCE_CHANGE_KEYS = ['startAt', 'durationMinutes', 'title'] as const;
 
-export const deleteMeetingActionSchema = z.object({
-  type: z.literal('delete_meeting'),
-  ...actionBase,
-  meetingId: meetingIdSchema,
-});
+export const updateMeetingActionSchema = z
+  .object({
+    type: z.literal('update_meeting'),
+    ...actionBase,
+    meetingId: meetingIdSchema,
+    changes: aiMeetingChangesSchema,
+    /**
+     * v2, additive: when `meetingId` is a recurring meeting, 'occurrence' changes only the
+     * occurrence at `occurrenceDate`, 'series' changes the whole series. Absent (v1 client or
+     * one-off meeting) = 'series'. Executors ignore the scope on non-recurring meetings.
+     */
+    scope: z.enum(RECURRENCE_EDIT_SCOPES).optional(),
+    /** Required with scope 'occurrence': the occurrence's ORIGINAL local date in the meeting's timezone. */
+    occurrenceDate: localDateKeySchema.nullable().optional(),
+  })
+  .refine((a) => a.scope !== 'occurrence' || (a.occurrenceDate !== null && a.occurrenceDate !== undefined), {
+    message: 'scope "occurrence" needs occurrenceDate',
+    path: ['occurrenceDate'],
+  })
+  .refine(
+    (a) => a.scope !== 'occurrence' || Object.keys(a.changes).every((key) => (OCCURRENCE_CHANGE_KEYS as readonly string[]).includes(key)),
+    { message: 'occurrence-scoped changes may only set startAt, durationMinutes or title', path: ['changes'] },
+  );
+
+export const deleteMeetingActionSchema = z
+  .object({
+    type: z.literal('delete_meeting'),
+    ...actionBase,
+    meetingId: meetingIdSchema,
+    /** v2, additive: 'occurrence' cancels one occurrence of a series; 'series' (or absent) deletes the meeting. */
+    scope: z.enum(RECURRENCE_EDIT_SCOPES).optional(),
+    occurrenceDate: localDateKeySchema.nullable().optional(),
+  })
+  .refine((a) => a.scope !== 'occurrence' || (a.occurrenceDate !== null && a.occurrenceDate !== undefined), {
+    message: 'scope "occurrence" needs occurrenceDate',
+    path: ['occurrenceDate'],
+  });
 
 export const shareMeetingActionSchema = z
   .object({
@@ -431,5 +517,7 @@ export const aiMeetingContextDocSchema = z.object({
     .catch([]),
   location: meetingLocationSchema.nullable().catch(null),
   conference: conferenceDetailsSchema.nullable().catch(null),
+  /** v2: the repeat rule, so the assistant can describe series and propose scoped edits. */
+  recurrence: recurrenceRuleSchema.nullable().catch(null),
 });
 export type AiMeetingContextDoc = z.infer<typeof aiMeetingContextDocSchema>;

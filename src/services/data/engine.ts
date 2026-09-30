@@ -12,6 +12,7 @@
  * Nothing here fakes success: a failure is an AppError; an empty list is a real empty list.
  */
 import type {
+  CalendarProvider,
   DataService,
   ExternalMeetingUpsert,
   MeetingRange,
@@ -95,6 +96,11 @@ import type { CommitResult, RemoteCollectionSnapshot, RemoteData, RemoteDocSnaps
 import { compareByStart, deepEqual, Mutex, nextTimestamp, withTimeout } from './util';
 
 const log = createLogger('data');
+
+/** Write origin of a calendar import (calendar_<provider>). */
+function originForProvider(provider: CalendarProvider): WriteOrigin {
+  return provider === 'device' ? 'calendar_device' : provider === 'outlook' ? 'calendar_outlook' : 'calendar_google';
+}
 
 // ---------------------------------------------------------------------------------------------
 // Public shapes
@@ -1642,7 +1648,7 @@ export class DataEngine {
   async upsertExternal(items: readonly ExternalMeetingUpsert[]): Promise<ExternalUpsertResultWithInvalid> {
     const s = await this.readySession();
     if (items.length === 0) return { created: 0, updated: 0, removed: 0, unchanged: 0, changedIds: [], invalid: 0 };
-    const changedByProvider = new Map<'google' | 'device', string[]>();
+    const changedByProvider = new Map<CalendarProvider, string[]>();
     let wrote = false;
     const result = await this.localWrite(s, () => {
       const plan = planExternalUpserts(items, s.meetings, {
@@ -1671,7 +1677,7 @@ export class DataEngine {
             mode: write.mode,
             data: meetingToDoc(write.meeting) as unknown as RemoteData,
             updatedAt: write.meeting.updatedAt,
-            origin: write.provider === 'device' ? ('calendar_device' as const) : ('calendar_google' as const),
+            origin: originForProvider(write.provider),
           })),
         },
       };
@@ -1683,7 +1689,7 @@ export class DataEngine {
           uid: s.uid,
           changedIds: ids,
           reason: 'imported',
-          origin: provider === 'device' ? 'calendar_device' : 'calendar_google',
+          origin: originForProvider(provider),
         });
       }
       this.scheduleFlush(s);
@@ -1691,7 +1697,7 @@ export class DataEngine {
     return result;
   }
 
-  async findByExternalId(provider: 'google' | 'device', externalId: string): Promise<Meeting | null> {
+  async findByExternalId(provider: CalendarProvider, externalId: string): Promise<Meeting | null> {
     const s = await this.readySession();
     return findExternalMatch(s.meetings, provider, externalId);
   }

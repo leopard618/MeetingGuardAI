@@ -79,12 +79,17 @@ export const MODULES = {
   auth: {
     // authService only (L3) - calendar/ai/data-free code imports THIS path
     authService: 'src/services/auth/authService.ts',
+    // Microsoft refresh-token storage for Outlook sync (expo-secure-store; L3, no session code)
+    microsoftTokens: 'src/services/auth/microsoftTokens.ts',
     // authService, sessionManager, AuthProvider, useAuth (L6)
     index: 'src/services/auth/index.ts',
   },
   calendar: {
-    // googleCalendarService, deviceCalendarService, calendarSyncEngine, useCalendarStatus
+    // googleCalendarService, deviceCalendarService, outlookCalendarService, calendarSyncEngine,
+    // useCalendarStatus
     index: 'src/services/calendar/index.ts',
+    // outlookCalendarService implementation (Microsoft Graph; stub until the outlook pass lands)
+    outlook: 'src/services/calendar/outlook/index.ts',
   },
   alerts: {
     // alertEngine, computeAlertPlan, usePendingAlerts
@@ -94,6 +99,9 @@ export const MODULES = {
     tasks: 'src/services/alerts/tasks.ts',
     // AlertHost (rendered once inside NavigationContainer)
     host: 'src/components/alerts/index.ts',
+    // fullScreenAlarm: FullScreenAlarmModule glue over the local Expo module
+    // modules/mg-fullscreen-alarm (Android full-screen-intent alarms; no-op stub elsewhere).
+    fsi: 'src/services/alerts/fsi.ts',
   },
   i18n: {
     // i18n, initI18n, t, getLanguage, setLanguage, SUPPORTED_LANGUAGES, I18N_NAMESPACES,
@@ -153,19 +161,22 @@ export interface WriteOptions {
   id?: string;
 }
 
+/** Calendar providers that import into the meeting store (write origin `calendar_<provider>`). */
+export type CalendarProvider = 'google' | 'device' | 'outlook';
+
 /** A calendar event to import, matched by provider + externalId. */
 export interface ExternalMeetingUpsert {
-  provider: 'google' | 'device';
-  /** Google event id / device event id. */
+  provider: CalendarProvider;
+  /** Google event id / device event id / Graph event id. */
   externalId: string;
   calendarId: string;
-  /** Google etag (null for device). */
+  /** Google etag / Graph changeKey (null for device). */
   etag: string | null;
   /** Provider "updated" time (UTC ISO) for last-writer-wins; null when unknown. */
   providerUpdatedAt: string | null;
   /** true => the event was deleted/cancelled at the provider: tombstone the local meeting. */
   deleted: boolean;
-  /** Required unless deleted. `source` is set by the repository ('google' | 'device'). */
+  /** Required unless deleted. `source` is set by the repository (= the provider). */
   meeting: Omit<MeetingCreateInput, 'source' | 'external'> | null;
 }
 
@@ -215,7 +226,7 @@ export interface MeetingRepository {
    * The meeting linked to a provider event. May return a TOMBSTONED meeting (an active one is
    * preferred) so callers can restore it instead of creating a duplicate.
    */
-  findByExternalId(provider: 'google' | 'device', externalId: string): Promise<Meeting | null>;
+  findByExternalId(provider: CalendarProvider, externalId: string): Promise<Meeting | null>;
   /** Sends pending writes now (also runs on reconnect / foreground / session start). */
   flushOutbox(): Promise<OutboxFlushResult>;
   /**
@@ -223,6 +234,27 @@ export interface MeetingRepository {
    * status 'scheduled' meetings whose end is after now, within `horizonDays` (default 14).
    */
   getCachedUpcoming(uid: string, options?: { horizonDays?: number; now?: Date }): Promise<Meeting[]>;
+}
+
+/**
+ * Recurring-meeting edit scopes on top of MeetingRepository (implemented by `meetingRepository`
+ * alongside the base interface; exported through the data barrel). Scope 'series' is the plain
+ * update()/remove(). All three validate that the meeting is recurring and that `localDateKey`
+ * is an occurrence of the series (AppError('invalid_input') / 'not_found' otherwise), and emit
+ * `meetings:changed` like any other write.
+ */
+export interface MeetingRecurrenceOps {
+  /** Writes a 'modified' override for one occurrence (v1 surface: startAt, durationMinutes, title). */
+  updateOccurrence(
+    id: string,
+    localDateKey: string,
+    patch: Pick<MeetingPatch, 'startAt' | 'durationMinutes' | 'title'>,
+    options?: WriteOptions,
+  ): Promise<Meeting>;
+  /** Writes a 'cancelled' override ("delete this occurrence"). Idempotent. */
+  cancelOccurrence(id: string, localDateKey: string, options?: WriteOptions): Promise<Meeting>;
+  /** Removes an override (the occurrence returns to the series pattern). Idempotent. */
+  restoreOccurrence(id: string, localDateKey: string, options?: WriteOptions): Promise<Meeting>;
 }
 
 export interface PreferencesRepository {
@@ -498,8 +530,8 @@ export interface CalendarSyncCounts {
 }
 
 export interface CalendarPullResult {
-  provider: 'google' | 'device';
-  /** true when a full resync ran (first sync or syncToken expired / 410 Gone). */
+  provider: CalendarProvider;
+  /** true when a full resync ran (first sync or syncToken/deltaLink expired / 410 Gone). */
   fullSync: boolean;
   counts: CalendarSyncCounts;
   syncedAt: string;
@@ -544,6 +576,62 @@ export interface GoogleCalendarService {
   createMeetLink(meetingId: string): Promise<ConferenceDetails>;
 }
 
+// ---- Outlook (Microsoft Graph) ---------------------------------------------------------------
+
+/**
+ * Microsoft OAuth constants (PKCE via expo-auth-session against the v2.0 endpoints
+ * `https://login.microsoftonline.com/{tenant}/v2.0`). The client id comes from the optional
+ * EXPO_PUBLIC_MSAL_CLIENT_ID (absent => the whole Outlook UI is hidden); the tenant from
+ * EXPO_PUBLIC_MSAL_TENANT (default 'common'). Redirect: MS_AUTH_REDIRECT_PATH in identifiers.ts.
+ * The refresh token is stored ONLY in expo-secure-store (SECURE_STORE_KEYS.microsoftRefreshToken);
+ * access tokens stay in memory.
+ */
+export const MICROSOFT_OAUTH = {
+  defaultTenant: 'common',
+  scopes: ['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.ReadWrite'],
+  authority: (tenant: string): string => `https://login.microsoftonline.com/${tenant}/v2.0`,
+} as const;
+
+export interface OutlookConnectResult {
+  status: 'connected' | 'cancelled' | 'failed';
+  initialSync: CalendarPullResult | null;
+}
+
+/**
+ * Outlook calendar sync over Microsoft Graph (default calendar of the signed-in Microsoft
+ * account, which is independent of the app's Google/Firebase identity).
+ * - Push: POST /me/events with a client `transactionId` ("mgev-" + meeting.id, idempotent across
+ *   retries), PATCH / DELETE /me/events/{id}; Teams links via `isOnlineMeeting: true` +
+ *   `onlineMeetingProvider: "teamsForBusiness"` when the meeting has conference
+ *   { provider: 'teams', url: null } (the returned joinUrl is stored as the conference url).
+ *   External refs (outlook*) are written back with origin 'calendar_outlook' (loop prevention).
+ * - Pull: GET /me/calendarView/delta over CALENDAR_SYNC_WINDOW with the persisted deltaLink
+ *   (USER_STORAGE.outlookCalendar); HTTP 410 => full resync. `@removed` => deleted upsert.
+ *   Results go to meetingRepository.upsertExternal (provider 'outlook').
+ * - Auth: refresh-token flow; a 401 refreshes once, an invalid_grant surfaces
+ *   AppError('calendar_not_connected') and flips the status to disconnected.
+ * - Methods other than isConfigured throw AppError('calendar_not_connected') when not connected,
+ *   and isConfigured() is false when EXPO_PUBLIC_MSAL_CLIENT_ID is absent.
+ */
+export interface OutlookCalendarService {
+  /** EXPO_PUBLIC_MSAL_CLIENT_ID present (Outlook UI hidden otherwise). */
+  isConfigured(): boolean;
+  isConnected(): Promise<boolean>;
+  /** PKCE browser flow -> token exchange -> store refresh token -> initial full pull + push. */
+  connect(): Promise<OutlookConnectResult>;
+  /**
+   * Clears tokens + sync state, tombstones source 'outlook' meetings, clears external.outlook*
+   * refs of other meetings. `revoke` opens the Microsoft account-consent page (Graph has no
+   * programmatic revoke for user consent).
+   */
+  disconnect(options?: { revoke?: boolean }): Promise<void>;
+  /** Insert or patch. Returns the meeting with updated external refs. */
+  pushMeeting(meeting: Meeting): Promise<Meeting>;
+  /** DELETE for a pushed meeting (no-op if it has no outlookEventId). */
+  removeMeeting(meeting: Meeting): Promise<void>;
+  pullChanges(options?: { full?: boolean }): Promise<CalendarPullResult>;
+}
+
 export interface DeviceCalendarInfo {
   id: string;
   title: string;
@@ -575,7 +663,9 @@ export interface CalendarSyncReport {
   google: CalendarPullResult | null;
   /** null when no device calendars are selected / no permission. */
   device: CalendarPullResult | null;
-  errors: { provider: 'google' | 'device'; code: AppErrorCode }[];
+  /** Absent/null when Outlook is not configured or not connected. */
+  outlook?: CalendarPullResult | null;
+  errors: { provider: CalendarProvider; code: AppErrorCode }[];
 }
 
 export interface ProviderStatus {
@@ -588,6 +678,8 @@ export interface ProviderStatus {
 export interface CalendarStatus {
   google: ProviderStatus & { connected: boolean; hasScope: boolean };
   device: ProviderStatus & { permission: PermissionState; importCalendarIds: string[]; exportCalendarId: string | null };
+  /** Absent until the Outlook provider is registered (EXPO_PUBLIC_MSAL_CLIENT_ID present). */
+  outlook?: ProviderStatus & { configured: boolean; connected: boolean; accountEmail: string | null };
 }
 
 /**
@@ -616,6 +708,8 @@ export interface AlertNotificationData {
   v: 1;
   kind: NotificationKind;
   meetingId: string;
+  /** Occurrence date key for recurring-meeting notifications (matches the identifier); absent for one-offs. */
+  localDateKey?: string;
   /** Minutes before start ('alert'); null for followup/snooze. */
   offsetMinutes: number | null;
   intensity: AlertIntensity;
@@ -641,6 +735,8 @@ export interface DesiredNotification {
   identifier: string;
   kind: 'alert' | 'followup';
   meetingId: string;
+  /** Occurrence date key when the item belongs to one occurrence of a recurring meeting. */
+  localDateKey?: string;
   offsetMinutes: number | null;
   /** UTC ISO fire time (> now). */
   fireAt: string;
@@ -724,6 +820,8 @@ export interface ReconcileResult {
 export interface ScheduledAlertInfo {
   identifier: string;
   meetingId: string;
+  /** Occurrence date key for recurring-meeting entries. */
+  localDateKey?: string;
   kind: NotificationKind;
   offsetMinutes: number | null;
   fireAt: string;
@@ -750,6 +848,8 @@ export interface AlertEngineStatus {
   nextAlertAt: string | null;
   lastReconcileAt: string | null;
   lastReconcileError: AppErrorCode | null;
+  /** Android with the mg-fullscreen-alarm module available; absent/null elsewhere. */
+  fullScreenAlarms?: FullScreenAlarmStatus | null;
 }
 
 /**
@@ -801,6 +901,51 @@ export interface UsePendingAlertsResult {
   permission: AlertPermissionStatus | null;
   isLoading: boolean;
   refresh(): Promise<void>;
+}
+
+// ---- Full-screen alarm module (modules/mg-fullscreen-alarm; Android only) --------------------
+
+/** One native alarm; `id` IS the notification identifier (mg:*), so the reconcile diff extends to it. */
+export interface FullScreenAlarmSpec {
+  id: string;
+  /** Fire time, epoch ms. */
+  atMs: number;
+  title: string;
+  body: string;
+  /** Opened by the full-screen intent / tap (meetingDeepLink). */
+  deepLink: string;
+  /** Existing alert channel id (channelForIntensity); the native notification posts on it. */
+  channelId: string;
+}
+
+export interface FullScreenAlarmStatus {
+  /** AlarmManager.canScheduleExactAlarms() (true below Android 12). */
+  exactAllowed: boolean;
+  /** NotificationManager.canUseFullScreenIntent() (true below Android 14). */
+  fullScreenAllowed: boolean;
+  /** POST_NOTIFICATIONS granted. */
+  notificationsAllowed: boolean;
+}
+
+/**
+ * TS surface of the local Expo module "mg-fullscreen-alarm" (glue: src/services/alerts/fsi.ts).
+ * Android: AlarmManager setExactAndAllowWhileIdle -> BroadcastReceiver -> full-screen-intent
+ * notification on the meeting's existing alert channel; pending alarms persist in
+ * SharedPreferences and a BOOT_COMPLETED receiver restores them natively. iOS / module missing:
+ * isAvailable() false and every method a safe no-op for the caller (the engine falls back to
+ * expo-notifications, so an alert is never lost - and never double-scheduled: each identifier is
+ * scheduled through exactly ONE path per reconcile).
+ */
+export interface FullScreenAlarmModule {
+  /** Native module present and platform android. Synchronous so reconcile can branch cheaply. */
+  isAvailable(): boolean;
+  /** DECLARATIVE: replaces the whole pending set (alarms not in `alarms` are cancelled natively). */
+  setAlarms(alarms: readonly FullScreenAlarmSpec[]): Promise<void>;
+  /** Cancels the given ids, or every pending alarm when omitted (session end). */
+  clearAlarms(ids?: readonly string[]): Promise<void>;
+  getStatus(): Promise<FullScreenAlarmStatus>;
+  /** Android 14+: ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT settings screen; no-op elsewhere. */
+  openFullScreenIntentSettings(): Promise<void>;
 }
 
 /** src/services/alerts/tasks.ts */

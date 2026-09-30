@@ -108,9 +108,13 @@ export class FakeMeetings {
     this.writes.push({ id, origin: options.origin, kind: 'remove' });
   }
 
-  async findByExternalId(provider: 'google' | 'device', externalId: string): Promise<Meeting | null> {
+  async findByExternalId(provider: 'google' | 'device' | 'outlook', externalId: string): Promise<Meeting | null> {
     const linked = this.all().find((meeting) =>
-      provider === 'google' ? meeting.external.googleEventId === externalId : meeting.external.deviceEventId === externalId,
+      provider === 'google'
+        ? meeting.external.googleEventId === externalId
+        : provider === 'outlook'
+          ? meeting.external.outlookEventId === externalId
+          : meeting.external.deviceEventId === externalId,
     );
     if (linked) return linked;
     // Like the data layer: MeetingGuard's own Google events match their meeting by decoded id.

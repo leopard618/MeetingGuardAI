@@ -8,6 +8,7 @@
  * - v1.0.9 local records become "legacy_<oldId>" so the migration is idempotent.
  */
 import { MEETING_ID_PATTERN } from '../../core/aiContract';
+import type { CalendarProvider } from '../../core/contracts';
 import { AppError } from '../../core/errors';
 import { stableHash } from './util';
 
@@ -25,11 +26,15 @@ function buildId(prefix: string, body: string, hashInput: string): string {
  * Meeting id for an event imported from a calendar provider.
  * Google: "g_<eventId>" (event ids are unique in the primary calendar and never contain ':').
  * Device: "d_<calendarId>_<eventId>" or a hash when the ids contain other characters (iOS ids do).
+ * Outlook: "o_<eventId>" or a hash (Graph ids are long/base64ish, so the hash path is the norm).
  */
-export function externalMeetingId(provider: 'google' | 'device', calendarId: string, externalId: string): string {
+export function externalMeetingId(provider: CalendarProvider, calendarId: string, externalId: string): string {
   if (externalId.length === 0) throw new AppError('invalid_input', 'External event id is empty');
   if (provider === 'google') {
     return buildId('g_', externalId, `google|${externalId}`);
+  }
+  if (provider === 'outlook') {
+    return buildId('o_', externalId, `outlook|${externalId}`);
   }
   return buildId('d_', `${calendarId}_${externalId}`, `device|${calendarId}|${externalId}`);
 }

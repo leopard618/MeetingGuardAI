@@ -42,8 +42,8 @@ These rules prevent import cycles:
 | core | `src/core/*` | architect |
 | data | `src/services/data` (`dataService`, `meetingRepository`, `preferencesRepository`, `notesRepository`, `userRepository`, `migrationService`, `DataProvider`, `useMeetings`, `useMeeting`, `usePreferences`, `useNotes`, `useEntitlement`, `useSyncState`); `src/config/firebase.ts` | data |
 | auth | `src/services/auth/authService.ts` (`authService`); `src/services/auth` (`authService`, `sessionManager`, `AuthProvider`, `useAuth`) | auth |
-| calendar | `src/services/calendar` (`googleCalendarService`, `deviceCalendarService`, `calendarSyncEngine`, `useCalendarStatus`) | calendar |
-| alerts | `src/services/alerts` (`alertEngine`, `computeAlertPlan`, `usePendingAlerts`); `src/services/alerts/tasks.ts` (`registerBackgroundTasks`, `unregisterBackgroundTasks`, plus the module-scope task definitions); `src/components/alerts` (`AlertHost`) | alerts |
+| calendar | `src/services/calendar` (`googleCalendarService`, `deviceCalendarService`, `calendarSyncEngine`, `useCalendarStatus`); `src/services/calendar/outlook` (`outlookCalendarService`, §17) | calendar |
+| alerts | `src/services/alerts` (`alertEngine`, `computeAlertPlan`, `usePendingAlerts`); `src/services/alerts/fsi.ts` (`fullScreenAlarm`, §18); `src/services/alerts/tasks.ts` (`registerBackgroundTasks`, `unregisterBackgroundTasks`, plus the module-scope task definitions); `src/components/alerts` (`AlertHost`) | alerts |
 | i18n + navigation | `src/i18n` (`i18n`, `initI18n`, `t`, `getLanguage`, `setLanguage`, `SUPPORTED_LANGUAGES`, `I18N_NAMESPACES`, `I18nProvider`, `useT`, `useLanguage`); `src/utils/format.ts`; `src/navigation` (`navigationRef`, `navigate`, `openDeepLink`, `isNavigationReady`, `linking`, `RootNavigator`, `ROUTES`); `src/screens/onboarding` | i18n-nav |
 | ai | `src/services/ai` (`assistantClient`, `actionExecutor`, `useAssistant`) | ai |
 | attachments | `src/services/attachments` (`attachmentService`, `useMeetingAttachments`); metadata in the data layer's `attachmentStore` | notes |
@@ -68,7 +68,7 @@ These rules prevent import cycles:
 | `location` | `{ type physical\|virtual\|hybrid, address, virtualUrl }` or null. |
 | `conference` | `{ provider zoom\|teams\|google_meet\|other, url, password }` or null. |
 | `participants[]` | `{ email, name, status }`. |
-| `source` | `manual\|ai_chat\|whatsapp\|google\|device`. |
+| `source` | `manual\|ai_chat\|whatsapp\|google\|device\|outlook`. |
 | `confidence` | 0-100 or null. |
 | `language` | `en\|es`. |
 | `preparationTips[]` | |
@@ -76,7 +76,8 @@ These rules prevent import cycles:
 | `alertIntensity` | Override of the preference, or null. |
 | `notes` | |
 | `status` | `scheduled\|cancelled`. |
-| `external` | `{ googleEventId, googleCalendarId, googleEtag, googleUpdatedAt, deviceEventId, deviceCalendarId }` |
+| `external` | `{ googleEventId, googleCalendarId, googleEtag, googleUpdatedAt, deviceEventId, deviceCalendarId, outlookEventId, outlookCalendarId, outlookChangeKey, outlookUpdatedAt }` (the outlook keys are stored sparsely, §16/§17) |
+| `recurrence`, `recurrenceOverrides`, `seriesId` | Recurring meetings (§16); null for one-offs and stored sparsely. |
 | `createdAt`, `updatedAt` | |
 | `deletedAt` | Tombstone for soft delete. A tombstone keeps only what sync needs (ids, source, status, time slot, external refs, timestamps): title becomes `TOMBSTONE_TITLE`, and description, notes, participants, conference, location, tips and alert settings are cleared (`tombstoneMeeting` / `scrubMeetingContent`). Tombstones older than `TOMBSTONE_RETENTION_DAYS` (60) are hard-deleted, and older content-carrying tombstones are scrubbed, once per session after the first server snapshot. The scheduled `dailyMaintenance` function also hard-deletes them on the server (users who never open the app again). |
 
@@ -412,14 +413,15 @@ Shared screen pieces (`src/screens/shared`):
 
 ## 14. Deferred (not in this pass)
 
-- Outlook and Microsoft Graph
-- Recurring-meeting creation ("every Monday at 9am"): the assistant proposes only the next occurrence and says recurrence is not available yet (prompt rule 7). Google recurring events are imported as single instances. Planned shape: an RRULE on the create draft, pushed to Google as `event.recurrence`, with a local series id (the Google pull already expands occurrences, so alerts need no planner change).
 - WhatsApp bot
-- Full-screen intent
-- A native module to read the exact-alarm state
 - Home-screen widgets
 - Billing and IAP; entitlements are written only by server or admin tooling
 - Sign in with Apple, which is required before iOS App Store submission
+- Recurrence "this and following" edits and series splitting (§16 covers what v1 does)
+- Pushing time-modified occurrence overrides to Google/Outlook (kept local in v1; §16)
+
+Moved out of this list by the phase-1 contracts: recurring meetings (§16), Outlook (§17),
+full-screen intent + exact-alarm state via the local module (§18).
 
 ## 15. Releases and OTA updates
 
@@ -428,3 +430,98 @@ Shared screen pieces (`src/screens/shared`):
 - A native change (new native module, permission, plugin option, SDK upgrade) needs a new `version` and a store build, never an OTA update.
 - `src/services/updates.ts` reads the running update; Settings shows its short id and channel. A downloaded update that crashes on start is marked failed by expo-updates' error recovery, which relaunches the previous update (`isEmergencyLaunch` stays false); the signal for a bad OTA update is new Sentry crashes grouped by the tag `expo.updates.update_id`. An "emergency launch" means the update store itself could not be used (the embedded bundle runs); Sentry's Expo integration reports it (tag `expo.updates.emergency_launch`), and the app only logs a warning.
 - Release checklist, rollback, backups and the Firebase side: `docs/DEPLOYMENT.md`. Project setup: `docs/SETUP.md`. Tests and the device plan: `docs/TESTING.md`. Open work and decisions: `docs/HANDOFF.md`.
+
+## 16. Recurring meetings (phase 1)
+
+The model is in `src/core/recurrence.ts` (pure, exhaustively unit-tested; no rrule dependency)
+and `types.ts`. One stored document per series (the **master**); occurrences are **never stored**.
+
+- `Meeting.recurrence` (`recurrenceRuleSchema`, shared verbatim with the AI contract):
+  `{ freq daily|weekly|monthly, interval >= 1, byWeekday? (weekly, MO..SU, weeks start Monday),
+  byMonthDay? (monthly, 1-31; months without that day are skipped), until (inclusive UTC instant)
+  | count (total occurrences incl. the first), all fields present and nullable }`. The master's own
+  `startAt`/`date`/`time` is the first occurrence; the rule runs in the MEETING's timezone.
+- `Meeting.recurrenceOverrides`: `{ [localDateKey]: { status 'cancelled' | 'modified', startAt,
+  durationMinutes, title } }`, keyed by the occurrence's ORIGINAL local date in the meeting's zone.
+  `Meeting.seriesId` = the master's id (v1), null for one-offs.
+- `expandOccurrences(meeting, windowStart, windowEnd, { max })` returns
+  `{ occurrenceId = "{meetingId}:{localDateKey}", meetingId, localDateKey, startAt, endAt,
+  durationMinutes, title, overridden }`, DST-safe: each occurrence is derived from wall-clock
+  date+time via `zonedDateTimeToUtcIso`, so a 09:00 meeting stays at 09:00 across DST and the
+  result is independent of the device zone. Cancelled occurrences are omitted; `count` is consumed
+  by cancelled ones; a modified occurrence sorts and windows by its EFFECTIVE time.
+- **Edit scopes** (v1): `'occurrence'` writes an override (repository ops `updateOccurrence` /
+  `cancelOccurrence` / `restoreOccurrence`, `MeetingRecurrenceOps` in contracts.ts);
+  `'series'` is a plain update/remove of the master. **"This and following" does not exist in v1.**
+- **Sparse storage:** `toMeetingDoc` leaves `recurrence`, `recurrenceOverrides`, `seriesId` (and
+  the `external.outlook*` refs) out while null, so documents written by this app version keep
+  passing the PREVIOUS deployed rules; `parseMeetingDoc` fills nulls back in and drops overrides
+  whose rule is gone. The updated `firestore.rules` must allow these keys before any recurring
+  meeting can sync.
+- **Alerts:** the planner expands recurring masters over the horizon (+ the longest alert offset)
+  and emits occurrence items with ids `mg:{meetingId}:{localDateKey}:{offsetMin}` and
+  `mg:{meetingId}:{localDateKey}:followup` (`occurrence*NotificationId` in identifiers.ts; the
+  parser handles 3- and 4-part ids, so the reconcile diff needs no change). One-off meetings keep
+  their existing 3-part ids; snooze stays one per meeting.
+- **Google mapping** (`toGoogleRecurrence` / `parseGoogleRecurrence`): masters push
+  `event.recurrence` = one RRULE line (v1 subset) plus one `EXDATE;TZID=<meeting tz>` line per
+  CANCELLED override. Time-modified overrides are NOT pushed (documented limitation; the
+  occurrence keeps `overridden: true` locally). Import keeps `singleEvents=true`, with one rule:
+  instances whose `recurringEventId` decodes via `meetingIdFromGoogleEventId` (an `mgev…` id)
+  are OUR pushed series - skip importing them (the local master already expands them).
+- **AI contract v2** (`AI_CONTRACT_VERSION = 2`, additive): drafts/changes gain optional
+  `recurrence`; `update_meeting`/`delete_meeting` gain optional `{ scope: 'occurrence'|'series',
+  occurrenceDate }` (occurrence scope limits changes to startAt/durationMinutes/title). Old
+  clients strip the unknown fields; old servers simply never send them.
+
+## 17. Outlook calendar (Microsoft Graph)
+
+Contract: `OutlookCalendarService` + `MICROSOFT_OAUTH` in `src/core/contracts.ts`; implementation
+in `src/services/calendar/outlook/` (stubbed until the outlook pass lands: `isConfigured()` false
+hides the whole UI). The Microsoft account is independent of the app's Google/Firebase identity.
+
+- **Auth:** expo-auth-session PKCE against
+  `https://login.microsoftonline.com/{EXPO_PUBLIC_MSAL_TENANT||'common'}/v2.0`, scopes `openid
+  profile offline_access User.Read Calendars.ReadWrite`, redirect
+  `meetingguardai://auth/microsoft` (`MS_AUTH_REDIRECT_PATH`; navigation ignores it). Client id:
+  optional `EXPO_PUBLIC_MSAL_CLIENT_ID` (absent => Outlook hidden). ONLY the refresh token is
+  persisted, in expo-secure-store under `SECURE_STORE_KEYS.microsoftRefreshToken(uid)`
+  (`src/services/auth/microsoftTokens.ts`); access tokens live in memory. Disconnect and session
+  end clear it. Azure app registration steps: docs/SETUP.md §10.
+- **Pull:** `GET /me/calendarView/delta` over `CALENDAR_SYNC_WINDOW` with the deltaLink persisted
+  in `mg:{uid}:calendar.outlook` (`USER_STORAGE.outlookCalendar`); HTTP 410 => full resync;
+  `@removed` => deleted upsert. Results go to `meetingRepository.upsertExternal` with provider
+  `'outlook'` (source `'outlook'`, refs `external.outlook*`, conflict resolution like Google:
+  provider `lastModifiedDateTime` vs stored `outlookUpdatedAt`, changeKey short-circuit).
+- **Push:** the engine queues local `user`/`ai` writes exactly like Google. Inserts use
+  `POST /me/events` with `transactionId: "mgev-" + meeting.id` (idempotent across retries),
+  updates `PATCH`, deletes `DELETE`. A meeting with conference `{ provider: 'teams', url: null }`
+  is created with `isOnlineMeeting: true, onlineMeetingProvider: "teamsForBusiness"` and the
+  returned `onlineMeeting.joinUrl` is stored as the conference url. Ref write-backs use origin
+  `'calendar_outlook'` (never re-pushed).
+- **Status:** `CalendarStatus.outlook` (optional; absent when unconfigured) via
+  `useCalendarStatus`; sync reports gain `report.outlook`.
+
+## 18. Full-screen alarm (Android)
+
+Contract: `FullScreenAlarmModule` in `src/core/contracts.ts`; glue `src/services/alerts/fsi.ts`
+(stub: `isAvailable()` false); native side: local Expo module `modules/mg-fullscreen-alarm`
+(Kotlin + config plugin adding `USE_FULL_SCREEN_INTENT` and its receivers; a store build - never
+an OTA update - ships it).
+
+- **Native contract:** `setAlarms(alarms)` is DECLARATIVE (replaces the whole pending set);
+  `clearAlarms(ids?)`; `getStatus() -> { exactAllowed, fullScreenAllowed, notificationsAllowed }`
+  (finally a real exact-alarm read); `openFullScreenIntentSettings()`. Each alarm:
+  AlarmManager `setExactAndAllowWhileIdle` -> BroadcastReceiver -> NotificationCompat notification
+  with `fullScreenIntent` (PendingIntent to MainActivity carrying the deepLink) on the meeting's
+  EXISTING alert channel. Pending alarms persist in SharedPreferences; a `BOOT_COMPLETED`
+  receiver restores them natively (no JS needed).
+- **Engine integration** (spelled out in fsi.ts): during reconcile, when android + available +
+  `fullScreenAllowed && notificationsAllowed`, desired entries with kind `alert` and intensity
+  `max` are routed to `setAlarms` (id = the notification identifier, so the diff extends to the
+  module) and EXCLUDED from the expo-notifications desired set BEFORE the diff - one path per
+  identifier, no double fire; stale expo copies are cancelled by the ordinary diff. Unavailable or
+  denied => the same entries stay on the expo path in the same reconcile (never dropped).
+  `endSession`/`cancelAll` also `clearAlarms()`. Status surfaces as
+  `AlertEngineStatus.fullScreenAlarms`; alert settings + onboarding step 3 show the new
+  permission state on Android 14+.

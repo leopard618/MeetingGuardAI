@@ -78,6 +78,45 @@ describe('actions', () => {
     }
   });
 
+  it('v2: accepts recurrence on drafts and scoped update/delete; strips unknown fields (v1 clients)', () => {
+    const weekly = { freq: 'weekly', interval: 1, byWeekday: ['MO'], byMonthDay: null, until: null, count: null };
+    expect(aiActionSchema.safeParse({ ...common, type: 'create_meeting', meeting: { ...draft, recurrence: weekly } }).success).toBe(true);
+    // v1 servers omit the field entirely.
+    expect(aiActionSchema.safeParse({ ...common, type: 'create_meeting', meeting: draft }).success).toBe(true);
+    // update changes may set or clear the rule.
+    expect(aiActionSchema.safeParse({ ...common, type: 'update_meeting', meetingId: 'm1', changes: { recurrence: weekly } }).success).toBe(true);
+    expect(aiActionSchema.safeParse({ ...common, type: 'update_meeting', meetingId: 'm1', changes: { recurrence: null } }).success).toBe(true);
+    // Scoped actions.
+    const occUpdate = {
+      ...common,
+      type: 'update_meeting',
+      meetingId: 'm1',
+      changes: { startAt: '2026-10-06T09:00:00Z' },
+      scope: 'occurrence',
+      occurrenceDate: '2026-10-05',
+    };
+    expect(aiActionSchema.safeParse(occUpdate).success).toBe(true);
+    expect(aiActionSchema.safeParse({ ...occUpdate, occurrenceDate: undefined }).success).toBe(false);
+    // Occurrence scope limits the change surface to startAt/durationMinutes/title.
+    expect(aiActionSchema.safeParse({ ...occUpdate, changes: { description: 'x' } }).success).toBe(false);
+    expect(
+      aiActionSchema.safeParse({ ...common, type: 'delete_meeting', meetingId: 'm1', scope: 'occurrence', occurrenceDate: '2026-10-05' })
+        .success,
+    ).toBe(true);
+    expect(aiActionSchema.safeParse({ ...common, type: 'delete_meeting', meetingId: 'm1', scope: 'occurrence' }).success).toBe(false);
+    expect(aiActionSchema.safeParse({ ...common, type: 'delete_meeting', meetingId: 'm1', scope: 'series' }).success).toBe(true);
+    // Bad rules are rejected outright.
+    expect(
+      aiActionSchema.safeParse({ ...common, type: 'create_meeting', meeting: { ...draft, recurrence: { ...weekly, freq: 'yearly' } } })
+        .success,
+    ).toBe(false);
+    // An old APP receiving v2 fields: zod object parsing STRIPS unknown keys instead of failing.
+    const futureExtra = { ...common, type: 'delete_meeting', meetingId: 'm1', someFutureField: 'x' };
+    const parsed = aiActionSchema.safeParse(futureExtra);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && 'someFutureField' in parsed.data).toBe(false);
+  });
+
   it('validates a full response', () => {
     const response = {
       reply: 'Listo',
@@ -111,6 +150,10 @@ describe('helpers', () => {
     );
     const parsed = aiMeetingContextDocSchema.safeParse(JSON.parse(JSON.stringify(toMeetingDoc(meeting))));
     expect(parsed.success).toBe(true);
+    // Sparse docs (recurrence omitted) and garbage recurrence values both read as null.
+    expect(parsed.success && parsed.data.recurrence).toBeNull();
+    const garbage = aiMeetingContextDocSchema.safeParse({ ...JSON.parse(JSON.stringify(toMeetingDoc(meeting))), recurrence: 'weekly' });
+    expect(garbage.success && garbage.data.recurrence).toBeNull();
   });
 
   it('stays self-contained (imports only zod) so /functions can copy it verbatim', () => {

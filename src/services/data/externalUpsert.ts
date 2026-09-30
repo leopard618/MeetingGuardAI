@@ -12,11 +12,11 @@
  * - changed at the provider -> apply the provided fields (fields absent in the event keep their
  *   MeetingGuard values: confidence, tips, custom alerts...) unless the local copy is newer.
  *   A locally deleted meeting is resurrected only by a newer provider change.
- * - Google etag unchanged -> nothing to do.
+ * - Google etag / Outlook changeKey unchanged -> nothing to do.
  * - Refs-only changes (etag, updated) are written silently (not reported as changes).
  * - New events -> meeting with source = provider, written with outbox mode "create".
  */
-import type { ExternalMeetingUpsert, UpsertExternalResult } from '../../core/contracts';
+import type { CalendarProvider, ExternalMeetingUpsert, UpsertExternalResult } from '../../core/contracts';
 import { meetingIdFromGoogleEventId } from '../../core/identifiers';
 import {
   applyMeetingPatch,
@@ -42,7 +42,7 @@ export interface PlannedExternalWrite {
   mode: 'create' | 'set';
   outcome: 'created' | 'updated' | 'removed' | 'refs_only';
   /** Provider of the event that produced this write (write origin calendar_<provider>). */
-  provider: 'google' | 'device';
+  provider: CalendarProvider;
 }
 
 /** Kept for existing imports: `invalid` is now part of the core UpsertExternalResult. */
@@ -57,8 +57,9 @@ export interface ExternalUpsertPlan {
 
 type MeetingLookup = ReadonlyMap<string, Meeting>;
 
-function matchesExternal(meeting: Meeting, provider: 'google' | 'device', externalId: string, calendarId?: string): boolean {
+function matchesExternal(meeting: Meeting, provider: CalendarProvider, externalId: string, calendarId?: string): boolean {
   if (provider === 'google') return meeting.external.googleEventId === externalId;
+  if (provider === 'outlook') return meeting.external.outlookEventId === externalId;
   if (meeting.external.deviceEventId !== externalId) return false;
   return calendarId === undefined || meeting.external.deviceCalendarId === null || meeting.external.deviceCalendarId === calendarId;
 }
@@ -66,7 +67,7 @@ function matchesExternal(meeting: Meeting, provider: 'google' | 'device', extern
 /** Finds the meeting linked to a provider event; active meetings are preferred over tombstones. */
 export function findExternalMatch(
   meetings: MeetingLookup,
-  provider: 'google' | 'device',
+  provider: CalendarProvider,
   externalId: string,
   calendarId?: string,
 ): Meeting | null {
@@ -96,6 +97,14 @@ function refsFor(item: ExternalMeetingUpsert): Partial<ExternalRefs> {
       googleCalendarId: item.calendarId,
       googleEtag: item.etag,
       googleUpdatedAt: firstValidIso(item.providerUpdatedAt),
+    };
+  }
+  if (item.provider === 'outlook') {
+    return {
+      outlookEventId: item.externalId,
+      outlookCalendarId: item.calendarId,
+      outlookChangeKey: item.etag,
+      outlookUpdatedAt: firstValidIso(item.providerUpdatedAt),
     };
   }
   return { deviceEventId: item.externalId, deviceCalendarId: item.calendarId };
@@ -165,10 +174,10 @@ export function planExternalUpserts(
           return;
         }
         const importedFromProvider = existing.source === item.provider;
-        // Google: the calendar engine never sends an upsert while a local push of that meeting is
-        // pending, so a provider deletion always wins here (updatedAt also moves for
-        // MeetingGuard-only edits and ref write-backs, which must not mask a Google change).
-        const localNewer = item.provider !== 'google' && providerMs !== null && (isoMs(existing.updatedAt) ?? 0) > providerMs;
+        // Google/Outlook: the calendar engine never sends an upsert while a local push of that
+        // meeting is pending, so a provider deletion always wins here (updatedAt also moves for
+        // MeetingGuard-only edits and ref write-backs, which must not mask a provider change).
+        const localNewer = item.provider === 'device' && providerMs !== null && (isoMs(existing.updatedAt) ?? 0) > providerMs;
         if (!importedFromProvider && localNewer) {
           result.unchanged += 1;
           return;
@@ -195,13 +204,20 @@ export function planExternalUpserts(
         return;
       }
 
-      if (item.provider === 'google' && item.etag !== null && existing.external.googleEtag === item.etag && existing.deletedAt === null) {
+      const storedEtag =
+        item.provider === 'google' ? existing.external.googleEtag : item.provider === 'outlook' ? existing.external.outlookChangeKey : null;
+      if (item.etag !== null && storedEtag === item.etag && existing.deletedAt === null) {
         result.unchanged += 1;
         return;
       }
 
       const existingMs = isoMs(existing.updatedAt) ?? 0;
-      const storedProviderMs = item.provider === 'google' ? isoMs(existing.external.googleUpdatedAt) : null;
+      const storedProviderMs =
+        item.provider === 'google'
+          ? isoMs(existing.external.googleUpdatedAt)
+          : item.provider === 'outlook'
+            ? isoMs(existing.external.outlookUpdatedAt)
+            : null;
       const providerChanged = providerMs === null || storedProviderMs === null || providerMs > storedProviderMs;
 
       if (existing.deletedAt !== null) {
@@ -215,11 +231,12 @@ export function planExternalUpserts(
         return;
       }
 
-      // Google changes are detected by the stored googleUpdatedAt (providerChanged) only: local
-      // updatedAt also moves for MeetingGuard-only fields and ref write-backs, and comparing it
-      // would skip a real Google edit while storing its new etag (never pulled again). Conflicts
-      // with pending local pushes are resolved by the calendar engine before it upserts.
-      const localNewer = item.provider !== 'google' && providerMs !== null && existingMs > providerMs;
+      // Google/Outlook changes are detected by the stored provider timestamp (providerChanged)
+      // only: local updatedAt also moves for MeetingGuard-only fields and ref write-backs, and
+      // comparing it would skip a real provider edit while storing its new etag/changeKey (never
+      // pulled again). Conflicts with pending local pushes are resolved by the calendar engine
+      // before it upserts. Device imports keep last-writer-wins on updatedAt.
+      const localNewer = item.provider === 'device' && providerMs !== null && existingMs > providerMs;
       const timestamp = nextTimestamp(ctx.now, existing.updatedAt);
       const contentPatch = providerChanged && !localNewer ? patchFrom(item) : {};
       const next = applyMeetingPatch(existing, { ...contentPatch, external: refs }, timestamp);
