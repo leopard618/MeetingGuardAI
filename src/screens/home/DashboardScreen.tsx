@@ -9,14 +9,19 @@
  *   to Settings > Alerts;
  * - insights computed on the device, "Ask the assistant" and the full insights screen.
  * Pull to refresh flushes the outbox, re-reads the meetings and runs a calendar sync.
+ *
+ * MG Indigo hierarchy: greeting headlineL, ONE focal card (NextMeetingCard, primaryContainer),
+ * everything else neutral Cards under sentence-case SectionHeaders. A load failure with nothing
+ * cached shows ErrorState; cached content + failure shows an error Banner (ARCHITECTURE §13).
  */
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { FlatList, Linking, StyleSheet, View, type ListRenderItem } from 'react-native';
-import { ActivityIndicator, Button, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
+import { Banner, EmptyState, ErrorState, Skeleton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -26,6 +31,7 @@ import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import { calendarSyncEngine } from '../../services/calendar';
 import { useMeetings, usePreferences } from '../../services/data';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { computeDashboardSummary, weekStartForLanguage, type InsightContext } from '../insights/meetingInsights';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
@@ -52,7 +58,7 @@ const DASHBOARD_FUTURE_DAYS = 370;
 
 function Greeting({ now, timeZone }: { now: Date; timeZone: string }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const { authUser } = useAuth();
   const name = firstNameOf(authUser?.displayName);
@@ -65,10 +71,10 @@ function Greeting({ now, timeZone }: { now: Date; timeZone: string }): ReactElem
   const period = dayPeriodOf(hour);
   return (
     <View style={styles.greeting}>
-      <Text variant="headlineSmall" accessibilityRole="header" testID="dashboard-greeting">
+      <Text variant="headlineLarge" accessibilityRole="header" testID="dashboard-greeting">
         {name ? t(`home:greeting.${period}`, { name }) : t(`home:greeting.${period}NoName`)}
       </Text>
-      <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+      <Text variant="bodyMedium" style={[styles.greetingDate, { color: colors.onSurfaceVariant }]}>
         {capitalizeFirst(fmt.date(now, 'full'))}
       </Text>
     </View>
@@ -77,7 +83,7 @@ function Greeting({ now, timeZone }: { now: Date; timeZone: string }): ReactElem
 
 export function DashboardScreen({ navigation }: Props): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { language } = useLanguage();
   const { meetings, isLoading, error, refresh } = useMeetings();
@@ -152,24 +158,27 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
       <Greeting now={now} timeZone={timeZone} />
       <OfflineBanner />
       {error ? (
-        <View style={[styles.errorBox, { backgroundColor: theme.colors.errorContainer }]} accessibilityRole="alert" testID="dashboard-error">
-          <Text variant="bodyMedium" style={{ color: theme.colors.onErrorContainer }}>
-            {t('home:loadError', { reason: t(errorMessageKey(error.code)) })}
-          </Text>
-          <Button mode="text" compact onPress={() => void onRefresh()} textColor={theme.colors.onErrorContainer}>
-            {t('common:actions.retry')}
-          </Button>
-        </View>
+        loadFailed ? (
+          <ErrorState body={t('home:loadError', { reason: t(errorMessageKey(error.code)) })} onRetry={() => void onRefresh()} testID="dashboard-error" />
+        ) : (
+          <Banner
+            tone="error"
+            text={t('home:loadError', { reason: t(errorMessageKey(error.code)) })}
+            action={{ label: t('common:actions.retry'), onPress: () => void onRefresh() }}
+            style={styles.errorBanner}
+            testID="dashboard-error"
+          />
+        )
       ) : null}
       {showData ? <NextMeetingCard current={current} next={next} onOpen={openMeeting} onJoin={join} /> : null}
       <QuickActions onNewManual={() => navigation.navigate('CreateMeeting')} onNewWithAi={() => navigation.navigate('AIChat')} />
       {loadFailed ? null : (
         <View style={styles.sectionHeader}>
-          <Text variant="titleMedium" accessibilityRole="header">
+          <Text variant="titleSmall" accessibilityRole="header" style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>
             {t('home:today.title')}
           </Text>
           {showData ? (
-            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }} testID="today-count">
+            <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }} testID="today-count">
               {t('home:today.count', { count: summary.today.count })}
             </Text>
           ) : null}
@@ -178,27 +187,25 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
     </View>
   );
 
+  // First load: timeline-shaped skeletons (the layout is known — §8), announced as loading.
   const empty = isLoading ? (
-    <View style={styles.loading} testID="dashboard-loading">
-      <ActivityIndicator />
-      <Text variant="bodyMedium" style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}>
-        {t('home:loading')}
-      </Text>
+    <View accessible accessibilityLabel={t('home:loading')} testID="dashboard-loading">
+      <Skeleton width="100%" height={72} radius={radii.md} style={styles.skeletonRow} />
+      <Skeleton width="100%" height={72} radius={radii.md} style={styles.skeletonRow} />
+      <Skeleton width="100%" height={72} radius={radii.md} style={styles.skeletonRow} />
     </View>
   ) : loadFailed ? null : (
-    <View style={[styles.empty, { borderColor: theme.colors.outlineVariant }]} testID="today-empty">
-      <Text variant="titleSmall">{t('home:today.empty')}</Text>
-      <Text variant="bodySmall" style={[styles.emptyHint, { color: theme.colors.onSurfaceVariant }]}>
-        {t('home:today.emptyHint')}
-      </Text>
-      <Button mode="contained-tonal" icon="plus" onPress={() => navigation.navigate('CreateMeeting')}>
-        {t('home:today.create')}
-      </Button>
-    </View>
+    <EmptyState
+      icon="calendar-blank-outline"
+      title={t('home:today.empty')}
+      body={t('home:today.emptyHint')}
+      action={{ label: t('home:today.create'), onPress: () => navigation.navigate('CreateMeeting') }}
+      testID="today-empty"
+    />
   );
 
   const footer = isLoading ? null : (
-    <View style={styles.footer}>
+    <View>
       <AlertStatusCard preferences={preferences} meetings={meetings} now={now} onOpenSettings={() => navigation.navigate('AlertSettings')} />
       {loadFailed ? null : (
         <InsightsSummaryCard
@@ -220,8 +227,8 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
       ListFooterComponent={footer}
       refreshing={refreshing}
       onRefresh={() => void onRefresh()}
-      style={{ backgroundColor: theme.colors.background }}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
       testID="dashboard-list"
     />
   );
@@ -229,43 +236,30 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: spacing.md,
   },
   greeting: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
-  errorBox: {
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+  greetingDate: {
+    marginTop: spacing.xs,
+  },
+  errorBanner: {
+    marginBottom: spacing.md,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    gap: spacing.md,
+    marginTop: spacing.xxl,
+    marginBottom: spacing.sm,
   },
-  loading: {
-    alignItems: 'center',
-    paddingVertical: 32,
+  sectionTitle: {
+    flexShrink: 1,
   },
-  loadingText: {
-    marginTop: 12,
-  },
-  empty: {
-    alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderStyle: 'dashed',
-    padding: 20,
-  },
-  emptyHint: {
-    marginTop: 4,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  footer: {
-    marginTop: 16,
+  skeletonRow: {
+    marginBottom: spacing.sm,
   },
 });

@@ -55,6 +55,8 @@
     "title": "Alerts",
     "on": "Alerts are on",
     "off": "Alerts are off",
+    "badgeOn": "Active",
+    "badgeOff": "Off",
     "offHint": "You won't be reminded about your meetings. Turn alerts on in the alert settings.",
     "intensity": "Intensity: {{intensity}}",
     "intensityName": {

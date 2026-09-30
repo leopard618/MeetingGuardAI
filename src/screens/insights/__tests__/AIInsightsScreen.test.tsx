@@ -161,7 +161,7 @@ it('shows a load failure with Retry instead of an empty period', async () => {
   expect(screen.getByTestId('insights-error')).toBeTruthy();
   expect(screen.queryByTestId('insights-empty')).toBeNull();
   await act(async () => {
-    fireEvent.press(screen.getByTestId('insights-retry'));
+    fireEvent.press(screen.getByTestId('insights-error-retry'));
   });
   expect(refresh).toHaveBeenCalled();
 });

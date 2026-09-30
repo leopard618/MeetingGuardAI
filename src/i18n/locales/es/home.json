@@ -55,6 +55,8 @@
     "title": "Alertas",
     "on": "Las alertas están activadas",
     "off": "Las alertas están desactivadas",
+    "badgeOn": "Activas",
+    "badgeOff": "Apagadas",
     "offHint": "No recibirás avisos de tus reuniones. Activa las alertas en los ajustes de alertas.",
     "intensity": "Intensidad: {{intensity}}",
     "intensityName": {

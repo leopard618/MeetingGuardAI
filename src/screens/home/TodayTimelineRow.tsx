@@ -1,15 +1,20 @@
 /**
  * One row of today's timeline: time, title, state (done / now / cancelled) and conflict hints
- * (overlap in the error color, "starts right after" in the tertiary color, always with an icon and
+ * (overlap in the error color, "starts right after" with a tertiary icon, always with an icon and
  * text so the meaning never depends on color alone). Tapping opens the meeting.
+ *
+ * MG Indigo: the rail dot takes the meeting's source color (§2 map), the meeting happening now
+ * gets a primary dot and a surfaceContainerHigh-tinted card; conflicts keep the error border.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ReactElement } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from 'react-native-paper';
 
+import { Badge } from '../../components/ui';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
+import { componentMetrics, pressedOpacity, radii, sourceColorIndex, spacing, stateAlpha, useAppTheme, withAlpha } from '../../theme';
 import { endMs } from '../insights/meetingInsights';
 import { useFormatters } from '../shared/useFormatters';
 import type { TimelineItem } from './homeModel';
@@ -22,11 +27,12 @@ export interface TodayTimelineRowProps {
 
 export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const { meeting, state, overlapsWith, followsRightAfter } = item;
   const cancelled = meeting.status === 'cancelled';
   const conflict = !cancelled && overlapsWith.length > 0;
+  const isNow = state === 'now' && !cancelled;
 
   const timeLabel = meeting.allDay ? t('home:today.allDay') : fmt.time(meeting.startAt);
   const rangeLabel = meeting.allDay ? '' : `${fmt.time(meeting.startAt)} – ${fmt.time(new Date(endMs(meeting)))}`;
@@ -44,62 +50,66 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
   const rightAfterText = followsRightAfter ? t('home:today.rightAfter', { title: followsRightAfter.title }) : '';
   const a11yState = [stateLabel, conflict ? overlapText : '', !cancelled ? rightAfterText : ''].filter(Boolean).join('. ');
 
-  const dotColor = conflict ? theme.colors.error : state === 'now' ? theme.colors.primary : theme.colors.outline;
+  const dotColor = isNow ? colors.primary : colors.chart[sourceColorIndex[meeting.source]];
+  // Conflict cards stay on surface so the error border and text keep their checked contrast.
+  const tinted = isNow && !conflict;
 
   return (
     <Pressable
       onPress={() => onOpen(meeting)}
       accessibilityRole="button"
       accessibilityLabel={t('home:today.itemA11y', { time: meeting.allDay ? timeLabel : rangeLabel, title: meeting.title, state: a11yState })}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.colors.surfaceVariant }]}
+      android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnRow) }}
+      style={({ pressed }) => [styles.row, pressed && Platform.OS !== 'android' && styles.pressed]}
       testID={`timeline-${meeting.id}`}
     >
       <View style={styles.timeColumn}>
-        <Text
-          variant="labelLarge"
-          style={{ color: state === 'now' ? theme.colors.primary : theme.colors.onSurfaceVariant }}
-          numberOfLines={2}
-        >
+        <Text variant="labelMedium" style={[styles.time, { color: colors.onSurfaceVariant }]} numberOfLines={2}>
           {timeLabel}
         </Text>
       </View>
       <View style={styles.rail}>
         <View style={[styles.dot, { backgroundColor: dotColor }]} />
-        {!isLast ? <View style={[styles.line, { backgroundColor: theme.colors.outlineVariant }]} /> : null}
+        {!isLast ? <View style={[styles.line, { backgroundColor: colors.outlineVariant }]} /> : null}
       </View>
       <View
         style={[
           styles.content,
-          { borderColor: conflict ? theme.colors.error : theme.colors.outlineVariant, backgroundColor: theme.colors.elevation.level1 },
+          {
+            borderColor: conflict ? colors.error : tinted ? colors.surfaceContainerHigh : colors.outlineVariant,
+            backgroundColor: tinted ? colors.surfaceContainerHigh : colors.surface,
+          },
           conflict && styles.conflictBorder,
-          (state === 'past' || cancelled) && styles.dimmed,
         ]}
       >
-        <Text variant="titleSmall" numberOfLines={2} style={cancelled ? styles.cancelled : undefined}>
+        <Text
+          variant="titleSmall"
+          numberOfLines={2}
+          style={[
+            (state === 'past' || cancelled) && { color: colors.onSurfaceVariant },
+            cancelled && styles.cancelled,
+          ]}
+        >
           {meeting.title}
         </Text>
         {rangeLabel ? (
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+          <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
             {rangeLabel}
           </Text>
         ) : null}
-        {stateLabel ? (
-          <Text variant="labelSmall" style={[styles.badge, { color: state === 'now' && !cancelled ? theme.colors.primary : theme.colors.onSurfaceVariant }]}>
-            {stateLabel}
-          </Text>
-        ) : null}
+        {stateLabel ? <Badge label={stateLabel} tone={isNow ? 'primary' : 'neutral'} style={styles.badge} /> : null}
         {conflict ? (
           <View style={styles.hintRow} testID={`timeline-${meeting.id}-overlap`}>
-            <MaterialCommunityIcons name="alert-circle-outline" size={16} color={theme.colors.error} />
-            <Text variant="bodySmall" style={[styles.hintText, { color: theme.colors.error }]}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.error} />
+            <Text variant="bodySmall" style={[styles.hintText, { color: colors.error }]}>
               {overlapText}
             </Text>
           </View>
         ) : null}
         {!cancelled && followsRightAfter ? (
           <View style={styles.hintRow}>
-            <MaterialCommunityIcons name="timer-sand" size={16} color={theme.colors.tertiary} />
-            <Text variant="bodySmall" style={[styles.hintText, { color: theme.colors.tertiary }]}>
+            <MaterialCommunityIcons name="timer-sand" size={16} color={colors.tertiary} />
+            <Text variant="bodySmall" style={[styles.hintText, { color: colors.onSurfaceVariant }]}>
               {rightAfterText}
             </Text>
           </View>
@@ -113,56 +123,60 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    borderRadius: 12,
+    borderRadius: radii.md,
+    // Keeps the Android ripple inside the rounded corners.
+    overflow: 'hidden',
+  },
+  pressed: {
+    opacity: pressedOpacity,
   },
   timeColumn: {
-    width: 72,
-    paddingTop: 12,
-    paddingRight: 4,
+    minWidth: 56,
+    paddingTop: spacing.md,
+    paddingRight: spacing.xs,
+  },
+  time: {
+    fontVariant: ['tabular-nums'],
   },
   rail: {
-    width: 16,
+    width: spacing.lg,
     alignItems: 'center',
   },
   dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 16,
+    width: componentMetrics.sourceDotSize,
+    height: componentMetrics.sourceDotSize,
+    borderRadius: radii.full,
+    marginTop: spacing.lg,
   },
   line: {
     flex: 1,
     width: 2,
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   content: {
     flex: 1,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 12,
-    marginLeft: 8,
-    marginBottom: 8,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    padding: spacing.md,
+    marginLeft: spacing.sm,
+    marginBottom: spacing.sm,
   },
   conflictBorder: {
     borderWidth: 1.5,
-  },
-  dimmed: {
-    opacity: 0.6,
   },
   cancelled: {
     textDecorationLine: 'line-through',
   },
   badge: {
-    marginTop: 4,
-    textTransform: 'uppercase',
+    marginTop: spacing.xs,
   },
   hintRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: spacing.xs,
   },
   hintText: {
-    marginLeft: 6,
+    marginLeft: spacing.sm,
     flex: 1,
   },
 });

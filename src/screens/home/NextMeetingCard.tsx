@@ -2,18 +2,23 @@
  * Next meeting card: the meeting happening now (if any) and the next one, each with a live
  * countdown (every second in the last hour, every 30 s otherwise), a Join button only when the
  * meeting has a real http(s) link, and a Details button.
+ *
+ * MG Indigo: this is the dashboard's single focal card — Card accent="primary"
+ * (primaryContainer / onPrimaryContainer), countdown headlineS tabular-nums, Join filled small.
+ * The "no upcoming meetings" variant stays a neutral card (nothing to focus on).
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useState, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 
+import { Card, MGButton } from '../../components/ui';
 import type { TranslateFn } from '../../core/contracts';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
+import { spacing, useAppTheme, withAlpha } from '../../theme';
 import { formatRelative } from '../../utils/format';
 import { endMs, meetingJoinLink, startMs } from '../insights/meetingInsights';
-import { Section } from '../shared/Section';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
 import { CLOCK_THRESHOLD_SECONDS, countdownDisplay, countdownTickMs, countdownTo, formatCountdownClock } from './homeModel';
 import { useLiveNow } from '../shared/useLiveNow';
@@ -72,37 +77,38 @@ function MeetingBlock({
   testID: string;
 }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const link = meetingJoinLink(meeting);
   const address = meeting.location?.address?.trim() ?? '';
+  const onCard = colors.onPrimaryContainer;
 
   return (
     <View testID={testID}>
-      <Text variant="labelLarge" style={{ color: theme.colors.primary }}>
+      <Text variant="labelLarge" style={{ color: onCard }}>
         {label}
       </Text>
-      <Text variant="titleLarge" style={styles.title} numberOfLines={2} testID={`${testID}-title`}>
+      <Text variant="titleMedium" style={[styles.title, { color: onCard }]} numberOfLines={2} testID={`${testID}-title`}>
         {meeting.title}
       </Text>
-      <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+      <Text variant="bodySmall" style={{ color: onCard }}>
         {fmt.meetingRange(meeting)}
       </Text>
       {address ? (
         <View style={styles.placeRow}>
-          <MaterialCommunityIcons name="map-marker-outline" size={16} color={theme.colors.onSurfaceVariant} />
-          <Text variant="bodySmall" style={[styles.placeText, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
+          <MaterialCommunityIcons name="map-marker-outline" size={16} color={onCard} />
+          <Text variant="bodySmall" style={[styles.placeText, { color: onCard }]} numberOfLines={1}>
             {address}
           </Text>
         </View>
       ) : null}
-      <Text variant="titleMedium" style={[styles.countdown, { color: theme.colors.primary }]} testID={`${testID}-countdown`}>
+      <Text variant="headlineSmall" style={[styles.countdown, { color: onCard }]} testID={`${testID}-countdown`}>
         {countdown}
       </Text>
       <View style={styles.actions}>
         {link ? (
-          <Button
-            mode="contained"
+          <MGButton
+            size="sm"
             icon="video"
             onPress={() => onJoin(link)}
             style={styles.action}
@@ -110,18 +116,20 @@ function MeetingBlock({
             testID={`${testID}-join`}
           >
             {t('home:next.join')}
-          </Button>
+          </MGButton>
         ) : null}
-        <Button
-          mode={link ? 'outlined' : 'contained-tonal'}
+        <MGButton
+          variant={link ? 'ghost' : 'filled'}
+          size="sm"
           icon="information-outline"
+          textColor={link ? onCard : undefined}
           onPress={() => onOpen(meeting)}
           style={styles.action}
           accessibilityLabel={t('home:next.detailsA11y', { title: meeting.title })}
           testID={`${testID}-details`}
         >
           {t('home:next.details')}
-        </Button>
+        </MGButton>
       </View>
     </View>
   );
@@ -129,7 +137,7 @@ function MeetingBlock({
 
 export function NextMeetingCard({ current, next, onOpen, onJoin }: NextMeetingCardProps): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const [tickMs, setTickMs] = useState(30_000);
   const now = useLiveNow(tickMs);
@@ -142,22 +150,22 @@ export function NextMeetingCard({ current, next, onOpen, onJoin }: NextMeetingCa
 
   if (!current && !next) {
     return (
-      <Section testID="next-meeting-card">
-        <Text variant="labelLarge" style={{ color: theme.colors.primary }}>
+      <Card testID="next-meeting-card">
+        <Text variant="labelLarge" style={{ color: colors.primary }}>
           {t('home:next.title')}
         </Text>
         <Text variant="titleMedium" style={styles.title}>
           {t('home:next.none')}
         </Text>
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+        <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }}>
           {t('home:next.noneHint')}
         </Text>
-      </Section>
+      </Card>
     );
   }
 
   return (
-    <Section testID="next-meeting-card">
+    <Card accent="primary" testID="next-meeting-card">
       {current ? (
         <MeetingBlock
           meeting={current}
@@ -168,7 +176,7 @@ export function NextMeetingCard({ current, next, onOpen, onJoin }: NextMeetingCa
           testID="current-meeting"
         />
       ) : null}
-      {current && next ? <View style={[styles.divider, { backgroundColor: theme.colors.outlineVariant }]} /> : null}
+      {current && next ? <View style={[styles.divider, { backgroundColor: withAlpha(colors.onPrimaryContainer, 0.16) }]} /> : null}
       {next ? (
         <MeetingBlock
           meeting={next}
@@ -179,39 +187,38 @@ export function NextMeetingCard({ current, next, onOpen, onJoin }: NextMeetingCa
           testID="next-meeting"
         />
       ) : null}
-    </Section>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   title: {
-    marginTop: 4,
-    marginBottom: 2,
+    marginTop: spacing.xs,
   },
   placeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   placeText: {
-    marginLeft: 4,
+    marginLeft: spacing.xs,
     flex: 1,
   },
   countdown: {
-    marginTop: 8,
+    marginTop: spacing.sm,
     fontVariant: ['tabular-nums'],
   },
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   action: {
-    marginRight: 8,
-    marginTop: 4,
+    marginRight: spacing.sm,
+    marginTop: spacing.xs,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    marginVertical: 12,
+    marginVertical: spacing.md,
   },
 });

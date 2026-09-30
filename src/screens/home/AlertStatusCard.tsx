@@ -3,21 +3,25 @@
  * scheduled alert (from the OS through the alert engine), the notification permission, Android's
  * exact-alarm setting and the Do Not Disturb override of maximum alerts. Everything links to
  * Settings > Alerts, where the full settings live.
+ *
+ * MG Indigo: a neutral Card under a SectionHeader; the on/off state is a success / warning Badge
+ * plus a tinted bell circle (never color alone — the text says it too).
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { Button, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
+import { Badge, Card, MGButton, SectionHeader } from '../../components/ui';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import type { Meeting, Preferences } from '../../core/types';
 import { useT } from '../../i18n';
 import { alertEngine, usePendingAlerts } from '../../services/alerts';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { formatRelative } from '../../utils/format';
-import { Section } from '../shared/Section';
 import { useFormatters } from '../shared/useFormatters';
 
 const log = createLogger('home.alerts');
@@ -32,7 +36,7 @@ export interface AlertStatusCardProps {
 
 export function AlertStatusCard({ preferences, meetings, now, onOpenSettings }: AlertStatusCardProps): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const { pending, permission, isLoading, refresh } = usePendingAlerts();
   const enabled = preferences.alertEnabled;
@@ -83,95 +87,111 @@ export function AlertStatusCard({ preferences, meetings, now, onOpenSettings }: 
   const permissionProblem = notifications !== null && notifications !== 'granted';
 
   return (
-    <Section title={t('home:alerts.title')} testID="alert-status-card">
-      <View style={styles.statusRow}>
-        <MaterialCommunityIcons
-          name={enabled ? 'bell-ring-outline' : 'bell-off-outline'}
-          size={24}
-          color={enabled ? theme.colors.primary : theme.colors.onSurfaceVariant}
-          style={styles.statusIcon}
-        />
-        <View style={styles.flex}>
-          <Text variant="titleSmall" testID="alert-status">
-            {t(enabled ? 'home:alerts.on' : 'home:alerts.off')}
-          </Text>
-          {enabled ? (
-            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-              {t('home:alerts.intensity', { intensity: t(`home:alerts.intensityName.${preferences.alertIntensity}`) })}
-              {alertCount > 0 ? ` · ${t('home:alerts.scheduled', { count: alertCount })}` : ''}
+    <View>
+      <SectionHeader title={t('home:alerts.title')} />
+      <Card testID="alert-status-card">
+        <View style={styles.statusRow}>
+          <View style={[styles.statusCircle, { backgroundColor: enabled ? colors.primaryContainer : colors.surfaceVariant }]}>
+            <MaterialCommunityIcons
+              name={enabled ? 'bell-ring-outline' : 'bell-off-outline'}
+              size={componentMetrics.iconNav}
+              color={enabled ? colors.onPrimaryContainer : colors.onSurfaceVariant}
+            />
+          </View>
+          <View style={styles.flex}>
+            <Text variant="titleMedium" testID="alert-status">
+              {t(enabled ? 'home:alerts.on' : 'home:alerts.off')}
             </Text>
-          ) : (
-            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-              {t('home:alerts.offHint')}
+            {enabled ? (
+              <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+                {t('home:alerts.intensity', { intensity: t(`home:alerts.intensityName.${preferences.alertIntensity}`) })}
+                {alertCount > 0 ? ` · ${t('home:alerts.scheduled', { count: alertCount })}` : ''}
+              </Text>
+            ) : (
+              <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+                {t('home:alerts.offHint')}
+              </Text>
+            )}
+          </View>
+          <Badge label={t(enabled ? 'home:alerts.badgeOn' : 'home:alerts.badgeOff')} tone={enabled ? 'success' : 'warning'} />
+        </View>
+
+        {enabled ? (
+          <Text variant="bodyMedium" style={styles.line} testID="next-alert">
+            {nextAlertText ?? (isLoading ? '' : t('home:alerts.noneScheduled'))}
+          </Text>
+        ) : null}
+
+        {enabled && permissionText ? (
+          <View style={styles.line}>
+            <Text variant="bodySmall" style={{ color: permissionProblem ? colors.error : colors.onSurfaceVariant }} testID="alert-permission">
+              {permissionText}
             </Text>
-          )}
-        </View>
-      </View>
+            {canRequest ? (
+              <MGButton
+                variant="tonal"
+                size="sm"
+                icon="bell-ring-outline"
+                style={styles.action}
+                onPress={() => run(() => alertEngine.requestPermissions(), 'permission request')}
+              >
+                {t('home:alerts.permission.allow')}
+              </MGButton>
+            ) : null}
+            {blocked ? (
+              <MGButton
+                variant="ghost"
+                size="sm"
+                style={styles.action}
+                onPress={() => run(() => alertEngine.openNotificationSettings(), 'notification settings')}
+              >
+                {t('home:alerts.permission.openSettings')}
+              </MGButton>
+            ) : null}
+          </View>
+        ) : null}
 
-      {enabled ? (
-        <Text variant="bodyMedium" style={styles.line} testID="next-alert">
-          {nextAlertText ?? (isLoading ? '' : t('home:alerts.noneScheduled'))}
-        </Text>
-      ) : null}
-
-      {enabled && permissionText ? (
-        <View style={styles.line}>
-          <Text variant="bodySmall" style={{ color: permissionProblem ? theme.colors.error : theme.colors.onSurfaceVariant }} testID="alert-permission">
-            {permissionText}
-          </Text>
-          {canRequest ? (
-            <Button
-              mode="contained-tonal"
-              compact
-              icon="bell-ring-outline"
+        {enabled && Platform.OS === 'android' && permission?.exactAlarms === 'unknown' ? (
+          <View style={styles.line}>
+            <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+              {t('home:alerts.exactAlarms.hint')}
+            </Text>
+            <MGButton
+              variant="ghost"
+              size="sm"
+              icon="alarm"
               style={styles.action}
-              onPress={() => run(() => alertEngine.requestPermissions(), 'permission request')}
+              onPress={() => run(() => alertEngine.openExactAlarmSettings(), 'exact alarm settings')}
             >
-              {t('home:alerts.permission.allow')}
-            </Button>
-          ) : null}
-          {blocked ? (
-            <Button mode="text" compact style={styles.action} onPress={() => run(() => alertEngine.openNotificationSettings(), 'notification settings')}>
-              {t('home:alerts.permission.openSettings')}
-            </Button>
-          ) : null}
-        </View>
-      ) : null}
+              {t('home:alerts.exactAlarms.open')}
+            </MGButton>
+          </View>
+        ) : null}
 
-      {enabled && Platform.OS === 'android' && permission?.exactAlarms === 'unknown' ? (
-        <View style={styles.line}>
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-            {t('home:alerts.exactAlarms.hint')}
-          </Text>
-          <Button mode="text" compact icon="alarm" style={styles.action} onPress={() => run(() => alertEngine.openExactAlarmSettings(), 'exact alarm settings')}>
-            {t('home:alerts.exactAlarms.open')}
-          </Button>
-        </View>
-      ) : null}
+        {enabled && preferences.alertIntensity === 'max' ? (
+          <View style={styles.line}>
+            <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+              {t(Platform.OS === 'ios' ? 'home:alerts.dnd.ios' : 'home:alerts.dnd.android')}
+            </Text>
+            {Platform.OS === 'android' ? (
+              <MGButton
+                variant="ghost"
+                size="sm"
+                icon="bell-alert-outline"
+                style={styles.action}
+                onPress={() => run(() => alertEngine.openAlarmChannelSettings(), 'alarm channel settings')}
+              >
+                {t('home:alerts.dnd.open')}
+              </MGButton>
+            ) : null}
+          </View>
+        ) : null}
 
-      {enabled && preferences.alertIntensity === 'max' ? (
-        <View style={styles.line}>
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-            {t(Platform.OS === 'ios' ? 'home:alerts.dnd.ios' : 'home:alerts.dnd.android')}
-          </Text>
-          {Platform.OS === 'android' ? (
-            <Button
-              mode="text"
-              compact
-              icon="bell-alert-outline"
-              style={styles.action}
-              onPress={() => run(() => alertEngine.openAlarmChannelSettings(), 'alarm channel settings')}
-            >
-              {t('home:alerts.dnd.open')}
-            </Button>
-          ) : null}
-        </View>
-      ) : null}
-
-      <Button mode="outlined" icon="tune" style={styles.settings} onPress={onOpenSettings} testID="alert-settings-link">
-        {t('home:alerts.settings')}
-      </Button>
-    </Section>
+        <MGButton variant="outline" size="sm" icon="tune" style={styles.settings} onPress={onOpenSettings} testID="alert-settings-link">
+          {t('home:alerts.settings')}
+        </MGButton>
+      </Card>
+    </View>
   );
 }
 
@@ -182,19 +202,24 @@ const styles = StyleSheet.create({
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.md,
   },
-  statusIcon: {
-    marginRight: 12,
+  statusCircle: {
+    width: componentMetrics.avatarSize,
+    height: componentMetrics.avatarSize,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   line: {
-    marginTop: 10,
+    marginTop: spacing.md,
   },
   action: {
     alignSelf: 'flex-start',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   settings: {
-    marginTop: 12,
+    marginTop: spacing.md,
     alignSelf: 'flex-start',
   },
 });

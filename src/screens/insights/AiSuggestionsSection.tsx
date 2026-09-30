@@ -3,17 +3,23 @@
  * daily AI limit, with today's usage when known; the meetings are processed by OpenAI through our
  * server), then sends a fixed question through the app-wide assistant conversation and shows the
  * reply here. Proposed changes are never applied here: they are confirmed in the assistant.
+ *
+ * MG Indigo: neutral Card under a SectionHeader with a tertiaryContainer lightbulb circle; a
+ * request failure shows an error Banner with Retry (the explanation stays visible around it);
+ * the reply reads as assistant speech on surfaceContainerHigh.
  */
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, HelperText, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { ActivityIndicator, HelperText, Text } from 'react-native-paper';
 
+import { Banner, Card, MGButton, SectionHeader } from '../../components/ui';
 import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
 import { createLogger } from '../../core/logger';
 import { useLanguage, useT } from '../../i18n';
 import { createAssistantFormatter, describeAssistantError, describeUsage, useAssistant } from '../../services/ai';
 import { useEntitlement, usePreferences, useSyncState } from '../../services/data';
-import { Section } from '../shared/Section';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { suggestionState, type SuggestionRequest } from './aiSuggestions';
 import type { InsightPeriod } from './meetingInsights';
 
@@ -26,7 +32,7 @@ export interface AiSuggestionsSectionProps {
 
 export function AiSuggestionsSection({ period, onOpenAssistant }: AiSuggestionsSectionProps): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const { language } = useLanguage();
   const { preferences } = usePreferences();
   const { plan, isLoaded: planLoaded } = useEntitlement();
@@ -85,102 +91,134 @@ export function AiSuggestionsSection({ period, onOpenAssistant }: AiSuggestionsS
   const disabled = !online || busyElsewhere || state.status === 'sending' || usage?.exhausted === true;
 
   return (
-    <Section title={t('insights:ai.title')} testID="ai-suggestions">
-      <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-        {t('insights:ai.description')}
-      </Text>
-      {usage ? (
-        <Text variant="labelMedium" style={styles.usage} accessibilityLabel={usage.accessibilityLabel} testID="ai-usage">
-          {usage.label}
-        </Text>
-      ) : null}
-
-      {state.status === 'sending' ? (
-        <View style={styles.sending} accessibilityLiveRegion="polite">
-          <ActivityIndicator size="small" />
-          <Text variant="bodyMedium" style={styles.sendingText}>
-            {t('insights:ai.sending')}
+    <View>
+      <SectionHeader title={t('insights:ai.title')} />
+      <Card testID="ai-suggestions">
+        <View style={styles.introRow}>
+          <View style={[styles.circle, { backgroundColor: colors.tertiaryContainer }]}>
+            <MaterialCommunityIcons
+              name="lightbulb-on-outline"
+              size={componentMetrics.iconInline}
+              color={colors.onTertiaryContainer}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+          </View>
+          <Text variant="bodyMedium" style={[styles.intro, { color: colors.onSurfaceVariant }]}>
+            {t('insights:ai.description')}
           </Text>
         </View>
-      ) : (
-        <Button mode="contained-tonal" icon="robot-outline" style={styles.button} onPress={confirm} disabled={disabled} testID="ai-suggestions-button">
-          {t('insights:ai.button')}
-        </Button>
-      )}
-      {!online ? (
-        <HelperText type="info" visible>
-          {t('insights:ai.offline')}
-        </HelperText>
-      ) : busyElsewhere ? (
-        <HelperText type="info" visible>
-          {t('insights:ai.busy')}
-        </HelperText>
-      ) : null}
+        {usage ? (
+          <Text
+            variant="labelMedium"
+            style={[styles.usage, { color: colors.onSurfaceVariant }]}
+            accessibilityLabel={usage.accessibilityLabel}
+            testID="ai-usage"
+          >
+            {usage.label}
+          </Text>
+        ) : null}
 
-      {errorText ? (
-        <View style={styles.result} accessibilityLiveRegion="polite" testID="ai-suggestions-error">
-          <Text variant="bodyMedium" style={{ color: theme.colors.error }}>
-            {errorText}
-          </Text>
-          {online ? (
-            <Button mode="text" compact style={styles.inline} onPress={() => void retry()}>
-              {t('insights:ai.retry')}
-            </Button>
-          ) : null}
-        </View>
-      ) : null}
-
-      {state.reply ? (
-        <View style={[styles.result, styles.reply, { borderColor: theme.colors.outlineVariant }]} accessibilityLiveRegion="polite" testID="ai-suggestions-reply">
-          <Text variant="labelLarge" style={{ color: theme.colors.primary }}>
-            {t('insights:ai.replyTitle')}
-          </Text>
-          <Text variant="bodyMedium" selectable style={styles.replyText}>
-            {state.reply.content}
-          </Text>
-          {proposed > 0 ? (
-            <Text variant="bodySmall" style={[styles.replyText, { color: theme.colors.onSurfaceVariant }]}>
-              {t('insights:ai.proposed', { count: proposed })}
+        {state.status === 'sending' ? (
+          <View style={styles.sending} accessibilityLiveRegion="polite">
+            <ActivityIndicator size="small" />
+            <Text variant="bodyMedium" style={styles.sendingText}>
+              {t('insights:ai.sending')}
             </Text>
-          ) : null}
-          <Button mode="text" compact icon="chat-outline" style={styles.inline} onPress={onOpenAssistant} testID="ai-open-chat">
-            {t('insights:ai.openChat')}
-          </Button>
-        </View>
-      ) : null}
-    </Section>
+          </View>
+        ) : (
+          <MGButton variant="tonal" size="sm" icon="robot-outline" style={styles.button} onPress={confirm} disabled={disabled} testID="ai-suggestions-button">
+            {t('insights:ai.button')}
+          </MGButton>
+        )}
+        {!online ? (
+          <HelperText type="info" visible>
+            {t('insights:ai.offline')}
+          </HelperText>
+        ) : busyElsewhere ? (
+          <HelperText type="info" visible>
+            {t('insights:ai.busy')}
+          </HelperText>
+        ) : null}
+
+        {errorText ? (
+          <Banner
+            tone="error"
+            text={errorText}
+            action={online ? { label: t('insights:ai.retry'), onPress: () => void retry() } : undefined}
+            style={styles.result}
+            testID="ai-suggestions-error"
+          />
+        ) : null}
+
+        {state.reply ? (
+          <View
+            style={[styles.result, styles.reply, { backgroundColor: colors.surfaceContainerHigh }]}
+            accessibilityLiveRegion="polite"
+            testID="ai-suggestions-reply"
+          >
+            <Text variant="labelLarge">{t('insights:ai.replyTitle')}</Text>
+            <Text variant="bodyMedium" selectable style={styles.replyText}>
+              {state.reply.content}
+            </Text>
+            {proposed > 0 ? (
+              <Text variant="bodySmall" style={[styles.replyText, { color: colors.onSurfaceVariant }]}>
+                {t('insights:ai.proposed', { count: proposed })}
+              </Text>
+            ) : null}
+            <MGButton variant="ghost" size="sm" icon="chat-outline" style={styles.inline} onPress={onOpenAssistant} testID="ai-open-chat">
+              {t('insights:ai.openChat')}
+            </MGButton>
+          </View>
+        ) : null}
+      </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  introRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  circle: {
+    width: componentMetrics.avatarSize,
+    height: componentMetrics.avatarSize,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  intro: {
+    flex: 1,
+  },
   usage: {
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   button: {
-    marginTop: 12,
+    marginTop: spacing.md,
     alignSelf: 'flex-start',
   },
   sending: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   sendingText: {
-    marginLeft: 12,
+    marginLeft: spacing.md,
   },
   result: {
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   reply: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: radii.md,
+    padding: spacing.md,
   },
   replyText: {
-    marginTop: 6,
+    marginTop: spacing.sm,
   },
   inline: {
     alignSelf: 'flex-start',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
 });

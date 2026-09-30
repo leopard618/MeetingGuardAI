@@ -4,15 +4,20 @@
  * day, where meetings come from, overlapping and back-to-back meetings, and upcoming meetings
  * worth a look. Optional AI suggestions through the assistant (explained first; they use the
  * daily AI limit).
+ *
+ * MG Indigo: two-column stat tiles (value headlineM tabular-nums), source rows with the §2
+ * source-color dots, neutral Cards under sentence-case SectionHeaders. A load failure with
+ * nothing cached shows ErrorState; cached content + failure shows an error Banner.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useMemo, useState, type ReactElement } from 'react';
-import { Pressable, SectionList, StyleSheet, View, type SectionListData } from 'react-native';
-import { ActivityIndicator, Button, SegmentedButtons, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Platform, Pressable, SectionList, StyleSheet, View, type SectionListData } from 'react-native';
+import { SegmentedButtons, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
+import { Banner, Card, EmptyState, ErrorState, SectionHeader, Skeleton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -20,9 +25,18 @@ import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useMeetings } from '../../services/data';
+import {
+  componentMetrics,
+  pressedOpacity,
+  radii,
+  sourceColorIndex,
+  spacing,
+  stateAlpha,
+  useAppTheme,
+  withAlpha,
+} from '../../theme';
 import { OfflineBanner } from '../home/OfflineBanner';
 import { useLiveNow } from '../shared/useLiveNow';
-import { Section } from '../shared/Section';
 import { useFormatters } from '../shared/useFormatters';
 import { displayWindowForDays, expandMeetingsForDisplay } from '../meetings/occurrences';
 import { AiSuggestionsSection } from './AiSuggestionsSection';
@@ -43,114 +57,132 @@ type Props = StackScreenProps<RootStackParamList, 'AIInsights'>;
 
 type PairSection = { key: 'overlaps' | 'backToBack'; title: string; hint: string | null; empty: string; data: MeetingPair[] };
 
-function StatRow({ label, value, testID }: { label: string; value: string; testID?: string }): ReactElement {
-  const theme = usePaperTheme();
+function StatTile({ label, value, wide = false, testID }: { label: string; value: string; wide?: boolean; testID?: string }): ReactElement {
+  const { colors } = useAppTheme();
   return (
-    <View style={styles.statRow} accessible accessibilityLabel={`${label}: ${value}`} testID={testID}>
-      <Text variant="bodyMedium" style={[styles.flex, { color: theme.colors.onSurfaceVariant }]}>
+    <Card style={[styles.tile, wide && styles.tileWide]} accessible accessibilityLabel={`${label}: ${value}`} testID={testID}>
+      <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
         {label}
       </Text>
-      <Text variant="titleSmall" style={styles.statValue}>
+      <Text variant={wide ? 'titleMedium' : 'headlineMedium'} style={styles.tileValue}>
         {value}
       </Text>
-    </View>
+    </Card>
   );
 }
 
 function Stats({ insights }: { insights: PeriodInsights }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const busiest = insights.busiestDay;
   return (
-    <Section>
-      <StatRow label={t('insights:stats.meetings')} value={String(insights.count)} testID="stat-meetings" />
-      <StatRow label={t('insights:stats.time')} value={fmt.duration(insights.totalMinutes)} testID="stat-time" />
-      <StatRow
-        label={t('insights:stats.average')}
-        value={insights.averageMinutes === null ? t('insights:stats.averageNone') : fmt.duration(insights.averageMinutes)}
-      />
-      {busiest ? (
-        <StatRow
-          label={t('insights:stats.busiest')}
-          value={t('insights:stats.busiestValue', {
-            date: fmt.date(busiest.date, 'medium'),
-            meetings: t('insights:meetings', { count: busiest.count }),
-            duration: fmt.duration(busiest.minutes),
-          })}
-          testID="stat-busiest"
+    <View>
+      <View style={styles.tileGrid}>
+        <StatTile label={t('insights:stats.meetings')} value={String(insights.count)} testID="stat-meetings" />
+        <StatTile label={t('insights:stats.time')} value={fmt.duration(insights.totalMinutes)} testID="stat-time" />
+        <StatTile
+          label={t('insights:stats.average')}
+          value={insights.averageMinutes === null ? t('insights:stats.averageNone') : fmt.duration(insights.averageMinutes)}
         />
-      ) : null}
+        {busiest ? (
+          <StatTile
+            label={t('insights:stats.busiest')}
+            value={t('insights:stats.busiestValue', {
+              date: fmt.date(busiest.date, 'medium'),
+              meetings: t('insights:meetings', { count: busiest.count }),
+              duration: fmt.duration(busiest.minutes),
+            })}
+            wide
+            testID="stat-busiest"
+          />
+        ) : null}
+      </View>
       {insights.allDayCount > 0 ? (
-        <Text variant="bodySmall" style={[styles.note, { color: theme.colors.onSurfaceVariant }]}>
+        <Text variant="bodySmall" style={[styles.note, { color: colors.onSurfaceVariant }]}>
           {t('insights:stats.allDay', { count: insights.allDayCount })}
         </Text>
       ) : null}
-    </Section>
+    </View>
   );
 }
 
 function Sources({ insights }: { insights: PeriodInsights }): ReactElement | null {
   const t = useT();
+  const { colors } = useAppTheme();
   if (insights.sources.length === 0) return null;
   return (
-    <Section title={t('insights:sources.title')} testID="insights-sources">
-      {insights.sources.map((entry) => (
-        <StatRow key={entry.source} label={t(`insights:sources.${entry.source}`)} value={String(entry.count)} />
-      ))}
-    </Section>
+    <View>
+      <SectionHeader title={t('insights:sources.title')} />
+      <Card testID="insights-sources">
+        {insights.sources.map((entry) => (
+          <View key={entry.source} style={styles.sourceRow} accessible accessibilityLabel={`${t(`insights:sources.${entry.source}`)}: ${entry.count}`}>
+            <View style={[styles.sourceDot, { backgroundColor: colors.chart[sourceColorIndex[entry.source]] }]} />
+            <Text variant="bodyMedium" style={styles.flex}>
+              {t(`insights:sources.${entry.source}`)}
+            </Text>
+            <Text variant="titleSmall" style={styles.sourceCount}>
+              {String(entry.count)}
+            </Text>
+          </View>
+        ))}
+      </Card>
+    </View>
   );
 }
 
 function Attention({ insights }: { insights: PeriodInsights }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const missing = insights.missingPlace.length;
   const tips = insights.withTips.length;
   return (
-    <Section title={t('insights:attention.title')} testID="insights-attention">
-      {missing > 0 ? (
-        <View style={styles.issue}>
-          <MaterialCommunityIcons name="map-marker-question-outline" size={18} color={theme.colors.onSurfaceVariant} />
-          <Text variant="bodyMedium" style={styles.issueText}>
-            {t('insights:attention.missingPlace', { count: missing })}
+    <View>
+      <SectionHeader title={t('insights:attention.title')} />
+      <Card testID="insights-attention">
+        {missing > 0 ? (
+          <View style={styles.issue}>
+            <MaterialCommunityIcons name="map-marker-question-outline" size={18} color={colors.onSurfaceVariant} />
+            <Text variant="bodyMedium" style={styles.issueText}>
+              {t('insights:attention.missingPlace', { count: missing })}
+            </Text>
+          </View>
+        ) : (
+          <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }}>
+            {t('insights:attention.none')}
           </Text>
-        </View>
-      ) : (
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-          {t('insights:attention.none')}
-        </Text>
-      )}
-      {tips > 0 ? (
-        <View style={styles.issue}>
-          <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={theme.colors.primary} />
-          <Text variant="bodyMedium" style={styles.issueText}>
-            {t('insights:attention.withTips', { count: tips })}
-          </Text>
-        </View>
-      ) : null}
-    </Section>
+        )}
+        {tips > 0 ? (
+          <View style={styles.issue}>
+            <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={colors.primary} />
+            <Text variant="bodyMedium" style={styles.issueText}>
+              {t('insights:attention.withTips', { count: tips })}
+            </Text>
+          </View>
+        ) : null}
+      </Card>
+    </View>
   );
 }
 
 function PairRow({ pair, kind, onOpen }: { pair: MeetingPair; kind: PairSection['key']; onOpen(meeting: Meeting): void }): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const text =
     kind === 'overlaps'
       ? t('insights:conflicts.pair', { first: pair.first.title, second: pair.second.title })
       : t('insights:backToBack.item', { first: pair.first.title, second: pair.second.title });
   return (
-    <View
-      style={[styles.pair, { borderColor: kind === 'overlaps' ? theme.colors.error : theme.colors.outlineVariant, backgroundColor: theme.colors.elevation.level1 }]}
+    <Card
+      style={[styles.pair, kind === 'overlaps' && { borderColor: colors.error }]}
       testID={`pair-${kind}-${pair.first.id}-${pair.second.id}`}
     >
       <View style={styles.pairHeader}>
         <MaterialCommunityIcons
           name={kind === 'overlaps' ? 'alert-circle-outline' : 'timer-sand'}
           size={18}
-          color={kind === 'overlaps' ? theme.colors.error : theme.colors.tertiary}
+          color={kind === 'overlaps' ? colors.error : colors.tertiary}
         />
         <Text variant="titleSmall" style={styles.issueText}>
           {text}
@@ -163,26 +195,27 @@ function PairRow({ pair, kind, onOpen }: { pair: MeetingPair; kind: PairSection[
           accessibilityRole="button"
           accessibilityLabel={t('insights:conflicts.openA11y', { title: meeting.title })}
           hitSlop={4}
-          style={({ pressed }) => [styles.pairMeeting, pressed && { backgroundColor: theme.colors.surfaceVariant }]}
+          android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnRow) }}
+          style={({ pressed }) => [styles.pairMeeting, pressed && Platform.OS !== 'android' && { opacity: pressedOpacity }]}
         >
           <View style={styles.flex}>
             <Text variant="bodyMedium" numberOfLines={1}>
               {meeting.title}
             </Text>
-            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+            <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
               {fmt.meetingRange(meeting)}
             </Text>
           </View>
-          <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.onSurfaceVariant} />
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.onSurfaceVariant} />
         </Pressable>
       ))}
-    </View>
+    </Card>
   );
 }
 
 export function AIInsightsScreen({ navigation }: Props): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const fmt = useFormatters();
   const { language } = useLanguage();
@@ -238,7 +271,7 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
   const header = (
     <View>
       <OfflineBanner />
-      <Text variant="bodySmall" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
+      <Text variant="bodySmall" style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
         {t('insights:subtitle')}
       </Text>
       <SegmentedButtons
@@ -254,30 +287,41 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
         {t('insights:range', { from: fmt.date(insights.range.from, 'medium'), to: fmt.date(insights.range.to, 'medium') })}
       </Text>
       {error ? (
-        <View style={[styles.errorBox, { backgroundColor: theme.colors.errorContainer }]} accessibilityRole="alert" testID="insights-error">
-          <Text variant="bodyMedium" style={{ color: theme.colors.onErrorContainer }}>
-            {t('insights:loadError', { reason: t(errorMessageKey(error.code)) })}
-          </Text>
-          <Button
-            mode="text"
-            compact
-            onPress={() => void retry()}
-            loading={retrying}
-            disabled={retrying}
-            textColor={theme.colors.onErrorContainer}
-            style={styles.retry}
-            testID="insights-retry"
-          >
-            {t('common:actions.retry')}
-          </Button>
-        </View>
+        loadFailed ? (
+          <ErrorState
+            body={t('insights:loadError', { reason: t(errorMessageKey(error.code)) })}
+            onRetry={() => {
+              if (!retrying) void retry();
+            }}
+            testID="insights-error"
+          />
+        ) : (
+          <Banner
+            tone="error"
+            text={t('insights:loadError', { reason: t(errorMessageKey(error.code)) })}
+            action={{
+              label: t('common:actions.retry'),
+              onPress: () => {
+                if (!retrying) void retry();
+              },
+            }}
+            style={styles.errorBanner}
+            testID="insights-error"
+          />
+        )
       ) : null}
       {isLoading ? (
-        <View style={styles.loading} testID="insights-loading">
-          <ActivityIndicator />
-          <Text variant="bodyMedium" style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}>
-            {t('insights:loading')}
-          </Text>
+        // First load: tile- and chart-shaped skeletons (the layout is known — §8).
+        <View accessible accessibilityLabel={t('insights:loading')} testID="insights-loading">
+          <View style={styles.skeletonRow}>
+            <Skeleton width="48%" height={84} radius={radii.lg} />
+            <Skeleton width="48%" height={84} radius={radii.lg} />
+          </View>
+          <View style={styles.skeletonRow}>
+            <Skeleton width="48%" height={84} radius={radii.lg} />
+            <Skeleton width="48%" height={84} radius={radii.lg} />
+          </View>
+          <Skeleton width="100%" height={160} radius={radii.lg} style={styles.skeletonBlock} />
         </View>
       ) : loadFailed ? null : hasMeetings ? (
         <View>
@@ -287,12 +331,7 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
           <Attention insights={insights} />
         </View>
       ) : (
-        <Section testID="insights-empty">
-          <Text variant="titleSmall">{t('insights:empty')}</Text>
-          <Text variant="bodySmall" style={[styles.note, { color: theme.colors.onSurfaceVariant }]}>
-            {t('insights:emptyHint')}
-          </Text>
-        </Section>
+        <EmptyState icon="chart-line" title={t('insights:empty')} body={t('insights:emptyHint')} testID="insights-empty" />
       )}
     </View>
   );
@@ -303,12 +342,10 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
       keyExtractor={(pair, index) => `${pair.first.id}:${pair.second.id}:${index}`}
       renderItem={({ item, section }) => <PairRow pair={item} kind={section.key} onOpen={openMeeting} />}
       renderSectionHeader={({ section }: { section: SectionListData<MeetingPair, PairSection> }) => (
-        <View style={[styles.sectionHeader, { backgroundColor: theme.colors.background }]}>
-          <Text variant="titleMedium" accessibilityRole="header">
-            {section.title}
-          </Text>
+        <View style={{ backgroundColor: colors.background }}>
+          <SectionHeader title={section.title} />
           {section.hint ? (
-            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+            <Text variant="bodySmall" style={[styles.sectionHint, { color: colors.onSurfaceVariant }]}>
               {section.hint}
             </Text>
           ) : null}
@@ -316,7 +353,7 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
       )}
       renderSectionFooter={({ section }: { section: SectionListData<MeetingPair, PairSection> }) =>
         section.data.length === 0 ? (
-          <Text variant="bodyMedium" style={[styles.sectionEmpty, { color: theme.colors.onSurfaceVariant }]}>
+          <Text variant="bodyMedium" style={[styles.sectionEmpty, { color: colors.onSurfaceVariant }]}>
             {section.empty}
           </Text>
         ) : (
@@ -326,8 +363,8 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
       ListHeaderComponent={header}
       ListFooterComponent={hasMeetings ? <AiSuggestionsSection period={period} onOpenAssistant={() => navigation.navigate('AIChat')} /> : null}
       stickySectionHeadersEnabled={false}
-      style={{ backgroundColor: theme.colors.background }}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
       testID="insights-list"
     />
   );
@@ -335,85 +372,98 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: spacing.md,
   },
   flex: {
     flex: 1,
   },
   subtitle: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   periods: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   range: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
-  errorBox: {
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+  errorBanner: {
+    marginBottom: spacing.md,
   },
-  retry: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  loading: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  loadingText: {
-    marginTop: 12,
-  },
-  statRow: {
+  skeletonRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
   },
-  statValue: {
-    marginLeft: 12,
-    flexShrink: 1,
-    textAlign: 'right',
+  skeletonBlock: {
+    marginBottom: spacing.md,
+  },
+  tileGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: componentMetrics.cardGap,
+  },
+  tile: {
+    flexGrow: 1,
+    flexBasis: '40%',
+  },
+  tileWide: {
+    flexBasis: '100%',
+  },
+  tileValue: {
+    marginTop: spacing.xs,
+    fontVariant: ['tabular-nums'],
   },
   note: {
-    marginTop: 8,
+    marginTop: spacing.sm,
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: spacing.xxxl,
+    gap: spacing.md,
+  },
+  sourceDot: {
+    width: componentMetrics.sourceDotSize,
+    height: componentMetrics.sourceDotSize,
+    borderRadius: radii.full,
+  },
+  sourceCount: {
+    fontVariant: ['tabular-nums'],
+    textAlign: 'right',
   },
   issue: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: spacing.xs,
   },
   issueText: {
-    marginLeft: 8,
+    marginLeft: spacing.sm,
     flex: 1,
   },
-  sectionHeader: {
-    paddingTop: 8,
-    paddingBottom: 8,
+  sectionHint: {
+    marginBottom: spacing.sm,
   },
   sectionEmpty: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   sectionGap: {
-    height: 8,
+    height: spacing.sm,
   },
   pair: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
-    marginBottom: 8,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
   pairHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   pairMeeting: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 44,
-    paddingVertical: 4,
-    borderRadius: 8,
+    minHeight: componentMetrics.touchTargetMin,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.sm,
   },
 });

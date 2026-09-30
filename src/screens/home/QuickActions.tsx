@@ -1,13 +1,16 @@
 /**
  * Quick actions: new meeting (form), new meeting with the AI assistant, and WhatsApp shown as
- * "Coming soon" (disabled: the WhatsApp bot does not exist yet).
+ * "Coming soon" (disabled: the WhatsApp bot does not exist yet). Three Card tiles across, each
+ * with a 40dp primaryContainer icon circle; labels wrap instead of clipping at large font scales.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { StyleSheet, View } from 'react-native';
+import { Text } from 'react-native-paper';
 
+import { Card, SectionHeader } from '../../components/ui';
 import { useT } from '../../i18n';
+import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -33,44 +36,37 @@ function Tile({
   accessibilityLabel?: string;
   testID: string;
 }): ReactElement {
-  const theme = usePaperTheme();
-  const color = disabled ? theme.colors.onSurfaceDisabled : theme.colors.primary;
+  const { colors } = useAppTheme();
   return (
-    <Pressable
-      onPress={disabled ? undefined : onPress}
+    <Card
+      onPress={() => onPress?.()}
       disabled={disabled}
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
       accessibilityLabel={accessibilityLabel ?? `${label}. ${hint}`}
-      hitSlop={4}
-      style={({ pressed }) => [
-        styles.tile,
-        {
-          backgroundColor: pressed ? theme.colors.surfaceVariant : theme.colors.elevation.level1,
-          borderColor: theme.colors.outlineVariant,
-        },
-        disabled && styles.disabled,
-      ]}
+      style={styles.tile}
       testID={testID}
     >
-      <MaterialCommunityIcons name={icon} size={26} color={color} />
-      <Text variant="labelLarge" style={styles.label} numberOfLines={2}>
+      <View style={[styles.circle, { backgroundColor: disabled ? colors.surfaceVariant : colors.primaryContainer }]}>
+        <MaterialCommunityIcons
+          name={icon}
+          size={componentMetrics.iconNav}
+          color={disabled ? colors.disabledText : colors.onPrimaryContainer}
+        />
+      </View>
+      <Text variant="labelLarge" style={[styles.label, disabled && { color: colors.disabledText }]}>
         {label}
       </Text>
-      <Text variant="bodySmall" style={[styles.hint, { color: theme.colors.onSurfaceVariant }]} numberOfLines={2}>
+      <Text variant="bodySmall" style={[styles.hint, { color: disabled ? colors.disabledText : colors.onSurfaceVariant }]}>
         {hint}
       </Text>
-    </Pressable>
+    </Card>
   );
 }
 
 export function QuickActions({ onNewManual, onNewWithAi }: QuickActionsProps): ReactElement {
   const t = useT();
   return (
-    <View style={styles.container}>
-      <Text variant="titleMedium" accessibilityRole="header" style={styles.title}>
-        {t('home:actions.title')}
-      </Text>
+    <View>
+      <SectionHeader title={t('home:actions.title')} />
       <View style={styles.row}>
         <Tile icon="calendar-plus" label={t('home:actions.manual')} hint={t('home:actions.manualHint')} onPress={onNewManual} testID="quick-new-manual" />
         <Tile icon="robot-outline" label={t('home:actions.ai')} hint={t('home:actions.aiHint')} onPress={onNewWithAi} testID="quick-new-ai" />
@@ -88,31 +84,26 @@ export function QuickActions({ onNewManual, onNewWithAi }: QuickActionsProps): R
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 16,
-  },
-  title: {
-    marginBottom: 8,
-  },
   row: {
     flexDirection: 'row',
-    marginHorizontal: -4,
+    alignItems: 'stretch',
+    gap: spacing.sm,
   },
   tile: {
     flex: 1,
-    minHeight: 96,
-    marginHorizontal: 4,
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
   },
-  disabled: {
-    opacity: 0.55,
+  circle: {
+    width: componentMetrics.avatarSize,
+    height: componentMetrics.avatarSize,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   hint: {
-    marginTop: 2,
+    marginTop: spacing.xs,
   },
 });
