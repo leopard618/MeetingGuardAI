@@ -346,6 +346,21 @@ describe('Google RRULE mapping', () => {
     expect(parsed?.cancelledDateKeys).toEqual(['2026-01-19']);
   });
 
+  it('excludes an off-pattern anchor date so Google does not render DTSTART as an extra event', () => {
+    // The series() anchor 2026-01-05 is a Monday; a Wednesday-only rule never generates it
+    // locally, but Google would still show DTSTART - so the writer adds an EXDATE for it.
+    const weekly = series({ recurrence: rule({ freq: 'weekly', byWeekday: ['WE'] }) });
+    expect(toGoogleRecurrence(weekly)).toEqual([
+      'RRULE:FREQ=WEEKLY;BYDAY=WE',
+      'EXDATE;TZID=America/New_York:20260105T090000',
+    ]);
+    const monthly = series({ recurrence: rule({ freq: 'monthly', byMonthDay: 31 }) });
+    expect(toGoogleRecurrence(monthly)[1]).toBe('EXDATE;TZID=America/New_York:20260105T090000');
+    // An on-pattern anchor adds nothing.
+    const onPattern = series({ recurrence: rule({ freq: 'weekly', byWeekday: ['MO', 'WE'] }) });
+    expect(toGoogleRecurrence(onPattern)).toHaveLength(1);
+  });
+
   it('parses its own output (round trip)', () => {
     const original = rule({ freq: 'weekly', interval: 2, byWeekday: ['MO', 'WE'], count: 10 });
     const meeting = series({ recurrence: original, recurrenceOverrides: { '2026-01-19': { ...CANCELLED_OVERRIDE } } });

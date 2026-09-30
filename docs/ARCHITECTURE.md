@@ -467,7 +467,9 @@ and `types.ts`. One stored document per series (the **master**); occurrences are
   `event.recurrence` = one RRULE line (v1 subset) plus one EXDATE line per CANCELLED override
   (`EXDATE;TZID=<meeting tz>:<local date-time>` for timed series; all-day series use DATE values,
   `EXDATE;VALUE=DATE:<yyyymmdd>` and a date-only UNTIL, as RFC 5545 / Google require for all-day
-  events). Time-modified overrides are NOT pushed (documented limitation; the
+  events). An off-pattern anchor date (weekly rule without the anchor's weekday, monthly rule
+  with a different day) gets an EXDATE too: Google renders DTSTART as an instance while
+  `expandOccurrences` skips it. Time-modified overrides are NOT pushed (documented limitation; the
   occurrence keeps `overridden: true` locally). Import keeps `singleEvents=true`, with one rule:
   instances whose `recurringEventId` decodes via `meetingIdFromGoogleEventId` (an `mgev…` id)
   are OUR pushed series - skip importing them (the local master already expands them).

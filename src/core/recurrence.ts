@@ -412,7 +412,9 @@ const RRULE_FREQ: Readonly<Record<RecurrenceFreq, string>> = {
  * Google `event.recurrence` lines for the rule + cancelled overrides:
  * - "RRULE:FREQ=...;INTERVAL=...[;BYDAY=...|;BYMONTHDAY=...][;UNTIL=...|;COUNT=n]"
  * - one EXDATE line per cancelled occurrence: `EXDATE;TZID=<meeting timezone>:<yyyymmddThhmmss>`
- *   for timed series, `EXDATE;VALUE=DATE:<yyyymmdd>` for all-day series.
+ *   for timed series, `EXDATE;VALUE=DATE:<yyyymmdd>` for all-day series. An OFF-PATTERN anchor
+ *   date (weekly rule without the anchor weekday, monthly rule with a different day) gets an
+ *   EXDATE too: Google renders DTSTART as an instance, the local expander does not.
  * All-day series use DATE values for UNTIL and EXDATE (RFC 5545 requires the DTSTART value type
  * and Google rejects date-times on an all-day event); the UNTIL date is the instant's local date
  * in the meeting's timezone, which keeps the inclusive-day semantics (original starts are local
@@ -438,13 +440,28 @@ export function toGoogleRecurrence(meeting: RecurringMeetingLike): string[] {
   }
   const lines = [`RRULE:${parts.join(';')}`];
   const time = meeting.allDay ? null : meeting.time.replace(':', '');
-  const cancelled = Object.entries(meeting.recurrenceOverrides ?? {})
-    .filter(([, override]) => override.status === 'cancelled')
-    .map(([key]) => key.replace(/-/g, ''))
-    .sort();
-  for (const date of cancelled) {
+  const excluded = new Set(
+    Object.entries(meeting.recurrenceOverrides ?? {})
+      .filter(([, override]) => override.status === 'cancelled')
+      .map(([key]) => key),
+  );
+  // Google always renders DTSTART as an instance, even when it does not match the rule (BYDAY
+  // without the anchor weekday, BYMONTHDAY different from the anchor day), while
+  // expandOccurrences skips an off-pattern anchor - so it is excluded explicitly, or Google
+  // would show one extra event that does not exist locally.
+  const offPatternAnchor =
+    (rule.freq === 'weekly' &&
+      rule.byWeekday !== null &&
+      rule.byWeekday.length > 0 &&
+      !rule.byWeekday.includes(weekdayOfLocalDate(meeting.date))) ||
+    (rule.freq === 'monthly' && rule.byMonthDay !== null && Number(meeting.date.slice(8, 10)) !== rule.byMonthDay);
+  if (offPatternAnchor) excluded.add(meeting.date);
+  for (const date of [...excluded].sort()) {
+    const compact = date.replace(/-/g, '');
     lines.push(
-      time === null ? `EXDATE;VALUE=DATE:${date}` : `EXDATE;TZID=${meeting.timezone}:${date}T${time}00`,
+      time === null
+        ? `EXDATE;VALUE=DATE:${compact}`
+        : `EXDATE;TZID=${meeting.timezone}:${compact}T${time}00`,
     );
   }
   return lines;
