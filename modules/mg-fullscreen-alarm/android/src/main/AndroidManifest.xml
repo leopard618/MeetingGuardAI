@@ -1,0 +1,30 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Merged into the app manifest. RECEIVE_BOOT_COMPLETED and USE_FULL_SCREEN_INTENT are also
+       declared at the app level (app.config.js android.permissions + app.plugin.js); listing them
+       here keeps the module self-contained. -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+  <application>
+    <!-- Fired by AlarmManager (PendingIntent.getBroadcast); never exported. -->
+    <receiver
+      android:name=".AlarmReceiver"
+      android:enabled="true"
+      android:exported="false" />
+
+    <!-- Restores pending alarms after a reboot / app update. BOOT_COMPLETED is a protected
+         broadcast, so exported="false" still receives it (same pattern as expo-notifications). -->
+    <receiver
+      android:name=".BootReceiver"
+      android:enabled="true"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.REBOOT" />
+        <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+        <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
+  </application>
+</manifest>

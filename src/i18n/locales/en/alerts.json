@@ -112,6 +112,16 @@
       "label": "Post-meeting follow-ups",
       "description": "5 minutes after a meeting ends, get follow-up ideas from the AI assistant."
     },
+    "exactAlarms": {
+      "granted": "Exact alarms are allowed. Alerts ring right on time."
+    },
+    "fullScreen": {
+      "title": "Full-screen alarms",
+      "description": "With maximum intensity, meeting alarms can light up and take over the screen even while the phone is locked.",
+      "allowed": "Full-screen alarms are allowed.",
+      "denied": "Full-screen alarms are turned off, so maximum alerts arrive as regular notifications.",
+      "open": "Allow full-screen alarms"
+    },
     "dnd": {
       "title": "Do Not Disturb",
       "androidDescription": "Maximum alerts can ring during Do Not Disturb only if you allow it: open the settings of the maximum alerts and turn on “Override Do Not Disturb”.",

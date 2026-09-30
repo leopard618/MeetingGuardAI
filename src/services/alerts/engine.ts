@@ -12,6 +12,7 @@ import { dataService, meetingRepository, preferencesRepository } from '../data';
 import { createAlertEngine, type AlertEngineImpl } from './engineCore';
 import { createExpoNotificationsPort } from './expoNotificationsPort';
 import { alertFeedback } from './feedback';
+import { fullScreenAlarm } from './fsi';
 import { createAppStatePort, createAsyncStoragePort, createSettingsPort } from './platformPorts';
 import type { AlertDataPort, AlertI18nPort } from './types';
 
@@ -43,4 +44,5 @@ export const alertEngine: AlertEngineImpl = createAlertEngine({
   events: appEvents,
   logger: createLogger('alerts'),
   deviceTimeZone: getDeviceTimeZone,
+  fsi: fullScreenAlarm,
 });

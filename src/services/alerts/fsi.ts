@@ -3,10 +3,7 @@
  * modules/mg-fullscreen-alarm. Contract: FullScreenAlarmModule in src/core/contracts.ts and
  * docs/ARCHITECTURE.md §18.
  *
- * ARCHITECT STUB: `isAvailable()` is false until the native module lands, so the alert engine
- * keeps using expo-notifications everywhere and nothing double-fires.
- *
- * Engine integration contract (implemented in engineCore.ts by the fsi pass):
+ * Engine integration contract (implemented in engineCore.ts):
  * - AlertEngineDeps gains optional `fsi?: FullScreenAlarmModule` (engine.ts wires this module).
  * - During reconcile, AFTER the desired specs are rendered: when platform is 'android' and
  *   fsi.isAvailable() and getStatus().fullScreenAllowed && notificationsAllowed, the desired
@@ -22,33 +19,55 @@
  * - endSession()/cancelAll() also call `fsi.clearAlarms()`.
  * - getStatus() surfaces AlertEngineStatus.fullScreenAlarms; permission changes reconcile on
  *   AppState 'active' like the exact-alarm setting.
+ *
+ * On iOS / web / a binary without the native module (an OTA update can never add it),
+ * isAvailable() is false and every method resolves as a safe no-op, so the engine keeps using
+ * expo-notifications everywhere and an alert is never lost.
  */
 import type { FullScreenAlarmModule, FullScreenAlarmSpec, FullScreenAlarmStatus } from '../../core/contracts';
-import { notImplemented } from '../../core/errors';
+import {
+  clearAlarms as nativeClearAlarms,
+  getStatus as nativeGetStatus,
+  isNativeModuleAvailable,
+  openFullScreenIntentSettings as nativeOpenFullScreenIntentSettings,
+  setAlarms as nativeSetAlarms,
+  UNAVAILABLE_STATUS,
+  type MgFullScreenAlarmSpec,
+} from '../../../modules/mg-fullscreen-alarm';
+
+function toNativeSpec(spec: FullScreenAlarmSpec): MgFullScreenAlarmSpec {
+  return {
+    id: spec.id,
+    atMs: spec.atMs,
+    title: spec.title,
+    body: spec.body,
+    deepLink: spec.deepLink,
+    channelId: spec.channelId,
+  };
+}
 
 export const fullScreenAlarm: FullScreenAlarmModule = {
   isAvailable(): boolean {
-    return false;
+    return isNativeModuleAvailable();
   },
-  setAlarms(_alarms: readonly FullScreenAlarmSpec[]): Promise<void> {
-    return Promise.reject(stub('setAlarms'));
+
+  async setAlarms(alarms: readonly FullScreenAlarmSpec[]): Promise<void> {
+    if (!isNativeModuleAvailable()) return;
+    await nativeSetAlarms(alarms.map(toNativeSpec));
   },
-  clearAlarms(_ids?: readonly string[]): Promise<void> {
-    return Promise.reject(stub('clearAlarms'));
+
+  async clearAlarms(ids?: readonly string[]): Promise<void> {
+    if (!isNativeModuleAvailable()) return;
+    await nativeClearAlarms(ids);
   },
-  getStatus(): Promise<FullScreenAlarmStatus> {
-    return Promise.reject(stub('getStatus'));
+
+  async getStatus(): Promise<FullScreenAlarmStatus> {
+    if (!isNativeModuleAvailable()) return { ...UNAVAILABLE_STATUS };
+    return nativeGetStatus();
   },
-  openFullScreenIntentSettings(): Promise<void> {
-    return Promise.reject(stub('openFullScreenIntentSettings'));
+
+  async openFullScreenIntentSettings(): Promise<void> {
+    if (!isNativeModuleAvailable()) return;
+    await nativeOpenFullScreenIntentSettings();
   },
 };
-
-function stub(name: string): Error {
-  try {
-    notImplemented(`fullScreenAlarm.${name}`);
-  } catch (error) {
-    return error as Error;
-  }
-  return new Error(name);
-}

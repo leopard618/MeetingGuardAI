@@ -73,6 +73,7 @@ module.exports = defineConfig([
       'metro.config.js',
       'jest.config.js',
       'plugins/**/*.js',
+      'modules/**/app.plugin.js',
       'scripts/**/*.{js,mjs}',
     ],
     languageOptions: {

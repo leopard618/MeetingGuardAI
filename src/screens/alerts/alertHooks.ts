@@ -9,11 +9,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import Toast from 'react-native-toast-message';
 
-import type { AlertPermissionStatus } from '../../core/contracts';
+import type { AlertPermissionStatus, FullScreenAlarmStatus } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useLanguage, useT } from '../../i18n';
-import { alertEngine, alertFeedback, type FeedbackHandle } from '../../services/alerts';
+import { alertEngine, alertFeedback, fullScreenAlarm, type FeedbackHandle } from '../../services/alerts';
 import type { AlertDraft } from '../onboarding/alertOptions';
 
 const log = createLogger('alert-settings');
@@ -65,6 +65,41 @@ export function useAlertPermission(): AlertPermissionState {
   }, [refresh]);
 
   return { permission, error, refresh, request };
+}
+
+export interface FullScreenAlarmState {
+  /** Android with the mg-fullscreen-alarm native module in the binary; false elsewhere. */
+  available: boolean;
+  /** null until the first read finishes (or when it failed). */
+  status: FullScreenAlarmStatus | null;
+  refresh(): void;
+}
+
+/**
+ * Real reads of the full-screen alarm module: canUseFullScreenIntent (Android 14+),
+ * canScheduleExactAlarms and POST_NOTIFICATIONS. Like useAlertPermission, it re-checks on focus
+ * and when the app returns from the system settings. `available` false = render nothing.
+ */
+export function useFullScreenAlarmStatus(): FullScreenAlarmState {
+  const available = fullScreenAlarm.isAvailable();
+  const [status, setStatus] = useState<FullScreenAlarmStatus | null>(null);
+
+  const refresh = useCallback(() => {
+    if (!fullScreenAlarm.isAvailable()) return;
+    fullScreenAlarm.getStatus().then(setStatus, (caught: unknown) => {
+      log.warn('could not read the full-screen alarm status', toAppError(caught).code);
+    });
+  }, []);
+
+  useFocusEffect(refresh);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    return () => subscription.remove();
+  }, [refresh]);
+
+  return { available, status, refresh };
 }
 
 /** How long the audible sample plays before it stops by itself. */

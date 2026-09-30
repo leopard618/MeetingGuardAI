@@ -15,6 +15,9 @@
  * - Notification actions: snooze is handled here (foreground listener, cold start and the Android
  *   background task) with de-duplication of the same response; taps / open / assistant are routed
  *   by navigation through data.url.
+ * - Android + mg-fullscreen-alarm module (deps.fsi; contract in ./fsi.ts): MAX alerts are routed
+ *   to native full-screen alarms and excluded from the expo set before the diff - one path per
+ *   identifier, with an expo fallback in the same reconcile when the module cannot take them.
  */
 import type {
   ActiveAlert,
@@ -22,6 +25,9 @@ import type {
   AlertEngineStatus,
   AlertPermissionStatus,
   AlertPlan,
+  FullScreenAlarmModule,
+  FullScreenAlarmSpec,
+  FullScreenAlarmStatus,
   ReconcileReason,
   ReconcileResult,
   ScheduledAlertInfo,
@@ -76,7 +82,7 @@ import {
   summaryFromAlertData,
 } from './content';
 import { diffNotifications, isLegacyNotification, snoozeEntries, toScheduledEntries, type ScheduledEntry } from './diff';
-import { computeAlertPlan, isAlertEligibleMeeting, meetingEndMs } from './plan';
+import { computeAlertPlan, isAlertEligibleMeeting, meetingEndMs, occurrenceEffective } from './plan';
 import {
   emptyRegistry,
   hasFired,
@@ -167,6 +173,12 @@ export interface AlertEngineDeps {
   now?: () => Date;
   timers?: TimerPort;
   debounceMs?: number;
+  /**
+   * Full-screen alarm module (Android; src/services/alerts/fsi.ts). When present, available and
+   * permitted, MAX alerts are routed to native AlarmManager alarms instead of expo-notifications
+   * (contract in fsi.ts). Absent everywhere else: nothing changes.
+   */
+  fsi?: FullScreenAlarmModule;
 }
 
 export interface ResolveOptions {
@@ -215,6 +227,41 @@ const defaultTimers: TimerPort = {
   clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
+/**
+ * Occurrence date key of a notification: from its 4-part identifier, else from its payload
+ * (a snooze keeps its 3-part id but carries the snoozed occurrence's key in the payload).
+ */
+function occurrenceKeyOf(identifier: string, payload: StoredAlertData | null): string | undefined {
+  const parsed = parseNotificationId(identifier);
+  if (parsed !== null && parsed.kind !== 'snooze' && parsed.localDateKey !== undefined) return parsed.localDateKey;
+  return payload?.localDateKey;
+}
+
+/** Native alarm of a rendered MAX alert (the id IS the notification identifier). */
+function toFullScreenAlarmSpec(spec: AlertNotificationSpec): FullScreenAlarmSpec {
+  return {
+    id: spec.identifier,
+    atMs: Date.parse(spec.fireAt),
+    title: spec.title,
+    body: spec.body,
+    deepLink: spec.data.url,
+    channelId: spec.channelId,
+  };
+}
+
+/** Pending-list entry of a MAX alert routed to the full-screen alarm module. */
+function toFsiScheduledInfo(spec: AlertNotificationSpec): ScheduledAlertInfo {
+  return {
+    identifier: spec.identifier,
+    meetingId: spec.meetingId,
+    ...(spec.data.localDateKey !== undefined ? { localDateKey: spec.data.localDateKey } : {}),
+    kind: spec.kind,
+    offsetMinutes: spec.data.offsetMinutes,
+    fireAt: spec.fireAt,
+    intensity: spec.intensity,
+  };
+}
+
 function presentationPrefs(prefs: Preferences): AlertPresentationPrefs {
   return {
     soundType: prefs.alertSoundType,
@@ -244,6 +291,8 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
   let lastPrefs: Preferences | null = null;
   let meetingCache = new Map<string, Meeting>();
   let inAppQueue: InAppItem[] = [];
+  /** MAX alerts currently handed to the full-screen alarm module (mirrors its declarative set). */
+  let fsiScheduled: ScheduledAlertInfo[] = [];
   let active: ActiveAlertView[] = [];
   const activeListeners = new Set<(alerts: ActiveAlertView[]) => void>();
   const statusListeners = new Set<() => void>();
@@ -497,6 +546,11 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     const meeting = await resolveMeeting(item.meetingId);
     if (meeting && !isAlertEligibleMeeting(meeting)) return null; // deleted / cancelled since scheduling
     if (!meeting && !payload) return null;
+    // Occurrence of a recurring meeting: show the OCCURRENCE's live values (a cancelled occurrence
+    // is withdrawn like a deleted meeting; the payload snapshot covers a meeting that is gone).
+    const occurrenceKey = occurrenceKeyOf(item.identifier, payload);
+    const occurrence = meeting && occurrenceKey !== undefined ? occurrenceEffective(meeting, occurrenceKey) : null;
+    if (meeting && meeting.recurrence !== null && occurrenceKey !== undefined && occurrence === null) return null;
     const prefs = prefsOrDefault();
     const intensity = item.intensity ?? meeting?.alertIntensity ?? prefs.alertIntensity;
     const base: ActiveAlert = {
@@ -508,11 +562,20 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       meeting,
       firedAt: nowDate().toISOString(),
     };
+    // For occurrence items the payload beats the master meeting (its startAt is the master's
+    // FIRST occurrence, not this one); for one-offs the live meeting beats the stale payload.
+    const preferPayload = occurrenceKey !== undefined;
     return {
       ...base,
-      title: meeting?.title ?? payload?.title ?? '',
-      startAt: meeting?.startAt ?? payload?.startAt ?? base.firedAt,
-      durationMinutes: meeting?.durationMinutes ?? payload?.durationMinutes ?? 60,
+      title: occurrence?.title ?? (preferPayload ? (payload?.title ?? meeting?.title) : (meeting?.title ?? payload?.title)) ?? '',
+      startAt:
+        occurrence?.startAt ??
+        (preferPayload ? (payload?.startAt ?? meeting?.startAt) : (meeting?.startAt ?? payload?.startAt)) ??
+        base.firedAt,
+      durationMinutes:
+        occurrence?.durationMinutes ??
+        (preferPayload ? (payload?.durationMinutes ?? meeting?.durationMinutes) : (meeting?.durationMinutes ?? payload?.durationMinutes)) ??
+        60,
       language: meeting?.language ?? payload?.language ?? i18n.getLanguage(),
       joinUrl: meeting ? meetingJoinUrl(meeting) : null,
       locationText: meeting ? safeLocationText(meeting) : null,
@@ -551,11 +614,15 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     notifyActive();
   }
 
-  /** Alerts on screen whose meeting was cancelled / deleted since they fired. */
+  /** Alerts on screen whose meeting (or occurrence, for a recurring one) was cancelled / deleted since they fired. */
   function withdrawStaleActiveAlerts(): void {
     for (const alert of active) {
       const meeting = meetingCache.get(alert.meetingId);
-      if (meeting && !isAlertEligibleMeeting(meeting)) {
+      if (!meeting) continue;
+      const occurrenceKey = occurrenceKeyOf(alert.key, null);
+      const occurrenceGone =
+        meeting.recurrence !== null && occurrenceKey !== undefined && occurrenceEffective(meeting, occurrenceKey) === null;
+      if (!isAlertEligibleMeeting(meeting) || occurrenceGone) {
         removeActive(alert.key);
         void dismissQuietly(alert.key);
       }
@@ -662,6 +729,15 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       } catch (error) {
         log.warn(`could not cancel ${item.identifier} after the in-app alert`, error);
       }
+      if (deps.fsi?.isAvailable()) {
+        // Same for a MAX alert routed to the full-screen alarm module: clearing its id cancels
+        // the pending native alarm AND removes an already posted tray copy (race at fire time).
+        try {
+          await deps.fsi.clearAlarms([item.identifier]);
+        } catch (error) {
+          log.warn(`could not clear the full-screen alarm ${item.identifier}`, error);
+        }
+      }
       await presentIncoming({ identifier: item.identifier, date: Date.parse(item.fireAt), data: item.data }, 'in_app_timer');
     }
     inAppQueue = inAppQueue.filter((item) => !due.includes(item));
@@ -695,8 +771,22 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       if (!parsed) continue;
       const payload = parseAlertData(record.data);
       const meeting = meetingCache.get(parsed.meetingId);
-      const endMs = meeting ? meetingEndMs(meeting) : payload ? meetingEndMs(payload) : null;
-      const gone = meeting !== undefined && !isAlertEligibleMeeting(meeting);
+      // Occurrence notifications end when the OCCURRENCE ends (the master's own start can be far
+      // in the past for a long-running series); a cancelled occurrence counts as gone.
+      const occurrenceKey = occurrenceKeyOf(record.identifier, payload);
+      const occurrence = meeting && occurrenceKey !== undefined ? occurrenceEffective(meeting, occurrenceKey) : null;
+      const occurrenceGone =
+        meeting !== undefined && meeting.recurrence !== null && occurrenceKey !== undefined && occurrence === null;
+      const endMs = occurrence
+        ? meetingEndMs(occurrence)
+        : occurrenceKey !== undefined && payload
+          ? meetingEndMs(payload)
+          : meeting
+            ? meetingEndMs(meeting)
+            : payload
+              ? meetingEndMs(payload)
+              : null;
+      const gone = (meeting !== undefined && !isAlertEligibleMeeting(meeting)) || occurrenceGone;
       if (gone || (endMs !== null && nowMs - endMs > PRESENTED_CLEANUP_AFTER_END_MS)) {
         await dismissQuietly(record.identifier);
         continue;
@@ -717,7 +807,16 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
   function isValidSnooze(entry: ScheduledEntry, nowMs: number): boolean {
     if (!entry.data || !entry.fireAt || Date.parse(entry.fireAt) <= nowMs) return false;
     const meeting = meetingCache.get(entry.data.meetingId);
-    return meeting !== undefined && isAlertEligibleMeeting(meeting) && meeting.startAt === entry.data.startAt;
+    if (meeting === undefined || !isAlertEligibleMeeting(meeting)) return false;
+    if (meeting.recurrence !== null) {
+      const key = entry.data.localDateKey;
+      // No occurrence key (engine.snooze() on a series, or a pre-recurrence payload): a snooze
+      // lives at most two hours, keep it while it is pending instead of guessing its occurrence.
+      if (key === undefined) return true;
+      const occurrence = occurrenceEffective(meeting, key);
+      return occurrence !== null && occurrence.startAt === entry.data.startAt;
+    }
+    return meeting.startAt === entry.data.startAt;
   }
 
   async function runReconcile(): Promise<ReconcileResult> {
@@ -784,20 +883,86 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
           })
         : EMPTY_PLAN;
 
+      // Full-screen alarm availability + permission (re-read on EVERY reconcile: the foreground
+      // reconcile on AppState 'active' then picks up grants/revocations, like exact alarms).
+      const fsi = deps.fsi;
+      const fsiAvailable = fsi !== undefined && notifications.platform === 'android' && fsi.isAvailable();
+      let fsiStatus: FullScreenAlarmStatus | null = null;
+      if (fsiAvailable && fsi) {
+        try {
+          fsiStatus = await fsi.getStatus();
+        } catch (error) {
+          log.warn('could not read the full-screen alarm status', error);
+        }
+      }
+      let fsiActive = fsiStatus !== null && fsiStatus.fullScreenAllowed && fsiStatus.notificationsAllowed;
+
       const text = textDeps(prefs, { headless });
       const desired: AlertNotificationSpec[] = [];
+      /** MAX alerts routed to the full-screen alarm module (excluded from the expo set). */
+      const fsiRendered: AlertNotificationSpec[] = [];
       /** Planned items due within MIN_SCHEDULE_LEAD_MS: too late to hand to the OS again. */
       const imminent = new Set<string>();
       for (const item of plan.items) {
         const fireMs = Date.parse(item.fireAt);
-        if (fireMs <= nowMs + MIN_SCHEDULE_LEAD_MS) {
+        // Contract in ./fsi.ts: with the module active, MAX alerts go to AlarmManager. No
+        // MIN_SCHEDULE_LEAD_MS exclusion there: re-setting an imminent alarm at the same time is
+        // safe (the native side skips already-fired instants), while excluding it would cancel it.
+        const routeToFsi = fsiActive && item.kind === 'alert' && item.intensity === 'max' && fireMs > nowMs;
+        if (!routeToFsi && fireMs <= nowMs + MIN_SCHEDULE_LEAD_MS) {
           imminent.add(item.identifier);
           continue;
         }
         const meeting = meetingCache.get(item.meetingId);
         if (!meeting) continue;
-        desired.push(renderPlanItem(item, summarizeMeeting(meeting, text.t), text));
+        let summary = summarizeMeeting(meeting, text.t);
+        if (item.localDateKey !== undefined) {
+          // Occurrence of a recurring meeting: the text and payload carry the OCCURRENCE's values.
+          const occurrence = occurrenceEffective(meeting, item.localDateKey);
+          if (occurrence === null) continue; // cancelled between planning and rendering
+          summary = {
+            ...summary,
+            startAt: occurrence.startAt,
+            durationMinutes: occurrence.durationMinutes,
+            title: occurrence.title,
+          };
+        }
+        const spec = renderPlanItem(item, summary, text);
+        if (routeToFsi) fsiRendered.push(spec);
+        else desired.push(spec);
       }
+
+      // Full-screen alarm path, BEFORE the expo diff so each identifier is scheduled through
+      // exactly one path per reconcile: setAlarms is declarative (replace-all = the module side of
+      // the diff), stale expo copies of rerouted ids are cancelled by the ordinary diff below, and
+      // stale native alarms disappear with the replace-all (or clearAlarms when FSI deactivates).
+      if (fsi && fsiAvailable && gen === generation) {
+        if (fsiActive) {
+          try {
+            await fsi.setAlarms(fsiRendered.map(toFullScreenAlarmSpec));
+            fsiScheduled = fsiRendered.map(toFsiScheduledInfo);
+          } catch (error) {
+            log.warn('full-screen alarms could not be set; falling back to notifications', error);
+            fsiActive = false;
+          }
+        }
+        if (!fsiActive) {
+          fsiScheduled = [];
+          try {
+            await fsi.clearAlarms();
+          } catch (error) {
+            log.warn('full-screen alarms could not be cleared', error);
+          }
+        }
+      }
+      if (!fsiActive && fsiRendered.length > 0) {
+        // setAlarms failed: the same entries fall back to the expo path in this SAME reconcile.
+        for (const spec of fsiRendered) {
+          if (Date.parse(spec.fireAt) <= nowMs + MIN_SCHEDULE_LEAD_MS) imminent.add(spec.identifier);
+          else desired.push(spec);
+        }
+      }
+
       // An already scheduled notification that is about to fire (and is still planned) is kept
       // as it is: cancelling it would lose the alert, and it is too late to schedule a new one.
       const keepImminent = existing.filter((entry) => {
@@ -869,7 +1034,10 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
           fireAt: item.fireAt,
           intensity: item.intensity,
           data:
-            desired.find((spec) => spec.identifier === item.identifier)?.data ?? existingById.get(item.identifier)?.data ?? null,
+            desired.find((spec) => spec.identifier === item.identifier)?.data ??
+            fsiRendered.find((spec) => spec.identifier === item.identifier)?.data ??
+            existingById.get(item.identifier)?.data ??
+            null,
         })),
         ...validSnoozes.map<InAppItem>((entry) => ({
           identifier: entry.identifier,
@@ -978,6 +1146,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     hint: StoredAlertData | null,
     fallback: { summary: MeetingSummary; intensity: AlertIntensity } | null = null,
     renderPrefs: Preferences | null = lastPrefs,
+    localDateKey: string | null = null,
   ): Promise<void> {
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 120) {
       throw new AppError('invalid_input', `Invalid snooze length: ${minutes}`);
@@ -985,18 +1154,35 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     const meeting = await resolveMeeting(meetingId);
     let summary: MeetingSummary;
     let intensity: AlertIntensity;
+    /** Snoozed occurrence of a recurring meeting (kept in the payload for later validation). */
+    let occurrenceKey = localDateKey ?? hint?.localDateKey ?? null;
     const prefs = prefsOrDefault();
     if (meeting) {
       if (!isAlertEligibleMeeting(meeting)) {
         throw new AppError('not_found', 'The meeting was deleted or cancelled', { details: { meetingId } });
       }
       summary = summarizeMeeting(meeting, i18n.t);
+      if (meeting.recurrence === null) {
+        occurrenceKey = null; // the series collapsed to a one-off since: snooze the meeting itself
+      } else if (occurrenceKey !== null) {
+        const occurrence = occurrenceEffective(meeting, occurrenceKey);
+        if (occurrence === null) {
+          throw new AppError('not_found', 'The occurrence was cancelled', { details: { meetingId } });
+        }
+        summary = {
+          ...summary,
+          startAt: occurrence.startAt,
+          durationMinutes: occurrence.durationMinutes,
+          title: occurrence.title,
+        };
+      }
       intensity = meeting.alertIntensity ?? hint?.intensity ?? prefs.alertIntensity;
     } else {
       const payload = hint && hint.meetingId === meetingId ? hint : await findPayloadForMeeting(meetingId);
       if (payload) {
         summary = summaryFromAlertData(payload);
         intensity = payload.intensity;
+        occurrenceKey = occurrenceKey ?? payload.localDateKey ?? null;
       } else if (fallback) {
         summary = fallback.summary;
         intensity = fallback.intensity;
@@ -1006,7 +1192,13 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     }
 
     const fireAt = new Date(nowDate().getTime() + minutes * MINUTE_MS).toISOString();
-    const spec = renderSnoozeSpec(summary, intensity, fireAt, textDeps(renderPrefs, { headless: sessionUid === null }));
+    const spec = renderSnoozeSpec(
+      summary,
+      intensity,
+      fireAt,
+      textDeps(renderPrefs, { headless: sessionUid === null }),
+      occurrenceKey ?? undefined,
+    );
     try {
       await notifications.cancel(snoozeNotificationId(meetingId));
     } catch (error) {
@@ -1074,7 +1266,8 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     try {
       const prefs = await preferencesForSnooze(options.uid ?? null);
       const minutes = snoozeAction.minutes ?? prefs?.snoozeMinutes ?? DEFAULT_SNOOZE_MINUTES;
-      await snoozeInternal(parsed.meetingId, minutes, payload, null, prefs);
+      const occurrenceKey = occurrenceKeyOf(notification.identifier, payload) ?? null;
+      await snoozeInternal(parsed.meetingId, minutes, payload, null, prefs, occurrenceKey);
     } finally {
       await dismissQuietly(notification.identifier);
     }
@@ -1216,6 +1409,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     lastPrefs = null;
     meetingCache = new Map();
     inAppQueue = [];
+    fsiScheduled = [];
     registry = emptyRegistry();
     registryUid = null;
     await runner.idle();
@@ -1259,6 +1453,16 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
         log.warn(`could not dismiss ${record.identifier}`, error);
       }
     }
+    if (deps.fsi?.isAvailable()) {
+      // Contract in ./fsi.ts: cancelAll (and endSession through it) clears every native alarm.
+      try {
+        await deps.fsi.clearAlarms();
+      } catch (error) {
+        failed += 1;
+        log.warn('could not clear the full-screen alarms', error);
+      }
+    }
+    fsiScheduled = [];
     inAppQueue = [];
     clearInAppTimer();
     notifyStatus();
@@ -1275,11 +1479,20 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       infos.push({
         identifier: entry.identifier,
         meetingId: entry.data.meetingId,
+        ...(entry.data.localDateKey !== undefined ? { localDateKey: entry.data.localDateKey } : {}),
         kind: entry.data.kind,
         offsetMinutes: entry.data.offsetMinutes,
         fireAt: entry.fireAt,
         intensity: entry.data.intensity,
       });
+    }
+    // MAX alerts handed to the full-screen alarm module are pending too (not visible through
+    // expo-notifications). Already-fired ones (native side removed them) are filtered by time.
+    const seen = new Set(infos.map((info) => info.identifier));
+    const nowMs = nowDate().getTime();
+    for (const info of fsiScheduled) {
+      if (seen.has(info.identifier) || Date.parse(info.fireAt) <= nowMs) continue;
+      infos.push({ ...info });
     }
     return infos.sort((a, b) => Date.parse(a.fireAt) - Date.parse(b.fireAt));
   }
@@ -1287,7 +1500,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
   async function getStatus(): Promise<AlertEngineStatus> {
     await init();
     const [currentPermission, scheduled] = await Promise.all([getPermissionStatus(), getScheduled()]);
-    return {
+    const status: AlertEngineStatus = {
       initialized,
       permission: currentPermission,
       pendingCount: scheduled.length,
@@ -1295,6 +1508,15 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       lastReconcileAt: lastReconcileAt ?? registry.lastReconcileAt,
       lastReconcileError,
     };
+    if (deps.fsi && notifications.platform === 'android' && deps.fsi.isAvailable()) {
+      try {
+        status.fullScreenAlarms = await deps.fsi.getStatus();
+      } catch (error) {
+        log.warn('could not read the full-screen alarm status', error);
+        status.fullScreenAlarms = null;
+      }
+    }
+    return status;
   }
 
   // ---- public API --------------------------------------------------------------------------------
@@ -1384,7 +1606,15 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
           },
           intensity: alert.intensity,
         };
-        await snoozeInternal(alert.meetingId, options.snoozeMinutes ?? (await defaultSnoozeMinutes()), null, fallback);
+        const occurrenceKey = occurrenceKeyOf(alert.key, null) ?? null;
+        await snoozeInternal(
+          alert.meetingId,
+          options.snoozeMinutes ?? (await defaultSnoozeMinutes()),
+          null,
+          fallback,
+          lastPrefs,
+          occurrenceKey,
+        );
       }
     },
 

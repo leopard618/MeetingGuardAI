@@ -6,6 +6,7 @@
  */
 export { alertEngine } from './engine';
 export { computeAlertPlan } from './plan';
+export { fullScreenAlarm } from './fsi';
 export { usePendingAlerts } from './usePendingAlerts';
 
 // Extras for the alert UI (src/components/alerts) and the home screen alert card.

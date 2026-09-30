@@ -23,7 +23,7 @@ import {
 
 import { ALERT_INTENSITIES, ALERT_SOUND_TYPES, type AlertIntensity, type AlertSoundType } from '../../core/types';
 import { useT } from '../../i18n';
-import { alertEngine } from '../../services/alerts';
+import { alertEngine, fullScreenAlarm } from '../../services/alerts';
 import { AlertPreview } from '../onboarding/AlertPreview';
 import {
   VOLUME_LEVELS,
@@ -36,7 +36,7 @@ import {
 } from '../onboarding/alertOptions';
 import { Section } from '../shared/Section';
 import type { AlertPermissionState, AlertSample } from './alertHooks';
-import { useOpenSystemSettings } from './alertHooks';
+import { useFullScreenAlarmStatus, useOpenSystemSettings } from './alertHooks';
 import { snoozeChoices, type AlertSettingsDraft } from './alertSettings';
 
 export interface AlertPreferencesFormProps<D extends AlertDraft> {
@@ -210,8 +210,10 @@ export function AlertExtraSettings({
 }
 
 /**
- * Delivery: notification permission, exact alarms (Android 12+), Do Not Disturb override of the
- * MAX channel (Android) / Focus and Time Sensitive (iOS).
+ * Delivery: notification permission, exact alarms (Android 12+; a real granted/denied read when
+ * the mg-fullscreen-alarm module is in the binary), full-screen alarms (Android with the module;
+ * revocable on Android 14+), Do Not Disturb override of the MAX channel (Android) / Focus and
+ * Time Sensitive (iOS).
  */
 export function AlertDeliverySection({
   permission,
@@ -223,9 +225,12 @@ export function AlertDeliverySection({
   const t = useT();
   const theme = usePaperTheme();
   const openSettings = useOpenSystemSettings();
+  const fullScreen = useFullScreenAlarmStatus();
   const status = permission.permission;
   const notificationsGranted = status?.notifications === 'granted';
   const showOpenNotificationSettings = status !== null && status.notifications === 'denied' && !status.canAskAgain;
+  // Without the native module there is no JS read of the exact-alarm state: null = unknown.
+  const exactAllowed = fullScreen.available && fullScreen.status !== null ? fullScreen.status.exactAllowed : null;
 
   return (
     <View>
@@ -270,17 +275,55 @@ export function AlertDeliverySection({
         ) : null}
       </Section>
 
-      {Platform.OS === 'android' && status?.exactAlarms === 'unknown' ? (
+      {status?.exactAlarms === 'unknown' ? (
         <Section title={t('onboarding:alerts.exactAlarms.title')}>
-          <Text variant="bodyMedium">{t('onboarding:alerts.exactAlarms.description')}</Text>
-          <Button
-            mode="contained-tonal"
-            icon="alarm"
-            style={styles.action}
-            onPress={() => openSettings(() => alertEngine.openExactAlarmSettings())}
-          >
-            {t('onboarding:alerts.exactAlarms.open')}
-          </Button>
+          {exactAllowed === true ? (
+            <Text variant="labelLarge" style={{ color: theme.colors.primary }} testID="alerts-exact-granted">
+              {t('alerts:settings.exactAlarms.granted')}
+            </Text>
+          ) : (
+            <View>
+              <Text variant="bodyMedium">{t('onboarding:alerts.exactAlarms.description')}</Text>
+              <Button
+                mode="contained-tonal"
+                icon="alarm"
+                style={styles.action}
+                onPress={() => openSettings(() => alertEngine.openExactAlarmSettings())}
+              >
+                {t('onboarding:alerts.exactAlarms.open')}
+              </Button>
+            </View>
+          )}
+        </Section>
+      ) : null}
+
+      {fullScreen.available ? (
+        <Section title={t('alerts:settings.fullScreen.title')}>
+          <Text variant="bodyMedium">{t('alerts:settings.fullScreen.description')}</Text>
+          {fullScreen.status !== null ? (
+            fullScreen.status.fullScreenAllowed ? (
+              <Text variant="labelLarge" style={[styles.status, { color: theme.colors.primary }]} testID="alerts-fullscreen-allowed">
+                {t('alerts:settings.fullScreen.allowed')}
+              </Text>
+            ) : (
+              // fullScreenAllowed can only be false on Android 14+, where the system settings
+              // page (openFullScreenIntentSettings) exists.
+              <View>
+                <HelperText type="error" visible>
+                  {t('alerts:settings.fullScreen.denied')}
+                </HelperText>
+                <Button
+                  mode="contained-tonal"
+                  icon="cellphone-lock"
+                  style={styles.action}
+                  onPress={() => openSettings(() => fullScreenAlarm.openFullScreenIntentSettings())}
+                  testID="alerts-fullscreen-open"
+                >
+                  {t('alerts:settings.fullScreen.open')}
+                </Button>
+              </View>
+            )
+          ) : null}
         </Section>
       ) : null}
 

@@ -112,6 +112,16 @@
       "label": "Seguimiento después de las reuniones",
       "description": "5 minutos después de que termine una reunión, recibe ideas de seguimiento del asistente de IA."
     },
+    "exactAlarms": {
+      "granted": "Las alarmas exactas están permitidas. Las alertas suenan puntuales."
+    },
+    "fullScreen": {
+      "title": "Alarmas a pantalla completa",
+      "description": "Con la intensidad máxima, las alarmas de reunión pueden encender y ocupar la pantalla aunque el teléfono esté bloqueado.",
+      "allowed": "Las alarmas a pantalla completa están permitidas.",
+      "denied": "Las alarmas a pantalla completa están desactivadas, así que las alertas máximas llegan como notificaciones normales.",
+      "open": "Permitir alarmas a pantalla completa"
+    },
     "dnd": {
       "title": "No molestar",
       "androidDescription": "Las alertas máximas solo pueden sonar con No molestar activado si lo permites: abre los ajustes de las alertas máximas y activa «Ignorar No molestar».",
