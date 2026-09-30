@@ -468,6 +468,23 @@ function mapUpdate(raw: string, ctx: MappingContext, provenance: Provenance): Ai
   if (args.scope === 'occurrence' && meeting.doc.recurrence !== null) {
     return mapOccurrenceUpdate(args, meeting, ctx);
   }
+  // v3 scope 'following': the FULL change surface applies to the tail series (the executor calls
+  // editFollowing and the patch lands on the new tail master), so the mapping is a series update
+  // ANCHORED at the split occurrence's ORIGINAL start: date/time fallbacks and the "did the start
+  // change?" comparison use that occurrence, never the master's first occurrence - otherwise a
+  // time-only change would silently move the tail back to the master's original date.
+  const following = args.scope === 'following' && meeting.doc.recurrence !== null;
+  let followingDate: string | null = null;
+  let anchor = meeting;
+  if (following) {
+    followingDate =
+      args.occurrence_date !== null && isValidLocalDate(args.occurrence_date) ? args.occurrence_date : drop('invalid_datetime');
+    const zone = meetingZone(meeting, ctx.userTimeZone);
+    // The split occurrence keeps the series' wall clock in the MEETING's zone (§16 - wall-clock
+    // math runs there; deriving it in the user's zone would drift across DST divergences).
+    const time = meeting.doc.allDay ? '00:00' : toLocalTime(meeting.start, zone);
+    anchor = { ...meeting, start: new Date(localStartIso(followingDate, time, zone)) };
+  }
   const c = args.changes;
   const changes: AiMeetingChanges = {};
 
@@ -479,7 +496,7 @@ function mapUpdate(raw: string, ctx: MappingContext, provenance: Provenance): Ai
     const description = clip(c.description, AI_LIMITS.maxDescriptionChars);
     if (description !== meeting.doc.description) changes.description = description;
   }
-  mapScheduleChanges(c, meeting, ctx.userTimeZone, changes);
+  mapScheduleChanges(c, anchor, ctx.userTimeZone, changes);
   mapCommonChanges(c, meeting, provenance, changes);
   if (c.clear_recurrence) {
     if (meeting.doc.recurrence !== null) changes.recurrence = null;
@@ -511,6 +528,7 @@ function mapUpdate(raw: string, ctx: MappingContext, provenance: Provenance): Ai
     ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].update_meeting),
     meetingId: meeting.meetingId,
     changes,
+    ...(following && followingDate !== null ? { scope: 'following' as const, occurrenceDate: followingDate } : {}),
   };
 }
 
@@ -518,15 +536,17 @@ function mapDelete(raw: string, ctx: MappingContext): AiAction {
   const args = parseArgs(deleteMeetingArgsSchema, raw);
   if (ctx.mode === 'followup') drop('not_allowed');
   const meeting = resolveRef(args.meeting_ref, ctx);
-  if (args.scope === 'occurrence' && meeting.doc.recurrence !== null) {
-    // "Delete only tomorrow's standup": cancel one occurrence, keep the series.
+  if ((args.scope === 'occurrence' || args.scope === 'following') && meeting.doc.recurrence !== null) {
+    // "Delete only tomorrow's standup": cancel one occurrence, keep the series. With scope
+    // 'following' ("cancel the rest of the standups"): the executor truncates the series the
+    // second before that occurrence's start; earlier occurrences stay. Same date validation.
     const occurrenceDate =
       args.occurrence_date !== null && isValidLocalDate(args.occurrence_date) ? args.occurrence_date : drop('invalid_datetime');
     return {
       type: 'delete_meeting',
       ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].delete_meeting),
       meetingId: meeting.meetingId,
-      scope: 'occurrence',
+      scope: args.scope,
       occurrenceDate,
     };
   }

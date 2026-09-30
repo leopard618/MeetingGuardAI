@@ -1,7 +1,7 @@
 import type { ConferenceDetails } from '../../../core/aiContract';
 import type { MeetingRange, WriteOptions } from '../../../core/contracts';
 import { AppError } from '../../../core/errors';
-import { CANCELLED_OVERRIDE, withRecurrenceOverride } from '../../../core/recurrence';
+import { CANCELLED_OVERRIDE, splitRecurrenceAt, withRecurrenceOverride } from '../../../core/recurrence';
 import { applyMeetingPatch, buildMeeting, tombstoneMeeting, type Meeting, type MeetingCreateInput, type MeetingPatch } from '../../../core/types';
 import {
   NOW,
@@ -111,6 +111,51 @@ class FakeMeetings {
     this.byId.set(id, next);
     this.calls.push({ op: 'restoreOccurrence', id, options });
     return next;
+  });
+
+  // "This and following" (v3): a faithful miniature of the engine's split semantics.
+  editFollowing = jest.fn(async (id: string, fromDateKey: string, patch: MeetingPatch, options?: WriteOptions) => {
+    const current = this.byId.get(id);
+    if (!current || current.deletedAt || current.recurrence === null) throw new AppError('invalid_input');
+    const split = splitRecurrenceAt(current, fromDateKey);
+    this.calls.push({ op: 'editFollowing', id, options, patch });
+    if (split === 'series_edit') {
+      const master = applyMeetingPatch(current, patch, NOW);
+      this.byId.set(id, master);
+      return { master, created: null };
+    }
+    const master = applyMeetingPatch(current, { recurrence: split.masterRule, recurrenceOverrides: split.masterOverrides }, NOW);
+    this.byId.set(id, master);
+    const tailId = `tail_${this.byId.size + 1}`;
+    const base = buildMeeting(
+      {
+        title: current.title,
+        startAt: split.tailStartAt,
+        source: current.source === 'google' ? 'manual' : current.source,
+        timezone: current.timezone,
+        durationMinutes: current.durationMinutes,
+        recurrence: split.tailRule,
+        recurrenceOverrides: split.tailOverrides,
+      },
+      { id: tailId, userId: UID, now: NOW, defaultTimezone: 'UTC', defaultLanguage: 'en' },
+    );
+    const created = Object.keys(patch).length > 0 ? applyMeetingPatch(base, patch, NOW) : base;
+    this.byId.set(tailId, created);
+    return { master, created };
+  });
+
+  deleteFollowing = jest.fn(async (id: string, fromDateKey: string, options?: WriteOptions) => {
+    const current = this.byId.get(id);
+    if (!current || current.deletedAt || current.recurrence === null) throw new AppError('invalid_input');
+    const split = splitRecurrenceAt(current, fromDateKey);
+    this.calls.push({ op: 'deleteFollowing', id, options });
+    if (split === 'series_edit') {
+      this.byId.set(id, tombstoneMeeting(current, NOW));
+      return null;
+    }
+    const master = applyMeetingPatch(current, { recurrence: split.masterRule, recurrenceOverrides: split.masterOverrides }, NOW);
+    this.byId.set(id, master);
+    return master;
   });
 }
 
@@ -567,5 +612,104 @@ describe('recurrence scopes (v2)', () => {
     };
     const pastPreview = await executor.preview(past);
     expect(pastPreview.warnings).toContain('start_in_past');
+  });
+});
+
+describe('recurrence scope following (v3)', () => {
+  const rule = { freq: 'weekly' as const, interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null };
+  const series = () => makeMeeting('series', { startAt: '2030-03-11T15:00:00.000Z', recurrence: rule });
+
+  it('applies a following-scoped update through editFollowing: full patch on the tail, both ids reported', async () => {
+    const { executor, meetings } = setup({ meetings: [series()] });
+    const action = {
+      ...updateAction('a_fol1', 'series', { title: 'Renamed from here', durationMinutes: 45 }),
+      scope: 'following' as const,
+      occurrenceDate: '2030-03-18',
+    };
+    const result = expectDone(await executor.execute(action));
+    expect(meetings.editFollowing).toHaveBeenCalledWith(
+      'series',
+      '2030-03-18',
+      { title: 'Renamed from here', durationMinutes: 45 },
+      { origin: 'ai' },
+    );
+    expect(meetings.update).not.toHaveBeenCalled();
+    expect(meetings.updateOccurrence).not.toHaveBeenCalled();
+
+    const master = meetings.byId.get('series')!;
+    expect(master.title).toBe('Meeting series'); // earlier occurrences keep their values
+    expect(master.recurrence?.until).toBe('2030-03-18T14:59:59.000Z');
+    const tailId = result.meetingIds[1]!;
+    expect(result.meetingIds[0]).toBe('series');
+    const tail = meetings.byId.get(tailId)!;
+    expect(tail.title).toBe('Renamed from here');
+    expect(tail.durationMinutes).toBe(45);
+    expect(tail.startAt).toBe('2030-03-18T15:00:00.000Z');
+  });
+
+  it('ignores the following scope on a one-off meeting (plain update, as the contract requires)', async () => {
+    const { executor, meetings } = setup({ meetings: [makeMeeting('single')] });
+    const action = {
+      ...updateAction('a_fol2', 'single', { title: 'Renamed' }),
+      scope: 'following' as const,
+      occurrenceDate: '2030-03-11',
+    };
+    expectDone(await executor.execute(action));
+    expect(meetings.update).toHaveBeenCalledWith('single', expect.objectContaining({ title: 'Renamed' }), { origin: 'ai' });
+    expect(meetings.editFollowing).not.toHaveBeenCalled();
+  });
+
+  it('a following-scoped delete truncates the series through deleteFollowing; earlier occurrences survive', async () => {
+    const { executor, meetings } = setup({ meetings: [series()] });
+    const action = { ...deleteAction('a_fol3', 'series'), scope: 'following' as const, occurrenceDate: '2030-03-25' };
+    const result = expectDone(await executor.execute(action));
+    expect(result.meetingIds).toEqual(['series']);
+    expect(meetings.deleteFollowing).toHaveBeenCalledWith('series', '2030-03-25', { origin: 'ai' });
+    expect(meetings.remove).not.toHaveBeenCalled();
+    expect(meetings.cancelOccurrence).not.toHaveBeenCalled();
+    const stored = meetings.byId.get('series')!;
+    expect(stored.deletedAt).toBeNull();
+    expect(stored.recurrence?.until).toBe('2030-03-25T14:59:59.000Z');
+  });
+
+  it('fails loudly (never fakes success) when the repository lacks the following ops', async () => {
+    const { executor, meetings } = setup({ meetings: [series()] });
+    (meetings as { editFollowing?: unknown }).editFollowing = undefined;
+    (meetings as { deleteFollowing?: unknown }).deleteFollowing = undefined;
+    const action = { ...deleteAction('a_fol4', 'series'), scope: 'following' as const, occurrenceDate: '2030-03-25' };
+    const result = await executor.execute(action);
+    expect(result.status).toBe('failed');
+    if (result.status === 'failed') expect(result.error.code).toBe('not_implemented');
+    expect(meetings.byId.get('series')?.recurrence?.until).toBeNull();
+  });
+
+  it('is idempotent per action id for following-scoped actions', async () => {
+    const { executor, meetings } = setup({ meetings: [series()] });
+    const action = { ...deleteAction('a_fol5', 'series'), scope: 'following' as const, occurrenceDate: '2030-03-25' };
+    expectDone(await executor.execute(action));
+    const again = expectDone(await executor.execute(action));
+    expect(again.duplicate).toBe(true);
+    expect(meetings.deleteFollowing).toHaveBeenCalledTimes(1);
+  });
+
+  it('previews a following move like an occurrence move: the split occurrence window is checked', async () => {
+    const clash = makeMeeting('clash', { startAt: '2030-03-18T16:00:00.000Z', durationMinutes: 60 });
+    const { executor } = setup({ meetings: [series(), clash] });
+    const move = {
+      ...updateAction('a_fol6', 'series', { startAt: '2030-03-18T16:30:00.000Z' }),
+      scope: 'following' as const,
+      occurrenceDate: '2030-03-18',
+    };
+    const preview = await executor.preview(move);
+    expect(preview.warnings).toContain('overlaps_existing');
+    expect(preview.overlapping.map((m) => m.id)).toEqual(['clash']);
+
+    const rename = {
+      ...updateAction('a_fol7', 'series', { title: 'No time change' }),
+      scope: 'following' as const,
+      occurrenceDate: '2030-03-18',
+    };
+    const renamePreview = await executor.preview(rename);
+    expect(renamePreview.warnings).toEqual([]);
   });
 });

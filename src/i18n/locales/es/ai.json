@@ -120,7 +120,8 @@
     "skippedAllDay": "Reunión de todo el día: solo puede moverse por días completos, así que se quedará como está.",
     "a11yBefore": "Antes: {{value}}",
     "a11yAfter": "Después: {{value}}",
-    "deleteOccurrenceWarning": "Solo se elimina esta repetición. El resto de la serie se mantiene."
+    "deleteOccurrenceWarning": "Solo se elimina esta repetición. El resto de la serie se mantiene.",
+    "deleteFollowingWarning": "Se eliminan esta repetición y todas las posteriores. Las anteriores se mantienen."
   },
   "fields": {
     "title": "Título",

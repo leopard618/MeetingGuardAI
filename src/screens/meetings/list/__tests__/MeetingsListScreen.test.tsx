@@ -23,6 +23,8 @@ const mockRemove = jest.fn();
 const mockCancelOccurrence = jest.fn();
 const mockUpdateOccurrence = jest.fn();
 const mockRestoreOccurrence = jest.fn();
+const mockEditFollowing = jest.fn();
+const mockDeleteFollowing = jest.fn();
 const mockRefresh = jest.fn();
 const mockSyncNow = jest.fn();
 let mockMeetings: Meeting[] = [];
@@ -39,6 +41,8 @@ jest.mock('../../../../services/data', () => {
       cancelOccurrence: (...args: unknown[]) => mockCancelOccurrence(...args),
       updateOccurrence: (...args: unknown[]) => mockUpdateOccurrence(...args),
       restoreOccurrence: (...args: unknown[]) => mockRestoreOccurrence(...args),
+      editFollowing: (...args: unknown[]) => mockEditFollowing(...args),
+      deleteFollowing: (...args: unknown[]) => mockDeleteFollowing(...args),
     },
   };
 });
@@ -277,7 +281,12 @@ it('shows one row per occurrence of a recurring meeting and deletes with a scope
     fireEvent.press(await screen.findByTestId('meeting-action-delete'));
   });
   // The scope question replaces the plain confirmation; nothing ran yet.
-  expect(Alert.alert).toHaveBeenCalledWith('Delete repeating meeting', expect.stringContaining('repeats'), expect.any(Array));
+  expect(Alert.alert).toHaveBeenCalledWith(
+    'Delete repeating meeting',
+    expect.stringContaining('repeats'),
+    expect.any(Array),
+    { cancelable: true },
+  );
   expect(mockRemove).not.toHaveBeenCalled();
   expect(mockCancelOccurrence).not.toHaveBeenCalled();
   await act(async () => {
@@ -303,7 +312,7 @@ it('asks the scope when editing an occurrence: series opens the form, occurrence
   await act(async () => {
     fireEvent.press(await screen.findByTestId('meeting-action-edit'));
   });
-  expect(Alert.alert).toHaveBeenCalledWith('Edit repeating meeting', expect.any(String), expect.any(Array));
+  expect(Alert.alert).toHaveBeenCalledWith('Edit repeating meeting', expect.any(String), expect.any(Array), { cancelable: true });
   const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
   await act(async () => {
     buttons.find((button) => button.text === 'This meeting only')?.onPress?.();
@@ -325,6 +334,71 @@ it('asks the scope when editing an occurrence: series opens the form, occurrence
     seriesButtons.find((button) => button.text === 'The whole series')?.onPress?.();
   });
   expect((await screen.findByTestId('stub-EditMeeting')).props.children).toBe('EditMeeting:series');
+});
+
+it('deletes "this and following" through deleteFollowing with origin user', async () => {
+  mockDeleteFollowing.mockResolvedValue(null);
+  mockMeetings = [
+    meeting('series', {
+      title: 'Weekly standup',
+      startAt: '2026-10-06T16:00:00.000Z',
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null },
+    }),
+  ];
+  await renderList();
+  await act(async () => {
+    fireEvent.press(screen.getAllByTestId('meeting-row-more-series')[0]!);
+  });
+  await act(async () => {
+    fireEvent.press(await screen.findByTestId('meeting-action-delete'));
+  });
+  const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+  expect(buttons.map((button) => button.text)).toEqual(['Cancel', 'This meeting only', 'This and following', 'The whole series']);
+  await act(async () => {
+    buttons.find((button) => button.text === 'This and following')?.onPress?.();
+  });
+  expect(mockDeleteFollowing).toHaveBeenCalledWith('series', '2026-10-06', { origin: 'user' });
+  expect(mockRemove).not.toHaveBeenCalled();
+  expect(mockCancelOccurrence).not.toHaveBeenCalled();
+  expect(Toast.show).toHaveBeenCalledWith(
+    expect.objectContaining({ type: 'success', text1: 'This and the following occurrences were deleted.' }),
+  );
+});
+
+it('edits "this and following" through the sheet: editFollowing gets the patch with origin user', async () => {
+  mockEditFollowing.mockResolvedValue({ master: null, created: null });
+  mockMeetings = [
+    meeting('series', {
+      title: 'Weekly standup',
+      startAt: '2026-10-06T16:00:00.000Z',
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null },
+    }),
+  ];
+  await renderList();
+  await act(async () => {
+    fireEvent(screen.getAllByTestId('meeting-row-series')[0]!, 'longPress');
+  });
+  await act(async () => {
+    fireEvent.press(await screen.findByTestId('meeting-action-edit'));
+  });
+  const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+  await act(async () => {
+    buttons.find((button) => button.text === 'This and following')?.onPress?.();
+  });
+  // The sheet opens in following mode (its own heading, shared recurrence phrasing).
+  await screen.findByTestId('occurrence-edit-sheet');
+  expect(screen.getByText('This and following')).toBeTruthy();
+  await act(async () => {
+    fireEvent.changeText(screen.getByTestId('occurrence-edit-title'), 'Standup v2');
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('occurrence-edit-save'));
+  });
+  expect(mockEditFollowing).toHaveBeenCalledWith('series', '2026-10-06', { title: 'Standup v2' }, { origin: 'user' });
+  expect(mockUpdateOccurrence).not.toHaveBeenCalled();
+  expect(Toast.show).toHaveBeenCalledWith(
+    expect.objectContaining({ type: 'success', text1: 'This and the following occurrences were updated.' }),
+  );
 });
 
 it('saves an occurrence edit through updateOccurrence with origin user', async () => {

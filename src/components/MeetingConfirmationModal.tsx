@@ -23,6 +23,7 @@ import {
   actionIconName,
   assistantPalette,
   computeUpdateDiff,
+  deleteWarningKey,
   describeBulk,
   describeChangeRows,
   describeDraft,
@@ -31,7 +32,6 @@ import {
   describeShare,
   describeWarnings,
   isDestructiveAction,
-  isOccurrenceDelete,
   type AssistantPalette,
   type DetailRow,
   type DiffRow,
@@ -282,13 +282,8 @@ function ActionBody({
     }
     case 'delete_meeting': {
       const synced = meeting !== null && (meeting.external.googleEventId !== null || meeting.external.deviceEventId !== null);
-      const occurrenceOnly = isOccurrenceDelete(action, meeting);
       const scopeRow = describeScopeRow(fmt, action, meeting);
-      const warningText = occurrenceOnly
-        ? fmt.t('ai:confirm.deleteOccurrenceWarning')
-        : synced
-          ? fmt.t('ai:confirm.deleteWarningSynced')
-          : fmt.t('ai:confirm.deleteWarning');
+      const warningText = fmt.t(deleteWarningKey(action, meeting, synced));
       return (
         <View style={[styles.notice, { backgroundColor: palette.dangerSurface, borderColor: palette.danger }]}>
           <View style={styles.noticeLine}>

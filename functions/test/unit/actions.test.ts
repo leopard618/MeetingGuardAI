@@ -781,3 +781,160 @@ describe('recurrence (v2)', () => {
     expect(badDate.dropped).toEqual({ invalid_datetime: 1 });
   });
 });
+
+describe('recurrence scope following (v3)', () => {
+  it('maps a following-scoped update with the FULL change surface, anchored at the split occurrence', () => {
+    const action = only(
+      mapToolCalls(
+        [
+          call('update_meeting', {
+            meeting_ref: ref('series'),
+            changes: { ...noChanges, time: '10:30', title: 'Standup v2', duration_minutes: 20 },
+            scope: 'following',
+            occurrence_date: '2026-10-05',
+            summary: 'Move the standup from October',
+            confidence: 85,
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect(action).toMatchObject({
+      type: 'update_meeting',
+      meetingId: 'series',
+      scope: 'following',
+      occurrenceDate: '2026-10-05',
+      // 10:30 lands on the SPLIT occurrence's date, not on the master's first occurrence -
+      // otherwise a time-only change would silently move the tail back to 2026-09-07.
+      changes: { startAt: '2026-10-05T10:30:00+02:00', title: 'Standup v2', durationMinutes: 20 },
+    });
+  });
+
+  it('a following update without date/time changes produces no startAt (the tail keeps the split start)', () => {
+    const action = only(
+      mapToolCalls(
+        [
+          call('update_meeting', {
+            meeting_ref: ref('series'),
+            changes: { ...noChanges, title: 'Renamed from here' },
+            scope: 'following',
+            occurrence_date: '2026-10-05',
+            summary: 's',
+            confidence: 60,
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect(Object.keys((action as { changes: object }).changes)).toEqual(['title']);
+    expect(action).toMatchObject({ scope: 'following', occurrenceDate: '2026-10-05' });
+  });
+
+  it('allows a rule change with scope following (it lands on the tail series)', () => {
+    const action = only(
+      mapToolCalls(
+        [
+          call('update_meeting', {
+            meeting_ref: ref('series'),
+            changes: {
+              ...noChanges,
+              recurrence: { freq: 'weekly', interval: 2, by_weekday: ['MO'], by_month_day: null, until_date: null, count: null },
+            },
+            scope: 'following',
+            occurrence_date: '2026-10-05',
+            summary: 's',
+            confidence: 60,
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect(action).toMatchObject({
+      scope: 'following',
+      changes: { recurrence: { freq: 'weekly', interval: 2, byWeekday: ['MO'] } },
+    });
+  });
+
+  it('ignores the following scope on a one-off, and drops bad dates or empty changes', () => {
+    const oneOff = only(
+      mapToolCalls(
+        [
+          call('update_meeting', {
+            meeting_ref: ref('marketing'),
+            changes: { ...noChanges, title: 'Marketing v2' },
+            scope: 'following',
+            occurrence_date: '2026-09-30',
+            summary: 's',
+            confidence: 60,
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect((oneOff as { scope?: string }).scope).toBeUndefined();
+    expect((oneOff as { occurrenceDate?: string }).occurrenceDate).toBeUndefined();
+
+    const badDate = mapToolCalls(
+      [
+        call('update_meeting', {
+          meeting_ref: ref('series'),
+          changes: { ...noChanges, title: 'x' },
+          scope: 'following',
+          occurrence_date: 'next monday',
+          summary: 's',
+          confidence: 60,
+        }),
+      ],
+      ctx(),
+    );
+    expect(badDate.actions).toEqual([]);
+    expect(badDate.dropped).toEqual({ invalid_datetime: 1 });
+
+    const empty = mapToolCalls(
+      [
+        call('update_meeting', {
+          meeting_ref: ref('series'),
+          changes: { ...noChanges },
+          scope: 'following',
+          occurrence_date: '2026-10-05',
+          summary: 's',
+          confidence: 60,
+        }),
+      ],
+      ctx(),
+    );
+    expect(empty.dropped).toEqual({ empty_changes: 1 });
+  });
+
+  it('maps a following-scoped delete and validates its date', () => {
+    const action = only(
+      mapToolCalls(
+        [
+          call('delete_meeting', {
+            meeting_ref: ref('series'),
+            scope: 'following',
+            occurrence_date: '2026-10-05',
+            summary: 'Cancel the rest',
+            confidence: 90,
+          }),
+        ],
+        ctx(),
+      ).actions,
+    );
+    expect(action).toMatchObject({ type: 'delete_meeting', meetingId: 'series', scope: 'following', occurrenceDate: '2026-10-05' });
+
+    const oneOff = only(
+      mapToolCalls(
+        [call('delete_meeting', { meeting_ref: ref('marketing'), scope: 'following', occurrence_date: '2026-09-30', summary: 's', confidence: 50 })],
+        ctx(),
+      ).actions,
+    );
+    expect((oneOff as { scope?: string }).scope).toBeUndefined();
+
+    const badDate = mapToolCalls(
+      [call('delete_meeting', { meeting_ref: ref('series'), scope: 'following', occurrence_date: 'soon', summary: 's', confidence: 50 })],
+      ctx(),
+    );
+    expect(badDate.dropped).toEqual({ invalid_datetime: 1 });
+  });
+});

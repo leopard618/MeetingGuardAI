@@ -105,6 +105,18 @@ function occurrenceTarget(
   return meeting && meeting.recurrence !== null ? action.occurrenceDate : null;
 }
 
+/**
+ * v3 scope: an action targets "this and the following occurrences" only when it says so AND the
+ * meeting really recurs (on a one-off the scope is ignored, exactly like 'occurrence').
+ */
+function followingTarget(
+  action: Pick<UpdateMeetingAction, 'scope' | 'occurrenceDate'>,
+  meeting: Meeting | null | undefined,
+): string | null {
+  if (action.scope !== 'following' || action.occurrenceDate == null) return null;
+  return meeting && meeting.recurrence !== null ? action.occurrenceDate : null;
+}
+
 /** The recurrence ops (rec-core lands them on meetingRepository in the same release as this code). */
 function recurrenceOps(meetings: ActionExecutorDeps['meetings']): MeetingRecurrenceOps {
   const { updateOccurrence, cancelOccurrence, restoreOccurrence } = meetings;
@@ -202,8 +214,9 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
         if (action.changes.participants) {
           newPeople = notYetOn(meeting, action.changes.participants.map((participant) => participant.email));
         }
-        if (meeting && occurrenceTarget(action, meeting) !== null) {
-          // One occurrence: check the moved occurrence's own window (only a start change moves it).
+        if (meeting && (occurrenceTarget(action, meeting) !== null || followingTarget(action, meeting) !== null)) {
+          // One occurrence (or the tail's first occurrence for scope 'following'): check the
+          // moved occurrence's own window (only a start change moves it).
           if (action.changes.startAt !== undefined) {
             const window: TimeWindow = {
               startAt: new Date(action.changes.startAt).toISOString(),
@@ -297,6 +310,31 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
       );
       return { status: 'done', actionId: action.id, type: action.type, meetingIds: [updated.id], duplicate: false };
     }
+    const followingDate = followingTarget(action, current);
+    if (followingDate !== null) {
+      // "This and following": the series is split; the FULL patch lands on the new tail master
+      // (contract v3). A split at the first occurrence collapses to a series update (created null).
+      const { master, created } = await recurrenceOps(deps.meetings).editFollowing(
+        current.id,
+        followingDate,
+        changesToPatch(action.changes, current),
+        { origin: 'ai' },
+      );
+      const target = created ?? master;
+      const result: AiDoneResult = {
+        status: 'done',
+        actionId: action.id,
+        type: action.type,
+        meetingIds: created !== null ? [master.id, created.id] : [master.id],
+        duplicate: false,
+      };
+      if (wantsMeetLink(action.changes.conference) && !target.conference?.url) {
+        const link = await ensureMeetLink(target);
+        result.meetLinkCreated = link.created;
+        result.meetLinkError = link.error;
+      }
+      return result;
+    }
     const updated = await deps.meetings.update(current.id, changesToPatch(action.changes, current), { origin: 'ai' });
     const result: AiDoneResult = { status: 'done', actionId: action.id, type: action.type, meetingIds: [updated.id], duplicate: false };
     if (wantsMeetLink(action.changes.conference) && !updated.conference?.url) {
@@ -314,6 +352,13 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     if (occurrenceDate !== null) {
       // "Delete only this occurrence": a cancelled override; the series stays.
       await recurrenceOps(deps.meetings).cancelOccurrence(current.id, occurrenceDate, { origin: 'ai' });
+      return { status: 'done', actionId: action.id, type: action.type, meetingIds: [current.id], duplicate: false };
+    }
+    const followingDate = followingTarget(action, current);
+    if (followingDate !== null) {
+      // "Delete this and following": the series is truncated the second before the split
+      // occurrence's start; a split at the first occurrence removes the whole series (null).
+      await recurrenceOps(deps.meetings).deleteFollowing(current.id, followingDate, { origin: 'ai' });
       return { status: 'done', actionId: action.id, type: action.type, meetingIds: [current.id], duplicate: false };
     }
     await deps.meetings.remove(current.id, { origin: 'ai' });

@@ -1,9 +1,12 @@
 /**
- * "Edit this occurrence" sheet (v1 override surface, §16): title, date, time and duration of ONE
- * occurrence of a recurring meeting. Saving writes a 'modified' override on the master through
- * MeetingRecurrenceOps.updateOccurrence (origin 'user'); the rest of the series never changes.
- * Rendered by the screens next to MeetingActionsSheet; opened by useMeetingActions().edit when
- * the user picks "This meeting only".
+ * Scoped edit sheet for one occurrence row (§16): title, date, time and duration. Two scopes,
+ * chosen in useMeetingActions().edit:
+ * - 'occurrence' ("This meeting only"): saving writes a 'modified' override on the master through
+ *   MeetingRecurrenceOps.updateOccurrence (origin 'user'); the rest of the series never changes.
+ * - 'following' ("This and following"): saving splits the series at this occurrence through
+ *   MeetingRecurrenceOps.editFollowing; the changes land on the NEW tail series and every earlier
+ *   occurrence keeps its old values.
+ * Rendered by the screens next to MeetingActionsSheet.
  */
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState, type ReactElement } from 'react';
@@ -33,6 +36,13 @@ function updateOccurrenceOp(): MeetingRecurrenceOps['updateOccurrence'] {
   return op.bind(repository);
 }
 
+function editFollowingOp(): MeetingRecurrenceOps['editFollowing'] {
+  const repository = meetingRepository as MeetingRepository & Partial<MeetingRecurrenceOps>;
+  const op = repository.editFollowing;
+  if (!op) throw new AppError('not_implemented', 'Recurring-meeting operations are not available');
+  return op.bind(repository);
+}
+
 export interface OccurrenceEditSheetProps {
   target: OccurrenceEditTarget | null;
   onDismiss(): void;
@@ -41,7 +51,9 @@ export interface OccurrenceEditSheetProps {
 export function OccurrenceEditSheet({ target, onDismiss }: OccurrenceEditSheetProps): ReactElement {
   return (
     <Portal>
-      {target ? <SheetBody key={`${target.entry.id}:${target.localDateKey}`} target={target} onDismiss={onDismiss} /> : null}
+      {target ? (
+        <SheetBody key={`${target.entry.id}:${target.localDateKey}:${target.scope}`} target={target} onDismiss={onDismiss} />
+      ) : null}
     </Portal>
   );
 }
@@ -52,7 +64,7 @@ function SheetBody({ target, onDismiss }: { target: OccurrenceEditTarget; onDism
   const fmt = useFormatters();
   const insets = useSafeAreaInsets();
   const deviceZone = getDeviceTimeZone();
-  const { entry, localDateKey } = target;
+  const { entry, localDateKey, scope } = target;
   const [draft, setDraft] = useState<OccurrenceEditDraft>(() => occurrenceEditDraftOf(entry));
   const [picker, setPicker] = useState<'date' | 'time' | null>(null);
   const [saving, setSaving] = useState(false);
@@ -73,17 +85,24 @@ function SheetBody({ target, onDismiss }: { target: OccurrenceEditTarget; onDism
     if (!valid) return;
     const patch = occurrenceEditPatch(entry, draft);
     if (Object.keys(patch).length === 0) {
+      // Nothing changed: no override to write - and no reason to split the series in two
+      // identical halves for a 'following' edit either.
       onDismiss();
       return;
     }
     setSaving(true);
     try {
-      await updateOccurrenceOp()(entry.id, localDateKey, patch, { origin: 'user' });
-      Toast.show({ type: 'success', text1: t('meetings:occurrence.updated') });
+      if (scope === 'following') {
+        await editFollowingOp()(entry.id, localDateKey, patch, { origin: 'user' });
+        Toast.show({ type: 'success', text1: t('meetings:actions.followingUpdated') });
+      } else {
+        await updateOccurrenceOp()(entry.id, localDateKey, patch, { origin: 'user' });
+        Toast.show({ type: 'success', text1: t('meetings:occurrence.updated') });
+      }
       onDismiss();
     } catch (caught) {
       const error = toAppError(caught);
-      log.warn('could not update an occurrence', error.code);
+      log.warn(scope === 'following' ? 'could not edit this-and-following occurrences' : 'could not update an occurrence', error.code);
       Toast.show({ type: 'error', text1: t(errorMessageKey(error.code)) });
       setSaving(false);
     }
@@ -101,10 +120,14 @@ function SheetBody({ target, onDismiss }: { target: OccurrenceEditTarget; onDism
     >
       <View testID="occurrence-edit-sheet">
         <Text variant="titleMedium" accessibilityRole="header" style={styles.heading}>
-          {t('meetings:occurrence.editTitle')}
+          {scope === 'following' ? t('meetings:actions.scopeFollowing') : t('meetings:occurrence.editTitle')}
         </Text>
         <Text variant="bodySmall" style={[styles.subheading, { color: theme.colors.onSurfaceVariant }]}>
-          {t('meetings:occurrence.editSubtitle', { date: fmt.date(localDateKey, 'long') })}
+          {scope === 'following'
+            ? // Shared recurrence phrasing (ai:recurrence.*): "This and the following occurrences
+              // from <date>" - the same wording the assistant's confirmation cards use.
+              t('ai:recurrence.scopeFollowing', { date: fmt.date(localDateKey, 'long') })
+            : t('meetings:occurrence.editSubtitle', { date: fmt.date(localDateKey, 'long') })}
         </Text>
         <TextInput
           mode="outlined"

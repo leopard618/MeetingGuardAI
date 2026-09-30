@@ -5,14 +5,15 @@
  *
  * Recurring meetings (§16): a row is one OCCURRENCE, so edit and delete first ask the scope -
  * "This meeting only" writes an override on the master (cancelOccurrence / the occurrence edit
- * sheet), "The whole series" edits or soft-deletes the master. One-off meetings keep the old
- * single-step flow. Deletes go through meetingRepository with origin 'user'; success is only
- * reported after the repository resolved.
+ * sheet), "This and following" splits the series at that occurrence (deleteFollowing / the
+ * occurrence edit sheet with scope 'following' -> editFollowing), "The whole series" edits or
+ * soft-deletes the master. One-off meetings keep the old single-step flow. Deletes go through
+ * meetingRepository with origin 'user'; success is only reported after the repository resolved.
  */
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Platform, StyleSheet, View, type AlertButton } from 'react-native';
 import { List, Modal, Portal, Text, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -28,10 +29,15 @@ import type { DisplayMeeting } from '../occurrences';
 
 const log = createLogger('meetings');
 
-/** An occurrence row whose "This meeting only" edit is open in the occurrence sheet. */
+/**
+ * An occurrence row whose scoped edit is open in the occurrence sheet: "This meeting only"
+ * (scope 'occurrence' -> updateOccurrence) or "This and following" (scope 'following' ->
+ * editFollowing; the sheet's changes land on the new tail series, §16).
+ */
 export interface OccurrenceEditTarget {
   entry: DisplayMeeting;
   localDateKey: string;
+  scope: 'occurrence' | 'following';
 }
 
 export interface MeetingActions {
@@ -53,10 +59,26 @@ export interface MeetingActions {
  */
 function recurrenceOps(): MeetingRecurrenceOps {
   const repository = meetingRepository as MeetingRepository & Partial<MeetingRecurrenceOps>;
-  if (!repository.cancelOccurrence || !repository.updateOccurrence || !repository.restoreOccurrence) {
+  if (
+    !repository.cancelOccurrence ||
+    !repository.updateOccurrence ||
+    !repository.restoreOccurrence ||
+    !repository.editFollowing ||
+    !repository.deleteFollowing
+  ) {
     throw new AppError('not_implemented', 'Recurring-meeting operations are not available');
   }
   return repository as MeetingRepository & MeetingRecurrenceOps;
+}
+
+/**
+ * Buttons of the occurrence/series scope dialogs. Android shows AT MOST three alert buttons, so
+ * the three scope choices leave no room for an explicit Cancel there: the dialog is dismissed by
+ * tapping outside or the back button (`cancelable: true`). iOS alerts cannot be dismissed that
+ * way and stack any number of buttons, so iOS keeps the Cancel button.
+ */
+export function scopeDialogButtons(cancelText: string, scopeButtons: AlertButton[]): AlertButton[] {
+  return Platform.OS === 'ios' ? [{ text: cancelText, style: 'cancel' }, ...scopeButtons] : scopeButtons;
 }
 
 /** The confirmation text for a delete (what happens in the connected calendars / the series). */
@@ -102,14 +124,18 @@ export function useMeetingActions(): MeetingActions {
       Alert.alert(
         t('meetings:actions.scopeEditTitle'),
         t('meetings:actions.scopeEditMessage', { title: meeting.title, date: fmt.date(occurrence.localDateKey, 'long') }),
-        [
-          { text: t('common:actions.cancel'), style: 'cancel' },
+        scopeDialogButtons(t('common:actions.cancel'), [
           {
             text: t('meetings:actions.scopeThisOnly'),
-            onPress: () => setOccurrenceEdit({ entry: meeting, localDateKey: occurrence.localDateKey }),
+            onPress: () => setOccurrenceEdit({ entry: meeting, localDateKey: occurrence.localDateKey, scope: 'occurrence' }),
+          },
+          {
+            text: t('meetings:actions.scopeFollowing'),
+            onPress: () => setOccurrenceEdit({ entry: meeting, localDateKey: occurrence.localDateKey, scope: 'following' }),
           },
           { text: t('meetings:actions.scopeWholeSeries'), onPress: () => editSeries(meeting) },
-        ],
+        ]),
+        { cancelable: true },
       );
     },
     [t, fmt, editSeries],
@@ -153,6 +179,25 @@ export function useMeetingActions(): MeetingActions {
     [t],
   );
 
+  const removeFollowing = useCallback(
+    async (meeting: DisplayMeeting, localDateKey: string): Promise<void> => {
+      setDeletingId(meeting.id);
+      try {
+        // Truncates the series before this occurrence (§16); from the FIRST occurrence it
+        // removes the whole series (deleteFollowing resolves null) - the toast fits both.
+        await recurrenceOps().deleteFollowing(meeting.id, localDateKey, { origin: 'user' });
+        Toast.show({ type: 'success', text1: t('meetings:actions.followingDeleted') });
+      } catch (caught) {
+        const error = toAppError(caught);
+        log.warn('could not delete this-and-following occurrences', error.code);
+        Toast.show({ type: 'error', text1: t(errorMessageKey(error.code)) });
+      } finally {
+        if (mounted.current) setDeletingId(null);
+      }
+    },
+    [t],
+  );
+
   const confirmDelete = useCallback(
     (meeting: DisplayMeeting) => {
       const occurrence = meeting.occurrence;
@@ -160,19 +205,24 @@ export function useMeetingActions(): MeetingActions {
         Alert.alert(
           t('meetings:actions.scopeDeleteTitle'),
           t('meetings:actions.scopeDeleteMessage', { title: meeting.title, date: fmt.date(occurrence.localDateKey, 'long') }),
-          [
-            { text: t('common:actions.cancel'), style: 'cancel' },
+          scopeDialogButtons(t('common:actions.cancel'), [
             {
               text: t('meetings:actions.scopeThisOnly'),
               style: 'destructive',
               onPress: () => void removeOccurrence(meeting, occurrence.localDateKey),
             },
             {
+              text: t('meetings:actions.scopeFollowing'),
+              style: 'destructive',
+              onPress: () => void removeFollowing(meeting, occurrence.localDateKey),
+            },
+            {
               text: t('meetings:actions.scopeWholeSeries'),
               style: 'destructive',
               onPress: () => void removeSeries(meeting),
             },
-          ],
+          ]),
+          { cancelable: true },
         );
         return;
       }
@@ -181,7 +231,7 @@ export function useMeetingActions(): MeetingActions {
         { text: t('meetings:details.delete'), style: 'destructive', onPress: () => void removeSeries(meeting) },
       ]);
     },
-    [t, fmt, removeSeries, removeOccurrence],
+    [t, fmt, removeSeries, removeOccurrence, removeFollowing],
   );
 
   const dismissOccurrenceEdit = useCallback(() => setOccurrenceEdit(null), []);

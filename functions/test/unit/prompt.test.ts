@@ -55,6 +55,8 @@ describe('system prompt', () => {
     expect(prompt).toContain('freq daily|weekly|monthly');
     expect(prompt).toContain('`recurring: true`');
     expect(prompt).toContain('"occurrence" with occurrence_date');
+    expect(prompt).toContain('"following" with occurrence_date');
+    expect(prompt).toContain('"following" updates take the full change surface');
     expect(prompt).toContain('ask which one before calling the tool');
     expect(prompt).not.toContain('not supported');
   });

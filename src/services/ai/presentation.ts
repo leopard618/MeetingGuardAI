@@ -318,6 +318,19 @@ export function isOccurrenceDelete(action: DeleteMeetingAction, targetMeeting: M
   return action.scope === 'occurrence' && action.occurrenceDate != null && targetMeeting?.recurrence != null;
 }
 
+/**
+ * The warning line of a delete card: scoped deletes of a recurring meeting keep part of the
+ * series, so they must not claim the whole meeting disappears. `synced` = the meeting is linked
+ * to Google or the device calendar (the whole-meeting warning then mentions the removal there).
+ */
+export function deleteWarningKey(action: DeleteMeetingAction, targetMeeting: Meeting | null, synced: boolean): string {
+  if (isOccurrenceDelete(action, targetMeeting)) return 'ai:confirm.deleteOccurrenceWarning';
+  if (action.scope === 'following' && action.occurrenceDate != null && targetMeeting?.recurrence != null) {
+    return 'ai:confirm.deleteFollowingWarning';
+  }
+  return synced ? 'ai:confirm.deleteWarningSynced' : 'ai:confirm.deleteWarning';
+}
+
 export function describeBulk(fmt: AssistantFormatter, action: BulkUpdateAction, meetings: readonly Meeting[]): BulkDescription {
   const changes: string[] = [];
   if (action.shiftMinutes !== null) changes.push(formatShift(fmt, action.shiftMinutes));

@@ -109,11 +109,11 @@ const recurrenceSchema = object({
 });
 const SCOPE = enumeration(
   RECURRENCE_EDIT_SCOPES,
-  'For a repeating meeting: "occurrence" changes/deletes only the one occurrence at occurrence_date; "series" applies to the whole series. Ask the user which one they mean when it is ambiguous.',
+  'For a repeating meeting: "occurrence" changes/deletes only the one occurrence at occurrence_date; "following" changes/deletes that occurrence AND every later one (earlier occurrences stay); "series" applies to the whole series. Ask the user which one they mean when it is ambiguous.',
 );
 const nullableScope: JsonSchema = { anyOf: [SCOPE, { type: 'null' }], description: 'Null (or "series") for one-off meetings and whole-series changes.' };
 const OCCURRENCE_DATE = nullableString(
-  'With scope "occurrence": the ORIGINAL local date "YYYY-MM-DD" of that occurrence (from the meeting\'s repeats info), even when moving it to another day. Null otherwise.',
+  'With scope "occurrence" or "following": the ORIGINAL local date "YYYY-MM-DD" of that occurrence (from the meeting\'s repeats info), even when moving it to another day. For "following" it is the FIRST occurrence that changes. Null otherwise.',
 );
 
 function meetingChangesSchema(options: { includeSchedule: boolean; includeTextAndPeople: boolean }): JsonSchema {
@@ -127,7 +127,7 @@ function meetingChangesSchema(options: { includeSchedule: boolean; includeTextAn
     properties.time = nullableString(`New ${TIME} Null keeps the current time.`);
     properties.all_day = nullableBoolean('Set true/false to change whether it is an all-day meeting, or null.');
     properties.timezone = nullableString('New IANA time zone of the meeting, only if the user explicitly asks; otherwise null.');
-    properties.recurrence = nullable(recurrenceSchema, 'New repeat rule for the whole series, or null to keep the current one. Only with scope "series".');
+    properties.recurrence = nullable(recurrenceSchema, 'New repeat rule, or null to keep the current one. With scope "series" it replaces the whole series\' rule; with scope "following" it applies from occurrence_date on. Never with scope "occurrence".');
     properties.clear_recurrence = boolean('true only if the user wants the meeting to stop repeating (it becomes a single meeting).');
   }
   properties.duration_minutes = nullableInteger('New duration in minutes, or null to keep it.');
@@ -182,7 +182,7 @@ export const ASSISTANT_TOOLS: readonly ToolDefinition[] = [
     function: {
       name: TOOL_NAMES.update,
       description:
-        'Propose changing one existing meeting. Only the fields in `changes` that are not null change. For a repeating meeting, scope "occurrence" (with occurrence_date) changes just that occurrence: then only date, time, duration_minutes and title may change.',
+        'Propose changing one existing meeting. Only the fields in `changes` that are not null change. For a repeating meeting, scope "occurrence" (with occurrence_date) changes just that occurrence: then only date, time, duration_minutes and title may change. Scope "following" (with occurrence_date) changes that occurrence and every later one, with the full change surface.',
       strict: true,
       parameters: object({
         meeting_ref: MEETING_REF,
@@ -199,7 +199,7 @@ export const ASSISTANT_TOOLS: readonly ToolDefinition[] = [
     function: {
       name: TOOL_NAMES.delete,
       description:
-        'Propose deleting one existing meeting (or, with scope "occurrence", cancelling a single occurrence of a repeating meeting).',
+        'Propose deleting one existing meeting (with scope "occurrence": cancelling a single occurrence of a repeating meeting; with scope "following": ending the series before occurrence_date so that occurrence and every later one disappear).',
       strict: true,
       parameters: object({
         meeting_ref: MEETING_REF,

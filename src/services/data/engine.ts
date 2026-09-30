@@ -26,7 +26,7 @@ import type {
   SyncState,
   UserRepository,
 } from '../../core/contracts';
-import { AppError, notImplemented, toAppError, type AppErrorCode } from '../../core/errors';
+import { AppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { appEvents, type AppEventMap, type EventBus, type Unsubscribe, type WriteOrigin } from '../../core/events';
 import { ALERT_HORIZON_DAYS, firestorePaths, LEGACY_DATA_KEY, PREFERENCES_DOC_ID } from '../../core/identifiers';
 import { createLogger } from '../../core/logger';
@@ -81,7 +81,7 @@ import {
   type ReadContext,
 } from './mapping';
 import { planLegacyMigration, removeLegacyKeys } from './migration';
-import { recurrenceEndsAt } from '../../core/recurrence';
+import { recurrenceEndsAt, splitRecurrenceAt, type SeriesSplit } from '../../core/recurrence';
 import { isSeriesOccurrenceDate } from './recurrence';
 import {
   ackEntry,
@@ -1768,29 +1768,163 @@ export class DataEngine {
   }
 
   /**
-   * STUB (recscope pass, §16 "this and following"): splits the series at `fromDateKey` via
-   * core splitRecurrenceAt - truncated master + NEW tail meeting with `patch` applied
-   * (contract: MeetingRecurrenceOps.editFollowing in src/core/contracts.ts).
+   * The tail of a series split ("this and following", §16): a NEW meeting anchored at the split
+   * occurrence's ORIGINAL start with every content field copied from the master and the remaining
+   * rule/overrides from core `splitRecurrenceAt`. External refs are NEVER copied (the tail must be
+   * INSERTED into Google as a brand-new series event, `googleEventIdForMeeting(newId)`), and a
+   * Google-imported master's tail becomes source 'manual': it is a locally created document now,
+   * and the Google push refuses source 'google' without an event id.
+   */
+  private buildFollowingTail(s: Session, master: Meeting, split: SeriesSplit, tailId: string): Meeting {
+    const input: MeetingCreateInput = {
+      title: master.title,
+      startAt: split.tailStartAt,
+      source: master.source === 'google' ? 'manual' : master.source,
+      description: master.description,
+      durationMinutes: master.durationMinutes,
+      timezone: master.timezone,
+      allDay: master.allDay,
+      location: master.location,
+      conference: master.conference,
+      participants: master.participants,
+      confidence: master.confidence,
+      language: master.language,
+      preparationTips: master.preparationTips,
+      customAlertTimes: master.customAlertTimes,
+      alertIntensity: master.alertIntensity,
+      notes: master.notes,
+      status: master.status,
+      recurrence: split.tailRule,
+      recurrenceOverrides: split.tailOverrides,
+      // seriesId defaults to the tail's own id: series identity is not shared across the split.
+    };
+    return buildMeeting(input, {
+      id: tailId,
+      userId: s.uid,
+      now: this.now(),
+      defaultTimezone: this.timeZone(),
+      defaultLanguage: this.language(),
+    });
+  }
+
+  /**
+   * MeetingRecurrenceOps.editFollowing (§16 "this and following"): splits the series at
+   * `fromDateKey` via core `splitRecurrenceAt` - the master is truncated (rule.until = 1 s before
+   * the split occurrence's original start, count converted, overrides < split kept) and a NEW
+   * tail meeting (overrides >= split moved over, remaining rule) is created with `patch` applied
+   * to it. Both documents go through ONE localWrite (one cache + outbox persist), so an offline
+   * kill never leaves a truncated master without its tail. A split at the FIRST occurrence
+   * collapses to a plain series update (`created` null). `options.id` (idempotent creates) names
+   * the tail's id.
    */
   async editFollowing(
     id: string,
     fromDateKey: string,
     patch: MeetingPatch,
-    options: { origin?: WriteOrigin } = {},
+    options: { origin?: WriteOrigin; id?: string } = {},
   ): Promise<{ master: Meeting; created: Meeting | null }> {
-    void id;
-    void fromDateKey;
-    void patch;
-    void options;
-    throw notImplemented('meetingRepository.editFollowing');
+    const s = await this.readySession();
+    const origin = options.origin ?? 'user';
+    if (options.id !== undefined && !isValidDocumentId(options.id)) {
+      throw new AppError('invalid_input', 'Invalid meeting id');
+    }
+    let wroteMaster = false;
+    let wroteTail = false;
+    const outcome = await this.localWrite<{ master: Meeting; created: Meeting | null }>(s, () => {
+      const current = s.meetings.get(id);
+      if (!current || current.deletedAt !== null) throw new AppError('not_found', 'Meeting not found');
+      const split = splitRecurrenceAt(current, fromDateKey); // throws invalid_input as the contract requires
+      if (split === 'series_edit') {
+        // "This and following" from the first occurrence is the whole series: plain update.
+        const next = applyMeetingPatch(current, patch, nextTimestamp(this.now(), current.updatedAt));
+        const { updatedAt: _a, ...nextRest } = next;
+        const { updatedAt: _b, ...currentRest } = current;
+        if (deepEqual(nextRest, currentRest)) return { result: { master: current, created: null }, change: null };
+        wroteMaster = true;
+        return {
+          result: { master: next, created: null },
+          change: {
+            meetings: [next],
+            writes: [{ kind: 'meeting', docId: id, mode: 'set', data: meetingToDoc(next) as unknown as RemoteData, updatedAt: next.updatedAt, origin }],
+          },
+        };
+      }
+      if (options.id !== undefined && s.meetings.has(options.id)) {
+        throw new AppError('conflict', 'A meeting already uses this id');
+      }
+      const nextMaster = applyMeetingPatch(
+        current,
+        { recurrence: split.masterRule, recurrenceOverrides: split.masterOverrides },
+        nextTimestamp(this.now(), current.updatedAt),
+      );
+      const tailId = options.id ?? this.remote.newId(firestorePaths.meetings(s.uid));
+      const built = this.buildFollowingTail(s, current, split, tailId);
+      // The patch lands on the tail only (it edits the new series master); it is validated by
+      // applyMeetingPatch BEFORE anything is persisted, so an invalid patch changes nothing.
+      const tail = Object.keys(patch).length > 0 ? applyMeetingPatch(built, patch, built.updatedAt) : built;
+      wroteMaster = true;
+      wroteTail = true;
+      return {
+        result: { master: nextMaster, created: tail },
+        change: {
+          meetings: [nextMaster, tail],
+          writes: [
+            { kind: 'meeting', docId: id, mode: 'set', data: meetingToDoc(nextMaster) as unknown as RemoteData, updatedAt: nextMaster.updatedAt, origin },
+            { kind: 'meeting', docId: tailId, mode: 'create', data: meetingToDoc(tail) as unknown as RemoteData, updatedAt: tail.updatedAt, origin },
+          ],
+        },
+      };
+    });
+    if (wroteMaster) this.afterMeetingWrite(s, [id], 'updated', origin);
+    if (wroteTail && outcome.created !== null) this.afterMeetingWrite(s, [outcome.created.id], 'created', origin);
+    return outcome;
   }
 
-  /** STUB (recscope pass, §16): truncates the series at `fromDateKey` (MeetingRecurrenceOps.deleteFollowing). */
+  /**
+   * MeetingRecurrenceOps.deleteFollowing (§16): truncates the series at `fromDateKey` exactly
+   * like editFollowing but creates nothing - the split occurrence and everything after it
+   * disappear, earlier occurrences and their overrides stay. A split at the FIRST occurrence
+   * collapses to a plain series remove() and resolves null.
+   */
   async deleteFollowing(id: string, fromDateKey: string, options: { origin?: WriteOrigin } = {}): Promise<Meeting | null> {
-    void id;
-    void fromDateKey;
-    void options;
-    throw notImplemented('meetingRepository.deleteFollowing');
+    const s = await this.readySession();
+    const origin = options.origin ?? 'user';
+    let removedSeries = false;
+    let truncated = false;
+    const outcome = await this.localWrite<Meeting | null>(s, () => {
+      const current = s.meetings.get(id);
+      if (!current || current.deletedAt !== null) throw new AppError('not_found', 'Meeting not found');
+      const split = splitRecurrenceAt(current, fromDateKey); // throws invalid_input as the contract requires
+      if (split === 'series_edit') {
+        const tombstone = tombstoneMeeting(current, nextTimestamp(this.now(), current.updatedAt));
+        removedSeries = true;
+        return {
+          result: null,
+          change: {
+            meetings: [tombstone],
+            writes: [
+              { kind: 'meeting', docId: id, mode: 'set', data: meetingToDoc(tombstone) as unknown as RemoteData, updatedAt: tombstone.updatedAt, origin },
+            ],
+          },
+        };
+      }
+      const next = applyMeetingPatch(
+        current,
+        { recurrence: split.masterRule, recurrenceOverrides: split.masterOverrides },
+        nextTimestamp(this.now(), current.updatedAt),
+      );
+      truncated = true;
+      return {
+        result: next,
+        change: {
+          meetings: [next],
+          writes: [{ kind: 'meeting', docId: id, mode: 'set', data: meetingToDoc(next) as unknown as RemoteData, updatedAt: next.updatedAt, origin }],
+        },
+      };
+    });
+    if (removedSeries) this.afterMeetingWrite(s, [id], 'deleted', origin);
+    if (truncated) this.afterMeetingWrite(s, [id], 'updated', origin);
+    return outcome;
   }
 
   private afterMeetingWrite(s: Session, ids: string[], reason: 'created' | 'updated' | 'deleted' | 'imported', origin: WriteOrigin): void {

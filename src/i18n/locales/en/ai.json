@@ -120,7 +120,8 @@
     "skippedAllDay": "All-day meeting: it can only move by whole days, so it will be left as is.",
     "a11yBefore": "Before: {{value}}",
     "a11yAfter": "After: {{value}}",
-    "deleteOccurrenceWarning": "Only this occurrence is removed. The rest of the series stays."
+    "deleteOccurrenceWarning": "Only this occurrence is removed. The rest of the series stays.",
+    "deleteFollowingWarning": "This and every later occurrence are removed. Earlier occurrences stay."
   },
   "fields": {
     "title": "Title",

@@ -15,6 +15,7 @@ import {
   buildMailtoUrl,
   buildShareContent,
   computeUpdateDiff,
+  deleteWarningKey,
   describeAssistantError,
   describeBulk,
   describeChangeRows,
@@ -279,6 +280,35 @@ describe('recurrence on the cards (v2)', () => {
     expect(isOccurrenceDelete(occurrenceDelete, meeting)).toBe(true);
     expect(isOccurrenceDelete(occurrenceDelete, makeMeeting('single'))).toBe(false);
     expect(isOccurrenceDelete(deleteAction('a5', 'series'), meeting)).toBe(false);
+  });
+
+  it('spells out the following scope (v3) and picks the honest delete warning', () => {
+    const meeting = makeMeeting('series', { recurrence: rule });
+    const followingUpdate = {
+      ...updateAction('a6', 'series', { title: 'x' }),
+      scope: 'following' as const,
+      occurrenceDate: '2030-03-18',
+    };
+    expect(describeScopeRow(fmt, followingUpdate, meeting)).toEqual(
+      expect.objectContaining({ field: 'scope', value: 'This and the following occurrences from 2030-03-18' }),
+    );
+
+    const followingDelete = { ...deleteAction('a7', 'series'), scope: 'following' as const, occurrenceDate: '2030-03-18' };
+    // A following delete keeps the earlier occurrences: never the whole-meeting warning.
+    expect(deleteWarningKey(followingDelete, meeting, true)).toBe('ai:confirm.deleteFollowingWarning');
+    expect(deleteWarningKey(followingDelete, meeting, false)).toBe('ai:confirm.deleteFollowingWarning');
+    // On a one-off the scope is ignored: the plain warnings return.
+    expect(deleteWarningKey(followingDelete, makeMeeting('single'), false)).toBe('ai:confirm.deleteWarning');
+    expect(deleteWarningKey(followingDelete, makeMeeting('single'), true)).toBe('ai:confirm.deleteWarningSynced');
+    const occurrenceDelete = { ...deleteAction('a8', 'series'), scope: 'occurrence' as const, occurrenceDate: '2030-03-18' };
+    expect(deleteWarningKey(occurrenceDelete, meeting, true)).toBe('ai:confirm.deleteOccurrenceWarning');
+    expect(deleteWarningKey(deleteAction('a9', 'series'), meeting, false)).toBe('ai:confirm.deleteWarning');
+
+    // The keys exist in both languages (the translator throws on unknown keys).
+    for (const key of ['ai:confirm.deleteFollowingWarning'] as const) {
+      expect(typeof createTranslator('en')(key)).toBe('string');
+      expect(typeof createTranslator('es')(key)).toBe('string');
+    }
   });
 
   it('reads naturally in Spanish', () => {
