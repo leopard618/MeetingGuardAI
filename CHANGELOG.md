@@ -15,15 +15,17 @@ needs a new store/APK build and must never ship as an OTA update onto a 1.1.0 bi
 
 ### Draft store release notes
 
-- **EN:** New MeetingGuard AI: alerts that work even when the app is closed, two-way Google Calendar
-  sync, phone calendars, a smarter AI assistant that always asks before changing anything, notes, and
-  instant English/Spanish switching. Please sign in again with Google. Your meetings from the previous
+- **EN:** New MeetingGuard AI: alerts that work even when the app is closed - including full-screen
+  alarms over the lock screen on Android - recurring meetings, two-way Google Calendar sync, phone
+  calendars, a smarter AI assistant that always asks before changing anything, notes, and instant
+  English/Spanish switching. Please sign in again with Google. Your meetings from the previous
   version are imported automatically.
-- **ES:** Nuevo MeetingGuard AI: alertas que funcionan incluso con la app cerrada, sincronización en
-  ambos sentidos con Google Calendar, calendarios del teléfono, un asistente de IA más inteligente que
-  siempre pide confirmación antes de cambiar algo, notas y cambio instantáneo entre inglés y español.
-  Vuelve a iniciar sesión con Google. Tus reuniones de la versión anterior se importan
-  automáticamente.
+- **ES:** Nuevo MeetingGuard AI: alertas que funcionan incluso con la app cerrada - incluidas
+  alarmas a pantalla completa sobre la pantalla de bloqueo en Android - reuniones recurrentes,
+  sincronización en ambos sentidos con Google Calendar, calendarios del teléfono, un asistente de IA
+  más inteligente que siempre pide confirmación antes de cambiar algo, notas y cambio instantáneo
+  entre inglés y español. Vuelve a iniciar sesión con Google. Tus reuniones de la versión anterior se
+  importan automáticamente.
 
 ### Added
 
