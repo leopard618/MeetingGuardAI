@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<!--
+  MeetingGuard AI - admin dashboard (build-free: plain ES modules + Firebase JS SDK from the
+  gstatic CDN). Served by Firebase Hosting at /admin/ (docs/ADMIN.md). English only by design:
+  this is an internal operations tool, not a user-facing surface.
+
+  Every callable it uses requires the `admin: true` custom claim
+  (functions/scripts/set-admin-claim.mjs); the page itself only decides what to SHOW.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MeetingGuard AI — Admin</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+  <script type="module" src="/admin/admin.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">MG</span>
+      <span class="brand-name">MeetingGuard AI <span class="admin-tag">Admin</span></span>
+    </div>
+    <div class="session" id="session" hidden>
+      <span id="session-email" class="muted"></span>
+      <button id="sign-out" class="btn btn-ghost" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Boot / configuration -->
+    <section id="view-loading" class="center-view">
+      <p role="status">Loading…</p>
+    </section>
+
+    <section id="view-config-error" class="center-view" hidden>
+      <div class="card narrow">
+        <h1>Configuration not found</h1>
+        <p>The Firebase web configuration could not be loaded from <code>/__/firebase/init.json</code>.</p>
+        <p class="muted">Open this page through Firebase Hosting (deployed site or
+          <code>firebase emulators:start --only hosting</code>). Opening the file directly
+          (<code>file://</code>) needs a local <code>config.js</code> — see docs/ADMIN.md.</p>
+        <p id="config-error-detail" class="muted"></p>
+      </div>
+    </section>
+
+    <!-- Sign-in -->
+    <section id="view-sign-in" class="center-view" hidden>
+      <div class="card narrow">
+        <h1>Administration</h1>
+        <p class="muted">Sign in with an administrator Google account to continue.</p>
+        <button id="sign-in" class="btn btn-primary" type="button">Sign in with Google</button>
+        <p id="sign-in-error" class="error-text" role="alert" hidden></p>
+      </div>
+    </section>
+
+    <!-- Signed in, but no admin claim -->
+    <section id="view-not-admin" class="center-view" hidden>
+      <div class="card narrow">
+        <h1>Not an administrator</h1>
+        <p><span id="not-admin-email" class="strong"></span> is signed in, but this account has no
+          admin access.</p>
+        <p class="muted">Admin access is granted with
+          <code>node scripts/set-admin-claim.mjs &lt;uid-or-email&gt;</code> (from
+          <code>functions/</code>). After it is granted, sign out and sign in again.</p>
+        <button id="not-admin-sign-out" class="btn btn-primary" type="button">Sign out</button>
+      </div>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="view-dashboard" hidden>
+      <section class="panel" aria-labelledby="metrics-heading">
+        <div class="panel-head">
+          <h2 id="metrics-heading">Metrics</h2>
+          <button id="metrics-refresh" class="btn btn-ghost" type="button">Refresh</button>
+        </div>
+        <div class="cards" id="metrics-cards">
+          <div class="card metric"><span class="metric-value" id="metric-total">–</span><span class="metric-label">Total users</span></div>
+          <div class="card metric"><span class="metric-value" id="metric-free">–</span><span class="metric-label">Free</span></div>
+          <div class="card metric"><span class="metric-value" id="metric-pro">–</span><span class="metric-label">Pro</span></div>
+          <div class="card metric"><span class="metric-value" id="metric-premium">–</span><span class="metric-label">Premium</span></div>
+          <div class="card metric"><span class="metric-value" id="metric-ai-today">–</span><span class="metric-label">AI requests today</span></div>
+          <div class="card metric"><span class="metric-value" id="metric-ai-week">–</span><span class="metric-label">AI requests, 7 days</span></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="users-heading">
+        <div class="panel-head">
+          <h2 id="users-heading">Users</h2>
+          <div class="search-wrap">
+            <label class="sr-only" for="user-search">Search loaded users</label>
+            <input id="user-search" type="search" placeholder="Search email, name or uid" autocomplete="off">
+          </div>
+        </div>
+        <p class="muted small">Search filters the pages loaded so far; use “Load more” to fetch further pages.</p>
+        <div class="table-wrap">
+          <table aria-describedby="users-heading">
+            <thead>
+              <tr>
+                <th scope="col">User</th>
+                <th scope="col">Plan</th>
+                <th scope="col">AI today</th>
+                <th scope="col">Created</th>
+                <th scope="col">Last sign-in</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody id="users-body"></tbody>
+          </table>
+        </div>
+        <p id="users-empty" class="muted center" hidden>No users match.</p>
+        <div class="table-foot">
+          <button id="users-load-more" class="btn btn-ghost" type="button" hidden>Load more</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

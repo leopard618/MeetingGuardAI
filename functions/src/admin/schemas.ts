@@ -51,6 +51,9 @@ export const listUsersResponseSchema = z.object({
   nextPageToken: z.string().nullable(),
 });
 
+export type AdminUserRow = z.infer<typeof adminUserRowSchema>;
+export type ListUsersResponse = z.infer<typeof listUsersResponseSchema>;
+
 // ---- adminSetUserDisabled --------------------------------------------------------------------
 
 export const setUserDisabledRequestSchema = z.object({
@@ -60,6 +63,8 @@ export const setUserDisabledRequestSchema = z.object({
 
 /** Disabling also revokes refresh tokens, so open sessions die within an hour. */
 export const setUserDisabledResponseSchema = z.object({ uid: uidSchema, disabled: z.boolean() });
+
+export type SetUserDisabledResponse = z.infer<typeof setUserDisabledResponseSchema>;
 
 // ---- adminSetUserPlan ------------------------------------------------------------------------
 
@@ -77,6 +82,8 @@ export const setUserPlanRequestSchema = z.object({
  */
 export const setUserPlanResponseSchema = z.object({ uid: uidSchema, plan: z.enum(PLANS) });
 
+export type SetUserPlanResponse = z.infer<typeof setUserPlanResponseSchema>;
+
 // ---- adminGetMetrics -------------------------------------------------------------------------
 
 export const getMetricsRequestSchema = z.object({}).optional().nullable();
@@ -92,3 +99,5 @@ export const getMetricsResponseSchema = z.object({
    */
   assistantRequests: z.object({ today: z.number().int().min(0), last7Days: z.number().int().min(0) }),
 });
+
+export type GetMetricsResponse = z.infer<typeof getMetricsResponseSchema>;
