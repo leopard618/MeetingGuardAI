@@ -68,6 +68,72 @@ export function tokensSeries(days) {
   ];
 }
 
+// ---- Visual pure helpers (v3 redesign: avatars, smooth chart paths, donut geometry) ----------
+
+/** Stable 0..7 hue bucket for avatar classes (.av-0 ... .av-7): sum of char codes mod 8. */
+export function avatarIndex(seed) {
+  const s = String(seed ?? '');
+  let sum = 0;
+  for (let i = 0; i < s.length; i += 1) sum += s.charCodeAt(i);
+  return sum % 8;
+}
+
+const r2 = (v) => String(Math.round(v * 100) / 100);
+
+/**
+ * Monotone-cubic SVG path through pixel points [{x, y}] (Fritsch-Carlson style tangents:
+ * harmonic mean on same-sign neighbor slopes, 0 at local extrema), so the smooth curve never
+ * overshoots the data values. Returns a path `d` string; '' for no points.
+ */
+export function monotonePath(points) {
+  const pts = (points ?? [])
+    .filter((p) => Number.isFinite(Number(p?.x)) && Number.isFinite(Number(p?.y)))
+    .map((p) => ({ x: Number(p.x), y: Number(p.y) }));
+  const n = pts.length;
+  if (n === 0) return '';
+  if (n === 1) return `M${r2(pts[0].x)},${r2(pts[0].y)}`;
+  const slopes = [];
+  for (let i = 0; i < n - 1; i += 1) {
+    const dx = pts[i + 1].x - pts[i].x;
+    slopes.push(dx === 0 ? 0 : (pts[i + 1].y - pts[i].y) / dx);
+  }
+  const tangents = [slopes[0]];
+  for (let i = 1; i < n - 1; i += 1) {
+    const a = slopes[i - 1];
+    const b = slopes[i];
+    tangents.push(a * b <= 0 ? 0 : (2 * a * b) / (a + b));
+  }
+  tangents.push(slopes[n - 2]);
+  let d = `M${r2(pts[0].x)},${r2(pts[0].y)}`;
+  for (let i = 0; i < n - 1; i += 1) {
+    const third = (pts[i + 1].x - pts[i].x) / 3;
+    d += `C${r2(pts[i].x + third)},${r2(pts[i].y + tangents[i] * third)}`
+      + `,${r2(pts[i + 1].x - third)},${r2(pts[i + 1].y - tangents[i + 1] * third)}`
+      + `,${r2(pts[i + 1].x)},${r2(pts[i + 1].y)}`;
+  }
+  return d;
+}
+
+/**
+ * Donut ring geometry: values -> [{ frac, offset }] where frac is the segment's share of the
+ * total and offset the cumulative share before it (both 0..1). Non-finite/negative values count
+ * as 0; a zero total yields all-zero fracs (the renderer shows the empty track).
+ */
+export function donutSegments(values) {
+  const nums = (values ?? []).map((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  });
+  const total = nums.reduce((sum, v) => sum + v, 0);
+  let acc = 0;
+  return nums.map((v) => {
+    const frac = total > 0 ? v / total : 0;
+    const seg = { frac, offset: acc };
+    acc += frac;
+    return seg;
+  });
+}
+
 // ---- Callable error mapping ------------------------------------------------------------------
 
 /** 'functions/<code>' -> '<code>'; unknown shapes degrade to 'unknown'. */

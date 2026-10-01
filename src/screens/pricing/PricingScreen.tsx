@@ -457,7 +457,19 @@ export function PricingScreen(): ReactElement {
 
   const header = (
     <View style={columnStyle}>
-      {!configured ? (
+      {!configured && plan !== 'free' ? (
+        // An admin-granted paid plan with purchases still closed: confirm the plan instead of the
+        // Free-oriented "coming soon" warning (which would wrongly imply the user is on Free).
+        <View style={[styles.banner, { backgroundColor: colors.successContainer }]} testID="pricing-granted-banner">
+          <Ionicons name="checkmark-circle-outline" size={componentMetrics.iconInline} color={colors.onSuccessContainer} accessibilityElementsHidden importantForAccessibility="no" />
+          <View style={styles.bannerText}>
+            <Text style={[styles.bannerTitle, { color: colors.onSuccessContainer }]} accessibilityRole="header">
+              {t('pricing:grantedTitle', { plan: t(`pricing:plans.${plan}.name`) })}
+            </Text>
+            <Text style={[styles.body, { color: colors.onSuccessContainer }]}>{t('pricing:grantedBody')}</Text>
+          </View>
+        </View>
+      ) : !configured ? (
         <View style={[styles.banner, { backgroundColor: colors.warningContainer }]} testID="pricing-coming-soon-banner">
           <Ionicons name="time-outline" size={componentMetrics.iconInline} color={colors.onWarningContainer} accessibilityElementsHidden importantForAccessibility="no" />
           <View style={styles.bannerText}>

@@ -78,5 +78,7 @@
   "planChanged": {
     "title": "Plan actualizado",
     "body": "Tu plan ahora es {{plan}}"
-  }
+  },
+  "grantedTitle": "Tu plan {{plan}} esta activo",
+  "grantedBody": "Las compras aun no estan abiertas; este plan fue asignado directamente a tu cuenta. Todas sus funciones estan disponibles."
 }

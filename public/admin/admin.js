@@ -24,8 +24,9 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 
-import { renderBarChart, renderLineChart } from './chart.js';
+import { renderBarChart, renderDonutChart, renderLineChart, renderSparkline } from './chart.js';
 import {
+  avatarIndex,
   callableErrorMessage,
   dateOnly,
   formatCompact,
@@ -59,6 +60,68 @@ function el(tag, className, text) {
   return node;
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Inline SVG glyph (stroke icon) for toasts and empty/error chart states. CSP-safe: no markup
+ *  strings, no style attributes - everything is created with createElementNS. */
+const GLYPH_PATHS = {
+  check: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M8.5 12.5l2.5 2.5 4.5-5'],
+  warning: ['M12 3l10 18H2L12 3z', 'M12 10v5', 'M12 18.5v.5'],
+  chart: ['M4 19V5', 'M4 19h16', 'M8 15l3-4 3 2 4-6'],
+};
+
+function glyph(name, className, size) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', className);
+  if (size) {
+    svg.setAttribute('width', String(size));
+    svg.setAttribute('height', String(size));
+  }
+  for (const d of GLYPH_PATHS[name]) {
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  }
+  return svg;
+}
+
+/** Reduced motion gates the count-up and chart mount animations (CSS has the same guard). */
+const REDUCED_MOTION = typeof matchMedia === 'function'
+  && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Node ids whose numeral already counted up this page session (Refresh sets text at once). */
+const countedUp = new Set();
+
+/**
+ * Stat numeral setter with a one-time 600ms ease-out count-up (requestAnimationFrame).
+ * Skipped wholesale under prefers-reduced-motion and on every call after the first per id.
+ */
+function setStat(id, value, format = formatInt) {
+  const node = $(id);
+  const target = Number(value) || 0;
+  if (REDUCED_MOTION || countedUp.has(id) || !Number.isInteger(target)) {
+    countedUp.add(id);
+    node.textContent = format(target);
+    return;
+  }
+  countedUp.add(id);
+  const started = performance.now();
+  const tick = (now) => {
+    const t = Math.min(1, (now - started) / 600);
+    const eased = 1 - (1 - t) ** 3;
+    node.textContent = format(Math.round(target * eased));
+    if (t < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 const VIEWS = ['view-loading', 'view-config-error', 'view-sign-in', 'view-not-admin', 'view-dashboard'];
 function showView(id) {
   for (const view of VIEWS) $(view).hidden = view !== id;
@@ -67,8 +130,10 @@ function showView(id) {
 let toastTimer = null;
 function toast(message, isError = false) {
   const node = $('toast');
-  node.textContent = message;
+  // The className is still written WHOLESALE ('' or 'error') - admin.css styles only #toast and
+  // #toast.error; the glyph and text carry their own classes inside.
   node.className = isError ? 'error' : '';
+  node.replaceChildren(glyph(isError ? 'warning' : 'check', 'toast-glyph'), el('span', 'toast-text', message));
   node.hidden = false;
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { node.hidden = true; }, isError ? 8000 : 4000);
@@ -180,15 +245,26 @@ function wireTabs() {
 
 function setChartLoading(id) {
   const node = $(id);
-  if (node.querySelector('svg')) node.classList.add('is-loading');
-  else node.replaceChildren(el('p', 'muted chart-msg', 'Loading...'));
+  if (node.querySelector('svg')) {
+    node.classList.add('is-loading');
+  } else {
+    // First load: shimmer skeleton instead of a text line (sr-only status keeps it announced).
+    const wrap = el('div');
+    wrap.setAttribute('role', 'status');
+    wrap.appendChild(el('span', 'sr-only', 'Loading...'));
+    wrap.appendChild(el('div', 'skeleton sk-chart'));
+    node.replaceChildren(wrap);
+  }
 }
 
 function chartStatus(id, message, isError = false) {
   const node = $(id);
   chartPaints.delete(id); // a later repaint must not resurrect stale data over this message
   node.classList.remove('is-loading');
-  node.replaceChildren(el('p', `${isError ? 'error-text' : 'muted'} chart-msg`, message));
+  const block = el('div', 'state-block');
+  block.appendChild(glyph(isError ? 'warning' : 'chart', 'state-glyph'));
+  block.appendChild(el('p', `${isError ? 'error-text' : 'muted'} chart-msg`, message));
+  node.replaceChildren(block);
 }
 
 /**
@@ -232,6 +308,13 @@ async function loadOverviewStats() {
       { area: true, ariaLabel: 'Assistant requests per day, last 14 days', yFormat: intTickFormat });
     drawChart('overview-signups-chart', renderBarChart, signupsSeries(data.signups),
       { ariaLabel: 'New signups per day, last 14 days', yFormat: intTickFormat });
+    // Stat-tile sparklines reuse this SAME 14-day payload (no extra fetch). The plan tiles have
+    // no per-day history, so only the growth/activity tiles carry one.
+    const requests14 = (data.days ?? []).map((d) => d.requests);
+    const signups14 = (data.signups ?? []).map((d) => d.count);
+    drawChart('spark-total', renderSparkline, signups14, {});
+    drawChart('spark-ai-today', renderSparkline, requests14, {});
+    drawChart('spark-ai-week', renderSparkline, requests14, {});
   } catch (error) {
     const message = v2ErrorMessage(error);
     chartStatus('overview-requests-chart', message, true);
@@ -254,10 +337,10 @@ async function loadAiStats(days) {
   setChartLoading('ai-tokens-chart');
   try {
     const { data } = await callables.getStats({ days });
-    $('ai-total-requests').textContent = formatCompact(data.totals.requests);
-    $('ai-total-input').textContent = formatCompact(data.totals.inputTokens);
-    $('ai-total-output').textContent = formatCompact(data.totals.outputTokens);
-    $('ai-total-signups').textContent = formatCompact(data.totals.signups);
+    setStat('ai-total-requests', data.totals.requests, formatCompact);
+    setStat('ai-total-input', data.totals.inputTokens, formatCompact);
+    setStat('ai-total-output', data.totals.outputTokens, formatCompact);
+    setStat('ai-total-signups', data.totals.signups, formatCompact);
     const costTile = $('ai-cost-tile');
     costTile.hidden = data.estCostUsd === null || data.estCostUsd === undefined;
     if (!costTile.hidden) $('ai-total-cost').textContent = formatUsd(data.estCostUsd);
@@ -287,16 +370,33 @@ async function loadAiStats(days) {
 async function loadMetrics() {
   const button = $('metrics-refresh');
   button.disabled = true;
+  setChartLoading('overview-plans-chart');
   try {
     const { data } = await callables.getMetrics({});
-    $('metric-total').textContent = formatInt(data.totalUsers);
-    $('metric-free').textContent = formatInt(data.planCounts.free);
-    $('metric-pro').textContent = formatInt(data.planCounts.pro);
-    $('metric-premium').textContent = formatInt(data.planCounts.premium);
-    $('metric-ai-today').textContent = formatInt(data.assistantRequests.today);
-    $('metric-ai-week').textContent = formatInt(data.assistantRequests.last7Days);
+    setStat('metric-total', data.totalUsers);
+    setStat('metric-free', data.planCounts.free);
+    setStat('metric-pro', data.planCounts.pro);
+    setStat('metric-premium', data.planCounts.premium);
+    setStat('metric-ai-today', data.assistantRequests.today);
+    setStat('metric-ai-week', data.assistantRequests.last7Days);
+    // Header stat strip mirrors the same payload (compact numerals).
+    setStat('strip-users', data.totalUsers, formatCompact);
+    setStat('strip-ai-today', data.assistantRequests.today, formatCompact);
+    setStat('strip-ai-week', data.assistantRequests.last7Days, formatCompact);
+    drawChart('overview-plans-chart', renderDonutChart, [
+      { label: 'Free', value: data.planCounts.free, colorVar: '--chart-6' },
+      { label: 'Pro', value: data.planCounts.pro, colorVar: '--primary-deep' },
+      { label: 'Premium', value: data.planCounts.premium, gradient: true },
+    ], { total: data.totalUsers, centerLabel: 'users', ariaLabel: 'Plan distribution of all users' });
   } catch (error) {
     toast(`Could not load metrics: ${callableErrorMessage(error)}`, true);
+    // First-load skeletons must not shimmer forever over a failed fetch.
+    for (const id of ['metric-total', 'metric-free', 'metric-pro', 'metric-premium',
+      'metric-ai-today', 'metric-ai-week', 'strip-users', 'strip-ai-today', 'strip-ai-week']) {
+      const node = $(id);
+      if (node.querySelector('.skeleton') || node.textContent === '') node.textContent = '-';
+    }
+    chartStatus('overview-plans-chart', v2ErrorMessage(error), true);
   } finally {
     button.disabled = false;
   }
@@ -316,11 +416,30 @@ function userLabel(row) {
   return row.email || row.displayName || row.uid;
 }
 
+/** Initials for the avatar disc: display name words, else first email/uid character. */
+function userInitials(row) {
+  const name = (row.displayName || '').trim();
+  if (name) {
+    const parts = name.split(/\s+/);
+    const first = parts[0].charAt(0);
+    const second = parts.length > 1 ? parts[parts.length - 1].charAt(0) : '';
+    return (first + second).toUpperCase();
+  }
+  const fallback = (row.email || row.uid || '?').trim();
+  return fallback.charAt(0).toUpperCase();
+}
+
 function buildUserCell(row) {
   const cell = el('td', 'user-cell');
-  if (row.displayName) cell.appendChild(el('div', 'name', row.displayName));
-  if (row.email) cell.appendChild(el('div', 'email', row.email));
-  cell.appendChild(el('div', 'uid', row.uid));
+  const wrap = el('div', 'user-wrap');
+  const avatar = el('span', `avatar av-${avatarIndex(row.uid)}`, userInitials(row));
+  avatar.setAttribute('aria-hidden', 'true');
+  const ident = el('div', 'ident');
+  if (row.displayName) ident.appendChild(el('div', 'name', row.displayName));
+  if (row.email) ident.appendChild(el('div', 'email', row.email));
+  ident.appendChild(el('div', 'uid', row.uid));
+  wrap.append(avatar, ident);
+  cell.appendChild(wrap);
   return cell;
 }
 
@@ -587,6 +706,9 @@ async function handleSignedIn(user) {
     await user.getIdToken(true);
     const result = await user.getIdTokenResult();
     $('session-email').textContent = user.email ?? user.uid;
+    const sessionAvatar = $('session-avatar');
+    sessionAvatar.textContent = (user.email || user.uid || '?').charAt(0).toUpperCase();
+    sessionAvatar.className = `avatar avatar-sm av-${avatarIndex(user.uid)}`;
     $('session').hidden = false;
     if (result.claims.admin !== true) {
       $('not-admin-email').textContent = user.email ?? user.uid;

@@ -276,7 +276,9 @@ describe('PricingScreen (purchases unconfigured)', () => {
     await i18n.changeLanguage('es');
     mockPlan = 'pro';
     await renderPricing();
-    expect(screen.getByText('Suscripciones próximamente')).toBeTruthy();
+    // A granted paid plan replaces the Free-oriented coming-soon warning with a confirmation.
+    expect(screen.getByText('Tu plan Pro esta activo')).toBeTruthy();
+    expect(screen.queryByTestId('pricing-coming-soon-banner')).toBeNull();
     expect(within(screen.getByTestId('pricing-plan-pro_monthly')).getByText('Plan actual')).toBeTruthy();
   });
 });

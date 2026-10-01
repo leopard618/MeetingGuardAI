@@ -13,13 +13,16 @@ import assert from 'node:assert/strict';
 
 import { isLabeledIndex, labelStep, niceMax, seriesMax, shortDate, stackMax, tickValues } from '../public/admin/chart.js';
 import {
+  avatarIndex,
   callableErrorMessage,
   dateOnly,
+  donutSegments,
   formatCompact,
   formatDateTime,
   formatInt,
   formatUsd,
   intTickFormat,
+  monotonePath,
   requestsSeries,
   rotationErrorDisplay,
   signupsSeries,
@@ -130,6 +133,48 @@ assert.match(cleanup.text, /WAS stored as Secret Manager version 6/, 'rotationEr
 checks += 1;
 const unreachable = rotationErrorDisplay({ code: 'functions/unavailable', message: 'OpenAI could not be reached to validate the key. Nothing was changed.' });
 eq(unreachable.postStore, false, 'rotationErrorDisplay: unavailable is pre-store');
+
+// ---- avatarIndex: stable 0..7 hue bucket (sum of char codes mod 8) ---------------------------
+eq(avatarIndex(''), 0, 'avatarIndex empty');
+eq(avatarIndex(null), 0, 'avatarIndex null');
+eq(avatarIndex('a'), 1, 'avatarIndex("a") = 97 % 8');
+eq(avatarIndex('abc'), 6, 'avatarIndex("abc") = 294 % 8');
+eq(avatarIndex('uid123'), 0, 'avatarIndex("uid123") = 472 % 8');
+eq(avatarIndex('abc'), avatarIndex('abc'), 'avatarIndex is stable for a given seed');
+
+// ---- monotonePath: monotone-cubic d strings (2-decimal rounding) -----------------------------
+eq(monotonePath([]), '', 'monotonePath no points');
+eq(monotonePath(undefined), '', 'monotonePath undefined');
+eq(monotonePath([{ x: 0, y: 10 }]), 'M0,10', 'monotonePath single point');
+eq(monotonePath([{ x: 0, y: 0 }, { x: 10, y: 10 }]),
+  'M0,0C3.33,3.33,6.67,6.67,10,10', 'monotonePath straight segment');
+eq(monotonePath([{ x: 0, y: 5 }, { x: 10, y: 5 }, { x: 20, y: 5 }]),
+  'M0,5C3.33,5,6.67,5,10,5C13.33,5,16.67,5,20,5', 'monotonePath flat line stays flat');
+// Local extremum gets a 0 tangent, so the curve never overshoots the peak value.
+eq(monotonePath([{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 0 }]),
+  'M0,0C3.33,3.33,6.67,10,10,10C13.33,10,16.67,3.33,20,0', 'monotonePath peak: no overshoot');
+eq(monotonePath([{ x: 0, y: NaN }, { x: 5, y: 2 }]), 'M5,2', 'monotonePath drops non-finite points');
+
+// ---- donutSegments: fractions + cumulative offsets -------------------------------------------
+eq(donutSegments([1, 1, 2]), [
+  { frac: 0.25, offset: 0 },
+  { frac: 0.25, offset: 0.25 },
+  { frac: 0.5, offset: 0.5 },
+], 'donutSegments quarters');
+eq(donutSegments([2, 1, 1]), [
+  { frac: 0.5, offset: 0 },
+  { frac: 0.25, offset: 0.5 },
+  { frac: 0.25, offset: 0.75 },
+], 'donutSegments order preserved');
+eq(donutSegments([5]), [{ frac: 1, offset: 0 }], 'donutSegments single segment');
+eq(donutSegments([0, 0]), [{ frac: 0, offset: 0 }, { frac: 0, offset: 0 }], 'donutSegments zero total');
+eq(donutSegments([]), [], 'donutSegments empty');
+eq(donutSegments([3, -2, NaN, 1]), [
+  { frac: 0.75, offset: 0 },
+  { frac: 0, offset: 0.75 },
+  { frac: 0, offset: 0.75 },
+  { frac: 0.25, offset: 0.75 },
+], 'donutSegments ignores negative/non-finite values');
 
 process.stdout.write(`OK - ${checks} assertions passed (admin web pure logic).
 `);
