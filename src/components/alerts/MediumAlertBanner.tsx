@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '../../i18n';
 import type { FeedbackRequest } from '../../services/alerts';
-import { alertMax, alertMedium, componentMetrics, darkColors, pressedOpacity, radii, spacing, typography } from '../../theme';
+import { alertMax, alertMedium, componentMetrics, darkColors, pressedDimOpacity, radii, spacing, typography } from '../../theme';
 import { useReducedMotion } from '../ui';
 import type { AlertDisplayModel } from './alertDisplay';
 import { useAlertFeedback } from './hooks';
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     color: alertMedium.title,
   },
   pressed: {
-    opacity: pressedOpacity,
+    opacity: pressedDimOpacity,
   },
   pillWrap: {
     position: 'absolute',

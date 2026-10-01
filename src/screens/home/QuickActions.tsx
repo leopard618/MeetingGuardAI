@@ -45,11 +45,11 @@ function Tile({
       style={styles.tile}
       testID={testID}
     >
-      <View style={[styles.circle, { backgroundColor: disabled ? colors.surfaceVariant : colors.primaryContainer }]}>
+      <View style={[styles.circle, { backgroundColor: disabled ? colors.surfaceDisabled : colors.primaryContainer }]}>
         <MaterialCommunityIcons
           name={icon}
           size={componentMetrics.iconNav}
-          color={disabled ? colors.disabledText : colors.onPrimaryContainer}
+          color={disabled ? colors.onSurfaceDisabled : colors.onPrimaryContainer}
         />
       </View>
       <Text variant="labelLarge" style={[styles.label, disabled && { color: colors.disabledText }]}>

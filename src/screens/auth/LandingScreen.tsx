@@ -28,7 +28,7 @@ import { createLogger } from '../../core/logger';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
-import { componentMetrics, lightColors, pressedOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
+import { componentMetrics, lightColors, pressedDimOpacity, pressedOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
 
 const log = createLogger('landing');
 
@@ -131,7 +131,7 @@ export function LandingScreen(): ReactElement {
           {VALUE_PROPS.map(({ key, icon }) => (
             <View key={key} style={styles.valueRow} accessible testID={`landing-value-${key}`}>
               <View style={[styles.valueIcon, { backgroundColor: colors.primaryContainer }]}>
-                <Ionicons name={icon} size={22} color={colors.onPrimaryContainer} />
+                <Ionicons name={icon} size={componentMetrics.iconNav} color={colors.onPrimaryContainer} />
               </View>
               <View style={styles.valueText}>
                 <Text style={[styles.valueTitle, { color: colors.onSurface }]}>{t(`landing:valueProps.${key}.title`)}</Text>
@@ -145,7 +145,7 @@ export function LandingScreen(): ReactElement {
               void handleSignIn();
             }}
             disabled={busy}
-            style={({ pressed }) => [styles.signInButton, { backgroundColor: colors.primary }, (pressed || busy) && styles.pressed]}
+            style={({ pressed }) => [styles.signInButton, { backgroundColor: colors.primary }, pressed ? styles.pressedDim : busy ? styles.pressed : null]}
             accessibilityRole="button"
             accessibilityState={{ disabled: busy, busy }}
             testID="landing-sign-in"
@@ -218,7 +218,6 @@ const styles = StyleSheet.create({
   },
   languageText: {
     ...typography.labelL,
-    fontWeight: '400',
     color: ON_HERO,
   },
   languageTextSelected: {
@@ -296,6 +295,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: pressedOpacity,
+  },
+  pressedDim: {
+    opacity: pressedDimOpacity,
   },
   note: {
     ...typography.bodyS,

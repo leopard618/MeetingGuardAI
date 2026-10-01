@@ -35,7 +35,7 @@ import {
   type DiffRow,
 } from '../services/ai/presentation';
 import type { AiActionPreview, AssistantFormatter } from '../services/ai/types';
-import { componentMetrics, pressedOpacity, radii, spacing, typography, useAppTheme, type MGColors } from '../theme';
+import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme, type MGColors } from '../theme';
 import { ConfidenceBadge } from './ConfidenceBadge';
 
 function previewOf(state: ProposedActionState): AiActionPreview | null {
@@ -100,7 +100,7 @@ function DiffRows({ rows, colors, fmt }: { rows: DiffRow[]; colors: MGColors; fm
             {row.before}
           </Text>
           <View style={styles.diffAfterRow}>
-            <MaterialCommunityIcons name="arrow-right" size={14} color={colors.onSurfaceVariant} style={styles.diffArrow} />
+            <MaterialCommunityIcons name="arrow-right" size={componentMetrics.iconMeta} color={colors.onSurfaceVariant} style={styles.diffArrow} />
             <Text
               style={[styles.diffAfter, { color: colors.onSurface }]}
               accessibilityLabel={fmt.t('ai:confirm.a11yAfter', { value: row.after })}
@@ -120,7 +120,7 @@ function Warnings({ messages, colors }: { messages: string[]; colors: MGColors }
     <View style={[styles.notice, { backgroundColor: colors.warningContainer }]}>
       {messages.map((message, index) => (
         <View key={index} style={styles.noticeLine}>
-          <MaterialCommunityIcons name="alert-outline" size={16} color={colors.onWarningContainer} />
+          <MaterialCommunityIcons name="alert-outline" size={componentMetrics.iconMeta} color={colors.onWarningContainer} />
           <Text style={[styles.noticeText, { color: colors.onWarningContainer }]}>{message}</Text>
         </View>
       ))}
@@ -166,7 +166,7 @@ function ShareBody({
           <View style={styles.chips}>
             {share.recipients.map((email) => (
               <View key={email} style={[styles.chip, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.outlineVariant }]}>
-                <MaterialCommunityIcons name="email-outline" size={14} color={colors.onSurfaceVariant} />
+                <MaterialCommunityIcons name="email-outline" size={componentMetrics.iconMeta} color={colors.onSurfaceVariant} />
                 <Text style={[styles.chipText, { color: colors.onSurface }]} selectable>
                   {email}
                 </Text>
@@ -288,7 +288,7 @@ function ActionBody({
       return (
         <View style={[styles.notice, { backgroundColor: colors.errorContainer }]}>
           <View style={styles.noticeLine}>
-            <MaterialCommunityIcons name="delete-alert-outline" size={18} color={colors.onErrorContainer} />
+            <MaterialCommunityIcons name="delete-alert-outline" size={componentMetrics.iconInline} color={colors.onErrorContainer} />
             <Text style={[styles.noticeText, styles.bold, { color: colors.onErrorContainer }]}>{warningText}</Text>
           </View>
           {scopeRow ? <DetailRows rows={[scopeRow]} colors={colors} /> : null}
@@ -441,7 +441,7 @@ export function MeetingConfirmationModal({
               disabled={isBusy}
               style={({ pressed }) => [
                 styles.button,
-                { backgroundColor: confirmColor, opacity: isBusy ? 0.6 : pressed ? pressedOpacity : 1 },
+                { backgroundColor: confirmColor, opacity: isBusy ? 0.6 : pressed ? pressedDimOpacity : 1 },
               ]}
               accessibilityRole="button"
               accessibilityLabel={confirmLabel(fmt, actions)}
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   buttonPressed: {
-    opacity: pressedOpacity,
+    opacity: pressedDimOpacity,
   },
   buttonText: {
     ...typography.labelL,

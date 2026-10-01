@@ -100,7 +100,7 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
         {stateLabel ? <Badge label={stateLabel} tone={isNow ? 'primary' : 'neutral'} style={styles.badge} /> : null}
         {conflict ? (
           <View style={styles.hintRow} testID={`timeline-${meeting.id}-overlap`}>
-            <MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.error} />
+            <MaterialCommunityIcons name="alert-circle-outline" size={componentMetrics.iconMeta} color={colors.error} />
             <Text variant="bodySmall" style={[styles.hintText, { color: colors.error }]}>
               {overlapText}
             </Text>
@@ -108,7 +108,7 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
         ) : null}
         {!cancelled && followsRightAfter ? (
           <View style={styles.hintRow}>
-            <MaterialCommunityIcons name="timer-sand" size={16} color={colors.tertiary} />
+            <MaterialCommunityIcons name="timer-sand" size={componentMetrics.iconMeta} color={colors.tertiary} />
             <Text variant="bodySmall" style={[styles.hintText, { color: colors.onSurfaceVariant }]}>
               {rightAfterText}
             </Text>

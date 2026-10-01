@@ -7,7 +7,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { pressedOpacity, spacing, typography, useAppTheme } from '../../theme';
+import { pressedDimOpacity, spacing, typography, useAppTheme } from '../../theme';
 
 export interface SectionHeaderAction {
   label: string;
@@ -63,6 +63,6 @@ const styles = StyleSheet.create({
     ...typography.labelL,
   },
   pressed: {
-    opacity: pressedOpacity,
+    opacity: pressedDimOpacity,
   },
 });

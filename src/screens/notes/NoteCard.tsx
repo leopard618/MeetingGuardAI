@@ -10,7 +10,7 @@ import { IconButton, Text, TouchableRipple, useTheme as usePaperTheme } from 're
 
 import type { Meeting, Note } from '../../core/types';
 import { useT } from '../../i18n';
-import { componentMetrics, radii } from '../../theme';
+import { componentMetrics, radii, spacing } from '../../theme';
 import { categoryColor, categoryIcon } from './categoryStyle';
 
 export interface NoteCardProps {
@@ -50,7 +50,7 @@ function NoteCardView({ note, meeting, meetingWhen, updatedText, onOpen, onToggl
             {note.pinned ? (
               <MaterialCommunityIcons
                 name="pin"
-                size={16}
+                size={componentMetrics.iconMeta}
                 color={theme.colors.onSurfaceVariant}
                 style={styles.pinIcon}
                 accessibilityLabel={t('notes:card.pinned')}
@@ -66,7 +66,7 @@ function NoteCardView({ note, meeting, meetingWhen, updatedText, onOpen, onToggl
             </Text>
           ) : null}
           <View style={styles.metaRow}>
-            <MaterialCommunityIcons name={categoryIcon(note.category)} size={16} color={accent} />
+            <MaterialCommunityIcons name={categoryIcon(note.category)} size={componentMetrics.iconMeta} color={accent} />
             <Text variant="labelMedium" style={[styles.category, { color: theme.colors.onSurfaceVariant }]}>
               {categoryLabel}
             </Text>
@@ -87,7 +87,7 @@ function NoteCardView({ note, meeting, meetingWhen, updatedText, onOpen, onToggl
             testID={`note-meeting-${note.id}`}
           >
             <View style={styles.meetingRow}>
-              <MaterialCommunityIcons name="calendar-clock" size={16} color={theme.colors.onSecondaryContainer} />
+              <MaterialCommunityIcons name="calendar-clock" size={componentMetrics.iconMeta} color={theme.colors.onSecondaryContainer} />
               <View style={styles.meetingText}>
                 <Text variant="labelLarge" numberOfLines={1} style={{ color: theme.colors.onSecondaryContainer }}>
                   {meeting.title}
@@ -102,7 +102,7 @@ function NoteCardView({ note, meeting, meetingWhen, updatedText, onOpen, onToggl
           </TouchableRipple>
         ) : meeting === null ? (
           <View style={[styles.meetingRow, styles.flex]}>
-            <MaterialCommunityIcons name="calendar-remove-outline" size={16} color={theme.colors.onSurfaceVariant} />
+            <MaterialCommunityIcons name="calendar-remove-outline" size={componentMetrics.iconMeta} color={theme.colors.onSurfaceVariant} />
             <Text variant="bodySmall" style={[styles.meetingText, { color: theme.colors.onSurfaceVariant }]}>
               {t('notes:card.meetingUnavailable')}
             </Text>
@@ -141,9 +141,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   body: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingHorizontal: componentMetrics.cardPadding,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   flex: {
     flex: 1,
@@ -153,35 +153,35 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   pinIcon: {
-    marginRight: 6,
-    marginTop: 3,
+    marginRight: spacing.sm,
+    marginTop: spacing.xs,
   },
   preview: {
-    marginTop: 6,
+    marginTop: spacing.xs,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: spacing.sm,
   },
   category: {
-    marginLeft: 4,
-    marginRight: 12,
+    marginLeft: spacing.xs,
+    marginRight: spacing.md,
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 12,
-    paddingRight: 4,
-    paddingBottom: 6,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
+    paddingBottom: spacing.sm,
   },
   meetingLink: {
     flex: 1,
     borderRadius: radii.md,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginRight: 4,
-    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginRight: spacing.xs,
+    minHeight: componentMetrics.touchTargetMin,
     justifyContent: 'center',
   },
   meetingRow: {
@@ -190,6 +190,6 @@ const styles = StyleSheet.create({
   },
   meetingText: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
 });

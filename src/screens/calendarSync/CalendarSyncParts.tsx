@@ -3,19 +3,19 @@
  * last-sync time and last error), and the calendar rows (import switch, export radio).
  * All colors come from the calendar palette (MG tokens, light / dark).
  */
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement, ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import type { DeviceCalendarInfo, ProviderStatus, TranslateFn } from '../../core/contracts';
 import type { Language } from '../../core/types';
 // Tokens directly (not the src/theme barrel): the sync screen's tests mock ThemeContext.
-import { componentMetrics, pressedOpacity, radii, spacing, typography } from '../../theme/tokens';
+import { componentMetrics, pressedDimOpacity, radii, spacing, typography } from '../../theme/tokens';
 import { formatRelative } from '../../utils/format';
 import { errorText } from './calendarSyncModel';
 import type { CalendarPalette } from './palette';
 
-type IconName = ComponentProps<typeof MaterialIcons>['name'];
+type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 export function PrimaryButton({
   label,
@@ -43,14 +43,14 @@ export function PrimaryButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: disabled ? palette.disabled : palette.accent, opacity: pressed ? pressedOpacity : 1 },
+        { backgroundColor: disabled ? palette.disabled : palette.accent, opacity: pressed ? pressedDimOpacity : 1 },
       ]}
       testID={testID}
     >
       {busy ? (
         <ActivityIndicator size="small" color={contentColor} />
       ) : icon ? (
-        <MaterialIcons name={icon} size={18} color={contentColor} />
+        <MaterialCommunityIcons name={icon} size={componentMetrics.iconInline} color={contentColor} />
       ) : null}
       <Text style={[styles.buttonText, { color: contentColor }]}>{label}</Text>
     </Pressable>
@@ -169,9 +169,9 @@ export function RadioRow({
       <Text style={[styles.rowLabel, styles.rowTextBlock, { color: palette.text }]} numberOfLines={1}>
         {label}
       </Text>
-      <MaterialIcons
-        name={selected ? 'radio-button-checked' : 'radio-button-unchecked'}
-        size={22}
+      <MaterialCommunityIcons
+        name={selected ? 'radiobox-marked' : 'radiobox-blank'}
+        size={componentMetrics.iconNav}
         color={selected ? palette.accent : palette.muted}
       />
     </Pressable>

@@ -12,7 +12,7 @@
  * Rendered as a SectionList (Google card, optional Outlook card, then the phone-calendar card and
  * its rows).
  */
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Alert, Linking, SectionList, StyleSheet, Switch, Text, View } from 'react-native';
@@ -84,7 +84,7 @@ function GoogleCard({
   return (
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]} testID="calendar-google-card">
       <View style={partStyles.cardHeader}>
-        <MaterialIcons name="event" size={24} color={palette.accent} />
+        <MaterialCommunityIcons name="calendar" size={24} color={palette.accent} />
         <Text style={[partStyles.cardTitle, { color: palette.text }]} accessibilityRole="header">
           {t('calendar:google.title')}
         </Text>
@@ -178,7 +178,7 @@ function OutlookCard({
   return (
     <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]} testID="calendar-outlook-card">
       <View style={partStyles.cardHeader}>
-        <MaterialIcons name="event-note" size={24} color={palette.accent} />
+        <MaterialCommunityIcons name="calendar-text" size={24} color={palette.accent} />
         <Text style={[partStyles.cardTitle, { color: palette.text }]} accessibilityRole="header">
           {t('calendar:outlook.title')}
         </Text>
@@ -249,7 +249,7 @@ function DeviceHeader({
   return (
     <CardTop palette={palette}>
       <View style={partStyles.cardHeader}>
-        <MaterialIcons name="phone-iphone" size={24} color={palette.accent} />
+        <MaterialCommunityIcons name="cellphone" size={24} color={palette.accent} />
         <Text style={[partStyles.cardTitle, { color: palette.text }]} accessibilityRole="header">
           {t('calendar:device.title')}
         </Text>
@@ -260,7 +260,7 @@ function DeviceHeader({
         <PrimaryButton
           label={t('calendar:device.permission.request')}
           onPress={onRequestPermission}
-          icon="event-available"
+          icon="calendar-check"
           palette={palette}
           testID="calendar-device-permission"
         />

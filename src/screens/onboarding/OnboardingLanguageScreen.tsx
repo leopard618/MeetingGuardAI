@@ -42,8 +42,9 @@ export function OnboardingLanguageScreen(): ReactElement {
               style={[
                 styles.option,
                 {
-                  borderColor: selected ? colors.primary : colors.outline,
-                  backgroundColor: selected ? colors.primaryContainer : colors.surface,
+                  borderColor: colors.outlineVariant,
+                  // §4: the tinted surfaceContainerHigh row = selected; the radio is the signifier.
+                  backgroundColor: selected ? colors.surfaceContainerHigh : colors.surface,
                 },
               ]}
               accessibilityRole="radio"
@@ -51,10 +52,7 @@ export function OnboardingLanguageScreen(): ReactElement {
             >
               <View style={styles.optionRow}>
                 <Text style={styles.flag}>{FLAGS[code]}</Text>
-                <Text
-                  variant="titleMedium"
-                  style={[styles.optionLabel, { color: selected ? colors.onPrimaryContainer : colors.onSurface }]}
-                >
+                <Text variant="titleMedium" style={[styles.optionLabel, { color: colors.onSurface }]}>
                   {t(`common:language.${code}`)}
                 </Text>
                 <RadioButton value={code} />
@@ -74,8 +72,8 @@ export function OnboardingLanguageScreen(): ReactElement {
 const styles = StyleSheet.create({
   option: {
     marginTop: spacing.md,
-    borderRadius: radii.lg,
-    borderWidth: 2,
+    borderRadius: radii.md,
+    borderWidth: 1,
     paddingHorizontal: componentMetrics.listRowPaddingH,
     paddingVertical: componentMetrics.listRowPaddingV,
     minHeight: componentMetrics.listRowMinHeight,

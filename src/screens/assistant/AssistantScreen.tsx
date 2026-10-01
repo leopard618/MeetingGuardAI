@@ -245,20 +245,24 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
             onPress={clearConversation}
             disabled={!hasMessages}
             hitSlop={ICON_HIT_SLOP}
-            style={[styles.iconButton, { opacity: hasMessages ? 1 : 0.4 }]}
+            style={styles.iconButton}
             accessibilityRole="button"
             accessibilityLabel={fmt.t('ai:chat.clear')}
             accessibilityState={{ disabled: !hasMessages }}
             testID="assistant-clear"
           >
-            <MaterialCommunityIcons name="delete-sweep-outline" size={24} color={palette.textMuted} />
+            <MaterialCommunityIcons
+              name="delete-sweep-outline"
+              size={componentMetrics.iconNav}
+              color={hasMessages ? palette.textMuted : palette.onSurfaceDisabled}
+            />
           </Pressable>
         </View>
 
         {followUpMeetingId ? (
           <View style={[styles.banner, { backgroundColor: palette.infoSurface }]}>
-            <MaterialCommunityIcons name="calendar-check-outline" size={16} color={palette.info} />
-            <Text style={[styles.bannerText, { color: palette.info }]} numberOfLines={2}>
+            <MaterialCommunityIcons name="calendar-check-outline" size={componentMetrics.iconMeta} color={palette.info} />
+            <Text style={[styles.bannerText, { color: palette.onInfoSurface }]} numberOfLines={2}>
               {followUpTitle ? fmt.t('ai:chat.followUpFor', { title: followUpTitle }) : fmt.t('ai:chat.followUpGeneric')}
             </Text>
             {showFollowUpButton ? (
@@ -339,13 +343,17 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
           <Pressable
             onPress={send}
             disabled={!canSend}
-            style={[styles.sendButton, { backgroundColor: palette.primary, opacity: canSend ? 1 : 0.4 }]}
+            style={[styles.sendButton, { backgroundColor: canSend ? palette.primary : palette.surfaceDisabled }]}
             accessibilityRole="button"
             accessibilityLabel={fmt.t('ai:chat.send')}
             accessibilityState={{ disabled: !canSend }}
             testID="assistant-send"
           >
-            <MaterialCommunityIcons name="send" size={20} color={palette.onPrimary} />
+            <MaterialCommunityIcons
+              name="send"
+              size={componentMetrics.iconInline}
+              color={canSend ? palette.onPrimary : palette.onSurfaceDisabled}
+            />
           </Pressable>
         </View>
       </KeyboardAvoidingView>

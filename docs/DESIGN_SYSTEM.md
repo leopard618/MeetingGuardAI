@@ -134,7 +134,8 @@ radii:   xs 6 (badge) · sm 8 (chip, small button) · md 12 (input, list group, 
 ```
 @360dp: screen gutter 16 · section gap 24 · card padding 16, card gap 12 · button height 48
 (small 40; ≥44 touch via hitSlop) · input height 52 (outlined, dense off) · list row minHeight 56
-(two-line 72), row padding 16h/12v · icons 20 inline / 24 nav & row-leading · avatar 40 · FAB 56.
+(two-line 72), row padding 16h/12v · icons 16 meta (beside bodyS/labelM) / 20 inline / 24 nav &
+row-leading · avatar 40 · FAB 56.
 Bordered = resting content; elevated = transient (menus, dialogs, toasts); tinted
 (`surfaceContainerHigh`) = selected/active. This retires the audit's 17 ad-hoc radii, 18 paddings
 and 13 font sizes.
@@ -260,7 +261,9 @@ radii only from tokens; hierarchy = one focal element per screen.
   stretch) so ES + 1.3× scale wraps instead of clipping (audit #19); ripple primary@10%.
 - **TodayTimelineRow**: time rail labelM tabular-nums onSurfaceVariant (minWidth, not fixed
   width); 8px dot in source color (§2 map; current meeting = primary dot + card tinted
-  surfaceContainerHigh); row card r-md p-12.
+  surfaceContainerHigh); row card r-md p-12. Density exception: the timeline's meeting titles
+  stay titleS (not the §3 titleM row-title default) — the compact rail rows earn the smaller
+  size; the meetings list keeps titleM for the same content.
 - **OfflineBanner** → `Banner tone="warning"`; **AlertStatusCard** → Card, status via `Badge`
   (success "active" / warning "off"); **InsightsSummaryCard** → Card, values titleM tabular-nums.
 - **AIInsightsScreen**: SegmentedButtons themed; stats → 2-col stat tiles (Card p-16: value
@@ -353,7 +356,10 @@ radii only from tokens; hierarchy = one focal element per screen.
   content + `Banner tone="error"` otherwise (ARCHITECTURE §13).
 - **Disabled**: `surfaceDisabled` fill + `disabledText` label; never `opacity` on a whole row.
 - **Pressed**: `android_ripple` (primary@10% on cards, onSurface@8% on rows) + iOS fallback
-  `opacity 0.96`. **Focus**: 2px primary border, offset 2.
+  `opacity 0.96` (`pressedOpacity`). Pressables WITHOUT a ripple (alert-overlay buttons,
+  banner/section-header text actions, bespoke pill buttons) use the visible dim
+  `pressedDimOpacity` (0.75) on both platforms — 0.96 alone is imperceptible on Android.
+  **Focus**: 2px primary border, offset 2.
 
 ## 9. Alert overlays (Group D; behavior untouched, tokens from `alertMax/Medium/Light`)
 

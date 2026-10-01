@@ -16,7 +16,7 @@ import { Card, MGButton } from '../../components/ui';
 import type { TranslateFn } from '../../core/contracts';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
-import { spacing, useAppTheme, withAlpha } from '../../theme';
+import { componentMetrics, spacing, useAppTheme, withAlpha } from '../../theme';
 import { formatRelative } from '../../utils/format';
 import { endMs, meetingJoinLink, startMs } from '../insights/meetingInsights';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
@@ -96,7 +96,7 @@ function MeetingBlock({
       </Text>
       {address ? (
         <View style={styles.placeRow}>
-          <MaterialCommunityIcons name="map-marker-outline" size={16} color={onCard} />
+          <MaterialCommunityIcons name="map-marker-outline" size={componentMetrics.iconMeta} color={onCard} />
           <Text variant="bodySmall" style={[styles.placeText, { color: onCard }]} numberOfLines={1}>
             {address}
           </Text>

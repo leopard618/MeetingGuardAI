@@ -34,7 +34,7 @@ import { useAuth } from '../../services/auth';
 import { effectivePlan } from '../../core/types';
 import { useEntitlement, userRepository } from '../../services/data';
 import { purchasesService } from '../../services/purchases';
-import { componentMetrics, pressedOpacity, radii, spacing, typography } from '../../theme';
+import { componentMetrics, pressedDimOpacity, pressedOpacity, radii, spacing, typography } from '../../theme';
 import { useFormatters } from '../shared/useFormatters';
 import {
   ACTIVATION_SLOW_AFTER_MS,
@@ -170,7 +170,7 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
 
       {card.purchasable ? (
         <Pressable
-          style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.primary, opacity: busy || pressed ? pressedOpacity : 1 }]}
+          style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.primary, opacity: pressed ? pressedDimOpacity : busy ? pressedOpacity : 1 }]}
           onPress={() => onBuy(card)}
           disabled={busy}
           accessibilityRole="button"
@@ -208,7 +208,7 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
 
       {configured && card.isCurrent && card.tier !== 'free' ? (
         <Pressable
-          style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.outline, opacity: pressed ? pressedOpacity : 1 }]}
+          style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.outline, opacity: pressed ? pressedDimOpacity : 1 }]}
           onPress={onManage}
           accessibilityRole="button"
           accessibilityLabel={t('pricing:store.manageA11y')}
@@ -220,14 +220,14 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
 
       {!configured && card.tier !== 'free' && !card.isCurrent ? (
         <View
-          style={[styles.comingSoon, { borderColor: colors.outline, backgroundColor: colors.surfaceVariant }]}
+          style={[styles.comingSoon, { backgroundColor: colors.surfaceDisabled }]}
           accessible
           accessibilityRole="button"
           accessibilityState={{ disabled: true }}
           accessibilityLabel={t('pricing:comingSoonA11y', { plan: name })}
           testID={`pricing-coming-soon-${card.id}`}
         >
-          <Text style={[styles.comingSoonText, { color: colors.onSurfaceVariant }]}>{t('pricing:comingSoon')}</Text>
+          <Text style={[styles.comingSoonText, { color: colors.disabledText }]}>{t('pricing:comingSoon')}</Text>
         </View>
       ) : null}
     </View>
@@ -267,14 +267,14 @@ function StoreBanner({ store, phase, slow, colors, t, onRetry }: { store: StoreS
   if (store.kind === 'error') {
     return (
       <View style={[styles.banner, { backgroundColor: colors.errorContainer }]} testID="pricing-store-error">
-        <Ionicons name="cloud-offline-outline" size={22} color={colors.onErrorContainer} accessibilityElementsHidden importantForAccessibility="no" />
+        <Ionicons name="cloud-offline-outline" size={componentMetrics.iconInline} color={colors.onErrorContainer} accessibilityElementsHidden importantForAccessibility="no" />
         <View style={styles.bannerText}>
           <Text style={[styles.bannerTitle, { color: colors.onErrorContainer }]} accessibilityRole="header">
             {t('pricing:store.loadErrorTitle')}
           </Text>
           <Text style={[styles.body, { color: colors.onErrorContainer }]}>{t('pricing:store.loadError')}</Text>
           <Pressable
-            style={({ pressed }) => [styles.retryButton, { borderColor: colors.onErrorContainer, opacity: pressed ? pressedOpacity : 1 }]}
+            style={({ pressed }) => [styles.retryButton, { borderColor: colors.onErrorContainer, opacity: pressed ? pressedDimOpacity : 1 }]}
             onPress={onRetry}
             accessibilityRole="button"
             accessibilityLabel={t('pricing:store.retryA11y')}
@@ -459,7 +459,7 @@ export function PricingScreen(): ReactElement {
     <View style={columnStyle}>
       {!configured ? (
         <View style={[styles.banner, { backgroundColor: colors.warningContainer }]} testID="pricing-coming-soon-banner">
-          <Ionicons name="time-outline" size={22} color={colors.onWarningContainer} accessibilityElementsHidden importantForAccessibility="no" />
+          <Ionicons name="time-outline" size={componentMetrics.iconInline} color={colors.onWarningContainer} accessibilityElementsHidden importantForAccessibility="no" />
           <View style={styles.bannerText}>
             <Text style={[styles.bannerTitle, { color: colors.onWarningContainer }]} accessibilityRole="header">
               {t('pricing:comingSoonTitle')}
@@ -506,7 +506,7 @@ export function PricingScreen(): ReactElement {
     <View style={columnStyle}>
       {configured ? (
         <Pressable
-          style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.outline, opacity: busy || pressed ? pressedOpacity : 1 }]}
+          style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.outline, opacity: pressed ? pressedDimOpacity : busy ? pressedOpacity : 1 }]}
           onPress={() => void onRestore()}
           disabled={busy}
           accessibilityRole="button"
@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.md,
   },
   bannerTitle: {
-    ...typography.titleM,
+    ...typography.labelL,
     marginBottom: spacing.xs,
   },
   card: {
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   planName: {
-    ...typography.titleL,
+    ...typography.titleM,
     marginRight: spacing.sm,
   },
   priceRow: {
@@ -670,8 +670,6 @@ const styles = StyleSheet.create({
   comingSoon: {
     minHeight: componentMetrics.buttonHeight,
     borderRadius: radii.full,
-    borderWidth: 1,
-    borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: spacing.md,

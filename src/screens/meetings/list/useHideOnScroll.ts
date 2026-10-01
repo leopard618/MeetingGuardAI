@@ -19,6 +19,12 @@ export const FAB_SLIDE_DP = 96;
 export interface HideOnScroll {
   /** 1 = shown, 0 = hidden; drive opacity / translateY from it. */
   visible: Animated.Value;
+  /**
+   * Whether the FAB is currently shown, as React state: gate `pointerEvents` and
+   * `importantForAccessibility` on it so a hidden (transparent) FAB is neither tappable nor
+   * focusable by TalkBack.
+   */
+  shown: boolean;
   /** Attach to the list's onScroll (with scrollEventThrottle 16). */
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
@@ -26,6 +32,7 @@ export interface HideOnScroll {
 export function useHideOnScroll(): HideOnScroll {
   const reduceMotion = useReducedMotion();
   const [visible] = useState(() => new Animated.Value(1));
+  const [shownState, setShownState] = useState(true);
   const shown = useRef(true);
   const lastY = useRef(0);
 
@@ -37,6 +44,7 @@ export function useHideOnScroll(): HideOnScroll {
       const next = y <= TOP_DP ? true : delta > DELTA_DP ? false : delta < -DELTA_DP ? true : shown.current;
       if (next === shown.current) return;
       shown.current = next;
+      setShownState(next);
       Animated.timing(visible, {
         toValue: next ? 1 : 0,
         duration: reduceMotion ? 0 : SLIDE_MS,
@@ -46,5 +54,5 @@ export function useHideOnScroll(): HideOnScroll {
     [visible, reduceMotion],
   );
 
-  return { visible, onScroll };
+  return { visible, shown: shownState, onScroll };
 }

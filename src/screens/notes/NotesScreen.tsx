@@ -10,12 +10,12 @@
  */
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
-import { Alert, FlatList, ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Chip, FAB, HelperText, Searchbar, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { Alert, Animated, FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Chip, FAB, Searchbar, Text, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { EmptyState, MGButton } from '../../components/ui';
+import { Banner, EmptyState, MGButton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -24,6 +24,7 @@ import { useT } from '../../i18n';
 import { useMeetings, useNotes, useSyncState } from '../../services/data';
 import { componentMetrics, radii, spacing } from '../../theme';
 import { formatRelative } from '../../utils/format';
+import { FAB_SLIDE_DP, useHideOnScroll } from '../meetings/list/useHideOnScroll';
 import { useFormatters } from '../shared/useFormatters';
 import { useLiveNow } from '../shared/useLiveNow';
 import { categoryColor } from './categoryStyle';
@@ -43,6 +44,7 @@ export function NotesScreen({ navigation }: Props): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
   const insets = useSafeAreaInsets();
+  const fab = useHideOnScroll();
   const fmt = useFormatters();
   // "now" for relative times (paused behind other screens and in the background).
   const now = useLiveNow(CLOCK_TICK_MS);
@@ -196,9 +198,16 @@ export function NotesScreen({ navigation }: Props): ReactElement {
       );
     }
     if (error && notes.length === 0) {
+      // Nothing cached: error styling (§8) — no retry yet because useNotes exposes no refresh.
       return (
         <View style={styles.centered}>
-          <EmptyState icon="cloud-alert" title={t('notes:loadError.title')} body={t(errorMessageKey(error.code))} testID="notes-error" />
+          <EmptyState
+            icon="cloud-alert"
+            tone="error"
+            title={t('notes:loadError.title')}
+            body={t(errorMessageKey(error.code))}
+            testID="notes-error"
+          />
         </View>
       );
     }
@@ -268,14 +277,10 @@ export function NotesScreen({ navigation }: Props): ReactElement {
           })}
         </ScrollView>
         {!sync.online ? (
-          <HelperText type="info" visible testID="notes-offline">
-            {t('data:sync.offline')}
-          </HelperText>
+          <Banner tone="warning" icon="cloud-off-outline" text={t('data:sync.offline')} style={styles.notice} testID="notes-offline" />
         ) : null}
         {error && notes.length > 0 ? (
-          <HelperText type="error" visible>
-            {t(errorMessageKey(error.code))}
-          </HelperText>
+          <Banner tone="error" text={t(errorMessageKey(error.code))} style={styles.notice} testID="notes-error-banner" />
         ) : null}
       </View>
 
@@ -294,17 +299,32 @@ export function NotesScreen({ navigation }: Props): ReactElement {
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 96 }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        onScroll={fab.onScroll}
+        scrollEventThrottle={16}
         testID="notes-list"
       />
 
-      <FAB
-        icon="plus"
-        label={t('notes:add')}
-        accessibilityLabel={t('notes:addA11y')}
-        onPress={() => openEditor({ mode: 'create' })}
-        style={[styles.fab, { bottom: insets.bottom + 16, right: insets.right + 16 }]}
-        testID="notes-add"
-      />
+      <Animated.View
+        pointerEvents={fab.shown ? 'auto' : 'none'}
+        importantForAccessibility={fab.shown ? 'yes' : 'no-hide-descendants'}
+        accessibilityElementsHidden={!fab.shown}
+        style={[
+          styles.fab,
+          { bottom: insets.bottom + componentMetrics.screenGutter, right: insets.right + componentMetrics.screenGutter },
+          {
+            opacity: fab.visible,
+            transform: [{ translateY: fab.visible.interpolate({ inputRange: [0, 1], outputRange: [FAB_SLIDE_DP, 0] }) }],
+          },
+        ]}
+      >
+        <FAB
+          icon="plus"
+          label={t('notes:add')}
+          accessibilityLabel={t('notes:addA11y')}
+          onPress={() => openEditor({ mode: 'create' })}
+          testID="notes-add"
+        />
+      </Animated.View>
 
       {editor ? (
         <NoteEditor
@@ -361,6 +381,9 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     alignSelf: 'center',
+  },
+  notice: {
+    marginBottom: spacing.sm,
   },
   fab: {
     position: 'absolute',

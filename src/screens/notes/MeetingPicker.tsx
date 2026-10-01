@@ -5,11 +5,12 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useMemo, useState, type ReactElement } from 'react';
 import { SectionList, StyleSheet, View } from 'react-native';
-import { IconButton, Searchbar, Text, TouchableRipple, useTheme as usePaperTheme } from 'react-native-paper';
+import { IconButton, Searchbar, Text, TouchableRipple } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
+import { componentMetrics, spacing, useAppTheme } from '../../theme';
 import type { Formatters } from '../shared/useFormatters';
 import { meetingChoices } from './notesModel';
 
@@ -30,7 +31,7 @@ interface PickerSection {
 
 export function MeetingPicker({ meetings, selectedId, fmt, now, onSelect, onBack }: MeetingPickerProps): ReactElement {
   const t = useT();
-  const theme = usePaperTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
 
@@ -51,25 +52,25 @@ export function MeetingPicker({ meetings, selectedId, fmt, now, onSelect, onBack
         accessibilityRole="radio"
         accessibilityState={{ selected, checked: selected }}
         accessibilityLabel={t('notes:picker.select', { title: item.title, when })}
-        style={[styles.item, selected && { backgroundColor: theme.colors.secondaryContainer }]}
+        style={[styles.item, selected && { backgroundColor: colors.surfaceContainerHigh }]}
         testID={`picker-meeting-${item.id}`}
       >
         <View style={styles.itemRow}>
           <MaterialCommunityIcons
             name={selected ? 'radiobox-marked' : 'radiobox-blank'}
-            size={22}
-            color={selected ? theme.colors.primary : theme.colors.onSurfaceVariant}
+            size={componentMetrics.iconNav}
+            color={selected ? colors.primary : colors.onSurfaceVariant}
           />
           <View style={styles.itemText}>
             <Text variant="bodyLarge" numberOfLines={2}>
               {item.title}
             </Text>
-            <Text variant="bodySmall" numberOfLines={1} style={{ color: theme.colors.onSurfaceVariant }}>
+            <Text variant="bodySmall" numberOfLines={1} style={{ color: colors.onSurfaceVariant }}>
               {item.status === 'cancelled' ? `${when} · ${t('notes:picker.cancelled')}` : when}
             </Text>
           </View>
           {selected ? (
-            <Text variant="labelMedium" style={{ color: theme.colors.primary }}>
+            <Text variant="labelMedium" style={{ color: colors.primary }}>
               {t('notes:picker.linked')}
             </Text>
           ) : null}
@@ -101,9 +102,9 @@ export function MeetingPicker({ meetings, selectedId, fmt, now, onSelect, onBack
         renderItem={renderItem}
         renderSectionHeader={({ section }) => (
           <Text
-            variant="labelLarge"
+            variant="titleSmall"
             accessibilityRole="header"
-            style={[styles.sectionHeader, { color: theme.colors.primary, backgroundColor: theme.colors.background }]}
+            style={[styles.sectionHeader, { color: colors.onSurfaceVariant, backgroundColor: colors.background }]}
           >
             {section.title}
           </Text>
@@ -111,9 +112,9 @@ export function MeetingPicker({ meetings, selectedId, fmt, now, onSelect, onBack
         stickySectionHeadersEnabled
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xxl }}
         ListEmptyComponent={
-          <Text variant="bodyMedium" style={[styles.empty, { color: theme.colors.onSurfaceVariant }]} testID="picker-empty">
+          <Text variant="bodyMedium" style={[styles.empty, { color: colors.onSurfaceVariant }]} testID="picker-empty">
             {query.trim().length > 0 ? t('notes:picker.noMatches') : t('notes:picker.empty')}
           </Text>
         }
@@ -129,24 +130,24 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: 16,
+    paddingRight: componentMetrics.screenGutter,
   },
   headerTitle: {
     flex: 1,
   },
   search: {
-    marginHorizontal: 16,
-    marginBottom: 8,
+    marginHorizontal: componentMetrics.screenGutter,
+    marginBottom: spacing.sm,
   },
   sectionHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 6,
+    paddingHorizontal: componentMetrics.screenGutter,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
   item: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 56,
+    paddingHorizontal: componentMetrics.listRowPaddingH,
+    paddingVertical: componentMetrics.listRowPaddingV,
+    minHeight: componentMetrics.listRowMinHeight,
     justifyContent: 'center',
   },
   itemRow: {
@@ -155,11 +156,11 @@ const styles = StyleSheet.create({
   },
   itemText: {
     flex: 1,
-    marginHorizontal: 12,
+    marginHorizontal: spacing.md,
   },
   empty: {
     textAlign: 'center',
-    paddingHorizontal: 32,
-    paddingTop: 32,
+    paddingHorizontal: spacing.xxxl,
+    paddingTop: spacing.xxxl,
   },
 });

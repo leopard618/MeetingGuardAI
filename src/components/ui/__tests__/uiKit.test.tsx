@@ -202,7 +202,9 @@ describe('EmptyState / ErrorState / LoadingState / Skeleton', () => {
     await renderKit(
       <EmptyState icon="calendar-blank-outline" title="No meetings" body="Create your first meeting." action={{ label: 'Create', onPress }} testID="empty" />,
     );
-    expect(screen.getByText('No meetings')).toBeTruthy();
+    // The title is a heading anchor for screen-reader navigation (parity with the
+    // per-screen empty titles the kit replaced).
+    expect(screen.getByRole('header', { name: 'No meetings' })).toBeTruthy();
     expect(screen.getByText('Create your first meeting.')).toBeTruthy();
     await act(async () => {
       fireEvent.press(screen.getByTestId('empty-action'));

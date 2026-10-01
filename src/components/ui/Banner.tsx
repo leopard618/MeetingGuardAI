@@ -9,7 +9,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState, type ComponentProps, type ReactElement } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { componentMetrics, pressedOpacity, radii, spacing, typography, useAppTheme, type MGColors } from '../../theme';
+import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme, type MGColors } from '../../theme';
 import { useReducedMotion } from './useReducedMotion';
 
 export type BannerTone = 'info' | 'warning' | 'error';
@@ -127,6 +127,6 @@ const styles = StyleSheet.create({
     ...typography.labelL,
   },
   pressed: {
-    opacity: pressedOpacity,
+    opacity: pressedDimOpacity,
   },
 });

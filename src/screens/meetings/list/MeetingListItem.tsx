@@ -174,7 +174,7 @@ function MeetingListItemComponent({
           </Text>
           {place ? (
             <View style={styles.metaRow}>
-              <MaterialCommunityIcons name={place.icon} size={16} color={muted} style={styles.metaIcon} />
+              <MaterialCommunityIcons name={place.icon} size={componentMetrics.iconMeta} color={muted} style={styles.metaIcon} />
               <Text variant="bodySmall" numberOfLines={1} style={[styles.flex, { color: muted }]}>
                 {place.text}
               </Text>
@@ -185,7 +185,7 @@ function MeetingListItemComponent({
             {cancelled ? <Badge label={t('meetings:details.cancelled')} tone="error" /> : null}
             {repeats ? (
               <View style={styles.repeatBadge} testID={`meeting-row-repeats-${meeting.id}`}>
-                <MaterialCommunityIcons name="repeat" size={13} color={muted} />
+                <MaterialCommunityIcons name="repeat" size={componentMetrics.iconMeta} color={muted} />
                 <Text variant="labelSmall" numberOfLines={1} style={{ color: muted }}>
                   {t('meetings:list.repeats')}
                 </Text>

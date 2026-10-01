@@ -646,6 +646,10 @@ export interface AssistantPalette {
   info: string;
   infoSurface: string;
   onInfoSurface: string;
+  /** Disabled controls (docs/DESIGN_SYSTEM.md par.8): surfaceDisabled fill + disabled label/icon. */
+  disabledText: string;
+  surfaceDisabled: string;
+  onSurfaceDisabled: string;
   backdrop: string;
 }
 
@@ -680,6 +684,9 @@ function paletteFromTokens(c: MGColors): AssistantPalette {
     info: c.info,
     infoSurface: c.infoContainer,
     onInfoSurface: c.onInfoContainer,
+    disabledText: c.disabledText,
+    surfaceDisabled: c.surfaceDisabled,
+    onSurfaceDisabled: c.onSurfaceDisabled,
     backdrop: c.backdrop,
   };
 }

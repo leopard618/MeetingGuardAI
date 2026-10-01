@@ -11,7 +11,7 @@ import { Text } from 'react-native-paper';
 
 import { Card, MGButton, SectionHeader } from '../../components/ui';
 import { useT } from '../../i18n';
-import { spacing, useAppTheme } from '../../theme';
+import { componentMetrics, spacing, useAppTheme } from '../../theme';
 import type { DashboardSummary } from '../insights/meetingInsights';
 import { useFormatters } from '../shared/useFormatters';
 
@@ -45,7 +45,7 @@ function Stat({ label, count, minutes }: { label: string; count: number; minutes
 function Issue({ icon, text, color, testID }: { icon: IconName; text: string; color: string; testID: string }): ReactElement {
   return (
     <View style={styles.issue} testID={testID}>
-      <MaterialCommunityIcons name={icon} size={18} color={color} />
+      <MaterialCommunityIcons name={icon} size={componentMetrics.iconInline} color={color} />
       <Text variant="bodyMedium" style={styles.issueText}>
         {text}
       </Text>

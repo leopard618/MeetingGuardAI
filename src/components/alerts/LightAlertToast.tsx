@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '../../i18n';
 import type { FeedbackRequest } from '../../services/alerts';
-import { alertLight, componentMetrics, darkColors, pressedOpacity, radii, spacing, typography } from '../../theme';
+import { alertLight, componentMetrics, darkColors, pressedDimOpacity, radii, spacing, typography } from '../../theme';
 import type { AlertDisplayModel } from './alertDisplay';
 import { useAlertFeedback, useLatest } from './hooks';
 
@@ -180,6 +180,6 @@ const styles = StyleSheet.create({
     opacity: 0.25,
   },
   pressed: {
-    opacity: pressedOpacity,
+    opacity: pressedDimOpacity,
   },
 });

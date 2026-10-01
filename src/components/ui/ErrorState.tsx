@@ -36,7 +36,11 @@ export function ErrorState({ body, title, onRetry, loading = false, style, testI
           importantForAccessibility="no"
         />
       </View>
-      {title ? <Text style={[styles.title, { color: colors.onSurface }]}>{title}</Text> : null}
+      {title ? (
+        <Text style={[styles.title, { color: colors.onSurface }]} accessibilityRole="header">
+          {title}
+        </Text>
+      ) : null}
       <Text style={[styles.body, { color: colors.onSurfaceVariant }, !title && styles.bodyAlone]}>{body}</Text>
       <MGButton
         onPress={onRetry}

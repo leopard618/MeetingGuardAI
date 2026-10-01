@@ -140,7 +140,7 @@ export function ActionCard({ state, fmt, palette, onReview, onReject, onOpenMeet
       <Text style={[styles.cardTitle, { color: palette.text }]}>{action.summary}</Text>
       {warnings.length > 0 ? (
         <View style={styles.warningLine}>
-          <MaterialCommunityIcons name="alert-outline" size={14} color={palette.warning} />
+          <MaterialCommunityIcons name="alert-outline" size={componentMetrics.iconMeta} color={palette.warning} />
           <Text style={[styles.cardNote, styles.flex, { color: palette.warning }]} numberOfLines={2}>
             {warnings[0]}
             {warnings.length > 1 ? ` ${fmt.t('ai:actions.moreWarnings', { count: warnings.length - 1 })}` : ''}

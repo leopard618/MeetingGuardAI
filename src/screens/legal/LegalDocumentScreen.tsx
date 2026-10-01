@@ -18,7 +18,7 @@ import { toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useResponsive } from '../../hooks/useResponsive';
 import { i18n, useLanguage, useT } from '../../i18n';
-import { componentMetrics, pressedOpacity, spacing, typography, useAppTheme, type MGColors } from '../../theme';
+import { componentMetrics, pressedDimOpacity, spacing, typography, useAppTheme, type MGColors } from '../../theme';
 import { formatDate } from '../../utils/format';
 import {
   LEGAL_ENTITY,
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   pressed: {
-    opacity: pressedOpacity,
+    opacity: pressedDimOpacity,
   },
 });
 

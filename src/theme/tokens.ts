@@ -498,8 +498,15 @@ export const stateAlpha = {
   rippleOnIcon: 0.12,
 } as const;
 
-/** iOS pressed-state fallback opacity (Android uses ripples). */
+/** iOS pressed-state fallback opacity for Pressables that also have an `android_ripple`. */
 export const pressedOpacity = 0.96;
+
+/**
+ * Visible pressed dim for Pressables WITHOUT an `android_ripple` (alert-overlay buttons, banner /
+ * section-header text actions, bespoke pill buttons). 0.96 is imperceptible on Android, so
+ * ripple-less controls use this instead on both platforms (docs/DESIGN_SYSTEM.md §8).
+ */
+export const pressedDimOpacity = 0.75;
 
 /**
  * `#RRGGBB` (or `#RGB`) -> `rgba(r,g,b,alpha)`. The only sanctioned way to derive a translucent
@@ -532,6 +539,8 @@ export const componentMetrics = {
   listRowTwoLineMinHeight: 72,
   listRowPaddingH: 16,
   listRowPaddingV: 12,
+  /** Meta icons beside bodyS/labelM text (card meta rows, warning lines, pills). */
+  iconMeta: 16,
   iconInline: 20,
   iconNav: 24,
   avatarSize: 40,

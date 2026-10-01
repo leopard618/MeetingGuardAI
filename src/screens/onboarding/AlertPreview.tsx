@@ -38,7 +38,8 @@ export function AlertPreview({ intensity }: { intensity: AlertIntensity }): Reac
   if (intensity === 'max') {
     return (
       <View style={[styles.frame, styles.max]} accessibilityLabel={t('onboarding:alerts.preview.label')}>
-        <MaterialCommunityIcons name="alarm-light" size={36} color={alertMax.title} />
+        {/* Same alarm-clock silhouette as MaxAlertModal's Ionicons "alarm". */}
+        <MaterialCommunityIcons name="alarm" size={36} color={alertMax.title} />
         <Text variant="titleMedium" style={styles.maxTitle}>
           {t('onboarding:alerts.preview.meetingTitle')}
         </Text>
@@ -122,7 +123,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   fakeButton: {
-    borderRadius: radii.sm,
+    // MaxAlertModal's buttons are r-md; the card-scale mock mirrors them.
+    borderRadius: radii.md,
     borderWidth: 1.5,
     borderColor: alertMax.snoozeBorder,
     paddingHorizontal: spacing.lg,

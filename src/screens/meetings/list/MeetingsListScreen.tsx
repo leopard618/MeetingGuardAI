@@ -267,6 +267,9 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
       />
 
       <Animated.View
+        pointerEvents={fab.shown ? 'auto' : 'none'}
+        importantForAccessibility={fab.shown ? 'yes' : 'no-hide-descendants'}
+        accessibilityElementsHidden={!fab.shown}
         style={[
           styles.fab,
           { bottom: insets.bottom + componentMetrics.screenGutter, right: insets.right + componentMetrics.screenGutter },

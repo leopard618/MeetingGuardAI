@@ -24,7 +24,7 @@ export function AssistantAvatar({ palette }: { palette: AssistantPalette }): Rea
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <MaterialCommunityIcons name="robot-outline" size={18} color={palette.primary} />
+      <MaterialCommunityIcons name="robot-outline" size={componentMetrics.iconInline} color={palette.primary} />
     </View>
   );
 }
@@ -103,7 +103,7 @@ export function MessageBubble({
         <Text style={[styles.time, { color: palette.textMuted }]}>{time}</Text>
         {message.delivery === 'failed' ? (
           <View style={styles.failedLine}>
-            <MaterialCommunityIcons name="alert-circle-outline" size={14} color={palette.danger} />
+            <MaterialCommunityIcons name="alert-circle-outline" size={componentMetrics.iconMeta} color={palette.danger} />
             <Text style={[styles.failedText, { color: palette.danger }]}>{fmt.t('ai:chat.notSent')}</Text>
           </View>
         ) : null}
@@ -167,11 +167,11 @@ export function SuggestionChips({
             onPress={() => onPress(item)}
             disabled={disabled}
             hitSlop={SMALL_HIT_SLOP}
-            style={[styles.chip, { borderColor: palette.outline, opacity: disabled ? 0.5 : 1 }]}
+            style={[styles.chip, { borderColor: disabled ? palette.disabledText : palette.outline }]}
             accessibilityRole="button"
             accessibilityState={{ disabled }}
           >
-            <Text style={[styles.chipText, { color: palette.textMuted }]}>{item}</Text>
+            <Text style={[styles.chipText, { color: disabled ? palette.disabledText : palette.textMuted }]}>{item}</Text>
           </Pressable>
         ))}
       </View>
@@ -201,7 +201,7 @@ export function ErrorNotice({
       testID="assistant-error"
     >
       <View style={styles.errorLine}>
-        <MaterialCommunityIcons name="alert-circle-outline" size={18} color={palette.onDangerSurface} />
+        <MaterialCommunityIcons name="alert-circle-outline" size={componentMetrics.iconInline} color={palette.onDangerSurface} />
         <Text style={[styles.errorText, { color: palette.onDangerSurface }]}>{description.message}</Text>
       </View>
       <View style={styles.buttonRow}>
@@ -242,7 +242,7 @@ export function UsagePill({ usage, palette }: { usage: UsageDescription | null; 
       accessibilityLabel={usage.accessibilityLabel}
       testID="assistant-usage"
     >
-      <MaterialCommunityIcons name="lightning-bolt-outline" size={14} color={color} />
+      <MaterialCommunityIcons name="lightning-bolt-outline" size={componentMetrics.iconMeta} color={color} />
       <Text style={[styles.usageText, { color }]} maxFontSizeMultiplier={PILL_MAX_FONT_SCALE}>
         {usage.label}
       </Text>
@@ -368,7 +368,6 @@ const styles = StyleSheet.create({
   },
   chipText: {
     ...typography.labelL,
-    fontWeight: '500',
   },
   errorBox: {
     borderRadius: radii.md,

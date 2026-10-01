@@ -19,25 +19,34 @@ export interface EmptyStateProps {
   icon: ComponentProps<typeof MaterialCommunityIcons>['name'];
   title: string;
   body: string;
+  /**
+   * "error" gives the icon circle the errorContainer pair — for a load failure with nothing
+   * cached on screens that (yet) have no retry path, so it never reads like a neutral empty
+   * (docs/DESIGN_SYSTEM.md §8). Prefer ErrorState whenever a retry handler exists.
+   */
+  tone?: 'neutral' | 'error';
   action?: EmptyStateAction;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-export function EmptyState({ icon, title, body, action, style, testID }: EmptyStateProps): ReactElement {
+export function EmptyState({ icon, title, body, tone = 'neutral', action, style, testID }: EmptyStateProps): ReactElement {
   const { colors } = useAppTheme();
+  const error = tone === 'error';
   return (
     <View style={[styles.container, style]} testID={testID}>
-      <View style={[styles.circle, { backgroundColor: colors.surfaceVariant }]}>
+      <View style={[styles.circle, { backgroundColor: error ? colors.errorContainer : colors.surfaceVariant }]}>
         <MaterialCommunityIcons
           name={icon}
           size={componentMetrics.emptyStateIcon}
-          color={colors.onSurfaceVariant}
+          color={error ? colors.onErrorContainer : colors.onSurfaceVariant}
           accessibilityElementsHidden
           importantForAccessibility="no"
         />
       </View>
-      <Text style={[styles.title, { color: colors.onSurface }]}>{title}</Text>
+      <Text style={[styles.title, { color: colors.onSurface }]} accessibilityRole="header">
+        {title}
+      </Text>
       <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>{body}</Text>
       {action ? (
         <MGButton variant="tonal" onPress={action.onPress} style={styles.action} testID={testID ? `${testID}-action` : undefined}>

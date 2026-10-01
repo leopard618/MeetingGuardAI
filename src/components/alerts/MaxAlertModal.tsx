@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '../../i18n';
 import type { FeedbackRequest } from '../../services/alerts';
-import { alertMax, componentMetrics, pressedOpacity, radii, spacing, typography } from '../../theme';
+import { alertMax, componentMetrics, pressedDimOpacity, radii, spacing, typography } from '../../theme';
 import { useReducedMotion } from '../ui';
 import type { AlertDisplayModel } from './alertDisplay';
 import { useAlertFeedback, useBlockBackButton, useLatest } from './hooks';
@@ -167,7 +167,11 @@ export function MaxAlertModal(props: MaxAlertModalProps): ReactElement {
             </View>
 
             {onDetails ? (
-              <Pressable style={styles.linkButton} onPress={once(onDetails)} accessibilityRole="button">
+              <Pressable
+                style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}
+                onPress={once(onDetails)}
+                accessibilityRole="button"
+              >
                 <Text style={styles.linkText}>{t('alerts:buttons.details')}</Text>
               </Pressable>
             ) : null}
@@ -313,7 +317,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   pressed: {
-    opacity: pressedOpacity,
+    opacity: pressedDimOpacity,
   },
   countdown: {
     width: '100%',

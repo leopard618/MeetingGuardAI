@@ -142,7 +142,7 @@ function Attention({ insights }: { insights: PeriodInsights }): ReactElement {
       <Card testID="insights-attention">
         {missing > 0 ? (
           <View style={styles.issue}>
-            <MaterialCommunityIcons name="map-marker-question-outline" size={18} color={colors.onSurfaceVariant} />
+            <MaterialCommunityIcons name="map-marker-question-outline" size={componentMetrics.iconInline} color={colors.onSurfaceVariant} />
             <Text variant="bodyMedium" style={styles.issueText}>
               {t('insights:attention.missingPlace', { count: missing })}
             </Text>
@@ -154,7 +154,7 @@ function Attention({ insights }: { insights: PeriodInsights }): ReactElement {
         )}
         {tips > 0 ? (
           <View style={styles.issue}>
-            <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={colors.primary} />
+            <MaterialCommunityIcons name="lightbulb-on-outline" size={componentMetrics.iconInline} color={colors.primary} />
             <Text variant="bodyMedium" style={styles.issueText}>
               {t('insights:attention.withTips', { count: tips })}
             </Text>
@@ -181,7 +181,7 @@ function PairRow({ pair, kind, onOpen }: { pair: MeetingPair; kind: PairSection[
       <View style={styles.pairHeader}>
         <MaterialCommunityIcons
           name={kind === 'overlaps' ? 'alert-circle-outline' : 'timer-sand'}
-          size={18}
+          size={componentMetrics.iconInline}
           color={kind === 'overlaps' ? colors.error : colors.tertiary}
         />
         <Text variant="titleSmall" style={styles.issueText}>

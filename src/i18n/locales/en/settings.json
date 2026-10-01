@@ -41,7 +41,7 @@
     "12": "12-hour",
     "24": "24-hour",
     "title": "Time format",
-    "auto": "Automatic",
+    "auto": "Auto",
     "hint": "Used for every time in the app and in your alerts, for example {{example}}."
   }
 }
