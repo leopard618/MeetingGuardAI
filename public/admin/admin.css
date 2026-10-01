@@ -61,9 +61,7 @@ body {
 .brand { display: flex; align-items: center; gap: 10px; }
 .logo {
   width: 36px; height: 36px; border-radius: 9px;
-  background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 14px; letter-spacing: 0.5px;
+  display: block; object-fit: cover;
 }
 .brand-name { font-weight: 600; }
 .admin-tag {
