@@ -155,6 +155,7 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--primary); o
 .error-text { color: var(--danger); margin: 10px 0 0; }
 .ok-text { color: var(--ok); margin: 10px 0 0; }
 .warn-text { color: var(--warn); }
+p.warn-text { margin: 10px 0 0; } /* result lines (e.g. #rotate-result) align with ok/error */
 
 /* Metric tiles ------------------------------------------------------------------------------- */
 .cards {
@@ -194,6 +195,7 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--primary); o
 .range-btn:hover { color: var(--text); }
 .range-btn[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); }
 .range-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.range-btn:disabled { opacity: 0.55; cursor: progress; } /* a load is in flight; clicks would be dropped */
 
 /* Users table -------------------------------------------------------------------------------- */
 .search-wrap { flex: 0 1 320px; }
@@ -230,6 +232,9 @@ td.num { font-variant-numeric: tabular-nums; }
 .status-cell { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 
 .table-foot { display: flex; justify-content: center; padding: 14px 0 0; }
+
+#users-error { display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 10px 0 0; }
+#users-error .error-text { margin: 0; }
 
 /* Settings ----------------------------------------------------------------------------------- */
 .settings-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }

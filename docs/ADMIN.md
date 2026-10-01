@@ -57,6 +57,11 @@ and basic usage metrics. It is an internal tool, so the UI is English only.
    root `default-src 'none'` policy alone, the header entries in `firebase.json` are in the
    wrong order (the `/admin` entries must come after the catch-all `**`).
 
+   `connect-src` also lists `https://www.gstatic.com` solely so DevTools can fetch the Firebase
+   SDK's source maps without console noise (the page itself never connects there; script-src
+   already trusts the host). A future CSP tightening pass may drop it if the admins' browsers
+   stop requesting source maps through the page context.
+
    The `connect-src` / `frame-src` sources are PINNED to this project's hosts
    (`https://us-central1-meetingguard-ai-app.cloudfunctions.net`,
    `https://meetingguard-ai-app.firebaseapp.com`) instead of the multi-tenant wildcards
@@ -117,10 +122,16 @@ its own Refresh. All dates and day buckets are UTC.
   per click) and reports round-trip latency, or a short error category.
 - **Rotate OpenAI key**: paste the new key (password field, cleared after every attempt) →
   confirm → the backend validates it against the OpenAI API, stores it as the **only enabled**
-  Secret Manager version, disables all prior versions, and running instances switch within
-  ~5 minutes. The key value is never displayed, logged or stored by the page. If the configured
-  model is not available to the new key, rotation still succeeds but shows a warning. On any
-  failure the previous key stays active.
+  Secret Manager version, disables all prior (numerically lower — so concurrent rotations
+  converge on newest-wins) versions, and running instances switch within ~5 minutes. The key
+  value is never displayed, logged or stored by the page; every rejected attempt leaves a
+  key-free audit log entry (`adminRotateOpenAiKey.rejected`). If the configured model is not
+  available to the new key, rotation still succeeds but shows a warning. The button is disabled
+  while the IAM grant is missing. Failure semantics: on a **pre-store** failure (validation,
+  unreachable OpenAI, missing grant) the previous key stays active and the page says so; if
+  disabling the prior versions fails **after** the new version was stored, the page reports
+  that the new key WAS stored and becomes active (never revoke the new key in that state —
+  retry the rotation or disable old versions in the Cloud console).
 
 ## v2 (implemented — architecture + build spec)
 
@@ -141,13 +152,17 @@ The four v1 callables are unchanged. All seven require the `admin: true` claim.
 
 ### Stats pipeline
 
-- The assistant handler, after a successful OpenAI completion, merge-sets
-  `adminStats/ai/days/{yyyy-mm-dd}` (UTC day = `usageDayKey`, same key as the quota) with
+- The assistant handler, after a successful OpenAI completion, merge-sets a **random write
+  shard** `adminStats/ai/days/{yyyy-mm-dd}/shards/{0..9}` (UTC day = `usageDayKey`, same key as
+  the quota; `AI_STATS_SHARD_COUNT` in `functions/src/admin/schemas.ts`) with
   `FieldValue.increment` transforms: `{requests:+1, inputTokens:+p, outputTokens:+c, updatedAt}`.
-  One awaited write inside its own try/catch — a stats failure logs a warning and never fails
-  the user request. Decisions: only completions are counted (billed work; matches the quota sum
-  within refunds); `uniqueUsers` and `byModel` are **skipped** in v2 (no cheap atomic source for
-  the former; the latter adds nothing while pricing is a flat param pair).
+  Sharding exists because a single day document caps at ~1 sustained write/s — a burst of
+  parallel assistant calls would abort increments and silently undercount the charts.
+  `adminGetStats` sums the shards plus the pre-shard legacy day document, so old data needs no
+  migration. One awaited write inside its own try/catch — a stats failure logs a warning and
+  never fails the user request. Decisions: only completions are counted (billed work; matches
+  the quota sum within refunds); `uniqueUsers` and `byModel` are **skipped** in v2 (no cheap
+  atomic source for the former; the latter adds nothing while pricing is a flat param pair).
 - Signups are derived inside `adminGetStats` from Auth `listUsers` `creationTime` paging —
   no new writes.
 - `firestore.rules` denies `adminStats/**` to all clients explicitly (server/Admin SDK only).
@@ -164,9 +179,15 @@ The four v1 callables are unchanged. All seven require the `admin: true` claim.
   the wrapped client invalidates, refetches once and retries once (`withKeyRetry`).
 - Rotation (`adminRotateOpenAiKey`): validate the candidate against `GET api.openai.com/v1/models`
   (non-200 → `failed-precondition`; configured model missing → `modelAvailable:false`,
-  warn-not-block) → Secret Manager `addVersion` → disable all prior enabled versions → invalidate
-  the local cache. The key value never appears in logs, errors, Firestore, responses or the DOM
-  longer than needed.
+  warn-not-block) → Secret Manager `addVersion` (a 403 maps to `failed-precondition`
+  `iam_missing` — the grant, not a deploy, is what's missing) → disable the prior enabled
+  versions **with lower numbers only** (newest wins: `!== version` would let two interleaved
+  rotations disable each other's version, leaving `versions/latest` disabled and the runtime
+  silently on the env fallback) → invalidate the local cache (also when disabling fails: the
+  post-store failure is `aborted`/`stored_cleanup_failed`, and the UI then says the new key WAS
+  stored instead of the false "previous key still active"). Rejected attempts are audit-logged
+  with fixed, key-free fields. The key value never appears in logs, errors, Firestore,
+  responses or the DOM longer than needed.
 - IAM (owner-run once, see `functions/README.md` "OpenAI key rotation"): grant the runtime SA
   `secretAccessor` + `secretVersionManager` on the one secret. Until then `adminGetHealth`
   reports `iamReady:false` + `mode:'env-fallback'` and the Settings page shows the exact command.
@@ -193,9 +214,13 @@ The four v1 callables are unchanged. All seven require the `admin: true` claim.
 - **Settings**: health card (model, reasoning effort, global daily limit, secret mode/version/
   lastRotatedAt; `iamReady:false` state shows the grant command in a `<code>` block) · "Test
   assistant" button → `adminGetHealth {ping:true}` with latency/result states · "Rotate OpenAI
-  key" card: `<input type="password" autocomplete="off">` + paste-only hint, `confirm()` dialog
-  naming the irreversible effect, result states (success shows version + a warning when
-  `modelAvailable` is false), input cleared in `finally`, value never logged/stored.
+  key" card: `<input type="password" autocomplete="new-password">` (browsers ignore
+  `autocomplete="off"` on password inputs — `new-password` is what keeps the key out of the
+  password manager) + paste-only hint, `confirm()` dialog naming the irreversible effect,
+  result states (success shows version + a propagation note + a warning when `modelAvailable`
+  is false; the post-store `aborted` error renders as a warning, every other error as
+  "previous key still active"), button disabled while `iamReady` is false, input cleared in
+  `finally` (every attempt, including the too-short branch), value never logged/stored.
 - **Charts**: `public/admin/chart.js` (spec header in the file): `renderLineChart` /
   `renderBarChart`, nice-tick y auto-scale, thinned date labels, `<title>` tooltips + `.sr-only`
   table fallback, colors from CSS vars, empty-state text, ~200-line budget, no deps.

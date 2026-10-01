@@ -117,10 +117,13 @@ export type GetMetricsResponse = z.infer<typeof getMetricsResponseSchema>;
 
 // =============================================================================================
 // v2 contracts (ARCHITECT-OWNED: implementers build against these, they do not reshape them).
-// Pipeline: the assistant handler aggregates per-UTC-day usage into
-// adminStats/ai/days/{yyyy-mm-dd} (dayKey = usageDayKey(now), same key as the quota) with a
-// single merge-set of FieldValue.increment transforms AFTER a successful OpenAI completion,
-// wrapped in try/catch: a stats failure is logged (warn) and NEVER fails the user request.
+// Pipeline: the assistant handler aggregates per-UTC-day usage into a RANDOM shard document
+// adminStats/ai/days/{yyyy-mm-dd}/shards/{0..N-1} (dayKey = usageDayKey(now), same key as the
+// quota) with a single merge-set of FieldValue.increment transforms AFTER a successful OpenAI
+// completion, wrapped in try/catch: a stats failure is logged (warn) and NEVER fails the user
+// request. Sharding dodges Firestore's ~1 sustained write/s single-document limit (one hot day
+// doc across concurrency 20 x maxInstances 20 would silently drop increments under bursts);
+// adminGetStats sums the shards PLUS the pre-shard legacy day document when reading.
 // firestore.rules: adminStats/** has an explicit client deny (Admin SDK only).
 // =============================================================================================
 
@@ -132,8 +135,18 @@ export function adminStatsAiDayPath(dayKey: string): string {
   return `adminStats/ai/days/${dayKey}`;
 }
 
+/** Write shards per day document (read path sums them, so this can grow without migration). */
+export const AI_STATS_SHARD_COUNT = 10;
+
+/** Path of one write shard of a day's aggregate (shard in 0..AI_STATS_SHARD_COUNT-1). */
+export function adminStatsAiShardPath(dayKey: string, shard: number): string {
+  return `${adminStatsAiDayPath(dayKey)}/shards/${shard}`;
+}
+
 /**
- * adminStats/ai/days/{yyyy-mm-dd}: project-wide assistant aggregates for one UTC day.
+ * Shape of one aggregate document — both a write shard (adminStats/ai/days/{day}/shards/{n},
+ * the only place the assistant writes since the shard change) and the pre-shard legacy day
+ * document (adminStats/ai/days/{day}); the read path sums whichever exist per day.
  * `requests` counts completions OpenAI returned (billed work); token fields come from the
  * completion's usage object (0 when OpenAI omitted it). Written only by the assistant callable.
  * uniqueUsers/byModel were considered and SKIPPED for v2 (decision in docs/ADMIN.md §v2).

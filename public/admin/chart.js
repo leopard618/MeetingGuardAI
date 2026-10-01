@@ -39,6 +39,15 @@ export function labelStep(count, maxLabels = 8) {
   return count > 0 ? Math.max(1, Math.ceil(count / maxLabels)) : 1;
 }
 
+/**
+ * Whether category index i (of n) gets an x label: anchored to the NEWEST point, so today
+ * (index n-1) is always labeled and the step walks backwards. Anchoring at index 0 would leave
+ * the rightmost — most-read — days unlabeled (e.g. the last labeled date 6 days old at n=90).
+ */
+export function isLabeledIndex(i, n, step) {
+  return (n - 1 - i) % step === 0;
+}
+
 /** 'yyyy-mm-dd' -> 'MM-DD' (x-axis labels drop the year). */
 export function shortDate(iso) {
   return typeof iso === 'string' && iso.length >= 10 ? iso.slice(5, 10) : String(iso);
@@ -80,7 +89,9 @@ const fmtVal = (v) => Number(v ?? 0).toLocaleString('en-US');
 
 /** Axes, gridlines and labels; returns the scales the mark painters draw with. */
 function frame(container, series, options, maxValue) {
-  const width = container.clientWidth || 640; // hidden tab => clientWidth 0; render at a default
+  // admin.js defers drawing while the container is hidden (clientWidth 0) and repaints on
+  // resize; the 640 fallback is only a belt for a direct call against a hidden node.
+  const width = container.clientWidth || 640;
   const height = options.height || 220;
   const plotW = width - PAD.left - PAD.right;
   const plotH = height - PAD.top - PAD.bottom;
@@ -110,7 +121,7 @@ function frame(container, series, options, maxValue) {
   }
   const step = labelStep(n);
   categories.forEach((date, i) => {
-    if (i % step !== 0) return;
+    if (!isLabeledIndex(i, n, step)) return;
     const label = svgEl('text', { x: x(i), y: height - 8, 'text-anchor': 'middle', 'font-size': 11, fill: muted });
     label.textContent = shortDate(date);
     svg.appendChild(label);

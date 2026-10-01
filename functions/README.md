@@ -89,12 +89,21 @@ not the project.) Equivalent REST: `POST https://secretmanager.googleapis.com/v1
 meetingguard-ai-app/secrets/OPENAI_API_KEY:setIamPolicy` with those two bindings added.
 
 Until the grant exists, nothing breaks: the assistant keeps using the env-bound secret
-(`mode: 'env-fallback'`), and the admin dashboard's Settings tab shows `iamReady: false`
-together with the exact commands above. Rotation order (enforced by the callable): validate the
-candidate key against `GET api.openai.com/v1/models` → `addVersion` → disable prior enabled
-versions → invalidate the in-instance cache. Other instances pick the new key up within the
-5-minute TTL, or immediately on an OpenAI 401 (one forced refetch + retry). The key value is
-never logged, stored in Firestore or returned to the browser.
+(`mode: 'env-fallback'`), the admin dashboard's Settings tab shows `iamReady: false` together
+with the exact commands above and disables the rotate button, and a rotation attempt that
+slips through fails with an explicit `failed-precondition` "grant missing" error (the Secret
+Manager 403 is mapped — it is NOT a deploy problem). Rotation order (enforced by the
+callable): validate the candidate key against `GET api.openai.com/v1/models` → `addVersion` →
+disable prior enabled versions with **lower numbers only** (newest wins, so two concurrent
+rotations converge instead of disabling each other's version — which would leave
+`versions/latest` disabled and the runtime silently on the env fallback) → invalidate the
+in-instance cache. If disabling fails AFTER the new version was stored, the callable still
+invalidates the cache and reports `aborted`/`stored_cleanup_failed` naming the stored version:
+the new key IS becoming active, so do not revoke it at OpenAI — retry the rotation or disable
+the old versions in the console. Rejected attempts are audit-logged
+(`adminRotateOpenAiKey.rejected`, fixed key-free fields). Other instances pick the new key up
+within the 5-minute TTL, or immediately on an OpenAI 401 (one forced refetch + retry). The key
+value is never logged, stored in Firestore or returned to the browser.
 
 ### Parameters
 

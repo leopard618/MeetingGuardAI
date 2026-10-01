@@ -9,7 +9,7 @@ rules_version = '2';
 //   users/{uid}/settings/preferences   Preferences        owner read/write, validated
 //   entitlements/{uid}                 Entitlement        owner read, server write only
 //   usage/{uid}/days/{day}             AI quota counter   owner read, server write only
-//   adminStats/ai/days/{day}           admin aggregates   server only (no client access at all)
+//   adminStats/ai/days/{day}/**        admin aggregates   server only (no client access at all)
 //   everything else                                       denied
 //
 // The Admin SDK (Cloud Functions) bypasses these rules. Instants are UTC ISO strings
@@ -317,10 +317,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Admin dashboard aggregates (adminStats/ai/days/{day}: per-UTC-day assistant request and
-    // token counts; functions/src/admin/schemas.ts). Written by the assistant callable, read by
-    // the admin callables — Admin SDK only, so clients get NOTHING here, not even admins (the
-    // dashboard goes through adminGetStats). Explicit so the catch-all below is not load-bearing.
+    // Admin dashboard aggregates (adminStats/ai/days/{day} plus its write shards
+    // adminStats/ai/days/{day}/shards/{n}: per-UTC-day assistant request and token counts;
+    // functions/src/admin/schemas.ts). Written by the assistant callable, read by the admin
+    // callables — Admin SDK only, so clients get NOTHING here, not even admins (the dashboard
+    // goes through adminGetStats). The recursive wildcard covers the shard subcollection.
+    // Explicit so the catch-all below is not load-bearing.
     match /adminStats/{document=**} {
       allow read, write: if false;
     }

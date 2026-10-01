@@ -28,7 +28,12 @@ import {
 import { toUpstreamError } from '../assistant/llm';
 import { isUserNotFound } from '../deleteAccount';
 import { adminAuth, adminDb } from '../firebase';
-import { googleAuthSecretRotator, instanceOpenAiKeyProvider, type OpenAiKeyStatus } from '../openaiKey';
+import {
+  googleAuthSecretRotator,
+  instanceOpenAiKeyProvider,
+  isSecretManagerPermissionDenied,
+  type OpenAiKeyStatus,
+} from '../openaiKey';
 import { planSchema, usageDayKey, type Plan } from '../shared/aiContract';
 import { resolveEffectivePlan } from '../shared/entitlement';
 import {
@@ -496,6 +501,24 @@ export function statsDayKeys(now: Date, days: number): string[] {
   return keys;
 }
 
+/**
+ * Sums one day's aggregate documents (the write shards plus, for pre-shard history, the legacy
+ * day document) into one AdminStatsDayDoc-shaped object. Malformed documents degrade field-wise
+ * to 0 exactly like the single-document read did; updatedAt is the lexicographic max (ISO).
+ */
+export function sumAdminStatsDayDocs(rawDocs: unknown[]): { requests: number; inputTokens: number; outputTokens: number; updatedAt: string } {
+  const total = { requests: 0, inputTokens: 0, outputTokens: 0, updatedAt: '' };
+  for (const raw of rawDocs) {
+    const parsed = adminStatsDayDocSchema.safeParse(raw);
+    if (!parsed.success) continue;
+    total.requests += parsed.data.requests;
+    total.inputTokens += parsed.data.inputTokens;
+    total.outputTokens += parsed.data.outputTokens;
+    if (parsed.data.updatedAt > total.updatedAt) total.updatedAt = parsed.data.updatedAt;
+  }
+  return total;
+}
+
 // ---------------------------------------------------------------------------------------------
 // v2 handlers (exported for unit tests)
 // ---------------------------------------------------------------------------------------------
@@ -590,19 +613,28 @@ export async function handleRotateOpenAiKey(
   if (!parsed.success) throw invalidArgument('adminRotateOpenAiKey');
   const newKey = parsed.data.newKey;
   try {
-    // 1. Validate the candidate against OpenAI BEFORE storing anything.
+    // 1. Validate the candidate against OpenAI BEFORE storing anything. Every rejection below
+    //    leaves a key-free audit line (adminUid + fixed fields only): repeated failed rotations
+    //    are the signature of a compromised or confused admin account and must not be invisible.
     let models: { status: number; modelIds: string[] };
     try {
       models = await ports.fetchOpenAiModels(newKey);
     } catch {
+      logger.warn('adminRotateOpenAiKey.rejected', { adminUid: caller.uid, reason: 'openai_unreachable' });
       throw new HttpsError('unavailable', 'OpenAI could not be reached to validate the key. Nothing was changed.');
     }
     if (models.status === 401) {
+      logger.warn('adminRotateOpenAiKey.rejected', { adminUid: caller.uid, reason: 'invalid_key', status: 401 });
       throw new HttpsError('failed-precondition', 'OpenAI rejected this key (HTTP 401). Nothing was changed.', {
         reason: 'invalid_key',
       });
     }
     if (models.status !== 200) {
+      logger.warn('adminRotateOpenAiKey.rejected', {
+        adminUid: caller.uid,
+        reason: 'validation_failed',
+        status: models.status,
+      });
       throw new HttpsError(
         'failed-precondition',
         `OpenAI answered HTTP ${models.status} while validating the key. Nothing was changed.`,
@@ -611,19 +643,64 @@ export async function handleRotateOpenAiKey(
     const model = ports.configuredModel();
     const modelAvailable = models.modelIds.includes(model);
     if (!modelAvailable) logger.warn('adminRotateOpenAiKey.model_missing', { model }); // warn-not-block
-    // 2. Store, 3. keep only the new version enabled, 4. bust this instance's cache.
-    const { version } = await ports.addSecretVersion(newKey);
-    const enabled = await ports.listEnabledSecretVersions();
-    const prior = enabled.filter((candidate) => candidate !== version);
-    for (const priorVersion of prior) {
-      await ports.disableSecretVersion(priorVersion);
+    // 2. Store. A Secret Manager 403 here is the missing one-time IAM grant (the functions ARE
+    //    deployed) — name the real cause instead of the generic 'internal' + redeploy hint.
+    let version: string;
+    try {
+      ({ version } = await ports.addSecretVersion(newKey));
+    } catch (error) {
+      if (isSecretManagerPermissionDenied(error)) {
+        logger.warn('adminRotateOpenAiKey.rejected', { adminUid: caller.uid, reason: 'iam_missing' });
+        throw new HttpsError(
+          'failed-precondition',
+          'Secret Manager grant missing — run the gcloud commands shown in the health card on this page '
+            + '(also in functions/README.md "OpenAI key rotation"). Nothing was changed.',
+          { reason: 'iam_missing' },
+        );
+      }
+      throw error;
     }
+    // 3. Keep only the NEW version enabled — but disable only versions numerically LOWER than
+    //    the one just added. A HIGHER number is a concurrent rotation that must win: filtering
+    //    on `!== version` would let two interleaved rotations disable each other's version,
+    //    leaving the latest version disabled, every REST fetch failing, and the runtime silently
+    //    negative-cached on the deploy-frozen env key. Versions are monotonically increasing
+    //    integers, so "newest wins" is exactly `Number(candidate) < Number(version)`.
+    let disabledVersions: number;
+    try {
+      const enabled = await ports.listEnabledSecretVersions();
+      const prior = enabled.filter((candidate) => Number(candidate) < Number(version));
+      for (const priorVersion of prior) {
+        await ports.disableSecretVersion(priorVersion);
+      }
+      disabledVersions = prior.length;
+    } catch (error) {
+      // The new key WAS stored and is 'latest': every instance switches to it within the TTL.
+      // Claiming "the previous key is still active" here would be false and could make an admin
+      // revoke the NEW key at OpenAI — report exactly what happened instead ('aborted' is the
+      // client's post-store signal), and still bust this instance's cache.
+      ports.invalidateKeyCache();
+      logger.error('adminRotateOpenAiKey.cleanup_failed', {
+        adminUid: caller.uid,
+        version,
+        errorName: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message.slice(0, 300) : '',
+      });
+      throw new HttpsError(
+        'aborted',
+        `The new key WAS stored as Secret Manager version ${version} and becomes active everywhere within `
+          + '~5 minutes, but disabling the prior versions failed. Retry the rotation with the same key, or '
+          + 'disable the old versions in the Google Cloud console. Do NOT revoke the new key at OpenAI.',
+        { reason: 'stored_cleanup_failed', version },
+      );
+    }
+    // 4. Bust this instance's cache (other instances refresh within the TTL or on 401-retry).
     ports.invalidateKeyCache();
     logger.info('adminRotateOpenAiKey.completed', {
       adminUid: caller.uid,
       version,
       modelAvailable,
-      disabledVersions: prior.length,
+      disabledVersions,
     });
     return rotateOpenAiKeyResponseSchema.parse({ ok: true, version, modelAvailable });
   } catch (error) {
@@ -639,6 +716,12 @@ export async function handleRotateOpenAiKey(
 export const ROTATE_VALIDATE_TIMEOUT_MS = 5_000;
 export const ASSISTANT_PING_TIMEOUT_MS = 10_000;
 
+/** Creation-time cache TTL: past days never change, only today's signup bucket can lag this. */
+export const AUTH_CREATION_TIMES_TTL_MS = 120_000;
+/** Per-instance cache: adminGetStats otherwise pages the ENTIRE Auth user list on every chart
+ *  load/range click, which grows linearly with the user base (seconds at tens of thousands). */
+let creationTimesCache: { times: string[]; fetchedAt: number } | null = null;
+
 export function firebaseStatsPorts(): AdminStatsPorts {
   const db = adminDb();
   const auth = adminAuth();
@@ -646,14 +729,25 @@ export function firebaseStatsPorts(): AdminStatsPorts {
     async getStatsDays(dayKeys) {
       const map = new Map<string, unknown>();
       if (dayKeys.length === 0) return map;
-      const snapshots = await db.getAll(...dayKeys.map((dayKey) => db.doc(adminStatsAiDayPath(dayKey))));
-      snapshots.forEach((snapshot, index) => {
-        const dayKey = dayKeys[index];
-        if (dayKey !== undefined && snapshot.exists) map.set(dayKey, snapshot.data());
+      // Per day: the write shards (adminStats/ai/days/{day}/shards/*) plus the legacy pre-shard
+      // day document; sumAdminStatsDayDocs collapses them into one AdminStatsDayDoc shape.
+      const [parents, shardSnapshots] = await Promise.all([
+        db.getAll(...dayKeys.map((dayKey) => db.doc(adminStatsAiDayPath(dayKey)))),
+        Promise.all(dayKeys.map((dayKey) => db.collection(`${adminStatsAiDayPath(dayKey)}/shards`).get())),
+      ]);
+      dayKeys.forEach((dayKey, index) => {
+        const rawDocs: unknown[] = [];
+        const parent = parents[index];
+        if (parent?.exists) rawDocs.push(parent.data());
+        for (const shard of shardSnapshots[index]?.docs ?? []) rawDocs.push(shard.data());
+        if (rawDocs.length > 0) map.set(dayKey, sumAdminStatsDayDocs(rawDocs));
       });
       return map;
     },
     async listAuthCreationTimes() {
+      if (creationTimesCache && Date.now() - creationTimesCache.fetchedAt < AUTH_CREATION_TIMES_TTL_MS) {
+        return creationTimesCache.times;
+      }
       const times: string[] = [];
       let pageToken: string | undefined;
       do {
@@ -664,6 +758,7 @@ export function firebaseStatsPorts(): AdminStatsPorts {
         }
         pageToken = page.pageToken;
       } while (pageToken);
+      creationTimesCache = { times, fetchedAt: Date.now() };
       return times;
     },
     pricing() {

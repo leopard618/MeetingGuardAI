@@ -7,6 +7,7 @@ import {
   createOpenAiKeyProvider,
   googleAuthSecretAccessor,
   googleAuthSecretRotator,
+  isSecretManagerPermissionDenied,
   withKeyRetry,
   type OpenAiKeyProvider,
   type SecretRestEdge,
@@ -29,28 +30,41 @@ const SECRET_KEY = 'sk-test-rest-key-000000000000';
 
 function scriptedAccessor(
   script: Array<{ value: string; version: string; createTime?: string | null } | Error>,
-): { accessor: SecretVersionAccessor; calls: () => number } {
+): { accessor: SecretVersionAccessor; calls: () => number; metadataCalls: () => number } {
   let calls = 0;
+  let metadataCalls = 0;
+  let lastStep: { value: string; version: string; createTime?: string | null } | null = null;
   const accessor: SecretVersionAccessor = {
     async accessLatest() {
       const step = script[Math.min(calls, script.length - 1)]!;
       calls += 1;
       if (step instanceof Error) throw step;
-      return { value: step.value, version: step.version, createTime: step.createTime ?? null };
+      lastStep = step;
+      return { value: step.value, version: step.version };
+    },
+    async latestCreateTime() {
+      metadataCalls += 1;
+      return lastStep?.createTime ?? null;
     },
   };
-  return { accessor, calls: () => calls };
+  return { accessor, calls: () => calls, metadataCalls: () => metadataCalls };
 }
 
 function providerWith(
   script: Array<{ value: string; version: string; createTime?: string | null } | Error>,
   options: { envKey?: string } = {},
-): { provider: OpenAiKeyProvider; calls: () => number; envFallback: jest.Mock; clock: { now: number } } {
-  const { accessor, calls } = scriptedAccessor(script);
+): {
+  provider: OpenAiKeyProvider;
+  calls: () => number;
+  metadataCalls: () => number;
+  envFallback: jest.Mock;
+  clock: { now: number };
+} {
+  const { accessor, calls, metadataCalls } = scriptedAccessor(script);
   const clock = { now: 1_000 };
   const envFallback = jest.fn(() => options.envKey ?? 'sk-env-fallback-key-0000000000');
   const provider = createOpenAiKeyProvider({ accessor, envFallback, nowMs: () => clock.now });
-  return { provider, calls, envFallback, clock };
+  return { provider, calls, metadataCalls, envFallback, clock };
 }
 
 interface EdgeRequest {
@@ -86,12 +100,15 @@ function fakeEdge(responses: Array<{ status: number; json?: unknown }>): { edge:
 // ---------------------------------------------------------------------------------------------
 
 describe('createOpenAiKeyProvider', () => {
-  it('serves the REST key and caches it for the TTL', async () => {
-    const { provider, calls, envFallback, clock } = providerWith([{ value: SECRET_KEY, version: '3' }]);
+  it('serves the REST key and caches it for the TTL — without ever fetching version metadata', async () => {
+    const { provider, calls, metadataCalls, envFallback, clock } = providerWith([{ value: SECRET_KEY, version: '3' }]);
     await expect(provider.get()).resolves.toEqual({ key: SECRET_KEY, source: 'rest', version: '3' });
     clock.now += OPENAI_KEY_TTL_MS - 1;
     await expect(provider.get()).resolves.toEqual({ key: SECRET_KEY, source: 'rest', version: '3' });
     expect(calls()).toBe(1);
+    // The cosmetic createTime call belongs to status() (health) only: get() sits on the
+    // assistant's request path, where it would add up to one more 5s REST timeout.
+    expect(metadataCalls()).toBe(0);
     expect(envFallback).not.toHaveBeenCalled();
   });
 
@@ -150,23 +167,36 @@ describe('createOpenAiKeyProvider', () => {
   });
 
   it('status() reports rest mode with version, lastRotatedAt and iamReady', async () => {
-    const { provider } = providerWith([{ value: SECRET_KEY, version: '3', createTime: '2026-09-30T10:00:00Z' }]);
+    const { provider, metadataCalls } = providerWith([{ value: SECRET_KEY, version: '3', createTime: '2026-09-30T10:00:00Z' }]);
     await expect(provider.status()).resolves.toEqual({
       mode: 'rest',
       version: '3',
       lastRotatedAt: '2026-09-30T10:00:00Z',
       iamReady: true,
     });
+    // The metadata fetch is cached with the snapshot: a second status() does not refetch.
+    await provider.status();
+    expect(metadataCalls()).toBe(1);
   });
 
-  it('status() reports env-fallback mode with iamReady false when REST fails', async () => {
-    const { provider } = providerWith([new Error('secretmanager_request_failed (403)')]);
+  it('status() reports lastRotatedAt null (and does not throw) when the metadata call fails', async () => {
+    const { accessor } = scriptedAccessor([{ value: SECRET_KEY, version: '3' }]);
+    accessor.latestCreateTime = async () => {
+      throw new Error('secretmanager_request_failed (503)');
+    };
+    const provider = createOpenAiKeyProvider({ accessor, envFallback: () => 'sk-env', nowMs: () => 1_000 });
+    await expect(provider.status()).resolves.toMatchObject({ mode: 'rest', lastRotatedAt: null });
+  });
+
+  it('status() reports env-fallback mode with iamReady false when REST fails — without a metadata call', async () => {
+    const { provider, metadataCalls } = providerWith([new Error('secretmanager_request_failed (403)')]);
     await expect(provider.status()).resolves.toEqual({
       mode: 'env-fallback',
       version: null,
       lastRotatedAt: null,
       iamReady: false,
     });
+    expect(metadataCalls()).toBe(0);
   });
 });
 
@@ -267,36 +297,35 @@ describe('withKeyRetry', () => {
 const VERSION_NAME = 'projects/123/secrets/OPENAI_API_KEY/versions/4';
 
 describe('googleAuthSecretAccessor', () => {
-  it('accesses versions/latest, decodes base64, trims, and reads createTime best-effort', async () => {
+  it('accessLatest makes exactly ONE request (no metadata on the assistant path), decodes base64, trims', async () => {
     const { edge, requests } = fakeEdge([
       { status: 200, json: { name: VERSION_NAME, payload: { data: Buffer.from(`${SECRET_KEY}\n`).toString('base64') } } },
-      { status: 200, json: { name: VERSION_NAME, createTime: '2026-09-30T10:00:00Z', state: 'ENABLED' } },
     ]);
     await expect(googleAuthSecretAccessor(edge).accessLatest()).resolves.toEqual({
       value: SECRET_KEY,
       version: '4',
-      createTime: '2026-09-30T10:00:00Z',
     });
+    expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({
       url: 'https://secretmanager.googleapis.com/v1/projects/proj-1/secrets/OPENAI_API_KEY/versions/latest:access',
       method: 'GET',
       auth: 'Bearer sa-token-1',
     });
-    expect(requests[1]!.url).toBe(
+  });
+
+  it('latestCreateTime reads the version metadata (health path only)', async () => {
+    const { edge, requests } = fakeEdge([
+      { status: 200, json: { name: VERSION_NAME, createTime: '2026-09-30T10:00:00Z', state: 'ENABLED' } },
+    ]);
+    await expect(googleAuthSecretAccessor(edge).latestCreateTime()).resolves.toBe('2026-09-30T10:00:00Z');
+    expect(requests[0]!.url).toBe(
       'https://secretmanager.googleapis.com/v1/projects/proj-1/secrets/OPENAI_API_KEY/versions/latest',
     );
   });
 
-  it('still resolves the key when the metadata call is denied (createTime null)', async () => {
-    const { edge } = fakeEdge([
-      { status: 200, json: { name: VERSION_NAME, payload: { data: Buffer.from(SECRET_KEY).toString('base64') } } },
-      { status: 403 },
-    ]);
-    await expect(googleAuthSecretAccessor(edge).accessLatest()).resolves.toEqual({
-      value: SECRET_KEY,
-      version: '4',
-      createTime: null,
-    });
+  it('latestCreateTime resolves null when the metadata call is denied (versions.get needs secretVersionManager)', async () => {
+    const { edge } = fakeEdge([{ status: 403 }]);
+    await expect(googleAuthSecretAccessor(edge).latestCreateTime()).resolves.toBeNull();
   });
 
   it('throws a status-only category error on IAM denial (never a response body)', async () => {
@@ -307,6 +336,15 @@ describe('googleAuthSecretAccessor', () => {
   it('rejects a malformed access response', async () => {
     const { edge } = fakeEdge([{ status: 200, json: { name: VERSION_NAME, payload: {} } }]);
     await expect(googleAuthSecretAccessor(edge).accessLatest()).rejects.toThrow('secretmanager_access_malformed');
+  });
+});
+
+describe('isSecretManagerPermissionDenied', () => {
+  it('matches only the self-crafted 403 category', () => {
+    expect(isSecretManagerPermissionDenied(new Error('secretmanager_request_failed (403)'))).toBe(true);
+    expect(isSecretManagerPermissionDenied(new Error('secretmanager_request_failed (500)'))).toBe(false);
+    expect(isSecretManagerPermissionDenied(new Error('some (403) elsewhere'))).toBe(false);
+    expect(isSecretManagerPermissionDenied('secretmanager_request_failed (403)')).toBe(false);
   });
 });
 

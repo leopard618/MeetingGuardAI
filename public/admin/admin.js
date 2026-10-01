@@ -34,6 +34,7 @@ import {
   formatUsd,
   intTickFormat,
   requestsSeries,
+  rotationErrorDisplay,
   signupsSeries,
   tokensSeries,
   v2ErrorMessage,
@@ -105,6 +106,10 @@ const usersState = {
   nextPageToken: null,
   query: '',
   loading: false,
+  /** First page ever loaded successfully this session (gates the "No users match." state). */
+  loadedOnce: false,
+  /** Last load failed (shows the retry row only while nothing is loaded yet). */
+  failed: false,
 };
 
 const aiState = { days: 7, loading: false };
@@ -141,6 +146,8 @@ function showTab(name) {
     loadedTabs.add(name);
     TAB_LOADERS[name]();
   }
+  // Charts that finished loading while their tab was hidden (or were sized for another width).
+  repaintVisibleCharts();
 }
 
 function activateTab(name, focus = false) {
@@ -179,14 +186,41 @@ function setChartLoading(id) {
 
 function chartStatus(id, message, isError = false) {
   const node = $(id);
+  chartPaints.delete(id); // a later repaint must not resurrect stale data over this message
   node.classList.remove('is-loading');
   node.replaceChildren(el('p', `${isError ? 'error-text' : 'muted'} chart-msg`, message));
 }
 
+/**
+ * Last render per chart: id -> { paint, width }. The SVG viewBox is sized from the container at
+ * draw time, so a chart drawn into a hidden tab (clientWidth 0) or kept across a resize would
+ * mis-scale (tiny axis text, stretched strokes). Hidden containers get their paint STASHED
+ * (width 0) instead of drawn; repaintVisibleCharts() re-runs paints whose width is stale — on
+ * tab switch and (debounced) on window resize.
+ */
+const chartPaints = new Map();
+
 function drawChart(id, render, series, options) {
   const node = $(id);
-  render(node, series, options);
-  node.classList.remove('is-loading');
+  const paint = () => {
+    render(node, series, options);
+    node.classList.remove('is-loading');
+    chartPaints.set(id, { paint, width: node.clientWidth });
+  };
+  if (node.offsetParent === null) {
+    chartPaints.set(id, { paint, width: 0 }); // hidden tab: draw when it becomes visible
+    return;
+  }
+  paint();
+}
+
+function repaintVisibleCharts() {
+  for (const [id, entry] of chartPaints) {
+    const node = $(id);
+    if (node.offsetParent === null) continue;
+    const width = node.clientWidth;
+    if (Math.abs(width - entry.width) > Math.max(8, entry.width * 0.03)) entry.paint();
+  }
 }
 
 async function loadOverviewStats() {
@@ -209,7 +243,11 @@ async function loadAiStats(days) {
   if (aiState.loading) return;
   aiState.loading = true;
   aiState.days = days;
-  for (const button of document.querySelectorAll('#ai-range .range-btn')) {
+  // Disabled while in flight: a dropped click would otherwise leave aria-pressed, the tiles and
+  // the charts describing up to three different ranges with no feedback.
+  const rangeButtons = document.querySelectorAll('#ai-range .range-btn');
+  for (const button of rangeButtons) {
+    button.disabled = true;
     button.setAttribute('aria-pressed', String(Number(button.dataset.days) === days));
   }
   setChartLoading('ai-requests-chart');
@@ -231,8 +269,14 @@ async function loadAiStats(days) {
     const message = v2ErrorMessage(error);
     chartStatus('ai-requests-chart', message, true);
     chartStatus('ai-tokens-chart', message, true);
+    // The previous range's totals would silently pose as the failed range's numbers.
+    for (const id of ['ai-total-requests', 'ai-total-input', 'ai-total-output', 'ai-total-signups']) {
+      $(id).textContent = '–';
+    }
+    $('ai-cost-tile').hidden = true;
   } finally {
     aiState.loading = false;
+    for (const button of rangeButtons) button.disabled = false;
   }
 }
 
@@ -395,7 +439,13 @@ function renderUsers() {
     tr.appendChild(buildStatusCell(row));
     body.appendChild(tr);
   }
-  $('users-empty').hidden = visible.length > 0;
+  // Tri-state: loading row on the first fetch, retry row when it failed, and "No users match."
+  // only once a load has SUCCEEDED — never while the table is merely empty-because-pending.
+  const firstLoading = usersState.loading && !usersState.loadedOnce;
+  const firstFailed = usersState.failed && !usersState.loadedOnce && !usersState.loading;
+  $('users-loading').hidden = !firstLoading;
+  $('users-error').hidden = !firstFailed;
+  $('users-empty').hidden = !usersState.loadedOnce || visible.length > 0;
   const loadMore = $('users-load-more');
   loadMore.hidden = usersState.nextPageToken === null;
   loadMore.disabled = usersState.loading;
@@ -405,6 +455,7 @@ function renderUsers() {
 async function loadUsersPage(reset) {
   if (usersState.loading) return;
   usersState.loading = true;
+  usersState.failed = false;
   renderUsers();
   try {
     const request = { pageSize: PAGE_SIZE };
@@ -412,7 +463,9 @@ async function loadUsersPage(reset) {
     const { data } = await callables.listUsers(request);
     usersState.rows = reset ? data.users : usersState.rows.concat(data.users);
     usersState.nextPageToken = data.nextPageToken;
+    usersState.loadedOnce = true;
   } catch (error) {
+    usersState.failed = true;
     toast(`Could not load users: ${callableErrorMessage(error)}`, true);
   } finally {
     usersState.loading = false;
@@ -435,6 +488,13 @@ function renderHealth(data) {
   iam.textContent = data.secretRuntime.iamReady ? 'Ready' : 'Grant missing';
   iam.className = `badge ${data.secretRuntime.iamReady ? 'status-active' : 'badge-warn'}`;
   $('health-iam-warning').hidden = data.secretRuntime.iamReady;
+  // Rotation needs the same grant (secretVersionManager rides with it): without it the attempt
+  // can only fail, so gate the button instead of letting it misfire.
+  const rotate = $('rotate-run');
+  rotate.disabled = !data.secretRuntime.iamReady;
+  rotate.title = data.secretRuntime.iamReady
+    ? ''
+    : 'Secret Manager grant missing — run the gcloud commands in the health card first, then Refresh.';
 }
 
 function renderPing(ping) {
@@ -477,35 +537,38 @@ async function rotateKey() {
   const input = $('rotate-key');
   const button = $('rotate-run');
   const result = $('rotate-result');
-  const candidate = input.value.trim();
-  result.hidden = true;
-  if (candidate.length < 20) {
-    result.className = 'error-text';
-    result.textContent = 'That does not look like an API key (too short) — paste the full key.';
-    result.hidden = false;
-    return;
-  }
-  const warning = 'Rotate the OpenAI API key now?\n\n'
-    + 'The new key is validated against the OpenAI API, stored as the only enabled Secret '
-    + 'Manager version, and ALL prior versions are disabled immediately. Running instances '
-    + 'switch within about 5 minutes. This cannot be undone from this page.';
-  if (!window.confirm(warning)) {
-    input.value = '';
-    return;
-  }
   button.disabled = true;
   try {
+    const candidate = input.value.trim();
+    result.hidden = true;
+    if (candidate.length < 20) {
+      result.className = 'error-text';
+      result.textContent = 'That does not look like an API key (too short) — paste the full key.';
+      result.hidden = false;
+      return; // the finally still clears the input — "cleared after every attempt" holds
+    }
+    const warning = 'Rotate the OpenAI API key now?\n\n'
+      + 'The new key is validated against the OpenAI API, stored as the only enabled Secret '
+      + 'Manager version, and ALL prior versions are disabled immediately. Running instances '
+      + 'switch within about 5 minutes. This cannot be undone from this page.';
+    if (!window.confirm(warning)) return;
     const { data } = await callables.rotateOpenAiKey({ newKey: candidate });
     result.className = data.modelAvailable ? 'ok-text' : 'warn-text';
-    result.textContent = data.modelAvailable
+    result.textContent = (data.modelAvailable
       ? `Key rotated — now Secret Manager version ${data.version}.`
       : `Key rotated (version ${data.version}), but the configured model is NOT available to `
-        + 'this key. The assistant may fail until model access or OPENAI_MODEL is fixed.';
+        + 'this key. The assistant may fail until model access or OPENAI_MODEL is fixed.')
+      + ' Propagating — running instances switch within ~5 minutes; the health card may show the'
+      + ' old version until you Refresh after that.';
     result.hidden = false;
-    void loadHealth(false);
+    // adminGetHealth runs in a SEPARATE function process whose 5-minute cache this rotation
+    // cannot bust, so an immediate reload could render the OLD version right under the success
+    // line. Patch the known new state in client-side instead of refetching a stale answer.
+    $('health-version').textContent = data.version;
   } catch (error) {
-    result.className = 'error-text';
-    result.textContent = `Rotation failed — the previous key is still active. ${v2ErrorMessage(error)}`;
+    const { postStore, text } = rotationErrorDisplay(error);
+    result.className = postStore ? 'warn-text' : 'error-text';
+    result.textContent = text;
     result.hidden = false;
   } finally {
     input.value = ''; // the pasted key never outlives the attempt in the DOM
@@ -534,6 +597,8 @@ async function handleSignedIn(user) {
     usersState.rows = [];
     usersState.nextPageToken = null;
     usersState.query = '';
+    usersState.loadedOnce = false;
+    usersState.failed = false;
     $('user-search').value = '';
     loadedTabs.clear();
     showView('view-dashboard');
@@ -560,6 +625,7 @@ function wireEvents() {
   $('not-admin-sign-out').addEventListener('click', doSignOut);
   $('metrics-refresh').addEventListener('click', () => { void loadMetrics(); void loadOverviewStats(); });
   $('users-load-more').addEventListener('click', () => loadUsersPage(false));
+  $('users-retry').addEventListener('click', () => loadUsersPage(true));
   $('user-search').addEventListener('input', (event) => {
     usersState.query = event.target.value.trim().toLowerCase();
     renderUsers();
@@ -570,6 +636,11 @@ function wireEvents() {
   $('health-refresh').addEventListener('click', () => { void loadHealth(false); });
   $('ping-run').addEventListener('click', () => { void loadHealth(true); });
   $('rotate-run').addEventListener('click', () => { void rotateKey(); });
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(repaintVisibleCharts, 150); // viewBox is sized at draw time
+  });
   wireTabs();
 }
 

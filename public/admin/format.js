@@ -94,3 +94,16 @@ export function v2ErrorMessage(error) {
   if (code === 'internal') return `${base} — if the admin v2 functions were never deployed, deploy functions first.`;
   return base;
 }
+
+/**
+ * Error rendering for the rotate-key card. Only PRE-store failures may claim "the previous key
+ * is still active": an `aborted` error is the server's post-store signal (reason
+ * stored_cleanup_failed) — the NEW key was stored and becomes active, and its verbatim message
+ * must stand alone so the admin does not revoke the new key believing nothing changed.
+ */
+export function rotationErrorDisplay(error) {
+  if (callableErrorCode(error) === 'aborted') {
+    return { postStore: true, text: v2ErrorMessage(error) };
+  }
+  return { postStore: false, text: `Rotation failed — the previous key is still active. ${v2ErrorMessage(error)}` };
+}

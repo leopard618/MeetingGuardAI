@@ -6,6 +6,7 @@ import {
   handleGetStats,
   handleRotateOpenAiKey,
   statsDayKeys,
+  sumAdminStatsDayDocs,
   type AdminCaller,
   type AdminHealthPorts,
   type AdminRotatePorts,
@@ -95,6 +96,8 @@ interface RotateFakeOptions {
   networkError?: Error;
   newVersion?: string;
   enabledVersions?: string[];
+  addError?: Error;
+  listError?: Error;
   disableError?: Error;
 }
 
@@ -109,10 +112,12 @@ function fakeRotatePorts(options: RotateFakeOptions = {}) {
     configuredModel: jest.fn(() => 'gpt-5.4-mini'),
     addSecretVersion: jest.fn(async (value: string) => {
       calls.push(`add:${value === NEW_KEY ? 'candidate' : 'OTHER'}`);
+      if (options.addError) throw options.addError;
       return { version: options.newVersion ?? '5' };
     }),
     listEnabledSecretVersions: jest.fn(async () => {
       calls.push('list');
+      if (options.listError) throw options.listError;
       return options.enabledVersions ?? [options.newVersion ?? '5'];
     }),
     disableSecretVersion: jest.fn(async (version: string) => {
@@ -337,32 +342,102 @@ describe('handleRotateOpenAiKey', () => {
     expect(ports.addSecretVersion).toHaveBeenCalled();
   });
 
-  it('rejects an invalid key (OpenAI 401) without storing anything', async () => {
+  it('disables only numerically LOWER versions, so a concurrent rotation\'s newer version survives', async () => {
+    // Interleaved rotations: this call added 5 while another admin already added 6. Disabling
+    // "everything except my own" would kill 6 (the live 'latest'); newest-wins keeps it.
+    const { ports, calls } = fakeRotatePorts({ newVersion: '5', enabledVersions: ['4', '5', '6'] });
+    await expect(handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports)).resolves.toMatchObject({
+      ok: true,
+      version: '5',
+    });
+    expect(calls).toEqual(['validate:candidate', 'add:candidate', 'list', 'disable:4', 'invalidate']);
+  });
+
+  it('rejects an invalid key (OpenAI 401) without storing anything, with a key-free audit log', async () => {
     const { ports, calls } = fakeRotatePorts({ status: 401 });
     const error = await handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(HttpsError);
     expect((error as HttpsError).code).toBe('failed-precondition');
     expect((error as HttpsError).details).toEqual({ reason: 'invalid_key' });
     expect(calls).toEqual(['validate:candidate']); // nothing stored, nothing disabled
+    expect(logger.warn).toHaveBeenCalledWith('adminRotateOpenAiKey.rejected', {
+      adminUid: 'admin-1',
+      reason: 'invalid_key',
+      status: 401,
+    });
   });
 
-  it('rejects any other non-200 validation answer without storing anything', async () => {
+  it('rejects any other non-200 validation answer without storing anything, with an audit log', async () => {
     const { ports } = fakeRotatePorts({ status: 429 });
     const error = await handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports).catch((caught: unknown) => caught);
     expect((error as HttpsError).code).toBe('failed-precondition');
     expect(ports.addSecretVersion).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith('adminRotateOpenAiKey.rejected', {
+      adminUid: 'admin-1',
+      reason: 'validation_failed',
+      status: 429,
+    });
   });
 
-  it('maps an unreachable OpenAI to unavailable and drops the network error detail', async () => {
+  it('maps an unreachable OpenAI to unavailable, drops the network error detail, and audit-logs', async () => {
     const { ports } = fakeRotatePorts({ networkError: new Error(`fetch failed for Bearer ${NEW_KEY}`) });
     const error = await handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports).catch((caught: unknown) => caught);
     expect((error as HttpsError).code).toBe('unavailable');
     expect((error as HttpsError).message).not.toContain(NEW_KEY);
     expect(ports.addSecretVersion).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith('adminRotateOpenAiKey.rejected', {
+      adminUid: 'admin-1',
+      reason: 'openai_unreachable',
+    });
+  });
+
+  it('audit logs carry fixed fields only — never the candidate key', async () => {
+    const auditCases: RotateFakeOptions[] = [
+      { status: 401 },
+      { status: 500 },
+      { networkError: new Error('down') },
+      { addError: new Error('secretmanager_request_failed (403)') },
+    ];
+    for (const options of auditCases) {
+      const { ports } = fakeRotatePorts(options);
+      await handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports).catch(() => undefined);
+    }
+    for (const call of (logger.warn as jest.Mock).mock.calls) {
+      expect(JSON.stringify(call)).not.toContain(NEW_KEY);
+    }
+    expect(logger.warn).toHaveBeenCalledTimes(4);
+  });
+
+  it('maps a Secret Manager 403 on addVersion to an actionable failed-precondition (IAM grant missing)', async () => {
+    // The project's live state until the owner runs the gcloud grants: validation succeeds
+    // (needs no IAM), then Secret Manager denies addVersion. The old message was a generic
+    // 'internal' plus a WRONG "deploy functions first" hint.
+    const { ports } = fakeRotatePorts({ addError: new Error('secretmanager_request_failed (403)') });
+    const error = await handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(HttpsError);
+    expect((error as HttpsError).code).toBe('failed-precondition');
+    expect((error as HttpsError).details).toEqual({ reason: 'iam_missing' });
+    expect((error as HttpsError).message).toContain('grant');
+    expect((error as HttpsError).message).toContain('Nothing was changed');
+    expect(ports.listEnabledSecretVersions).not.toHaveBeenCalled();
+    expect(ports.invalidateKeyCache).not.toHaveBeenCalled();
+  });
+
+  it('keeps a NON-403 addVersion failure as internal (nothing was provably stored)', async () => {
+    const { ports } = fakeRotatePorts({ addError: new Error('secretmanager_request_failed (500)') });
+    await expect(handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports)).rejects.toMatchObject({ code: 'internal' });
+    expect(ports.invalidateKeyCache).not.toHaveBeenCalled();
   });
 
   it('never leaks the key into any thrown error message or details', async () => {
-    for (const options of [{ status: 401 as const }, { status: 500 as const }, { networkError: new Error('down') }]) {
+    const leakCases: RotateFakeOptions[] = [
+      { status: 401 },
+      { status: 500 },
+      { networkError: new Error('down') },
+      { addError: new Error('secretmanager_request_failed (403)') },
+      { newVersion: '5', enabledVersions: ['4', '5'], disableError: new Error('secretmanager_request_failed (500)') },
+    ];
+    for (const options of leakCases) {
       const { ports } = fakeRotatePorts(options);
       const error = await handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports).catch((caught: unknown) => caught);
       const serialized = JSON.stringify({
@@ -381,13 +456,60 @@ describe('handleRotateOpenAiKey', () => {
     expect(calls).toEqual([]);
   });
 
-  it('wraps a failing disable as internal (the new version was already stored)', async () => {
-    const { ports } = fakeRotatePorts({
-      newVersion: '5',
-      enabledVersions: ['4', '5'],
-      disableError: new Error('secretmanager_request_failed (403)'),
-    });
-    await expect(handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports)).rejects.toMatchObject({ code: 'internal' });
-    expect(ports.invalidateKeyCache).not.toHaveBeenCalled();
+  it.each([
+    ['list', { listError: new Error('secretmanager_request_failed (500)') }],
+    ['disable', { disableError: new Error('secretmanager_request_failed (503)') }],
+  ])(
+    'reports a post-store %s failure as aborted/stored_cleanup_failed and still busts the cache',
+    async (_step, failure) => {
+      // The new version IS stored and becomes 'latest' — telling the admin "the previous key is
+      // still active" here (the old 'internal' path) could make them revoke the NEW key.
+      const { ports } = fakeRotatePorts({ newVersion: '5', enabledVersions: ['4', '5'], ...failure });
+      const error = await handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(HttpsError);
+      expect((error as HttpsError).code).toBe('aborted');
+      expect((error as HttpsError).details).toEqual({ reason: 'stored_cleanup_failed', version: '5' });
+      expect((error as HttpsError).message).toContain('version 5');
+      expect(ports.invalidateKeyCache).toHaveBeenCalledTimes(1);
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------------------------
+// sumAdminStatsDayDocs (the sharded-aggregate read path)
+// ---------------------------------------------------------------------------------------------
+
+describe('sumAdminStatsDayDocs', () => {
+  it('sums shards plus the legacy day document and keeps the newest updatedAt', () => {
+    expect(
+      sumAdminStatsDayDocs([
+        { requests: 3, inputTokens: 100, outputTokens: 40, updatedAt: '2026-09-30T10:00:00.000Z' }, // legacy doc
+        { requests: 2, inputTokens: 50, outputTokens: 20, updatedAt: '2026-09-30T12:00:00.000Z' }, // shard
+        { requests: 1, inputTokens: 25, outputTokens: 10, updatedAt: '2026-09-30T11:00:00.000Z' }, // shard
+      ]),
+    ).toEqual({ requests: 6, inputTokens: 175, outputTokens: 70, updatedAt: '2026-09-30T12:00:00.000Z' });
+  });
+
+  it('degrades malformed documents field-wise and skips non-objects', () => {
+    expect(
+      sumAdminStatsDayDocs([
+        { requests: 'nonsense', inputTokens: 100, outputTokens: -5, updatedAt: 'x' }, // bad fields -> 0
+        'garbage', // not an object -> skipped
+        { requests: 2, inputTokens: 1, outputTokens: 2, updatedAt: '' },
+      ]),
+    ).toEqual({ requests: 2, inputTokens: 101, outputTokens: 2, updatedAt: 'x' });
+  });
+
+  it('returns zeros for an empty day', () => {
+    expect(sumAdminStatsDayDocs([])).toEqual({ requests: 0, inputTokens: 0, outputTokens: 0, updatedAt: '' });
+  });
+
+  it('produces exactly the shape handleGetStats parses per day', async () => {
+    const summed = sumAdminStatsDayDocs([
+      { requests: 2, inputTokens: 30, outputTokens: 40, updatedAt: '2026-09-28T09:00:00.000Z' },
+    ]);
+    const { ports } = fakeStatsPorts({ dayDocs: { '2026-09-28': summed } });
+    const response = await handleGetStats(admin, { days: 7 }, ports, now);
+    expect(response.days[4]).toEqual({ date: '2026-09-28', requests: 2, inputTokens: 30, outputTokens: 40 });
   });
 });

@@ -11,7 +11,7 @@
  */
 import assert from 'node:assert/strict';
 
-import { labelStep, niceMax, seriesMax, shortDate, stackMax, tickValues } from '../public/admin/chart.js';
+import { isLabeledIndex, labelStep, niceMax, seriesMax, shortDate, stackMax, tickValues } from '../public/admin/chart.js';
 import {
   callableErrorMessage,
   dateOnly,
@@ -21,6 +21,7 @@ import {
   formatUsd,
   intTickFormat,
   requestsSeries,
+  rotationErrorDisplay,
   signupsSeries,
   tokensSeries,
   v2ErrorMessage,
@@ -49,6 +50,20 @@ eq(tickValues(2000), [500, 1000, 1500, 2000], 'tickValues(2000)');
 for (const [count, expected] of [[0, 1], [1, 1], [7, 1], [8, 1], [9, 2], [14, 2], [30, 4], [90, 12]]) {
   eq(labelStep(count), expected, `labelStep(${count})`);
 }
+
+// ---- isLabeledIndex: x labels anchor to the NEWEST point (today always labeled) --------------
+for (const n of [7, 14, 30, 90]) {
+  eq(isLabeledIndex(n - 1, n, labelStep(n)), true, `isLabeledIndex: today labeled at n=${n}`);
+}
+// n=90, step 12: labels walk back from index 89 (89, 77, 65, ...); index 0 is unlabeled.
+eq(isLabeledIndex(77, 90, 12), true, 'isLabeledIndex(77, 90, 12)');
+eq(isLabeledIndex(84, 90, 12), false, 'isLabeledIndex(84, 90, 12): the OLD anchor-0 label');
+eq(isLabeledIndex(0, 90, 12), false, 'isLabeledIndex(0, 90, 12)');
+// n=30, step 4: 29, 25, 21, ... (28 — yesterday's predecessor under the old anchor — is not).
+eq(isLabeledIndex(25, 30, 4), true, 'isLabeledIndex(25, 30, 4)');
+eq(isLabeledIndex(28, 30, 4), false, 'isLabeledIndex(28, 30, 4)');
+// step 1 labels everything.
+eq([0, 1, 2].every((i) => isLabeledIndex(i, 3, 1)), true, 'isLabeledIndex: step 1 labels all');
 
 // ---- shortDate / dateOnly / formatDateTime ---------------------------------------------------
 eq(shortDate('2026-10-01'), '10-01', 'shortDate');
@@ -101,5 +116,19 @@ assert.match(v2ErrorMessage({ code: 'functions/internal', message: 'internal' })
 checks += 1;
 eq(v2ErrorMessage({ code: 'functions/failed-precondition', message: 'Key rejected by OpenAI.' }),
   'Key rejected by OpenAI. (failed-precondition)', 'v2ErrorMessage passthrough');
+
+// ---- rotationErrorDisplay: "previous key still active" ONLY on pre-store failures ------------
+const preStore = rotationErrorDisplay({ code: 'functions/failed-precondition', message: 'OpenAI rejected this key (HTTP 401). Nothing was changed.' });
+eq(preStore.postStore, false, 'rotationErrorDisplay: failed-precondition is pre-store');
+assert.match(preStore.text, /previous key is still active/, 'rotationErrorDisplay: pre-store claims old key active');
+checks += 1;
+const cleanup = rotationErrorDisplay({ code: 'functions/aborted', message: 'The new key WAS stored as Secret Manager version 6 and becomes active everywhere within ~5 minutes, but disabling the prior versions failed.' });
+eq(cleanup.postStore, true, 'rotationErrorDisplay: aborted is post-store');
+assert.doesNotMatch(cleanup.text, /previous key is still active/, 'rotationErrorDisplay: post-store never claims old key active');
+checks += 1;
+assert.match(cleanup.text, /WAS stored as Secret Manager version 6/, 'rotationErrorDisplay: post-store keeps the server message verbatim');
+checks += 1;
+const unreachable = rotationErrorDisplay({ code: 'functions/unavailable', message: 'OpenAI could not be reached to validate the key. Nothing was changed.' });
+eq(unreachable.postStore, false, 'rotationErrorDisplay: unavailable is pre-store');
 
 console.log(`OK — ${checks} assertions passed (admin web pure logic).`);

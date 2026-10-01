@@ -19,7 +19,7 @@ import {
   OPENAI_REASONING_EFFORT,
   parseReasoningEffort,
 } from '../config';
-import { adminStatsAiDayPath } from '../admin/schemas';
+import { AI_STATS_SHARD_COUNT, adminStatsAiShardPath } from '../admin/schemas';
 import { adminDb } from '../firebase';
 import { instanceOpenAiKeyProvider, withKeyRetry } from '../openaiKey';
 import type { AssistantResponse } from '../shared/aiContract';
@@ -84,9 +84,13 @@ export const assistant = onCall(
         return withKeyRetry(instanceOpenAiKeyProvider(), (apiKey) => createOpenAiClient({ apiKey, model, reasoningEffort }));
       },
       // Admin v2 stats: one merge-set with atomic increments (never a transaction; the handler
-      // isolates failures so this write can never fail the user's request).
+      // isolates failures so this write can never fail the user's request). Sharded over
+      // AI_STATS_SHARD_COUNT random documents: a single hot day doc caps at ~1 sustained
+      // write/s, so parallel assistant bursts would abort increments and undercount the charts.
+      // adminGetStats sums the shards (plus the pre-shard legacy day doc) when reading.
       recordAiUsage: async (dayKey, tokens) => {
-        await db.doc(adminStatsAiDayPath(dayKey)).set(
+        const shard = Math.floor(Math.random() * AI_STATS_SHARD_COUNT);
+        await db.doc(adminStatsAiShardPath(dayKey, shard)).set(
           {
             requests: FieldValue.increment(1),
             inputTokens: FieldValue.increment(tokens.inputTokens),

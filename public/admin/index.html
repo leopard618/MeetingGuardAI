@@ -140,6 +140,11 @@
             </table>
           </div>
           <p id="users-empty" class="muted center" hidden>No users match.</p>
+          <p id="users-loading" class="muted center" role="status" hidden>Loading users…</p>
+          <div id="users-error" class="center" hidden>
+            <p class="error-text">Could not load the users.</p>
+            <button id="users-retry" class="btn" type="button">Retry</button>
+          </div>
           <div class="table-foot">
             <button id="users-load-more" class="btn btn-ghost" type="button" hidden>Load more</button>
           </div>
@@ -232,7 +237,10 @@ gcloud secrets add-iam-policy-binding OPENAI_API_KEY \
                 against the OpenAI API before being stored and is never displayed, logged or kept
                 anywhere by this page.</p>
               <label class="field-label" for="rotate-key">New API key</label>
-              <input id="rotate-key" type="password" autocomplete="off" spellcheck="false"
+              <!-- new-password, not off: browsers IGNORE autocomplete="off" on password inputs,
+                   so the password manager could save the OpenAI key into a synced credential
+                   store; new-password is the standard way to suppress save/fill here. -->
+              <input id="rotate-key" type="password" autocomplete="new-password" spellcheck="false"
                 placeholder="sk-…" aria-describedby="rotate-hint">
               <p id="rotate-hint" class="muted small">On success it becomes the only enabled Secret
                 Manager version — prior versions are disabled immediately and running instances

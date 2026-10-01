@@ -48,7 +48,14 @@ export interface OpenAiKeyStatus {
 /** Injected REST edge (real: GoogleAuth + fetch; tests: fakes — no network in unit tests). */
 export interface SecretVersionAccessor {
   /** Resolves the latest ENABLED version's value; throws on IAM/network/API failure. */
-  accessLatest(): Promise<{ value: string; version: string; createTime: string | null }>;
+  accessLatest(): Promise<{ value: string; version: string }>;
+  /**
+   * createTime of versions/latest (cosmetic: health's lastRotatedAt). Resolves null on any
+   * failure. Kept OFF accessLatest() so the assistant's cache refresh — which runs inline on a
+   * real user request — costs exactly one REST call; only provider.status() (the health
+   * callable) pays for this second one.
+   */
+  latestCreateTime(): Promise<string | null>;
 }
 
 export interface OpenAiKeyProvider {
@@ -120,6 +127,15 @@ async function secretRest(edge: SecretRestEdge, method: 'GET' | 'POST', path: st
   return response.json();
 }
 
+/**
+ * True for the self-crafted category secretRest throws on an HTTP 403 — the missing IAM grant
+ * (the one owner-run step a deploy cannot do). adminRotateOpenAiKey maps it to an actionable
+ * failed-precondition instead of a generic 'internal'.
+ */
+export function isSecretManagerPermissionDenied(error: unknown): boolean {
+  return error instanceof Error && error.message === 'secretmanager_request_failed (403)';
+}
+
 function secretPathOf(edge: SecretRestEdge): string {
   return `projects/${edge.projectId()}/secrets/${OPENAI_KEY_SECRET_NAME}`;
 }
@@ -134,8 +150,7 @@ function bareVersionOf(name: unknown): string {
 export function googleAuthSecretAccessor(edge: SecretRestEdge = googleAuthEdge()): SecretVersionAccessor {
   return {
     async accessLatest() {
-      const secretPath = secretPathOf(edge);
-      const accessed = (await secretRest(edge, 'GET', `${secretPath}/versions/latest:access`)) as {
+      const accessed = (await secretRest(edge, 'GET', `${secretPathOf(edge)}/versions/latest:access`)) as {
         name?: unknown;
         payload?: { data?: unknown };
       };
@@ -145,16 +160,19 @@ export function googleAuthSecretAccessor(edge: SecretRestEdge = googleAuthEdge()
       // Authorization header. Real keys never contain whitespace.
       const value = Buffer.from(data, 'base64').toString('utf8').trim();
       if (version.length === 0 || value.length === 0) throw new Error('secretmanager_access_malformed');
-      // createTime is cosmetic (health's lastRotatedAt) and versions.get is NOT part of
-      // secretAccessor (it comes with secretVersionManager), so a denial must not break the fetch.
-      let createTime: string | null = null;
+      return { value, version };
+    },
+    async latestCreateTime() {
+      // versions.get is NOT part of secretAccessor (it comes with secretVersionManager), so a
+      // denial — or any other failure of this cosmetic call — just yields null.
       try {
-        const metadata = (await secretRest(edge, 'GET', `${secretPath}/versions/latest`)) as { createTime?: unknown };
-        if (typeof metadata.createTime === 'string') createTime = metadata.createTime;
+        const metadata = (await secretRest(edge, 'GET', `${secretPathOf(edge)}/versions/latest`)) as {
+          createTime?: unknown;
+        };
+        return typeof metadata.createTime === 'string' ? metadata.createTime : null;
       } catch {
-        // Key fetch succeeded; lastRotatedAt stays null.
+        return null;
       }
-      return { value, version, createTime };
     },
   };
 }
@@ -217,16 +235,18 @@ export function createOpenAiKeyProvider(deps: {
 }): OpenAiKeyProvider {
   const nowMs = deps.nowMs ?? (() => Date.now());
   /** Fallback results are cached too (negative caching): a missing IAM grant must not add a
-   *  failing REST round trip to every assistant request. The TTL bounds the recovery time. */
-  let cached: { snapshot: OpenAiKeySnapshot; createTime: string | null; fetchedAt: number } | null = null;
+   *  failing REST round trip to every assistant request. The TTL bounds the recovery time.
+   *  createTime is fetched LAZILY by status() only (undefined = not asked yet) and cached with
+   *  the snapshot, so the assistant's get() path never pays for the metadata call. */
+  let cached: { snapshot: OpenAiKeySnapshot; createTime: string | null | undefined; fetchedAt: number } | null = null;
 
-  async function ensure(): Promise<{ snapshot: OpenAiKeySnapshot; createTime: string | null }> {
+  async function ensure(): Promise<NonNullable<typeof cached>> {
     if (cached && nowMs() - cached.fetchedAt < OPENAI_KEY_TTL_MS) return cached;
     try {
       const latest = await deps.accessor.accessLatest();
       cached = {
         snapshot: { key: latest.value, source: 'rest', version: latest.version },
-        createTime: latest.createTime,
+        createTime: undefined,
         fetchedAt: nowMs(),
       };
     } catch (error) {
@@ -253,10 +273,18 @@ export function createOpenAiKeyProvider(deps: {
     },
     async status() {
       const entry = await ensure();
+      if (entry.snapshot.source === 'rest' && entry.createTime === undefined) {
+        // Cosmetic metadata, health path only; a failure (null) is negative-cached for the TTL.
+        try {
+          entry.createTime = await deps.accessor.latestCreateTime();
+        } catch {
+          entry.createTime = null;
+        }
+      }
       return {
         mode: entry.snapshot.source,
         version: entry.snapshot.version,
-        lastRotatedAt: entry.createTime,
+        lastRotatedAt: entry.createTime ?? null,
         // REST working implies the accessor grant is in place; any REST failure (IAM missing,
         // network, quota) reports false and the dashboard shows the grant commands.
         iamReady: entry.snapshot.source === 'rest',
