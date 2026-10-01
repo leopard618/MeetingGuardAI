@@ -76,6 +76,10 @@ body {
 
 /* Layout ------------------------------------------------------------------------------------- */
 main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 56px; }
+/* The hidden attribute only applies UA display:none, which any author `display:` rule beats —
+   without this override every state view (loading/config-error/sign-in/not-admin) shows at once. */
+[hidden] { display: none !important; }
+
 .center-view { display: flex; justify-content: center; padding-top: 8vh; }
 .center { text-align: center; }
 h1 { font-size: 1.4rem; margin: 0 0 10px; }
