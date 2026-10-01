@@ -4,10 +4,13 @@ A small operations dashboard for MeetingGuard AI: user list, disable/enable, man
 and basic usage metrics. It is an internal tool, so the UI is English only.
 
 - Web app: `public/admin/` (build-free: plain ES modules + Firebase JS SDK from the gstatic CDN),
-  served by Firebase Hosting at `https://<project-id>.web.app/admin/`.
-- Backend: four callables in `functions/src/admin/` (`adminListUsers`, `adminSetUserDisabled`,
-  `adminSetUserPlan`, `adminGetMetrics`; contract in `functions/src/admin/schemas.ts`,
-  design in docs/ARCHITECTURE.md §21).
+  served by Firebase Hosting at `https://<project-id>.web.app/admin/`. Dark-only UI on the app
+  design tokens (`src/theme/tokens.ts` → `admin.css`); charts are hand-rolled inline SVG
+  (`chart.js` — the CSP allows no chart libraries).
+- Backend: seven callables in `functions/src/admin/` (`adminListUsers`, `adminSetUserDisabled`,
+  `adminSetUserPlan`, `adminGetMetrics`, plus v2 `adminGetStats`, `adminGetHealth`,
+  `adminRotateOpenAiKey`; contract in `functions/src/admin/schemas.ts`,
+  design in docs/ARCHITECTURE.md §21 and §v2 below).
 - Access: every callable requires the caller's ID token to carry the custom claim `admin: true`.
   The page only decides what to *show*; enforcement is entirely server-side. `firestore.rules`
   is unchanged — the callables use the Admin SDK, and `entitlements/{uid}` / `usage/{uid}/days`
@@ -64,6 +67,21 @@ and basic usage metrics. It is an internal tool, so the UI is English only.
 
 ## Operations
 
+The dashboard is four hash-routed tabs — **Overview**, **Users**, **AI usage**, **Settings**
+(`#overview` … `#settings`, so a refresh keeps the tab). Each tab loads on first open and has
+its own Refresh. All dates and day buckets are UTC.
+
+### Overview
+
+- **Metric tiles**: total Auth users, effective plan counts, and assistant requests today /
+  last 7 UTC days (sum of the per-user daily counters, keyed on the counters' `updatedAt`).
+- **14-day charts**: assistant requests (area) and new signups (bars), from `adminGetStats`.
+  Request/token aggregates only exist from the first assistant request *after* the v2 functions
+  deploy — earlier history shows as zero (expected). If the v2 callables are not deployed yet,
+  the chart cards say so instead of charting.
+
+### Users
+
 - **Users**: paged table (50 per page, "Load more" fetches the next Firebase Auth page). The
   search box filters the pages loaded so far by email, name or uid — it does not search the
   whole user base.
@@ -77,15 +95,39 @@ and basic usage metrics. It is an internal tool, so the UI is English only.
   `source: 'admin'` and status `active` — also for `free`, so an explicit downgrade overrides a
   stale paid document. Note: a later RevenueCat webhook event for the same user overwrites an
   admin grant (last writer wins by design).
-- **Metrics**: total Auth users, effective plan counts, and assistant requests today / last
-  7 UTC days (sum of the per-user daily counters, keyed on the counters' `updatedAt`).
 
-## v2 (in progress — architecture + build spec)
+### AI usage
+
+- **Range switch** 7 / 30 / 90 UTC days (including today). Totals row: requests, input/output
+  tokens and signups for the range; the **estimated-cost tile appears only when** the pricing
+  params `OPENAI_PRICE_IN_PER_M` / `OPENAI_PRICE_OUT_PER_M` are set to non-zero USD values
+  (`functions/src/config.ts`).
+- **Charts**: requests line + input/output tokens stacked bars. Hover any day column for the
+  exact values (native tooltips); every chart also renders a visually-hidden data table for
+  screen readers.
+
+### Settings
+
+- **Assistant runtime (health)**: model, reasoning effort, global daily limit, and the key
+  runtime — source (`Secret Manager (REST)` vs `Env fallback`), secret version, last rotation.
+  When the one-time IAM grant is missing it shows **Grant missing** plus the exact `gcloud`
+  commands to run (also in functions/README.md "OpenAI key rotation"); until then the assistant
+  keeps working on the deploy-time key.
+- **Test assistant**: sends **one minimal real OpenAI request** (billed — a fraction of a cent
+  per click) and reports round-trip latency, or a short error category.
+- **Rotate OpenAI key**: paste the new key (password field, cleared after every attempt) →
+  confirm → the backend validates it against the OpenAI API, stores it as the **only enabled**
+  Secret Manager version, disables all prior versions, and running instances switch within
+  ~5 minutes. The key value is never displayed, logged or stored by the page. If the configured
+  model is not available to the new key, rotation still succeeds but shows a warning. On any
+  failure the previous key stays active.
+
+## v2 (implemented — architecture + build spec)
 
 Goal: a modern, token-driven dashboard with usage statistics (charts) and OpenAI key
 management. Contracts are frozen in `functions/src/admin/schemas.ts` (zod is the spec); this
-section is the page/runtime spec the two implementers build against. Zero file overlap:
-**functions-engineer** owns `functions/**`; **web-engineer** owns `public/admin/**`.
+section is the page/runtime spec the implementation was built against (and the reference for
+future changes). The usage guide for each tab is in "Operations" above.
 
 ### New callables (contracts in `functions/src/admin/schemas.ts`)
 
@@ -177,3 +219,6 @@ post-deploy assistant request onward (history before the deploy has no aggregate
   optional and nothing references it in production.
 - The callable region defaults to `us-central1` and must match `FUNCTIONS_REGION`
   (`functions/src/config.ts`); override it via `config.js` if the project ever moves regions.
+- `node scripts/admin-ui-tests.mjs` (repo root, Node 18+, no deps) runs the pure-logic tests for
+  the chart tick math and formatters in `public/admin/chart.js` / `public/admin/format.js` — the
+  web app has no build, so this is its only automated check. Run it after touching those files.

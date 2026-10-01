@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!--
-  MeetingGuard AI - admin dashboard (build-free: plain ES modules + Firebase JS SDK from the
+  MeetingGuard AI - admin dashboard v2 (build-free: plain ES modules + Firebase JS SDK from the
   gstatic CDN). Served by Firebase Hosting at /admin/ (docs/ADMIN.md). English only by design:
   this is an internal operations tool, not a user-facing surface.
 
-  Every callable it uses requires the `admin: true` custom claim
+  CSP (firebase.json /admin/**) allows no inline scripts/styles: everything lives in admin.css,
+  admin.js, format.js and chart.js. Every callable requires the `admin: true` custom claim
   (functions/scripts/set-admin-claim.mjs); the page itself only decides what to SHOW.
 -->
 <html lang="en">
@@ -12,6 +13,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex">
+  <meta name="color-scheme" content="dark">
   <title>MeetingGuard AI — Admin</title>
   <link rel="stylesheet" href="/admin/admin.css">
   <script type="module" src="/admin/admin.js"></script>
@@ -70,49 +72,176 @@
 
     <!-- Dashboard -->
     <section id="view-dashboard" hidden>
-      <section class="panel" aria-labelledby="metrics-heading">
-        <div class="panel-head">
-          <h2 id="metrics-heading">Metrics</h2>
-          <button id="metrics-refresh" class="btn btn-ghost" type="button">Refresh</button>
-        </div>
-        <div class="cards" id="metrics-cards">
-          <div class="card metric"><span class="metric-value" id="metric-total">–</span><span class="metric-label">Total users</span></div>
-          <div class="card metric"><span class="metric-value" id="metric-free">–</span><span class="metric-label">Free</span></div>
-          <div class="card metric"><span class="metric-value" id="metric-pro">–</span><span class="metric-label">Pro</span></div>
-          <div class="card metric"><span class="metric-value" id="metric-premium">–</span><span class="metric-label">Premium</span></div>
-          <div class="card metric"><span class="metric-value" id="metric-ai-today">–</span><span class="metric-label">AI requests today</span></div>
-          <div class="card metric"><span class="metric-value" id="metric-ai-week">–</span><span class="metric-label">AI requests, 7 days</span></div>
-        </div>
+      <nav class="tabs" id="tabs" role="tablist" aria-label="Admin sections">
+        <button id="tab-btn-overview" class="tab" role="tab" aria-selected="true" aria-controls="tab-overview" type="button">Overview</button>
+        <button id="tab-btn-users" class="tab" role="tab" aria-selected="false" aria-controls="tab-users" tabindex="-1" type="button">Users</button>
+        <button id="tab-btn-ai" class="tab" role="tab" aria-selected="false" aria-controls="tab-ai" tabindex="-1" type="button">AI usage</button>
+        <button id="tab-btn-settings" class="tab" role="tab" aria-selected="false" aria-controls="tab-settings" tabindex="-1" type="button">Settings</button>
+      </nav>
+
+      <!-- Overview ---------------------------------------------------------------------------- -->
+      <section id="tab-overview" role="tabpanel" aria-labelledby="tab-btn-overview">
+        <section class="panel" aria-labelledby="metrics-heading">
+          <div class="panel-head">
+            <h2 id="metrics-heading">Metrics</h2>
+            <button id="metrics-refresh" class="btn btn-ghost" type="button">Refresh</button>
+          </div>
+          <div class="cards" id="metrics-cards">
+            <div class="card metric"><span class="metric-value" id="metric-total">–</span><span class="metric-label">Total users</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-free">–</span><span class="metric-label">Free</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-pro">–</span><span class="metric-label">Pro</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-premium">–</span><span class="metric-label">Premium</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-ai-today">–</span><span class="metric-label">AI requests today</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-ai-week">–</span><span class="metric-label">AI requests, 7 days</span></div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="overview-charts-heading">
+          <div class="panel-head">
+            <h2 id="overview-charts-heading">Last 14 days</h2>
+          </div>
+          <div class="chart-grid">
+            <div class="card chart-card">
+              <h3>Assistant requests</h3>
+              <div id="overview-requests-chart" class="chart"></div>
+            </div>
+            <div class="card chart-card">
+              <h3>New signups</h3>
+              <div id="overview-signups-chart" class="chart"></div>
+            </div>
+          </div>
+        </section>
       </section>
 
-      <section class="panel" aria-labelledby="users-heading">
-        <div class="panel-head">
-          <h2 id="users-heading">Users</h2>
-          <div class="search-wrap">
-            <label class="sr-only" for="user-search">Search loaded users</label>
-            <input id="user-search" type="search" placeholder="Search email, name or uid" autocomplete="off">
+      <!-- Users (functionality unchanged from v1) ---------------------------------------------- -->
+      <section id="tab-users" role="tabpanel" aria-labelledby="tab-btn-users" hidden>
+        <section class="panel" aria-labelledby="users-heading">
+          <div class="panel-head">
+            <h2 id="users-heading">Users</h2>
+            <div class="search-wrap">
+              <label class="sr-only" for="user-search">Search loaded users</label>
+              <input id="user-search" type="search" placeholder="Search email, name or uid" autocomplete="off">
+            </div>
           </div>
-        </div>
-        <p class="muted small">Search filters the pages loaded so far; use “Load more” to fetch further pages.</p>
-        <div class="table-wrap">
-          <table aria-describedby="users-heading">
-            <thead>
-              <tr>
-                <th scope="col">User</th>
-                <th scope="col">Plan</th>
-                <th scope="col">AI today</th>
-                <th scope="col">Created</th>
-                <th scope="col">Last sign-in</th>
-                <th scope="col">Status</th>
-              </tr>
-            </thead>
-            <tbody id="users-body"></tbody>
-          </table>
-        </div>
-        <p id="users-empty" class="muted center" hidden>No users match.</p>
-        <div class="table-foot">
-          <button id="users-load-more" class="btn btn-ghost" type="button" hidden>Load more</button>
-        </div>
+          <p class="muted small">Search filters the pages loaded so far; use “Load more” to fetch further pages.</p>
+          <div class="table-wrap">
+            <table aria-describedby="users-heading">
+              <thead>
+                <tr>
+                  <th scope="col">User</th>
+                  <th scope="col">Plan</th>
+                  <th scope="col">AI today</th>
+                  <th scope="col">Created</th>
+                  <th scope="col">Last sign-in</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody id="users-body"></tbody>
+            </table>
+          </div>
+          <p id="users-empty" class="muted center" hidden>No users match.</p>
+          <div class="table-foot">
+            <button id="users-load-more" class="btn btn-ghost" type="button" hidden>Load more</button>
+          </div>
+        </section>
+      </section>
+
+      <!-- AI usage ---------------------------------------------------------------------------- -->
+      <section id="tab-ai" role="tabpanel" aria-labelledby="tab-btn-ai" hidden>
+        <section class="panel" aria-labelledby="ai-heading">
+          <div class="panel-head">
+            <h2 id="ai-heading">AI usage</h2>
+            <div class="range-switch" role="group" aria-label="Date range" id="ai-range">
+              <button class="range-btn" type="button" data-days="7" aria-pressed="true">7 days</button>
+              <button class="range-btn" type="button" data-days="30" aria-pressed="false">30 days</button>
+              <button class="range-btn" type="button" data-days="90" aria-pressed="false">90 days</button>
+            </div>
+          </div>
+          <p class="muted small">UTC days, including today. Counted from completed assistant
+            requests; aggregates begin with the first request after the v2 functions deploy.</p>
+          <div class="cards">
+            <div class="card metric"><span class="metric-value" id="ai-total-requests">–</span><span class="metric-label">Requests</span></div>
+            <div class="card metric"><span class="metric-value" id="ai-total-input">–</span><span class="metric-label">Input tokens</span></div>
+            <div class="card metric"><span class="metric-value" id="ai-total-output">–</span><span class="metric-label">Output tokens</span></div>
+            <div class="card metric"><span class="metric-value" id="ai-total-signups">–</span><span class="metric-label">Signups</span></div>
+            <div class="card metric" id="ai-cost-tile" hidden><span class="metric-value" id="ai-total-cost">–</span><span class="metric-label">Est. cost (USD)</span></div>
+          </div>
+          <div class="chart-grid">
+            <div class="card chart-card">
+              <h3>Requests per day</h3>
+              <div id="ai-requests-chart" class="chart"></div>
+            </div>
+            <div class="card chart-card">
+              <h3>Tokens per day</h3>
+              <div id="ai-tokens-chart" class="chart"></div>
+              <ul class="legend">
+                <li><span class="swatch swatch-chart-2" aria-hidden="true"></span>Input</li>
+                <li><span class="swatch swatch-chart-1" aria-hidden="true"></span>Output</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- Settings ---------------------------------------------------------------------------- -->
+      <section id="tab-settings" role="tabpanel" aria-labelledby="tab-btn-settings" hidden>
+        <section class="panel" aria-labelledby="settings-heading">
+          <div class="panel-head">
+            <h2 id="settings-heading">Settings</h2>
+            <button id="health-refresh" class="btn btn-ghost" type="button">Refresh</button>
+          </div>
+          <p id="health-status" class="muted" role="status" hidden></p>
+          <div class="settings-grid">
+            <div class="card">
+              <h3>Assistant runtime</h3>
+              <dl class="kv">
+                <dt>Model</dt><dd id="health-model">–</dd>
+                <dt>Reasoning effort</dt><dd id="health-effort">–</dd>
+                <dt>Global daily limit</dt><dd id="health-limit">–</dd>
+                <dt>Key source</dt><dd id="health-mode">–</dd>
+                <dt>Key version</dt><dd id="health-version">–</dd>
+                <dt>Last rotated</dt><dd id="health-rotated">–</dd>
+                <dt>Rotation IAM</dt><dd><span id="health-iam" class="badge">–</span></dd>
+              </dl>
+              <div id="health-iam-warning" class="notice-warn" hidden>
+                <p class="strong">Secret Manager grant missing.</p>
+                <p>Runtime key refresh and rotation stay inactive (the assistant keeps using the
+                  deploy-time key) until the owner runs, once:</p>
+                <pre><code>gcloud secrets add-iam-policy-binding OPENAI_API_KEY \
+  --project=meetingguard-ai-app \
+  --member=serviceAccount:577722164101-compute@developer.gserviceaccount.com \
+  --role=roles/secretmanager.secretAccessor
+
+gcloud secrets add-iam-policy-binding OPENAI_API_KEY \
+  --project=meetingguard-ai-app \
+  --member=serviceAccount:577722164101-compute@developer.gserviceaccount.com \
+  --role=roles/secretmanager.secretVersionManager</code></pre>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Test assistant</h3>
+              <p class="muted">Sends one minimal, real request to OpenAI to verify the active key
+                and measure latency. <span class="warn-text">This is billed work</span> — it costs
+                a fraction of a cent per click.</p>
+              <button id="ping-run" class="btn" type="button">Send test request</button>
+              <p id="ping-result" role="status" hidden></p>
+            </div>
+            <div class="card">
+              <h3>Rotate OpenAI key</h3>
+              <p class="muted">Paste the new secret key from the OpenAI dashboard. It is validated
+                against the OpenAI API before being stored and is never displayed, logged or kept
+                anywhere by this page.</p>
+              <label class="field-label" for="rotate-key">New API key</label>
+              <input id="rotate-key" type="password" autocomplete="off" spellcheck="false"
+                placeholder="sk-…" aria-describedby="rotate-hint">
+              <p id="rotate-hint" class="muted small">On success it becomes the only enabled Secret
+                Manager version — prior versions are disabled immediately and running instances
+                switch within ~5 minutes. The field is cleared after every attempt.</p>
+              <button id="rotate-run" class="btn btn-primary" type="button">Validate &amp; rotate</button>
+              <p id="rotate-result" role="status" hidden></p>
+            </div>
+          </div>
+        </section>
       </section>
     </section>
   </main>

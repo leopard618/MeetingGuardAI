@@ -8,6 +8,19 @@ also the OTA runtime version.
 UI modernization ("MG Indigo"): a visual-only restyle of every screen. No business logic,
 navigation, i18n keys (beyond two added alert-status strings) or alert behavior changed.
 
+### Added
+
+- **Admin dashboard v2** (`/admin`; docs/ADMIN.md): modern dark UI on the app design tokens,
+  four hash-routed tabs (Overview, Users, AI usage, Settings) with hand-rolled SVG charts
+  (requests/day, signups/day, input/output tokens/day; 7/30/90-day ranges) and an estimated-cost
+  tile driven by the `OPENAI_PRICE_IN_PER_M` / `OPENAI_PRICE_OUT_PER_M` params. New callables
+  `adminGetStats`, `adminGetHealth` (runtime health + optional real OpenAI ping) and
+  `adminRotateOpenAiKey` (validate against OpenAI, store via Secret Manager, disable prior
+  versions — the key value never appears in logs, errors, Firestore or the browser). The
+  assistant now aggregates per-UTC-day request/token stats into `adminStats/ai/days/*` and reads
+  its OpenAI key from Secret Manager at runtime (5-minute cache, 401-retry, env fallback), so a
+  dashboard rotation needs no redeploy.
+
 ### Changed
 
 - **One design language across the app.** A single brand hue (MG Indigo `#4646D3` light /

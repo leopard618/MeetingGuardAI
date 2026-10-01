@@ -1,5 +1,5 @@
 /**
- * MeetingGuard AI admin dashboard (build-free ES module; docs/ADMIN.md, docs/ARCHITECTURE.md §21).
+ * MeetingGuard AI admin dashboard v2 (build-free ES module; docs/ADMIN.md, ARCHITECTURE.md §21).
  *
  * - Firebase JS SDK from the gstatic CDN (the version tracks functions/package.json devDeps).
  * - Config comes from Firebase Hosting's reserved /__/firebase/init.json; a local ./config.js
@@ -8,6 +8,11 @@
  *   `admin` custom claim travels inside the token; without the claim it only shows a block state.
  *   The real enforcement is server-side in every callable.
  * - All user data is rendered with textContent (never innerHTML): names/emails are untrusted.
+ * - Four hash-routed tabs (#overview #users #ai #settings); each loads lazily on first show.
+ * - Charts are hand-rolled SVG (./chart.js); pure page logic lives in ./format.js so
+ *   scripts/admin-ui-tests.mjs can test it under plain node.
+ * - SECURITY: the key pasted into the rotation card goes only into the callable payload; it is
+ *   never logged, toasted, stored or echoed, and the input is cleared in `finally`.
  */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import {
@@ -19,10 +24,26 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 
+import { renderBarChart, renderLineChart } from './chart.js';
+import {
+  callableErrorMessage,
+  dateOnly,
+  formatCompact,
+  formatDateTime,
+  formatInt,
+  formatUsd,
+  intTickFormat,
+  requestsSeries,
+  signupsSeries,
+  tokensSeries,
+  v2ErrorMessage,
+} from './format.js';
+
 /** Must match FUNCTIONS_REGION (functions/src/config.ts); override via config.js `region`. */
 const DEFAULT_REGION = 'us-central1';
 const PLANS = ['free', 'pro', 'premium'];
 const PAGE_SIZE = 50;
+const TABS = ['overview', 'users', 'ai', 'settings'];
 
 // ---------------------------------------------------------------------------------------------
 // Tiny DOM helpers
@@ -50,16 +71,6 @@ function toast(message, isError = false) {
   node.hidden = false;
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { node.hidden = true; }, isError ? 8000 : 4000);
-}
-
-function callableErrorMessage(error) {
-  const code = typeof error?.code === 'string' ? error.code.replace(/^functions\//, '') : 'unknown';
-  const message = typeof error?.message === 'string' && error.message ? error.message : 'Unexpected error.';
-  return `${message} (${code})`;
-}
-
-function dateOnly(iso) {
-  return typeof iso === 'string' && iso.length >= 10 ? iso.slice(0, 10) : '—';
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -96,8 +107,137 @@ const usersState = {
   loading: false,
 };
 
+const aiState = { days: 7, loading: false };
+/** Tabs whose first load already ran this session (cleared on every sign-in). */
+const loadedTabs = new Set();
+let activeTab = 'overview';
+
 // ---------------------------------------------------------------------------------------------
-// Metrics
+// Tabs (hash-routed; lazy per-tab loading)
+// ---------------------------------------------------------------------------------------------
+
+function tabFromHash() {
+  const name = (location.hash || '').replace(/^#/, '');
+  return TABS.includes(name) ? name : 'overview';
+}
+
+const TAB_LOADERS = {
+  overview: () => { void loadMetrics(); void loadOverviewStats(); },
+  users: () => { void loadUsersPage(true); },
+  ai: () => { void loadAiStats(aiState.days); },
+  settings: () => { void loadHealth(false); },
+};
+
+function showTab(name) {
+  activeTab = name;
+  for (const tab of TABS) {
+    const selected = tab === name;
+    const button = $(`tab-btn-${tab}`);
+    button.setAttribute('aria-selected', String(selected));
+    button.tabIndex = selected ? 0 : -1;
+    $(`tab-${tab}`).hidden = !selected;
+  }
+  if (!loadedTabs.has(name)) {
+    loadedTabs.add(name);
+    TAB_LOADERS[name]();
+  }
+}
+
+function activateTab(name, focus = false) {
+  if (location.hash !== `#${name}`) location.hash = `#${name}`;
+  showTab(name);
+  if (focus) $(`tab-btn-${name}`).focus();
+}
+
+function wireTabs() {
+  for (const tab of TABS) $(`tab-btn-${tab}`).addEventListener('click', () => activateTab(tab));
+  $('tabs').addEventListener('keydown', (event) => {
+    const index = TABS.indexOf(activeTab);
+    let next = null;
+    if (event.key === 'ArrowRight') next = TABS[(index + 1) % TABS.length];
+    else if (event.key === 'ArrowLeft') next = TABS[(index + TABS.length - 1) % TABS.length];
+    else if (event.key === 'Home') next = TABS[0];
+    else if (event.key === 'End') next = TABS[TABS.length - 1];
+    if (!next) return;
+    event.preventDefault();
+    activateTab(next, true);
+  });
+  window.addEventListener('hashchange', () => {
+    if (!$('view-dashboard').hidden) showTab(tabFromHash());
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Charts (overview + AI usage); loading keeps the previous render dimmed instead of flashing
+// ---------------------------------------------------------------------------------------------
+
+function setChartLoading(id) {
+  const node = $(id);
+  if (node.querySelector('svg')) node.classList.add('is-loading');
+  else node.replaceChildren(el('p', 'muted chart-msg', 'Loading…'));
+}
+
+function chartStatus(id, message, isError = false) {
+  const node = $(id);
+  node.classList.remove('is-loading');
+  node.replaceChildren(el('p', `${isError ? 'error-text' : 'muted'} chart-msg`, message));
+}
+
+function drawChart(id, render, series, options) {
+  const node = $(id);
+  render(node, series, options);
+  node.classList.remove('is-loading');
+}
+
+async function loadOverviewStats() {
+  setChartLoading('overview-requests-chart');
+  setChartLoading('overview-signups-chart');
+  try {
+    const { data } = await callables.getStats({ days: 14 });
+    drawChart('overview-requests-chart', renderLineChart, requestsSeries(data.days),
+      { area: true, ariaLabel: 'Assistant requests per day, last 14 days', yFormat: intTickFormat });
+    drawChart('overview-signups-chart', renderBarChart, signupsSeries(data.signups),
+      { ariaLabel: 'New signups per day, last 14 days', yFormat: intTickFormat });
+  } catch (error) {
+    const message = v2ErrorMessage(error);
+    chartStatus('overview-requests-chart', message, true);
+    chartStatus('overview-signups-chart', message, true);
+  }
+}
+
+async function loadAiStats(days) {
+  if (aiState.loading) return;
+  aiState.loading = true;
+  aiState.days = days;
+  for (const button of document.querySelectorAll('#ai-range .range-btn')) {
+    button.setAttribute('aria-pressed', String(Number(button.dataset.days) === days));
+  }
+  setChartLoading('ai-requests-chart');
+  setChartLoading('ai-tokens-chart');
+  try {
+    const { data } = await callables.getStats({ days });
+    $('ai-total-requests').textContent = formatCompact(data.totals.requests);
+    $('ai-total-input').textContent = formatCompact(data.totals.inputTokens);
+    $('ai-total-output').textContent = formatCompact(data.totals.outputTokens);
+    $('ai-total-signups').textContent = formatCompact(data.totals.signups);
+    const costTile = $('ai-cost-tile');
+    costTile.hidden = data.estCostUsd === null || data.estCostUsd === undefined;
+    if (!costTile.hidden) $('ai-total-cost').textContent = formatUsd(data.estCostUsd);
+    drawChart('ai-requests-chart', renderLineChart, requestsSeries(data.days),
+      { ariaLabel: `Assistant requests per day, last ${days} days`, yFormat: intTickFormat });
+    drawChart('ai-tokens-chart', renderBarChart, tokensSeries(data.days),
+      { stacked: true, ariaLabel: `Input and output tokens per day, last ${days} days`, yFormat: intTickFormat });
+  } catch (error) {
+    const message = v2ErrorMessage(error);
+    chartStatus('ai-requests-chart', message, true);
+    chartStatus('ai-tokens-chart', message, true);
+  } finally {
+    aiState.loading = false;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Metrics (v1 tiles)
 // ---------------------------------------------------------------------------------------------
 
 async function loadMetrics() {
@@ -105,12 +245,12 @@ async function loadMetrics() {
   button.disabled = true;
   try {
     const { data } = await callables.getMetrics({});
-    $('metric-total').textContent = String(data.totalUsers);
-    $('metric-free').textContent = String(data.planCounts.free);
-    $('metric-pro').textContent = String(data.planCounts.pro);
-    $('metric-premium').textContent = String(data.planCounts.premium);
-    $('metric-ai-today').textContent = String(data.assistantRequests.today);
-    $('metric-ai-week').textContent = String(data.assistantRequests.last7Days);
+    $('metric-total').textContent = formatInt(data.totalUsers);
+    $('metric-free').textContent = formatInt(data.planCounts.free);
+    $('metric-pro').textContent = formatInt(data.planCounts.pro);
+    $('metric-premium').textContent = formatInt(data.planCounts.premium);
+    $('metric-ai-today').textContent = formatInt(data.assistantRequests.today);
+    $('metric-ai-week').textContent = formatInt(data.assistantRequests.last7Days);
   } catch (error) {
     toast(`Could not load metrics: ${callableErrorMessage(error)}`, true);
   } finally {
@@ -119,7 +259,7 @@ async function loadMetrics() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Users table
+// Users table (functionality unchanged from v1)
 // ---------------------------------------------------------------------------------------------
 
 function rowMatches(row, query) {
@@ -281,6 +421,99 @@ async function loadUsersPage(reset) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Settings: health, assistant ping, key rotation
+// ---------------------------------------------------------------------------------------------
+
+function renderHealth(data) {
+  $('health-model').textContent = data.model;
+  $('health-effort').textContent = data.reasoningEffort;
+  $('health-limit').textContent = formatInt(data.globalDailyLimit);
+  $('health-mode').textContent = data.secretRuntime.mode === 'rest' ? 'Secret Manager (REST)' : 'Env fallback';
+  $('health-version').textContent = data.secretRuntime.version ?? '—';
+  $('health-rotated').textContent = formatDateTime(data.secretRuntime.lastRotatedAt);
+  const iam = $('health-iam');
+  iam.textContent = data.secretRuntime.iamReady ? 'Ready' : 'Grant missing';
+  iam.className = `badge ${data.secretRuntime.iamReady ? 'status-active' : 'badge-warn'}`;
+  $('health-iam-warning').hidden = data.secretRuntime.iamReady;
+}
+
+function renderPing(ping) {
+  const node = $('ping-result');
+  node.hidden = false;
+  if (ping.ok) {
+    node.className = 'ok-text';
+    node.textContent = `OK — OpenAI answered in ${formatInt(ping.latencyMs)} ms.`;
+  } else {
+    node.className = 'error-text';
+    node.textContent = `Failed${ping.error ? `: ${ping.error}` : ''} (after ${formatInt(ping.latencyMs)} ms).`;
+  }
+}
+
+/** ping=true makes ONE minimal real OpenAI call (billed) — only the "Test assistant" button. */
+async function loadHealth(ping) {
+  const refresh = $('health-refresh');
+  const pingButton = $('ping-run');
+  const status = $('health-status');
+  refresh.disabled = true;
+  pingButton.disabled = true;
+  status.className = 'muted';
+  status.textContent = ping ? 'Contacting OpenAI…' : 'Loading…';
+  status.hidden = false;
+  try {
+    const { data } = await callables.getHealth(ping ? { ping: true } : {});
+    renderHealth(data);
+    if (data.assistantPing) renderPing(data.assistantPing);
+    status.hidden = true;
+  } catch (error) {
+    status.className = 'error-text';
+    status.textContent = v2ErrorMessage(error);
+  } finally {
+    refresh.disabled = false;
+    pingButton.disabled = false;
+  }
+}
+
+async function rotateKey() {
+  const input = $('rotate-key');
+  const button = $('rotate-run');
+  const result = $('rotate-result');
+  const candidate = input.value.trim();
+  result.hidden = true;
+  if (candidate.length < 20) {
+    result.className = 'error-text';
+    result.textContent = 'That does not look like an API key (too short) — paste the full key.';
+    result.hidden = false;
+    return;
+  }
+  const warning = 'Rotate the OpenAI API key now?\n\n'
+    + 'The new key is validated against the OpenAI API, stored as the only enabled Secret '
+    + 'Manager version, and ALL prior versions are disabled immediately. Running instances '
+    + 'switch within about 5 minutes. This cannot be undone from this page.';
+  if (!window.confirm(warning)) {
+    input.value = '';
+    return;
+  }
+  button.disabled = true;
+  try {
+    const { data } = await callables.rotateOpenAiKey({ newKey: candidate });
+    result.className = data.modelAvailable ? 'ok-text' : 'warn-text';
+    result.textContent = data.modelAvailable
+      ? `Key rotated — now Secret Manager version ${data.version}.`
+      : `Key rotated (version ${data.version}), but the configured model is NOT available to `
+        + 'this key. The assistant may fail until model access or OPENAI_MODEL is fixed.';
+    result.hidden = false;
+    void loadHealth(false);
+  } catch (error) {
+    result.className = 'error-text';
+    result.textContent = `Rotation failed — the previous key is still active. ${v2ErrorMessage(error)}`;
+    result.hidden = false;
+  } finally {
+    input.value = ''; // the pasted key never outlives the attempt in the DOM
+    button.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // Auth flow
 // ---------------------------------------------------------------------------------------------
 
@@ -298,12 +531,13 @@ async function handleSignedIn(user) {
       return;
     }
     currentUid = user.uid;
-    showView('view-dashboard');
     usersState.rows = [];
     usersState.nextPageToken = null;
     usersState.query = '';
     $('user-search').value = '';
-    await Promise.all([loadMetrics(), loadUsersPage(true)]);
+    loadedTabs.clear();
+    showView('view-dashboard');
+    showTab(tabFromHash());
   } catch (error) {
     toast(`Sign-in check failed: ${callableErrorMessage(error)}`, true);
     showView('view-sign-in');
@@ -324,12 +558,19 @@ function wireEvents() {
   const doSignOut = () => signOut(auth);
   $('sign-out').addEventListener('click', doSignOut);
   $('not-admin-sign-out').addEventListener('click', doSignOut);
-  $('metrics-refresh').addEventListener('click', loadMetrics);
+  $('metrics-refresh').addEventListener('click', () => { void loadMetrics(); void loadOverviewStats(); });
   $('users-load-more').addEventListener('click', () => loadUsersPage(false));
   $('user-search').addEventListener('input', (event) => {
     usersState.query = event.target.value.trim().toLowerCase();
     renderUsers();
   });
+  for (const button of document.querySelectorAll('#ai-range .range-btn')) {
+    button.addEventListener('click', () => { void loadAiStats(Number(button.dataset.days)); });
+  }
+  $('health-refresh').addEventListener('click', () => { void loadHealth(false); });
+  $('ping-run').addEventListener('click', () => { void loadHealth(true); });
+  $('rotate-run').addEventListener('click', () => { void rotateKey(); });
+  wireTabs();
 }
 
 async function main() {
@@ -344,11 +585,15 @@ async function main() {
   const app = initializeApp(config.firebaseConfig);
   auth = getAuth(app);
   const functions = getFunctions(app, config.region);
+  // Names are the ADMIN_CALLABLES contract (functions/src/admin/schemas.ts).
   callables = {
     listUsers: httpsCallable(functions, 'adminListUsers'),
     setUserDisabled: httpsCallable(functions, 'adminSetUserDisabled'),
     setUserPlan: httpsCallable(functions, 'adminSetUserPlan'),
     getMetrics: httpsCallable(functions, 'adminGetMetrics'),
+    getStats: httpsCallable(functions, 'adminGetStats'),
+    getHealth: httpsCallable(functions, 'adminGetHealth'),
+    rotateOpenAiKey: httpsCallable(functions, 'adminRotateOpenAiKey'),
   };
   wireEvents();
   onAuthStateChanged(auth, (user) => {
