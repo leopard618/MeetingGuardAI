@@ -98,14 +98,21 @@ const REDUCED_MOTION = typeof matchMedia === 'function'
 
 /** Node ids whose numeral already counted up this page session (Refresh sets text at once). */
 const countedUp = new Set();
+/** In-flight count-up rAF handle per node id, so a fresher value cancels the older loop. */
+const statRafs = new Map();
 
 /**
  * Stat numeral setter with a one-time 600ms ease-out count-up (requestAnimationFrame).
  * Skipped wholesale under prefers-reduced-motion and on every call after the first per id.
+ * Any still-running count-up for the same id is cancelled first - otherwise a quick second
+ * call (AI range switch, fast Refresh) would write the new total and then have the old loop's
+ * final frame overwrite it with the STALE target.
  */
 function setStat(id, value, format = formatInt) {
   const node = $(id);
   const target = Number(value) || 0;
+  cancelAnimationFrame(statRafs.get(id));
+  statRafs.delete(id);
   if (REDUCED_MOTION || countedUp.has(id) || !Number.isInteger(target)) {
     countedUp.add(id);
     node.textContent = format(target);
@@ -117,9 +124,10 @@ function setStat(id, value, format = formatInt) {
     const t = Math.min(1, (now - started) / 600);
     const eased = 1 - (1 - t) ** 3;
     node.textContent = format(Math.round(target * eased));
-    if (t < 1) requestAnimationFrame(tick);
+    if (t < 1) statRafs.set(id, requestAnimationFrame(tick));
+    else statRafs.delete(id);
   };
-  requestAnimationFrame(tick);
+  statRafs.set(id, requestAnimationFrame(tick));
 }
 
 const VIEWS = ['view-loading', 'view-config-error', 'view-sign-in', 'view-not-admin', 'view-dashboard'];
@@ -226,8 +234,10 @@ function wireTabs() {
   $('tabs').addEventListener('keydown', (event) => {
     const index = TABS.indexOf(activeTab);
     let next = null;
-    if (event.key === 'ArrowRight') next = TABS[(index + 1) % TABS.length];
-    else if (event.key === 'ArrowLeft') next = TABS[(index + TABS.length - 1) % TABS.length];
+    // Both axes on purpose: the tablist is vertical (sidebar) from 761px up and horizontal
+    // (top bar) below, and the WAI-ARIA tabs pattern wants Up/Down on vertical lists.
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = TABS[(index + 1) % TABS.length];
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = TABS[(index + TABS.length - 1) % TABS.length];
     else if (event.key === 'Home') next = TABS[0];
     else if (event.key === 'End') next = TABS[TABS.length - 1];
     if (!next) return;

@@ -230,8 +230,14 @@ function finishFrame(container, series, options, f, hover = {}) {
     const box = rect.getBoundingClientRect();
     const centerX = box.left + box.width / 2;
     const flip = window.innerWidth - centerX < 180;
-    tip.style.left = `${Math.round(flip ? centerX - 12 - tip.offsetWidth : centerX + 12)}px`;
-    tip.style.top = `${Math.round(box.top + 12)}px`;
+    const left = flip ? centerX - 12 - tip.offsetWidth : centerX + 12;
+    const top = box.top + 12;
+    // Clamp to the viewport: the flip heuristic alone cannot hold a 240px-wide tip on narrow
+    // screens, and a chart near the bottom would push the fixed tip below the fold.
+    const maxL = window.innerWidth - tip.offsetWidth - 8;
+    const maxT = window.innerHeight - tip.offsetHeight - 8;
+    tip.style.left = `${Math.round(Math.min(Math.max(8, left), maxL))}px`;
+    tip.style.top = `${Math.round(Math.min(Math.max(8, top), maxT))}px`;
   };
 
   f.categories.forEach((date, i) => {
