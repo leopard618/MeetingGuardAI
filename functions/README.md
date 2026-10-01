@@ -56,7 +56,40 @@ npx firebase functions:secrets:set OPENAI_API_KEY      # paste the key when prom
 
 The key lives in Cloud Secret Manager. It is never in the repository, the app or the logs. Deploying
 grants the function's service account access to it. To rotate it, set a new version and redeploy
-`assistant`.
+`assistant` — or, once admin v2 lands, use the dashboard's "Rotate OpenAI key" card (below).
+
+### OpenAI key rotation from the admin dashboard (admin v2)
+
+Admin v2 reads the secret's `latest` version at runtime over Secret Manager REST
+(`src/openaiKey.ts`: 5-minute per-instance cache, env-bound value as fallback) so the
+`adminRotateOpenAiKey` callable can rotate the key **without a redeploy**. This needs a one-time
+IAM grant that deploys do NOT create (owner-run; the runtime service account of this project is
+`577722164101-compute@developer.gserviceaccount.com`):
+
+```sh
+gcloud secrets add-iam-policy-binding OPENAI_API_KEY \
+  --project=meetingguard-ai-app \
+  --member=serviceAccount:577722164101-compute@developer.gserviceaccount.com \
+  --role=roles/secretmanager.secretAccessor
+
+gcloud secrets add-iam-policy-binding OPENAI_API_KEY \
+  --project=meetingguard-ai-app \
+  --member=serviceAccount:577722164101-compute@developer.gserviceaccount.com \
+  --role=roles/secretmanager.secretVersionManager
+```
+
+(`secretAccessor` lets the runtime read `versions/latest`; `secretVersionManager` lets the
+rotation callable add a version and disable the prior ones. Both are scoped to this ONE secret,
+not the project.) Equivalent REST: `POST https://secretmanager.googleapis.com/v1/projects/
+meetingguard-ai-app/secrets/OPENAI_API_KEY:setIamPolicy` with those two bindings added.
+
+Until the grant exists, nothing breaks: the assistant keeps using the env-bound secret
+(`mode: 'env-fallback'`), and the admin dashboard's Settings tab shows `iamReady: false`
+together with the exact commands above. Rotation order (enforced by the callable): validate the
+candidate key against `GET api.openai.com/v1/models` → `addVersion` → disable prior enabled
+versions → invalidate the in-instance cache. Other instances pick the new key up within the
+5-minute TTL, or immediately on an OpenAI 401 (one forced refetch + retry). The key value is
+never logged, stored in Firestore or returned to the browser.
 
 ### Parameters
 
@@ -66,6 +99,8 @@ grants the function's service account access to it. To rotate it, set a new vers
 | `OPENAI_MODEL` | `gpt-5.4-mini` | Any chat model with tool calling and strict schemas. Check that your key can use it (`GET /v1/models`) before launch. |
 | `OPENAI_REASONING_EFFORT` | `low` | `none`, `minimal`, `low`, `medium` or `high`. Use `omit` for non-reasoning models such as `gpt-4.1-mini`, which reject the parameter. |
 | `ASSISTANT_GLOBAL_DAILY_LIMIT` | `5000` | Project-wide cap on assistant requests per UTC day that reach OpenAI (spend safeguard on top of the per-user quota). `0` disables it. Also set an OpenAI usage limit and a GCP budget alert. |
+| `OPENAI_PRICE_IN_PER_M` | `0` | Input price in USD per 1M tokens, for the admin dashboard's estimated-cost tile only (admin v2). `0` = pricing unset, the estimate is hidden. |
+| `OPENAI_PRICE_OUT_PER_M` | `0` | Output price in USD per 1M tokens; same rules as above. |
 
 Every param has a default, but the CLI only uses values it finds in a dotenv file. Without
 `functions/.env.<projectId>`, an interactive `firebase deploy` asks for each param (press Enter to take

@@ -80,6 +80,90 @@ and basic usage metrics. It is an internal tool, so the UI is English only.
 - **Metrics**: total Auth users, effective plan counts, and assistant requests today / last
   7 UTC days (sum of the per-user daily counters, keyed on the counters' `updatedAt`).
 
+## v2 (in progress — architecture + build spec)
+
+Goal: a modern, token-driven dashboard with usage statistics (charts) and OpenAI key
+management. Contracts are frozen in `functions/src/admin/schemas.ts` (zod is the spec); this
+section is the page/runtime spec the two implementers build against. Zero file overlap:
+**functions-engineer** owns `functions/**`; **web-engineer** owns `public/admin/**`.
+
+### New callables (contracts in `functions/src/admin/schemas.ts`)
+
+| Callable | Request | Response (summary) |
+|---|---|---|
+| `adminGetStats` | `{ days: 7\|14\|30\|90 }` | zero-filled per-UTC-day series `days[{date,requests,inputTokens,outputTokens}]` + `signups[{date,count}]` + `totals` + `estCostUsd` (null when pricing unset) + `pricing {inPerM,outPerM,source:'param'}` |
+| `adminGetHealth` | `{ ping?: boolean }` | `model`, `reasoningEffort`, `globalDailyLimit`, `secretRuntime {mode:'rest'\|'env-fallback', version, lastRotatedAt, iamReady}`, `assistantPing {ok,latencyMs,error?}` only when `ping:true` (a REAL minimal OpenAI call — costs money; only the Settings "Test assistant" button sends it) |
+| `adminRotateOpenAiKey` | `{ newKey }` (trimmed, 20–512 chars) | `{ ok:true, version, modelAvailable }` — never echoes the key |
+
+The four v1 callables are unchanged. All seven require the `admin: true` claim.
+
+### Stats pipeline
+
+- The assistant handler, after a successful OpenAI completion, merge-sets
+  `adminStats/ai/days/{yyyy-mm-dd}` (UTC day = `usageDayKey`, same key as the quota) with
+  `FieldValue.increment` transforms: `{requests:+1, inputTokens:+p, outputTokens:+c, updatedAt}`.
+  One awaited write inside its own try/catch — a stats failure logs a warning and never fails
+  the user request. Decisions: only completions are counted (billed work; matches the quota sum
+  within refunds); `uniqueUsers` and `byModel` are **skipped** in v2 (no cheap atomic source for
+  the former; the latter adds nothing while pricing is a flat param pair).
+- Signups are derived inside `adminGetStats` from Auth `listUsers` `creationTime` paging —
+  no new writes.
+- `firestore.rules` denies `adminStats/**` to all clients explicitly (server/Admin SDK only).
+- Cost estimate: params `OPENAI_PRICE_IN_PER_M` / `OPENAI_PRICE_OUT_PER_M` (USD per 1M tokens,
+  default `"0"` = hidden; `functions/src/config.ts`).
+
+### OpenAI key runtime + rotation (security bar)
+
+- `functions/src/openaiKey.ts` (module contract in the file): the assistant fetches secret
+  version `latest` via Secret Manager REST (google-auth-library default credentials,
+  cloud-platform scope — a firebase-admin dependency, nothing new), caches per instance with a
+  5-minute TTL, falls back to the env-bound `OPENAI_API_KEY.value()` when REST fails (missing
+  IAM grant, emulator, tests), and exposes `status()` for `adminGetHealth`. On an OpenAI 401
+  the wrapped client invalidates, refetches once and retries once (`withKeyRetry`).
+- Rotation (`adminRotateOpenAiKey`): validate the candidate against `GET api.openai.com/v1/models`
+  (non-200 → `failed-precondition`; configured model missing → `modelAvailable:false`,
+  warn-not-block) → Secret Manager `addVersion` → disable all prior enabled versions → invalidate
+  the local cache. The key value never appears in logs, errors, Firestore, responses or the DOM
+  longer than needed.
+- IAM (owner-run once, see `functions/README.md` "OpenAI key rotation"): grant the runtime SA
+  `secretAccessor` + `secretVersionManager` on the one secret. Until then `adminGetHealth`
+  reports `iamReady:false` + `mode:'env-fallback'` and the Settings page shows the exact command.
+
+### UI v2 (`public/admin/` — build-free, CSP unchanged, charts = hand-rolled inline SVG)
+
+- **Theme**: dark-only (decision — ops tool; drops the dual-scheme CSS). Adopt the app tokens as
+  CSS custom properties in `admin.css` with a comment pointing at `src/theme/tokens.ts`
+  (`darkColors` + `chartPalette.dark`): bg `#0C1320`, surface `#131C2B`, surface-2 `#18202F`,
+  surface-3 `#202B40`, text `#E7EDF6`, muted `#9AA8BE`, primary `#AFB4FF` (on-primary `#101273`),
+  border `#27324A`, outline `#5E6F8D`, danger `#FF9F9F`/`#7C2222`, ok `#6CD9A0`/`#14543A`,
+  warn `#F5B950`/`#6B3F05`, info `#79C0F7`, `--chart-1…6: #8F94F3 #3ECFBE #F0A64B #F383AE
+  #5BB7F5 #93A3B8`. Radii 8/12/16, 4pt spacing grid, max-width 1100, sticky header, cards grid,
+  visible focus states (2px primary outline), system font stack.
+- **Navigation**: top tabs under the header — **Overview / Users / AI usage / Settings**
+  (buttons with `aria-selected`, hash-routed `#overview` etc. so refresh keeps the tab; decision:
+  tabs over sidebar — better at narrow widths, smaller diff).
+- **Overview**: existing six metric tiles + 14-day requests area chart (`adminGetStats {days:14}`,
+  `--chart-1`) + signups bar chart (`--chart-5`).
+- **Users**: the existing table, functionality 1:1 (search, load more, plan editor, disable).
+- **AI usage**: range switch 7/30/90 → `adminGetStats`; requests line (`--chart-1`); tokens
+  stacked bars (input `--chart-2`, output `--chart-1`, legend labels "Input"/"Output"); totals
+  top-line; est. cost tile only when `estCostUsd !== null`.
+- **Settings**: health card (model, reasoning effort, global daily limit, secret mode/version/
+  lastRotatedAt; `iamReady:false` state shows the grant command in a `<code>` block) · "Test
+  assistant" button → `adminGetHealth {ping:true}` with latency/result states · "Rotate OpenAI
+  key" card: `<input type="password" autocomplete="off">` + paste-only hint, `confirm()` dialog
+  naming the irreversible effect, result states (success shows version + a warning when
+  `modelAvailable` is false), input cleared in `finally`, value never logged/stored.
+- **Charts**: `public/admin/chart.js` (spec header in the file): `renderLineChart` /
+  `renderBarChart`, nice-tick y auto-scale, thinned date labels, `<title>` tooltips + `.sr-only`
+  table fallback, colors from CSS vars, empty-state text, ~200-line budget, no deps.
+
+### Rollout (owner-run, after both implementers + integrator land)
+
+`firebase deploy --only functions` → the IAM grant (README) → `firebase deploy --only
+firestore:rules` → `firebase deploy --only hosting`. Charts show real data from the first
+post-deploy assistant request onward (history before the deploy has no aggregates — expected).
+
 ## Local development
 
 - `firebase emulators:start --only hosting` then open `http://localhost:5000/admin/` —

@@ -45,6 +45,29 @@ export const ASSISTANT_GLOBAL_DAILY_LIMIT = defineInt('ASSISTANT_GLOBAL_DAILY_LI
 /** OpenAI API key (Secret Manager). Never logged, never returned. */
 export const OPENAI_API_KEY = defineSecret('OPENAI_API_KEY');
 
+/**
+ * OpenAI pricing for the admin dashboard's estimated-cost tile, in USD per MILLION tokens
+ * (numeric strings; defineString because params have no float type). "0" on either side of the
+ * pair that a token kind needs means "pricing not configured": adminGetStats then returns
+ * estCostUsd: null and the dashboard hides the cost tile. Display-only: nothing is enforced
+ * from these values. Update them when the model (OPENAI_MODEL) or its price changes.
+ */
+export const OPENAI_PRICE_IN_PER_M = defineString('OPENAI_PRICE_IN_PER_M', {
+  default: '0',
+  description: 'OpenAI input price in USD per 1M tokens (admin cost estimate; 0 hides the estimate).',
+});
+
+export const OPENAI_PRICE_OUT_PER_M = defineString('OPENAI_PRICE_OUT_PER_M', {
+  default: '0',
+  description: 'OpenAI output price in USD per 1M tokens (admin cost estimate; 0 hides the estimate).',
+});
+
+/** Parses a price param: a finite number >= 0, else 0 ("not configured"). */
+export function parsePricePerM(value: string): number {
+  const parsed = Number(value.trim());
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 export const ASSISTANT_TUNING = {
   /** Function timeout (the app's callable timeout is ASSISTANT_CALL_TIMEOUT_MS = 70 s). */
   functionTimeoutSeconds: 60,
