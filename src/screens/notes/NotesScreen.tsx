@@ -198,7 +198,7 @@ export function NotesScreen({ navigation }: Props): ReactElement {
       );
     }
     if (error && notes.length === 0) {
-      // Nothing cached: error styling (§8) — no retry yet because useNotes exposes no refresh.
+      // Nothing cached: error styling (§8) - no retry yet because useNotes exposes no refresh.
       return (
         <View style={styles.centered}>
           <EmptyState

@@ -3,7 +3,7 @@
  * design tokens (src/theme/tokens.ts) so Paper components and hand-styled views always agree.
  * Pure module (no React): ThemeContext picks the palette for the resolved scheme.
  *
- * NOTE: this file imports `src/theme/tokens` DIRECTLY, never the `src/theme` barrel — the barrel
+ * NOTE: this file imports `src/theme/tokens` DIRECTLY, never the `src/theme` barrel - the barrel
  * imports ThemeContext, which imports this file (cycle otherwise).
  *
  * `AppColors` extends the full MG color set with the legacy field names the pre-redesign screens

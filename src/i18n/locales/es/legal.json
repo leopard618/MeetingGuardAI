@@ -9,7 +9,7 @@
   },
   "privacy": {
     "title": "Política de privacidad",
-    "intro": "Esta política explica qué información recoge la app MeetingGuard AI, cómo la usamos, con quién la compartimos y qué opciones tienes. MeetingGuard AI es un servicio de {{company}} (“nosotros”).",
+    "intro": "Esta política explica qué información recoge la app MeetingGuard AI, cómo la usamos, con quién la compartimos y qué opciones tienes. MeetingGuard AI es un servicio de {{company}} ("nosotros").",
     "sections": {
       "controller": {
         "title": "Responsable de tus datos",
@@ -31,7 +31,7 @@
         "body": ["Parte de la información solo se guarda en tu teléfono:"],
         "items": [
           "Los archivos que adjuntas a las reuniones. No se suben a nuestros servidores y no están disponibles en tus otros dispositivos.",
-          "Tu conversación con el asistente de IA, para que puedas continuarla más tarde. Los mensajes recientes se envían con cada nueva consulta (consulta “Asistente de IA”).",
+          "Tu conversación con el asistente de IA, para que puedas continuarla más tarde. Los mensajes recientes se envían con cada nueva consulta (consulta "Asistente de IA").",
           "Una copia de tus reuniones, notas y preferencias, para que la app funcione sin conexión. Se borra al cerrar sesión.",
           "Tus recordatorios, que programa el sistema operativo de tu teléfono."
         ]
@@ -50,7 +50,7 @@
       "google": {
         "title": "Google Calendar",
         "body": [
-          "Si conectas Google Calendar, permites que MeetingGuard AI vea y edite los eventos de tus calendarios de Google (el permiso “calendar.events”). La app usa este permiso para traer los eventos de tu calendario principal a MeetingGuard AI, para que recibas avisos de ellos, y para añadir, cambiar o borrar los eventos que gestionas en MeetingGuard AI, incluida la creación de enlaces de Google Meet y el envío de invitaciones a los participantes cuando lo pides.",
+          "Si conectas Google Calendar, permites que MeetingGuard AI vea y edite los eventos de tus calendarios de Google (el permiso "calendar.events"). La app usa este permiso para traer los eventos de tu calendario principal a MeetingGuard AI, para que recibas avisos de ellos, y para añadir, cambiar o borrar los eventos que gestionas en MeetingGuard AI, incluida la creación de enlaces de Google Meet y el envío de invitaciones a los participantes cuando lo pides.",
           "Los eventos de Google Calendar se guardan en tu cuenta de MeetingGuard AI (Google Firebase) para que estén disponibles en tus dispositivos, para que recibas avisos de ellos y para que el asistente de IA pueda responder preguntas sobre tu agenda cuando lo usas.",
           "El token de acceso que permite a la app comunicarse con Google Calendar se queda en tu dispositivo, lo gestiona el inicio de sesión de Google y nunca se guarda en nuestros servidores. Puedes desconectar Google Calendar en la app cuando quieras, o quitar el acceso de MeetingGuard AI desde tu cuenta de Google (myaccount.google.com/permissions).",
           "El uso y la transferencia a cualquier otra app, por parte de MeetingGuard AI, de la información recibida de las API de Google cumplirán la Política de datos de usuario de los servicios de API de Google (Google API Services User Data Policy), incluidos los requisitos de uso limitado (Limited Use)."
@@ -144,7 +144,7 @@
     "sections": {
       "agreement": {
         "title": "Acuerdo",
-        "body": ["Estos Términos del servicio son un acuerdo entre tú y {{company}} (“nosotros”) para el uso de la app MeetingGuard AI. Al crear una cuenta o usar la app, aceptas estos términos y nuestra Política de privacidad. Si no estás de acuerdo, no uses la app."]
+        "body": ["Estos Términos del servicio son un acuerdo entre tú y {{company}} ("nosotros") para el uso de la app MeetingGuard AI. Al crear una cuenta o usar la app, aceptas estos términos y nuestra Política de privacidad. Si no estás de acuerdo, no uses la app."]
       },
       "service": {
         "title": "El servicio",
@@ -204,7 +204,7 @@
       },
       "disclaimers": {
         "title": "Exención de garantías",
-        "body": ["La app se ofrece “tal cual” y “según disponibilidad”. En la medida en que lo permita la ley, no garantizamos que funcione sin interrupciones ni errores, ni que los avisos, la sincronización de calendarios y las respuestas de la IA sean siempre exactos o puntuales. Nada de lo dispuesto en estos términos limita los derechos que te otorgan las leyes de protección de los consumidores a los que no se puede renunciar."]
+        "body": ["La app se ofrece "tal cual" y "según disponibilidad". En la medida en que lo permita la ley, no garantizamos que funcione sin interrupciones ni errores, ni que los avisos, la sincronización de calendarios y las respuestas de la IA sean siempre exactos o puntuales. Nada de lo dispuesto en estos términos limita los derechos que te otorgan las leyes de protección de los consumidores a los que no se puede renunciar."]
       },
       "liability": {
         "title": "Limitación de responsabilidad",

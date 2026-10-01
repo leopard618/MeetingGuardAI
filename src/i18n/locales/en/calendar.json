@@ -5,7 +5,7 @@
   "status": {
     "lastSynced": "Last synced {{time}}",
     "neverSynced": "Not synced yet",
-    "syncing": "Syncing…"
+    "syncing": "Syncing..."
   },
   "google": {
     "title": "Google Calendar",
@@ -18,7 +18,7 @@
     "permissionNeededHint": "MeetingGuard no longer has access to your Google Calendar. Grant access again to keep syncing.",
     "twoWaySync": "Two-way sync",
     "connect": "Connect Google Calendar",
-    "connecting": "Connecting…",
+    "connecting": "Connecting...",
     "grantAccess": "Grant calendar access",
     "connectedTitle": "Google Calendar connected",
     "firstSyncSummary": "Imported {{created}} events and sent {{pushed}} meetings to Google Calendar.",
@@ -28,7 +28,7 @@
     "disconnectMessage": "Events imported from Google Calendar will be removed from MeetingGuard. Nothing is deleted from your Google Calendar.",
     "disconnect": "Stop sync",
     "disconnectAndRevoke": "Stop sync and remove access",
-    "disconnecting": "Stopping sync…",
+    "disconnecting": "Stopping sync...",
     "disconnectedTitle": "Google Calendar sync is off",
     "untitledEvent": "(No title)"
   },
@@ -42,7 +42,7 @@
     "account": "Microsoft account: {{email}}",
     "twoWaySync": "Two-way sync",
     "connect": "Connect Outlook",
-    "connecting": "Connecting…",
+    "connecting": "Connecting...",
     "connectedTitle": "Outlook connected",
     "firstSyncSummary": "Imported {{created}} events and sent {{pushed}} meetings to Outlook.",
     "firstSyncFailed": "Connected, but the first sync did not finish: {{error}} MeetingGuard will try again automatically.",
@@ -51,7 +51,7 @@
     "disconnectMessage": "Events imported from Outlook will be removed from MeetingGuard. Nothing is deleted from your Outlook calendar.",
     "disconnect": "Stop sync",
     "disconnectAndRevoke": "Stop sync and review access",
-    "disconnecting": "Stopping sync…",
+    "disconnecting": "Stopping sync...",
     "disconnectedTitle": "Outlook sync is off",
     "untitledEvent": "(No title)"
   },
@@ -63,7 +63,7 @@
       "denied": "Calendar access is turned off for MeetingGuard.",
       "openSettings": "Open settings"
     },
-    "loading": "Loading calendars…",
+    "loading": "Loading calendars...",
     "empty": "There are no calendars on this phone.",
     "retry": "Try again",
     "import": {
@@ -79,7 +79,7 @@
   },
   "sync": {
     "now": "Sync now",
-    "syncing": "Syncing…",
+    "syncing": "Syncing...",
     "doneTitle": "Sync complete",
     "problemsTitle": "Sync finished with problems",
     "googleResult": "Google Calendar: {{created}} new, {{updated}} updated, {{removed}} removed, {{pushed}} sent to Google.",

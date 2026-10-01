@@ -5,7 +5,7 @@
  * Settings > Alerts, where the full settings live.
  *
  * MG Indigo: a neutral Card under a SectionHeader; the on/off state is a success / warning Badge
- * plus a tinted bell circle (never color alone — the text says it too).
+ * plus a tinted bell circle (never color alone - the text says it too).
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';

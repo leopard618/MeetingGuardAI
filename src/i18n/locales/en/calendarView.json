@@ -21,6 +21,6 @@
   "emptyDay": "No meetings on this day.",
   "createOnDay": "New meeting on {{date}}",
   "createOnDayHint": "Opens the meeting form on this day",
-  "loading": "Loading your meetings…",
+  "loading": "Loading your meetings...",
   "errorTitle": "Your meetings could not be loaded"
 }

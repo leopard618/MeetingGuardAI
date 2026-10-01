@@ -1,6 +1,6 @@
 /**
  * MG Indigo design tokens (owner: shell / Foundation). Single source of truth for every design
- * value in the app — see docs/DESIGN_SYSTEM.md for intent and per-screen application.
+ * value in the app - see docs/DESIGN_SYSTEM.md for intent and per-screen application.
  *
  * Pure module: no React, no react-native, no react-native-paper imports, so it can be consumed
  * by src/contexts/themeColors.ts (Paper theme construction), by components via the src/theme
@@ -41,7 +41,7 @@ export interface MGElevation {
 /** Categorical data palette (insights bars, calendar source dots, note categories). */
 export type MGChartPalette = readonly [string, string, string, string, string, string];
 
-/** MAX alert overlay identity — mode-invariant (always dark), safety-critical, all pairs AA. */
+/** MAX alert overlay identity - mode-invariant (always dark), safety-critical, all pairs AA. */
 export interface MGAlertMaxColors {
   bg: string;
   ring: string;
@@ -59,7 +59,7 @@ export interface MGAlertMaxColors {
   snoozeText: string;
 }
 
-/** MEDIUM alert banner identity — mode-invariant. */
+/** MEDIUM alert banner identity - mode-invariant. */
 export interface MGAlertMediumColors {
   bg: string;
   accentBar: string;
@@ -69,7 +69,7 @@ export interface MGAlertMediumColors {
   actionText: string;
 }
 
-/** LIGHT alert toast identity — mode-invariant; AppToast reuses bg/title/body. */
+/** LIGHT alert toast identity - mode-invariant; AppToast reuses bg/title/body. */
 export interface MGAlertLightColors {
   bg: string;
   icon: string;
@@ -134,7 +134,7 @@ export interface MGColors {
   onSurface: string;
   surfaceVariant: string;
   onSurfaceVariant: string;
-  /** Not in Paper's MD3Colors — MG extras (dark input bg / selected-active rows). */
+  /** Not in Paper's MD3Colors - MG extras (dark input bg / selected-active rows). */
   surfaceContainerLow: string;
   surfaceContainerHigh: string;
   /** Functional borders (inputs, unselected chips): >= 3:1 on surface. */
@@ -331,7 +331,7 @@ export const noteCategoryColorIndex = {
 
 /**
  * Exactly the color fields react-native-paper 5's MD3Colors knows (5.15.3 has no surfaceTint /
- * surfaceContainer* — our containers feed Paper only through elevation). Foundation builds the
+ * surfaceContainer* - our containers feed Paper only through elevation). Foundation builds the
  * Paper themes as { ...MD3LightTheme, roundness: 3, colors: { ...MD3LightTheme.colors,
  * ...paperColorOverrides.light } } (dark analogous).
  */
@@ -458,7 +458,7 @@ export const typography: MGTypography = {
   labelS: { fontSize: 11, lineHeight: 16, fontWeight: '500', letterSpacing: 0.4 },
 };
 
-/** 4pt grid — the only spacing values allowed in StyleSheets. */
+/** 4pt grid - the only spacing values allowed in StyleSheets. */
 export const spacing = {
   xs: 4,
   sm: 8,

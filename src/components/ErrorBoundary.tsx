@@ -22,7 +22,7 @@ import { useOptionalTheme } from '../contexts/ThemeContext';
 import { createLogger } from '../core/logger';
 import { useT } from '../i18n';
 // This fallback may render with NO providers (app scope wraps the whole provider tree), so it
-// takes the MG tokens directly — no Paper, no theme barrel (docs/DESIGN_SYSTEM.md §7 group D).
+// takes the MG tokens directly - no Paper, no theme barrel (docs/DESIGN_SYSTEM.md §7 group D).
 import { componentMetrics, darkColors, lightColors, pressedDimOpacity, radii, spacing, typography } from '../theme/tokens';
 
 const log = createLogger('ui');

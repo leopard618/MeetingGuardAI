@@ -312,7 +312,7 @@ export function AIInsightsScreen({ navigation }: Props): ReactElement {
         )
       ) : null}
       {isLoading ? (
-        // First load: tile- and chart-shaped skeletons (the layout is known — §8).
+        // First load: tile- and chart-shaped skeletons (the layout is known - §8).
         <View accessible accessibilityLabel={t('insights:loading')} testID="insights-loading">
           <View style={styles.skeletonRow}>
             <Skeleton width="48%" height={84} radius={radii.lg} />

@@ -18,7 +18,7 @@
     "nowTitle": "{{title}} is starting now",
     "startedTitle": "{{title}} has started",
     "snoozeTitle": "Reminder: {{title}} starts {{lead}}",
-    "followUpTitle": "How did “{{title}}” go?",
+    "followUpTitle": "How did "{{title}}" go?",
     "followUpBody": "Capture notes, decisions and next steps with your AI assistant.",
     "body": "{{time}}",
     "bodyWithLocation": "{{time}} · {{location}}",
@@ -54,7 +54,7 @@
     "now": "Starting now",
     "started_one": "Started {{count}} minute ago",
     "started_other": "Started {{count}} minutes ago",
-    "timeRange": "{{start}} – {{end}}"
+    "timeRange": "{{start}} - {{end}}"
   },
   "max": {
     "heading": "Your meeting is about to start",
@@ -74,7 +74,7 @@
   },
   "followUp": {
     "heading": "How did it go?",
-    "body": "Capture notes and next steps for “{{title}}” with your AI assistant."
+    "body": "Capture notes and next steps for "{{title}}" with your AI assistant."
   },
   "buttons": {
     "acknowledge": "I'm on it",
@@ -124,7 +124,7 @@
     },
     "dnd": {
       "title": "Do Not Disturb",
-      "androidDescription": "Maximum alerts can ring during Do Not Disturb only if you allow it: open the settings of the maximum alerts and turn on “Override Do Not Disturb”.",
+      "androidDescription": "Maximum alerts can ring during Do Not Disturb only if you allow it: open the settings of the maximum alerts and turn on "Override Do Not Disturb".",
       "iosDescription": "To get alerts during a Focus, add MeetingGuard to the Focus's allowed apps in Settings > Focus.",
       "open": "Allow maximum alerts to override Do Not Disturb"
     }

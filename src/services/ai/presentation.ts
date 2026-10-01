@@ -26,7 +26,7 @@ import type { ActionResult, ActionWarning } from '../../core/contracts';
 import { AppError, isAppError, type AppErrorCode } from '../../core/errors';
 import type { Meeting } from '../../core/types';
 // Service-layer file: tokens are imported directly (never the src/theme barrel, which pulls in
-// React hooks) — docs/DESIGN_SYSTEM.md §7 group D.
+// React hooks) - docs/DESIGN_SYSTEM.md §7 group D.
 import { mgColors, type MGColors } from '../../theme/tokens';
 
 import { quotaUsageFromError } from './assistantClient';
@@ -68,7 +68,7 @@ export interface DiffRow {
 const DESCRIPTION_PREVIEW_CHARS = 300;
 
 function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}...` : text;
 }
 
 function fieldLabel(fmt: AssistantFormatter, field: MeetingField): string {
@@ -606,7 +606,7 @@ export function buildMailtoUrl(recipients: readonly string[], content: ShareCont
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Every value is an MG Indigo token (src/theme/tokens.ts) — docs/DESIGN_SYSTEM.md §7 group D.
+ * Every value is an MG Indigo token (src/theme/tokens.ts) - docs/DESIGN_SYSTEM.md §7 group D.
  * The legacy emerald/slate literals are gone; the field names stay so consumers compile, and a
  * few token-named fields were added for the restyled chat pieces. All pairings are AA in both
  * schemes (see src/theme/__tests__/contrast.test.ts for the documented pairs).
@@ -699,7 +699,7 @@ export function assistantPalette(isDarkMode: boolean): AssistantPalette {
   return isDarkMode ? DARK : LIGHT;
 }
 
-/** Container trio per tone (on-color on container — AA in both schemes by the contrast guard). */
+/** Container trio per tone (on-color on container - AA in both schemes by the contrast guard). */
 export function feedbackColors(palette: AssistantPalette, tone: FeedbackTone): { color: string; background: string } {
   switch (tone) {
     case 'success':

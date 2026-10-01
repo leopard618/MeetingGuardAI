@@ -333,7 +333,7 @@ describe('PricingScreen (purchases configured)', () => {
     });
     expect(mockPurchasesService.purchase).toHaveBeenCalledWith('pro', 'monthly');
     expect(screen.getByTestId('pricing-activating')).toBeTruthy();
-    expect(screen.getByText('Payment received. Activating your plan…')).toBeTruthy();
+    expect(screen.getByText('Payment received. Activating your plan...')).toBeTruthy();
     // The webhook wrote entitlements/{uid}; the entitlement listener fires with 'pro'.
     await act(async () => {
       emitEntitlement('pro');

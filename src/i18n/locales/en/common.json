@@ -28,7 +28,7 @@
     "days_other": "{{count}} days"
   },
   "splash": {
-    "loading": "Loading…",
+    "loading": "Loading...",
     "slow": "This is taking longer than usual. Check your internet connection."
   },
   "session": {

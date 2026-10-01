@@ -3,7 +3,7 @@
  * countdown (every second in the last hour, every 30 s otherwise), a Join button only when the
  * meeting has a real http(s) link, and a Details button.
  *
- * MG Indigo: this is the dashboard's single focal card — Card accent="primary"
+ * MG Indigo: this is the dashboard's single focal card - Card accent="primary"
  * (primaryContainer / onPrimaryContainer), countdown headlineS tabular-nums, Join filled small.
  * The "no upcoming meetings" variant stays a neutral card (nothing to focus on).
  */

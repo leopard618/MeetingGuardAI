@@ -15,7 +15,7 @@
     "personal": "Personal"
   },
   "list": {
-    "loading": "Loading your notes…",
+    "loading": "Loading your notes...",
     "count_one": "{{count}} note",
     "count_other": "{{count}} notes"
   },
@@ -52,7 +52,7 @@
     "save": "Save",
     "titleLabel": "Title",
     "contentLabel": "Note",
-    "contentPlaceholder": "Write your note…",
+    "contentPlaceholder": "Write your note...",
     "characters": "{{count}} / {{max}} characters",
     "category": "Category",
     "pin": "Pin to the top",
@@ -87,7 +87,7 @@
     "linked": "Linked"
   },
   "delete": {
-    "title": "Delete “{{title}}”?",
+    "title": "Delete "{{title}}"?",
     "message": "The note will be deleted from all your devices. This can't be undone.",
     "confirm": "Delete"
   },

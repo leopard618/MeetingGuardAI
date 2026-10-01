@@ -111,7 +111,7 @@ export function fnv1a32(input: string): string {
 export function cleanText(value: unknown, maxChars: number): string {
   if (typeof value !== 'string') return '';
   const collapsed = value.replace(/\s+/g, ' ').trim();
-  return collapsed.length > maxChars ? `${collapsed.slice(0, maxChars - 1).trimEnd()}…` : collapsed;
+  return collapsed.length > maxChars ? `${collapsed.slice(0, maxChars - 1).trimEnd()}...` : collapsed;
 }
 
 const NO_ESCAPE = { interpolation: { escapeValue: false } } as const;

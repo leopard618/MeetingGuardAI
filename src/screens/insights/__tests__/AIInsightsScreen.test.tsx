@@ -123,7 +123,7 @@ afterEach(() => {
 
 it('shows the week: totals, busiest day, load by day, sources and conflicts', async () => {
   await renderInsights();
-  expect(screen.getByTestId('insights-range').props.children).toBe('Sep 27, 2026 – Oct 3, 2026');
+  expect(screen.getByTestId('insights-range').props.children).toBe('Sep 27, 2026 - Oct 3, 2026');
   expect(within(screen.getByTestId('stat-meetings')).getByText('4')).toBeTruthy();
   expect(within(screen.getByTestId('stat-time')).getByText('3 h 30 min')).toBeTruthy();
   expect(within(screen.getByTestId('stat-busiest')).getByText('Sep 29, 2026 · 2 meetings · 2 h 30 min')).toBeTruthy();
@@ -139,7 +139,7 @@ it('switches to the month and opens a meeting from a conflict', async () => {
   await act(async () => {
     fireEvent.press(screen.getByText('This month'));
   });
-  expect(screen.getByTestId('insights-range').props.children).toBe('Sep 1, 2026 – Sep 30, 2026');
+  expect(screen.getByTestId('insights-range').props.children).toBe('Sep 1, 2026 - Sep 30, 2026');
   expect(screen.getByTestId('load-weekday-2').props.accessibilityLabel).toBe('Tuesday: 2 meetings, 2 h 30 min');
 
   await act(async () => {

@@ -37,7 +37,7 @@ const DAY_LABEL_PATTERNS: Readonly<Record<Language, { sameYear: string; otherYea
   es: { sameYear: 'EEE, d MMM', otherYear: 'EEE, d MMM yyyy' },
 };
 
-const RANGE_SEPARATOR = ' – ';
+const RANGE_SEPARATOR = ' - ';
 const PART_SEPARATOR = ' · ';
 const MINUTES_PER_DAY = 1440;
 
@@ -192,8 +192,8 @@ export function formatDuration(minutes: number, options?: FormatOptions): string
 }
 
 /**
- * "Mon, Oct 5 · 3:00 – 4:00 PM", "lun, 5 oct · 15:00 – 16:00", "Mon, Oct 5 · All day",
- * "Mon, Oct 5, 11:00 PM – Tue, Oct 6, 1:00 AM" (crosses midnight). All-day meetings use their own
+ * "Mon, Oct 5 · 3:00 - 4:00 PM", "lun, 5 oct · 15:00 - 16:00", "Mon, Oct 5 · All day",
+ * "Mon, Oct 5, 11:00 PM - Tue, Oct 6, 1:00 AM" (crosses midnight). All-day meetings use their own
  * calendar `date` (never shifted by zone).
  */
 export function formatMeetingTimeRange(

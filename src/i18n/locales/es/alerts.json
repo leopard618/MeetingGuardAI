@@ -54,7 +54,7 @@
     "now": "Empieza ahora",
     "started_one": "Empezó hace {{count}} minuto",
     "started_other": "Empezó hace {{count}} minutos",
-    "timeRange": "{{start}} – {{end}}"
+    "timeRange": "{{start}} - {{end}}"
   },
   "max": {
     "heading": "Tu reunión está a punto de empezar",

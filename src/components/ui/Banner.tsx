@@ -3,7 +3,7 @@
  * Container bg, 20dp icon, bodyM text (optional labelL title line above), optional trailing
  * text action. Announced politely to
  * screen readers; slides in softly (skipped under "reduce motion"). Used for offline / error
- * notices next to cached content (§8) — never instead of ErrorState when nothing is cached.
+ * notices next to cached content (§8) - never instead of ErrorState when nothing is cached.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState, type ComponentProps, type ReactElement } from 'react';

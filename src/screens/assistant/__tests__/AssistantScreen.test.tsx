@@ -225,7 +225,7 @@ describe('AssistantScreen', () => {
     );
     await renderChat();
     expect(screen.getByTestId('typing-indicator')).toBeTruthy();
-    expect(screen.getByLabelText('Thinking…')).toBeTruthy();
+    expect(screen.getByLabelText('Thinking...')).toBeTruthy();
     expect(screen.getByText('2 actions waiting for your confirmation')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('assistant-review-all'));

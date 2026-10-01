@@ -9,7 +9,7 @@
   },
   "privacy": {
     "title": "Privacy Policy",
-    "intro": "This policy explains what information the MeetingGuard AI app collects, how we use it, who we share it with and the choices you have. MeetingGuard AI is provided by {{company}} (“we”, “us”).",
+    "intro": "This policy explains what information the MeetingGuard AI app collects, how we use it, who we share it with and the choices you have. MeetingGuard AI is provided by {{company}} ("we", "us").",
     "sections": {
       "controller": {
         "title": "Who is responsible for your data",
@@ -20,7 +20,7 @@
         "body": ["We only collect what the app needs to work:"],
         "items": [
           "Account information: when you sign in with Google, we receive your name, email address, profile photo and your Google account identifier. If your account uses an email address and password, the password is handled by Firebase Authentication and we never see it.",
-          "Meetings and notes that you create, import or edit: titles, descriptions, dates, times and time zones, locations, video-call links and passcodes, participants’ names and email addresses, preparation tips, reminder settings and notes.",
+          "Meetings and notes that you create, import or edit: titles, descriptions, dates, times and time zones, locations, video-call links and passcodes, participants' names and email addresses, preparation tips, reminder settings and notes.",
           "Preferences: language, time zone, clock format, alert settings and the calendars you choose to sync.",
           "AI assistant usage: how many assistant requests you make each day, to apply the daily limit of your plan.",
           "Crash and error reports, when crash reporting is enabled in your version of the app: device model, operating system, app version and technical details of the error. We design these reports to leave out your meetings, notes and messages, and email addresses are removed before they are sent."
@@ -31,9 +31,9 @@
         "body": ["Some information is only stored on your phone:"],
         "items": [
           "Files you attach to meetings. They are not uploaded to our servers and are not available on your other devices.",
-          "Your conversation with the AI assistant, so you can continue it later. The recent messages are sent with each new request (see “AI assistant”).",
+          "Your conversation with the AI assistant, so you can continue it later. The recent messages are sent with each new request (see "AI assistant").",
           "A copy of your meetings, notes and preferences, so the app works offline. It is deleted when you sign out.",
-          "Your reminders, which are scheduled by your phone’s operating system."
+          "Your reminders, which are scheduled by your phone's operating system."
         ]
       },
       "use": {
@@ -50,10 +50,10 @@
       "google": {
         "title": "Google Calendar",
         "body": [
-          "If you connect Google Calendar, you allow MeetingGuard AI to view and edit the events of your Google calendars (the “calendar.events” permission). The app uses this permission to bring the events of your main calendar into MeetingGuard AI, so you get alerts for them, and to add, change or delete the events you manage in MeetingGuard AI, including creating Google Meet links and sending invitations to participants when you ask for it.",
+          "If you connect Google Calendar, you allow MeetingGuard AI to view and edit the events of your Google calendars (the "calendar.events" permission). The app uses this permission to bring the events of your main calendar into MeetingGuard AI, so you get alerts for them, and to add, change or delete the events you manage in MeetingGuard AI, including creating Google Meet links and sending invitations to participants when you ask for it.",
           "Events from Google Calendar are saved in your MeetingGuard AI account (Google Firebase) so that they are available on your devices, so that you get alerts for them and so that the AI assistant can answer questions about your schedule when you use it.",
-          "The access token that lets the app talk to Google Calendar stays on your device, is managed by Google Sign-In and is never stored on our servers. You can disconnect Google Calendar in the app at any time, or remove MeetingGuard AI’s access in your Google Account (myaccount.google.com/permissions).",
-          "MeetingGuard AI’s use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements."
+          "The access token that lets the app talk to Google Calendar stays on your device, is managed by Google Sign-In and is never stored on our servers. You can disconnect Google Calendar in the app at any time, or remove MeetingGuard AI's access in your Google Account (myaccount.google.com/permissions).",
+          "MeetingGuard AI's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements."
         ],
         "items": [
           "We use Google user data only to provide and improve the features described in this policy.",
@@ -64,19 +64,19 @@
       },
       "deviceCalendars": {
         "title": "Calendars on your phone",
-        "body": ["If you allow calendar access, MeetingGuard AI reads the events of the phone calendars you choose and saves them in your account, so you get alerts for them. If you also choose a calendar for export, the app writes your MeetingGuard AI meetings into it. You can change these choices in the app, or turn off calendar access in your phone’s settings."]
+        "body": ["If you allow calendar access, MeetingGuard AI reads the events of the phone calendars you choose and saves them in your account, so you get alerts for them. If you also choose a calendar for export, the app writes your MeetingGuard AI meetings into it. You can change these choices in the app, or turn off calendar access in your phone's settings."]
       },
       "ai": {
         "title": "AI assistant (OpenAI)",
         "body": [
-          "The AI assistant is optional. When you send it a request, our server (Google Cloud Functions) sends OpenAI the recent messages of your conversation and a limited view of your meetings from the past 7 days to the next 60 days: titles, dates and times, locations, and up to 10 participants’ names and email addresses per meeting. A meeting’s description is only included when you ask for follow-up ideas about that meeting. Notes, video-call links and passcodes are never sent.",
-          "OpenAI processes this information to write the answer, which our server returns to the app. According to OpenAI’s API data policies, OpenAI does not use data sent through its API to train its models by default, and it may keep the data for a limited time to monitor for abuse. The app never contains an OpenAI key and never contacts OpenAI directly.",
+          "The AI assistant is optional. When you send it a request, our server (Google Cloud Functions) sends OpenAI the recent messages of your conversation and a limited view of your meetings from the past 7 days to the next 60 days: titles, dates and times, locations, and up to 10 participants' names and email addresses per meeting. A meeting's description is only included when you ask for follow-up ideas about that meeting. Notes, video-call links and passcodes are never sent.",
+          "OpenAI processes this information to write the answer, which our server returns to the app. According to OpenAI's API data policies, OpenAI does not use data sent through its API to train its models by default, and it may keep the data for a limited time to monitor for abuse. The app never contains an OpenAI key and never contacts OpenAI directly.",
           "The assistant only proposes changes: nothing is created, changed, deleted or shared until you confirm it. Answers can be wrong, so check them before you confirm. Please do not send sensitive information, such as health data, to the assistant."
         ]
       },
       "notifications": {
         "title": "Notifications",
-        "body": ["Meeting alerts are scheduled on your device by the operating system, based on your meetings and your alert settings. They show the meeting title and time, also on the lock screen according to your phone’s notification settings. We do not send push notifications from a server and we do not use notifications for marketing."]
+        "body": ["Meeting alerts are scheduled on your device by the operating system, based on your meetings and your alert settings. They show the meeting title and time, also on the lock screen according to your phone's notification settings. We do not send push notifications from a server and we do not use notifications for marketing."]
       },
       "sharing": {
         "title": "Who we share information with",
@@ -92,16 +92,16 @@
       },
       "transfers": {
         "title": "Where your information is processed",
-        "body": ["Our service providers may process your information on servers in the United States and other countries. When the law requires it, these transfers are protected by appropriate safeguards, such as the European Commission’s Standard Contractual Clauses."]
+        "body": ["Our service providers may process your information on servers in the United States and other countries. When the law requires it, these transfers are protected by appropriate safeguards, such as the European Commission's Standard Contractual Clauses."]
       },
       "retention": {
         "title": "How long we keep your information and how to delete it",
         "body": ["We keep your information while your account exists."],
         "items": [
-          "You can delete your account at any time in the app: Settings → Account → Delete account. This permanently deletes your account, meetings, notes, preferences, assistant usage records and subscription status from our servers, signs you out and removes the app’s access to your Google account.",
-          "If you can’t sign in anymore, write to {{email}} from the email address of your account and ask us to delete it.",
+          "You can delete your account at any time in the app: Settings → Account → Delete account. This permanently deletes your account, meetings, notes, preferences, assistant usage records and subscription status from our servers, signs you out and removes the app's access to your Google account.",
+          "If you can't sign in anymore, write to {{email}} from the email address of your account and ask us to delete it.",
           "When you delete a meeting, a minimal record without its content (identifiers and time) is kept for up to 60 days so the deletion reaches your other devices and calendars; after that our server erases it automatically.",
-          "Events that the app added to Google Calendar or to your phone’s calendar stay there until you delete them.",
+          "Events that the app added to Google Calendar or to your phone's calendar stay there until you delete them.",
           "Server logs contain only your anonymous user ID and are kept for up to 30 days.",
           "Our database backups, which protect against data loss, still contain deleted information until they expire: daily backups are kept for up to 14 days and point-in-time recovery covers the last 7 days. Backups are not used for anything else.",
           "When you delete your account, we keep a record with only your anonymous user ID and the date for 30 days. If we ever have to restore a backup, we use it to delete your data again, so a deleted account stays deleted.",
@@ -144,7 +144,7 @@
     "sections": {
       "agreement": {
         "title": "Agreement",
-        "body": ["These Terms of Service are an agreement between you and {{company}} (“we”, “us”) for the use of the MeetingGuard AI app. By creating an account or using the app, you accept these terms and our Privacy Policy. If you do not agree, please do not use the app."]
+        "body": ["These Terms of Service are an agreement between you and {{company}} ("we", "us") for the use of the MeetingGuard AI app. By creating an account or using the app, you accept these terms and our Privacy Policy. If you do not agree, please do not use the app."]
       },
       "service": {
         "title": "The service",
@@ -154,7 +154,7 @@
         "title": "Your account",
         "body": ["To use MeetingGuard AI:"],
         "items": [
-          "You must be at least 16 years old, or older if your country requires it to use online services without a parent’s consent.",
+          "You must be at least 16 years old, or older if your country requires it to use online services without a parent's consent.",
           "Give accurate information and keep your Google account or password secure.",
           "You are responsible for the activity in your account. Tell us at {{email}} if you think someone else is using it."
         ]
@@ -169,7 +169,7 @@
         "items": [
           "Answers and proposals are generated automatically and can be wrong or incomplete. Review every proposal before you confirm it. You are responsible for the changes you confirm and for the messages you send to other people.",
           "Each plan has a daily limit of assistant requests (the Free plan includes {{freeLimit}} per day). Limits reset every day at midnight UTC.",
-          "Do not use the assistant for illegal purposes or in ways that break OpenAI’s usage policies."
+          "Do not use the assistant for illegal purposes or in ways that break OpenAI's usage policies."
         ]
       },
       "plans": {
@@ -178,7 +178,7 @@
       },
       "content": {
         "title": "Your content",
-        "body": ["You keep ownership of the meetings, notes and other content you add. You allow us to store, copy and process it only as needed to run the service for you, for example to sync it, schedule your alerts or answer your assistant requests. You are responsible for having the right to add other people’s contact details to your meetings and to send them invitations."]
+        "body": ["You keep ownership of the meetings, notes and other content you add. You allow us to store, copy and process it only as needed to run the service for you, for example to sync it, schedule your alerts or answer your assistant requests. You are responsible for having the right to add other people's contact details to your meetings and to send them invitations."]
       },
       "thirdParty": {
         "title": "Third-party services",
@@ -188,9 +188,9 @@
         "title": "Acceptable use",
         "body": ["You agree not to:"],
         "items": [
-          "Use the app to break the law or other people’s rights.",
+          "Use the app to break the law or other people's rights.",
           "Send spam or unwanted invitations through the app.",
-          "Try to access other users’ data, our servers or the AI service in ways we do not allow, or get around usage limits.",
+          "Try to access other users' data, our servers or the AI service in ways we do not allow, or get around usage limits.",
           "Disrupt the service, overload it with automated requests, or copy or reverse engineer the app where the law does not allow it."
         ]
       },
@@ -204,7 +204,7 @@
       },
       "disclaimers": {
         "title": "Disclaimers",
-        "body": ["The app is provided “as is” and “as available”. To the extent allowed by law, we do not promise that it will work without interruptions or errors, or that alerts, calendar sync and AI answers will always be accurate or on time. Nothing in these terms limits the rights you have under consumer protection laws that cannot be waived."]
+        "body": ["The app is provided "as is" and "as available". To the extent allowed by law, we do not promise that it will work without interruptions or errors, or that alerts, calendar sync and AI answers will always be accurate or on time. Nothing in these terms limits the rights you have under consumer protection laws that cannot be waived."]
       },
       "liability": {
         "title": "Limitation of liability",

@@ -113,14 +113,14 @@
       "invalidDate": "Elige una fecha válida.",
       "invalidTime": "Elige una hora válida.",
       "invalidDuration": "Elige una duración válida.",
-      "invalidUrl": "Escribe un enlace válido (https://…).",
+      "invalidUrl": "Escribe un enlace válido (https://...).",
       "tooMany": "Una reunión puede tener hasta 100 participantes.",
       "invalidEmail": "Revisa los correos electrónicos de los participantes.",
       "tooManyTips": "Hasta 20 consejos de 300 caracteres como máximo.",
       "alertTimesRequired": "Elige al menos un recordatorio o usa tus recordatorios predeterminados.",
-      "invalidRepeatInterval": "Indica cada cuánto se repite (1–99).",
+      "invalidRepeatInterval": "Indica cada cuánto se repite (1-99).",
       "invalidRepeatUntil": "Elige un último día igual o posterior a la primera reunión.",
-      "invalidRepeatCount": "Indica cuántas veces se repite (1–730)."
+      "invalidRepeatCount": "Indica cuántas veces se repite (1-730)."
     },
     "repeat": {
       "title": "Repetición",
@@ -159,7 +159,7 @@
       },
       "pickUntilDate": "Elegir el último día",
       "untilOn": "Último día: {{date}}",
-      "countLabel": "Número de veces (1–730)",
+      "countLabel": "Número de veces (1-730)",
       "seriesNote": "Esta reunión se repite. Los cambios que guardes aquí se aplican a toda la serie."
     }
   },
@@ -189,7 +189,7 @@
     "online": "En línea",
     "openHint": "Abre los detalles de la reunión",
     "moreActions": "Más acciones para {{title}}",
-    "loading": "Cargando reuniones…",
+    "loading": "Cargando reuniones...",
     "errorTitle": "No se pudieron cargar tus reuniones",
     "newMeeting": "Nueva reunión",
     "clearFilters": "Borrar búsqueda y filtros",

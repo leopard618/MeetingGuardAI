@@ -77,7 +77,7 @@ beforeEach(async () => {
   mockSyncNow.mockReset().mockResolvedValue({ google: null, device: null, errors: [] });
 });
 
-it('shows the month with dots for every source and today’s agenda in the user zone', async () => {
+it('shows the month with dots for every source and today's agenda in the user zone', async () => {
   await renderCalendar();
   expect(screen.getByTestId('calendar-month-title').props.children).toBe('October 2026');
   expect(screen.getByTestId('calendar-dot-2026-10-05-meetingguard')).toBeTruthy();

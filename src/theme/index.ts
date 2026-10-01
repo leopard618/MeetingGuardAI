@@ -1,5 +1,5 @@
 /**
- * src/theme — the one import path for design values (owner: shell / Foundation).
+ * src/theme - the one import path for design values (owner: shell / Foundation).
  *
  * Usage in components:
  *   import { useAppTheme, spacing, radii, typography, componentMetrics } from '../../theme';
@@ -7,8 +7,7 @@
  *
  * useAppTheme() delegates scheme resolution (system/light/dark + persistence) to ThemeContext
  * and returns the MG Indigo tokens for the resolved scheme. Provider-less surfaces
- * (ErrorBoundary fallback) and src/contexts/themeColors.ts import './tokens' directly instead —
- * this barrel imports ThemeContext, so importing it from the contexts layer would be a cycle.
+ * (ErrorBoundary fallback) and src/contexts/themeColors.ts import './tokens' directly instead - * this barrel imports ThemeContext, so importing it from the contexts layer would be a cycle.
  */
 import { useMemo } from 'react';
 import { useColorScheme } from 'react-native';

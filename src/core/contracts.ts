@@ -1143,7 +1143,7 @@ export interface FormatApi {
   formatRelative(value: DateValue, options?: FormatOptions & { now?: Date }): string;
   /** 90 => "1 h 30 min". */
   formatDuration(minutes: number, options?: FormatOptions): string;
-  /** "Mon, Oct 5 · 3:00 – 4:00 PM" (all-day aware). */
+  /** "Mon, Oct 5 · 3:00 - 4:00 PM" (all-day aware). */
   formatMeetingTimeRange(
     meeting: Pick<Meeting, 'startAt' | 'durationMinutes' | 'allDay' | 'date'>,
     options?: FormatOptions & { now?: Date },

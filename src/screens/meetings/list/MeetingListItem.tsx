@@ -45,7 +45,7 @@ export function meetingSourceColor(source: MeetingSource, colors: MGColors): str
 }
 
 /**
- * Time of a meeting inside its day section: "3:00 – 4:00 PM" style start / end times, "All day",
+ * Time of a meeting inside its day section: "3:00 - 4:00 PM" style start / end times, "All day",
  * or the full range with dates when the meeting spans several days.
  */
 export function meetingTimeText(meeting: Meeting, fmt: Formatters, timeZone: string, t: TranslateFn): string {
@@ -58,7 +58,7 @@ export function meetingTimeText(meeting: Meeting, fmt: Formatters, timeZone: str
   const lastMinute = new Date(Date.parse(end) - 60_000);
   const sameDay = toLocalDateTime(meeting.startAt, timeZone).date === toLocalDateTime(lastMinute, timeZone).date;
   if (!sameDay) return fmt.meetingRange(meeting, timeZone);
-  return `${fmt.time(meeting.startAt, timeZone)} – ${fmt.time(end, timeZone)}`;
+  return `${fmt.time(meeting.startAt, timeZone)} - ${fmt.time(end, timeZone)}`;
 }
 
 function placeText(meeting: Meeting, t: TranslateFn): { icon: 'map-marker-outline' | 'video-outline'; text: string } | null {

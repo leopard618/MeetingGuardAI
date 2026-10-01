@@ -165,21 +165,21 @@ describe('formatMeetingTimeRange', () => {
 
   it('compacts same-period ranges on a 12-hour clock', () => {
     const meeting = { startAt: MADRID_3PM, durationMinutes: 60, allDay: false, date: '2026-10-05' };
-    expect(formatMeetingTimeRange(meeting, { timeZone: MADRID, language: 'en', now })).toBe('Mon, Oct 5 · 3:00 – 4:00 PM');
-    expect(formatMeetingTimeRange(meeting, { timeZone: MADRID, language: 'es', now })).toBe('lun, 5 oct · 15:00 – 16:00');
+    expect(formatMeetingTimeRange(meeting, { timeZone: MADRID, language: 'en', now })).toBe('Mon, Oct 5 · 3:00 - 4:00 PM');
+    expect(formatMeetingTimeRange(meeting, { timeZone: MADRID, language: 'es', now })).toBe('lun, 5 oct · 15:00 - 16:00');
   });
 
   it('keeps both periods when the range crosses noon', () => {
     const meeting = { startAt: '2026-10-05T09:30:00.000Z', durationMinutes: 90, allDay: false, date: '2026-10-05' };
     expect(formatMeetingTimeRange(meeting, { timeZone: MADRID, language: 'en', now })).toBe(
-      'Mon, Oct 5 · 11:30 AM – 1:00 PM',
+      'Mon, Oct 5 · 11:30 AM - 1:00 PM',
     );
   });
 
   it('shows both days when the meeting crosses midnight', () => {
     const meeting = { startAt: '2026-10-05T21:00:00.000Z', durationMinutes: 120, allDay: false, date: '2026-10-05' };
     expect(formatMeetingTimeRange(meeting, { timeZone: MADRID, language: 'en', now })).toBe(
-      'Mon, Oct 5, 11:00 PM – Tue, Oct 6, 1:00 AM',
+      'Mon, Oct 5, 11:00 PM - Tue, Oct 6, 1:00 AM',
     );
   });
 
@@ -190,14 +190,14 @@ describe('formatMeetingTimeRange', () => {
     );
     const multi = { ...single, durationMinutes: 2880 };
     expect(formatMeetingTimeRange(multi, { timeZone: MADRID, language: 'es', now })).toBe(
-      'lun, 5 oct – mar, 6 oct · Todo el día',
+      'lun, 5 oct - mar, 6 oct · Todo el día',
     );
   });
 
   it('adds the year when it is not the current one', () => {
     const meeting = { startAt: '2027-01-12T09:00:00.000Z', durationMinutes: 30, allDay: false, date: '2027-01-12' };
     expect(formatMeetingTimeRange(meeting, { timeZone: 'UTC', language: 'en', now })).toBe(
-      'Tue, Jan 12, 2027 · 9:00 – 9:30 AM',
+      'Tue, Jan 12, 2027 · 9:00 - 9:30 AM',
     );
   });
 });

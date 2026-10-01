@@ -225,7 +225,7 @@ it('asks before discarding unsaved changes', async () => {
 it('deletes a note after confirmation and pins / unpins', async () => {
   await renderNotes();
   await fireEvent.press(screen.getByTestId('note-delete-n2'));
-  expect(Alert.alert).toHaveBeenCalledWith('Delete “App ideas”?', expect.stringContaining('all your devices'), expect.any(Array));
+  expect(Alert.alert).toHaveBeenCalledWith('Delete "App ideas"?', expect.stringContaining('all your devices'), expect.any(Array));
   await act(async () => {
     lastAlertButtons()
       .find((button) => button.style === 'destructive')

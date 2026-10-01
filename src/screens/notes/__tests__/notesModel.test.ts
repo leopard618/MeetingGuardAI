@@ -45,7 +45,7 @@ describe('filterNotes', () => {
     expect(filterNotes(NOTES, { query: 'milk ideas', category: 'all' })).toEqual([]);
   });
 
-  it('also matches the linked meeting’s title', () => {
+  it('also matches the linked meeting's title', () => {
     const titles: Record<string, string> = { m1: 'Budget review' };
     const result = filterNotes(NOTES, { query: 'budget', category: 'all', meetingTitle: (id) => titles[id] ?? null });
     expect(result.map((n) => n.id)).toEqual(['n1']);

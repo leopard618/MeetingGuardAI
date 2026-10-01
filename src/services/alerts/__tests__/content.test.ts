@@ -93,7 +93,7 @@ describe('renderAlertSpec', () => {
       summarizeMeeting(meeting, deps.t),
       deps,
     );
-    expect(spec.title).toBe('How did “Weekly sync” go?');
+    expect(spec.title).toBe('How did "Weekly sync" go?');
     expect(spec.body).toBe('Capture notes, decisions and next steps with your AI assistant.');
     expect(spec).toMatchObject({
       channelId: 'mg-followup-v2',
@@ -199,7 +199,7 @@ describe('payload helpers', () => {
 
   it('cleans titles and computes locations / join links without fabricating them', () => {
     expect(cleanText('  a \n b  ', 10)).toBe('a b');
-    expect(cleanText('abcdefghijkl', 5)).toBe('abcd…');
+    expect(cleanText('abcdefghijkl', 5)).toBe('abcd...');
     expect(cleanText({ toString: () => 'x' }, 5)).toBe('');
     const t = translator('en');
     expect(meetingLocationText({ location: null, conference: null }, t)).toBeNull();

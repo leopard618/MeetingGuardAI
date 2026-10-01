@@ -31,7 +31,7 @@ export function firstNameOf(displayName: string | null | undefined): string | nu
   const first = displayName.trim().split(/\s+/)[0] ?? '';
   // Never greet with an email address.
   if (first.length === 0 || first.includes('@')) return null;
-  return first.length > 24 ? `${first.slice(0, 24)}…` : first;
+  return first.length > 24 ? `${first.slice(0, 24)}...` : first;
 }
 
 // ---------------------------------------------------------------------------------------------

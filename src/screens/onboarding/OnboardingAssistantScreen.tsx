@@ -58,7 +58,7 @@ export function OnboardingAssistantScreen(): ReactElement {
         {EXAMPLES.map((key) => (
           <View key={key} style={[styles.example, { backgroundColor: colors.secondaryContainer }]}>
             <Text variant="bodyMedium" style={{ color: colors.onSecondaryContainer }}>
-              “{t(`onboarding:assistant.examples.${key}`)}”
+              "{t(`onboarding:assistant.examples.${key}`)}"
             </Text>
           </View>
         ))}

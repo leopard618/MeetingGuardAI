@@ -15,7 +15,7 @@
     "personal": "Personal"
   },
   "list": {
-    "loading": "Cargando tus notas…",
+    "loading": "Cargando tus notas...",
     "count_one": "{{count}} nota",
     "count_other": "{{count}} notas"
   },
@@ -52,7 +52,7 @@
     "save": "Guardar",
     "titleLabel": "Título",
     "contentLabel": "Nota",
-    "contentPlaceholder": "Escribe tu nota…",
+    "contentPlaceholder": "Escribe tu nota...",
     "characters": "{{count}} / {{max}} caracteres",
     "category": "Categoría",
     "pin": "Fijar arriba",

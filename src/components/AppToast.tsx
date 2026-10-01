@@ -33,7 +33,7 @@ const ICONS: Readonly<Record<ToastTone, IconName>> = {
   info: 'information-outline',
 };
 
-/** Dark-scheme semantic hues — AA on the dark card (see contrast.test.ts, LIGHT toast block). */
+/** Dark-scheme semantic hues - AA on the dark card (see contrast.test.ts, LIGHT toast block). */
 const ACCENTS: Readonly<Record<ToastTone, string>> = {
   success: darkColors.success,
   error: darkColors.error,

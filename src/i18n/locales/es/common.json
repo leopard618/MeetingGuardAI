@@ -28,7 +28,7 @@
     "days_other": "{{count}} días"
   },
   "splash": {
-    "loading": "Cargando…",
+    "loading": "Cargando...",
     "slow": "Esto está tardando más de lo normal. Revisa tu conexión a internet."
   },
   "session": {

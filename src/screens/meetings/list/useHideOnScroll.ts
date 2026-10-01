@@ -1,6 +1,6 @@
 /**
  * FAB hide-on-scroll (docs/DESIGN_SYSTEM.md §5): the FAB slides away while the list scrolls down
- * and returns on the first scroll up (or near the top). Purely visual — Animated only, native
+ * and returns on the first scroll up (or near the top). Purely visual - Animated only, native
  * driver, and a no-op animation under "reduce motion".
  */
 import { useCallback, useRef, useState } from 'react';

@@ -96,7 +96,7 @@ it('lists attachments with size and date, opens and removes them', async () => {
   expect(mockHook.open).toHaveBeenCalledWith(record());
 
   await fireEvent.press(screen.getByTestId('attachment-remove-a1'));
-  expect(Alert.alert).toHaveBeenCalledWith('Remove this attachment?', '“Agenda.pdf” will be deleted from this device.', expect.any(Array));
+  expect(Alert.alert).toHaveBeenCalledWith('Remove this attachment?', '"Agenda.pdf" will be deleted from this device.', expect.any(Array));
   const buttons = (Alert.alert as jest.Mock).mock.calls[0]?.[2] as { style?: string; onPress?: () => void }[];
   await act(async () => {
     buttons.find((button) => button.style === 'destructive')?.onPress?.();
@@ -126,7 +126,7 @@ it('adds files and reports partial failures', async () => {
   expect(Toast.show).toHaveBeenCalledWith({
     type: 'info',
     text1: "1 file added · 1 file couldn't be added",
-    text2: "“setup.exe” isn't a supported file type.",
+    text2: ""setup.exe" isn't a supported file type.",
   });
 });
 
@@ -141,7 +141,7 @@ it('explains a refused camera permission', async () => {
 it('shows loading, busy and read-error states', async () => {
   mockHook = hook({ isLoading: true, busy: true });
   await renderSection();
-  expect(screen.getByText('Loading attachments…')).toBeTruthy();
+  expect(screen.getByText('Loading attachments...')).toBeTruthy();
   expect(screen.getByTestId('attachments-busy')).toBeTruthy();
 
   mockHook = hook({ error: new AppError('unknown') });
@@ -166,7 +166,7 @@ describe('addResultMessage', () => {
     expect(addResultMessage({ cancelled: false, added: [], failures: [{ name: 'big.mov', reason: 'too_large', code: 'invalid_input' }] }, t)).toEqual({
       type: 'error',
       text1: "1 file couldn't be added",
-      text2: '“big.mov” is larger than 50 MB.',
+      text2: '"big.mov" is larger than 50 MB.',
     });
   });
 });

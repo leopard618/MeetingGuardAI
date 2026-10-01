@@ -307,7 +307,7 @@ it('rejects an invalid repeat interval instead of saving', async () => {
     fireEvent.press(screen.getByTestId('meeting-form-save'));
   });
   expect(mockCreate).not.toHaveBeenCalled();
-  expect(screen.getByText('Enter how often it repeats (1–99).')).toBeTruthy();
+  expect(screen.getByText('Enter how often it repeats (1-99).')).toBeTruthy();
 });
 
 it('notes that editing a recurring meeting changes the whole series', async () => {

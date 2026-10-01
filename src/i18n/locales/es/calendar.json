@@ -5,7 +5,7 @@
   "status": {
     "lastSynced": "Última sincronización: {{time}}",
     "neverSynced": "Todavía no se ha sincronizado",
-    "syncing": "Sincronizando…"
+    "syncing": "Sincronizando..."
   },
   "google": {
     "title": "Google Calendar",
@@ -18,7 +18,7 @@
     "permissionNeededHint": "MeetingGuard ya no tiene acceso a tu Google Calendar. Vuelve a darle acceso para seguir sincronizando.",
     "twoWaySync": "Sincronización en ambos sentidos",
     "connect": "Conectar Google Calendar",
-    "connecting": "Conectando…",
+    "connecting": "Conectando...",
     "grantAccess": "Dar acceso al calendario",
     "connectedTitle": "Google Calendar conectado",
     "firstSyncSummary": "Se importaron {{created}} eventos y se enviaron {{pushed}} reuniones a Google Calendar.",
@@ -28,7 +28,7 @@
     "disconnectMessage": "Los eventos importados de Google Calendar se quitarán de MeetingGuard. No se borra nada de tu Google Calendar.",
     "disconnect": "Dejar de sincronizar",
     "disconnectAndRevoke": "Dejar de sincronizar y quitar el acceso",
-    "disconnecting": "Deteniendo la sincronización…",
+    "disconnecting": "Deteniendo la sincronización...",
     "disconnectedTitle": "La sincronización con Google Calendar está desactivada",
     "untitledEvent": "(Sin título)"
   },
@@ -42,7 +42,7 @@
     "account": "Cuenta Microsoft: {{email}}",
     "twoWaySync": "Sincronización en ambos sentidos",
     "connect": "Conectar Outlook",
-    "connecting": "Conectando…",
+    "connecting": "Conectando...",
     "connectedTitle": "Outlook conectado",
     "firstSyncSummary": "Se importaron {{created}} eventos y se enviaron {{pushed}} reuniones a Outlook.",
     "firstSyncFailed": "Conectado, pero la primera sincronización no terminó: {{error}} MeetingGuard lo volverá a intentar automáticamente.",
@@ -51,7 +51,7 @@
     "disconnectMessage": "Los eventos importados de Outlook se quitarán de MeetingGuard. No se borra nada de tu calendario de Outlook.",
     "disconnect": "Dejar de sincronizar",
     "disconnectAndRevoke": "Dejar de sincronizar y revisar el acceso",
-    "disconnecting": "Deteniendo la sincronización…",
+    "disconnecting": "Deteniendo la sincronización...",
     "disconnectedTitle": "La sincronización con Outlook está desactivada",
     "untitledEvent": "(Sin título)"
   },
@@ -63,7 +63,7 @@
       "denied": "El acceso al calendario está desactivado para MeetingGuard.",
       "openSettings": "Abrir ajustes"
     },
-    "loading": "Cargando calendarios…",
+    "loading": "Cargando calendarios...",
     "empty": "No hay calendarios en este teléfono.",
     "retry": "Reintentar",
     "import": {
@@ -79,7 +79,7 @@
   },
   "sync": {
     "now": "Sincronizar ahora",
-    "syncing": "Sincronizando…",
+    "syncing": "Sincronizando...",
     "doneTitle": "Sincronización completada",
     "problemsTitle": "La sincronización terminó con problemas",
     "googleResult": "Google Calendar: {{created}} nuevos, {{updated}} actualizados, {{removed}} eliminados, {{pushed}} enviados a Google.",

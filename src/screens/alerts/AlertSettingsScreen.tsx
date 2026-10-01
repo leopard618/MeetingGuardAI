@@ -1,7 +1,7 @@
 /**
- * Settings > Alerts (route "AlertSettings"): every alert preference after onboarding — master
+ * Settings > Alerts (route "AlertSettings"): every alert preference after onboarding - master
  * switch, intensity, sound type, volume, vibration, default reminder times, snooze length,
- * post-meeting follow-ups — plus notification permission, exact alarms and the
+ * post-meeting follow-ups - plus notification permission, exact alarms and the
  * "Override Do Not Disturb" setting of the MAXIMUM channel. Saved with usePreferences().update
  * (only the changed fields); the alert engine reschedules everything from preferences:changed.
  */

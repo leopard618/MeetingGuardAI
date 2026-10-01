@@ -120,7 +120,7 @@ it('groups upcoming meetings by local day with a correct "Today" outside UTC', a
   expect(screen.getByTestId('meetings-section-2026-10-05').props.children).toMatch(/^Today · October 5th, 2026$/);
   expect(screen.getByTestId('meetings-section-2026-10-06').props.children).toMatch(/^Tomorrow · /);
   expect(screen.getByTestId('meetings-section-2026-10-09').props.children).toBe('Friday, October 9th, 2026');
-  expect(screen.getByTestId('meeting-row-time-tonight').props.children).toBe('9:30 PM – 10:30 PM');
+  expect(screen.getByTestId('meeting-row-time-tonight').props.children).toBe('9:30 PM - 10:30 PM');
   expect(screen.queryByTestId('meeting-row-past')).toBeNull();
   expect(screen.getByTestId('meetings-result-count').props.children).toBe('3 meetings');
   // No fake "Clear all".
@@ -193,7 +193,7 @@ it('deletes a Google meeting only after confirmation, and reports the real outco
   await act(async () => {
     fireEvent.press(await screen.findByTestId('meeting-action-delete'));
   });
-  expect(Alert.alert).toHaveBeenCalledWith('Delete “Client call”?', expect.stringContaining('Google Calendar'), expect.any(Array));
+  expect(Alert.alert).toHaveBeenCalledWith('Delete "Client call"?', expect.stringContaining('Google Calendar'), expect.any(Array));
   expect(mockRemove).not.toHaveBeenCalled();
   await act(async () => {
     pressAlertButton('destructive');

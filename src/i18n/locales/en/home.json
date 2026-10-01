@@ -13,7 +13,7 @@
     "pending_one": "{{count}} change is waiting to sync.",
     "pending_other": "{{count}} changes are waiting to sync."
   },
-  "loading": "Loading your meetings…",
+  "loading": "Loading your meetings...",
   "loadError": "Your meetings could not be loaded: {{reason}}",
   "refresh": {
     "failed": "Could not refresh: {{reason}}",
@@ -70,7 +70,7 @@
     "scheduled_one": "{{count}} alert scheduled",
     "scheduled_other": "{{count}} alerts scheduled",
     "permission": {
-      "checking": "Checking the notification permission…",
+      "checking": "Checking the notification permission...",
       "granted": "Notifications are allowed.",
       "provisional": "Notifications are delivered quietly. Allow them fully so alerts can interrupt you.",
       "undetermined": "Allow notifications so alerts reach you when the app is closed.",

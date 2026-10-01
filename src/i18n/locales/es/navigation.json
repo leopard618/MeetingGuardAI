@@ -25,7 +25,7 @@
     "Pricing": "Planes"
   },
   "meeting": {
-    "loading": "Cargando reunión…",
+    "loading": "Cargando reunión...",
     "notFoundTitle": "No encontramos la reunión",
     "notFoundMessage": "Puede que se haya eliminado o que todavía no se haya sincronizado en este dispositivo.",
     "backToDashboard": "Ir al panel"

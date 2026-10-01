@@ -49,7 +49,7 @@
     "unknownToday": "El recuento de hoy aparece cuando uses el asistente."
   },
   "store": {
-    "loading": "Cargando los precios de Google Play…",
+    "loading": "Cargando los precios de Google Play...",
     "loadErrorTitle": "Precios no disponibles",
     "loadError": "No pudimos cargar los precios de Google Play, así que las compras están en pausa por ahora. Los precios de abajo son solo orientativos.",
     "retry": "Reintentar",
@@ -59,12 +59,12 @@
     "trial": "3 días de prueba gratis",
     "purchaseFailed": "La compra no se completó",
     "activatingTitle": "Ya casi está",
-    "activating": "Pago recibido. Activando tu plan…",
+    "activating": "Pago recibido. Activando tu plan...",
     "activatingSlow": "Está tardando más de lo normal. Tu plan se activará solo en unos minutos; puedes salir de esta pantalla.",
     "activated": "Tu plan {{plan}} ya está activo.",
     "restore": "Restaurar compras",
     "restoreA11y": "Restaurar las compras hechas con esta cuenta de Google",
-    "restored": "Compra encontrada. Actualizando tu plan…",
+    "restored": "Compra encontrada. Actualizando tu plan...",
     "nothingToRestore": "No se encontraron compras anteriores en esta cuenta.",
     "restoreFailed": "No se pudieron restaurar las compras",
     "manage": "Gestionar suscripción",

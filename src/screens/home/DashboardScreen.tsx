@@ -187,7 +187,7 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
     </View>
   );
 
-  // First load: timeline-shaped skeletons (the layout is known — §8), announced as loading.
+  // First load: timeline-shaped skeletons (the layout is known - §8), announced as loading.
   const empty = isLoading ? (
     <View accessible accessibilityLabel={t('home:loading')} testID="dashboard-loading">
       <Skeleton width="100%" height={72} radius={radii.md} style={styles.skeletonRow} />

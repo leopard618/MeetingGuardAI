@@ -85,7 +85,7 @@ describe('MeetingConfirmationModal', () => {
     const action = updateAction('u1', 'm1', { title: 'Renamed' });
     await render(<MeetingConfirmationModal visible actions={[proposed(action, null)]} onConfirm={jest.fn()} onCancel={jest.fn()} />);
     expect(screen.getByText('Renamed')).toBeTruthy();
-    expect(screen.getByText('Checking your calendar…')).toBeTruthy();
+    expect(screen.getByText('Checking your calendar...')).toBeTruthy();
   });
 
   it('lists every meeting a bulk change moves, before and after', async () => {

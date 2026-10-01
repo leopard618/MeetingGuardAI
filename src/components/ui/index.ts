@@ -1,12 +1,12 @@
 /**
- * MG Indigo component kit (owner: shell / Foundation) — the shared building blocks every screen
+ * MG Indigo component kit (owner: shell / Foundation) - the shared building blocks every screen
  * group consumes (docs/DESIGN_SYSTEM.md §5). Import from this barrel:
  *
  *   import { Card, MGButton, SectionHeader, ListGroup, ListRow, EmptyState, ErrorState,
  *            LoadingState, Skeleton, Badge, Banner, SheetHandle } from '../../components/ui';
  *
  * Chips stay Paper `Chip` and inputs stay Paper `TextInput mode="outlined"` with
- * `outlineStyle={{ borderRadius: radii.md }}` — both are themed by the MG Paper themes.
+ * `outlineStyle={{ borderRadius: radii.md }}` - both are themed by the MG Paper themes.
  */
 export { Badge, type BadgeProps, type BadgeTone } from './Badge';
 export { Banner, type BannerAction, type BannerProps, type BannerTone } from './Banner';

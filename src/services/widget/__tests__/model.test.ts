@@ -82,7 +82,7 @@ it('expands a recurring master whose own start is long past', () => {
 });
 
 it('skips an in-progress occurrence past the grace and returns the following one', () => {
-  // Daily at 11:30 UTC, 60 min: today’s occurrence started 30 min ago.
+  // Daily at 11:30 UTC, 60 min: today's occurrence started 30 min ago.
   const series = makeMeeting('m-series', '2026-09-01T11:30:00.000Z', { recurrence: daily(), durationMinutes: 60 });
   const entry = computeNextWidgetEntry([series], NOW);
   expect(entry?.startAt).toBe('2026-10-06T11:30:00.000Z');

@@ -21,6 +21,6 @@
   "emptyDay": "No hay reuniones este día.",
   "createOnDay": "Nueva reunión el {{date}}",
   "createOnDayHint": "Abre el formulario de reunión con este día",
-  "loading": "Cargando tus reuniones…",
+  "loading": "Cargando tus reuniones...",
   "errorTitle": "No se pudieron cargar tus reuniones"
 }

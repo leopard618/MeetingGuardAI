@@ -10,7 +10,7 @@
     },
     "ai": {
       "title": "Ask the AI assistant",
-      "description": "Write it in your own words, for example “Lunch with Ana tomorrow at 2 pm”. You review it before anything is saved. Each message uses one of your daily AI requests.",
+      "description": "Write it in your own words, for example "Lunch with Ana tomorrow at 2 pm". You review it before anything is saved. Each message uses one of your daily AI requests.",
       "hint": "Opens the AI assistant"
     },
     "whatsapp": {

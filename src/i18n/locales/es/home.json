@@ -13,7 +13,7 @@
     "pending_one": "{{count}} cambio pendiente de sincronizar.",
     "pending_other": "{{count}} cambios pendientes de sincronizar."
   },
-  "loading": "Cargando tus reuniones…",
+  "loading": "Cargando tus reuniones...",
   "loadError": "No se pudieron cargar tus reuniones: {{reason}}",
   "refresh": {
     "failed": "No se pudo actualizar: {{reason}}",
@@ -70,7 +70,7 @@
     "scheduled_one": "{{count}} alerta programada",
     "scheduled_other": "{{count}} alertas programadas",
     "permission": {
-      "checking": "Comprobando el permiso de notificaciones…",
+      "checking": "Comprobando el permiso de notificaciones...",
       "granted": "Las notificaciones están permitidas.",
       "provisional": "Las notificaciones llegan en silencio. Permítelas del todo para que las alertas puedan avisarte.",
       "undetermined": "Permite las notificaciones para recibir alertas con la app cerrada.",

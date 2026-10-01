@@ -2,7 +2,7 @@
   "title": "Archivos adjuntos",
   "localOnly": "Guardados solo en este dispositivo. Los adjuntos no se suben, no se sincronizan con tus otros dispositivos y no se comparten con los participantes.",
   "limits": "Documentos, imágenes, vídeos, audio y archivos comprimidos de hasta {{maxMb}} MB.",
-  "loading": "Cargando adjuntos…",
+  "loading": "Cargando adjuntos...",
   "empty": "Todavía no hay adjuntos.",
   "loadError": "No pudimos leer los adjuntos de este dispositivo.",
   "addFile": "Añadir archivo",

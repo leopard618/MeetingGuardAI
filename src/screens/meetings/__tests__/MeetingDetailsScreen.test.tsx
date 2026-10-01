@@ -133,7 +133,7 @@ it('deletes a Google meeting (the calendar engine removes it from Google too)', 
   await act(async () => {
     fireEvent.press(screen.getByTestId('meeting-delete'));
   });
-  expect(Alert.alert).toHaveBeenCalledWith('Delete “Budget review”?', expect.stringContaining('Google Calendar'), expect.any(Array));
+  expect(Alert.alert).toHaveBeenCalledWith('Delete "Budget review"?', expect.stringContaining('Google Calendar'), expect.any(Array));
   await act(async () => {
     pressDestructive();
   });
@@ -157,7 +157,7 @@ it('formats the time in the UI language and the 24-hour preference', async () =>
   });
   await renderDetails();
   // (The year is shown only when it is not the current year.)
-  expect(screen.getByTestId('meeting-when').props.children).toMatch(/^mar, 6 oct( 2026)? · 15:00 – 16:00$/);
+  expect(screen.getByTestId('meeting-when').props.children).toMatch(/^mar, 6 oct( 2026)? · 15:00 - 16:00$/);
 });
 
 it('promises a Meet link only when Google Calendar is connected, else offers to connect it', async () => {

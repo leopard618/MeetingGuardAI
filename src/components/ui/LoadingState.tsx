@@ -1,6 +1,6 @@
 /**
  * First-load spinner (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §8): centered primary
- * ActivityIndicator for screens whose layout is unknown — use Skeletons where it is known.
+ * ActivityIndicator for screens whose layout is unknown - use Skeletons where it is known.
  * Never rendered together with skeletons.
  */
 import type { ReactElement } from 'react';

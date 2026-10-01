@@ -331,7 +331,7 @@ describe('device calendar export on several devices', () => {
     return { meetings, own, a: device(KEY, meetings, clock, '3'), b: device(OTHER_KEY, meetings, clock, '3') };
   }
 
-  it('keeps one copy per device and never overwrites or clears the other device’s link', async () => {
+  it('keeps one copy per device and never overwrites or clears the other device's link', async () => {
     const { meetings, own, a, b } = setupTwo();
     await a.service.syncExports();
     await b.service.syncExports();

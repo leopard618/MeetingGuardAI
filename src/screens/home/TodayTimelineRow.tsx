@@ -35,7 +35,7 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
   const isNow = state === 'now' && !cancelled;
 
   const timeLabel = meeting.allDay ? t('home:today.allDay') : fmt.time(meeting.startAt);
-  const rangeLabel = meeting.allDay ? '' : `${fmt.time(meeting.startAt)} – ${fmt.time(new Date(endMs(meeting)))}`;
+  const rangeLabel = meeting.allDay ? '' : `${fmt.time(meeting.startAt)} - ${fmt.time(new Date(endMs(meeting)))}`;
   const stateLabel = cancelled
     ? t('home:today.cancelled')
     : state === 'past'

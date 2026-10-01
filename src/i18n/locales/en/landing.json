@@ -22,7 +22,7 @@
   },
   "signIn": {
     "google": "Continue with Google",
-    "busy": "Signing in…",
+    "busy": "Signing in...",
     "failedTitle": "Couldn't sign in",
     "failed": "Google sign-in didn't work. Please try again."
   },

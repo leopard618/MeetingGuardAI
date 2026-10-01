@@ -288,7 +288,7 @@ it('disables "Sync now" while a sync runs', async () => {
   mockStatus.current = status({ google: { enabled: true, connected: true, hasScope: true, syncing: true } });
   await renderScreen();
   expect(screen.getByTestId('calendar-sync-now').props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
-  expect(screen.getAllByText('Syncing…').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Syncing...').length).toBeGreaterThan(0);
 });
 
 it('leaves the back arrow and the title to the stack header', async () => {

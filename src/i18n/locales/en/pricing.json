@@ -49,7 +49,7 @@
     "unknownToday": "Today's count appears after you use the assistant."
   },
   "store": {
-    "loading": "Loading prices from Google Play…",
+    "loading": "Loading prices from Google Play...",
     "loadErrorTitle": "Prices unavailable",
     "loadError": "We couldn't load the prices from Google Play, so purchases are paused for now. The prices below are for reference only.",
     "retry": "Retry",
@@ -59,12 +59,12 @@
     "trial": "3-day free trial",
     "purchaseFailed": "The purchase didn't go through",
     "activatingTitle": "Almost there",
-    "activating": "Payment received. Activating your plan…",
+    "activating": "Payment received. Activating your plan...",
     "activatingSlow": "This is taking longer than usual. Your plan will activate on its own in a few minutes; you can leave this screen.",
     "activated": "Your {{plan}} plan is now active.",
     "restore": "Restore purchases",
     "restoreA11y": "Restore purchases made with this Google account",
-    "restored": "Purchase found. Updating your plan…",
+    "restored": "Purchase found. Updating your plan...",
     "nothingToRestore": "No previous purchases were found for this account.",
     "restoreFailed": "Purchases couldn't be restored",
     "manage": "Manage subscription",

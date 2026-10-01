@@ -9,7 +9,7 @@
  *   per-meeting progress, so retries after a partial failure never apply a change twice.
  * - Google Meet: a conference { provider 'google_meet', url null } is turned into a real link
  *   through Google Calendar when it is connected; otherwise the meeting keeps "no link yet" and
- *   the result says so (meetLinkCreated false) — a link is never invented.
+ *   the result says so (meetLinkCreated false) - a link is never invented.
  * - Sharing opens the mail composer (email) or the OS share sheet; the result names what was
  *   actually opened, it never claims the message was sent.
  * - Never throws: failures resolve `{ status: 'failed', error: AppError }`. A dismissed share

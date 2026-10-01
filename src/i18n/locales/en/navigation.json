@@ -25,7 +25,7 @@
     "Pricing": "Plans"
   },
   "meeting": {
-    "loading": "Loading meeting…",
+    "loading": "Loading meeting...",
     "notFoundTitle": "Meeting not found",
     "notFoundMessage": "It may have been deleted, or it has not synced to this device yet.",
     "backToDashboard": "Go to dashboard"

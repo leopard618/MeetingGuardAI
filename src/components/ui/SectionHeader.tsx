@@ -17,7 +17,7 @@ export interface SectionHeaderAction {
 export interface SectionHeaderProps {
   title: string;
   action?: SectionHeaderAction;
-  /** Plain (non-pressable) trailing node — e.g. a count label or Badge. */
+  /** Plain (non-pressable) trailing node - e.g. a count label or Badge. */
   trailing?: ReactNode;
   style?: StyleProp<ViewStyle>;
   testID?: string;

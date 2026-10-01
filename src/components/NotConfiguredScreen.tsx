@@ -50,8 +50,7 @@ export default function NotConfiguredScreen({ missingKeys, invalidKeys }: Props)
   );
 }
 
-// Renders before any provider or theme exists, so the colors are fixed local constants —
-// aligned by hand to the MG Indigo dark scheme (src/theme/tokens.ts darkColors).
+// Renders before any provider or theme exists, so the colors are fixed local constants - // aligned by hand to the MG Indigo dark scheme (src/theme/tokens.ts darkColors).
 const COLORS = {
   background: '#0C1320',
   title: '#E7EDF6',

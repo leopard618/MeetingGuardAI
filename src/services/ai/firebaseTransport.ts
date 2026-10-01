@@ -1,7 +1,7 @@
 /**
  * Firebase transport for the assistant callable + NetInfo connectivity probe.
  *
- * httpsCallable(getFunctions(app, env.functionsRegion), 'assistant', { timeout }) — the region
+ * httpsCallable(getFunctions(app, env.functionsRegion), 'assistant', { timeout }) - the region
  * must match the deployed functions (EXPO_PUBLIC_FUNCTIONS_REGION, default us-central1).
  * In development builds with EXPO_PUBLIC_USE_EMULATORS the Functions emulator is used
  * (connectFunctionsEmulator only sets the instance origin, so repeating it is harmless).

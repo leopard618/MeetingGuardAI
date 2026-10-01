@@ -35,7 +35,7 @@ describe('buildAlertDisplay', () => {
       phase: 'upcoming',
       minutes: 5,
       whenText: 'Starts in 5 minutes',
-      timeText: '12:05 – 12:35',
+      timeText: '12:05 - 12:35',
       locationText: 'Sala 2',
       voiceLanguage: 'en',
     });
