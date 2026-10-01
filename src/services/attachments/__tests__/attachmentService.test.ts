@@ -207,7 +207,7 @@ describe('attachmentService.add / importFiles', () => {
 });
 
 describe('attachmentService list / link / remove / open', () => {
-  it('lists a meeting's attachments oldest first', async () => {
+  it('lists a meeting\'s attachments oldest first', async () => {
     const h = setup([
       record({ id: 'b', createdAt: '2026-09-03T00:00:00.000Z', uri: 'file:///docs/attachments/u1/b' }),
       record({ id: 'a', createdAt: '2026-09-02T00:00:00.000Z', uri: 'file:///docs/attachments/u1/a' }),
@@ -286,7 +286,7 @@ describe('wireAttachmentEvents', () => {
 
   const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-  it('deletes the user's files when the session ends', () => {
+  it('deletes the user\'s files when the session ends', () => {
     const h = wired([]);
     h.bus.emit('session:ended', { uid: 'u1', reason: 'sign_out' });
     expect(h.files.removedDirectories).toEqual(['u1']);

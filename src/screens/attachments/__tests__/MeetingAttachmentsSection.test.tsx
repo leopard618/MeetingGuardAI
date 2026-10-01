@@ -126,7 +126,7 @@ it('adds files and reports partial failures', async () => {
   expect(Toast.show).toHaveBeenCalledWith({
     type: 'info',
     text1: "1 file added · 1 file couldn't be added",
-    text2: ""setup.exe" isn't a supported file type.",
+    text2: "\"setup.exe\" isn't a supported file type.",
   });
 });
 

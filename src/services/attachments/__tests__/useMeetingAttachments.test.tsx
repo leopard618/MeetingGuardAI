@@ -44,7 +44,7 @@ function fakeService(initial: AttachmentRecord[]) {
   return service as typeof service & AttachmentService;
 }
 
-it('loads the meeting's attachments and follows changes', async () => {
+it('loads the meeting\'s attachments and follows changes', async () => {
   const service = fakeService([record('a'), record('b', 'other')]);
   const { result } = await renderHook(() => useMeetingAttachments('m1', service));
   await waitFor(() => expect(result.current.isLoading).toBe(false));

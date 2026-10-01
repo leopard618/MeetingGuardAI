@@ -12,7 +12,7 @@
   "openHint": "Opens the file with another app",
   "remove": "Remove {{name}}",
   "removeTitle": "Remove this attachment?",
-  "removeMessage": ""{{name}}" will be deleted from this device.",
+  "removeMessage": "\"{{name}}\" will be deleted from this device.",
   "removeConfirm": "Remove",
   "removed": "Attachment removed",
   "added_one": "{{count}} file added",
@@ -20,10 +20,10 @@
   "failed_one": "{{count}} file couldn't be added",
   "failed_other": "{{count}} files couldn't be added",
   "failure": {
-    "unsupported_type": ""{{name}}" isn't a supported file type.",
-    "too_large": ""{{name}}" is larger than {{maxMb}} MB.",
-    "copy_failed": ""{{name}}" couldn't be saved on this device.",
-    "save_failed": ""{{name}}" couldn't be saved on this device."
+    "unsupported_type": "\"{{name}}\" isn't a supported file type.",
+    "too_large": "\"{{name}}\" is larger than {{maxMb}} MB.",
+    "copy_failed": "\"{{name}}\" couldn't be saved on this device.",
+    "save_failed": "\"{{name}}\" couldn't be saved on this device."
   },
   "cameraDenied": "Camera access is off. You can allow it in your device settings.",
   "missing": "This file is no longer on this device.",

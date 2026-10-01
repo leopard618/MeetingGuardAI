@@ -7,7 +7,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const BANNED = /[—–…‘’“”]/;
+// Built from code points so this file itself contains none of the banned characters.
+const BANNED_CODES = [0x2014, 0x2013, 0x2026, 0x2018, 0x2019, 0x201c, 0x201d];
+const BANNED = new RegExp(`[${BANNED_CODES.map((c) => String.fromCodePoint(c)).join(‘’)}]`);
 const SRC_ROOT = path.resolve(__dirname, '..', '..');
 
 function collect(dir: string, out: string[]): void {

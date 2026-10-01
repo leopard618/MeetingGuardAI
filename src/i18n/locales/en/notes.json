@@ -87,7 +87,7 @@
     "linked": "Linked"
   },
   "delete": {
-    "title": "Delete "{{title}}"?",
+    "title": "Delete \"{{title}}\"?",
     "message": "The note will be deleted from all your devices. This can't be undone.",
     "confirm": "Delete"
   },
