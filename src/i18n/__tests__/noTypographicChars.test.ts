@@ -12,6 +12,17 @@ const BANNED_CODES = [0x2014, 0x2013, 0x2026, 0x2018, 0x2019, 0x201c, 0x201d];
 const BANNED = new RegExp(`[${BANNED_CODES.map((c) => String.fromCodePoint(c)).join('')}]`);
 const SRC_ROOT = path.resolve(__dirname, '..', '..');
 
+function collectAny(dir: string, out: string[]): void {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'node_modules' && entry.name !== 'lib') collectAny(p, out);
+    } else if (/.(json|ts|tsx|js|html|css)$/.test(entry.name)) {
+      out.push(p);
+    }
+  }
+}
+
 function collect(dir: string, out: string[]): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, entry.name);
@@ -26,6 +37,11 @@ function collect(dir: string, out: string[]): void {
 test('no typographic AI characters in src files or locale strings', () => {
   const files: string[] = [];
   collect(SRC_ROOT, files);
+  const REPO_ROOT = path.resolve(SRC_ROOT, '..');
+  for (const extra of ['public/admin', 'functions/src']) {
+    const dir = path.join(REPO_ROOT, extra);
+    if (fs.existsSync(dir)) collectAny(dir, files);
+  }
   expect(files.length).toBeGreaterThan(100);
   const offenders: string[] = [];
   for (const file of files) {

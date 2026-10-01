@@ -1,8 +1,8 @@
 /**
- * MeetingGuard AI admin — hand-rolled SVG chart renderer (admin v2; page spec: docs/ADMIN.md §v2).
+ * MeetingGuard AI admin - hand-rolled SVG chart renderer (admin v2; page spec: docs/ADMIN.md §v2).
  *
  * CONSTRAINTS (CSP in firebase.json /admin/**): no chart libraries, no extra CDNs, and style-src
- * is 'self', so NO style="" attributes — everything visual is SVG presentation attributes
+ * is 'self', so NO style="" attributes - everything visual is SVG presentation attributes
  * (fill=, stroke=, font-size=), which CSP does not block. Colors resolve from CSS custom
  * properties (docs/DESIGN_SYSTEM.md chartPalette via admin.css) at render time, so the theme
  * stays the single source. No innerHTML anywhere; nodes come from document.createElementNS.
@@ -15,7 +15,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 /** left pad fits 5-char y labels at 11px; bottom pad fits the "MM-DD" x-label band. */
 const PAD = { top: 14, right: 14, bottom: 26, left: 48 };
 
-// ---- Pure helpers (no DOM — unit-tested in scripts/admin-ui-tests.mjs) -----------------------
+// ---- Pure helpers (no DOM - unit-tested in scripts/admin-ui-tests.mjs) -----------------------
 
 /** Smallest 1/2/5 × 10^k >= maxValue; 1 for empty/flat-zero data (never a degenerate 0 axis). */
 export function niceMax(maxValue) {
@@ -42,7 +42,7 @@ export function labelStep(count, maxLabels = 8) {
 /**
  * Whether category index i (of n) gets an x label: anchored to the NEWEST point, so today
  * (index n-1) is always labeled and the step walks backwards. Anchoring at index 0 would leave
- * the rightmost — most-read — days unlabeled (e.g. the last labeled date 6 days old at n=90).
+ * the rightmost - most-read - days unlabeled (e.g. the last labeled date 6 days old at n=90).
  */
 export function isLabeledIndex(i, n, step) {
   return (n - 1 - i) % step === 0;
@@ -136,8 +136,8 @@ function finishFrame(container, series, options, f) {
     const rect = svgEl('rect', { x: PAD.left + i * bandW, y: PAD.top, width: bandW, height: f.plotH, fill: 'transparent' });
     const title = svgEl('title');
     title.textContent = series.length === 1
-      ? `${date} — ${fmtVal(series[0].points[i]?.y)} ${series[0].label.toLowerCase()}`
-      : `${date} — ${series.map((s) => `${s.label}: ${fmtVal(s.points[i]?.y)}`).join(' · ')}`;
+      ? `${date} - ${fmtVal(series[0].points[i]?.y)} ${series[0].label.toLowerCase()}`
+      : `${date} - ${series.map((s) => `${s.label}: ${fmtVal(s.points[i]?.y)}`).join(' · ')}`;
     rect.appendChild(title);
     f.svg.appendChild(rect);
   });
@@ -226,7 +226,7 @@ export function renderBarChart(container, series, options = {}) {
         rect = svgEl('rect', { x: f.x(i) - barW / 2 + si * slotW, y: f.y(v), width: Math.max(1, slotW - (series.length > 1 ? 2 : 0)), height: hPx, fill: cssColor(s.colorVar) });
       }
       const title = svgEl('title');
-      title.textContent = `${f.categories[i]} — ${s.label}: ${fmtVal(v)}`;
+      title.textContent = `${f.categories[i]} - ${s.label}: ${fmtVal(v)}`;
       rect.appendChild(title);
       f.svg.appendChild(rect);
     });

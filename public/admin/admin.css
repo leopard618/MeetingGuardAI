@@ -1,7 +1,7 @@
-/* MeetingGuard AI admin dashboard v2 — dark-only (ops tool; decision in docs/ADMIN.md §v2).
+/* MeetingGuard AI admin dashboard v2 - dark-only (ops tool; decision in docs/ADMIN.md §v2).
  *
  * TOKEN PROVENANCE: every color below is COPIED from src/theme/tokens.ts (`darkColors` +
- * `chartPalette.dark`) — that file is the single source of truth and its pairings are
+ * `chartPalette.dark`) - that file is the single source of truth and its pairings are
  * AA-checked; update BOTH files together. (This page is plain CSS and cannot import TS.)
  * Radii 8/12/16 and the 4pt spacing grid mirror tokens.ts `radii` / `spacing`.
  */
@@ -79,7 +79,7 @@ body {
 
 /* Layout ------------------------------------------------------------------------------------- */
 main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 56px; }
-/* The hidden attribute only applies UA display:none, which any author `display:` rule beats —
+/* The hidden attribute only applies UA display:none, which any author `display:` rule beats - 
    without this override every state view (loading/config-error/sign-in/not-admin) shows at once. */
 [hidden] { display: none !important; }
 

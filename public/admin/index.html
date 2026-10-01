@@ -14,7 +14,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex">
   <meta name="color-scheme" content="dark">
-  <title>MeetingGuard AI — Admin</title>
+  <title>MeetingGuard AI - Admin</title>
   <link rel="stylesheet" href="/admin/admin.css">
   <script type="module" src="/admin/admin.js"></script>
 </head>
@@ -33,7 +33,7 @@
   <main id="main">
     <!-- Boot / configuration -->
     <section id="view-loading" class="center-view">
-      <p role="status">Loading…</p>
+      <p role="status">Loading...</p>
     </section>
 
     <section id="view-config-error" class="center-view" hidden>
@@ -42,7 +42,7 @@
         <p>The Firebase web configuration could not be loaded from <code>/__/firebase/init.json</code>.</p>
         <p class="muted">Open this page through Firebase Hosting (deployed site or
           <code>firebase emulators:start --only hosting</code>). Opening the file directly
-          (<code>file://</code>) needs a local <code>config.js</code> — see docs/ADMIN.md.</p>
+          (<code>file://</code>) needs a local <code>config.js</code> - see docs/ADMIN.md.</p>
         <p id="config-error-detail" class="muted"></p>
       </div>
     </section>
@@ -87,12 +87,12 @@
             <button id="metrics-refresh" class="btn btn-ghost" type="button">Refresh</button>
           </div>
           <div class="cards" id="metrics-cards">
-            <div class="card metric"><span class="metric-value" id="metric-total">–</span><span class="metric-label">Total users</span></div>
-            <div class="card metric"><span class="metric-value" id="metric-free">–</span><span class="metric-label">Free</span></div>
-            <div class="card metric"><span class="metric-value" id="metric-pro">–</span><span class="metric-label">Pro</span></div>
-            <div class="card metric"><span class="metric-value" id="metric-premium">–</span><span class="metric-label">Premium</span></div>
-            <div class="card metric"><span class="metric-value" id="metric-ai-today">–</span><span class="metric-label">AI requests today</span></div>
-            <div class="card metric"><span class="metric-value" id="metric-ai-week">–</span><span class="metric-label">AI requests, 7 days</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-total">-</span><span class="metric-label">Total users</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-free">-</span><span class="metric-label">Free</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-pro">-</span><span class="metric-label">Pro</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-premium">-</span><span class="metric-label">Premium</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-ai-today">-</span><span class="metric-label">AI requests today</span></div>
+            <div class="card metric"><span class="metric-value" id="metric-ai-week">-</span><span class="metric-label">AI requests, 7 days</span></div>
           </div>
         </section>
 
@@ -123,7 +123,7 @@
               <input id="user-search" type="search" placeholder="Search email, name or uid" autocomplete="off">
             </div>
           </div>
-          <p class="muted small">Search filters the pages loaded so far; use “Load more” to fetch further pages.</p>
+          <p class="muted small">Search filters the pages loaded so far; use "Load more" to fetch further pages.</p>
           <div class="table-wrap">
             <table aria-describedby="users-heading">
               <thead>
@@ -140,7 +140,7 @@
             </table>
           </div>
           <p id="users-empty" class="muted center" hidden>No users match.</p>
-          <p id="users-loading" class="muted center" role="status" hidden>Loading users…</p>
+          <p id="users-loading" class="muted center" role="status" hidden>Loading users...</p>
           <div id="users-error" class="center" hidden>
             <p class="error-text">Could not load the users.</p>
             <button id="users-retry" class="btn" type="button">Retry</button>
@@ -165,11 +165,11 @@
           <p class="muted small">UTC days, including today. Counted from completed assistant
             requests; aggregates begin with the first request after the v2 functions deploy.</p>
           <div class="cards">
-            <div class="card metric"><span class="metric-value" id="ai-total-requests">–</span><span class="metric-label">Requests</span></div>
-            <div class="card metric"><span class="metric-value" id="ai-total-input">–</span><span class="metric-label">Input tokens</span></div>
-            <div class="card metric"><span class="metric-value" id="ai-total-output">–</span><span class="metric-label">Output tokens</span></div>
-            <div class="card metric"><span class="metric-value" id="ai-total-signups">–</span><span class="metric-label">Signups</span></div>
-            <div class="card metric" id="ai-cost-tile" hidden><span class="metric-value" id="ai-total-cost">–</span><span class="metric-label">Est. cost (USD)</span></div>
+            <div class="card metric"><span class="metric-value" id="ai-total-requests">-</span><span class="metric-label">Requests</span></div>
+            <div class="card metric"><span class="metric-value" id="ai-total-input">-</span><span class="metric-label">Input tokens</span></div>
+            <div class="card metric"><span class="metric-value" id="ai-total-output">-</span><span class="metric-label">Output tokens</span></div>
+            <div class="card metric"><span class="metric-value" id="ai-total-signups">-</span><span class="metric-label">Signups</span></div>
+            <div class="card metric" id="ai-cost-tile" hidden><span class="metric-value" id="ai-total-cost">-</span><span class="metric-label">Est. cost (USD)</span></div>
           </div>
           <div class="chart-grid">
             <div class="card chart-card">
@@ -200,13 +200,13 @@
             <div class="card">
               <h3>Assistant runtime</h3>
               <dl class="kv">
-                <dt>Model</dt><dd id="health-model">–</dd>
-                <dt>Reasoning effort</dt><dd id="health-effort">–</dd>
-                <dt>Global daily limit</dt><dd id="health-limit">–</dd>
-                <dt>Key source</dt><dd id="health-mode">–</dd>
-                <dt>Key version</dt><dd id="health-version">–</dd>
-                <dt>Last rotated</dt><dd id="health-rotated">–</dd>
-                <dt>Rotation IAM</dt><dd><span id="health-iam" class="badge">–</span></dd>
+                <dt>Model</dt><dd id="health-model">-</dd>
+                <dt>Reasoning effort</dt><dd id="health-effort">-</dd>
+                <dt>Global daily limit</dt><dd id="health-limit">-</dd>
+                <dt>Key source</dt><dd id="health-mode">-</dd>
+                <dt>Key version</dt><dd id="health-version">-</dd>
+                <dt>Last rotated</dt><dd id="health-rotated">-</dd>
+                <dt>Rotation IAM</dt><dd><span id="health-iam" class="badge">-</span></dd>
               </dl>
               <div id="health-iam-warning" class="notice-warn" hidden>
                 <p class="strong">Secret Manager grant missing.</p>
@@ -226,7 +226,7 @@ gcloud secrets add-iam-policy-binding OPENAI_API_KEY \
             <div class="card">
               <h3>Test assistant</h3>
               <p class="muted">Sends one minimal, real request to OpenAI to verify the active key
-                and measure latency. <span class="warn-text">This is billed work</span> — it costs
+                and measure latency. <span class="warn-text">This is billed work</span> - it costs
                 a fraction of a cent per click.</p>
               <button id="ping-run" class="btn" type="button">Send test request</button>
               <p id="ping-result" role="status" hidden></p>
@@ -241,9 +241,9 @@ gcloud secrets add-iam-policy-binding OPENAI_API_KEY \
                    so the password manager could save the OpenAI key into a synced credential
                    store; new-password is the standard way to suppress save/fill here. -->
               <input id="rotate-key" type="password" autocomplete="new-password" spellcheck="false"
-                placeholder="sk-…" aria-describedby="rotate-hint">
+                placeholder="sk-..." aria-describedby="rotate-hint">
               <p id="rotate-hint" class="muted small">On success it becomes the only enabled Secret
-                Manager version — prior versions are disabled immediately and running instances
+                Manager version - prior versions are disabled immediately and running instances
                 switch within ~5 minutes. The field is cleared after every attempt.</p>
               <button id="rotate-run" class="btn btn-primary" type="button">Validate &amp; rotate</button>
               <p id="rotate-result" role="status" hidden></p>

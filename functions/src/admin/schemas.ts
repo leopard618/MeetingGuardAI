@@ -144,7 +144,7 @@ export function adminStatsAiShardPath(dayKey: string, shard: number): string {
 }
 
 /**
- * Shape of one aggregate document — both a write shard (adminStats/ai/days/{day}/shards/{n},
+ * Shape of one aggregate document - both a write shard (adminStats/ai/days/{day}/shards/{n},
  * the only place the assistant writes since the shard change) and the pre-shard legacy day
  * document (adminStats/ai/days/{day}); the read path sums whichever exist per day.
  * `requests` counts completions OpenAI returned (billed work); token fields come from the
@@ -186,7 +186,7 @@ export const signupsDayPointSchema = z.object({
 /**
  * `days` and `signups` are oldest -> newest, EXACTLY `request.days` entries each (missing days
  * zero-filled server-side; the chart renderer never fills gaps). Signups are derived by paging
- * auth.listUsers and bucketing creationTime per UTC day — no new writes anywhere.
+ * auth.listUsers and bucketing creationTime per UTC day - no new writes anywhere.
  * estCostUsd = null when pricing is unset (both params parse to 0); otherwise
  * totals.inputTokens/1e6*inPerM + totals.outputTokens/1e6*outPerM, rounded to 4 decimals.
  * Pricing params: OPENAI_PRICE_IN_PER_M / OPENAI_PRICE_OUT_PER_M (functions/src/config.ts).
@@ -252,7 +252,7 @@ export type GetHealthResponse = z.infer<typeof getHealthResponseSchema>;
  * DOM longer than needed. Server flow (functions/src/admin/index.ts, v2):
  *  1. Validate the candidate against GET api.openai.com/v1/models (expect 200; a non-200 throws
  *     failed-precondition WITHOUT echoing anything the caller sent). modelAvailable = whether
- *     OPENAI_MODEL.value() is in the list — warn-not-block.
+ *     OPENAI_MODEL.value() is in the list - warn-not-block.
  *  2. Secret Manager REST addVersion on projects/<project>/secrets/OPENAI_API_KEY.
  *  3. Disable all PRIOR enabled versions (keep only the new one), then invalidate the in-memory
  *     key cache (other instances refresh within the 5-minute TTL or on the 401-retry path).

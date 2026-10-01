@@ -100,7 +100,7 @@ function fakeEdge(responses: Array<{ status: number; json?: unknown }>): { edge:
 // ---------------------------------------------------------------------------------------------
 
 describe('createOpenAiKeyProvider', () => {
-  it('serves the REST key and caches it for the TTL — without ever fetching version metadata', async () => {
+  it('serves the REST key and caches it for the TTL - without ever fetching version metadata', async () => {
     const { provider, calls, metadataCalls, envFallback, clock } = providerWith([{ value: SECRET_KEY, version: '3' }]);
     await expect(provider.get()).resolves.toEqual({ key: SECRET_KEY, source: 'rest', version: '3' });
     clock.now += OPENAI_KEY_TTL_MS - 1;
@@ -188,7 +188,7 @@ describe('createOpenAiKeyProvider', () => {
     await expect(provider.status()).resolves.toMatchObject({ mode: 'rest', lastRotatedAt: null });
   });
 
-  it('status() reports env-fallback mode with iamReady false when REST fails — without a metadata call', async () => {
+  it('status() reports env-fallback mode with iamReady false when REST fails - without a metadata call', async () => {
     const { provider, metadataCalls } = providerWith([new Error('secretmanager_request_failed (403)')]);
     await expect(provider.status()).resolves.toEqual({
       mode: 'env-fallback',

@@ -45,14 +45,14 @@ export interface OpenAiKeyStatus {
   iamReady: boolean;
 }
 
-/** Injected REST edge (real: GoogleAuth + fetch; tests: fakes — no network in unit tests). */
+/** Injected REST edge (real: GoogleAuth + fetch; tests: fakes - no network in unit tests). */
 export interface SecretVersionAccessor {
   /** Resolves the latest ENABLED version's value; throws on IAM/network/API failure. */
   accessLatest(): Promise<{ value: string; version: string }>;
   /**
    * createTime of versions/latest (cosmetic: health's lastRotatedAt). Resolves null on any
-   * failure. Kept OFF accessLatest() so the assistant's cache refresh — which runs inline on a
-   * real user request — costs exactly one REST call; only provider.status() (the health
+   * failure. Kept OFF accessLatest() so the assistant's cache refresh - which runs inline on a
+   * real user request - costs exactly one REST call; only provider.status() (the health
    * callable) pays for this second one.
    */
   latestCreateTime(): Promise<string | null>;
@@ -91,7 +91,7 @@ function runtimeProjectId(): string {
 }
 
 /**
- * Real edge: google-auth-library default credentials (a declared dependency of firebase-admin —
+ * Real edge: google-auth-library default credentials (a declared dependency of firebase-admin - 
  * no new package) with the cloud-platform scope the Secret Manager API requires.
  */
 function googleAuthEdge(): SecretRestEdge {
@@ -109,7 +109,7 @@ function googleAuthEdge(): SecretRestEdge {
 }
 
 /**
- * One Secret Manager REST call. Non-2xx throws a CATEGORY error with the status only — the
+ * One Secret Manager REST call. Non-2xx throws a CATEGORY error with the status only - the
  * response body is never read, so no upstream text can leak into logs (never-log-openai-key).
  */
 async function secretRest(edge: SecretRestEdge, method: 'GET' | 'POST', path: string, body?: unknown): Promise<unknown> {
@@ -128,7 +128,7 @@ async function secretRest(edge: SecretRestEdge, method: 'GET' | 'POST', path: st
 }
 
 /**
- * True for the self-crafted category secretRest throws on an HTTP 403 — the missing IAM grant
+ * True for the self-crafted category secretRest throws on an HTTP 403 - the missing IAM grant
  * (the one owner-run step a deploy cannot do). adminRotateOpenAiKey maps it to an actionable
  * failed-precondition instead of a generic 'internal'.
  */
@@ -164,7 +164,7 @@ export function googleAuthSecretAccessor(edge: SecretRestEdge = googleAuthEdge()
     },
     async latestCreateTime() {
       // versions.get is NOT part of secretAccessor (it comes with secretVersionManager), so a
-      // denial — or any other failure of this cosmetic call — just yields null.
+      // denial - or any other failure of this cosmetic call - just yields null.
       try {
         const metadata = (await secretRest(edge, 'GET', `${secretPathOf(edge)}/versions/latest`)) as {
           createTime?: unknown;
@@ -313,7 +313,7 @@ export function instanceOpenAiKeyProvider(): OpenAiKeyProvider {
  * Wraps an LlmClient factory with the 401-retry contract: on UpstreamError('configuration', 401)
  * invalidate + refetch the key, rebuild the client, retry the completion once, then rethrow.
  * When the refetch yields the SAME key (REST still down, env fallback), the retry is skipped and
- * the original error is rethrown — an identical key can only 401 again.
+ * the original error is rethrown - an identical key can only 401 again.
  */
 export function withKeyRetry(provider: OpenAiKeyProvider, build: (key: string) => LlmClient): LlmClient {
   return {

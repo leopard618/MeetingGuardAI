@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Pure-logic tests for the admin dashboard web app (public/admin/): chart tick math and the
- * formatters/series builders. No DOM, no network, no deps — plain `node:assert`.
+ * formatters/series builders. No DOM, no network, no deps - plain `node:assert`.
  *
  *   Run:  node scripts/admin-ui-tests.mjs        (from the repo root; any cwd works)
  *
@@ -59,7 +59,7 @@ for (const n of [7, 14, 30, 90]) {
 eq(isLabeledIndex(77, 90, 12), true, 'isLabeledIndex(77, 90, 12)');
 eq(isLabeledIndex(84, 90, 12), false, 'isLabeledIndex(84, 90, 12): the OLD anchor-0 label');
 eq(isLabeledIndex(0, 90, 12), false, 'isLabeledIndex(0, 90, 12)');
-// n=30, step 4: 29, 25, 21, ... (28 — yesterday's predecessor under the old anchor — is not).
+// n=30, step 4: 29, 25, 21, ... (28 - yesterday's predecessor under the old anchor - is not).
 eq(isLabeledIndex(25, 30, 4), true, 'isLabeledIndex(25, 30, 4)');
 eq(isLabeledIndex(28, 30, 4), false, 'isLabeledIndex(28, 30, 4)');
 // step 1 labels everything.
@@ -69,9 +69,9 @@ eq([0, 1, 2].every((i) => isLabeledIndex(i, 3, 1)), true, 'isLabeledIndex: step 
 eq(shortDate('2026-10-01'), '10-01', 'shortDate');
 eq(shortDate(5), '5', 'shortDate non-string');
 eq(dateOnly('2026-10-01T12:34:56.000Z'), '2026-10-01', 'dateOnly');
-eq(dateOnly(null), '—', 'dateOnly null');
+eq(dateOnly(null), '-', 'dateOnly null');
 eq(formatDateTime('2026-10-01T12:34:56.000Z'), '2026-10-01 12:34 UTC', 'formatDateTime');
-eq(formatDateTime(null), '—', 'formatDateTime null');
+eq(formatDateTime(null), '-', 'formatDateTime null');
 
 // ---- series max helpers ----------------------------------------------------------------------
 const a = { points: [{ x: 'd1', y: 2 }, { x: 'd2', y: 3 }] };
@@ -131,4 +131,4 @@ checks += 1;
 const unreachable = rotationErrorDisplay({ code: 'functions/unavailable', message: 'OpenAI could not be reached to validate the key. Nothing was changed.' });
 eq(unreachable.postStore, false, 'rotationErrorDisplay: unavailable is pre-store');
 
-console.log(`OK — ${checks} assertions passed (admin web pure logic).`);
+console.log(`OK - ${checks} assertions passed (admin web pure logic).`);

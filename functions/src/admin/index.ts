@@ -644,7 +644,7 @@ export async function handleRotateOpenAiKey(
     const modelAvailable = models.modelIds.includes(model);
     if (!modelAvailable) logger.warn('adminRotateOpenAiKey.model_missing', { model }); // warn-not-block
     // 2. Store. A Secret Manager 403 here is the missing one-time IAM grant (the functions ARE
-    //    deployed) — name the real cause instead of the generic 'internal' + redeploy hint.
+    //    deployed) - name the real cause instead of the generic 'internal' + redeploy hint.
     let version: string;
     try {
       ({ version } = await ports.addSecretVersion(newKey));
@@ -653,14 +653,14 @@ export async function handleRotateOpenAiKey(
         logger.warn('adminRotateOpenAiKey.rejected', { adminUid: caller.uid, reason: 'iam_missing' });
         throw new HttpsError(
           'failed-precondition',
-          'Secret Manager grant missing — run the gcloud commands shown in the health card on this page '
+          'Secret Manager grant missing - run the gcloud commands shown in the health card on this page '
             + '(also in functions/README.md "OpenAI key rotation"). Nothing was changed.',
           { reason: 'iam_missing' },
         );
       }
       throw error;
     }
-    // 3. Keep only the NEW version enabled — but disable only versions numerically LOWER than
+    // 3. Keep only the NEW version enabled - but disable only versions numerically LOWER than
     //    the one just added. A HIGHER number is a concurrent rotation that must win: filtering
     //    on `!== version` would let two interleaved rotations disable each other's version,
     //    leaving the latest version disabled, every REST fetch failing, and the runtime silently
@@ -677,7 +677,7 @@ export async function handleRotateOpenAiKey(
     } catch (error) {
       // The new key WAS stored and is 'latest': every instance switches to it within the TTL.
       // Claiming "the previous key is still active" here would be false and could make an admin
-      // revoke the NEW key at OpenAI — report exactly what happened instead ('aborted' is the
+      // revoke the NEW key at OpenAI - report exactly what happened instead ('aborted' is the
       // client's post-store signal), and still bust this instance's cache.
       ports.invalidateKeyCache();
       logger.error('adminRotateOpenAiKey.cleanup_failed', {

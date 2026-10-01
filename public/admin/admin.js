@@ -181,7 +181,7 @@ function wireTabs() {
 function setChartLoading(id) {
   const node = $(id);
   if (node.querySelector('svg')) node.classList.add('is-loading');
-  else node.replaceChildren(el('p', 'muted chart-msg', 'Loading…'));
+  else node.replaceChildren(el('p', 'muted chart-msg', 'Loading...'));
 }
 
 function chartStatus(id, message, isError = false) {
@@ -195,7 +195,7 @@ function chartStatus(id, message, isError = false) {
  * Last render per chart: id -> { paint, width }. The SVG viewBox is sized from the container at
  * draw time, so a chart drawn into a hidden tab (clientWidth 0) or kept across a resize would
  * mis-scale (tiny axis text, stretched strokes). Hidden containers get their paint STASHED
- * (width 0) instead of drawn; repaintVisibleCharts() re-runs paints whose width is stale — on
+ * (width 0) instead of drawn; repaintVisibleCharts() re-runs paints whose width is stale - on
  * tab switch and (debounced) on window resize.
  */
 const chartPaints = new Map();
@@ -271,7 +271,7 @@ async function loadAiStats(days) {
     chartStatus('ai-tokens-chart', message, true);
     // The previous range's totals would silently pose as the failed range's numbers.
     for (const id of ['ai-total-requests', 'ai-total-input', 'ai-total-output', 'ai-total-signups']) {
-      $(id).textContent = '–';
+      $(id).textContent = '-';
     }
     $('ai-cost-tile').hidden = true;
   } finally {
@@ -440,7 +440,7 @@ function renderUsers() {
     body.appendChild(tr);
   }
   // Tri-state: loading row on the first fetch, retry row when it failed, and "No users match."
-  // only once a load has SUCCEEDED — never while the table is merely empty-because-pending.
+  // only once a load has SUCCEEDED - never while the table is merely empty-because-pending.
   const firstLoading = usersState.loading && !usersState.loadedOnce;
   const firstFailed = usersState.failed && !usersState.loadedOnce && !usersState.loading;
   $('users-loading').hidden = !firstLoading;
@@ -449,7 +449,7 @@ function renderUsers() {
   const loadMore = $('users-load-more');
   loadMore.hidden = usersState.nextPageToken === null;
   loadMore.disabled = usersState.loading;
-  loadMore.textContent = usersState.loading ? 'Loading…' : 'Load more';
+  loadMore.textContent = usersState.loading ? 'Loading...' : 'Load more';
 }
 
 async function loadUsersPage(reset) {
@@ -482,7 +482,7 @@ function renderHealth(data) {
   $('health-effort').textContent = data.reasoningEffort;
   $('health-limit').textContent = formatInt(data.globalDailyLimit);
   $('health-mode').textContent = data.secretRuntime.mode === 'rest' ? 'Secret Manager (REST)' : 'Env fallback';
-  $('health-version').textContent = data.secretRuntime.version ?? '—';
+  $('health-version').textContent = data.secretRuntime.version ?? '-';
   $('health-rotated').textContent = formatDateTime(data.secretRuntime.lastRotatedAt);
   const iam = $('health-iam');
   iam.textContent = data.secretRuntime.iamReady ? 'Ready' : 'Grant missing';
@@ -494,7 +494,7 @@ function renderHealth(data) {
   rotate.disabled = !data.secretRuntime.iamReady;
   rotate.title = data.secretRuntime.iamReady
     ? ''
-    : 'Secret Manager grant missing — run the gcloud commands in the health card first, then Refresh.';
+    : 'Secret Manager grant missing - run the gcloud commands in the health card first, then Refresh.';
 }
 
 function renderPing(ping) {
@@ -502,14 +502,14 @@ function renderPing(ping) {
   node.hidden = false;
   if (ping.ok) {
     node.className = 'ok-text';
-    node.textContent = `OK — OpenAI answered in ${formatInt(ping.latencyMs)} ms.`;
+    node.textContent = `OK - OpenAI answered in ${formatInt(ping.latencyMs)} ms.`;
   } else {
     node.className = 'error-text';
     node.textContent = `Failed${ping.error ? `: ${ping.error}` : ''} (after ${formatInt(ping.latencyMs)} ms).`;
   }
 }
 
-/** ping=true makes ONE minimal real OpenAI call (billed) — only the "Test assistant" button. */
+/** ping=true makes ONE minimal real OpenAI call (billed) - only the "Test assistant" button. */
 async function loadHealth(ping) {
   const refresh = $('health-refresh');
   const pingButton = $('ping-run');
@@ -517,7 +517,7 @@ async function loadHealth(ping) {
   refresh.disabled = true;
   pingButton.disabled = true;
   status.className = 'muted';
-  status.textContent = ping ? 'Contacting OpenAI…' : 'Loading…';
+  status.textContent = ping ? 'Contacting OpenAI...' : 'Loading...';
   status.hidden = false;
   try {
     const { data } = await callables.getHealth(ping ? { ping: true } : {});
@@ -543,9 +543,9 @@ async function rotateKey() {
     result.hidden = true;
     if (candidate.length < 20) {
       result.className = 'error-text';
-      result.textContent = 'That does not look like an API key (too short) — paste the full key.';
+      result.textContent = 'That does not look like an API key (too short) - paste the full key.';
       result.hidden = false;
-      return; // the finally still clears the input — "cleared after every attempt" holds
+      return; // the finally still clears the input - "cleared after every attempt" holds
     }
     const warning = 'Rotate the OpenAI API key now?\n\n'
       + 'The new key is validated against the OpenAI API, stored as the only enabled Secret '
@@ -555,10 +555,10 @@ async function rotateKey() {
     const { data } = await callables.rotateOpenAiKey({ newKey: candidate });
     result.className = data.modelAvailable ? 'ok-text' : 'warn-text';
     result.textContent = (data.modelAvailable
-      ? `Key rotated — now Secret Manager version ${data.version}.`
+      ? `Key rotated - now Secret Manager version ${data.version}.`
       : `Key rotated (version ${data.version}), but the configured model is NOT available to `
         + 'this key. The assistant may fail until model access or OPENAI_MODEL is fixed.')
-      + ' Propagating — running instances switch within ~5 minutes; the health card may show the'
+      + ' Propagating - running instances switch within ~5 minutes; the health card may show the'
       + ' old version until you Refresh after that.';
     result.hidden = false;
     // adminGetHealth runs in a SEPARATE function process whose 5-minute cache this rotation

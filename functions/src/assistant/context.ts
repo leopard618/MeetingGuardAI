@@ -235,7 +235,7 @@ export function compactRecurrence(rule: RecurrenceRule, meetingZone: string): st
 
 function clip(value: string, max: number): string {
   const trimmed = value.replace(/\s+/g, ' ').trim();
-  return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed;
+  return trimmed.length > max ? `${trimmed.slice(0, max - 1)}...` : trimmed;
 }
 
 export function toModelView(meeting: ContextMeeting, userTimeZone: string, isFollowUp: boolean): MeetingModelView {

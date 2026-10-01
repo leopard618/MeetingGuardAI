@@ -79,8 +79,8 @@ export const assistant = onCall(
         }
         const model = OPENAI_MODEL.value();
         // The key comes from the runtime provider (Secret Manager REST with a 5-minute cache;
-        // env-bound OPENAI_API_KEY as fallback). On an OpenAI 401 — the key was rotated from the
-        // admin dashboard by another instance — the wrapper refetches once and retries once.
+        // env-bound OPENAI_API_KEY as fallback). On an OpenAI 401 - the key was rotated from the
+        // admin dashboard by another instance - the wrapper refetches once and retries once.
         return withKeyRetry(instanceOpenAiKeyProvider(), (apiKey) => createOpenAiClient({ apiKey, model, reasoningEffort }));
       },
       // Admin v2 stats: one merge-set with atomic increments (never a transaction; the handler

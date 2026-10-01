@@ -317,7 +317,7 @@ describe('handleGetHealth', () => {
 // ---------------------------------------------------------------------------------------------
 
 describe('handleRotateOpenAiKey', () => {
-  it('validates, stores, disables the prior enabled versions and busts the cache — in that order', async () => {
+  it('validates, stores, disables the prior enabled versions and busts the cache - in that order', async () => {
     const { ports, calls } = fakeRotatePorts({ newVersion: '5', enabledVersions: ['3', '4', '5'] });
     const response = await handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports);
     expect(rotateOpenAiKeyResponseSchema.parse(response)).toEqual(response);
@@ -391,7 +391,7 @@ describe('handleRotateOpenAiKey', () => {
     });
   });
 
-  it('audit logs carry fixed fields only — never the candidate key', async () => {
+  it('audit logs carry fixed fields only - never the candidate key', async () => {
     const auditCases: RotateFakeOptions[] = [
       { status: 401 },
       { status: 500 },
@@ -462,7 +462,7 @@ describe('handleRotateOpenAiKey', () => {
   ])(
     'reports a post-store %s failure as aborted/stored_cleanup_failed and still busts the cache',
     async (_step, failure) => {
-      // The new version IS stored and becomes 'latest' — telling the admin "the previous key is
+      // The new version IS stored and becomes 'latest' - telling the admin "the previous key is
       // still active" here (the old 'internal' path) could make them revoke the NEW key.
       const { ports } = fakeRotatePorts({ newVersion: '5', enabledVersions: ['4', '5'], ...failure });
       const error = await handleRotateOpenAiKey(admin, { newKey: NEW_KEY }, ports).catch((caught: unknown) => caught);

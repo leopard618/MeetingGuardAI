@@ -1,6 +1,6 @@
 /**
  * Pure page logic for the admin dashboard: formatters, chart-series builders and callable-error
- * mapping. No DOM, no Firebase, no deps — imported by admin.js AND by the node test runner
+ * mapping. No DOM, no Firebase, no deps - imported by admin.js AND by the node test runner
  * scripts/admin-ui-tests.mjs (run: `node scripts/admin-ui-tests.mjs`). Keep it that way.
  */
 
@@ -39,12 +39,12 @@ export function intTickFormat(v) {
 
 /** ISO timestamp -> date part ('2026-10-01'); em dash when absent. */
 export function dateOnly(iso) {
-  return typeof iso === 'string' && iso.length >= 10 ? iso.slice(0, 10) : '—';
+  return typeof iso === 'string' && iso.length >= 10 ? iso.slice(0, 10) : '-';
 }
 
 /** ISO timestamp -> '2026-10-01 12:34 UTC'; em dash when absent. */
 export function formatDateTime(iso) {
-  return typeof iso === 'string' && iso.length >= 16 ? `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC` : '—';
+  return typeof iso === 'string' && iso.length >= 16 ? `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC` : '-';
 }
 
 // ---- Chart series builders (colorVar assignments are the docs/ADMIN.md §v2 contract) ---------
@@ -88,22 +88,22 @@ export function callableErrorMessage(error) {
 export function v2ErrorMessage(error) {
   const code = callableErrorCode(error);
   if (code === 'not-found' || code === 'unimplemented') {
-    return 'This function is not deployed yet — run "firebase deploy --only functions" and retry.';
+    return 'This function is not deployed yet - run "firebase deploy --only functions" and retry.';
   }
   const base = callableErrorMessage(error);
-  if (code === 'internal') return `${base} — if the admin v2 functions were never deployed, deploy functions first.`;
+  if (code === 'internal') return `${base} - if the admin v2 functions were never deployed, deploy functions first.`;
   return base;
 }
 
 /**
  * Error rendering for the rotate-key card. Only PRE-store failures may claim "the previous key
  * is still active": an `aborted` error is the server's post-store signal (reason
- * stored_cleanup_failed) — the NEW key was stored and becomes active, and its verbatim message
+ * stored_cleanup_failed) - the NEW key was stored and becomes active, and its verbatim message
  * must stand alone so the admin does not revoke the new key believing nothing changed.
  */
 export function rotationErrorDisplay(error) {
   if (callableErrorCode(error) === 'aborted') {
     return { postStore: true, text: v2ErrorMessage(error) };
   }
-  return { postStore: false, text: `Rotation failed — the previous key is still active. ${v2ErrorMessage(error)}` };
+  return { postStore: false, text: `Rotation failed - the previous key is still active. ${v2ErrorMessage(error)}` };
 }
