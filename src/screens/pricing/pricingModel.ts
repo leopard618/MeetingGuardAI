@@ -207,11 +207,15 @@ export function summarizeUsage(usage: AssistantUsage | null, plan: EntitlementPl
   if (usage) {
     const resetsAt = new Date(usage.resetsAt).getTime();
     if (Number.isFinite(resetsAt) && resetsAt > now.getTime()) {
-      const limit = Math.max(0, usage.limit);
+      // The cached snapshot knows how many requests were USED today, but its plan/limit are from
+      // the moment of the last request. The live entitlement wins: after an upgrade the card must
+      // show "5 of 100", not yesterday's "5 of 5" (and after a downgrade, used is clamped).
+      const planChanged = usage.plan !== plan;
+      const limit = planChanged ? PLAN_DAILY_AI_LIMITS[plan] : Math.max(0, usage.limit);
       const used = Math.min(Math.max(0, usage.used), limit);
       return {
         kind: 'today',
-        plan: usage.plan,
+        plan,
         used,
         limit,
         remaining: limit - used,

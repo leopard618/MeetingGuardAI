@@ -74,5 +74,9 @@
     "switchCycleHint": "Tienes este plan con otro periodo de facturación. Para cambiar entre mensual y anual, gestiona tu suscripción en Google Play.",
     "downgradeHint": "Para cambiar a este plan, gestiona tu suscripción en Google Play."
   },
-  "footer": "Los precios están en dólares estadounidenses. Antes de cualquier compra, App Store o Google Play te mostrarán el precio final en tu moneda, con impuestos incluidos."
+  "footer": "Los precios están en dólares estadounidenses. Antes de cualquier compra, App Store o Google Play te mostrarán el precio final en tu moneda, con impuestos incluidos.",
+  "planChanged": {
+    "title": "Plan actualizado",
+    "body": "Tu plan ahora es {{plan}}"
+  }
 }

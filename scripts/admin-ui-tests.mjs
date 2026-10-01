@@ -131,4 +131,5 @@ checks += 1;
 const unreachable = rotationErrorDisplay({ code: 'functions/unavailable', message: 'OpenAI could not be reached to validate the key. Nothing was changed.' });
 eq(unreachable.postStore, false, 'rotationErrorDisplay: unavailable is pre-store');
 
-console.log(`OK - ${checks} assertions passed (admin web pure logic).`);
+process.stdout.write(`OK - ${checks} assertions passed (admin web pure logic).
+`);

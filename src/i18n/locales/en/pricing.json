@@ -74,5 +74,9 @@
     "switchCycleHint": "You're on this plan with a different billing period. To switch between monthly and yearly, manage your subscription in Google Play.",
     "downgradeHint": "To switch to this plan, change your subscription in Google Play."
   },
-  "footer": "Prices are in US dollars. Before any purchase, the App Store or Google Play will show the final price in your currency, including taxes."
+  "footer": "Prices are in US dollars. Before any purchase, the App Store or Google Play will show the final price in your currency, including taxes.",
+  "planChanged": {
+    "title": "Plan updated",
+    "body": "Your plan is now {{plan}}"
+  }
 }

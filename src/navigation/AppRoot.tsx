@@ -17,6 +17,7 @@ import Toast from 'react-native-toast-message';
 
 import { AlertHost } from '../components/alerts';
 import { toastConfig } from '../components/AppToast';
+import { PlanChangeNotice } from '../components/PlanChangeNotice';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ThemeProvider, useAppThemes } from '../contexts/ThemeContext';
 import { toAppError } from '../core/errors';
@@ -56,6 +57,7 @@ function ThemedApp(): ReactElement {
           >
             <RootNavigator />
             <AlertHost />
+            <PlanChangeNotice />
           </NavigationContainer>
           {/* Themed, multi-line layouts (the library default is one white line). */}
           <Toast topOffset={insets.top + 8} config={toastConfig} />
