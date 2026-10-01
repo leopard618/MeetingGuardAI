@@ -12,22 +12,45 @@
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/https';
 import { AggregateField } from 'firebase-admin/firestore';
+import OpenAI from 'openai';
 import { z } from 'zod';
 
-import { FUNCTIONS_REGION } from '../config';
+import {
+  ASSISTANT_GLOBAL_DAILY_LIMIT,
+  FUNCTIONS_REGION,
+  OPENAI_API_KEY,
+  OPENAI_MODEL,
+  OPENAI_PRICE_IN_PER_M,
+  OPENAI_PRICE_OUT_PER_M,
+  OPENAI_REASONING_EFFORT,
+  parsePricePerM,
+} from '../config';
+import { toUpstreamError } from '../assistant/llm';
 import { isUserNotFound } from '../deleteAccount';
 import { adminAuth, adminDb } from '../firebase';
+import { googleAuthSecretRotator, instanceOpenAiKeyProvider, type OpenAiKeyStatus } from '../openaiKey';
 import { planSchema, usageDayKey, type Plan } from '../shared/aiContract';
 import { resolveEffectivePlan } from '../shared/entitlement';
 import {
+  adminStatsAiDayPath,
+  adminStatsDayDocSchema,
+  getHealthRequestSchema,
+  getHealthResponseSchema,
   getMetricsRequestSchema,
   getMetricsResponseSchema,
+  getStatsRequestSchema,
+  getStatsResponseSchema,
   listUsersRequestSchema,
   listUsersResponseSchema,
+  rotateOpenAiKeyRequestSchema,
+  rotateOpenAiKeyResponseSchema,
   setUserDisabledRequestSchema,
   setUserPlanRequestSchema,
+  type GetHealthResponse,
+  type GetStatsResponse,
   type ListUsersResponse,
   type GetMetricsResponse,
+  type RotateOpenAiKeyResponse,
   type SetUserDisabledResponse,
   type SetUserPlanResponse,
 } from './schemas';
@@ -412,4 +435,323 @@ export const adminSetUserPlan = onCall(ADMIN_CALLABLE_OPTIONS, (request): Promis
 
 export const adminGetMetrics = onCall(ADMIN_CALLABLE_OPTIONS, (request): Promise<GetMetricsResponse> =>
   handleGetMetrics(callerOf(request.auth), request.data, firebaseAdminPorts()),
+);
+
+// =============================================================================================
+// v2: adminGetStats / adminGetHealth / adminRotateOpenAiKey (docs/ADMIN.md §v2).
+// The v1 code above is untouched; everything below is additive.
+// =============================================================================================
+
+// ---------------------------------------------------------------------------------------------
+// v2 ports
+// ---------------------------------------------------------------------------------------------
+
+export interface AdminStatsPorts {
+  /** Raw adminStats/ai/days documents for the given day keys; missing days absent from the map. */
+  getStatsDays(dayKeys: string[]): Promise<Map<string, unknown>>;
+  /** creationTime (ISO) of every Firebase Auth user (paged listUsers; unparsable times dropped). */
+  listAuthCreationTimes(): Promise<string[]>;
+  /** Pricing params in USD per 1M tokens (0 = unset; functions/src/config.ts). */
+  pricing(): { inPerM: number; outPerM: number };
+}
+
+export interface AssistantPingResult {
+  ok: boolean;
+  latencyMs: number;
+  /** SHORT category string (e.g. "configuration (401)"), never a response body. */
+  error?: string;
+}
+
+export interface AdminHealthPorts {
+  runtimeConfig(): { model: string; reasoningEffort: string; globalDailyLimit: number };
+  /** Secret runtime state (functions/src/openaiKey.ts status(); never the key value). */
+  keyStatus(): Promise<OpenAiKeyStatus>;
+  /** ONE minimal real OpenAI chat completion (costs money); resolves instead of throwing. */
+  pingAssistant(): Promise<AssistantPingResult>;
+}
+
+export interface AdminRotatePorts {
+  /** GET api.openai.com/v1/models with the candidate key; throws only when OpenAI is unreachable. */
+  fetchOpenAiModels(candidateKey: string): Promise<{ status: number; modelIds: string[] }>;
+  configuredModel(): string;
+  /** Secret Manager addVersion; resolves the new BARE version number. */
+  addSecretVersion(value: string): Promise<{ version: string }>;
+  /** Bare numbers of every currently ENABLED version (including the one just added). */
+  listEnabledSecretVersions(): Promise<string[]>;
+  disableSecretVersion(version: string): Promise<void>;
+  /** Busts this instance's key cache (others refresh within the TTL or on 401-retry). */
+  invalidateKeyCache(): void;
+}
+
+// ---------------------------------------------------------------------------------------------
+// v2 pure helpers
+// ---------------------------------------------------------------------------------------------
+
+/** The last `days` UTC day keys INCLUDING `now`'s day, oldest -> newest (the chart x-axis). */
+export function statsDayKeys(now: Date, days: number): string[] {
+  const keys: string[] = [];
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    keys.push(usageDayKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - offset))));
+  }
+  return keys;
+}
+
+// ---------------------------------------------------------------------------------------------
+// v2 handlers (exported for unit tests)
+// ---------------------------------------------------------------------------------------------
+
+export async function handleGetStats(
+  caller: AdminCaller | null,
+  data: unknown,
+  ports: AdminStatsPorts,
+  now: Date = new Date(),
+): Promise<GetStatsResponse> {
+  requireAdmin(caller);
+  const parsed = getStatsRequestSchema.safeParse(data);
+  if (!parsed.success) throw invalidArgument('adminGetStats');
+  try {
+    const dayKeys = statsDayKeys(now, parsed.data.days);
+    const [docs, creationTimes] = await Promise.all([ports.getStatsDays(dayKeys), ports.listAuthCreationTimes()]);
+    const days = dayKeys.map((date) => {
+      const raw = docs.get(date);
+      const doc = raw === undefined ? null : adminStatsDayDocSchema.safeParse(raw);
+      return {
+        date,
+        requests: doc?.success ? doc.data.requests : 0,
+        inputTokens: doc?.success ? doc.data.inputTokens : 0,
+        outputTokens: doc?.success ? doc.data.outputTokens : 0,
+      };
+    });
+    const signupCounts = new Map<string, number>();
+    for (const iso of creationTimes) {
+      const ms = Date.parse(iso);
+      if (Number.isNaN(ms)) continue;
+      const key = usageDayKey(new Date(ms));
+      signupCounts.set(key, (signupCounts.get(key) ?? 0) + 1);
+    }
+    const signups = dayKeys.map((date) => ({ date, count: signupCounts.get(date) ?? 0 }));
+    const totals = {
+      requests: days.reduce((sum, day) => sum + day.requests, 0),
+      inputTokens: days.reduce((sum, day) => sum + day.inputTokens, 0),
+      outputTokens: days.reduce((sum, day) => sum + day.outputTokens, 0),
+      signups: signups.reduce((sum, day) => sum + day.count, 0),
+    };
+    const { inPerM, outPerM } = ports.pricing();
+    // null when pricing is unset (both 0) => the dashboard hides the cost tile; 4 decimals.
+    const estCostUsd =
+      inPerM === 0 && outPerM === 0
+        ? null
+        : Math.round(((totals.inputTokens / 1e6) * inPerM + (totals.outputTokens / 1e6) * outPerM) * 10_000) / 10_000;
+    return getStatsResponseSchema.parse({ days, signups, totals, estCostUsd, pricing: { inPerM, outPerM, source: 'param' } });
+  } catch (error) {
+    wrapUnexpected('adminGetStats', caller.uid, error);
+  }
+}
+
+export async function handleGetHealth(
+  caller: AdminCaller | null,
+  data: unknown,
+  ports: AdminHealthPorts,
+): Promise<GetHealthResponse> {
+  requireAdmin(caller);
+  const parsed = getHealthRequestSchema.safeParse(data);
+  if (!parsed.success) throw invalidArgument('adminGetHealth');
+  // ping:true makes ONE real (billed) OpenAI call; the dashboard sends it only from the
+  // Settings "Test assistant" button, never on page load.
+  const ping = parsed.data?.ping === true;
+  try {
+    const config = ports.runtimeConfig();
+    const secretRuntime = await ports.keyStatus();
+    return getHealthResponseSchema.parse({
+      model: config.model,
+      reasoningEffort: config.reasoningEffort,
+      globalDailyLimit: Math.max(0, config.globalDailyLimit),
+      secretRuntime,
+      ...(ping ? { assistantPing: await ports.pingAssistant() } : {}),
+    });
+  } catch (error) {
+    wrapUnexpected('adminGetHealth', caller.uid, error);
+  }
+}
+
+/**
+ * SECURITY (grep: never-log-openai-key): `newKey` is the OpenAI API key candidate. It must NEVER
+ * be logged, embedded in an error message, written to Firestore or echoed in the response. Every
+ * error thrown here is a fixed string plus at most an HTTP status; the network failure below
+ * deliberately DROPS the caught error so no request detail can ride along into wrapUnexpected.
+ */
+export async function handleRotateOpenAiKey(
+  caller: AdminCaller | null,
+  data: unknown,
+  ports: AdminRotatePorts,
+): Promise<RotateOpenAiKeyResponse> {
+  requireAdmin(caller);
+  const parsed = rotateOpenAiKeyRequestSchema.safeParse(data);
+  if (!parsed.success) throw invalidArgument('adminRotateOpenAiKey');
+  const newKey = parsed.data.newKey;
+  try {
+    // 1. Validate the candidate against OpenAI BEFORE storing anything.
+    let models: { status: number; modelIds: string[] };
+    try {
+      models = await ports.fetchOpenAiModels(newKey);
+    } catch {
+      throw new HttpsError('unavailable', 'OpenAI could not be reached to validate the key. Nothing was changed.');
+    }
+    if (models.status === 401) {
+      throw new HttpsError('failed-precondition', 'OpenAI rejected this key (HTTP 401). Nothing was changed.', {
+        reason: 'invalid_key',
+      });
+    }
+    if (models.status !== 200) {
+      throw new HttpsError(
+        'failed-precondition',
+        `OpenAI answered HTTP ${models.status} while validating the key. Nothing was changed.`,
+      );
+    }
+    const model = ports.configuredModel();
+    const modelAvailable = models.modelIds.includes(model);
+    if (!modelAvailable) logger.warn('adminRotateOpenAiKey.model_missing', { model }); // warn-not-block
+    // 2. Store, 3. keep only the new version enabled, 4. bust this instance's cache.
+    const { version } = await ports.addSecretVersion(newKey);
+    const enabled = await ports.listEnabledSecretVersions();
+    const prior = enabled.filter((candidate) => candidate !== version);
+    for (const priorVersion of prior) {
+      await ports.disableSecretVersion(priorVersion);
+    }
+    ports.invalidateKeyCache();
+    logger.info('adminRotateOpenAiKey.completed', {
+      adminUid: caller.uid,
+      version,
+      modelAvailable,
+      disabledVersions: prior.length,
+    });
+    return rotateOpenAiKeyResponseSchema.parse({ ok: true, version, modelAvailable });
+  } catch (error) {
+    wrapUnexpected('adminRotateOpenAiKey', caller.uid, error);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// v2 Firebase/OpenAI-backed ports
+// ---------------------------------------------------------------------------------------------
+
+/** OpenAI validation (rotation) is one small GET; the ping is one tiny completion. */
+export const ROTATE_VALIDATE_TIMEOUT_MS = 5_000;
+export const ASSISTANT_PING_TIMEOUT_MS = 10_000;
+
+export function firebaseStatsPorts(): AdminStatsPorts {
+  const db = adminDb();
+  const auth = adminAuth();
+  return {
+    async getStatsDays(dayKeys) {
+      const map = new Map<string, unknown>();
+      if (dayKeys.length === 0) return map;
+      const snapshots = await db.getAll(...dayKeys.map((dayKey) => db.doc(adminStatsAiDayPath(dayKey))));
+      snapshots.forEach((snapshot, index) => {
+        const dayKey = dayKeys[index];
+        if (dayKey !== undefined && snapshot.exists) map.set(dayKey, snapshot.data());
+      });
+      return map;
+    },
+    async listAuthCreationTimes() {
+      const times: string[] = [];
+      let pageToken: string | undefined;
+      do {
+        const page = await auth.listUsers(1000, pageToken);
+        for (const user of page.users) {
+          const iso = toIso(user.metadata.creationTime);
+          if (iso !== null) times.push(iso);
+        }
+        pageToken = page.pageToken;
+      } while (pageToken);
+      return times;
+    },
+    pricing() {
+      return {
+        inPerM: parsePricePerM(OPENAI_PRICE_IN_PER_M.value()),
+        outPerM: parsePricePerM(OPENAI_PRICE_OUT_PER_M.value()),
+      };
+    },
+  };
+}
+
+function adminHealthPorts(): AdminHealthPorts {
+  const provider = instanceOpenAiKeyProvider();
+  return {
+    runtimeConfig: () => ({
+      model: OPENAI_MODEL.value(),
+      reasoningEffort: OPENAI_REASONING_EFFORT.value(),
+      globalDailyLimit: ASSISTANT_GLOBAL_DAILY_LIMIT.value(),
+    }),
+    keyStatus: () => provider.status(),
+    async pingAssistant() {
+      const startedAt = Date.now();
+      try {
+        const { key } = await provider.get();
+        const client = new OpenAI({ apiKey: key, timeout: ASSISTANT_PING_TIMEOUT_MS, maxRetries: 0 });
+        await client.chat.completions.create(
+          {
+            model: OPENAI_MODEL.value(),
+            messages: [{ role: 'user', content: 'ping' }],
+            // 16, not 1: reasoning models can answer empty at 1 token; the cost is still ~zero.
+            max_completion_tokens: 16,
+            store: false,
+          },
+          { signal: AbortSignal.timeout(ASSISTANT_PING_TIMEOUT_MS) },
+        );
+        return { ok: true, latencyMs: Date.now() - startedAt };
+      } catch (error) {
+        // Category + status only (never a response body, never the key).
+        const upstream = toUpstreamError(error);
+        return {
+          ok: false,
+          latencyMs: Date.now() - startedAt,
+          error: upstream.status !== null ? `${upstream.kind} (${upstream.status})` : upstream.kind,
+        };
+      }
+    },
+  };
+}
+
+function adminRotatePorts(): AdminRotatePorts {
+  const provider = instanceOpenAiKeyProvider();
+  const rotator = googleAuthSecretRotator();
+  return {
+    async fetchOpenAiModels(candidateKey) {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: { Authorization: `Bearer ${candidateKey}` },
+        signal: AbortSignal.timeout(ROTATE_VALIDATE_TIMEOUT_MS),
+      });
+      if (!response.ok) return { status: response.status, modelIds: [] };
+      const body = (await response.json()) as { data?: Array<{ id?: unknown }> };
+      const modelIds: string[] = [];
+      for (const entry of body.data ?? []) {
+        if (typeof entry.id === 'string' && entry.id.length > 0) modelIds.push(entry.id);
+      }
+      return { status: response.status, modelIds };
+    },
+    configuredModel: () => OPENAI_MODEL.value(),
+    addSecretVersion: (value) => rotator.addVersion(value),
+    listEnabledSecretVersions: () => rotator.listEnabledVersions(),
+    disableSecretVersion: (version) => rotator.disableVersion(version),
+    invalidateKeyCache: () => provider.invalidate(),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// v2 callables
+// ---------------------------------------------------------------------------------------------
+
+export const adminGetStats = onCall(ADMIN_CALLABLE_OPTIONS, (request): Promise<GetStatsResponse> =>
+  handleGetStats(callerOf(request.auth), request.data, firebaseStatsPorts()),
+);
+
+/** Binds the secret: the key provider's env fallback and the optional ping read it. */
+export const adminGetHealth = onCall(
+  { ...ADMIN_CALLABLE_OPTIONS, secrets: [OPENAI_API_KEY] },
+  (request): Promise<GetHealthResponse> => handleGetHealth(callerOf(request.auth), request.data, adminHealthPorts()),
+);
+
+export const adminRotateOpenAiKey = onCall(ADMIN_CALLABLE_OPTIONS, (request): Promise<RotateOpenAiKeyResponse> =>
+  handleRotateOpenAiKey(callerOf(request.auth), request.data, adminRotatePorts()),
 );

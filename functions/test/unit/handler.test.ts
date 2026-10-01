@@ -281,3 +281,54 @@ describe('handleAssistant', () => {
     expect(logged).not.toContain('11:00');
   });
 });
+
+describe('admin stats hook (recordAiUsage)', () => {
+  it('records the day key and token usage after a successful completion', async () => {
+    const { deps } = setup();
+    const recordAiUsage = jest.fn(async () => undefined);
+    await expect(handleAssistant(caller(), chatRequest(), { ...deps, recordAiUsage })).resolves.toMatchObject({
+      reply: 'Done deal.',
+    });
+    expect(recordAiUsage).toHaveBeenCalledTimes(1);
+    expect(recordAiUsage).toHaveBeenCalledWith(DAY, { inputTokens: 10, outputTokens: 5 });
+  });
+
+  it('records zeros when OpenAI omitted the usage object', async () => {
+    const { deps } = setup(result({ usage: null }));
+    const recordAiUsage = jest.fn(async () => undefined);
+    await handleAssistant(caller(), chatRequest(), { ...deps, recordAiUsage });
+    expect(recordAiUsage).toHaveBeenCalledWith(DAY, { inputTokens: 0, outputTokens: 0 });
+  });
+
+  it('a stats write failure is warn-logged and never fails or refunds the request', async () => {
+    const { deps, quota } = setup();
+    const recordAiUsage = jest.fn(async () => {
+      throw new Error('firestore down');
+    });
+    await expect(handleAssistant(caller(), chatRequest(), { ...deps, recordAiUsage })).resolves.toMatchObject({
+      reply: 'Done deal.',
+      usage: { used: 1 },
+    });
+    expect(quota.count('u1', DAY)).toBe(1); // still billed, not refunded
+    expect(logger.warn).toHaveBeenCalledWith('assistant.stats_failed', {
+      uid: 'u1',
+      errorName: 'Error',
+      errorMessage: 'firestore down',
+    });
+  });
+
+  it('does not record anything when the completion itself fails', async () => {
+    const { deps } = setup(new UpstreamError('server', 503));
+    const recordAiUsage = jest.fn(async () => undefined);
+    await expectAssistantError(handleAssistant(caller(), chatRequest(), { ...deps, recordAiUsage }), 'unavailable', 'upstream_error');
+    expect(recordAiUsage).not.toHaveBeenCalled();
+  });
+
+  it('does not record over-quota requests (they never reach OpenAI)', async () => {
+    const { deps, quota } = setup();
+    quota.usage.set(`u1/${DAY}`, { count: 5, updatedAt: 'x' });
+    const recordAiUsage = jest.fn(async () => undefined);
+    await expectAssistantError(handleAssistant(caller(), chatRequest(), { ...deps, recordAiUsage }), 'resource-exhausted', 'quota_exceeded');
+    expect(recordAiUsage).not.toHaveBeenCalled();
+  });
+});

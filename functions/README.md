@@ -7,6 +7,8 @@ security rules and the public account-deletion page.
 |---|---|
 | `assistant` | AI assistant. Validates the request, counts the daily quota, loads the user's meetings server-side, calls OpenAI with tool calling and returns a reply plus **proposed** actions. It never changes data: the app shows a confirmation card and executes confirmed actions itself. |
 | `deleteAccount` | Records the deletion in `accountDeletions/{uid}` (anonymous id + time, kept 30 days for the restore runbook), then deletes `users/{uid}` (recursively), `entitlements/{uid}`, `usage/{uid}` (recursively) and the Firebase Auth user. Idempotent. |
+| `adminListUsers` / `adminSetUserDisabled` / `adminSetUserPlan` / `adminGetMetrics` | Admin dashboard v1 (custom claim `admin: true` required; `src/admin`, docs/ADMIN.md). |
+| `adminGetStats` / `adminGetHealth` / `adminRotateOpenAiKey` | Admin dashboard v2: per-UTC-day usage/signup series with a cost estimate, runtime health (secret mode + optional real OpenAI ping), and OpenAI key rotation via Secret Manager (docs/ADMIN.md §v2). |
 
 | Scheduled | What it does |
 |---|---|
@@ -18,9 +20,11 @@ change the contract, edit `src/core/aiContract.ts` in the app and copy it over.
 
 ```
 functions/
-  src/index.ts                 exports assistant, deleteAccount
-  src/config.ts                params (FUNCTIONS_REGION, OPENAI_MODEL, OPENAI_REASONING_EFFORT), secret OPENAI_API_KEY, limits
+  src/index.ts                 exports assistant, deleteAccount and the admin callables
+  src/config.ts                params (FUNCTIONS_REGION, OPENAI_MODEL, OPENAI_REASONING_EFFORT, pricing), secret OPENAI_API_KEY, limits
   src/assistant/               handler, quota, meeting context, prompt, tools, action mapping, OpenAI adapter, time zones
+  src/admin/                   admin callables (schemas.ts = the contract, index.ts = handlers/ports)
+  src/openaiKey.ts             runtime OpenAI key: Secret Manager REST + cache + env fallback + rotation edge
   src/deleteAccount.ts
   src/maintenance/             retention: tombstone purge, deletion log (core.ts pure, index.ts schedule)
   src/shared/aiContract.ts     verbatim copy of src/core/aiContract.ts
@@ -56,7 +60,8 @@ npx firebase functions:secrets:set OPENAI_API_KEY      # paste the key when prom
 
 The key lives in Cloud Secret Manager. It is never in the repository, the app or the logs. Deploying
 grants the function's service account access to it. To rotate it, set a new version and redeploy
-`assistant` — or, once admin v2 lands, use the dashboard's "Rotate OpenAI key" card (below).
+`assistant` — or use the admin dashboard's "Rotate OpenAI key" card, which needs the one-time
+IAM grant below but no redeploy.
 
 ### OpenAI key rotation from the admin dashboard (admin v2)
 
@@ -163,7 +168,7 @@ npm run serve    # builds, then starts the auth, firestore and functions emulato
 npm run lint             # ESLint (typescript-eslint)
 npm run typecheck        # tsc on sources and tests
 npm run build            # tsc -> lib/
-npm test                 # unit tests: quota, entitlement, time zones, context, prompt, tools, action mapping, handler, deleteAccount, maintenance, contract copy
+npm test                 # unit tests: quota, entitlement, time zones, context, prompt, tools, action mapping, handler (incl. stats hook), admin v1+v2, openaiKey (secret REST mocked), deleteAccount, maintenance, contract copy
 npm run check:contract   # src/shared/aiContract.ts == ../src/core/aiContract.ts
 npm run test:rules       # Firestore rules tests inside `firebase emulators:exec` (Java 21+)
 ```

@@ -8,6 +8,7 @@
  */
 import * as logger from 'firebase-functions/logger';
 import { onCall } from 'firebase-functions/https';
+import { FieldValue } from 'firebase-admin/firestore';
 
 import {
   ASSISTANT_GLOBAL_DAILY_LIMIT,
@@ -18,7 +19,9 @@ import {
   OPENAI_REASONING_EFFORT,
   parseReasoningEffort,
 } from '../config';
+import { adminStatsAiDayPath } from '../admin/schemas';
 import { adminDb } from '../firebase';
+import { instanceOpenAiKeyProvider, withKeyRetry } from '../openaiKey';
 import type { AssistantResponse } from '../shared/aiContract';
 import { firestoreMeetingReader } from './context';
 import { createGlobalBudget, firestoreGlobalBudgetStore, type GlobalBudget } from './globalBudget';
@@ -74,7 +77,24 @@ export const assistant = onCall(
         if (reasoningEffort === null && effortSetting.trim().toLowerCase() !== 'omit') {
           logger.warn('assistant.reasoning_effort_ignored', { value: effortSetting });
         }
-        return createOpenAiClient({ apiKey: OPENAI_API_KEY.value(), model: OPENAI_MODEL.value(), reasoningEffort });
+        const model = OPENAI_MODEL.value();
+        // The key comes from the runtime provider (Secret Manager REST with a 5-minute cache;
+        // env-bound OPENAI_API_KEY as fallback). On an OpenAI 401 — the key was rotated from the
+        // admin dashboard by another instance — the wrapper refetches once and retries once.
+        return withKeyRetry(instanceOpenAiKeyProvider(), (apiKey) => createOpenAiClient({ apiKey, model, reasoningEffort }));
+      },
+      // Admin v2 stats: one merge-set with atomic increments (never a transaction; the handler
+      // isolates failures so this write can never fail the user's request).
+      recordAiUsage: async (dayKey, tokens) => {
+        await db.doc(adminStatsAiDayPath(dayKey)).set(
+          {
+            requests: FieldValue.increment(1),
+            inputTokens: FieldValue.increment(tokens.inputTokens),
+            outputTokens: FieldValue.increment(tokens.outputTokens),
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true },
+        );
       },
       now: () => new Date(),
     });

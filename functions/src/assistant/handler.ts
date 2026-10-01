@@ -41,6 +41,12 @@ export interface AssistantDeps {
   now: () => Date;
   /** Project-wide daily cap (optional: tests and the emulator run without one). */
   globalBudget?: GlobalBudget;
+  /**
+   * Admin v2 stats hook (docs/ADMIN.md §v2): merge-set with increments on
+   * adminStats/ai/days/{dayKey} after a successful completion. Optional, and guarded by its own
+   * try/catch here: a stats failure is warn-logged and NEVER fails (or refunds) the request.
+   */
+  recordAiUsage?: (dayKey: string, tokens: { inputTokens: number; outputTokens: number }) => Promise<void>;
   newActionId?: () => string;
   nonce?: () => string;
 }
@@ -156,6 +162,20 @@ export async function handleAssistant(
       toolChoice: request.mode === 'followup' ? 'required' : 'auto',
       safetyIdentifier: safetyIdentifierFor(uid),
     });
+
+    // Admin stats aggregate: OpenAI answered, so this request is billed work. Awaited (the
+    // function may be frozen after returning) but isolated: a stats failure never fails the
+    // user's request and never refunds the quota.
+    if (deps.recordAiUsage) {
+      try {
+        await deps.recordAiUsage(quota.dayKey, {
+          inputTokens: completion.usage?.promptTokens ?? 0,
+          outputTokens: completion.usage?.completionTokens ?? 0,
+        });
+      } catch (statsError) {
+        logger.warn('assistant.stats_failed', { uid, ...describeError(statsError) });
+      }
+    }
 
     const mapped = mapToolCalls(completion.toolCalls, {
       language: request.language,
