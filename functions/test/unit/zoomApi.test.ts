@@ -128,6 +128,7 @@ describe('createZoomClient.createMeeting', () => {
       startTimeUtc: '2026-10-05T14:00:00Z',
       durationMinutes: 30,
       timezone: null,
+      recurring: false,
     });
 
     expect(created.passcode).toBeNull();
@@ -142,6 +143,7 @@ describe('createZoomClient.createMeeting', () => {
       startTimeUtc: '2026-10-05T14:00:00Z',
       durationMinutes: 30,
       timezone: null,
+      recurring: false,
     });
 
     expect(created.zoomMeetingId).toBe('987654321');
