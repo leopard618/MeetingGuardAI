@@ -22,6 +22,7 @@
   },
   "signIn": {
     "google": "Continuar con Google",
+    "email": "Continuar con correo",
     "busy": "Iniciando sesión...",
     "failedTitle": "No se pudo iniciar sesión",
     "failed": "El inicio de sesión con Google no funcionó. Inténtalo de nuevo."

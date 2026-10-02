@@ -20,6 +20,10 @@ Contents:
 7. Sentry (optional)
 8. iOS (when the client decides)
 9. Final check
+10. Microsoft/Outlook (Azure app registration)
+11. RevenueCat + Google Play subscriptions (in-app purchases)
+12. Zoom auto links (Server-to-Server OAuth app)
+13. Email/password sign-in (Firebase provider)
 
 ---
 
@@ -720,3 +724,89 @@ their own entitlement; the Admin SDK bypasses the rules.
       `active` until the expiry date, then EXPIRATION flips it to `expired` (plan back to Free).
 - [ ] When the sandbox checks are done: `REVENUECAT_ALLOW_SANDBOX` back to `false` + redeploy
       (11.3 step 5).
+
+## 12. Zoom auto links (Server-to-Server OAuth app)
+
+Optional. Until this section is done the app simply keeps the paste-a-link behavior for Zoom
+(`zoomStatus` answers `configured: false`). Design: docs/ARCHITECTURE.md §24.
+
+### 12.1 Zoom marketplace app
+
+1. Sign in at https://marketplace.zoom.us with the Zoom account that should HOST the created
+   meetings (a paid plan lifts the 40-minute limit; the integration works on free too).
+2. Develop -> Build App -> **Server-to-Server OAuth** -> name it (for example "MeetingGuard").
+3. App credentials page: note the **Account ID**, **Client ID** and **Client Secret** (these are
+   the three secrets below; never put them in the repository or the app).
+4. Scopes -> Add scopes: `meeting:write:meeting` (create/update/delete the account's own
+   meetings). Older marketplace UIs call it `meeting:write` / `meeting:write:admin` - pick the
+   write scope for meetings of the app's own account.
+5. Activation page: **Activate** the app (an S2S app must be activated before the token
+   endpoint accepts it).
+
+### 12.2 Secrets and param - ORDER MATTERS
+
+Set the three secrets FIRST, then the param, then deploy. The three write callables
+(`zoomCreateMeeting`, `zoomSyncMeeting`, `zoomDeleteMeeting`) are only part of a deploy while
+`ZOOM_ENABLED=true`, and a deploy that includes them fails when a secret is missing.
+
+```bash
+cd functions
+npx firebase functions:secrets:set ZOOM_ACCOUNT_ID    # paste the Account ID
+npx firebase functions:secrets:set ZOOM_CLIENT_ID     # paste the Client ID
+npx firebase functions:secrets:set ZOOM_CLIENT_SECRET # paste the Client Secret
+```
+
+Then put the switch into `functions/.env.<projectId>` (for example
+`functions/.env.meetingguard-ai-app`):
+
+```
+ZOOM_ENABLED=true
+# optional abuse guard, default 30 created meetings per user per UTC day:
+# ZOOM_USER_DAILY_LIMIT=30
+```
+
+### 12.3 Deploy
+
+```bash
+npx firebase deploy --only firestore:rules,functions
+```
+
+- The rules deploy ships the `external.zoomMeetingId` key (without it the app's meeting edits
+  would be rejected once a link was created).
+- The functions deploy now includes `zoomStatus` AND the three write callables; the CLI grants
+  their service account access to the three secrets.
+- To switch the feature OFF again: set `ZOOM_ENABLED=false` (or remove the line), deploy, and
+  ACCEPT when the CLI offers to delete the three zoom write functions. `zoomStatus` stays and
+  answers `configured: false`.
+
+### 12.4 Check
+
+- [ ] App: create a meeting, Video call = Zoom, leave the link empty -> the form says "A Zoom
+      link will be created when you save"; after Save the details card shows the pending note
+      and then the real `zoom.us` join link (plus passcode when the account adds one).
+- [ ] Editing the meeting's time updates the Zoom meeting; deleting the meeting deletes it in
+      Zoom (check the Zoom web portal).
+- [ ] Functions logs show uid + Zoom meeting id only - never meeting titles.
+
+## 13. Email/password sign-in (Firebase provider)
+
+The app ships the email sign-in UI either way; this console switch makes it work. Without it,
+submitting the form shows "Email sign-in is not enabled" (`auth/operation-not-allowed` ->
+`auth:errors.providerDisabled`). Design: docs/ARCHITECTURE.md §25.
+
+1. Firebase console -> Authentication -> Sign-in method -> **Email/Password** -> Enable (leave
+   "Email link (passwordless sign-in)" off) -> Save.
+2. Authentication -> Settings -> **Authorized domains**: the verification and password-reset
+   links open on the project's default `<projectId>.firebaseapp.com` handler, which is
+   authorized out of the box - only check this list if you customized the action URL or email
+   templates.
+3. Optional: Authentication -> Templates - adjust the verification and password-reset email
+   texts (EN; Firebase localizes the handler page itself).
+4. Check:
+   - [ ] Landing -> "Continue with email" -> create an account -> the verification email
+         arrives; the app signs in and works.
+   - [ ] The AI assistant shows the "Verify your email" gate until the link is clicked and
+         "I verified" is pressed; afterwards the assistant answers.
+   - [ ] "Forgot your password?" sends the reset email and the new password signs in.
+   - [ ] A wrong password and an unknown email show the SAME generic message (no account
+         enumeration).

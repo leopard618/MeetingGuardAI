@@ -35,6 +35,7 @@ import {
   CreateMeetingScreen,
   DashboardScreen,
   EditMeetingScreen,
+  EmailAuthScreen,
   LandingScreen,
   MeetingDetailsScreen,
   NotesScreen,
@@ -105,6 +106,7 @@ export function RootNavigator(): ReactElement {
     return (
       <Stack.Navigator key="auth" initialRouteName="Landing" screenOptions={HEADERLESS_OPTIONS} screenLayout={renderScreenLayout}>
         <Stack.Screen name="Landing" component={LandingScreen} />
+        <Stack.Screen name="EmailAuth" component={EmailAuthScreen} />
         <Stack.Screen name="Privacy" component={StandalonePrivacyScreen} />
         <Stack.Screen name="Terms" component={StandaloneTermsScreen} />
       </Stack.Navigator>

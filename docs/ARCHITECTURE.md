@@ -46,6 +46,7 @@ These rules prevent import cycles:
 | alerts | `src/services/alerts` (`alertEngine`, `computeAlertPlan`, `usePendingAlerts`); `src/services/alerts/fsi.ts` (`fullScreenAlarm`, §18); `src/services/alerts/tasks.ts` (`registerBackgroundTasks`, `unregisterBackgroundTasks`, plus the module-scope task definitions); `src/components/alerts` (`AlertHost`) | alerts |
 | i18n + navigation | `src/i18n` (`i18n`, `initI18n`, `t`, `getLanguage`, `setLanguage`, `SUPPORTED_LANGUAGES`, `I18N_NAMESPACES`, `I18nProvider`, `useT`, `useLanguage`); `src/utils/format.ts`; `src/navigation` (`navigationRef`, `navigate`, `openDeepLink`, `isNavigationReady`, `linking`, `RootNavigator`, `ROUTES`); `src/screens/onboarding` | i18n-nav |
 | ai | `src/services/ai` (`assistantClient`, `actionExecutor`, `useAssistant`) | ai |
+| zoom | `src/services/zoom` (`zoomService`, `useZoomStatus`); `functions/src/zoom` (zoom* callables, §24) | zoom-app / zoom-server |
 | attachments | `src/services/attachments` (`attachmentService`, `useMeetingAttachments`); metadata in the data layer's `attachmentStore` | notes |
 | shell | `src/contexts/ThemeContext.tsx` (`ThemeProvider`, `useTheme`, `useAppThemes`), `src/components/{CustomHeader,MobileSidebar,ThemeToggle,ErrorBoundary,AppToast}.tsx`, `src/hooks/useResponsive.ts` | shell |
 | screens | `src/screens/<area>` (one folder per screen group, §13); `src/screens/shared` (`useFormatters`, `Section` / `ScreenBody`, `MeetingStatus`, `useLiveNow`, `useKeyboardAvoidance`, `useDiscardChangesGuard`, `text`) | screen groups |
@@ -79,7 +80,7 @@ These rules prevent import cycles:
 | `alertIntensity` | Override of the preference, or null. |
 | `notes` | |
 | `status` | `scheduled\|cancelled`. |
-| `external` | `{ googleEventId, googleCalendarId, googleEtag, googleUpdatedAt, deviceEventId, deviceCalendarId, outlookEventId, outlookCalendarId, outlookChangeKey, outlookUpdatedAt }` (the outlook keys are stored sparsely, §16/§17) |
+| `external` | `{ googleEventId, googleCalendarId, googleEtag, googleUpdatedAt, deviceEventId, deviceCalendarId, outlookEventId, outlookCalendarId, outlookChangeKey, outlookUpdatedAt, zoomMeetingId }` (the outlook and zoom keys are stored sparsely, §16/§17/§24) |
 | `recurrence`, `recurrenceOverrides`, `seriesId` | Recurring meetings (§16); null for one-offs and stored sparsely. |
 | `createdAt`, `updatedAt` | |
 | `deletedAt` | Tombstone for soft delete. A tombstone keeps only what sync needs (ids, source, status, time slot, external refs, timestamps): title becomes `TOMBSTONE_TITLE`, and description, notes, participants, conference, location, tips and alert settings are cleared (`tombstoneMeeting` / `scrubMeetingContent`). Tombstones older than `TOMBSTONE_RETENTION_DAYS` (60) are hard-deleted, and older content-carrying tombstones are scrubbed, once per session after the first server snapshot. The scheduled `dailyMaintenance` function also hard-deletes them on the server (users who never open the app again). |
@@ -402,7 +403,8 @@ Shared screen pieces (`src/screens/shared`):
 | `calendarSync/CalendarSyncScreen` | `CalendarSync` | `calendar` | Google connect / reconnect / stop (optionally revoke), phone calendars (permission, import switches, export target), "Sync now" with the real per-provider result. Title and back arrow come from the stack header. |
 | `settings/SettingsScreen` | `Settings`, `Profile` | `settings` | Account (in-app deletion with a fresh sign-in), alerts, theme, language, time format (automatic / 12 h / 24 h, `timeFormat.ts`, saved at once), calendars, legal, version and the running OTA update. |
 | `alerts/AlertSettingsScreen` | `AlertSettings` | `alerts`, `onboarding` | Every alert preference after onboarding (form shared with onboarding step 3); Save applies, Back with changes asks first. |
-| `auth/LandingScreen` | `Landing` | `landing` | Value props that match the app, the free quota from `PLAN_DAILY_AI_LIMITS`, Google sign-in (cancel is not an error), language switch, Terms / Privacy links. |
+| `auth/LandingScreen` | `Landing` | `landing` | Value props that match the app, the free quota from `PLAN_DAILY_AI_LIMITS`, Google sign-in (cancel is not an error), secondary "Continue with email" button (§25), language switch, Terms / Privacy links. |
+| `auth/EmailAuthScreen` | `EmailAuth` | `auth` | Email/password sign-in and account creation with inline password reset (§25); reached from Landing only. |
 | `legal` (`legalContent.ts`, `LegalDocumentScreen`) | `Privacy`, `Terms` (standalone variants outside Main) | `legal` | Complete EN / ES texts. `LEGAL_ENTITY` and `legal:jurisdiction` are marked placeholders to fill before release. |
 | `pricing/PricingScreen` (`pricingModel.ts`) | `Pricing` | `pricing` | Catalog from `src/services/billing.ts` ($7.99 / $14.99, 25% off yearly); current plan from the entitlement; "subscriptions coming soon", no purchase or external links. |
 | `onboarding/*` | `Onboarding*` | `onboarding` | Stage 2 (§5). |
@@ -727,7 +729,10 @@ set) without a url never gets one.
 | provider | calendar state | mode / autoState | form hint (below the chips) | details card (no url) |
 |---|---|---|---|---|
 | none | - | `none` | - | section hidden (unless a pasted `location.virtualUrl` exists) |
-| zoom, other | - | `paste` | `meetings:form.pasteLinkHint` | `meetings:details.noLink` |
+| other | - | `paste` | `meetings:form.pasteLinkHint` | `meetings:details.noLink` |
+| zoom | status unknown (`calendar.zoom` absent: zoomStatus not answered this session) | `paste` | `meetings:form.pasteLinkHint` | `meetings:details.noLink` |
+| zoom | server configured (§24) | `auto_zoom` / `ready` | `meetings:form.zoomWillBeCreated` | `meetings:details.zoomPending`; swaps to `meetings:details.zoomCreateFailed` + Retry when `zoomService.linkFailure(id)` reports one |
+| zoom | server said not configured | `auto_zoom` / `not_configured` | `meetings:form.pasteLinkHint` + muted `meetings:form.zoomNotConfigured` note (`conferenceFormNote`) | `meetings:details.noLink` |
 | google_meet | google connected | `auto_google` / `ready` | `meetings:form.meetWillBeCreated` | `meetings:details.meetPending` ("waiting for sync") |
 | google_meet | not connected | `auto_google` / `needs_connection` | `meetings:form.meetNeedsCalendar` | `meetings:details.meetNeedsCalendar` + "Connect Google Calendar" CTA |
 | teams | outlook hidden/unconfigured | `paste` | `meetings:form.pasteLinkHint` | `meetings:details.noLink` |
@@ -779,3 +784,97 @@ set) without a url never gets one.
   (the `days.updatedAt` collection-group index ONLY), docs/ADMIN.md.
 - **shared**: `src/i18n/resources.ts` and navigation registrations - own lines only. Version
   bump, CHANGELOG, HANDOFF/TESTING updates: integrator.
+
+## 24. Zoom auto links (server-created)
+
+Contract: zoom* schemas + `CALLABLES.zoom*` + `ZOOM_ERROR_CODES` in `src/core/aiContract.ts`
+(mirrored verbatim in `functions/src/shared/aiContract.ts`); app service contract `ZoomService` /
+`UseZoomStatusResult` in `src/core/contracts.ts` (stubs in `src/services/zoom/`); capability mode
+`auto_zoom` in `src/core/conference.ts` (IMPLEMENTED); callables in `functions/src/zoom/`
+(zoomStatus IMPLEMENTED, write callables stubbed). Owner setup + deploy order: docs/SETUP.md §12.
+
+The server owns ONE Zoom Server-to-Server OAuth app (host account `me`); users never connect
+their own Zoom accounts and the app never sees Zoom credentials.
+
+- **Callables** (names in `CALLABLES`, zod request/response schemas in aiContract.ts; every
+  error is an `HttpsError` with `details.reason` from `ZOOM_ERROR_CODES`, mapped per
+  `ZOOM_ERROR_HTTPS_CODES`):
+  - `zoomStatus {} -> { configured }`: auth required (not verified). Answers from the NON-SECRET
+    `ZOOM_ENABLED` param only, so it always deploys and never touches the secrets. The app asks
+    once per session (`zoomService.isAvailable()`, cache cleared on `session:ended`).
+  - `zoomCreateMeeting { meetingId } -> { url, password, zoomMeetingId }`: verified account
+    required (same rule as the assistant: `email_verified` or provider google.com). Loads
+    `users/{uid}/meetings/{meetingId}` (ownership is the path), validates provider `zoom`, no
+    pasted url and no existing `external.zoomMeetingId` (idempotent: an existing id returns the
+    stored values), creates a scheduled Zoom meeting (type 2) from title/startAt/
+    durationMinutes/timezone, then transactionally writes `conference.url`,
+    `conference.password` and `external.zoomMeetingId` via the Admin SDK and returns them (the
+    app's snapshot listener delivers the link; the return value is a fast path).
+  - `zoomSyncMeeting { meetingId } -> { updated }`: patches topic/start/duration/timezone of the
+    existing Zoom meeting after a local edit (join url never changes).
+  - `zoomDeleteMeeting { meetingId | zoomMeetingId } -> { deleted }`: deletes the Zoom meeting
+    on meeting deletion; the bare `zoomMeetingId` form covers already-tombstoned docs but must
+    match one of the CALLER's meetings. A Zoom 404 resolves `deleted: true`.
+- **Quota**: `zoomCreateMeeting` bumps `usage/{uid}/days/{UTC day}.zoomCreates` transactionally,
+  capped by the param `ZOOM_USER_DAILY_LIMIT` (default 30); sync/delete share `zoomOps` capped
+  at 10x. Over cap => reason `quota_exceeded`.
+- **Secrets/params** (`functions/src/config.ts`): secrets `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`,
+  `ZOOM_CLIENT_SECRET` are bound ONLY on the three write callables, which are EXPORTED only
+  while `ZOOM_ENABLED` is true at deploy time - the default deploy never references the secrets
+  and cannot fail on them. S2S token: POST zoom.us/oauth/token
+  `grant_type=account_credentials&account_id=...` with Basic base64(clientId:clientSecret);
+  cached in instance memory until shortly before expiry; then api.zoom.us/v2 with Bearer.
+- **Rules**: `external.zoomMeetingId` is allowed client-side exactly like the outlook refs
+  (string <= 64): the callable writes it first via the Admin SDK, but every later client edit
+  rewrites the whole document, external refs included, so the key must stay client-writable.
+  Stored sparsely (`SPARSE_EXTERNAL_KEYS`), so docs written by this app version keep passing the
+  PREVIOUS deployed rules; the owner deploys the updated rules with the functions.
+- **App flow** (`ZoomService` in contracts.ts; wiring owner zoom-app): the form passes
+  `calendar.zoom = { configured }` (from `useZoomStatus()`; absent while unknown) into
+  `conferenceCapability`; §22's table has the exact copy states. After Save (create or edit)
+  with provider zoom, no url and status ready -> fire-and-forget `ensureLink(meetingId)`
+  (flushes the outbox first; the details card shows `zoomPending`, or `zoomCreateFailed` +
+  Retry via `linkFailure(id)`). Edits that touch title/startAt/duration/timezone ->
+  `syncIfNeeded(meeting, patch)`. Deletions (list actions, details, AI executor) ->
+  `onMeetingDeleted(meeting)`. The AI executor treats provider-zoom create/update the same way
+  after executing the confirmed action. A pasted link always wins; `ensureLink` is never called
+  when a url exists.
+- **Logging**: uid, meeting doc id, Zoom numeric id, error codes. Never topics or links.
+
+## 25. Email sign-in and the verification gate
+
+Contract: `AuthService.signInWithEmail / signUpWithEmail / sendPasswordReset /
+resendVerification / reloadUser` in `src/core/contracts.ts` (authService IMPLEMENTED);
+`AuthContextValueImpl` adds `resendVerification()` and `refreshUser()` (IMPLEMENTED); error
+mapping in `src/services/auth/authErrors.ts` (IMPLEMENTED); screen stub
+`src/screens/auth/EmailAuthScreen.tsx` (route `EmailAuth` in the Auth stack); banner stub
+`src/screens/shared/VerifyEmailBanner.tsx`. Owner console steps: docs/SETUP.md §13.
+
+- **Provider**: Firebase Email/Password. The server may not have it enabled:
+  `auth/operation-not-allowed` maps to `not_configured` / reason `provider_disabled`
+  (`auth:errors.providerDisabled`), so the UI degrades to a clear message instead of crashing.
+- **Flows**: Landing gains a secondary `landing:signIn.email` button -> `EmailAuth`. The screen
+  toggles sign-in / create-account (email + password with show/hide and autofill hints,
+  optional name on create, keyboard-safe via `ScreenBody`), has an INLINE forgot-password flow
+  (`sendPasswordReset`; always the neutral `auth:emailAuth.resetSent` - no account
+  enumeration), and after create shows `auth:emailAuth.verificationSent`. `signUpWithEmail`
+  sends the verification email NON-BLOCKING: the user is signed in even when sending failed
+  (resend exists). Sessions started by email behave exactly like Google ones (profile ensure,
+  migration, cleanup - the session manager keys on the Firebase user only).
+- **Error mapping** (authErrors.ts): `invalid-credential` / `invalid-login-credentials` /
+  `wrong-password` / `user-not-found` all collapse to reason `invalid_credentials`
+  (`auth:errors.invalidCredentials`, one generic message - no account enumeration); also
+  `email_in_use`, `weak_password`, `too_many_requests`, `provider_disabled`.
+- **Verification gate**: the assistant callable already rejects callers without
+  `email_verified` unless the provider is google.com. Client mirror:
+  `needsEmailVerification(authUser)` (VerifyEmailBanner.tsx). The banner mounts on the
+  assistant screen (and the entries into it): `auth:verify.assistantBody` with
+  `auth:verify.resend` (-> `resendVerification()`) and `auth:verify.check` ("I verified" ->
+  `refreshUser()`, which reloads the Firebase user and refreshes `authUser.emailVerified`).
+  The assistant's server rejection for an unverified caller shows the SAME message. Settings'
+  account section shows `auth:verify.verified` / `auth:verify.notVerified`. Everything else in
+  the app works unverified (the gate is AI-only); navigation is unchanged (user exists =>
+  normal session).
+- **Tests required**: authService email methods (mocked firebase/auth - exist), authErrors
+  mapping rows, EmailAuthScreen render + interaction (mode toggle, submit, reset), banner
+  render + `needsEmailVerification`, i18n parity (auth.json keys exist in EN+ES).

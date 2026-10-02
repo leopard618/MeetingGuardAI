@@ -500,7 +500,8 @@ export type ConferenceFormHintKey =
   | 'meetWillBeCreated'
   | 'meetNeedsCalendar'
   | 'teamsWillBeCreated'
-  | 'teamsNeedsOutlook';
+  | 'teamsNeedsOutlook'
+  | 'zoomWillBeCreated';
 
 /** The §22 push target of the meeting being edited (a new meeting is a one-off 'manual' one). */
 function draftPushTarget(draft: Pick<MeetingFormDraft, 'repeat'>, source: MeetingSource): ConferencePushTarget {
@@ -537,7 +538,26 @@ export function conferenceFormHint(
     case 'auto_outlook':
       if (external != null && teamsLinkOnCreateOnly(external)) return 'pasteLinkHint';
       return autoState === 'ready' ? 'teamsWillBeCreated' : 'teamsNeedsOutlook';
+    case 'auto_zoom':
+      // not_configured: paste is the real behavior; conferenceFormNote adds the muted "why".
+      return autoState === 'ready' ? 'zoomWillBeCreated' : 'pasteLinkHint';
   }
+}
+
+/** "meetings:form.*" leaf of the muted secondary note under the hint (§24). */
+export type ConferenceFormNoteKey = 'zoomNotConfigured';
+
+/**
+ * Muted secondary line under the form hint: shown when Zoom is selected with an empty link and
+ * the SERVER SAID the integration is not set up (calendar.zoom = { configured: false }). While
+ * the status is unknown (calendar.zoom absent) nothing extra is shown. A pasted link wins.
+ */
+export function conferenceFormNote(
+  draft: Pick<MeetingFormDraft, 'conferenceProvider' | 'conferenceUrl'>,
+  calendar: ConferenceCalendarState,
+): ConferenceFormNoteKey | null {
+  if (draft.conferenceProvider !== 'zoom' || draft.conferenceUrl.trim() !== '') return null;
+  return calendar.zoom?.configured === false ? 'zoomNotConfigured' : null;
 }
 
 /** Which calendar a "connect" CTA under the hint should open (null = no CTA). */
@@ -559,8 +579,10 @@ export function conferenceLinkLabel(
   source: MeetingSource = 'manual',
   external?: ConferenceExternalRefs | null,
 ): 'link' | 'linkOptional' {
-  const { mode } = conferenceCapability(draft.conferenceProvider, calendar, draftPushTarget(draft, source));
+  const { mode, autoState } = conferenceCapability(draft.conferenceProvider, calendar, draftPushTarget(draft, source));
   if (mode === 'auto_outlook' && external != null && teamsLinkOnCreateOnly(external)) return 'link';
+  // auto_zoom is only "optional" while the server will really create the link (§24).
+  if (mode === 'auto_zoom') return autoState === 'ready' ? 'linkOptional' : 'link';
   return mode === 'auto_google' || mode === 'auto_outlook' ? 'linkOptional' : 'link';
 }
 
@@ -582,6 +604,7 @@ export type ConferenceCardInfoKey =
   | 'teamsPending'
   | 'teamsNeedsOutlook'
   | 'teamsLinkTooLate'
+  | 'zoomPending'
   | 'noLink';
 
 export type ConferenceCardState =
@@ -627,6 +650,13 @@ export function conferenceCardState(
       if (teamsLinkOnCreateOnly(meeting.external)) return { kind: 'info', key: 'teamsLinkTooLate', connect: null };
       if (autoState !== 'ready') return { kind: 'info', key: 'teamsNeedsOutlook', connect: 'outlook' };
       return { kind: 'info', key: 'teamsPending', connect: null };
+    case 'auto_zoom':
+      // ready: the link is coming (the screen swaps to details.zoomCreateFailed + Retry when
+      // zoomService.linkFailure(meeting.id) reports a failure this session, §24).
+      // not_configured: paste is the only way, same copy as every other paste provider.
+      return autoState === 'ready'
+        ? { kind: 'info', key: 'zoomPending', connect: null }
+        : { kind: 'info', key: 'noLink', connect: null };
     default:
       return { kind: 'info', key: 'noLink', connect: null };
   }

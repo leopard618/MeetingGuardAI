@@ -1,6 +1,7 @@
 {
   "screens": {
     "Landing": "Bienvenida",
+    "EmailAuth": "Acceso con correo",
     "Privacy": "Política de privacidad",
     "Terms": "Términos del servicio",
     "OnboardingLanguage": "Idioma",

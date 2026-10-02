@@ -26,6 +26,7 @@ import {
   createUserWithEmailAndPassword,
   onAuthStateChanged as onFirebaseAuthStateChanged,
   reauthenticateWithCredential,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
@@ -387,6 +388,15 @@ export const authService: AuthServiceImpl = {
     } catch (error) {
       throw mapFirebaseAuthError(error);
     }
+    // Verification email, NON-BLOCKING (§25): the account exists and is signed in either way;
+    // the assistant stays gated until verified and EmailAuthScreen offers a resend.
+    try {
+      void sendEmailVerification(user).catch((error: unknown) => {
+        log.warn('Verification email could not be sent', mapFirebaseAuthError(error).code);
+      });
+    } catch (error) {
+      log.warn('Verification email could not be sent', mapFirebaseAuthError(error).code);
+    }
     const name = typeof displayName === 'string' ? displayName.trim() : '';
     if (name) {
       try {
@@ -410,6 +420,31 @@ export const authService: AuthServiceImpl = {
     } catch (error) {
       throw mapFirebaseAuthError(error);
     }
+  },
+
+  async resendVerification(): Promise<void> {
+    const authInstance = requireAuth();
+    const user = authInstance.currentUser;
+    if (!user) throw new AppError('unauthenticated', 'Nobody is signed in');
+    try {
+      await sendEmailVerification(user);
+    } catch (error) {
+      throw mapFirebaseAuthError(error);
+    }
+  },
+
+  async reloadUser(): Promise<AuthUser> {
+    const authInstance = requireAuth();
+    const user = authInstance.currentUser;
+    if (!user) throw new AppError('unauthenticated', 'Nobody is signed in');
+    try {
+      await user.reload();
+    } catch (error) {
+      throw mapFirebaseAuthError(error);
+    }
+    // onAuthStateChanged does not fire for reload(): tell listeners (session state included).
+    notifyProfileChanged();
+    return toAuthUser(user);
   },
 
   async signOutProviders(): Promise<void> {

@@ -20,6 +20,7 @@ import type * as I18nModule from '../i18n';
 import type * as NavigationModule from '../navigation';
 import type * as OnboardingModule from '../screens/onboarding';
 import type * as FormatModule from '../utils/format';
+import type * as ZoomModule from '../services/zoom';
 import type {
   ActionExecutor,
   AlertEngine,
@@ -57,6 +58,8 @@ import type {
   UsePendingAlertsResult,
   UsePreferencesResult,
   UserRepository,
+  UseZoomStatusResult,
+  ZoomService,
 } from './contracts';
 import type {
   Entitlement,
@@ -164,4 +167,10 @@ export type AiConformance = [
   Assert<Extends<typeof AiModule.assistantClient, AssistantClient>>,
   Assert<Extends<typeof AiModule.actionExecutor, ActionExecutor>>,
   Assert<Extends<typeof AiModule.useAssistant, (options?: UseAssistantOptions) => UseAssistantResult>>,
+];
+
+// ---- zoom --------------------------------------------------------------------------------------
+export type ZoomConformance = [
+  Assert<Extends<typeof ZoomModule.zoomService, ZoomService>>,
+  Assert<Extends<typeof ZoomModule.useZoomStatus, () => UseZoomStatusResult>>,
 ];

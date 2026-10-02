@@ -17,7 +17,13 @@
  *   Graph cannot reliably upgrade an existing event, §17). A meeting that ALREADY has an
  *   `external.outlookEventId` and no url will NOT get one - the UI must fall back to the
  *   paste hint for that combination (`teamsLinkOnCreateOnly`).
- * - zoom / other            => links are only ever pasted by the user.
+ * - zoom + url null         => the zoomCreateMeeting callable creates a real Zoom meeting under
+ *   the project's Server-to-Server OAuth app and writes the link back server-side (§24), but
+ *   ONLY when the owner configured the integration. The app learns configured-ness from the
+ *   zoomStatus callable (cached per session, src/services/zoom) and passes it in as
+ *   `calendar.zoom`; while unknown (absent), zoom behaves as plain paste so the UI never
+ *   promises a link the server might not create.
+ * - other                   => links are only ever pasted by the user.
  */
 import type { ConferenceProvider } from './aiContract';
 import type { MeetingSource } from './types';
@@ -30,24 +36,34 @@ export interface ConferenceCalendarState {
   google: { connected: boolean };
   /** Absent when EXPO_PUBLIC_MSAL_CLIENT_ID is not set (the whole Outlook feature is hidden). */
   outlook?: { configured: boolean; connected: boolean };
+  /**
+   * What the app knows about the server-side Zoom integration (zoomStatus callable, cached per
+   * session; src/services/zoom). Absent = not asked yet / answer unknown: zoom then behaves as
+   * plain paste. `configured: false` = the server SAID it is not set up (the form may add the
+   * muted "not set up yet" note, §24).
+   */
+  zoom?: { configured: boolean };
 }
 
 /**
  * How an EMPTY conference url behaves for the chosen provider:
  * - 'none':          no video call section content (provider 'none' in the form).
- * - 'paste':         only a pasted link ever fills the url (zoom, other; teams while Outlook is
- *                    unconfigured/hidden).
+ * - 'paste':         only a pasted link ever fills the url (other; zoom while the server status
+ *                    is unknown; teams while Outlook is unconfigured/hidden).
  * - 'auto_google':   Google Calendar creates a real Meet link on the next push.
  * - 'auto_outlook':  Outlook creates a real Teams link when the event is first pushed.
+ * - 'auto_zoom':     the zoomCreateMeeting callable creates a real Zoom link after Save (§24).
  */
-export type ConferenceMode = 'none' | 'paste' | 'auto_google' | 'auto_outlook';
+export type ConferenceMode = 'none' | 'paste' | 'auto_google' | 'auto_outlook' | 'auto_zoom';
 
 /**
- * For the auto modes: 'ready' = the calendar is connected, saving with an empty link produces a
- * real one; 'needs_connection' = the provider could create the link, but the calendar is not
- * connected yet (show the connect CTA; pasting still works). null for 'none' / 'paste'.
+ * For the auto modes: 'ready' = saving with an empty link produces a real one;
+ * 'needs_connection' = the provider could create the link, but the calendar is not connected yet
+ * (show the connect CTA; pasting still works); 'not_configured' (auto_zoom only) = the server
+ * said the Zoom integration is not set up - paste-only in practice, but the UI may say WHY
+ * (there is no CTA: only the project owner can configure it). null for 'none' / 'paste'.
  */
-export type ConferenceAutoState = 'ready' | 'needs_connection' | null;
+export type ConferenceAutoState = 'ready' | 'needs_connection' | 'not_configured' | null;
 
 export interface ConferenceCapability {
   mode: ConferenceMode;
@@ -74,6 +90,8 @@ export interface ConferencePushTarget {
 function autoUnreachable(mode: ConferenceMode, target: ConferencePushTarget): boolean {
   if (mode === 'auto_google') return target.source === 'device' || target.source === 'outlook';
   if (mode === 'auto_outlook') return target.source === 'google' || target.source === 'device' || target.recurring;
+  // auto_zoom never degrades: the link comes from our own callable (not a push filter), which
+  // works for every source, and a Zoom join url is reusable so recurring meetings keep it too.
   return false;
 }
 
@@ -81,7 +99,10 @@ function autoUnreachable(mode: ConferenceMode, target: ConferencePushTarget): bo
  * Pure derivation of the empty-url behavior from the chosen provider and the live calendar
  * status. `provider` is the form's choice ('none' = no video call). Rules:
  * - none                => { none, null }
- * - zoom | other        => { paste, null }
+ * - other               => { paste, null }
+ * - zoom, status unknown (calendar.zoom absent) => { paste, null } (never advertise a feature
+ *                          the server might not offer)
+ * - zoom, status known  => { auto_zoom, configured ? ready : not_configured }
  * - google_meet         => { auto_google, connected ? ready : needs_connection } (auto-create is
  *                          always one connection away; it is never plain paste-only)
  * - teams, Outlook hidden or unconfigured => { paste, null } (never advertise a feature the
@@ -106,9 +127,13 @@ function providerCapability(provider: ConferenceProvider | 'none', calendar: Con
   switch (provider) {
     case 'none':
       return { mode: 'none', autoState: null };
-    case 'zoom':
     case 'other':
       return { mode: 'paste', autoState: null };
+    case 'zoom': {
+      const zoom = calendar.zoom;
+      if (zoom === undefined) return { mode: 'paste', autoState: null };
+      return { mode: 'auto_zoom', autoState: zoom.configured ? 'ready' : 'not_configured' };
+    }
     case 'google_meet':
       return { mode: 'auto_google', autoState: calendar.google.connected ? 'ready' : 'needs_connection' };
     case 'teams': {

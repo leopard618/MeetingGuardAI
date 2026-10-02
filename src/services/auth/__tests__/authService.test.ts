@@ -38,6 +38,7 @@ jest.mock('firebase/auth', () => ({
   createUserWithEmailAndPassword: jest.fn(),
   updateProfile: jest.fn(),
   sendPasswordResetEmail: jest.fn(),
+  sendEmailVerification: jest.fn(async () => undefined),
   signOut: jest.fn(),
   onAuthStateChanged: jest.fn(),
 }));
@@ -70,6 +71,7 @@ interface FirebaseAuthMock {
   signInWithEmailAndPassword: MockFn;
   createUserWithEmailAndPassword: MockFn;
   updateProfile: MockFn;
+  sendEmailVerification: MockFn;
   signOut: MockFn;
   onAuthStateChanged: MockFn;
 }
@@ -276,6 +278,58 @@ describe('email auth', () => {
     expect(fb.createUserWithEmailAndPassword).toHaveBeenCalledWith(firebaseConfig.auth, 'ana@example.com', 'secret1');
     expect(user.displayName).toBe('Ana');
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({ uid: 'uid-2', displayName: 'Ana' }));
+    firebaseConfig.auth.currentUser = null;
+  });
+
+  it('sends the verification email after sign-up without blocking on it', async () => {
+    const { authService, fb } = load();
+    const created = firebaseUser('uid-3', null);
+    fb.createUserWithEmailAndPassword.mockResolvedValue({ user: created });
+    // A failing verification send never fails the sign-up (§25: the account exists either way).
+    fb.sendEmailVerification.mockRejectedValue(nativeError('auth/too-many-requests'));
+
+    const user = await authService.signUpWithEmail('ana@example.com', 'secret1', '');
+
+    expect(user.uid).toBe('uid-3');
+    expect(fb.sendEmailVerification).toHaveBeenCalledWith(created);
+  });
+});
+
+describe('email verification', () => {
+  it('resendVerification sends to the signed-in user and maps provider errors', async () => {
+    const { authService, fb, firebaseConfig } = load();
+    await expect(authService.resendVerification()).rejects.toMatchObject({ code: 'unauthenticated' });
+
+    const current = firebaseUser('uid-1');
+    firebaseConfig.auth.currentUser = current;
+    fb.sendEmailVerification.mockResolvedValue(undefined);
+    await authService.resendVerification();
+    expect(fb.sendEmailVerification).toHaveBeenCalledWith(current);
+
+    fb.sendEmailVerification.mockRejectedValue(nativeError('auth/too-many-requests'));
+    await expect(authService.resendVerification()).rejects.toMatchObject({
+      code: 'quota_exceeded',
+      details: { reason: 'too_many_requests' },
+    });
+    firebaseConfig.auth.currentUser = null;
+  });
+
+  it('reloadUser refreshes emailVerified and tells auth listeners', async () => {
+    const { authService, fb, firebaseConfig } = load();
+    const current = { ...firebaseUser('uid-1'), emailVerified: false, reload: jest.fn() };
+    current.reload.mockImplementation(async () => {
+      current.emailVerified = true;
+    });
+    firebaseConfig.auth.currentUser = current;
+    fb.onAuthStateChanged.mockReturnValue(() => undefined);
+    const listener = jest.fn();
+    authService.onAuthStateChanged(listener);
+
+    const user = await authService.reloadUser();
+
+    expect(current.reload).toHaveBeenCalled();
+    expect(user.emailVerified).toBe(true);
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ uid: 'uid-1', emailVerified: true }));
     firebaseConfig.auth.currentUser = null;
   });
 });

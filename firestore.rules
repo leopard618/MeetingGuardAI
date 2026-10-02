@@ -148,7 +148,8 @@ service cloud.firestore {
       return v is map
         && v.keys().hasOnly(['googleEventId', 'googleCalendarId', 'googleEtag', 'googleUpdatedAt',
                              'deviceEventId', 'deviceCalendarId',
-                             'outlookEventId', 'outlookCalendarId', 'outlookChangeKey', 'outlookUpdatedAt'])
+                             'outlookEventId', 'outlookCalendarId', 'outlookChangeKey', 'outlookUpdatedAt',
+                             'zoomMeetingId'])
         && isNullableStringMax(v.get('googleEventId', null), 1024)
         && isNullableStringMax(v.get('googleCalendarId', null), 1024)
         && isNullableStringMax(v.get('googleEtag', null), 256)
@@ -159,7 +160,12 @@ service cloud.firestore {
         && isNullableStringMax(v.get('outlookEventId', null), 512)
         && isNullableStringMax(v.get('outlookCalendarId', null), 512)
         && isNullableStringMax(v.get('outlookChangeKey', null), 256)
-        && isNullableUtcIso(v.get('outlookUpdatedAt', null));
+        && isNullableUtcIso(v.get('outlookUpdatedAt', null))
+        // Zoom meeting id (docs/ARCHITECTURE.md §24); sparse like the outlook refs. First
+        // written by the zoomCreateMeeting callable (Admin SDK), but client-writable exactly
+        // like the outlook keys: every later client edit rewrites the whole document, external
+        // refs included, so blocking the key here would reject ordinary meeting updates.
+        && isNullableStringMax(v.get('zoomMeetingId', null), 64);
     }
 
     // Recurrence rule (docs/ARCHITECTURE.md §16; recurrenceRuleSchema in src/core/aiContract.ts).

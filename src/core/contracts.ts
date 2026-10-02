@@ -120,6 +120,10 @@ export const MODULES = {
     // assistantClient, actionExecutor, useAssistant
     index: 'src/services/ai/index.ts',
   },
+  zoom: {
+    // zoomService, useZoomStatus (server-created Zoom links via the zoom* callables, §24)
+    index: 'src/services/zoom/index.ts',
+  },
   attachments: {
     // attachmentService, useMeetingAttachments (device-local files; metadata in the data layer)
     index: 'src/services/attachments/index.ts',
@@ -147,6 +151,7 @@ export const MODULES = {
     contractCopy: 'functions/src/shared/aiContract.ts', // VERBATIM copy of src/core/aiContract.ts
     revenuecat: 'functions/src/revenuecat/index.ts', // RevenueCat webhook (entitlements writer, §20)
     admin: 'functions/src/admin/index.ts', // admin callables (custom claim "admin", §21)
+    zoom: 'functions/src/zoom/index.ts', // zoomStatus + zoomCreateMeeting/zoomSyncMeeting/zoomDeleteMeeting (§24)
   },
 } as const;
 
@@ -443,10 +448,22 @@ export interface AuthService {
   onAuthStateChanged(listener: (user: AuthUser | null) => void): Unsubscribe;
   /** Native Google sign-in -> GoogleAuthProvider.credential(idToken) -> signInWithCredential. Throws AppError (not on cancel). */
   signInWithGoogle(): Promise<SignInResult>;
-  /** Email/password (review/demo accounts). */
+  /** Email/password sign-in (EmailAuthScreen, §25). Errors map via authErrors.ts. */
   signInWithEmail(email: string, password: string): Promise<AuthUser>;
+  /**
+   * Creates the account, saves the display name (best effort) and sends the verification email
+   * NON-BLOCKING (the assistant requires a verified account; the app offers a resend). The user
+   * is signed in afterwards even if name/verification sending failed.
+   */
   signUpWithEmail(email: string, password: string, displayName: string): Promise<AuthUser>;
   sendPasswordReset(email: string): Promise<void>;
+  /** Re-sends the verification email to the signed-in user. Throws AppError('unauthenticated') when nobody is signed in. */
+  resendVerification(): Promise<void>;
+  /**
+   * Reloads the Firebase user (refreshes emailVerified after the user clicked the link), notifies
+   * auth listeners (session state follows) and returns the fresh AuthUser.
+   */
+  reloadUser(): Promise<AuthUser>;
   /** LOW-LEVEL: GoogleSignin.signOut() + Firebase signOut(). Use sessionManager.signOut() from UI. */
   signOutProviders(): Promise<void>;
   /**
@@ -1155,6 +1172,8 @@ export interface FormatApi {
 /** Route names and params (single root stack; groups switch on session/onboarding state). */
 export type AuthStackParamList = {
   Landing: undefined;
+  /** Email/password sign-in and account creation (§25); reached from Landing only. */
+  EmailAuth: undefined;
   Privacy: undefined;
   Terms: undefined;
 };
@@ -1317,6 +1336,72 @@ export interface UseAssistantResult {
 }
 
 // =============================================================================================
+// ZOOM  (src/services/zoom; server-created Zoom links, §24)
+// =============================================================================================
+
+/** What zoomCreateMeeting returned (the server already wrote the same values to the doc). */
+export interface ZoomLinkResult {
+  url: string;
+  password: string | null;
+  /** Zoom's numeric meeting id as a string (= external.zoomMeetingId). */
+  zoomMeetingId: string;
+}
+
+/**
+ * Server-created Zoom links through the zoom* callables (CALLABLES.zoom*, aiContract.ts; design
+ * in docs/ARCHITECTURE.md §24). The service is stateful per SESSION: the zoomStatus answer and
+ * per-meeting failures are cached in memory and cleared on `session:ended` (never persisted).
+ * All methods are safe while Firebase is unconfigured (isAvailable resolves false).
+ */
+export interface ZoomService {
+  /**
+   * Whether the server-side Zoom integration is configured (zoomStatus callable). The first call
+   * per session hits the server; later calls return the cached answer. Never throws: a failed
+   * status call resolves false and stays un-cached, so a later call retries.
+   */
+  isAvailable(): Promise<boolean>;
+  /**
+   * The cached zoomStatus answer, synchronously for render (conferenceCapability's
+   * `calendar.zoom`): true/false once known this session, null before the first answer.
+   */
+  getKnownAvailability(): boolean | null;
+  /**
+   * Creates the Zoom meeting for a SAVED meeting (provider 'zoom', url null) via
+   * zoomCreateMeeting; the server writes conference.url/password + external.zoomMeetingId to the
+   * document (Admin SDK) and the snapshot listener brings them to the app. Idempotent: a meeting
+   * that already has a zoomMeetingId resolves with the stored link. Pending local writes are
+   * flushed first (the server loads the doc from Firestore). Throws AppError not_configured |
+   * not_found | quota_exceeded | upstream_error | offline; failures are remembered for
+   * linkFailure() until a later success.
+   */
+  ensureLink(meetingId: string): Promise<ZoomLinkResult>;
+  /**
+   * After an edit: when `patch` touched title/startAt/durationMinutes/timezone and the meeting
+   * has an external.zoomMeetingId, patches the Zoom meeting via zoomSyncMeeting. Never throws
+   * (best effort; logged - the join url itself never changes on a Zoom update).
+   */
+  syncIfNeeded(meeting: Meeting, patch: MeetingPatch): Promise<void>;
+  /**
+   * After a deletion (tombstone): deletes the Zoom meeting via zoomDeleteMeeting when the
+   * meeting carries an external.zoomMeetingId. Never throws (best effort; logged).
+   */
+  onMeetingDeleted(meeting: Pick<Meeting, 'id' | 'external'>): Promise<void>;
+  /**
+   * Last ensureLink failure for this meeting THIS SESSION (the details card swaps
+   * "waiting" for "could not be created" + Retry); null after a success or for unknown ids.
+   */
+  linkFailure(meetingId: string): AppErrorCode | null;
+}
+
+/** useZoomStatus() - live view of ZoomService availability for screens. */
+export interface UseZoomStatusResult {
+  /** null while unknown (first ask in flight or failed); the hook asks once on mount. */
+  configured: boolean | null;
+  /** Forces a re-ask of zoomStatus (rarely needed; the cache lives for the session). */
+  refresh(): Promise<void>;
+}
+
+// =============================================================================================
 // BILLING  (src/services/billing.ts catalog + src/services/purchases; §20)
 // =============================================================================================
 
@@ -1406,6 +1491,10 @@ export interface PurchasesService {
 export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string; response: string }>> = {
   assistant: { request: 'assistantRequestSchema', response: 'assistantResponseSchema' },
   deleteAccount: { request: 'deleteAccountRequestSchema', response: 'deleteAccountResponseSchema' },
+  zoomStatus: { request: 'zoomStatusRequestSchema', response: 'zoomStatusResponseSchema' },
+  zoomCreateMeeting: { request: 'zoomCreateMeetingRequestSchema', response: 'zoomCreateMeetingResponseSchema' },
+  zoomSyncMeeting: { request: 'zoomSyncMeetingRequestSchema', response: 'zoomSyncMeetingResponseSchema' },
+  zoomDeleteMeeting: { request: 'zoomDeleteMeetingRequestSchema', response: 'zoomDeleteMeetingResponseSchema' },
 };
 
 // =============================================================================================

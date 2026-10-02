@@ -16,6 +16,7 @@ import { ChooseCreationMethodScreen as ChooseCreationMethod } from '../screens/c
 import { DashboardScreen as Dashboard } from '../screens/home/DashboardScreen';
 import { MeetingsListScreen as MeetingsList } from '../screens/meetings/list/MeetingsListScreen';
 import { AlertSettingsScreen as AlertSettings } from '../screens/alerts/AlertSettingsScreen';
+import { EmailAuthScreen as EmailAuth } from '../screens/auth/EmailAuthScreen';
 import { LandingScreen as Landing } from '../screens/auth/LandingScreen';
 import {
   PrivacyScreen as Privacy,
@@ -56,6 +57,7 @@ export const EditMeetingScreen = MeetingFormScreen;
 // ---- Auth group -----------------------------------------------------------------------------
 
 export const LandingScreen = Landing;
+export const EmailAuthScreen = EmailAuth;
 
 /** Privacy / Terms in the Auth and Onboarding groups (no Main header above them). */
 export const StandalonePrivacyScreen = StandalonePrivacy;

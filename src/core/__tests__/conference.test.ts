@@ -45,6 +45,31 @@ describe('conferenceCapability', () => {
     });
   });
 
+  it('zoom follows the server-side status: paste while unknown, auto_zoom once known (§24)', () => {
+    // calendar.zoom absent = zoomStatus not answered this session: never advertise the feature.
+    expect(conferenceCapability('zoom', calendar())).toEqual({ mode: 'paste', autoState: null });
+    expect(conferenceCapability('zoom', calendar({ zoom: { configured: true } }))).toEqual({
+      mode: 'auto_zoom',
+      autoState: 'ready',
+    });
+    expect(conferenceCapability('zoom', calendar({ zoom: { configured: false } }))).toEqual({
+      mode: 'auto_zoom',
+      autoState: 'not_configured',
+    });
+  });
+
+  it('auto_zoom never degrades for any push target (the link comes from our own callable)', () => {
+    const zoomReady = calendar({ zoom: { configured: true } });
+    for (const source of ['manual', 'google', 'device', 'outlook'] as const) {
+      for (const recurring of [false, true]) {
+        expect(conferenceCapability('zoom', zoomReady, { source, recurring })).toEqual({
+          mode: 'auto_zoom',
+          autoState: 'ready',
+        });
+      }
+    }
+  });
+
   it('an auto mode the push engines cannot reach for the target meeting degrades to paste', () => {
     const both = calendar({ google: { connected: true }, outlook: { configured: true, connected: true } });
     const paste = { mode: 'paste', autoState: null };

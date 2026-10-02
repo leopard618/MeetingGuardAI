@@ -6,6 +6,7 @@ import {
   conferenceCardState,
   conferenceConnectTarget,
   conferenceFormHint,
+  conferenceFormNote,
   conferenceLinkLabel,
   conferenceOf,
   dateFromPicker,
@@ -344,6 +345,36 @@ describe('video call (§22)', () => {
     expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_OFF)).toBe('pasteLinkHint');
     expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONFIGURED)).toBe('teamsNeedsOutlook');
     expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED)).toBe('teamsWillBeCreated');
+  });
+
+  it('zoom (§24): paste while the server status is unknown, promise/note once known', () => {
+    const ZOOM_READY: ConferenceCalendarState = { google: { connected: false }, zoom: { configured: true } };
+    const ZOOM_OFF: ConferenceCalendarState = { google: { connected: false }, zoom: { configured: false } };
+    // Status unknown (zoomStatus not answered): exactly today's paste behavior, no note.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'zoom' }), DISCONNECTED)).toBe('pasteLinkHint');
+    expect(conferenceFormNote(draft({ conferenceProvider: 'zoom' }), DISCONNECTED)).toBeNull();
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'zoom' }), DISCONNECTED)).toBe('link');
+    // Server configured: the promise, an optional link input, no note.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'zoom' }), ZOOM_READY)).toBe('zoomWillBeCreated');
+    expect(conferenceFormNote(draft({ conferenceProvider: 'zoom' }), ZOOM_READY)).toBeNull();
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'zoom' }), ZOOM_READY)).toBe('linkOptional');
+    // Server said not configured: paste hint + the muted "why" note; the link is required again.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'zoom' }), ZOOM_OFF)).toBe('pasteLinkHint');
+    expect(conferenceFormNote(draft({ conferenceProvider: 'zoom' }), ZOOM_OFF)).toBe('zoomNotConfigured');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'zoom' }), ZOOM_OFF)).toBe('link');
+    // A pasted link wins everywhere: no hint, no note.
+    const pasted = draft({ conferenceProvider: 'zoom', conferenceUrl: 'https://zoom.us/j/9' });
+    expect(conferenceFormHint(pasted, ZOOM_OFF)).toBeNull();
+    expect(conferenceFormNote(pasted, ZOOM_OFF)).toBeNull();
+    // Other providers never show the zoom note.
+    expect(conferenceFormNote(draft({ conferenceProvider: 'google_meet' }), ZOOM_OFF)).toBeNull();
+    // No connect CTA for either zoom hint (only the owner can configure the server).
+    expect(conferenceConnectTarget('zoomWillBeCreated')).toBeNull();
+    // Details card: ready -> pending copy; not configured / unknown -> plain noLink.
+    const zoomMeeting = meeting({ source: 'manual', conference: { provider: 'zoom', url: null, password: null } });
+    expect(conferenceCardState(zoomMeeting, ZOOM_READY)).toEqual({ kind: 'info', key: 'zoomPending', connect: null });
+    expect(conferenceCardState(zoomMeeting, ZOOM_OFF)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    expect(conferenceCardState(zoomMeeting, DISCONNECTED)).toEqual({ kind: 'info', key: 'noLink', connect: null });
   });
 
   it('never promises an auto link the sync cannot create (push-target degrade, §17/§22)', () => {

@@ -40,6 +40,13 @@ export interface AuthContextValueImpl extends AuthContextValue {
   signInWithEmail(email: string, password: string): Promise<AuthActionResult>;
   signUpWithEmail(email: string, password: string, name: string): Promise<AuthActionResult>;
   sendPasswordReset(email: string): Promise<AuthSimpleResult>;
+  /** Re-sends the verification email to the signed-in user (verification gate, §25). */
+  resendVerification(): Promise<AuthSimpleResult>;
+  /**
+   * Reloads the Firebase user so a just-clicked verification link is reflected ("I verified"
+   * button): `authUser.emailVerified` updates through the session state on success.
+   */
+  refreshUser(): Promise<AuthSimpleResult>;
   /** Last session start/stop failure (the session may still run on cached data). */
   sessionError: AppError | null;
   /** Google Calendar sync is connected (Calendar scope granted and sync enabled). */
@@ -206,6 +213,26 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
     }
   }, []);
 
+  const resendVerification = useCallback(async (): Promise<AuthSimpleResult> => {
+    try {
+      await authService.resendVerification();
+      return { success: true };
+    } catch (error) {
+      const failure = toFailure(error, 'Resending the verification email failed');
+      return { success: false, error: failure.error, errorCode: failure.errorCode };
+    }
+  }, []);
+
+  const refreshUser = useCallback(async (): Promise<AuthSimpleResult> => {
+    try {
+      await authService.reloadUser();
+      return { success: true };
+    } catch (error) {
+      const failure = toFailure(error, 'Refreshing the account failed');
+      return { success: false, error: failure.error, errorCode: failure.errorCode };
+    }
+  }, []);
+
   const signOut = useCallback((options?: { force?: boolean }) => sessionManager.signOut(options), []);
 
   const requestCalendarScope = useCallback(async (): Promise<boolean> => {
@@ -246,6 +273,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       signInWithEmail,
       signUpWithEmail,
       sendPasswordReset,
+      resendVerification,
+      refreshUser,
       signOut,
       requestCalendarScope,
       requestCalendarAccess,
@@ -265,6 +294,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       signInWithEmail,
       signUpWithEmail,
       sendPasswordReset,
+      resendVerification,
+      refreshUser,
       signOut,
       requestCalendarScope,
       requestCalendarAccess,

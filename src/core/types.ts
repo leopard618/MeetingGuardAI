@@ -173,6 +173,12 @@ export interface ExternalRefs {
   outlookChangeKey: string | null;
   /** Graph `lastModifiedDateTime` of the last pulled/pushed version (conflict resolution). */
   outlookUpdatedAt: string | null;
+  /**
+   * Zoom's numeric meeting id as a string (zoomCreateMeeting wrote conference.url for it; see
+   * docs/ARCHITECTURE.md §24). Written server-side via the Admin SDK; stored sparsely like the
+   * outlook keys.
+   */
+  zoomMeetingId: string | null;
 }
 
 export const externalRefsSchema = z.object({
@@ -186,6 +192,7 @@ export const externalRefsSchema = z.object({
   outlookCalendarId: z.string().min(1).max(512).nullable(),
   outlookChangeKey: z.string().max(256).nullable(),
   outlookUpdatedAt: utcIsoSchema.nullable(),
+  zoomMeetingId: z.string().min(1).max(64).nullable(),
 });
 
 export const EMPTY_EXTERNAL_REFS: Readonly<ExternalRefs> = Object.freeze({
@@ -199,6 +206,7 @@ export const EMPTY_EXTERNAL_REFS: Readonly<ExternalRefs> = Object.freeze({
   outlookCalendarId: null,
   outlookChangeKey: null,
   outlookUpdatedAt: null,
+  zoomMeetingId: null,
 });
 
 /**
@@ -208,7 +216,13 @@ export const EMPTY_EXTERNAL_REFS: Readonly<ExternalRefs> = Object.freeze({
  * their exact stored shape. `parseMeetingDoc` fills nulls back in.
  */
 export const SPARSE_MEETING_KEYS = ['recurrence', 'recurrenceOverrides', 'seriesId'] as const;
-export const SPARSE_EXTERNAL_KEYS = ['outlookEventId', 'outlookCalendarId', 'outlookChangeKey', 'outlookUpdatedAt'] as const;
+export const SPARSE_EXTERNAL_KEYS = [
+  'outlookEventId',
+  'outlookCalendarId',
+  'outlookChangeKey',
+  'outlookUpdatedAt',
+  'zoomMeetingId',
+] as const;
 
 export interface Meeting {
   id: string;

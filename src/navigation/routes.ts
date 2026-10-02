@@ -4,6 +4,7 @@ import type { AuthStackParamList, MainStackParamList, OnboardingStackParamList, 
 /** Route names (keep in sync with RootStackParamList). */
 export const ROUTES = {
   Landing: 'Landing',
+  EmailAuth: 'EmailAuth',
   Privacy: 'Privacy',
   Terms: 'Terms',
   OnboardingLanguage: 'OnboardingLanguage',
@@ -28,7 +29,7 @@ export const ROUTES = {
   Pricing: 'Pricing',
 } as const satisfies { [K in RouteName]: K };
 
-export const AUTH_ROUTES = ['Landing', 'Privacy', 'Terms'] as const satisfies readonly (keyof AuthStackParamList)[];
+export const AUTH_ROUTES = ['Landing', 'EmailAuth', 'Privacy', 'Terms'] as const satisfies readonly (keyof AuthStackParamList)[];
 
 /** Onboarding steps in order (progress indicator, next/previous, resume). */
 export const ONBOARDING_STEPS = [

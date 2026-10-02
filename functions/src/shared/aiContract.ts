@@ -42,6 +42,10 @@ export const AI_CONTRACT_VERSION = 3;
 export const CALLABLES = {
   assistant: 'assistant',
   deleteAccount: 'deleteAccount',
+  zoomStatus: 'zoomStatus',
+  zoomCreateMeeting: 'zoomCreateMeeting',
+  zoomSyncMeeting: 'zoomSyncMeeting',
+  zoomDeleteMeeting: 'zoomDeleteMeeting',
 } as const;
 export type CallableName = (typeof CALLABLES)[keyof typeof CALLABLES];
 
@@ -50,6 +54,9 @@ export const DEFAULT_CALLABLE_REGION = 'us-central1';
 
 /** Client-side timeout for the assistant callable (the function itself times out at 60 s). */
 export const ASSISTANT_CALL_TIMEOUT_MS = 70_000;
+
+/** Client-side timeout for the zoom* callables (one Zoom REST call plus a token mint). */
+export const ZOOM_CALL_TIMEOUT_MS = 20_000;
 
 // ---------------------------------------------------------------------------------------------
 // Shared enums (types.ts re-uses these so there is a single definition)
@@ -513,6 +520,87 @@ export const deleteAccountRequestSchema = z.object({ confirm: z.literal(true) })
 export type DeleteAccountRequest = z.infer<typeof deleteAccountRequestSchema>;
 export const deleteAccountResponseSchema = z.object({ deleted: z.literal(true) });
 export type DeleteAccountResponse = z.infer<typeof deleteAccountResponseSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// Zoom auto links (zoom* callables; docs/ARCHITECTURE.md §24, docs/SETUP.md §12)
+// ---------------------------------------------------------------------------------------------
+//
+// The server owns a Zoom Server-to-Server OAuth app (one host account for every user). The app
+// NEVER sees Zoom credentials: it asks zoomStatus whether the integration is configured
+// (ZOOM_ENABLED param; answerable without the secrets, so the function always deploys) and asks
+// zoomCreateMeeting to create the link for a SAVED meeting. The server loads the caller's own
+// meeting document, validates ownership + provider 'zoom' + no existing external.zoomMeetingId,
+// creates a scheduled Zoom meeting (type 2) from the document's topic/startAt/duration/timezone,
+// writes conference.url/password + external.zoomMeetingId back via the Admin SDK and returns
+// them. All zoom* callables except zoomStatus require a VERIFIED account (same rule as the
+// assistant) and are capped per user per UTC day (ZOOM_USER_DAILY_LIMIT).
+
+/** Zoom's own numeric meeting id, stored as a string in external.zoomMeetingId. */
+export const zoomMeetingNumberSchema = z.string().regex(/^[0-9]{1,32}$/);
+
+export const zoomStatusRequestSchema = z.object({});
+export type ZoomStatusRequest = z.infer<typeof zoomStatusRequestSchema>;
+export const zoomStatusResponseSchema = z.object({ configured: z.boolean() });
+export type ZoomStatusResponse = z.infer<typeof zoomStatusResponseSchema>;
+
+export const zoomCreateMeetingRequestSchema = z.object({ meetingId: meetingIdSchema });
+export type ZoomCreateMeetingRequest = z.infer<typeof zoomCreateMeetingRequestSchema>;
+export const zoomCreateMeetingResponseSchema = z.object({
+  /** The real join_url returned by Zoom (also written to conference.url server-side). */
+  url: httpUrlSchema,
+  /** Zoom passcode when the account settings add one; also written to conference.password. */
+  password: z.string().max(100).nullable(),
+  zoomMeetingId: zoomMeetingNumberSchema,
+});
+export type ZoomCreateMeetingResponse = z.infer<typeof zoomCreateMeetingResponseSchema>;
+
+/** Patches topic/start/duration/timezone of the EXISTING Zoom meeting after a local edit. */
+export const zoomSyncMeetingRequestSchema = z.object({ meetingId: meetingIdSchema });
+export type ZoomSyncMeetingRequest = z.infer<typeof zoomSyncMeetingRequestSchema>;
+export const zoomSyncMeetingResponseSchema = z.object({ updated: z.boolean() });
+export type ZoomSyncMeetingResponse = z.infer<typeof zoomSyncMeetingResponseSchema>;
+
+/**
+ * Deletes the Zoom meeting. `meetingId` targets a still-existing meeting document;
+ * `zoomMeetingId` covers cleanup after the document is already gone (tombstoned/hard-deleted).
+ * At least one must be non-null; a Zoom meeting that is already gone resolves deleted: true.
+ */
+export const zoomDeleteMeetingRequestSchema = z
+  .object({
+    meetingId: meetingIdSchema.nullable(),
+    zoomMeetingId: zoomMeetingNumberSchema.nullable(),
+  })
+  .refine((value) => value.meetingId !== null || value.zoomMeetingId !== null, {
+    message: 'meetingId or zoomMeetingId is required',
+  });
+export type ZoomDeleteMeetingRequest = z.infer<typeof zoomDeleteMeetingRequestSchema>;
+export const zoomDeleteMeetingResponseSchema = z.object({ deleted: z.boolean() });
+export type ZoomDeleteMeetingResponse = z.infer<typeof zoomDeleteMeetingResponseSchema>;
+
+/** Error taxonomy of the zoom* callables (details.reason, like the assistant's). */
+export const ZOOM_ERROR_CODES = [
+  'unauthenticated',
+  'not_configured',
+  'not_found',
+  'invalid_request',
+  'quota_exceeded',
+  'upstream_error',
+] as const;
+export type ZoomErrorCode = (typeof ZOOM_ERROR_CODES)[number];
+
+/** Firebase HttpsError code the function throws for each zoom error. */
+export const ZOOM_ERROR_HTTPS_CODES = {
+  unauthenticated: 'unauthenticated',
+  not_configured: 'failed-precondition',
+  not_found: 'not-found',
+  invalid_request: 'invalid-argument',
+  quota_exceeded: 'resource-exhausted',
+  upstream_error: 'unavailable',
+} as const satisfies Record<ZoomErrorCode, string>;
+
+/** `HttpsError.details` payload the zoom* callables attach to every error. */
+export const zoomErrorDetailsSchema = z.object({ reason: z.enum(ZOOM_ERROR_CODES) });
+export type ZoomErrorDetails = z.infer<typeof zoomErrorDetailsSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Server helpers (pure)

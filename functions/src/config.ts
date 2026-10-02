@@ -8,7 +8,7 @@
  *   non-interactive deploy (CI) fails, so create the file once per project (functions/README.md,
  *   docs/SETUP.md §6.3).
  */
-import { defineInt, defineSecret, defineString } from 'firebase-functions/params';
+import { defineBoolean, defineInt, defineSecret, defineString } from 'firebase-functions/params';
 
 import { DEFAULT_CALLABLE_REGION } from './shared/aiContract';
 
@@ -111,6 +111,51 @@ export const CONTEXT_WINDOW = {
    */
   maxDocumentBytes: 64 * 1024,
   maxContextBytes: 2 * 1024 * 1024,
+} as const;
+
+// ---------------------------------------------------------------------------------------------
+// Zoom auto links (zoom* callables; docs/ARCHITECTURE.md §24, docs/SETUP.md §12)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Master switch of the Zoom integration. NON-SECRET on purpose: `zoomStatus` answers from this
+ * param alone, so it deploys and runs while the ZOOM_* secrets do not exist yet. It also gates
+ * the DEPLOYMENT of the three write callables (functions/src/zoom/index.ts reads the matching
+ * process.env value at load time): with the default `false`, `firebase deploy --only functions`
+ * never touches the secrets and cannot fail on them. Owner order (docs/SETUP.md §12): set the
+ * three secrets FIRST, then put ZOOM_ENABLED=true in functions/.env.<projectId>, then deploy.
+ */
+export const ZOOM_ENABLED = defineBoolean('ZOOM_ENABLED', {
+  default: false,
+  description: 'Enables the Zoom integration. Set the ZOOM_* secrets BEFORE setting this to true (SETUP 12).',
+});
+
+/** Per-user cap on Zoom meetings CREATED per UTC day (abuse guard; `usage/{uid}/days/{day}.zoomCreates`). */
+export const ZOOM_USER_DAILY_LIMIT = defineInt('ZOOM_USER_DAILY_LIMIT', {
+  default: 30,
+  description: 'Maximum Zoom meetings one user may create per UTC day.',
+});
+
+/**
+ * Zoom Server-to-Server OAuth app credentials (Secret Manager; docs/SETUP.md §12). Bound ONLY to
+ * the zoom write callables - no other function may reference them, or a deploy without them
+ * breaks the whole project.
+ */
+export const ZOOM_ACCOUNT_ID = defineSecret('ZOOM_ACCOUNT_ID');
+export const ZOOM_CLIENT_ID = defineSecret('ZOOM_CLIENT_ID');
+export const ZOOM_CLIENT_SECRET = defineSecret('ZOOM_CLIENT_SECRET');
+
+export const ZOOM_TUNING = {
+  /** The app's client-side timeout is ZOOM_CALL_TIMEOUT_MS = 20 s (shared/aiContract.ts). */
+  functionTimeoutSeconds: 20,
+  /** Per-request timeout against zoom.us / api.zoom.us (token mint and REST call each). */
+  zoomRequestTimeoutMs: 10_000,
+  /** Refresh the cached S2S token this many seconds before Zoom's expires_in. */
+  tokenSafetyWindowSeconds: 60,
+  /** Multiplier on ZOOM_USER_DAILY_LIMIT for the cheap sync/delete operations (`zoomOps`). */
+  opsLimitMultiplier: 10,
+  memory: '256MiB',
+  maxInstances: 10,
 } as const;
 
 export const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high'] as const;

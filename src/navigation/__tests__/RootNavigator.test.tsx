@@ -161,6 +161,7 @@ const MEETING: Meeting = {
     outlookCalendarId: null,
     outlookChangeKey: null,
     outlookUpdatedAt: null,
+    zoomMeetingId: null,
   },
   recurrence: null,
   recurrenceOverrides: null,

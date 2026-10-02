@@ -9,6 +9,8 @@ security rules and the public account-deletion page.
 | `deleteAccount` | Records the deletion in `accountDeletions/{uid}` (anonymous id + time, kept 30 days for the restore runbook), then deletes `users/{uid}` (recursively), `entitlements/{uid}`, `usage/{uid}` (recursively) and the Firebase Auth user. Idempotent. |
 | `adminListUsers` / `adminSetUserDisabled` / `adminSetUserPlan` / `adminGetMetrics` | Admin dashboard v1 (custom claim `admin: true` required; `src/admin`, docs/ADMIN.md). |
 | `adminGetStats` / `adminGetHealth` / `adminRotateOpenAiKey` | Admin dashboard v2: per-UTC-day usage/signup series with a cost estimate, runtime health (secret mode + optional real OpenAI ping), and OpenAI key rotation via Secret Manager (docs/ADMIN.md §v2). |
+| `zoomStatus` | Whether the Zoom integration is configured (the non-secret `ZOOM_ENABLED` param; no secrets, always deployed). |
+| `zoomCreateMeeting` / `zoomSyncMeeting` / `zoomDeleteMeeting` | Server-created Zoom links via the project's Server-to-Server OAuth app (docs/ARCHITECTURE.md §24). Deployed ONLY while `ZOOM_ENABLED=true`; the only functions binding the `ZOOM_ACCOUNT_ID` / `ZOOM_CLIENT_ID` / `ZOOM_CLIENT_SECRET` secrets. Owner order (docs/SETUP.md §12): set the secrets, set `ZOOM_ENABLED=true` in `functions/.env.<projectId>`, then deploy. |
 
 | Scheduled | What it does |
 |---|---|
@@ -21,10 +23,11 @@ change the contract, edit `src/core/aiContract.ts` in the app and copy it over.
 ```
 functions/
   src/index.ts                 exports assistant, deleteAccount and the admin callables
-  src/config.ts                params (FUNCTIONS_REGION, OPENAI_MODEL, OPENAI_REASONING_EFFORT, pricing), secret OPENAI_API_KEY, limits
+  src/config.ts                params (FUNCTIONS_REGION, OPENAI_MODEL, OPENAI_REASONING_EFFORT, pricing, ZOOM_ENABLED, ZOOM_USER_DAILY_LIMIT), secrets (OPENAI_API_KEY, ZOOM_*), limits
   src/assistant/               handler, quota, meeting context, prompt, tools, action mapping, OpenAI adapter, time zones
   src/admin/                   admin callables (schemas.ts = the contract, index.ts = handlers/ports)
   src/openaiKey.ts             runtime OpenAI key: Secret Manager REST + cache + env fallback + rotation edge
+  src/zoom/                    zoom* callables (zoomStatus + the secret-bound write callables; docs/ARCHITECTURE.md §24)
   src/deleteAccount.ts
   src/maintenance/             retention: tombstone purge, deletion log (core.ts pure, index.ts schedule)
   src/shared/aiContract.ts     verbatim copy of src/core/aiContract.ts
