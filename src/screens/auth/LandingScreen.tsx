@@ -134,8 +134,8 @@ export function LandingScreen(): ReactElement {
                 <Ionicons name={icon} size={componentMetrics.iconNav} color={colors.onPrimaryContainer} />
               </View>
               <View style={styles.valueText}>
+                {/* Title-only rows: the detailed explanations live in onboarding (user asked for a lighter landing). */}
                 <Text style={[styles.valueTitle, { color: colors.onSurface }]}>{t(`landing:valueProps.${key}.title`)}</Text>
-                <Text style={[styles.valueBody, { color: colors.onSurfaceVariant }]}>{t(`landing:valueProps.${key}.body`)}</Text>
               </View>
             </View>
           ))}
@@ -285,10 +285,6 @@ const styles = StyleSheet.create({
   },
   valueTitle: {
     ...typography.titleM,
-  },
-  valueBody: {
-    ...typography.bodyM,
-    marginTop: spacing.xs,
   },
   signInButton: {
     minHeight: componentMetrics.buttonHeight,

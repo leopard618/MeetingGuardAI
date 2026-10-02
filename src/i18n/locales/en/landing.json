@@ -4,20 +4,16 @@
   "subtitle": "MeetingGuard AI reminds you before every meeting, in the way you choose.",
   "valueProps": {
     "alerts": {
-      "title": "Alerts that get your attention",
-      "body": "Choose how you are reminded: an alarm (full screen while MeetingGuard is open, a high-priority alarm notification when it is closed), a banner that stays until you act, or a gentle reminder. With sound and vibration; spoken alerts play while the app is open."
+      "title": "Alerts that get your attention"
     },
     "calendars": {
-      "title": "Your calendars, together",
-      "body": "Sync with Google Calendar and bring in events from the calendars on your phone."
+      "title": "Your calendars, together"
     },
     "assistant": {
-      "title": "An AI assistant that asks first",
-      "body": "Create, move or share meetings by typing what you need. Nothing changes until you confirm it."
+      "title": "An AI assistant that asks first"
     },
     "languages": {
-      "title": "English and Spanish",
-      "body": "Use the app, the alerts and the assistant in either language."
+      "title": "English and Spanish"
     }
   },
   "signIn": {
