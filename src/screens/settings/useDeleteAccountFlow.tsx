@@ -1,8 +1,16 @@
 /**
  * Account deletion from Settings (App Store 5.1.1(v), Google Play account deletion policy):
- * confirm -> confirm the identity again (Google account picker, or the password in a dialog; the
- * server requires a recent sign-in) -> useAuth().deleteAccount() -> the session ends and the gate
- * returns to the landing screen. Failures are shown with the auth error messages.
+ * confirm -> confirm the identity again (Apple sheet, Google account picker, or the password in
+ * a dialog; the server requires a recent sign-in) -> useAuth().deleteAccount() -> the session
+ * ends and the gate returns to the landing screen. Failures are shown with the auth error
+ * messages.
+ *
+ * Apple accounts (docs/ARCHITECTURE.md section 26): the Apple reauthentication also refreshes
+ * the single-use authorizationCode, and the Apple token revocation (review 5.1.1(v)) runs right
+ * after it, BEFORE the server delete (revocation needs a signed-in user). Revocation is best
+ * effort: on failure the auth:deleteAccount.appleRevokeNotice toast explains the manual detach
+ * path and the deletion proceeds - the user's right to delete must not depend on revocation
+ * uptime, and the server delete kills app access regardless.
  */
 import { useCallback, useState, type ReactElement } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
@@ -12,7 +20,7 @@ import Toast from 'react-native-toast-message';
 import { toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useT } from '../../i18n';
-import { authErrorMessageKey, useAuth } from '../../services/auth';
+import { authErrorMessageKey, authService, useAuth } from '../../services/auth';
 import { radii, spacing, useAppTheme } from '../../theme';
 
 const log = createLogger('settings');
@@ -61,6 +69,22 @@ export function useDeleteAccountFlow(): DeleteAccountFlow {
 
   const confirmIdentity = useCallback(() => {
     const providers = authUser?.providerIds ?? [];
+    // Apple FIRST (section 26): the Apple reauthentication refreshes the authorizationCode that
+    // the token revocation needs, and revocation must run while the user is still signed in.
+    if (providers.includes('apple.com')) {
+      void run(async () => {
+        if ((await reauthenticate()) === 'cancelled') return 'cancelled';
+        try {
+          await authService.revokeAppleTokens();
+        } catch (caught) {
+          // Best effort + proceed: the notice names the manual detach path (header comment).
+          log.warn('apple token revocation failed', toAppError(caught).code);
+          Toast.show({ type: 'info', text1: t('auth:deleteAccount.appleRevokeNotice') });
+        }
+        return 'done';
+      });
+      return;
+    }
     if (providers.includes('google.com')) {
       void run(() => reauthenticate());
       return;
@@ -72,7 +96,7 @@ export function useDeleteAccountFlow(): DeleteAccountFlow {
     }
     // Unknown provider: the server decides (it requires a recent sign-in).
     void run(async () => 'done');
-  }, [authUser, reauthenticate, run]);
+  }, [authUser, reauthenticate, run, t]);
 
   const start = useCallback(() => {
     Alert.alert(t('auth:deleteAccount.title'), t('auth:deleteAccount.message'), [

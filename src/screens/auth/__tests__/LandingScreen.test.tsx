@@ -13,9 +13,25 @@ jest.mock('expo-localization', () => ({
   getCalendars: jest.fn(() => [{ timeZone: 'UTC', uses24hourClock: false }]),
 }));
 
+// jest-expo runs as iOS, so the Apple button renders (virtual: the package is iOS-build only).
+jest.mock(
+  'expo-apple-authentication',
+  () => {
+    const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+    return {
+      isAvailableAsync: jest.fn(async () => true),
+      AppleAuthenticationButton: View,
+      AppleAuthenticationButtonType: { SIGN_IN: 0, CONTINUE: 1, SIGN_UP: 2 },
+      AppleAuthenticationButtonStyle: { WHITE: 0, WHITE_OUTLINE: 1, BLACK: 2 },
+    };
+  },
+  { virtual: true },
+);
+
 const mockSignInWithGoogle = jest.fn();
+const mockSignInWithApple = jest.fn();
 jest.mock('../../../services/auth', () => ({
-  useAuth: () => ({ signInWithGoogle: mockSignInWithGoogle }),
+  useAuth: () => ({ signInWithGoogle: mockSignInWithGoogle, signInWithApple: mockSignInWithApple }),
 }));
 
 const Stack = createStackNavigator();
@@ -46,6 +62,7 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   await i18n.changeLanguage('en');
   mockSignInWithGoogle.mockReset();
+  mockSignInWithApple.mockReset();
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 });
 
@@ -88,6 +105,26 @@ it('explains a failed sign-in with the localized message from the auth service',
     fireEvent.press(screen.getByTestId('landing-sign-in'));
   });
   expect(Alert.alert).toHaveBeenCalledWith("Couldn't sign in", 'No internet connection.');
+});
+
+it('shows the Apple button on iOS and signs in with Apple; a dismissed sheet stays silent', async () => {
+  mockSignInWithApple.mockResolvedValueOnce({ success: false, cancelled: true });
+  await renderLanding();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('landing-apple-sign-in'));
+  });
+  expect(mockSignInWithApple).toHaveBeenCalledTimes(1);
+  expect(mockSignInWithGoogle).not.toHaveBeenCalled();
+  expect(Alert.alert).not.toHaveBeenCalled();
+});
+
+it('explains a failed Apple sign-in with the localized message from the auth service', async () => {
+  mockSignInWithApple.mockResolvedValueOnce({ success: false, error: 'Apple sign-in failed. Please try again.' });
+  await renderLanding();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('landing-apple-sign-in'));
+  });
+  expect(Alert.alert).toHaveBeenCalledWith("Couldn't sign in", 'Apple sign-in failed. Please try again.');
 });
 
 it('offers email sign-in as a secondary path', async () => {

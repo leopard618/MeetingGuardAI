@@ -1,29 +1,69 @@
 /**
- * Sign in with Apple button (Landing; iOS ONLY) - owner: shell. iOS-pass STUB
- * (docs/ARCHITECTURE.md §26): renders nothing until the apple-app implementer lands the real
- * button on top of expo-apple-authentication.
+ * Sign in with Apple button (Landing; iOS ONLY) - owner: shell. docs/ARCHITECTURE.md section 26.
  *
- * Implementation contract:
  * - Renders the OFFICIAL AppleAuthentication.AppleAuthenticationButton (App Review 4.8 / Apple
  *   HIG: equal prominence). On the Landing screen it sits directly ABOVE "Continue with Google",
  *   same width and height (componentMetrics.buttonHeight).
- * - iOS only: Platform.OS !== 'ios' renders null. On iOS it additionally waits for
- *   AppleAuthentication.isAvailableAsync() (async state, render null until resolved) and renders
- *   null when unavailable, so Landing never shows a dead button.
+ * - iOS only: elsewhere it renders null. On iOS it additionally waits for
+ *   AppleAuthentication.isAvailableAsync() (renders null until resolved) and stays null when
+ *   unavailable or when the native module is missing, so Landing never shows a dead button.
  * - buttonType CONTINUE (matches "Continue with Google" wording in both languages), buttonStyle
  *   WHITE on the dark scheme / BLACK on the light scheme (the card behind it uses
  *   colors.surface), cornerRadius componentMetrics.buttonHeight / 2 (pill like the other
- *   buttons). The native button draws its own system-localized label; pass
- *   accessibilityLabel={t('landing:signIn.apple')} for parity and tests.
- * - The module is require()d lazily inside the component/module function, NEVER imported at the
- *   top (Android bundles and unit tests must not resolve the iOS native module) - same pattern
- *   as loadGoogleModule() in src/services/auth/authService.ts.
- * - `disabled` mirrors Landing's busy state (the native button has no disabled prop: gate inside
- *   onPress and dim via opacity). onPress -> Landing runs useAuth().signInWithApple(); failures
- *   alert with landing:signIn.failedTitle + authErrorMessageKey, cancel stays silent.
+ *   buttons). The native button draws its own system-localized label; accessibilityLabel is
+ *   t('landing:signIn.apple') for parity and tests.
+ * - The module is require()d lazily, NEVER imported at the top (Android bundles and unit tests
+ *   must not resolve the iOS native module) - same pattern as loadGoogleModule() in
+ *   src/services/auth/authService.ts.
+ * - The native button has no disabled prop: while `disabled` (Landing's busy state) the press is
+ *   ignored and the button dims via opacity. onPress -> Landing runs useAuth().signInWithApple();
+ *   failures alert with landing:signIn.failedTitle + the localized message, cancel stays silent.
  */
-import type { ReactElement } from 'react';
-import { Platform, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useState, type ComponentType, type ReactElement } from 'react';
+import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+
+import { createLogger } from '../../core/logger';
+import { useT } from '../../i18n';
+import { componentMetrics, pressedDimOpacity, useAppTheme } from '../../theme';
+
+const log = createLogger('landing');
+
+/** Props of the official native button that this component uses. */
+interface AppleButtonNativeProps {
+  buttonType: number;
+  buttonStyle: number;
+  cornerRadius: number;
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
+  testID?: string;
+}
+
+/**
+ * Minimal shape of expo-apple-authentication. Typed locally (not `typeof import(...)`) because
+ * the package is resolved lazily at runtime and only exists in iOS builds.
+ */
+interface AppleAuthUiModule {
+  isAvailableAsync(): Promise<boolean>;
+  AppleAuthenticationButton: ComponentType<AppleButtonNativeProps>;
+  AppleAuthenticationButtonType: { CONTINUE: number };
+  AppleAuthenticationButtonStyle: { WHITE: number; BLACK: number };
+}
+
+/** undefined = not tried yet; null = the module cannot be loaded in this build. */
+let appleUiModule: AppleAuthUiModule | null | undefined;
+
+function loadAppleUiModule(): AppleAuthUiModule | null {
+  if (appleUiModule !== undefined) return appleUiModule;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    appleUiModule = require('expo-apple-authentication') as AppleAuthUiModule;
+  } catch {
+    // Build without the module (Android, Expo Go): the button simply never appears.
+    appleUiModule = null;
+  }
+  return appleUiModule;
+}
 
 export interface AppleSignInButtonProps {
   /** Starts the Apple sign-in flow (Landing owns the busy state and error alerts). */
@@ -33,11 +73,56 @@ export interface AppleSignInButtonProps {
   style?: StyleProp<ViewStyle>;
 }
 
-export function AppleSignInButton(props: AppleSignInButtonProps): ReactElement | null {
-  void props;
-  if (Platform.OS !== 'ios') return null;
-  // STUB: nothing is rendered until the expo-apple-authentication flow is implemented (§26).
-  return null;
+export function AppleSignInButton({ onPress, disabled = false, style }: AppleSignInButtonProps): ReactElement | null {
+  const t = useT();
+  const { scheme } = useAppTheme();
+  const module = Platform.OS === 'ios' ? loadAppleUiModule() : null;
+  const [available, setAvailable] = useState(false);
+
+  useEffect(() => {
+    if (!module) return undefined;
+    let active = true;
+    module.isAvailableAsync().then(
+      (value) => {
+        if (active) setAvailable(value);
+      },
+      (error: unknown) => {
+        // Unavailable (e.g. no Apple ID support on this device): the button stays hidden.
+        log.warn('Apple sign-in availability check failed', error);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [module]);
+
+  if (!module || !available) return null;
+  const NativeButton = module.AppleAuthenticationButton;
+  return (
+    <View style={[disabled && styles.dimmed, style]}>
+      <NativeButton
+        buttonType={module.AppleAuthenticationButtonType.CONTINUE}
+        buttonStyle={scheme === 'dark' ? module.AppleAuthenticationButtonStyle.WHITE : module.AppleAuthenticationButtonStyle.BLACK}
+        cornerRadius={componentMetrics.buttonHeight / 2}
+        onPress={() => {
+          if (!disabled) onPress();
+        }}
+        style={styles.button}
+        accessibilityLabel={t('landing:signIn.apple')}
+        testID="landing-apple-sign-in"
+      />
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  button: {
+    width: '100%',
+    height: componentMetrics.buttonHeight,
+  },
+  dimmed: {
+    opacity: pressedDimOpacity,
+  },
+});
 
 export default AppleSignInButton;

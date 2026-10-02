@@ -12,6 +12,10 @@
  *   client secret, no refresh token and no token is ever stored by the app.
  * - Every native Google call is serialized: the native module rejects a second concurrent call
  *   of the same kind (ASYNC_OP_IN_PROGRESS), and calendar sync may ask for tokens in parallel.
+ * - Sign in with Apple (expo-apple-authentication, iOS only - docs/ARCHITECTURE.md section 26):
+ *   nonce-protected signInAsync -> OAuthProvider('apple.com').credential({ idToken, rawNonce })
+ *   -> signInWithCredential. The module is require()d lazily like Google's; the last Apple
+ *   authorizationCode is stashed in-process for revokeAppleTokens() (account deletion).
  * - No session orchestration here: sessionManager (./sessionManager.ts) owns start/end.
  * - Never logs tokens or emails.
  */
@@ -20,12 +24,15 @@ import type {
   SignInResponse,
   User as GoogleUser,
 } from '@react-native-google-signin/google-signin';
+import * as Crypto from 'expo-crypto';
 import {
   EmailAuthProvider,
   GoogleAuthProvider,
+  OAuthProvider,
   createUserWithEmailAndPassword,
   onAuthStateChanged as onFirebaseAuthStateChanged,
   reauthenticateWithCredential,
+  revokeAccessToken,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithCredential,
@@ -33,9 +40,12 @@ import {
   signOut as firebaseSignOut,
   updateProfile,
   type Auth,
+  type AuthCredential,
   type User as FirebaseUser,
+  type UserCredential,
 } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
+import { Platform } from 'react-native';
 
 import { env } from '../../config/env';
 import { auth as firebaseAuth, functions as firebaseFunctions } from '../../config/firebase';
@@ -51,7 +61,7 @@ import type { Unsubscribe } from '../../core/events';
 import { createLogger } from '../../core/logger';
 import type { AuthUser } from '../../core/types';
 
-import { authError, mapFirebaseAuthError, mapGoogleSignInError, type GoogleStatusCodes } from './authErrors';
+import { authError, mapAppleSignInError, mapFirebaseAuthError, mapGoogleSignInError, type GoogleStatusCodes } from './authErrors';
 import { createSerialQueue } from './serialQueue';
 
 export { registerSessionCleanup } from './sessionCleanup';
@@ -255,6 +265,150 @@ async function interactiveGoogleSignIn(): Promise<GoogleUser | null> {
   return response.data;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Sign in with Apple (iOS only; docs/ARCHITECTURE.md section 26)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Minimal shape of expo-apple-authentication. Typed locally (not `typeof import(...)`) because
+ * the package is resolved lazily at runtime and the code must compile in environments where it
+ * is not installed (the module only exists in iOS builds).
+ */
+interface AppleAuthCredential {
+  identityToken: string | null;
+  authorizationCode: string | null;
+  email: string | null;
+  fullName: {
+    givenName: string | null;
+    middleName: string | null;
+    familyName: string | null;
+    namePrefix: string | null;
+    nameSuffix: string | null;
+    nickname: string | null;
+  } | null;
+}
+
+interface AppleAuthModule {
+  isAvailableAsync(): Promise<boolean>;
+  signInAsync(options: { requestedScopes?: number[]; nonce?: string }): Promise<AppleAuthCredential>;
+  AppleAuthenticationScope: { FULL_NAME: number; EMAIL: number };
+}
+
+/** undefined = not tried yet; null = the module cannot be loaded in this build. */
+let appleModule: AppleAuthModule | null | undefined;
+
+/**
+ * Lazy like loadGoogleModule(): the native module only exists in iOS builds, and Android builds
+ * and unit tests must start without resolving it. null when it cannot be loaded.
+ */
+function tryLoadAppleModule(): AppleAuthModule | null {
+  if (appleModule !== undefined) return appleModule;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    appleModule = require('expo-apple-authentication') as AppleAuthModule;
+  } catch {
+    appleModule = null;
+  }
+  return appleModule;
+}
+
+function loadAppleModule(): AppleAuthModule {
+  const module = tryLoadAppleModule();
+  if (!module) {
+    throw authError('unsupported', 'apple_sign_in_unavailable', 'The Sign in with Apple native module is not available');
+  }
+  return module;
+}
+
+/** isAvailableAsync() as a boolean; an availability probe that fails counts as unavailable. */
+async function appleAvailable(apple: AppleAuthModule): Promise<boolean> {
+  try {
+    return await apple.isAvailableAsync();
+  } catch (error) {
+    log.warn('Apple sign-in availability check failed', mapAppleSignInError(error).code);
+    return false;
+  }
+}
+
+/** base64url alphabet: 64 symbols, so `byte & 63` keeps the distribution uniform. */
+const NONCE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+/** 32 random bytes as 32 base64url characters (192 bits): the Apple replay-protection nonce. */
+function createRawNonce(): string {
+  const bytes = Crypto.getRandomBytes(32);
+  let nonce = '';
+  for (const byte of bytes) nonce += NONCE_ALPHABET[byte & 63];
+  return nonce;
+}
+
+/**
+ * Apple authorization codes are single-use and short-lived (about 5 minutes): revokeAppleTokens()
+ * treats anything older as stale and asks for a fresh Apple interaction instead.
+ */
+export const APPLE_AUTH_CODE_TTL_MS = 5 * 60_000;
+
+/** The last Apple authorizationCode of this process (sign-in or reauthentication), for revocation. */
+let appleAuthorizationCode: { code: string; stashedAt: number } | null = null;
+
+function stashAppleAuthorizationCode(code: string | null): void {
+  appleAuthorizationCode = code ? { code, stashedAt: Date.now() } : null;
+}
+
+/**
+ * Shows the Apple sheet and builds the Firebase credential (section 26): raw random nonce ->
+ * SHA-256 hash to signInAsync (Apple checks the token's nonce claim equals it) -> OAuth
+ * credential with the RAW nonce (Firebase hashes it again to verify; replay protection). Also
+ * stashes the single-use authorizationCode for revokeAppleTokens(). Resolves null on cancel.
+ */
+async function requestAppleCredential(
+  apple: AppleAuthModule,
+  options: { requestScopes: boolean },
+): Promise<{ firebaseCredential: AuthCredential; apple: AppleAuthCredential } | null> {
+  let rawNonce: string;
+  let hashedNonce: string;
+  try {
+    rawNonce = createRawNonce();
+    hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+  } catch (error) {
+    throw authError('unknown', 'apple_sign_in_failed', 'Could not create the sign-in nonce', { cause: error });
+  }
+
+  let credential: AppleAuthCredential;
+  try {
+    credential = await apple.signInAsync({
+      // Reauthentication asks for no scopes: Apple then shows a plain confirm sheet.
+      ...(options.requestScopes
+        ? { requestedScopes: [apple.AppleAuthenticationScope.FULL_NAME, apple.AppleAuthenticationScope.EMAIL] }
+        : {}),
+      nonce: hashedNonce,
+    });
+  } catch (error) {
+    const mapped = mapAppleSignInError(error);
+    if (mapped.code === 'cancelled') return null;
+    throw mapped;
+  }
+  if (!credential.identityToken) {
+    throw authError('upstream_error', 'apple_sign_in_failed', 'Apple returned no identity token', { retryable: true });
+  }
+  stashAppleAuthorizationCode(credential.authorizationCode);
+  return {
+    firebaseCredential: new OAuthProvider('apple.com').credential({
+      idToken: credential.identityToken,
+      rawNonce,
+    }),
+    apple: credential,
+  };
+}
+
+/** "Given Family" from Apple's PersonNameComponents; '' when Apple sent no usable name. */
+function formatAppleName(fullName: AppleAuthCredential['fullName']): string {
+  if (!fullName) return '';
+  return [fullName.givenName, fullName.familyName]
+    .map((part) => (typeof part === 'string' ? part.trim() : ''))
+    .filter((part) => part.length > 0)
+    .join(' ');
+}
+
 async function firebaseGoogleSignIn(): Promise<SignInResult> {
   const authInstance = requireAuth();
   if (!env.google.webClientId) {
@@ -366,15 +520,37 @@ export const authService: AuthServiceImpl = {
     return flow;
   },
 
-  // iOS-pass STUB (contract: src/core/contracts.ts + docs/ARCHITECTURE.md §26; implementation
-  // lands with the apple-app implementer once expo-apple-authentication is installed):
-  // availability check -> raw random nonce whose SHA-256 hash (expo-crypto) goes to
-  // signInAsync -> OAuthProvider('apple.com').credential({ idToken, rawNonce }) ->
-  // signInWithCredential; first sign-in saves fullName as displayName (best effort,
-  // notifyProfileChanged); the authorizationCode is stashed for revokeAppleTokens(). The module
-  // is require()d lazily like loadGoogleModule(), never imported at the top.
+  // Sign in with Apple, iOS ONLY (contract: src/core/contracts.ts + docs/ARCHITECTURE.md §26).
   async signInWithApple(): Promise<SignInResult> {
-    throw new AppError('not_implemented', 'Sign in with Apple is not implemented yet');
+    const authInstance = requireAuth();
+    const apple = loadAppleModule();
+    if (!(await appleAvailable(apple))) {
+      throw authError('unsupported', 'apple_sign_in_unavailable', 'Sign in with Apple is not available on this device');
+    }
+
+    const requested = await requestAppleCredential(apple, { requestScopes: true });
+    if (!requested) return { status: 'cancelled' };
+
+    let result: UserCredential;
+    try {
+      result = await signInWithCredential(authInstance, requested.firebaseCredential);
+    } catch (error) {
+      throw mapFirebaseAuthError(error);
+    }
+
+    // FIRST sign-in only: Apple returns fullName/email once. Keep the name as the display name,
+    // best effort (exactly like signUpWithEmail: the session works without it).
+    const name = formatAppleName(requested.apple.fullName);
+    if (name && !result.user.displayName) {
+      try {
+        await updateProfile(result.user, { displayName: name });
+        // onAuthStateChanged already fired without the name: tell listeners about the update.
+        notifyProfileChanged();
+      } catch (error) {
+        log.error('Signed in but the display name could not be saved', mapFirebaseAuthError(error));
+      }
+    }
+    return { status: 'success', user: toAuthUser(result.user) };
   },
 
   async signInWithEmail(email: string, password: string): Promise<AuthUser> {
@@ -589,12 +765,27 @@ export const authService: AuthServiceImpl = {
     notifyGoogleAccessChanged();
   },
 
-  // iOS-pass STUB (§26): firebase revokeAccessToken(auth, <stashed Apple authorizationCode>),
-  // the code coming from the last signInWithApple()/Apple reauthenticate() in this process
-  // (single-use, short-lived; cleared after the attempt). No fresh code -> AppError
-  // ('unauthenticated', reason 'requires_recent_login'). Callers treat failures as best effort.
+  // Revokes the Apple refresh token (App Review 5.1.1(v); §26) with the authorizationCode of the
+  // LAST Apple interaction in this process. Callers treat any failure as best effort.
   async revokeAppleTokens(): Promise<void> {
-    throw new AppError('not_implemented', 'Apple token revocation is not implemented yet');
+    const authInstance = requireAuth();
+    const stashed = appleAuthorizationCode;
+    // Single-use: never retried with the same code, whatever happens below.
+    appleAuthorizationCode = null;
+    if (!stashed || Date.now() - stashed.stashedAt > APPLE_AUTH_CODE_TTL_MS) {
+      throw authError(
+        'unauthenticated',
+        'requires_recent_login',
+        'No fresh Apple authorization code (run the Apple reauthentication first)',
+      );
+    }
+    try {
+      // Firebase exchanges the code and revokes the Apple refresh token server-side (needs the
+      // Sign in with Apple key configured on the Apple provider - docs/SETUP.md section 8.4).
+      await revokeAccessToken(authInstance, stashed.code);
+    } catch (error) {
+      throw mapFirebaseAuthError(error);
+    }
   },
 
   async deleteAccountOnServer(): Promise<void> {
@@ -631,6 +822,23 @@ export const authService: AuthServiceImpl = {
     const user = authInstance.currentUser;
     if (!user) throw new AppError('unauthenticated', 'Nobody is signed in');
     const providers = user.providerData.map((profile) => profile.providerId);
+    // Apple FIRST on iOS when the module is usable (§26): the sheet also refreshes the
+    // authorizationCode that revokeAppleTokens() needs. Otherwise Google, then password.
+    if (providers.includes('apple.com') && Platform.OS === 'ios') {
+      const apple = tryLoadAppleModule();
+      if (apple && (await appleAvailable(apple))) {
+        const requested = await requestAppleCredential(apple, { requestScopes: false });
+        if (!requested) return 'cancelled';
+        try {
+          // Fails with auth/user-mismatch when a different Apple ID confirmed the sheet.
+          await reauthenticateWithCredential(user, requested.firebaseCredential);
+        } catch (error) {
+          throw mapFirebaseAuthError(error);
+        }
+        return 'done';
+      }
+      // Module unusable in this build: fall through to the account's other providers.
+    }
     if (providers.includes('google.com')) {
       if (!env.google.webClientId) {
         throw authError('not_configured', 'google_not_configured', 'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is not set');

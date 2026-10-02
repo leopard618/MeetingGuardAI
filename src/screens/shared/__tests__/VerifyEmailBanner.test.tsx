@@ -66,12 +66,19 @@ beforeEach(async () => {
 });
 
 describe('needsEmailVerification', () => {
-  it('mirrors the assistant gate: unverified AND no google.com provider', () => {
+  it('mirrors the assistant gate: unverified AND no trusted sign-in provider', () => {
     expect(needsEmailVerification(null)).toBe(false);
     expect(needsEmailVerification(user())).toBe(true);
     expect(needsEmailVerification(user({ emailVerified: true }))).toBe(false);
     expect(needsEmailVerification(user({ providerIds: ['google.com'] }))).toBe(false);
     expect(needsEmailVerification(user({ providerIds: ['password', 'google.com'] }))).toBe(false);
+  });
+
+  it('trusts apple.com like google.com (section 26: Apple verified the Apple ID)', () => {
+    expect(needsEmailVerification(user({ providerIds: ['apple.com'] }))).toBe(false);
+    expect(needsEmailVerification(user({ providerIds: ['password', 'apple.com'] }))).toBe(false);
+    // An untrusted provider id alone never opens the gate.
+    expect(needsEmailVerification(user({ providerIds: ['microsoft.com'] }))).toBe(true);
   });
 });
 

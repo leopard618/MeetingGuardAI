@@ -21,12 +21,17 @@ jest.mock('../../../contexts/ThemeContext', () => ({
 
 const mockReauthenticate = jest.fn();
 const mockDeleteAccount = jest.fn();
+const mockRevokeAppleTokens = jest.fn();
 let mockProviders = ['google.com'];
 let mockEmailVerified = true;
 jest.mock('../../../services/auth', () => {
   const actual = jest.requireActual('../../../services/auth/authErrors');
   return {
     authErrorMessageKey: actual.authErrorMessageKey,
+    // Late-bound: the factory runs while the consts above are still initializing.
+    authService: {
+      revokeAppleTokens: (): Promise<void> => mockRevokeAppleTokens() as Promise<void>,
+    },
     useAuth: () => ({
       authUser: { uid: 'u1', email: 'ana@example.com', displayName: 'Ana', emailVerified: mockEmailVerified, providerIds: mockProviders },
       reauthenticate: mockReauthenticate,
@@ -75,6 +80,7 @@ beforeEach(async () => {
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   mockReauthenticate.mockReset();
   mockDeleteAccount.mockReset();
+  mockRevokeAppleTokens.mockReset();
   (Toast.show as jest.Mock).mockClear();
   mockProviders = ['google.com'];
   mockEmailVerified = true;
@@ -124,6 +130,59 @@ it('stops when the Google confirmation is cancelled and explains server failures
     confirmLastAlert();
   });
   expect(Alert.alert).toHaveBeenLastCalledWith("Couldn't delete your account", "You're offline. Check your connection and try again.");
+});
+
+it('deletes an Apple account in order: Apple reauth, token revocation, server delete (5.1.1(v))', async () => {
+  mockProviders = ['apple.com'];
+  mockReauthenticate.mockResolvedValue('done');
+  mockRevokeAppleTokens.mockResolvedValue(undefined);
+  mockDeleteAccount.mockResolvedValue(undefined);
+  await renderSettings();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('settings-delete-account'));
+  });
+  await act(async () => {
+    confirmLastAlert();
+  });
+  expect(mockReauthenticate).toHaveBeenCalledWith();
+  expect(mockRevokeAppleTokens).toHaveBeenCalledTimes(1);
+  expect(mockDeleteAccount).toHaveBeenCalledTimes(1);
+  // Revocation needs a fresh code and a signed-in user: reauth -> revoke -> delete, exactly.
+  expect(mockRevokeAppleTokens.mock.invocationCallOrder[0]).toBeGreaterThan(mockReauthenticate.mock.invocationCallOrder[0]!);
+  expect(mockDeleteAccount.mock.invocationCallOrder[0]).toBeGreaterThan(mockRevokeAppleTokens.mock.invocationCallOrder[0]!);
+  expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ text1: 'Your account has been deleted.' }));
+});
+
+it('still deletes when the Apple revocation fails, after the best-effort notice', async () => {
+  mockProviders = ['apple.com'];
+  mockReauthenticate.mockResolvedValue('done');
+  mockRevokeAppleTokens.mockRejectedValue(new AppError('upstream_error', 'revocation failed'));
+  mockDeleteAccount.mockResolvedValue(undefined);
+  await renderSettings();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('settings-delete-account'));
+  });
+  await act(async () => {
+    confirmLastAlert();
+  });
+  expect(Toast.show).toHaveBeenCalledWith(
+    expect.objectContaining({ type: 'info', text1: expect.stringContaining('Sign in with Apple') }),
+  );
+  expect(mockDeleteAccount).toHaveBeenCalledTimes(1);
+});
+
+it('stops the Apple flow before revocation and deletion when the sheet is dismissed', async () => {
+  mockProviders = ['apple.com'];
+  mockReauthenticate.mockResolvedValue('cancelled');
+  await renderSettings();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('settings-delete-account'));
+  });
+  await act(async () => {
+    confirmLastAlert();
+  });
+  expect(mockRevokeAppleTokens).not.toHaveBeenCalled();
+  expect(mockDeleteAccount).not.toHaveBeenCalled();
 });
 
 it('asks password accounts for their password', async () => {

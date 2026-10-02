@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Toast from 'react-native-toast-message';
 
+import { isTrustedSignInProvider } from '../../core/aiContract';
 import type { AppError } from '../../core/errors';
 import type { AuthUser } from '../../core/types';
 import { useT } from '../../i18n';
@@ -27,12 +28,14 @@ import { authService, useAuth } from '../../services/auth';
 import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme } from '../../theme';
 
 /**
- * The assistant requires `email_verified` OR sign-in provider google.com
- * (functions/src/assistant/handler.ts); mirror that rule client-side.
+ * The assistant and zoom callables require `email_verified` OR a trusted sign-in provider
+ * (TRUSTED_SIGN_IN_PROVIDERS in src/core/aiContract.ts: google.com, apple.com - the server rule
+ * lives in functions/src/assistant/handler.ts and functions/src/zoom/index.ts); mirror it
+ * client-side.
  */
 export function needsEmailVerification(user: AuthUser | null): boolean {
   if (user === null) return false;
-  return !user.emailVerified && !user.providerIds.includes('google.com');
+  return !user.emailVerified && !user.providerIds.some(isTrustedSignInProvider);
 }
 
 /**

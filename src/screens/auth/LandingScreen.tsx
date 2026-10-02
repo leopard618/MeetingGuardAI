@@ -5,6 +5,10 @@
  *   before changing anything, English / Spanish) and the free daily assistant quota.
  * - "Continue with Google" through useAuth().signInWithGoogle(); the gate switches to onboarding
  *   or the dashboard by itself on success. A closed account picker is not an error.
+ * - On iOS, the official "Continue with Apple" button sits directly above Google (equal
+ *   prominence - App Review 4.8) and runs useAuth().signInWithApple(); a dismissed Apple sheet
+ *   is as silent as a closed Google picker (AppleSignInButton.tsx, docs/ARCHITECTURE.md
+ *   section 26).
  * - EN / ES switch (explicit choice, applied instantly) and the consent line with separate,
  *   screen-reader friendly links to the Terms and the Privacy Policy (both in the Auth stack).
  * - Scrolls, so it works with large fonts, small phones and landscape.
@@ -27,8 +31,10 @@ import { errorMessageKey } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useLanguage, useT } from '../../i18n';
-import { useAuth } from '../../services/auth';
+import { useAuth, type AuthActionResult } from '../../services/auth';
 import { componentMetrics, lightColors, pressedDimOpacity, pressedOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
+
+import { AppleSignInButton } from './AppleSignInButton';
 
 const log = createLogger('landing');
 
@@ -59,22 +65,23 @@ export function LandingScreen(): ReactElement {
   const insets = useSafeAreaInsets();
   const layout = useResponsive();
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signInWithApple } = useAuth();
   const { language, setLanguage, supportedLanguages } = useLanguage();
   const [busy, setBusy] = useState(false);
   // Light status-bar icons only while the dark hero is on screen: expo-status-bar keeps the last
   // mounted style, so a pushed Terms / Privacy page must not inherit it.
   const focused = useIsFocused();
 
-  const handleSignIn = async (): Promise<void> => {
+  // One handler for both providers: a dismissed picker / sheet is not an error (stay silent).
+  const handleSignIn = async (signIn: () => Promise<AuthActionResult>): Promise<void> => {
     if (busy) return;
     setBusy(true);
     try {
-      const result = await signInWithGoogle();
+      const result = await signIn();
       if (result.success || result.cancelled) return;
       Alert.alert(t('landing:signIn.failedTitle'), result.error ?? t('landing:signIn.failed'));
     } catch (error: unknown) {
-      // signInWithGoogle reports failures in its result; this is a programming error.
+      // The sign-in actions report failures in their result; this is a programming error.
       log.error('unexpected sign-in failure', error);
       Alert.alert(t('landing:signIn.failedTitle'), t(errorMessageKey('unknown')));
     } finally {
@@ -140,9 +147,17 @@ export function LandingScreen(): ReactElement {
             </View>
           ))}
 
+          <AppleSignInButton
+            onPress={() => {
+              void handleSignIn(signInWithApple);
+            }}
+            disabled={busy}
+            style={styles.appleButton}
+          />
+
           <Pressable
             onPress={() => {
-              void handleSignIn();
+              void handleSignIn(signInWithGoogle);
             }}
             disabled={busy}
             style={({ pressed }) => [styles.signInButton, { backgroundColor: colors.primary }, pressed ? styles.pressedDim : busy ? styles.pressed : null]}
@@ -285,6 +300,9 @@ const styles = StyleSheet.create({
   },
   valueTitle: {
     ...typography.titleM,
+  },
+  appleButton: {
+    marginTop: spacing.sm,
   },
   signInButton: {
     minHeight: componentMetrics.buttonHeight,
