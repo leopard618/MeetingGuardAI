@@ -274,7 +274,7 @@ export function createZoomService(deps: ZoomServiceDeps): ZoomServiceInternal {
     if (!transport) return;
     try {
       // The document is already tombstoned when this runs, so the bare-id form is the right one
-      // (the server matches it against the caller's own meetings; a Zoom 404 = deleted anyway).
+      // (the server attests ownership from its zoomMeetings registry; a Zoom 404 = deleted anyway).
       const raw = await transport.call(CALLABLES.zoomDeleteMeeting, { meetingId: null, zoomMeetingId }, { timeoutMs });
       if (!zoomDeleteMeetingResponseSchema.safeParse(raw).success) {
         log.warn('zoom delete response failed validation', { meetingId: meeting.id });
