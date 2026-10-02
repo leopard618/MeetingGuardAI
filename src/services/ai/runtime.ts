@@ -11,6 +11,7 @@ import { getDeviceTimeZone } from '../../core/time';
 import { getLanguage } from '../../i18n';
 import { googleCalendarService } from '../calendar';
 import { dataEngine, dataService, meetingRepository } from '../data';
+import { zoomService } from '../zoom';
 
 import { createActionExecutor, type AiActionExecutor } from './actionExecutor';
 import { createAssistantClient } from './assistantClient';
@@ -43,6 +44,7 @@ export const actionExecutor: AiActionExecutor = createActionExecutor({
   meetings: meetingRepository,
   calendar: googleCalendarService,
   sharing: reactNativeShareAdapter,
+  zoom: zoomService,
   executed: createExecutedStore(AsyncStorage),
   getUid: activeUid,
   getFormatter: () => createAssistantFormatter({ use24Hour: dataEngine.getSnapshot().preferences.use24HourClock }),

@@ -50,6 +50,12 @@ jest.mock('../../../../services/calendar', () => ({
   calendarSyncEngine: { syncNow: (...args: unknown[]) => mockSyncNow(...args) },
 }));
 
+// §24: a whole-series delete also removes the server-created Zoom meeting (best effort).
+const mockOnMeetingDeleted = jest.fn(async (..._args: unknown[]) => undefined);
+jest.mock('../../../../services/zoom', () => ({
+  zoomService: { onMeetingDeleted: (...args: unknown[]) => mockOnMeetingDeleted(...args) },
+}));
+
 function meeting(id: string, input: Partial<MeetingCreateInput> & { startAt: string }): Meeting {
   return buildMeeting(
     { title: id, source: 'manual', timezone: 'America/Mexico_City', ...input },
@@ -199,6 +205,7 @@ it('deletes a Google meeting only after confirmation, and reports the real outco
     pressAlertButton('destructive');
   });
   expect(mockRemove).toHaveBeenCalledWith('google', { origin: 'user' });
+  expect(mockOnMeetingDeleted).toHaveBeenCalledWith(expect.objectContaining({ id: 'google' }));
   expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'success', text1: 'Meeting deleted.' }));
 });
 

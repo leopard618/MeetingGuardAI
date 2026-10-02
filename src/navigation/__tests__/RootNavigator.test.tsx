@@ -24,6 +24,20 @@ jest.mock('../../services/auth', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+
+// §24: the details screen and the row actions read the zoom service (zoomStatus + hooks).
+jest.mock('../../services/zoom', () => ({
+  useZoomStatus: () => ({ configured: null, refresh: jest.fn() }),
+  zoomService: {
+    isAvailable: jest.fn(async () => false),
+    getKnownAvailability: () => null,
+    ensureLink: jest.fn(async () => ({ url: 'https://zoom.us/j/1', password: null, zoomMeetingId: '1' })),
+    syncIfNeeded: jest.fn(async () => undefined),
+    onMeetingDeleted: jest.fn(async () => undefined),
+    linkFailure: () => null,
+  },
+}));
+
 // The real MeetingDetails screen reads the Google Calendar connection (Meet link hint).
 jest.mock('../../services/calendar', () => ({
   useCalendarStatus: () => ({ google: { enabled: false, hasScope: false }, device: { enabled: false } }),

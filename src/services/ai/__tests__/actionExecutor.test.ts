@@ -159,7 +159,31 @@ class FakeMeetings {
   });
 }
 
-function setup(options: { meetings?: Meeting[]; connected?: boolean; uid?: string | null; mailFails?: boolean; shareOutcome?: 'shared' | 'dismissed' } = {}) {
+/** §24 zoom port double: `available` is the cached zoomStatus answer. */
+function fakeZoom(available: boolean) {
+  return {
+    isAvailable: jest.fn(async () => available),
+    ensureLink: jest.fn(async (_meetingId: string) => ({ url: 'https://zoom.us/j/1', password: null, zoomMeetingId: '1' })),
+    syncIfNeeded: jest.fn(async (_meeting: Meeting, _patch: MeetingPatch) => undefined),
+    onMeetingDeleted: jest.fn(async (_meeting: Pick<Meeting, 'id' | 'external'>) => undefined),
+  };
+}
+
+/** The zoom hooks are detached from the action result; let them run to completion. */
+async function flushZoomHooks(): Promise<void> {
+  await new Promise((settle) => setImmediate(settle));
+}
+
+function setup(
+  options: {
+    meetings?: Meeting[];
+    connected?: boolean;
+    uid?: string | null;
+    mailFails?: boolean;
+    shareOutcome?: 'shared' | 'dismissed';
+    zoom?: ReturnType<typeof fakeZoom>;
+  } = {},
+) {
   const meetings = new FakeMeetings(options.meetings ?? []);
   const calendar = {
     isConnected: jest.fn(async () => options.connected ?? false),
@@ -182,6 +206,7 @@ function setup(options: { meetings?: Meeting[]; connected?: boolean; uid?: strin
     calendar,
     sharing,
     executed: createExecutedStore(storage, () => NOW),
+    ...(options.zoom ? { zoom: options.zoom } : {}),
     getUid: () => (options.uid === undefined ? UID : options.uid),
     getFormatter: () => createTestFormatter(),
     now: () => NOW,
@@ -711,5 +736,83 @@ describe('recurrence scope following (v3)', () => {
     };
     const renamePreview = await executor.preview(rename);
     expect(renamePreview.warnings).toEqual([]);
+  });
+});
+
+
+describe('zoom hooks (§24)', () => {
+  const ZOOM_NO_URL = { provider: 'zoom' as const, url: null, password: null };
+
+  it('requests the server-created link after a create with provider zoom and no url', async () => {
+    const zoom = fakeZoom(true);
+    const { executor } = setup({ zoom });
+    const result = expectDone(await executor.execute(createAction('a_z1', { conference: ZOOM_NO_URL })));
+    await flushZoomHooks();
+    expect(zoom.ensureLink).toHaveBeenCalledWith(result.meetingIds[0]);
+    expect(zoom.syncIfNeeded).not.toHaveBeenCalled();
+  });
+
+  it('skips the link while the server says the integration is not configured', async () => {
+    const zoom = fakeZoom(false);
+    const { executor } = setup({ zoom });
+    expectDone(await executor.execute(createAction('a_z2', { conference: ZOOM_NO_URL })));
+    await flushZoomHooks();
+    expect(zoom.ensureLink).not.toHaveBeenCalled();
+  });
+
+  it('syncs an edited meeting through the zoom port and never creates over an existing link', async () => {
+    const zoom = fakeZoom(true);
+    const linked = makeMeeting('m1', {
+      conference: { provider: 'zoom', url: 'https://zoom.us/j/1', password: null },
+      external: { zoomMeetingId: '1' },
+    });
+    const { executor } = setup({ meetings: [linked], zoom });
+    expectDone(await executor.execute(updateAction('a_z3', 'm1', { startAt: '2030-03-12T18:00:00.000Z' })));
+    await flushZoomHooks();
+    expect(zoom.ensureLink).not.toHaveBeenCalled();
+    expect(zoom.syncIfNeeded).toHaveBeenCalledTimes(1);
+    expect(zoom.syncIfNeeded.mock.calls[0]![0]).toMatchObject({ id: 'm1' });
+    expect(zoom.syncIfNeeded.mock.calls[0]![1]).toMatchObject({ startAt: '2030-03-12T18:00:00.000Z' });
+  });
+
+  it('an update that leaves provider zoom without a url requests the link too', async () => {
+    const zoom = fakeZoom(true);
+    const { executor } = setup({ meetings: [makeMeeting('m1')], zoom });
+    expectDone(await executor.execute(updateAction('a_z4', 'm1', { conference: ZOOM_NO_URL })));
+    await flushZoomHooks();
+    expect(zoom.ensureLink).toHaveBeenCalledWith('m1');
+  });
+
+  it('a swallowed ensureLink failure never fails the confirmed action', async () => {
+    const zoom = fakeZoom(true);
+    zoom.ensureLink.mockRejectedValue(new AppError('upstream_error'));
+    const { executor } = setup({ zoom });
+    const result = await executor.execute(createAction('a_z5', { conference: ZOOM_NO_URL }));
+    await flushZoomHooks();
+    expect(result.status).toBe('done');
+    expect(zoom.ensureLink).toHaveBeenCalled();
+  });
+
+  it('a confirmed delete also deletes the server-created Zoom meeting', async () => {
+    const zoom = fakeZoom(true);
+    const linked = makeMeeting('m1', {
+      conference: { provider: 'zoom', url: 'https://zoom.us/j/1', password: null },
+      external: { zoomMeetingId: '1' },
+    });
+    const { executor, meetings } = setup({ meetings: [linked], zoom });
+    expectDone(await executor.execute(deleteAction('a_z6', 'm1')));
+    await flushZoomHooks();
+    expect(meetings.byId.get('m1')?.deletedAt).not.toBeNull();
+    expect(zoom.onMeetingDeleted).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }));
+  });
+
+  it('bulk updates run the sync hook per updated meeting', async () => {
+    const zoom = fakeZoom(true);
+    const a = makeMeeting('m1', { external: { zoomMeetingId: '1' } });
+    const b = makeMeeting('m2', { startAt: '2030-03-11T17:00:00.000Z' });
+    const { executor } = setup({ meetings: [a, b], zoom });
+    expectDone(await executor.execute(bulkAction('a_z7', ['m1', 'm2'], { shiftMinutes: 30 })));
+    await flushZoomHooks();
+    expect(zoom.syncIfNeeded).toHaveBeenCalledTimes(2);
   });
 });

@@ -3,7 +3,9 @@
  * Reads the live meeting from the data layer (deep links from notifications included) and shows
  * everything the meeting holds: time (locale-aware, 12 h / 24 h preference), duration, place,
  * video call (real join link + password; without a link the card explains what happens next per
- * provider and calendar connection - conferenceCardState, §22), participants, description,
+ * provider and calendar connection - conferenceCardState, §22; a pending server-created Zoom
+ * link shows "being created" and, after a failure this session, "could not be created" + Retry,
+ * §24), participants, description,
  * preparation tips, alert settings, notes. Every meeting can be edited and deleted:
  * - MeetingGuard meetings and Google events: edits / deletes are also sent to Google Calendar by
  *   the calendar engine (origin 'user');
@@ -12,12 +14,13 @@
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
-import { useMemo, useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { Alert, Linking, StyleSheet, View } from 'react-native';
 import { Chip, HelperText, Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { Card, ListGroup, MGButton, SectionHeader } from '../../components/ui';
+import type { ConferenceCalendarState } from '../../core/conference';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -28,6 +31,7 @@ import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { useCalendarStatus } from '../../services/calendar';
 import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
+import { useZoomStatus, zoomService } from '../../services/zoom';
 import { componentMetrics, spacing, useAppTheme } from '../../theme';
 import { MeetingAttachmentsSection } from '../attachments/MeetingAttachmentsSection';
 import { alertTimeLabel } from '../onboarding/alertOptions';
@@ -130,6 +134,9 @@ function MeetingDetails({
     setDeleting(true);
     try {
       await meetingRepository.remove(meeting.id, { origin: 'user' });
+      // §24: best effort, never blocks the UI - deletes the server-created Zoom meeting (no-op
+      // without an external.zoomMeetingId; the service logs failures and never throws).
+      void zoomService.onMeetingDeleted(meeting);
       Toast.show({
         type: 'success',
         text1: t('meetings:details.deleted'),
@@ -170,9 +177,46 @@ function MeetingDetails({
   };
 
   const conference = meeting.conference;
+  // §24: the session's zoomStatus answer feeds the capability derivation (absent while unknown).
+  const zoomStatus = useZoomStatus();
+  const conferenceCalendar: ConferenceCalendarState =
+    zoomStatus.configured === null ? calendar : { ...calendar, zoom: { configured: zoomStatus.configured } };
   // §22: a real link (pasted or provider-created, incl. an imported virtualUrl) always wins;
   // otherwise the card explains the empty url from the provider + the LIVE calendar status.
-  const card = conferenceCardState(meeting, calendar);
+  const card = conferenceCardState(meeting, conferenceCalendar);
+  // §24: while the card promises a Zoom link ("being created"), make the promise true: ensureLink
+  // is idempotent and deduped, so this joins the create the save screen fired (and heals a zoom
+  // meeting saved while the integration was off). A failure this session swaps the copy to
+  // "could not be created" + Retry (linkFailure); a pasted/created url turns the card into Join.
+  const zoomPending = card.kind === 'info' && card.key === 'zoomPending';
+  const [zoomRetrying, setZoomRetrying] = useState(false);
+  const [, setZoomTick] = useState(0);
+  const zoomFailure = zoomPending ? zoomService.linkFailure(meeting.id) : null;
+  useEffect(() => {
+    if (!zoomPending || zoomFailure !== null) return;
+    let active = true;
+    zoomService.ensureLink(meeting.id).catch(() => {
+      // Re-render so the card reads the recorded failure (the link itself arrives through the
+      // meeting listener on success, which re-renders anyway).
+      if (active) setZoomTick((tick) => tick + 1);
+    });
+    return () => {
+      active = false;
+    };
+  }, [zoomPending, zoomFailure, meeting.id]);
+  const retryZoomLink = (): void => {
+    setZoomRetrying(true);
+    zoomService
+      .ensureLink(meeting.id)
+      .catch(() => undefined)
+      .finally(() => {
+        setZoomRetrying(false);
+        // The tick always changes, so the card re-reads linkFailure even when React batches
+        // the retrying=true/false pair into one no-op state pass.
+        setZoomTick((tick) => tick + 1);
+      });
+  };
+  const cardInfoKey = card.kind === 'info' ? (zoomFailure !== null && !zoomRetrying ? 'zoomCreateFailed' : card.key) : null;
   const tips = meeting.preparationTips;
 
   return (
@@ -273,9 +317,22 @@ function MeetingDetails({
               </View>
             ) : (
               <View>
-                <HelperText type="info" visible style={styles.helper} testID={`meeting-conference-${card.key}`}>
-                  {t(`meetings:details.${card.key}`)}
+                <HelperText type="info" visible style={styles.helper} testID={`meeting-conference-${cardInfoKey ?? 'noLink'}`}>
+                  {t(`meetings:details.${cardInfoKey ?? 'noLink'}`)}
                 </HelperText>
+                {zoomPending && zoomFailure !== null ? (
+                  <MGButton
+                    variant="outline"
+                    icon="refresh"
+                    style={styles.action}
+                    onPress={retryZoomLink}
+                    loading={zoomRetrying}
+                    disabled={zoomRetrying}
+                    testID="meeting-zoom-retry"
+                  >
+                    {t('common:actions.retry')}
+                  </MGButton>
+                ) : null}
                 {card.connect !== null ? (
                   <MGButton
                     variant="outline"

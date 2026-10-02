@@ -59,6 +59,18 @@ jest.mock('../../../services/calendar', () => ({
   useCalendarStatus: () => mockCalendar,
 }));
 
+// §24: the session's zoomStatus answer (null = unknown) and the post-save zoom hooks.
+let mockZoomConfigured: boolean | null = null;
+const mockEnsureLink = jest.fn();
+const mockSyncIfNeeded = jest.fn();
+jest.mock('../../../services/zoom', () => ({
+  useZoomStatus: () => ({ configured: mockZoomConfigured, refresh: jest.fn() }),
+  zoomService: {
+    ensureLink: (...args: unknown[]) => mockEnsureLink(...args),
+    syncIfNeeded: (...args: unknown[]) => mockSyncIfNeeded(...args),
+  },
+}));
+
 const mockAttachments = {
   listForMeeting: jest.fn(),
   add: jest.fn(),
@@ -132,6 +144,11 @@ beforeEach(async () => {
   mockMeeting = meeting();
   mockCreate.mockReset();
   mockUpdate.mockReset();
+  mockZoomConfigured = null;
+  mockEnsureLink.mockReset();
+  mockEnsureLink.mockResolvedValue({ url: 'https://zoom.us/j/123', password: null, zoomMeetingId: '123' });
+  mockSyncIfNeeded.mockReset();
+  mockSyncIfNeeded.mockResolvedValue(undefined);
   Object.values(mockAttachments).forEach((fn) => fn.mockReset());
   mockAttachments.listForMeeting.mockResolvedValue([]);
   mockAttachments.remove.mockResolvedValue(undefined);
@@ -338,6 +355,8 @@ describe('video call section (§22)', () => {
     await pickProvider('zoom');
     expect(screen.getByText(/^Paste the link from your Zoom/)).toBeTruthy();
     expect(screen.queryByTestId('meeting-form-connect-calendar')).toBeNull();
+    // Status unknown (zoomStatus not answered): plain paste, no "not set up" note (§24).
+    expect(screen.queryByTestId('meeting-form-conference-note')).toBeNull();
     expect(screen.getAllByText('Meeting link').length).toBeGreaterThan(0);
 
     // Outlook is hidden in this build: Teams never advertises an auto link.
@@ -406,5 +425,101 @@ describe('video call section (§22)', () => {
     mockMeeting = meeting({ conference: { provider: 'zoom', url: 'https://zoom.us/j/1', password: 'pw1' } });
     await renderForm('EditMeeting');
     expect(screen.getByTestId('meeting-form-passcode').props.value).toBe('pw1');
+  });
+
+  it('promises a server-created Zoom link once the server said it is configured (§24)', async () => {
+    mockZoomConfigured = true;
+    await renderForm('CreateMeeting');
+    await pickProvider('zoom');
+    expect(screen.getByText('A Zoom link will be created when you save')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-form-conference-note')).toBeNull();
+    // No connect CTA: only the project owner can configure the server side.
+    expect(screen.queryByTestId('meeting-form-connect-calendar')).toBeNull();
+    expect(screen.getAllByText('Existing link (optional)').length).toBeGreaterThan(0);
+  });
+
+  it('keeps the paste hint plus the muted note when the server said Zoom is not set up (§24)', async () => {
+    mockZoomConfigured = false;
+    await renderForm('CreateMeeting');
+    await pickProvider('zoom');
+    expect(screen.getByText(/^Paste the link from your Zoom/)).toBeTruthy();
+    expect(screen.getByTestId('meeting-form-conference-note').props.children).toBe('Automatic Zoom links are not set up yet');
+    expect(screen.getAllByText('Meeting link').length).toBeGreaterThan(0);
+  });
+});
+
+describe('zoom save hooks (§24)', () => {
+  const zoomDraftMeeting = (url: string | null) => meeting({ conference: { provider: 'zoom', url, password: null } });
+
+  it('requests the server-created link after saving a zoom meeting without a pasted link', async () => {
+    mockZoomConfigured = true;
+    mockCreate.mockImplementation(async () => zoomDraftMeeting(null));
+    await renderForm('CreateMeeting');
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('meeting-form-title'), 'Zoom sync');
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-form-conference-zoom'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-form-save'));
+    });
+    expect(mockEnsureLink).toHaveBeenCalledWith('m1');
+    expect(mockSyncIfNeeded).not.toHaveBeenCalled();
+  });
+
+  it('never requests a link when one was pasted, or while the status is unknown/not configured', async () => {
+    // Pasted link wins (even with the integration configured).
+    mockZoomConfigured = true;
+    mockCreate.mockImplementation(async () => zoomDraftMeeting('https://zoom.us/j/7'));
+    await renderForm('CreateMeeting');
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('meeting-form-title'), 'Pasted');
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-form-conference-zoom'));
+    });
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('meeting-form-link'), 'https://zoom.us/j/7');
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-form-save'));
+    });
+    expect(mockEnsureLink).not.toHaveBeenCalled();
+
+    // Status unknown: saving a link-less zoom meeting stays paste-only (no server call).
+    mockZoomConfigured = null;
+    mockCreate.mockImplementation(async () => zoomDraftMeeting(null));
+    await renderForm('CreateMeeting');
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('meeting-form-title'), 'Unknown status');
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-form-conference-zoom'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-form-save'));
+    });
+    expect(mockEnsureLink).not.toHaveBeenCalled();
+  });
+
+  it('syncs the existing Zoom meeting after an edit (the service checks the patch itself)', async () => {
+    mockMeeting = meeting({
+      conference: { provider: 'zoom', url: 'https://zoom.us/j/1', password: null },
+      external: { zoomMeetingId: '123' },
+    });
+    mockUpdate.mockImplementation(async (id: unknown, patch: unknown) => ({ ...mockMeeting, ...(patch as object) }));
+    await renderForm('EditMeeting');
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('meeting-form-title'), 'Renamed');
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-form-save'));
+    });
+    expect(mockUpdate).toHaveBeenCalledWith('m1', expect.objectContaining({ title: 'Renamed' }), { origin: 'user' });
+    expect(mockSyncIfNeeded).toHaveBeenCalledTimes(1);
+    expect(mockSyncIfNeeded.mock.calls[0]![0]).toMatchObject({ id: 'm1' });
+    expect(mockSyncIfNeeded.mock.calls[0]![1]).toMatchObject({ title: 'Renamed' });
+    expect(mockEnsureLink).not.toHaveBeenCalled();
   });
 });

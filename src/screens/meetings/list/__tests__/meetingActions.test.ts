@@ -9,6 +9,7 @@ import { Platform } from 'react-native';
 import { scopeDialogButtons } from '../meetingActions';
 
 jest.mock('../../../../services/data', () => ({ meetingRepository: {} }));
+jest.mock('../../../../services/zoom', () => ({ zoomService: {} }));
 
 const SCOPES = [{ text: 'This meeting only' }, { text: 'This and following' }, { text: 'The whole series' }];
 

@@ -10,6 +10,10 @@
  * - Google Meet: a conference { provider 'google_meet', url null } is turned into a real link
  *   through Google Calendar when it is connected; otherwise the meeting keeps "no link yet" and
  *   the result says so (meetLinkCreated false) - a link is never invented.
+ * - Zoom (§24): after a confirmed create/update whose meeting ends up { provider 'zoom', url
+ *   null } and the server integration is configured, the zoom port's ensureLink creates the real
+ *   link server-side (fire-and-forget: the details card reports pending/failed); edits sync the
+ *   existing Zoom meeting (syncIfNeeded) and a full delete removes it (onMeetingDeleted).
  * - Sharing opens the mail composer (email) or the OS share sheet; the result names what was
  *   actually opened, it never claims the message was sent.
  * - Never throws: failures resolve `{ status: 'failed', error: AppError }`. A dismissed share
@@ -51,11 +55,25 @@ const log = createLogger('ai.executor');
 /** How far around a proposed time existing meetings are loaded for the overlap check. */
 const OVERLAP_MARGIN_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * §24 surface of ZoomService the executor uses (src/services/zoom). All methods follow the
+ * contract: isAvailable/syncIfNeeded/onMeetingDeleted never throw; ensureLink's failure is
+ * remembered by the service for the details card (linkFailure), so the executor only swallows it.
+ */
+export interface ZoomPort {
+  isAvailable(): Promise<boolean>;
+  ensureLink(meetingId: string): Promise<unknown>;
+  syncIfNeeded(meeting: Meeting, patch: MeetingPatch): Promise<void>;
+  onMeetingDeleted(meeting: Pick<Meeting, 'id' | 'external'>): Promise<void>;
+}
+
 export interface ActionExecutorDeps {
   meetings: MeetingsPort;
   calendar: CalendarLinkPort;
   sharing: ShareAdapter;
   executed: ExecutedStore;
+  /** Absent in builds/tests without the zoom area: provider-zoom writes then skip the hooks. */
+  zoom?: ZoomPort;
   getUid(): string | null;
   /** Formatter in the current UI language (share text). */
   getFormatter(): AssistantFormatter;
@@ -269,6 +287,31 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     };
   }
 
+  /**
+   * §24 hooks after a confirmed write (fire-and-forget; never changes the action result):
+   * a provider-zoom meeting without a url gets its server-created link (only when the server
+   * said the integration is configured), and an edit that touched title/start/duration/zone
+   * patches the existing Zoom meeting (syncIfNeeded no-ops without an external.zoomMeetingId).
+   */
+  async function runZoomHooks(meeting: Meeting, patch: MeetingPatch | null): Promise<void> {
+    const zoom = deps.zoom;
+    if (!zoom) return;
+    if (meeting.conference?.provider === 'zoom' && meeting.conference.url === null && (await zoom.isAvailable())) {
+      await Promise.resolve(zoom.ensureLink(meeting.id)).catch((error: unknown) => {
+        // The zoom service records the failure for the details card; only the code is logged.
+        log.warn('zoom link creation failed after an assistant action', { meetingId: meeting.id, code: toAppError(error).code });
+      });
+    }
+    if (patch !== null) await zoom.syncIfNeeded(meeting, patch);
+  }
+
+  /** Detached runner so a zoom hook can never delay or fail the confirmed action. */
+  function zoomHooks(meeting: Meeting, patch: MeetingPatch | null): void {
+    void runZoomHooks(meeting, patch).catch((error: unknown) => {
+      log.warn('zoom hooks failed', { meetingId: meeting.id, code: toAppError(error).code });
+    });
+  }
+
   /** Creates the requested Meet link; never throws. */
   async function ensureMeetLink(meeting: Meeting): Promise<{ created: boolean; error: AppErrorCode | null }> {
     if (!(await calendarConnected())) return { created: false, error: 'calendar_not_connected' };
@@ -293,6 +336,7 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
       result.meetLinkCreated = link.created;
       result.meetLinkError = link.error;
     }
+    zoomHooks(meeting, null);
     return result;
   }
 
@@ -333,15 +377,20 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
         result.meetLinkCreated = link.created;
         result.meetLinkError = link.error;
       }
+      // The new tail is a fresh document (no external refs copied over), so it behaves like a
+      // create; the truncated master only changed its recurrence (nothing Zoom displays).
+      zoomHooks(target, null);
       return result;
     }
-    const updated = await deps.meetings.update(current.id, changesToPatch(action.changes, current), { origin: 'ai' });
+    const patch = changesToPatch(action.changes, current);
+    const updated = await deps.meetings.update(current.id, patch, { origin: 'ai' });
     const result: AiDoneResult = { status: 'done', actionId: action.id, type: action.type, meetingIds: [updated.id], duplicate: false };
     if (wantsMeetLink(action.changes.conference) && !updated.conference?.url) {
       const link = await ensureMeetLink(updated);
       result.meetLinkCreated = link.created;
       result.meetLinkError = link.error;
     }
+    zoomHooks(updated, patch);
     return result;
   }
 
@@ -362,6 +411,9 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
       return { status: 'done', actionId: action.id, type: action.type, meetingIds: [current.id], duplicate: false };
     }
     await deps.meetings.remove(current.id, { origin: 'ai' });
+    // §24: the whole meeting is gone, so the server-created Zoom meeting goes too (best effort;
+    // occurrence/following scopes above keep the series - and its reusable link - alive).
+    if (deps.zoom) void deps.zoom.onMeetingDeleted(current);
     return { status: 'done', actionId: action.id, type: action.type, meetingIds: [current.id], duplicate: false };
   }
 
@@ -392,6 +444,7 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
       const updated = await deps.meetings.update(id, patch, { origin: 'ai' });
       updatedIds.push(id);
       await deps.executed.markProgress(uid, key, id);
+      zoomHooks(updated, patch);
       if (action.changes && wantsMeetLink(action.changes.conference) && !updated.conference?.url) {
         meetRequested += 1;
         const link = await ensureMeetLink(updated);

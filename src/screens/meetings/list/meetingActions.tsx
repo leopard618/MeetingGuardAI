@@ -27,6 +27,7 @@ import { createLogger } from '../../../core/logger';
 import type { Meeting } from '../../../core/types';
 import { useT } from '../../../i18n';
 import { meetingRepository } from '../../../services/data';
+import { zoomService } from '../../../services/zoom';
 import { useFormatters } from '../../shared/useFormatters';
 import type { DisplayMeeting } from '../occurrences';
 
@@ -149,6 +150,10 @@ export function useMeetingActions(): MeetingActions {
       setDeletingId(meeting.id);
       try {
         await meetingRepository.remove(meeting.id, { origin: 'user' });
+        // §24: deleting the whole series also deletes the server-created Zoom meeting (best
+        // effort; no-op without an external.zoomMeetingId, and the service never throws).
+        // Occurrence-scoped deletes keep the series - and its reusable Zoom link - alive.
+        void zoomService.onMeetingDeleted(meeting);
         Toast.show({
           type: 'success',
           text1: t('meetings:details.deleted'),

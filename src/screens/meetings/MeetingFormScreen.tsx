@@ -6,8 +6,10 @@
  * - Place and video call. Links are ONLY what the user pastes (nothing is generated): Google Meet
  *   without a link is saved as provider google_meet + url null and the Google Calendar push then
  *   creates a REAL Meet link; Teams without a link gets one from the Outlook push (when Outlook
- *   is configured + connected, §22). The helper under the provider chips is DERIVED from
- *   conferenceCapability with the LIVE calendar status, so it follows every chip change.
+ *   is configured + connected, §22); Zoom without a link is created by the zoomCreateMeeting
+ *   callable after Save when the server integration is configured (§24, fire-and-forget).
+ *   The helper under the provider chips is DERIVED from conferenceCapability with the LIVE
+ *   calendar status (+ the session's zoomStatus answer), so it follows every chip change.
  * - Participants (Google Calendar sends the invitations when the meeting syncs), preparation
  *   tips, reminders (the defaults or custom minutes-before offsets) and an intensity override,
  *   notes, device-local attachments.
@@ -25,16 +27,18 @@ import { ListGroup, ListRow, MGButton } from '../../components/ui';
 import { radii, spacing, useAppTheme } from '../../theme';
 
 import { RECURRENCE_WEEKDAYS } from '../../core/aiContract';
+import type { ConferenceCalendarState } from '../../core/conference';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
-import type { Meeting } from '../../core/types';
+import type { Meeting, MeetingPatch } from '../../core/types';
 import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { attachmentService } from '../../services/attachments';
 import { useCalendarStatus } from '../../services/calendar';
 import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
+import { useZoomStatus, zoomService } from '../../services/zoom';
 import { addErrorMessage, showAddResult } from '../attachments/attachmentMessages';
 import { alertTimeChoices, alertTimeLabel, toggleAlertTime } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
@@ -51,6 +55,7 @@ import {
   REPEAT_END_CHOICES,
   conferenceConnectTarget,
   conferenceFormHint,
+  conferenceFormNote,
   conferenceLinkLabel,
   dateFromPicker,
   defaultRepeatWeekdays,
@@ -140,11 +145,20 @@ function MeetingForm({
   const valid = Object.keys(errors).length === 0;
   const change = (patch: Partial<MeetingFormDraft>): void => setDraft((current) => ({ ...current, ...patch }));
   const googleConnected = calendar.google.enabled && calendar.google.hasScope;
+  // §24: what the app knows about the server-side Zoom integration this session (null = not
+  // answered yet; zoom then behaves as plain paste and the capability state leaves `zoom` absent).
+  const zoomStatus = useZoomStatus();
+  const conferenceCalendar: ConferenceCalendarState = useMemo(
+    () => (zoomStatus.configured === null ? calendar : { ...calendar, zoom: { configured: zoomStatus.configured } }),
+    [calendar, zoomStatus.configured],
+  );
   // §22: the video-call helper follows the chip selection AND the live calendar connections
   // (plus the edited meeting's source / repeat choice / external refs: an auto mode the sync
   // can never reach - imported meeting, Teams + recurrence, or a meeting already pushed to
   // Outlook - degrades to the paste hint instead of promising a link the sync never creates).
-  const conferenceHint = conferenceFormHint(draft, calendar, meeting?.source, meeting?.external);
+  const conferenceHint = conferenceFormHint(draft, conferenceCalendar, meeting?.source, meeting?.external);
+  // Muted "why" under the paste hint when the server SAID Zoom is not set up (§24).
+  const conferenceNote = conferenceFormNote(draft, conferenceCalendar);
   const connectTarget = conferenceConnectTarget(conferenceHint);
   const meetingId = meeting?.id ?? null;
   const dirty = isMeetingDraftDirty(draft, original) || addedAttachments.length > 0 || removedIds.length > 0;
@@ -243,11 +257,27 @@ function MeetingForm({
     setSaving(true);
     try {
       let saved: Meeting;
+      let appliedPatch: MeetingPatch | null = null;
       if (meeting) {
         const patch = draftToPatch(meeting, draft, original);
-        saved = Object.keys(patch).length > 0 ? await meetingRepository.update(meeting.id, patch, { origin: 'user' }) : meeting;
+        if (Object.keys(patch).length > 0) {
+          saved = await meetingRepository.update(meeting.id, patch, { origin: 'user' });
+          appliedPatch = patch;
+        } else {
+          saved = meeting;
+        }
       } else {
         saved = await meetingRepository.create(draftToCreateInput(draft), { origin: 'user' });
+      }
+      // §24: a Zoom meeting saved without a pasted link gets a real one from the server
+      // (fire-and-forget; the details card shows the pending/failed state via linkFailure),
+      // and edits that touch what Zoom displays are synced to the existing Zoom meeting
+      // (syncIfNeeded checks the patch and the external ref itself; it never throws).
+      if (saved.conference?.provider === 'zoom') {
+        if (saved.conference.url === null && zoomStatus.configured === true) {
+          zoomService.ensureLink(saved.id).catch(() => undefined);
+        }
+        if (appliedPatch !== null) void zoomService.syncIfNeeded(saved, appliedPatch);
       }
       // Device-local attachments picked in this form belong to the meeting now.
       for (const attachment of addedAttachments) {
@@ -603,6 +633,11 @@ function MeetingForm({
             {t(`meetings:form.${conferenceHint}`)}
           </HelperText>
         ) : null}
+        {conferenceNote !== null ? (
+          <Text variant="bodySmall" style={[styles.mutedNote, { color: colors.onSurfaceVariant }]} testID="meeting-form-conference-note">
+            {t(`meetings:form.${conferenceNote}`)}
+          </Text>
+        ) : null}
         {connectTarget !== null ? (
           <MGButton
             variant="outline"
@@ -620,7 +655,7 @@ function MeetingForm({
             <TextInput
               mode="outlined"
               outlineStyle={styles.inputOutline}
-              label={t(`meetings:form.${conferenceLinkLabel(draft, calendar, meeting?.source, meeting?.external)}`)}
+              label={t(`meetings:form.${conferenceLinkLabel(draft, conferenceCalendar, meeting?.source, meeting?.external)}`)}
               placeholder="https://"
               value={draft.conferenceUrl}
               onChangeText={(value) => change({ conferenceUrl: value })}
@@ -848,6 +883,10 @@ const styles = StyleSheet.create({
   },
   zoneNote: {
     marginTop: spacing.sm,
+  },
+  mutedNote: {
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.md,
   },
   buttonRow: {
     flexDirection: 'row',

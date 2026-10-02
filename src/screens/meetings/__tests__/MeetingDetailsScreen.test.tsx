@@ -31,6 +31,20 @@ jest.mock('../../../services/calendar', () => ({
   }),
 }));
 
+// §24: zoomStatus answer (null = unknown), the per-session failure map and the zoom calls.
+let mockZoomConfigured: boolean | null = null;
+const mockZoomFailures = new Map<string, string>();
+const mockEnsureLink = jest.fn();
+const mockOnMeetingDeleted = jest.fn();
+jest.mock('../../../services/zoom', () => ({
+  useZoomStatus: () => ({ configured: mockZoomConfigured, refresh: jest.fn() }),
+  zoomService: {
+    ensureLink: (...args: unknown[]) => mockEnsureLink(...args),
+    linkFailure: (id: string) => mockZoomFailures.get(id) ?? null,
+    onMeetingDeleted: (...args: unknown[]) => mockOnMeetingDeleted(...args),
+  },
+}));
+
 const mockRemove = jest.fn();
 let mockMeeting: Meeting | null = null;
 let mockUse24Hour: boolean | null = null;
@@ -104,6 +118,12 @@ beforeEach(async () => {
   mockUse24Hour = null;
   mockGoogleConnected = true;
   mockOutlook = undefined;
+  mockZoomConfigured = null;
+  mockZoomFailures.clear();
+  mockEnsureLink.mockReset();
+  mockEnsureLink.mockResolvedValue({ url: 'https://zoom.us/j/123', password: null, zoomMeetingId: '123' });
+  mockOnMeetingDeleted.mockReset();
+  mockOnMeetingDeleted.mockResolvedValue(undefined);
   mockMeeting = meeting();
 });
 
@@ -138,6 +158,8 @@ it('deletes a Google meeting (the calendar engine removes it from Google too)', 
     pressDestructive();
   });
   expect(mockRemove).toHaveBeenCalledWith('m1', { origin: 'user' });
+  // §24: a deleted meeting also deletes its server-created Zoom meeting (no-op without a ref).
+  expect(mockOnMeetingDeleted).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }));
 });
 
 it('explains that a device-calendar import stays in the device calendar', async () => {
@@ -232,6 +254,58 @@ describe('Teams conference card (§22)', () => {
     await renderDetails();
     expect(screen.getByTestId('meeting-join')).toBeTruthy();
     expect(screen.queryByTestId('meeting-conference-teamsPending')).toBeNull();
+  });
+});
+
+describe('Zoom conference card (§24)', () => {
+  const zoomMeeting = () => meeting({ conference: { provider: 'zoom', url: null, password: null }, source: 'manual', external: {} });
+
+  it('shows the plain no-link copy while the server status is unknown (no server call)', async () => {
+    mockMeeting = zoomMeeting();
+    await renderDetails();
+    expect(screen.getByTestId('meeting-conference-noLink')).toBeTruthy();
+    expect(mockEnsureLink).not.toHaveBeenCalled();
+  });
+
+  it('shows "being created" and asks the server for the link when configured (idempotent join)', async () => {
+    mockZoomConfigured = true;
+    mockMeeting = zoomMeeting();
+    await renderDetails();
+    expect(screen.getByTestId('meeting-conference-zoomPending')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-zoom-retry')).toBeNull();
+    expect(mockEnsureLink).toHaveBeenCalledWith('m1');
+  });
+
+  it('swaps to "could not be created" + Retry after a failure, and retries on tap', async () => {
+    mockZoomConfigured = true;
+    mockMeeting = zoomMeeting();
+    mockEnsureLink.mockImplementation(async (id: string) => {
+      mockZoomFailures.set(id, 'upstream_error');
+      throw new Error('simulated zoom failure');
+    });
+    await renderDetails();
+    expect(await screen.findByTestId('meeting-conference-zoomCreateFailed')).toBeTruthy();
+    const retry = screen.getByTestId('meeting-zoom-retry');
+
+    // The retry succeeds: the failure record clears and the card goes back to the pending copy
+    // (the real link then arrives through the meeting listener and turns the card into Join).
+    mockEnsureLink.mockImplementation(async (id: string) => {
+      mockZoomFailures.delete(id);
+      return { url: 'https://zoom.us/j/123', password: null, zoomMeetingId: '123' };
+    });
+    await act(async () => {
+      fireEvent.press(retry);
+    });
+    expect(screen.getByTestId('meeting-conference-zoomPending')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-zoom-retry')).toBeNull();
+  });
+
+  it('a pasted or server-written url always wins over the pending state', async () => {
+    mockZoomConfigured = true;
+    mockMeeting = meeting({ conference: { provider: 'zoom', url: 'https://zoom.us/j/42', password: null }, source: 'manual', external: {} });
+    await renderDetails();
+    expect(screen.getByTestId('meeting-join')).toBeTruthy();
+    expect(mockEnsureLink).not.toHaveBeenCalled();
   });
 });
 
