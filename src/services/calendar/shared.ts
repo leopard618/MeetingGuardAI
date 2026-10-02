@@ -116,6 +116,37 @@ export function detectConferenceInText(...texts: (string | null | undefined)[]):
  * Human-readable location text written to external calendars: the address, else the virtual URL,
  * else a non-Meet conference link (Google shows Meet links natively).
  */
+/**
+ * Attendee-visible join block for pushed events. Google invitations only show what is in the
+ * event body, so non-Meet links (Zoom/Teams/other) and their passcodes are appended to the
+ * description; the marker-free format below is stripped again on import (stripJoinBlock) so a
+ * round trip never duplicates it. Meet links are excluded: Google renders those natively.
+ */
+const JOIN_LABELS: Readonly<Record<'en' | 'es', { join: string; passcode: string }>> = {
+  en: { join: 'Join', passcode: 'Passcode' },
+  es: { join: 'Unirse', passcode: 'Código de acceso' },
+};
+
+const JOIN_BLOCK_RE = /(?:\n{1,2})?(?:Join|Unirse): https?:\/\/\S+(?:\n(?:Passcode|Código de acceso): [^\n]+)?[ \t]*$/;
+
+export function stripJoinBlock(text: string): string {
+  return text.replace(JOIN_BLOCK_RE, '');
+}
+
+export function appendJoinBlock(
+  description: string,
+  conference: ConferenceDetails | null,
+  language: 'en' | 'es',
+): string {
+  const base = stripJoinBlock(description);
+  if (!conference?.url || conference.provider === 'google_meet') return base;
+  const labels = JOIN_LABELS[language] ?? JOIN_LABELS.en;
+  const block =
+    `${labels.join}: ${conference.url}` +
+    (conference.password ? `\n${labels.passcode}: ${conference.password}` : '');
+  return base.length > 0 ? `${base}\n\n${block}` : block;
+}
+
 export function renderLocationText(location: MeetingLocation | null, conference: ConferenceDetails | null): string {
   if (location?.address) return location.address;
   if (location?.virtualUrl) return location.virtualUrl;

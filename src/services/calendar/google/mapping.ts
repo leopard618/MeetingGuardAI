@@ -44,7 +44,9 @@ import {
   PARTICIPANT_NAME_MAX,
   PARTICIPANTS_MAX,
   PASSWORD_MAX,
+  appendJoinBlock,
   renderLocationText,
+  stripJoinBlock,
   stableHash,
   TITLE_MAX,
   truncate,
@@ -268,7 +270,7 @@ export function googleEventToMeetingInput(event: GoogleEvent, ctx: GoogleMapping
 
   return {
     title: title.length > 0 ? title : ctx.untitledTitle,
-    description: truncate(event.description ?? '', DESCRIPTION_MAX),
+    description: truncate(stripJoinBlock(event.description ?? ''), DESCRIPTION_MAX),
     startAt: timing.startAt,
     durationMinutes: timing.durationMinutes,
     timezone: timing.timezone,
@@ -290,7 +292,17 @@ export interface GoogleWriteOptions {
 
 type GoogleWritableMeeting = Pick<
   Meeting,
-  'title' | 'description' | 'startAt' | 'durationMinutes' | 'timezone' | 'allDay' | 'location' | 'conference' | 'participants'
+  | 'title'
+  | 'description'
+  | 'startAt'
+  | 'durationMinutes'
+  | 'timezone'
+  | 'allDay'
+  | 'location'
+  | 'conference'
+  | 'participants'
+  /** Picks the EN/ES label of the attendee-visible join block (appendJoinBlock). */
+  | 'language'
 > &
   /** Present on full meetings; a recurring master pushes its rule as RRULE/EXDATE lines (§16). */
   Partial<Pick<Meeting, 'recurrence' | 'recurrenceOverrides'>>;
@@ -311,7 +323,7 @@ export function meetingToGoogleEvent(meeting: GoogleWritableMeeting, options: Go
 
   const body: GoogleEventWrite = {
     summary: meeting.title,
-    description: meeting.description,
+    description: appendJoinBlock(truncate(meeting.description, DESCRIPTION_MAX), meeting.conference, meeting.language),
     location: renderLocationText(meeting.location, meeting.conference),
     start,
     end,

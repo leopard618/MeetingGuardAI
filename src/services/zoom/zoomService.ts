@@ -142,6 +142,8 @@ export function createZoomService(deps: ZoomServiceDeps): ZoomServiceInternal {
   let statusPromise: Promise<boolean> | null = null;
   /** Bumped on clearSessionCache so a stale in-flight status answer is never cached. */
   let sessionEpoch = 0;
+  /** Signed-in uid (from 'session:started'); used only for the post-link re-push announcement. */
+  let currentUid: string | null = null;
   const failures = new Map<string, AppErrorCode>();
   const linkCalls = new Map<string, Promise<ZoomLinkResult>>();
   const listeners = new Set<() => void>();
@@ -232,7 +234,21 @@ export function createZoomService(deps: ZoomServiceDeps): ZoomServiceInternal {
     const epoch = sessionEpoch;
     const promise = doEnsureLink(meetingId)
       .then((result) => {
-        if (epoch === sessionEpoch) failures.delete(meetingId);
+        if (epoch === sessionEpoch) {
+          failures.delete(meetingId);
+          // The link/passcode were written SERVER-side (Admin SDK), so the snapshot arrives as a
+          // remote change, which the calendar engine never pushes (origin filter). Re-announce it
+          // as a local update so Google/Outlook/device events are re-sent with the join info -
+          // otherwise attendee invitation emails never contain the Zoom link.
+          if (currentUid !== null) {
+            appEvents.emit('meetings:changed', {
+              uid: currentUid,
+              changedIds: [meetingId],
+              reason: 'updated',
+              origin: 'user',
+            });
+          }
+        }
         return result;
       })
       .catch((caught: unknown) => {
@@ -286,6 +302,7 @@ export function createZoomService(deps: ZoomServiceDeps): ZoomServiceInternal {
 
   function clearSessionCache(): void {
     sessionEpoch += 1;
+    currentUid = null;
     statusPromise = null;
     failures.clear();
     linkCalls.clear();
@@ -294,6 +311,10 @@ export function createZoomService(deps: ZoomServiceDeps): ZoomServiceInternal {
 
   // The status answer and the failure map belong to ONE session (§24).
   deps.events?.on('session:ended', () => clearSessionCache());
+  // The uid is only needed to re-announce a server-written link as a pushable local change.
+  deps.events?.on('session:started', (event) => {
+    currentUid = event.uid;
+  });
 
   return {
     isAvailable,
