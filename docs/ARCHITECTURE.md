@@ -804,17 +804,33 @@ their own Zoom accounts and the app never sees Zoom credentials.
     once per session (`zoomService.isAvailable()`, cache cleared on `session:ended`).
   - `zoomCreateMeeting { meetingId } -> { url, password, zoomMeetingId }`: verified account
     required (same rule as the assistant: `email_verified` or provider google.com). Loads
-    `users/{uid}/meetings/{meetingId}` (ownership is the path), validates provider `zoom`, no
-    pasted url and no existing `external.zoomMeetingId` (idempotent: an existing id returns the
-    stored values), creates a scheduled Zoom meeting (type 2) from title/startAt/
-    durationMinutes/timezone, then transactionally writes `conference.url`,
-    `conference.password` and `external.zoomMeetingId` via the Admin SDK and returns them (the
-    app's snapshot listener delivers the link; the return value is a fast path).
+    `users/{uid}/meetings/{meetingId}` (ownership of the DOCUMENT is the path), validates
+    provider `zoom`, no pasted url and no existing `external.zoomMeetingId` (idempotent: an
+    existing id returns the stored values), creates the Zoom meeting - type 2 (scheduled, from
+    title/startAt/durationMinutes/timezone) for a one-off, type 3 (recurring, NO fixed time)
+    when the document carries a recurrence rule, because a type-2 id expires 30 days after its
+    scheduled date while a type-3 join link stays valid for the whole series (it expires a year
+    after its last use; §22 promises a reusable link) - then ONE transaction writes
+    `conference.url`, `conference.password`, `external.zoomMeetingId` AND the ownership
+    registry entry (below) via the Admin SDK and returns them (the app's snapshot listener
+    delivers the link; the return value is a fast path).
   - `zoomSyncMeeting { meetingId } -> { updated }`: patches topic/start/duration/timezone of the
-    existing Zoom meeting after a local edit (join url never changes).
+    existing Zoom meeting after a local edit (join url never changes; a recurring/type-3
+    meeting patches the topic only - it has no schedule on Zoom's side). Denied (benign
+    `updated: false`, logged `zoom.sync_denied`) when the registry does not name the caller.
   - `zoomDeleteMeeting { meetingId | zoomMeetingId } -> { deleted }`: deletes the Zoom meeting
-    on meeting deletion; the bare `zoomMeetingId` form covers already-tombstoned docs but must
-    match one of the CALLER's meetings. A Zoom 404 resolves `deleted: true`.
+    on meeting deletion; the bare `zoomMeetingId` form covers already-tombstoned docs. BOTH
+    forms require the registry to name the caller (else `not_found`), and a completed delete
+    also removes the registry entry. A Zoom 404 resolves `deleted: true`.
+- **Ownership registry** (`zoomMeetings/{zoomMeetingId}` = `{ uid, meetingId, createdAt }`,
+  Admin SDK only - firestore.rules denies ALL client access): every Zoom meeting lives on ONE
+  shared host account and `external.zoomMeetingId` is CLIENT-writable (any user can stamp any
+  digits on their own documents, and every participant sees the numeric id in the join url), so
+  the meeting document NEVER proves who owns a Zoom id. `zoomCreateMeeting` writes the registry
+  entry in the same transaction as the link; sync, delete and the create path's stale-id
+  cleanup resolve ownership from it and treat the document field purely as a hint - without
+  this, any verified user could delete or rewrite any other user's Zoom meeting by stamping
+  its id.
 - **Quota**: `zoomCreateMeeting` bumps `usage/{uid}/days/{UTC day}.zoomCreates` transactionally,
   capped by the param `ZOOM_USER_DAILY_LIMIT` (default 30); sync/delete share `zoomOps` capped
   at 10x. Over cap => reason `quota_exceeded`.
@@ -827,26 +843,57 @@ their own Zoom accounts and the app never sees Zoom credentials.
 - **Rules**: `external.zoomMeetingId` is allowed client-side exactly like the outlook refs
   (string <= 64): the callable writes it first via the Admin SDK, but every later client edit
   rewrites the whole document, external refs included, so the key must stay client-writable.
-  Stored sparsely (`SPARSE_EXTERNAL_KEYS`), so docs written by this app version keep passing the
-  PREVIOUS deployed rules; the owner deploys the updated rules with the functions.
+  Because it is client-writable it is only a HINT - ownership comes from the server-only
+  `zoomMeetings/{id}` registry (explicit deny block in firestore.rules). Stored sparsely
+  (`SPARSE_EXTERNAL_KEYS`), so docs written by this app version keep passing the PREVIOUS
+  deployed rules; the owner deploys the updated rules with the functions.
 - **App flow** (`ZoomService` in contracts.ts; wiring owner zoom-app): the form passes
   `calendar.zoom = { configured }` (from `useZoomStatus()`; absent while unknown) into
-  `conferenceCapability`; §22's table has the exact copy states. After Save (create or edit)
-  with provider zoom, no url and status ready -> fire-and-forget `ensureLink(meetingId)`
-  (flushes the outbox first; the details card shows `zoomPending`, or `zoomCreateFailed` +
-  Retry via `linkFailure(id)`). Edits that touch title/startAt/duration/timezone ->
+  `conferenceCapability`; §22's table has the exact copy states. The write callables require a
+  VERIFIED account, so the form and the details screen mirror the gate client-side
+  (`needsEmailVerification(authUser)`): for an unverified email user `calendar.zoom` stays
+  absent - plain paste, no "will be created" promise, and `ensureLink` is never fired (the
+  server would refuse every retry). After Save (create or edit) with provider zoom, no url,
+  status ready and a verified account -> fire-and-forget `ensureLink(meetingId)` (flushes the
+  outbox first; the details card shows `zoomPending`, or `zoomCreateFailed` + Retry via
+  `linkFailure(id)`). Edits that touch title/startAt/duration/timezone ->
   `syncIfNeeded(meeting, patch)`. Deletions (list actions, details, AI executor) ->
   `onMeetingDeleted(meeting)`. The AI executor treats provider-zoom create/update the same way
   after executing the confirmed action. A pasted link always wins; `ensureLink` is never called
   when a url exists.
+- **"This and following" semantics** (§16 split of a zoom series): the server-created Zoom
+  meeting ATTACHES TO THE ORIGINAL MASTER. The tail is built with `conference.url`/`password`
+  nulled whenever the master has provider zoom AND an `external.zoomMeetingId`
+  (engine.ts `buildFollowingTail`; a PASTED link without an id is copied like any other field),
+  so the tail gets a FRESH Zoom meeting - via the executor's zoom hooks on the AI path, or the
+  details card's `zoomPending` auto-`ensureLink` on the manual path. Copying the url would
+  leave the tail pointing at a Zoom meeting that dies with the old series and that tail edits
+  could never sync. Deleting "this and following" FROM THE FIRST occurrence collapses to a
+  whole-series delete (`deleteFollowing` resolves null): both callers (meetingActions,
+  actionExecutor) then run `onMeetingDeleted` exactly like a plain series delete; a real
+  truncation keeps the series and its link alive.
 - **Offline and retry semantics** (verified in src/services/zoom): an offline Save still saves
   (outbox); `ensureLink` then fails with `offline`, the failure is recorded per meeting and the
   details card shows `zoomCreateFailed` + Retry. NOTHING retries automatically on reconnect -
   the link appears after the explicit Retry, or in the next app session: the failure map and the
-  status answer live in session memory (cleared on `session:ended`), so a fresh session's
-  details screen auto-fires the idempotent `ensureLink` again and heals the meeting. For the
-  same reason a server-side `ZOOM_ENABLED` flip is only picked up by the NEXT session
+  status answer live in session memory (cleared on `session:ended`; continuations that settle
+  after the clear are epoch-guarded and never write into the next session's map), so a fresh
+  session's details screen auto-fires the idempotent `ensureLink` again and heals the meeting.
+  For the same reason a server-side `ZOOM_ENABLED` flip is only picked up by the NEXT session
   (`useZoomStatus().refresh` exists but nothing calls it automatically).
+- **Known limitations** (accepted, by design "best effort"):
+  - DELETE while offline is permanent leakage: `onMeetingDeleted` only logs a failure, nothing
+    re-queues it and no code ever scans tombstones for leftover Zoom ids, so a Zoom meeting
+    whose app meeting was deleted in airplane mode stays on the host account (joinable by
+    anyone holding the link) until the owner removes it in the Zoom portal. A persisted
+    retry queue is future work.
+  - The `ZoomLinkResult` that `ensureLink` resolves with is not merged into the local copy;
+    the link reaches the app only through the snapshot listener. A full-document save fired in
+    the 1-3 s window between the server transaction and the snapshot (second quick edit of a
+    doc with a pending outbox write) can therefore erase the fresh link; the details card then
+    re-fires `ensureLink`, which creates a REPLACEMENT Zoom meeting and orphans the first on
+    the host account (one wasted `zoomCreates` unit). Narrowing the window via a
+    repository-level merge is future work.
 - **Logging**: uid, meeting doc id, Zoom numeric id, error codes. Never topics or links.
 
 ## 25. Email sign-in and the verification gate
@@ -875,10 +922,14 @@ mapping in `src/services/auth/authErrors.ts` (IMPLEMENTED); screen stub
   `email_in_use`, `weak_password`, `too_many_requests`, `provider_disabled`.
 - **Verification gate**: the assistant callable already rejects callers without
   `email_verified` unless the provider is google.com. Client mirror:
-  `needsEmailVerification(authUser)` (VerifyEmailBanner.tsx). The banner mounts on the
-  assistant screen (and the entries into it): `auth:verify.assistantBody` with
-  `auth:verify.resend` (-> `resendVerification()`) and `auth:verify.check` ("I verified" ->
-  `refreshUser()`, which reloads the Firebase user and refreshes `authUser.emailVerified`).
+  `needsEmailVerification(authUser)` (VerifyEmailBanner.tsx); the zoom surfaces mirror it too
+  (§24 app flow). The banner mounts on the assistant screen (and the entries into it):
+  `auth:verify.assistantBody` with `auth:verify.resend` (-> `resendVerification()`) and
+  `auth:verify.check` ("I verified" -> `refreshUser()`, which reloads the Firebase user,
+  refreshes `authUser.emailVerified` AND force-mints a fresh ID token (`getIdToken(true)`):
+  the callables authorize from the TOKEN's `email_verified` claim, and the cached token says
+  unverified for up to an hour after the mail link was clicked - without the forced refresh,
+  "I verified" would clear the banner while the server keeps answering `unauthenticated`).
   The assistant's server rejection for an unverified caller shows the SAME message. Settings'
   account section shows `auth:verify.verified` / `auth:verify.notVerified`. Everything else in
   the app works unverified (the gate is AI-only); navigation is unchanged (user exists =>

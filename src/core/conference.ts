@@ -91,7 +91,9 @@ function autoUnreachable(mode: ConferenceMode, target: ConferencePushTarget): bo
   if (mode === 'auto_google') return target.source === 'device' || target.source === 'outlook';
   if (mode === 'auto_outlook') return target.source === 'google' || target.source === 'device' || target.recurring;
   // auto_zoom never degrades: the link comes from our own callable (not a push filter), which
-  // works for every source, and a Zoom join url is reusable so recurring meetings keep it too.
+  // works for every source, and a Zoom join url is reusable so recurring meetings keep it too
+  // (the server creates them as Zoom type 3, "no fixed time", whose link never expires
+  // mid-series - a type-2 id would die 30 days after its scheduled date; §24).
   return false;
 }
 

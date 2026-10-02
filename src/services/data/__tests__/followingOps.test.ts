@@ -305,6 +305,35 @@ describe('editFollowing', () => {
     expect(created!.external.googleCalendarId).toBeNull();
   });
 
+  it('a server-created Zoom link stays with the master; the tail gets url/password null (§24)', async () => {
+    const { h } = await startWithSeries({
+      ...SERIES_INPUT,
+      conference: { provider: 'zoom', url: 'https://zoom.us/j/987654321?pwd=abc', password: 'abc123' },
+      external: { zoomMeetingId: '987654321' },
+    });
+
+    const { master, created } = await h.engine.editFollowing('series1', '2026-10-08', {});
+
+    expect(master.conference).toEqual({ provider: 'zoom', url: 'https://zoom.us/j/987654321?pwd=abc', password: 'abc123' });
+    expect(master.external.zoomMeetingId).toBe('987654321');
+    // Copying the url would point the tail at a Zoom meeting it does not own: deleting the old
+    // series kills that link, and tail edits could never sync. url null makes the zoom flow
+    // create a FRESH Zoom meeting for the tail (zoomHooks / the details card's auto-ensureLink).
+    expect(created!.conference).toEqual({ provider: 'zoom', url: null, password: null });
+    expect(created!.external.zoomMeetingId).toBeNull();
+  });
+
+  it('a PASTED zoom link (no zoomMeetingId) is copied to the tail like any other field', async () => {
+    const { h } = await startWithSeries({
+      ...SERIES_INPUT,
+      conference: { provider: 'zoom', url: 'https://zoom.us/j/555?pwd=user', password: 'user1' },
+    });
+
+    const { created } = await h.engine.editFollowing('series1', '2026-10-08', {});
+
+    expect(created!.conference).toEqual({ provider: 'zoom', url: 'https://zoom.us/j/555?pwd=user', password: 'user1' });
+  });
+
   it('an invalid patch changes nothing (the master is never truncated without its tail)', async () => {
     const { h, meeting } = await startWithSeries();
 

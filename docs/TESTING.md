@@ -701,9 +701,16 @@ the meeting link-free (no pending card). After §12:
 | 7 | Create Zoom meetings past the daily cap (`ZOOM_USER_DAILY_LIMIT`, default 30 - lower it in `functions/.env.<projectId>` for the test). | Over the cap the card shows the failed state; the functions log says `quota_exceeded`. Existing links keep working. |
 | 8 | Flip `ZOOM_ENABLED` to false and redeploy (accept the delete offer). | The app falls back to the paste hint after the next sign-in or app restart (the status answer is cached per session). |
 | 9 | Repeat rows 1 and 6 in Spanish. | The pending/failed/hint texts are natural Spanish. |
+| 10 | Create a WEEKLY meeting with Video call = Zoom (no pasted link). | The Zoom portal shows a "recurring meeting with no fixed time" (type 3): the join link stays valid for the whole series (a one-off/type-2 id would expire 30 days after its date). Editing the title updates the Zoom topic; time edits change nothing on Zoom's side (type 3 has no schedule). |
+| 11 | On that series, long-press a middle occurrence -> Edit -> "This and following". | The ORIGINAL series keeps its Zoom link; the new tail series shows the pending card and gets its OWN fresh Zoom link (two meetings in the portal). Deleting the old series later kills only its own link. |
+| 12 | Long-press the FIRST occurrence of a linked series -> Delete -> "This and following". | The whole series disappears AND the Zoom meeting disappears from the portal (same as "The whole series"). |
 
 Functions log check (rows 1-7): entries carry uid, meeting doc id, Zoom numeric id and error
 codes only - never meeting titles or join links.
+
+Known limitation (ARCHITECTURE §24): deleting a linked meeting while OFFLINE leaves the Zoom
+meeting on the host account for good (nothing retries the Zoom delete later) - remove it in the
+Zoom web portal if it matters.
 
 ### T19. Email sign-in and the verification gate (`docs/SETUP.md` §13)
 
@@ -712,7 +719,8 @@ codes only - never meeting titles or join links.
 | 1 | Landing -> "Continue with email" -> Create account (name, email, password with show/hide). | The account signs in right away; an Alert says the verification email was sent. Meetings, calendar and settings all work unverified. |
 | 2 | Open the AI assistant (and the AI insights entry) while unverified. | The "Verify your email" banner with Resend and "I verified". Sending a message is answered by the same gate message, not a raw error. |
 | 3 | Tap Resend twice quickly. | The second tap is blocked by the 60 s cooldown (button disabled), no duplicate email spam. |
-| 4 | Click the link in the email (check spam), return, tap "I verified". | The banner disappears and the assistant answers. Settings -> account shows "Email verified". |
+| 4 | Click the link in the email (check spam), return, tap "I verified". | The banner disappears and the assistant answers IMMEDIATELY (no sign-out needed: "I verified" also force-refreshes the ID token the server authorizes from). Settings -> account shows "Email verified". |
+| 4b | (Zoom set up, §12/T18) While still UNVERIFIED, create a meeting with Video call = Zoom. | The form shows the plain paste hint, never "A Zoom link will be created"; after Save the details card shows the plain no-link copy (no pending spinner, no Retry loop). After row 4, a new zoom meeting gets the promise and the link. |
 | 5 | Sign out, sign in with a wrong password, then with an unknown email. | The SAME generic "wrong email or password" message both times (no account enumeration). |
 | 6 | "Forgot your password?" with your email, and again with an unknown email. | Both show the neutral "reset email sent" text; the real one arrives and the new password signs in. |
 | 7 | With the Email/Password provider DISABLED in the Firebase console, submit the form. | The localized "email sign-in is not enabled" message, no crash (`auth/operation-not-allowed`). |

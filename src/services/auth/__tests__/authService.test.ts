@@ -314,9 +314,14 @@ describe('email verification', () => {
     firebaseConfig.auth.currentUser = null;
   });
 
-  it('reloadUser refreshes emailVerified and tells auth listeners', async () => {
+  it('reloadUser refreshes emailVerified, force-mints a fresh ID token and tells auth listeners', async () => {
     const { authService, fb, firebaseConfig } = load();
-    const current = { ...firebaseUser('uid-1'), emailVerified: false, reload: jest.fn() };
+    const current = {
+      ...firebaseUser('uid-1'),
+      emailVerified: false,
+      reload: jest.fn(),
+      getIdToken: jest.fn().mockResolvedValue('fresh-token'),
+    };
     current.reload.mockImplementation(async () => {
       current.emailVerified = true;
     });
@@ -328,6 +333,9 @@ describe('email verification', () => {
     const user = await authService.reloadUser();
 
     expect(current.reload).toHaveBeenCalled();
+    // The callables gate on the TOKEN's email_verified claim: reload() alone would leave the
+    // cached token saying unverified for up to an hour, so a forced refresh must follow.
+    expect(current.getIdToken).toHaveBeenCalledWith(true);
     expect(user.emailVerified).toBe(true);
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({ uid: 'uid-1', emailVerified: true }));
     firebaseConfig.auth.currentUser = null;

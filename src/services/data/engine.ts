@@ -1773,9 +1773,16 @@ export class DataEngine {
    * rule/overrides from core `splitRecurrenceAt`. External refs are NEVER copied (the tail must be
    * INSERTED into Google as a brand-new series event, `googleEventIdForMeeting(newId)`), and a
    * Google-imported master's tail becomes source 'manual': it is a locally created document now,
-   * and the Google push refuses source 'google' without an event id.
+   * and the Google push refuses source 'google' without an event id. A SERVER-created Zoom link
+   * (§24: provider zoom + external.zoomMeetingId on the master) stays with the truncated master
+   * too: the tail's conference url/password are nulled, so the zoom flow creates a FRESH Zoom
+   * meeting for the tail (AI path: zoomHooks; manual path: the details card's zoomPending
+   * auto-ensureLink) - copying the url would die with the master's Zoom meeting when the old
+   * series is deleted, and tail edits could never sync without an id. A PASTED zoom link (no
+   * zoomMeetingId) is user-owned and copied as every other field.
    */
   private buildFollowingTail(s: Session, master: Meeting, split: SeriesSplit, tailId: string): Meeting {
+    const serverZoomLink = master.conference?.provider === 'zoom' && master.external.zoomMeetingId !== null;
     const input: MeetingCreateInput = {
       title: master.title,
       startAt: split.tailStartAt,
@@ -1785,7 +1792,8 @@ export class DataEngine {
       timezone: master.timezone,
       allDay: master.allDay,
       location: master.location,
-      conference: master.conference,
+      conference:
+        master.conference !== null && serverZoomLink ? { ...master.conference, url: null, password: null } : master.conference,
       participants: master.participants,
       confidence: master.confidence,
       language: master.language,

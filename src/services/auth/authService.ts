@@ -439,6 +439,11 @@ export const authService: AuthServiceImpl = {
     if (!user) throw new AppError('unauthenticated', 'Nobody is signed in');
     try {
       await user.reload();
+      // The assistant and zoom callables authorize from the ID TOKEN's email_verified claim,
+      // and the cached token lives up to an hour: after "I verified" flipped the profile,
+      // force-mint a fresh token so the very next callable carries email_verified=true
+      // (otherwise the banner disappears while the server keeps answering unauthenticated).
+      await user.getIdToken(true);
     } catch (error) {
       throw mapFirebaseAuthError(error);
     }

@@ -77,6 +77,7 @@ describe('createZoomClient.createMeeting', () => {
       startTimeUtc: '2026-10-05T14:00:00Z',
       durationMinutes: 45,
       timezone: 'Europe/Madrid',
+      recurring: false,
     });
 
     expect(created).toEqual({
@@ -97,10 +98,24 @@ describe('createZoomClient.createMeeting', () => {
     });
   });
 
+  it('creates a recurring meeting as type 3 without any schedule fields', async () => {
+    const { client, calls } = clientWith([httpResponse(201, CREATED_BODY)]);
+
+    await client.createMeeting({
+      topic: 'Weekly sync',
+      startTimeUtc: '2026-10-05T14:00:00Z',
+      durationMinutes: 45,
+      timezone: 'Europe/Madrid',
+      recurring: true,
+    });
+
+    expect(JSON.parse(calls[0]!.init.body ?? '{}')).toEqual({ topic: 'Weekly sync', type: 3 });
+  });
+
   it('omits the timezone when the handler could not validate one', async () => {
     const { client, calls } = clientWith([httpResponse(201, CREATED_BODY)]);
 
-    await client.createMeeting({ topic: 'T', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 30, timezone: null });
+    await client.createMeeting({ topic: 'T', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 30, timezone: null, recurring: false });
 
     expect(JSON.parse(calls[0]!.init.body ?? '{}')).not.toHaveProperty('timezone');
   });
@@ -139,7 +154,7 @@ describe('createZoomClient.createMeeting', () => {
     const { client, calls } = clientWith([httpResponse(401)]);
 
     await expect(
-      client.createMeeting({ topic: 'T', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 30, timezone: null }),
+      client.createMeeting({ topic: 'T', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 30, timezone: null, recurring: false }),
     ).rejects.toMatchObject({ name: 'ZoomApiError', reason: 'not_configured', status: 401 });
     expect(calls).toHaveLength(2);
   });
@@ -152,7 +167,7 @@ describe('createZoomClient.createMeeting', () => {
     const { client } = clientWith([httpResponse(status)]);
 
     await expect(
-      client.createMeeting({ topic: 'T', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 30, timezone: null }),
+      client.createMeeting({ topic: 'T', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 30, timezone: null, recurring: false }),
     ).rejects.toMatchObject({ name: 'ZoomApiError', reason, status });
   });
 
@@ -160,7 +175,7 @@ describe('createZoomClient.createMeeting', () => {
     const { client } = clientWith([httpResponse(201, { id: 1 })]);
 
     await expect(
-      client.createMeeting({ topic: 'T', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 30, timezone: null }),
+      client.createMeeting({ topic: 'T', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 30, timezone: null, recurring: false }),
     ).rejects.toMatchObject({ name: 'ZoomApiError', reason: 'upstream_error' });
   });
 
@@ -168,7 +183,7 @@ describe('createZoomClient.createMeeting', () => {
     const { client } = clientWith([new Error('socket hang up')]);
 
     await expect(
-      client.createMeeting({ topic: 'T', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 30, timezone: null }),
+      client.createMeeting({ topic: 'T', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 30, timezone: null, recurring: false }),
     ).rejects.toMatchObject({ name: 'ZoomApiError', reason: 'upstream_error', status: null });
   });
 });
@@ -182,6 +197,7 @@ describe('createZoomClient.updateMeeting', () => {
       startTimeUtc: '2026-10-06T09:00:00Z',
       durationMinutes: 30,
       timezone: 'Europe/Madrid',
+      recurring: false,
     });
 
     expect(result).toBe('updated');
@@ -195,11 +211,25 @@ describe('createZoomClient.updateMeeting', () => {
     });
   });
 
+  it('patches only the topic of a recurring (type 3) meeting', async () => {
+    const { client, calls } = clientWith([httpResponse(204)]);
+
+    await client.updateMeeting('987654321', {
+      topic: 'Moved sync',
+      startTimeUtc: '2026-10-06T09:00:00Z',
+      durationMinutes: 30,
+      timezone: 'Europe/Madrid',
+      recurring: true,
+    });
+
+    expect(JSON.parse(calls[0]!.init.body ?? '{}')).toEqual({ topic: 'Moved sync' });
+  });
+
   it('reports gone on a Zoom 404', async () => {
     const { client } = clientWith([httpResponse(404)]);
 
     await expect(
-      client.updateMeeting('11', { topic: 'T', startTimeUtc: null, durationMinutes: 30, timezone: null }),
+      client.updateMeeting('11', { topic: 'T', startTimeUtc: null, durationMinutes: 30, timezone: null, recurring: false }),
     ).resolves.toBe('gone');
   });
 });

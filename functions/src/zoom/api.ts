@@ -28,6 +28,13 @@ export const ZOOM_HOST_USER = 'me';
 
 /** Zoom "scheduled meeting" type (a one-off with a start time). */
 export const ZOOM_MEETING_TYPE_SCHEDULED = 2;
+/**
+ * Zoom "recurring meeting with no fixed time": no start_time/duration, and the join link stays
+ * valid for the whole series (it expires a year after its LAST use, while a type-2 id expires 30
+ * days after its scheduled date - fatal for monthly or paused series). Used whenever the meeting
+ * document carries a recurrence rule; the app's alerts/calendar own the actual schedule.
+ */
+export const ZOOM_MEETING_TYPE_RECURRING = 3;
 
 export interface ZoomCreateMeetingInput {
   /** Meeting topic, already truncated to Zoom's 200-char limit by the handler. */
@@ -37,6 +44,8 @@ export interface ZoomCreateMeetingInput {
   durationMinutes: number;
   /** IANA zone for display/recurrence on Zoom's side; null = omit (start_time is UTC anyway). */
   timezone: string | null;
+  /** The meeting document has a recurrence rule: create type 3 (no fixed time) instead of 2. */
+  recurring: boolean;
 }
 
 export interface ZoomCreatedMeeting {
@@ -52,6 +61,8 @@ export interface ZoomMeetingPatch {
   startTimeUtc: string | null;
   durationMinutes: number;
   timezone: string | null;
+  /** The meeting document has a recurrence rule: only the topic is patched (type 3 has no schedule). */
+  recurring: boolean;
 }
 
 export interface ZoomClient {
@@ -114,13 +125,18 @@ export function createZoomClient(deps: ZoomClientDeps): ZoomClient {
 
   return {
     async createMeeting(input) {
-      const response = await request('POST', `/users/${encodeURIComponent(ZOOM_HOST_USER)}/meetings`, {
-        topic: input.topic,
-        type: ZOOM_MEETING_TYPE_SCHEDULED,
-        start_time: input.startTimeUtc,
-        duration: input.durationMinutes,
-        ...(input.timezone === null ? {} : { timezone: input.timezone }),
-      });
+      // Type 3 takes no schedule (start/duration/zone describe nothing there); the app's own
+      // calendar and alerts carry the real occurrence times.
+      const body = input.recurring
+        ? { topic: input.topic, type: ZOOM_MEETING_TYPE_RECURRING }
+        : {
+            topic: input.topic,
+            type: ZOOM_MEETING_TYPE_SCHEDULED,
+            start_time: input.startTimeUtc,
+            duration: input.durationMinutes,
+            ...(input.timezone === null ? {} : { timezone: input.timezone }),
+          };
+      const response = await request('POST', `/users/${encodeURIComponent(ZOOM_HOST_USER)}/meetings`, body);
       if (response.status === 404) {
         // users/me unknown: the S2S app lost its user scope - an owner-side configuration issue.
         throw new ZoomApiError('not_configured', 404, 'Zoom host account not found.');
@@ -144,12 +160,17 @@ export function createZoomClient(deps: ZoomClientDeps): ZoomClient {
     },
 
     async updateMeeting(zoomMeetingId, patch) {
-      const response = await request('PATCH', `/meetings/${encodeURIComponent(zoomMeetingId)}`, {
-        topic: patch.topic,
-        ...(patch.startTimeUtc === null ? {} : { start_time: patch.startTimeUtc }),
-        duration: patch.durationMinutes,
-        ...(patch.timezone === null ? {} : { timezone: patch.timezone }),
-      });
+      // A recurring (type 3) meeting has no schedule on Zoom's side: patch the topic only, so
+      // Zoom never converts or rejects the no-fixed-time meeting over schedule fields.
+      const body = patch.recurring
+        ? { topic: patch.topic }
+        : {
+            topic: patch.topic,
+            ...(patch.startTimeUtc === null ? {} : { start_time: patch.startTimeUtc }),
+            duration: patch.durationMinutes,
+            ...(patch.timezone === null ? {} : { timezone: patch.timezone }),
+          };
+      const response = await request('PATCH', `/meetings/${encodeURIComponent(zoomMeetingId)}`, body);
       return response.status === 404 ? 'gone' : 'updated';
     },
 

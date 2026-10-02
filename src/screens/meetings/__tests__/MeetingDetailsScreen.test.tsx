@@ -45,6 +45,12 @@ jest.mock('../../../services/zoom', () => ({
   },
 }));
 
+// §25: the signed-in account (needsEmailVerification gates the zoom promise; default verified).
+let mockAuthUser: { uid: string; email: string | null; displayName: string | null; photoURL: string | null; emailVerified: boolean; providerIds: string[] } | null = null;
+jest.mock('../../../services/auth', () => ({
+  useAuth: () => ({ authUser: mockAuthUser }),
+}));
+
 const mockRemove = jest.fn();
 let mockMeeting: Meeting | null = null;
 let mockUse24Hour: boolean | null = null;
@@ -119,6 +125,7 @@ beforeEach(async () => {
   mockGoogleConnected = true;
   mockOutlook = undefined;
   mockZoomConfigured = null;
+  mockAuthUser = { uid: 'u1', email: 'a@b.c', displayName: null, photoURL: null, emailVerified: true, providerIds: ['google.com'] };
   mockZoomFailures.clear();
   mockEnsureLink.mockReset();
   mockEnsureLink.mockResolvedValue({ url: 'https://zoom.us/j/123', password: null, zoomMeetingId: '123' });
@@ -305,6 +312,18 @@ describe('Zoom conference card (§24)', () => {
     mockMeeting = meeting({ conference: { provider: 'zoom', url: 'https://zoom.us/j/42', password: null }, source: 'manual', external: {} });
     await renderDetails();
     expect(screen.getByTestId('meeting-join')).toBeTruthy();
+    expect(mockEnsureLink).not.toHaveBeenCalled();
+  });
+
+  it('never promises or requests a link for an UNVERIFIED email user (the server would refuse, §25)', async () => {
+    mockZoomConfigured = true;
+    mockAuthUser = { uid: 'u1', email: 'a@b.c', displayName: null, photoURL: null, emailVerified: false, providerIds: ['password'] };
+    mockMeeting = zoomMeeting();
+    await renderDetails();
+    // Plain no-link copy instead of "being created", and no doomed ensureLink/retry loop.
+    expect(screen.getByTestId('meeting-conference-noLink')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-conference-zoomPending')).toBeNull();
+    expect(screen.queryByTestId('meeting-zoom-retry')).toBeNull();
     expect(mockEnsureLink).not.toHaveBeenCalled();
   });
 });

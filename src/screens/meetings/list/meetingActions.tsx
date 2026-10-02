@@ -193,7 +193,11 @@ export function useMeetingActions(): MeetingActions {
       try {
         // Truncates the series before this occurrence (§16); from the FIRST occurrence it
         // removes the whole series (deleteFollowing resolves null) - the toast fits both.
-        await recurrenceOps().deleteFollowing(meeting.id, localDateKey, { origin: 'user' });
+        const remaining = await recurrenceOps().deleteFollowing(meeting.id, localDateKey, { origin: 'user' });
+        // §24: the whole-series collapse deletes the server-created Zoom meeting exactly like
+        // removeSeries (best effort; no-op without an external.zoomMeetingId, never throws).
+        // A real truncation keeps the series - and its reusable Zoom link - alive.
+        if (remaining === null) void zoomService.onMeetingDeleted(meeting);
         Toast.show({ type: 'success', text1: t('meetings:actions.followingDeleted') });
       } catch (caught) {
         const error = toAppError(caught);

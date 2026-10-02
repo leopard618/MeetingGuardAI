@@ -433,6 +433,14 @@ describe('server-owned collections', () => {
     await assertFails(deleteDoc(doc(alice(), 'accountDeletions/alice')));
   });
 
+  it('keeps the zoom ownership registry server-only (docs/ARCHITECTURE.md 24)', async () => {
+    await seed('zoomMeetings/987654321', { uid: 'alice', meetingId: 'm1', createdAt: ISO });
+    await assertFails(getDoc(doc(alice(), 'zoomMeetings/987654321')));
+    await assertFails(setDoc(doc(alice(), 'zoomMeetings/987654321'), { uid: 'alice', meetingId: 'm1', createdAt: ISO }));
+    await assertFails(setDoc(doc(alice(), 'zoomMeetings/111'), { uid: 'alice', meetingId: 'm1', createdAt: ISO }));
+    await assertFails(deleteDoc(doc(alice(), 'zoomMeetings/987654321')));
+  });
+
   it('denies unknown paths', async () => {
     await assertFails(setDoc(doc(alice(), 'admin/config'), { open: true }));
     await assertFails(getDoc(doc(alice(), 'users/alice/tokens/google')));

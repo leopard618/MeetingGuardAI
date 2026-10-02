@@ -299,6 +299,48 @@ describe('session cache', () => {
     await expect(pending).resolves.toBe(true);
     expect(service.getKnownAvailability()).toBeNull();
   });
+
+  it("an ensureLink that settles after session:ended never writes the NEXT session's failure map", async () => {
+    const events = createEventBus<AppEventMap>();
+    let reject!: (reason: unknown) => void;
+    const transport = fakeTransport(() => new Promise((_res, rej) => (reject = rej)));
+    const service = createZoomService({ getTransport: () => transport, events });
+
+    // User A fires the create, signs out mid-flight; user B's session starts on the device.
+    const pending = service.ensureLink('m1');
+    // Let doEnsureLink reach the transport (it awaits the offline probe and outbox flush first).
+    await new Promise((settle) => setImmediate(settle));
+    events.emit('session:ended', { uid: 'uA', reason: 'sign_out' });
+    reject(httpsError('functions/resource-exhausted', 'quota_exceeded'));
+    await expect(pending).rejects.toMatchObject({ code: 'quota_exceeded' });
+    // The late failure must not leak into the new session (§24: the cache never crosses sessions).
+    expect(service.linkFailure('m1')).toBeNull();
+  });
+
+  it("a late ensureLink SUCCESS never clears a failure the NEXT session recorded", async () => {
+    const events = createEventBus<AppEventMap>();
+    let resolveFirst!: (value: unknown) => void;
+    let firstCall = true;
+    const transport = fakeTransport(() => {
+      if (firstCall) {
+        firstCall = false;
+        return new Promise((res) => (resolveFirst = res));
+      }
+      return Promise.reject(httpsError('functions/resource-exhausted', 'quota_exceeded'));
+    });
+    const service = createZoomService({ getTransport: () => transport, events });
+
+    const pendingA = service.ensureLink('m1');
+    await new Promise((settle) => setImmediate(settle));
+    events.emit('session:ended', { uid: 'uA', reason: 'sign_out' });
+    // The next session records a real failure for the same meeting id...
+    await expect(service.ensureLink('m1')).rejects.toMatchObject({ code: 'quota_exceeded' });
+    expect(service.linkFailure('m1')).toBe('quota_exceeded');
+    // ...and session A's late success must not erase it.
+    resolveFirst(LINK_RESPONSE);
+    await expect(pendingA).resolves.toEqual(LINK_RESPONSE);
+    expect(service.linkFailure('m1')).toBe('quota_exceeded');
+  });
 });
 
 describe('mapZoomError', () => {

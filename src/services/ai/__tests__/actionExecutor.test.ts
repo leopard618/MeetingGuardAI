@@ -806,6 +806,43 @@ describe('zoom hooks (§24)', () => {
     expect(zoom.onMeetingDeleted).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }));
   });
 
+  it('a following-scoped delete at the FIRST occurrence (whole-series collapse) deletes the Zoom meeting too', async () => {
+    const zoom = fakeZoom(true);
+    const rule = { freq: 'weekly' as const, interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null };
+    const linked = makeMeeting('series', {
+      startAt: '2030-03-11T15:00:00.000Z',
+      recurrence: rule,
+      conference: { provider: 'zoom', url: 'https://zoom.us/j/1', password: null },
+      external: { zoomMeetingId: '1' },
+    });
+    const { executor, meetings } = setup({ meetings: [linked], zoom });
+
+    // Collapse: the split date IS the first occurrence, so deleteFollowing resolves null.
+    const collapse = { ...deleteAction('a_z8', 'series'), scope: 'following' as const, occurrenceDate: '2030-03-11' };
+    expectDone(await executor.execute(collapse));
+    await flushZoomHooks();
+    expect(meetings.byId.get('series')?.deletedAt).not.toBeNull();
+    expect(zoom.onMeetingDeleted).toHaveBeenCalledWith(expect.objectContaining({ id: 'series' }));
+  });
+
+  it('a following-scoped delete that only TRUNCATES keeps the Zoom meeting (the series lives on)', async () => {
+    const zoom = fakeZoom(true);
+    const rule = { freq: 'weekly' as const, interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null };
+    const linked = makeMeeting('series', {
+      startAt: '2030-03-11T15:00:00.000Z',
+      recurrence: rule,
+      conference: { provider: 'zoom', url: 'https://zoom.us/j/1', password: null },
+      external: { zoomMeetingId: '1' },
+    });
+    const { executor, meetings } = setup({ meetings: [linked], zoom });
+
+    const truncate = { ...deleteAction('a_z9', 'series'), scope: 'following' as const, occurrenceDate: '2030-03-25' };
+    expectDone(await executor.execute(truncate));
+    await flushZoomHooks();
+    expect(meetings.byId.get('series')?.deletedAt).toBeNull();
+    expect(zoom.onMeetingDeleted).not.toHaveBeenCalled();
+  });
+
   it('bulk updates run the sync hook per updated meeting', async () => {
     const zoom = fakeZoom(true);
     const a = makeMeeting('m1', { external: { zoomMeetingId: '1' } });

@@ -71,6 +71,12 @@ jest.mock('../../../services/zoom', () => ({
   },
 }));
 
+// §25: the signed-in account (needsEmailVerification gates the zoom promise; default verified).
+let mockAuthUser: { uid: string; email: string | null; displayName: string | null; photoURL: string | null; emailVerified: boolean; providerIds: string[] } | null = null;
+jest.mock('../../../services/auth', () => ({
+  useAuth: () => ({ authUser: mockAuthUser }),
+}));
+
 const mockAttachments = {
   listForMeeting: jest.fn(),
   add: jest.fn(),
@@ -145,6 +151,7 @@ beforeEach(async () => {
   mockCreate.mockReset();
   mockUpdate.mockReset();
   mockZoomConfigured = null;
+  mockAuthUser = { uid: 'u1', email: 'a@b.c', displayName: null, photoURL: null, emailVerified: true, providerIds: ['google.com'] };
   mockEnsureLink.mockReset();
   mockEnsureLink.mockResolvedValue({ url: 'https://zoom.us/j/123', password: null, zoomMeetingId: '123' });
   mockSyncIfNeeded.mockReset();
@@ -446,6 +453,18 @@ describe('video call section (§22)', () => {
     expect(screen.getByTestId('meeting-form-conference-note').props.children).toBe('Automatic Zoom links are not set up yet');
     expect(screen.getAllByText('Meeting link').length).toBeGreaterThan(0);
   });
+
+  it('never promises a Zoom link to an UNVERIFIED email user (the write callables would refuse, §25)', async () => {
+    mockZoomConfigured = true;
+    mockAuthUser = { uid: 'u1', email: 'a@b.c', displayName: null, photoURL: null, emailVerified: false, providerIds: ['password'] };
+    await renderForm('CreateMeeting');
+    await pickProvider('zoom');
+    // Plain paste: no promise, and no "not set up" note (the server IS configured).
+    expect(screen.getByText(/^Paste the link from your Zoom/)).toBeTruthy();
+    expect(screen.queryByText('A Zoom link will be created when you save')).toBeNull();
+    expect(screen.queryByTestId('meeting-form-conference-note')).toBeNull();
+    expect(screen.getAllByText('Meeting link').length).toBeGreaterThan(0);
+  });
 });
 
 describe('zoom save hooks (§24)', () => {
@@ -493,6 +512,23 @@ describe('zoom save hooks (§24)', () => {
     await renderForm('CreateMeeting');
     await act(async () => {
       fireEvent.changeText(screen.getByTestId('meeting-form-title'), 'Unknown status');
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-form-conference-zoom'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-form-save'));
+    });
+    expect(mockEnsureLink).not.toHaveBeenCalled();
+  });
+
+  it('never fires ensureLink for an UNVERIFIED email user (the server would refuse every retry, §25)', async () => {
+    mockZoomConfigured = true;
+    mockAuthUser = { uid: 'u1', email: 'a@b.c', displayName: null, photoURL: null, emailVerified: false, providerIds: ['password'] };
+    mockCreate.mockImplementation(async () => zoomDraftMeeting(null));
+    await renderForm('CreateMeeting');
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('meeting-form-title'), 'Unverified');
     });
     await act(async () => {
       fireEvent.press(screen.getByTestId('meeting-form-conference-zoom'));

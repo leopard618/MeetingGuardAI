@@ -320,6 +320,41 @@ describe('recurrence in the form (§16)', () => {
     expect(draftToPatch(live, original).conference).toEqual({ provider: 'google_meet', url: null, password: null });
   });
 
+  it('an untouched passcode field never clobbers a server-written Zoom passcode (§24)', () => {
+    // Saved as zoom without a link; zoomCreateMeeting wrote url AND password back while the
+    // form was open (the draft was seeded with password '').
+    const seeded = meeting({ source: 'manual', conference: { provider: 'zoom', url: null, password: null } });
+    const original = draftFromMeeting(seeded, { fallbackTimeZone: 'UTC', defaultAlertTimes: [15, 5, 0] });
+    const live = meeting({
+      source: 'manual',
+      conference: { provider: 'zoom', url: 'https://zoom.us/j/987654321?pwd=abc', password: 'abc123' },
+    });
+
+    // Unrelated edit (the title): link AND passcode are kept, not diffed away.
+    const patch = draftToPatch(live, { ...original, title: 'Renamed' }, original);
+    expect(patch.title).toBe('Renamed');
+    expect(patch.conference).toBeUndefined();
+
+    // The user REALLY typed a passcode they could see was empty: their value wins.
+    expect(draftToPatch(live, { ...original, conferencePassword: 'mine' }, original).conference).toEqual({
+      provider: 'zoom',
+      url: 'https://zoom.us/j/987654321?pwd=abc',
+      password: 'mine',
+    });
+
+    // The user cleared a passcode that WAS in the seeded draft: wipe intended.
+    const withPass = meeting({
+      source: 'manual',
+      conference: { provider: 'zoom', url: 'https://zoom.us/j/1', password: 'old' },
+    });
+    const passDraft = draftFromMeeting(withPass, { fallbackTimeZone: 'UTC', defaultAlertTimes: [] });
+    expect(draftToPatch(withPass, { ...passDraft, conferencePassword: '' }, passDraft).conference).toEqual({
+      provider: 'zoom',
+      url: 'https://zoom.us/j/1',
+      password: null,
+    });
+  });
+
   it('toggleRepeatWeekday keeps MO..SU order', () => {
     expect(toggleRepeatWeekday(['MO'], 'FR')).toEqual(['MO', 'FR']);
     expect(toggleRepeatWeekday(['FR', 'MO'], 'WE')).toEqual(['MO', 'WE', 'FR']);

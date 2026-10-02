@@ -36,6 +36,7 @@ import type { Meeting, MeetingPatch } from '../../core/types';
 import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { attachmentService } from '../../services/attachments';
+import { useAuth } from '../../services/auth';
 import { useCalendarStatus } from '../../services/calendar';
 import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
 import { useZoomStatus, zoomService } from '../../services/zoom';
@@ -43,6 +44,7 @@ import { addErrorMessage, showAddResult } from '../attachments/attachmentMessage
 import { alertTimeChoices, alertTimeLabel, toggleAlertTime } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
 import { ScreenBody, Section } from '../shared/Section';
+import { needsEmailVerification } from '../shared/VerifyEmailBanner';
 import { capitalizeFirst } from '../shared/text';
 import { useDiscardChangesGuard } from '../shared/useDiscardChangesGuard';
 import { useFormatters } from '../shared/useFormatters';
@@ -148,9 +150,15 @@ function MeetingForm({
   // §24: what the app knows about the server-side Zoom integration this session (null = not
   // answered yet; zoom then behaves as plain paste and the capability state leaves `zoom` absent).
   const zoomStatus = useZoomStatus();
+  // §24/§25: the zoom WRITE callables require a verified account (like the assistant), so an
+  // unverified email user must never be promised a link the server will always refuse - zoom
+  // stays plain paste for them (`zoom` absent) and Save never fires ensureLink.
+  const { authUser } = useAuth();
+  const zoomAllowed = !needsEmailVerification(authUser);
   const conferenceCalendar: ConferenceCalendarState = useMemo(
-    () => (zoomStatus.configured === null ? calendar : { ...calendar, zoom: { configured: zoomStatus.configured } }),
-    [calendar, zoomStatus.configured],
+    () =>
+      zoomStatus.configured === null || !zoomAllowed ? calendar : { ...calendar, zoom: { configured: zoomStatus.configured } },
+    [calendar, zoomStatus.configured, zoomAllowed],
   );
   // §22: the video-call helper follows the chip selection AND the live calendar connections
   // (plus the edited meeting's source / repeat choice / external refs: an auto mode the sync
@@ -274,7 +282,7 @@ function MeetingForm({
       // and edits that touch what Zoom displays are synced to the existing Zoom meeting
       // (syncIfNeeded checks the patch and the external ref itself; it never throws).
       if (saved.conference?.provider === 'zoom') {
-        if (saved.conference.url === null && zoomStatus.configured === true) {
+        if (saved.conference.url === null && zoomStatus.configured === true && zoomAllowed) {
           zoomService.ensureLink(saved.id).catch(() => undefined);
         }
         if (appliedPatch !== null) void zoomService.syncIfNeeded(saved, appliedPatch);

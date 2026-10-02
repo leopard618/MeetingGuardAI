@@ -772,7 +772,8 @@ npx firebase deploy --only firestore:rules,functions
 ```
 
 - The rules deploy ships the `external.zoomMeetingId` key (without it the app's meeting edits
-  would be rejected once a link was created).
+  would be rejected once a link was created) and the explicit deny block for the server-only
+  `zoomMeetings/{id}` ownership registry (docs/ARCHITECTURE.md §24).
 - The functions deploy now includes `zoomStatus` AND the three write callables; the CLI grants
   their service account access to the three secrets.
 - To switch the feature OFF again: set `ZOOM_ENABLED=false` (or remove the line), deploy, and

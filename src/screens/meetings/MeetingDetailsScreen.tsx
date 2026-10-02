@@ -29,6 +29,7 @@ import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
+import { useAuth } from '../../services/auth';
 import { useCalendarStatus } from '../../services/calendar';
 import { meetingRepository, useMeeting, usePreferences } from '../../services/data';
 import { useZoomStatus, zoomService } from '../../services/zoom';
@@ -37,6 +38,7 @@ import { MeetingAttachmentsSection } from '../attachments/MeetingAttachmentsSect
 import { alertTimeLabel } from '../onboarding/alertOptions';
 import { MeetingStatus } from '../shared/MeetingStatus';
 import { ScreenBody } from '../shared/Section';
+import { needsEmailVerification } from '../shared/VerifyEmailBanner';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
 import { conferenceCardState } from './meetingForm';
@@ -178,9 +180,14 @@ function MeetingDetails({
 
   const conference = meeting.conference;
   // §24: the session's zoomStatus answer feeds the capability derivation (absent while unknown).
+  // §25: the zoom write callables require a VERIFIED account, so for an unverified email user
+  // zoom stays plain paste ("zoom" absent): no "being created" promise, and the auto-ensureLink
+  // below never fires a call the server would always refuse.
   const zoomStatus = useZoomStatus();
+  const { authUser } = useAuth();
+  const zoomAllowed = !needsEmailVerification(authUser);
   const conferenceCalendar: ConferenceCalendarState =
-    zoomStatus.configured === null ? calendar : { ...calendar, zoom: { configured: zoomStatus.configured } };
+    zoomStatus.configured === null || !zoomAllowed ? calendar : { ...calendar, zoom: { configured: zoomStatus.configured } };
   // §22: a real link (pasted or provider-created, incl. an imported virtualUrl) always wins;
   // otherwise the card explains the empty url from the provider + the LIVE calendar status.
   const card = conferenceCardState(meeting, conferenceCalendar);

@@ -406,13 +406,16 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     const followingDate = followingTarget(action, current);
     if (followingDate !== null) {
       // "Delete this and following": the series is truncated the second before the split
-      // occurrence's start; a split at the first occurrence removes the whole series (null).
-      await recurrenceOps(deps.meetings).deleteFollowing(current.id, followingDate, { origin: 'ai' });
+      // occurrence's start; a split at the FIRST occurrence removes the whole series (resolves
+      // null) - the server-created Zoom meeting then goes too, like the plain remove below
+      // (§24; a real truncation keeps the series and its reusable link alive).
+      const remaining = await recurrenceOps(deps.meetings).deleteFollowing(current.id, followingDate, { origin: 'ai' });
+      if (remaining === null && deps.zoom) void deps.zoom.onMeetingDeleted(current);
       return { status: 'done', actionId: action.id, type: action.type, meetingIds: [current.id], duplicate: false };
     }
     await deps.meetings.remove(current.id, { origin: 'ai' });
     // §24: the whole meeting is gone, so the server-created Zoom meeting goes too (best effort;
-    // occurrence/following scopes above keep the series - and its reusable link - alive).
+    // the occurrence scope above keeps the series - and its reusable link - alive).
     if (deps.zoom) void deps.zoom.onMeetingDeleted(current);
     return { status: 'done', actionId: action.id, type: action.type, meetingIds: [current.id], duplicate: false };
   }

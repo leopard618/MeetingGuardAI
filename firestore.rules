@@ -10,6 +10,7 @@ rules_version = '2';
 //   entitlements/{uid}                 Entitlement        owner read, server write only
 //   usage/{uid}/days/{day}             AI quota counter   owner read, server write only
 //   adminStats/ai/days/{day}/**        admin aggregates   server only (no client access at all)
+//   zoomMeetings/{zoomMeetingId}       Zoom owner registry server only (no client access at all)
 //   everything else                                       denied
 //
 // The Admin SDK (Cloud Functions) bypasses these rules. Instants are UTC ISO strings
@@ -165,6 +166,8 @@ service cloud.firestore {
         // written by the zoomCreateMeeting callable (Admin SDK), but client-writable exactly
         // like the outlook keys: every later client edit rewrites the whole document, external
         // refs included, so blocking the key here would reject ordinary meeting updates.
+        // SECURITY: because it is client-writable it proves NOTHING - the zoom callables treat
+        // it as a hint and attest ownership from the server-only zoomMeetings/{id} registry.
         && isNullableStringMax(v.get('zoomMeetingId', null), 64);
     }
 
@@ -330,6 +333,15 @@ service cloud.firestore {
     // goes through adminGetStats). The recursive wildcard covers the shard subcollection.
     // Explicit so the catch-all below is not load-bearing.
     match /adminStats/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Zoom ownership registry (zoomMeetings/{zoomMeetingId} = { uid, meetingId, createdAt }):
+    // written by the zoomCreateMeeting callable's transaction and read by the zoom write
+    // callables to attest WHO owns a Zoom meeting id - external.zoomMeetingId on meeting
+    // documents is client-writable and only a hint (docs/ARCHITECTURE.md §24). Admin SDK only;
+    // explicit so the catch-all below is not load-bearing.
+    match /zoomMeetings/{zoomMeetingId} {
       allow read, write: if false;
     }
 

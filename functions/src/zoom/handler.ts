@@ -7,9 +7,17 @@
  * the users/{uid}/meetings path) -> idempotent short-circuit on a stored link -> atomic daily
  * cap (usage/{uid}/days/{UTC day}.zoomCreates) -> Zoom REST create -> ONE transaction that
  * re-checks the preconditions and writes conference.url/password + external.zoomMeetingId
+ * PLUS the ownership registry entry zoomMeetings/{zoomMeetingId} = { uid, meetingId, createdAt }
  * (Admin SDK: bypasses the rules; the app's snapshot listener picks the change up). When the
  * re-check fails (the document changed while Zoom worked), the just-created Zoom meeting is
  * deleted again best-effort so the host account never collects orphans.
+ *
+ * OWNERSHIP of a Zoom meeting id is SERVER-ATTESTED by that registry, never by the meeting
+ * document: external.zoomMeetingId is client-writable (any user can stamp any digits on their
+ * own docs, and every participant sees the numeric id in the join url), so sync, delete and the
+ * create path's stale-id cleanup resolve the owner from zoomMeetings/{id} and deny when the
+ * entry is missing or names another uid. All Zoom meetings live on ONE shared host account,
+ * which is why the attestation matters. The registry has no client access (firestore.rules).
  *
  * Logs: uid, meeting doc id, Zoom numeric id and error codes only - NEVER titles, URLs or
  * passcodes (§24 logging rule).
@@ -41,11 +49,19 @@ import { type ZoomClient } from './api';
 /** Daily counters on usage/{uid}/days/{day} (same documents as the assistant quota). */
 export type ZoomUsageField = 'zoomCreates' | 'zoomOps';
 
+/** Server-only ownership registry document zoomMeetings/{zoomMeetingId} (no client access). */
+export interface ZoomOwnerEntry {
+  uid: string;
+  meetingId: string;
+}
+
 export interface ZoomStoreTransaction {
   /** Raw users/{uid}/meetings/{id} data, or undefined when the document does not exist. */
   getMeeting(uid: string, meetingId: string): Promise<unknown>;
   /** Partial update; keys are Firestore field paths ("conference.url"). */
   updateMeetingFields(uid: string, meetingId: string, fields: Record<string, unknown>): void;
+  /** Writes zoomMeetings/{zoomMeetingId} (the server-attested owner of the Zoom meeting). */
+  setZoomOwner(zoomMeetingId: string, entry: ZoomOwnerEntry & { createdAt: string }): void;
   /** Current counter value (0 when the document or field is missing or malformed). */
   readUsageField(uid: string, dayKey: string, field: ZoomUsageField): Promise<number>;
   writeUsageField(uid: string, dayKey: string, field: ZoomUsageField, count: number, updatedAtIso: string): void;
@@ -54,8 +70,10 @@ export interface ZoomStoreTransaction {
 export interface ZoomStore {
   /** Raw users/{uid}/meetings/{id} data, or undefined when the document does not exist. */
   getMeeting(uid: string, meetingId: string): Promise<unknown>;
-  /** First meeting of the CALLER whose external.zoomMeetingId equals the id, or null. */
-  findMeetingByZoomId(uid: string, zoomMeetingId: string): Promise<{ id: string } | null>;
+  /** zoomMeetings/{zoomMeetingId}, or null when absent or malformed (= nobody owns the id). */
+  getZoomOwner(zoomMeetingId: string): Promise<ZoomOwnerEntry | null>;
+  /** Removes zoomMeetings/{zoomMeetingId} after the Zoom meeting itself was deleted. */
+  deleteZoomOwner(zoomMeetingId: string): Promise<void>;
   runTransaction<T>(fn: (tx: ZoomStoreTransaction) => Promise<T>): Promise<T>;
 }
 
@@ -87,6 +105,10 @@ const zoomMeetingDocSchema = z.object({
   deletedAt: z.string().nullable().catch(null),
   conference: conferenceDetailsSchema.nullable().catch(null),
   external: z.record(z.string(), z.unknown()).catch({}),
+  // Stored sparsely (absent on one-offs); only non-null-ness matters here: a recurring meeting
+  // gets a Zoom type 3 ("recurring, no fixed time") whose join link never expires mid-series
+  // (a type 2 id dies 30 days after its scheduled date; §22 promises a reusable link).
+  recurrence: z.record(z.string(), z.unknown()).nullable().catch(null),
 });
 type ZoomMeetingDoc = z.infer<typeof zoomMeetingDocSchema>;
 
@@ -183,6 +205,29 @@ async function bestEffortZoomDelete(client: ZoomClient, zoomMeetingId: string, u
   }
 }
 
+/**
+ * Whether the CALLER owns this Zoom meeting id, per the server-written registry (see the
+ * header): true only when zoomMeetings/{id} exists and names the caller's uid. The meeting
+ * document's external.zoomMeetingId is a client-writable HINT and never proves ownership.
+ */
+async function callerOwnsZoomId(store: ZoomStore, uid: string, zoomMeetingId: string): Promise<boolean> {
+  const owner = await store.getZoomOwner(zoomMeetingId);
+  return owner !== null && owner.uid === uid;
+}
+
+/** Registry cleanup after a Zoom meeting was deleted; a leftover entry is harmless (retry heals). */
+async function bestEffortOwnerDelete(store: ZoomStore, zoomMeetingId: string, uid: string): Promise<void> {
+  try {
+    await store.deleteZoomOwner(zoomMeetingId);
+  } catch (error) {
+    logger.warn('zoom.registry_delete_failed', {
+      uid,
+      zoomMeetingId,
+      errorName: error instanceof Error ? error.name : typeof error,
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // zoomCreateMeeting
 // ---------------------------------------------------------------------------------------------
@@ -236,6 +281,7 @@ export async function handleZoomCreateMeeting(
       startTimeUtc,
       durationMinutes: zoomDuration(doc.durationMinutes),
       timezone: usableTimeZone(doc.timezone),
+      recurring: doc.recurrence !== null,
     });
     const response = zoomCreateMeetingResponseSchema.safeParse({
       url: created.joinUrl,
@@ -264,6 +310,9 @@ export async function handleZoomCreateMeeting(
         'external.zoomMeetingId': response.data.zoomMeetingId,
         updatedAt: nowIso,
       });
+      // Ownership attestation (see the header): written atomically with the link, so a Zoom id
+      // without a registry entry is never a legitimately linked one.
+      tx.setZoomOwner(response.data.zoomMeetingId, { uid, meetingId, createdAt: nowIso });
       return 'written' as const;
     });
     if (txResult !== 'written') {
@@ -272,7 +321,14 @@ export async function handleZoomCreateMeeting(
       throw zoomError(txResult, 'The meeting changed while the Zoom link was created.');
     }
     if (priorZoomId !== null && priorZoomId !== created.zoomMeetingId) {
-      await bestEffortZoomDelete(client, priorZoomId, uid, 'replaced_stale_id');
+      // The stale id came from the CLIENT-writable doc field: only delete the Zoom meeting it
+      // names when the registry says the caller owns it (a stamped foreign id is skipped).
+      if (await callerOwnsZoomId(deps.store, uid, priorZoomId)) {
+        await bestEffortZoomDelete(client, priorZoomId, uid, 'replaced_stale_id');
+        await bestEffortOwnerDelete(deps.store, priorZoomId, uid);
+      } else {
+        logger.info('zoom.stale_id_not_owned', { uid, meetingId, zoomMeetingId: priorZoomId });
+      }
     }
     logger.info('zoom.create_completed', { uid, meetingId, zoomMeetingId: created.zoomMeetingId });
     return response.data;
@@ -299,6 +355,12 @@ export async function handleZoomSyncMeeting(
     if (doc === null || doc.deletedAt !== null) return { updated: false };
     const zoomMeetingId = storedZoomMeetingId(doc.external);
     if (zoomMeetingId === null) return { updated: false };
+    // The id on the doc is a client-writable hint: a stamped foreign id must never let this
+    // caller rewrite another user's Zoom meeting (topic defacement / schedule disruption).
+    if (!(await callerOwnsZoomId(deps.store, uid, zoomMeetingId))) {
+      logger.info('zoom.sync_denied', { uid, meetingId, zoomMeetingId });
+      return { updated: false };
+    }
 
     await requireCounter(deps, uid, 'zoomOps', opsLimit(deps));
 
@@ -307,6 +369,7 @@ export async function handleZoomSyncMeeting(
       startTimeUtc: zoomStartTimeUtc(doc.startAt),
       durationMinutes: zoomDuration(doc.durationMinutes),
       timezone: usableTimeZone(doc.timezone),
+      recurring: doc.recurrence !== null,
     });
     if (result === 'gone') {
       // The Zoom meeting no longer exists; clear nothing (the stub rule) and report no update.
@@ -343,22 +406,23 @@ export async function handleZoomDeleteMeeting(
       }
     }
     if (resolved === null) {
-      // Bare Zoom id (schema: at least one of the two is set). Ownership: the id must appear in
-      // one of the CALLER's meeting documents, else not_found - one user must never delete
-      // another user's meeting.
+      // Bare Zoom id (schema: at least one of the two is set).
       if (zoomMeetingId === null) throw zoomError('invalid_request', 'A meetingId or zoomMeetingId is required.');
-      const owner = await deps.store.findMeetingByZoomId(uid, zoomMeetingId);
-      if (owner === null) {
-        logger.info('zoom.delete_denied', { uid, zoomMeetingId });
-        throw zoomError('not_found', 'No meeting with this Zoom id.');
-      }
       resolved = zoomMeetingId;
+    }
+    // Ownership is SERVER-ATTESTED (see the header): both the bare id and the id read from the
+    // caller's own document are client-influenced, so the registry must name the caller - one
+    // user must never delete another user's Zoom meeting by stamping its (publicly visible) id.
+    if (!(await callerOwnsZoomId(deps.store, uid, resolved))) {
+      logger.info('zoom.delete_denied', { uid, zoomMeetingId: resolved });
+      throw zoomError('not_found', 'No meeting with this Zoom id.');
     }
 
     await requireCounter(deps, uid, 'zoomOps', opsLimit(deps));
 
     const result = await deps.client().deleteMeeting(resolved);
     // A Zoom 404 counts as deleted (§24: the goal state "no such Zoom meeting" is reached).
+    await bestEffortOwnerDelete(deps.store, resolved, uid);
     logger.info('zoom.delete_completed', { uid, meetingId, zoomMeetingId: resolved, alreadyGone: result === 'gone' });
     return { deleted: true };
   } catch (error) {
@@ -370,22 +434,31 @@ export async function handleZoomDeleteMeeting(
 // Firestore adapter
 // ---------------------------------------------------------------------------------------------
 
+/** Collection of the server-only ownership registry (no client access; firestore.rules). */
+export const ZOOM_OWNERS_COLLECTION = 'zoomMeetings';
+
 export function firestoreZoomStore(db: Firestore): ZoomStore {
   const meetingRef = (uid: string, meetingId: string) => db.doc(`users/${uid}/meetings/${meetingId}`);
   const usageRef = (uid: string, dayKey: string) => db.doc(`usage/${uid}/days/${dayKey}`);
+  // The id is digits only (zoomMeetingNumberSchema) and therefore always a valid doc id.
+  const ownerRef = (zoomMeetingId: string) => db.doc(`${ZOOM_OWNERS_COLLECTION}/${zoomMeetingId}`);
   return {
     async getMeeting(uid, meetingId) {
       const snapshot = await meetingRef(uid, meetingId).get();
       return snapshot.exists ? snapshot.data() : undefined;
     },
-    async findMeetingByZoomId(uid, zoomMeetingId) {
-      const snapshot = await db
-        .collection(`users/${uid}/meetings`)
-        .where('external.zoomMeetingId', '==', zoomMeetingId)
-        .limit(1)
-        .get();
-      const first = snapshot.docs[0];
-      return first ? { id: first.id } : null;
+    async getZoomOwner(zoomMeetingId) {
+      const snapshot = await ownerRef(zoomMeetingId).get();
+      if (!snapshot.exists) return null;
+      const data = snapshot.data() as Record<string, unknown> | undefined;
+      const uid = data?.uid;
+      const meetingId = data?.meetingId;
+      return typeof uid === 'string' && uid.length > 0 && typeof meetingId === 'string' && meetingId.length > 0
+        ? { uid, meetingId }
+        : null;
+    },
+    async deleteZoomOwner(zoomMeetingId) {
+      await ownerRef(zoomMeetingId).delete();
     },
     runTransaction: <T>(fn: (tx: ZoomStoreTransaction) => Promise<T>) =>
       db.runTransaction(
@@ -397,6 +470,9 @@ export function firestoreZoomStore(db: Firestore): ZoomStore {
             },
             updateMeetingFields(uid, meetingId, fields) {
               transaction.update(meetingRef(uid, meetingId), fields);
+            },
+            setZoomOwner(zoomMeetingId, entry) {
+              transaction.set(ownerRef(zoomMeetingId), entry);
             },
             async readUsageField(uid, dayKey, field) {
               const snapshot = await transaction.get(usageRef(uid, dayKey));

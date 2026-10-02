@@ -33,6 +33,8 @@ class FakeZoomStore implements ZoomStore {
   readonly meetings = new Map<string, Record<string, unknown>>();
   readonly usage = new Map<string, number>();
   readonly updates: { meetingId: string; fields: Record<string, unknown> }[] = [];
+  /** zoomMeetings/{id} ownership registry (server-attested; written by the create transaction). */
+  readonly owners = new Map<string, { uid: string; meetingId: string; createdAt: string }>();
   /** When set, transaction reads see THIS data instead (simulates a concurrent edit). */
   txMeetingOverride: Record<string, unknown> | 'missing' | null = null;
 
@@ -48,16 +50,21 @@ class FakeZoomStore implements ZoomStore {
     return this.usage.get(this.usageKey(field)) ?? 0;
   }
 
+  setOwner(zoomMeetingId: string, uid: string, meetingId: string): void {
+    this.owners.set(zoomMeetingId, { uid, meetingId, createdAt: NOW.toISOString() });
+  }
+
   async getMeeting(_uid: string, meetingId: string): Promise<unknown> {
     return this.meetings.get(meetingId);
   }
 
-  async findMeetingByZoomId(_uid: string, zoomMeetingId: string): Promise<{ id: string } | null> {
-    for (const [id, data] of this.meetings) {
-      const external = data.external as Record<string, unknown> | undefined;
-      if (external && external.zoomMeetingId === zoomMeetingId) return { id };
-    }
-    return null;
+  async getZoomOwner(zoomMeetingId: string): Promise<{ uid: string; meetingId: string } | null> {
+    const entry = this.owners.get(zoomMeetingId);
+    return entry ? { uid: entry.uid, meetingId: entry.meetingId } : null;
+  }
+
+  async deleteZoomOwner(zoomMeetingId: string): Promise<void> {
+    this.owners.delete(zoomMeetingId);
   }
 
   async runTransaction<T>(fn: (tx: ZoomStoreTransaction) => Promise<T>): Promise<T> {
@@ -70,6 +77,9 @@ class FakeZoomStore implements ZoomStore {
       },
       updateMeetingFields: (_uid, meetingId, fields) => {
         writes.push(() => this.updates.push({ meetingId, fields }));
+      },
+      setZoomOwner: (zoomMeetingId, entry) => {
+        writes.push(() => this.owners.set(zoomMeetingId, entry));
       },
       readUsageField: async (_uid, dayKey, field) => this.usage.get(`${field}/${dayKey}`) ?? 0,
       writeUsageField: (_uid, dayKey, field, count) => {
@@ -174,7 +184,7 @@ describe('zoom handler helpers', () => {
 // ---------------------------------------------------------------------------------------------
 
 describe('handleZoomCreateMeeting', () => {
-  it('creates the Zoom meeting, writes the link transactionally and counts the create', async () => {
+  it('creates the Zoom meeting, writes the link + ownership registry transactionally and counts the create', async () => {
     const store = new FakeZoomStore();
     store.meetings.set('m1', zoomDoc());
     const client = new FakeZoomClient();
@@ -187,7 +197,7 @@ describe('handleZoomCreateMeeting', () => {
       zoomMeetingId: '987654321',
     });
     expect(client.created).toEqual([
-      { topic: 'Weekly sync', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 45, timezone: 'Europe/Madrid' },
+      { topic: 'Weekly sync', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 45, timezone: 'Europe/Madrid', recurring: false },
     ]);
     expect(store.updates).toEqual([
       {
@@ -200,8 +210,21 @@ describe('handleZoomCreateMeeting', () => {
         },
       },
     ]);
+    expect(store.owners.get('987654321')).toEqual({ uid: UID, meetingId: 'm1', createdAt: NOW.toISOString() });
     expect(store.count('zoomCreates')).toBe(1);
     expect(store.count('zoomOps')).toBe(0);
+  });
+
+  it('creates a recurring (type 3) Zoom meeting when the document carries a recurrence rule', async () => {
+    const store = new FakeZoomStore();
+    store.meetings.set('m1', zoomDoc({ recurrence: { freq: 'weekly', interval: 1 } }));
+    const client = new FakeZoomClient();
+
+    await handleZoomCreateMeeting(UID, { meetingId: 'm1' }, depsWith(store, client));
+
+    expect(client.created).toEqual([
+      { topic: 'Weekly sync', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 45, timezone: 'Europe/Madrid', recurring: true },
+    ]);
   });
 
   it('is idempotent: an existing stored link is returned without calling Zoom or counting', async () => {
@@ -309,9 +332,10 @@ describe('handleZoomCreateMeeting', () => {
     expect(client.deleted).toEqual(['987654321']);
   });
 
-  it('replaces a stale stored id without a link and drops the old Zoom meeting', async () => {
+  it('replaces a stale stored id without a link and drops the old Zoom meeting (registry-attested)', async () => {
     const store = new FakeZoomStore();
     store.meetings.set('m1', zoomDoc({ external: { zoomMeetingId: '111' } }));
+    store.setOwner('111', UID, 'm1');
     const client = new FakeZoomClient();
 
     const response = await handleZoomCreateMeeting(UID, { meetingId: 'm1' }, depsWith(store, client));
@@ -319,6 +343,21 @@ describe('handleZoomCreateMeeting', () => {
     expect(response.zoomMeetingId).toBe('987654321');
     expect(store.updates).toHaveLength(1);
     expect(client.deleted).toEqual(['111']);
+    expect(store.owners.has('111')).toBe(false);
+    expect(store.owners.get('987654321')).toMatchObject({ uid: UID, meetingId: 'm1' });
+  });
+
+  it('never deletes a stale id the caller does not own (a stamped foreign id; IDOR guard)', async () => {
+    const store = new FakeZoomStore();
+    store.meetings.set('m1', zoomDoc({ external: { zoomMeetingId: '111' } }));
+    store.setOwner('111', 'user_2', 'other_meeting');
+    const client = new FakeZoomClient();
+
+    const response = await handleZoomCreateMeeting(UID, { meetingId: 'm1' }, depsWith(store, client));
+
+    expect(response.zoomMeetingId).toBe('987654321');
+    expect(client.deleted).toHaveLength(0);
+    expect(store.owners.get('111')).toMatchObject({ uid: 'user_2' });
   });
 
   it('maps a Zoom 429 to quota_exceeded for the app', async () => {
@@ -356,16 +395,31 @@ describe('handleZoomSyncMeeting', () => {
   it('patches the existing Zoom meeting and counts a zoomOp', async () => {
     const store = new FakeZoomStore();
     store.meetings.set('m1', zoomDoc({ title: 'Moved sync', external: { zoomMeetingId: '987654321' } }));
+    store.setOwner('987654321', UID, 'm1');
     const client = new FakeZoomClient();
 
     await expect(handleZoomSyncMeeting(UID, { meetingId: 'm1' }, depsWith(store, client))).resolves.toEqual({ updated: true });
     expect(client.updated).toEqual([
       {
         zoomMeetingId: '987654321',
-        patch: { topic: 'Moved sync', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 45, timezone: 'Europe/Madrid' },
+        patch: { topic: 'Moved sync', startTimeUtc: '2026-10-05T14:00:00Z', durationMinutes: 45, timezone: 'Europe/Madrid', recurring: false },
       },
     ]);
     expect(store.count('zoomOps')).toBe(1);
+  });
+
+  it.each([
+    ['no registry entry exists', null],
+    ['the registry names another user', 'user_2'],
+  ])('refuses to patch when %s (client-stamped id; IDOR guard)', async (_label, ownerUid) => {
+    const store = new FakeZoomStore();
+    store.meetings.set('m1', zoomDoc({ external: { zoomMeetingId: '987654321' } }));
+    if (ownerUid !== null) store.setOwner('987654321', ownerUid, 'victim_meeting');
+    const client = new FakeZoomClient();
+
+    await expect(handleZoomSyncMeeting(UID, { meetingId: 'm1' }, depsWith(store, client))).resolves.toEqual({ updated: false });
+    expect(client.updated).toHaveLength(0);
+    expect(store.count('zoomOps')).toBe(0);
   });
 
   it('no-ops without a stored Zoom id (no Zoom call, no count)', async () => {
@@ -384,9 +438,23 @@ describe('handleZoomSyncMeeting', () => {
     ).rejects.toMatchObject({ details: { reason: 'not_found' } });
   });
 
+  it('patches the topic only for a recurring meeting (type 3 has no schedule)', async () => {
+    const store = new FakeZoomStore();
+    store.meetings.set(
+      'm1',
+      zoomDoc({ title: 'Moved sync', external: { zoomMeetingId: '987654321' }, recurrence: { freq: 'weekly', interval: 1 } }),
+    );
+    store.setOwner('987654321', UID, 'm1');
+    const client = new FakeZoomClient();
+
+    await expect(handleZoomSyncMeeting(UID, { meetingId: 'm1' }, depsWith(store, client))).resolves.toEqual({ updated: true });
+    expect(client.updated[0]!.patch.recurring).toBe(true);
+  });
+
   it('reports updated false when the Zoom meeting is gone', async () => {
     const store = new FakeZoomStore();
     store.meetings.set('m1', zoomDoc({ external: { zoomMeetingId: '987654321' } }));
+    store.setOwner('987654321', UID, 'm1');
     const client = new FakeZoomClient();
     client.updateResult = 'gone';
 
@@ -396,6 +464,7 @@ describe('handleZoomSyncMeeting', () => {
   it('enforces the shared ops cap (limit x multiplier)', async () => {
     const store = new FakeZoomStore();
     store.meetings.set('m1', zoomDoc({ external: { zoomMeetingId: '987654321' } }));
+    store.setOwner('987654321', UID, 'm1');
     store.setUsage('zoomOps', 300);
     const client = new FakeZoomClient();
 
@@ -411,15 +480,17 @@ describe('handleZoomSyncMeeting', () => {
 // ---------------------------------------------------------------------------------------------
 
 describe('handleZoomDeleteMeeting', () => {
-  it('deletes via the (tombstoned) meeting document and counts a zoomOp', async () => {
+  it('deletes via the (tombstoned) meeting document, drops the registry entry and counts a zoomOp', async () => {
     const store = new FakeZoomStore();
     store.meetings.set('m1', zoomDoc({ deletedAt: '2026-10-01T09:00:00.000Z', external: { zoomMeetingId: '987654321' } }));
+    store.setOwner('987654321', UID, 'm1');
     const client = new FakeZoomClient();
 
     await expect(
       handleZoomDeleteMeeting(UID, { meetingId: 'm1', zoomMeetingId: null }, depsWith(store, client)),
     ).resolves.toEqual({ deleted: true });
     expect(client.deleted).toEqual(['987654321']);
+    expect(store.owners.has('987654321')).toBe(false);
     expect(store.count('zoomOps')).toBe(1);
   });
 
@@ -435,20 +506,21 @@ describe('handleZoomDeleteMeeting', () => {
     expect(store.count('zoomOps')).toBe(0);
   });
 
-  it('accepts a bare zoomMeetingId that belongs to one of the CALLER\'s meetings', async () => {
+  it('accepts a bare zoomMeetingId whose registry entry names the caller', async () => {
     const store = new FakeZoomStore();
-    store.meetings.set('m2', zoomDoc({ external: { zoomMeetingId: '555' } }));
+    store.setOwner('555', UID, 'm2');
     const client = new FakeZoomClient();
 
     await expect(
       handleZoomDeleteMeeting(UID, { meetingId: null, zoomMeetingId: '555' }, depsWith(store, client)),
     ).resolves.toEqual({ deleted: true });
     expect(client.deleted).toEqual(['555']);
+    expect(store.owners.has('555')).toBe(false);
   });
 
-  it('denies a bare zoomMeetingId that no caller-owned meeting references', async () => {
+  it('denies a bare zoomMeetingId without a registry entry', async () => {
     const store = new FakeZoomStore();
-    store.meetings.set('m2', zoomDoc({ external: { zoomMeetingId: '555' } }));
+    store.setOwner('555', UID, 'm2');
     const client = new FakeZoomClient();
 
     await expect(
@@ -458,15 +530,32 @@ describe('handleZoomDeleteMeeting', () => {
     expect(store.count('zoomOps')).toBe(0);
   });
 
+  it("denies another user's Zoom id even when it is stamped on the caller's own document (IDOR guard)", async () => {
+    const store = new FakeZoomStore();
+    // Attacker doc carries the victim's publicly visible meeting number; the registry names the victim.
+    store.meetings.set('m1', zoomDoc({ external: { zoomMeetingId: '987654321' } }));
+    store.setOwner('987654321', 'user_2', 'victim_meeting');
+    const client = new FakeZoomClient();
+
+    await expect(
+      handleZoomDeleteMeeting(UID, { meetingId: 'm1', zoomMeetingId: null }, depsWith(store, client)),
+    ).rejects.toMatchObject({ code: 'not-found', details: { reason: 'not_found' } });
+    await expect(
+      handleZoomDeleteMeeting(UID, { meetingId: null, zoomMeetingId: '987654321' }, depsWith(store, client)),
+    ).rejects.toMatchObject({ code: 'not-found', details: { reason: 'not_found' } });
+    expect(client.deleted).toHaveLength(0);
+    expect(store.owners.get('987654321')).toMatchObject({ uid: 'user_2' });
+  });
+
   it('answers not_found when only a meetingId is given and the document is gone', async () => {
     await expect(
       handleZoomDeleteMeeting(UID, { meetingId: 'm1', zoomMeetingId: null }, depsWith(new FakeZoomStore(), new FakeZoomClient())),
     ).rejects.toMatchObject({ details: { reason: 'not_found' } });
   });
 
-  it('falls back to the bare id (with the ownership check) when the document is already gone', async () => {
+  it('falls back to the bare id (with the registry check) when the document is already gone', async () => {
     const store = new FakeZoomStore();
-    store.meetings.set('m2', zoomDoc({ external: { zoomMeetingId: '555' } }));
+    store.setOwner('555', UID, 'm2');
     const client = new FakeZoomClient();
 
     await expect(
@@ -475,20 +564,23 @@ describe('handleZoomDeleteMeeting', () => {
     expect(client.deleted).toEqual(['555']);
   });
 
-  it('treats a Zoom 404 as deleted', async () => {
+  it('treats a Zoom 404 as deleted (and still clears the registry entry)', async () => {
     const store = new FakeZoomStore();
     store.meetings.set('m1', zoomDoc({ external: { zoomMeetingId: '987654321' } }));
+    store.setOwner('987654321', UID, 'm1');
     const client = new FakeZoomClient();
     client.deleteResult = 'gone';
 
     await expect(
       handleZoomDeleteMeeting(UID, { meetingId: 'm1', zoomMeetingId: null }, depsWith(store, client)),
     ).resolves.toEqual({ deleted: true });
+    expect(store.owners.has('987654321')).toBe(false);
   });
 
   it('enforces the shared ops cap', async () => {
     const store = new FakeZoomStore();
     store.meetings.set('m1', zoomDoc({ external: { zoomMeetingId: '987654321' } }));
+    store.setOwner('987654321', UID, 'm1');
     store.setUsage('zoomOps', 300);
     const client = new FakeZoomClient();
 

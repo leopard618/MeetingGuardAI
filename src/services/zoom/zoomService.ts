@@ -225,15 +225,22 @@ export function createZoomService(deps: ZoomServiceDeps): ZoomServiceInternal {
   function ensureLink(meetingId: string): Promise<ZoomLinkResult> {
     const inFlight = linkCalls.get(meetingId);
     if (inFlight) return inFlight;
+    // A call can settle AFTER the session that started it ended (sign-out mid-flight): the
+    // failure map belongs to ONE session (§24), so the continuations only touch it while the
+    // epoch is unchanged - mirroring askStatus. Without this, user A's late failure would leak
+    // A's meeting id + failure code into user B's session on the same device.
+    const epoch = sessionEpoch;
     const promise = doEnsureLink(meetingId)
       .then((result) => {
-        failures.delete(meetingId);
+        if (epoch === sessionEpoch) failures.delete(meetingId);
         return result;
       })
       .catch((caught: unknown) => {
         const error = toAppError(caught);
-        failures.set(meetingId, error.code);
-        log.warn('zoom link creation failed', { meetingId, code: error.code });
+        if (epoch === sessionEpoch) {
+          failures.set(meetingId, error.code);
+          log.warn('zoom link creation failed', { meetingId, code: error.code });
+        }
         throw error;
       })
       .finally(() => {

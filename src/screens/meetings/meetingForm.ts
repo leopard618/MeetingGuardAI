@@ -470,6 +470,12 @@ export function draftToPatch(meeting: Meeting, draft: MeetingFormDraft, original
     // The link field was never edited: the LIVE url (e.g. a Meet/Teams link the sync wrote back
     // while the form was open) is the truth, not the stale snapshot the draft was seeded from.
     conference.url = meeting.conference.url;
+    // Same for an untouched passcode: zoomCreateMeeting writes url AND password server-side
+    // (§24), so a draft seeded before the link arrived would otherwise silently erase the
+    // fresh passcode on the next save.
+    if (draft.conferencePassword.trim() === original.conferencePassword.trim()) {
+      conference.password = meeting.conference.password;
+    }
   }
   if (!same(conference, meeting.conference)) patch.conference = conference;
   const participants = participantsOf(draft, meeting.participants);
