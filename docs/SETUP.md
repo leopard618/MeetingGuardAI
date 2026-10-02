@@ -756,10 +756,14 @@ created. Create these EXACT product ids (the app and functions match on them):
 | `premium_yearly` | yearly, auto-renewing (`p1y`) | $134.91 / year | 3-day free trial |
 
 For each product: add one base plan, then an **offer** on that base plan with a single "free
-trial" phase of 3 days (eligibility: new customer acquisition). Activate products, base plans
-and offers. Prices are the catalog values from `src/services/billing.ts`; Google converts them
-to local currencies. The trial copy in the app ("3-day free trial") only appears when the store
-actually reports the trial, so a missing offer is visible immediately.
+trial" phase of 3 days. The offer's eligibility MUST be **"new customer acquisition"**: Play
+then stops reporting the offer to users who already consumed their trial, which keeps the
+app's "3-day free trial" line honest (the copy only appears when the store actually reports
+the trial, so a missing offer is visible immediately). iOS has no such store-side filter -
+StoreKit reports the intro offer to everyone - so the App Store build words the same line as
+"New subscribers: 3-day free trial" instead. Activate products, base plans and offers. Prices
+are the catalog values from `src/services/billing.ts`; Google converts them to local
+currencies.
 
 ### 11.2 RevenueCat project
 
@@ -865,9 +869,13 @@ never touches the secret:
 2. Put `REVENUECAT_RECONCILE_ENABLED=true` in `functions/.env.<projectId>`, then deploy
    functions. (Back to `false` + redeploy removes the function again - accept the delete offer.)
 3. Use it from the admin dashboard: Users table -> "Reconcile" on a user row. Outcomes:
-   `updated` (the entitlement was drifted and is now store-truth), `unchanged`, `skipped_admin`
-   (an admin-granted plan that RevenueCat does not back - comps are never downgraded),
-   `no_data` (only sandbox data at RevenueCat). The write is auditable in the function logs
+   `updated` (the entitlement was drifted and is now store-truth), `unchanged` (no drift - also
+   when a webhook event or admin write landed DURING the reconcile: the newer write wins and a
+   re-run checks against the fresh state), `skipped_admin` (an admin-granted plan that
+   RevenueCat does not back - such comps are never downgraded; an ACTIVE store subscription
+   still overwrites a comp), `no_data` (only sandbox or unverifiable data at RevenueCat - an
+   entitlement without a resolvable backing subscription is not trusted as production while
+   `REVENUECAT_ALLOW_SANDBOX` is false). The write is auditable in the function logs
    (`revenuecat.reconciled`).
 
 ## 12. Zoom auto links (Server-to-Server OAuth app)

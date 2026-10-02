@@ -16,6 +16,8 @@ import {
   mapRcError,
   packageHasFreeTrial,
   productIdOf,
+  splitActiveByStore,
+  storeOfActiveProduct,
   tierFromCustomerInfo,
   toStorePackage,
 } from '../service';
@@ -43,6 +45,14 @@ function customerInfo(activeIds: string[], activeSubscriptions: string[] = []): 
   return {
     entitlements: { active: Object.fromEntries(activeIds.map((id) => [id, { isActive: true }])) },
     activeSubscriptions,
+  };
+}
+
+/** CustomerInfo whose entitlement carries the per-store metadata (productIdentifier + store). */
+function storeTaggedInfo(entitlementId: string, productIdentifier: string, store: string): RcCustomerInfoLike {
+  return {
+    entitlements: { active: { [entitlementId]: { isActive: true, productIdentifier, store } } },
+    activeSubscriptions: [productIdentifier],
   };
 }
 
@@ -92,6 +102,9 @@ function fakeSdk(offerings: RcOfferingsLike = { current: null }): PurchasesSdkLi
       sdk.calls.push('getCustomerInfo');
       if (sdk.customerInfoError !== null) throw sdk.customerInfoError;
       return sdk.customerInfoState;
+    },
+    async invalidateCustomerInfoCache() {
+      sdk.calls.push('invalidateCustomerInfoCache');
     },
     async restorePurchases() {
       sdk.calls.push('restore');
@@ -234,6 +247,43 @@ describe('purchase', () => {
       oldProductIdentifier: 'pro_monthly',
       prorationMode: PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION,
     });
+    // The replacement read must be FRESH: an out-of-app resubscription inside the SDK's
+    // CustomerInfo cache window would otherwise go unseen and a second subscription opened.
+    expect(sdk.calls.indexOf('invalidateCustomerInfoCache')).toBeGreaterThanOrEqual(0);
+    expect(sdk.calls.indexOf('invalidateCustomerInfoCache')).toBeLessThan(sdk.calls.indexOf('getCustomerInfo'));
+  });
+
+  it('works with SDKs that lack invalidateCustomerInfoCache (optional surface)', async () => {
+    const sdk = fakeSdk(FULL_OFFERING) as ReturnType<typeof fakeSdk> & { invalidateCustomerInfoCache?: unknown };
+    delete sdk.invalidateCustomerInfoCache;
+    sdk.customerInfoState = customerInfo(['pro'], ['pro_monthly']);
+    await expect(service(sdk).purchase('premium', 'monthly')).resolves.toEqual({ status: 'purchased', tier: 'premium', cycle: 'monthly' });
+  });
+
+  it('aborts with conflict when a subscription from the OTHER store is active (no cross-store double billing)', async () => {
+    // Android device, Apple-purchased pro: Play cannot replace it; purchasing would bill twice.
+    const sdk = fakeSdk(FULL_OFFERING);
+    sdk.customerInfoState = storeTaggedInfo('pro', 'pro_monthly', 'APP_STORE');
+    await expect(service(sdk).purchase('premium', 'monthly')).rejects.toMatchObject({
+      code: 'conflict',
+      details: { otherStoreProductId: 'pro_monthly' },
+    });
+    expect(sdk.lastPurchasedPackage).toBeNull();
+    // iOS device, Play-purchased pro: same block on the StoreKit side.
+    const iosSdk = fakeSdk(FULL_OFFERING);
+    iosSdk.customerInfoState = storeTaggedInfo('pro', 'pro_monthly:p1m', 'PLAY_STORE');
+    await expect(service(iosSdk, APPLE_KEY, 'ios').purchase('premium', 'monthly')).rejects.toMatchObject({ code: 'conflict' });
+    expect(iosSdk.lastPurchasedPackage).toBeNull();
+  });
+
+  it('a SAME-store tagged subscription still drives the Android replacement normally', async () => {
+    const sdk = fakeSdk(FULL_OFFERING);
+    sdk.customerInfoState = storeTaggedInfo('pro', 'pro_monthly', 'PLAY_STORE');
+    await expect(service(sdk).purchase('premium', 'monthly')).resolves.toEqual({ status: 'purchased', tier: 'premium', cycle: 'monthly' });
+    expect(sdk.lastProductChange).toEqual({
+      oldProductIdentifier: 'pro_monthly',
+      prorationMode: PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION,
+    });
   });
 
   it('does not pass a product change when the active product IS the one being bought', async () => {
@@ -295,7 +345,7 @@ describe('restore', () => {
   });
 });
 
-describe('getActiveProductId', () => {
+describe('getActiveProductId / getActiveProducts', () => {
   it('returns the active catalog product (premium first), or null when none / unreadable / unconfigured', async () => {
     const sdk = fakeSdk(FULL_OFFERING);
     sdk.customerInfoState = customerInfo(['premium'], ['premium_yearly:p1y', 'other_app_product']);
@@ -305,6 +355,25 @@ describe('getActiveProductId', () => {
     sdk.customerInfoError = { code: '10' };
     await expect(service(sdk).getActiveProductId()).resolves.toBeNull(); // contract: never throws
     await expect(service(null).getActiveProductId()).resolves.toBeNull();
+  });
+
+  it('splits an other-store subscription out: not manageable here (sameStore null), named as otherStore', async () => {
+    // iOS device, Play-purchased pro: the App Store sheet cannot manage it and no card may
+    // offer a second subscription, so it must NOT surface as the same-store product.
+    const sdk = fakeSdk(FULL_OFFERING);
+    sdk.customerInfoState = storeTaggedInfo('pro', 'pro_monthly:p1m', 'PLAY_STORE');
+    const svc = service(sdk, APPLE_KEY, 'ios');
+    await expect(svc.getActiveProductId()).resolves.toBeNull();
+    await expect(svc.getActiveProducts()).resolves.toEqual({ sameStore: null, otherStore: 'pro_monthly' });
+    // Same product on its own platform: plain same-store.
+    const androidSdk = fakeSdk(FULL_OFFERING);
+    androidSdk.customerInfoState = storeTaggedInfo('pro', 'pro_monthly:p1m', 'PLAY_STORE');
+    await expect(service(androidSdk).getActiveProducts()).resolves.toEqual({ sameStore: 'pro_monthly', otherStore: null });
+    // Unconfigured / unreadable: both null, never throws.
+    await expect(service(null).getActiveProducts()).resolves.toEqual({ sameStore: null, otherStore: null });
+    const failing = fakeSdk(FULL_OFFERING);
+    failing.customerInfoError = { code: '10' };
+    await expect(service(failing).getActiveProducts()).resolves.toEqual({ sameStore: null, otherStore: null });
   });
 });
 
@@ -331,13 +400,16 @@ describe('iOS App Store semantics', () => {
     expect(sdk.calls).toEqual([`configure:${APPLE_KEY}:uid-1`]);
   });
 
-  it('purchases WITHOUT a product change or a pre-purchase read (one subscription group; StoreKit replaces)', async () => {
+  it('purchases WITHOUT a product change (one subscription group; StoreKit replaces by itself)', async () => {
     const sdk = fakeSdk(FULL_OFFERING);
     sdk.customerInfoState = customerInfo(['pro'], ['pro_monthly']); // would trigger a change on Android
     const svc = service(sdk, APPLE_KEY, 'ios');
     await expect(svc.purchase('premium', 'monthly')).resolves.toEqual({ status: 'purchased', tier: 'premium', cycle: 'monthly' });
     expect(sdk.lastProductChange).toBeNull();
-    expect(sdk.calls).not.toContain('getCustomerInfo');
+    // The pre-purchase read still happens (fresh, for the cross-store guard) - it just never
+    // produces a Google product change on iOS.
+    expect(sdk.calls).toContain('getCustomerInfo');
+    expect(sdk.calls.indexOf('invalidateCustomerInfoCache')).toBeLessThan(sdk.calls.indexOf('getCustomerInfo'));
   });
 
   it('showManageSubscriptions presents the native sheet and resolves true', async () => {
@@ -392,6 +464,18 @@ describe('pure helpers', () => {
     ]);
     expect(activeCatalogProductIds(customerInfo([]))).toEqual([]);
     expect(activeCatalogProductIds({ entitlements: { active: {} } })).toEqual([]);
+  });
+
+  it('storeOfActiveProduct and splitActiveByStore resolve the per-store tags (unknown = same-store)', () => {
+    const tagged = storeTaggedInfo('pro', 'pro_monthly:p1m', 'APP_STORE');
+    expect(storeOfActiveProduct(tagged, 'pro_monthly')).toBe('APP_STORE');
+    expect(storeOfActiveProduct(tagged, 'premium_monthly')).toBeNull();
+    expect(splitActiveByStore(tagged, 'android')).toEqual({ sameStore: [], otherStore: ['pro_monthly'] });
+    expect(splitActiveByStore(tagged, 'ios')).toEqual({ sameStore: ['pro_monthly'], otherStore: [] });
+    // No store metadata (older SDK payloads, fakes): everything stays same-store, as before.
+    const untagged = customerInfo(['pro'], ['pro_monthly']);
+    expect(splitActiveByStore(untagged, 'android')).toEqual({ sameStore: ['pro_monthly'], otherStore: [] });
+    expect(splitActiveByStore(untagged, 'ios')).toEqual({ sameStore: ['pro_monthly'], otherStore: [] });
   });
 
   it('isRcUserCancelled and mapRcError classify RevenueCat errors', () => {

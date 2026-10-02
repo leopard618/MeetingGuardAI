@@ -1565,6 +1565,20 @@ export type RestoreOutcome =
   | { status: 'nothing_to_restore' };
 
 /**
+ * The active catalog products split by store. RevenueCat aggregates CustomerInfo across stores
+ * per app_user_id (that is what makes the shared 'pro'/'premium' entitlements work), so a
+ * subscription bought on the OTHER platform's store shows up here too: it cannot be managed or
+ * replaced from this device, and buying anything while it is active would open a SECOND,
+ * parallel subscription. `sameStore` drives the purchased-card badge and Manage; a non-null
+ * `otherStore` blocks all purchases on this device and the UI names the other store instead.
+ * Products whose store cannot be determined count as same-store (the pre-split behavior).
+ */
+export interface ActiveStoreProducts {
+  sameStore: string | null;
+  otherStore: string | null;
+}
+
+/**
  * react-native-purchases behind the optional platform SDK key: EXPO_PUBLIC_REVENUECAT_ANDROID_KEY
  * on Android, EXPO_PUBLIC_REVENUECAT_APPLE_KEY on iOS. The RUNNING platform's key absent, or the
  * native module missing, or another platform => isConfigured() false and the Pricing screen
@@ -1593,16 +1607,25 @@ export interface PurchasesService {
    * is passed so Play swaps the running subscription and credits unused time; on iOS all four
    * products share one subscription group, so StoreKit applies its own upgrade/crossgrade rules
    * (downgrades and some crossgrades start at the next renewal) and no product change is passed.
+   * Both platforms read a FRESH CustomerInfo first (cache invalidated); an active subscription
+   * from the OTHER store aborts with AppError('conflict') - the stores cannot replace across
+   * each other, so proceeding would open a second, parallel subscription.
    */
   purchase(tier: PaidPlanTier, cycle: BillingCycle): Promise<PurchaseOutcome>;
   /** Purchases.restorePurchases(); the webhook (TRANSFER/INITIAL_PURCHASE) updates the entitlement. */
   restore(): Promise<RestoreOutcome>;
   /**
-   * The ACTIVE catalog Play product id from CustomerInfo (premium over pro when both appear),
-   * or null when none is active or the store cannot answer (never throws): lets the pricing UI
-   * mark the truly purchased (tier, cycle) card and deep-link "Manage subscription".
+   * The ACTIVE catalog product id purchased on THIS platform's store (premium over pro when
+   * both appear), or null when none is active or the store cannot answer (never throws): lets
+   * the pricing UI mark the truly purchased (tier, cycle) card and deep-link "Manage
+   * subscription". Equals getActiveProducts().sameStore.
    */
   getActiveProductId(): Promise<string | null>;
+  /**
+   * Active catalog products split by store (see ActiveStoreProducts). Best effort like
+   * getActiveProductId: never throws; both null when unknown or the store cannot answer.
+   */
+  getActiveProducts(): Promise<ActiveStoreProducts>;
   /**
    * Store subscription management deep link for the active product: Google Play's subscriptions
    * page (?sku=&package= when the product is known) on Android; on iOS the generic

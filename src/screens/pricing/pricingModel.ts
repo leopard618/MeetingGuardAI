@@ -56,6 +56,12 @@ export interface PlanCard {
    * plans, which have no store subscription to manage.
    */
   manageable: boolean;
+  /**
+   * true when THIS card's product is active but was purchased on the OTHER platform's store
+   * (otherStoreProductId): the card says where the subscription is managed instead of offering
+   * Manage (dead sheet) or a purchase (second subscription).
+   */
+  managedExternally: boolean;
   /** Localized store price string ("$7.99", "€7,99") when the offering is loaded. */
   storePriceString: string | null;
   /** Yearly store package: localized per-month equivalent computed from priceAmountMicros. */
@@ -98,6 +104,10 @@ function purchaseActionOf(tier: PlanTier, cycle: BillingCycle | null, currentTie
  * then purchasable as a replacement (switch labels). null keeps the tier-based marking on both
  * cycles (unconfigured builds, admin-granted plans, store hiccups), which also keeps the owned
  * tier's cards non-purchasable - no switch is offered when the store cannot say what is active.
+ * `otherStoreProductId` (a product purchased on the OTHER platform's store; CustomerInfo is
+ * cross-store) blocks EVERY purchase - this store cannot replace the other store's running
+ * subscription, so any purchase here would bill twice - and marks that product's card
+ * managedExternally so the user is pointed at the right store.
  */
 export function buildPlanCards(
   cycle: BillingCycle,
@@ -105,17 +115,20 @@ export function buildPlanCards(
   store: StoreState = STORE_UNCONFIGURED,
   language: Language = 'en',
   activeProductId: string | null = null,
+  otherStoreProductId: string | null = null,
 ): PlanCard[] {
   const offering = store.kind === 'ready' ? store.offering : null;
   return getPlans(cycle).map((plan) => {
     const pkg = packageFor(offering, plan.tier, plan.cycle);
     const catalogProductId = plan.tier !== 'free' && plan.cycle !== null ? PLAY_PRODUCT_IDS[plan.tier][plan.cycle] : null;
     const tierMatches = currentTier !== null && plan.tier === currentTier;
-    const isCurrent = tierMatches && (activeProductId === null || catalogProductId === null || catalogProductId === activeProductId);
+    const knownActiveProductId = activeProductId ?? otherStoreProductId;
+    const isCurrent = tierMatches && (knownActiveProductId === null || catalogProductId === null || catalogProductId === knownActiveProductId);
     // Every non-current paid card with a store package is purchasable: purchase() REPLACES the
     // running subscription (Android product change / iOS subscription group), so cycle switches
-    // and tier downgrades are ordinary purchases here, never second subscriptions.
-    const purchasable = pkg !== null && plan.tier !== 'free' && !isCurrent;
+    // and tier downgrades are ordinary purchases here, never second subscriptions. EXCEPT while
+    // an other-store subscription is active: nothing is purchasable then (see above).
+    const purchasable = pkg !== null && plan.tier !== 'free' && !isCurrent && otherStoreProductId === null;
     const monthlyPkg = plan.cycle === 'yearly' ? packageFor(offering, plan.tier, 'monthly') : null;
     const storeDiscount = pkg && monthlyPkg ? computeStoreDiscount(monthlyPkg.priceAmountMicros, pkg.priceAmountMicros) : null;
     return {
@@ -132,8 +145,10 @@ export function buildPlanCards(
       purchasable,
       purchaseLabel: purchasable ? purchaseActionOf(plan.tier, plan.cycle, currentTier) : null,
       // Manage only the ACTIVE store subscription's card: admin-granted plans (no store
-      // subscription; activeProductId null) get no dead store-management button.
+      // subscription; activeProductId null) and other-store subscriptions (this platform's
+      // store sheet cannot change them) get no dead store-management button.
       manageable: isCurrent && catalogProductId !== null && catalogProductId === activeProductId,
+      managedExternally: catalogProductId !== null && catalogProductId === otherStoreProductId,
       storePriceString: pkg?.priceString ?? null,
       storeMonthlyEquivalent:
         pkg && plan.cycle === 'yearly' ? formatStorePrice(pkg.priceAmountMicros / 12, pkg.currencyCode, language) : null,
@@ -216,7 +231,7 @@ export function isActivated(pendingTier: Exclude<PlanTier, 'free'>, plan: Entitl
  * 'activating' for the webhook-written entitlement to flip. Non-upgrades (monthly<->yearly
  * switches, tier downgrades) may leave the plan unchanged - and iOS applies some of them only
  * at the next renewal - so there is nothing to wait for; the screen shows the changeConfirmed
- * toast and refreshes getActiveProductId() instead. An unknown current plan (entitlement not
+ * toast and refreshes getActiveProducts() instead. An unknown current plan (entitlement not
  * loaded yet) is treated as an upgrade: waiting is the honest state.
  */
 export function isUpgradePurchase(currentPlan: EntitlementPlan | null, tier: Exclude<PlanTier, 'free'>): boolean {
@@ -228,8 +243,14 @@ export function isUpgradePurchase(currentPlan: EntitlementPlan | null, tier: Exc
 // Per-platform store copy
 // ---------------------------------------------------------------------------------------------
 
-/** pricing:store.* keys that name the store ("Google Play" vs "the App Store"). */
-export type PlatformStoreCopy = 'loading' | 'loadError' | 'retryA11y' | 'restoreA11y' | 'manageA11y';
+/**
+ * pricing:store.* keys that differ per platform: naming the store ("Google Play" vs "the App
+ * Store"), store-specific proration rules (changeConfirmedBody: Play credits unused time
+ * immediately, the App Store applies non-upgrades at the next renewal with no credit) and
+ * trial eligibility copy (trial: StoreKit reports the intro offer even to users who already
+ * consumed it, so iOS promises it to new subscribers only).
+ */
+export type PlatformStoreCopy = 'loading' | 'loadError' | 'retryA11y' | 'restoreA11y' | 'manageA11y' | 'trial' | 'changeConfirmedBody';
 
 /** The pricing:store key for this platform; the 'Ios' variants name the App Store. */
 export function storeCopyKey(key: PlatformStoreCopy, ios: boolean): string {

@@ -80,6 +80,7 @@ jest.mock('../../../services/purchases', () => ({
     purchase: jest.fn(),
     restore: jest.fn(),
     getActiveProductId: jest.fn(async (): Promise<string | null> => null),
+    getActiveProducts: jest.fn(async (): Promise<{ sameStore: string | null; otherStore: string | null }> => ({ sameStore: null, otherStore: null })),
     manageUrl: jest.fn(() => 'https://play.google.com/store/account/subscriptions'),
     showManageSubscriptions: jest.fn(async (): Promise<boolean> => false),
   },
@@ -87,6 +88,11 @@ jest.mock('../../../services/purchases', () => ({
 }));
 
 const mockPurchasesService = purchasesService as jest.Mocked<typeof purchasesService>;
+
+/** The screen reads active products via getActiveProducts; this mocks a same-store product. */
+function mockActiveProduct(sameStore: string | null, otherStore: string | null = null): void {
+  mockPurchasesService.getActiveProducts.mockResolvedValue({ sameStore, otherStore });
+}
 
 const NOW = new Date('2026-09-28T10:00:00.000Z');
 const TOMORROW_UTC = '2026-09-29T00:00:00.000Z';
@@ -179,6 +185,23 @@ describe('pricing model', () => {
     expect(granted.find((card) => card.id === 'pro_monthly')!.manageable).toBe(false);
   });
 
+  it('an OTHER-store subscription blocks every purchase and marks its card managed externally', () => {
+    // CustomerInfo is cross-store: a Play-purchased pro on an iPhone (or vice versa) cannot be
+    // replaced by this store - any purchase would open a second, parallel subscription.
+    const cards = buildPlanCards('monthly', 'pro', READY, 'en', null, 'pro_monthly');
+    expect(cards.some((card) => card.purchasable)).toBe(false);
+    expect(cards.some((card) => card.popular)).toBe(false);
+    const pro = cards.find((card) => card.id === 'pro_monthly')!;
+    expect(pro).toMatchObject({ isCurrent: true, managedExternally: true, manageable: false });
+    // The other cycle card is NOT wrongly badged as current (the active product is known).
+    const yearly = buildPlanCards('yearly', 'pro', READY, 'en', null, 'pro_monthly');
+    expect(yearly.find((card) => card.id === 'pro_yearly')!).toMatchObject({
+      isCurrent: false,
+      purchasable: false,
+      managedExternally: false,
+    });
+  });
+
   it('classifies upgrades (wait for the entitlement) vs replacements (confirm immediately)', () => {
     expect(isUpgradePurchase('free', 'pro')).toBe(true);
     expect(isUpgradePurchase('free', 'premium')).toBe(true);
@@ -194,6 +217,10 @@ describe('pricing model', () => {
     expect(storeCopyKey('loading', true)).toBe('pricing:store.loadingIos');
     expect(storeCopyKey('manageA11y', true)).toBe('pricing:store.manageA11yIos');
     expect(storeCopyKey('restoreA11y', false)).toBe('pricing:store.restoreA11y');
+    // Trial eligibility and proration rules differ per store, so their copy is platform-keyed.
+    expect(storeCopyKey('trial', true)).toBe('pricing:store.trialIos');
+    expect(storeCopyKey('changeConfirmedBody', true)).toBe('pricing:store.changeConfirmedBodyIos');
+    expect(storeCopyKey('changeConfirmedBody', false)).toBe('pricing:store.changeConfirmedBody');
   });
 
   it('a store load error keeps catalog prices and nothing purchasable', () => {
@@ -324,7 +351,7 @@ describe('PricingScreen (purchases configured)', () => {
     mockPurchasesService.isConfigured.mockReturnValue(true);
     mockPurchasesService.configure.mockResolvedValue(undefined);
     mockPurchasesService.getOffering.mockResolvedValue(OFFERING);
-    mockPurchasesService.getActiveProductId.mockResolvedValue(null);
+    mockActiveProduct(null);
     mockPurchasesService.purchase.mockReset();
     mockPurchasesService.restore.mockReset();
   });
@@ -335,9 +362,11 @@ describe('PricingScreen (purchases configured)', () => {
     expect(screen.queryByText('Subscriptions coming soon')).toBeNull();
     const pro = screen.getByTestId('pricing-plan-pro_monthly');
     expect(within(pro).getByText('€7,99')).toBeTruthy();
-    expect(within(pro).getByText('3-day free trial')).toBeTruthy();
+    // iOS (the jest default platform): StoreKit reports the intro offer even to users who
+    // already consumed the trial, so the copy promises it to NEW subscribers only.
+    expect(within(pro).getByText('New subscribers: 3-day free trial')).toBeTruthy();
     expect(within(pro).getByText('Get Pro')).toBeTruthy();
-    expect(within(screen.getByTestId('pricing-plan-premium_monthly')).queryByText('3-day free trial')).toBeNull();
+    expect(within(screen.getByTestId('pricing-plan-premium_monthly')).queryByTestId('pricing-trial-premium_monthly')).toBeNull();
     expect(screen.getByText('Most popular')).toBeTruthy();
     expect(screen.getByTestId('pricing-restore')).toBeTruthy();
     expect(screen.queryByTestId('pricing-coming-soon-pro_monthly')).toBeNull();
@@ -421,7 +450,7 @@ describe('PricingScreen (purchases configured)', () => {
   it('a current store-bought plan shows manage + the "Switch to Pro" downgrade purchase (Spanish copy)', async () => {
     await i18n.changeLanguage('es');
     mockPlan = 'premium';
-    mockPurchasesService.getActiveProductId.mockResolvedValue('premium_monthly');
+    mockActiveProduct('premium_monthly');
     await renderPricing();
     const premium = screen.getByTestId('pricing-plan-premium_monthly');
     expect(within(premium).getByText('Plan actual')).toBeTruthy();
@@ -434,7 +463,7 @@ describe('PricingScreen (purchases configured)', () => {
 
   it('an admin-granted paid plan shows NO manage button (no store subscription behind it)', async () => {
     mockPlan = 'premium';
-    mockPurchasesService.getActiveProductId.mockResolvedValue(null);
+    mockActiveProduct(null);
     await renderPricing();
     expect(within(screen.getByTestId('pricing-plan-premium_monthly')).getByText('Current plan')).toBeTruthy();
     expect(screen.queryByTestId('pricing-manage')).toBeNull();
@@ -442,9 +471,23 @@ describe('PricingScreen (purchases configured)', () => {
     expect(screen.queryByTestId('pricing-buy-premium_monthly')).toBeNull();
   });
 
+  it('an other-store subscription blocks all purchases and names the store where it is managed', async () => {
+    mockPlan = 'pro';
+    mockActiveProduct(null, 'pro_monthly');
+    await renderPricing();
+    // Nothing is purchasable (a purchase here would open a second, parallel subscription) and
+    // there is no Manage (this platform's store sheet cannot change the other store's sub).
+    expect(screen.queryByTestId('pricing-buy-premium_monthly')).toBeNull();
+    expect(screen.queryByTestId('pricing-buy-pro_monthly')).toBeNull();
+    expect(screen.queryByTestId('pricing-manage')).toBeNull();
+    // iOS build (the jest default platform): the subscription lives in Google Play.
+    expect(screen.getByTestId('pricing-other-store-pro_monthly')).toBeTruthy();
+    expect(screen.getByText('This subscription was purchased in Google Play and can only be changed there.')).toBeTruthy();
+  });
+
   it("the other billing cycle of the purchased tier is a purchasable switch, not 'Current plan'", async () => {
     mockPlan = 'pro';
-    mockPurchasesService.getActiveProductId.mockResolvedValue('pro_monthly');
+    mockActiveProduct('pro_monthly');
     await renderPricing();
     await act(async () => {
       fireEvent.press(screen.getByTestId('pricing-cycle-yearly'));
@@ -463,27 +506,35 @@ describe('PricingScreen (purchases configured)', () => {
 
   it('a cycle switch confirms immediately (no activating wait) and refreshes the active product', async () => {
     mockPlan = 'pro';
-    mockPurchasesService.getActiveProductId.mockResolvedValue('pro_monthly');
+    mockActiveProduct('pro_monthly');
     mockPurchasesService.purchase.mockResolvedValue({ status: 'purchased', tier: 'pro', cycle: 'yearly' });
     await renderPricing();
     await act(async () => {
       fireEvent.press(screen.getByTestId('pricing-cycle-yearly'));
     });
-    mockPurchasesService.getActiveProductId.mockResolvedValue('pro_yearly');
+    mockActiveProduct('pro_yearly');
     await act(async () => {
       fireEvent.press(screen.getByTestId('pricing-buy-pro_yearly'));
     });
     expect(mockPurchasesService.purchase).toHaveBeenCalledWith('pro', 'yearly');
     // The CURRENT plan already satisfies the entitlement, so 'activating' would fake success.
     expect(screen.queryByTestId('pricing-activating')).toBeNull();
-    expect(toastShow).toHaveBeenCalledWith(expect.objectContaining({ type: 'success', text1: 'Change confirmed' }));
+    // iOS (jest default): the body must NOT promise Play's automatic time credit - App Store
+    // non-upgrades apply at the next renewal with no crediting.
+    expect(toastShow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'success',
+        text1: 'Change confirmed',
+        text2: 'Your plan change is recorded in the App Store. It takes effect at your next renewal.',
+      }),
+    );
     // The purchased-card badge moved to the yearly card after the refresh.
     expect(within(screen.getByTestId('pricing-plan-pro_yearly')).getByText('Current plan')).toBeTruthy();
   });
 
   it('a tier downgrade also confirms immediately instead of activating', async () => {
     mockPlan = 'premium';
-    mockPurchasesService.getActiveProductId.mockResolvedValue('premium_monthly');
+    mockActiveProduct('premium_monthly');
     mockPurchasesService.purchase.mockResolvedValue({ status: 'purchased', tier: 'pro', cycle: 'monthly' });
     await renderPricing();
     await act(async () => {
@@ -498,7 +549,7 @@ describe('PricingScreen (purchases configured)', () => {
     const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     try {
       mockPlan = 'premium';
-      mockPurchasesService.getActiveProductId.mockResolvedValue('premium_monthly');
+      mockActiveProduct('premium_monthly');
       (mockPurchasesService.showManageSubscriptions as jest.Mock).mockResolvedValueOnce(true);
       await renderPricing();
       await act(async () => {

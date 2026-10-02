@@ -285,10 +285,21 @@ describe('shouldApplyEntitlementWrite (out-of-order deliveries)', () => {
     expect(shouldApplyEntitlementWrite({ ...storedAfterRepurchase, eventTimestampMs: T1 }, T2)).toBe(true);
   });
 
-  it('always applies over missing docs, non-revenuecat sources and untimestamped data', () => {
+  it('skips a retried event that happened BEFORE an admin comp was written (comp survives a delayed EXPIRATION)', () => {
+    // The EXPIRATION at T1 failed to deliver; support comped the user at T2; the retry lands
+    // hours later. The comp is the newest actor and must not silently drop the user to free.
+    const comp = { plan: 'premium', status: 'active', source: 'admin', updatedAt: new Date(T2).toISOString() };
+    expect(shouldApplyEntitlementWrite(comp, T1)).toBe(false);
+    // An event newer than the admin write still applies (the store's truth wins over stale comps).
+    expect(shouldApplyEntitlementWrite(comp, T2 + 1_000)).toBe(true);
+  });
+
+  it('always applies over missing docs, untimestamped admin docs and untimestamped data', () => {
     expect(shouldApplyEntitlementWrite(undefined, T1)).toBe(true);
     expect(shouldApplyEntitlementWrite(null, T1)).toBe(true);
+    // An admin doc is ordered by updatedAt, never by eventTimestampMs (it has none of its own).
     expect(shouldApplyEntitlementWrite({ plan: 'pro', source: 'admin', eventTimestampMs: T2 }, T1)).toBe(true);
+    expect(shouldApplyEntitlementWrite({ plan: 'pro', source: 'admin', updatedAt: 'not a date' }, T1)).toBe(true);
     expect(shouldApplyEntitlementWrite({ plan: 'pro', source: 'revenuecat' }, T1)).toBe(true);
     expect(shouldApplyEntitlementWrite({ plan: 'pro', source: 'revenuecat', eventTimestampMs: T2 }, null)).toBe(true);
   });

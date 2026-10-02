@@ -17,6 +17,7 @@ import { AppError, isAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import {
   PLAY_PRODUCT_IDS,
+  type ActiveStoreProducts,
   type BillingCycle,
   type PaidPlanTier,
   type PurchaseOutcome,
@@ -156,6 +157,45 @@ export function activeCatalogProductIds(info: RcCustomerInfoLike): string[] {
   });
 }
 
+/**
+ * RevenueCat store tags that belong to the OTHER mobile platform's store (EntitlementInfo
+ * `store`). Everything else ('PROMOTIONAL', 'STRIPE', unknown/absent) counts as same-store, so
+ * builds without store metadata behave exactly as before the split.
+ */
+const OTHER_STORE_TAGS: Readonly<Record<'android' | 'ios', readonly string[]>> = {
+  android: ['APP_STORE', 'MAC_APP_STORE'],
+  ios: ['PLAY_STORE', 'AMAZON'],
+};
+
+/**
+ * The store tag of an active product, read from the entitlement it backs (this SDK surface has
+ * no per-subscription store map); null when no entitlement names the product or carries a tag.
+ */
+export function storeOfActiveProduct(info: RcCustomerInfoLike, productId: string): string | null {
+  for (const entitlement of Object.values(info.entitlements?.active ?? {})) {
+    const raw = entitlement.productIdentifier;
+    if (typeof raw !== 'string' || productIdOf({ identifier: raw }) !== productId) continue;
+    return typeof entitlement.store === 'string' ? entitlement.store : null;
+  }
+  return null;
+}
+
+/**
+ * Splits the active catalog products by whether they were purchased on the RUNNING platform's
+ * store. CustomerInfo is aggregated ACROSS stores per app user (shared entitlements), so a
+ * Play-purchased subscription appears on an iPhone too - where it can neither be managed nor
+ * replaced, only named. Order inside each list follows activeCatalogProductIds (premium first).
+ */
+export function splitActiveByStore(info: RcCustomerInfoLike, platform: 'android' | 'ios'): { sameStore: string[]; otherStore: string[] } {
+  const sameStore: string[] = [];
+  const otherStore: string[] = [];
+  for (const productId of activeCatalogProductIds(info)) {
+    const store = storeOfActiveProduct(info, productId);
+    (store !== null && OTHER_STORE_TAGS[platform].includes(store) ? otherStore : sameStore).push(productId);
+  }
+  return { sameStore, otherStore };
+}
+
 // ---------------------------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------------------------
@@ -245,23 +285,37 @@ export function createPurchasesService(deps: PurchasesServiceDeps): PurchasesSer
           details: { productId, offeringId: offerings.current?.identifier ?? null },
         });
       }
+      // BOTH PLATFORMS read a FRESH CustomerInfo first. The SDK caches CustomerInfo for
+      // minutes, and an out-of-app change (Play subscription center, App Store settings, or a
+      // purchase on the user's OTHER device) inside that window would make a stale answer miss
+      // the running subscription - so the cache is dropped, and any read failure aborts the
+      // purchase (retryable) instead of risking a double billing.
+      let info: RcCustomerInfoLike;
+      try {
+        if (typeof sdk.invalidateCustomerInfoCache === 'function') await sdk.invalidateCustomerInfoCache();
+        info = await sdk.getCustomerInfo();
+      } catch (error) {
+        throw mapRcError(error, 'Could not read the current subscriptions before purchasing');
+      }
+      const active = splitActiveByStore(info, deps.platform());
+      if (active.otherStore.length > 0) {
+        // A subscription bought on the OTHER platform's store is active on this account. The
+        // stores cannot replace across each other, so buying here would open a SECOND, parallel
+        // subscription billed in both stores. Honest abort; the UI blocks this path upfront.
+        throw new AppError('conflict', 'An active subscription from the other store blocks this purchase', {
+          details: { otherStoreProductId: active.otherStore[0] ?? null },
+          retryable: false,
+        });
+      }
       // ANDROID: a DIFFERENT catalog product already active means this purchase is a replacement
       // (tier change or cycle switch): Google Play only replaces the running subscription when
       // the old product id is passed - without it the user ends up paying for TWO subscriptions.
-      // When the store cannot answer, the purchase is aborted (retryable) instead of risking a
-      // double billing. IOS: all four products live in ONE subscription group, so StoreKit
-      // replaces by itself (downgrades/crossgrades apply at the next renewal) and no product
-      // change - and no pre-purchase read - is needed.
+      // IOS: all four products live in ONE subscription group, so StoreKit replaces by itself
+      // (downgrades/crossgrades apply at the next renewal) and no product change is passed.
       let oldProductId: string | null = null;
       let productChange: RcProductChangeInfoLike | null = null;
       if (deps.platform() !== 'ios') {
-        let info: RcCustomerInfoLike;
-        try {
-          info = await sdk.getCustomerInfo();
-        } catch (error) {
-          throw mapRcError(error, 'Could not read the current subscriptions before purchasing');
-        }
-        oldProductId = activeCatalogProductIds(info).find((id) => id !== productId) ?? null;
+        oldProductId = active.sameStore.find((id) => id !== productId) ?? null;
         productChange =
           oldProductId !== null
             ? { oldProductIdentifier: oldProductId, prorationMode: PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION }
@@ -293,15 +347,30 @@ export function createPurchasesService(deps: PurchasesServiceDeps): PurchasesSer
       return { status: 'restored', tier };
     },
 
-    async getActiveProductId(): Promise<string | null> {
+    async getActiveProducts(): Promise<ActiveStoreProducts> {
       // Best effort (contract: never throws): the pricing UI uses it to mark the purchased
-      // (tier, cycle) card; null just means "unknown" and the UI falls back to tier-based state.
+      // (tier, cycle) card and to block purchases while an OTHER-store subscription is active;
+      // both null just means "unknown" and the UI falls back to tier-based state.
+      const sdk = deps.sdk();
+      if (!sdk || deps.apiKey() === null) return { sameStore: null, otherStore: null };
+      try {
+        await configuring.catch(() => undefined);
+        const info = await sdk.getCustomerInfo();
+        const { sameStore, otherStore } = splitActiveByStore(info, deps.platform());
+        return { sameStore: sameStore[0] ?? null, otherStore: otherStore[0] ?? null };
+      } catch (error) {
+        log.warn('could not read the active subscriptions', mapRcError(error, 'getCustomerInfo failed').code);
+        return { sameStore: null, otherStore: null };
+      }
+    },
+
+    async getActiveProductId(): Promise<string | null> {
       const sdk = deps.sdk();
       if (!sdk || deps.apiKey() === null) return null;
       try {
         await configuring.catch(() => undefined);
         const info = await sdk.getCustomerInfo();
-        return activeCatalogProductIds(info)[0] ?? null;
+        return splitActiveByStore(info, deps.platform()).sameStore[0] ?? null;
       } catch (error) {
         log.warn('could not read the active subscriptions', mapRcError(error, 'getCustomerInfo failed').code);
         return null;

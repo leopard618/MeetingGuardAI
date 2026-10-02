@@ -106,8 +106,9 @@ its own Refresh. All dates and day buckets are UTC.
   `entitlements/{uid}` only when it drifted (a same-user Restore emits no webhook event;
   deliveries can be missed). First tool when a paying user reports a stuck free plan. Toast
   outcomes: `updated` (the row now shows the store truth), `unchanged`, `skipped_admin`
-  (admin-granted plan that RevenueCat does not back - comps are never downgraded), `no_data`
-  (only sandbox data at RevenueCat). The backing callable `adminReconcileEntitlement` is
+  (admin-granted plan that RevenueCat does not back - such comps are never downgraded; an
+  ACTIVE store subscription still overwrites a comp), `no_data`
+  (only sandbox or unverifiable data at RevenueCat). The backing callable `adminReconcileEntitlement` is
   deployed only while `REVENUECAT_RECONCILE_ENABLED=true` (secret `REVENUECAT_SECRET_KEY`
   bound only there; setup and precedence rules in docs/SETUP.md §11.7 and docs/HANDOFF.md §6);
   until then the button reports "not deployed yet". Every run leaves a `revenuecat.reconciled`

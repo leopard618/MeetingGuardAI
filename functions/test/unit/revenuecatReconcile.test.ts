@@ -1,10 +1,12 @@
 /**
  * Entitlement reconciliation tests (src/revenuecat/reconcile.ts): REST subscriber mapping
- * (premium over pro, grace, refunds, the sandbox gate), its PARITY with the webhook mapping
+ * (premium over pro only among CURRENTLY GRANTING entitlements, grace, refunds, the sandbox
+ * gate incl. the fail-closed unverified case), its PARITY with the webhook mapping
  * (entitlementFromEvent), the drift decision (write only on drift, admin-grant protection,
  * missed-EXPIRATION heal), the handler over fake ports (admin claim, RevenueCat failures,
- * 404 = no subscriber, the eventTimestampMs:null write contract, the audit log) and the
- * deploy gating (export undefined by default; the secret bound only to this callable).
+ * 404 = no subscriber, the eventTimestampMs:null write contract, the stale-snapshot race
+ * guard, the audit log) and the deploy gating (export undefined by default; the secret bound
+ * only to this callable).
  */
 import { HttpsError } from 'firebase-functions/https';
 import * as logger from 'firebase-functions/logger';
@@ -16,6 +18,8 @@ import {
   entitlementFromSubscriber,
   handleAdminReconcileEntitlement,
   reconcileEnabledAtLoad,
+  restSnapshotMs,
+  storedNewerThanSnapshot,
   type ReconcilePorts,
 } from '../../src/revenuecat/reconcile';
 
@@ -113,6 +117,51 @@ describe('entitlementFromSubscriber', () => {
     expect(mapping.kind === 'write' && mapping.write.status).toBe('revoked');
   });
 
+  it('an EXPIRED premium entitlement never shadows a currently active pro (post-downgrade REST state)', () => {
+    // After an in-app premium -> pro switch the REST subscriber keeps the lapsed premium
+    // entitlement next to the active pro one; the plan must come from what GRANTS.
+    const mapping = entitlementFromSubscriber(
+      subscriber({
+        entitlements: {
+          premium: { expires_date: PAST, product_identifier: 'premium_monthly' },
+          pro: { expires_date: FUTURE, product_identifier: 'pro_monthly' },
+        },
+        subscriptions: {
+          premium_monthly: { expires_date: PAST, is_sandbox: false },
+          pro_monthly: { expires_date: FUTURE, is_sandbox: false },
+        },
+      }),
+      NOW,
+    );
+    expect(mapping.kind).toBe('write');
+    if (mapping.kind === 'write') {
+      expect(mapping.write.plan).toBe('pro');
+      expect(mapping.write.status).toBe('active');
+      expect(mapping.write.expiresAt).toBe(FUTURE);
+    }
+    // ... and a correct stored pro document shows NO phantom drift.
+    const stored = { plan: 'pro', status: 'active', expiresAt: FUTURE, source: 'revenuecat' };
+    expect(decideReconcile(stored, mapping, NOW)).toEqual({ kind: 'skip', outcome: 'unchanged' });
+  });
+
+  it('a refunded premium next to an active pro also resolves to pro', () => {
+    const mapping = entitlementFromSubscriber(
+      subscriber({
+        entitlements: {
+          premium: { expires_date: FUTURE, product_identifier: 'premium_monthly' },
+          pro: { expires_date: FUTURE, product_identifier: 'pro_monthly' },
+        },
+        subscriptions: {
+          premium_monthly: { expires_date: FUTURE, is_sandbox: false, refunded_at: PAST },
+          pro_monthly: { expires_date: FUTURE, is_sandbox: false },
+        },
+      }),
+      NOW,
+    );
+    expect(mapping.kind === 'write' && mapping.write.plan).toBe('pro');
+    expect(mapping.kind === 'write' && mapping.write.status).toBe('active');
+  });
+
   it('sandbox subscriptions are ignored unless allowSandbox (same gate as the webhook)', () => {
     const sandbox = subscriber({
       entitlements: { pro: { expires_date: FUTURE, product_identifier: 'pro_monthly' } },
@@ -140,6 +189,31 @@ describe('entitlementFromSubscriber', () => {
       reason: 'no_entitlements',
     });
     expect(entitlementFromSubscriber({ nope: true }, NOW)).toEqual({ kind: 'malformed' });
+  });
+
+  it('an entitlement WITHOUT a resolvable backing subscription is unverifiable, not production (fail closed)', () => {
+    const orphan = subscriber({
+      entitlements: { pro: { expires_date: FUTURE, product_identifier: 'pro_monthly' } },
+      subscriptions: {},
+    });
+    expect(entitlementFromSubscriber(orphan, NOW)).toEqual({ kind: 'none', reason: 'unverified' });
+    expect(decideReconcile(null, { kind: 'none', reason: 'unverified' }, NOW)).toEqual({ kind: 'skip', outcome: 'no_data' });
+    // The license-tester override applies here too (same param as the sandbox gate).
+    const allowed = entitlementFromSubscriber(orphan, NOW, { allowSandbox: true });
+    expect(allowed.kind).toBe('write');
+  });
+
+  it('promotional grants (rc_promo products) have no subscription record by design and stay eligible', () => {
+    const promo = subscriber({
+      entitlements: { premium: { expires_date: FUTURE, product_identifier: 'rc_promo_premium_monthly' } },
+      subscriptions: {},
+    });
+    const mapping = entitlementFromSubscriber(promo, NOW);
+    expect(mapping.kind).toBe('write');
+    if (mapping.kind === 'write') {
+      expect(mapping.write.plan).toBe('premium');
+      expect(mapping.write.status).toBe('active');
+    }
   });
 });
 
@@ -256,6 +330,7 @@ describe('handleAdminReconcileEntitlement', () => {
   function fakePorts(options: {
     status?: number;
     body?: unknown;
+    /** What the transactional read sees (set it to a doc NEWER than the snapshot for races). */
     stored?: unknown;
     fetchThrows?: boolean;
     allowSandbox?: boolean;
@@ -266,11 +341,11 @@ describe('handleAdminReconcileEntitlement', () => {
         if (options.fetchThrows) throw new Error('network down');
         return { status: options.status ?? 200, body: options.body ?? subscriber() };
       },
-      async readEntitlement() {
-        return options.stored ?? null;
-      },
-      async writeEntitlement(uid, doc) {
-        writes.push({ uid, doc });
+      async reconcileEntitlement(uid, decide) {
+        const current = options.stored ?? null;
+        const doc = decide(current);
+        if (doc !== null) writes.push({ uid, doc });
+        return current;
       },
       allowSandbox: () => options.allowSandbox ?? false,
       now: () => NOW,
@@ -330,6 +405,59 @@ describe('handleAdminReconcileEntitlement', () => {
     const emptyResult = await handleAdminReconcileEntitlement(ADMIN, { uid: 'uid-1' }, empty.ports);
     expect(emptyResult).toEqual({ uid: 'uid-1', outcome: 'unchanged', plan: 'free', status: 'active', expiresAt: null });
     expect(comped.writes.concat(empty.writes)).toHaveLength(0);
+  });
+
+  it('backs off (unchanged, no write) when a NEWER webhook write landed after the REST snapshot', async () => {
+    // The REST body says pro/active (snapshot at NOW), but a PRODUCT_CHANGE webhook committed
+    // premium/active one minute AFTER the snapshot was taken: the reconcile must not clobber it.
+    const freshWebhookDoc = {
+      plan: 'premium',
+      status: 'active',
+      expiresAt: FUTURE,
+      source: 'revenuecat',
+      updatedAt: NOW.toISOString(),
+      eventTimestampMs: NOW.getTime() + 60_000,
+    };
+    const { ports, writes } = fakePorts({ stored: freshWebhookDoc });
+    const result = await handleAdminReconcileEntitlement(ADMIN, { uid: 'uid-1' }, ports);
+    expect(result.outcome).toBe('unchanged');
+    expect(result.plan).toBe('premium');
+    expect(writes).toHaveLength(0);
+  });
+
+  it('backs off when an admin comp was written after the REST snapshot (404 heal path included)', async () => {
+    const freshComp = {
+      plan: 'premium',
+      status: 'active',
+      expiresAt: null,
+      source: 'admin',
+      updatedAt: new Date(NOW.getTime() + 30_000).toISOString(),
+    };
+    // An active pro at RevenueCat would normally overwrite a comp; not one written after the GET.
+    const { ports, writes } = fakePorts({ stored: freshComp });
+    const result = await handleAdminReconcileEntitlement(ADMIN, { uid: 'uid-1' }, ports);
+    expect(result.outcome).toBe('unchanged');
+    expect(writes).toHaveLength(0);
+    // An OLDER admin comp still loses to an active store subscription (documented precedence).
+    const oldComp = { ...freshComp, updatedAt: PAST };
+    const older = fakePorts({ stored: oldComp });
+    const olderResult = await handleAdminReconcileEntitlement(ADMIN, { uid: 'uid-1' }, older.ports);
+    expect(olderResult.outcome).toBe('updated');
+    expect(older.writes).toHaveLength(1);
+  });
+
+  it('restSnapshotMs and storedNewerThanSnapshot order snapshots against stored documents', () => {
+    expect(restSnapshotMs(subscriber(), 0)).toBe(NOW.getTime());
+    expect(restSnapshotMs(null, 123)).toBe(123);
+    expect(restSnapshotMs({ request_date_ms: 'nope' }, 123)).toBe(123);
+    const t = NOW.getTime();
+    expect(storedNewerThanSnapshot({ source: 'revenuecat', eventTimestampMs: t + 1 }, t)).toBe(true);
+    expect(storedNewerThanSnapshot({ source: 'revenuecat', eventTimestampMs: t - 1 }, t)).toBe(false);
+    expect(storedNewerThanSnapshot({ source: 'revenuecat', eventTimestampMs: null }, t)).toBe(false);
+    expect(storedNewerThanSnapshot({ source: 'admin', updatedAt: new Date(t + 1).toISOString() }, t)).toBe(true);
+    expect(storedNewerThanSnapshot({ source: 'admin', updatedAt: new Date(t - 1).toISOString() }, t)).toBe(false);
+    expect(storedNewerThanSnapshot({ source: 'admin' }, t)).toBe(false);
+    expect(storedNewerThanSnapshot(null, t)).toBe(false);
   });
 
   it('writes carry reconciledAt and the audit log names actor, uid and outcome - never key material', async () => {

@@ -526,14 +526,16 @@ async function applyPlan(row, select, expiry, button) {
 
 /**
  * Users-row "Reconcile": adminReconcileEntitlement checks the uid against the RevenueCat REST
- * API and rewrites entitlements/{uid} ONLY on drift (admin comps are never downgraded; see
- * docs/SETUP.md section 11.7). The callable is deployed only while REVENUECAT_RECONCILE_ENABLED
- * is true, so the not-deployed case surfaces through v2ErrorMessage as the deploy hint.
+ * API and rewrites entitlements/{uid} ONLY on drift (precedence: an ACTIVE store subscription
+ * overwrites anything, admin grants included; an empty or lapsed store state never downgrades
+ * an admin comp - docs/SETUP.md section 11.7). The callable is deployed only while
+ * REVENUECAT_RECONCILE_ENABLED is true, so the not-deployed case surfaces through
+ * v2ErrorMessage as the deploy hint.
  */
 async function reconcileRow(row, button) {
   const question = `Reconcile ${userLabel(row)} against RevenueCat?\n\n`
     + 'Reads the store subscription state and rewrites the entitlement only when it drifted. '
-    + 'Admin-granted plans are never downgraded.';
+    + 'Admin-granted plans are kept unless an active store subscription says otherwise.';
   if (!window.confirm(question)) return;
   button.disabled = true;
   try {

@@ -27,10 +27,17 @@
  *   comped users have no store subscription and must survive a reconcile.
  * - A stored `source: 'revenuecat'` document that RevenueCat no longer backs is expired
  *   (the healed missed-EXPIRATION case).
+ * - The read-decide-write runs in ONE Firestore transaction, and the decision additionally
+ *   backs off (`storedNewerThanSnapshot`) when the stored document was written from newer
+ *   information than the REST snapshot (`request_date_ms`): a webhook event or an admin write
+ *   landing between the GET and the write is never clobbered by the stale snapshot.
  * - The written document carries `eventTimestampMs: null`, so EVERY future webhook event
  *   passes the stale-event guard (`shouldApplyEntitlementWrite`) and wins over a reconcile.
  * - SANDBOX subscriptions are ignored unless the REVENUECAT_ALLOW_SANDBOX param is true
- *   (same license-tester gate as the webhook).
+ *   (same license-tester gate as the webhook); an entitlement whose backing subscription
+ *   record cannot be found at all is treated as UNVERIFIABLE (not as production) while that
+ *   gate is closed - fail closed in the money path, except RevenueCat promotional grants
+ *   (product id prefix 'rc_promo'), which have no subscription record by design.
  */
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/https';
@@ -111,13 +118,22 @@ export const restSubscriberSchema = z.object({
 
 export type SubscriberMapping =
   | { kind: 'write'; write: EntitlementWrite }
-  | { kind: 'none'; reason: 'no_entitlements' | 'sandbox_only' }
+  | { kind: 'none'; reason: 'no_entitlements' | 'sandbox_only' | 'unverified' }
   | { kind: 'malformed' };
 
 function parseMs(value: string | null | undefined): number | null {
   if (typeof value !== 'string') return null;
   const ms = Date.parse(value);
   return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * RevenueCat promotional grants ("granted entitlements"; product ids "rc_promo_<ent>_<dur>")
+ * have NO subscriber.subscriptions record by design - they are dashboard grants, not store
+ * purchases, and are never sandbox.
+ */
+function isPromotionalProduct(productId: string | null | undefined): boolean {
+  return typeof productId === 'string' && productId.startsWith('rc_promo');
 }
 
 /**
@@ -142,6 +158,7 @@ export function entitlementFromSubscriber(raw: unknown, now: Date, options: { al
   };
 
   let sandboxSkipped = 0;
+  let unverifiedSkipped = 0;
   const eligible: string[] = [];
   for (const [id, entry] of Object.entries(entitlements)) {
     const sub = subscriptionFor(entry.product_identifier);
@@ -149,15 +166,41 @@ export function entitlementFromSubscriber(raw: unknown, now: Date, options: { al
       sandboxSkipped += 1;
       continue;
     }
+    if (sub === null && options.allowSandbox !== true && !isPromotionalProduct(entry.product_identifier)) {
+      // No backing subscription record: sandbox vs production CANNOT be verified. Fail closed
+      // (the webhook keys off event.environment and has no such hole); the admin can override
+      // with the REVENUECAT_ALLOW_SANDBOX param during the license-tester phase.
+      unverifiedSkipped += 1;
+      continue;
+    }
     eligible.push(id);
   }
   if (eligible.length === 0) {
-    return { kind: 'none', reason: sandboxSkipped > 0 ? 'sandbox_only' : 'no_entitlements' };
+    if (sandboxSkipped > 0) return { kind: 'none', reason: 'sandbox_only' };
+    if (unverifiedSkipped > 0) return { kind: 'none', reason: 'unverified' };
+    return { kind: 'none', reason: 'no_entitlements' };
   }
 
-  const chosenId = eligible.includes('premium') ? 'premium' : eligible.includes('pro') ? 'pro' : eligible[0] ?? '';
+  // The REST subscriber keeps PREVIOUSLY granted entitlements (past expires_date) next to the
+  // current one, e.g. {premium: expired, pro: active} after an in-app downgrade. The plan must
+  // come from what CURRENTLY grants (active or in grace, not refunded); the lapsed set only
+  // decides when nothing grants at all (the fully lapsed subscriber keeps mapping to expired).
+  const grantsNow = (id: string): boolean => {
+    const candidate = entitlements[id];
+    if (candidate === undefined) return false;
+    const sub = subscriptionFor(candidate.product_identifier);
+    if (typeof sub?.refunded_at === 'string') return false;
+    const expiry = parseMs(candidate.expires_date);
+    if (expiry === null || expiry > now.getTime()) return true;
+    const grace = parseMs(candidate.grace_period_expires_date) ?? parseMs(sub?.grace_period_expires_date);
+    return grace !== null && grace > now.getTime();
+  };
+  const granting = eligible.filter(grantsNow);
+  const pool = granting.length > 0 ? granting : eligible;
+
+  const chosenId = pool.includes('premium') ? 'premium' : pool.includes('pro') ? 'pro' : pool[0] ?? '';
   const entry = entitlements[chosenId];
-  const plan = planFromEvent({ entitlement_ids: eligible, product_id: entry?.product_identifier ?? null, new_product_id: null });
+  const plan = planFromEvent({ entitlement_ids: pool, product_id: entry?.product_identifier ?? null, new_product_id: null });
   if (plan === null || entry === undefined) return { kind: 'none', reason: 'no_entitlements' };
 
   const sub = subscriptionFor(entry.product_identifier);
@@ -199,7 +242,7 @@ export type ReconcileDecision =
  *   EXCEPT a non-active mapping over `source: 'admin'` (stale store history never kills a comp).
  * - mapping 'none' (RevenueCat backs nothing): expire a stored STILL-GRANTING 'revenuecat'
  *   document (the missed-EXPIRATION heal); admin documents are skipped; anything else unchanged.
- * - mapping 'sandbox_only': no production truth to apply -> 'no_data'.
+ * - mapping 'sandbox_only' / 'unverified': no verified production truth to apply -> 'no_data'.
  */
 export function decideReconcile(stored: unknown, mapping: SubscriberMapping, now: Date): ReconcileDecision {
   const parsedStored = stored === undefined || stored === null ? null : storedEntitlementSchema.safeParse(stored);
@@ -208,7 +251,7 @@ export function decideReconcile(stored: unknown, mapping: SubscriberMapping, now
 
   if (mapping.kind === 'malformed') return { kind: 'skip', outcome: 'no_data' };
   if (mapping.kind === 'none') {
-    if (mapping.reason === 'sandbox_only') return { kind: 'skip', outcome: 'no_data' };
+    if (mapping.reason === 'sandbox_only' || mapping.reason === 'unverified') return { kind: 'skip', outcome: 'no_data' };
     if (parsedStored === null) return { kind: 'skip', outcome: 'unchanged' };
     if (storedSource === 'admin') return { kind: 'skip', outcome: 'skipped_admin' };
     if (doc !== null && doc.source === 'revenuecat' && (doc.status === 'active' || doc.status === 'grace_period')) {
@@ -237,11 +280,48 @@ export function decideReconcile(stored: unknown, mapping: SubscriberMapping, now
 // Handler over injectable ports (tests use fakes)
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * When the REST snapshot was taken: the top-level `request_date_ms` of GET /v1/subscribers
+ * (RevenueCat stamps every response). Falls back to `fallbackMs` (the handler's `now`, which
+ * predates the GET - conservative: an earlier snapshot time only makes the guard back off more).
+ */
+export function restSnapshotMs(body: unknown, fallbackMs: number): number {
+  if (typeof body === 'object' && body !== null) {
+    const raw = (body as { request_date_ms?: unknown }).request_date_ms;
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  }
+  return fallbackMs;
+}
+
+/**
+ * True when the STORED document was written from information NEWER than the REST snapshot:
+ * a webhook event (eventTimestampMs) or an admin write (parseable updatedAt) landed after
+ * request_date_ms, so a reconcile write would clobber fresher truth with stale REST state.
+ * Documents without a comparable timestamp never count as newer (pre-guard documents and
+ * earlier reconciles, which carry eventTimestampMs null).
+ */
+export function storedNewerThanSnapshot(stored: unknown, snapshotMs: number): boolean {
+  if (typeof stored !== 'object' || stored === null) return false;
+  const doc = stored as { source?: unknown; eventTimestampMs?: unknown; updatedAt?: unknown };
+  if (typeof doc.eventTimestampMs === 'number' && doc.eventTimestampMs > snapshotMs) return true;
+  if (doc.source === 'admin' && typeof doc.updatedAt === 'string') {
+    const ms = Date.parse(doc.updatedAt);
+    if (Number.isFinite(ms) && ms > snapshotMs) return true;
+  }
+  return false;
+}
+
 export interface ReconcilePorts {
   /** GET /v1/subscribers/{uid}; body is the parsed JSON on 200, null otherwise. */
   fetchSubscriber(uid: string): Promise<{ status: number; body: unknown }>;
-  readEntitlement(uid: string): Promise<unknown>;
-  writeEntitlement(uid: string, doc: Record<string, unknown>): Promise<void>;
+  /**
+   * Reads the CURRENT entitlements/{uid} document, calls `decide` on it and applies the
+   * returned write (nothing on null) ATOMICALLY - one Firestore transaction, so a concurrent
+   * webhook or admin write cannot be clobbered by a decision taken on a stale read. Resolves
+   * with the stored document the final decision saw. `decide` must stay pure: the transaction
+   * may retry it.
+   */
+  reconcileEntitlement(uid: string, decide: (stored: unknown) => Record<string, unknown> | null): Promise<unknown>;
   allowSandbox(): boolean;
   now?(): Date;
 }
@@ -279,13 +359,25 @@ export async function handleAdminReconcileEntitlement(
     fetched.status === 404
       ? { kind: 'none', reason: 'no_entitlements' }
       : entitlementFromSubscriber(fetched.body, now, { allowSandbox: ports.allowSandbox() });
-  const stored = await ports.readEntitlement(uid);
-  const decision = decideReconcile(stored, mapping, now);
+  const snapshotMs = restSnapshotMs(fetched.body, now.getTime());
 
-  if (decision.kind === 'write') {
+  // Decide and write atomically. `decisionFor` is pure, so the transaction can retry it and
+  // re-running it on the stored document the committed run saw reproduces the same decision.
+  const decisionFor = (current: unknown): { decision: ReconcileDecision; raced: boolean } => {
+    const candidate = decideReconcile(current, mapping, now);
+    if (candidate.kind === 'write' && storedNewerThanSnapshot(current, snapshotMs)) {
+      // A webhook event or admin write landed AFTER the REST snapshot was taken: it is newer
+      // truth than this snapshot. Back off; a re-run reconciles against the fresh state.
+      return { decision: { kind: 'skip', outcome: 'unchanged' }, raced: true };
+    }
+    return { decision: candidate, raced: false };
+  };
+  const stored = await ports.reconcileEntitlement(uid, (current) => {
+    const inTx = decisionFor(current).decision;
     // eventTimestampMs null: every future webhook event beats a reconcile (stale-event guard).
-    await ports.writeEntitlement(uid, { ...decision.write, eventTimestampMs: null, reconciledAt: now.toISOString() });
-  }
+    return inTx.kind === 'write' ? { ...inTx.write, eventTimestampMs: null, reconciledAt: now.toISOString() } : null;
+  });
+  const { decision, raced } = decisionFor(stored);
 
   const storedParsed = stored === undefined || stored === null ? null : storedEntitlementSchema.safeParse(stored);
   const resultDoc = decision.kind === 'write' ? decision.write : storedParsed?.success ? storedParsed.data : null;
@@ -295,6 +387,7 @@ export async function handleAdminReconcileEntitlement(
     adminUid: caller.uid,
     uid,
     outcome,
+    raced,
     mapping: mapping.kind === 'write' ? mapping.write.status : mapping.kind,
     plan: resultDoc?.plan ?? 'free',
     status: resultDoc?.status ?? 'active',
@@ -325,12 +418,15 @@ export function restReconcilePorts(): ReconcilePorts {
       const body: unknown = response.status === 200 ? await response.json() : null;
       return { status: response.status, body };
     },
-    async readEntitlement(uid) {
-      const snapshot = await db.collection(ENTITLEMENTS_COLLECTION).doc(uid).get();
-      return snapshot.exists ? snapshot.data() : null;
-    },
-    async writeEntitlement(uid, doc) {
-      await db.collection(ENTITLEMENTS_COLLECTION).doc(uid).set(doc);
+    async reconcileEntitlement(uid, decide) {
+      const ref = db.collection(ENTITLEMENTS_COLLECTION).doc(uid);
+      return db.runTransaction(async (tx) => {
+        const snapshot = await tx.get(ref);
+        const current = snapshot.exists ? snapshot.data() : null;
+        const doc = decide(current);
+        if (doc !== null) tx.set(ref, doc);
+        return current;
+      });
     },
     allowSandbox: () => REVENUECAT_ALLOW_SANDBOX.value() === true,
   };

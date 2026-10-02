@@ -163,16 +163,26 @@ export function decideWebhook(body: unknown, now: Date, options: { allowSandbox?
 
 /**
  * Out-of-order delivery guard (pure; used inside the applyOnce transaction): skip the write
- * when the stored entitlement was already written by a NEWER RevenueCat event. Admin-written
- * documents (source 'admin') are always overwritten - an admin grant is not ordered against
- * store events and the newest actor wins there (HANDOFF §6). Without a comparable timestamp on
- * either side, the write applies (pre-guard documents and events without event_timestamp_ms).
+ * when the stored entitlement was already written by a NEWER actor. RevenueCat retries failed
+ * deliveries with backoff for hours-to-days, so "newest actor wins" (HANDOFF §6) must order by
+ * WHEN things happened, not by arrival:
+ * - a `source: 'revenuecat'` document carries `eventTimestampMs`; an older event never
+ *   overwrites a newer one (a delayed EXPIRATION retry cannot downgrade a resubscribed user);
+ * - a non-store document (source 'admin') carries a parseable `updatedAt`; an event that
+ *   HAPPENED before the admin acted never overwrites it (a delayed EXPIRATION retry cannot
+ *   silently kill a comp granted hours after the event). An event newer than the admin write
+ *   still applies in full - the store's truth must never be maskable by a stale admin write.
+ * Without a comparable timestamp on either side, the write applies (pre-guard documents and
+ * events without event_timestamp_ms).
  */
 export function shouldApplyEntitlementWrite(stored: unknown, eventTimestampMs: number | null): boolean {
   if (eventTimestampMs === null) return true;
   if (typeof stored !== 'object' || stored === null) return true;
-  const doc = stored as { source?: unknown; eventTimestampMs?: unknown };
-  if (doc.source !== 'revenuecat') return true;
+  const doc = stored as { source?: unknown; eventTimestampMs?: unknown; updatedAt?: unknown };
+  if (doc.source !== 'revenuecat') {
+    const updatedMs = typeof doc.updatedAt === 'string' ? Date.parse(doc.updatedAt) : Number.NaN;
+    return !(Number.isFinite(updatedMs) && updatedMs > eventTimestampMs);
+  }
   return !(typeof doc.eventTimestampMs === 'number' && doc.eventTimestampMs > eventTimestampMs);
 }
 

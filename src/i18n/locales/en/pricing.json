@@ -76,14 +76,19 @@
     "retryA11yIos": "Retry loading the App Store prices",
     "restoreA11yIos": "Restore purchases made with this Apple account",
     "manageA11yIos": "Open your subscription in the App Store",
+    "trialIos": "New subscribers: 3-day free trial",
     "switchToMonthly": "Switch to monthly billing",
     "switchToYearly": "Switch to yearly billing",
     "switchTier": "Switch to {{plan}}",
     "switchA11y": "Switch your subscription to {{plan}} for {{price}} per {{period}}",
     "changeConfirmedTitle": "Change confirmed",
-    "changeConfirmedBody": "Your plan change is recorded in the store. Unused time is credited automatically; some changes start at your next renewal."
+    "changeConfirmedBody": "Your plan change is recorded in Google Play. Unused time is credited automatically; some changes start at your next renewal.",
+    "changeConfirmedBodyIos": "Your plan change is recorded in the App Store. It takes effect at your next renewal.",
+    "managedInPlay": "This subscription was purchased in Google Play and can only be changed there.",
+    "managedInAppStore": "This subscription was purchased in the App Store and can only be changed there."
   },
-  "footer": "Prices are in US dollars. Before any purchase, the App Store or Google Play will show the final price in your currency, including taxes.",
+  "footer": "Prices are in US dollars. Before any purchase, Google Play will show the final price in your currency, including taxes.",
+  "footerIos": "Prices are in US dollars. Before any purchase, the App Store will show the final price in your currency, including taxes.",
   "planChanged": {
     "title": "Plan updated",
     "body": "Your plan is now {{plan}}"

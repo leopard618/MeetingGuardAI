@@ -56,6 +56,10 @@ export interface RcOfferingsLike {
 
 export interface RcEntitlementInfoLike {
   isActive?: boolean;
+  /** Product backing this entitlement ("productId" or "productId:basePlanId" on Android). */
+  productIdentifier?: string | null;
+  /** RevenueCat store tag ('PLAY_STORE', 'APP_STORE', ...): WHERE the product was purchased. */
+  store?: string | null;
 }
 
 export interface RcCustomerInfoLike {
@@ -102,6 +106,12 @@ export interface PurchasesSdkLike {
     productChangeInfo?: RcProductChangeInfoLike | null,
   ): Promise<RcPurchaseResultLike>;
   getCustomerInfo(): Promise<RcCustomerInfoLike>;
+  /**
+   * Drops the SDK's CustomerInfo cache (refreshed only every few minutes otherwise) so the
+   * next getCustomerInfo() answers from the network. Optional on the Like type (older SDKs);
+   * the service calls it before the pre-purchase replacement read when present.
+   */
+  invalidateCustomerInfoCache?(): Promise<void>;
   restorePurchases(): Promise<RcCustomerInfoLike>;
   /**
    * iOS 13+: presents the native App Store manage-subscriptions sheet. Optional on the Like

@@ -16,6 +16,9 @@
  *   subscription's card (never admin-granted plans). iOS tries the native App Store sheet
  *   (showManageSubscriptions) and falls back to the subscriptions URL; Android deep-links to
  *   Google Play. Store-naming copy is per platform (storeCopyKey).
+ * - A subscription purchased on the OTHER platform's store (CustomerInfo is cross-store)
+ *   blocks every purchase here (this store cannot replace it; a purchase would bill twice)
+ *   and its card names the store where it is managed instead of Manage.
  * - Prices from src/services/billing.ts stay the fallback; daily assistant quotas as enforced
  *   by the server (PLAN_DAILY_AI_LIMITS); today's usage from useAssistant().usage.
  */
@@ -173,7 +176,15 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
       ) : null}
       {card.hasFreeTrial ? (
         <Text style={[styles.trial, { color: colors.primary }]} testID={`pricing-trial-${card.id}`}>
-          {t('pricing:store.trial')}
+          {/* iOS: StoreKit reports the intro offer even to users who already consumed the
+              one-per-group trial, so the copy promises it to NEW subscribers only. */}
+          {t(storeCopyKey('trial', ios))}
+        </Text>
+      ) : null}
+
+      {card.managedExternally ? (
+        <Text style={[styles.caption, { color: colors.onSurfaceVariant }]} testID={`pricing-other-store-${card.id}`}>
+          {t(ios ? 'pricing:store.managedInPlay' : 'pricing:store.managedInAppStore')}
         </Text>
       ) : null}
 
@@ -313,8 +324,15 @@ export function PricingScreen(): ReactElement {
   const [store, setStore] = useState<StoreState>(() => (configured ? { kind: 'loading' } : STORE_UNCONFIGURED));
   const [phase, setPhase] = useState<PurchasePhase>(IDLE);
   const [slow, setSlow] = useState(false);
-  /** The PURCHASED Play product (CustomerInfo), when the store can tell; null = unknown. */
-  const [activeProductId, setActiveProductId] = useState<string | null>(null);
+  /**
+   * The PURCHASED catalog products (CustomerInfo), when the store can tell. `sameStore` marks
+   * the purchased card + Manage; a non-null `otherStore` (bought on the other platform's
+   * store) blocks every purchase here and names the right store on its card.
+   */
+  const [activeProducts, setActiveProducts] = useState<{ sameStore: string | null; otherStore: string | null }>({
+    sameStore: null,
+    otherStore: null,
+  });
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -331,10 +349,11 @@ export function PricingScreen(): ReactElement {
     try {
       if (uid !== null) await purchasesService.configure(uid);
       const offering = await purchasesService.getOffering();
-      // Which product is actually purchased (marks the true cycle's card; never throws).
-      const productId = await purchasesService.getActiveProductId();
+      // Which products are actually purchased, per store (marks the true cycle's card and
+      // detects other-store subscriptions; never throws).
+      const products = await purchasesService.getActiveProducts();
       if (mountedRef.current) {
-        setActiveProductId(productId);
+        setActiveProducts(products);
         setStore({ kind: 'ready', offering });
       }
     } catch (caught) {
@@ -387,9 +406,9 @@ export function PricingScreen(): ReactElement {
       }
       // The purchased product changed: refresh which card carries the "Current plan" badge.
       purchasesService
-        .getActiveProductId()
-        .then((productId) => {
-          if (mountedRef.current) setActiveProductId(productId);
+        .getActiveProducts()
+        .then((products) => {
+          if (mountedRef.current) setActiveProducts(products);
         })
         .catch(() => undefined);
     });
@@ -418,14 +437,19 @@ export function PricingScreen(): ReactElement {
           return;
         }
         // Cycle switch or tier downgrade: the entitlement plan may not change at all (and iOS
-        // can apply the change only at the next renewal), so 'activating' would fake an instant
-        // success. Confirm the recorded change and refresh which card is the purchased one.
-        Toast.show({ type: 'success', text1: t('pricing:store.changeConfirmedTitle'), text2: t('pricing:store.changeConfirmedBody') });
+        // applies these only at the next renewal), so 'activating' would fake an instant
+        // success. Confirm the recorded change (per-platform body: Play credits unused time,
+        // the App Store waits for the renewal) and refresh which card is the purchased one.
+        Toast.show({
+          type: 'success',
+          text1: t('pricing:store.changeConfirmedTitle'),
+          text2: t(storeCopyKey('changeConfirmedBody', Platform.OS === 'ios')),
+        });
         setPhase(IDLE);
         purchasesService
-          .getActiveProductId()
-          .then((productId) => {
-            if (mountedRef.current) setActiveProductId(productId);
+          .getActiveProducts()
+          .then((products) => {
+            if (mountedRef.current) setActiveProducts(products);
           })
           .catch(() => undefined);
       } catch (caught) {
@@ -472,17 +496,17 @@ export function PricingScreen(): ReactElement {
       }
       // Android deep link to the purchased product when known; the account page otherwise.
       try {
-        await Linking.openURL(purchasesService.manageUrl(activeProductId ?? undefined));
+        await Linking.openURL(purchasesService.manageUrl(activeProducts.sameStore ?? undefined));
       } catch (caught) {
         log.warn('could not open the store subscriptions page', toAppError(caught).code);
         Toast.show({ type: 'error', text1: t(errorMessageKey('unsupported')) });
       }
     })();
-  }, [activeProductId, t]);
+  }, [activeProducts.sameStore, t]);
 
   const cards = useMemo(
-    () => buildPlanCards(cycle, isLoaded ? plan : null, store, language, activeProductId),
-    [cycle, isLoaded, plan, store, language, activeProductId],
+    () => buildPlanCards(cycle, isLoaded ? plan : null, store, language, activeProducts.sameStore, activeProducts.otherStore),
+    [cycle, isLoaded, plan, store, language, activeProducts.sameStore, activeProducts.otherStore],
   );
   const summary = useMemo(() => summarizeUsage(usage, plan, now), [usage, plan, now]);
   const columnStyle = { width: layout.contentWidth, alignSelf: 'center' as const };
@@ -566,7 +590,10 @@ export function PricingScreen(): ReactElement {
           )}
         </Pressable>
       ) : null}
-      <Text style={[styles.footer, { color: colors.onSurfaceVariant }]}>{t('pricing:footer')}</Text>
+      {/* Purchase-adjacent copy names only THIS platform's store (Apple review rule 3.1.1). */}
+      <Text style={[styles.footer, { color: colors.onSurfaceVariant }]}>
+        {t(Platform.OS === 'ios' ? 'pricing:footerIos' : 'pricing:footer')}
+      </Text>
     </View>
   );
 

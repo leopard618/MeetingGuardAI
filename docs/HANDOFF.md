@@ -307,8 +307,8 @@ The order assumes the client chooses RevenueCat and iOS. Adjust it after the dec
    - **Entitlement self-heal**: `adminReconcileEntitlement` (`docs/SETUP.md` §11.7; gated by
      `REVENUECAT_RECONCILE_ENABLED`, secret `REVENUECAT_SECRET_KEY` bound only there) checks a
      uid against the RevenueCat REST API and fixes drift (same-user Restore emits no webhook
-     event). Admin dashboard: "Reconcile" button per user row. Admin comps are never downgraded
-     by it.
+     event). Admin dashboard: "Reconcile" button per user row. Admin comps survive it unless an
+     ACTIVE store subscription says otherwise (precedence in §6).
    - Still open for later: any Stripe web checkout (item 3).
 2. **Tier enforcement:**
    - The AI quota is **already server-side**: the `assistant` function reads `entitlements/{uid}` in
@@ -351,12 +351,19 @@ There are exactly three writers, all through the Admin SDK, and the rule is **la
   `docs/SETUP.md` §11.7), when an admin heals a drifted document against the RevenueCat REST
   API. It writes only on drift, never downgrades a `source: 'admin'` comp from an empty or
   lapsed store state, and writes `eventTimestampMs: null` so every future webhook event wins.
+  The read-decide-write is one Firestore transaction with a stale-snapshot guard: a webhook
+  event or admin write landing between the REST GET (`request_date_ms`) and the write makes
+  the reconcile back off with `unchanged` instead of clobbering the fresher truth.
 
 Consequences, and how to use them:
 
 - An admin write **overrides everything now**, but only until the user's next RevenueCat event:
-  a renewal, billing-retry or cancellation event overwrites the admin document without looking at
+  a LATER renewal, billing-retry or cancellation event overwrites the admin document whatever
   its `source` (deliberate - the store's truth must never be maskable by a stale admin write).
+  Ordering is by when things HAPPENED, not by delivery: a RETRIED event whose
+  `event_timestamp_ms` predates the admin document's `updatedAt` is skipped, so a delayed
+  EXPIRATION redelivery cannot silently drop a comp that support granted hours after the
+  event (`shouldApplyEntitlementWrite`).
 - **Comping a user who has no store subscription is safe**: RevenueCat sends no events for them,
   so the admin document stays. Prefer setting an `expiresAt` so the grant ends by itself
   (`effectivePlan()` treats an expired document as free).
@@ -369,9 +376,9 @@ Consequences, and how to use them:
 - Between RevenueCat events themselves, delivery order is NOT guaranteed (failed deliveries are
   retried for hours), so the webhook also compares `event_timestamp_ms` against the stored
   document's `eventTimestampMs` and SKIPS a stale event (a delayed EXPIRATION retry can no
-  longer downgrade a user who has already resubscribed). This ordering guard only applies
-  between `source: 'revenuecat'` writes; an admin write is still overwritten by the next event
-  as described above.
+  longer downgrade a user who has already resubscribed). Against an admin document the same
+  comparison runs on its `updatedAt` (see the first bullet); only a document without any
+  comparable timestamp is overwritten unconditionally.
 - `SANDBOX` events (license testers, developer test purchases) are ignored unless the function
   was deployed with `REVENUECAT_ALLOW_SANDBOX=true` (test phase only; `docs/SETUP.md` §11.3).
 - A **same-user Restore emits no webhook event** (RevenueCat only sends state CHANGES), so a

@@ -76,14 +76,19 @@
     "retryA11yIos": "Reintentar la carga de los precios de App Store",
     "restoreA11yIos": "Restaurar las compras hechas con esta cuenta de Apple",
     "manageA11yIos": "Abrir tu suscripción en App Store",
+    "trialIos": "Nuevos suscriptores: 3 días de prueba gratis",
     "switchToMonthly": "Cambiar a facturación mensual",
     "switchToYearly": "Cambiar a facturación anual",
     "switchTier": "Cambiar a {{plan}}",
     "switchA11y": "Cambiar tu suscripción al plan {{plan}} por {{price}} al {{period}}",
     "changeConfirmedTitle": "Cambio confirmado",
-    "changeConfirmedBody": "La tienda registró el cambio de plan. El tiempo no usado se abona automáticamente; algunos cambios empiezan en la próxima renovación."
+    "changeConfirmedBody": "Google Play registró el cambio de plan. El tiempo no usado se abona automáticamente; algunos cambios empiezan en la próxima renovación.",
+    "changeConfirmedBodyIos": "App Store registró el cambio de plan. Se aplicará en tu próxima renovación.",
+    "managedInPlay": "Esta suscripción se compró en Google Play y solo se puede cambiar allí.",
+    "managedInAppStore": "Esta suscripción se compró en App Store y solo se puede cambiar allí."
   },
-  "footer": "Los precios están en dólares estadounidenses. Antes de cualquier compra, App Store o Google Play te mostrarán el precio final en tu moneda, con impuestos incluidos.",
+  "footer": "Los precios están en dólares estadounidenses. Antes de cualquier compra, Google Play te mostrará el precio final en tu moneda, con impuestos incluidos.",
+  "footerIos": "Los precios están en dólares estadounidenses. Antes de cualquier compra, App Store te mostrará el precio final en tu moneda, con impuestos incluidos.",
   "planChanged": {
     "title": "Plan actualizado",
     "body": "Tu plan ahora es {{plan}}"
