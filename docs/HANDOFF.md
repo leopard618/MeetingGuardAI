@@ -187,7 +187,7 @@ Do these in order. **You** = the developer, **Client** = the product owner.
 | **AI model** | Confirm the model (the contract says GPT-4 Turbo; the server default is `gpt-5.4-mini`, and a change is a parameter plus a redeploy), a monthly OpenAI budget, and the daily limits. Free 5 is from the contract; pro 100 and premium 500 are our proposal. | Assistant cost and quality. |
 | **Legal entity for the privacy policy and terms** | Company legal name, registered address, contact email, governing law and courts, and a lawyer's review. | The store release, the OAuth verification and the Play data safety form. |
 | **Support email** | One address for users. | The delete-account page, the Play listing, the OAuth consent screen and the legal texts. |
-| **v1.0.9 users** | Accept that the secret rotation breaks v1.0.9 AI chat and login. Decide when to shut down Render. Decide what to do with paying Stripe customers, if there are any (refund, or grant the plan by hand). | Secret rotation (`docs/SETUP.md` §1). |
+| **v1.0.9 users** | Accept that the secret rotation breaks v1.0.9 AI chat and login. Decide when to shut down Render. Stripe: DECIDED 2026-10-02, the client confirmed there are no active Stripe subscribers, so nothing to refund or migrate; Stripe is dropped in favor of store billing (RevenueCat). Prices CONFIRMED 2026-10-02: Pro $7.99/month, $71.91/year; Premium $14.99/month, $134.91/year (25% off yearly), matching `src/services/billing.ts` and `docs/SETUP.md` §11. | Secret rotation (`docs/SETUP.md` §1). |
 | **Domain and website** | A domain the client owns for the home page and the privacy policy. | Google OAuth verification, the Play listing. |
 
 ---
