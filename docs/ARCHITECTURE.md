@@ -974,9 +974,17 @@ New runtime dependency: `expo-apple-authentication` (installed with `npx expo in
 - **Account deletion** (App Review 5.1.1(v): revoke Apple tokens when the account dies). Flow for
   users with provider apple.com (checked FIRST, before google.com, in `useDeleteAccountFlow`):
   `reauthenticate()` (Apple branch: `signInAsync` with no scopes + fresh nonce ->
-  `reauthenticateWithCredential`; it stashes the new single-use `authorizationCode` in the auth
-  module) -> `authService.revokeAppleTokens()` (`revokeAccessToken(auth, code)`; Firebase
-  exchanges and revokes the Apple refresh token server-side) -> `sessionManager.deleteAccount()`
+  `reauthenticateWithCredential`; the new single-use `authorizationCode` is stashed in the auth
+  module only AFTER that call validated it - a code from a sheet confirmed with a different
+  Apple ID, `auth/user-mismatch`, is never kept) -> `authService.revokeAppleTokens()` (a direct
+  Identity Toolkit `accounts:revokeToken` POST with `tokenType: AUTHORIZATION_CODE` - the same
+  request the native iOS SDK's `revokeToken(withAuthorizationCode:)` makes; Firebase exchanges
+  the code with the Sign in with Apple key from docs/SETUP.md §8.4 and revokes the Apple refresh token
+  server-side. The JS SDK's `revokeAccessToken(auth, token)` is deliberately NOT used: it
+  labels its argument an Apple ACCESS token, and Apple answers 200 to unrecognized token
+  strings per RFC 7009, so passing the authorization code through it resolves while revoking
+  nothing - an invisible failure of exactly this review requirement, only provable on a real
+  device: docs/TESTING.md T20 row 7) -> `sessionManager.deleteAccount()`
   (unchanged: callable -> revokeGoogleAccess best effort -> END). Revocation is BEST EFFORT +
   PROCEED: on failure show the `auth:deleteAccount.appleRevokeNotice` toast and continue. Why:
   the user's right to delete the account may not depend on Apple/Firebase revocation uptime (the

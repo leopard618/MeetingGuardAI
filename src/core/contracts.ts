@@ -456,7 +456,10 @@ export interface AuthService {
    * rawNonce }) -> signInWithCredential. Apple returns fullName/email only on the FIRST
    * authorization: when the Firebase user has no displayName yet, it is saved via updateProfile
    * (best effort, like signUpWithEmail). The credential's authorizationCode is stashed for
-   * revokeAppleTokens(). Cancel resolves { status: 'cancelled' } (never an alert); on Android,
+   * revokeAppleTokens() only AFTER the Firebase exchange succeeded (a failed exchange may mean
+   * the code belongs to a different Apple ID). A second call while the sheet is presenting
+   * joins the running flow (like signInWithGoogle). Cancel resolves { status: 'cancelled' }
+   * (never an alert); on Android,
    * in builds without the native module or when isAvailableAsync() is false it throws
    * AppError('unsupported', details.reason 'apple_sign_in_unavailable').
    */
@@ -492,11 +495,15 @@ export interface AuthService {
   /** GoogleSignin.revokeAccess() (disconnect calendar / account deletion). */
   revokeGoogleAccess(): Promise<void>;
   /**
-   * Revokes the Apple refresh token through firebase `revokeAccessToken(auth, code)` with the
-   * authorizationCode captured by the LAST Apple interaction in this process (signInWithApple or
-   * the Apple branch of reauthenticate). Required before deleting an apple.com account (App
-   * Review 5.1.1(v); docs/ARCHITECTURE.md §26). The code is single-use and short-lived: call
-   * this right after reauthenticate(). Throws AppError('unauthenticated', details.reason
+   * Revokes the Apple refresh token with the authorizationCode captured by the LAST validated
+   * Apple interaction in this process (signInWithApple or the Apple branch of reauthenticate).
+   * Sends the Identity Toolkit `accounts:revokeToken` request with tokenType AUTHORIZATION_CODE
+   * - the same call the native iOS SDK's revokeToken(withAuthorizationCode:) makes. (The JS
+   * SDK's `revokeAccessToken(auth, token)` is NOT used: it labels its argument an Apple access
+   * token, and Apple answers 200 to unrecognized token strings, so it would "succeed" without
+   * revoking.) Required before deleting an apple.com account (App Review 5.1.1(v);
+   * docs/ARCHITECTURE.md §26). The code is single-use and short-lived: call this right after
+   * reauthenticate(). Throws AppError('unauthenticated', details.reason
    * 'requires_recent_login') when no fresh code is stashed; the delete flow treats ANY failure
    * as BEST EFFORT (notice toast, then the deletion proceeds).
    */

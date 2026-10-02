@@ -14,8 +14,10 @@
  *   of the same kind (ASYNC_OP_IN_PROGRESS), and calendar sync may ask for tokens in parallel.
  * - Sign in with Apple (expo-apple-authentication, iOS only - docs/ARCHITECTURE.md section 26):
  *   nonce-protected signInAsync -> OAuthProvider('apple.com').credential({ idToken, rawNonce })
- *   -> signInWithCredential. The module is require()d lazily like Google's; the last Apple
- *   authorizationCode is stashed in-process for revokeAppleTokens() (account deletion).
+ *   -> signInWithCredential. The module is require()d lazily like Google's; the Apple
+ *   authorizationCode is stashed in-process for revokeAppleTokens() (account deletion) only
+ *   AFTER the Firebase exchange validated the credential, so the stash can never hold a
+ *   wrong-identity code (e.g. after auth/user-mismatch).
  * - No session orchestration here: sessionManager (./sessionManager.ts) owns start/end.
  * - Never logs tokens or emails.
  */
@@ -32,7 +34,6 @@ import {
   createUserWithEmailAndPassword,
   onAuthStateChanged as onFirebaseAuthStateChanged,
   reauthenticateWithCredential,
-  revokeAccessToken,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithCredential,
@@ -158,6 +159,7 @@ const profileListeners = new Set<(user: AuthUser | null) => void>();
 const googleAccessListeners = new Set<() => void>();
 let googleConfigured = false;
 let googleSignInInFlight: Promise<SignInResult> | null = null;
+let appleSignInInFlight: Promise<SignInResult> | null = null;
 /** One silent refresh per process when the cached Google user lacks the Calendar scope. */
 let scopeRefreshAttempted = false;
 
@@ -347,7 +349,35 @@ function createRawNonce(): string {
  */
 export const APPLE_AUTH_CODE_TTL_MS = 5 * 60_000;
 
-/** The last Apple authorizationCode of this process (sign-in or reauthentication), for revocation. */
+/**
+ * The Firebase Identity Toolkit endpoint behind the native SDKs' revokeToken(withAuthorizationCode:).
+ * Takes the same public web API key the rest of the Firebase config uses; no extra secret.
+ */
+const APPLE_REVOKE_TOKEN_URL = 'https://identitytoolkit.googleapis.com/v2/accounts:revokeToken';
+
+/**
+ * Leading error name of an Identity Toolkit error response ("TOKEN_EXPIRED", ...), for
+ * diagnostics. Only the first word: the rest can carry upstream details that may not be logged.
+ */
+async function identityToolkitErrorName(response: Response): Promise<string | undefined> {
+  try {
+    const body: unknown = await response.json();
+    if (typeof body !== 'object' || body === null) return undefined;
+    const error = (body as { error?: unknown }).error;
+    if (typeof error !== 'object' || error === null) return undefined;
+    const message = (error as { message?: unknown }).message;
+    return typeof message === 'string' ? message.split(/[\s:]/, 1)[0] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The last VALIDATED Apple authorizationCode of this process, for revocation. Stashed only after
+ * signInWithCredential / reauthenticateWithCredential accepted the matching credential: a code
+ * from a sheet confirmed with a DIFFERENT Apple ID (auth/user-mismatch) must never end up here,
+ * or revokeAppleTokens() would revoke that other Apple ID's tokens for this app.
+ */
 let appleAuthorizationCode: { code: string; stashedAt: number } | null = null;
 
 function stashAppleAuthorizationCode(code: string | null): void {
@@ -357,8 +387,9 @@ function stashAppleAuthorizationCode(code: string | null): void {
 /**
  * Shows the Apple sheet and builds the Firebase credential (section 26): raw random nonce ->
  * SHA-256 hash to signInAsync (Apple checks the token's nonce claim equals it) -> OAuth
- * credential with the RAW nonce (Firebase hashes it again to verify; replay protection). Also
- * stashes the single-use authorizationCode for revokeAppleTokens(). Resolves null on cancel.
+ * credential with the RAW nonce (Firebase hashes it again to verify; replay protection). Does
+ * NOT stash the authorizationCode: callers stash it only after the Firebase exchange succeeds
+ * (see appleAuthorizationCode). Resolves null on cancel.
  */
 async function requestAppleCredential(
   apple: AppleAuthModule,
@@ -390,7 +421,6 @@ async function requestAppleCredential(
   if (!credential.identityToken) {
     throw authError('upstream_error', 'apple_sign_in_failed', 'Apple returned no identity token', { retryable: true });
   }
-  stashAppleAuthorizationCode(credential.authorizationCode);
   return {
     firebaseCredential: new OAuthProvider('apple.com').credential({
       idToken: credential.identityToken,
@@ -407,6 +437,41 @@ function formatAppleName(fullName: AppleAuthCredential['fullName']): string {
     .map((part) => (typeof part === 'string' ? part.trim() : ''))
     .filter((part) => part.length > 0)
     .join(' ');
+}
+
+// Sign in with Apple, iOS ONLY (contract: src/core/contracts.ts + docs/ARCHITECTURE.md §26).
+async function firebaseAppleSignIn(): Promise<SignInResult> {
+  const authInstance = requireAuth();
+  const apple = loadAppleModule();
+  if (!(await appleAvailable(apple))) {
+    throw authError('unsupported', 'apple_sign_in_unavailable', 'Sign in with Apple is not available on this device');
+  }
+
+  const requested = await requestAppleCredential(apple, { requestScopes: true });
+  if (!requested) return { status: 'cancelled' };
+
+  let result: UserCredential;
+  try {
+    result = await signInWithCredential(authInstance, requested.firebaseCredential);
+  } catch (error) {
+    throw mapFirebaseAuthError(error);
+  }
+  // Only now is the code known to belong to the signed-in user (see appleAuthorizationCode).
+  stashAppleAuthorizationCode(requested.apple.authorizationCode);
+
+  // FIRST sign-in only: Apple returns fullName/email once. Keep the name as the display name,
+  // best effort (exactly like signUpWithEmail: the session works without it).
+  const name = formatAppleName(requested.apple.fullName);
+  if (name && !result.user.displayName) {
+    try {
+      await updateProfile(result.user, { displayName: name });
+      // onAuthStateChanged already fired without the name: tell listeners about the update.
+      notifyProfileChanged();
+    } catch (error) {
+      log.error('Signed in but the display name could not be saved', mapFirebaseAuthError(error));
+    }
+  }
+  return { status: 'success', user: toAuthUser(result.user) };
 }
 
 async function firebaseGoogleSignIn(): Promise<SignInResult> {
@@ -520,37 +585,16 @@ export const authService: AuthServiceImpl = {
     return flow;
   },
 
-  // Sign in with Apple, iOS ONLY (contract: src/core/contracts.ts + docs/ARCHITECTURE.md §26).
-  async signInWithApple(): Promise<SignInResult> {
-    const authInstance = requireAuth();
-    const apple = loadAppleModule();
-    if (!(await appleAvailable(apple))) {
-      throw authError('unsupported', 'apple_sign_in_unavailable', 'Sign in with Apple is not available on this device');
-    }
-
-    const requested = await requestAppleCredential(apple, { requestScopes: true });
-    if (!requested) return { status: 'cancelled' };
-
-    let result: UserCredential;
-    try {
-      result = await signInWithCredential(authInstance, requested.firebaseCredential);
-    } catch (error) {
-      throw mapFirebaseAuthError(error);
-    }
-
-    // FIRST sign-in only: Apple returns fullName/email once. Keep the name as the display name,
-    // best effort (exactly like signUpWithEmail: the session works without it).
-    const name = formatAppleName(requested.apple.fullName);
-    if (name && !result.user.displayName) {
-      try {
-        await updateProfile(result.user, { displayName: name });
-        // onAuthStateChanged already fired without the name: tell listeners about the update.
-        notifyProfileChanged();
-      } catch (error) {
-        log.error('Signed in but the display name could not be saved', mapFirebaseAuthError(error));
-      }
-    }
-    return { status: 'success', user: toAuthUser(result.user) };
+  signInWithApple(): Promise<SignInResult> {
+    // A second tap while the Apple sheet is presenting joins the running flow instead of
+    // presenting a second sheet (same re-entry pattern as signInWithGoogle: the `busy` state a
+    // screen renders from is read from a stale closure during same-frame multi-touch).
+    if (appleSignInInFlight) return appleSignInInFlight;
+    const flow = firebaseAppleSignIn().finally(() => {
+      appleSignInInFlight = null;
+    });
+    appleSignInInFlight = flow;
+    return flow;
   },
 
   async signInWithEmail(email: string, password: string): Promise<AuthUser> {
@@ -766,7 +810,7 @@ export const authService: AuthServiceImpl = {
   },
 
   // Revokes the Apple refresh token (App Review 5.1.1(v); §26) with the authorizationCode of the
-  // LAST Apple interaction in this process. Callers treat any failure as best effort.
+  // LAST validated Apple interaction in this process. Callers treat any failure as best effort.
   async revokeAppleTokens(): Promise<void> {
     const authInstance = requireAuth();
     const stashed = appleAuthorizationCode;
@@ -779,12 +823,47 @@ export const authService: AuthServiceImpl = {
         'No fresh Apple authorization code (run the Apple reauthentication first)',
       );
     }
+    const user = authInstance.currentUser;
+    if (!user) throw new AppError('unauthenticated', 'Nobody is signed in');
+    const apiKey = env.firebase?.apiKey;
+    if (!apiKey) {
+      throw authError('not_configured', 'firebase_not_configured', 'Firebase is not configured');
+    }
+    let idToken: string;
     try {
-      // Firebase exchanges the code and revokes the Apple refresh token server-side (needs the
-      // Sign in with Apple key configured on the Apple provider - docs/SETUP.md section 8.4).
-      await revokeAccessToken(authInstance, stashed.code);
+      idToken = await user.getIdToken();
     } catch (error) {
       throw mapFirebaseAuthError(error);
+    }
+    // The same request the NATIVE iOS SDK's revokeToken(withAuthorizationCode:) sends. The JS
+    // SDK's revokeAccessToken() is deliberately NOT used: it labels its argument tokenType
+    // ACCESS_TOKEN, and Apple answers 200 to unrecognized token strings (RFC 7009), so passing
+    // the authorization code through it "succeeds" while revoking nothing. With
+    // AUTHORIZATION_CODE, Firebase exchanges the code using the Sign in with Apple key
+    // configured on the Apple provider (docs/SETUP.md section 8.4) and revokes the Apple
+    // refresh token server-side.
+    let response: Response;
+    try {
+      response = await fetch(`${APPLE_REVOKE_TOKEN_URL}?key=${encodeURIComponent(apiKey)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: 'apple.com',
+          tokenType: 'AUTHORIZATION_CODE',
+          token: stashed.code,
+          idToken,
+        }),
+      });
+    } catch (error) {
+      throw authError('offline', null, 'Could not reach the token revocation endpoint', {
+        cause: error,
+        retryable: true,
+      });
+    }
+    if (!response.ok) {
+      throw authError('upstream_error', null, `Apple token revocation failed (HTTP ${response.status})`, {
+        providerCode: await identityToolkitErrorName(response),
+      });
     }
   },
 
@@ -835,6 +914,8 @@ export const authService: AuthServiceImpl = {
         } catch (error) {
           throw mapFirebaseAuthError(error);
         }
+        // Only now is the code known to belong to the signed-in user (see appleAuthorizationCode).
+        stashAppleAuthorizationCode(requested.apple.authorizationCode);
         return 'done';
       }
       // Module unusable in this build: fall through to the account's other providers.

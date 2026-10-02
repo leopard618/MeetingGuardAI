@@ -555,11 +555,15 @@ Internal (non-TestFlight) builds only install on registered iPhones: `eas device
 Firebase console -> Authentication -> Sign-in method -> Add new provider -> **Apple** -> enable.
 
 - For the NATIVE iOS sign-in flow that is all the app needs.
-- For **token revocation on account deletion** (App Review 5.1.1(v); the app calls firebase
-  `revokeAccessToken`) Firebase must be able to talk to Apple: create a **Sign in with Apple
-  key** at developer.apple.com -> Keys -> "+" (enable "Sign in with Apple", download the `.p8`
-  once) and fill the Apple provider's **Team ID, Key ID and private key** fields in the Firebase
-  console. The **Services ID** field is only needed if web/Android Apple sign-in is ever added.
+- For **token revocation on account deletion** (App Review 5.1.1(v); the app POSTs the fresh
+  Apple authorization code to the Identity Toolkit `accounts:revokeToken` endpoint with
+  `tokenType: AUTHORIZATION_CODE`, like the native SDKs do) Firebase must be able to talk to
+  Apple: create a **Sign in with Apple key** at developer.apple.com -> Keys -> "+" (enable
+  "Sign in with Apple", download the `.p8` once) and fill the Apple provider's **Team ID, Key
+  ID and private key** fields in the Firebase console. The **Services ID** field is only needed
+  if web/Android Apple sign-in is ever added. Revocation cannot be verified from Windows or a
+  cloud simulator: docs/TESTING.md T20 row 7 (the Apple ID settings check) is the blocking
+  proof before TestFlight.
 - The iOS Google OAuth client (§4.3) is separate and still required for Google sign-in on iOS
   (`EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` -> the URL scheme, §5.2).
 
@@ -599,7 +603,8 @@ before review.
 - **4.8 Login services**: Sign in with Apple is offered with equal prominence (official button
   above Google on the landing screen). Done in the app.
 - **5.1.1(v) Account deletion**: in-app deletion exists (Settings) and the Apple token is
-  revoked during deletion (`revokeAccessToken`; needs 8.4's key). Mention both in Review notes.
+  revoked during deletion (the `accounts:revokeToken` call; needs 8.4's key). Mention both in
+  Review notes.
 - **Privacy nutrition labels** (App Store Connect -> App Privacy): data collected and linked to
   the user: email address, name, calendar/meeting data (app functionality), purchase history
   (subscriptions), diagnostics (Sentry, not linked). Match the privacy policy (§6.5 page).

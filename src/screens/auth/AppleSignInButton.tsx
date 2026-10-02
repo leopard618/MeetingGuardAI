@@ -5,8 +5,11 @@
  *   HIG: equal prominence). On the Landing screen it sits directly ABOVE "Continue with Google",
  *   same width and height (componentMetrics.buttonHeight).
  * - iOS only: elsewhere it renders null. On iOS it additionally waits for
- *   AppleAuthentication.isAvailableAsync() (renders null until resolved) and stays null when
- *   unavailable or when the native module is missing, so Landing never shows a dead button.
+ *   AppleAuthentication.isAvailableAsync() and stays null when unavailable or when the native
+ *   module is missing, so Landing never shows a dead button. WHILE the (async) check is pending
+ *   it renders an invisible placeholder of the final button height: mounting the button later
+ *   would push "Continue with Google" down mid-tap on a slow first frame (the check resolves
+ *   within the first frames, but a busy JS thread can delay it past a user's first touch).
  * - buttonType CONTINUE (matches "Continue with Google" wording in both languages), buttonStyle
  *   WHITE on the dark scheme / BLACK on the light scheme (the card behind it uses
  *   colors.surface), cornerRadius componentMetrics.buttonHeight / 2 (pill like the other
@@ -77,18 +80,19 @@ export function AppleSignInButton({ onPress, disabled = false, style }: AppleSig
   const t = useT();
   const { scheme } = useAppTheme();
   const module = Platform.OS === 'ios' ? loadAppleUiModule() : null;
-  const [available, setAvailable] = useState(false);
+  const [availability, setAvailability] = useState<'pending' | 'available' | 'unavailable'>('pending');
 
   useEffect(() => {
     if (!module) return undefined;
     let active = true;
     module.isAvailableAsync().then(
       (value) => {
-        if (active) setAvailable(value);
+        if (active) setAvailability(value ? 'available' : 'unavailable');
       },
       (error: unknown) => {
         // Unavailable (e.g. no Apple ID support on this device): the button stays hidden.
         log.warn('Apple sign-in availability check failed', error);
+        if (active) setAvailability('unavailable');
       },
     );
     return () => {
@@ -96,7 +100,12 @@ export function AppleSignInButton({ onPress, disabled = false, style }: AppleSig
     };
   }, [module]);
 
-  if (!module || !available) return null;
+  if (!module || availability === 'unavailable') return null;
+  if (availability === 'pending') {
+    // Invisible height reservation (header comment): same `style` (margins) + button height, so
+    // the buttons below do not shift when the real button mounts.
+    return <View style={[styles.placeholder, style]} pointerEvents="none" testID="landing-apple-sign-in-placeholder" />;
+  }
   const NativeButton = module.AppleAuthenticationButton;
   return (
     <View style={[disabled && styles.dimmed, style]}>
@@ -122,6 +131,9 @@ const styles = StyleSheet.create({
   },
   dimmed: {
     opacity: pressedDimOpacity,
+  },
+  placeholder: {
+    height: componentMetrics.buttonHeight,
   },
 });
 

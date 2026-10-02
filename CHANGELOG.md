@@ -22,9 +22,15 @@ version ships only as a store/APK build - never as an OTA update onto 1.3.x.
   `email_verified: false` although Apple itself verified the Apple ID. Password accounts are
   gated exactly as before.
 - **Apple token revocation on account deletion** (App Review 5.1.1(v)): deleting an Apple
-  account reauthenticates via the Apple sheet, then revokes the Apple token
-  (`revokeAccessToken`) BEFORE the delete callable runs. Revocation is best effort: on failure
-  a notice toast explains the manual detach path and the deletion still proceeds.
+  account reauthenticates via the Apple sheet, then revokes the Apple token BEFORE the delete
+  callable runs - a direct Identity Toolkit `accounts:revokeToken` request with
+  `tokenType: AUTHORIZATION_CODE`, the same call the native iOS SDK makes (the JS SDK's
+  `revokeAccessToken` mislabels the code as an access token and Apple then revokes nothing
+  while reporting success). The authorization code is stashed only after Firebase validated
+  the credential, so a wrong-identity code (auth/user-mismatch) is never revocable. Revocation
+  is best effort: on failure a notice toast explains the manual detach path and the deletion
+  still proceeds. Deploy order: the 1.4.0 functions (trusted-provider gate) go live BEFORE any
+  iOS build reaches testers (docs/DEPLOYMENT.md section 4).
 - **iOS build/store runway** (docs/SETUP.md §8): `ios.usesAppleSignIn`, time-sensitive
   notifications entitlement, `ITSAppUsesNonExemptEncryption: false`, EN+ES locales, iPhone-only
   first release (`supportsTablet: false`), `ios-simulator` EAS build profile (Appetize browser

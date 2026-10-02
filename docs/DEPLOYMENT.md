@@ -119,6 +119,11 @@ Run these from the repository root.
    - The support email replaces the placeholder in `public/delete-account.html`.
    - The privacy policy has a public URL.
 3. `docs/SETUP.md` §9 is complete. The functions and rules are deployed (§6). Backups are on (§7).
+   **Deploy order for the first iOS (1.4.0) build**: the 1.4.0 functions (trusted-provider
+   verified-caller gate) must be deployed BEFORE any build with Sign in with Apple reaches a
+   tester - against the older google-only gate, an Apple-provider user gets a generic
+   session-expired error from the assistant and Zoom with no actionable path (the 1.4.0 client
+   shows no verify-email banner for Apple accounts).
 4. **Google OAuth is open to everyone (hard gate: do not start a production rollout without it).**
    Google Cloud console -> Google Auth Platform:
    - Audience -> Publishing status is **In production**. In **Testing**, only the listed test users

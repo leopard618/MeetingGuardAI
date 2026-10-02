@@ -21,7 +21,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
-import { useState, type ComponentProps, type ReactElement } from 'react';
+import { useRef, useState, type ComponentProps, type ReactElement } from 'react';
 import { ActivityIndicator, Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -68,13 +68,18 @@ export function LandingScreen(): ReactElement {
   const { signInWithGoogle, signInWithApple } = useAuth();
   const { language, setLanguage, supportedLanguages } = useLanguage();
   const [busy, setBusy] = useState(false);
+  // Synchronous re-entry guard: with two provider buttons, same-frame multi-touch can run both
+  // handlers before the `busy` re-render, and both would read the stale closure state. The ref
+  // flips before the first await, so the second press returns immediately.
+  const busyRef = useRef(false);
   // Light status-bar icons only while the dark hero is on screen: expo-status-bar keeps the last
   // mounted style, so a pushed Terms / Privacy page must not inherit it.
   const focused = useIsFocused();
 
   // One handler for both providers: a dismissed picker / sheet is not an error (stay silent).
   const handleSignIn = async (signIn: () => Promise<AuthActionResult>): Promise<void> => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const result = await signIn();
@@ -85,6 +90,7 @@ export function LandingScreen(): ReactElement {
       log.error('unexpected sign-in failure', error);
       Alert.alert(t('landing:signIn.failedTitle'), t(errorMessageKey('unknown')));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };

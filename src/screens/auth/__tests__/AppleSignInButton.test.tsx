@@ -67,9 +67,11 @@ it('renders nothing when Sign in with Apple is unavailable on the device', async
   mockIsAvailableAsync.mockResolvedValue(false);
   await renderButton();
   expect(screen.queryByTestId('landing-apple-sign-in')).toBeNull();
+  // The height reservation collapses too: no dead gap above "Continue with Google".
+  expect(screen.queryByTestId('landing-apple-sign-in-placeholder')).toBeNull();
 });
 
-it('renders nothing while the availability check is still pending', async () => {
+it('reserves the button height (invisible placeholder) while the availability check is pending', async () => {
   let resolve: ((value: boolean) => void) | undefined;
   mockIsAvailableAsync.mockReturnValue(
     new Promise<boolean>((promiseResolve) => {
@@ -81,19 +83,24 @@ it('renders nothing while the availability check is still pending', async () => 
       <AppleSignInButton onPress={onPress} />
     </I18nProvider>,
   );
+  // No button yet, but its space is held: the Google button below must not shift under a tap
+  // in flight when the real button mounts a frame later.
   expect(screen.queryByTestId('landing-apple-sign-in')).toBeNull();
+  expect(screen.getByTestId('landing-apple-sign-in-placeholder')).toBeTruthy();
   await act(async () => {
     resolve?.(true);
   });
   expect(screen.getByTestId('landing-apple-sign-in')).toBeTruthy();
+  expect(screen.queryByTestId('landing-apple-sign-in-placeholder')).toBeNull();
 });
 
-it('renders nothing off iOS', async () => {
+it('renders nothing off iOS (no placeholder either)', async () => {
   const descriptor = Object.getOwnPropertyDescriptor(Platform, 'OS');
   Object.defineProperty(Platform, 'OS', { configurable: true, get: () => 'android' });
   try {
     await renderButton();
     expect(screen.queryByTestId('landing-apple-sign-in')).toBeNull();
+    expect(screen.queryByTestId('landing-apple-sign-in-placeholder')).toBeNull();
   } finally {
     if (descriptor) Object.defineProperty(Platform, 'OS', descriptor);
   }

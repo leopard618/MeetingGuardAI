@@ -1,9 +1,12 @@
 /**
  * authService Sign in with Apple suite (docs/ARCHITECTURE.md section 26) with mocked
  * expo-apple-authentication ({ virtual: true }: the package only resolves in iOS builds),
- * expo-crypto and firebase/auth. Modules are re-required per test so the module state (cached
- * Apple module, stashed authorizationCode) starts fresh. jest-expo runs as iOS by default, which
- * is exactly the platform the Apple reauthentication branch requires.
+ * expo-crypto and firebase/auth. revokeAppleTokens() talks to the Identity Toolkit REST
+ * endpoint directly (the JS SDK's revokeAccessToken mislabels the authorization code as an
+ * access token and Apple then revokes nothing), so global fetch is mocked too. Modules are
+ * re-required per test so the module state (cached Apple module, stashed authorizationCode)
+ * starts fresh. jest-expo runs as iOS by default, which is exactly the platform the Apple
+ * reauthentication branch requires.
  */
 import { APPLE_AUTH_CODE_TTL_MS, type AuthServiceImpl } from '../authService';
 
@@ -60,7 +63,6 @@ jest.mock('firebase/auth', () => ({
     }
   },
   reauthenticateWithCredential: jest.fn(),
-  revokeAccessToken: jest.fn(),
   signInWithCredential: jest.fn(),
   signInWithEmailAndPassword: jest.fn(),
   createUserWithEmailAndPassword: jest.fn(),
@@ -80,13 +82,15 @@ jest.mock('../../../config/firebase', () => ({
 }));
 
 jest.mock('../../../config/env', () => ({
-  env: { google: { webClientId: 'web-client.apps.googleusercontent.com', iosClientId: null, androidClientId: null } },
+  env: {
+    google: { webClientId: 'web-client.apps.googleusercontent.com', iosClientId: null, androidClientId: null },
+    firebase: { apiKey: 'test-api-key' },
+  },
 }));
 
 type MockFn = jest.Mock;
 interface FirebaseAuthMock {
   reauthenticateWithCredential: MockFn;
-  revokeAccessToken: MockFn;
   signInWithCredential: MockFn;
   updateProfile: MockFn;
 }
@@ -111,6 +115,7 @@ function firebaseUser(overrides: Partial<Record<string, unknown>> = {}) {
     photoURL: null,
     emailVerified: true,
     providerData: [{ providerId: 'apple.com' }],
+    getIdToken: jest.fn(async () => 'firebase-id-token'),
     ...overrides,
   };
 }
@@ -149,14 +154,29 @@ function load(): Loaded {
   return { authService, fb, crypto, google, firebaseConfig };
 }
 
+/** revokeAppleTokens() calls the Identity Toolkit REST endpoint through global fetch. */
+const mockFetch = jest.fn();
+const realFetch = globalThis.fetch;
+
+function fetchResponse(overrides: { ok?: boolean; status?: number; body?: unknown } = {}) {
+  return {
+    ok: overrides.ok ?? true,
+    status: overrides.status ?? 200,
+    json: async () => overrides.body ?? {},
+  };
+}
+
 beforeEach(() => {
   jest.resetModules();
+  mockFetch.mockReset();
+  globalThis.fetch = mockFetch as unknown as typeof fetch;
   jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   jest.spyOn(console, 'error').mockImplementation(() => undefined);
   jest.spyOn(console, 'log').mockImplementation(() => undefined);
 });
 
 afterEach(() => {
+  globalThis.fetch = realFetch;
   jest.restoreAllMocks();
 });
 
@@ -243,29 +263,81 @@ describe('signInWithApple', () => {
 
     await expect(authService.signInWithApple()).resolves.toMatchObject({ status: 'success' });
   });
+
+  it('joins a concurrent call instead of presenting a second Apple sheet', async () => {
+    const { authService, fb } = load();
+    let resolveSheet: ((value: ReturnType<typeof appleCredential>) => void) | undefined;
+    mockApple.signInAsync.mockReturnValue(
+      new Promise<ReturnType<typeof appleCredential>>((promiseResolve) => {
+        resolveSheet = promiseResolve;
+      }),
+    );
+    fb.signInWithCredential.mockResolvedValue({ user: firebaseUser({ displayName: 'Ana' }) });
+
+    const first = authService.signInWithApple();
+    // Same-frame second press (the screen's stale `busy` closure cannot stop it): same flow.
+    const second = authService.signInWithApple();
+    expect(second).toBe(first);
+
+    resolveSheet?.(appleCredential());
+    await expect(first).resolves.toMatchObject({ status: 'success' });
+    expect(mockApple.signInAsync).toHaveBeenCalledTimes(1);
+    expect(fb.signInWithCredential).toHaveBeenCalledTimes(1);
+  });
+
+  it('stashes no authorization code when the Firebase exchange fails (wrong-identity protection)', async () => {
+    const loaded = load();
+    mockApple.signInAsync.mockResolvedValue(appleCredential());
+    loaded.fb.signInWithCredential.mockRejectedValue(nativeError('auth/invalid-credential'));
+
+    await expect(loaded.authService.signInWithApple()).rejects.toMatchObject({ code: 'unauthenticated' });
+
+    // The unvalidated code must not be revocable: it may belong to a different Apple ID.
+    loaded.firebaseConfig.auth.currentUser = firebaseUser();
+    await expect(loaded.authService.revokeAppleTokens()).rejects.toMatchObject({
+      details: { reason: 'requires_recent_login' },
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
 });
 
 describe('revokeAppleTokens', () => {
   async function signIn(loaded: Loaded, authorizationCode: string | null = 'apple-auth-code'): Promise<void> {
     mockApple.signInAsync.mockResolvedValue(appleCredential({ authorizationCode }));
-    loaded.fb.signInWithCredential.mockResolvedValue({ user: firebaseUser({ displayName: 'Ana' }) });
+    const user = firebaseUser({ displayName: 'Ana' });
+    loaded.fb.signInWithCredential.mockResolvedValue({ user });
     await loaded.authService.signInWithApple();
+    // The signed-in user whose ID token authorizes the revocation request.
+    loaded.firebaseConfig.auth.currentUser = user;
   }
 
-  it('revokes with the stashed authorizationCode exactly once (single-use)', async () => {
+  it('POSTs the stashed code as AUTHORIZATION_CODE to accounts:revokeToken, exactly once (single-use)', async () => {
     const loaded = load();
     await signIn(loaded);
-    loaded.fb.revokeAccessToken.mockResolvedValue(undefined);
+    mockFetch.mockResolvedValue(fetchResponse());
 
     await expect(loaded.authService.revokeAppleTokens()).resolves.toBeUndefined();
-    expect(loaded.fb.revokeAccessToken).toHaveBeenCalledWith(expect.anything(), 'apple-auth-code');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockFetch.mock.calls[0] as [string, { method: string; body: string }];
+    expect(url).toBe('https://identitytoolkit.googleapis.com/v2/accounts:revokeToken?key=test-api-key');
+    expect(init.method).toBe('POST');
+    // AUTHORIZATION_CODE is the point: the JS SDK's revokeAccessToken() labels the code
+    // ACCESS_TOKEN, and Apple answers 200 to unrecognized token strings (RFC 7009), so that
+    // path "succeeds" while revoking nothing.
+    expect(JSON.parse(init.body)).toEqual({
+      providerId: 'apple.com',
+      tokenType: 'AUTHORIZATION_CODE',
+      token: 'apple-auth-code',
+      idToken: 'firebase-id-token',
+    });
 
     // The code was consumed: a second attempt needs a fresh Apple interaction.
     await expect(loaded.authService.revokeAppleTokens()).rejects.toMatchObject({
       code: 'unauthenticated',
       details: { reason: 'requires_recent_login' },
     });
-    expect(loaded.fb.revokeAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it('requires a fresh code: none stashed, Apple sent none, or the stash is stale', async () => {
@@ -291,18 +363,37 @@ describe('revokeAppleTokens', () => {
     } finally {
       nowSpy.mockRestore();
     }
-    expect(loaded.fb.revokeAccessToken).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it('maps a Firebase revocation failure (callers treat it as best effort)', async () => {
+  it('maps a rejected revocation to upstream_error with the Identity Toolkit error name', async () => {
     const loaded = load();
     await signIn(loaded);
-    loaded.fb.revokeAccessToken.mockRejectedValue(nativeError('auth/requires-recent-login'));
+    mockFetch.mockResolvedValue(
+      fetchResponse({ ok: false, status: 400, body: { error: { message: 'TOKEN_EXPIRED: too old' } } }),
+    );
 
     await expect(loaded.authService.revokeAppleTokens()).rejects.toMatchObject({
-      code: 'unauthenticated',
-      details: { reason: 'requires_recent_login' },
+      code: 'upstream_error',
+      details: { providerCode: 'TOKEN_EXPIRED' },
     });
+  });
+
+  it('maps an unreachable endpoint to offline (callers treat it as best effort)', async () => {
+    const loaded = load();
+    await signIn(loaded);
+    mockFetch.mockRejectedValue(new TypeError('Network request failed'));
+
+    await expect(loaded.authService.revokeAppleTokens()).rejects.toMatchObject({ code: 'offline' });
+  });
+
+  it('sends nothing when nobody is signed in (no ID token to authorize the request)', async () => {
+    const loaded = load();
+    await signIn(loaded);
+    loaded.firebaseConfig.auth.currentUser = null;
+
+    await expect(loaded.authService.revokeAppleTokens()).rejects.toMatchObject({ code: 'unauthenticated' });
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
 
@@ -322,7 +413,7 @@ describe('reauthenticate (apple.com first on iOS)', () => {
     const user = withAppleUser(loaded);
     mockApple.signInAsync.mockResolvedValue(appleCredential({ authorizationCode: 'fresh-code', fullName: null }));
     loaded.fb.reauthenticateWithCredential.mockResolvedValue(undefined);
-    loaded.fb.revokeAccessToken.mockResolvedValue(undefined);
+    mockFetch.mockResolvedValue(fetchResponse());
 
     await expect(loaded.authService.reauthenticate()).resolves.toBe('done');
     // No requestedScopes: Apple shows a plain confirmation sheet.
@@ -335,7 +426,25 @@ describe('reauthenticate (apple.com first on iOS)', () => {
 
     // The refreshed code is exactly what the delete flow revokes next.
     await loaded.authService.revokeAppleTokens();
-    expect(loaded.fb.revokeAccessToken).toHaveBeenCalledWith(expect.anything(), 'fresh-code');
+    const [, init] = mockFetch.mock.calls[0] as [string, { body: string }];
+    expect(JSON.parse(init.body)).toMatchObject({ token: 'fresh-code', tokenType: 'AUTHORIZATION_CODE' });
+  });
+
+  it('stashes nothing when a DIFFERENT Apple ID confirmed the sheet (auth/user-mismatch)', async () => {
+    const loaded = load();
+    withAppleUser(loaded);
+    mockApple.signInAsync.mockResolvedValue(appleCredential({ authorizationCode: 'other-apple-id-code', fullName: null }));
+    loaded.fb.reauthenticateWithCredential.mockRejectedValue(nativeError('auth/user-mismatch'));
+
+    await expect(loaded.authService.reauthenticate()).rejects.toMatchObject({
+      details: { reason: 'user_mismatch' },
+    });
+
+    // The wrong-identity code must not be revocable: it belongs to the OTHER Apple ID.
+    await expect(loaded.authService.revokeAppleTokens()).rejects.toMatchObject({
+      details: { reason: 'requires_recent_login' },
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('returns cancelled when the Apple sheet is dismissed', async () => {

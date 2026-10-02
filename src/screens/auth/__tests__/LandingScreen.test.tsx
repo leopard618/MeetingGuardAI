@@ -118,6 +118,20 @@ it('shows the Apple button on iOS and signs in with Apple; a dismissed sheet sta
   expect(Alert.alert).not.toHaveBeenCalled();
 });
 
+it('runs only one sign-in for same-frame presses (multi-touch across the two provider buttons)', async () => {
+  mockSignInWithApple.mockResolvedValue({ success: false, cancelled: true });
+  await renderLanding();
+  const apple = screen.getByTestId('landing-apple-sign-in');
+  await act(async () => {
+    // Direct prop calls, no re-render in between: both handlers read the stale `busy` closure,
+    // exactly like two Pressables pressed in the same frame. Only the synchronous busyRef guard
+    // can stop the second flow.
+    apple.props.onPress();
+    apple.props.onPress();
+  });
+  expect(mockSignInWithApple).toHaveBeenCalledTimes(1);
+});
+
 it('explains a failed Apple sign-in with the localized message from the auth service', async () => {
   mockSignInWithApple.mockResolvedValueOnce({ success: false, error: 'Apple sign-in failed. Please try again.' });
   await renderLanding();

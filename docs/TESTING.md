@@ -736,7 +736,10 @@ If iOS is in scope, repeat T1 to T11 on an iPhone and run T20.
 
 Device: a real iPhone (TestFlight or a registered-device build). Rows marked (sim) also work in
 a simulator build (Appetize) WITHOUT an iCloud account; the Apple sign-in rows need a device
-signed in to an Apple ID.
+signed in to an Apple ID. Row 7's Apple ID settings check is the BLOCKING proof of App Review
+5.1.1(v) token revocation before TestFlight: revocation failures are invisible in the app
+(Apple answers 200 to unrecognized tokens) and nothing on Windows or a cloud simulator can
+catch them.
 
 | # | Step | Expected result |
 |---|---|---|
