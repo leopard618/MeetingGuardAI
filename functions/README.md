@@ -1,4 +1,4 @@
-# MeetingGuard AI – Cloud Functions
+# MeetingGuard AI - Cloud Functions
 
 Firebase backend for the MeetingGuard AI app: Cloud Functions v2 (TypeScript, Node 22), Firestore
 security rules and the public account-deletion page.
@@ -27,7 +27,7 @@ functions/
   src/assistant/               handler, quota, meeting context, prompt, tools, action mapping, OpenAI adapter, time zones
   src/admin/                   admin callables (schemas.ts = the contract, index.ts = handlers/ports)
   src/openaiKey.ts             runtime OpenAI key: Secret Manager REST + cache + env fallback + rotation edge
-  src/zoom/                    zoom* callables (zoomStatus + the secret-bound write callables; docs/ARCHITECTURE.md §24)
+  src/zoom/                    zoom* callables (docs/ARCHITECTURE.md §24): index.ts = shell + conditional export, handler.ts = logic on ports, token.ts = S2S token cache, api.ts = Zoom REST client
   src/deleteAccount.ts
   src/maintenance/             retention: tombstone purge, deletion log (core.ts pure, index.ts schedule)
   src/shared/aiContract.ts     verbatim copy of src/core/aiContract.ts
@@ -42,7 +42,7 @@ functions/
 - Firebase project on the **Blaze** plan (Cloud Functions v2 and Secret Manager need billing).
 - Node **22** (the deployed runtime is `nodejs22`; firebase-admin 14 and openai 7 need Node ≥ 22).
 - Java **21+** only for the emulators (`npm run serve`, `npm run test:rules`).
-- firebase-tools is a pinned dev dependency, so use `npx firebase …` from this folder (the npm
+- firebase-tools is a pinned dev dependency, so use `npx firebase ...` from this folder (the npm
   scripts already do). A global install works as well.
 
 ## First-time setup
@@ -63,7 +63,7 @@ npx firebase functions:secrets:set OPENAI_API_KEY      # paste the key when prom
 
 The key lives in Cloud Secret Manager. It is never in the repository, the app or the logs. Deploying
 grants the function's service account access to it. To rotate it, set a new version and redeploy
-`assistant` — or use the admin dashboard's "Rotate OpenAI key" card, which needs the one-time
+`assistant` - or use the admin dashboard's "Rotate OpenAI key" card, which needs the one-time
 IAM grant below but no redeploy.
 
 ### OpenAI key rotation from the admin dashboard (admin v2)
@@ -95,14 +95,14 @@ Until the grant exists, nothing breaks: the assistant keeps using the env-bound 
 (`mode: 'env-fallback'`), the admin dashboard's Settings tab shows `iamReady: false` together
 with the exact commands above and disables the rotate button, and a rotation attempt that
 slips through fails with an explicit `failed-precondition` "grant missing" error (the Secret
-Manager 403 is mapped — it is NOT a deploy problem). Rotation order (enforced by the
+Manager 403 is mapped - it is NOT a deploy problem). Rotation order (enforced by the
 callable): validate the candidate key against `GET api.openai.com/v1/models` → `addVersion` →
 disable prior enabled versions with **lower numbers only** (newest wins, so two concurrent
-rotations converge instead of disabling each other's version — which would leave
+rotations converge instead of disabling each other's version - which would leave
 `versions/latest` disabled and the runtime silently on the env fallback) → invalidate the
 in-instance cache. If disabling fails AFTER the new version was stored, the callable still
 invalidates the cache and reports `aborted`/`stored_cleanup_failed` naming the stored version:
-the new key IS becoming active, so do not revoke it at OpenAI — retry the rotation or disable
+the new key IS becoming active, so do not revoke it at OpenAI - retry the rotation or disable
 the old versions in the console. Rejected attempts are audit-logged
 (`adminRotateOpenAiKey.rejected`, fixed key-free fields). Other instances pick the new key up
 within the 5-minute TTL, or immediately on an OpenAI 401 (one forced refetch + retry). The key

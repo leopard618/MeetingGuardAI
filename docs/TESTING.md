@@ -70,9 +70,14 @@ npm run lint
 npm run build
 ```
 
-When this was last updated, the unit tests ran 14 suites and 159 tests, all passing, and
-`npm run test:rules` ran 68 rules tests, all passing (Firestore emulator v1.22.0). The emulator
-uses the project id `demo-meetingguard`, so it never touches a real project.
+When this was last updated, the unit tests ran 20 suites and 286 tests, all passing. The
+emulator uses the project id `demo-meetingguard`, so it never touches a real project.
+
+The `external.zoomMeetingId` rules cases added in 1.3.1
+(`functions/test/rules/firestore.rules.test.ts`, "meetings: zoom external ref") have NOT been
+executed yet: `npm run test:rules` needs Java 21+ and the build machine only had the Android
+JDK 17. Run `npm run test:rules` on a machine with Java 21+ (CI's `firestore-rules` job also
+covers it) before deploying the rules.
 
 On a PC with a VPN Winsock layer (the same one that crashes Gradle, `scripts/lib/testApk.js`),
 give the emulator's JVM the classic selector before `npm run test:rules`, or its Java process
@@ -413,7 +418,7 @@ meeting is rolled back (a fresh recurring create disappears).
 | 17 | Form -> Repeat: create "Gym", weekly on Tue + Thu, ends after 6 times. Save. | The list and the calendar show 6 "Repeats" rows on the right Tuesdays and Thursdays. Details say "Repeats weekly on Tuesday, Thursday, 6 times in total" and list the next occurrences. With Google sync on, Google Calendar shows one repeating event. |
 | 18 | In All meetings, long-press one occurrence of "Gym" -> Delete. | A "Delete repeating meeting" dialog asks: **This meeting only** or **The whole series**. "This meeting only" removes just that day's row (Google loses only that day after the next sync). Repeat and pick "The whole series": every row disappears and the Google event is gone. |
 | 19 | Long-press another occurrence -> Edit -> **This meeting only**. Move it 1 hour later and rename it. | Only that day's row moves and shows the new title; the other days are unchanged. Details mark that occurrence as edited. (The time change is NOT pushed to Google in this version.) Edit -> **The whole series** opens the normal form and notes that changes apply to the whole series. |
-| 20 | Assistant, in Spanish: "Elimina solo la reunión de mañana del standup". | A delete card that says it applies **only to the occurrence on that date** ("Solo la repetición del …"). Confirm removes only that occurrence; the other days stay. |
+| 20 | Assistant, in Spanish: "Elimina solo la reunión de mañana del standup". | A delete card that says it applies **only to the occurrence on that date** ("Solo la repetición del ..."). Confirm removes only that occurrence; the other days stay. |
 | 21 | In All meetings, long-press a MIDDLE occurrence of "Gym" -> Edit -> **This and following** (Android shows the three scope choices without a Cancel button; dismiss with Back or a tap outside). Move it 1 hour later. | The sheet is titled "This and following". After saving, that day **and every later day** show the new time; the earlier days keep the old time. In Google Calendar (after a sync) the old series now **ends the day before** and a **new repeating event** starts on the edited day - two separate series. |
 | 22 | Long-press another middle occurrence -> Delete -> **This and following**. | That day and every later row disappear; the earlier rows stay. The toast says this and the following occurrences were deleted. Google keeps only the shortened old series. Picking it on the FIRST occurrence deletes the whole series instead. |
 | 23 | Assistant: "From next Monday, move the standup to 10:00" (or in Spanish: "Desde el lunes, pasa el standup a las 10:00"). | An update card whose "Applies to" row says **"This and the following occurrences from <date>"**. Confirm: the earlier occurrences keep 9:00, the ones from that Monday on are at 10:00 (the list shows both patterns). "Cancela el resto de los standups" produces a delete card with the same scope row and a warning that earlier occurrences stay. |
@@ -470,7 +475,7 @@ Focus allows it. There is no exact-alarm setting on iOS.
 
 | # | Step | Expected result |
 |---|---|---|
-| 1 | Follow-ups on (the default). Create a meeting that starts in 3 minutes and lasts 5 minutes. | 5 minutes after the meeting ends, a notification arrives: "How did “<title>” go?", with "Open assistant". |
+| 1 | Follow-ups on (the default). Create a meeting that starts in 3 minutes and lasts 5 minutes. | 5 minutes after the meeting ends, a notification arrives: "How did "<title>" go?", with "Open assistant". |
 | 2 | Tap "Open assistant". | The assistant opens and asks for follow-up ideas on its own (1 quota request). The suggested actions need confirmation. |
 | 3 | Open `meetingguardai://assistant?followup=<meetingId>` with adb. | The assistant opens with a "Get follow-up ideas" button. It does **not** start by itself. |
 | 4 | Turn follow-ups off and repeat step 1. | No follow-up notification. |
@@ -606,7 +611,7 @@ build, plus a Microsoft account with a few calendar events. Without the client i
 does not exist and this section is skipped. **Precondition: the phase-1 Firestore rules must be
 deployed first** (`docs/HANDOFF.md` §2 step 10). Against the older rules, Outlook-imported and
 recurring-meeting writes are rejected by the server; the outbox retries them for a while (the
-"unsynced" count), but persistent rejections are eventually dropped and rolled back — do not run
+"unsynced" count), but persistent rejections are eventually dropped and rolled back - do not run
 this section, or any recurring-meeting rows, before the rules redeploy.
 
 | # | Step | Expected result |
@@ -678,6 +683,41 @@ Row 4 stuck on "activating" for minutes -> the webhook is not reachable or its s
 check the RevenueCat webhook log and the function logs, then `docs/SETUP.md` §11. After ~2
 minutes the screen honestly returns to idle ("Still processing"); the plan still flips on its
 own once the webhook works - verify it does.
+
+### T18. Zoom auto links (only when `docs/SETUP.md` §12 is done)
+
+Before the Zoom setup, the only check is the OFF state: Video call = Zoom shows the paste hint
+plus the muted "Automatic Zoom links are not set up yet" note, and saving without a link keeps
+the meeting link-free (no pending card). After §12:
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Create a meeting, Video call = Zoom, leave the link empty. | The form hint says "A Zoom link will be created when you save". After Save the details card shows the pending note, then (seconds) the real `zoom.us` Join link; the passcode line appears only when the host account issues one (null is normal). The meeting exists in the Zoom web portal. |
+| 2 | Paste a Zoom link by hand instead. | No server call, the pasted link stays exactly as pasted (paste always wins). |
+| 3 | Edit the linked meeting's title and time. | The Zoom portal shows the new topic and start; the join url does NOT change. |
+| 4 | Delete the linked meeting (list swipe, details, and via the assistant). | The Zoom meeting disappears from the portal in all three paths. |
+| 5 | Ask the assistant to create a meeting with a Zoom call. | After the confirmation, same behavior as row 1 (executor parity). |
+| 6 | Airplane mode on, create a Zoom meeting, Save, open details. | The card shows "could not be created" + Retry. Reconnect, tap Retry -> the link appears. Nothing retries by itself on reconnect; a fresh app session heals it automatically when the details screen opens (ARCHITECTURE §24 offline semantics). |
+| 7 | Create Zoom meetings past the daily cap (`ZOOM_USER_DAILY_LIMIT`, default 30 - lower it in `functions/.env.<projectId>` for the test). | Over the cap the card shows the failed state; the functions log says `quota_exceeded`. Existing links keep working. |
+| 8 | Flip `ZOOM_ENABLED` to false and redeploy (accept the delete offer). | The app falls back to the paste hint after the next sign-in or app restart (the status answer is cached per session). |
+| 9 | Repeat rows 1 and 6 in Spanish. | The pending/failed/hint texts are natural Spanish. |
+
+Functions log check (rows 1-7): entries carry uid, meeting doc id, Zoom numeric id and error
+codes only - never meeting titles or join links.
+
+### T19. Email sign-in and the verification gate (`docs/SETUP.md` §13)
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Landing -> "Continue with email" -> Create account (name, email, password with show/hide). | The account signs in right away; an Alert says the verification email was sent. Meetings, calendar and settings all work unverified. |
+| 2 | Open the AI assistant (and the AI insights entry) while unverified. | The "Verify your email" banner with Resend and "I verified". Sending a message is answered by the same gate message, not a raw error. |
+| 3 | Tap Resend twice quickly. | The second tap is blocked by the 60 s cooldown (button disabled), no duplicate email spam. |
+| 4 | Click the link in the email (check spam), return, tap "I verified". | The banner disappears and the assistant answers. Settings -> account shows "Email verified". |
+| 5 | Sign out, sign in with a wrong password, then with an unknown email. | The SAME generic "wrong email or password" message both times (no account enumeration). |
+| 6 | "Forgot your password?" with your email, and again with an unknown email. | Both show the neutral "reset email sent" text; the real one arrives and the new password signs in. |
+| 7 | With the Email/Password provider DISABLED in the Firebase console, submit the form. | The localized "email sign-in is not enabled" message, no crash (`auth/operation-not-allowed`). |
+| 8 | Sign in with Google on the same device. | No verification banner anywhere (Google accounts count as verified); Settings shows no email-verified row. |
+| 9 | Repeat rows 1-4 in Spanish. | Natural Spanish throughout; the "Crear cuenta" tab label survives large font scales. |
 
 **Admin dashboard** verification (not a device test): `docs/ADMIN.md` - deploy steps, granting
 the admin claim, and a per-callable checklist (user list, disable/enable, set plan, metrics).

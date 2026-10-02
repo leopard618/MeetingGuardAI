@@ -513,7 +513,7 @@ and `types.ts`. One stored document per series (the **master**); occurrences are
   with a different day) gets an EXDATE too: Google renders DTSTART as an instance while
   `expandOccurrences` skips it. Time-modified overrides are NOT pushed (documented limitation; the
   occurrence keeps `overridden: true` locally). Import keeps `singleEvents=true`, with one rule:
-  instances whose `recurringEventId` decodes via `meetingIdFromGoogleEventId` (an `mgev…` id)
+  instances whose `recurringEventId` decodes via `meetingIdFromGoogleEventId` (an `mgev...` id)
   are OUR pushed series - skip importing them (the local master already expands them). Removing
   the repeat from a synced series pushes `recurrence: []`, which clears Google's RRULE (a PATCH
   keeps fields it does not mention), so no phantom series is left in Google Calendar.
@@ -839,6 +839,14 @@ their own Zoom accounts and the app never sees Zoom credentials.
   `onMeetingDeleted(meeting)`. The AI executor treats provider-zoom create/update the same way
   after executing the confirmed action. A pasted link always wins; `ensureLink` is never called
   when a url exists.
+- **Offline and retry semantics** (verified in src/services/zoom): an offline Save still saves
+  (outbox); `ensureLink` then fails with `offline`, the failure is recorded per meeting and the
+  details card shows `zoomCreateFailed` + Retry. NOTHING retries automatically on reconnect -
+  the link appears after the explicit Retry, or in the next app session: the failure map and the
+  status answer live in session memory (cleared on `session:ended`), so a fresh session's
+  details screen auto-fires the idempotent `ensureLink` again and heals the meeting. For the
+  same reason a server-side `ZOOM_ENABLED` flip is only picked up by the NEXT session
+  (`useZoomStatus().refresh` exists but nothing calls it automatically).
 - **Logging**: uid, meeting doc id, Zoom numeric id, error codes. Never topics or links.
 
 ## 25. Email sign-in and the verification gate

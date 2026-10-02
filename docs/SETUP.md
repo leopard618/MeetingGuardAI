@@ -715,7 +715,7 @@ their own entitlement; the Admin SDK bypasses the rules.
       show "Get Pro"/"Get Premium" and the 3-day free trial line; no "coming soon" banner.
 - [ ] With a **license tester** account (Play Console -> Settings -> License testing) and the
       webhook deployed with `REVENUECAT_ALLOW_SANDBOX=true` (11.3 step 5): buying
-      Pro completes, the screen shows "Activating your plan…", and within seconds
+      Pro completes, the screen shows "Activating your plan...", and within seconds
       `entitlements/{uid}` appears in Firestore (`source: "revenuecat"`) and the app shows
       "Current plan" on Pro. The assistant quota rises to the Pro limit.
 - [ ] "Restore purchases" on a reinstalled build finds the subscription; on a fresh account it
@@ -787,6 +787,20 @@ npx firebase deploy --only firestore:rules,functions
 - [ ] Editing the meeting's time updates the Zoom meeting; deleting the meeting deletes it in
       Zoom (check the Zoom web portal).
 - [ ] Functions logs show uid + Zoom meeting id only - never meeting titles.
+
+### 12.5 Troubleshooting
+
+- **Create fails right away with "not configured"** (app shows the create-failed card; logs show
+  `zoom.upstream_failed` with status 400/401): the token mint was rejected - re-check the three
+  secrets (12.2) and that the marketplace app is ACTIVATED (12.1 step 5). After fixing a secret,
+  redeploy the functions so they pick the new version up.
+- **Create fails with "not configured" and status 404**: the account rejected the `me` host
+  alias for Server-to-Server tokens (some accounts require an explicit user). Fix: set
+  `ZOOM_HOST_USER` in `functions/src/zoom/api.ts` to the host's Zoom email address and
+  redeploy.
+- **"Daily Zoom limit reached"**: the per-user abuse caps (`ZOOM_USER_DAILY_LIMIT`, default 30
+  creates per UTC day; sync/delete share a 10x pool). Raise the param in
+  `functions/.env.<projectId>` if real users hit it.
 
 ## 13. Email/password sign-in (Firebase provider)
 

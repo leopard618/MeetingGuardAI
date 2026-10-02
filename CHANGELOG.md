@@ -10,13 +10,28 @@ navigation, i18n keys (beyond two added alert-status strings) or alert behavior 
 
 ### Added
 
+- **Zoom auto links, server-created** (docs/ARCHITECTURE.md §24; owner setup docs/SETUP.md §12):
+  picking Video call = Zoom and saving without a link now creates a real Zoom meeting on the
+  owner's Server-to-Server OAuth app and writes the join url/passcode into the meeting
+  (`zoomCreateMeeting`/`zoomSyncMeeting`/`zoomDeleteMeeting` callables + `zoomStatus`); edits
+  sync topic/time to Zoom, deletes remove the Zoom meeting (manual and assistant paths alike).
+  Off by default: without the `ZOOM_ENABLED` param and the three Zoom secrets the app keeps the
+  paste-a-link behavior, and the default functions deploy never references the secrets. New
+  Firestore rules key `external.zoomMeetingId` ships with this (deploy rules with the
+  functions); per-user daily caps guard abuse.
+- **Email/password sign-in + verification gate** (docs/ARCHITECTURE.md §25; owner console
+  switch docs/SETUP.md §13): a second landing button opens sign-in / create-account with
+  show/hide password, autofill hints and an inline no-enumeration password reset; unverified
+  email accounts get a verify banner (resend with cooldown + "I verified") on the AI assistant
+  surfaces, which stay gated until verified - everything else works unverified. Graceful
+  "email sign-in is not enabled" message while the Firebase provider is off.
 - **Admin dashboard v2** (`/admin`; docs/ADMIN.md): modern dark UI on the app design tokens,
   four hash-routed tabs (Overview, Users, AI usage, Settings) with hand-rolled SVG charts
   (requests/day, signups/day, input/output tokens/day; 7/30/90-day ranges) and an estimated-cost
   tile driven by the `OPENAI_PRICE_IN_PER_M` / `OPENAI_PRICE_OUT_PER_M` params. New callables
   `adminGetStats`, `adminGetHealth` (runtime health + optional real OpenAI ping) and
   `adminRotateOpenAiKey` (validate against OpenAI, store via Secret Manager, disable prior
-  versions — the key value never appears in logs, errors, Firestore or the browser). The
+  versions - the key value never appears in logs, errors, Firestore or the browser). The
   assistant now aggregates per-UTC-day request/token stats into `adminStats/ai/days/*` and reads
   its OpenAI key from Secret Manager at runtime (5-minute cache, 401-retry, env fallback), so a
   dashboard rotation needs no redeploy.
@@ -32,7 +47,7 @@ navigation, i18n keys (beyond two added alert-status strings) or alert behavior 
   every documented pairing in light AND dark mode).
 - **Shared component kit** (`src/components/ui/`): MGButton, Card, SectionHeader, ListGroup/
   ListRow (incl. destructive rows), Badge, Banner (titled), EmptyState/ErrorState (retry with
-  spinner)/LoadingState/Skeleton, SheetHandle — now used by every screen for consistent cards,
+  spinner)/LoadingState/Skeleton, SheetHandle - now used by every screen for consistent cards,
   rows, buttons, badges, banners and empty/error/loading states.
 - **Restyled screens:** landing, onboarding (incl. pixel-accurate alert previews), legal,
   pricing, settings, alert preferences; dashboard (focal next-meeting card, quick actions,
