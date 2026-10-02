@@ -210,8 +210,19 @@ export const WHATSAPP_APP_SECRET = defineSecret('WHATSAPP_APP_SECRET');
 export const WHATSAPP_VERIFY_TOKEN = defineSecret('WHATSAPP_VERIFY_TOKEN');
 
 export const WHATSAPP_TUNING = {
-  /** The webhook processes inline (no task queue); the assistant deadline is 50 s (§27). */
-  functionTimeoutSeconds: 60,
+  /**
+   * The webhook processes inline (no task queue); the assistant deadline is 50 s (§27). The
+   * budget covers a WHOLE Meta batch (several assistant-bound messages in one POST), so a slow
+   * batch is never killed mid-message after the dedupe claim: Meta gets its answer late (it may
+   * retry meanwhile; dedupe absorbs that) but every claimed message finishes and gets its reply.
+   */
+  functionTimeoutSeconds: 300,
+  /**
+   * processWebhookPayload stops claiming FURTHER messages of a batch once this much of the
+   * budget is spent (the remainder is answered 500 so Meta redelivers it; processed wamids are
+   * absorbed by dedupe). Leaves one worst-case message (50 s assistant + sends) of headroom.
+   */
+  inlineBudgetMs: 240_000,
   /** Same reasoning as ASSISTANT_TUNING: mostly waiting on OpenAI / Graph. */
   memory: '512MiB',
   cpu: 1,
@@ -233,6 +244,12 @@ export const WHATSAPP_TUNING = {
   maxTurns: 10,
   /** "Link your account" replies per unlinked phone per UTC day (then silent drop). */
   unlinkedRepliesPerDay: 3,
+  /**
+   * Failed link-code redemptions (invalid or expired) per phone per UTC day; past the cap the
+   * webhook stops even TRYING to redeem (silent drop). This is the hard ceiling on brute-forcing
+   * the 6-digit code space, independent of the general inbound cap.
+   */
+  codeFailuresPerPhonePerDay: 10,
   /** Webhook dedupe markers (whatsappEvents) are purged this many days after creation. */
   eventTtlDays: 7,
   /** Sessions idle longer than this are purged by dailyMaintenance. */

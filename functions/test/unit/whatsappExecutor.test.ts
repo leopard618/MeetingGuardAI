@@ -240,9 +240,15 @@ describe('executeConfirmedActions', () => {
       changes: null,
     };
     const result = await executeConfirmedActions('u1', [action], { store, now: () => NOW }, 'UTC');
-    expect(result.applied).toBe(1); // one bulk action applied (with per-meeting failures logged)
+    // Partial bulk = applied AND failed (the reply then says some changes did not land).
+    expect(result).toEqual({ applied: 1, unsupported: 0, failed: 1 });
     expect(store.docs.get('u1/m1')?.startAt).toBe('2026-10-06T15:00:00.000Z');
     expect(store.docs.get('u1/m2')?.startAt).toBe('2026-10-06T09:00:00.000Z');
+
+    // A fully successful bulk reports NO failure.
+    const clean: AiAction = { type: 'bulk_update', id: 'a2', summary: 's', confidence: 80, meetingIds: ['m1', 'm2'], shiftMinutes: 60, changes: null };
+    const cleanResult = await executeConfirmedActions('u1', [clean], { store, now: () => NOW }, 'UTC');
+    expect(cleanResult).toEqual({ applied: 1, unsupported: 0, failed: 0 });
   });
 
   it('calls the zoom ensureLink hook for provider zoom with url null, and survives its failure', async () => {

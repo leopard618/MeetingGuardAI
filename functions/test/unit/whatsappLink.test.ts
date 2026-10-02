@@ -15,9 +15,12 @@ import {
   handleLinkStart,
   handleLinkStatus,
   handleUnlink,
+  mintDecision,
+  mintUserFields,
   parseWhatsappUser,
   randomLinkCode,
   type LinkStore,
+  type MintResult,
 } from '../../src/whatsapp/link';
 import { hashLinkCode } from '../../src/whatsapp/signature';
 
@@ -34,8 +37,16 @@ class FakeLinkStore implements LinkStore {
   async mergeUser(uid: string, fields: Record<string, unknown>): Promise<void> {
     this.users.set(uid, { ...(this.users.get(uid) ?? {}), ...fields });
   }
-  async putLinkCode(codeHash: string, entry: { uid: string; expiresAt: string }): Promise<void> {
-    this.codes.set(codeHash, entry);
+  async mintCode(uid: string, codeHash: string, expiresAtIso: string, now: Date): Promise<MintResult> {
+    // Same decision helper the Firestore adapter runs inside its transaction.
+    const decision = mintDecision(this.users.get(uid), now);
+    if (!decision.allowed) return { status: 'rate_limited' };
+    if (decision.previousCodeHash !== null && decision.previousCodeHash !== codeHash) {
+      await this.deleteLinkCode(decision.previousCodeHash);
+    }
+    this.codes.set(codeHash, { uid, expiresAt: expiresAtIso });
+    await this.mergeUser(uid, mintUserFields(codeHash, expiresAtIso, decision.issuedToday, now));
+    return { status: 'minted', issuedToday: decision.issuedToday };
   }
   async deleteLinkCode(codeHash: string): Promise<void> {
     this.codes.delete(codeHash);
@@ -93,6 +104,16 @@ describe('handleLinkStart', () => {
     expect(parseWhatsappUser(store.users.get('u1')).codeIssuesToday).toBe(1);
   });
 
+  it('mintDecision (the in-transaction cap check) enforces the cap and carries the replaced hash', () => {
+    expect(mintDecision(undefined, NOW)).toEqual({ allowed: true, previousCodeHash: null, issuedToday: 1 });
+    const user = { codeHash: 'h0', codeIssuesToday: WHATSAPP_TUNING.codesPerUidPerDay - 1, lastCodeAt: NOW.toISOString() };
+    expect(mintDecision(user, NOW)).toEqual({ allowed: true, previousCodeHash: 'h0', issuedToday: WHATSAPP_TUNING.codesPerUidPerDay });
+    expect(mintDecision({ ...user, codeIssuesToday: WHATSAPP_TUNING.codesPerUidPerDay }, NOW)).toEqual({ allowed: false });
+    // A new UTC day resets the budget.
+    const tomorrow = new Date('2026-10-06T00:00:01.000Z');
+    expect(mintDecision({ ...user, codeIssuesToday: WHATSAPP_TUNING.codesPerUidPerDay }, tomorrow)).toMatchObject({ allowed: true, issuedToday: 1 });
+  });
+
   it('randomLinkCode is always exactly 6 digits (zero-padded)', () => {
     for (let index = 0; index < 50; index += 1) {
       expect(randomLinkCode()).toMatch(/^\d{6}$/);
@@ -109,16 +130,18 @@ describe('handleLinkStatus', () => {
       linked: false,
       displayNumber: null,
       deepLink: null,
+      linkedLast4: null,
     });
     await expect(handleLinkStatus('u1', { enabled: true, displayNumber: '' }, deps)).resolves.toEqual({
       enabled: true,
       linked: false,
       displayNumber: null,
       deepLink: null,
+      linkedLast4: null,
     });
   });
 
-  it('returns digits-only number, the wa.me deep link, and the linked flag', async () => {
+  it('returns digits-only number, the wa.me deep link, the linked flag and the masked own number', async () => {
     const store = new FakeLinkStore();
     await store.mergeUser('u1', { phoneE164: '15551234567', linkedAt: NOW.toISOString() });
     const result = await handleLinkStatus('u1', { enabled: true, displayNumber: '+1 555 123 4567' }, { store, now: () => NOW });
@@ -127,6 +150,7 @@ describe('handleLinkStatus', () => {
       linked: true,
       displayNumber: '15551234567',
       deepLink: 'https://wa.me/15551234567',
+      linkedLast4: '4567',
     });
   });
 });

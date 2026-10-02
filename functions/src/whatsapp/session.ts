@@ -12,7 +12,7 @@
  * never appear in logs (phoneLogId in ./signature.ts). The ports here are injected into the
  * webhook logic so unit tests run on in-memory fakes.
  */
-import type { Firestore } from 'firebase-admin/firestore';
+import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
 import { WHATSAPP_TUNING } from '../config';
 import { aiActionSchema, usageDayKey, type AiAction, type Language } from '../shared/aiContract';
@@ -36,6 +36,8 @@ export interface SessionCounts {
   inbound: number;
   /** "Link your account" replies sent to this (unlinked) phone today. */
   unlinkedReplies: number;
+  /** Failed link-code redemptions today (codeFailuresPerPhonePerDay brute-force ceiling). */
+  codeFailures: number;
 }
 
 export interface WhatsappSession {
@@ -62,7 +64,7 @@ export function emptySession(now: Date): WhatsappSession {
     pendingNonce: null,
     promptMsgId: null,
     actionsExpireAt: null,
-    counts: { day: usageDayKey(now), inbound: 0, unlinkedReplies: 0 },
+    counts: { day: usageDayKey(now), inbound: 0, unlinkedReplies: 0, codeFailures: 0 },
     updatedAt: now.toISOString(),
   };
 }
@@ -70,7 +72,7 @@ export function emptySession(now: Date): WhatsappSession {
 /** Rolls the daily counters when the UTC day changed. Pure. */
 export function rolledCounts(counts: SessionCounts, now: Date): SessionCounts {
   const day = usageDayKey(now);
-  return counts.day === day ? counts : { day, inbound: 0, unlinkedReplies: 0 };
+  return counts.day === day ? counts : { day, inbound: 0, unlinkedReplies: 0, codeFailures: 0 };
 }
 
 /** Drops stale conversation context (idle longer than sessionTtlMinutes); counters survive. */
@@ -101,6 +103,33 @@ export type ClaimResult =
   | { status: 'none' }
   | { status: 'expired' };
 
+/**
+ * The session fields a normal conversation turn may write. The pending* fields are DELIBERATELY
+ * absent: the webhook runs with real concurrency, and a full-document write from a stale
+ * snapshot would resurrect a proposal that claimPendingActions already took (double execution)
+ * or clear one a concurrent invocation just armed. Only three paths ever touch pending*:
+ * savePendingProposal (arm), clearStalePending (conditional disarm) and claimPendingActions
+ * (atomic take). Counters have their own atomic record* methods for the same reason.
+ */
+export interface SessionPatch {
+  uid: string | null;
+  turns: SessionTurn[];
+  updatedAt: string;
+}
+
+/** The pending proposal savePendingProposal arms (claimed later by claimPendingActions). */
+export interface PendingProposal {
+  pendingActions: AiAction[];
+  pendingNonce: string;
+  promptMsgId: string | null;
+  actionsExpireAt: string;
+}
+
+/** Builds the writable sub-view of a session snapshot. Pure. */
+export function sessionPatch(session: WhatsappSession): SessionPatch {
+  return { uid: session.uid, turns: session.turns, updatedAt: session.updatedAt };
+}
+
 export interface WhatsappStore {
   /** Marks the event processed; false when the marker already existed (Meta redelivery). */
   claimEvent(eventId: string, now: Date): Promise<boolean>;
@@ -108,11 +137,27 @@ export interface WhatsappStore {
   getLinkUid(phoneE164: string): Promise<string | null>;
   /**
    * Redeems a link code in ONE transaction: validates the code doc, writes the link + reverse
-   * index, cleans up any previous link of the same uid or phone, deletes the code doc.
+   * index, cleans up any previous link of the same uid or phone, stamps the session's uid
+   * (dropping any proposal armed under a previous uid), deletes the code doc.
    */
   redeemLinkCode(codeHash: string, phoneE164: string, profileName: string | null, now: Date): Promise<RedeemResult>;
   getSession(phoneE164: string): Promise<WhatsappSession | null>;
-  putSession(phoneE164: string, session: WhatsappSession): Promise<void>;
+  /** Atomically rolls the UTC day and increments counts.inbound; returns the NEW counters. */
+  recordInbound(phoneE164: string, now: Date): Promise<SessionCounts>;
+  /** Atomically increments counts.unlinkedReplies (same day roll); returns the new value. */
+  recordUnlinkedReply(phoneE164: string, now: Date): Promise<number>;
+  /** Atomically increments counts.codeFailures (same day roll); returns the new value. */
+  recordCodeFailure(phoneE164: string, now: Date): Promise<number>;
+  /** Merge-writes uid/turns/updatedAt. NEVER touches pending* or counts (see SessionPatch). */
+  saveTurns(phoneE164: string, patch: SessionPatch): Promise<void>;
+  /** Merge-writes the patch plus a complete new proposal (the only arming path). */
+  savePendingProposal(phoneE164: string, patch: SessionPatch, proposal: PendingProposal): Promise<void>;
+  /**
+   * Merge-writes the patch and clears the pending* fields ONLY while the stored pendingNonce
+   * still equals `expectedNonce` (the nonce this invocation's snapshot carried), inside a
+   * transaction: a proposal armed by a CONCURRENT invocation survives a no-action turn.
+   */
+  clearStalePending(phoneE164: string, patch: SessionPatch, expectedNonce: string | null): Promise<void>;
   /**
    * Atomically takes the pending actions of a session (a confirm tap): clears the pending
    * fields inside a transaction so a double tap or a redelivered tap finds nothing to execute.
@@ -173,6 +218,7 @@ export function parseSession(raw: unknown, now: Date): WhatsappSession {
       day: typeof counts.day === 'string' ? counts.day : usageDayKey(now),
       inbound: nonNegativeInt(counts.inbound),
       unlinkedReplies: nonNegativeInt(counts.unlinkedReplies),
+      codeFailures: nonNegativeInt(counts.codeFailures),
     },
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : now.toISOString(),
   };
@@ -183,6 +229,27 @@ export function parseSession(raw: unknown, now: Date): WhatsappSession {
 // ---------------------------------------------------------------------------------------------
 
 const DAY_MS = 86_400_000;
+
+/**
+ * One transactional counter bump with the UTC day roll: concurrent webhook invocations can
+ * never lose an increment (the caps are enforced on the value this returns). Deliberately does
+ * NOT touch updatedAt: the conversation writes own the idle-staleness clock.
+ */
+async function bumpCounter(
+  db: Firestore,
+  ref: DocumentReference,
+  field: 'inbound' | 'unlinkedReplies' | 'codeFailures',
+  now: Date,
+): Promise<SessionCounts> {
+  return db.runTransaction(async (tx): Promise<SessionCounts> => {
+    const snapshot = await tx.get(ref);
+    const current = parseSession(snapshot.exists ? snapshot.data() : null, now);
+    const counts = rolledCounts(current.counts, now);
+    const next: SessionCounts = { ...counts, [field]: counts[field] + 1 };
+    tx.set(ref, { counts: next }, { merge: true });
+    return next;
+  });
+}
 
 export function firestoreWhatsappStore(db: Firestore): WhatsappStore {
   const linkRef = (phone: string) => db.doc(`${WHATSAPP_LINKS_COLLECTION}/${phone}`);
@@ -244,6 +311,13 @@ export function firestoreWhatsappStore(db: Firestore): WhatsappStore {
         }
         tx.set(linkRef(phoneE164), { uid, linkedAt: nowIso, profileName: profileName ?? null });
         tx.set(userRef(uid), { phoneE164, linkedAt: nowIso, codeHash: null, codeExpiresAt: null }, { merge: true });
+        // Stamp the session's uid in the SAME transaction and disarm any proposal that was
+        // pending under a previous uid (it must never execute against the new account).
+        tx.set(
+          sessionRef(phoneE164),
+          { uid, pendingActions: null, pendingNonce: null, promptMsgId: null, actionsExpireAt: null, updatedAt: nowIso },
+          { merge: true },
+        );
         tx.delete(codeRef(codeHash));
         return { status: 'linked', uid };
       });
@@ -254,8 +328,39 @@ export function firestoreWhatsappStore(db: Firestore): WhatsappStore {
       return snapshot.exists ? parseSession(snapshot.data(), new Date()) : null;
     },
 
-    async putSession(phoneE164, session) {
-      await sessionRef(phoneE164).set(session);
+    recordInbound(phoneE164, now) {
+      return bumpCounter(db, sessionRef(phoneE164), 'inbound', now);
+    },
+
+    async recordUnlinkedReply(phoneE164, now) {
+      return (await bumpCounter(db, sessionRef(phoneE164), 'unlinkedReplies', now)).unlinkedReplies;
+    },
+
+    async recordCodeFailure(phoneE164, now) {
+      return (await bumpCounter(db, sessionRef(phoneE164), 'codeFailures', now)).codeFailures;
+    },
+
+    async saveTurns(phoneE164, patch) {
+      await sessionRef(phoneE164).set({ ...patch }, { merge: true });
+    },
+
+    async savePendingProposal(phoneE164, patch, proposal) {
+      await sessionRef(phoneE164).set({ ...patch, ...proposal }, { merge: true });
+    },
+
+    clearStalePending(phoneE164, patch, expectedNonce) {
+      return db.runTransaction(async (tx): Promise<void> => {
+        const snapshot = await tx.get(sessionRef(phoneE164));
+        const current = parseSession(snapshot.exists ? snapshot.data() : null, new Date());
+        const write: Record<string, unknown> = { ...patch };
+        if (current.pendingNonce === expectedNonce) {
+          write.pendingActions = null;
+          write.pendingNonce = null;
+          write.promptMsgId = null;
+          write.actionsExpireAt = null;
+        }
+        tx.set(sessionRef(phoneE164), write, { merge: true });
+      });
     },
 
     claimPendingActions(phoneE164, nonce, now) {
@@ -265,15 +370,12 @@ export function firestoreWhatsappStore(db: Firestore): WhatsappStore {
         const session = parseSession(snapshot.data(), now);
         if (session.pendingActions === null || session.uid === null) return { status: 'none' };
         if (nonce !== null && session.pendingNonce !== nonce) return { status: 'none' };
-        const cleared = {
-          ...session,
-          pendingActions: null,
-          pendingNonce: null,
-          promptMsgId: null,
-          actionsExpireAt: null,
-          updatedAt: now.toISOString(),
-        };
-        tx.set(sessionRef(phoneE164), cleared);
+        // Field-targeted clear: counters or turns written since this snapshot stay intact.
+        tx.set(
+          sessionRef(phoneE164),
+          { pendingActions: null, pendingNonce: null, promptMsgId: null, actionsExpireAt: null, updatedAt: now.toISOString() },
+          { merge: true },
+        );
         const expiresMs = session.actionsExpireAt !== null ? Date.parse(session.actionsExpireAt) : NaN;
         if (!Number.isFinite(expiresMs) || expiresMs < now.getTime()) return { status: 'expired' };
         return { status: 'claimed', uid: session.uid, actions: session.pendingActions, promptMsgId: session.promptMsgId };

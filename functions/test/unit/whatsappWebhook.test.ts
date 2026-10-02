@@ -16,7 +16,17 @@ import { WHATSAPP_TUNING } from '../../src/config';
 import type { AiAction, AssistantRequest, AssistantResponse, Language } from '../../src/shared/aiContract';
 import { BOT_STRINGS } from '../../src/whatsapp/messages';
 import { eventDocId, hashLinkCode } from '../../src/whatsapp/signature';
-import type { ClaimResult, RedeemResult, WhatsappSession, WhatsappStore } from '../../src/whatsapp/session';
+import {
+  emptySession,
+  rolledCounts,
+  type ClaimResult,
+  type PendingProposal,
+  type RedeemResult,
+  type SessionCounts,
+  type SessionPatch,
+  type WhatsappSession,
+  type WhatsappStore,
+} from '../../src/whatsapp/session';
 import type { MeetingStore } from '../../src/whatsapp/executor';
 import type { WhatsappButton, WhatsappSender } from '../../src/whatsapp/send';
 import {
@@ -54,14 +64,64 @@ class FakeStore implements WhatsappStore {
     this.codes.delete(codeHash);
     if (Date.parse(code.expiresAt) < now.getTime()) return { status: 'expired' };
     this.links.set(phone, code.uid);
+    // Like the Firestore transaction: stamp the session uid and disarm any previous proposal.
+    const session = this.sessions.get(phone) ?? emptySession(now);
+    session.uid = code.uid;
+    session.pendingActions = null;
+    session.pendingNonce = null;
+    session.promptMsgId = null;
+    session.actionsExpireAt = null;
+    session.updatedAt = now.toISOString();
+    this.sessions.set(phone, session);
     return { status: 'linked', uid: code.uid };
   }
   async getSession(phone: string): Promise<WhatsappSession | null> {
     const session = this.sessions.get(phone);
     return session ? structuredClone(session) : null;
   }
-  async putSession(phone: string, session: WhatsappSession): Promise<void> {
-    this.sessions.set(phone, structuredClone(session));
+  private bump(phone: string, field: 'inbound' | 'unlinkedReplies' | 'codeFailures', now: Date): SessionCounts {
+    const session = this.sessions.get(phone) ?? emptySession(now);
+    const counts = rolledCounts(session.counts, now);
+    session.counts = { ...counts, [field]: counts[field] + 1 };
+    this.sessions.set(phone, session);
+    return structuredClone(session.counts);
+  }
+  async recordInbound(phone: string, now: Date): Promise<SessionCounts> {
+    return this.bump(phone, 'inbound', now);
+  }
+  async recordUnlinkedReply(phone: string, now: Date): Promise<number> {
+    return this.bump(phone, 'unlinkedReplies', now).unlinkedReplies;
+  }
+  async recordCodeFailure(phone: string, now: Date): Promise<number> {
+    return this.bump(phone, 'codeFailures', now).codeFailures;
+  }
+  async saveTurns(phone: string, patch: SessionPatch): Promise<void> {
+    const session = this.sessions.get(phone) ?? emptySession(new Date(patch.updatedAt));
+    session.uid = patch.uid;
+    session.turns = structuredClone(patch.turns);
+    session.updatedAt = patch.updatedAt;
+    this.sessions.set(phone, session);
+  }
+  async savePendingProposal(phone: string, patch: SessionPatch, proposal: PendingProposal): Promise<void> {
+    await this.saveTurns(phone, patch);
+    const session = this.sessions.get(phone);
+    if (!session) throw new Error('saveTurns always writes');
+    session.pendingActions = structuredClone(proposal.pendingActions);
+    session.pendingNonce = proposal.pendingNonce;
+    session.promptMsgId = proposal.promptMsgId;
+    session.actionsExpireAt = proposal.actionsExpireAt;
+  }
+  async clearStalePending(phone: string, patch: SessionPatch, expectedNonce: string | null): Promise<void> {
+    const currentNonce = this.sessions.get(phone)?.pendingNonce ?? null;
+    await this.saveTurns(phone, patch);
+    const session = this.sessions.get(phone);
+    if (!session) return;
+    if (currentNonce === expectedNonce) {
+      session.pendingActions = null;
+      session.pendingNonce = null;
+      session.promptMsgId = null;
+      session.actionsExpireAt = null;
+    }
   }
   async claimPendingActions(phone: string, nonce: string | null, now: Date): Promise<ClaimResult> {
     const session = this.sessions.get(phone);
@@ -84,15 +144,21 @@ class FakeStore implements WhatsappStore {
 class FakeSender implements WhatsappSender {
   sent: { kind: 'text' | 'buttons'; to: string; body: string; buttons?: WhatsappButton[] }[] = [];
   failNext = false;
+  /** All sendButtons calls fail (clients without interactive support, Graph hiccups). */
+  failButtons = false;
+  /** sendText calls whose body matches fail (lets a test fail ONLY the buttons fallback). */
+  failTextMatching: RegExp | null = null;
 
   async sendText(to: string, body: string): Promise<void> {
     if (this.failNext) {
       this.failNext = false;
       throw new Error('graph down');
     }
+    if (this.failTextMatching !== null && this.failTextMatching.test(body)) throw new Error('graph down');
     this.sent.push({ kind: 'text', to, body });
   }
   async sendButtons(to: string, body: string, buttons: readonly WhatsappButton[]): Promise<void> {
+    if (this.failButtons) throw new Error('graph down');
     this.sent.push({ kind: 'buttons', to, body, buttons: [...buttons] });
   }
 }
@@ -141,7 +207,16 @@ function makeDeps(store: FakeStore, sender: FakeSender, assistant?: WebhookDeps[
 }
 
 function textMessage(overrides: Partial<InboundMessage> = {}): InboundMessage {
-  return { wamid: `wamid.${Math.random().toString(36).slice(2)}`, from: PHONE, type: 'text', text: 'hello', buttonReplyId: null, profileName: 'Ana', ...overrides };
+  return {
+    wamid: `wamid.${Math.random().toString(36).slice(2)}`,
+    from: PHONE,
+    type: 'text',
+    text: 'hello',
+    buttonReplyId: null,
+    profileName: 'Ana',
+    timestamp: null,
+    ...overrides,
+  };
 }
 
 function linkedStore(): FakeStore {
@@ -284,7 +359,7 @@ describe('link flow (unlinked phones)', () => {
     expect(store.sessions.get(PHONE)?.uid).toBe('u1');
   });
 
-  it('answers codeExpired for an expired code and linkPrompt for an unknown one', async () => {
+  it('answers codeExpired for an expired AND for a mistyped code (both mean "get a fresh one")', async () => {
     const store = new FakeStore();
     store.codes.set(hashLinkCode('111111'), { uid: 'u1', expiresAt: new Date(NOW.getTime() - 1).toISOString() });
     const sender = new FakeSender();
@@ -292,8 +367,25 @@ describe('link flow (unlinked phones)', () => {
     await processInboundMessage(textMessage({ text: '111111' }), deps);
     expect(sender.sent[0]?.body).toContain(BOT_STRINGS.en.codeExpired);
     expect(store.links.has(PHONE)).toBe(false);
+    // A typo'd (unknown) code gets the same reply, not the circular "link your account" prompt.
     await processInboundMessage(textMessage({ text: '999999' }), deps);
-    expect(sender.sent[1]?.body).toContain(BOT_STRINGS.en.linkPrompt);
+    expect(sender.sent[1]?.body).toContain(BOT_STRINGS.en.codeExpired);
+    expect(store.sessions.get(PHONE)?.counts.codeFailures).toBe(2);
+  });
+
+  it('stops redeeming after codeFailuresPerPhonePerDay failures (silent brute-force ceiling)', async () => {
+    const store = new FakeStore();
+    const sender = new FakeSender();
+    const { deps } = makeDeps(store, sender);
+    const session = emptySession(NOW);
+    session.counts = { ...session.counts, codeFailures: WHATSAPP_TUNING.codeFailuresPerPhonePerDay };
+    store.sessions.set(PHONE, session);
+    // A VALID code for u1 exists, but the phone burned its failure budget today.
+    store.codes.set(hashLinkCode('042099'), { uid: 'u1', expiresAt: new Date(NOW.getTime() + 60_000).toISOString() });
+    await processInboundMessage(textMessage({ text: '042099' }), deps);
+    expect(store.codes.size).toBe(1); // not even attempted
+    expect(store.links.has(PHONE)).toBe(false);
+    expect(sender.sent).toEqual([]); // silent: nothing for a prober to measure
   });
 });
 
@@ -481,6 +573,81 @@ describe('proposals and confirmation', () => {
     expect(sender.sent.some((item) => item.body === BOT_STRINGS.en.actionUnsupported)).toBe(true);
     expect(store.sessions.get(PHONE)?.pendingActions).toBeNull();
   });
+
+  it('falls back to a PLAIN TEXT confirm prompt when the buttons message cannot be sent', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    sender.failButtons = true;
+    const { deps, meetings } = await propose(store, sender);
+    const fallback = sender.sent.at(-1);
+    expect(fallback?.kind).toBe('text');
+    expect(fallback?.body).toContain('- Create "Dentist" Tuesday 9:30');
+    expect(fallback?.body).toContain(BOT_STRINGS.en.confirmPrompt);
+    // The proposal stays armed, and the 1/2 instruction the user DID see works.
+    await processInboundMessage(textMessage({ text: '1' }), deps);
+    expect(meetings.docs.size).toBe(1);
+  });
+
+  it('disarms the proposal when neither the buttons nor the text fallback could be delivered', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    sender.failButtons = true;
+    sender.failTextMatching = /Reply 1 to confirm/;
+    const { deps, meetings } = await propose(store, sender);
+    expect(store.sessions.get(PHONE)?.pendingActions).toBeNull(); // the user never saw it
+    // A stray "1" cannot confirm the unseen proposal: with nothing pending it is ordinary chat.
+    await processInboundMessage(textMessage({ text: '1' }), deps);
+    expect(meetings.docs.size).toBe(0);
+    expect(sender.sent.every((item) => item.body !== BOT_STRINGS.en.confirmed)).toBe(true);
+  });
+
+  it('reports PARTIAL application when some confirmed actions fail', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const failingDelete: AiAction = { type: 'delete_meeting', id: 'a2', summary: 'Delete "Gone"', confidence: 90, meetingId: 'missing' };
+    const { deps, meetings } = makeDeps(store, sender, async () => okResponse({ reply: 'Two changes.', actions: [createAction, failingDelete] }));
+    await processInboundMessage(textMessage({ text: 'create dentist, delete gone' }), deps);
+    await processInboundMessage(textMessage({ text: '1' }), deps);
+    expect(meetings.docs.size).toBe(1); // the create applied
+    const reply = sender.sent.at(-1)?.body ?? '';
+    expect(reply).toContain(BOT_STRINGS.en.confirmed);
+    expect(reply).toContain(BOT_STRINGS.en.partialFailure);
+  });
+
+  it('a no-action turn whose snapshot PREDATES a concurrent proposal does not clear it', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    await propose(store, sender); // nonce1 armed
+    // Emulate the race: the next invocation's snapshot was read BEFORE the proposal existed.
+    const original = store.getSession.bind(store);
+    let stale = true;
+    store.getSession = async (phone: string) => {
+      const session = await original(phone);
+      if (stale && session) {
+        stale = false;
+        session.pendingActions = null;
+        session.pendingNonce = null;
+        session.promptMsgId = null;
+        session.actionsExpireAt = null;
+      }
+      return session;
+    };
+    const { deps: deps2, meetings: meetings2 } = makeDeps(store, sender); // no-action assistant
+    await processInboundMessage(textMessage({ text: 'thanks' }), deps2);
+    store.getSession = original;
+    expect(store.sessions.get(PHONE)?.pendingActions).toHaveLength(1); // survived the race
+    await processInboundMessage(textMessage({ text: '1' }), deps2);
+    expect(meetings2.docs.size).toBe(1); // and still confirms
+  });
+
+  it('chatting PAST your own proposal clears it (the snapshot carried its nonce)', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    await propose(store, sender);
+    const { deps: deps2 } = makeDeps(store, sender); // no-action assistant
+    await processInboundMessage(textMessage({ text: 'actually forget it' }), deps2);
+    expect(store.sessions.get(PHONE)?.pendingActions).toBeNull();
+  });
 });
 
 describe('processWebhookPayload', () => {
@@ -517,8 +684,86 @@ describe('processWebhookPayload', () => {
         },
       ],
     };
-    await expect(processWebhookPayload(payload, deps)).resolves.toBeUndefined();
+    await expect(processWebhookPayload(payload, deps)).resolves.toBe(true);
     expect(requests).toHaveLength(1);
     expect(requests[0]?.request.messages.at(-1)?.content).toBe('two');
+  });
+
+  it('stops BEFORE claiming the next message when the inline budget is spent, and reports incompleteness', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    let nowMs = NOW.getTime();
+    const { deps } = makeDeps(store, sender, async () => {
+      nowMs += WHATSAPP_TUNING.inlineBudgetMs + 1; // one slow assistant turn eats the budget
+      return okResponse();
+    });
+    deps.now = () => new Date(nowMs);
+    const payload = {
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                contacts: [{ wa_id: PHONE, profile: { name: 'Ana' } }],
+                messages: [
+                  { id: 'wamid.slow', from: PHONE, type: 'text', text: { body: 'one' } },
+                  { id: 'wamid.leftover', from: PHONE, type: 'text', text: { body: 'two' } },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    await expect(processWebhookPayload(payload, deps)).resolves.toBe(false);
+    // The leftover message was never dedupe-claimed: Meta's redelivery (after the 500) runs it.
+    expect(store.events.has(eventDocId('wamid.slow'))).toBe(true);
+    expect(store.events.has(eventDocId('wamid.leftover'))).toBe(false);
+  });
+});
+
+describe('replay protection (signed payloads outlive the dedupe markers)', () => {
+  it('drops messages older than the dedupe window WITHOUT claiming them', async () => {
+    const store = linkedStore();
+    const sender = new FakeSender();
+    const { deps, requests } = makeDeps(store, sender);
+    const oldSeconds = Math.floor((NOW.getTime() - WHATSAPP_TUNING.eventTtlDays * 86_400_000 - 60_000) / 1000);
+    await processInboundMessage(textMessage({ wamid: 'wamid.replayed', timestamp: String(oldSeconds) }), deps);
+    expect(requests).toHaveLength(0);
+    expect(sender.sent).toEqual([]);
+    expect(store.events.size).toBe(0);
+    // A fresh (or absent) timestamp processes normally.
+    await processInboundMessage(textMessage({ timestamp: String(Math.floor(NOW.getTime() / 1000)) }), deps);
+    expect(requests).toHaveLength(1);
+  });
+});
+
+describe('re-linking a linked phone', () => {
+  it('redeems a fresh code from an ALREADY linked phone and rebinds it to the new account', async () => {
+    const store = linkedStore(); // linked to u1
+    store.prefs.set('u2', { language: 'es', timezone: 'UTC' });
+    store.codes.set(hashLinkCode('042099'), { uid: 'u2', expiresAt: new Date(NOW.getTime() + 60_000).toISOString() });
+    const sender = new FakeSender();
+    const { deps, requests } = makeDeps(store, sender);
+    await processInboundMessage(textMessage({ text: '042099' }), deps);
+    expect(store.links.get(PHONE)).toBe('u2');
+    expect(store.sessions.get(PHONE)?.uid).toBe('u2');
+    expect(requests).toHaveLength(0); // the code never reaches the assistant (quota spared)
+    expect(sender.sent[0]?.body).toBe(BOT_STRINGS.es.linkSuccess); // the NEW account's language
+  });
+
+  it('answers codeExpired for an expired code; an unknown 6-digit text still reaches the assistant', async () => {
+    const store = linkedStore();
+    store.codes.set(hashLinkCode('111111'), { uid: 'u2', expiresAt: new Date(NOW.getTime() - 1).toISOString() });
+    const sender = new FakeSender();
+    const { deps, requests } = makeDeps(store, sender);
+    await processInboundMessage(textMessage({ text: '111111' }), deps);
+    expect(sender.sent[0]?.body).toBe(BOT_STRINGS.en.codeExpired);
+    expect(store.links.get(PHONE)).toBe('u1'); // unchanged
+    await processInboundMessage(textMessage({ text: '123456' }), deps);
+    expect(requests).toHaveLength(1); // 'invalid' falls through to the bridge
+    expect(requests[0]?.request.messages.at(-1)?.content).toBe('123456');
   });
 });

@@ -13,12 +13,14 @@
     "countdown": "Expires in {{time}}",
     "copy": "Copy code",
     "copied": "Code copied",
-    "expired": "This code has expired. Generate a new one."
+    "expired": "This code has expired. Generate a new one.",
+    "sendTo": "Send this code by WhatsApp to {{number}}"
   },
   "open": "Open WhatsApp",
   "linked": {
     "title": "Your WhatsApp is linked",
-    "number": "Bot number: {{number}}"
+    "number": "Bot number: {{number}}",
+    "yourNumber": "Linked number ends in {{last4}}"
   },
   "unlink": {
     "action": "Unlink WhatsApp",

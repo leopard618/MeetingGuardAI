@@ -1466,6 +1466,8 @@ export interface WhatsAppLinkStatus {
   displayNumber: string | null;
   /** "https://wa.me/<digits>"; null while the integration is not configured. */
   deepLink: string | null;
+  /** Last digits of the phone linked to THIS account (masked owner visibility); null while unlinked. */
+  linkedLast4: string | null;
 }
 
 /**

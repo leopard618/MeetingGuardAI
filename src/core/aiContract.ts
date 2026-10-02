@@ -673,6 +673,12 @@ export const whatsappLinkStatusResponseSchema = z.object({
   displayNumber: whatsappPhoneSchema.nullable(),
   /** "https://wa.me/<digits>" chat link for the bot number, or null while not configured. */
   deepLink: httpUrlSchema.nullable(),
+  /**
+   * Last digits of the phone LINKED to this account (never the full number), or null while
+   * unlinked. Lets the owner see which phone the bot answers to (a leaked link code binds an
+   * attacker's phone; this makes that visible in Settings).
+   */
+  linkedLast4: z.string().regex(/^[0-9]{1,4}$/).nullable(),
 });
 export type WhatsappLinkStatusResponse = z.infer<typeof whatsappLinkStatusResponseSchema>;
 

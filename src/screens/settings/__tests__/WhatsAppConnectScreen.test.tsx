@@ -42,6 +42,7 @@ const ENABLED: WhatsAppLinkStatus = {
   linked: false,
   displayNumber: '15550253483',
   deepLink: 'https://wa.me/15550253483',
+  linkedLast4: null,
 };
 
 async function renderScreen() {
@@ -87,7 +88,7 @@ it('shows a loader while the status is unknown and an error state with retry on 
 });
 
 it('explains that the bot is not available yet while the server integration is off', async () => {
-  mockStatus = { enabled: false, linked: false, displayNumber: null, deepLink: null };
+  mockStatus = { enabled: false, linked: false, displayNumber: null, deepLink: null, linkedLast4: null };
   await renderScreen();
   expect(screen.getByTestId('whatsapp-unavailable')).toBeTruthy();
   expect(screen.queryByTestId('whatsapp-generate')).toBeNull();
@@ -102,6 +103,8 @@ it('generates a code, counts it down, copies it and opens WhatsApp with the code
   });
   expect(screen.getByTestId('whatsapp-code').props.children).toBe('004217');
   expect(screen.getByTestId('whatsapp-countdown').props.children).toContain('9:07');
+  // The destination number is shown with the code (WhatsApp may live on another device).
+  expect(screen.getByTestId('whatsapp-send-to').props.children).toContain('+15550253483');
 
   await act(async () => {
     fireEvent.press(screen.getByTestId('whatsapp-copy'));
@@ -139,11 +142,13 @@ it('explains a rate-limited code request', async () => {
 });
 
 it('shows the linked state and unlinks after the confirmation', async () => {
-  mockStatus = { ...ENABLED, linked: true };
+  mockStatus = { ...ENABLED, linked: true, linkedLast4: '4567' };
   mockUnlink.mockResolvedValue(undefined);
   await renderScreen();
 
   expect(screen.getByTestId('whatsapp-linked-number').props.children).toContain('+15550253483');
+  // Owner visibility of WHICH phone is bound (masked).
+  expect(screen.getByTestId('whatsapp-linked-own-number').props.children).toContain('4567');
   await act(async () => {
     fireEvent.press(screen.getByTestId('whatsapp-open'));
   });

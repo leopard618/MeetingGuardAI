@@ -85,7 +85,20 @@ describe('formatting', () => {
     const prompt = formatConfirmPrompt('en', summaries);
     expect(prompt).toContain('- Create "Team sync" tomorrow at 9:00');
     expect(prompt).toContain(BOT_STRINGS.en.confirmPrompt);
-    // 10 actions x 100 chars stays inside the (truncated) 1000-char interactive body minus slack.
     expect(formatConfirmPrompt('es', ['x'.repeat(90)]).length).toBeLessThanOrEqual(MAX_INTERACTIVE_BODY_CHARS);
+  });
+
+  it('the 1/2 instruction ALWAYS survives: bullets are capped and collapsed, never the tail', () => {
+    // Worst case the contract allows: maxActions x maxSummaryChars (10 x 500).
+    const summaries = Array.from({ length: 10 }, (_, index) => `${index} ${'y'.repeat(499)}`);
+    for (const language of ['en', 'es'] as const) {
+      const prompt = formatConfirmPrompt(language, summaries);
+      expect(prompt.length).toBeLessThanOrEqual(MAX_INTERACTIVE_BODY_CHARS); // sendButtons never truncates it
+      expect(prompt.endsWith(BOT_STRINGS[language].confirmPrompt)).toBe(true);
+      // Per-summary cap: three plain dots, no 500-char bullet.
+      expect(prompt).toContain('...');
+      // Omitted bullets collapse into the "and N more" line instead of vanishing silently.
+      expect(prompt).toContain(BOT_STRINGS[language].confirmMore.replace('{count}', '4'));
+    }
   });
 });

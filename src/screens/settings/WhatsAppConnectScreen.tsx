@@ -2,10 +2,12 @@
  * WhatsApp connect (route "WhatsAppConnect", reached from Settings and from the creation
  * chooser): links this account to the WhatsApp bot (docs/ARCHITECTURE.md §27).
  * - unavailable: the server integration is off (WHATSAPP_ENABLED false) - explainer only;
- * - not linked: explainer + "Generate code"; with a code: the 6 digits, a live countdown,
- *   copy, and "Open WhatsApp" (wa.me deep link with the code prefilled). The screen polls the
- *   link status while a code is active so it flips to "linked" when the bot accepts the code;
- * - linked: the bot number, "Open WhatsApp" and unlink behind a confirmation.
+ * - not linked: explainer + "Generate code"; with a code: the 6 digits, the bot number to send
+ *   it to (WhatsApp may live on another device), a live countdown, copy, and "Open WhatsApp"
+ *   (wa.me deep link with the code prefilled). The screen polls the link status while a code is
+ *   active so it flips to "linked" when the bot accepts the code;
+ * - linked: the bot number, the MASKED linked phone (owner visibility of which phone is bound),
+ *   "Open WhatsApp" and unlink behind a confirmation.
  * Every string lives in the "whatsapp" namespace (EN + ES); no code or number is ever logged.
  */
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
@@ -166,6 +168,11 @@ export function WhatsAppConnectScreen(): ReactElement {
           <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }} testID="whatsapp-linked-number">
             {t('whatsapp:linked.number', { number: status?.displayNumber ? `+${status.displayNumber}` : '' })}
           </Text>
+          {status?.linkedLast4 ? (
+            <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }} testID="whatsapp-linked-own-number">
+              {t('whatsapp:linked.yourNumber', { last4: status.linkedLast4 })}
+            </Text>
+          ) : null}
           <MGButton
             style={styles.action}
             disabled={deepLink === null || busy !== null}
@@ -221,6 +228,11 @@ export function WhatsAppConnectScreen(): ReactElement {
           >
             {code.code}
           </Text>
+          {status?.displayNumber ? (
+            <Text variant="bodyMedium" style={[styles.countdown, { color: colors.onSurfaceVariant }]} testID="whatsapp-send-to">
+              {t('whatsapp:code.sendTo', { number: `+${status.displayNumber}` })}
+            </Text>
+          ) : null}
           {codeActive ? (
             <Text variant="bodyMedium" style={[styles.countdown, { color: colors.onSurfaceVariant }]} testID="whatsapp-countdown">
               {t('whatsapp:code.countdown', { time: formatCountdown(remaining) })}

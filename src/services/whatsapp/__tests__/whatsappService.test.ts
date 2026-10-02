@@ -17,6 +17,7 @@ const ENABLED_STATUS = {
   linked: false,
   displayNumber: '15550253483',
   deepLink: 'https://wa.me/15550253483',
+  linkedLast4: null,
 };
 
 interface HttpsLikeError extends Error {
@@ -104,6 +105,7 @@ describe('status (whatsappLinkStatus)', () => {
       linked: false,
       displayNumber: null,
       deepLink: null,
+      linkedLast4: null,
     });
     expect(unconfigured.getKnownStatus()).toBeNull();
   });

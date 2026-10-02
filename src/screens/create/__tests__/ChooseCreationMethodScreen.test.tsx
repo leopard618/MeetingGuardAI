@@ -83,7 +83,7 @@ it('shows WhatsApp as a disabled "Coming soon" option while the bot is not confi
 
 it('enables the WhatsApp card once the bot is configured and opens the connect screen', async () => {
   expect(isMethodAvailable('whatsapp', { whatsappEnabled: true })).toBe(true);
-  mockStatus = { enabled: true, linked: false, displayNumber: '15550253483', deepLink: 'https://wa.me/15550253483' };
+  mockStatus = { enabled: true, linked: false, displayNumber: '15550253483', deepLink: 'https://wa.me/15550253483', linkedLast4: null };
   await renderChooser();
   const whatsapp = screen.getByTestId('create-method-whatsapp');
   expect(whatsapp.props.accessibilityState).toEqual(expect.objectContaining({ disabled: false }));

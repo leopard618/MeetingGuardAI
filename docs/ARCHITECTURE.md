@@ -1028,7 +1028,7 @@ then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions 
 
 - **Functions** (`functions/src/whatsapp/index.ts`):
   - `whatsappLinkStart {} -> { code, expiresAtIso }`, `whatsappLinkStatus {} -> { enabled,
-    linked, displayNumber, deepLink }`, `whatsappUnlink {} -> { unlinked }`: onCall, NO secrets,
+    linked, displayNumber, deepLink, linkedLast4 }`, `whatsappUnlink {} -> { unlinked }`: onCall, NO secrets,
     ALWAYS exported (zoomStatus precedent). status needs auth only and answers from the
     non-secret params + Firestore; start/unlink need a VERIFIED caller (same rule as the
     assistant) and throw `not_configured` while `WHATSAPP_ENABLED` is false (ratified: full
@@ -1048,11 +1048,17 @@ then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions 
   + timing-safe `hub.verify_token` match -> 200 with the raw `hub.challenge`, else 403). POST:
   1) `X-Hub-Signature-256` = HMAC-SHA256 of the RAW body bytes (`req.rawBody`; Meta escapes
   non-ASCII, so re-serialized JSON would break the digest) with the App Secret, compared
-  timing-safely - reject 401, never log payloads; 2) per-message dedupe: create-once marker
+  timing-safely - reject 401, never log payloads; 2) per-message age check + dedupe: a message
+  whose `messages[].timestamp` is older than `eventTtlDays` is dropped UNCLAIMED (the dedupe
+  markers are purged on that schedule, so the acceptance window and the replay window coincide -
+  a captured signed payload cannot be replayed after the purge), then the create-once marker
   `whatsappEvents/{sha256(wamid)}` (wamids can contain `/`), already-exists -> skip (absorbs
   Meta redelivery during long runs); 3) `value.statuses` and echoes from our own number are
-  ignored; 4) INLINE processing, then 200. Inline vs task queue: no new deps/IAM/function,
-  dedupe makes redelivery safe, v2 allows 60 s and the assistant deadline is 50 s. Documented
+  ignored; 4) INLINE processing: the function timeout (300 s) covers a whole worst-case batch
+  (assistant deadline 50 s per message), and `processWebhookPayload` stops claiming FURTHER
+  messages once `inlineBudgetMs` is spent, answering 500 so Meta redelivers the unclaimed rest
+  (dedupe absorbs the processed part) - a claimed message is therefore never lost to a timeout
+  kill. Inline vs task queue: no new deps/IAM/function, dedupe makes redelivery safe. Documented
   risk: Meta may throttle or disable a subscription that answers slowly; revisit a Cloud Tasks
   hop only if that is observed.
 - **Collections** (ALL server-only, explicit deny blocks in firestore.rules like zoomMeetings;
@@ -1066,16 +1072,37 @@ then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions 
     code is returned to the app exactly once and never stored).
   - `whatsappSessions/{phoneE164}` = `{ uid|null, turns[<=10 {role,text,atIso}],
     pendingActions|null, pendingNonce|null, promptMsgId|null, actionsExpireAt|null,
-    counts{day,inbound,unlinkedReplies}, updatedAt }`. Conversation context resets after 15 idle
-    minutes (counters survive); sessions idle > 30 days are purged by dailyMaintenance, which
-    also purges expired whatsappEvents and whatsappLinkCodes.
-- **Linking**: the app calls whatsappLinkStart (6-digit crypto-random code, TTL 10 min), the
-  user sends the code to the bot number (allow-listed during the test phase). Webhook, unlinked
-  sender, six-digit text: ONE transaction validates the code hash, writes
-  whatsappLinks + whatsappUsers (cleaning any previous phone of the uid or previous uid of the
-  phone), deletes the code doc -> bilingual success reply. Anything else from an unlinked phone
-  -> "link your account in the app" (EN+ES in one message), capped at 3/phone/day. unlink and
-  deleteAccount (port `deleteWhatsAppData`, called after the usage purge) delete the same trio.
+    counts{day,inbound,unlinkedReplies,codeFailures}, updatedAt }`. Conversation context resets
+    after 15 idle minutes (counters survive); sessions idle > 30 days are purged by
+    dailyMaintenance, which also purges expired whatsappEvents and whatsappLinkCodes.
+    WRITE DISCIPLINE (the webhook runs with real concurrency, so full-document writes from stale
+    snapshots are banned): counters move ONLY through transactional record* increments (the caps
+    read the post-increment value, so parallel deliveries cannot undercount); ordinary turns
+    merge-write only `{uid, turns, updatedAt}` (`SessionPatch`); and the pending* fields are
+    touched by exactly three paths - `savePendingProposal` (arm), `clearStalePending`
+    (transactional disarm, only while the stored nonce still equals the one this invocation's
+    snapshot carried, so a no-action turn can never swallow a proposal a concurrent message just
+    armed) and `claimPendingActions` (atomic take). Nothing else can resurrect a claimed
+    proposal, so a confirmed action list executes exactly once.
+- **Linking**: the app calls whatsappLinkStart (6-digit crypto-random code, TTL 10 min; the
+  daily-cap check, the replacement of the previous code doc and the rate-limit write run in ONE
+  `mintCode` transaction, so concurrent calls can neither exceed the cap nor strand a
+  replaced-but-still-redeemable code doc), the user sends the code to the bot number
+  (allow-listed during the test phase). Webhook, six-digit text from an UNLINKED sender: ONE
+  transaction validates the code hash, writes whatsappLinks + whatsappUsers (cleaning any
+  previous phone of the uid or previous uid of the phone), stamps the session's uid (disarming
+  any proposal pending under a previous uid) and deletes the code doc -> bilingual success
+  reply. A six-digit text from a LINKED phone attempts the SAME redemption first (account
+  switch on one phone: rebinding replies linkSuccess in the NEW account's language; expired
+  replies codeExpired; only 'invalid' falls through to the assistant). A failed redemption
+  (typo or stale code) answers codeExpired - accurate in both cases - and counts toward
+  `codeFailuresPerPhonePerDay` (10): past that ceiling the webhook stops redeeming entirely
+  (silent for unlinked phones, plain chat for linked ones), which is the hard brute-force bound
+  on the 6-digit space. Anything else from an unlinked phone -> "link your account in the app"
+  (EN+ES in one message), capped at 3/phone/day. unlink and deleteAccount (port
+  `deleteWhatsAppData`, called after the usage purge) delete the same trio. The app's Settings
+  screen shows the MASKED linked number (`linkedLast4`), so an account owner notices if a
+  leaked code bound someone else's phone; Unlink is one tap away there.
 - **Assistant bridge**: `runAssistant(uid, request, deps)` is the auth-free seam split out of
   `handleAssistant` (same file; the callable still parses + gates exactly as before), and
   `buildAssistantDeps(db)` (assistant/index.ts) is the shared dependency set - the WhatsApp path
@@ -1088,12 +1115,18 @@ then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions 
 - **Confirm flow**: proposed MUTATING actions are never executed directly. The bot sends the
   action summaries plus interactive reply buttons Confirm/Cancel (ids `wa_confirm:<nonce>` /
   `wa_cancel:<nonce>`; text fallback 1/yes/si/ok vs 2/no/cancel, accent-normalized), stores them
-  as `pendingActions` with a 15 min expiry, and executes only on confirm.
-  `claimPendingActions` clears the pending set INSIDE a transaction, so a double tap or a
-  redelivered tap finds nothing to execute (idempotency; `promptMsgId` identifies the proposal).
-  `share_meeting` and `list` are answered IMMEDIATELY with a forwardable formatted summary
-  (never email); scopes 'occurrence'/'following' are declined ("use the app") - the recurrence
-  split/override engine is app-only.
+  as `pendingActions` with a 15 min expiry, and executes only on confirm. The prompt body
+  budgets its BULLETS (per-summary cap + "and N more" collapse), never the tail, so the 1/2
+  instruction always survives the interactive-body limit. If the buttons message fails to send,
+  the same body goes out as plain text (it carries the 1/2 instruction); if that also fails,
+  the proposal is disarmed - an armed proposal the user never saw must not be confirmable by a
+  stray later "1". `claimPendingActions` clears the pending set INSIDE a transaction, so a
+  double tap or a redelivered tap finds nothing to execute (idempotency; `promptMsgId`
+  identifies the proposal). The confirm reply distinguishes full success from PARTIAL
+  application ("some changes could not be applied") whenever any confirmed action - or any
+  member of a bulk_update - failed. `share_meeting` and `list` are answered IMMEDIATELY with a
+  forwardable formatted summary (never email); scopes 'occurrence'/'following' are declined
+  ("use the app") - the recurrence split/override engine is app-only.
 - **Executor** (`executor.ts`): applies confirmed create/update/delete/bulk_update via the Admin
   SDK on `users/{uid}/meetings`. uid comes ONLY from the link doc; every action is re-validated
   with the SAME zod contract; written documents match the exact shape `isValidMeeting` accepts
@@ -1102,10 +1135,13 @@ then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions 
   zoom + url null + ZOOM_ENABLED -> `handleZoomCreateMeeting` via the exported `zoomDeps()`;
   schedule edits -> sync; deletes -> remove; all best effort (a failure keeps url null and the
   app heals it via ensureLink, §24).
-- **Abuse bounds**: per-PHONE `WHATSAPP_USER_DAILY_LIMIT` (default 50) counted on the session doc
-  (bounds Graph sends and Firestore work from unlinked spam, repeated buttons and code guessing
-  even without a uid); over the cap -> ONE bilingual notice, then silent drop. Unlinked prompts
-  capped at 3/phone/day. Link codes capped at 5/uid/day. Send failures are LOG AND DROP, never
+- **Abuse bounds**: per-PHONE `WHATSAPP_USER_DAILY_LIMIT` (default 50) counted ATOMICALLY on the
+  session doc (transactional increment, checked on the post-increment value - parallel blasts
+  cannot stretch the cap; bounds Graph sends and Firestore work from unlinked spam, repeated
+  buttons and code guessing even without a uid); over the cap -> ONE bilingual notice, then
+  silent drop. Unlinked prompts capped at 3/phone/day. Link codes capped at 5/uid/day
+  (transactional), failed redemptions at `codeFailuresPerPhonePerDay` 10/phone/day (then no
+  redemption attempts at all). Send failures are LOG AND DROP, never
   retried (the bot only ever replies inside Meta's 24 h service window, so free-form sends are
   always allowed; template-only error 131047 cannot normally occur).
 - **Logging**: uid, wamid and `phoneLogId` ONLY, where `phoneLogId` is the first 16 hex chars of
@@ -1115,4 +1151,8 @@ then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions 
   whatsappLinkStatus answer per auth session; the connect screen polls whatsappLinkStatus every
   8 s ONLY while a link code is pending AND the screen is focused and the app foregrounded (so
   the screen flips to "linked" by itself), and stops otherwise - the callable load stays
-  negligible.
+  negligible. The code view names the bot number next to the code (WhatsApp may live on another
+  device than the app, where the wa.me button cannot open); the linked view shows the MASKED
+  linked phone (`linkedLast4`). Known gap (accepted for now): there is no owner push/email on a
+  successful link - the server has no push pipeline yet; the masked number plus the 8 s poll is
+  the visibility story until one exists.

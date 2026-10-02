@@ -7,9 +7,11 @@
  *
  * Product text rule (tested by src/i18n/__tests__/noTypographicChars.test.ts, which sweeps
  * functions/src, and by test/unit/whatsappMessages.test.ts here): plain punctuation only - no
- * em/en dashes, no ellipsis character, no curly quotes. Spanish accents are fine.
+ * em/en dashes, no ellipsis character, no curly quotes. Spanish accents, inverted marks and
+ * guillemets are fine (and expected: the app's ES voice uses them, so the bot matches it).
  */
 import type { Language } from '../shared/aiContract';
+import { MAX_INTERACTIVE_BODY_CHARS } from './send';
 
 export interface BotMeetingSummaryInput {
   title: string;
@@ -30,8 +32,12 @@ interface BotStrings {
   quotaExceeded: string;
   /** Shown above the action list; the Confirm/Cancel buttons or the 1/2 text fallback answer it. */
   confirmPrompt: string;
+  /** "and {count} more" line when the confirm prompt cannot show every action summary. */
+  confirmMore: string;
   buttons: { confirm: string; cancel: string };
   confirmed: string;
+  /** Appended after `confirmed` when SOME confirmed actions failed (partial application). */
+  partialFailure: string;
   cancelled: string;
   actionsExpired: string;
   unsupportedType: string;
@@ -48,8 +54,10 @@ const EN: BotStrings = {
   codeExpired: 'That code is not valid anymore. Open the app and generate a new one.',
   quotaExceeded: 'You reached your daily assistant limit. It resets at midnight UTC.',
   confirmPrompt: 'Should I apply this? Reply 1 to confirm or 2 to cancel.',
+  confirmMore: 'and {count} more',
   buttons: { confirm: 'Confirm', cancel: 'Cancel' },
   confirmed: 'Done. I applied the changes.',
+  partialFailure: 'Some changes could not be applied. Please check in the app.',
   cancelled: 'Cancelled. I did not change anything.',
   actionsExpired: 'That proposal expired. Ask me again and I will prepare it once more.',
   unsupportedType: 'I can only read text messages for now. Please type your request.',
@@ -61,13 +69,15 @@ const EN: BotStrings = {
 };
 
 const ES: BotStrings = {
-  linkSuccess: 'Tu WhatsApp quedó vinculado a MeetingGuard. Pregúntame por tus reuniones, por ejemplo "Qué tengo mañana?"',
-  linkPrompt: 'Hola! Para usar el asistente de MeetingGuard aquí, abre la app, entra en Ajustes > WhatsApp y envíame el código de 6 dígitos que te muestra.',
+  linkSuccess: 'Tu WhatsApp quedó vinculado a MeetingGuard. Pregúntame por tus reuniones, por ejemplo «¿Qué tengo mañana?»',
+  linkPrompt: '¡Hola! Para usar el asistente de MeetingGuard aquí, abre la app, entra en Ajustes > WhatsApp y envíame el código de 6 dígitos que te muestra.',
   codeExpired: 'Ese código ya no es válido. Abre la app y genera uno nuevo.',
   quotaExceeded: 'Alcanzaste tu límite diario del asistente. Se reinicia a medianoche UTC.',
-  confirmPrompt: 'Lo aplico? Responde 1 para confirmar o 2 para cancelar.',
+  confirmPrompt: '¿Lo aplico? Responde 1 para confirmar o 2 para cancelar.',
+  confirmMore: 'y {count} más',
   buttons: { confirm: 'Confirmar', cancel: 'Cancelar' },
   confirmed: 'Listo. Apliqué los cambios.',
+  partialFailure: 'Algunos cambios no se pudieron aplicar. Revísalo en la app.',
   cancelled: 'Cancelado. No cambié nada.',
   actionsExpired: 'Esa propuesta expiró. Pídemelo otra vez y la preparo de nuevo.',
   unsupportedType: 'Por ahora solo puedo leer mensajes de texto. Escribe tu solicitud.',
@@ -101,9 +111,30 @@ export function formatMeetingSummary(language: Language, meeting: BotMeetingSumm
   return lines.join('\n');
 }
 
-/** The confirm prompt body: the proposal summaries plus the confirm/cancel instruction. */
+/** Longest action summary a confirm-prompt bullet shows (the tail becomes three plain dots). */
+export const MAX_PROMPT_SUMMARY_CHARS = 140;
+
+/**
+ * The confirm prompt body: the proposal summaries plus the confirm/cancel instruction. The
+ * BULLETS are budgeted, never the instruction: sendButtons truncates an overlong interactive
+ * body tail-first, and the tail is exactly where the 1/2 instruction lives - so each summary is
+ * capped and trailing bullets collapse into an "and N more" line until the whole body fits.
+ */
 export function formatConfirmPrompt(language: Language, summaries: readonly string[]): string {
   const s = botStrings(language);
-  const bullets = summaries.map((summary) => `- ${summary}`).join('\n');
-  return `${bullets}\n\n${s.confirmPrompt}`;
+  const budget = MAX_INTERACTIVE_BODY_CHARS - s.confirmPrompt.length - 2;
+  const bullets = summaries.map((summary) =>
+    summary.length > MAX_PROMPT_SUMMARY_CHARS ? `- ${summary.slice(0, MAX_PROMPT_SUMMARY_CHARS - 3)}...` : `- ${summary}`,
+  );
+  let shown = bullets.length;
+  let block = '';
+  for (;;) {
+    const lines = bullets.slice(0, shown);
+    const omitted = bullets.length - shown;
+    if (omitted > 0) lines.push(s.confirmMore.replace('{count}', String(omitted)));
+    block = lines.join('\n');
+    if (block.length <= budget || shown <= 1) break;
+    shown -= 1;
+  }
+  return `${block}\n\n${s.confirmPrompt}`;
 }

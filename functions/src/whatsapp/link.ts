@@ -62,12 +62,20 @@ export function parseWhatsappUser(raw: unknown): WhatsappUserDoc {
   };
 }
 
+export type MintResult = { status: 'minted'; issuedToday: number } | { status: 'rate_limited' };
+
 export interface LinkStore {
   /** Raw whatsappUsers/{uid} data, or undefined when missing. */
   getUser(uid: string): Promise<unknown>;
   /** Merge-writes whatsappUsers/{uid}. */
   mergeUser(uid: string, fields: Record<string, unknown>): Promise<void>;
-  putLinkCode(codeHash: string, entry: { uid: string; expiresAt: string }): Promise<void>;
+  /**
+   * The whole check-and-mint in ONE transaction (mintDecision over the freshly read user doc):
+   * re-checks the daily cap, deletes the replaced code doc, writes the new code doc and the
+   * rate-limit state together - concurrent whatsappLinkStart calls can neither exceed the cap
+   * nor strand a replaced-but-still-redeemable code doc ("one active code per uid" holds).
+   */
+  mintCode(uid: string, codeHash: string, expiresAtIso: string, now: Date): Promise<MintResult>;
   deleteLinkCode(codeHash: string): Promise<void>;
   deleteLink(phoneE164: string): Promise<void>;
   deleteSession(phoneE164: string): Promise<void>;
@@ -92,33 +100,40 @@ function sameUtcDay(lastCodeAt: string | null, now: Date): boolean {
   return Number.isFinite(parsed) && usageDayKey(new Date(parsed)) === usageDayKey(now);
 }
 
+export type MintDecision = { allowed: false } | { allowed: true; previousCodeHash: string | null; issuedToday: number };
+
+/**
+ * The cap-and-replace decision every mintCode implementation runs INSIDE its transaction over
+ * the freshly read whatsappUsers doc. Pure, so the Firestore adapter and test fakes share it.
+ */
+export function mintDecision(rawUser: unknown, now: Date): MintDecision {
+  const user = parseWhatsappUser(rawUser);
+  const issuedToday = sameUtcDay(user.lastCodeAt, now) ? user.codeIssuesToday : 0;
+  if (issuedToday >= WHATSAPP_TUNING.codesPerUidPerDay) return { allowed: false };
+  return { allowed: true, previousCodeHash: user.codeHash, issuedToday: issuedToday + 1 };
+}
+
+/** The whatsappUsers fields a successful mint writes (one active code per uid). */
+export function mintUserFields(codeHash: string, expiresAtIso: string, issuedToday: number, now: Date): Record<string, unknown> {
+  return { codeHash, codeExpiresAt: expiresAtIso, codeIssuesToday: issuedToday, lastCodeAt: now.toISOString() };
+}
+
 /**
  * whatsappLinkStart: mints a fresh code for the caller (replacing any active one) and returns
  * it in plain text exactly once. Throws rate_limited after codesPerUidPerDay codes in a UTC day.
+ * The check and the writes run in ONE store transaction (mintCode).
  */
 export async function handleLinkStart(uid: string, deps: LinkDeps): Promise<WhatsappLinkStartResponse> {
   const now = deps.now();
-  const user = parseWhatsappUser(await deps.store.getUser(uid));
-  const issuedToday = sameUtcDay(user.lastCodeAt, now) ? user.codeIssuesToday : 0;
-  if (issuedToday >= WHATSAPP_TUNING.codesPerUidPerDay) {
-    logger.info('whatsapp.link_code_rate_limited', { uid, issuedToday });
-    throw whatsappError('rate_limited', 'Too many link codes today. Try again tomorrow.');
-  }
-  if (user.codeHash !== null) {
-    // One active code per uid: the old one stops working the moment a new one is minted.
-    await deps.store.deleteLinkCode(user.codeHash);
-  }
   const code = (deps.newCode ?? randomLinkCode)();
   const codeHash = hashLinkCode(code);
   const expiresAtIso = new Date(now.getTime() + WHATSAPP_TUNING.codeTtlMinutes * 60_000).toISOString();
-  await deps.store.putLinkCode(codeHash, { uid, expiresAt: expiresAtIso });
-  await deps.store.mergeUser(uid, {
-    codeHash,
-    codeExpiresAt: expiresAtIso,
-    codeIssuesToday: issuedToday + 1,
-    lastCodeAt: now.toISOString(),
-  });
-  logger.info('whatsapp.link_code_minted', { uid, issuedToday: issuedToday + 1 });
+  const minted = await deps.store.mintCode(uid, codeHash, expiresAtIso, now);
+  if (minted.status === 'rate_limited') {
+    logger.info('whatsapp.link_code_rate_limited', { uid });
+    throw whatsappError('rate_limited', 'Too many link codes today. Try again tomorrow.');
+  }
+  logger.info('whatsapp.link_code_minted', { uid, issuedToday: minted.issuedToday });
   return { code, expiresAtIso };
 }
 
@@ -139,6 +154,9 @@ export async function handleLinkStatus(
     linked: user.phoneE164 !== null,
     displayNumber: configured ? digits : null,
     deepLink: configured ? `https://wa.me/${digits}` : null,
+    // Owner visibility of WHICH phone is bound (a leaked code binds an attacker's phone; the
+    // masked tail lets the account owner spot that in Settings). Never the full number.
+    linkedLast4: user.phoneE164 !== null ? user.phoneE164.slice(-4) : null,
   };
 }
 
@@ -178,8 +196,19 @@ export function firestoreLinkStore(db: Firestore): LinkStore {
     async mergeUser(uid, fields) {
       await db.doc(`${WHATSAPP_USERS_COLLECTION}/${uid}`).set(fields, { merge: true });
     },
-    async putLinkCode(codeHash, entry) {
-      await db.doc(`${WHATSAPP_LINK_CODES_COLLECTION}/${codeHash}`).set(entry);
+    mintCode(uid, codeHash, expiresAtIso, now) {
+      return db.runTransaction(async (tx): Promise<MintResult> => {
+        const userRef = db.doc(`${WHATSAPP_USERS_COLLECTION}/${uid}`);
+        const snapshot = await tx.get(userRef);
+        const decision = mintDecision(snapshot.exists ? snapshot.data() : undefined, now);
+        if (!decision.allowed) return { status: 'rate_limited' };
+        if (decision.previousCodeHash !== null && decision.previousCodeHash !== codeHash) {
+          tx.delete(db.doc(`${WHATSAPP_LINK_CODES_COLLECTION}/${decision.previousCodeHash}`));
+        }
+        tx.set(db.doc(`${WHATSAPP_LINK_CODES_COLLECTION}/${codeHash}`), { uid, expiresAt: expiresAtIso });
+        tx.set(userRef, mintUserFields(codeHash, expiresAtIso, decision.issuedToday, now), { merge: true });
+        return { status: 'minted', issuedToday: decision.issuedToday };
+      });
     },
     async deleteLinkCode(codeHash) {
       await db.doc(`${WHATSAPP_LINK_CODES_COLLECTION}/${codeHash}`).delete();

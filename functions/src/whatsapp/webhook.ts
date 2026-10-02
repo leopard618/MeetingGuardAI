@@ -2,10 +2,12 @@
  * WhatsApp webhook logic (docs/ARCHITECTURE.md §27), independent of Firebase wiring.
  *
  * POST order: 1) signature over the RAW body (./signature.ts) - the shell answers 401 before
- * anything else runs; 2) per-message dedupe (whatsappEvents create-once absorbs Meta
- * redelivery); 3) statuses/echoes ignored; 4) INLINE processing, then 200. Inline instead of a
- * task queue: dedupe makes redelivery safe, v2 allows 60 s and the assistant deadline is 50 s;
- * the documented risk (§27) is Meta pausing the subscription on slow responses - revisit then.
+ * anything else runs; 2) per-message age check + dedupe (whatsappEvents create-once absorbs
+ * Meta redelivery; older than the marker TTL is dropped unclaimed); 3) statuses/echoes ignored;
+ * 4) INLINE processing within WHATSAPP_TUNING.inlineBudgetMs (function timeout 300 s covers a
+ * whole worst-case batch; budget exhaustion answers 500 so Meta redelivers the unclaimed rest).
+ * Inline instead of a task queue: dedupe makes redelivery safe; the documented risk (§27) is
+ * Meta pausing the subscription on slow responses - revisit a Cloud Tasks hop then.
  *
  * Replies are LOG AND DROP on failure (never retried). Logs carry uid, wamid and phoneLogId
  * only - never message text, titles or phone numbers.
@@ -28,7 +30,7 @@ import { isValidTimeZone } from '../assistant/time';
 import { executeConfirmedActions, formatMeetingForShare, formatMeetingList, type ExecutorDeps } from './executor';
 import { bilingual, botStrings, formatConfirmPrompt } from './messages';
 import { eventDocId, hashLinkCode, phoneLogId } from './signature';
-import { emptySession, pushTurn, withFreshContext, type WhatsappSession, type WhatsappStore } from './session';
+import { emptySession, pushTurn, sessionPatch, withFreshContext, type WhatsappSession, type WhatsappStore } from './session';
 import type { WhatsappSender } from './send';
 
 export const CONFIRM_BUTTON_PREFIX = 'wa_confirm:';
@@ -46,6 +48,8 @@ export interface InboundMessage {
   text: string | null;
   buttonReplyId: string | null;
   profileName: string | null;
+  /** Meta's messages[].timestamp (epoch seconds as a string), or null when absent. */
+  timestamp: string | null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -81,6 +85,7 @@ export function extractInboundMessages(payload: unknown): InboundMessage[] {
           text: typeof text?.body === 'string' ? text.body : null,
           buttonReplyId: typeof buttonReply?.id === 'string' ? buttonReply.id : null,
           profileName,
+          timestamp: typeof message.timestamp === 'string' ? message.timestamp : null,
         });
       }
     }
@@ -111,16 +116,20 @@ function defaultNonce(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+function logSendFailure(phone: string, wamid: string, error: unknown): void {
+  logger.warn('whatsapp.send_failed', {
+    phone: phoneLogId(phone),
+    wamid,
+    errorName: error instanceof Error ? error.name : typeof error,
+    status: typeof (error as { status?: unknown }).status === 'number' ? (error as { status: number }).status : null,
+  });
+}
+
 async function safeSend(deps: WebhookDeps, phone: string, wamid: string, work: () => Promise<void>): Promise<void> {
   try {
     await work();
   } catch (error) {
-    logger.warn('whatsapp.send_failed', {
-      phone: phoneLogId(phone),
-      wamid,
-      errorName: error instanceof Error ? error.name : typeof error,
-      status: typeof (error as { status?: unknown }).status === 'number' ? (error as { status: number }).status : null,
-    });
+    logSendFailure(phone, wamid, error);
   }
 }
 
@@ -181,7 +190,9 @@ async function handleConfirm(
   const parts: string[] = [];
   if (result.applied > 0) parts.push(s.confirmed);
   if (result.unsupported > 0) parts.push(s.actionUnsupported);
-  if (result.applied === 0 && result.failed > 0) parts.push(s.error);
+  // Partial application is called out explicitly: "Done." alone would claim changes that never
+  // happened (a meeting deleted meanwhile, a failed bulk member, schema drift).
+  if (result.failed > 0) parts.push(result.applied > 0 ? s.partialFailure : s.error);
   const reply = parts.length > 0 ? parts.join('\n') : s.confirmed;
   await safeSend(deps, phone, wamid, () => deps.sender.sendText(phone, reply));
 }
@@ -196,29 +207,61 @@ async function handleCancel(phone: string, wamid: string, nonce: string | null, 
 async function handleUnlinked(message: InboundMessage, session: WhatsappSession, deps: WebhookDeps): Promise<void> {
   const phone = message.from;
   const text = message.text?.trim() ?? '';
+  const now = deps.now();
   if (WHATSAPP_LINK_CODE_PATTERN.test(text)) {
-    const redeemed = await deps.store.redeemLinkCode(hashLinkCode(text), phone, message.profileName, deps.now());
+    // Hard brute-force ceiling, independent of the inbound cap: past it, codes are not even
+    // tried (silent drop, nothing for a prober to measure).
+    if (session.counts.codeFailures >= WHATSAPP_TUNING.codeFailuresPerPhonePerDay) return;
+    const redeemed = await deps.store.redeemLinkCode(hashLinkCode(text), phone, message.profileName, now);
     if (redeemed.status === 'linked') {
-      session.uid = redeemed.uid;
-      await deps.store.putSession(phone, session);
+      // redeemLinkCode stamped the session's uid inside its transaction.
       logger.info('whatsapp.linked', { uid: redeemed.uid, phone: phoneLogId(phone), wamid: message.wamid });
       await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, bilingual('linkSuccess')));
       return;
     }
-    if (redeemed.status === 'expired') {
-      await deps.store.putSession(phone, session);
+    // Invalid and expired both answer codeExpired: accurate for a typo AND for a replaced or
+    // stale code ("generate a new one" is the right next step either way), unlike the generic
+    // link prompt which told the user to redo exactly what they just did. Counted against both
+    // the failure ceiling above and the unlinked-reply cap below.
+    await deps.store.recordCodeFailure(phone, now);
+    const replies = await deps.store.recordUnlinkedReply(phone, now);
+    if (replies <= WHATSAPP_TUNING.unlinkedRepliesPerDay) {
       await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, bilingual('codeExpired')));
-      return;
     }
-    // Invalid code: fall through to the link prompt (capped below).
+    return;
   }
-  if (session.counts.unlinkedReplies < WHATSAPP_TUNING.unlinkedRepliesPerDay) {
-    session.counts = { ...session.counts, unlinkedReplies: session.counts.unlinkedReplies + 1 };
-    await deps.store.putSession(phone, session);
+  const replies = await deps.store.recordUnlinkedReply(phone, now);
+  if (replies <= WHATSAPP_TUNING.unlinkedRepliesPerDay) {
     await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, bilingual('linkPrompt')));
-  } else {
-    await deps.store.putSession(phone, session);
   }
+}
+
+/**
+ * A 6-digit text from an ALREADY linked phone: most likely a fresh link code (account switch,
+ * recreated account, family device), which handleUnlinked can never see because the phone has a
+ * link doc. Returns true when the message was consumed (relinked or expired reply); false lets
+ * the text fall through to the assistant bridge ('invalid': it may be a genuine message).
+ */
+async function tryRelink(message: InboundMessage, session: WhatsappSession, language: Language, deps: WebhookDeps): Promise<boolean> {
+  const phone = message.from;
+  // Past the failure ceiling the webhook stops redeeming (anti brute force) and the digits are
+  // treated as ordinary chat again.
+  if (session.counts.codeFailures >= WHATSAPP_TUNING.codeFailuresPerPhonePerDay) return false;
+  const text = message.text?.trim() ?? '';
+  const redeemed = await deps.store.redeemLinkCode(hashLinkCode(text), phone, message.profileName, deps.now());
+  if (redeemed.status === 'linked') {
+    logger.info('whatsapp.relinked', { uid: redeemed.uid, phone: phoneLogId(phone), wamid: message.wamid });
+    // Confirm in the NEW account's language (the redeeming user is that account's owner).
+    const prefs = await deps.store.getPreferences(redeemed.uid);
+    await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, botStrings(prefs.language).linkSuccess));
+    return true;
+  }
+  await deps.store.recordCodeFailure(phone, deps.now());
+  if (redeemed.status === 'expired') {
+    await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, botStrings(language).codeExpired));
+    return true;
+  }
+  return false;
 }
 
 function quotaReason(error: unknown): string | null {
@@ -238,6 +281,9 @@ async function handleBridge(
   const phone = message.from;
   const s = botStrings(language);
   const now = deps.now();
+  // The proposal this invocation's SNAPSHOT carried: only that one may be cleared at the end
+  // (a proposal armed by a concurrent invocation must survive this turn).
+  const snapshotNonce = session.pendingNonce;
   const userText = (message.text ?? '').slice(0, AI_LIMITS.maxMessageChars);
   session.turns = pushTurn(session.turns, { role: 'user', text: userText, atIso: now.toISOString() });
 
@@ -257,7 +303,7 @@ async function handleBridge(
     const reason = quotaReason(error);
     logger.info('whatsapp.assistant_failed', { uid, wamid: message.wamid, reason: reason ?? 'error' });
     session.updatedAt = now.toISOString();
-    await deps.store.putSession(phone, session);
+    await deps.store.saveTurns(phone, sessionPatch(session));
     const text = reason === 'quota_exceeded' ? s.quotaExceeded : s.error;
     await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, text));
     return;
@@ -296,27 +342,58 @@ async function handleBridge(
 
   if (executable.length > 0) {
     const nonce = (deps.newNonce ?? defaultNonce)();
-    session.pendingActions = executable;
-    session.pendingNonce = nonce;
-    session.promptMsgId = message.wamid;
-    session.actionsExpireAt = new Date(now.getTime() + WHATSAPP_TUNING.actionsTtlMinutes * 60_000).toISOString();
     session.updatedAt = now.toISOString();
-    await deps.store.putSession(phone, session);
+    await deps.store.savePendingProposal(phone, sessionPatch(session), {
+      pendingActions: executable,
+      pendingNonce: nonce,
+      promptMsgId: message.wamid,
+      actionsExpireAt: new Date(now.getTime() + WHATSAPP_TUNING.actionsTtlMinutes * 60_000).toISOString(),
+    });
     const body = formatConfirmPrompt(language, executable.map((action) => action.summary));
-    await safeSend(deps, phone, message.wamid, () =>
-      deps.sender.sendButtons(phone, body, [
+    try {
+      await deps.sender.sendButtons(phone, body, [
         { id: `${CONFIRM_BUTTON_PREFIX}${nonce}`, title: s.buttons.confirm },
         { id: `${CANCEL_BUTTON_PREFIX}${nonce}`, title: s.buttons.cancel },
-      ]),
-    );
+      ]);
+    } catch (buttonsError) {
+      // A client that cannot render interactive buttons (or a transient Graph error) must not
+      // leave an INVISIBLE armed proposal: fall back to plain text - the body already carries
+      // the "reply 1 to confirm or 2 to cancel" instruction.
+      logSendFailure(phone, message.wamid, buttonsError);
+      try {
+        await deps.sender.sendText(phone, body);
+      } catch (textError) {
+        logSendFailure(phone, message.wamid, textError);
+        // The user never saw the proposal: disarm it so a stray later "1" cannot confirm it.
+        try {
+          await deps.store.claimPendingActions(phone, nonce, deps.now());
+          logger.info('whatsapp.proposal_disarmed', { uid, wamid: message.wamid, phone: phoneLogId(phone) });
+        } catch (claimError) {
+          logger.warn('whatsapp.disarm_failed', {
+            uid,
+            wamid: message.wamid,
+            errorName: claimError instanceof Error ? claimError.name : typeof claimError,
+          });
+        }
+      }
+    }
   } else {
-    session.pendingActions = null;
-    session.pendingNonce = null;
-    session.promptMsgId = null;
-    session.actionsExpireAt = null;
     session.updatedAt = now.toISOString();
-    await deps.store.putSession(phone, session);
+    // Conditional: clears only the proposal this turn STARTED from (snapshotNonce), never one a
+    // concurrent message armed moments ago - the race that used to swallow fresh proposals.
+    await deps.store.clearStalePending(phone, sessionPatch(session), snapshotNonce);
   }
+}
+
+/**
+ * True for a message older than the dedupe window: the whatsappEvents markers that absorb
+ * replays are purged after eventTtlDays, so anything older must be dropped BEFORE claiming -
+ * a captured signed payload replayed after the purge would otherwise process again.
+ */
+export function isStaleMessage(message: InboundMessage, now: Date): boolean {
+  if (message.timestamp === null || !/^[0-9]{1,12}$/.test(message.timestamp)) return false; // tolerant: Meta owns the field
+  const sentMs = Number(message.timestamp) * 1000;
+  return now.getTime() - sentMs > WHATSAPP_TUNING.eventTtlDays * 86_400_000;
 }
 
 /** One inbound message, end to end. Never throws (errors are logged; Meta always gets its 200). */
@@ -324,23 +401,28 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
   const phone = message.from;
   if (!WHATSAPP_PHONE_PATTERN.test(phone)) return;
   if (deps.displayNumber.length > 0 && phone === deps.displayNumber) return; // our own echo
+  if (isStaleMessage(message, deps.now())) {
+    logger.info('whatsapp.stale_dropped', { wamid: message.wamid, phone: phoneLogId(phone) });
+    return;
+  }
   if (!(await deps.store.claimEvent(eventDocId(message.wamid), deps.now()))) return; // redelivery
 
   const now = deps.now();
-  const stored = await deps.store.getSession(phone);
-  const session = withFreshContext(stored ?? emptySession(now), now);
-  session.counts = { ...session.counts, inbound: session.counts.inbound + 1 };
-  session.updatedAt = now.toISOString();
-
-  // Per-phone daily cap (§27): one notice right past the limit, then silence.
-  if (session.counts.inbound > deps.dailyLimit) {
-    await deps.store.putSession(phone, session);
-    if (session.counts.inbound === deps.dailyLimit + 1) {
+  // Per-phone daily cap (§27), counted ATOMICALLY first (racing deliveries cannot undercount):
+  // one notice right past the limit, then silence.
+  const counts = await deps.store.recordInbound(phone, now);
+  if (counts.inbound > deps.dailyLimit) {
+    if (counts.inbound === deps.dailyLimit + 1) {
       logger.info('whatsapp.flood_capped', { phone: phoneLogId(phone), wamid: message.wamid });
       await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, bilingual('floodNotice')));
     }
     return;
   }
+
+  const stored = await deps.store.getSession(phone);
+  const session = withFreshContext(stored ?? emptySession(now), now);
+  session.counts = counts;
+  session.updatedAt = now.toISOString();
 
   const uid = await deps.store.getLinkUid(phone);
   session.uid = uid;
@@ -353,9 +435,8 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
   const language = prefs.language;
   const timezone = isValidTimeZone(prefs.timezone) ? prefs.timezone : 'UTC';
 
-  // Button taps.
+  // Button taps (counters are already persisted; the claim tx owns the pending fields).
   if (message.buttonReplyId !== null) {
-    await deps.store.putSession(phone, session); // persist counters; the claim tx owns the rest
     if (message.buttonReplyId.startsWith(CONFIRM_BUTTON_PREFIX)) {
       await handleConfirm(phone, message.wamid, message.buttonReplyId.slice(CONFIRM_BUTTON_PREFIX.length), language, timezone, deps);
       return;
@@ -367,11 +448,16 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
     return; // unknown button id: ignore
   }
 
+  // A 6-digit code from a linked phone: re-link (account switch on the same phone).
+  if (message.text !== null && WHATSAPP_LINK_CODE_PATTERN.test(message.text.trim())) {
+    if (await tryRelink(message, session, language, deps)) return;
+    // 'invalid': fall through - it may be a genuine message for the assistant.
+  }
+
   // Text fallback for the pending proposal (1/yes/si/ok vs 2/no/cancel).
   if (message.text !== null && session.pendingActions !== null) {
     const answer = textAnswerOf(message.text);
     if (answer !== null) {
-      await deps.store.putSession(phone, session);
       if (answer === 'confirm') {
         await handleConfirm(phone, message.wamid, null, language, timezone, deps);
       } else {
@@ -382,7 +468,6 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
   }
 
   if (message.text === null || message.text.trim().length === 0) {
-    await deps.store.putSession(phone, session);
     await safeSend(deps, phone, message.wamid, () => deps.sender.sendText(phone, botStrings(language).unsupportedType));
     return;
   }
@@ -390,9 +475,21 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
   await handleBridge(message, session, uid, language, timezone, deps);
 }
 
-/** The POST body after a valid signature. Processes every message; failures are per-message. */
-export async function processWebhookPayload(payload: unknown, deps: WebhookDeps): Promise<void> {
-  for (const message of extractInboundMessages(payload)) {
+/**
+ * The POST body after a valid signature. Processes messages in order; failures are per-message.
+ * Returns false when the inline time budget ran out with messages still UNCLAIMED - the shell
+ * then answers 500 so Meta redelivers the batch (dedupe absorbs the part processed here), and
+ * no message is ever lost between its dedupe claim and its processing.
+ */
+export async function processWebhookPayload(payload: unknown, deps: WebhookDeps): Promise<boolean> {
+  const startedMs = deps.now().getTime();
+  const messages = extractInboundMessages(payload);
+  let processed = 0;
+  for (const message of messages) {
+    if (processed > 0 && deps.now().getTime() - startedMs > WHATSAPP_TUNING.inlineBudgetMs) {
+      logger.warn('whatsapp.budget_exhausted', { processed, remaining: messages.length - processed });
+      return false;
+    }
     try {
       await processInboundMessage(message, deps);
     } catch (error) {
@@ -402,5 +499,7 @@ export async function processWebhookPayload(payload: unknown, deps: WebhookDeps)
         errorName: error instanceof Error ? error.name : typeof error,
       });
     }
+    processed += 1;
   }
+  return true;
 }

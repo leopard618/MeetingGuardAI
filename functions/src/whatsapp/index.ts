@@ -247,8 +247,10 @@ function makeWhatsappWebhook() {
         res.status(200).send('ignored');
         return;
       }
-      await processWebhookPayload(payload, webhookDeps());
-      res.status(200).send('ok');
+      // false = the inline budget ran out with messages still unclaimed: answer 500 so Meta
+      // redelivers the batch (dedupe absorbs the already processed part).
+      const complete = await processWebhookPayload(payload, webhookDeps());
+      res.status(complete ? 200 : 500).send(complete ? 'ok' : 'partial');
     },
   );
 }

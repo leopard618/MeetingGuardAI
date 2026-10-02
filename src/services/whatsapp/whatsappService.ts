@@ -62,6 +62,7 @@ const DISABLED_STATUS: WhatsAppLinkStatus = {
   linked: false,
   displayNumber: null,
   deepLink: null,
+  linkedLast4: null,
 };
 
 const REASON_TO_APP_CODE: Readonly<Record<WhatsappErrorCode, AppErrorCode>> = {
@@ -221,7 +222,7 @@ export function createWhatsAppService(deps: WhatsAppServiceDeps): WhatsAppServic
       (raw) => whatsappUnlinkResponseSchema.safeParse(raw),
     );
     // The link is gone server-side; reflect it without another round trip.
-    if (epoch === sessionEpoch && known !== null) setKnown({ ...known, linked: false });
+    if (epoch === sessionEpoch && known !== null) setKnown({ ...known, linked: false, linkedLast4: null });
   }
 
   function clearSessionCache(): void {

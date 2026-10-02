@@ -421,8 +421,10 @@ export async function executeConfirmedActions(
           break;
         case 'bulk_update': {
           const bulk = await executeBulk(uid, action, deps);
+          // Per-meeting failures surface as a PARTIAL result (applied + failed both counted),
+          // so the confirm reply never claims "Done" over members that were not changed.
           result.applied += bulk.applied > 0 ? 1 : 0;
-          result.failed += bulk.applied === 0 ? 1 : 0;
+          result.failed += bulk.failed > 0 || bulk.applied === 0 ? 1 : 0;
           break;
         }
         default:

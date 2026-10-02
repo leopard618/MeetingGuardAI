@@ -7,13 +7,14 @@ const ENABLED: WhatsAppLinkStatus = {
   linked: false,
   displayNumber: '+1 555 025 3483',
   deepLink: 'https://wa.me/15550253483',
+  linkedLast4: null,
 };
 
 describe('connectView', () => {
   it('maps the status/error pair to the five views', () => {
     expect(connectView(null, null)).toBe('loading');
     expect(connectView(null, new AppError('offline'))).toBe('error');
-    expect(connectView({ enabled: false, linked: false, displayNumber: null, deepLink: null }, null)).toBe('unavailable');
+    expect(connectView({ enabled: false, linked: false, displayNumber: null, deepLink: null, linkedLast4: null }, null)).toBe('unavailable');
     expect(connectView(ENABLED, null)).toBe('not_linked');
     expect(connectView({ ...ENABLED, linked: true }, null)).toBe('linked');
   });
