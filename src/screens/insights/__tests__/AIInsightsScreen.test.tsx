@@ -36,6 +36,26 @@ jest.mock('../../../services/ai', () => ({
   useAssistant: () => mockAssistant,
 }));
 
+jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { show: jest.fn() } }));
+
+let mockProviderIds: string[] = ['google.com'];
+let mockEmailVerified = true;
+jest.mock('../../../services/auth', () => ({
+  useAuth: () => ({
+    authUser: {
+      uid: 'u1',
+      email: 'ana@example.com',
+      displayName: 'Ana',
+      photoURL: null,
+      emailVerified: mockEmailVerified,
+      providerIds: mockProviderIds,
+    },
+    resendVerification: jest.fn(async () => ({ success: true })),
+    refreshUser: jest.fn(async () => ({ success: true })),
+  }),
+  authService: { currentUser: null },
+}));
+
 // Wednesday 30 September 2026, 10:00 UTC (only Date is faked; timers stay real).
 const NOW = new Date('2026-09-30T10:00:00.000Z');
 
@@ -112,6 +132,8 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
   mockMeetings = { meetings: MEETINGS, isLoading: false, error: null, refresh: jest.fn() };
   mockOnline = true;
+  mockProviderIds = ['google.com'];
+  mockEmailVerified = true;
   mockAssistant = assistantState();
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 });
@@ -225,6 +247,14 @@ it('reports a failed AI request and disables it offline', async () => {
     confirmLastAlert();
   });
   expect(screen.getByTestId('ai-suggestions-error')).toBeTruthy();
+});
+
+it('mounts the verification banner above the AI suggestions for an unverified email account', async () => {
+  mockProviderIds = ['password'];
+  mockEmailVerified = false;
+  await renderInsights();
+  expect(screen.getByTestId('verify-email-banner')).toBeTruthy();
+  expect(screen.getByText('Verify your email to use the AI assistant.')).toBeTruthy();
 });
 
 it('disables AI suggestions offline', async () => {

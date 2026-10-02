@@ -31,6 +31,7 @@ async function renderLanding() {
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Landing" component={LandingScreen} />
+            <Stack.Screen name="EmailAuth" component={Destination} />
             <Stack.Screen name="Terms" component={Destination} />
             <Stack.Screen name="Privacy" component={Destination} />
           </Stack.Navigator>
@@ -87,6 +88,16 @@ it('explains a failed sign-in with the localized message from the auth service',
     fireEvent.press(screen.getByTestId('landing-sign-in'));
   });
   expect(Alert.alert).toHaveBeenCalledWith("Couldn't sign in", 'No internet connection.');
+});
+
+it('offers email sign-in as a secondary path', async () => {
+  await renderLanding();
+  expect(screen.getByText('Continue with email')).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('landing-email'));
+  });
+  expect(screen.getByTestId('destination').props.children).toBe('EmailAuth');
+  expect(mockSignInWithGoogle).not.toHaveBeenCalled();
 });
 
 it('switches to Spanish instantly', async () => {

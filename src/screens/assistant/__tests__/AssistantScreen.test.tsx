@@ -44,6 +44,30 @@ jest.mock('../../../services/data', () => ({
 
 jest.mock('../../../services/ai', () => ({ useAssistant: jest.fn() }));
 
+jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { show: jest.fn() } }));
+
+interface MockAuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  emailVerified: boolean;
+  providerIds: string[];
+}
+let mockAuthUser: MockAuthUser | null = null;
+jest.mock('../../../services/auth', () => ({
+  useAuth: () => ({
+    authUser: mockAuthUser,
+    resendVerification: jest.fn(async () => ({ success: true })),
+    refreshUser: jest.fn(async () => ({ success: true })),
+  }),
+  authService: {
+    get currentUser() {
+      return mockAuthUser;
+    },
+  },
+}));
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { useAssistant } = require('../../../services/ai') as { useAssistant: jest.Mock };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -100,6 +124,7 @@ function renderChat(params: { followup?: string; prefill?: string; autoStart?: b
 beforeEach(() => {
   jest.clearAllMocks();
   mockDarkMode = false;
+  mockAuthUser = { uid: 'u1', email: 'ana@example.com', displayName: 'Ana', photoURL: null, emailVerified: true, providerIds: ['google.com'] };
   useMeeting.mockReturnValue({ meeting: null, isLoading: false, error: null });
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 });
@@ -109,6 +134,32 @@ afterEach(() => {
 });
 
 describe('AssistantScreen', () => {
+  it('shows the verification banner and the same gate message on the server rejection for an unverified email account', async () => {
+    mockAuthUser = { uid: 'u1', email: 'ana@example.com', displayName: null, photoURL: null, emailVerified: false, providerIds: ['password'] };
+    const state = assistantState({
+      error: new AppError('unauthenticated'),
+      messages: [chatMessage('m1', 'user', 'Hello')],
+    });
+    useAssistant.mockReturnValue(state);
+    await renderChat();
+
+    expect(screen.getByTestId('verify-email-banner')).toBeTruthy();
+    // The mocked translator returns non-ai keys verbatim: banner body + inline error, same key.
+    expect(screen.getAllByText('auth:verify.assistantBody').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows no verification banner for a Google account and keeps the generic session message', async () => {
+    const state = assistantState({
+      error: new AppError('unauthenticated'),
+      messages: [chatMessage('m1', 'user', 'Hello')],
+    });
+    useAssistant.mockReturnValue(state);
+    await renderChat();
+
+    expect(screen.queryByTestId('verify-email-banner')).toBeNull();
+    expect(screen.queryByText('auth:verify.assistantBody')).toBeNull();
+  });
+
   it('shows the welcome message and localized examples when the thread is empty', async () => {
     const state = assistantState({ usage: usage({ used: 3 }) });
     useAssistant.mockReturnValue(state);

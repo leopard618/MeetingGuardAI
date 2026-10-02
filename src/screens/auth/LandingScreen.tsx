@@ -160,6 +160,18 @@ export function LandingScreen(): ReactElement {
             </Text>
           </Pressable>
 
+          <Pressable
+            onPress={() => navigation.navigate('EmailAuth')}
+            disabled={busy}
+            style={({ pressed }) => [styles.emailButton, { borderColor: colors.outline }, pressed && styles.pressedDim]}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: busy }}
+            testID="landing-email"
+          >
+            <Ionicons name="mail-outline" size={componentMetrics.iconInline} color={colors.onSurface} style={styles.signInIcon} />
+            <Text style={[styles.signInText, { color: colors.onSurface }]}>{t('landing:signIn.email')}</Text>
+          </Pressable>
+
           <Text style={[styles.note, { color: colors.onSurfaceVariant }]}>
             {t('landing:freePlan', { count: PLAN_DAILY_AI_LIMITS.free })}
           </Text>
@@ -289,6 +301,16 @@ const styles = StyleSheet.create({
   },
   signInIcon: {
     marginRight: spacing.sm,
+  },
+  emailButton: {
+    minHeight: componentMetrics.buttonHeight,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+    marginTop: spacing.md,
   },
   signInText: {
     ...typography.labelL,

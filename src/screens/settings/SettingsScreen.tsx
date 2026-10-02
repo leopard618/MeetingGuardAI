@@ -88,6 +88,13 @@ export function SettingsScreen(): ReactElement {
           title={authUser?.displayName ?? accountEmailLine}
           supporting={authUser?.displayName ? accountEmailLine : undefined}
         />
+        {authUser?.providerIds.includes('password') ? (
+          <ListRow
+            icon={authUser.emailVerified ? 'email-check-outline' : 'email-alert-outline'}
+            title={authUser.emailVerified ? t('auth:verify.verified') : t('auth:verify.notVerified')}
+            testID="settings-email-verified"
+          />
+        ) : null}
         <ListRow
           icon="account-remove-outline"
           title={t('auth:deleteAccount.title')}

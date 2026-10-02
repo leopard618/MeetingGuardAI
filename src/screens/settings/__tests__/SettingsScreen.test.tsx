@@ -22,12 +22,13 @@ jest.mock('../../../contexts/ThemeContext', () => ({
 const mockReauthenticate = jest.fn();
 const mockDeleteAccount = jest.fn();
 let mockProviders = ['google.com'];
+let mockEmailVerified = true;
 jest.mock('../../../services/auth', () => {
   const actual = jest.requireActual('../../../services/auth/authErrors');
   return {
     authErrorMessageKey: actual.authErrorMessageKey,
     useAuth: () => ({
-      authUser: { uid: 'u1', email: 'ana@example.com', displayName: 'Ana', providerIds: mockProviders },
+      authUser: { uid: 'u1', email: 'ana@example.com', displayName: 'Ana', emailVerified: mockEmailVerified, providerIds: mockProviders },
       reauthenticate: mockReauthenticate,
       deleteAccount: mockDeleteAccount,
     }),
@@ -76,6 +77,7 @@ beforeEach(async () => {
   mockDeleteAccount.mockReset();
   (Toast.show as jest.Mock).mockClear();
   mockProviders = ['google.com'];
+  mockEmailVerified = true;
   mockUpdatePreferences.mockClear();
 });
 
@@ -143,6 +145,20 @@ it('asks password accounts for their password', async () => {
   });
   expect(mockReauthenticate).toHaveBeenCalledWith({ password: 'secret' });
   expect(mockDeleteAccount).toHaveBeenCalled();
+});
+
+it('shows the email verification state only for password accounts', async () => {
+  await renderSettings();
+  expect(screen.queryByTestId('settings-email-verified')).toBeNull();
+
+  mockProviders = ['password'];
+  mockEmailVerified = false;
+  await renderSettings();
+  expect(screen.getByText('Email not verified')).toBeTruthy();
+
+  mockEmailVerified = true;
+  await renderSettings();
+  expect(screen.getByText('Email verified')).toBeTruthy();
 });
 
 it('links to the alert settings', async () => {

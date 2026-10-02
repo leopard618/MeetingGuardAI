@@ -25,6 +25,7 @@ import { useAssistant } from '../../services/ai';
 import { createAssistantFormatter } from '../../services/ai/formatter';
 import { assistantPalette, describeUsage, feedbackColors, type AssistantPalette, type Feedback } from '../../services/ai/presentation';
 import type { AssistantFormatter, AssistantHookResult, ChatMessage } from '../../services/ai/types';
+import { useAuth } from '../../services/auth';
 import { useEntitlement, useMeeting, usePreferences } from '../../services/data';
 import { componentMetrics, radii, spacing, typography } from '../../theme';
 import { ActionCard } from './ActionCard';
@@ -43,6 +44,7 @@ import {
 } from './chatModel';
 import { useKeyboardAvoidance } from '../shared/useKeyboardAvoidance';
 import { useLiveNow } from '../shared/useLiveNow';
+import { VerifyEmailBanner, isVerificationGateError } from '../shared/VerifyEmailBanner';
 
 type Props = StackScreenProps<RootStackParamList, 'AIChat'>;
 
@@ -119,6 +121,7 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
   const fmt = useMemo(() => createAssistantFormatter({ t, language, use24Hour }), [t, language, use24Hour]);
 
   const { followUpMeetingId, prefill, autoStartFollowUp } = parseChatParams(route.params);
+  const { authUser } = useAuth();
   const assistant = useAssistant({ followUpMeetingId, autoStartFollowUp });
   const { plan, isLoaded: planLoaded } = useEntitlement();
   const { meeting: followUpMeeting } = useMeeting(followUpMeetingId);
@@ -138,7 +141,10 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
   const now = useLiveNow(USAGE_CLOCK_MS);
 
   const usage = describeUsage(fmt, assistant.usage, planLoaded ? { plan, limit: PLAN_DAILY_AI_LIMITS[plan] } : null, now);
-  const errorDescription = chatErrorDescription(fmt, assistant, now);
+  // The server's verification gate reads exactly like the banner above the thread (section 25).
+  const errorDescription = isVerificationGateError(assistant.error, authUser)
+    ? { message: t('auth:verify.assistantBody'), recovery: 'none' as const }
+    : chatErrorDescription(fmt, assistant, now);
   const suggestions = visibleSuggestions(assistant.messages, assistant.isSending);
   const examples = useMemo(() => EXAMPLE_KEYS.map((key) => fmt.t(`ai:examples.${key}`)), [fmt]);
   const followUpTitle = followUpMeeting?.title ?? null;
@@ -258,6 +264,8 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
             />
           </Pressable>
         </View>
+
+        <VerifyEmailBanner style={styles.verifyBanner} />
 
         {followUpMeetingId ? (
           <View style={[styles.banner, { backgroundColor: palette.infoSurface }]}>
@@ -419,6 +427,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: componentMetrics.screenGutter,
     paddingVertical: spacing.sm,
+  },
+  verifyBanner: {
+    marginHorizontal: componentMetrics.screenGutter,
+    marginTop: spacing.sm,
   },
   bannerText: {
     flex: 1,

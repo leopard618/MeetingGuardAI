@@ -107,6 +107,12 @@ describe('mapFirebaseAuthError', () => {
 });
 
 describe('authErrorMessageKey', () => {
+  it('points a disabled email provider at the admin-hint message (auth/operation-not-allowed)', () => {
+    const disabled = mapFirebaseAuthError(nativeError('auth/operation-not-allowed'));
+    expect(getAuthErrorReason(disabled)).toBe('provider_disabled');
+    expect(authErrorMessageKey(disabled)).toBe('auth:errors.providerDisabled');
+  });
+
   it('prefers the reason, then the code-level auth key, then common:errors', () => {
     expect(authErrorMessageKey(mapFirebaseAuthError(nativeError('auth/wrong-password')))).toBe(
       'auth:errors.invalidCredentials',

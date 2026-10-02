@@ -18,8 +18,10 @@ import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
 import { createLogger } from '../../core/logger';
 import { useLanguage, useT } from '../../i18n';
 import { createAssistantFormatter, describeAssistantError, describeUsage, useAssistant } from '../../services/ai';
+import { useAuth } from '../../services/auth';
 import { useEntitlement, usePreferences, useSyncState } from '../../services/data';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
+import { VerifyEmailBanner, isVerificationGateError } from '../shared/VerifyEmailBanner';
 import { suggestionState, type SuggestionRequest } from './aiSuggestions';
 import type { InsightPeriod } from './meetingInsights';
 
@@ -33,6 +35,7 @@ export interface AiSuggestionsSectionProps {
 export function AiSuggestionsSection({ period, onOpenAssistant }: AiSuggestionsSectionProps): ReactElement {
   const t = useT();
   const { colors } = useAppTheme();
+  const { authUser } = useAuth();
   const { language } = useLanguage();
   const { preferences } = usePreferences();
   const { plan, isLoaded: planLoaded } = useEntitlement();
@@ -86,13 +89,20 @@ export function AiSuggestionsSection({ period, onOpenAssistant }: AiSuggestionsS
     ]);
   };
 
-  const errorText = state.status === 'failed' ? describeAssistantError(fmt, assistant.error).message : null;
+  // The server's verification gate reads exactly like the banner above this section (section 25).
+  const errorText =
+    state.status === 'failed'
+      ? isVerificationGateError(assistant.error, authUser)
+        ? t('auth:verify.assistantBody')
+        : describeAssistantError(fmt, assistant.error).message
+      : null;
   const proposed = state.reply?.actionIds.length ?? 0;
   const disabled = !online || busyElsewhere || state.status === 'sending' || usage?.exhausted === true;
 
   return (
     <View>
       <SectionHeader title={t('insights:ai.title')} />
+      <VerifyEmailBanner style={styles.verifyBanner} />
       <Card testID="ai-suggestions">
         <View style={styles.introRow}>
           <View style={[styles.circle, { backgroundColor: colors.tertiaryContainer }]}>
@@ -177,6 +187,9 @@ export function AiSuggestionsSection({ period, onOpenAssistant }: AiSuggestionsS
 }
 
 const styles = StyleSheet.create({
+  verifyBanner: {
+    marginBottom: componentMetrics.cardGap,
+  },
   introRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

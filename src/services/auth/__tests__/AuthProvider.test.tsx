@@ -39,6 +39,8 @@ jest.mock('../authService', () => ({
     signInWithEmail: jest.fn(),
     signUpWithEmail: jest.fn(),
     sendPasswordReset: jest.fn(),
+    resendVerification: jest.fn(),
+    reloadUser: jest.fn(),
     hasCalendarScope: jest.fn(async () => true),
     requestCalendarScope: jest.fn(async () => true),
     onGoogleAccessChanged: jest.fn(() => () => undefined),
@@ -77,6 +79,8 @@ interface SessionManagerMock {
 interface AuthServiceMock {
   init: jest.Mock;
   signInWithGoogle: jest.Mock;
+  resendVerification: jest.Mock;
+  reloadUser: jest.Mock;
 }
 
 const { sessionManager } = jest.requireMock('../sessionManager') as { sessionManager: SessionManagerMock };
@@ -180,6 +184,30 @@ describe('AuthProvider', () => {
       error: 'auth:errors.invalidCredentials',
       errorCode: 'unauthenticated',
       errorReason: 'invalid_credentials',
+    });
+  });
+
+  it('wraps resendVerification and refreshUser into simple results with localized errors', async () => {
+    await renderActive();
+
+    authService.resendVerification.mockResolvedValueOnce(undefined);
+    await expect(current().resendVerification()).resolves.toEqual({ success: true });
+
+    authService.resendVerification.mockRejectedValueOnce(new AppError('quota_exceeded'));
+    await expect(current().resendVerification()).resolves.toEqual({
+      success: false,
+      error: 'auth:errors.tooManyRequests',
+      errorCode: 'quota_exceeded',
+    });
+
+    authService.reloadUser.mockResolvedValueOnce(activeUser);
+    await expect(current().refreshUser()).resolves.toEqual({ success: true });
+
+    authService.reloadUser.mockRejectedValueOnce(new AppError('offline'));
+    await expect(current().refreshUser()).resolves.toEqual({
+      success: false,
+      error: 'auth:errors.offline',
+      errorCode: 'offline',
     });
   });
 
