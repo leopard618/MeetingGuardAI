@@ -232,10 +232,15 @@ describe('handleAssistant', () => {
     }
   });
 
-  it('requires a verified account (email verified or Google) before counting quota', async () => {
+  it('requires a verified account (email verified or a trusted provider) before counting quota', async () => {
     const { deps, quota, llmFactory } = setup();
     await expectAssistantError(
       handleAssistant(caller({ emailVerified: false, signInProvider: 'password' }), chatRequest(), deps),
+      'unauthenticated',
+      'unauthenticated',
+    );
+    await expectAssistantError(
+      handleAssistant(caller({ emailVerified: false, signInProvider: null }), chatRequest(), deps),
       'unauthenticated',
       'unauthenticated',
     );
@@ -244,6 +249,19 @@ describe('handleAssistant', () => {
     await expect(handleAssistant(caller({ emailVerified: true, signInProvider: 'password' }), chatRequest(), deps)).resolves.toMatchObject({
       reply: 'Done deal.',
     });
+  });
+
+  it('accepts Apple and Google callers even while email_verified is false (private-relay edge)', async () => {
+    // Apple "Hide My Email" relay addresses can surface with email_verified false; the provider
+    // itself vouches for the account (TRUSTED_SIGN_IN_PROVIDERS in shared/aiContract.ts).
+    const apple = setup();
+    await expect(
+      handleAssistant(caller({ emailVerified: false, signInProvider: 'apple.com' }), chatRequest(), apple.deps),
+    ).resolves.toMatchObject({ reply: 'Done deal.' });
+    const google = setup();
+    await expect(
+      handleAssistant(caller({ emailVerified: false, signInProvider: 'google.com' }), chatRequest(), google.deps),
+    ).resolves.toMatchObject({ reply: 'Done deal.' });
   });
 
   it('stops at the project-wide daily cap without calling OpenAI and gives the request back', async () => {

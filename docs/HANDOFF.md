@@ -143,7 +143,7 @@ State at the time of writing (2026-09-30):
 | Monitoring (errors, health) | Sentry is wired in; it needs `EXPO_PUBLIC_SENTRY_DSN`. The Cloud Monitoring and budget alerts are described in `docs/DEPLOYMENT.md` §8. There is no separate health endpoint (the backend is two callables). |
 | Backups | Commands are ready (`docs/DEPLOYMENT.md` §7); they must be turned on in the project. |
 | QA: calendars, alerts, EN/ES | Automated: 125 app suites (1363 tests), 14 function suites (159 tests), and the rules tests. The device plan (`docs/TESTING.md` Part B, now incl. T16 widget and T17 subscriptions) had a first v1.2.0 pass on LDPlayer 9; the v1.3.0 additions are **not run**. |
-| Test builds: Play internal testing, TestFlight | Android: ready once `docs/SETUP.md` is done. iOS: blocked (Apple account, Sign in with Apple). |
+| Test builds: Play internal testing, TestFlight | Android: ready once `docs/SETUP.md` is done. iOS: app code ready in 1.4.0 (Sign in with Apple, icon, entitlements); needs the owner console runway in `docs/SETUP.md` §8 (App Store Connect app, EAS credentials, Firebase Apple provider). |
 | Deployment and rollback notes | `docs/DEPLOYMENT.md`, "Release and rollback in brief" (the 1-2 page summary at the top); the numbered sections are the full runbook. |
 
 ---
@@ -250,10 +250,10 @@ These are true in v1.3.0. Some are platform limits, some are not built yet.
   `functions/scripts/set-admin-claim.mjs` (then sign out/in on the page). English only.
 - **Attachments are device-local.** They are copied into the app's folder, never uploaded or synced.
   They are removed on sign-out and meeting deletion, and lost on uninstall. The limit is 50 MB per file.
-- **Sign-in:** there is no email/password screen (the service supports it). There is no Sign in with
-  Apple, which iOS requires.
-- **iOS has never been built.** The 1024 px icon is in (`assets/icon.png`) and the Sign in with
-  Apple groundwork is contracted (docs/ARCHITECTURE.md §26). `eas.json` has placeholder Apple ids.
+- **Sign-in:** Google, email/password with a verification gate (docs/ARCHITECTURE.md §25) and,
+  on iOS, Sign in with Apple (§26).
+- **iOS has never been built.** The 1024 px icon is in (`assets/icon.png`) and Sign in with
+  Apple is implemented (docs/ARCHITECTURE.md §26). `eas.json` has placeholder Apple ids.
   The first iOS release is iPhone only (`ios.supportsTablet: false`); iPad support needs iPad
   landscape QA and iPad screenshots (`docs/SETUP.md` §8).
 - **Legal texts have placeholders** (`LEGAL_ENTITY`, `legal:jurisdiction`, the support email). They

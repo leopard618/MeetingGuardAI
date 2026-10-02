@@ -3,6 +3,39 @@
 All notable changes to MeetingGuard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
+## [1.4.0] - Unreleased (branch `stabilization`)
+
+iOS pass: Sign in with Apple and App Store readiness. New native module + entitlement, so this
+version ships only as a store/APK build - never as an OTA update onto 1.3.x.
+
+### Added
+
+- **Sign in with Apple** (iOS only; docs/ARCHITECTURE.md §26): official Apple button above
+  "Continue with Google" on the landing screen (App Review 4.8, equal prominence), nonce-checked
+  `signInAsync` -> Firebase `signInWithCredential`, silent cancel, first-sign-in name capture.
+  New runtime dependency `expo-apple-authentication`; new i18n keys (EN+ES) for the button,
+  the two Apple error messages and the revoke notice.
+- **Trusted-provider verification gate**: `TRUSTED_SIGN_IN_PROVIDERS` (google.com, apple.com) +
+  `isTrustedSignInProvider` in the shared AI contract (app and functions copies, drift-checked).
+  The assistant and Zoom callables and the client verify-email banner all accept Apple accounts
+  as verified - including "Hide My Email" private-relay addresses, which can report
+  `email_verified: false` although Apple itself verified the Apple ID. Password accounts are
+  gated exactly as before.
+- **Apple token revocation on account deletion** (App Review 5.1.1(v)): deleting an Apple
+  account reauthenticates via the Apple sheet, then revokes the Apple token
+  (`revokeAccessToken`) BEFORE the delete callable runs. Revocation is best effort: on failure
+  a notice toast explains the manual detach path and the deletion still proceeds.
+- **iOS build/store runway** (docs/SETUP.md §8): `ios.usesAppleSignIn`, time-sensitive
+  notifications entitlement, `ITSAppUsesNonExemptEncryption: false`, EN+ES locales, iPhone-only
+  first release (`supportsTablet: false`), `ios-simulator` EAS build profile (Appetize browser
+  testing), and the full owner checklist from Apple Developer enrollment to TestFlight,
+  privacy labels and review notes. On-device test plan: docs/TESTING.md T20.
+
+### Changed
+
+- `assets/icon.png` is now the final 1024x1024 App Store icon (Android adaptive icon unchanged).
+- Version 1.4.0 in `app.config.js` / `package.json` (OTA runtime version separation from 1.3.x).
+
 ## [1.3.1] - Unreleased (branch `stabilization`)
 
 UI modernization ("MG Indigo"): a visual-only restyle of every screen. No business logic,

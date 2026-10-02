@@ -942,9 +942,9 @@ mapping in `src/services/auth/authErrors.ts` (IMPLEMENTED); screen stub
 ## 26. Sign in with Apple and iOS readiness (iOS pass)
 
 Contract: `AuthService.signInWithApple / revokeAppleTokens` and the reauthenticate provider order
-in `src/core/contracts.ts` (STUBS throw `not_implemented`); `AuthContextValueImpl.signInWithApple`
-(wrapper IMPLEMENTED, calls the stub); error mapping `mapAppleSignInError` in
-`src/services/auth/authErrors.ts` (IMPLEMENTED); button stub
+in `src/core/contracts.ts`; `AuthContextValueImpl.signInWithApple` (wrapper, mirrors the Google
+one: cancel -> `authCancelled`, errors -> `toFailure`); error mapping `mapAppleSignInError` in
+`src/services/auth/authErrors.ts`; the official button in
 `src/screens/auth/AppleSignInButton.tsx`. Owner console steps: docs/SETUP.md §8.
 New runtime dependency: `expo-apple-authentication` (installed with `npx expo install`; the
 `app.config.js` plugin entry activates itself once the package resolves).
@@ -964,7 +964,7 @@ New runtime dependency: `expo-apple-authentication` (installed with `npx expo in
   `src/core/aiContract.ts` (mirrored verbatim in `functions/src/shared/aiContract.ts`;
   `npm run check:contract`). Apple accounts count as verified WITHOUT the email round-trip -
   Apple verified the Apple ID, and private-relay (Hide My Email) addresses belong to verified
-  Apple IDs. The google-only checks MUST be replaced by this helper in exactly these places:
+  Apple IDs. This helper (never a literal provider string) is the gate in exactly these places:
   `isVerifiedCaller` in `functions/src/assistant/handler.ts`, `isVerifiedCaller` in
   `functions/src/zoom/index.ts` (server), and `needsEmailVerification` in
   `src/screens/shared/VerifyEmailBanner.tsx` (client mirror). App and functions semantics stay

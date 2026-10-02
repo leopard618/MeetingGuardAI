@@ -31,6 +31,7 @@ import {
 } from '../config';
 import { adminDb } from '../firebase';
 import {
+  isTrustedSignInProvider,
   zoomCreateMeetingRequestSchema,
   zoomDeleteMeetingRequestSchema,
   zoomStatusRequestSchema,
@@ -69,9 +70,9 @@ function callerOf(auth: { uid: string; token: Record<string, unknown> } | undefi
   };
 }
 
-/** Same verified-account rule as the assistant (assistant/handler.ts). */
+/** Same verified-account rule as the assistant (assistant/handler.ts): email verified or a trusted provider (Google, Apple). */
 export function isVerifiedCaller(caller: ZoomCaller): boolean {
-  return caller.emailVerified || caller.signInProvider === 'google.com';
+  return caller.emailVerified || isTrustedSignInProvider(caller.signInProvider);
 }
 
 /** Write callables require auth AND a verified account; zoomStatus requires auth only. */

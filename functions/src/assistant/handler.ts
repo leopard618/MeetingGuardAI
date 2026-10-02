@@ -1,7 +1,7 @@
 /**
  * The `assistant` callable's logic, independent of Firebase wiring (dependencies are injected).
  *
- * Order: auth (a verified account: email_verified or Google) -> request validation -> atomic
+ * Order: auth (a verified account: email_verified or a trusted provider, Google/Apple) -> request validation -> atomic
  * quota (usage/{uid}/days/{UTC day}) -> project-wide daily cap -> meetings context -> OpenAI
  * (tools) -> proposals validated against the shared contract -> response.
  * Nothing here writes meetings: the app confirms and executes every proposal itself.
@@ -20,6 +20,7 @@ import {
   AI_LIMITS,
   assistantRequestSchema,
   assistantResponseSchema,
+  isTrustedSignInProvider,
   type AssistantRequest,
   type AssistantResponse,
 } from '../shared/aiContract';
@@ -62,10 +63,12 @@ export interface AssistantCaller {
 
 /**
  * Only verified accounts may use the (paid) assistant: throw-away email/password accounts created
- * through the Auth REST API would otherwise multiply the free quota.
+ * through the Auth REST API would otherwise multiply the free quota. Trusted providers (Google,
+ * Apple - see TRUSTED_SIGN_IN_PROVIDERS in shared/aiContract.ts) count as verified even when
+ * `email_verified` is false: Apple private-relay addresses are only issued to verified Apple IDs.
  */
 export function isVerifiedCaller(caller: AssistantCaller): boolean {
-  return caller.emailVerified || caller.signInProvider === 'google.com';
+  return caller.emailVerified || isTrustedSignInProvider(caller.signInProvider);
 }
 
 /** Upstream failures where OpenAI did no billable work: the user gets the request back. */

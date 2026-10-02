@@ -89,3 +89,37 @@ describe('zoom module exports (deploy gating)', () => {
     expect(mod.zoomWriteCallablesEnabledAtLoad()).toBe(true);
   });
 });
+
+describe('isVerifiedCaller (zoom write gate - same rule as the assistant)', () => {
+  const originalValue = process.env.ZOOM_ENABLED;
+  let isVerifiedCaller: ZoomModule['isVerifiedCaller'];
+
+  beforeAll(() => {
+    isVerifiedCaller = loadZoomModule(undefined).isVerifiedCaller;
+    if (originalValue === undefined) {
+      delete process.env.ZOOM_ENABLED;
+    } else {
+      process.env.ZOOM_ENABLED = originalValue;
+    }
+  });
+
+  const caller = (emailVerified: boolean, signInProvider: string | null) => ({ uid: 'u1', emailVerified, signInProvider });
+
+  it('accepts a verified email regardless of provider', () => {
+    expect(isVerifiedCaller(caller(true, 'password'))).toBe(true);
+    expect(isVerifiedCaller(caller(true, null))).toBe(true);
+  });
+
+  it('accepts trusted providers (Google, Apple) even while email_verified is false', () => {
+    // Apple private-relay ("Hide My Email") accounts can report email_verified false: the
+    // provider vouches for them (TRUSTED_SIGN_IN_PROVIDERS in shared/aiContract.ts).
+    expect(isVerifiedCaller(caller(false, 'google.com'))).toBe(true);
+    expect(isVerifiedCaller(caller(false, 'apple.com'))).toBe(true);
+  });
+
+  it('rejects unverified email/password and unknown providers', () => {
+    expect(isVerifiedCaller(caller(false, 'password'))).toBe(false);
+    expect(isVerifiedCaller(caller(false, null))).toBe(false);
+    expect(isVerifiedCaller(caller(false, 'apple.com.evil.example'))).toBe(false);
+  });
+});
