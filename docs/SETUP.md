@@ -725,17 +725,22 @@ Both values are public identifiers (like the Google client IDs): they may appear
 
 ---
 
-## 11. RevenueCat + Google Play subscriptions (in-app purchases)
+## 11. RevenueCat + store subscriptions (in-app purchases)
 
-Optional: paid plans (docs/ARCHITECTURE.md §20). Without `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`
-the Plans screen keeps its catalog-only "Subscriptions coming soon" view - the app builds and
-runs fine without this section. RevenueCat's free tier covers this app until real revenue.
+Optional: paid plans (docs/ARCHITECTURE.md §20). Without the platform's public SDK key
+(`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` on Android, `EXPO_PUBLIC_REVENUECAT_APPLE_KEY` on iOS)
+the Plans screen keeps its catalog-only "Subscriptions coming soon" view on that platform - the
+app builds and runs fine without this section, and each platform can go live independently.
+RevenueCat's free tier covers this app until real revenue.
 
-Two secrets are involved and they must never swap places:
+The keys involved must never swap places:
 
-- the **public SDK key** (`goog_...`) goes in the app env (`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`);
+- the **public SDK keys** (`goog_...` / `appl_...`) go in the app env
+  (`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` / `EXPO_PUBLIC_REVENUECAT_APPLE_KEY`);
 - the **webhook Authorization value** (a random string you invent) goes ONLY in the Functions
-  secret `REVENUECAT_WEBHOOK_AUTH`. The RevenueCat **secret** API key (`sk_...`) is used nowhere.
+  secret `REVENUECAT_WEBHOOK_AUTH`;
+- the RevenueCat **secret** API key (`sk_...`) goes ONLY in the Functions secret
+  `REVENUECAT_SECRET_KEY` (§11.7 reconciliation) and nowhere else - never in the app env.
 
 ### 11.1 Play Console: the four subscriptions
 
@@ -797,9 +802,13 @@ their own entitlement; the Admin SDK bypasses the rules.
 ### 11.4 App build
 
 1. `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` = RevenueCat -> Project -> API keys -> Public SDK key
-   for the Play app (`goog_...`), in `.env` and in the EAS environments.
+   for the Play app (`goog_...`), in `.env` and in the EAS environments. For iOS,
+   `EXPO_PUBLIC_REVENUECAT_APPLE_KEY` = the Public SDK key of the App Store app (`appl_...`,
+   §11.6); each platform reads only its own key.
 2. The SDK (`react-native-purchases`) is a NATIVE module: purchases need a new dev/store build
    with a bumped `version` (docs/ARCHITECTURE.md §15 - never OTA). Expo Go stays catalog-only.
+   No config plugin and no extra iOS entitlement are needed (the In-App Purchase capability is
+   on by default for every App ID; `npx expo config` output is unchanged).
 
 ### 11.5 Check
 
@@ -816,6 +825,50 @@ their own entitlement; the Admin SDK bypasses the rules.
       `active` until the expiry date, then EXPIRATION flips it to `expired` (plan back to Free).
 - [ ] When the sandbox checks are done: `REVENUECAT_ALLOW_SANDBOX` back to `false` + redeploy
       (11.3 step 5).
+
+### 11.6 iOS: App Store Connect products + the RevenueCat Apple app
+
+Needs the App Store Connect app from §8 first, plus the **Paid Apps agreement** (App Store
+Connect -> Business: signed and active - products stay "Missing Metadata" without it).
+
+1. App Store Connect -> your app -> Monetization -> Subscriptions: create ONE subscription
+   group (e.g. "MeetingGuard Plans") and inside it the SAME four product ids as Play:
+   `pro_monthly`, `pro_yearly`, `premium_monthly`, `premium_yearly` (prices per §11.1; one
+   group is what gives Apple its native upgrade/crossgrade handling). On each product add an
+   **introductory offer**: free trial, 3 days, new subscribers. Set premium above pro in the
+   group's ranking (upgrade direction).
+2. App Store Connect -> Users and Access -> Integrations -> **In-App Purchase**: generate an
+   In-App Purchase key (.p8) and note the Issuer ID. This key is REQUIRED for StoreKit 2
+   (purchases fail to record in RevenueCat without it); the legacy app-specific shared secret
+   is NOT needed.
+3. RevenueCat -> the same project as §11.2 -> add an **App Store** app with bundle id
+   `com.meetingguard.ai`, upload the .p8 + Issuer ID. In **Entitlements**, attach the four App
+   Store products to the SAME `pro`/`premium` entitlements as the Play products; add the App
+   Store products to the SAME current offering's packages.
+4. `EXPO_PUBLIC_REVENUECAT_APPLE_KEY` = API keys -> Public SDK key of the App Store app
+   (`appl_...`), into `.env` and the EAS environments (§11.4). The webhook from §11.3 already
+   receives App Store events (same URL, `store: APP_STORE`); nothing to redeploy.
+5. Sandbox testing uses a **Sandbox Apple Account** (App Store Connect -> Users and Access ->
+   Sandbox); those purchases arrive as SANDBOX events and need `REVENUECAT_ALLOW_SANDBOX=true`
+   exactly like the Play license-tester phase (11.3 step 5).
+
+### 11.7 Entitlement reconciliation (adminReconcileEntitlement)
+
+Optional self-heal for drifted entitlements (same-user Restore emits no webhook event; missed
+deliveries; see docs/ARCHITECTURE.md §20). Gated like Zoom/WhatsApp, so the default deploy
+never touches the secret:
+
+1. Set the secret FIRST: `firebase functions:secrets:set REVENUECAT_SECRET_KEY` = the
+   RevenueCat **secret** API key (`sk_...`, dashboard -> Project -> API keys). Deploying from a
+   machine that cannot be prompted? Create a PLACEHOLDER value first - the function is not
+   exported until the param flips, but the secret must EXIST before any deploy that enables it.
+2. Put `REVENUECAT_RECONCILE_ENABLED=true` in `functions/.env.<projectId>`, then deploy
+   functions. (Back to `false` + redeploy removes the function again - accept the delete offer.)
+3. Use it from the admin dashboard: Users table -> "Reconcile" on a user row. Outcomes:
+   `updated` (the entitlement was drifted and is now store-truth), `unchanged`, `skipped_admin`
+   (an admin-granted plan that RevenueCat does not back - comps are never downgraded),
+   `no_data` (only sandbox data at RevenueCat). The write is auditable in the function logs
+   (`revenuecat.reconciled`).
 
 ## 12. Zoom auto links (Server-to-Server OAuth app)
 

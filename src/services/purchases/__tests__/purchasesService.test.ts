@@ -4,7 +4,7 @@
  * (incl. user-cancelled), restore outcomes and RevenueCat error mapping.
  */
 import { AppError } from '../../../core/errors';
-import { PLAY_PRODUCT_IDS } from '../../../core/contracts';
+import { APP_STORE_PRODUCT_IDS, PLAY_PRODUCT_IDS } from '../../../core/contracts';
 import {
   PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION,
   activeCatalogProductIds,
@@ -344,5 +344,13 @@ describe('pure helpers', () => {
     expect(mapRcError({ code: 35 }, 'x').code).toBe('offline');
     expect(mapRcError({ code: '2' }, 'x').code).toBe('upstream_error');
     expect(mapRcError(new AppError('not_configured'), 'x').code).toBe('not_configured');
+  });
+});
+
+describe('cross-store catalog contract', () => {
+  it('App Store product ids are the SAME logical ids as the Play ones (shared RC entitlements)', () => {
+    // One PRODUCT_TO_PLAN map, shared RevenueCat entitlements and the webhook's product-id
+    // fallback all rely on the two stores using identical product ids (contracts.ts).
+    expect(APP_STORE_PRODUCT_IDS).toEqual(PLAY_PRODUCT_IDS);
   });
 });

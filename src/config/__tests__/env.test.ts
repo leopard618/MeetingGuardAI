@@ -69,18 +69,32 @@ describe('parseEnv', () => {
     expect(env.isConfigured).toBe(true);
   });
 
-  it('reads the optional RevenueCat Android key and defaults it to null', () => {
-    expect(parseEnv(COMPLETE, 'android').revenueCat).toEqual({ androidKey: null });
-    const env = parseEnv({ ...COMPLETE, EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: 'goog_AbCdEfGhIjKlMnOp01' }, 'android');
+  it('reads the optional RevenueCat store keys and defaults them to null', () => {
+    expect(parseEnv(COMPLETE, 'android').revenueCat).toEqual({ androidKey: null, appleKey: null });
+    const env = parseEnv(
+      {
+        ...COMPLETE,
+        EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: 'goog_AbCdEfGhIjKlMnOp01',
+        EXPO_PUBLIC_REVENUECAT_APPLE_KEY: 'appl_AbCdEfGhIjKlMnOp01',
+      },
+      'android',
+    );
     expect(env.revenueCat.androidKey).toBe('goog_AbCdEfGhIjKlMnOp01');
+    expect(env.revenueCat.appleKey).toBe('appl_AbCdEfGhIjKlMnOp01');
     expect(env.isConfigured).toBe(true);
   });
 
-  it('rejects a malformed RevenueCat key without blocking the app (optional key)', () => {
-    // A secret API key ("sk_...") or garbage must never be accepted as the public SDK key.
-    const env = parseEnv({ ...COMPLETE, EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: 'sk_not_a_public_key' }, 'android');
+  it('rejects malformed RevenueCat keys without blocking the app (optional keys)', () => {
+    // A secret API key ("sk_...") or garbage must never be accepted as a public SDK key, and the
+    // keys must not be swapped between platforms (goog_ key in the Apple slot and vice versa).
+    const env = parseEnv(
+      { ...COMPLETE, EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: 'sk_not_a_public_key', EXPO_PUBLIC_REVENUECAT_APPLE_KEY: 'goog_AbCdEfGhIjKlMnOp01' },
+      'android',
+    );
     expect(env.revenueCat.androidKey).toBeNull();
+    expect(env.revenueCat.appleKey).toBeNull();
     expect(env.invalidKeys).toContain('EXPO_PUBLIC_REVENUECAT_ANDROID_KEY');
+    expect(env.invalidKeys).toContain('EXPO_PUBLIC_REVENUECAT_APPLE_KEY');
     expect(env.isConfigured).toBe(true);
   });
 

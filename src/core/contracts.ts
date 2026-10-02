@@ -1521,6 +1521,19 @@ export const PLAY_PRODUCT_IDS: Readonly<Record<PaidPlanTier, Record<BillingCycle
   premium: { monthly: 'premium_monthly', yearly: 'premium_yearly' },
 };
 
+/**
+ * App Store product (auto-renewable subscription) ids - the SAME logical ids as Google Play, on
+ * purpose: one `PRODUCT_TO_PLAN` mapping serves both stores, the RevenueCat entitlements
+ * ('pro'/'premium') attach each store's products to the same plan, and the webhook's
+ * product-id fallback (`planFromEvent`) keeps working for APP_STORE events. All four live in ONE
+ * App Store subscription group (upgrade/crossgrade semantics; docs/SETUP.md §11). A guard test
+ * asserts the two tables never drift apart.
+ */
+export const APP_STORE_PRODUCT_IDS: Readonly<Record<PaidPlanTier, Record<BillingCycle, string>>> = {
+  pro: { monthly: 'pro_monthly', yearly: 'pro_yearly' },
+  premium: { monthly: 'premium_monthly', yearly: 'premium_yearly' },
+};
+
 /** One purchasable package resolved from the current RevenueCat offering. */
 export interface StorePackage {
   tier: PaidPlanTier;
@@ -1552,9 +1565,10 @@ export type RestoreOutcome =
   | { status: 'nothing_to_restore' };
 
 /**
- * react-native-purchases behind the optional EXPO_PUBLIC_REVENUECAT_ANDROID_KEY (absent, or the
- * native module missing, or platform != android => isConfigured() false and the Pricing screen
- * behaves exactly like today: catalog display + "subscriptions coming soon").
+ * react-native-purchases behind the optional platform SDK key: EXPO_PUBLIC_REVENUECAT_ANDROID_KEY
+ * on Android, EXPO_PUBLIC_REVENUECAT_APPLE_KEY on iOS. The RUNNING platform's key absent, or the
+ * native module missing, or another platform => isConfigured() false and the Pricing screen
+ * behaves exactly like today: catalog display + "subscriptions coming soon".
  *
  * THE CLIENT NEVER WRITES entitlements/{uid}. The RevenueCat webhook (functions/src/revenuecat)
  * is the only writer for purchases; the app keeps reading the entitlement through the existing
@@ -1573,8 +1587,12 @@ export interface PurchasesService {
   getOffering(): Promise<StoreOffering>;
   /**
    * Launches the store purchase flow for the tier+cycle package of the current offering.
-   * When a DIFFERENT catalog product is already active (a tier upgrade), the Google product
-   * change is passed so Play REPLACES the running subscription instead of opening a second one.
+   * When a DIFFERENT catalog product is already active (a tier upgrade, a tier downgrade or a
+   * monthly<->yearly cycle switch), the purchase is a REPLACEMENT, never a second subscription:
+   * on Android the Google product change (oldProductIdentifier + IMMEDIATE_WITH_TIME_PRORATION)
+   * is passed so Play swaps the running subscription and credits unused time; on iOS all four
+   * products share one subscription group, so StoreKit applies its own upgrade/crossgrade rules
+   * (downgrades and some crossgrades start at the next renewal) and no product change is passed.
    */
   purchase(tier: PaidPlanTier, cycle: BillingCycle): Promise<PurchaseOutcome>;
   /** Purchases.restorePurchases(); the webhook (TRANSFER/INITIAL_PURCHASE) updates the entitlement. */
@@ -1585,8 +1603,19 @@ export interface PurchasesService {
    * mark the truly purchased (tier, cycle) card and deep-link "Manage subscription".
    */
   getActiveProductId(): Promise<string | null>;
-  /** Play subscription management deep link for the active product (or the generic subscriptions page). */
+  /**
+   * Store subscription management deep link for the active product: Google Play's subscriptions
+   * page (?sku=&package= when the product is known) on Android; on iOS the generic
+   * https://apps.apple.com/account/subscriptions page (productId is ignored there).
+   */
   manageUrl(productId?: string): string;
+  /**
+   * iOS only (optional until the app-pay pass implements it): presents the native App Store
+   * manage-subscriptions sheet (Purchases.showManageSubscriptions). Resolves true when the sheet
+   * was shown; false on Android / unconfigured builds, where the caller falls back to
+   * Linking.openURL(manageUrl(...)).
+   */
+  showManageSubscriptions?(): Promise<boolean>;
 }
 
 // =============================================================================================

@@ -13,6 +13,9 @@
  *   (src/zoom, docs/ARCHITECTURE.md §24, SETUP §12).
  * - whatsappLinkStart / whatsappLinkStatus / whatsappUnlink (always deployed, no secrets):
  *   WhatsApp account linking (src/whatsapp, docs/ARCHITECTURE.md §27, SETUP §14).
+ * - adminReconcileEntitlement (deployed only while REVENUECAT_RECONCILE_ENABLED=true; the ONLY
+ *   function binding REVENUECAT_SECRET_KEY): heals entitlements/{uid} against the RevenueCat
+ *   REST API (src/revenuecat/reconcile.ts, docs/ARCHITECTURE.md §20).
  * HTTPS:
  * - revenuecatWebhook: RevenueCat -> entitlements/{uid} writer (secret Authorization header).
  * - whatsappWebhook: the WhatsApp bot (deployed only while WHATSAPP_ENABLED=true; the ONLY
@@ -25,6 +28,9 @@ export { assistant } from './assistant';
 export { deleteAccount } from './deleteAccount';
 export { dailyMaintenance } from './maintenance';
 export { revenuecatWebhook } from './revenuecat';
+// Same gating pattern as zoom/whatsapp: undefined while REVENUECAT_RECONCILE_ENABLED is false at
+// deploy time, so a deploy without the REVENUECAT_SECRET_KEY secret always succeeds.
+export { adminReconcileEntitlement } from './revenuecat/reconcile';
 export {
   adminGetHealth,
   adminGetMetrics,

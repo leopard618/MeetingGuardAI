@@ -422,7 +422,7 @@ Shared screen pieces (`src/screens/shared`):
 - WhatsApp bot
 - Sign in with Apple, which is required before iOS App Store submission
 - Pushing time-modified occurrence overrides to Google/Outlook (kept local; §16)
-- iOS widget (§19 is Android-only), iOS billing (§20 ships Android/Play products only)
+- iOS widget (§19 is Android-only)
 
 Moved out of this list by the phase-1 contracts: recurring meetings (§16), Outlook (§17),
 full-screen intent + exact-alarm state via the local module (§18). Moved out by the phase-2
@@ -635,23 +635,33 @@ side: local Expo module `modules/mg-next-meeting-widget` (Kotlin), built like
   wins; a meeting keeps the slot for 5 minutes after starting (native shows `nowLabel` once
   `startAtMs` passes). Signed out / no meetings -> null -> empty state.
 
-## 20. Billing (RevenueCat + Google Play)
+## 20. Billing (RevenueCat + Google Play + App Store)
 
-Contract: `PurchasesService`, `PLAY_PRODUCT_IDS`, `StoreOffering` etc. in `src/core/contracts.ts`;
-stub `src/services/purchases/index.ts` (isConfigured() false => exactly today's behavior);
-webhook mapping `functions/src/revenuecat/mapping.ts` (pure, IMPLEMENTED); catalog stays
-`src/services/billing.ts`. Setup guide: docs/SETUP.md §11 (RevenueCat project, Play Console
-subscriptions `pro_monthly` / `pro_yearly` / `premium_monthly` / `premium_yearly`, each with a
-3-day free trial; RevenueCat entitlements `pro` and `premium`; webhook + Authorization value).
+Contract: `PurchasesService`, `PLAY_PRODUCT_IDS`, `APP_STORE_PRODUCT_IDS`, `StoreOffering` etc.
+in `src/core/contracts.ts`; implementation `src/services/purchases/**`; webhook mapping
+`functions/src/revenuecat/mapping.ts` (pure, IMPLEMENTED); reconciliation
+`functions/src/revenuecat/reconcile.ts`; catalog stays `src/services/billing.ts`. Setup guide:
+docs/SETUP.md §11 (RevenueCat project, Play Console + App Store Connect subscriptions
+`pro_monthly` / `pro_yearly` / `premium_monthly` / `premium_yearly` - the SAME product ids on
+both stores, each with a 3-day free trial; RevenueCat entitlements `pro` and `premium`; webhook
++ Authorization value; reconciliation secret + param).
 
 - **SDK:** `react-native-purchases` (10.x; peer RN >= 0.73, no Expo config plugin; requires a dev
   or store build - Expo Go's preview mode counts as unconfigured). Installed by the INTEGRATOR
-  via `npx expo install react-native-purchases`.
-- **Configuration:** optional `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` (a public `goog_...` SDK key)
-  in `src/config/env.ts` + `env.example`. Absent, or platform != android, or the native module
-  missing => `purchasesService.isConfigured()` false and the Pricing screen behaves exactly as
-  today ("subscriptions coming soon", no purchase UI). `configure(uid)` runs on session start,
-  so RevenueCat's `app_user_id` IS the Firebase uid.
+  via `npx expo install react-native-purchases`. iOS uses StoreKit 2 by default (the SDK's
+  `storeKitVersion: DEFAULT` picks it on iOS 16+; this app's minimum is 16.4) - no option is
+  passed. No iOS entitlement/app.config change: the In-App Purchase capability is on by default
+  for every App ID, so prebuild output is unchanged (verified via `npx expo config`).
+- **Configuration:** optional per-platform PUBLIC SDK keys in `src/config/env.ts` +
+  `env.example`: `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` (`goog_...`) and
+  `EXPO_PUBLIC_REVENUECAT_APPLE_KEY` (`appl_...`). `isConfigured()` is true only when the
+  RUNNING platform's key is set AND the native module is present; each platform ignores the
+  other's key, so Android can sell while iOS is still closed (and vice versa). The platform key
+  is resolved in `src/services/purchases/index.ts` wiring (the service keeps ONE `apiKey()` dep
+  so unit tests stay platform-free). Everything else (missing key, Expo Go, web) keeps the
+  Pricing screen exactly as today ("subscriptions coming soon", no purchase UI).
+  `configure(uid)` runs on session start, so RevenueCat's `app_user_id` IS the Firebase uid -
+  identical on both platforms (Apple sign-in users are plain Firebase uids too).
 - **THE CLIENT NEVER WRITES `entitlements/{uid}`.** Firestore rules stay as they are (owner
   read, no client write). Writers are the RevenueCat webhook and the admin callable, both via
   the Admin SDK. `EntitlementSource` gained `'revenuecat'` and `'admin'` (types.ts).
@@ -659,11 +669,28 @@ subscriptions `pro_monthly` / `pro_yearly` / `premium_monthly` / `premium_yearly
   catalog view. Configured -> load the current offering (`getOffering()`): show STORE price
   strings (never computed prices); load failure -> catalog prices + error banner with Retry and
   NO purchase buttons (no fake purchasable state). Purchase: `purchase(tier, cycle)`;
-  'cancelled' is silent; success -> "processing" state until the existing entitlement listener
-  (`useEntitlement`) flips (webhook latency is seconds); failures -> localized AppError.
-  Restore button when configured (`restore()`; 'nothing_to_restore' gets its own message).
-  Active paid plan -> current-plan display + "Manage subscription" (`manageUrl(productId)`,
-  the Play subscriptions deep link). All states have a11y labels, EN + ES.
+  'cancelled' is silent; an UPGRADE (tier increase from the current plan) -> "processing" state
+  until the existing entitlement listener (`useEntitlement`) flips (webhook latency is seconds);
+  failures -> localized AppError. Restore button when configured (`restore()`;
+  'nothing_to_restore' gets its own message). Active paid plan -> current-plan display +
+  "Manage subscription" (iOS: `showManageSubscriptions()` native sheet, URL fallback; Android:
+  `manageUrl(productId)` Play deep link) - shown ONLY when `getActiveProductId()` reports a
+  store subscription, never for admin-granted plans. All states have a11y labels, EN + ES.
+- **Cycle switches and downgrades are IN-APP** (decision, supersedes the earlier
+  out-of-app hints): Google Play's manage page cannot move a user between DISTINCT products
+  (our cycles and tiers are four separate products), so pointing there was a dead end. Every
+  non-current paid card is purchasable: `purchase()` already replaces the running subscription
+  (Android `GoogleProductChangeInfo` { oldProductIdentifier,
+  `PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION` } - unused time is credited as time on the new
+  product, so no direction loses money; iOS: one subscription group, StoreKit applies its own
+  rules and needs no product change). UI: the same-tier other-cycle card shows "Switch to
+  yearly/monthly billing" (`pricing:store.switchToYearly/switchToMonthly`), a lower-tier card on
+  Premium shows "Switch to Pro" (`pricing:store.switchTier`); a NON-upgrade purchase (same or
+  lower tier: the entitlement plan may not change, and iOS applies some changes only at the next
+  renewal) skips the 'activating' wait - it refreshes `getActiveProductId()` and shows the
+  `pricing:store.changeConfirmed*` toast instead. The old `switchCycleHint`/`downgradeHint`
+  cards and keys are removed. The double-billing guard stays: when the store cannot answer which
+  product is active, the replacement purchase is aborted (retryable), never risked.
 - **Webhook** (`functions/src/revenuecat/index.ts`, exported from `functions/src/index.ts` as
   `revenuecatWebhook`): v2 `onRequest`, POST only, secret `REVENUECAT_WEBHOOK_AUTH`
   (`defineSecret`) compared (timing-safe) against the raw `Authorization` header value that the
@@ -674,9 +701,32 @@ subscriptions `pro_monthly` / `pro_yearly` / `premium_monthly` / `premium_yearly
   TRANSFER writes `transferred_to` active + `transferred_from` expired). Anonymous
   `$RCAnonymousID:` ids and unknown event types are acknowledged with 200 and logged; malformed
   bodies get 400. Always 200 for handled events (never let RevenueCat retry a success).
+- **Reconciliation** (`functions/src/revenuecat/reconcile.ts`): `adminReconcileEntitlement`
+  ({ uid }, admin custom claim) heals a drifted `entitlements/{uid}` against
+  `GET https://api.revenuecat.com/v1/subscribers/{uid}` (Authorization: Bearer the SECRET
+  `REVENUECAT_SECRET_KEY` - a Secret Manager secret bound ONLY to this callable; note the GET
+  CREATES an empty RevenueCat customer for unknown ids, which is harmless). On-demand only (no
+  scheduled sweep: drift is rare and user-visible; a sweep would hit the REST API for every
+  subscriber daily and mass-write silently - the pure pieces are reusable if one is ever
+  wanted). Deploy gating = the zoom/whatsapp pattern: exported only while the non-secret
+  `REVENUECAT_RECONCILE_ENABLED` param is true at deploy time, so default deploys never
+  reference the secret. Mapping: `entitlementFromSubscriber` produces the SAME
+  `EntitlementWrite` shape as the webhook ('premium' over 'pro'; active / grace_period /
+  expired / revoked; sandbox subscriptions ignored unless `REVENUECAT_ALLOW_SANDBOX`). Drift
+  rule (`decideReconcile`): write ONLY when plan/status/expiresAt differ; an ACTIVE store
+  subscription overwrites anything (like the next webhook event would), an empty or lapsed
+  store state NEVER overwrites `source: 'admin'` (comps survive), and a still-granting
+  `source: 'revenuecat'` document that RevenueCat no longer backs is expired (missed
+  EXPIRATION heal). The written document carries `eventTimestampMs: null` so every future
+  webhook event passes the stale-event guard. Audit log `revenuecat.reconciled` (adminUid, uid,
+  outcome; never the key). Admin web: a per-user "Reconcile" button in the Users table
+  (`public/admin/admin.js`, callable `adminReconcileEntitlement`) with a result toast
+  (updated / unchanged / skipped_admin / no_data) that refreshes the row's plan cell.
 - **Tests:** mapping unit tests per event type; webhook handler tests (auth, idempotency,
-  TRANSFER, malformed body) with mocked firestore; app-side purchases service tests with a
-  mocked `react-native-purchases`; pricing model tests for every UI state.
+  TRANSFER, malformed body) with mocked firestore; reconcile tests (REST mapping, sandbox gate,
+  drift decision incl. admin protection, handler over fake ports); app-side purchases service
+  tests with a mocked `react-native-purchases`; pricing model tests for every UI state
+  (both platforms' copy, switch/downgrade cards, the non-upgrade confirm path).
 
 ## 21. Admin dashboard
 
@@ -775,9 +825,11 @@ set) without a url never gets one.
   i18n `widget.json` (extending the three existing keys is fine). app.config.js only if a
   plugin becomes unavoidable (§19 says none is expected).
 - **billing**: `src/services/billing.ts`, `src/services/purchases/**`, `src/screens/pricing/**`,
-  `src/config/env.ts` + `env.example` (EXPO_PUBLIC_REVENUECAT_ANDROID_KEY),
-  `functions/src/revenuecat/**` + the `revenuecatWebhook` export line in
-  `functions/src/index.ts`, functions tests, i18n `pricing.json`, docs/SETUP.md §11.
+  `src/config/env.ts` + `env.example` (EXPO_PUBLIC_REVENUECAT_ANDROID_KEY /
+  EXPO_PUBLIC_REVENUECAT_APPLE_KEY), `functions/src/revenuecat/**` (webhook + reconcile) + their
+  export lines in `functions/src/index.ts`, functions tests, i18n `pricing.json`, docs/SETUP.md
+  §11. The admin Users-table "Reconcile" button in `public/admin/admin.js` is the one sanctioned
+  cross-over into the admin area (its callable lives under revenuecat/).
 - **admin**: `public/admin/**`, `functions/src/admin/**` + the admin export lines in
   `functions/src/index.ts`, `functions/scripts/set-admin-claim.mjs`, functions tests,
   `firebase.json` (the scoped `/admin/**` headers entry ONLY), `firestore.indexes.json`

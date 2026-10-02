@@ -38,7 +38,8 @@ export type EnvKey =
   | 'EXPO_PUBLIC_EMULATOR_HOST'
   | 'EXPO_PUBLIC_MSAL_CLIENT_ID'
   | 'EXPO_PUBLIC_MSAL_TENANT'
-  | 'EXPO_PUBLIC_REVENUECAT_ANDROID_KEY';
+  | 'EXPO_PUBLIC_REVENUECAT_ANDROID_KEY'
+  | 'EXPO_PUBLIC_REVENUECAT_APPLE_KEY';
 
 export type AppPlatform = 'ios' | 'android' | 'web' | 'windows' | 'macos' | 'native';
 
@@ -77,11 +78,13 @@ export interface AppEnv {
     tenant: string;
   };
   /**
-   * RevenueCat public Android SDK key ("goog_..."). null disables in-app purchases entirely:
-   * the Pricing screen keeps its catalog-only "coming soon" behavior (§20).
+   * RevenueCat public SDK keys, one per store (Android "goog_...", Apple "appl_..."). The key
+   * for the RUNNING platform enables in-app purchases; null (or the other platform's key only)
+   * keeps the Pricing screen in its catalog-only "coming soon" behavior (§20).
    */
   revenueCat: {
     androidKey: string | null;
+    appleKey: string | null;
   };
   /** development | preview | production (free text, defaults to "development"). */
   appEnv: string;
@@ -130,6 +133,8 @@ const validators: Record<EnvKey, z.ZodType<string>> = {
   EXPO_PUBLIC_MSAL_TENANT: z.string().regex(/^[\w.-]+$/),
   // RevenueCat public Android SDK key (dashboard -> Project -> API keys). Public by design.
   EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: z.string().regex(/^goog_[A-Za-z0-9]{10,}$/),
+  // RevenueCat public Apple SDK key (same dashboard page, the App Store app). Public by design.
+  EXPO_PUBLIC_REVENUECAT_APPLE_KEY: z.string().regex(/^appl_[A-Za-z0-9]{10,}$/),
 };
 
 /** Keys the app cannot run without, per platform. */
@@ -200,6 +205,7 @@ export function parseEnv(raw: Partial<RawEnv>, platform: AppPlatform): AppEnv {
     },
     revenueCat: {
       androidKey: values.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY ?? null,
+      appleKey: values.EXPO_PUBLIC_REVENUECAT_APPLE_KEY ?? null,
     },
     appEnv: values.EXPO_PUBLIC_APP_ENV ?? 'development',
     functionsRegion: values.EXPO_PUBLIC_FUNCTIONS_REGION ?? DEFAULT_FUNCTIONS_REGION,
@@ -230,6 +236,7 @@ export function readRawEnv(): RawEnv {
     EXPO_PUBLIC_MSAL_CLIENT_ID: process.env.EXPO_PUBLIC_MSAL_CLIENT_ID,
     EXPO_PUBLIC_MSAL_TENANT: process.env.EXPO_PUBLIC_MSAL_TENANT,
     EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY,
+    EXPO_PUBLIC_REVENUECAT_APPLE_KEY: process.env.EXPO_PUBLIC_REVENUECAT_APPLE_KEY,
   };
 }
 

@@ -72,13 +72,24 @@
     "activationTimeoutTitle": "Todavía en proceso",
     "activationTimeout": "Tu compra está confirmada, pero tu plan aún no se ha actualizado aquí. Se actualizará automáticamente cuando termine el proceso; no hace falta volver a comprar.",
     "switchCycleHint": "Tienes este plan con otro periodo de facturación. Para cambiar entre mensual y anual, gestiona tu suscripción en Google Play.",
-    "downgradeHint": "Para cambiar a este plan, gestiona tu suscripción en Google Play."
+    "downgradeHint": "Para cambiar a este plan, gestiona tu suscripción en Google Play.",
+    "loadingIos": "Cargando los precios de App Store...",
+    "loadErrorIos": "No pudimos cargar los precios de App Store, así que las compras están en pausa por ahora. Los precios de abajo son solo orientativos.",
+    "retryA11yIos": "Reintentar la carga de los precios de App Store",
+    "restoreA11yIos": "Restaurar las compras hechas con esta cuenta de Apple",
+    "manageA11yIos": "Abrir tu suscripción en App Store",
+    "switchToMonthly": "Cambiar a facturación mensual",
+    "switchToYearly": "Cambiar a facturación anual",
+    "switchTier": "Cambiar a {{plan}}",
+    "switchA11y": "Cambiar tu suscripción al plan {{plan}} por {{price}} al {{period}}",
+    "changeConfirmedTitle": "Cambio confirmado",
+    "changeConfirmedBody": "La tienda registró el cambio de plan. El tiempo no usado se abona automáticamente; algunos cambios empiezan en la próxima renovación."
   },
   "footer": "Los precios están en dólares estadounidenses. Antes de cualquier compra, App Store o Google Play te mostrarán el precio final en tu moneda, con impuestos incluidos.",
   "planChanged": {
     "title": "Plan actualizado",
     "body": "Tu plan ahora es {{plan}}"
   },
-  "grantedTitle": "Tu plan {{plan}} esta activo",
-  "grantedBody": "Las compras aun no estan abiertas; este plan fue asignado directamente a tu cuenta. Todas sus funciones estan disponibles."
+  "grantedTitle": "Tu plan {{plan}} está activo",
+  "grantedBody": "Las compras aún no están abiertas; este plan fue asignado directamente a tu cuenta. Todas sus funciones están disponibles."
 }

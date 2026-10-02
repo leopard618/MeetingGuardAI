@@ -72,7 +72,18 @@
     "activationTimeoutTitle": "Still processing",
     "activationTimeout": "Your purchase is confirmed, but your plan hasn't updated here yet. It will update automatically once processing finishes - no need to buy again.",
     "switchCycleHint": "You're on this plan with a different billing period. To switch between monthly and yearly, manage your subscription in Google Play.",
-    "downgradeHint": "To switch to this plan, change your subscription in Google Play."
+    "downgradeHint": "To switch to this plan, change your subscription in Google Play.",
+    "loadingIos": "Loading prices from the App Store...",
+    "loadErrorIos": "We couldn't load the prices from the App Store, so purchases are paused for now. The prices below are for reference only.",
+    "retryA11yIos": "Retry loading the App Store prices",
+    "restoreA11yIos": "Restore purchases made with this Apple account",
+    "manageA11yIos": "Open your subscription in the App Store",
+    "switchToMonthly": "Switch to monthly billing",
+    "switchToYearly": "Switch to yearly billing",
+    "switchTier": "Switch to {{plan}}",
+    "switchA11y": "Switch your subscription to {{plan}} for {{price}} per {{period}}",
+    "changeConfirmedTitle": "Change confirmed",
+    "changeConfirmedBody": "Your plan change is recorded in the store. Unused time is credited automatically; some changes start at your next renewal."
   },
   "footer": "Prices are in US dollars. Before any purchase, the App Store or Google Play will show the final price in your currency, including taxes.",
   "planChanged": {

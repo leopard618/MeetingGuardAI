@@ -651,7 +651,7 @@ sync, language change) - there is no polling.
 | 9 | Sign out. | The widget returns to the empty state (localized in the device language until the next sign-in pushes app-language strings). |
 | 10 | Remove the widget, change meetings in the app, add the widget again. | The freshly added widget immediately shows the current next meeting. |
 
-### T17. Subscriptions (Google Play + RevenueCat, only when configured)
+### T17. Subscriptions (RevenueCat + Google Play / App Store, only when configured)
 
 Needs ALL of `docs/SETUP.md` §11 first: the four Play subscriptions with their 3-day trial
 offers, the RevenueCat project (entitlements `pro`/`premium`, a current offering), the deployed
@@ -662,6 +662,12 @@ view. Use a **license-tester** Google account (Play Console -> License testing) 
 **real device**: LDPlayer 9's Play services may not support test subscriptions. The build must
 be installed through Play (internal testing) for purchases to work.
 
+iOS rows (10-12) additionally need `docs/SETUP.md` §11.6 (App Store Connect subscription group
++ products, the RevenueCat Apple app with the In-App Purchase key, and
+`EXPO_PUBLIC_REVENUECAT_APPLE_KEY` in the build env) plus a Sandbox Apple Account on a
+TestFlight or dev build. Row 13 needs §11.7 (`REVENUECAT_SECRET_KEY` +
+`REVENUECAT_RECONCILE_ENABLED=true` deployed).
+
 | # | Step | Expected result |
 |---|---|---|
 | 1 | Build WITHOUT the RevenueCat key, open Plans. | Exactly the old screen: catalog prices, "Subscriptions coming soon", no purchase buttons. |
@@ -670,10 +676,16 @@ be installed through Play (internal testing) for purchases to work.
 | 4 | Buy Pro monthly with the license tester, complete the Play sheet. | The Play test purchase completes, the screen shows "activating"; within seconds (webhook latency) the plan flips to Pro everywhere: Plans header, Settings, and the AI quota (100/day). |
 | 5 | Cancel the Play sheet instead of paying. | No error UI (cancel is silent), the screen stays purchasable. |
 | 6 | Uninstall, reinstall, sign in, open Plans, tap Restore. | The plan comes back without a new purchase. On an account with nothing to restore, its own "nothing to restore" message (not an error). |
-| 7 | With an active plan, open Plans. | Current-plan display + "Manage subscription" opens the Play subscriptions screen for the purchased product (the generic subscriptions list when the product cannot be resolved). No Buy button for the ACTIVE tier; Premium upgrade stays offered on Pro. On the OTHER billing cycle of your tier there is no "Current plan" badge and no Buy button - a "change your billing period in Google Play" note instead. On Premium, the Pro cards carry the "switch in Google Play" note instead of dead space. |
+| 7 | With an active plan, open Plans. | "Current plan" badge on exactly the purchased (tier, cycle) card + "Manage subscription" opens the Play subscriptions screen for the purchased product (the generic subscriptions list when the product cannot be resolved). No Buy button on the active card. The manage button never appears for an ADMIN-granted plan with no store subscription. |
 | 7b | On active Pro monthly, buy Premium monthly and complete the Play sheet. | The Play sheet shows a PLAN CHANGE (upgrade with credit for unused Pro time), not a second subscription. After the webhook lands, Play -> Payments & subscriptions shows exactly ONE active subscription (Premium); Pro is replaced, never billed alongside. |
+| 7c | On active Pro monthly, tap "Switch to yearly billing" on the Pro yearly card and complete the sheet. | A PLAN CHANGE sheet again (unused monthly time credited). No "activating" wait (the plan tier does not change): a "Change confirmed" toast, then the "Current plan" badge moves to the yearly card once the store reports it. Exactly ONE active subscription in Play. |
+| 7d | On active Premium (any cycle), tap "Switch to Pro" on a Pro card and complete the sheet. | Same replacement semantics: one subscription, unused Premium value credited as time, "Change confirmed" toast; the plan drops to Pro when the webhook's PRODUCT_CHANGE lands. Never a second subscription. |
 | 8 | Cancel the subscription in Play, wait for expiry (test subscriptions renew/expire in minutes). | On expiry the plan drops to Free in the app (webhook `EXPIRATION`), AI quota back to 5/day. |
 | 9 | Repeat rows 2, 4, 5 in Spanish. | All purchase states, banners and toasts are natural Spanish. |
+| 10 | iOS build with `EXPO_PUBLIC_REVENUECAT_APPLE_KEY`, Sandbox Apple Account: repeat rows 1-6. | Same behavior with App Store copy: prices from the App Store, "Manage subscription" opens the native App Store manage sheet (not Google Play), restore wording mentions the Apple account. A build WITHOUT the Apple key stays catalog-only on iOS even when the Android key is set. |
+| 11 | iOS: repeat row 7b (upgrade) and 7c (cycle switch). | The App Store modify sheet appears (one subscription group). Upgrades apply immediately; a crossgrade/downgrade may say it starts at the next renewal - the app shows "Change confirmed" and never claims the new price is active early. |
+| 12 | iOS: repeat rows 2, 4, 5 in Spanish. | Natural Spanish throughout, App Store (not Google Play) named in the copy. |
+| 13 | Admin dashboard -> Users -> "Reconcile" on (a) a user whose entitlement was manually broken in Firestore, (b) an untouched subscriber, (c) an admin-comped user with no store subscription. | (a) toast "updated" and the row's plan matches RevenueCat again; (b) "unchanged", no write; (c) "skipped_admin", the comp survives. Function logs show `revenuecat.reconciled` with outcome, never the API key. |
 
 License-tester purchases are SANDBOX events: the webhook ignores them unless it was deployed
 with `REVENUECAT_ALLOW_SANDBOX=true` (`docs/SETUP.md` §11) - set it for this section and turn it

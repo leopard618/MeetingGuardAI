@@ -238,9 +238,11 @@ These are true in v1.3.0. Some are platform limits, some are not built yet.
   verified-account check, per-user quotas and a project-wide daily cap. `functions/README.md` says how
   to enable App Check.
 - **Subscriptions are built but OFF until configured** (`docs/ARCHITECTURE.md` §20,
-  `docs/SETUP.md` §11): without `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` (and the Play/RevenueCat
-  dashboard setup + a deployed `revenuecatWebhook`) the Plans screen keeps saying "coming soon".
-  The server enforces the AI quota per plan either way. Android/Play only; iOS billing is open.
+  `docs/SETUP.md` §11): without the platform's public SDK key
+  (`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` / `EXPO_PUBLIC_REVENUECAT_APPLE_KEY`, plus the store
+  dashboard setup and a deployed `revenuecatWebhook`) the Plans screen keeps saying "coming
+  soon" on that platform. The server enforces the AI quota per plan either way. Both stores use
+  the SAME four product ids and the same RevenueCat entitlements, so one webhook serves both.
   Entitlement writes and their precedence: §6 below.
 - **The home-screen widget is Android-only** (`docs/ARCHITECTURE.md` §19) and needs the 1.3.0
   binary (native module). The "Happening now" swap uses an inexact alarm: under Doze it can lag
@@ -293,8 +295,21 @@ The order assumes the client chooses RevenueCat and iOS. Adjust it after the dec
      deploy functions, point the RevenueCat webhook at `revenuecatWebhook`, and put the public
      `goog_...` key in the env. The SDK is native: purchases need a store/dev build with a
      `version` bump (never OTA).
-   - Still open for later: iOS (App Store Connect products + `EXPO_PUBLIC_REVENUECAT_IOS_KEY`
-     equivalent) and any Stripe web checkout (item 3).
+   - **iOS is now in the contract** (same §20): App Store Connect products in ONE subscription
+     group (`docs/SETUP.md` §11.6, In-App Purchase .p8 key for StoreKit 2), the public
+     `appl_...` key in `EXPO_PUBLIC_REVENUECAT_APPLE_KEY`, platform-keyed configure, and
+     App Store copy on the Plans screen (native manage sheet instead of the Play link).
+   - **Cycle switches and tier downgrades happen IN-APP** (decision in §20): Google Play's
+     manage page cannot swap between distinct products, so every non-current paid card is
+     purchasable and the purchase REPLACES the running subscription with unused time credited
+     (never a second subscription). Non-upgrades show a "Change confirmed" toast instead of the
+     "activating" wait.
+   - **Entitlement self-heal**: `adminReconcileEntitlement` (`docs/SETUP.md` §11.7; gated by
+     `REVENUECAT_RECONCILE_ENABLED`, secret `REVENUECAT_SECRET_KEY` bound only there) checks a
+     uid against the RevenueCat REST API and fixes drift (same-user Restore emits no webhook
+     event). Admin dashboard: "Reconcile" button per user row. Admin comps are never downgraded
+     by it.
+   - Still open for later: any Stripe web checkout (item 3).
 2. **Tier enforcement:**
    - The AI quota is **already server-side**: the `assistant` function reads `entitlements/{uid}` in
      its quota transaction (`PLAN_DAILY_AI_LIMITS`).
@@ -325,13 +340,17 @@ The order assumes the client chooses RevenueCat and iOS. Adjust it after the dec
 ## 6. Who writes `entitlements/{uid}`, and who wins
 
 The entitlement document is **server-written only** (the Firestore rules allow no client write).
-There are exactly two writers, both through the Admin SDK, and the rule is **last writer wins** -
+There are exactly three writers, all through the Admin SDK, and the rule is **last writer wins** -
 `source` records who wrote the document, it is not a priority:
 
 - the **RevenueCat webhook** (`revenuecatWebhook`, source `'revenuecat'`), on every subscription
   event (purchase, renewal, billing retry, cancellation, expiration, transfer);
 - the **admin callable** (`adminSetUserPlan`, source `'admin'`), when an admin sets a plan by hand
-  (also `'free'`: an explicit downgrade).
+  (also `'free'`: an explicit downgrade);
+- the **reconciliation callable** (`adminReconcileEntitlement`, source `'revenuecat'`; gated,
+  `docs/SETUP.md` §11.7), when an admin heals a drifted document against the RevenueCat REST
+  API. It writes only on drift, never downgrades a `source: 'admin'` comp from an empty or
+  lapsed store state, and writes `eventTimestampMs: null` so every future webhook event wins.
 
 Consequences, and how to use them:
 
@@ -360,8 +379,8 @@ Consequences, and how to use them:
   Restore; it corrects on the next real subscription event (renewal), possibly weeks later.
   The Pricing screen therefore times its "activating" wait out after ~2 minutes with an honest
   "still processing" message instead of spinning forever. If a paying user reports a stuck free
-  plan, fix it with `adminSetUserPlan` (or RevenueCat granted entitlements) rather than telling
-  them to Restore.
+  plan, the admin Users table's **Reconcile** button is the first tool (it writes the store
+  truth directly); `adminSetUserPlan` / RevenueCat granted entitlements remain for comps.
 - The AI quota and the app read the same document through `effectivePlan()` /
   `resolveEffectivePlan()` (expired/revoked or a past `expiresAt` mean free), so admin and
   webhook writes take effect everywhere at once, entitlement listeners included (the Pricing
