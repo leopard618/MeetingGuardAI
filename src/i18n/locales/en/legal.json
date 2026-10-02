@@ -1,6 +1,6 @@
 {
   "updated": "Last updated: {{date}}",
-  "jurisdiction": "[GOVERNING LAW AND COURTS]",
+  "jurisdiction": "the laws of England and Wales, and any dispute is resolved by the courts of England and Wales",
   "back": "Go back",
   "contact": {
     "title": "Contact",
@@ -14,7 +14,7 @@
       "controller": {
         "title": "Who is responsible for your data",
         "body": [
-          "{{company}}, {{address}}, is responsible for the personal data processed through MeetingGuard AI. You can contact us at {{email}}."
+          "{{company}} (Company No. 14085985), registered at {{address}}, is responsible for the personal data processed through MeetingGuard AI. You can contact us at {{email}}."
         ]
       },
       "collect": {
@@ -173,7 +173,7 @@
       "agreement": {
         "title": "Agreement",
         "body": [
-          "These Terms of Service are an agreement between you and {{company}} (\"we\", \"us\") for the use of the MeetingGuard AI app. By creating an account or using the app, you accept these terms and our Privacy Policy. If you do not agree, please do not use the app."
+          "These Terms of Service are an agreement between you and {{company}} (\"we\", \"us\"), a company registered in England and Wales under Company No. 14085985 with its registered office at {{address}}, for the use of the MeetingGuard AI app. By creating an account or using the app, you accept these terms and our Privacy Policy. If you do not agree, please do not use the app."
         ]
       },
       "service": {

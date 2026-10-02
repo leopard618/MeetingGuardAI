@@ -1,6 +1,6 @@
 {
   "updated": "Última actualización: {{date}}",
-  "jurisdiction": "[LEY APLICABLE Y TRIBUNALES]",
+  "jurisdiction": "las leyes de Inglaterra y Gales, y cualquier disputa se resuelve ante los tribunales de Inglaterra y Gales",
   "back": "Volver",
   "contact": {
     "title": "Contacto",
@@ -14,7 +14,7 @@
       "controller": {
         "title": "Responsable de tus datos",
         "body": [
-          "{{company}}, con domicilio en {{address}}, es responsable de los datos personales que se tratan a través de MeetingGuard AI. Puedes escribirnos a {{email}}."
+          "{{company}} (número de sociedad 14085985), con domicilio en {{address}}, es responsable de los datos personales que se tratan a través de MeetingGuard AI. Puedes escribirnos a {{email}}."
         ]
       },
       "collect": {
@@ -173,7 +173,7 @@
       "agreement": {
         "title": "Acuerdo",
         "body": [
-          "Estos Términos del servicio son un acuerdo entre tú y {{company}} (\"nosotros\") para el uso de la app MeetingGuard AI. Al crear una cuenta o usar la app, aceptas estos términos y nuestra Política de privacidad. Si no estás de acuerdo, no uses la app."
+          "Estos Términos del servicio son un acuerdo entre tú y {{company}} (\"nosotros\"), sociedad registrada en Inglaterra y Gales con el número 14085985 y domicilio social en {{address}}, para el uso de la app MeetingGuard AI. Al crear una cuenta o usar la app, aceptas estos términos y nuestra Política de privacidad. Si no estás de acuerdo, no uses la app."
         ]
       },
       "service": {

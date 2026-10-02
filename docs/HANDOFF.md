@@ -258,8 +258,9 @@ These are true in v1.3.0. Some are platform limits, some are not built yet.
   Apple is implemented (docs/ARCHITECTURE.md §26). `eas.json` has placeholder Apple ids.
   The first iOS release is iPhone only (`ios.supportsTablet: false`); iPad support needs iPad
   landscape QA and iPad screenshots (`docs/SETUP.md` §8).
-- **Legal texts have placeholders** (`LEGAL_ENTITY`, `legal:jurisdiction`, the support email). They
-  exist only inside the app, with no public URL.
+- **Legal texts are filled** (AETERNUM TECH LTD, Company No. 14085985, 128 City Road, London,
+  United Kingdom, EC1V 2NX; support@meetingguard.ai; England and Wales). The privacy policy is
+  public at https://meetingguard.ai/privacy-policy; the terms exist only inside the app so far.
 - **OTA reach.** OTA updates reach only builds from 1.2.0 on. A downloaded update runs from the next
   cold start.
 - **Small items:**

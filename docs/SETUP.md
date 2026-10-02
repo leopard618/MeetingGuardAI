@@ -457,8 +457,8 @@ npm run deploy:rules    # firestore.rules + firestore.indexes.json
 
 ### 6.5 Account deletion page (Firebase Hosting)
 
-1. Replace the four `REPLACE_WITH_SUPPORT_EMAIL@example.com` placeholders in
-   `public/delete-account.html` with the real support email.
+1. The support address in `public/delete-account.html` is `support@meetingguard.ai`
+   (filled; change it there if the support email ever changes).
 2. Deploy:
 
    ```bash

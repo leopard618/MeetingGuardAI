@@ -3,8 +3,8 @@
  * have, in which order, and how a section is read from the `legal` namespace
  * (legal:<document>.sections.<id> = { title, body[], items[]?, note[]? }).
  *
- * The company details are RELEASE PLACEHOLDERS: fill LEGAL_ENTITY (and legal:jurisdiction in
- * both languages) with the real legal entity before publishing, and have the texts reviewed.
+ * The company details (LEGAL_ENTITY, legal:jurisdiction in both languages) are filled with the
+ * real legal entity; have the texts reviewed by counsel before publishing material changes.
  */
 import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
 
@@ -13,11 +13,11 @@ export type LegalDocumentId = 'privacy' | 'terms';
 /** Date shown as "Last updated" (a calendar date, formatted in the UI language). */
 export const LEGAL_LAST_UPDATED = '2026-09-28';
 
-/** Legal entity that provides the app. Bracketed values are placeholders. */
+/** Legal entity that provides the app. */
 export const LEGAL_ENTITY = {
-  name: '[COMPANY LEGAL NAME]',
-  address: '[REGISTERED ADDRESS]',
-  email: '[CONTACT EMAIL]',
+  name: 'AETERNUM TECH LTD',
+  address: '128 City Road, London, United Kingdom, EC1V 2NX',
+  email: 'support@meetingguard.ai',
 } as const;
 
 export const LEGAL_SECTIONS: Readonly<Record<LegalDocumentId, readonly string[]>> = {
