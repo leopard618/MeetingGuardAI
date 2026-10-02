@@ -16,7 +16,9 @@
     "whatsapp": {
       "title": "WhatsApp",
       "description": "Creating meetings by WhatsApp message is not available yet.",
-      "hint": "Not available yet"
+      "hint": "Not available yet",
+      "readyDescription": "Send the bot a message like \"Lunch with Ana tomorrow at 2 pm\". You confirm before anything is saved.",
+      "readyHint": "Opens the WhatsApp setup"
     }
   }
 }

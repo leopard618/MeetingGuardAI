@@ -1,0 +1,36 @@
+{
+  "title": "Asistente de WhatsApp",
+  "subtitle": "Crea y gestiona reuniones por mensaje de WhatsApp.",
+  "row": {
+    "section": "Integraciones",
+    "title": "Asistente de WhatsApp",
+    "subtitle": "Vincula tu cuenta con el bot de WhatsApp"
+  },
+  "explainer": "Vincula tu número de WhatsApp para crear reuniones por mensaje. Genera aquí un código y envíaselo al bot desde WhatsApp. El código funciona una sola vez y caduca a los pocos minutos.",
+  "code": {
+    "generate": "Generar código",
+    "value": "Tu código: {{code}}",
+    "countdown": "Caduca en {{time}}",
+    "copy": "Copiar código",
+    "copied": "Código copiado",
+    "expired": "Este código ha caducado. Genera uno nuevo."
+  },
+  "open": "Abrir WhatsApp",
+  "linked": {
+    "title": "Tu WhatsApp está vinculado",
+    "number": "Número del bot: {{number}}"
+  },
+  "unlink": {
+    "action": "Desvincular WhatsApp",
+    "confirmTitle": "¿Desvincular WhatsApp?",
+    "confirmBody": "El bot dejará de reconocer tu número. Puedes vincularlo de nuevo cuando quieras.",
+    "done": "WhatsApp desvinculado."
+  },
+  "status": {
+    "unavailable": "El asistente de WhatsApp todavía no está disponible. Vuelve a probar pronto."
+  },
+  "error": {
+    "rateLimited": "Has pedido demasiados códigos hoy. Inténtalo de nuevo mañana.",
+    "generic": "Algo ha fallado. Inténtalo de nuevo."
+  }
+}

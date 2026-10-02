@@ -23,7 +23,8 @@
     "AIChat": "AI assistant",
     "AIInsights": "Insights",
     "CalendarSync": "Calendar sync",
-    "Pricing": "Plans"
+    "Pricing": "Plans",
+    "WhatsAppConnect": "WhatsApp"
   },
   "meeting": {
     "loading": "Loading meeting...",

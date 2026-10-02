@@ -16,6 +16,9 @@ jest.mock('expo-localization', () => ({
   getLocales: jest.fn(() => [{ languageCode: 'en', languageTag: 'en-US' }]),
   getCalendars: jest.fn(() => [{ timeZone: 'UTC', uses24hourClock: false }]),
 }));
+// The chooser imports the whatsapp area (firebase/* ships untransformed ESM); only
+// CREATION_METHODS is read here.
+jest.mock('../../../../services/whatsapp', () => ({ useWhatsAppStatus: jest.fn() }));
 
 type Tree = { readonly [key: string]: unknown };
 

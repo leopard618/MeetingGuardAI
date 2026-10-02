@@ -73,6 +73,7 @@ jest.mock('../../screens/calendar/CalendarScreen', () => ({ CalendarScreen: mock
 jest.mock('../../screens/notes/NotesScreen', () => ({ NotesScreen: mockScreen('Notes').default }));
 jest.mock('../../screens/attachments/MeetingAttachmentsSection', () => ({ MeetingAttachmentsSection: () => null }));
 jest.mock('../../screens/settings/SettingsScreen', () => ({ SettingsScreen: mockScreen('Settings').default }));
+jest.mock('../../screens/settings/WhatsAppConnectScreen', () => ({ WhatsAppConnectScreen: mockScreen('WhatsAppConnect').default }));
 jest.mock('../../screens/alerts/AlertSettingsScreen', () => ({ AlertSettingsScreen: mockScreen('AlertSettings').default }));
 jest.mock('../../screens/assistant/AssistantScreen', () => ({ AssistantScreen: mockScreen('AIChat').default }));
 jest.mock('../../screens/insights/AIInsightsScreen', () => ({ AIInsightsScreen: mockScreen('AIInsights').default }));

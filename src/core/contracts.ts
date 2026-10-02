@@ -124,6 +124,10 @@ export const MODULES = {
     // zoomService, useZoomStatus (server-created Zoom links via the zoom* callables, §24)
     index: 'src/services/zoom/index.ts',
   },
+  whatsapp: {
+    // whatsappService, useWhatsAppStatus (account link to the WhatsApp bot, §27)
+    index: 'src/services/whatsapp/index.ts',
+  },
   attachments: {
     // attachmentService, useMeetingAttachments (device-local files; metadata in the data layer)
     index: 'src/services/attachments/index.ts',
@@ -1151,6 +1155,7 @@ export const I18N_NAMESPACE_LIST = [
   'legal',
   'pricing',
   'widget',
+  'whatsapp',
 ] as const;
 export type I18nNamespace = (typeof I18N_NAMESPACE_LIST)[number];
 
@@ -1247,6 +1252,8 @@ export type MainStackParamList = {
   Terms: undefined;
   CalendarSync: undefined;
   Pricing: undefined;
+  /** Settings > WhatsApp: link this account to the WhatsApp bot (§27). */
+  WhatsAppConnect: undefined;
 };
 
 export type RootStackParamList = AuthStackParamList & OnboardingStackParamList & MainStackParamList;
@@ -1437,6 +1444,68 @@ export interface UseZoomStatusResult {
 }
 
 // =============================================================================================
+// WHATSAPP  (src/services/whatsapp; account link to the WhatsApp bot, §27)
+// =============================================================================================
+
+/** whatsappLinkStart's answer. Shown once in the connect screen; never persisted or logged. */
+export interface WhatsAppLinkCode {
+  /** 6 digits, zero-padded; the user sends it to the bot number from WhatsApp. */
+  code: string;
+  /** ISO instant the code stops working (drives the countdown and the regenerate state). */
+  expiresAtIso: string;
+}
+
+/**
+ * whatsappLinkStatus's answer. `enabled` = the server-side integration is configured
+ * (WHATSAPP_ENABLED); `linked` = THIS account already has a WhatsApp number attached.
+ */
+export interface WhatsAppLinkStatus {
+  enabled: boolean;
+  linked: boolean;
+  /** The bot's human-readable number; null while the integration is not configured. */
+  displayNumber: string | null;
+  /** "https://wa.me/<digits>"; null while the integration is not configured. */
+  deepLink: string | null;
+}
+
+/**
+ * Account link to the WhatsApp bot through the whatsapp* callables (§27). Stateful per SESSION
+ * like ZoomService: the whatsappLinkStatus answer is cached in memory and cleared on
+ * 'session:ended' (never persisted). Firebase-unconfigured builds resolve a disabled status.
+ */
+export interface WhatsAppService {
+  /**
+   * The link status (cached per session; the first call per session hits the server). Throws
+   * AppError (offline | timeout | unauthenticated | upstream_error ...) when the ask fails;
+   * a failure is never cached, so a later call retries.
+   */
+  getStatus(): Promise<WhatsAppLinkStatus>;
+  /** The cached status synchronously for render; null before the first answer this session. */
+  getKnownStatus(): WhatsAppLinkStatus | null;
+  /**
+   * Mints a 6-digit one-time code via whatsappLinkStart. Throws AppError not_configured |
+   * unauthenticated | quota_exceeded (max codes per day; details.reason 'rate_limited') |
+   * offline | timeout | upstream_error.
+   */
+  startLink(): Promise<WhatsAppLinkCode>;
+  /**
+   * Removes the link via whatsappUnlink and flips the cached status to linked: false.
+   * Throws AppError on failure (same taxonomy as startLink).
+   */
+  unlink(): Promise<void>;
+}
+
+/** useWhatsAppStatus() - live view of the WhatsAppService status for screens. */
+export interface UseWhatsAppStatusResult {
+  /** null while unknown (first ask in flight or failed); the hook asks once on mount. */
+  status: WhatsAppLinkStatus | null;
+  /** Failure of the last ask (null while loading or after a success); refresh() retries. */
+  error: AppError | null;
+  /** Re-asks whatsappLinkStatus; the cached answer stays visible until the new one arrives. */
+  refresh(): Promise<void>;
+}
+
+// =============================================================================================
 // BILLING  (src/services/billing.ts catalog + src/services/purchases; §20)
 // =============================================================================================
 
@@ -1530,6 +1599,9 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   zoomCreateMeeting: { request: 'zoomCreateMeetingRequestSchema', response: 'zoomCreateMeetingResponseSchema' },
   zoomSyncMeeting: { request: 'zoomSyncMeetingRequestSchema', response: 'zoomSyncMeetingResponseSchema' },
   zoomDeleteMeeting: { request: 'zoomDeleteMeetingRequestSchema', response: 'zoomDeleteMeetingResponseSchema' },
+  whatsappLinkStart: { request: 'whatsappLinkStartRequestSchema', response: 'whatsappLinkStartResponseSchema' },
+  whatsappLinkStatus: { request: 'whatsappLinkStatusRequestSchema', response: 'whatsappLinkStatusResponseSchema' },
+  whatsappUnlink: { request: 'whatsappUnlinkRequestSchema', response: 'whatsappUnlinkResponseSchema' },
 };
 
 // =============================================================================================

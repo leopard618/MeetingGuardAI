@@ -226,6 +226,15 @@ it('links to the alert settings', async () => {
   expect(screen.getByText(/Maximum · 15 min before, 5 min before, At start/)).toBeTruthy();
 });
 
+it('offers the WhatsApp bot link under Integrations (§27)', async () => {
+  await renderSettings();
+  expect(screen.getByText('Integrations')).toBeTruthy();
+  const row = screen.getByTestId('settings-whatsapp');
+  expect(row).toBeTruthy();
+  expect(screen.getByText('WhatsApp assistant')).toBeTruthy();
+  expect(screen.getByText('Link your account to the WhatsApp bot')).toBeTruthy();
+});
+
 it('sets the time format for the whole app next to the language', async () => {
   await renderSettings();
   expect(screen.getByText('Time format')).toBeTruthy();

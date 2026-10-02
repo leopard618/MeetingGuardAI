@@ -29,6 +29,7 @@ import { MeetingFormScreen } from '../screens/meetings/MeetingFormScreen';
 import { NotesScreen as NotesView } from '../screens/notes/NotesScreen';
 import { PricingScreen as Pricing } from '../screens/pricing/PricingScreen';
 import { SettingsScreen as Settings } from '../screens/settings/SettingsScreen';
+import { WhatsAppConnectScreen as WhatsAppConnect } from '../screens/settings/WhatsAppConnectScreen';
 
 // ---- Main group --------------------------------------------------------------------------------
 
@@ -48,6 +49,7 @@ export const PrivacyScreen = Privacy;
 export const TermsScreen = Terms;
 export const CalendarSyncScreen = CalendarSync;
 export const PricingScreen = Pricing;
+export const WhatsAppConnectScreen = WhatsAppConnect;
 
 // ---- Meetings: live meeting from `meetingId` -----------------------------------------------------
 

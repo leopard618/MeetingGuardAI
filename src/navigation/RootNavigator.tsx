@@ -47,6 +47,7 @@ import {
   StandaloneTermsScreen,
   TermsScreen,
   TotalMeetingsScreen,
+  WhatsAppConnectScreen,
 } from './screens';
 import { MainSidebar, SidebarProvider, useSidebar } from './sidebar';
 import { PreferencesErrorScreen, SplashScreen } from './StatusScreens';
@@ -152,6 +153,7 @@ export function RootNavigator(): ReactElement {
         <Stack.Screen name="Terms" component={TermsScreen} />
         <Stack.Screen name="CalendarSync" component={CalendarSyncScreen} />
         <Stack.Screen name="Pricing" component={PricingScreen} />
+        <Stack.Screen name="WhatsAppConnect" component={WhatsAppConnectScreen} />
       </Stack.Navigator>
       <MainSidebar />
     </SidebarProvider>

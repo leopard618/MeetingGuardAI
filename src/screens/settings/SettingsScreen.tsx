@@ -4,9 +4,10 @@
  *   deleteAccount callable; required in-app by the App Store and Google Play).
  * - Alerts: summary + Settings > Alerts (every alert preference after onboarding).
  * - Appearance (theme), language (instant EN/ES), time format (12 h / 24 h / automatic, used for
- *   every time the app shows), calendars, legal pages, version (and the OTA update id / channel
- *   when an EAS update is running, for support and rollback checks).
- * Every string comes from the "settings" namespace (plus shared auth / onboarding keys).
+ *   every time the app shows), calendars, the WhatsApp bot link (route WhatsAppConnect, §27),
+ *   legal pages, version (and the OTA update id / channel when an EAS update is running, for
+ *   support and rollback checks).
+ * Every string comes from the "settings" namespace (plus shared auth / onboarding / whatsapp keys).
  * Layout: sentence-case SectionHeaders over ListGroups (rows) and Cards (segmented choices).
  */
 import { useNavigation } from '@react-navigation/native';
@@ -164,6 +165,19 @@ export function SettingsScreen(): ReactElement {
           trailing="chevron"
           onPress={() => navigation.navigate('CalendarSync')}
           accessibilityRole="button"
+        />
+      </ListGroup>
+
+      <SectionHeader title={t('whatsapp:row.section')} />
+      <ListGroup>
+        <ListRow
+          icon="whatsapp"
+          title={t('whatsapp:row.title')}
+          supporting={t('whatsapp:row.subtitle')}
+          trailing="chevron"
+          onPress={() => navigation.navigate('WhatsAppConnect')}
+          accessibilityRole="button"
+          testID="settings-whatsapp"
         />
       </ListGroup>
 

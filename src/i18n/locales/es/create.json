@@ -16,7 +16,9 @@
     "whatsapp": {
       "title": "WhatsApp",
       "description": "Todavía no se pueden crear reuniones por mensaje de WhatsApp.",
-      "hint": "Aún no disponible"
+      "hint": "Aún no disponible",
+      "readyDescription": "Envía al bot un mensaje como «Comida con Ana mañana a las 14:00». Confirmas antes de que se guarde nada.",
+      "readyHint": "Abre la configuración de WhatsApp"
     }
   }
 }
