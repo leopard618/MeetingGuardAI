@@ -36,6 +36,8 @@ export const AUTH_ERROR_REASONS = [
   'invalid_server_response',
   'requires_recent_login',
   'user_mismatch',
+  'apple_sign_in_unavailable',
+  'apple_sign_in_failed',
 ] as const;
 export type AuthErrorReason = (typeof AUTH_ERROR_REASONS)[number];
 
@@ -217,6 +219,49 @@ export function mapGoogleSignInError(error: unknown, codes: GoogleStatusCodes): 
 }
 
 // ---------------------------------------------------------------------------------------------
+// Sign in with Apple (expo-apple-authentication; iOS only - docs/ARCHITECTURE.md §26)
+// ---------------------------------------------------------------------------------------------
+
+/** expo-apple-authentication rejection codes (CodedError.code). */
+const APPLE_CANCELED = 'ERR_REQUEST_CANCELED';
+const APPLE_UNKNOWN = 'ERR_REQUEST_UNKNOWN';
+const APPLE_FAILED = 'ERR_REQUEST_FAILED';
+const APPLE_NOT_HANDLED = 'ERR_REQUEST_NOT_HANDLED';
+const APPLE_NOT_INTERACTIVE = 'ERR_REQUEST_NOT_INTERACTIVE';
+const APPLE_INVALID_RESPONSE = 'ERR_INVALID_RESPONSE';
+const APPLE_INVALID_SCOPE = 'ERR_INVALID_SCOPE';
+const APPLE_INVALID_OPERATION = 'ERR_INVALID_OPERATION';
+
+/**
+ * Maps a rejection of expo-apple-authentication (signInAsync / getCredentialStateAsync).
+ * ERR_REQUEST_UNKNOWN also fires when no Apple ID is signed in on the device, so it stays a
+ * retryable user-facing failure, not a developer error.
+ */
+export function mapAppleSignInError(error: unknown): AppError {
+  if (isAppError(error)) return error;
+  const providerCode = errorCodeOf(error);
+  const opts = { cause: error, providerCode };
+  switch (providerCode) {
+    case APPLE_CANCELED:
+      return authError('cancelled', null, 'Apple sign-in was cancelled', opts);
+    case APPLE_INVALID_SCOPE:
+    case APPLE_INVALID_OPERATION:
+      return authError('unsupported', 'apple_sign_in_unavailable', 'Apple sign-in is not available', opts);
+    case APPLE_UNKNOWN:
+    case APPLE_FAILED:
+    case APPLE_NOT_HANDLED:
+    case APPLE_NOT_INTERACTIVE:
+    case APPLE_INVALID_RESPONSE:
+      return authError('upstream_error', 'apple_sign_in_failed', 'Apple sign-in failed', {
+        ...opts,
+        retryable: true,
+      });
+    default:
+      return toAppError(error);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // User-facing message keys
 // ---------------------------------------------------------------------------------------------
 
@@ -244,6 +289,8 @@ const REASON_MESSAGE_KEYS: Readonly<Record<AuthErrorReason, string>> = {
   invalid_server_response: 'auth:errors.invalidServerResponse',
   requires_recent_login: 'auth:errors.requiresRecentLogin',
   user_mismatch: 'auth:errors.userMismatch',
+  apple_sign_in_unavailable: 'auth:errors.appleSignInUnavailable',
+  apple_sign_in_failed: 'auth:errors.appleSignInFailed',
 };
 
 const CODE_MESSAGE_KEYS: Partial<Readonly<Record<AppErrorCode, string>>> = {

@@ -18,7 +18,7 @@ Contents:
 5. EAS (Expo)
 6. Cloud Functions, rules and hosting
 7. Sentry (optional)
-8. iOS (when the client decides)
+8. iOS: the complete runway to the App Store
 9. Final check
 10. Microsoft/Outlook (Azure app registration)
 11. RevenueCat + Google Play subscriptions (in-app purchases)
@@ -505,33 +505,120 @@ Development builds never send events (`enabled: !__DEV__` in `src/services/sentr
 
 ---
 
-## 8. iOS (when the client decides)
+## 8. iOS: the complete runway to the App Store
 
-iOS has never been built. You need these first:
+iOS has never been built. Work top to bottom; every step says where its values come from.
+App code prerequisites (version 1.4.0) are already in the repo: `ios.usesAppleSignIn`, the
+Time Sensitive Notifications entitlement, EN+ES `supportedLocales`, the 1024x1024
+`assets/icon.png` and the `ios-simulator` build profile. Architecture: docs/ARCHITECTURE.md §26.
 
-- An Apple Developer account.
-- An App ID `com.meetingguard.ai` with the **Time Sensitive Notifications** capability
-  (`app.config.js` sets that entitlement).
-- The iOS OAuth client (§4.3).
-- A 1024x1024 app icon (`assets/icon.png` is 512x512).
-- **iPad:** the first release is iPhone only (`ios.supportsTablet: false` in `app.config.js`; iPads
-  run it in iPhone compatibility mode). The layouts are portrait-only and nothing was tested on an
-  iPad. To support iPad, set `supportsTablet: true` (Expo then declares every iPad orientation, as
-  the App Store requires for multitasking), test the screens in iPad landscape and split view, and
-  add iPad screenshots to the App Store listing.
-- **Sign in with Apple** or another login that meets App Store guideline 4.8. The app offers Google
-  sign-in, so Apple requires this.
-- The real Apple values in `eas.json` -> `submit.production.ios` (`appleId`, `ascAppId`,
-  `appleTeamId`). They are placeholders now.
+### 8.1 Apple Developer account and App Store Connect app
 
-Internal test builds only install on registered iPhones (`eas device:create`):
+1. Enroll at developer.apple.com (the paid Apple Developer Program; done). Note your **Team ID**:
+   developer.apple.com -> Membership details. It goes into `eas.json` -> `submit.production.ios.appleTeamId`.
+2. App Store Connect (appstoreconnect.apple.com) -> My Apps -> "+" -> New App:
+   - Platform iOS, name "MeetingGuard AI", primary language, bundle ID `com.meetingguard.ai`
+     (create the identifier first if the picker does not offer it: developer.apple.com ->
+     Identifiers -> "+" -> App ID, exactly `com.meetingguard.ai`), SKU e.g. `meetingguard-ai`.
+   - The new app's numeric **Apple ID** (App Store Connect -> the app -> App Information ->
+     General Information) goes into `eas.json` -> `submit.production.ios.ascAppId`.
+3. `submit.production.ios.appleId` is simply the email you sign in to App Store Connect with.
+   The three `submit.ios` values stay placeholders in git until you fill them locally.
+
+### 8.2 Install the Apple sign-in module (one root install)
 
 ```bash
-eas build --profile preview --platform ios
+npx expo install expo-apple-authentication
 ```
 
-TestFlight: `eas build --profile production --platform ios`, then
-`eas submit --profile production --platform ios`.
+That adds the SDK-57-matched version to package.json. The `app.config.js` plugin entry is
+conditional on the package resolving, so it activates by itself; nothing else to edit. Check:
+`npx expo config --type introspect` must now show `com.apple.developer.applesignin` under
+`ios.entitlements` and no "Install expo-apple-authentication" warning (the entitlement is only
+emitted once the package is installed; iOS prebuild itself is skipped on Windows, introspect is
+the Windows-side check).
+
+### 8.3 Capabilities and signing (EAS does this)
+
+```bash
+eas credentials -p ios      # or just: eas build -p ios --profile preview
+```
+
+Sign in with your Apple account when asked. EAS creates the distribution certificate and
+provisioning profile and syncs the App ID capabilities from the generated entitlements:
+**Sign in with Apple** (`ios.usesAppleSignIn`) and **Time Sensitive Notifications**
+(`ios.entitlements`). Nothing is clicked by hand in the developer portal.
+Internal (non-TestFlight) builds only install on registered iPhones: `eas device:create`.
+
+### 8.4 Firebase console: enable the Apple provider
+
+Firebase console -> Authentication -> Sign-in method -> Add new provider -> **Apple** -> enable.
+
+- For the NATIVE iOS sign-in flow that is all the app needs.
+- For **token revocation on account deletion** (App Review 5.1.1(v); the app calls firebase
+  `revokeAccessToken`) Firebase must be able to talk to Apple: create a **Sign in with Apple
+  key** at developer.apple.com -> Keys -> "+" (enable "Sign in with Apple", download the `.p8`
+  once) and fill the Apple provider's **Team ID, Key ID and private key** fields in the Firebase
+  console. The **Services ID** field is only needed if web/Android Apple sign-in is ever added.
+- The iOS Google OAuth client (§4.3) is separate and still required for Google sign-in on iOS
+  (`EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` -> the URL scheme, §5.2).
+
+### 8.5 Builds without owning a Mac or an iPhone
+
+Everything builds on EAS servers; a Mac is never needed.
+
+- **Simulator in the browser (Appetize.io)**: `eas build -p ios --profile ios-simulator`
+  produces a `.tar.gz` containing the `.app`. Upload it at appetize.io (free tier) and drive the
+  app in a browser. Good for UI, flows, i18n and layout. NOT testable there: push notifications,
+  real alert timing, and Sign in with Apple (cloud simulators have no iCloud account signed in).
+- **Real iPhones in the browser (BrowserStack App Live / LambdaTest)**: upload the `.ipa` from
+  `eas build -p ios --profile preview` (internal distribution). The service re-signs the app for
+  its devices, so push notifications will not arrive there either; sign-in, calendar and UI work.
+- **TestFlight (a real iPhone, e.g. Francisco's)**: see 8.6. The only path that exercises push
+  notifications, time-sensitive alerts and Sign in with Apple end to end.
+
+### 8.6 TestFlight and submission
+
+```bash
+eas build -p ios --profile production
+eas submit -p ios --profile production      # uploads the .ipa to App Store Connect
+```
+
+(Apple's store format is `.ipa`; Google's is `.aab`. `eas submit` reads `appleId` / `ascAppId` /
+`appleTeamId` from `eas.json` - §8.1.) After processing, App Store Connect -> TestFlight: add
+internal testers (their Apple account emails); they install via the TestFlight app. iOS
+versionCode/buildNumber is managed remotely by EAS like Android (`appVersionSource: remote`).
+
+### 8.7 On-device test plan
+
+Run docs/TESTING.md T20 (iOS rows) plus the regular T1/T5/T8/T11 on at least one real iPhone
+before review.
+
+### 8.8 App Review checklist
+
+- **4.8 Login services**: Sign in with Apple is offered with equal prominence (official button
+  above Google on the landing screen). Done in the app.
+- **5.1.1(v) Account deletion**: in-app deletion exists (Settings) and the Apple token is
+  revoked during deletion (`revokeAccessToken`; needs 8.4's key). Mention both in Review notes.
+- **Privacy nutrition labels** (App Store Connect -> App Privacy): data collected and linked to
+  the user: email address, name, calendar/meeting data (app functionality), purchase history
+  (subscriptions), diagnostics (Sentry, not linked). Match the privacy policy (§6.5 page).
+- **Privacy policy URL** and support URL on the store listing.
+- **Encryption**: `ITSAppUsesNonExemptEncryption: false` is already set (standard HTTPS only),
+  so no export-compliance questions at submission.
+- **Screenshots**: 6.9" (iPhone 16 Pro Max class) and 6.5" sets; the simulator build on
+  Appetize can produce them.
+- **iPad**: first release is iPhone-only (`supportsTablet: false`); iPads run it in
+  compatibility mode. To ship real iPad support later: `supportsTablet: true`, test every
+  orientation and split view, add iPad screenshots.
+- **Demo account for review**: provide a test email/password account with verified email, or
+  reviewers use Sign in with Apple themselves.
+
+### 8.9 After approval
+
+OTA updates (`npm run update:production`) reach iOS builds the same as Android within the same
+`version` (runtimeVersion policy `appVersion`); anything native (new module/entitlement) needs a
+new `version` and a new store build + review.
 
 ---
 

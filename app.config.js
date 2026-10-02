@@ -64,6 +64,23 @@ function googleSignInPlugin() {
 }
 
 /**
+ * Sign in with Apple (expo-apple-authentication). The config plugin sets the same
+ * com.apple.developer.applesignin entitlement as `ios.usesAppleSignIn: true`, but listing it
+ * keeps the native setup explicit and future plugin options available. The entry is conditional
+ * because a config plugin whose package is missing makes every `npx expo config` / prebuild
+ * fail: on a checkout where `npx expo install expo-apple-authentication` (docs/SETUP.md §8) has
+ * not run yet, the plugin is left out and the entitlement still comes from usesAppleSignIn.
+ */
+function appleAuthPlugin() {
+  try {
+    require.resolve('expo-apple-authentication/package.json');
+    return ['expo-apple-authentication'];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Sentry: organization/project/auth token come from build-time env vars (EAS secrets), never
  * from this file. Source-map upload is only enabled when all three are present, so local
  * prebuilds and builds without Sentry credentials do not fail.
@@ -89,7 +106,9 @@ module.exports = {
     // USE_FULL_SCREEN_INTENT). Builds of 1.1.0 must never receive 1.2.0 JS via OTA.
     // 1.3.0: mg-next-meeting-widget (new native module) + react-native-purchases (native SDK)
     // changed the runtime again: store/APK build only, never an OTA update onto 1.2.0.
-    version: '1.3.1',
+    // 1.4.0: expo-apple-authentication (Sign in with Apple, iOS pass) is a new native module +
+    // the applesignin entitlement: store/APK build only, never an OTA update onto 1.3.x.
+    version: '1.4.0',
     scheme: 'meetingguardai',
     platforms: ['ios', 'android'],
     orientation: 'portrait',
@@ -114,6 +133,13 @@ module.exports = {
       // iPhone app in compatibility mode. Turn on after iPad QA (docs/SETUP.md §8).
       supportsTablet: false,
       bundleIdentifier: 'com.meetingguard.ai',
+      // Sign in with Apple (App Review 4.8: an app with Google sign-in must offer it). Prebuild
+      // adds the com.apple.developer.applesignin entitlement from this flag ONCE
+      // expo-apple-authentication is installed (until then `npx expo config --type introspect`
+      // prints a warning and emits no entitlement - harmless, nothing can build iOS before the
+      // install either). EAS registers the capability on the App ID from the generated
+      // entitlements (docs/SETUP.md §8).
+      usesAppleSignIn: true,
       // MAX / MEDIUM meeting alerts use interruptionLevel "timeSensitive" (they break through
       // Focus modes). The App ID needs the "Time Sensitive Notifications" capability.
       entitlements: {
@@ -219,6 +245,7 @@ module.exports = {
         },
       ],
       ...googleSignInPlugin(),
+      ...appleAuthPlugin(),
       sentryPlugin(),
       // Local full-screen alarm module (modules/mg-fullscreen-alarm): the plugin only ensures the
       // USE_FULL_SCREEN_INTENT permission; autolinking picks the module itself up from modules/.

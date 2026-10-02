@@ -35,6 +35,31 @@ import { z } from 'zod';
 export const AI_CONTRACT_VERSION = 3;
 
 // ---------------------------------------------------------------------------------------------
+// Trusted sign-in providers (verification gate)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Sign-in providers whose accounts count as verified WITHOUT the email verification round-trip:
+ * the provider verified the identity itself (Google accounts; Apple IDs, including private-relay
+ * "Hide My Email" addresses, which Apple only issues to a verified Apple ID). The assistant and
+ * zoom callables require `email_verified` OR one of these as
+ * `request.auth.token.firebase.sign_in_provider` (functions/src/assistant/handler.ts,
+ * functions/src/zoom/index.ts); the client mirrors the exact same rule in
+ * `needsEmailVerification` (src/screens/shared/VerifyEmailBanner.tsx). Both sides MUST use this
+ * constant so they cannot drift - the functions copy of this file is diffed verbatim
+ * (functions: npm run check:contract).
+ */
+export const TRUSTED_SIGN_IN_PROVIDERS = ['google.com', 'apple.com'] as const;
+export type TrustedSignInProvider = (typeof TRUSTED_SIGN_IN_PROVIDERS)[number];
+
+const TRUSTED_SIGN_IN_PROVIDER_SET: ReadonlySet<string> = new Set(TRUSTED_SIGN_IN_PROVIDERS);
+
+/** True when a Firebase sign-in provider id makes the account count as verified by itself. */
+export function isTrustedSignInProvider(provider: string | null | undefined): boolean {
+  return typeof provider === 'string' && TRUSTED_SIGN_IN_PROVIDER_SET.has(provider);
+}
+
+// ---------------------------------------------------------------------------------------------
 // Callables
 // ---------------------------------------------------------------------------------------------
 

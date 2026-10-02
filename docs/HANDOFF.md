@@ -252,9 +252,10 @@ These are true in v1.3.0. Some are platform limits, some are not built yet.
   They are removed on sign-out and meeting deletion, and lost on uninstall. The limit is 50 MB per file.
 - **Sign-in:** there is no email/password screen (the service supports it). There is no Sign in with
   Apple, which iOS requires.
-- **iOS has never been built.** The icon is 512 px (Apple needs 1024 px). `eas.json` has placeholder
-  Apple ids. The first iOS release is iPhone only (`ios.supportsTablet: false`); iPad support needs
-  iPad landscape QA and iPad screenshots (`docs/SETUP.md` §8).
+- **iOS has never been built.** The 1024 px icon is in (`assets/icon.png`) and the Sign in with
+  Apple groundwork is contracted (docs/ARCHITECTURE.md §26). `eas.json` has placeholder Apple ids.
+  The first iOS release is iPhone only (`ios.supportsTablet: false`); iPad support needs iPad
+  landscape QA and iPad screenshots (`docs/SETUP.md` §8).
 - **Legal texts have placeholders** (`LEGAL_ENTITY`, `legal:jurisdiction`, the support email). They
   exist only inside the app, with no public URL.
 - **OTA reach.** OTA updates reach only builds from 1.2.0 on. A downloaded update runs from the next

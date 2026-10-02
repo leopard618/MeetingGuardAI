@@ -18,6 +18,7 @@
   },
   "signIn": {
     "google": "Continuar con Google",
+    "apple": "Continuar con Apple",
     "email": "Continuar con correo",
     "busy": "Iniciando sesión...",
     "failedTitle": "No se pudo iniciar sesión",

@@ -25,7 +25,7 @@ describe('ensureLink re-push announcement', () => {
     const service = createZoomService({ getTransport: okTransport, events: bus });
     bus.emit('session:started', { uid: 'u1', restored: false });
 
-    const seen: Array<{ uid: string; origin?: string; reason: string; changedIds?: string[] }> = [];
+    const seen: { uid: string; origin?: string; reason: string; changedIds?: string[] }[] = [];
     const stop = appEvents.on('meetings:changed', (event) => {
       if (event.changedIds?.includes('m1')) seen.push(event);
     });

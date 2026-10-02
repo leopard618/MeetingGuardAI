@@ -921,7 +921,8 @@ mapping in `src/services/auth/authErrors.ts` (IMPLEMENTED); screen stub
   (`auth:errors.invalidCredentials`, one generic message - no account enumeration); also
   `email_in_use`, `weak_password`, `too_many_requests`, `provider_disabled`.
 - **Verification gate**: the assistant callable already rejects callers without
-  `email_verified` unless the provider is google.com. Client mirror:
+  `email_verified` unless the provider is trusted (google.com; apple.com joins in §26 via
+  `TRUSTED_SIGN_IN_PROVIDERS`). Client mirror:
   `needsEmailVerification(authUser)` (VerifyEmailBanner.tsx); the zoom surfaces mirror it too
   (§24 app flow). The banner mounts on the assistant screen (and the entries into it):
   `auth:verify.assistantBody` with `auth:verify.resend` (-> `resendVerification()`) and
@@ -937,3 +938,68 @@ mapping in `src/services/auth/authErrors.ts` (IMPLEMENTED); screen stub
 - **Tests required**: authService email methods (mocked firebase/auth - exist), authErrors
   mapping rows, EmailAuthScreen render + interaction (mode toggle, submit, reset), banner
   render + `needsEmailVerification`, i18n parity (auth.json keys exist in EN+ES).
+
+## 26. Sign in with Apple and iOS readiness (iOS pass)
+
+Contract: `AuthService.signInWithApple / revokeAppleTokens` and the reauthenticate provider order
+in `src/core/contracts.ts` (STUBS throw `not_implemented`); `AuthContextValueImpl.signInWithApple`
+(wrapper IMPLEMENTED, calls the stub); error mapping `mapAppleSignInError` in
+`src/services/auth/authErrors.ts` (IMPLEMENTED); button stub
+`src/screens/auth/AppleSignInButton.tsx`. Owner console steps: docs/SETUP.md §8.
+New runtime dependency: `expo-apple-authentication` (installed with `npx expo install`; the
+`app.config.js` plugin entry activates itself once the package resolves).
+
+- **Flow** (`signInWithApple`, iOS ONLY): `isAvailableAsync()` gate (`unsupported` /
+  `apple_sign_in_unavailable` elsewhere) -> raw random nonce (expo-crypto `getRandomBytes(32)`,
+  base64url) -> `signInAsync({ requestedScopes: [FULL_NAME, EMAIL], nonce: SHA-256 hex of the raw
+  nonce via Crypto.digestStringAsync })` -> `new OAuthProvider('apple.com').credential({ idToken:
+  identityToken, rawNonce })` -> `signInWithCredential`. Apple checks that the token's nonce
+  equals the hash; Firebase checks the raw nonce hashes to it (replay protection). The module is
+  `require()`d lazily (pattern: `loadGoogleModule`), never top-level imported.
+- **First sign-in only**: Apple returns `fullName`/`email` ONCE. When the Firebase user has no
+  `displayName`, save the formatted name via `updateProfile` (best effort + `notifyProfileChanged`,
+  exactly like `signUpWithEmail`). Cancel (`ERR_REQUEST_CANCELED`) resolves
+  `{ status: 'cancelled' }` and stays silent in the UI.
+- **Provider trust**: `TRUSTED_SIGN_IN_PROVIDERS` / `isTrustedSignInProvider` in
+  `src/core/aiContract.ts` (mirrored verbatim in `functions/src/shared/aiContract.ts`;
+  `npm run check:contract`). Apple accounts count as verified WITHOUT the email round-trip -
+  Apple verified the Apple ID, and private-relay (Hide My Email) addresses belong to verified
+  Apple IDs. The google-only checks MUST be replaced by this helper in exactly these places:
+  `isVerifiedCaller` in `functions/src/assistant/handler.ts`, `isVerifiedCaller` in
+  `functions/src/zoom/index.ts` (server), and `needsEmailVerification` in
+  `src/screens/shared/VerifyEmailBanner.tsx` (client mirror). App and functions semantics stay
+  identical; everything §25 says about the gate is unchanged for password accounts.
+- **Sessions**: nothing changes. The session manager keys on the Firebase user only; ensureProfile,
+  migration and cleanup treat an apple.com session exactly like a Google or email one.
+- **Account deletion** (App Review 5.1.1(v): revoke Apple tokens when the account dies). Flow for
+  users with provider apple.com (checked FIRST, before google.com, in `useDeleteAccountFlow`):
+  `reauthenticate()` (Apple branch: `signInAsync` with no scopes + fresh nonce ->
+  `reauthenticateWithCredential`; it stashes the new single-use `authorizationCode` in the auth
+  module) -> `authService.revokeAppleTokens()` (`revokeAccessToken(auth, code)`; Firebase
+  exchanges and revokes the Apple refresh token server-side) -> `sessionManager.deleteAccount()`
+  (unchanged: callable -> revokeGoogleAccess best effort -> END). Revocation is BEST EFFORT +
+  PROCEED: on failure show the `auth:deleteAccount.appleRevokeNotice` toast and continue. Why:
+  the user's right to delete the account may not depend on Apple/Firebase revocation uptime (the
+  deletion requirement itself), the server delete kills app access regardless, and the notice
+  tells the user how to detach the app from their Apple ID manually. Order matters: revocation
+  needs a signed-in user and runs BEFORE the delete callable (Google revocation stays after, as
+  today). `reauthenticate` provider order: apple.com first on iOS when the module is usable (it
+  refreshes the code revocation needs), otherwise google.com, otherwise password; on Android an
+  apple.com-only session cannot exist (no Apple provider there).
+- **Landing UI**: `AppleSignInButton` (official `AppleAuthenticationButton`) directly ABOVE
+  "Continue with Google", iOS-only render, equal size/prominence (HIG + review 4.8). The native
+  button localizes its own label; `accessibilityLabel` = `landing:signIn.apple`.
+  EmailAuthScreen is untouched.
+- **i18n keys** (EN+ES, parity-tested): `landing:signIn.apple`,
+  `auth:errors.appleSignInUnavailable`, `auth:errors.appleSignInFailed`,
+  `auth:deleteAccount.appleRevokeNotice`.
+- **Config** (this pass): `version` 1.4.0 (new native module - store/APK build only, no OTA onto
+  1.3.x), `ios.usesAppleSignIn: true`, conditional `expo-apple-authentication` plugin entry,
+  1024x1024 `assets/icon.png` (Android adaptive icon unchanged), eas.json `ios-simulator` build
+  profile (extends preview, `ios.simulator: true`) for browser-simulator testing (Appetize).
+- **Tests required**: authService.signInWithApple (mocked expo-apple-authentication + firebase):
+  success, cancel silent, unavailable, missing identityToken, first-sign-in name capture;
+  reauthenticate apple branch + code stash; revokeAppleTokens (fresh code, stale code, failure);
+  mapAppleSignInError rows; functions isVerifiedCaller x apple.com (assistant + zoom);
+  needsEmailVerification x apple.com; AppleSignInButton render gate; delete-flow revocation
+  order + best-effort notice; i18n parity (automatic).

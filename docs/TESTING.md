@@ -730,5 +730,25 @@ Zoom web portal if it matters.
 **Admin dashboard** verification (not a device test): `docs/ADMIN.md` - deploy steps, granting
 the admin claim, and a per-callable checklist (user list, disable/enable, set plan, metrics).
 
-If iOS is in scope, repeat T1 to T11 on an iPhone. Sign in with Apple has to be built first
-(`docs/HANDOFF.md`).
+If iOS is in scope, repeat T1 to T11 on an iPhone and run T20.
+
+### T20. iOS: Sign in with Apple, gate parity and deletion (`docs/SETUP.md` §8)
+
+Device: a real iPhone (TestFlight or a registered-device build). Rows marked (sim) also work in
+a simulator build (Appetize) WITHOUT an iCloud account; the Apple sign-in rows need a device
+signed in to an Apple ID.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | (sim) Open the landing screen on iOS, then on an Android build. | iOS shows the official Apple button directly ABOVE "Continue with Google", same width and height (also in Spanish and at large font scale). Android never shows it. |
+| 2 | Tap the Apple button, then dismiss the Apple sheet. | No alert, no error toast; the screen simply returns (cancel is silent). |
+| 3 | Sign in with Apple for the FIRST time with this Apple ID, sharing the email. | Signed in; onboarding or dashboard as usual; Settings/profile shows the Apple name as display name. |
+| 4 | Open the AI assistant and the Zoom link flow while signed in with Apple (no email verification ever done). | NO "Verify your email" banner anywhere; the assistant answers and zoom links are promised/created (apple.com is a trusted provider, server and client agree). |
+| 5 | Repeat 3 with "Hide My Email" (private relay) on a fresh Apple ID or after revoking in Settings. | Same as 3 and 4: the relay address counts as verified; mail from the app (if any) still routes. |
+| 6 | Sign out, sign in with Apple AGAIN. | Works; Apple returns no name/email on repeat sign-ins and the profile keeps its existing display name. |
+| 7 | Settings -> Delete account (Apple user). | The Apple sheet asks you to confirm (reauthentication); after confirming, the busy dialog, then the landing screen. Settings -> Apple ID -> Sign-In & Security -> Sign in with Apple no longer lists the app (token revoked). |
+| 8 | Delete account again (new account) but kill the network right AFTER the Apple confirmation sheet. | The revoke-failed notice appears (EN/ES), and the deletion still completes once the network is back or fails with a clear retryable error - never a half-deleted silent state. |
+| 9 | Sign in with Google on iOS; also run T19 row 1 (email account) on iOS. | Google and email flows behave exactly as on Android (T1/T19); the Google iOS URL scheme works (no browser dead end). |
+| 10 | (sim) Language switch EN/ES on the landing screen. | The Apple button label follows the SYSTEM language (native button); everything else follows the in-app language. |
+| 11 | T5 alert spot-check on the iPhone: one MAX and one MEDIUM alert with the app in background. | Both fire on time; MAX/MEDIUM break through a Focus mode (time-sensitive entitlement works). |
+| 12 | (sim) Icon + splash check on a clean install. | The 1024 icon renders crisp on the home screen and in Settings; no letterboxing artifacts. |

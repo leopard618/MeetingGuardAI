@@ -37,6 +37,8 @@ export interface AuthSimpleResult {
 /** AuthContextValue plus the auth area's extensions. */
 export interface AuthContextValueImpl extends AuthContextValue {
   signInWithGoogle(): Promise<AuthActionResult>;
+  /** iOS only (§26): wraps authService.signInWithApple() like the Google action (cancel is quiet). */
+  signInWithApple(): Promise<AuthActionResult>;
   signInWithEmail(email: string, password: string): Promise<AuthActionResult>;
   signUpWithEmail(email: string, password: string, name: string): Promise<AuthActionResult>;
   sendPasswordReset(email: string): Promise<AuthSimpleResult>;
@@ -179,6 +181,19 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
     [runBusy],
   );
 
+  const signInWithApple = useCallback(
+    () =>
+      runBusy(async (): Promise<AuthActionResult> => {
+        try {
+          const result = await authService.signInWithApple();
+          return result.status === 'success' ? authSuccess(result.user) : authCancelled();
+        } catch (error) {
+          return toFailure(error, 'Apple sign-in failed');
+        }
+      }),
+    [runBusy],
+  );
+
   const signInWithEmail = useCallback(
     (email: string, password: string) =>
       runBusy(async (): Promise<AuthActionResult> => {
@@ -270,6 +285,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       calendarConnected,
       sessionError: session.error,
       signInWithGoogle,
+      signInWithApple,
       signInWithEmail,
       signUpWithEmail,
       sendPasswordReset,
@@ -291,6 +307,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       hasCalendarScope,
       calendarConnected,
       signInWithGoogle,
+      signInWithApple,
       signInWithEmail,
       signUpWithEmail,
       sendPasswordReset,

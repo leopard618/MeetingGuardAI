@@ -448,6 +448,19 @@ export interface AuthService {
   onAuthStateChanged(listener: (user: AuthUser | null) => void): Unsubscribe;
   /** Native Google sign-in -> GoogleAuthProvider.credential(idToken) -> signInWithCredential. Throws AppError (not on cancel). */
   signInWithGoogle(): Promise<SignInResult>;
+  /**
+   * Sign in with Apple, iOS ONLY (docs/ARCHITECTURE.md §26). expo-apple-authentication:
+   * availability check (isAvailableAsync) -> nonce (a raw random string; its SHA-256 hash from
+   * expo-crypto goes to Apple's request) -> signInAsync({ requestedScopes: FULL_NAME + EMAIL,
+   * nonce: <hash> }) -> OAuthProvider('apple.com').credential({ idToken: identityToken,
+   * rawNonce }) -> signInWithCredential. Apple returns fullName/email only on the FIRST
+   * authorization: when the Firebase user has no displayName yet, it is saved via updateProfile
+   * (best effort, like signUpWithEmail). The credential's authorizationCode is stashed for
+   * revokeAppleTokens(). Cancel resolves { status: 'cancelled' } (never an alert); on Android,
+   * in builds without the native module or when isAvailableAsync() is false it throws
+   * AppError('unsupported', details.reason 'apple_sign_in_unavailable').
+   */
+  signInWithApple(): Promise<SignInResult>;
   /** Email/password sign-in (EmailAuthScreen, §25). Errors map via authErrors.ts. */
   signInWithEmail(email: string, password: string): Promise<AuthUser>;
   /**
@@ -479,15 +492,28 @@ export interface AuthService {
   /** GoogleSignin.revokeAccess() (disconnect calendar / account deletion). */
   revokeGoogleAccess(): Promise<void>;
   /**
+   * Revokes the Apple refresh token through firebase `revokeAccessToken(auth, code)` with the
+   * authorizationCode captured by the LAST Apple interaction in this process (signInWithApple or
+   * the Apple branch of reauthenticate). Required before deleting an apple.com account (App
+   * Review 5.1.1(v); docs/ARCHITECTURE.md §26). The code is single-use and short-lived: call
+   * this right after reauthenticate(). Throws AppError('unauthenticated', details.reason
+   * 'requires_recent_login') when no fresh code is stashed; the delete flow treats ANY failure
+   * as BEST EFFORT (notice toast, then the deletion proceeds).
+   */
+  revokeAppleTokens(): Promise<void>;
+  /**
    * Calls the "deleteAccount" callable ({ confirm: true }). Local cleanup is the session manager's
    * job. The server requires a recent sign-in: call reauthenticate() right before; otherwise it
    * fails with AppError('unauthenticated', details.reason 'requires_recent_login').
    */
   deleteAccountOnServer(): Promise<void>;
   /**
-   * Confirms the signed-in user again (fresh auth_time for sensitive operations): Google accounts
-   * pick their account again (reauthenticateWithCredential), password accounts give `password`.
-   * 'cancelled' when the user dismissed the Google picker.
+   * Confirms the signed-in user again (fresh auth_time for sensitive operations). Provider order:
+   * apple.com FIRST on iOS when the native module is usable (the Apple sheet; it also refreshes
+   * the authorizationCode that revokeAppleTokens() needs - §26), then google.com (the account
+   * picker, reauthenticateWithCredential), then password accounts with `password`. 'cancelled'
+   * when the user dismissed the Apple sheet or the Google picker. A different Apple ID / Google
+   * account fails with auth/user-mismatch (reason 'user_mismatch').
    */
   reauthenticate(options?: { password?: string }): Promise<'done' | 'cancelled'>;
 }
@@ -560,6 +586,8 @@ export interface AuthContextValue {
   entitlement: Entitlement;
   hasCalendarScope: boolean;
   signInWithGoogle(): Promise<SignInActionResult>;
+  /** iOS only (§26): authService.signInWithApple() wrapped like signInWithGoogle (cancel is not an error). */
+  signInWithApple(): Promise<SignInActionResult>;
   signInWithEmail(email: string, password: string): Promise<SignInActionResult>;
   signUpWithEmail(email: string, password: string, name: string): Promise<SignInActionResult>;
   /** Throws AppError('pending_writes') when unsynced writes exist and !force (see useSignOutFlow). */

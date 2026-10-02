@@ -366,6 +366,17 @@ export const authService: AuthServiceImpl = {
     return flow;
   },
 
+  // iOS-pass STUB (contract: src/core/contracts.ts + docs/ARCHITECTURE.md §26; implementation
+  // lands with the apple-app implementer once expo-apple-authentication is installed):
+  // availability check -> raw random nonce whose SHA-256 hash (expo-crypto) goes to
+  // signInAsync -> OAuthProvider('apple.com').credential({ idToken, rawNonce }) ->
+  // signInWithCredential; first sign-in saves fullName as displayName (best effort,
+  // notifyProfileChanged); the authorizationCode is stashed for revokeAppleTokens(). The module
+  // is require()d lazily like loadGoogleModule(), never imported at the top.
+  async signInWithApple(): Promise<SignInResult> {
+    throw new AppError('not_implemented', 'Sign in with Apple is not implemented yet');
+  },
+
   async signInWithEmail(email: string, password: string): Promise<AuthUser> {
     const authInstance = requireAuth();
     const trimmed = requireEmail(email);
@@ -576,6 +587,14 @@ export const authService: AuthServiceImpl = {
       }
     });
     notifyGoogleAccessChanged();
+  },
+
+  // iOS-pass STUB (§26): firebase revokeAccessToken(auth, <stashed Apple authorizationCode>),
+  // the code coming from the last signInWithApple()/Apple reauthenticate() in this process
+  // (single-use, short-lived; cleared after the attempt). No fresh code -> AppError
+  // ('unauthenticated', reason 'requires_recent_login'). Callers treat failures as best effort.
+  async revokeAppleTokens(): Promise<void> {
+    throw new AppError('not_implemented', 'Apple token revocation is not implemented yet');
   },
 
   async deleteAccountOnServer(): Promise<void> {
