@@ -171,7 +171,11 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
         )
       ) : null}
       {showData ? <NextMeetingCard current={current} next={next} onOpen={openMeeting} onJoin={join} /> : null}
-      <QuickActions onNewManual={() => navigation.navigate('CreateMeeting')} onNewWithAi={() => navigation.navigate('AIChat')} />
+      <QuickActions
+        onNewManual={() => navigation.navigate('CreateMeeting')}
+        onNewWithAi={() => navigation.navigate('AIChat')}
+        onWhatsApp={() => navigation.navigate('WhatsAppConnect')}
+      />
       {loadFailed ? null : (
         <SectionHeader
           title={t('home:today.title')}

@@ -119,6 +119,8 @@
     "aiHint": "Descríbela con tus palabras",
     "whatsapp": "WhatsApp",
     "whatsappHint": "Próximamente",
-    "whatsappA11y": "WhatsApp: próximamente, aún no disponible"
+    "whatsappA11y": "WhatsApp: próximamente, aún no disponible",
+    "whatsappReadyHint": "Crea por mensaje",
+    "whatsappReadyA11y": "WhatsApp: crea reuniones por mensaje. Abre la configuración de WhatsApp"
   }
 }

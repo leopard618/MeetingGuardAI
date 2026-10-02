@@ -119,6 +119,8 @@
     "aiHint": "Describe it in your words",
     "whatsapp": "WhatsApp",
     "whatsappHint": "Coming soon",
-    "whatsappA11y": "WhatsApp: coming soon, not available yet"
+    "whatsappA11y": "WhatsApp: coming soon, not available yet",
+    "whatsappReadyHint": "Create by message",
+    "whatsappReadyA11y": "WhatsApp: create meetings by message. Opens the WhatsApp setup"
   }
 }

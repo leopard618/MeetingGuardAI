@@ -44,6 +44,15 @@ jest.mock('../../../services/calendar', () => ({
   calendarSyncEngine: { syncNow: (...args: unknown[]) => mockSyncNow(...args) },
 }));
 
+// §27: the WhatsApp tile follows whatsappLinkStatus.enabled (null = unknown = still disabled).
+let mockWhatsAppStatus: { enabled: boolean; linked: boolean; displayNumber: string | null; deepLink: string | null; linkedLast4: string | null } | null = null;
+jest.mock('../../../services/whatsapp', () => ({
+  useWhatsAppStatus: () => ({ status: mockWhatsAppStatus, error: null, refresh: jest.fn() }),
+}));
+afterEach(() => {
+  mockWhatsAppStatus = null;
+});
+
 let mockPending: ScheduledAlertInfo[] = [];
 const mockRequestPermissions = jest.fn(async () => ({ notifications: 'granted', canAskAgain: true, exactAlarms: 'not_required' }));
 let mockPermission: { notifications: string; canAskAgain: boolean; exactAlarms: string } = {
@@ -89,6 +98,7 @@ async function renderDashboard() {
             <Stack.Screen name="AIInsights" component={TargetStub} />
             <Stack.Screen name="AlertSettings" component={TargetStub} />
             <Stack.Screen name="CreateMeeting" component={TargetStub} />
+            <Stack.Screen name="WhatsAppConnect" component={TargetStub} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
@@ -259,6 +269,16 @@ it('offers manual and AI creation; WhatsApp is disabled ("coming soon")', async 
     fireEvent.press(screen.getByTestId('quick-new-manual'));
   });
   expect(await screen.findByTestId('target-CreateMeeting')).toBeTruthy();
+});
+
+it('the WhatsApp tile opens the WhatsApp setup once the server-side bot is enabled', async () => {
+  mockWhatsAppStatus = { enabled: true, linked: false, displayNumber: null, deepLink: null, linkedLast4: null };
+  await renderDashboard();
+  expect(screen.getByText('Create by message')).toBeTruthy();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('quick-whatsapp'));
+  });
+  expect(await screen.findByTestId('target-WhatsAppConnect')).toBeTruthy();
 });
 
 it('pull to refresh flushes and re-reads the meetings and syncs the calendars; failures are reported', async () => {
