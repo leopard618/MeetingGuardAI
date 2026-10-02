@@ -285,6 +285,68 @@ describe('meetings: recurrence and outlook (phase 1)', () => {
   });
 });
 
+describe('meetings: zoom external ref (phase 2, docs/ARCHITECTURE.md 24)', () => {
+  // external.zoomMeetingId is first written by the zoomCreateMeeting callable (Admin SDK), but
+  // it must stay CLIENT-writable like the outlook refs: every later client edit rewrites the
+  // whole document, external refs included.
+  const zoomConference = { provider: 'zoom', url: 'https://zoom.us/j/987654321', password: 'abc123' };
+
+  it('accepts a meeting whose external carries a zoomMeetingId (string <= 64)', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(alice(), 'users/alice/meetings/m1'),
+        meeting({
+          conference: zoomConference,
+          external: { ...(meeting().external as Record<string, unknown>), zoomMeetingId: '987654321' },
+        }),
+      ),
+    );
+  });
+
+  it('accepts an explicit null zoomMeetingId', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(alice(), 'users/alice/meetings/m1'),
+        meeting({ external: { ...(meeting().external as Record<string, unknown>), zoomMeetingId: null } }),
+      ),
+    );
+  });
+
+  it('lets a client edit rewrite a document that already carries the server-written id', async () => {
+    await seed(
+      'users/alice/meetings/m1',
+      meeting({
+        conference: zoomConference,
+        external: { ...(meeting().external as Record<string, unknown>), zoomMeetingId: '987654321' },
+      }),
+    );
+    await assertSucceeds(
+      setDoc(
+        doc(alice(), 'users/alice/meetings/m1'),
+        meeting({
+          title: 'Weekly sync (moved)',
+          conference: zoomConference,
+          external: { ...(meeting().external as Record<string, unknown>), zoomMeetingId: '987654321' },
+          updatedAt: '2026-10-06T00:00:00.000Z',
+        }),
+      ),
+    );
+  });
+
+  it.each([
+    ['an oversized zoomMeetingId', 'x'.repeat(65)],
+    ['a numeric zoomMeetingId', 987654321],
+    ['a map zoomMeetingId', { id: '987654321' }],
+  ])('rejects %s', async (_label, value) => {
+    await assertFails(
+      setDoc(
+        doc(alice(), 'users/alice/meetings/m1'),
+        meeting({ external: { ...(meeting().external as Record<string, unknown>), zoomMeetingId: value } }),
+      ),
+    );
+  });
+});
+
 describe('profile', () => {
   it('lets the owner write profile fields', async () => {
     await assertSucceeds(setDoc(doc(alice(), 'users/alice'), profile()));
