@@ -20,6 +20,7 @@ import type * as I18nModule from '../i18n';
 import type * as NavigationModule from '../navigation';
 import type * as OnboardingModule from '../screens/onboarding';
 import type * as FormatModule from '../utils/format';
+import type * as WhatsAppModule from '../services/whatsapp';
 import type * as ZoomModule from '../services/zoom';
 import type {
   ActionExecutor,
@@ -58,7 +59,9 @@ import type {
   UsePendingAlertsResult,
   UsePreferencesResult,
   UserRepository,
+  UseWhatsAppStatusResult,
   UseZoomStatusResult,
+  WhatsAppService,
   ZoomService,
 } from './contracts';
 import type {
@@ -173,4 +176,10 @@ export type AiConformance = [
 export type ZoomConformance = [
   Assert<Extends<typeof ZoomModule.zoomService, ZoomService>>,
   Assert<Extends<typeof ZoomModule.useZoomStatus, () => UseZoomStatusResult>>,
+];
+
+// ---- whatsapp ----------------------------------------------------------------------------------
+export type WhatsAppConformance = [
+  Assert<Extends<typeof WhatsAppModule.whatsappService, WhatsAppService>>,
+  Assert<Extends<typeof WhatsAppModule.useWhatsAppStatus, () => UseWhatsAppStatusResult>>,
 ];
