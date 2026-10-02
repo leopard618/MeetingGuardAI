@@ -71,8 +71,6 @@
     "manageA11y": "Abrir tu suscripción en Google Play",
     "activationTimeoutTitle": "Todavía en proceso",
     "activationTimeout": "Tu compra está confirmada, pero tu plan aún no se ha actualizado aquí. Se actualizará automáticamente cuando termine el proceso; no hace falta volver a comprar.",
-    "switchCycleHint": "Tienes este plan con otro periodo de facturación. Para cambiar entre mensual y anual, gestiona tu suscripción en Google Play.",
-    "downgradeHint": "Para cambiar a este plan, gestiona tu suscripción en Google Play.",
     "loadingIos": "Cargando los precios de App Store...",
     "loadErrorIos": "No pudimos cargar los precios de App Store, así que las compras están en pausa por ahora. Los precios de abajo son solo orientativos.",
     "retryA11yIos": "Reintentar la carga de los precios de App Store",

@@ -5,7 +5,7 @@
  * native code, so it only works in a dev/store build. This module never imports it statically:
  * - without the npm package (unit tests, a checkout before the integrator pass) the require
  *   throws and `loadPurchasesSdk()` returns null;
- * - with the JS package but without the native module (Expo Go, iOS in this release) the
+ * - with the JS package but without the native module (Expo Go) the
  *   `NativeModules.RNPurchases` check fails and it also returns null.
  * Callers (src/services/purchases/service.ts) treat null as "purchases unconfigured".
  *
@@ -69,7 +69,9 @@ export interface RcCustomerInfoLike {
 
 /**
  * Google Play product change (react-native-purchases GoogleProductChangeInfo): buying a
- * different subscription tier must REPLACE the active product, never open a second one.
+ * different subscription product must REPLACE the active one, never open a second one.
+ * ANDROID ONLY: on iOS all four products share one subscription group, so StoreKit replaces
+ * by itself and no product change is passed (docs/ARCHITECTURE.md section 20).
  */
 export interface RcProductChangeInfoLike {
   oldProductIdentifier: string;
@@ -101,6 +103,11 @@ export interface PurchasesSdkLike {
   ): Promise<RcPurchaseResultLike>;
   getCustomerInfo(): Promise<RcCustomerInfoLike>;
   restorePurchases(): Promise<RcCustomerInfoLike>;
+  /**
+   * iOS 13+: presents the native App Store manage-subscriptions sheet. Optional on the Like
+   * type (older SDKs lack it); the service treats a missing method as "fall back to the URL".
+   */
+  showManageSubscriptions?(): Promise<void>;
 }
 
 interface PurchasesModuleLike {
@@ -110,13 +117,13 @@ interface PurchasesModuleLike {
 let cached: PurchasesSdkLike | null | undefined;
 
 /**
- * The SDK, or null when the package or its native module is unavailable. Android-only by
- * contract (§20 ships Google Play products only).
+ * The SDK, or null when the package or its native module is unavailable. Android and iOS by
+ * contract (§20: Google Play + App Store); other platforms (web) stay null.
  */
 export function loadPurchasesSdk(): PurchasesSdkLike | null {
   if (cached !== undefined) return cached;
   cached = null;
-  if (Platform.OS !== 'android') return cached;
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return cached;
   try {
     // Optional dependency: the integrator installs react-native-purchases; a static import
     // would break tsc/tests until then, and the whole feature is env-gated anyway.

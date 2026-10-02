@@ -3,7 +3,10 @@
  *
  * Plan cards merge the catalog (src/services/billing.ts) with the live RevenueCat offering:
  * - store unconfigured -> exactly the old catalog-only view ("coming soon", nothing purchasable);
- * - store ready -> STORE price strings (never computed prices) + purchase buttons + trial copy;
+ * - store ready -> STORE price strings (never computed prices) + purchase buttons + trial copy.
+ *   EVERY non-current paid card is purchasable: purchase() REPLACES the running subscription
+ *   (section 20), so monthly<->yearly switches and tier downgrades are in-app purchases with
+ *   their own "Switch ..." labels, never out-of-app dead ends;
  * - store load error -> catalog prices, an error banner with Retry, and NO purchase buttons
  *   (an honest non-purchasable state instead of a fake one).
  * Today's assistant usage summary is unchanged.
@@ -23,6 +26,14 @@ export type StoreState =
 
 export const STORE_UNCONFIGURED: StoreState = { kind: 'unconfigured' };
 
+/**
+ * Which label the purchase button carries. 'buy' = a plain purchase or a tier UPGRADE ("Get
+ * Pro"); the switch labels mark REPLACEMENT purchases: same tier, other billing cycle
+ * ('switchToMonthly'/'switchToYearly') or a lower tier while a higher one is active
+ * ('switchTier', "Switch to Pro"). purchase() replaces the running subscription in all cases.
+ */
+export type PurchaseAction = 'buy' | 'switchToMonthly' | 'switchToYearly' | 'switchTier';
+
 export interface PlanCard {
   id: PlanId;
   tier: PlanTier;
@@ -35,27 +46,23 @@ export interface PlanCard {
   aiRequestsPerDay: number;
   popular: boolean;
   isCurrent: boolean;
-  /** true when a purchase button is shown for this card (store ready + package present). */
+  /** true when a purchase button is shown for this card (store ready + package + not current). */
   purchasable: boolean;
+  /** The purchase button's label kind; null exactly when not purchasable. */
+  purchaseLabel: PurchaseAction | null;
   /**
-   * Same tier as the current plan, but the PURCHASED product is the other billing cycle
-   * (known via activeProductId): no "Current plan" badge here - the card shows a "change your
-   * billing period in Google Play" note instead of an untrue label or a dead purchase button.
+   * true only when THIS card's product is the active store subscription (activeProductId):
+   * the "Manage subscription" action appears here and nowhere else - never on admin-granted
+   * plans, which have no store subscription to manage.
    */
-  switchCycleHint: boolean;
-  /**
-   * The blocked downgrade card (premium -> pro while the store is live): no purchase button by
-   * design (buying the lower product would open a SECOND subscription), so the card explains
-   * that the switch happens in Google Play instead of showing dead space.
-   */
-  downgradeHint: boolean;
-  /** Localized Google Play price string ("$7.99", "€7,99") when the offering is loaded. */
+  manageable: boolean;
+  /** Localized store price string ("$7.99", "€7,99") when the offering is loaded. */
   storePriceString: string | null;
   /** Yearly store package: localized per-month equivalent computed from priceAmountMicros. */
   storeMonthlyEquivalent: string | null;
   /** Store-configured free trial on this package (the "3-day free trial" copy). */
   hasFreeTrial: boolean;
-  /** Play product id when the store package is known (manage-subscription deep link). */
+  /** Store product id when the store package is known. */
   productId: string | null;
 }
 
@@ -71,13 +78,26 @@ export function computeStoreDiscount(monthlyMicros: number, yearlyMicros: number
   return percent > 0 && percent < 100 ? percent : null;
 }
 
+const TIER_RANK: Readonly<Record<PlanTier, number>> = { free: 0, pro: 1, premium: 2 };
+
+/** The purchase button label for a purchasable card, given the user's current tier. */
+function purchaseActionOf(tier: PlanTier, cycle: BillingCycle | null, currentTier: PlanTier | null): PurchaseAction {
+  if (currentTier !== null && tier === currentTier) {
+    // Same tier, other billing cycle (the active cycle's card is current, not purchasable).
+    return cycle === 'yearly' ? 'switchToYearly' : 'switchToMonthly';
+  }
+  if (currentTier !== null && currentTier !== 'free' && TIER_RANK[tier] < TIER_RANK[currentTier]) return 'switchTier';
+  return 'buy';
+}
+
 /**
  * Cards for a billing cycle (Free first). `currentTier` null = unknown (nothing is marked).
  * `store` defaults to unconfigured, which reproduces the catalog-only screen exactly.
- * `activeProductId` (the purchased Play product from CustomerInfo, when the store can tell)
- * narrows "Current plan" to the truly purchased (tier, cycle) card: the same tier's OTHER
- * cycle then gets the switch-cycle note instead of an untrue badge. null keeps the tier-based
- * marking (unconfigured builds, admin-granted plans, store hiccups).
+ * `activeProductId` (the purchased store product from CustomerInfo, when the store can tell)
+ * narrows "Current plan" to the truly purchased (tier, cycle) card: every OTHER paid card is
+ * then purchasable as a replacement (switch labels). null keeps the tier-based marking on both
+ * cycles (unconfigured builds, admin-granted plans, store hiccups), which also keeps the owned
+ * tier's cards non-purchasable - no switch is offered when the store cannot say what is active.
  */
 export function buildPlanCards(
   cycle: BillingCycle,
@@ -92,11 +112,10 @@ export function buildPlanCards(
     const catalogProductId = plan.tier !== 'free' && plan.cycle !== null ? PLAY_PRODUCT_IDS[plan.tier][plan.cycle] : null;
     const tierMatches = currentTier !== null && plan.tier === currentTier;
     const isCurrent = tierMatches && (activeProductId === null || catalogProductId === null || catalogProductId === activeProductId);
-    const switchCycleHint = tierMatches && !isCurrent;
-    // Downgrades (premium -> pro) go through Google Play's manage page: buying the lower product
-    // here would open a SECOND subscription instead of replacing the current one.
-    const isDowngrade = currentTier === 'premium' && plan.tier === 'pro';
-    const purchasable = pkg !== null && plan.tier !== 'free' && !tierMatches && !isDowngrade;
+    // Every non-current paid card with a store package is purchasable: purchase() REPLACES the
+    // running subscription (Android product change / iOS subscription group), so cycle switches
+    // and tier downgrades are ordinary purchases here, never second subscriptions.
+    const purchasable = pkg !== null && plan.tier !== 'free' && !isCurrent;
     const monthlyPkg = plan.cycle === 'yearly' ? packageFor(offering, plan.tier, 'monthly') : null;
     const storeDiscount = pkg && monthlyPkg ? computeStoreDiscount(monthlyPkg.priceAmountMicros, pkg.priceAmountMicros) : null;
     return {
@@ -111,8 +130,10 @@ export function buildPlanCards(
       popular: plan.popular && purchasable,
       isCurrent,
       purchasable,
-      switchCycleHint,
-      downgradeHint: isDowngrade && store.kind === 'ready',
+      purchaseLabel: purchasable ? purchaseActionOf(plan.tier, plan.cycle, currentTier) : null,
+      // Manage only the ACTIVE store subscription's card: admin-granted plans (no store
+      // subscription; activeProductId null) get no dead store-management button.
+      manageable: isCurrent && catalogProductId !== null && catalogProductId === activeProductId,
       storePriceString: pkg?.priceString ?? null,
       storeMonthlyEquivalent:
         pkg && plan.cycle === 'yearly' ? formatStorePrice(pkg.priceAmountMicros / 12, pkg.currencyCode, language) : null,
@@ -160,7 +181,11 @@ export function formatStorePrice(amountMicros: number, currencyCode: string, lan
 /**
  * What the purchase/restore UI is doing. 'activating' = the store purchase succeeded and we are
  * waiting for the webhook-written entitlement to reach the app (useEntitlement flips within
- * seconds; ACTIVATION_SLOW_AFTER_MS switches the copy to "taking longer than usual").
+ * seconds; ACTIVATION_SLOW_AFTER_MS switches the copy to "taking longer than usual"). Only
+ * UPGRADE purchases (and restores) enter 'activating': a non-upgrade replacement (cycle switch,
+ * tier downgrade) may not change the entitlement plan at all - the CURRENT plan would satisfy
+ * isActivated immediately and fake an instant success - so the screen confirms those with the
+ * changeConfirmed toast instead (isUpgradePurchase below decides).
  */
 export type PurchasePhase =
   | { kind: 'idle' }
@@ -184,6 +209,31 @@ export const ACTIVATION_TIMEOUT_MS = 120_000;
 export function isActivated(pendingTier: Exclude<PlanTier, 'free'>, plan: EntitlementPlan): boolean {
   if (plan === 'premium') return true;
   return plan === 'pro' && pendingTier === 'pro';
+}
+
+/**
+ * True when buying `tier` RAISES the current entitlement plan, so the screen should wait in
+ * 'activating' for the webhook-written entitlement to flip. Non-upgrades (monthly<->yearly
+ * switches, tier downgrades) may leave the plan unchanged - and iOS applies some of them only
+ * at the next renewal - so there is nothing to wait for; the screen shows the changeConfirmed
+ * toast and refreshes getActiveProductId() instead. An unknown current plan (entitlement not
+ * loaded yet) is treated as an upgrade: waiting is the honest state.
+ */
+export function isUpgradePurchase(currentPlan: EntitlementPlan | null, tier: Exclude<PlanTier, 'free'>): boolean {
+  if (currentPlan === null) return true;
+  return TIER_RANK[tier] > TIER_RANK[currentPlan];
+}
+
+// ---------------------------------------------------------------------------------------------
+// Per-platform store copy
+// ---------------------------------------------------------------------------------------------
+
+/** pricing:store.* keys that name the store ("Google Play" vs "the App Store"). */
+export type PlatformStoreCopy = 'loading' | 'loadError' | 'retryA11y' | 'restoreA11y' | 'manageA11y';
+
+/** The pricing:store key for this platform; the 'Ios' variants name the App Store. */
+export function storeCopyKey(key: PlatformStoreCopy, ios: boolean): string {
+  return `pricing:store.${key}${ios ? 'Ios' : ''}`;
 }
 
 export type UsageSummary =

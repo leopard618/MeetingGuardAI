@@ -1,11 +1,14 @@
 /**
  * PurchasesService unit tests (owner: billing; §20) with a fake react-native-purchases SDK -
- * every path: configuration gating, uid switching, offering mapping, purchase outcomes
- * (incl. user-cancelled), restore outcomes and RevenueCat error mapping.
+ * every path: configuration gating per platform key, uid switching, offering mapping, purchase
+ * outcomes (incl. user-cancelled and the Android-only product change), restore outcomes,
+ * manage URLs / the iOS manage sheet and RevenueCat error mapping. The service is
+ * platform-free: the platform arrives as an injected dep, so no Platform mocking here.
  */
 import { AppError } from '../../../core/errors';
 import { APP_STORE_PRODUCT_IDS, PLAY_PRODUCT_IDS } from '../../../core/contracts';
 import {
+  APPLE_SUBSCRIPTIONS_URL,
   PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION,
   activeCatalogProductIds,
   createPurchasesService,
@@ -19,6 +22,7 @@ import {
 import type { PurchasesSdkLike, RcCustomerInfoLike, RcOfferingsLike, RcPackageLike, RcProductChangeInfoLike } from '../sdk';
 
 const API_KEY = 'goog_TestPublicSdkKey01';
+const APPLE_KEY = 'appl_TestPublicSdkKey01';
 
 function pkg(productId: string, overrides: Partial<RcPackageLike['product']> = {}): RcPackageLike {
   return {
@@ -50,6 +54,7 @@ function fakeSdk(offerings: RcOfferingsLike = { current: null }): PurchasesSdkLi
   restoreError: unknown;
   customerInfoState: RcCustomerInfoLike;
   customerInfoError: unknown;
+  manageSheetError: unknown;
   lastPurchasedPackage: RcPackageLike | null;
   lastProductChange: RcProductChangeInfoLike | null | undefined;
 } {
@@ -61,6 +66,7 @@ function fakeSdk(offerings: RcOfferingsLike = { current: null }): PurchasesSdkLi
     restoreError: null as unknown,
     customerInfoState: customerInfo([]),
     customerInfoError: null as unknown,
+    manageSheetError: null as unknown,
     lastPurchasedPackage: null as RcPackageLike | null,
     lastProductChange: undefined as RcProductChangeInfoLike | null | undefined,
     configure(configuration: { apiKey: string; appUserID?: string | null }): void {
@@ -92,12 +98,16 @@ function fakeSdk(offerings: RcOfferingsLike = { current: null }): PurchasesSdkLi
       if (sdk.restoreError !== null) throw sdk.restoreError;
       return sdk.restoreInfo;
     },
+    async showManageSubscriptions() {
+      sdk.calls.push('showManageSubscriptions');
+      if (sdk.manageSheetError !== null) throw sdk.manageSheetError;
+    },
   };
   return sdk;
 }
 
-function service(sdk: PurchasesSdkLike | null, androidKey: string | null = API_KEY) {
-  return createPurchasesService({ sdk: () => sdk, androidKey: () => androidKey });
+function service(sdk: PurchasesSdkLike | null, apiKey: string | null = API_KEY, platform: 'android' | 'ios' = 'android') {
+  return createPurchasesService({ sdk: () => sdk, apiKey: () => apiKey, platform: () => platform });
 }
 
 const FULL_OFFERING: RcOfferingsLike = {
@@ -118,6 +128,9 @@ describe('configuration gating', () => {
     expect(service(fakeSdk(), null).isConfigured()).toBe(false);
     expect(service(null).isConfigured()).toBe(false);
     expect(service(fakeSdk()).isConfigured()).toBe(true);
+    // Same rule on iOS: the (platform-resolved) key plus the SDK, nothing platform-specific.
+    expect(service(fakeSdk(), APPLE_KEY, 'ios').isConfigured()).toBe(true);
+    expect(service(fakeSdk(), null, 'ios').isConfigured()).toBe(false);
   });
 
   it('configure is a safe no-op when unconfigured', async () => {
@@ -296,12 +309,57 @@ describe('getActiveProductId', () => {
 });
 
 describe('manageUrl', () => {
-  it('deep-links to the product when known, otherwise the generic subscriptions page', () => {
+  it('deep-links to the product when known, otherwise the generic subscriptions page (Android)', () => {
     const svc = service(fakeSdk());
     expect(svc.manageUrl()).toBe('https://play.google.com/store/account/subscriptions');
     expect(svc.manageUrl('pro_monthly')).toBe(
       'https://play.google.com/store/account/subscriptions?sku=pro_monthly&package=com.meetingguard.ai',
     );
+  });
+
+  it('returns the App Store account page on iOS (no per-product deep link exists)', () => {
+    const svc = service(fakeSdk(), APPLE_KEY, 'ios');
+    expect(svc.manageUrl()).toBe(APPLE_SUBSCRIPTIONS_URL);
+    expect(svc.manageUrl('pro_monthly')).toBe(APPLE_SUBSCRIPTIONS_URL);
+  });
+});
+
+describe('iOS App Store semantics', () => {
+  it('configures with the Apple key and the Firebase uid, like Android', async () => {
+    const sdk = fakeSdk();
+    await service(sdk, APPLE_KEY, 'ios').configure('uid-1');
+    expect(sdk.calls).toEqual([`configure:${APPLE_KEY}:uid-1`]);
+  });
+
+  it('purchases WITHOUT a product change or a pre-purchase read (one subscription group; StoreKit replaces)', async () => {
+    const sdk = fakeSdk(FULL_OFFERING);
+    sdk.customerInfoState = customerInfo(['pro'], ['pro_monthly']); // would trigger a change on Android
+    const svc = service(sdk, APPLE_KEY, 'ios');
+    await expect(svc.purchase('premium', 'monthly')).resolves.toEqual({ status: 'purchased', tier: 'premium', cycle: 'monthly' });
+    expect(sdk.lastProductChange).toBeNull();
+    expect(sdk.calls).not.toContain('getCustomerInfo');
+  });
+
+  it('showManageSubscriptions presents the native sheet and resolves true', async () => {
+    const sdk = fakeSdk(FULL_OFFERING);
+    await expect(service(sdk, APPLE_KEY, 'ios').showManageSubscriptions?.()).resolves.toBe(true);
+    expect(sdk.calls).toContain('showManageSubscriptions');
+  });
+
+  it('showManageSubscriptions is false on Android, when unconfigured and on SDKs without the method', async () => {
+    const androidSdk = fakeSdk(FULL_OFFERING);
+    await expect(service(androidSdk).showManageSubscriptions?.()).resolves.toBe(false);
+    expect(androidSdk.calls).toEqual([]);
+    await expect(service(fakeSdk(), null, 'ios').showManageSubscriptions?.()).resolves.toBe(false);
+    const legacySdk = fakeSdk(FULL_OFFERING) as PurchasesSdkLike & { showManageSubscriptions?: unknown };
+    delete legacySdk.showManageSubscriptions;
+    await expect(service(legacySdk, APPLE_KEY, 'ios').showManageSubscriptions?.()).resolves.toBe(false);
+  });
+
+  it('maps a failing manage sheet to AppError (the screen falls back to the URL)', async () => {
+    const sdk = fakeSdk(FULL_OFFERING);
+    sdk.manageSheetError = { code: '10' };
+    await expect(service(sdk, APPLE_KEY, 'ios').showManageSubscriptions?.()).rejects.toMatchObject({ code: 'offline' });
   });
 });
 

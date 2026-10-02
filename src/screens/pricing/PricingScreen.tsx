@@ -2,21 +2,27 @@
  * Plans (owner: billing; docs/ARCHITECTURE.md §20).
  *
  * State machine (pricingModel.ts):
- * - purchases UNCONFIGURED (no EXPO_PUBLIC_REVENUECAT_ANDROID_KEY / no native SDK): the old
+ * - purchases UNCONFIGURED (no RevenueCat key for this platform / no native SDK): the old
  *   honest catalog view - "coming soon" banner, informational cards, no purchase UI.
  * - CONFIGURED: loads the current RevenueCat offering; cards show the STORE price strings and
  *   purchase buttons ("3-day free trial" copy only when the store reports the intro offer).
  *   A load failure shows catalog prices + an error banner with Retry and NO purchase buttons.
- * - Purchase: 'cancelled' is silent; success shows an "activating" banner until the
- *   webhook-written entitlement (useEntitlement) flips - the client NEVER writes entitlements.
- * - Restore + Manage subscription (Google Play) appear only while configured.
+ * - Purchase: 'cancelled' is silent. EVERY non-current paid card is purchasable (purchase()
+ *   replaces the running subscription; switch labels for cycle switches and downgrades). An
+ *   UPGRADE shows the "activating" banner until the webhook-written entitlement
+ *   (useEntitlement) flips - the client NEVER writes entitlements; a NON-upgrade replacement
+ *   confirms immediately (changeConfirmed toast) and refreshes the active product.
+ * - Restore appears while configured; Manage subscription only on the ACTIVE store
+ *   subscription's card (never admin-granted plans). iOS tries the native App Store sheet
+ *   (showManageSubscriptions) and falls back to the subscriptions URL; Android deep-links to
+ *   Google Play. Store-naming copy is per platform (storeCopyKey).
  * - Prices from src/services/billing.ts stay the fallback; daily assistant quotas as enforced
  *   by the server (PLAN_DAILY_AI_LIMITS); today's usage from useAssistant().usage.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { ActivityIndicator, FlatList, Linking, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
+import { ActivityIndicator, FlatList, Linking, Platform, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 import { ProgressBar, SegmentedButtons } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -43,8 +49,11 @@ import {
   buildPlanCards,
   formatPriceUsd,
   isActivated,
+  isUpgradePurchase,
+  storeCopyKey,
   summarizeUsage,
   type PlanCard,
+  type PurchaseAction,
   type PurchasePhase,
   type StoreState,
   type UsageSummary,
@@ -104,8 +113,23 @@ interface PlanCardViewProps {
   onManage: () => void;
 }
 
+/** The purchase button's visible label ("Get Pro" / "Switch to yearly billing" / "Switch to Pro"). */
+function purchaseButtonLabel(t: TranslateFn, label: PurchaseAction, plan: string): string {
+  switch (label) {
+    case 'switchToMonthly':
+      return t('pricing:store.switchToMonthly');
+    case 'switchToYearly':
+      return t('pricing:store.switchToYearly');
+    case 'switchTier':
+      return t('pricing:store.switchTier', { plan });
+    case 'buy':
+      return t('pricing:store.buy', { plan });
+  }
+}
+
 function PlanCardView({ card, colors, language, configured, busy, purchasingThis, onBuy, onManage }: PlanCardViewProps): ReactElement {
   const t = useT();
+  const ios = Platform.OS === 'ios';
   const name = t(`pricing:plans.${card.tier}.name`);
   const price = card.storePriceString ?? formatPriceUsd(card.priceUsd, language);
   const period = card.cycle === 'yearly' ? t('pricing:perYear') : card.cycle === 'monthly' ? t('pricing:perMonth') : null;
@@ -168,50 +192,34 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
         ))}
       </View>
 
-      {card.purchasable ? (
+      {card.purchasable && card.purchaseLabel !== null ? (
         <Pressable
           style={({ pressed }) => [styles.actionButton, { backgroundColor: colors.primary, opacity: pressed ? pressedDimOpacity : busy ? pressedOpacity : 1 }]}
           onPress={() => onBuy(card)}
           disabled={busy}
           accessibilityRole="button"
           accessibilityState={{ disabled: busy, busy: purchasingThis }}
-          accessibilityLabel={t('pricing:store.buyA11y', { plan: name, price, period: period ?? '' })}
+          accessibilityLabel={
+            card.purchaseLabel === 'buy'
+              ? t('pricing:store.buyA11y', { plan: name, price, period: period ?? '' })
+              : t('pricing:store.switchA11y', { plan: name, price, period: period ?? '' })
+          }
           testID={`pricing-buy-${card.id}`}
         >
           {purchasingThis ? (
             <ActivityIndicator color={colors.onPrimary} accessibilityElementsHidden importantForAccessibility="no" />
           ) : (
-            <Text style={[styles.actionButtonText, { color: colors.onPrimary }]}>{t('pricing:store.buy', { plan: name })}</Text>
+            <Text style={[styles.actionButtonText, { color: colors.onPrimary }]}>{purchaseButtonLabel(t, card.purchaseLabel, name)}</Text>
           )}
         </Pressable>
       ) : null}
 
-      {card.switchCycleHint ? (
-        <Text
-          style={[styles.caption, { color: colors.onSurfaceVariant }]}
-          accessibilityLabel={t('pricing:store.switchCycleHint')}
-          testID={`pricing-switch-cycle-${card.id}`}
-        >
-          {t('pricing:store.switchCycleHint')}
-        </Text>
-      ) : null}
-
-      {card.downgradeHint ? (
-        <Text
-          style={[styles.caption, { color: colors.onSurfaceVariant }]}
-          accessibilityLabel={t('pricing:store.downgradeHint')}
-          testID={`pricing-downgrade-${card.id}`}
-        >
-          {t('pricing:store.downgradeHint')}
-        </Text>
-      ) : null}
-
-      {configured && card.isCurrent && card.tier !== 'free' ? (
+      {configured && card.manageable ? (
         <Pressable
           style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.outline, opacity: pressed ? pressedDimOpacity : 1 }]}
           onPress={onManage}
           accessibilityRole="button"
-          accessibilityLabel={t('pricing:store.manageA11y')}
+          accessibilityLabel={t(storeCopyKey('manageA11y', ios))}
           testID="pricing-manage"
         >
           <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>{t('pricing:store.manage')}</Text>
@@ -235,6 +243,7 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
 }
 
 function StoreBanner({ store, phase, slow, colors, t, onRetry }: { store: StoreState; phase: PurchasePhase; slow: boolean; colors: AppColors; t: TranslateFn; onRetry: () => void }): ReactElement | null {
+  const ios = Platform.OS === 'ios';
   if (phase.kind === 'activating') {
     return (
       <View
@@ -259,7 +268,7 @@ function StoreBanner({ store, phase, slow, colors, t, onRetry }: { store: StoreS
       <View style={[styles.banner, { backgroundColor: colors.surface, borderColor: colors.outlineVariant, borderWidth: 1 }]} testID="pricing-store-loading">
         <ActivityIndicator color={colors.primary} accessibilityElementsHidden importantForAccessibility="no" />
         <View style={styles.bannerText}>
-          <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>{t('pricing:store.loading')}</Text>
+          <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>{t(storeCopyKey('loading', ios))}</Text>
         </View>
       </View>
     );
@@ -272,12 +281,12 @@ function StoreBanner({ store, phase, slow, colors, t, onRetry }: { store: StoreS
           <Text style={[styles.bannerTitle, { color: colors.onErrorContainer }]} accessibilityRole="header">
             {t('pricing:store.loadErrorTitle')}
           </Text>
-          <Text style={[styles.body, { color: colors.onErrorContainer }]}>{t('pricing:store.loadError')}</Text>
+          <Text style={[styles.body, { color: colors.onErrorContainer }]}>{t(storeCopyKey('loadError', ios))}</Text>
           <Pressable
             style={({ pressed }) => [styles.retryButton, { borderColor: colors.onErrorContainer, opacity: pressed ? pressedDimOpacity : 1 }]}
             onPress={onRetry}
             accessibilityRole="button"
-            accessibilityLabel={t('pricing:store.retryA11y')}
+            accessibilityLabel={t(storeCopyKey('retryA11y', ios))}
             testID="pricing-store-retry"
           >
             <Text style={[styles.secondaryButtonText, { color: colors.onErrorContainer }]}>{t('pricing:store.retry')}</Text>
@@ -401,10 +410,24 @@ export function PricingScreen(): ReactElement {
         const outcome = await purchasesService.purchase(tier, card.cycle);
         if (!mountedRef.current) return;
         if (outcome.status === 'cancelled') {
-          setPhase(IDLE); // The user closed the Play sheet: silent (§errors 'cancelled').
+          setPhase(IDLE); // The user closed the store sheet: silent (§errors 'cancelled').
           return;
         }
-        setPhase({ kind: 'activating', tier });
+        if (isUpgradePurchase(isLoaded ? plan : null, tier)) {
+          setPhase({ kind: 'activating', tier });
+          return;
+        }
+        // Cycle switch or tier downgrade: the entitlement plan may not change at all (and iOS
+        // can apply the change only at the next renewal), so 'activating' would fake an instant
+        // success. Confirm the recorded change and refresh which card is the purchased one.
+        Toast.show({ type: 'success', text1: t('pricing:store.changeConfirmedTitle'), text2: t('pricing:store.changeConfirmedBody') });
+        setPhase(IDLE);
+        purchasesService
+          .getActiveProductId()
+          .then((productId) => {
+            if (mountedRef.current) setActiveProductId(productId);
+          })
+          .catch(() => undefined);
       } catch (caught) {
         const error = toAppError(caught);
         log.warn('purchase failed', error.code);
@@ -413,7 +436,7 @@ export function PricingScreen(): ReactElement {
         setPhase(IDLE);
       }
     },
-    [phase.kind, t],
+    [phase.kind, isLoaded, plan, t],
   );
 
   const onRestore = useCallback(async () => {
@@ -440,11 +463,21 @@ export function PricingScreen(): ReactElement {
   }, [phase.kind, t]);
 
   const onManage = useCallback(() => {
-    // Deep link to the purchased product when known; the generic subscriptions list otherwise.
-    Linking.openURL(purchasesService.manageUrl(activeProductId ?? undefined)).catch((caught: unknown) => {
-      log.warn('could not open the Play subscriptions page', toAppError(caught).code);
-      Toast.show({ type: 'error', text1: t(errorMessageKey('unsupported')) });
-    });
+    void (async () => {
+      try {
+        // iOS: the native App Store management sheet; false = unavailable (Android, old SDK).
+        if (await purchasesService.showManageSubscriptions?.()) return;
+      } catch (caught) {
+        log.warn('the App Store subscription sheet failed; falling back to the URL', toAppError(caught).code);
+      }
+      // Android deep link to the purchased product when known; the account page otherwise.
+      try {
+        await Linking.openURL(purchasesService.manageUrl(activeProductId ?? undefined));
+      } catch (caught) {
+        log.warn('could not open the store subscriptions page', toAppError(caught).code);
+        Toast.show({ type: 'error', text1: t(errorMessageKey('unsupported')) });
+      }
+    })();
   }, [activeProductId, t]);
 
   const cards = useMemo(
@@ -523,7 +556,7 @@ export function PricingScreen(): ReactElement {
           disabled={busy}
           accessibilityRole="button"
           accessibilityState={{ disabled: busy, busy: phase.kind === 'restoring' }}
-          accessibilityLabel={t('pricing:store.restoreA11y')}
+          accessibilityLabel={t(storeCopyKey('restoreA11y', Platform.OS === 'ios'))}
           testID="pricing-restore"
         >
           {phase.kind === 'restoring' ? (
