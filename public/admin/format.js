@@ -161,6 +161,48 @@ export function v2ErrorMessage(error) {
   return base;
 }
 
+// ---- Entitlement reconciliation (Users table "Reconcile" button) -----------------------------
+
+/**
+ * Toast text per adminReconcileEntitlement outcome ({ uid, outcome, plan, status, expiresAt };
+ * functions/src/revenuecat/reconcile.ts). `label` is the row's email/name/uid. Plain language
+ * over raw enum values; only 'updated' means the stored entitlement changed.
+ */
+export function reconcileToastText(label, result) {
+  const status = String(result?.status ?? '').replace('_', ' ');
+  switch (result?.outcome) {
+    case 'updated':
+      return `Entitlement of ${label} updated from RevenueCat: ${result.plan} (${status}).`;
+    case 'unchanged':
+      return `${label} already matches RevenueCat. Nothing was changed.`;
+    case 'skipped_admin':
+      return `${label} has an admin-granted plan and no active store subscription. Left as is - admin grants are never downgraded.`;
+    case 'no_data':
+      return `RevenueCat has no usable production data for ${label}. Nothing was changed.`;
+    default:
+      return `Reconciled ${label}.`;
+  }
+}
+
+/**
+ * Users-row patch for a reconcile response: only an 'updated' outcome changed the stored
+ * document (now { plan, status, expiresAt, source: 'revenuecat' }). The Plan column shows the
+ * EFFECTIVE plan (server rule resolveEffectivePlan: status expired/revoked or a past expiresAt
+ * mean free), so the patch mirrors it. Returns null when the row must not change.
+ */
+export function reconcileRowPatch(result, nowMs) {
+  if (result?.outcome !== 'updated') return null;
+  const granting = result.status === 'active' || result.status === 'grace_period';
+  const expiryMs = typeof result.expiresAt === 'string' ? Date.parse(result.expiresAt) : NaN;
+  const lapsed = Number.isFinite(expiryMs) && expiryMs <= nowMs;
+  return {
+    plan: granting && !lapsed ? result.plan : 'free',
+    entitlementStatus: result.status,
+    entitlementSource: 'revenuecat',
+    expiresAt: typeof result.expiresAt === 'string' ? result.expiresAt : null,
+  };
+}
+
 /**
  * Error rendering for the rotate-key card. Only PRE-store failures may claim "the previous key
  * is still active": an `aborted` error is the server's post-store signal (reason

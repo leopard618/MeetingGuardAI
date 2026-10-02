@@ -8,7 +8,8 @@
  * GET https://api.revenuecat.com/v1/subscribers/{uid} with the SECRET API key
  * (REVENUECAT_SECRET_KEY - a Secret Manager secret bound ONLY to this callable), map the
  * subscriber to the SAME entitlements/{uid} document shape the webhook writes
- * (`EntitlementWrite` from ./mapping), and write ONLY on drift. On-demand only by design: a
+ * (`EntitlementWrite` from ./mapping), and write ONLY on drift. A 404 (no subscriber at all)
+ * counts as "the store backs nothing", not as an error. On-demand only by design: a
  * scheduled sweep would call RevenueCat for every subscriber daily and mass-write silently;
  * drift is rare and user-visible, so the admin Users table gets a per-user "Reconcile" button
  * instead. A future sweep can reuse `entitlementFromSubscriber` + `decideReconcile` unchanged.
@@ -266,11 +267,18 @@ export async function handleAdminReconcileEntitlement(
   if (fetched.status === 401 || fetched.status === 403) {
     throw new HttpsError('failed-precondition', 'RevenueCat rejected the API key (check REVENUECAT_SECRET_KEY). Nothing was changed.');
   }
-  if (fetched.status !== 200) {
+  if (fetched.status !== 200 && fetched.status !== 404) {
     throw new HttpsError('unavailable', `RevenueCat answered HTTP ${fetched.status}. Nothing was changed.`);
   }
 
-  const mapping = entitlementFromSubscriber(fetched.body, now, { allowSandbox: ports.allowSandbox() });
+  // 404 = RevenueCat has NO record of this app user id (rare: the GET normally creates unknown
+  // customers; a deleted customer still 404s). That is a definite "the store backs nothing", not
+  // an error: it runs the same decision as an empty subscriber, healing a stale still-granting
+  // document while admin comps stay protected.
+  const mapping: SubscriberMapping =
+    fetched.status === 404
+      ? { kind: 'none', reason: 'no_entitlements' }
+      : entitlementFromSubscriber(fetched.body, now, { allowSandbox: ports.allowSandbox() });
   const stored = await ports.readEntitlement(uid);
   const decision = decideReconcile(stored, mapping, now);
 

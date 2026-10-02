@@ -1,11 +1,16 @@
 /**
  * Entitlement reconciliation tests (src/revenuecat/reconcile.ts): REST subscriber mapping
- * (premium over pro, grace, refunds, the sandbox gate), the drift decision (write only on
- * drift, admin-grant protection, missed-EXPIRATION heal) and the handler over fake ports
- * (admin claim, RevenueCat failures, the eventTimestampMs:null write contract).
+ * (premium over pro, grace, refunds, the sandbox gate), its PARITY with the webhook mapping
+ * (entitlementFromEvent), the drift decision (write only on drift, admin-grant protection,
+ * missed-EXPIRATION heal), the handler over fake ports (admin claim, RevenueCat failures,
+ * 404 = no subscriber, the eventTimestampMs:null write contract, the audit log) and the
+ * deploy gating (export undefined by default; the secret bound only to this callable).
  */
 import { HttpsError } from 'firebase-functions/https';
+import * as logger from 'firebase-functions/logger';
 
+import { entitlementFromEvent, revenueCatEventSchema } from '../../src/revenuecat/mapping';
+import type * as ReconcileModuleNamespace from '../../src/revenuecat/reconcile';
 import {
   decideReconcile,
   entitlementFromSubscriber,
@@ -138,6 +143,75 @@ describe('entitlementFromSubscriber', () => {
   });
 });
 
+describe('mapping parity: webhook event vs REST subscriber', () => {
+  /**
+   * The same store reality must produce the SAME entitlement document whichever path delivers
+   * it, or a reconcile right after a webhook would report phantom drift. updatedAt is aligned
+   * by giving the event event_timestamp_ms = NOW (the webhook prefers it over now()).
+   */
+  const cases: {
+    name: string;
+    event: Record<string, unknown>;
+    rest: Parameters<typeof subscriber>[0];
+  }[] = [
+    {
+      name: 'active subscription (INITIAL_PURCHASE)',
+      event: { type: 'INITIAL_PURCHASE', entitlement_ids: ['pro'], product_id: 'pro_monthly', expiration_at_ms: Date.parse(FUTURE) },
+      rest: {
+        entitlements: { pro: { expires_date: FUTURE, product_identifier: 'pro_monthly' } },
+        subscriptions: { pro_monthly: { expires_date: FUTURE, is_sandbox: false } },
+      },
+    },
+    {
+      name: 'billing issue in grace (BILLING_ISSUE)',
+      event: {
+        type: 'BILLING_ISSUE',
+        entitlement_ids: ['premium'],
+        product_id: 'premium_yearly',
+        expiration_at_ms: Date.parse(PAST),
+        grace_period_expiration_at_ms: Date.parse(FUTURE),
+      },
+      rest: {
+        entitlements: { premium: { expires_date: PAST, product_identifier: 'premium_yearly' } },
+        subscriptions: {
+          premium_yearly: { expires_date: PAST, is_sandbox: false, billing_issues_detected_at: PAST, grace_period_expires_date: FUTURE },
+        },
+      },
+    },
+    {
+      name: 'lapsed subscription (EXPIRATION)',
+      event: { type: 'EXPIRATION', entitlement_ids: ['pro'], product_id: 'pro_monthly', expiration_at_ms: Date.parse(PAST) },
+      rest: {
+        entitlements: { pro: { expires_date: PAST, product_identifier: 'pro_monthly' } },
+        subscriptions: { pro_monthly: { expires_date: PAST, is_sandbox: false } },
+      },
+    },
+    {
+      name: 'refund (CANCELLATION/CUSTOMER_SUPPORT)',
+      event: {
+        type: 'CANCELLATION',
+        cancel_reason: 'CUSTOMER_SUPPORT',
+        entitlement_ids: ['pro'],
+        product_id: 'pro_monthly',
+        expiration_at_ms: Date.parse(FUTURE),
+      },
+      rest: {
+        entitlements: { pro: { expires_date: FUTURE, product_identifier: 'pro_monthly' } },
+        subscriptions: { pro_monthly: { expires_date: FUTURE, is_sandbox: false, refunded_at: PAST } },
+      },
+    },
+  ];
+
+  it.each(cases)('$name writes the identical document on both paths', ({ event, rest }) => {
+    const parsedEvent = revenueCatEventSchema.parse({ id: 'evt-1', app_user_id: 'uid-1', event_timestamp_ms: NOW.getTime(), ...event });
+    const fromWebhook = entitlementFromEvent(parsedEvent, NOW);
+    const fromRest = entitlementFromSubscriber(subscriber(rest), NOW);
+    expect(fromWebhook).not.toBeNull();
+    expect(fromRest.kind).toBe('write');
+    if (fromRest.kind === 'write') expect(fromRest.write).toEqual(fromWebhook);
+  });
+});
+
 describe('decideReconcile', () => {
   const activeWrite = {
     kind: 'write' as const,
@@ -240,10 +314,79 @@ describe('handleAdminReconcileEntitlement', () => {
     await expect(handleAdminReconcileEntitlement(ADMIN, { uid: 'uid-1' }, flaky.ports)).rejects.toMatchObject({ code: 'unavailable' });
     expect(down.writes.concat(unauthorized.writes, flaky.writes)).toHaveLength(0);
   });
+
+  it('404 (no subscriber at RevenueCat) is no-subscriber data, not an error: heals a stale granting doc', async () => {
+    const { ports, writes } = fakePorts({ status: 404, body: null, stored: { plan: 'pro', status: 'active', expiresAt: PAST, source: 'revenuecat' } });
+    const result = await handleAdminReconcileEntitlement(ADMIN, { uid: 'uid-1' }, ports);
+    expect(result).toEqual({ uid: 'uid-1', outcome: 'updated', plan: 'pro', status: 'expired', expiresAt: PAST });
+    expect(writes[0]?.doc).toMatchObject({ plan: 'pro', status: 'expired', source: 'revenuecat', eventTimestampMs: null });
+  });
+
+  it('404 leaves an admin comp (skipped_admin) and a missing document (unchanged) alone', async () => {
+    const comped = fakePorts({ status: 404, body: null, stored: { plan: 'premium', status: 'active', expiresAt: null, source: 'admin' } });
+    const compResult = await handleAdminReconcileEntitlement(ADMIN, { uid: 'uid-1' }, comped.ports);
+    expect(compResult).toEqual({ uid: 'uid-1', outcome: 'skipped_admin', plan: 'premium', status: 'active', expiresAt: null });
+    const empty = fakePorts({ status: 404, body: null, stored: null });
+    const emptyResult = await handleAdminReconcileEntitlement(ADMIN, { uid: 'uid-1' }, empty.ports);
+    expect(emptyResult).toEqual({ uid: 'uid-1', outcome: 'unchanged', plan: 'free', status: 'active', expiresAt: null });
+    expect(comped.writes.concat(empty.writes)).toHaveLength(0);
+  });
+
+  it('writes carry reconciledAt and the audit log names actor, uid and outcome - never key material', async () => {
+    const info = logger.info as jest.Mock;
+    info.mockClear();
+    const { ports, writes } = fakePorts({ stored: null });
+    await handleAdminReconcileEntitlement(ADMIN, { uid: 'uid-1' }, ports);
+    expect(writes[0]?.doc).toMatchObject({ reconciledAt: NOW.toISOString(), eventTimestampMs: null });
+    const audit = info.mock.calls.find((call) => call[0] === 'revenuecat.reconciled');
+    expect(audit?.[1]).toMatchObject({ adminUid: 'admin-1', uid: 'uid-1', outcome: 'updated' });
+    expect(JSON.stringify(audit)).not.toMatch(/sk_|Bearer|expires_date/);
+  });
 });
 
-describe('deploy gating', () => {
-  it('the callable export is undefined while REVENUECAT_RECONCILE_ENABLED is not "true" at load', () => {
+describe('deploy gating (zoom/whatsapp pattern)', () => {
+  type ReconcileModule = typeof ReconcileModuleNamespace;
+
+  function loadModule(enabled: string | undefined): ReconcileModule {
+    jest.resetModules();
+    if (enabled === undefined) delete process.env.REVENUECAT_RECONCILE_ENABLED;
+    else process.env.REVENUECAT_RECONCILE_ENABLED = enabled;
+    return jest.requireActual<ReconcileModule>('../../src/revenuecat/reconcile');
+  }
+
+  function secretKeys(fn: unknown): string[] {
+    const endpoint = (fn as { __endpoint?: { secretEnvironmentVariables?: { key: string }[] } }).__endpoint;
+    return (endpoint?.secretEnvironmentVariables ?? []).map((secret) => secret.key).sort();
+  }
+
+  const original = process.env.REVENUECAT_RECONCILE_ENABLED;
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.REVENUECAT_RECONCILE_ENABLED;
+    else process.env.REVENUECAT_RECONCILE_ENABLED = original;
+    jest.resetModules();
+  });
+
+  it('the callable export is undefined while REVENUECAT_RECONCILE_ENABLED is unset or false (default deploy never references the secret)', () => {
     expect(reconcileEnabledAtLoad()).toBe(false);
+    expect(loadModule(undefined).adminReconcileEntitlement).toBeUndefined();
+    expect(loadModule('false').adminReconcileEntitlement).toBeUndefined();
+  });
+
+  it('REVENUECAT_RECONCILE_ENABLED=true exports the callable with REVENUECAT_SECRET_KEY as its ONLY secret', () => {
+    const mod = loadModule('true');
+    expect(mod.adminReconcileEntitlement).toBeDefined();
+    expect(secretKeys(mod.adminReconcileEntitlement)).toEqual(['REVENUECAT_SECRET_KEY']);
+  });
+
+  it('reconcileEnabledAtLoad accepts only a true-ish env value', () => {
+    const mod = loadModule(undefined);
+    expect(mod.reconcileEnabledAtLoad()).toBe(false);
+    process.env.REVENUECAT_RECONCILE_ENABLED = 'false';
+    expect(mod.reconcileEnabledAtLoad()).toBe(false);
+    process.env.REVENUECAT_RECONCILE_ENABLED = ' TRUE ';
+    expect(mod.reconcileEnabledAtLoad()).toBe(true);
+    process.env.REVENUECAT_RECONCILE_ENABLED = 'true';
+    expect(mod.reconcileEnabledAtLoad()).toBe(true);
   });
 });

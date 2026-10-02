@@ -34,6 +34,8 @@ import {
   formatInt,
   formatUsd,
   intTickFormat,
+  reconcileRowPatch,
+  reconcileToastText,
   requestsSeries,
   rotationErrorDisplay,
   signupsSeries,
@@ -488,7 +490,12 @@ function buildPlanCell(row) {
   apply.type = 'button';
   apply.setAttribute('aria-label', `Apply plan change for ${userLabel(row)}`);
   apply.addEventListener('click', () => applyPlan(row, select, expiry, apply));
-  editor.append(select, expiry, apply);
+  const reconcile = el('button', 'btn btn-small btn-ghost', 'Reconcile');
+  reconcile.type = 'button';
+  reconcile.title = 'Check this user against RevenueCat and fix the entitlement if it drifted.';
+  reconcile.setAttribute('aria-label', `Reconcile entitlement of ${userLabel(row)} against RevenueCat`);
+  reconcile.addEventListener('click', () => reconcileRow(row, reconcile));
+  editor.append(select, expiry, apply, reconcile);
   wrap.appendChild(editor);
 
   cell.appendChild(wrap);
@@ -512,6 +519,33 @@ async function applyPlan(row, select, expiry, button) {
     toast(`Plan of ${userLabel(row)} set to ${plan}.`);
   } catch (error) {
     toast(`Could not set the plan: ${callableErrorMessage(error)}`, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/**
+ * Users-row "Reconcile": adminReconcileEntitlement checks the uid against the RevenueCat REST
+ * API and rewrites entitlements/{uid} ONLY on drift (admin comps are never downgraded; see
+ * docs/SETUP.md section 11.7). The callable is deployed only while REVENUECAT_RECONCILE_ENABLED
+ * is true, so the not-deployed case surfaces through v2ErrorMessage as the deploy hint.
+ */
+async function reconcileRow(row, button) {
+  const question = `Reconcile ${userLabel(row)} against RevenueCat?\n\n`
+    + 'Reads the store subscription state and rewrites the entitlement only when it drifted. '
+    + 'Admin-granted plans are never downgraded.';
+  if (!window.confirm(question)) return;
+  button.disabled = true;
+  try {
+    const { data } = await callables.reconcileEntitlement({ uid: row.uid });
+    const patch = reconcileRowPatch(data, Date.now());
+    if (patch) {
+      Object.assign(row, patch);
+      renderUsers();
+    }
+    toast(reconcileToastText(userLabel(row), data));
+  } catch (error) {
+    toast(`Could not reconcile: ${v2ErrorMessage(error)}`, true);
   } finally {
     button.disabled = false;
   }
@@ -789,6 +823,8 @@ async function main() {
   auth = getAuth(app);
   const functions = getFunctions(app, config.region);
   // Names are the ADMIN_CALLABLES contract (functions/src/admin/schemas.ts).
+  // adminReconcileEntitlement lives in functions/src/revenuecat/reconcile.ts and is deployed
+  // only while REVENUECAT_RECONCILE_ENABLED=true (docs/SETUP.md section 11.7).
   callables = {
     listUsers: httpsCallable(functions, 'adminListUsers'),
     setUserDisabled: httpsCallable(functions, 'adminSetUserDisabled'),
@@ -797,6 +833,7 @@ async function main() {
     getStats: httpsCallable(functions, 'adminGetStats'),
     getHealth: httpsCallable(functions, 'adminGetHealth'),
     rotateOpenAiKey: httpsCallable(functions, 'adminRotateOpenAiKey'),
+    reconcileEntitlement: httpsCallable(functions, 'adminReconcileEntitlement'),
   };
   wireEvents();
   onAuthStateChanged(auth, (user) => {

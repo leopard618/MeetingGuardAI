@@ -10,7 +10,9 @@ and basic usage metrics. It is an internal tool, so the UI is English only.
 - Backend: seven callables in `functions/src/admin/` (`adminListUsers`, `adminSetUserDisabled`,
   `adminSetUserPlan`, `adminGetMetrics`, plus v2 `adminGetStats`, `adminGetHealth`,
   `adminRotateOpenAiKey`; contract in `functions/src/admin/schemas.ts`,
-  design in docs/ARCHITECTURE.md §21 and §v2 below).
+  design in docs/ARCHITECTURE.md §21 and §v2 below), plus the gated
+  `adminReconcileEntitlement` (`functions/src/revenuecat/reconcile.ts`, deployed only while
+  `REVENUECAT_RECONCILE_ENABLED=true`; setup in docs/SETUP.md §11.7).
 - Access: every callable requires the caller's ID token to carry the custom claim `admin: true`.
   The page only decides what to *show*; enforcement is entirely server-side. `firestore.rules`
   is unchanged — the callables use the Admin SDK, and `entitlements/{uid}` / `usage/{uid}/days`
@@ -100,6 +102,16 @@ its own Refresh. All dates and day buckets are UTC.
   `source: 'admin'` and status `active` — also for `free`, so an explicit downgrade overrides a
   stale paid document. Note: a later RevenueCat webhook event for the same user overwrites an
   admin grant (last writer wins by design).
+- **Reconcile**: checks the user against the RevenueCat REST API and rewrites
+  `entitlements/{uid}` only when it drifted (a same-user Restore emits no webhook event;
+  deliveries can be missed). First tool when a paying user reports a stuck free plan. Toast
+  outcomes: `updated` (the row now shows the store truth), `unchanged`, `skipped_admin`
+  (admin-granted plan that RevenueCat does not back - comps are never downgraded), `no_data`
+  (only sandbox data at RevenueCat). The backing callable `adminReconcileEntitlement` is
+  deployed only while `REVENUECAT_RECONCILE_ENABLED=true` (secret `REVENUECAT_SECRET_KEY`
+  bound only there; setup and precedence rules in docs/SETUP.md §11.7 and docs/HANDOFF.md §6);
+  until then the button reports "not deployed yet". Every run leaves a `revenuecat.reconciled`
+  function-log line with actor, uid and outcome, never the API key.
 
 ### AI usage
 

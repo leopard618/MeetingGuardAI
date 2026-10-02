@@ -23,6 +23,8 @@ import {
   formatUsd,
   intTickFormat,
   monotonePath,
+  reconcileRowPatch,
+  reconcileToastText,
   requestsSeries,
   rotationErrorDisplay,
   signupsSeries,
@@ -133,6 +135,38 @@ assert.match(cleanup.text, /WAS stored as Secret Manager version 6/, 'rotationEr
 checks += 1;
 const unreachable = rotationErrorDisplay({ code: 'functions/unavailable', message: 'OpenAI could not be reached to validate the key. Nothing was changed.' });
 eq(unreachable.postStore, false, 'rotationErrorDisplay: unavailable is pre-store');
+
+// ---- reconcile helpers: row patch mirrors the server's effective-plan rule -------------------
+const RECONCILE_NOW = Date.parse('2026-10-02T12:00:00.000Z');
+const updated = { uid: 'u1', outcome: 'updated', plan: 'pro', status: 'active', expiresAt: '2026-11-02T12:00:00.000Z' };
+eq(reconcileRowPatch(updated, RECONCILE_NOW), {
+  plan: 'pro',
+  entitlementStatus: 'active',
+  entitlementSource: 'revenuecat',
+  expiresAt: '2026-11-02T12:00:00.000Z',
+}, 'reconcileRowPatch: active future subscription');
+eq(reconcileRowPatch({ ...updated, status: 'grace_period' }, RECONCILE_NOW).plan, 'pro', 'reconcileRowPatch: grace keeps the plan');
+eq(reconcileRowPatch({ ...updated, status: 'expired' }, RECONCILE_NOW).plan, 'free', 'reconcileRowPatch: expired shows effective free');
+eq(reconcileRowPatch({ ...updated, expiresAt: '2026-09-02T12:00:00.000Z' }, RECONCILE_NOW).plan, 'free',
+  'reconcileRowPatch: past expiry shows effective free');
+eq(reconcileRowPatch({ ...updated, expiresAt: null }, RECONCILE_NOW).expiresAt, null, 'reconcileRowPatch: null expiry preserved');
+eq(reconcileRowPatch({ ...updated, outcome: 'unchanged' }, RECONCILE_NOW), null, 'reconcileRowPatch: unchanged -> no patch');
+eq(reconcileRowPatch({ ...updated, outcome: 'skipped_admin' }, RECONCILE_NOW), null, 'reconcileRowPatch: skipped_admin -> no patch');
+eq(reconcileRowPatch(undefined, RECONCILE_NOW), null, 'reconcileRowPatch: no response -> no patch');
+assert.match(reconcileToastText('a@b.c', updated), /updated from RevenueCat: pro \(active\)/, 'reconcileToastText: updated');
+checks += 1;
+assert.match(reconcileToastText('a@b.c', { ...updated, status: 'grace_period' }), /\(grace period\)/,
+  'reconcileToastText: status enum reads as plain words');
+checks += 1;
+assert.match(reconcileToastText('a@b.c', { uid: 'u1', outcome: 'unchanged', plan: 'pro', status: 'active', expiresAt: null }),
+  /already matches RevenueCat/, 'reconcileToastText: unchanged');
+checks += 1;
+assert.match(reconcileToastText('a@b.c', { uid: 'u1', outcome: 'skipped_admin', plan: 'premium', status: 'active', expiresAt: null }),
+  /never downgraded/, 'reconcileToastText: skipped_admin names the comp protection');
+checks += 1;
+assert.match(reconcileToastText('a@b.c', { uid: 'u1', outcome: 'no_data', plan: 'free', status: 'active', expiresAt: null }),
+  /no usable production data/, 'reconcileToastText: no_data');
+checks += 1;
 
 // ---- avatarIndex: stable 0..7 hue bucket (sum of char codes mod 8) ---------------------------
 eq(avatarIndex(''), 0, 'avatarIndex empty');
