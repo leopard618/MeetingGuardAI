@@ -22,6 +22,14 @@ export const TOMBSTONE_RETENTION_DAYS = 60;
 /** Longer than the backup retention (14 days) plus point-in-time recovery (7 days). */
 export const DELETION_LOG_RETENTION_DAYS = 30;
 
+/**
+ * WhatsApp bot state retention (docs/ARCHITECTURE.md §27): dedupe markers (whatsappEvents) and
+ * link codes (whatsappLinkCodes) carry their own `expiresAt` and are purged once it passed;
+ * sessions idle longer than WHATSAPP_SESSION_RETENTION_DAYS (their `updatedAt`) are purged too
+ * (must equal WHATSAPP_TUNING.sessionPurgeDays in ../config.ts; a unit test checks it).
+ */
+export const WHATSAPP_SESSION_RETENTION_DAYS = 30;
+
 /** Collection of account deletion records (server-only; the rules deny clients). */
 export const ACCOUNT_DELETIONS_COLLECTION = 'accountDeletions';
 
@@ -36,6 +44,12 @@ export interface MaintenancePorts {
   listExpiredTombstones(cutoffIso: string, limit: number): Promise<string[]>;
   /** Paths of account deletion records whose `deletedAt` (ISO) is before `cutoffIso`. */
   listExpiredDeletionRecords(cutoffIso: string, limit: number): Promise<string[]>;
+  /** Paths of whatsappEvents dedupe markers whose `expiresAt` (ISO) is before `nowIso`. */
+  listExpiredWhatsappEvents(nowIso: string, limit: number): Promise<string[]>;
+  /** Paths of whatsappLinkCodes whose `expiresAt` (ISO) is before `nowIso`. */
+  listExpiredWhatsappCodes(nowIso: string, limit: number): Promise<string[]>;
+  /** Paths of whatsappSessions whose `updatedAt` (ISO) is before `cutoffIso`. */
+  listStaleWhatsappSessions(cutoffIso: string, limit: number): Promise<string[]>;
   /** Deletes the documents (missing ones are fine). */
   deleteDocuments(paths: readonly string[]): Promise<void>;
 }
@@ -43,6 +57,9 @@ export interface MaintenancePorts {
 export interface MaintenanceResult {
   tombstonesPurged: number;
   deletionRecordsPurged: number;
+  whatsappEventsPurged: number;
+  whatsappCodesPurged: number;
+  whatsappSessionsPurged: number;
   /** false when a page limit stopped the run early (the rest is done on the next run). */
   complete: boolean;
 }
@@ -67,7 +84,7 @@ async function purgeInPages(
   return { purged, complete: false };
 }
 
-/** The daily run: expired tombstones, then expired deletion records. */
+/** The daily run: expired tombstones, deletion records, then the WhatsApp bot state (§27). */
 export async function runDailyMaintenance(ports: MaintenancePorts, now: Date): Promise<MaintenanceResult> {
   const tombstones = await purgeInPages(
     (cutoff, limit) => ports.listExpiredTombstones(cutoff, limit),
@@ -79,10 +96,21 @@ export async function runDailyMaintenance(ports: MaintenancePorts, now: Date): P
     cutoffIso(now, DELETION_LOG_RETENTION_DAYS),
     ports,
   );
+  const nowIso = now.toISOString();
+  const events = await purgeInPages((cutoff, limit) => ports.listExpiredWhatsappEvents(cutoff, limit), nowIso, ports);
+  const codes = await purgeInPages((cutoff, limit) => ports.listExpiredWhatsappCodes(cutoff, limit), nowIso, ports);
+  const sessions = await purgeInPages(
+    (cutoff, limit) => ports.listStaleWhatsappSessions(cutoff, limit),
+    cutoffIso(now, WHATSAPP_SESSION_RETENTION_DAYS),
+    ports,
+  );
   return {
     tombstonesPurged: tombstones.purged,
     deletionRecordsPurged: records.purged,
-    complete: tombstones.complete && records.complete,
+    whatsappEventsPurged: events.purged,
+    whatsappCodesPurged: codes.purged,
+    whatsappSessionsPurged: sessions.purged,
+    complete: tombstones.complete && records.complete && events.complete && codes.complete && sessions.complete,
   };
 }
 

@@ -917,3 +917,77 @@ submitting the form shows "Email sign-in is not enabled" (`auth/operation-not-al
    - [ ] "Forgot your password?" sends the reset email and the new password signs in.
    - [ ] A wrong password and an unknown email show the SAME generic message (no account
          enumeration).
+
+## 14. WhatsApp bot (Meta Cloud API)
+
+The bot (docs/ARCHITECTURE.md §27) answers from ONE server-owned WhatsApp number. Development
+runs on the FREE TEST NUMBER every Meta developer app gets (up to 5 allow-listed recipients, no
+business verification needed); the client's own number comes later and the swap is exactly TWO
+values (step 8). The client's Meta Business account is NEW, so his own number is not released
+yet - that blocks nothing below.
+
+Prerequisites: a Meta developer account (developers.facebook.com) and the client's Meta
+Business Portfolio (business.facebook.com). Everything runs on the test number until step 8.
+
+1. **Create the Meta app**: developers.facebook.com -> My Apps -> Create App -> Use case
+   "Other" -> type **Business** -> name e.g. "MeetingGuard Bot" -> link the client's Business
+   Portfolio. On the app dashboard: Add product -> **WhatsApp** -> Set up. This creates the
+   test number automatically.
+2. **Collect the three values** under WhatsApp -> **API Setup**:
+   - the **Phone number ID** of the TEST number (NOT the displayed phone number),
+   - the test number itself as digits only, e.g. `15551234567` (shown as "From"),
+   - a **temporary access token** (expires after 24 h; fine for the first smoke test - the
+     permanent one comes in step 3).
+   Also set the **App Secret** aside: App settings -> Basic -> App secret -> Show.
+3. **Permanent access token** (do this right away; the temporary token dies in 24 h):
+   business.facebook.com -> Settings -> Business settings -> Users -> **System users** -> Add
+   (name e.g. "meetingguard-bot", role Admin) -> Add assets -> Apps -> select the app -> full
+   control -> **Generate new token**: select the app, expiry "never", scopes
+   `whatsapp_business_messaging` + `whatsapp_business_management` -> Generate and store it in a
+   password manager. This token is `WHATSAPP_ACCESS_TOKEN`.
+4. **Allow-list the test recipients**: WhatsApp -> API Setup -> "To" -> Manage phone number
+   list -> add up to 5 numbers (yours and the client's; each confirms a code over WhatsApp).
+   The test number can ONLY message these numbers - a real customer number comes with step 8.
+5. **Secrets and params** (functions/, like §12; set the secrets BEFORE flipping the flag):
+   ```
+   firebase functions:secrets:set WHATSAPP_ACCESS_TOKEN   # the system-user token from step 3
+   firebase functions:secrets:set WHATSAPP_APP_SECRET     # App settings -> Basic -> App secret
+   firebase functions:secrets:set WHATSAPP_VERIFY_TOKEN   # any random string you invent, e.g. `openssl rand -hex 24`
+   ```
+   Then in `functions/.env.meetingguard-ai-app`:
+   ```
+   WHATSAPP_ENABLED=true
+   WHATSAPP_PHONE_NUMBER_ID=<Phone number ID from step 2>
+   WHATSAPP_DISPLAY_NUMBER=<test number digits, e.g. 15551234567>
+   ```
+   Deploy: `firebase deploy --only functions,firestore:rules`. The webhook only deploys while
+   WHATSAPP_ENABLED=true (docs/ARCHITECTURE.md §27); with the flag false a deploy never touches
+   the secrets.
+6. **Register the webhook**: WhatsApp -> Configuration -> Webhook -> Edit:
+   - Callback URL: `https://us-central1-meetingguard-ai-app.cloudfunctions.net/whatsappWebhook`
+   - Verify token: the exact WHATSAPP_VERIFY_TOKEN value from step 5.
+   - Verify and save (the function answers the handshake), then under Webhook fields
+     **subscribe to `messages`** (only that field).
+7. **Check** (from an allow-listed phone):
+   - [ ] Send "hi" to the test number -> the bilingual "link your account" reply arrives.
+   - [ ] App -> Settings -> WhatsApp -> Generate code; send the 6 digits to the bot -> the
+         bilingual "linked" confirmation arrives.
+   - [ ] "What do I have tomorrow?" -> an assistant answer; a create request -> summary with
+         Confirm/Cancel buttons; Confirm -> the meeting appears in the app (source WhatsApp).
+   - [ ] docs/TESTING.md T21 for the full pass.
+8. **Go live on the client's own number** (once Meta releases it to his new Business account):
+   - Business verification: business.facebook.com -> Settings -> Security centre -> Start
+     verification (Meta asks for business documents; this also lifts the new-account limits).
+   - WhatsApp -> API Setup -> Add phone number: the client's number (it must NOT be attached
+     to a regular WhatsApp/WhatsApp Business app; Meta sends a code), display name review runs
+     automatically.
+   - The SWAP, two values + nothing else: `WHATSAPP_PHONE_NUMBER_ID` (the new number's id) and
+     `WHATSAPP_DISPLAY_NUMBER` in `functions/.env.meetingguard-ai-app`; re-generate the system
+     user token ONLY if the app changed (normally the step-3 token keeps working). Redeploy
+     functions. The allow-list stops applying; any WhatsApp user can message the bot.
+   - [ ] Repeat the step-7 checks from a NON-allow-listed phone.
+
+Notes: the webhook rejects unsigned requests (App Secret HMAC over the raw body), so the URL
+being public is fine. Firestore gets five new server-only collections (whatsapp*; rules deploy
+in step 5). The bot shares the assistant's per-user daily quota, so WhatsApp traffic cannot
+multiply a user's AI spend.

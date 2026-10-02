@@ -71,6 +71,9 @@ export const CALLABLES = {
   zoomCreateMeeting: 'zoomCreateMeeting',
   zoomSyncMeeting: 'zoomSyncMeeting',
   zoomDeleteMeeting: 'zoomDeleteMeeting',
+  whatsappLinkStart: 'whatsappLinkStart',
+  whatsappLinkStatus: 'whatsappLinkStatus',
+  whatsappUnlink: 'whatsappUnlink',
 } as const;
 export type CallableName = (typeof CALLABLES)[keyof typeof CALLABLES];
 
@@ -82,6 +85,9 @@ export const ASSISTANT_CALL_TIMEOUT_MS = 70_000;
 
 /** Client-side timeout for the zoom* callables (one Zoom REST call plus a token mint). */
 export const ZOOM_CALL_TIMEOUT_MS = 20_000;
+
+/** Client-side timeout for the whatsapp* callables (Firestore work only, no external calls). */
+export const WHATSAPP_CALL_TIMEOUT_MS = 15_000;
 
 // ---------------------------------------------------------------------------------------------
 // Shared enums (types.ts re-uses these so there is a single definition)
@@ -626,6 +632,80 @@ export const ZOOM_ERROR_HTTPS_CODES = {
 /** `HttpsError.details` payload the zoom* callables attach to every error. */
 export const zoomErrorDetailsSchema = z.object({ reason: z.enum(ZOOM_ERROR_CODES) });
 export type ZoomErrorDetails = z.infer<typeof zoomErrorDetailsSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// WhatsApp bot (whatsapp* callables; docs/ARCHITECTURE.md §27, docs/SETUP.md §14)
+// ---------------------------------------------------------------------------------------------
+//
+// The server owns ONE WhatsApp Cloud API phone number (the Meta test number during development).
+// Users link their WhatsApp phone number to their account with a short-lived 6-digit code: the
+// app mints it (whatsappLinkStart), the user sends it to the bot number, and the webhook matches
+// it server-side. The bot then reuses the assistant pipeline over WhatsApp; confirmed actions
+// are executed SERVER-side (the only place the server mutates meetings, owner-scoped and
+// re-validated with these same schemas). The three whatsapp* callables below bind NO secrets and
+// always deploy; the webhook itself is gated by the WHATSAPP_ENABLED param (§27).
+
+/** A linked WhatsApp phone number as the Cloud API reports it: E.164 digits, no "+". */
+export const WHATSAPP_PHONE_PATTERN = /^[0-9]{6,20}$/;
+export const whatsappPhoneSchema = z.string().regex(WHATSAPP_PHONE_PATTERN);
+
+/** The 6-digit link code (crypto random, zero-padded; stored only as a sha256 hash). */
+export const WHATSAPP_LINK_CODE_PATTERN = /^[0-9]{6}$/;
+export const whatsappLinkCodeSchema = z.string().regex(WHATSAPP_LINK_CODE_PATTERN);
+
+export const whatsappLinkStartRequestSchema = z.object({});
+export type WhatsappLinkStartRequest = z.infer<typeof whatsappLinkStartRequestSchema>;
+export const whatsappLinkStartResponseSchema = z.object({
+  /** Returned in plain text exactly once; the server keeps only the hash. */
+  code: whatsappLinkCodeSchema,
+  expiresAtIso: isoDateTimeSchema,
+});
+export type WhatsappLinkStartResponse = z.infer<typeof whatsappLinkStartResponseSchema>;
+
+export const whatsappLinkStatusRequestSchema = z.object({});
+export type WhatsappLinkStatusRequest = z.infer<typeof whatsappLinkStatusRequestSchema>;
+export const whatsappLinkStatusResponseSchema = z.object({
+  /** WHATSAPP_ENABLED param: the bot is deployed and configured. */
+  enabled: z.boolean(),
+  /** The caller has a linked phone number. */
+  linked: z.boolean(),
+  /** The bot's human-readable number (digits), or null while not configured. */
+  displayNumber: whatsappPhoneSchema.nullable(),
+  /** "https://wa.me/<digits>" chat link for the bot number, or null while not configured. */
+  deepLink: httpUrlSchema.nullable(),
+});
+export type WhatsappLinkStatusResponse = z.infer<typeof whatsappLinkStatusResponseSchema>;
+
+export const whatsappUnlinkRequestSchema = z.object({});
+export type WhatsappUnlinkRequest = z.infer<typeof whatsappUnlinkRequestSchema>;
+export const whatsappUnlinkResponseSchema = z.object({
+  /** true when a linked phone number was removed; false when nothing was linked (idempotent). */
+  unlinked: z.boolean(),
+});
+export type WhatsappUnlinkResponse = z.infer<typeof whatsappUnlinkResponseSchema>;
+
+/** Error taxonomy of the whatsapp* callables (details.reason, like the zoom ones). */
+export const WHATSAPP_ERROR_CODES = [
+  'not_configured',
+  'unauthenticated',
+  'invalid_request',
+  'rate_limited',
+  'upstream_error',
+] as const;
+export type WhatsappErrorCode = (typeof WHATSAPP_ERROR_CODES)[number];
+
+/** Firebase HttpsError code the function throws for each whatsapp error. */
+export const WHATSAPP_ERROR_HTTPS_CODES = {
+  not_configured: 'failed-precondition',
+  unauthenticated: 'unauthenticated',
+  invalid_request: 'invalid-argument',
+  rate_limited: 'resource-exhausted',
+  upstream_error: 'unavailable',
+} as const satisfies Record<WhatsappErrorCode, string>;
+
+/** `HttpsError.details` payload the whatsapp* callables attach to every error. */
+export const whatsappErrorDetailsSchema = z.object({ reason: z.enum(WHATSAPP_ERROR_CODES) });
+export type WhatsappErrorDetails = z.infer<typeof whatsappErrorDetailsSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Server helpers (pure)

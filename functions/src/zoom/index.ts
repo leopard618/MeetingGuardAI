@@ -10,7 +10,11 @@
  *   ZOOM_ENABLED is true at deploy time (`zoomWriteCallablesEnabledAtLoad()` below reads the
  *   param's env value when the CLI loads this module for discovery). While the param is false
  *   (the default) a full `firebase deploy --only functions` never validates the secrets and
- *   cannot fail on them. NO OTHER FUNCTION in this codebase may reference the ZOOM_* secrets.
+ *   cannot fail on them. ONE amendment (docs/ARCHITECTURE.md §27): `whatsappWebhook` also binds
+ *   the ZOOM_* secrets, but ONLY while ZOOM_ENABLED is true at its load time (same
+ *   `zoomWriteCallablesEnabledAtLoad()` check), and SETUP §12 orders the secrets before the
+ *   flag - so a deploy still can never fail on missing ZOOM_* secrets. Beyond that pair of
+ *   gated consumers, NO OTHER FUNCTION in this codebase may reference the ZOOM_* secrets.
  *
  * Module layout: this file is the Firebase shell (auth, request schemas, ZOOM_ENABLED guard,
  * dependency wiring); ./handler.ts holds the logic on injected ports, ./token.ts the S2S OAuth
@@ -140,8 +144,13 @@ function requireZoomEnabled(): void {
   }
 }
 
-/** Real dependencies; built per invocation (secrets and params may only be read then). */
-function zoomDeps(): ZoomHandlerDeps {
+/**
+ * Real dependencies; built per invocation (secrets and params may only be read then). Exported
+ * for the WhatsApp executor (functions/src/whatsapp/executor.ts, §27), which reuses the zoom
+ * handlers for provider-zoom meetings it creates/edits/deletes - call it ONLY while
+ * ZOOM_ENABLED.value() is true AND the calling function binds the ZOOM_* secrets.
+ */
+export function zoomDeps(): ZoomHandlerDeps {
   return {
     store: firestoreZoomStore(adminDb()),
     client: () =>

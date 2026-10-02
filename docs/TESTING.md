@@ -755,3 +755,27 @@ catch them.
 | 10 | (sim) Language switch EN/ES on the landing screen. | The Apple button label follows the SYSTEM language (native button); everything else follows the in-app language. |
 | 11 | T5 alert spot-check on the iPhone: one MAX and one MEDIUM alert with the app in background. | Both fire on time; MAX/MEDIUM break through a Focus mode (time-sensitive entitlement works). |
 | 12 | (sim) Icon + splash check on a clean install. | The 1024 icon renders crisp on the home screen and in Settings; no letterboxing artifacts. |
+
+### T21. WhatsApp bot: linking, assistant bridge, confirm flow (`docs/SETUP.md` §14)
+
+Needs: the Meta TEST number configured (SETUP §14 steps 1-6), YOUR phone on the allow-list, the
+app signed in with a verified account, and `WHATSAPP_ENABLED=true` deployed. "Bot" = the test
+number chat in WhatsApp. Webhook rows 1-3 can be checked with curl before touching a phone.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | GET the webhook URL with `hub.mode=subscribe`, `hub.verify_token=<correct>`, `hub.challenge=12345`. | 200 with body exactly `12345`. With a wrong token: 403. |
+| 2 | POST any body to the webhook without a signature header (or with a wrong one). | 401, and nothing of the body appears in the function logs. |
+| 3 | Re-send (redeliver) the SAME signed webhook event twice (Meta does this on slow responses; curl with the same `wamid` works too). | The second delivery changes nothing: one reply, one Firestore write set (dedupe marker). |
+| 4 | Send "hi" to the bot from an UNLINKED allow-listed phone, 4 times. | Bilingual "link your account" reply the first 3 times (EN+ES in one message), then silence (daily unlinked cap). |
+| 5 | App -> Settings -> WhatsApp -> Generate code; send the 6 digits to the bot. | Bilingual "linked" confirmation; Settings now shows the linked state. The code works only once; sending it again prompts to link. |
+| 6 | Generate a code, wait past its expiry (10 min), send it. | The bilingual "code expired" reply; a fresh code links normally. |
+| 7 | Ask the bot "What do I have tomorrow?" (and in Spanish with the app language set to ES). | An assistant answer in the APP language (ES preferences -> Spanish reply), listing the right meetings. |
+| 8 | "Create a meeting called Dentist tomorrow at 9:30" -> tap **Confirm**. | First a summary + Confirm/Cancel buttons (nothing created yet); after Confirm, "Done" and the meeting appears in the app with source WhatsApp. Tapping Confirm again: "proposal expired", no duplicate. |
+| 9 | Propose another change, answer with text "2" (or "no"). | "Cancelled" reply; nothing changed. Answering "1"/"si" instead confirms (accents tolerated). |
+| 10 | Propose a change, wait 15+ minutes, then Confirm. | "Proposal expired" reply; nothing executed. |
+| 11 | Burn the whole daily AI quota (free plan: 5), then ask again over WhatsApp. | The localized daily-limit message; the APP assistant shows its limit state too (same counter). |
+| 12 | Send a voice note or image. | The "text only" reply in the user's language. |
+| 13 | App -> Settings -> WhatsApp -> Unlink, then message the bot. | The "link your account" prompt again (session and link removed). |
+| 14 | Delete the account (T19/T20 flow) of a linked user, then message the bot from that phone. | The link prompt (whatsappLinks/Users/Sessions are gone); no stale data in Firestore (`whatsapp*` collections hold nothing for that uid/phone). |
+| 15 | Check the function logs for rows 4-14. | Only uids, wamids and 16-char phone hashes; no message text, meeting titles, codes or raw phone numbers. |

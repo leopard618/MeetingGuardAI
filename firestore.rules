@@ -11,6 +11,7 @@ rules_version = '2';
 //   usage/{uid}/days/{day}             AI quota counter   owner read, server write only
 //   adminStats/ai/days/{day}/**        admin aggregates   server only (no client access at all)
 //   zoomMeetings/{zoomMeetingId}       Zoom owner registry server only (no client access at all)
+//   whatsapp*/** (5 collections)       WhatsApp bot state server only (no client access at all)
 //   everything else                                       denied
 //
 // The Admin SDK (Cloud Functions) bypasses these rules. Instants are UTC ISO strings
@@ -342,6 +343,28 @@ service cloud.firestore {
     // documents is client-writable and only a hint (docs/ARCHITECTURE.md §24). Admin SDK only;
     // explicit so the catch-all below is not load-bearing.
     match /zoomMeetings/{zoomMeetingId} {
+      allow read, write: if false;
+    }
+
+    // WhatsApp bot state (docs/ARCHITECTURE.md §27): phone -> uid links, the per-uid reverse
+    // index and code rate limit, one-time link codes (sha256 doc ids), conversation sessions
+    // with per-phone daily counters, and webhook dedupe markers. Written and read ONLY by the
+    // WhatsApp functions (Admin SDK) - a client that could read whatsappLinks would learn other
+    // users' phone numbers, and one that could write whatsappUsers could hijack the linking
+    // flow. No client access at all; explicit so the catch-all below is not load-bearing.
+    match /whatsappLinks/{phoneE164} {
+      allow read, write: if false;
+    }
+    match /whatsappUsers/{uid} {
+      allow read, write: if false;
+    }
+    match /whatsappLinkCodes/{codeHash} {
+      allow read, write: if false;
+    }
+    match /whatsappSessions/{phoneE164} {
+      allow read, write: if false;
+    }
+    match /whatsappEvents/{eventId} {
       allow read, write: if false;
     }
 

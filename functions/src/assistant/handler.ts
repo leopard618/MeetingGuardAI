@@ -124,6 +124,18 @@ export async function handleAssistant(
     throw assistantError('unauthenticated', 'Verify your email address to use the assistant.');
   }
   const request = parseRequest(data);
+  return runAssistant(uid, request, deps);
+}
+
+/**
+ * The assistant pipeline for an ALREADY authenticated uid and an ALREADY validated request:
+ * quota -> global budget -> context -> OpenAI -> mapped actions -> response (with refunds).
+ * The callable goes through `handleAssistant` (auth gate + request parsing) above; the WhatsApp
+ * bridge (functions/src/whatsapp, §27) calls this directly - the linked uid was attested by the
+ * link code flow, and the bridge builds the request itself - so both paths share the SAME
+ * per-user daily quota, global budget and usage counters.
+ */
+export async function runAssistant(uid: string, request: AssistantRequest, deps: AssistantDeps): Promise<AssistantResponse> {
   const startedAt = Date.now();
   const now = deps.now();
 

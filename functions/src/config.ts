@@ -158,6 +158,87 @@ export const ZOOM_TUNING = {
   maxInstances: 10,
 } as const;
 
+// ---------------------------------------------------------------------------------------------
+// WhatsApp bot (whatsappWebhook + whatsapp* callables; docs/ARCHITECTURE.md §27, docs/SETUP.md §14)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Master switch of the WhatsApp bot. NON-SECRET on purpose, exactly like ZOOM_ENABLED: the
+ * whatsapp* callables answer from this param alone, so they deploy and run while the WHATSAPP_*
+ * secrets do not exist yet. It also gates the DEPLOYMENT of the webhook
+ * (functions/src/whatsapp/index.ts reads the matching process.env value at load time): with the
+ * default `false`, `firebase deploy --only functions` never touches the secrets and cannot fail
+ * on them. Owner order (docs/SETUP.md §14): set the three secrets FIRST, then put
+ * WHATSAPP_ENABLED=true in functions/.env.<projectId>, then deploy.
+ */
+export const WHATSAPP_ENABLED = defineBoolean('WHATSAPP_ENABLED', {
+  default: false,
+  description: 'Enables the WhatsApp bot. Set the WHATSAPP_* secrets BEFORE setting this to true (SETUP 14).',
+});
+
+/**
+ * Cloud API sender: the phone_number_id of the Meta phone number the bot sends FROM (test number
+ * during development; the client's own number after go-live - swapping these two values plus the
+ * access token is the whole migration, docs/SETUP.md §14).
+ */
+export const WHATSAPP_PHONE_NUMBER_ID = defineString('WHATSAPP_PHONE_NUMBER_ID', {
+  default: '',
+  description: 'WhatsApp Cloud API phone_number_id the bot sends from (Meta > WhatsApp > API Setup).',
+});
+
+/** The bot number as users dial it: E.164 DIGITS ONLY (no +). Shown in-app and used for wa.me links. */
+export const WHATSAPP_DISPLAY_NUMBER = defineString('WHATSAPP_DISPLAY_NUMBER', {
+  default: '',
+  description: 'Human-readable bot number, digits only (for the in-app wa.me deep link).',
+});
+
+/**
+ * Per-PHONE cap on inbound WhatsApp messages processed per UTC day (counted on
+ * whatsappSessions/{phone}.counts). On top of PLAN_DAILY_AI_LIMITS, which caps only paid LLM
+ * calls per uid: this bounds Graph sends and Firestore work from non-assistant traffic
+ * (unlinked spam, repeated buttons, code guessing), and it is keyed by phone so unlinked
+ * abusers are bounded too. Over the cap: one bilingual notice, then silent drop.
+ */
+export const WHATSAPP_USER_DAILY_LIMIT = defineInt('WHATSAPP_USER_DAILY_LIMIT', {
+  default: 50,
+  description: 'Maximum inbound WhatsApp messages processed per phone number per UTC day.',
+});
+
+/** WhatsApp Cloud API credentials (Secret Manager; docs/SETUP.md §14). Bound ONLY on whatsappWebhook. */
+export const WHATSAPP_ACCESS_TOKEN = defineSecret('WHATSAPP_ACCESS_TOKEN');
+export const WHATSAPP_APP_SECRET = defineSecret('WHATSAPP_APP_SECRET');
+export const WHATSAPP_VERIFY_TOKEN = defineSecret('WHATSAPP_VERIFY_TOKEN');
+
+export const WHATSAPP_TUNING = {
+  /** The webhook processes inline (no task queue); the assistant deadline is 50 s (§27). */
+  functionTimeoutSeconds: 60,
+  /** Same reasoning as ASSISTANT_TUNING: mostly waiting on OpenAI / Graph. */
+  memory: '512MiB',
+  cpu: 1,
+  concurrency: 10,
+  maxInstances: 5,
+  /** Graph API version for https://graph.facebook.com/<version>/<phone_number_id>/messages. */
+  graphVersion: 'v21.0',
+  /** Per-request timeout against graph.facebook.com. */
+  graphRequestTimeoutMs: 10_000,
+  /** Idle conversation context: turns reset after this much silence (counts are kept). */
+  sessionTtlMinutes: 15,
+  /** Proposed actions expire this long after the confirm prompt. */
+  actionsTtlMinutes: 15,
+  /** Link codes expire this long after whatsappLinkStart mints them. */
+  codeTtlMinutes: 10,
+  /** Max link codes one uid may mint per UTC day. */
+  codesPerUidPerDay: 5,
+  /** Stored conversation turns per session (oldest dropped first). */
+  maxTurns: 10,
+  /** "Link your account" replies per unlinked phone per UTC day (then silent drop). */
+  unlinkedRepliesPerDay: 3,
+  /** Webhook dedupe markers (whatsappEvents) are purged this many days after creation. */
+  eventTtlDays: 7,
+  /** Sessions idle longer than this are purged by dailyMaintenance. */
+  sessionPurgeDays: 30,
+} as const;
+
 export const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high'] as const;
 export type ReasoningEffortSetting = (typeof REASONING_EFFORTS)[number];
 

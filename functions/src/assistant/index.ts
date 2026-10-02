@@ -8,7 +8,7 @@
  */
 import * as logger from 'firebase-functions/logger';
 import { onCall } from 'firebase-functions/https';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 
 import {
   ASSISTANT_GLOBAL_DAILY_LIMIT,
@@ -25,7 +25,7 @@ import { instanceOpenAiKeyProvider, withKeyRetry } from '../openaiKey';
 import type { AssistantResponse } from '../shared/aiContract';
 import { firestoreMeetingReader } from './context';
 import { createGlobalBudget, firestoreGlobalBudgetStore, type GlobalBudget } from './globalBudget';
-import { handleAssistant, type AssistantCaller } from './handler';
+import { handleAssistant, type AssistantCaller, type AssistantDeps } from './handler';
 import { createOpenAiClient } from './llm';
 import { firestoreQuotaStore } from './quota';
 
@@ -50,6 +50,52 @@ function callerOf(auth: { uid: string; token: Record<string, unknown> } | undefi
   };
 }
 
+/**
+ * The real dependency set of the assistant pipeline. Shared by the `assistant` callable below
+ * and the WhatsApp bridge (functions/src/whatsapp, §27), so both paths hit the SAME quota
+ * store, global budget and admin usage counters. `logUid` only labels the meetings-skipped
+ * warning (never content).
+ */
+export function buildAssistantDeps(db: Firestore, logUid: string | null = null): AssistantDeps {
+  return {
+    quota: firestoreQuotaStore(db),
+    globalBudget: instanceGlobalBudget(),
+    meetings: firestoreMeetingReader(db, (count, truncated) =>
+      logger.warn('assistant.meetings_skipped', { uid: logUid, count, truncated }),
+    ),
+    llm: () => {
+      const effortSetting = OPENAI_REASONING_EFFORT.value();
+      const reasoningEffort = parseReasoningEffort(effortSetting);
+      if (reasoningEffort === null && effortSetting.trim().toLowerCase() !== 'omit') {
+        logger.warn('assistant.reasoning_effort_ignored', { value: effortSetting });
+      }
+      const model = OPENAI_MODEL.value();
+      // The key comes from the runtime provider (Secret Manager REST with a 5-minute cache;
+      // env-bound OPENAI_API_KEY as fallback). On an OpenAI 401 - the key was rotated from the
+      // admin dashboard by another instance - the wrapper refetches once and retries once.
+      return withKeyRetry(instanceOpenAiKeyProvider(), (apiKey) => createOpenAiClient({ apiKey, model, reasoningEffort }));
+    },
+    // Admin v2 stats: one merge-set with atomic increments (never a transaction; the handler
+    // isolates failures so this write can never fail the user's request). Sharded over
+    // AI_STATS_SHARD_COUNT random documents: a single hot day doc caps at ~1 sustained
+    // write/s, so parallel assistant bursts would abort increments and undercount the charts.
+    // adminGetStats sums the shards (plus the pre-shard legacy day doc) when reading.
+    recordAiUsage: async (dayKey, tokens) => {
+      const shard = Math.floor(Math.random() * AI_STATS_SHARD_COUNT);
+      await db.doc(adminStatsAiShardPath(dayKey, shard)).set(
+        {
+          requests: FieldValue.increment(1),
+          inputTokens: FieldValue.increment(tokens.inputTokens),
+          outputTokens: FieldValue.increment(tokens.outputTokens),
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+    },
+    now: () => new Date(),
+  };
+}
+
 export const assistant = onCall(
   {
     region: FUNCTIONS_REGION,
@@ -62,45 +108,7 @@ export const assistant = onCall(
     maxInstances: ASSISTANT_TUNING.maxInstances,
   },
   async (request): Promise<AssistantResponse> => {
-    const db = adminDb();
     const caller = callerOf(request.auth);
-    const uid = caller?.uid ?? null;
-    return handleAssistant(caller, request.data, {
-      quota: firestoreQuotaStore(db),
-      globalBudget: instanceGlobalBudget(),
-      meetings: firestoreMeetingReader(db, (count, truncated) =>
-        logger.warn('assistant.meetings_skipped', { uid, count, truncated }),
-      ),
-      llm: () => {
-        const effortSetting = OPENAI_REASONING_EFFORT.value();
-        const reasoningEffort = parseReasoningEffort(effortSetting);
-        if (reasoningEffort === null && effortSetting.trim().toLowerCase() !== 'omit') {
-          logger.warn('assistant.reasoning_effort_ignored', { value: effortSetting });
-        }
-        const model = OPENAI_MODEL.value();
-        // The key comes from the runtime provider (Secret Manager REST with a 5-minute cache;
-        // env-bound OPENAI_API_KEY as fallback). On an OpenAI 401 - the key was rotated from the
-        // admin dashboard by another instance - the wrapper refetches once and retries once.
-        return withKeyRetry(instanceOpenAiKeyProvider(), (apiKey) => createOpenAiClient({ apiKey, model, reasoningEffort }));
-      },
-      // Admin v2 stats: one merge-set with atomic increments (never a transaction; the handler
-      // isolates failures so this write can never fail the user's request). Sharded over
-      // AI_STATS_SHARD_COUNT random documents: a single hot day doc caps at ~1 sustained
-      // write/s, so parallel assistant bursts would abort increments and undercount the charts.
-      // adminGetStats sums the shards (plus the pre-shard legacy day doc) when reading.
-      recordAiUsage: async (dayKey, tokens) => {
-        const shard = Math.floor(Math.random() * AI_STATS_SHARD_COUNT);
-        await db.doc(adminStatsAiShardPath(dayKey, shard)).set(
-          {
-            requests: FieldValue.increment(1),
-            inputTokens: FieldValue.increment(tokens.inputTokens),
-            outputTokens: FieldValue.increment(tokens.outputTokens),
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true },
-        );
-      },
-      now: () => new Date(),
-    });
+    return handleAssistant(caller, request.data, buildAssistantDeps(adminDb(), caller?.uid ?? null));
   },
 );

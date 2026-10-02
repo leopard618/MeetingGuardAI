@@ -837,7 +837,9 @@ their own Zoom accounts and the app never sees Zoom credentials.
 - **Secrets/params** (`functions/src/config.ts`): secrets `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`,
   `ZOOM_CLIENT_SECRET` are bound ONLY on the three write callables, which are EXPORTED only
   while `ZOOM_ENABLED` is true at deploy time - the default deploy never references the secrets
-  and cannot fail on them. S2S token: POST zoom.us/oauth/token
+  and cannot fail on them. ONE amendment (§27): `whatsappWebhook` also binds the ZOOM_* secrets
+  for its executor's zoom reuse, but only while `ZOOM_ENABLED` is true at ITS load time, which
+  per SETUP §12 implies the secrets exist - deploys still can never fail on them. S2S token: POST zoom.us/oauth/token
   `grant_type=account_credentials&account_id=...` with Basic base64(clientId:clientSecret);
   cached in instance memory until shortly before expiry; then api.zoom.us/v2 with Bearer.
 - **Rules**: `external.zoomMeetingId` is allowed client-side exactly like the outlook refs
@@ -1011,3 +1013,106 @@ New runtime dependency: `expo-apple-authentication` (installed with `npx expo in
   mapAppleSignInError rows; functions isVerifiedCaller x apple.com (assistant + zoom);
   needsEmailVerification x apple.com; AppleSignInButton render gate; delete-flow revocation
   order + best-effort notice; i18n parity (automatic).
+
+## 27. WhatsApp bot (Cloud API)
+
+Contract: whatsapp* schemas + `CALLABLES.whatsapp*` + `WHATSAPP_ERROR_CODES` in
+`src/core/aiContract.ts` (mirrored verbatim in `functions/src/shared/aiContract.ts`); functions in
+`functions/src/whatsapp/` (IMPLEMENTED); app service `src/services/whatsapp/` + the
+`WhatsAppConnect` screen (owner app-ui). Owner setup + deploy order: docs/SETUP.md §14.
+
+The server owns ONE WhatsApp Cloud API phone number (Meta's free TEST number during development,
+the client's own number after business verification; the go-live swap is exactly two values,
+SETUP §14). Users link their WhatsApp phone to their account with a short-lived code; the bot
+then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions SERVER-side.
+
+- **Functions** (`functions/src/whatsapp/index.ts`):
+  - `whatsappLinkStart {} -> { code, expiresAtIso }`, `whatsappLinkStatus {} -> { enabled,
+    linked, displayNumber, deepLink }`, `whatsappUnlink {} -> { unlinked }`: onCall, NO secrets,
+    ALWAYS exported (zoomStatus precedent). status needs auth only and answers from the
+    non-secret params + Firestore; start/unlink need a VERIFIED caller (same rule as the
+    assistant) and throw `not_configured` while `WHATSAPP_ENABLED` is false (ratified: full
+    WhatsApp data removal stays available through deleteAccount even while the feature is off).
+    Errors carry `details.reason` from `WHATSAPP_ERROR_CODES` (rate_limited ->
+    resource-exhausted).
+  - `whatsappWebhook` (onRequest): exported ONLY while `WHATSAPP_ENABLED` is true at deploy time
+    (`whatsappEnabledAtLoad()`, the exact §24 conditional-export pattern), so the default deploy
+    never references the secrets and cannot fail on them. It is the ONLY function binding
+    `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`; it also binds
+    `OPENAI_API_KEY` (assistant fast path) and - **§24 amendment** - the ZOOM_* secrets, but
+    ONLY while `ZOOM_ENABLED` is ALSO true at load time, which per SETUP §12 implies those
+    secrets exist: a deploy still can never fail on missing secrets. Non-secret params:
+    `WHATSAPP_PHONE_NUMBER_ID` (Graph sender id), `WHATSAPP_DISPLAY_NUMBER` (digits, wa.me deep
+    link), `WHATSAPP_USER_DAILY_LIMIT` (default 50), tuning in `WHATSAPP_TUNING`.
+- **Webhook pipeline** (`webhook.ts`, `signature.ts`): GET = Meta handshake (`hub.mode=subscribe`
+  + timing-safe `hub.verify_token` match -> 200 with the raw `hub.challenge`, else 403). POST:
+  1) `X-Hub-Signature-256` = HMAC-SHA256 of the RAW body bytes (`req.rawBody`; Meta escapes
+  non-ASCII, so re-serialized JSON would break the digest) with the App Secret, compared
+  timing-safely - reject 401, never log payloads; 2) per-message dedupe: create-once marker
+  `whatsappEvents/{sha256(wamid)}` (wamids can contain `/`), already-exists -> skip (absorbs
+  Meta redelivery during long runs); 3) `value.statuses` and echoes from our own number are
+  ignored; 4) INLINE processing, then 200. Inline vs task queue: no new deps/IAM/function,
+  dedupe makes redelivery safe, v2 allows 60 s and the assistant deadline is 50 s. Documented
+  risk: Meta may throttle or disable a subscription that answers slowly; revisit a Cloud Tasks
+  hop only if that is observed.
+- **Collections** (ALL server-only, explicit deny blocks in firestore.rules like zoomMeetings;
+  `phoneE164` = digits-only wa_id):
+  - `whatsappLinks/{phoneE164}` = `{ uid, linkedAt, profileName|null }` (phone -> uid; the ONLY
+    source of the executing uid).
+  - `whatsappUsers/{uid}` = `{ phoneE164|null, linkedAt|null, codeHash|null, codeExpiresAt|null,
+    codeIssuesToday, lastCodeAt }` (reverse index + code rate limit: max 5 codes/uid/UTC day,
+    one active code).
+  - `whatsappLinkCodes/{sha256(code)}` = `{ uid, expiresAt }` (O(1) webhook match; the plain
+    code is returned to the app exactly once and never stored).
+  - `whatsappSessions/{phoneE164}` = `{ uid|null, turns[<=10 {role,text,atIso}],
+    pendingActions|null, pendingNonce|null, promptMsgId|null, actionsExpireAt|null,
+    counts{day,inbound,unlinkedReplies}, updatedAt }`. Conversation context resets after 15 idle
+    minutes (counters survive); sessions idle > 30 days are purged by dailyMaintenance, which
+    also purges expired whatsappEvents and whatsappLinkCodes.
+- **Linking**: the app calls whatsappLinkStart (6-digit crypto-random code, TTL 10 min), the
+  user sends the code to the bot number (allow-listed during the test phase). Webhook, unlinked
+  sender, six-digit text: ONE transaction validates the code hash, writes
+  whatsappLinks + whatsappUsers (cleaning any previous phone of the uid or previous uid of the
+  phone), deletes the code doc -> bilingual success reply. Anything else from an unlinked phone
+  -> "link your account in the app" (EN+ES in one message), capped at 3/phone/day. unlink and
+  deleteAccount (port `deleteWhatsAppData`, called after the usage purge) delete the same trio.
+- **Assistant bridge**: `runAssistant(uid, request, deps)` is the auth-free seam split out of
+  `handleAssistant` (same file; the callable still parses + gates exactly as before), and
+  `buildAssistantDeps(db)` (assistant/index.ts) is the shared dependency set - the WhatsApp path
+  therefore consumes the SAME per-user daily quota (PLAN_DAILY_AI_LIMITS), global budget and
+  admin usage counters as the app. Request: session turns + the new message, `language` from
+  `users/{uid}/settings/preferences` (fallback 'en': the inbound payload carries NO locale, so
+  there is no WhatsApp-side language signal), `timezone` from preferences (fallback UTC), mode
+  'chat'. quota_exceeded -> localized limit message. Replies and all bot strings live in
+  `messages.ts` (EN+ES, plain punctuation; unlinked senders get bilingual messages).
+- **Confirm flow**: proposed MUTATING actions are never executed directly. The bot sends the
+  action summaries plus interactive reply buttons Confirm/Cancel (ids `wa_confirm:<nonce>` /
+  `wa_cancel:<nonce>`; text fallback 1/yes/si/ok vs 2/no/cancel, accent-normalized), stores them
+  as `pendingActions` with a 15 min expiry, and executes only on confirm.
+  `claimPendingActions` clears the pending set INSIDE a transaction, so a double tap or a
+  redelivered tap finds nothing to execute (idempotency; `promptMsgId` identifies the proposal).
+  `share_meeting` and `list` are answered IMMEDIATELY with a forwardable formatted summary
+  (never email); scopes 'occurrence'/'following' are declined ("use the app") - the recurrence
+  split/override engine is app-only.
+- **Executor** (`executor.ts`): applies confirmed create/update/delete/bulk_update via the Admin
+  SDK on `users/{uid}/meetings`. uid comes ONLY from the link doc; every action is re-validated
+  with the SAME zod contract; written documents match the exact shape `isValidMeeting` accepts
+  (source 'whatsapp') and the app's `parseMeetingDoc` reads, so the rules bypass grants nothing
+  the client path would not. Deletes tombstone with the app's scrub set. Zoom reuse: provider
+  zoom + url null + ZOOM_ENABLED -> `handleZoomCreateMeeting` via the exported `zoomDeps()`;
+  schedule edits -> sync; deletes -> remove; all best effort (a failure keeps url null and the
+  app heals it via ensureLink, §24).
+- **Abuse bounds**: per-PHONE `WHATSAPP_USER_DAILY_LIMIT` (default 50) counted on the session doc
+  (bounds Graph sends and Firestore work from unlinked spam, repeated buttons and code guessing
+  even without a uid); over the cap -> ONE bilingual notice, then silent drop. Unlinked prompts
+  capped at 3/phone/day. Link codes capped at 5/uid/day. Send failures are LOG AND DROP, never
+  retried (the bot only ever replies inside Meta's 24 h service window, so free-form sends are
+  always allowed; template-only error 131047 cannot normally occur).
+- **Logging**: uid, wamid and `phoneLogId` ONLY, where `phoneLogId` is the first 16 hex chars of
+  sha256 of "wa:" + phoneE164 (pseudonymous; unkeyed because the secret-free callables log too).
+  NEVER message text, meeting content, codes, tokens or raw phone numbers.
+- **App side** (`src/services/whatsapp/`, `WhatsAppConnectScreen`): the service caches the last
+  whatsappLinkStatus answer per auth session; the connect screen polls whatsappLinkStatus every
+  8 s ONLY while a link code is pending AND the screen is focused and the app foregrounded (so
+  the screen flips to "linked" by itself), and stops otherwise - the callable load stays
+  negligible.

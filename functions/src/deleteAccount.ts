@@ -30,6 +30,7 @@ import { FUNCTIONS_REGION } from './config';
 import { adminAuth, adminDb } from './firebase';
 import { ACCOUNT_DELETIONS_COLLECTION } from './maintenance/core';
 import { deleteAccountRequestSchema, type DeleteAccountResponse } from './shared/aiContract';
+import { deleteWhatsAppDataForUid, firestoreLinkStore } from './whatsapp/link';
 
 export interface AccountDeletionPorts {
   /** Writes (or overwrites) the deletion record of the user. */
@@ -42,6 +43,11 @@ export interface AccountDeletionPorts {
   deleteAuthUser(uid: string): Promise<boolean>;
   /** Revokes every refresh token of the user; resolves `false` when the user no longer exists. */
   revokeRefreshTokens(uid: string): Promise<boolean>;
+  /**
+   * Removes the user's WhatsApp link state (whatsappLinks/{phone}, whatsappSessions/{phone},
+   * whatsappUsers/{uid}, any active link code; docs/ARCHITECTURE.md §27). Idempotent.
+   */
+  deleteWhatsAppData(uid: string): Promise<void>;
 }
 
 export async function deleteAccountData(uid: string, ports: AccountDeletionPorts, now: Date = new Date()): Promise<DeleteAccountResponse> {
@@ -51,6 +57,7 @@ export async function deleteAccountData(uid: string, ports: AccountDeletionPorts
   await ports.recursiveDelete(`users/${uid}`);
   await ports.deleteDocument(`entitlements/${uid}`);
   await ports.recursiveDelete(`usage/${uid}`);
+  await ports.deleteWhatsAppData(uid);
   await ports.deleteAuthUser(uid);
   // Late writes accepted between the first pass and the Auth deletion (see the header).
   await ports.recursiveDelete(`users/${uid}`);
@@ -91,6 +98,9 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
         if (isUserNotFound(error)) return false;
         throw error;
       }
+    },
+    async deleteWhatsAppData(uid) {
+      await deleteWhatsAppDataForUid(uid, firestoreLinkStore(db));
     },
   };
 }
