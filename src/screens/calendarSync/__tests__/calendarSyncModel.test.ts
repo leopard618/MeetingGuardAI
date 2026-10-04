@@ -206,7 +206,7 @@ describe('buildDeviceRows', () => {
       ...prefs,
       deviceCalendarImportIds: ['2'],
       deviceCalendarExportId: '1',
-    });
+    }, null);
     expect(rows.map((row) => row.key)).toEqual(['heading:import', 'import:1', 'import:2', 'heading:export', 'export:none', 'export:1', 'hint:export']);
     expect(rows.find((row) => row.key === 'import:2')).toEqual(expect.objectContaining({ selected: true, coveredByGoogle: false }));
     expect(rows.find((row) => row.key === 'export:1')).toEqual(expect.objectContaining({ selected: true }));
@@ -218,18 +218,41 @@ describe('buildDeviceRows', () => {
       ...prefs,
       googleCalendarSyncEnabled: true,
       deviceCalendarImportIds: ['g'],
-    });
+    }, null);
     expect(rows.find((row) => row.key === 'import:g')).toEqual(expect.objectContaining({ selected: false, coveredByGoogle: true }));
   });
 
+  it('covers only the synced Google account; other Google accounts stay importable', () => {
+    const synced = calendar('a', { isGoogleAccount: true, sourceName: 'Ana@Gmail.com' });
+    const other = calendar('b', { isGoogleAccount: true, sourceName: 'work@gmail.com' });
+    const unnamed = calendar('c', { isGoogleAccount: true, sourceName: 'Gmail' });
+    const rows = buildDeviceRows([synced, other, unnamed], {
+      ...prefs,
+      googleCalendarSyncEnabled: true,
+      deviceCalendarImportIds: ['b'],
+    }, 'ana@gmail.com');
+    expect(rows.find((row) => row.key === 'import:a')).toEqual(expect.objectContaining({ coveredByGoogle: true }));
+    expect(rows.find((row) => row.key === 'import:b')).toEqual(expect.objectContaining({ coveredByGoogle: false, selected: true }));
+    // iOS sources without an address cannot be matched: blocking stays the safe default.
+    expect(rows.find((row) => row.key === 'import:c')).toEqual(expect.objectContaining({ coveredByGoogle: true }));
+  });
+
+  it('keeps every Google calendar covered while sync is off or the account is unknown', () => {
+    const google = calendar('g', { isGoogleAccount: true, sourceName: 'other@gmail.com' });
+    const off = buildDeviceRows([google], { ...prefs, googleCalendarSyncEnabled: false }, 'ana@gmail.com');
+    expect(off.find((row) => row.key === 'import:g')).toEqual(expect.objectContaining({ coveredByGoogle: false }));
+    const unknown = buildDeviceRows([google], { ...prefs, googleCalendarSyncEnabled: true }, null);
+    expect(unknown.find((row) => row.key === 'import:g')).toEqual(expect.objectContaining({ coveredByGoogle: true }));
+  });
+
   it('selects "none" when the export calendar is on another device', () => {
-    const rows = buildDeviceRows([calendar('1')], { ...prefs, deviceCalendarExportId: 'dother.9' });
+    const rows = buildDeviceRows([calendar('1')], { ...prefs, deviceCalendarExportId: 'dother.9' }, null);
     expect(rows.find((row) => row.key === 'export:none')).toEqual(expect.objectContaining({ selected: true }));
   });
 
   it('has no export choice without writable calendars and no rows without calendars', () => {
-    expect(buildDeviceRows([calendar('1', { allowsModifications: false })], prefs).map((row) => row.kind)).toEqual(['heading', 'import']);
-    expect(buildDeviceRows([], prefs)).toEqual([]);
+    expect(buildDeviceRows([calendar('1', { allowsModifications: false })], prefs, null).map((row) => row.kind)).toEqual(['heading', 'import']);
+    expect(buildDeviceRows([], prefs, null)).toEqual([]);
   });
 });
 

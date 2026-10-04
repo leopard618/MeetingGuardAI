@@ -172,20 +172,47 @@ export type DeviceRow =
   | { kind: 'export'; key: string; calendar: DeviceCalendarInfo | null; selected: boolean }
   | { kind: 'hint'; key: string; labelKey: 'calendar:device.export.hint' };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Lowercased email, or null when the value is not an email (iOS sources like "Gmail"). */
+function asEmail(value: string | null | undefined): string | null {
+  const normalized = (value ?? '').trim().toLowerCase();
+  return EMAIL_RE.test(normalized) ? normalized : null;
+}
+
 /**
- * Rows of the device-calendar card: every calendar with its import switch (calendars of a Google
- * account are covered by Google sync while it is on, so they cannot be imported twice), then the
- * export choice among the writable calendars ("none" is selected when the chosen export calendar
- * is not on this phone).
+ * Google sync covers ONLY the signed-in Google account's calendars: a phone can hold several
+ * Google accounts, and the other accounts' events never arrive through our Google sync, so
+ * those calendars must stay importable. When either email is unknown (email/password sign-in,
+ * or an iOS source without an address) the calendar counts as covered, like before: blocking
+ * an import is safer than importing the synced account twice.
+ */
+export function isCoveredByGoogle(
+  calendar: DeviceCalendarInfo,
+  googleSyncEnabled: boolean,
+  googleAccountEmail: string | null,
+): boolean {
+  if (!googleSyncEnabled || !calendar.isGoogleAccount) return false;
+  const synced = asEmail(googleAccountEmail);
+  const owner = asEmail(calendar.sourceName);
+  return synced === null || owner === null || owner === synced;
+}
+
+/**
+ * Rows of the device-calendar card: every calendar with its import switch (calendars of the
+ * synced Google account are covered by Google sync while it is on, so they cannot be imported
+ * twice; see isCoveredByGoogle), then the export choice among the writable calendars ("none"
+ * is selected when the chosen export calendar is not on this phone).
  */
 export function buildDeviceRows(
   calendars: readonly DeviceCalendarInfo[],
   preferences: Pick<Preferences, 'deviceCalendarImportIds' | 'deviceCalendarExportId' | 'googleCalendarSyncEnabled'>,
+  googleAccountEmail: string | null,
 ): DeviceRow[] {
   if (calendars.length === 0) return [];
   const rows: DeviceRow[] = [{ kind: 'heading', key: 'heading:import', labelKey: 'calendar:device.import.title' }];
   for (const calendar of calendars) {
-    const coveredByGoogle = preferences.googleCalendarSyncEnabled && calendar.isGoogleAccount;
+    const coveredByGoogle = isCoveredByGoogle(calendar, preferences.googleCalendarSyncEnabled, googleAccountEmail);
     rows.push({
       kind: 'import',
       key: `import:${calendar.id}`,

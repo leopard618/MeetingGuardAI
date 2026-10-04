@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CalendarStatus, RootStackParamList, TranslateFn } from '../../core/contracts';
 import type { Language, PreferencesPatch } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
+import { useAuth } from '../../services/auth';
 import { calendarSyncEngine, deviceCalendarService, googleCalendarService, outlookCalendarService, useCalendarStatus } from '../../services/calendar';
 import { usePreferences } from '../../services/data';
 import {
@@ -343,6 +344,9 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
   const insets = useSafeAreaInsets();
   const status = useCalendarStatus();
   const { preferences, isLoaded, update } = usePreferences();
+  // Google sync runs on the signed-in Google account; unknown for email/password users (null).
+  const { authUser } = useAuth();
+  const googleAccountEmail = authUser !== null && authUser.providerIds.includes('google.com') ? authUser.email : null;
   const devices = useDeviceCalendars(status.device.permission);
   const [busy, setBusy] = useState<Busy>(null);
   // "Last synced 3 min ago"; paused behind other screens and in the background.
@@ -459,7 +463,7 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
     );
   }
 
-  const deviceRows = devices.state.phase === 'ready' ? buildDeviceRows(devices.state.calendars, preferences) : [];
+  const deviceRows = devices.state.phase === 'ready' ? buildDeviceRows(devices.state.calendars, preferences, googleAccountEmail) : [];
   // The Outlook card exists only when the provider is registered (EXPO_PUBLIC_MSAL_CLIENT_ID set).
   const outlookStatus = status.outlook;
   const sections: Section[] = [

@@ -41,6 +41,10 @@ const mockEngine = {
   syncNow: jest.fn(),
   getStatus: jest.fn(() => mockStatus.current),
 };
+jest.mock('../../../services/auth', () => ({
+  useAuth: () => ({ authUser: { uid: 'u1', email: 'ana@example.com', providerIds: ['google.com'] } }),
+}));
+
 // Getters: the factory runs while the screen is imported, before the mocks above are initialized.
 jest.mock('../../../services/calendar', () => ({
   useCalendarStatus: () => mockStatus.current,
