@@ -19,6 +19,7 @@ expo-env.d.ts
 
 # Local Expo modules: Gradle build output (generated when the app builds)
 modules/*/android/build/
+modules/*/android/.cxx/
 .kotlin/
 *.orig.*
 
