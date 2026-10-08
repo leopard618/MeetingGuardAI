@@ -133,6 +133,9 @@ module.exports = {
       // iPhone app in compatibility mode. Turn on after iPad QA (docs/SETUP.md §8).
       supportsTablet: false,
       bundleIdentifier: 'com.meetingguard.ai',
+      // Full-bleed square icon: the shared icon.png has a transparent margin and baked rounded
+      // corners, which iOS (own superellipse mask) renders as a frame inside the tile.
+      icon: './assets/icon-ios.png',
       // Sign in with Apple (App Review 4.8: an app with Google sign-in must offer it). Prebuild
       // adds the com.apple.developer.applesignin entitlement from this flag ONCE
       // expo-apple-authentication is installed (until then `npx expo config --type introspect`
