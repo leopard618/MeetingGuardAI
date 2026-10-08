@@ -1,0 +1,45 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Merged into the app manifest. RECEIVE_BOOT_COMPLETED is already declared by the app /
+       mg-fullscreen-alarm; listing it here keeps the module self-contained. -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+  <application>
+    <!-- The home-screen widget (docs/ARCHITECTURE.md §19). The system delivers
+         APPWIDGET_UPDATE and the module's own tick broadcast (explicit intent), so
+         exported="false" is enough. android:label is the widget-picker name. -->
+    <receiver
+      android:name=".NextMeetingWidgetProvider"
+      android:enabled="true"
+      android:exported="false"
+      android:label="@string/mg_widget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/mg_next_meeting_widget_info" />
+    </receiver>
+
+    <!-- Re-renders and re-schedules the "meeting started" tick after a reboot / app update
+         (AlarmManager forgets alarms; SharedPreferences keep the data). BOOT_COMPLETED is a
+         protected broadcast, so exported="false" still receives it. TIMEZONE_CHANGED and
+         TIME_SET re-evaluate the started/grace presentation after a clock or zone change
+         (both are on the implicit-broadcast exception list, so a manifest receiver works);
+         the pre-formatted time strings are refreshed by the next JS feed (the feeder re-feeds
+         on foreground when the device zone changed). -->
+    <receiver
+      android:name=".WidgetBootReceiver"
+      android:enabled="true"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.REBOOT" />
+        <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+        <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+        <action android:name="android.intent.action.TIME_SET" />
+      </intent-filter>
+    </receiver>
+  </application>
+</manifest>

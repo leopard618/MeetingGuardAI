@@ -1,0 +1,403 @@
+/**
+ * PurchasesService implementation over react-native-purchases (owner: billing; §20).
+ *
+ * Factory with injected deps so unit tests never touch the real SDK or the platform. The public
+ * instance is wired in ./index.ts (which resolves the RUNNING platform's key:
+ * EXPO_PUBLIC_REVENUECAT_ANDROID_KEY on Android, EXPO_PUBLIC_REVENUECAT_APPLE_KEY on iOS).
+ * Behavior contract (src/core/contracts.ts PurchasesService):
+ * - isConfigured() is true only with the platform's key set AND the SDK + native module present
+ *   (store/dev builds). Everything else = the catalog-only "coming soon" UI.
+ * - configure(uid) is idempotent per uid; a different uid (new Firebase session) switches the
+ *   RevenueCat app user via logIn(uid). logOut is never called (it would create an anonymous
+ *   RevenueCat user whose webhook events could not be attributed to a Firebase uid).
+ * - THE CLIENT NEVER WRITES entitlements/{uid}: after 'purchased' the webhook
+ *   (functions/src/revenuecat) writes the entitlement and useEntitlement() flips within seconds.
+ */
+import { AppError, isAppError } from '../../core/errors';
+import { createLogger } from '../../core/logger';
+import {
+  PLAY_PRODUCT_IDS,
+  type ActiveStoreProducts,
+  type BillingCycle,
+  type PaidPlanTier,
+  type PurchaseOutcome,
+  type PurchasesService,
+  type RestoreOutcome,
+  type StoreOffering,
+  type StorePackage,
+} from '../../core/contracts';
+import type { PurchasesSdkLike, RcCustomerInfoLike, RcPackageLike, RcProductChangeInfoLike, RcStoreProductLike } from './sdk';
+
+const log = createLogger('purchases');
+
+/** Google Play subscription management (deep link when the product is known). */
+export const PLAY_SUBSCRIPTIONS_URL = 'https://play.google.com/store/account/subscriptions';
+export const ANDROID_PACKAGE = 'com.meetingguard.ai';
+/** App Store subscription management (no per-product deep link exists; URL fallback on iOS). */
+export const APPLE_SUBSCRIPTIONS_URL = 'https://apps.apple.com/account/subscriptions';
+
+/**
+ * react-native-purchases PRORATION_MODE.IMMEDIATE_WITH_TIME_PRORATION (numeric value 1, from
+ * @revenuecat/purchases-typescript-internal): the new product replaces the running subscription
+ * immediately and the unused time of the old one is credited AS TIME on the new product - used
+ * for every replacement direction (upgrade, downgrade, cycle switch), so no direction loses
+ * money and there is no DEFERRED state to track. Declared locally because the SDK is an
+ * optional dependency (never imported statically, see ./sdk.ts).
+ */
+export const PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION = 1;
+
+export interface PurchasesServiceDeps {
+  /** The loaded SDK, or null when unavailable (package missing, no native module, web). */
+  sdk(): PurchasesSdkLike | null;
+  /** The RUNNING platform's public RevenueCat SDK key, or null when unset/invalid. */
+  apiKey(): string | null;
+  /** The running store platform ('ios' = App Store semantics; everything else = Google Play). */
+  platform(): 'android' | 'ios';
+}
+
+// ---------------------------------------------------------------------------------------------
+// RevenueCat error mapping (react-native-purchases PurchasesError)
+// ---------------------------------------------------------------------------------------------
+
+/** PURCHASES_ERROR_CODE values we branch on (numeric, but delivered as strings on Android). */
+const RC_CODE_PURCHASE_CANCELLED = 1;
+const RC_CODE_NETWORK = 10;
+const RC_CODE_OFFLINE = 35;
+
+function rcErrorCode(error: unknown): number | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const raw = (error as { code?: unknown }).code;
+  const numeric = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN;
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+/** The user dismissed the Google Play purchase sheet ('cancelled' is not an error, §errors). */
+export function isRcUserCancelled(error: unknown): boolean {
+  if (typeof error === 'object' && error !== null && (error as { userCancelled?: unknown }).userCancelled === true) return true;
+  return rcErrorCode(error) === RC_CODE_PURCHASE_CANCELLED;
+}
+
+export function mapRcError(error: unknown, message: string): AppError {
+  if (isAppError(error)) return error;
+  const code = rcErrorCode(error);
+  if (code === RC_CODE_NETWORK || code === RC_CODE_OFFLINE) {
+    return new AppError('offline', message, { cause: error });
+  }
+  return new AppError('upstream_error', message, {
+    cause: error,
+    details: code !== null ? { rcCode: code } : undefined,
+    retryable: true,
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Offering mapping (pure helpers, exported for tests)
+// ---------------------------------------------------------------------------------------------
+
+/** "pro_monthly:p1m" -> "pro_monthly" (Android product ids may carry a base-plan suffix). */
+export function productIdOf(product: Pick<RcStoreProductLike, 'identifier'>): string {
+  const [id] = product.identifier.split(':');
+  return id ?? product.identifier;
+}
+
+const PRODUCT_TO_PLAN: ReadonlyMap<string, { tier: PaidPlanTier; cycle: BillingCycle }> = new Map(
+  (Object.entries(PLAY_PRODUCT_IDS) as [PaidPlanTier, Record<BillingCycle, string>][]).flatMap(([tier, cycles]) =>
+    (Object.entries(cycles) as [BillingCycle, string][]).map(([cycle, productId]) => [productId, { tier, cycle }] as const),
+  ),
+);
+
+/** Store-configured free trial on this package (Android default option free phase or intro at 0). */
+export function packageHasFreeTrial(product: RcStoreProductLike): boolean {
+  const freePhase = product.defaultOption?.freePhase;
+  if (freePhase !== null && freePhase !== undefined) return true;
+  const intro = product.introPrice;
+  return intro !== null && intro !== undefined && (intro.price ?? 0) === 0;
+}
+
+/** Maps one RevenueCat package to our StorePackage; null for products outside the catalog. */
+export function toStorePackage(pkg: RcPackageLike): StorePackage | null {
+  const productId = productIdOf(pkg.product);
+  const plan = PRODUCT_TO_PLAN.get(productId);
+  if (!plan) return null;
+  if (typeof pkg.product.priceString !== 'string' || pkg.product.priceString === '') return null;
+  return {
+    tier: plan.tier,
+    cycle: plan.cycle,
+    productId,
+    priceString: pkg.product.priceString,
+    priceAmountMicros: Math.round((pkg.product.price ?? 0) * 1_000_000),
+    currencyCode: pkg.product.currencyCode ?? 'USD',
+    hasFreeTrial: packageHasFreeTrial(pkg.product),
+  };
+}
+
+/** 'premium' wins over 'pro' (a premium customer is also entitled to pro features). */
+export function tierFromCustomerInfo(info: RcCustomerInfoLike): PaidPlanTier | null {
+  const active = info.entitlements?.active ?? {};
+  if ('premium' in active) return 'premium';
+  if ('pro' in active) return 'pro';
+  return null;
+}
+
+/**
+ * The CATALOG product ids currently active on the store account (base-plan suffixes stripped,
+ * non-catalog products ignored, premium products first, deduplicated). Normally zero or one;
+ * two would mean a double subscription that Play should have replaced.
+ */
+export function activeCatalogProductIds(info: RcCustomerInfoLike): string[] {
+  const ids = new Set<string>();
+  for (const raw of info.activeSubscriptions ?? []) {
+    if (typeof raw !== 'string') continue;
+    const productId = productIdOf({ identifier: raw });
+    if (PRODUCT_TO_PLAN.has(productId)) ids.add(productId);
+  }
+  return [...ids].sort((a, b) => {
+    const tierOf = (id: string): number => (PRODUCT_TO_PLAN.get(id)?.tier === 'premium' ? 0 : 1);
+    return tierOf(a) - tierOf(b) || a.localeCompare(b);
+  });
+}
+
+/**
+ * RevenueCat store tags that belong to the OTHER mobile platform's store (EntitlementInfo
+ * `store`). Everything else ('PROMOTIONAL', 'STRIPE', unknown/absent) counts as same-store, so
+ * builds without store metadata behave exactly as before the split.
+ */
+const OTHER_STORE_TAGS: Readonly<Record<'android' | 'ios', readonly string[]>> = {
+  android: ['APP_STORE', 'MAC_APP_STORE'],
+  ios: ['PLAY_STORE', 'AMAZON'],
+};
+
+/**
+ * The store tag of an active product, read from the entitlement it backs (this SDK surface has
+ * no per-subscription store map); null when no entitlement names the product or carries a tag.
+ */
+export function storeOfActiveProduct(info: RcCustomerInfoLike, productId: string): string | null {
+  for (const entitlement of Object.values(info.entitlements?.active ?? {})) {
+    const raw = entitlement.productIdentifier;
+    if (typeof raw !== 'string' || productIdOf({ identifier: raw }) !== productId) continue;
+    return typeof entitlement.store === 'string' ? entitlement.store : null;
+  }
+  return null;
+}
+
+/**
+ * Splits the active catalog products by whether they were purchased on the RUNNING platform's
+ * store. CustomerInfo is aggregated ACROSS stores per app user (shared entitlements), so a
+ * Play-purchased subscription appears on an iPhone too - where it can neither be managed nor
+ * replaced, only named. Order inside each list follows activeCatalogProductIds (premium first).
+ */
+export function splitActiveByStore(info: RcCustomerInfoLike, platform: 'android' | 'ios'): { sameStore: string[]; otherStore: string[] } {
+  const sameStore: string[] = [];
+  const otherStore: string[] = [];
+  for (const productId of activeCatalogProductIds(info)) {
+    const store = storeOfActiveProduct(info, productId);
+    (store !== null && OTHER_STORE_TAGS[platform].includes(store) ? otherStore : sameStore).push(productId);
+  }
+  return { sameStore, otherStore };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------------------------
+
+export function createPurchasesService(deps: PurchasesServiceDeps): PurchasesService {
+  let configuredUid: string | null = null;
+  /** Serializes configure/logIn so a fast sign-out/sign-in cannot interleave SDK calls. */
+  let configuring: Promise<void> = Promise.resolve();
+
+  function isConfigured(): boolean {
+    return deps.apiKey() !== null && deps.sdk() !== null;
+  }
+
+  function requireSdk(): { sdk: PurchasesSdkLike; apiKey: string } {
+    const sdk = deps.sdk();
+    const apiKey = deps.apiKey();
+    if (!sdk || apiKey === null) {
+      throw new AppError('not_configured', 'Purchases are not configured in this build');
+    }
+    return { sdk, apiKey };
+  }
+
+  async function currentOffering(sdk: PurchasesSdkLike): Promise<StoreOffering> {
+    let offerings;
+    try {
+      offerings = await sdk.getOfferings();
+    } catch (error) {
+      throw mapRcError(error, 'Could not load the RevenueCat offerings');
+    }
+    const current = offerings.current;
+    const packages = (current?.availablePackages ?? []).map(toStorePackage).filter((pkg): pkg is StorePackage => pkg !== null);
+    if (!current || packages.length === 0) {
+      // Dashboard misconfiguration (no current offering / products outside the catalog):
+      // an honest failure so the UI shows catalog prices without purchase buttons.
+      throw new AppError('upstream_error', 'RevenueCat returned no usable current offering', {
+        details: { offeringId: current?.identifier ?? null, rawPackages: current?.availablePackages.length ?? 0 },
+      });
+    }
+    return { offeringId: current.identifier, packages };
+  }
+
+  return {
+    isConfigured,
+
+    async configure(uid: string): Promise<void> {
+      if (!isConfigured()) return; // Contract: safe no-op when not configured.
+      const { sdk, apiKey } = requireSdk();
+      const run = configuring
+        .catch(() => undefined) // A previous failure never poisons the chain.
+        .then(async () => {
+          if (configuredUid === uid) return;
+          try {
+            if (configuredUid === null) {
+              await Promise.resolve(sdk.configure({ apiKey, appUserID: uid }));
+            } else {
+              await sdk.logIn(uid);
+            }
+            configuredUid = uid;
+          } catch (error) {
+            throw mapRcError(error, 'RevenueCat configure failed');
+          }
+        });
+      configuring = run;
+      return run;
+    },
+
+    async getOffering(): Promise<StoreOffering> {
+      const { sdk } = requireSdk();
+      await configuring.catch(() => undefined);
+      return currentOffering(sdk);
+    },
+
+    async purchase(tier: PaidPlanTier, cycle: BillingCycle): Promise<PurchaseOutcome> {
+      const { sdk } = requireSdk();
+      await configuring.catch(() => undefined);
+      const productId = PLAY_PRODUCT_IDS[tier][cycle];
+      // The bridge needs the ORIGINAL package object, so resolve it fresh from the offerings.
+      let offerings;
+      try {
+        offerings = await sdk.getOfferings();
+      } catch (error) {
+        throw mapRcError(error, 'Could not load the RevenueCat offerings');
+      }
+      const rawPackage = (offerings.current?.availablePackages ?? []).find((pkg) => productIdOf(pkg.product) === productId);
+      if (!rawPackage) {
+        throw new AppError('upstream_error', 'The requested package is not in the current offering', {
+          details: { productId, offeringId: offerings.current?.identifier ?? null },
+        });
+      }
+      // BOTH PLATFORMS read a FRESH CustomerInfo first. The SDK caches CustomerInfo for
+      // minutes, and an out-of-app change (Play subscription center, App Store settings, or a
+      // purchase on the user's OTHER device) inside that window would make a stale answer miss
+      // the running subscription - so the cache is dropped, and any read failure aborts the
+      // purchase (retryable) instead of risking a double billing.
+      let info: RcCustomerInfoLike;
+      try {
+        if (typeof sdk.invalidateCustomerInfoCache === 'function') await sdk.invalidateCustomerInfoCache();
+        info = await sdk.getCustomerInfo();
+      } catch (error) {
+        throw mapRcError(error, 'Could not read the current subscriptions before purchasing');
+      }
+      const active = splitActiveByStore(info, deps.platform());
+      if (active.otherStore.length > 0) {
+        // A subscription bought on the OTHER platform's store is active on this account. The
+        // stores cannot replace across each other, so buying here would open a SECOND, parallel
+        // subscription billed in both stores. Honest abort; the UI blocks this path upfront.
+        throw new AppError('conflict', 'An active subscription from the other store blocks this purchase', {
+          details: { otherStoreProductId: active.otherStore[0] ?? null },
+          retryable: false,
+        });
+      }
+      // ANDROID: a DIFFERENT catalog product already active means this purchase is a replacement
+      // (tier change or cycle switch): Google Play only replaces the running subscription when
+      // the old product id is passed - without it the user ends up paying for TWO subscriptions.
+      // IOS: all four products live in ONE subscription group, so StoreKit replaces by itself
+      // (downgrades/crossgrades apply at the next renewal) and no product change is passed.
+      let oldProductId: string | null = null;
+      let productChange: RcProductChangeInfoLike | null = null;
+      if (deps.platform() !== 'ios') {
+        oldProductId = active.sameStore.find((id) => id !== productId) ?? null;
+        productChange =
+          oldProductId !== null
+            ? { oldProductIdentifier: oldProductId, prorationMode: PLAY_PRORATION_IMMEDIATE_WITH_TIME_PRORATION }
+            : null;
+      }
+      try {
+        await sdk.purchasePackage(rawPackage, null, productChange);
+      } catch (error) {
+        if (isRcUserCancelled(error)) return { status: 'cancelled' };
+        throw mapRcError(error, 'The purchase could not be completed');
+      }
+      log.info('purchase completed', { productId, replaced: oldProductId });
+      // entitlements/{uid} is written by the webhook; the UI polls useEntitlement() (§20).
+      return { status: 'purchased', tier, cycle };
+    },
+
+    async restore(): Promise<RestoreOutcome> {
+      const { sdk } = requireSdk();
+      await configuring.catch(() => undefined);
+      let info: RcCustomerInfoLike;
+      try {
+        info = await sdk.restorePurchases();
+      } catch (error) {
+        throw mapRcError(error, 'Purchases could not be restored');
+      }
+      const tier = tierFromCustomerInfo(info);
+      if (tier === null) return { status: 'nothing_to_restore' };
+      log.info('restore found an active entitlement', { tier });
+      return { status: 'restored', tier };
+    },
+
+    async getActiveProducts(): Promise<ActiveStoreProducts> {
+      // Best effort (contract: never throws): the pricing UI uses it to mark the purchased
+      // (tier, cycle) card and to block purchases while an OTHER-store subscription is active;
+      // both null just means "unknown" and the UI falls back to tier-based state.
+      const sdk = deps.sdk();
+      if (!sdk || deps.apiKey() === null) return { sameStore: null, otherStore: null };
+      try {
+        await configuring.catch(() => undefined);
+        const info = await sdk.getCustomerInfo();
+        const { sameStore, otherStore } = splitActiveByStore(info, deps.platform());
+        return { sameStore: sameStore[0] ?? null, otherStore: otherStore[0] ?? null };
+      } catch (error) {
+        log.warn('could not read the active subscriptions', mapRcError(error, 'getCustomerInfo failed').code);
+        return { sameStore: null, otherStore: null };
+      }
+    },
+
+    async getActiveProductId(): Promise<string | null> {
+      const sdk = deps.sdk();
+      if (!sdk || deps.apiKey() === null) return null;
+      try {
+        await configuring.catch(() => undefined);
+        const info = await sdk.getCustomerInfo();
+        return splitActiveByStore(info, deps.platform()).sameStore[0] ?? null;
+      } catch (error) {
+        log.warn('could not read the active subscriptions', mapRcError(error, 'getCustomerInfo failed').code);
+        return null;
+      }
+    },
+
+    manageUrl(productId?: string): string {
+      // iOS has no per-product deep link; the account subscriptions page is the URL fallback
+      // behind showManageSubscriptions() (the native sheet is tried first by the screen).
+      if (deps.platform() === 'ios') return APPLE_SUBSCRIPTIONS_URL;
+      if (productId === undefined) return PLAY_SUBSCRIPTIONS_URL;
+      return `${PLAY_SUBSCRIPTIONS_URL}?sku=${encodeURIComponent(productId)}&package=${ANDROID_PACKAGE}`;
+    },
+
+    async showManageSubscriptions(): Promise<boolean> {
+      // Contract: true only when the native App Store sheet was presented; false on Android,
+      // unconfigured builds and SDKs without the method - the caller then opens manageUrl().
+      if (deps.platform() !== 'ios' || !isConfigured()) return false;
+      const sdk = deps.sdk();
+      if (!sdk || typeof sdk.showManageSubscriptions !== 'function') return false;
+      try {
+        await configuring.catch(() => undefined);
+        await sdk.showManageSubscriptions();
+        return true;
+      } catch (error) {
+        throw mapRcError(error, 'The App Store subscription sheet could not be presented');
+      }
+    },
+  };
+}

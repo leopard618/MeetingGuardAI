@@ -1,0 +1,251 @@
+{
+  "chat": {
+    "subtitle": "Programa, mueve, cancela y comparte reuniones chateando",
+    "welcome": "¡Hola! Dime qué necesitas: programar, mover, cancelar o compartir una reunión, o pregúntame qué tienes en tu calendario. Siempre te mostraré exactamente qué va a cambiar y esperaré tu confirmación.",
+    "examplesTitle": "Prueba a pedir",
+    "placeholder": "Escribe al asistente...",
+    "send": "Enviar",
+    "thinking": "Pensando...",
+    "followUpLoading": "Preparando sugerencias de seguimiento...",
+    "followUpFor": "Seguimiento: {{title}}",
+    "followUpGeneric": "Seguimiento de la reunión",
+    "notSent": "No enviado",
+    "retry": "Reintentar",
+    "clear": "Borrar conversación",
+    "clearTitle": "¿Borrar la conversación?",
+    "clearMessage": "Se eliminará la conversación de este dispositivo. Tus reuniones no se verán afectadas.",
+    "clearConfirm": "Borrar",
+    "cancel": "Cancelar",
+    "pending_one": "{{count}} acción pendiente de tu confirmación",
+    "pending_other": "{{count}} acciones pendientes de tu confirmación",
+    "reviewAll": "Revisar todas",
+    "followUpStart": "Obtener ideas de seguimiento",
+    "loading": "Cargando tu conversación...",
+    "a11yUserMessage": "Tú, {{time}}: {{text}}",
+    "a11yAssistantMessage": "Asistente, {{time}}: {{text}}"
+  },
+  "examples": {
+    "e1": "Programa una reunión con Ana mañana a las 4 p. m.",
+    "e2": "Mueve mi reunión de las 4 a las 5",
+    "e3": "¿Qué tengo esta semana?",
+    "e4": "Retrasa 30 minutos todas mis reuniones de mañana",
+    "e5": "Envía el enlace de la reunión de marketing a juan@empresa.com",
+    "e6": "Cancela mi reunión del viernes"
+  },
+  "usage": {
+    "today": "{{used}}/{{limit}} hoy · {{plan}}",
+    "perDay": "{{limit}}/día · {{plan}}",
+    "a11y": "{{used}} de {{limit}} consultas al asistente usadas hoy con el plan {{plan}}",
+    "a11yPlan": "{{limit}} consultas al asistente al día con el plan {{plan}}",
+    "plan": {
+      "free": "Gratis",
+      "pro": "Pro",
+      "premium": "Premium"
+    }
+  },
+  "errors": {
+    "quota": "Has usado las {{limit}} consultas al asistente de hoy con el plan {{plan}}. Se renuevan {{reset}}.",
+    "quotaUnknown": "Has alcanzado el límite diario del asistente para tu plan.",
+    "upgrade": "Ver planes",
+    "offline": "No tienes conexión. Revísala y vuelve a intentarlo.",
+    "timeout": "El asistente tardó demasiado en responder. Vuelve a intentarlo.",
+    "upstream": "El asistente tiene problemas en este momento. Vuelve a intentarlo en unos instantes.",
+    "unauthenticated": "Tu sesión ha caducado. Vuelve a iniciar sesión.",
+    "invalid": "No pude procesar ese mensaje. Prueba a decirlo de otra forma.",
+    "notConfigured": "El asistente no está disponible en esta versión de la app.",
+    "notSent": "Tu último mensaje no se envió."
+  },
+  "actions": {
+    "type": {
+      "create_meeting": "Nueva reunión",
+      "update_meeting": "Cambiar reunión",
+      "delete_meeting": "Eliminar reunión",
+      "share_meeting": "Compartir reunión",
+      "bulk_update": "Cambiar varias reuniones",
+      "list": "Reuniones"
+    },
+    "status": {
+      "proposed": "Pendiente de confirmar",
+      "executing": "Procesando...",
+      "done": "Hecho",
+      "failed": "Error",
+      "rejected": "Descartada"
+    },
+    "review": "Revisar",
+    "dismiss": "Descartar",
+    "tryAgain": "Reintentar",
+    "openMeeting": "Abrir reunión",
+    "listEmpty": "No hay reuniones que coincidan.",
+    "moreWarnings_one": "(+{{count}} más)",
+    "moreWarnings_other": "(+{{count}} más)",
+    "a11yMeeting": "{{title}}, {{when}}"
+  },
+  "confirm": {
+    "title": {
+      "create_meeting": "¿Crear esta reunión?",
+      "update_meeting": "¿Guardar estos cambios?",
+      "delete_meeting": "¿Eliminar esta reunión?",
+      "share_meeting": "¿Compartir esta reunión?",
+      "bulk_update": "¿Cambiar estas reuniones?",
+      "list": "Reuniones"
+    },
+    "titleMany_one": "Confirmar {{count}} acción",
+    "titleMany_other": "Confirmar {{count}} acciones",
+    "subtitle": "No se cambia nada hasta que confirmes.",
+    "button": {
+      "create_meeting": "Crear reunión",
+      "update_meeting": "Guardar cambios",
+      "delete_meeting": "Eliminar reunión",
+      "share_meeting": "Compartir",
+      "share_email": "Redactar correo",
+      "bulk_update_one": "Cambiar {{count}} reunión",
+      "bulk_update_other": "Cambiar {{count}} reuniones"
+    },
+    "confirm": "Confirmar",
+    "confirmAll_one": "Confirmar {{count}} acción",
+    "confirmAll_other": "Confirmar las {{count}}",
+    "cancel": "Ahora no",
+    "dismissOne": "Descartar esta",
+    "noChanges": "Estos valores ya están así; no cambiará nada.",
+    "loadingDetails": "Revisando tu calendario...",
+    "deleteWarning": "La reunión se eliminará y se cancelarán sus alertas.",
+    "deleteWarningSynced": "La reunión se eliminará, se cancelarán sus alertas y también se quitará de tu calendario sincronizado.",
+    "channel": "Enviar por",
+    "recipients_one": "Destinatario",
+    "recipients_other": "Destinatarios ({{count}})",
+    "emailNote": "Se abrirá tu app de correo con un borrador listo. No se envía nada hasta que lo envíes desde allí.",
+    "message": "Mensaje",
+    "affected_one": "{{count}} reunión",
+    "affected_other": "{{count}} reuniones",
+    "skippedAllDay": "Reunión de todo el día: solo puede moverse por días completos, así que se quedará como está.",
+    "a11yBefore": "Antes: {{value}}",
+    "a11yAfter": "Después: {{value}}",
+    "deleteOccurrenceWarning": "Solo se elimina esta repetición. El resto de la serie se mantiene.",
+    "deleteFollowingWarning": "Se eliminan esta repetición y todas las posteriores. Las anteriores se mantienen."
+  },
+  "fields": {
+    "title": "Título",
+    "when": "Cuándo",
+    "duration": "Duración",
+    "description": "Descripción",
+    "location": "Lugar",
+    "conference": "Videollamada",
+    "participants": "Participantes",
+    "tips": "Consejos de preparación",
+    "alerts": "Alertas",
+    "language": "Idioma",
+    "repeats": "Repetición",
+    "scope": "Se aplica a"
+  },
+  "values": {
+    "none": "Ninguno",
+    "allDay": "Todo el día",
+    "timed": "Hora concreta",
+    "inZone": "{{when}} ({{zone}})",
+    "timezoneChange": "Zona horaria: {{zone}}",
+    "defaultAlerts": "Tus alertas predeterminadas",
+    "noAlerts": "Sin alertas",
+    "alertAtStart": "Al empezar",
+    "alertBefore": "{{duration}} antes",
+    "meetLinkPending": "se creará un enlace de Google Meet",
+    "noLinkYet": "todavía sin enlace",
+    "password": "contraseña {{password}}",
+    "shiftLater": "Retrasar {{amount}}",
+    "shiftEarlier": "Adelantar {{amount}}",
+    "language": {
+      "en": "Inglés",
+      "es": "Español"
+    },
+    "locationType": {
+      "physical": "Presencial",
+      "virtual": "En línea",
+      "hybrid": "Híbrida"
+    },
+    "provider": {
+      "zoom": "Zoom",
+      "teams": "Microsoft Teams",
+      "google_meet": "Google Meet",
+      "other": "Videollamada"
+    }
+  },
+  "warnings": {
+    "meeting_not_found_one": "Esta reunión ya no existe.",
+    "meeting_not_found_other": "{{count}} de estas reuniones ya no existen.",
+    "start_in_past": "Esta hora ya ha pasado.",
+    "overlaps_existing": "Se solapa con otra reunión.",
+    "overlaps_with": "Se solapa con: {{titles}}",
+    "google_meet_needs_calendar": "Conecta Google Calendar para crear un enlace real de Google Meet. Sin él, la reunión se guarda sin enlace.",
+    "no_recipients": "No se indicó ningún destinatario de correo.",
+    "new_people": "Todavía no están en esta reunión: {{emails}}. Asegúrate de que quieres incluirlos."
+  },
+  "results": {
+    "created": "Reunión creada.",
+    "updated": "Reunión actualizada.",
+    "deleted": "Reunión eliminada.",
+    "bulkUpdated_one": "{{count}} reunión actualizada.",
+    "bulkUpdated_other": "{{count}} reuniones actualizadas.",
+    "bulkSkipped_one": "{{count}} reunión se quedó sin cambios.",
+    "bulkSkipped_other": "{{count}} reuniones se quedaron sin cambios.",
+    "meetLinkCreated": "Enlace de Google Meet añadido.",
+    "meetLinkNeedsCalendar": "Todavía sin enlace de Google Meet: conecta Google Calendar para crearlo.",
+    "meetLinkFailed": "No se pudo crear el enlace de Google Meet. Puedes añadirlo más tarde desde la reunión.",
+    "mailComposer": "Borrador de correo abierto para {{recipients}}.",
+    "googleInvite": "Invitación de Google Calendar enviada.",
+    "systemShare": "Menú para compartir abierto.",
+    "listed_one": "{{count}} reunión encontrada.",
+    "listed_other": "{{count}} reuniones encontradas.",
+    "duplicate": "Ya estaba hecho.",
+    "cancelled": "Se canceló el envío.",
+    "failed": "No se pudo completar: {{reason}}",
+    "allDone_one": "{{count}} acción completada.",
+    "allDone_other": "Las {{count}} acciones se completaron.",
+    "someFailed": "Se completaron {{done}} de {{total}} acciones. Revisa las que fallaron."
+  },
+  "share": {
+    "subject": "Reunión: {{title}}",
+    "when": "Cuándo: {{when}}",
+    "duration": "Duración: {{duration}}",
+    "location": "Dónde: {{location}}",
+    "join": "Unirse: {{url}}",
+    "joinWith": "Unirse ({{provider}}): {{url}}",
+    "password": "Contraseña: {{password}}",
+    "to": "Para: {{recipients}}",
+    "footer": "Compartido con MeetingGuard AI",
+    "channel": {
+      "email": "Correo electrónico",
+      "system_share": "Menú para compartir"
+    }
+  },
+  "confidence": {
+    "high": "Alta",
+    "medium": "Media",
+    "low": "Baja",
+    "a11y": "Confianza de la IA {{value}} % ({{level}})"
+  },
+  "recurrence": {
+    "none": "No se repite",
+    "daily_one": "Se repite a diario",
+    "daily_other": "Se repite cada {{count}} días",
+    "weekly_one": "Se repite cada semana",
+    "weekly_other": "Se repite cada {{count}} semanas",
+    "monthly_one": "Se repite cada mes",
+    "monthly_other": "Se repite cada {{count}} meses",
+    "onWeekdays": "{{rule}} los {{days}}",
+    "onMonthDay": "{{rule}} el día {{day}}",
+    "untilDate": "{{rule}}, hasta el {{date}}",
+    "forTimes_one": "{{rule}}, {{count}} vez en total",
+    "forTimes_other": "{{rule}}, {{count}} veces en total",
+    "weekday": {
+      "MO": "lunes",
+      "TU": "martes",
+      "WE": "miércoles",
+      "TH": "jueves",
+      "FR": "viernes",
+      "SA": "sábado",
+      "SU": "domingo"
+    },
+    "scopeOccurrence": "Solo la repetición del {{date}}",
+    "scopeFollowing": "Esta y las siguientes repeticiones desde el {{date}}",
+    "scopeSeries": "Toda la serie repetida"
+  }
+}

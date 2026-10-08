@@ -1,0 +1,100 @@
+{
+  "search": {
+    "placeholder": "Search notes",
+    "clear": "Clear search"
+  },
+  "filters": {
+    "label": "Filter by category",
+    "all": "All",
+    "withCount": "{{label}} ({{count}})"
+  },
+  "categories": {
+    "general": "General",
+    "work": "Work",
+    "ideas": "Ideas",
+    "personal": "Personal"
+  },
+  "list": {
+    "loading": "Loading your notes...",
+    "count_one": "{{count}} note",
+    "count_other": "{{count}} notes"
+  },
+  "empty": {
+    "title": "No notes yet",
+    "body": "Write down agendas, ideas and follow-ups. You can link a note to one of your meetings.",
+    "action": "Write your first note"
+  },
+  "noMatches": {
+    "title": "No notes match",
+    "body": "Try another search or category.",
+    "action": "Clear filters"
+  },
+  "loadError": {
+    "title": "We couldn't load your notes"
+  },
+  "add": "New note",
+  "addA11y": "Create a new note",
+  "card": {
+    "open": "Edit note: {{title}}",
+    "openHint": "Opens the note for editing",
+    "pinned": "Pinned",
+    "pin": "Pin note: {{title}}",
+    "unpin": "Unpin note: {{title}}",
+    "delete": "Delete note: {{title}}",
+    "updated": "Updated {{when}}",
+    "meeting": "Open meeting: {{title}}",
+    "meetingUnavailable": "The linked meeting is no longer available"
+  },
+  "editor": {
+    "newTitle": "New note",
+    "editTitle": "Edit note",
+    "close": "Close",
+    "save": "Save",
+    "titleLabel": "Title",
+    "contentLabel": "Note",
+    "contentPlaceholder": "Write your note...",
+    "characters": "{{count}} / {{max}} characters",
+    "category": "Category",
+    "pin": "Pin to the top",
+    "pinHint": "Pinned notes appear first in the list.",
+    "meeting": "Linked meeting",
+    "meetingNone": "This note isn't linked to a meeting.",
+    "linkMeeting": "Link to a meeting",
+    "changeMeeting": "Change",
+    "unlinkMeeting": "Remove link",
+    "unlinkA11y": "Remove the link to the meeting",
+    "delete": "Delete note",
+    "discardTitle": "Discard your changes?",
+    "discardMessage": "The changes you made to this note will be lost.",
+    "keepEditing": "Keep editing",
+    "discard": "Discard"
+  },
+  "errors": {
+    "titleRequired": "Add a title for the note.",
+    "titleTooLong": "The title can have up to {{max}} characters.",
+    "contentTooLong": "The note can have up to {{max}} characters."
+  },
+  "picker": {
+    "title": "Link a meeting",
+    "back": "Back to the note",
+    "search": "Search meetings",
+    "upcoming": "Upcoming",
+    "past": "Past",
+    "empty": "You don't have any meetings to link yet.",
+    "noMatches": "No meetings match your search.",
+    "select": "Link to {{title}}, {{when}}",
+    "cancelled": "Cancelled",
+    "linked": "Linked"
+  },
+  "delete": {
+    "title": "Delete \"{{title}}\"?",
+    "message": "The note will be deleted from all your devices. This can't be undone.",
+    "confirm": "Delete"
+  },
+  "toast": {
+    "saved": "Note saved",
+    "deleted": "Note deleted",
+    "pinned": "Note pinned",
+    "unpinned": "Note unpinned"
+  }
+}

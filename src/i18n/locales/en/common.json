@@ -1,0 +1,77 @@
+{
+  "app": {
+    "name": "MeetingGuard AI"
+  },
+  "actions": {
+    "continue": "Continue",
+    "back": "Back",
+    "skipForNow": "Skip for now",
+    "done": "Done",
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "openSettings": "Open settings",
+    "signOut": "Sign out",
+    "signOutAnyway": "Sign out anyway",
+    "save": "Save"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "es": "Español"
+  },
+  "format": {
+    "now": "now",
+    "tomorrow": "tomorrow",
+    "yesterday": "yesterday",
+    "allDay": "All day",
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days"
+  },
+  "splash": {
+    "loading": "Loading...",
+    "slow": "This is taking longer than usual. Check your internet connection."
+  },
+  "session": {
+    "signOutTitle": "Sign out",
+    "signOutMessage": "Are you sure you want to sign out?",
+    "pendingWritesTitle": "Unsynced changes",
+    "pendingWritesMessage": "Some of your changes have not reached the server yet. If you sign out now they will be lost.",
+    "signOutFailed": "We could not sign you out. Please try again.",
+    "prefsErrorTitle": "We could not load your settings",
+    "prefsErrorMessage": "Check your internet connection and open the app again, or sign out."
+  },
+  "consent": {
+    "prefix": "By continuing, you agree to our",
+    "terms": "Terms of Service",
+    "and": "and",
+    "privacy": "Privacy Policy"
+  },
+  "errors": {
+    "not_configured": "This app is not configured correctly. Please update to the latest version.",
+    "not_implemented": "This feature is not available yet.",
+    "unauthenticated": "Your session has expired. Please sign in again.",
+    "permission_denied": "You don't have permission to do that.",
+    "offline": "You're offline. Check your connection and try again.",
+    "timeout": "The request took too long. Please try again.",
+    "not_found": "We couldn't find what you were looking for.",
+    "invalid_input": "Some of the information isn't valid. Please review it and try again.",
+    "conflict": "This item was changed somewhere else. Please try again.",
+    "quota_exceeded": "You've reached your limit for now. Please try again later.",
+    "upstream_error": "Something went wrong on our side. Please try again in a moment.",
+    "cancelled": "The action was cancelled.",
+    "unsupported": "This action isn't supported.",
+    "pending_writes": "Some changes haven't been synced yet.",
+    "google_not_signed_in": "Sign in with Google to use this feature.",
+    "calendar_scope_missing": "MeetingGuard needs permission to access your Google Calendar.",
+    "calendar_not_connected": "Google Calendar is not connected.",
+    "calendar_permission_denied": "Calendar access was denied. You can allow it in your device settings.",
+    "notification_permission_denied": "Notifications are turned off. Turn them on in your device settings so you never miss a meeting.",
+    "unknown": "Something went wrong. Please try again."
+  },
+  "discard": {
+    "title": "Discard changes?",
+    "message": "Your changes are not saved. If you leave now, they are lost.",
+    "keepEditing": "Keep editing",
+    "discard": "Discard"
+  }
+}

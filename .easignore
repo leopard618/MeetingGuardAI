@@ -1,121 +1,76 @@
-# Dependencies
+# EAS Build uses this file INSTEAD of .gitignore when uploading the project.
+# It mirrors .gitignore and additionally keeps server-side code and private
+# material out of the build archive. Keep both files in sync.
+
+# dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Build outputs
-android/
-ios/build/
-ios/Pods/
-
-# Backend files (should not be included in mobile app build)
-api/
-backend/
-render.yaml
-vercel.json
-DEPLOYMENT.md
-RENDER_DEPLOYMENT.md
-MILESTONE_5_ROADMAP.md
-MILESTONE_5_SUMMARY.md
-test-render-deployment.js
-setup-env.js
-
-# Development files
-.git/
-.gitignore
-README.md
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
-logs
-*.log
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-
-# Temporary folders
-tmp/
-temp/
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Microbundle cache
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
-
-# next.js build output
-.next
-
-# nuxt.js build output
-.nuxt
-
-# vuepress build output
-.vuepress/dist
-
-# Serverless directories
-.serverless
-
-# FuseBox cache
-.fusebox/
-
-# DynamoDB Local files
-.dynamodb/
-
-# TernJS port file
-.tern-port
-
-# Stores VSCode versions used for testing VSCode extensions
-.vscode-test
 
 # Expo
 .expo/
 dist/
 web-build/
+expo-env.d.ts
 
-# Local development
-*.local
+# Native projects are generated on the build server (Continuous Native Generation).
+# Only the TOP-LEVEL android/ios dirs: modules/*/android is the local Expo module's
+# source (mg-fullscreen-alarm) and MUST be uploaded, or EAS builds lose the module.
+/android
+/ios
+
+# Local Expo modules: Gradle build output (generated when the app builds)
+modules/*/android/build/
+modules/*/android/.cxx/
+.kotlin/
+*.orig.*
+
+# Signing material and credentials (EAS uses remote credentials)
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+service-account*.json
+*-service-account.json
+
+# Environment files - never upload; configure values as EAS environment variables
+.env
+.env.*
+!env.example
+!.env.example
+
+# Private client material (credentials, contracts)
+reference/
+
+# Firebase backend (Cloud Functions, rules, emulator data) is deployed separately
+functions/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# Metro
+.metro-health-check*
+
+# Test / tooling output
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Logs and debug output
+logs/
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.*
+
+# Editors and OS
+.git/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~

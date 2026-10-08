@@ -1,0 +1,26 @@
+{
+  "previousMonth": "Mes anterior",
+  "nextMonth": "Mes siguiente",
+  "today": "Hoy",
+  "goToToday": "Ir a hoy",
+  "todayMarker": "hoy",
+  "relation": {
+    "today": "Hoy",
+    "tomorrow": "Mañana",
+    "yesterday": "Ayer"
+  },
+  "meetingCount_one": "{{count}} reunión",
+  "meetingCount_other": "{{count}} reuniones",
+  "noMeetings": "Sin reuniones",
+  "legend": {
+    "label": "Colores de los puntos: {{sources}}",
+    "meetingguard": "MeetingGuard",
+    "google": "Google Calendar",
+    "device": "Calendario del dispositivo"
+  },
+  "emptyDay": "No hay reuniones este día.",
+  "createOnDay": "Nueva reunión el {{date}}",
+  "createOnDayHint": "Abre el formulario de reunión con este día",
+  "loading": "Cargando tus reuniones...",
+  "errorTitle": "No se pudieron cargar tus reuniones"
+}

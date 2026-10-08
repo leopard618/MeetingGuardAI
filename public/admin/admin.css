@@ -1,0 +1,859 @@
+/* MeetingGuard AI admin dashboard v3 - dark-only premium pass (ops tool; docs/ADMIN.md).
+ *
+ * BRAND PROVENANCE: the palette derives from src/theme/tokens.ts (indigo primary ramp +
+ * chartPalette.dark), deepened for a layered dark shell. The brand gradient
+ * (#6A6BE8 -> #8F94F3 -> #A77BFA) is the one gradient, reused for primary buttons, the active
+ * nav notch, chart strokes, the logo ring and the premium plan pill. chart.js mirrors the
+ * gradient stops as SVG defs.
+ *
+ * LAYER ORDER: 1 tokens, 2 base/reset, 3 shell (sidebar/content/view header), 4 components,
+ * 5 views, 6 charts, 7 utilities + motion guard. New class names are flat kebab-case with a
+ * component prefix (sb-*, vh-*, stat-*, tip-*); every class admin.js writes is preserved.
+ */
+
+/* ---- 1. Tokens ------------------------------------------------------------------------------ */
+:root {
+  color-scheme: dark; /* native widgets (date picker, scrollbars) render dark */
+
+  --bg: #0A0D17;
+  --bg-raised: #0D1120;
+  --surface-1: #111728;
+  --surface-2: #161D33;
+  --surface-3: #1C2440;
+  --input-bg: #0D1220;
+  --border-1: rgba(154, 163, 255, 0.10);
+  --border-2: rgba(154, 163, 255, 0.14);
+  --border-3: rgba(154, 163, 255, 0.18);
+  --border-input: #313B55;
+  --text: #EDF0FB;
+  --text-2: #A7B0C9;
+  --text-3: #828DA9; /* 4.60:1 on --surface-3, 4.93:1 on the hovered-row wash (AA for 11-12px) */
+  --primary: #AFB4FF;
+  --primary-deep: #6A6BE8;
+  --violet: #A77BFA;
+  --on-primary: #101273;
+  --grad-brand: linear-gradient(135deg, #6A6BE8 0%, #8F94F3 52%, #A77BFA 100%);
+  /* Darker fill-only twin: same indigo-violet ramp, but every stop keeps white 13px text at
+     AA (6.41 / 5.15 / 5.79 vs 4.30 / 2.73 / 3.06 on --grad-brand). Use it wherever white TEXT
+     sits ON the gradient (.btn-primary, .badge.plan-premium); --grad-brand stays for the
+     decorative uses (logo ring, nav notch, admin tag, chart strokes, swatches). */
+  --grad-brand-fill: linear-gradient(135deg, #4F50C4 0%, #5E60D2 52%, #7A49C9 100%);
+  --glow-primary: rgba(106, 107, 232, 0.35);
+  --ring: rgba(106, 107, 232, 0.35);
+  --focus: rgba(175, 180, 255, 0.9);
+  --danger: #FF9F9F;
+  --danger-bg: #7C2222;
+  --on-danger-bg: #FFD9D9;
+  --ok: #6CD9A0;
+  --ok-bg: #14543A;
+  --on-ok-bg: #C9F2DC;
+  --warn: #F5B950;
+  --warn-bg: #6B3F05;
+  --on-warn-bg: #FFE3B3;
+  --info: #79C0F7;
+  --outline: #5E6F8D;
+  --chart-1: #8F94F3;
+  --chart-2: #3ECFBE;
+  --chart-3: #F0A64B;
+  --chart-4: #F383AE;
+  --chart-5: #5BB7F5;
+  --chart-6: #93A3B8;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-3: 0 16px 48px rgba(0, 0, 0, 0.50);
+  --sidebar-w: 232px;
+  --content-pad: 28px;
+
+  /* Legacy aliases (chart.js cssColor() reads --surface/--text-3 and older code --border /
+     --text-muted at render time; keep both names pointing at the v3 values). */
+  --surface: #111728;
+  --border: rgba(154, 163, 255, 0.10);
+  --text-muted: #A7B0C9;
+}
+
+/* ---- 2. Base / reset ------------------------------------------------------------------------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: #0A0D17;
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13.5px;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+/* Soft indigo glow bleeding from the top of the viewport. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 560px at 50% -120px, rgba(106, 107, 232, 0.16), transparent 62%),
+    radial-gradient(700px 420px at 88% -80px, rgba(167, 123, 250, 0.07), transparent 60%);
+}
+
+h1, h2, h3, h4 { letter-spacing: -0.01em; }
+h1 { font-size: 24px; line-height: 32px; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 10px; }
+h2 { font-size: 15px; line-height: 22px; font-weight: 600; margin: 0; }
+h3 { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text-2); margin: 0 0 12px; }
+p { margin: 0 0 10px; }
+p:last-child { margin-bottom: 0; }
+
+code {
+  background: var(--surface-3);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.86em;
+  word-break: break-all;
+}
+pre {
+  background: var(--bg);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 10px 0 0;
+}
+pre code { background: none; padding: 0; word-break: normal; }
+
+/* The hidden attribute only applies UA display:none, which any author `display:` rule beats -
+   without this override every state view (loading/config-error/sign-in/not-admin) shows at once,
+   and admin.js view/tab gating depends on it. */
+[hidden] { display: none !important; }
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #273150; border-radius: 8px; border: 2px solid #0A0D17; }
+::-webkit-scrollbar-thumb:hover { background: #32406A; }
+/* Firefox has no ::-webkit-scrollbar; give it the same thumb color through the standard
+   properties. Scoped so engines with the tuned webkit styling above keep it untouched. */
+@supports not selector(::-webkit-scrollbar) {
+  html { scrollbar-color: #273150 transparent; scrollbar-width: thin; }
+}
+
+::selection { background: rgba(106, 107, 232, 0.45); }
+
+/* ---- 3. Shell -------------------------------------------------------------------------------- */
+
+/* Gate views (loading / config error / sign-in / not-admin): centered single card. */
+.gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.gate-card {
+  max-width: 460px;
+  background: var(--surface-2);
+  border-color: var(--border-2);
+  box-shadow: var(--shadow-2), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+.gate-auth { text-align: center; }
+.gate-auth .logo-ring { margin-bottom: 14px; }
+.gate-auth .btn-primary { margin-top: 6px; }
+
+/* App shell: fixed sidebar + fluid content. */
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 16px;
+  background: var(--bg-raised);
+  border-right: 1px solid rgba(154, 163, 255, 0.08);
+}
+
+.sb-brand { display: flex; align-items: center; gap: 10px; padding: 0 2px 16px; }
+.logo-ring {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 11px;
+  background: var(--grad-brand);
+  flex: none;
+}
+.logo { display: block; width: 32px; height: 32px; border-radius: 9px; object-fit: cover; }
+.logo-ring-lg { border-radius: 15px; }
+.logo-lg { width: 48px; height: 48px; border-radius: 13px; }
+.sb-wordmark {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid rgba(175, 180, 255, 0.35);
+  border-radius: 999px;
+  padding: 1px 7px;
+  background: var(--grad-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  flex: none;
+}
+
+.sb-nav { display: flex; flex-direction: column; gap: 2px; }
+.sb-group {
+  font-size: 10.5px;
+  line-height: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  padding: 14px 10px 6px;
+}
+.sb-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 150ms ease, color 150ms ease;
+}
+.sb-item:hover { background: rgba(175, 180, 255, 0.06); color: var(--text); }
+.sb-item[aria-selected="true"] { background: rgba(106, 107, 232, 0.14); color: #E3E6FC; }
+.sb-item[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  left: -16px;
+  top: 50%;
+  margin-top: -9px;
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--grad-brand);
+}
+.sb-icon { width: 18px; height: 18px; flex: none; }
+.sb-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.sb-session {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 2px 0;
+  border-top: 1px solid rgba(154, 163, 255, 0.08);
+  min-width: 0;
+}
+.sb-email {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content {
+  position: relative;
+  min-width: 0;
+  padding: 24px var(--content-pad) 64px;
+  max-width: 1800px;
+}
+@media (min-width: 1801px) {
+  .content { margin-inline: auto; width: 100%; }
+}
+/* Subtle dot grid fading out over the first 420px of the content area. */
+.content::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 420px;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(175, 180, 255, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent 420px);
+  mask-image: linear-gradient(to bottom, black, transparent 420px);
+}
+
+/* Per-view header: breadcrumb + title + description, actions on the right. */
+.view-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.vh-left { min-width: 0; }
+.vh-crumb { font-size: 12px; margin: 0 0 2px; color: var(--text-3); }
+.crumb-sep { margin: 0 6px; }
+.crumb-here { color: var(--text); }
+.vh-title { margin: 0 0 4px; }
+.vh-desc { font-size: 13px; margin: 0; max-width: 64ch; }
+.vh-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+/* Overview inline stat strip (right of the breadcrumb row). */
+.stat-strip { display: flex; align-items: center; gap: 20px; }
+.strip-item { display: flex; flex-direction: column; gap: 1px; }
+.strip-label {
+  font-size: 10.5px;
+  line-height: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.strip-value { font-size: 20px; line-height: 24px; font-weight: 650; }
+.strip-value.accent { color: var(--primary); }
+.stat-sep::before { content: "\00B7"; color: var(--text-3); font-size: 16px; }
+
+/* ---- 4. Components --------------------------------------------------------------------------- */
+
+/* Buttons. The bare .btn (admin.js composes 'btn btn-small' etc.) is the secondary recipe. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.btn:hover { background: var(--surface-3); transform: translateY(-1px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-primary {
+  background: var(--grad-brand-fill);
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(106, 107, 232, 0.35);
+}
+.btn-primary:hover {
+  background: var(--grad-brand-fill);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(106, 107, 232, 0.45);
+}
+.btn-primary:disabled { box-shadow: none; }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.btn-ghost:hover { background: rgba(175, 180, 255, 0.06); color: var(--text); transform: none; }
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: rgba(255, 159, 159, 0.45);
+}
+.btn-danger:hover { background: rgba(124, 34, 34, 0.35); }
+.btn-small { height: 28px; padding: 0 10px; font-size: 12px; border-radius: 8px; }
+.btn-icon { width: 32px; height: 32px; padding: 0; flex: none; }
+.btn-icon svg { width: 16px; height: 16px; }
+
+/* Inputs / selects. */
+input[type="search"], input[type="date"], input[type="password"], select {
+  height: 38px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--input-bg);
+  border: 1px solid var(--border-input);
+  border-radius: 10px;
+  padding: 0 12px;
+}
+input::placeholder { color: var(--text-3); }
+input[type="search"]:focus-visible, input[type="date"]:focus-visible,
+input[type="password"]:focus-visible, select:focus-visible {
+  outline: none;
+  border-color: var(--primary-deep);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+#user-search { width: 280px; max-width: 100%; }
+#rotate-key { width: 100%; }
+.field-label { display: block; font-size: 12px; font-weight: 600; margin: 12px 0 6px; }
+
+/* Cards: the L1 elevation recipe with an inset top highlight. */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-1), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Avatars: initials over 8 fixed hues (format.js avatarIndex picks the class). */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  color: #FFFFFF;
+  flex: none;
+  user-select: none;
+}
+.avatar-sm { width: 28px; height: 28px; font-size: 11px; }
+.av-0 { background: #5C5CE0; }
+.av-1 { background: #0E8577; }
+.av-2 { background: #B5641B; }
+.av-3 { background: #C2447D; }
+.av-4 { background: #1D74B8; }
+.av-5 { background: #64748B; }
+.av-6 { background: #7C4FD0; }
+.av-7 { background: #3A7D44; }
+
+/* Badges / plan pills (admin.js writes these exact class strings). */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.badge.plan-free { background: rgba(147, 163, 184, 0.16); color: #C3CEDC; }
+.badge.plan-pro { background: rgba(106, 107, 232, 0.20); color: #C7CCFA; }
+.badge.plan-premium { background: var(--grad-brand-fill); color: #FFFFFF; }
+.badge.status-active { background: rgba(108, 217, 160, 0.13); color: var(--ok); }
+.badge.status-disabled { background: rgba(255, 159, 159, 0.13); color: var(--danger); }
+.badge.badge-warn { background: rgba(245, 185, 80, 0.14); color: var(--warn); }
+/* Status LED dot (glows green when Ready, amber when the grant is missing). */
+.badge.status-active::before, .badge.status-disabled::before, .badge.badge-warn::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.badge.status-active::before { background: var(--ok); box-shadow: 0 0 8px rgba(108, 217, 160, 0.6); }
+.badge.status-disabled::before { background: var(--danger); box-shadow: 0 0 8px rgba(255, 159, 159, 0.5); }
+.badge.badge-warn::before { background: var(--warn); box-shadow: 0 0 8px rgba(245, 185, 80, 0.6); }
+
+/* Toast: bottom-right L3 card with a colored accent edge. admin.js replaces the className
+   wholesale with '' or 'error', so only #toast and #toast.error carry styles. */
+#toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 280px;
+  max-width: min(420px, calc(100vw - 32px));
+  background: var(--surface-3);
+  border: 1px solid var(--border-3);
+  border-left: 4px solid var(--ok);
+  border-radius: 12px;
+  padding: 12px 16px 12px 14px;
+  box-shadow: var(--shadow-3), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  font-size: 13px;
+  animation: toast-in 200ms ease;
+}
+#toast.error { border-left-color: var(--danger); }
+#toast .toast-glyph { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--ok); }
+#toast.error .toast-glyph { color: var(--danger); }
+#toast .toast-text { min-width: 0; overflow-wrap: anywhere; }
+@keyframes toast-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* Skeleton shimmer. */
+.skeleton {
+  background: linear-gradient(100deg, #161D33 40%, #1E2740 50%, #161D33 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: 8px;
+  display: block;
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.sk-val { width: 90px; height: 32px; display: inline-block; vertical-align: middle; }
+.sk-row { height: 44px; margin: 8px 0; border-radius: 10px; }
+.sk-chart { height: 220px; border-radius: 10px; }
+#users-loading { padding: 6px 14px; }
+
+/* Empty / error state blocks (centered glyph + line). */
+.state-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 36px 12px;
+}
+.state-block p { margin: 0; }
+.state-glyph { width: 48px; height: 48px; color: var(--text-3); }
+
+/* Key-value list (Settings health card). */
+dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0 0 4px; }
+dl.kv dt { color: var(--text-3); font-size: 12.5px; }
+dl.kv dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Amber notice panel (IAM grant warning). */
+.notice-warn {
+  background: rgba(245, 185, 80, 0.08);
+  border: 1px solid rgba(245, 185, 80, 0.35);
+  color: var(--on-warn-bg);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-top: 12px;
+}
+.notice-warn p { margin: 0 0 6px; }
+.notice-warn p:last-of-type { margin-bottom: 0; }
+
+/* Range switch (AI usage). */
+.range-switch {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+}
+.range-btn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  border: 0;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-2);
+  padding: 5px 12px;
+  border-radius: 8px;
+  transition: background 150ms ease, color 150ms ease;
+}
+.range-btn:hover { color: var(--text); }
+.range-btn[aria-pressed="true"] { background: rgba(106, 107, 232, 0.25); color: #E3E6FC; }
+.range-btn:disabled { opacity: 0.55; cursor: progress; } /* a load is in flight; clicks would be dropped */
+
+/* Result lines (settings cards). */
+.error-text { color: var(--danger); margin: 10px 0 0; }
+.ok-text { color: var(--ok); margin: 10px 0 0; }
+.warn-text { color: var(--warn); }
+p.warn-text { margin: 10px 0 0; } /* result lines (e.g. #rotate-result) align with ok/error */
+
+/* ---- 5. Views -------------------------------------------------------------------------------- */
+
+/* Stat tiles. */
+.stat-row {
+  display: grid;
+  /* 160px keeps the 6 Overview tiles on ONE row at 1366px (content ~1078px: 6x160 + 5x12 =
+     1020px); 170px would wrap them 5+1 at the most common laptop width. */
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-left: 3px solid var(--border-2);
+  overflow: hidden;
+}
+.stat-caption { color: var(--text-3); font-size: 11px; }
+.metric-value {
+  font-size: 32px;
+  line-height: 38px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.acc-total { border-left-color: #8F94F3; }
+.acc-free { border-left-color: #93A3B8; }
+.acc-pro { border-left-color: #6A6BE8; }
+.acc-premium { border-left-color: #A77BFA; }
+.acc-today { border-left-color: #3ECFBE; }
+.acc-week { border-left-color: #5BB7F5; }
+.acc-input { border-left-color: #3ECFBE; }
+.acc-cost { border-left-color: #F0A64B; }
+.spark { height: 36px; margin: 4px -4px -6px; }
+.spark svg { display: block; width: 100%; height: 36px; }
+
+/* Users table. */
+.table-card { padding: 0; overflow: hidden; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 900px; }
+th, td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-1);
+  vertical-align: middle;
+}
+th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-1);
+  font-size: 10.5px;
+  line-height: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+tbody tr { transition: background 120ms ease; }
+tbody tr:hover { background: rgba(175, 180, 255, 0.05); }
+tbody tr:last-child td { border-bottom: 0; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.user-cell .user-wrap { display: flex; align-items: center; gap: 10px; min-height: 32px; }
+.user-cell .ident { min-width: 0; }
+.user-cell .name { font-weight: 600; }
+.user-cell .email { color: var(--text-2); font-size: 12.5px; }
+.user-cell .uid { color: var(--text-3); font-size: 11px; word-break: break-all; }
+
+.plan-cell { display: flex; flex-direction: column; gap: 6px; }
+.plan-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.plan-meta { color: var(--text-3); font-size: 11.5px; }
+.plan-edit { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.plan-edit select, .plan-edit input[type="date"] {
+  height: 30px;
+  font-size: 12px;
+  padding: 0 8px;
+  border-radius: 8px;
+}
+
+.status-cell { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+
+.table-foot { display: flex; justify-content: center; padding: 10px 0; }
+/* No visible footer content (Load more hidden): collapse the strip where :has is supported. */
+.table-foot:has(> [hidden]:only-child) { display: none; }
+
+#users-error { gap: 10px; }
+#users-error .error-text { margin: 0; }
+
+/* Settings. */
+.settings-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+#health-status { margin: -8px 0 12px; }
+
+/* ---- 6. Charts ------------------------------------------------------------------------------- */
+.chart-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  margin-bottom: 16px;
+}
+.chart-card { padding: 18px 18px 12px; }
+.chart-wide { margin-bottom: 16px; }
+.chart { min-height: 220px; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart.is-loading { opacity: 0.45; transition: opacity 120ms ease; } /* refetch: dim, no flash */
+.chart .chart-msg { text-align: center; margin: 0; }
+.chart .state-block { padding: 52px 12px; }
+
+.legend {
+  display: flex;
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.legend li { display: flex; align-items: center; gap: 6px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+.swatch-chart-1 { background: var(--chart-1); }
+.swatch-chart-2 { background: var(--chart-2); }
+.swatch-chart-5 { background: var(--chart-5); }
+.swatch-grad { background: var(--grad-brand); }
+
+/* Donut (Overview plan distribution): ring + HTML legend. */
+.chart-donut .donut-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  min-height: 220px;
+}
+.chart-donut .donut-svg { width: 220px; height: 220px; flex: none; }
+.donut-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+  min-width: 140px;
+}
+.donut-legend li { display: flex; align-items: center; gap: 8px; }
+.legend-label { flex: 1; color: var(--text-2); }
+.legend-value { color: var(--text); text-align: right; }
+
+/* Shared floating tooltip (chart.js positions it via CSSOM only). */
+#chart-tip {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  background: var(--surface-3);
+  border: 1px solid var(--border-3);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  box-shadow: var(--shadow-3), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  max-width: 240px;
+}
+#chart-tip .tip-date { color: var(--text-2); margin-bottom: 4px; white-space: nowrap; }
+#chart-tip .tip-row { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+#chart-tip .tip-swatch { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+#chart-tip .tip-label { color: var(--text-2); }
+#chart-tip .tip-value { margin-left: auto; padding-left: 10px; font-weight: 600; }
+
+/* Mount animations (first paint only; chart.js adds .chart-anim and skips it under reduced
+   motion; bars stagger through 12 precomputed delay classes - CSP only forbids style=""
+   ATTRIBUTES (CSSOM writes are fine), but classes keep repaints free of per-node writes). */
+@media (prefers-reduced-motion: no-preference) {
+  .chart-anim .mark-area { animation: reveal 400ms ease-out; }
+  .chart-anim .mark-line { animation: reveal 400ms ease-out; }
+  @keyframes reveal {
+    from { clip-path: inset(0 100% 0 0); }
+    to { clip-path: inset(0 0 0 0); }
+  }
+  .chart-anim .mark-bar {
+    transform-box: fill-box;
+    transform-origin: bottom;
+    animation: bar-grow 300ms ease-out backwards;
+  }
+  @keyframes bar-grow {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+  }
+  .chart-anim .d0 { animation-delay: 0ms; }
+  .chart-anim .d1 { animation-delay: 20ms; }
+  .chart-anim .d2 { animation-delay: 40ms; }
+  .chart-anim .d3 { animation-delay: 60ms; }
+  .chart-anim .d4 { animation-delay: 80ms; }
+  .chart-anim .d5 { animation-delay: 100ms; }
+  .chart-anim .d6 { animation-delay: 120ms; }
+  .chart-anim .d7 { animation-delay: 140ms; }
+  .chart-anim .d8 { animation-delay: 160ms; }
+  .chart-anim .d9 { animation-delay: 180ms; }
+  .chart-anim .d10 { animation-delay: 200ms; }
+  .chart-anim .d11 { animation-delay: 220ms; }
+}
+
+/* ---- 7. Utilities + responsive + motion ------------------------------------------------------ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.num, .metric-value, .strip-value { font-variant-numeric: tabular-nums; }
+.muted { color: var(--text-2); }
+.small { font-size: 12px; }
+.strong { font-weight: 600; }
+
+/* Icon rail below 1100px: labels and group headers collapse, title attrs take over. */
+@media (max-width: 1100px) {
+  .shell { grid-template-columns: 64px 1fr; }
+  .sidebar { padding: 20px 12px; align-items: center; }
+  .sb-brand { padding-bottom: 12px; }
+  .sb-wordmark, .admin-tag, .sb-group, .sb-label, .sb-email { display: none; }
+  .sb-item { width: 40px; justify-content: center; padding: 0; }
+  .sb-item[aria-selected="true"]::before { left: -12px; }
+  .sb-session { flex-direction: column; gap: 8px; padding-top: 12px; }
+  .stat-strip { display: none; }
+  .content { padding: 24px 20px 56px; }
+  .chart-grid { grid-template-columns: 1fr; }
+  .settings-grid { grid-template-columns: 1fr; }
+}
+
+/* Single column below 760px: the sidebar becomes a slim sticky top bar with a scrollable
+   tab row (same button elements, so admin.js tab wiring is untouched). */
+@media (max-width: 760px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    height: 56px;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(154, 163, 255, 0.08);
+    overflow: visible;
+  }
+  .sb-brand { padding: 0; }
+  .logo-ring { border-radius: 9px; }
+  .logo { width: 26px; height: 26px; border-radius: 7px; }
+  .sb-nav {
+    flex: 1;
+    flex-direction: row;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    min-width: 0;
+  }
+  .sb-nav::-webkit-scrollbar { display: none; }
+  .sb-group { display: none; }
+  .sb-item { height: 32px; width: auto; padding: 0 10px; flex: none; }
+  .sb-label { display: inline; }
+  .sb-icon { display: none; }
+  .sb-item[aria-selected="true"]::before { display: none; }
+  .sb-session { margin: 0; padding: 0; border: 0; flex-direction: row; }
+  .content { padding: 16px 16px 48px; }
+  .view-head { align-items: flex-start; flex-direction: column; }
+  #user-search { width: 100%; }
+  #toast { right: 16px; left: 16px; bottom: 16px; min-width: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

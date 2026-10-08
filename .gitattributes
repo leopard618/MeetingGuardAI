@@ -1,0 +1,14 @@
+# Binary assets: never normalize line endings (core.autocrlf=true would corrupt them if git's
+# auto-detection ever guessed "text").
+*.wav binary
+*.mp3 binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.keystore binary
+*.jar binary

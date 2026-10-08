@@ -1,0 +1,38 @@
+{
+  "title": "WhatsApp assistant",
+  "subtitle": "Create and manage meetings by WhatsApp message.",
+  "row": {
+    "section": "Integrations",
+    "title": "WhatsApp assistant",
+    "subtitle": "Link your account to the WhatsApp bot"
+  },
+  "explainer": "Link your WhatsApp number to create meetings by message. Generate a code here, then send it to the bot from WhatsApp. The code works once and expires after a few minutes.",
+  "code": {
+    "generate": "Generate code",
+    "value": "Your code: {{code}}",
+    "countdown": "Expires in {{time}}",
+    "copy": "Copy code",
+    "copied": "Code copied",
+    "expired": "This code has expired. Generate a new one.",
+    "sendTo": "Send this code by WhatsApp to {{number}}"
+  },
+  "open": "Open WhatsApp",
+  "linked": {
+    "title": "Your WhatsApp is linked",
+    "number": "Bot number: {{number}}",
+    "yourNumber": "Linked number ends in {{last4}}"
+  },
+  "unlink": {
+    "action": "Unlink WhatsApp",
+    "confirmTitle": "Unlink WhatsApp?",
+    "confirmBody": "The bot will stop recognizing your number. You can link it again at any time.",
+    "done": "WhatsApp unlinked."
+  },
+  "status": {
+    "unavailable": "The WhatsApp assistant is not available yet. Check back soon."
+  },
+  "error": {
+    "rateLimited": "You have requested too many codes today. Try again tomorrow.",
+    "generic": "Something went wrong. Try again."
+  }
+}

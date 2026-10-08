@@ -1,0 +1,36 @@
+# Publishes an over-the-air (EAS Update) release from GitHub's cloud, so OTA
+# publishing never depends on a local machine's network again.
+#
+# Setup (once): create an access token at https://expo.dev/accounts/leopard618/settings/access-tokens
+# and save it as the repository secret EXPO_TOKEN (GitHub repo -> Settings ->
+# Secrets and variables -> Actions -> New repository secret).
+#
+# Run: GitHub repo -> Actions -> "OTA update" -> Run workflow -> type the message.
+name: OTA update
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: Update message (shown in the EAS dashboard)
+        required: true
+        default: OTA update
+      channel:
+        description: Update channel
+        required: true
+        default: production
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Publish EAS Update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli update --channel "${{ github.event.inputs.channel }}" --environment production --message "${{ github.event.inputs.message }}" --non-interactive

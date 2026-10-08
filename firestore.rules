@@ -1,0 +1,376 @@
+rules_version = '2';
+
+// MeetingGuard AI - Firestore security rules.
+//
+// Layout (see docs/ARCHITECTURE.md §4 and src/core/identifiers.ts):
+//   users/{uid}                        profile            owner read/write, no server-owned keys
+//   users/{uid}/meetings/{meetingId}   MeetingDoc         owner read/write, validated
+//   users/{uid}/notes/{noteId}         Note (without id)  owner read/write, validated
+//   users/{uid}/settings/preferences   Preferences        owner read/write, validated
+//   entitlements/{uid}                 Entitlement        owner read, server write only
+//   usage/{uid}/days/{day}             AI quota counter   owner read, server write only
+//   adminStats/ai/days/{day}/**        admin aggregates   server only (no client access at all)
+//   zoomMeetings/{zoomMeetingId}       Zoom owner registry server only (no client access at all)
+//   whatsapp*/** (5 collections)       WhatsApp bot state server only (no client access at all)
+//   everything else                                       denied
+//
+// The Admin SDK (Cloud Functions) bypasses these rules. Instants are UTC ISO strings
+// ("2026-10-05T14:30:00.000Z"); optional values are stored as null.
+// Tests: functions/test/rules (npm --prefix functions run test:rules, needs Java 21+).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------ helpers
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isUtcIso(v) {
+      return v is string && v.size() <= 40
+        && v.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]{1,9})?Z');
+    }
+
+    function isNullableUtcIso(v) {
+      return v == null || isUtcIso(v);
+    }
+
+    function isStringMax(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    function isNonEmptyStringMax(v, max) {
+      return v is string && v.size() > 0 && v.size() <= max;
+    }
+
+    function isNullableStringMax(v, max) {
+      return v == null || isStringMax(v, max);
+    }
+
+    function isIntInRange(v, min, max) {
+      return v is int && v >= min && v <= max;
+    }
+
+    function isListMax(v, max) {
+      return v is list && v.size() <= max;
+    }
+
+    function isNullableListMax(v, max) {
+      return v == null || isListMax(v, max);
+    }
+
+    // A list of strings with a bounded total size; the joined size bounds every element at once.
+    // Non-string elements are denied on every Firestore version: older ones ERROR in join()
+    // (error = deny), newer ones coerce the element to text, and then join('\u0001') +
+    // split('\u0001') does not round-trip back to the original list ("42" != 42). An element
+    // containing the \u0001 separator also breaks the round trip and is denied (no legitimate
+    // value contains control characters; client zod is the authoritative shape check).
+    function isStringListMax(v, maxItems, maxTotalChars) {
+      return v is list && v.size() <= maxItems && v.join('').size() <= maxTotalChars
+        && (v.size() == 0 || v.join('\u0001').split('\u0001') == v);
+    }
+
+    // Element i of an alert-time list: absent, or an int minute offset in [0, 7 days].
+    function isAlertMinuteAt(l, i) {
+      return l.size() <= i || (l[i] is int && l[i] >= 0 && l[i] <= 10080);
+    }
+
+    // At most 10 "minutes before" offsets, every one checked (lists cannot be iterated in rules).
+    function isAlertTimes(v) {
+      return v is list && v.size() <= 10
+        && isAlertMinuteAt(v, 0) && isAlertMinuteAt(v, 1) && isAlertMinuteAt(v, 2)
+        && isAlertMinuteAt(v, 3) && isAlertMinuteAt(v, 4) && isAlertMinuteAt(v, 5)
+        && isAlertMinuteAt(v, 6) && isAlertMinuteAt(v, 7) && isAlertMinuteAt(v, 8)
+        && isAlertMinuteAt(v, 9);
+    }
+
+    function isTimeZone(v) {
+      return v is string && v.size() > 0 && v.size() <= 64
+        && v.matches('[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*');
+    }
+
+    function isDocId(v) {
+      return v is string && v.matches('[A-Za-z0-9_-]{1,128}');
+    }
+
+    function isLanguage(v) {
+      return v in ['en', 'es'];
+    }
+
+    function unchanged(field) {
+      return request.resource.data.get(field, null) == resource.data.get(field, null);
+    }
+
+    // ------------------------------------------------------------------ profile
+
+    // Must match SERVER_OWNED_PROFILE_KEYS in src/core/types.ts.
+    function serverOwnedProfileKeys() {
+      return ['plan', 'subscription', 'subscriptionStatus', 'subscription_status', 'role', 'roles',
+              'admin', 'isAdmin', 'enabled', 'disabled', 'entitlement', 'entitlements', 'usage'];
+    }
+
+    function isValidProfile(uid, d) {
+      return !d.keys().hasAny(serverOwnedProfileKeys())
+        && d.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt',
+                             'lastLoginAt', 'legacyMigratedAt'])
+        && d.get('uid', uid) == uid
+        && isNullableStringMax(d.get('email', null), 254)
+        && isNullableStringMax(d.get('displayName', null), 200)
+        && isNullableStringMax(d.get('photoURL', null), 2048)
+        && isNullableUtcIso(d.get('createdAt', null))
+        && isNullableUtcIso(d.get('updatedAt', null))
+        && isNullableUtcIso(d.get('lastLoginAt', null))
+        && isNullableUtcIso(d.get('legacyMigratedAt', null));
+    }
+
+    // ------------------------------------------------------------------ meetings
+
+    function isValidLocation(v) {
+      return v == null || (v is map
+        && v.keys().hasOnly(['type', 'address', 'virtualUrl'])
+        && v.get('type', null) in ['physical', 'virtual', 'hybrid']
+        && isNullableStringMax(v.get('address', null), 500)
+        && isNullableStringMax(v.get('virtualUrl', null), 2048));
+    }
+
+    function isValidConference(v) {
+      return v == null || (v is map
+        && v.keys().hasOnly(['provider', 'url', 'password'])
+        && v.get('provider', null) in ['zoom', 'teams', 'google_meet', 'other']
+        && isNullableStringMax(v.get('url', null), 2048)
+        && isNullableStringMax(v.get('password', null), 100));
+    }
+
+    function isValidExternal(v) {
+      return v is map
+        && v.keys().hasOnly(['googleEventId', 'googleCalendarId', 'googleEtag', 'googleUpdatedAt',
+                             'deviceEventId', 'deviceCalendarId',
+                             'outlookEventId', 'outlookCalendarId', 'outlookChangeKey', 'outlookUpdatedAt',
+                             'zoomMeetingId'])
+        && isNullableStringMax(v.get('googleEventId', null), 1024)
+        && isNullableStringMax(v.get('googleCalendarId', null), 1024)
+        && isNullableStringMax(v.get('googleEtag', null), 256)
+        && isNullableUtcIso(v.get('googleUpdatedAt', null))
+        && isNullableStringMax(v.get('deviceEventId', null), 512)
+        && isNullableStringMax(v.get('deviceCalendarId', null), 512)
+        // Outlook refs (docs/ARCHITECTURE.md §17); stored sparsely, so old documents lack them.
+        && isNullableStringMax(v.get('outlookEventId', null), 512)
+        && isNullableStringMax(v.get('outlookCalendarId', null), 512)
+        && isNullableStringMax(v.get('outlookChangeKey', null), 256)
+        && isNullableUtcIso(v.get('outlookUpdatedAt', null))
+        // Zoom meeting id (docs/ARCHITECTURE.md §24); sparse like the outlook refs. First
+        // written by the zoomCreateMeeting callable (Admin SDK), but client-writable exactly
+        // like the outlook keys: every later client edit rewrites the whole document, external
+        // refs included, so blocking the key here would reject ordinary meeting updates.
+        // SECURITY: because it is client-writable it proves NOTHING - the zoom callables treat
+        // it as a hint and attest ownership from the server-only zoomMeetings/{id} registry.
+        && isNullableStringMax(v.get('zoomMeetingId', null), 64);
+    }
+
+    // Recurrence rule (docs/ARCHITECTURE.md §16; recurrenceRuleSchema in src/core/aiContract.ts).
+    // Bounds mirror the client schema: interval 1-99, count 1-730, never until AND count.
+    function isValidRecurrence(v) {
+      return v == null || (v is map
+        && v.keys().hasOnly(['freq', 'interval', 'byWeekday', 'byMonthDay', 'until', 'count'])
+        && v.get('freq', null) in ['daily', 'weekly', 'monthly']
+        && isIntInRange(v.get('interval', null), 1, 99)
+        && (v.get('byWeekday', null) == null
+            || (v.byWeekday is list && v.byWeekday.size() >= 1 && v.byWeekday.size() <= 7
+                // join() fails on non-string elements (write denied); the pattern bounds each code.
+                && v.byWeekday.join('').matches('(MO|TU|WE|TH|FR|SA|SU){1,7}')))
+        && (v.get('byMonthDay', null) == null || isIntInRange(v.byMonthDay, 1, 31))
+        && isNullableUtcIso(v.get('until', null))
+        && (v.get('count', null) == null || isIntInRange(v.count, 1, 730))
+        && !(v.get('until', null) != null && v.get('count', null) != null));
+    }
+
+    // Per-occurrence overrides, keyed by local date. Map keys cannot be iterated in rules, so
+    // this is a size bound only; the client zod schema (recurrenceOverridesSchema) is
+    // authoritative for entry shapes. MAX_RECURRENCE_OVERRIDES = 200 in src/core/recurrence.ts.
+    function isValidRecurrenceOverrides(v) {
+      return v == null || (v is map && v.size() <= 200);
+    }
+
+    function isValidMeeting(uid, d) {
+      return d.keys().hasOnly(['userId', 'title', 'description', 'startAt', 'durationMinutes', 'timezone',
+                               'allDay', 'date', 'time', 'location', 'conference', 'participants',
+                               'source', 'confidence', 'language', 'preparationTips',
+                               'customAlertTimes', 'alertIntensity', 'notes', 'status', 'external',
+                               'recurrence', 'recurrenceOverrides', 'seriesId',
+                               'createdAt', 'updatedAt', 'deletedAt'])
+        && d.keys().hasAll(['userId', 'title', 'startAt', 'durationMinutes', 'timezone', 'source',
+                            'status', 'createdAt', 'updatedAt'])
+        && d.userId == uid
+        && isNonEmptyStringMax(d.title, 200)
+        && isStringMax(d.get('description', ''), 4000)
+        && isUtcIso(d.startAt)
+        && isIntInRange(d.durationMinutes, 1, 20160)
+        && isTimeZone(d.timezone)
+        && d.get('allDay', false) is bool
+        && (d.get('date', null) == null || (d.date is string && d.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')))
+        && (d.get('time', null) == null || (d.time is string && d.time.matches('([01][0-9]|2[0-3]):[0-5][0-9]')))
+        && isValidLocation(d.get('location', null))
+        && isValidConference(d.get('conference', null))
+        // Participant maps cannot be iterated here: the assistant bounds what it loads instead
+        // (functions/src/assistant/context.ts field mask + byte budget).
+        && isListMax(d.get('participants', []), 100)
+        && d.source in ['manual', 'ai_chat', 'whatsapp', 'google', 'device', 'outlook']
+        && (d.get('confidence', null) == null || isIntInRange(d.confidence, 0, 100))
+        && isLanguage(d.get('language', 'en'))
+        && isStringListMax(d.get('preparationTips', []), 20, 6000)
+        && (d.get('customAlertTimes', null) == null || isAlertTimes(d.customAlertTimes))
+        && (d.get('alertIntensity', null) == null || d.alertIntensity in ['max', 'medium', 'light'])
+        && isNullableStringMax(d.get('notes', null), 10000)
+        && d.status in ['scheduled', 'cancelled']
+        && isValidExternal(d.get('external', {}))
+        // Recurring meetings (§16); stored sparsely: absent on one-offs and old documents.
+        && isValidRecurrence(d.get('recurrence', null))
+        && isValidRecurrenceOverrides(d.get('recurrenceOverrides', null))
+        // Overrides only make sense with a rule; clients null them when the rule is removed
+        // (buildMeeting / applyMeetingPatch), so this blocks override payloads on one-offs.
+        && (d.get('recurrenceOverrides', null) == null || d.get('recurrence', null) != null)
+        && (d.get('seriesId', null) == null || isDocId(d.seriesId))
+        && isUtcIso(d.createdAt)
+        && isUtcIso(d.updatedAt)
+        && isNullableUtcIso(d.get('deletedAt', null));
+    }
+
+    // ------------------------------------------------------------------ notes
+
+    function isValidNote(uid, d) {
+      return d.keys().hasOnly(['userId', 'title', 'content', 'category', 'meetingId', 'pinned',
+                               'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['userId', 'title', 'createdAt', 'updatedAt'])
+        && d.userId == uid
+        && isNonEmptyStringMax(d.title, 200)
+        && isStringMax(d.get('content', ''), 20000)
+        && d.get('category', 'general') in ['general', 'work', 'ideas', 'personal']
+        && (d.get('meetingId', null) == null || isDocId(d.meetingId))
+        && d.get('pinned', false) is bool
+        && isUtcIso(d.createdAt)
+        && isUtcIso(d.updatedAt);
+    }
+
+    // ------------------------------------------------------------------ preferences
+
+    function isValidPreferences(d) {
+      return d.keys().hasOnly(['language', 'timezone', 'alertEnabled', 'alertIntensity', 'alertSoundType',
+                               'alertVolume', 'vibrationEnabled', 'defaultAlertTimes', 'snoozeMinutes',
+                               'followUpEnabled', 'use24HourClock', 'onboardingCompleted',
+                               'googleCalendarSyncEnabled', 'deviceCalendarImportIds',
+                               'deviceCalendarExportId', 'updatedAt'])
+        && isLanguage(d.get('language', 'en'))
+        && (d.get('timezone', null) == null || isTimeZone(d.timezone))
+        && d.get('alertEnabled', true) is bool
+        && d.get('alertIntensity', 'max') in ['max', 'medium', 'light']
+        && d.get('alertSoundType', 'voice_and_sound') in ['voice_and_sound', 'voice_only', 'sound_only']
+        && (d.get('alertVolume', null) == null
+            || (d.alertVolume is number && d.alertVolume >= 0 && d.alertVolume <= 1))
+        && d.get('vibrationEnabled', true) is bool
+        && isAlertTimes(d.get('defaultAlertTimes', []))
+        && (d.get('snoozeMinutes', null) == null || isIntInRange(d.snoozeMinutes, 1, 60))
+        && d.get('followUpEnabled', true) is bool
+        && (d.get('use24HourClock', null) == null || d.use24HourClock is bool)
+        && d.get('onboardingCompleted', false) is bool
+        && d.get('googleCalendarSyncEnabled', false) is bool
+        && isStringListMax(d.get('deviceCalendarImportIds', []), 50, 25600)
+        && isNullableStringMax(d.get('deviceCalendarExportId', null), 512)
+        && isNullableUtcIso(d.get('updatedAt', null));
+    }
+
+    // ------------------------------------------------------------------ matches
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidProfile(uid, request.resource.data);
+      // Account deletion goes through the deleteAccount callable (Admin SDK).
+      allow delete: if false;
+
+      match /meetings/{meetingId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && isDocId(meetingId) && isValidMeeting(uid, request.resource.data);
+        allow update: if isOwner(uid) && isValidMeeting(uid, request.resource.data)
+          && unchanged('userId') && unchanged('createdAt') && unchanged('source');
+        allow delete: if isOwner(uid);
+      }
+
+      match /notes/{noteId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && isDocId(noteId) && isValidNote(uid, request.resource.data);
+        allow update: if isOwner(uid) && isValidNote(uid, request.resource.data)
+          && unchanged('userId') && unchanged('createdAt');
+        allow delete: if isOwner(uid);
+      }
+
+      match /settings/{settingsId} {
+        allow read: if isOwner(uid) && settingsId == 'preferences';
+        allow create, update: if isOwner(uid) && settingsId == 'preferences'
+          && isValidPreferences(request.resource.data);
+        allow delete: if false;
+      }
+    }
+
+    // Plan / subscription state: written only by server or admin tooling.
+    match /entitlements/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // Assistant quota counters: written only by the assistant callable.
+    match /usage/{uid}/days/{day} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // Admin dashboard aggregates (adminStats/ai/days/{day} plus its write shards
+    // adminStats/ai/days/{day}/shards/{n}: per-UTC-day assistant request and token counts;
+    // functions/src/admin/schemas.ts). Written by the assistant callable, read by the admin
+    // callables — Admin SDK only, so clients get NOTHING here, not even admins (the dashboard
+    // goes through adminGetStats). The recursive wildcard covers the shard subcollection.
+    // Explicit so the catch-all below is not load-bearing.
+    match /adminStats/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Zoom ownership registry (zoomMeetings/{zoomMeetingId} = { uid, meetingId, createdAt }):
+    // written by the zoomCreateMeeting callable's transaction and read by the zoom write
+    // callables to attest WHO owns a Zoom meeting id - external.zoomMeetingId on meeting
+    // documents is client-writable and only a hint (docs/ARCHITECTURE.md §24). Admin SDK only;
+    // explicit so the catch-all below is not load-bearing.
+    match /zoomMeetings/{zoomMeetingId} {
+      allow read, write: if false;
+    }
+
+    // WhatsApp bot state (docs/ARCHITECTURE.md §27): phone -> uid links, the per-uid reverse
+    // index and code rate limit, one-time link codes (sha256 doc ids), conversation sessions
+    // with per-phone daily counters, and webhook dedupe markers. Written and read ONLY by the
+    // WhatsApp functions (Admin SDK) - a client that could read whatsappLinks would learn other
+    // users' phone numbers, and one that could write whatsappUsers could hijack the linking
+    // flow. No client access at all; explicit so the catch-all below is not load-bearing.
+    match /whatsappLinks/{phoneE164} {
+      allow read, write: if false;
+    }
+    match /whatsappUsers/{uid} {
+      allow read, write: if false;
+    }
+    match /whatsappLinkCodes/{codeHash} {
+      allow read, write: if false;
+    }
+    match /whatsappSessions/{phoneE164} {
+      allow read, write: if false;
+    }
+    match /whatsappEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    // Everything else is denied (explicit for readability; unmatched paths are denied anyway).
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

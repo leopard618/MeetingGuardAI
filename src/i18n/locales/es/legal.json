@@ -1,0 +1,281 @@
+{
+  "updated": "Última actualización: {{date}}",
+  "jurisdiction": "las leyes de Inglaterra y Gales, y cualquier disputa se resuelve ante los tribunales de Inglaterra y Gales",
+  "back": "Volver",
+  "contact": {
+    "title": "Contacto",
+    "body": "Si tienes preguntas sobre este documento o sobre tus datos, escríbenos:",
+    "emailHint": "Abre tu app de correo"
+  },
+  "privacy": {
+    "title": "Política de privacidad",
+    "intro": "Esta política explica qué información recoge la app MeetingGuard AI, cómo la usamos, con quién la compartimos y qué opciones tienes. MeetingGuard AI es un servicio de {{company}} (\"nosotros\").",
+    "sections": {
+      "controller": {
+        "title": "Responsable de tus datos",
+        "body": [
+          "{{company}} (número de sociedad 14085985), con domicilio en {{address}}, es responsable de los datos personales que se tratan a través de MeetingGuard AI. Puedes escribirnos a {{email}}."
+        ]
+      },
+      "collect": {
+        "title": "Información que recogemos",
+        "body": [
+          "Solo recogemos lo que la app necesita para funcionar:"
+        ],
+        "items": [
+          "Datos de tu cuenta: al iniciar sesión con Google recibimos tu nombre, tu correo electrónico, tu foto de perfil y el identificador de tu cuenta de Google. Si tu cuenta usa correo y contraseña, la contraseña la gestiona Firebase Authentication y nosotros nunca la vemos.",
+          "Las reuniones y notas que creas, importas o editas: títulos, descripciones, fechas, horas y zonas horarias, ubicaciones, enlaces y códigos de videollamada, nombres y correos de los participantes, consejos de preparación, ajustes de recordatorios y notas.",
+          "Preferencias: idioma, zona horaria, formato de hora, ajustes de avisos y los calendarios que eliges sincronizar.",
+          "Uso del asistente de IA: cuántas consultas haces cada día, para aplicar el límite diario de tu plan.",
+          "Informes de fallos y errores, cuando están activados en tu versión de la app: modelo del dispositivo, sistema operativo, versión de la app y datos técnicos del error. Los diseñamos para que no incluyan tus reuniones, notas ni mensajes, y las direcciones de correo se eliminan antes del envío."
+        ]
+      },
+      "device": {
+        "title": "Información que se queda en tu dispositivo",
+        "body": [
+          "Parte de la información solo se guarda en tu teléfono:"
+        ],
+        "items": [
+          "Los archivos que adjuntas a las reuniones. No se suben a nuestros servidores y no están disponibles en tus otros dispositivos.",
+          "Tu conversación con el asistente de IA, para que puedas continuarla más tarde. Los mensajes recientes se envían con cada nueva consulta (consulta \"Asistente de IA\").",
+          "Una copia de tus reuniones, notas y preferencias, para que la app funcione sin conexión. Se borra al cerrar sesión.",
+          "Tus recordatorios, que programa el sistema operativo de tu teléfono."
+        ]
+      },
+      "use": {
+        "title": "Para qué usamos tu información",
+        "body": [
+          "Usamos tu información para:"
+        ],
+        "items": [
+          "Prestarte el servicio: mantener tus reuniones y notas al día en tus dispositivos, programar tus avisos y mostrar tu agenda.",
+          "Sincronizar los calendarios que conectes.",
+          "Responder a tus consultas al asistente de IA y aplicar el límite diario de tu plan.",
+          "Mantener el servicio seguro, evitar abusos y corregir errores."
+        ],
+        "note": [
+          "No vendemos tu información personal, no la usamos para publicidad y no te seguimos en otras apps ni sitios web."
+        ]
+      },
+      "google": {
+        "title": "Google Calendar",
+        "body": [
+          "Si conectas Google Calendar, permites que MeetingGuard AI vea y edite los eventos de tus calendarios de Google (el permiso \"calendar.events\"). La app usa este permiso para traer los eventos de tu calendario principal a MeetingGuard AI, para que recibas avisos de ellos, y para añadir, cambiar o borrar los eventos que gestionas en MeetingGuard AI, incluida la creación de enlaces de Google Meet y el envío de invitaciones a los participantes cuando lo pides.",
+          "Los eventos de Google Calendar se guardan en tu cuenta de MeetingGuard AI (Google Firebase) para que estén disponibles en tus dispositivos, para que recibas avisos de ellos y para que el asistente de IA pueda responder preguntas sobre tu agenda cuando lo usas.",
+          "El token de acceso que permite a la app comunicarse con Google Calendar se queda en tu dispositivo, lo gestiona el inicio de sesión de Google y nunca se guarda en nuestros servidores. Puedes desconectar Google Calendar en la app cuando quieras, o quitar el acceso de MeetingGuard AI desde tu cuenta de Google (myaccount.google.com/permissions).",
+          "El uso y la transferencia a cualquier otra app, por parte de MeetingGuard AI, de la información recibida de las API de Google cumplirán la Política de datos de usuario de los servicios de API de Google (Google API Services User Data Policy), incluidos los requisitos de uso limitado (Limited Use)."
+        ],
+        "items": [
+          "Solo usamos los datos de usuario de Google para ofrecer y mejorar las funciones descritas en esta política.",
+          "Solo los transferimos a terceros cuando es necesario para esas funciones (por ejemplo, a OpenAI cuando preguntas al asistente de IA por tu agenda), por seguridad, para cumplir la ley o en caso de fusión o adquisición, avisándote antes.",
+          "No los usamos para publicidad, no los vendemos y no los usamos para entrenar modelos generales de IA o de aprendizaje automático.",
+          "Ninguna persona los lee salvo que nos des permiso (por ejemplo, para darte soporte), sea necesario por seguridad o lo exija la ley."
+        ]
+      },
+      "deviceCalendars": {
+        "title": "Calendarios de tu teléfono",
+        "body": [
+          "Si permites el acceso al calendario, MeetingGuard AI lee los eventos de los calendarios del teléfono que elijas y los guarda en tu cuenta para que recibas avisos de ellos. Si además eliges un calendario de exportación, la app escribe en él tus reuniones de MeetingGuard AI. Puedes cambiar estas opciones en la app o desactivar el acceso al calendario en los ajustes del teléfono."
+        ]
+      },
+      "ai": {
+        "title": "Asistente de IA (OpenAI)",
+        "body": [
+          "El asistente de IA es opcional. Cuando le haces una consulta, nuestro servidor (Google Cloud Functions) envía a OpenAI los mensajes recientes de tu conversación y una vista limitada de tus reuniones desde 7 días atrás hasta 60 días adelante: títulos, fechas y horas, ubicaciones y hasta 10 nombres y correos de participantes por reunión. La descripción de una reunión solo se incluye cuando pides ideas de seguimiento sobre esa reunión. Nunca se envían las notas, los enlaces de videollamada ni los códigos de acceso.",
+          "OpenAI procesa esta información para redactar la respuesta, que nuestro servidor devuelve a la app. Según las políticas de datos de la API de OpenAI, OpenAI no usa por defecto los datos enviados a través de su API para entrenar sus modelos y puede conservarlos durante un tiempo limitado para detectar abusos. La app nunca contiene una clave de OpenAI y nunca se comunica directamente con OpenAI.",
+          "El asistente solo propone cambios: no se crea, cambia, borra ni comparte nada hasta que lo confirmas. Las respuestas pueden contener errores, así que revísalas antes de confirmar. Te pedimos que no envíes información sensible, como datos de salud, al asistente."
+        ]
+      },
+      "notifications": {
+        "title": "Notificaciones",
+        "body": [
+          "El sistema operativo programa los avisos de reuniones en tu dispositivo, según tus reuniones y tus ajustes de avisos. Muestran el título y la hora de la reunión, también en la pantalla de bloqueo según los ajustes de notificaciones de tu teléfono. No enviamos notificaciones push desde un servidor ni usamos las notificaciones con fines comerciales."
+        ]
+      },
+      "sharing": {
+        "title": "Con quién compartimos información",
+        "body": [
+          "Solo compartimos información personal con:"
+        ],
+        "items": [
+          "Google (Firebase Authentication, Cloud Firestore y Cloud Functions), que aloja tu cuenta y tus datos y ejecuta el código de nuestro servidor.",
+          "OpenAI, que procesa tus consultas al asistente de IA.",
+          "Sentry (Functional Software, Inc.), que recibe los informes de fallos y errores cuando están activados.",
+          "Google Calendar y los calendarios de tu teléfono, solo cuando los conectas.",
+          "Las personas que invitas: cuando pides a la app que envíe invitaciones o comparta una reunión, los destinatarios reciben los datos de la reunión.",
+          "Las autoridades, cuando la ley lo exige, o una empresa que se haga cargo del servicio, que deberá respetar esta política."
+        ]
+      },
+      "transfers": {
+        "title": "Dónde se trata tu información",
+        "body": [
+          "Nuestros proveedores pueden tratar tu información en servidores de Estados Unidos y de otros países. Cuando la ley lo exige, estas transferencias están protegidas con garantías adecuadas, como las cláusulas contractuales tipo de la Comisión Europea."
+        ]
+      },
+      "retention": {
+        "title": "Cuánto tiempo guardamos tu información y cómo borrarla",
+        "body": [
+          "Guardamos tu información mientras tu cuenta exista."
+        ],
+        "items": [
+          "Puedes eliminar tu cuenta en cualquier momento desde la app: Ajustes → Cuenta → Eliminar cuenta. Así se borran para siempre de nuestros servidores tu cuenta, reuniones, notas, preferencias, registros de uso del asistente y estado de suscripción, se cierra tu sesión y se retira el acceso de la app a tu cuenta de Google.",
+          "Si ya no puedes iniciar sesión, escribe a {{email}} desde el correo de tu cuenta y pídenos que la eliminemos.",
+          "Cuando borras una reunión, se conserva hasta 60 días un registro mínimo sin su contenido (identificadores y hora) para que el borrado llegue a tus otros dispositivos y calendarios; después nuestro servidor lo elimina automáticamente.",
+          "Los eventos que la app añadió a Google Calendar o al calendario de tu teléfono siguen allí hasta que los borres.",
+          "Los registros del servidor solo contienen tu identificador de usuario anónimo y se conservan hasta 30 días.",
+          "Las copias de seguridad de nuestra base de datos, que la protegen contra la pérdida de información, siguen conteniendo la información borrada hasta que caducan: las copias diarias se conservan hasta 14 días y la recuperación a un momento anterior cubre los últimos 7 días. Las copias no se usan para nada más.",
+          "Cuando eliminas tu cuenta, conservamos durante 30 días un registro que solo contiene tu identificador de usuario anónimo y la fecha. Si alguna vez tenemos que restaurar una copia de seguridad, lo usamos para volver a borrar tus datos, de modo que una cuenta eliminada siga eliminada.",
+          "La copia guardada en tu dispositivo se borra al cerrar sesión o al eliminar tu cuenta."
+        ]
+      },
+      "security": {
+        "title": "Seguridad",
+        "body": [
+          "Google Cloud cifra tu información en tránsito (TLS) y en reposo. Las reglas de seguridad solo permiten que tu propia cuenta lea y escriba tus datos, y las claves del servicio de IA se quedan en nuestro servidor. Ningún sistema es completamente seguro, así que no podemos garantizar una seguridad absoluta, pero trabajamos para proteger tu información y te informaremos como exige la ley si una brecha te afecta."
+        ]
+      },
+      "rights": {
+        "title": "Tus derechos",
+        "body": [
+          "Según dónde vivas (por ejemplo, con el RGPD en la Unión Europea o la CCPA en California), puedes tener derecho a:"
+        ],
+        "items": [
+          "Acceder a tus datos personales y obtener una copia.",
+          "Corregir datos inexactos. Puedes editar tus reuniones, notas y ajustes en la app.",
+          "Borrar tus datos (consulta el apartado anterior).",
+          "Oponerte a algunos tratamientos o limitarlos, y retirar tu consentimiento en cualquier momento, por ejemplo desconectando Google Calendar, desactivando el acceso al calendario o dejando de usar el asistente de IA.",
+          "Recibir tus datos en un formato portable.",
+          "Presentar una reclamación ante la autoridad de protección de datos de tu país."
+        ],
+        "note": [
+          "Para ejercer estos derechos, escribe a {{email}}. Te responderemos en el plazo que marca la ley.",
+          "Tratamos tus datos para prestarte el servicio que pediste (ejecución de un contrato), con tu consentimiento (conexión de calendarios y asistente de IA) y por nuestro interés legítimo (seguridad y corrección de errores)."
+        ]
+      },
+      "children": {
+        "title": "Menores",
+        "body": [
+          "MeetingGuard AI no está dirigida a menores de 16 años y no recogemos a sabiendas información personal de menores. Si crees que un menor nos ha dado información personal, escríbenos a {{email}} y la borraremos."
+        ]
+      },
+      "changes": {
+        "title": "Cambios en esta política",
+        "body": [
+          "Si cambiamos esta política, actualizaremos la fecha que aparece arriba y, si los cambios son importantes, te avisaremos en la app antes de que se apliquen."
+        ]
+      }
+    }
+  },
+  "terms": {
+    "title": "Términos del servicio",
+    "intro": "Lee estos términos con atención. Explican las reglas para usar MeetingGuard AI y lo que puedes esperar de nosotros.",
+    "sections": {
+      "agreement": {
+        "title": "Acuerdo",
+        "body": [
+          "Estos Términos del servicio son un acuerdo entre tú y {{company}} (\"nosotros\"), sociedad registrada en Inglaterra y Gales con el número 14085985 y domicilio social en {{address}}, para el uso de la app MeetingGuard AI. Al crear una cuenta o usar la app, aceptas estos términos y nuestra Política de privacidad. Si no estás de acuerdo, no uses la app."
+        ]
+      },
+      "service": {
+        "title": "El servicio",
+        "body": [
+          "MeetingGuard AI te ayuda a gestionar tus reuniones: guarda tus reuniones y notas, programa recordatorios en tu dispositivo, se sincroniza con Google Calendar y con los calendarios de tu teléfono si los conectas, y ofrece un asistente de IA que te propone cambios para que los confirmes. Con el tiempo podemos añadir, cambiar o retirar funciones. Las funciones que aún no están disponibles aparecen marcadas como tales en la app."
+        ]
+      },
+      "account": {
+        "title": "Tu cuenta",
+        "body": [
+          "Para usar MeetingGuard AI:"
+        ],
+        "items": [
+          "Debes tener al menos 16 años, o más si tu país lo exige para usar servicios en línea sin el consentimiento de tus padres.",
+          "Da información correcta y mantén segura tu cuenta de Google o tu contraseña.",
+          "Eres responsable de la actividad de tu cuenta. Avísanos en {{email}} si crees que otra persona la está usando."
+        ]
+      },
+      "alerts": {
+        "title": "Avisos y recordatorios",
+        "body": [
+          "Trabajamos para que los avisos sean fiables, pero su entrega depende de tu dispositivo: los permisos de notificaciones, la optimización de batería, los modos No molestar y Concentración, el modo silencio, que el dispositivo esté encendido y que la app pueda actualizar su programación. Los avisos pueden llegar tarde o no llegar. Para reuniones importantes, ten también otro recordatorio."
+        ]
+      },
+      "ai": {
+        "title": "Asistente de IA",
+        "body": [
+          "Cuando usas el asistente de IA:"
+        ],
+        "items": [
+          "Las respuestas y propuestas se generan automáticamente y pueden ser incorrectas o incompletas. Revisa cada propuesta antes de confirmarla. Eres responsable de los cambios que confirmas y de los mensajes que envías a otras personas.",
+          "Cada plan tiene un límite diario de consultas al asistente (el plan Gratis incluye {{freeLimit}} al día). Los límites se reinician cada día a medianoche UTC.",
+          "No uses el asistente con fines ilegales ni de formas que incumplan las políticas de uso de OpenAI."
+        ]
+      },
+      "plans": {
+        "title": "Planes y pagos",
+        "body": [
+          "Por ahora MeetingGuard AI es gratuita. Los planes de pago (Pro y Premium) se muestran solo a título informativo y todavía no se pueden comprar. Si en el futuro ofrecemos planes de pago, se venderán a través de App Store o Google Play, y verás el precio, el periodo de facturación y las condiciones de renovación y cancelación antes de comprar."
+        ]
+      },
+      "content": {
+        "title": "Tu contenido",
+        "body": [
+          "Las reuniones, notas y demás contenido que añades siguen siendo tuyos. Nos permites guardarlos, copiarlos y tratarlos solo en la medida necesaria para prestarte el servicio, por ejemplo para sincronizarlos, programar tus avisos o responder a tus consultas al asistente. Eres responsable de tener derecho a añadir los datos de contacto de otras personas a tus reuniones y a enviarles invitaciones."
+        ]
+      },
+      "thirdParty": {
+        "title": "Servicios de terceros",
+        "body": [
+          "La app funciona con servicios de otras empresas, como Google (inicio de sesión, Calendar y Firebase) y OpenAI. Cuando los usas se aplican sus propios términos y políticas de privacidad, y no somos responsables de esos servicios."
+        ]
+      },
+      "acceptableUse": {
+        "title": "Uso aceptable",
+        "body": [
+          "Te comprometes a no:"
+        ],
+        "items": [
+          "Usar la app para incumplir la ley o vulnerar los derechos de otras personas.",
+          "Enviar spam o invitaciones no deseadas a través de la app.",
+          "Intentar acceder a datos de otros usuarios, a nuestros servidores o al servicio de IA de formas que no permitimos, ni saltarte los límites de uso.",
+          "Interrumpir el servicio, saturarlo con peticiones automáticas, o copiar la app o aplicarle ingeniería inversa cuando la ley no lo permita."
+        ]
+      },
+      "ip": {
+        "title": "Propiedad intelectual",
+        "body": [
+          "La app, su diseño y su marca pertenecen a {{company}} o a sus licenciantes. Estos términos solo te dan derecho a usar la app tal como se describe aquí."
+        ]
+      },
+      "termination": {
+        "title": "Fin del uso de la app",
+        "body": [
+          "Puedes dejar de usar la app y eliminar tu cuenta en cualquier momento en Ajustes → Cuenta → Eliminar cuenta. Podemos suspender o cerrar cuentas que incumplan estos términos de forma grave o repetida, o cuando lo exija la ley. Siempre que sea posible, te avisaremos antes y te explicaremos el motivo."
+        ]
+      },
+      "disclaimers": {
+        "title": "Exención de garantías",
+        "body": [
+          "La app se ofrece \"tal cual\" y \"según disponibilidad\". En la medida en que lo permita la ley, no garantizamos que funcione sin interrupciones ni errores, ni que los avisos, la sincronización de calendarios y las respuestas de la IA sean siempre exactos o puntuales. Nada de lo dispuesto en estos términos limita los derechos que te otorgan las leyes de protección de los consumidores a los que no se puede renunciar."
+        ]
+      },
+      "liability": {
+        "title": "Limitación de responsabilidad",
+        "body": [
+          "En la medida en que lo permita la ley, {{company}} no es responsable de daños indirectos o consecuentes, como reuniones perdidas, oportunidades perdidas o pérdida de datos, y nuestra responsabilidad total por cualquier reclamación relacionada con la app se limita a lo que nos hayas pagado por ella en los 12 meses anteriores a la reclamación. Esto no limita la responsabilidad que la ley no permite limitar."
+        ]
+      },
+      "law": {
+        "title": "Ley aplicable",
+        "body": [
+          "Estos términos se rigen por {{jurisdiction}}. Si eres consumidor, conservas además la protección de las leyes imperativas del país donde vives y puedes acudir a sus tribunales."
+        ]
+      },
+      "changes": {
+        "title": "Cambios en estos términos",
+        "body": [
+          "Podemos actualizar estos términos. Cambiaremos la fecha que aparece arriba y, si los cambios son importantes, te avisaremos en la app antes de que se apliquen. Si sigues usando la app después, se aplicarán los nuevos términos; si no estás de acuerdo, puedes eliminar tu cuenta."
+        ]
+      }
+    }
+  }
+}

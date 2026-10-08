@@ -1,0 +1,63 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`bot strings EN snapshot 1`] = `
+{
+  "actionUnsupported": "I cannot make that change from WhatsApp yet. Please use the app for it.",
+  "actionsExpired": "That proposal expired. Ask me again and I will prepare it once more.",
+  "buttons": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+  },
+  "cancelled": "Cancelled. I did not change anything.",
+  "codeExpired": "That code is not valid anymore. Open the app and generate a new one.",
+  "confirmMore": "and {count} more",
+  "confirmPrompt": "Should I apply this? Reply 1 to confirm or 2 to cancel.",
+  "confirmed": "Done. I applied the changes.",
+  "error": "Something went wrong. Please try again.",
+  "floodNotice": "You reached the daily WhatsApp message limit. Please try again tomorrow.",
+  "linkPrompt": "Hi! To use the MeetingGuard assistant here, open the app, go to Settings > WhatsApp, and send me the 6 digit code it shows you.",
+  "linkSuccess": "Your WhatsApp is now linked to MeetingGuard. Ask me about your meetings, for example "What do I have tomorrow?"",
+  "listEmpty": "I found no matching meetings.",
+  "partialFailure": "Some changes could not be applied. Please check in the app.",
+  "quotaExceeded": "You reached your daily assistant limit. It resets at midnight UTC.",
+  "summaryLabels": {
+    "allDay": "all day",
+    "duration": "Duration",
+    "minutes": "min",
+    "when": "When",
+    "where": "Where",
+  },
+  "unsupportedType": "I can only read text messages for now. Please type your request.",
+}
+`;
+
+exports[`bot strings ES snapshot 1`] = `
+{
+  "actionUnsupported": "Todavía no puedo hacer ese cambio desde WhatsApp. Usa la app para hacerlo.",
+  "actionsExpired": "Esa propuesta expiró. Pídemelo otra vez y la preparo de nuevo.",
+  "buttons": {
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+  },
+  "cancelled": "Cancelado. No cambié nada.",
+  "codeExpired": "Ese código ya no es válido. Abre la app y genera uno nuevo.",
+  "confirmMore": "y {count} más",
+  "confirmPrompt": "¿Lo aplico? Responde 1 para confirmar o 2 para cancelar.",
+  "confirmed": "Listo. Apliqué los cambios.",
+  "error": "Algo salió mal. Inténtalo de nuevo.",
+  "floodNotice": "Alcanzaste el límite diario de mensajes de WhatsApp. Inténtalo de nuevo mañana.",
+  "linkPrompt": "¡Hola! Para usar el asistente de MeetingGuard aquí, abre la app, entra en Ajustes > WhatsApp y envíame el código de 6 dígitos que te muestra.",
+  "linkSuccess": "Tu WhatsApp quedó vinculado a MeetingGuard. Pregúntame por tus reuniones, por ejemplo «¿Qué tengo mañana?»",
+  "listEmpty": "No encontré reuniones que coincidan.",
+  "partialFailure": "Algunos cambios no se pudieron aplicar. Revísalo en la app.",
+  "quotaExceeded": "Alcanzaste tu límite diario del asistente. Se reinicia a medianoche UTC.",
+  "summaryLabels": {
+    "allDay": "todo el día",
+    "duration": "Duración",
+    "minutes": "min",
+    "when": "Cuándo",
+    "where": "Dónde",
+  },
+  "unsupportedType": "Por ahora solo puedo leer mensajes de texto. Escribe tu solicitud.",
+}
+`;

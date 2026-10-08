@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.meetingguard.fullscreenalarm'
+version = '1.0.0'
+
+android {
+  namespace "com.meetingguard.fullscreenalarm"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}

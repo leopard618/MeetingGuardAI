@@ -1,0 +1,35 @@
+{
+  "screens": {
+    "Landing": "Welcome",
+    "EmailAuth": "Email sign-in",
+    "Privacy": "Privacy Policy",
+    "Terms": "Terms of Service",
+    "OnboardingLanguage": "Language",
+    "OnboardingCalendars": "Calendars",
+    "OnboardingAlerts": "Alerts",
+    "OnboardingAssistant": "AI assistant",
+    "OnboardingFirstMeeting": "First meeting",
+    "Dashboard": "MeetingGuard",
+    "ChooseCreationMethod": "New meeting",
+    "CreateMeeting": "Create meeting",
+    "TotalMeetings": "All meetings",
+    "MeetingDetails": "Meeting details",
+    "EditMeeting": "Edit meeting",
+    "Calendar": "Calendar",
+    "Notes": "Notes",
+    "Settings": "Settings",
+    "AlertSettings": "Alert settings",
+    "Profile": "Profile",
+    "AIChat": "AI assistant",
+    "AIInsights": "Insights",
+    "CalendarSync": "Calendar sync",
+    "Pricing": "Plans",
+    "WhatsAppConnect": "WhatsApp"
+  },
+  "meeting": {
+    "loading": "Loading meeting...",
+    "notFoundTitle": "Meeting not found",
+    "notFoundMessage": "It may have been deleted, or it has not synced to this device yet.",
+    "backToDashboard": "Go to dashboard"
+  }
+}

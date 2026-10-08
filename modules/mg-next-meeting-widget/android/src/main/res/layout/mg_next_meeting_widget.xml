@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RemoteViews-safe only (LinearLayout + TextView/ImageView): works on Android 9 / LDPlayer 9.
+     All text is set at runtime by WidgetRenderer (pre-localized by JS, res strings as fallback). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mg_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:background="@drawable/mg_widget_background"
+    android:paddingLeft="16dp"
+    android:paddingRight="16dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp">
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical">
+
+    <ImageView
+        android:id="@+id/mg_widget_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:importantForAccessibility="no"
+        android:contentDescription="@null" />
+
+    <TextView
+        android:id="@+id/mg_widget_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginLeft="8dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="@color/mg_widget_text_primary" />
+  </LinearLayout>
+
+  <TextView
+      android:id="@+id/mg_widget_line2"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:maxLines="1"
+      android:ellipsize="end"
+      android:textSize="13sp"
+      android:textColor="@color/mg_widget_text_secondary" />
+</LinearLayout>

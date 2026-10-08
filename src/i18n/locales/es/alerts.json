@@ -1,0 +1,132 @@
+{
+  "lead": {
+    "minutes_one": "en {{count}} minuto",
+    "minutes_other": "en {{count}} minutos",
+    "hours_one": "en {{count}} hora",
+    "hours_other": "en {{count}} horas",
+    "days_one": "en {{count}} día",
+    "days_other": "en {{count}} días"
+  },
+  "provider": {
+    "zoom": "Zoom",
+    "teams": "Microsoft Teams",
+    "google_meet": "Google Meet",
+    "other": "Reunión en línea"
+  },
+  "notification": {
+    "upcomingTitle": "{{title}} empieza {{lead}}",
+    "nowTitle": "{{title}} empieza ahora",
+    "startedTitle": "{{title}} ya ha empezado",
+    "snoozeTitle": "Recordatorio: {{title}} empieza {{lead}}",
+    "followUpTitle": "¿Qué tal fue «{{title}}»?",
+    "followUpBody": "Registra notas, decisiones y próximos pasos con tu asistente de IA.",
+    "body": "{{time}}",
+    "bodyWithLocation": "{{time}} · {{location}}",
+    "untitled": "Reunión"
+  },
+  "channels": {
+    "max": {
+      "name": "Alertas máximas de reuniones",
+      "description": "Alarma sonora con vibración intensa para las reuniones que no te puedes perder."
+    },
+    "medium": {
+      "name": "Alertas estándar de reuniones",
+      "description": "Sonido y vibración antes de tus reuniones."
+    },
+    "light": {
+      "name": "Recordatorios suaves de reuniones",
+      "description": "Recordatorios breves y discretos antes de tus reuniones."
+    },
+    "followup": {
+      "name": "Seguimiento de reuniones",
+      "description": "Después de una reunión: registra notas y próximos pasos con tu asistente de IA."
+    },
+    "noVibrationName": "{{name}} (sin vibración)"
+  },
+  "actions": {
+    "open": "Abrir",
+    "snooze_one": "Posponer {{count}} min",
+    "snooze_other": "Posponer {{count}} min",
+    "assistant": "Abrir asistente"
+  },
+  "when": {
+    "startsIn": "Empieza {{lead}}",
+    "now": "Empieza ahora",
+    "started_one": "Empezó hace {{count}} minuto",
+    "started_other": "Empezó hace {{count}} minutos",
+    "timeRange": "{{start}} - {{end}}"
+  },
+  "max": {
+    "heading": "Tu reunión está a punto de empezar",
+    "headingNow": "Tu reunión empieza ahora",
+    "headingStarted": "Tu reunión ya ha empezado",
+    "autoSnooze_one": "Se pospondrá automáticamente en {{count}} segundo",
+    "autoSnooze_other": "Se pospondrá automáticamente en {{count}} segundos",
+    "a11yCountdown": "La alerta se pospondrá automáticamente"
+  },
+  "medium": {
+    "heading": "Próxima reunión",
+    "pill": "{{title}} · {{when}}",
+    "a11yPill": "Alerta de reunión minimizada. Toca para ampliarla."
+  },
+  "light": {
+    "heading": "Recordatorio de reunión"
+  },
+  "followUp": {
+    "heading": "¿Qué tal fue?",
+    "body": "Registra notas y próximos pasos de «{{title}}» con tu asistente de IA."
+  },
+  "buttons": {
+    "acknowledge": "Entendido, voy",
+    "join": "Unirse ahora",
+    "snooze_one": "Posponer {{count}} min",
+    "snooze_other": "Posponer {{count}} min",
+    "details": "Ver detalles",
+    "minimize": "Minimizar",
+    "dismiss": "Cerrar",
+    "openAssistant": "Abrir asistente"
+  },
+  "voice": {
+    "upcoming": "Atención. Tu reunión {{title}} empieza {{lead}}. Hora de inicio: {{time}}.",
+    "now": "Atención. Tu reunión {{title}} está empezando ahora.",
+    "started": "Tu reunión {{title}} ya ha empezado.",
+    "location": "Lugar: {{location}}."
+  },
+  "errors": {
+    "snoozeFailed": "No se ha podido posponer la alerta.",
+    "openLinkFailed": "No se ha podido abrir el enlace de la reunión."
+  },
+  "refill": {
+    "title": "Mantén al día tus alertas de reuniones",
+    "body": "Abre MeetingGuard para que programe tus próximas alertas."
+  },
+  "settings": {
+    "voiceNeedsApp": "La lectura por voz necesita la app abierta. Con la app cerrada, las alertas reproducen el sonido de la notificación.",
+    "saved": "Ajustes de alertas guardados.",
+    "snooze": {
+      "label": "Duración del aplazamiento",
+      "minutes_one": "{{count}} min",
+      "minutes_other": "{{count}} min"
+    },
+    "followUp": {
+      "label": "Seguimiento después de las reuniones",
+      "description": "5 minutos después de que termine una reunión, recibe ideas de seguimiento del asistente de IA."
+    },
+    "exactAlarms": {
+      "granted": "Las alarmas exactas están permitidas. Las alertas suenan puntuales."
+    },
+    "fullScreen": {
+      "title": "Alarmas a pantalla completa",
+      "description": "Con la intensidad máxima, las alarmas de reunión pueden encender y ocupar la pantalla aunque el teléfono esté bloqueado.",
+      "allowed": "Las alarmas a pantalla completa están permitidas.",
+      "denied": "Las alarmas a pantalla completa están desactivadas, así que las alertas máximas llegan como notificaciones normales.",
+      "open": "Permitir alarmas a pantalla completa"
+    },
+    "dnd": {
+      "title": "No molestar",
+      "androidDescription": "Las alertas máximas solo pueden sonar con No molestar activado si lo permites: abre los ajustes de las alertas máximas y activa «Ignorar No molestar».",
+      "iosDescription": "Para recibir alertas durante un modo de concentración, añade MeetingGuard a las apps permitidas en Ajustes > Concentración.",
+      "open": "Permitir que las alertas máximas ignoren No molestar"
+    }
+  }
+}

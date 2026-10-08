@@ -1,0 +1,138 @@
+{
+  "progress": "Paso {{current}} de {{total}}",
+  "language": {
+    "title": "Te damos la bienvenida a MeetingGuard AI",
+    "subtitle": "Vamos a configurarlo todo para que no te pierdas ninguna reunión. Primero, elige tu idioma.",
+    "hint": "Puedes cambiarlo cuando quieras desde el menú."
+  },
+  "calendars": {
+    "title": "Conecta tus calendarios",
+    "subtitle": "MeetingGuard te avisa de las reuniones de tus calendarios y lo mantiene todo sincronizado.",
+    "later": "Puedes cambiar esto más tarde en Ajustes.",
+    "google": {
+      "title": "Google Calendar",
+      "description": "Sincronización en ambos sentidos: las reuniones que crees aquí aparecen en Google Calendar y tus eventos de Google reciben alertas de MeetingGuard.",
+      "connect": "Conectar Google Calendar",
+      "connected": "Conectado",
+      "success": "Google Calendar está conectado.",
+      "cancelled": "No se conectó Google Calendar.",
+      "scopeDenied": "No se concedió acceso al calendario. Puedes conectarlo más tarde en Ajustes."
+    },
+    "device": {
+      "title": "Calendarios de este dispositivo",
+      "description": "Importa eventos de los calendarios de tu teléfono, como cuentas de iCloud u Outlook.",
+      "allow": "Permitir acceso al calendario",
+      "denied": "El acceso al calendario está desactivado. Puedes activarlo en los ajustes del dispositivo.",
+      "empty": "No se encontraron calendarios en este dispositivo.",
+      "googleNote": "Sincronizado desde Google: ya lo cubre la sincronización con Google Calendar."
+    }
+  },
+  "alerts": {
+    "title": "¿Cómo quieres que te avisemos?",
+    "subtitle": "Elige cuánto debe insistir MeetingGuard para llamar tu atención antes de una reunión.",
+    "enabled": "Alertas de reuniones",
+    "intensity": {
+      "label": "Intensidad de las alertas",
+      "max": {
+        "title": "Máxima",
+        "description": "Sonido de alarma y vibración. Con la app abierta ocupa la pantalla, lee el aviso en voz alta y espera a que respondas. Con la app cerrada o el teléfono bloqueado, es una notificación de alarma de alta prioridad."
+      },
+      "medium": {
+        "title": "Media",
+        "description": "Un aviso persistente con sonido. Puedes minimizarlo, pero sigue ahí hasta que actúes."
+      },
+      "light": {
+        "title": "Ligera",
+        "description": "Una notificación breve con un sonido corto."
+      }
+    },
+    "preview": {
+      "label": "Vista previa",
+      "meetingTitle": "Reunión semanal del equipo",
+      "startsIn": "Empieza en 5 minutos",
+      "acknowledge": "Ya voy",
+      "snooze": "Posponer",
+      "lightText": "La reunión semanal del equipo empieza en 5 minutos",
+      "play": "Reproducir un ejemplo",
+      "stop": "Detener"
+    },
+    "sound": {
+      "label": "Sonido",
+      "voice_and_sound": "Voz y sonido",
+      "voice_only": "Solo voz",
+      "sound_only": "Solo sonido"
+    },
+    "volume": "Volumen",
+    "vibration": "Vibrar",
+    "times": {
+      "label": "Avisarme",
+      "hint": "Elige uno o varios.",
+      "atStart": "Al empezar",
+      "minutesBefore": "{{count}} min antes",
+      "hoursBefore": "{{count}} h antes",
+      "required": "Elige al menos un momento de aviso."
+    },
+    "permission": {
+      "title": "Notificaciones",
+      "description": "MeetingGuard necesita las notificaciones para avisarte, incluso con la aplicación cerrada.",
+      "allow": "Permitir notificaciones",
+      "granted": "Las notificaciones están activadas.",
+      "denied": "Las notificaciones están desactivadas. Actívalas en los ajustes del dispositivo para que las alertas te lleguen.",
+      "provisional": "Las notificaciones llegan en modo silencioso. Permítelas por completo en Ajustes para tener sonido y avisos."
+    },
+    "exactAlarms": {
+      "title": "Alarmas exactas (Android)",
+      "description": "Android puede retrasar las alertas si MeetingGuard no tiene permiso para usar alarmas exactas. Activa «Alarmas y recordatorios» para MeetingGuard y las alertas sonarán a su hora.",
+      "open": "Abrir ajustes de alarmas"
+    },
+    "timeSensitive": {
+      "title": "Alertas urgentes (iPhone)",
+      "description": "Las alertas de reuniones se marcan como urgentes para que puedan atravesar los modos de concentración. Si los usas, permite las notificaciones urgentes de MeetingGuard."
+    }
+  },
+  "assistant": {
+    "title": "Conoce a tu asistente de IA",
+    "subtitle": "Dile al asistente lo que necesitas con tus propias palabras, en español o en inglés.",
+    "capabilitiesTitle": "Puede:",
+    "capabilities": {
+      "create": "Crear reuniones a partir de una sola frase",
+      "update": "Mover, renombrar o cambiar reuniones",
+      "delete": "Cancelar reuniones",
+      "share": "Compartir los detalles de una reunión con otras personas",
+      "bulk": "Cambiar varias reuniones a la vez"
+    },
+    "confirm": "El asistente nunca cambia nada por su cuenta: siempre verás primero una tarjeta de confirmación.",
+    "examplesTitle": "Prueba a decir",
+    "examples": {
+      "create": "Programa una reunión de equipo mañana a las 9 con enlace de Google Meet",
+      "move": "Pasa mi reunión de las 4 de la tarde a las 5",
+      "share": "Envía el enlace de la reunión de marketing a john@company.com",
+      "bulk": "Retrasa 30 minutos todas mis reuniones de mañana"
+    },
+    "quota_one": "Tu plan {{plan}} incluye {{count}} consulta al asistente por día.",
+    "quota_other": "Tu plan {{plan}} incluye {{count}} consultas al asistente por día.",
+    "plans": {
+      "free": "Gratis",
+      "pro": "Pro",
+      "premium": "Premium"
+    },
+    "privacyTitle": "Privacidad",
+    "privacy": "Tus mensajes, junto con tus próximas reuniones, se envían a nuestro servidor y los procesa OpenAI para entender tu solicitud.",
+    "privacyLink": "Leer la política de privacidad"
+  },
+  "firstMeeting": {
+    "title": "Crea tu primera reunión",
+    "subtitle": "Elige la forma que prefieras. Siempre podrás usar la otra más adelante.",
+    "manual": {
+      "title": "Rellenar un formulario",
+      "description": "Indica el título, la fecha, la hora y las alertas."
+    },
+    "ai": {
+      "title": "Pedírselo al asistente de IA",
+      "description": "Describe la reunión y el asistente la prepara para que la confirmes."
+    },
+    "skip": "Omitir e ir a mi panel",
+    "aiPrompt": "Programa una reunión de 30 minutos con mi equipo mañana a las 10",
+    "finishing": "Terminando la configuración..."
+  }
+}

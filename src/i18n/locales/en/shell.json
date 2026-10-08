@@ -1,0 +1,37 @@
+{
+  "header": {
+    "back": "Go back",
+    "home": "Go to the dashboard",
+    "openMenu": "Open menu",
+    "darkMode": "Switch to dark mode",
+    "lightMode": "Switch to light mode",
+    "switchLanguage": "Change language to {{language}}"
+  },
+  "sidebar": {
+    "close": "Close menu",
+    "language": "Language",
+    "theme": "Appearance",
+    "themeModes": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "items": {
+      "Dashboard": "Dashboard",
+      "ChooseCreationMethod": "New meeting",
+      "TotalMeetings": "All meetings",
+      "Calendar": "Calendar",
+      "Notes": "Notes",
+      "AIChat": "AI assistant",
+      "Pricing": "Plans",
+      "Settings": "Settings"
+    }
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "message": "MeetingGuard ran into an unexpected problem. Try again. If it keeps happening, close and reopen the app.",
+    "retryHint": "Reloads MeetingGuard",
+    "screenMessage": "This screen ran into an unexpected problem. Try again, or go back. If it keeps happening, close and reopen the app.",
+    "screenRetryHint": "Reloads the screen"
+  }
+}

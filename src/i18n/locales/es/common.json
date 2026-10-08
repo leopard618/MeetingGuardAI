@@ -1,0 +1,77 @@
+{
+  "app": {
+    "name": "MeetingGuard AI"
+  },
+  "actions": {
+    "continue": "Continuar",
+    "back": "Atrás",
+    "skipForNow": "Omitir por ahora",
+    "done": "Listo",
+    "retry": "Reintentar",
+    "cancel": "Cancelar",
+    "openSettings": "Abrir ajustes",
+    "signOut": "Cerrar sesión",
+    "signOutAnyway": "Cerrar sesión de todos modos",
+    "save": "Guardar"
+  },
+  "language": {
+    "label": "Idioma",
+    "en": "English",
+    "es": "Español"
+  },
+  "format": {
+    "now": "ahora",
+    "tomorrow": "mañana",
+    "yesterday": "ayer",
+    "allDay": "Todo el día",
+    "days_one": "{{count}} día",
+    "days_other": "{{count}} días"
+  },
+  "splash": {
+    "loading": "Cargando...",
+    "slow": "Esto está tardando más de lo normal. Revisa tu conexión a internet."
+  },
+  "session": {
+    "signOutTitle": "Cerrar sesión",
+    "signOutMessage": "¿Seguro que quieres cerrar sesión?",
+    "pendingWritesTitle": "Cambios sin sincronizar",
+    "pendingWritesMessage": "Algunos de tus cambios todavía no llegaron al servidor. Si cierras sesión ahora, se perderán.",
+    "signOutFailed": "No pudimos cerrar tu sesión. Inténtalo de nuevo.",
+    "prefsErrorTitle": "No pudimos cargar tu configuración",
+    "prefsErrorMessage": "Revisa tu conexión a internet y vuelve a abrir la aplicación, o cierra sesión."
+  },
+  "consent": {
+    "prefix": "Al continuar, aceptas nuestros",
+    "terms": "Términos del servicio",
+    "and": "y nuestra",
+    "privacy": "Política de privacidad"
+  },
+  "errors": {
+    "not_configured": "La aplicación no está configurada correctamente. Actualízala a la última versión.",
+    "not_implemented": "Esta función todavía no está disponible.",
+    "unauthenticated": "Tu sesión expiró. Vuelve a iniciar sesión.",
+    "permission_denied": "No tienes permiso para hacer esto.",
+    "offline": "No tienes conexión. Revísala e inténtalo de nuevo.",
+    "timeout": "La solicitud tardó demasiado. Inténtalo de nuevo.",
+    "not_found": "No encontramos lo que buscabas.",
+    "invalid_input": "Algunos datos no son válidos. Revísalos e inténtalo de nuevo.",
+    "conflict": "Este elemento se modificó en otro lugar. Inténtalo de nuevo.",
+    "quota_exceeded": "Alcanzaste tu límite por ahora. Inténtalo más tarde.",
+    "upstream_error": "Algo falló de nuestro lado. Inténtalo de nuevo en un momento.",
+    "cancelled": "Se canceló la acción.",
+    "unsupported": "Esta acción no es compatible.",
+    "pending_writes": "Algunos cambios todavía no se sincronizaron.",
+    "google_not_signed_in": "Inicia sesión con Google para usar esta función.",
+    "calendar_scope_missing": "MeetingGuard necesita permiso para acceder a tu Google Calendar.",
+    "calendar_not_connected": "Google Calendar no está conectado.",
+    "calendar_permission_denied": "Se denegó el acceso al calendario. Puedes permitirlo en los ajustes del dispositivo.",
+    "notification_permission_denied": "Las notificaciones están desactivadas. Actívalas en los ajustes del dispositivo para no perderte ninguna reunión.",
+    "unknown": "Algo salió mal. Inténtalo de nuevo."
+  },
+  "discard": {
+    "title": "¿Descartar los cambios?",
+    "message": "Tus cambios no están guardados. Si sales ahora, se perderán.",
+    "keepEditing": "Seguir editando",
+    "discard": "Descartar"
+  }
+}

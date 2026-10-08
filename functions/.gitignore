@@ -1,0 +1,19 @@
+# Compiled JavaScript (built by `npm run build`, deployed from lib/)
+lib/
+
+# Dependencies
+node_modules/
+
+# Test / tooling output
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Emulator and CLI logs
+*.log
+firebase-debug.*.log
+ui-debug.log
+
+# Local-only parameter overrides (secrets never go here: use `firebase functions:secrets:set`)
+.env.local
+.secret.local

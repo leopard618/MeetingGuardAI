@@ -1,0 +1,98 @@
+{
+  "comingSoonTitle": "Subscriptions coming soon",
+  "comingSoonBody": "Paid plans can't be purchased yet. Everything in the Free plan keeps working in the meantime.",
+  "comingSoon": "Coming soon",
+  "comingSoonA11y": "{{plan}}: coming soon, not available to buy yet",
+  "currentPlan": "Current plan",
+  "popular": "Most popular",
+  "perMonth": "month",
+  "perYear": "year",
+  "priceA11y": "{{price}} per {{period}}",
+  "monthlyEquivalent": "Billed yearly · {{price}} per month",
+  "save": "Save {{percent}}%",
+  "cycle": {
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "monthlyA11y": "Show monthly prices",
+    "yearlyA11y": "Show yearly prices"
+  },
+  "plans": {
+    "free": {
+      "name": "Free",
+      "description": "Everything you need to get started."
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "For a busy schedule and daily use of the assistant."
+    },
+    "premium": {
+      "name": "Premium",
+      "description": "For heavy use of the AI assistant."
+    }
+  },
+  "features": {
+    "requests_one": "{{count}} AI assistant request per day",
+    "requests_other": "{{count}} AI assistant requests per day",
+    "meetings": "Meetings, notes and alerts",
+    "calendars": "Google Calendar and phone calendar sync",
+    "everythingFree": "Everything in Free"
+  },
+  "usage": {
+    "title": "AI assistant today",
+    "plan": "Your plan: {{plan}}",
+    "today": "{{used}} of {{limit}} requests used",
+    "resets": "Resets {{time}}",
+    "exhausted": "You've used all of today's requests. They reset {{time}}.",
+    "thisDevice": "Updated with each assistant request from this device.",
+    "perDay_one": "{{count}} request per day",
+    "perDay_other": "{{count}} requests per day",
+    "unknownToday": "Today's count appears after you use the assistant."
+  },
+  "store": {
+    "loading": "Loading prices from Google Play...",
+    "loadErrorTitle": "Prices unavailable",
+    "loadError": "We couldn't load the prices from Google Play, so purchases are paused for now. The prices below are for reference only.",
+    "retry": "Retry",
+    "retryA11y": "Retry loading the Google Play prices",
+    "buy": "Get {{plan}}",
+    "buyA11y": "Buy the {{plan}} plan for {{price}} per {{period}}",
+    "trial": "3-day free trial",
+    "purchaseFailed": "The purchase didn't go through",
+    "activatingTitle": "Almost there",
+    "activating": "Payment received. Activating your plan...",
+    "activatingSlow": "This is taking longer than usual. Your plan will activate on its own in a few minutes; you can leave this screen.",
+    "activated": "Your {{plan}} plan is now active.",
+    "restore": "Restore purchases",
+    "restoreA11y": "Restore purchases made with this Google account",
+    "restored": "Purchase found. Updating your plan...",
+    "nothingToRestore": "No previous purchases were found for this account.",
+    "restoreFailed": "Purchases couldn't be restored",
+    "manage": "Manage subscription",
+    "manageA11y": "Open your subscription in Google Play",
+    "activationTimeoutTitle": "Still processing",
+    "activationTimeout": "Your purchase is confirmed, but your plan hasn't updated here yet. It will update automatically once processing finishes - no need to buy again.",
+    "loadingIos": "Loading prices from the App Store...",
+    "loadErrorIos": "We couldn't load the prices from the App Store, so purchases are paused for now. The prices below are for reference only.",
+    "retryA11yIos": "Retry loading the App Store prices",
+    "restoreA11yIos": "Restore purchases made with this Apple account",
+    "manageA11yIos": "Open your subscription in the App Store",
+    "trialIos": "New subscribers: 3-day free trial",
+    "switchToMonthly": "Switch to monthly billing",
+    "switchToYearly": "Switch to yearly billing",
+    "switchTier": "Switch to {{plan}}",
+    "switchA11y": "Switch your subscription to {{plan}} for {{price}} per {{period}}",
+    "changeConfirmedTitle": "Change confirmed",
+    "changeConfirmedBody": "Your plan change is recorded in Google Play. Unused time is credited automatically; some changes start at your next renewal.",
+    "changeConfirmedBodyIos": "Your plan change is recorded in the App Store. It takes effect at your next renewal.",
+    "managedInPlay": "This subscription was purchased in Google Play and can only be changed there.",
+    "managedInAppStore": "This subscription was purchased in the App Store and can only be changed there."
+  },
+  "footer": "Prices are in US dollars. Before any purchase, Google Play will show the final price in your currency, including taxes.",
+  "footerIos": "Prices are in US dollars. Before any purchase, the App Store will show the final price in your currency, including taxes.",
+  "planChanged": {
+    "title": "Plan updated",
+    "body": "Your plan is now {{plan}}"
+  },
+  "grantedTitle": "Your {{plan}} plan is active",
+  "grantedBody": "Purchases are not open yet; this plan was granted to your account directly. All its features are available."
+}

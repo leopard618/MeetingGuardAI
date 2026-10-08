@@ -1,12 +1,14 @@
 {
   "cli": {
-    "version": ">= 3.0.0",
-    "appVersionSource": "local"
+    "version": ">= 24.8.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "environment": "development",
+      "channel": "development",
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -16,6 +18,8 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
+      "channel": "preview",
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -23,7 +27,17 @@
         "buildType": "apk"
       }
     },
+    "ios-simulator": {
+      "extends": "preview",
+      "ios": {
+        "resourceClass": "m-medium",
+        "simulator": true
+      }
+    },
     "production": {
+      "autoIncrement": true,
+      "environment": "production",
+      "channel": "production",
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -35,13 +49,13 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "your-app-store-connect-app-id",
-        "appleTeamId": "your-apple-team-id"
+        "appleId": "fmaldonado@aeternumtech.com",
+        "appleTeamId": "D695835P4T",
+        "ascAppId": "6819847236"
       },
       "android": {
         "serviceAccountKeyPath": "./google-play-service-account.json",
-        "track": "production"
+        "track": "internal"
       }
     }
   }

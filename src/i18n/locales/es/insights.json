@@ -1,0 +1,96 @@
+{
+  "subtitle": "Calculado en este dispositivo a partir de las reuniones de MeetingGuard. No se envía nada a ningún sitio salvo que preguntes al asistente.",
+  "period": {
+    "week": "Esta semana",
+    "month": "Este mes"
+  },
+  "range": "{{from}} - {{to}}",
+  "loading": "Cargando tus reuniones...",
+  "loadError": "No se pudieron cargar tus reuniones: {{reason}}",
+  "empty": "No hay reuniones en este periodo",
+  "emptyHint": "El resumen aparece cuando tengas reuniones aquí. Crea una o conecta un calendario.",
+  "meetings_one": "{{count}} reunión",
+  "meetings_other": "{{count}} reuniones",
+  "stats": {
+    "meetings": "Reuniones",
+    "time": "Tiempo en reuniones",
+    "average": "Duración media",
+    "averageNone": "Sin reuniones con hora",
+    "allDay_one": "Incluye {{count}} evento de todo el día (sin contar tiempo)",
+    "allDay_other": "Incluye {{count}} eventos de todo el día (sin contar tiempo)",
+    "busiest": "Día más ocupado",
+    "busiestValue": "{{date}} · {{meetings}} · {{duration}}"
+  },
+  "load": {
+    "title": "Carga por día",
+    "monthHint": "Totales del mes para cada día de la semana.",
+    "rowA11y": "{{day}}: {{meetings}}, {{duration}}"
+  },
+  "weekday": {
+    "0": "dom",
+    "1": "lun",
+    "2": "mar",
+    "3": "mié",
+    "4": "jue",
+    "5": "vie",
+    "6": "sáb"
+  },
+  "weekdayLong": {
+    "0": "domingo",
+    "1": "lunes",
+    "2": "martes",
+    "3": "miércoles",
+    "4": "jueves",
+    "5": "viernes",
+    "6": "sábado"
+  },
+  "sources": {
+    "title": "De dónde vienen tus reuniones",
+    "manual": "Creadas en MeetingGuard",
+    "ai_chat": "Asistente de IA",
+    "whatsapp": "WhatsApp",
+    "google": "Google Calendar",
+    "device": "Calendario del dispositivo",
+    "outlook": "Calendario de Outlook"
+  },
+  "conflicts": {
+    "title": "Reuniones que se solapan",
+    "none": "No hay reuniones que se solapen en este periodo.",
+    "pair": "{{first}} y {{second}}",
+    "openA11y": "Abrir {{title}}"
+  },
+  "backToBack": {
+    "title": "Reuniones seguidas",
+    "hint": "Menos de 5 minutos entre el final de una reunión y el inicio de la siguiente.",
+    "none": "No hay reuniones seguidas en este periodo.",
+    "item": "{{second}} empieza justo después de {{first}}"
+  },
+  "attention": {
+    "title": "Próximas reuniones: conviene revisar",
+    "missingPlace_one": "{{count}} reunión no tiene enlace ni lugar",
+    "missingPlace_other": "{{count}} reuniones no tienen enlace ni lugar",
+    "withTips_one": "{{count}} reunión tiene consejos de preparación",
+    "withTips_other": "{{count}} reuniones tienen consejos de preparación",
+    "none": "Todas las próximas reuniones de este periodo tienen enlace o lugar."
+  },
+  "ai": {
+    "title": "Sugerencias de IA",
+    "description": "Opcional. El asistente lee tus reuniones y sugiere cómo resolver conflictos, dónde hacer pausas y qué preparar. No se cambia nada hasta que lo confirmes en el asistente.",
+    "button": "Obtener sugerencias de IA",
+    "confirmTitle": "¿Obtener sugerencias de IA?",
+    "confirmUsage": "Se envía una solicitud al asistente de IA y cuenta para tu límite diario de IA ({{usage}}).",
+    "confirmNoUsage": "Se envía una solicitud al asistente de IA y cuenta para tu límite diario de IA.",
+    "confirmPrivacy": "OpenAI procesa, a través de nuestro servidor, tus reuniones de los últimos 7 días y de los próximos 60 días para redactar las sugerencias.",
+    "confirm": "Obtener sugerencias",
+    "sending": "Consultando al asistente...",
+    "busy": "El asistente está respondiendo otra solicitud. Inténtalo de nuevo en un momento.",
+    "offline": "Las sugerencias de IA necesitan conexión a internet.",
+    "promptWeek": "Revisa mis reuniones de esta semana. Sugiere cómo resolver los solapamientos, dónde añadir pausas entre reuniones seguidas y qué debería preparar. No cambies nada todavía.",
+    "promptMonth": "Revisa mis reuniones de este mes. Sugiere cómo resolver los solapamientos, dónde añadir pausas entre reuniones seguidas y qué debería preparar. No cambies nada todavía.",
+    "replyTitle": "El asistente dice",
+    "proposed_one": "El asistente propuso {{count}} cambio. Revísalo en el asistente; no se guarda nada hasta que lo confirmes.",
+    "proposed_other": "El asistente propuso {{count}} cambios. Revísalos en el asistente; no se guarda nada hasta que los confirmes.",
+    "openChat": "Seguir en el asistente",
+    "retry": "Reintentar"
+  }
+}
