@@ -91,7 +91,8 @@ beforeEach(async () => {
   mockNotesLoading = false;
   mockNotesError = null;
   mockOnline = true;
-  mockMeetings = [meeting('m1', 'Budget review', '2026-10-06T15:00:00.000Z'), meeting('m2', 'Design sync', '2026-10-07T09:00:00.000Z')];
+  // Far future on purpose: these must stay in the "Upcoming" section whatever today's date is.
+  mockMeetings = [meeting('m1', 'Budget review', '2030-10-06T15:00:00.000Z'), meeting('m2', 'Design sync', '2030-10-07T09:00:00.000Z')];
   mockNotes = [
     note('n1', { title: 'Budget questions', content: 'Ask about Q3 travel costs', category: 'work', meetingId: 'm1', pinned: true }),
     note('n2', { title: 'App ideas', content: 'Habit tracker', category: 'ideas' }),

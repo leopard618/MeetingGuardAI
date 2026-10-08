@@ -52,6 +52,11 @@ function createFirestore(firebaseApp: FirebaseApp): Firestore {
     return initializeFirestore(firebaseApp, {
       ignoreUndefinedProperties: true,
       localCache: memoryLocalCache(),
+      // React Native has no fetch streams: the SDK's default WebChannel transport hangs for
+      // 15-45s on first connect behind some VPNs, proxies and mobile carriers (the "taking
+      // longer than usual" splash). Long polling works everywhere; our documents are small,
+      // so the throughput cost does not matter.
+      experimentalForceLongPolling: true,
     });
   } catch {
     return getFirestore(firebaseApp);
