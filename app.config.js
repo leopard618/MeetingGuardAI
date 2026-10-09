@@ -23,6 +23,9 @@ const CALENDAR_USAGE =
   'MeetingGuard AI uses your calendar to show, create and update your meetings and to schedule meeting alerts.';
 const PHOTOS_USAGE = 'MeetingGuard AI lets you attach photos from your library to a meeting.';
 const CAMERA_USAGE = 'MeetingGuard AI lets you take a photo and attach it to a meeting.';
+const MICROPHONE_USAGE = 'MeetingGuard AI uses the microphone so you can speak to the assistant instead of typing.';
+const SPEECH_RECOGNITION_USAGE =
+  'MeetingGuard AI uses speech recognition to turn what you say into text for the assistant. You always see the text before anything happens.';
 
 const trim = (value) => (typeof value === 'string' ? value.trim() : '');
 
@@ -108,7 +111,10 @@ module.exports = {
     // changed the runtime again: store/APK build only, never an OTA update onto 1.2.0.
     // 1.4.0: expo-apple-authentication (Sign in with Apple, iOS pass) is a new native module +
     // the applesignin entitlement: store/APK build only, never an OTA update onto 1.3.x.
-    version: '1.4.0',
+    // 1.5.0 (V2 Stage 1): expo-speech-recognition (assistant voice input) is a new native module
+    // + RECORD_AUDIO / microphone + speech recognition permissions: store/APK build only, never
+    // an OTA update onto 1.4.x.
+    version: '1.5.0',
     scheme: 'meetingguardai',
     platforms: ['ios', 'android'],
     orientation: 'portrait',
@@ -182,9 +188,10 @@ module.exports = {
         // notifications (the module's app.plugin.js declares it too).
         'android.permission.USE_FULL_SCREEN_INTENT',
       ],
-      // Prevent libraries from merging sensitive permissions back in.
+      // Prevent libraries from merging sensitive permissions back in. RECORD_AUDIO was blocked
+      // until 1.4.x; since 1.5.0 the assistant's voice input (expo-speech-recognition) needs it,
+      // and the user grants it at first microphone use.
       blockedPermissions: [
-        'android.permission.RECORD_AUDIO',
         'android.permission.READ_CONTACTS',
         'android.permission.SYSTEM_ALERT_WINDOW',
       ],
@@ -220,13 +227,27 @@ module.exports = {
         },
       ],
       [
-        // Playback only: no microphone, no background playback (avoids RECORD_AUDIO and a
-        // mediaPlayback foreground service that would need a Play Console declaration).
+        // No background playback (a mediaPlayback foreground service would need a Play Console
+        // declaration). Until 1.4.x this plugin also removed every microphone permission; since
+        // 1.5.0 the assistant's voice input needs them, so microphonePermission carries the
+        // usage string and recordAudioAndroid no longer strips RECORD_AUDIO from the manifest
+        // (with false, expo-audio inserts a tools:node remove that would override
+        // expo-speech-recognition's permission).
         'expo-audio',
         {
-          microphonePermission: false,
-          recordAudioAndroid: false,
+          microphonePermission: MICROPHONE_USAGE,
+          recordAudioAndroid: true,
           enableBackgroundPlayback: false,
+        },
+      ],
+      [
+        // Assistant voice input (V2 Stage 1): on-device speech recognition. Adds RECORD_AUDIO +
+        // the Android RecognitionService queries entry, and the iOS microphone / speech
+        // recognition usage strings. New native module: shipping it needed the 1.5.0 bump.
+        'expo-speech-recognition',
+        {
+          microphonePermission: MICROPHONE_USAGE,
+          speechRecognitionPermission: SPEECH_RECOGNITION_USAGE,
         },
       ],
       'expo-background-task',
@@ -240,11 +261,15 @@ module.exports = {
         },
       ],
       [
+        // microphonePermission: false would put RECORD_AUDIO back on the blocked list (a
+        // tools:node remove overriding every other plugin), which would break the assistant's
+        // voice input since 1.5.0 - so it carries the same usage string as the voice plugins.
+        // The picker itself is still only used for photos.
         'expo-image-picker',
         {
           photosPermission: PHOTOS_USAGE,
           cameraPermission: CAMERA_USAGE,
-          microphonePermission: false,
+          microphonePermission: MICROPHONE_USAGE,
         },
       ],
       ...googleSignInPlugin(),

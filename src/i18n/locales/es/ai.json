@@ -24,6 +24,17 @@
     "a11yUserMessage": "Tú, {{time}}: {{text}}",
     "a11yAssistantMessage": "Asistente, {{time}}: {{text}}"
   },
+  "voice": {
+    "start": "Hablar al asistente",
+    "stop": "Dejar de escuchar",
+    "listening": "Escuchando...",
+    "denied": "El acceso al micrófono está desactivado. Permite el micrófono y el reconocimiento de voz en los ajustes de tu teléfono para hablar con el asistente.",
+    "unavailable": "La entrada por voz no está disponible en este dispositivo.",
+    "noSpeech": "No escuché nada. Toca el micrófono e inténtalo de nuevo.",
+    "error": "La entrada por voz no funcionó esta vez. Inténtalo de nuevo o escribe tu mensaje.",
+    "repliesOn": "Respuestas habladas activadas",
+    "repliesOff": "Respuestas habladas desactivadas"
+  },
   "examples": {
     "e1": "Programa una reunión con Ana mañana a las 4 p. m.",
     "e2": "Mueve mi reunión de las 4 a las 5",

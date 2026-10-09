@@ -24,6 +24,17 @@
     "a11yUserMessage": "You, {{time}}: {{text}}",
     "a11yAssistantMessage": "Assistant, {{time}}: {{text}}"
   },
+  "voice": {
+    "start": "Speak to the assistant",
+    "stop": "Stop listening",
+    "listening": "Listening...",
+    "denied": "Microphone access is off. Allow the microphone and speech recognition in your phone settings to talk to the assistant.",
+    "unavailable": "Voice input isn't available on this device.",
+    "noSpeech": "I didn't hear anything. Tap the microphone and try again.",
+    "error": "Voice input didn't work that time. Please try again or type your message.",
+    "repliesOn": "Spoken replies are on",
+    "repliesOff": "Spoken replies are off"
+  },
   "examples": {
     "e1": "Schedule a meeting with Ana tomorrow at 4pm",
     "e2": "Move my 4pm meeting to 5pm",

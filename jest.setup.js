@@ -23,6 +23,23 @@ jest.mock('@sentry/react-native', () => ({
   captureException: jest.fn(),
 }));
 
+// expo-speech-recognition's native module is not available under Jest. Recognition is reported
+// available with granted permissions; tests drive results through useSpeechRecognitionEvent mocks.
+jest.mock('expo-speech-recognition', () => ({
+  ExpoSpeechRecognitionModule: {
+    start: jest.fn(),
+    stop: jest.fn(),
+    abort: jest.fn(),
+    isRecognitionAvailable: jest.fn(() => true),
+    getPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, status: 'granted', canAskAgain: true, expires: 'never' })),
+    requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true, status: 'granted', canAskAgain: true, expires: 'never' })),
+    getSpeechRecognitionServices: jest.fn(() => []),
+    supportsOnDeviceRecognition: jest.fn(() => false),
+    supportsRecording: jest.fn(() => false),
+  },
+  useSpeechRecognitionEvent: jest.fn(),
+}));
+
 // expo-audio's native player class is not available under Jest.
 jest.mock('expo-audio', () => ({
   createAudioPlayer: jest.fn(() => ({
