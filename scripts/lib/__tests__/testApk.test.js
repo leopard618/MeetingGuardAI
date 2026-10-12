@@ -351,8 +351,8 @@ describe('scripts/lib/testApk', () => {
       expect(lib.localPropertiesText('sdk.dir=D\\:\\\\old\nfoo=bar\n', sdk)).toBe(`foo=bar\n${expected}\n`);
     });
 
-    it('names the APK after the app version', () => {
-      expect(lib.apkFileName('1.1.0')).toBe('MeetingGuardAI-1.1.0-test.apk');
+    it('names the APK after the app version and the build time', () => {
+      expect(lib.apkFileName('1.1.0', new Date(2026, 9, 11, 18, 5))).toBe('MeetingGuardAI-1.1.0-test-20261011-1805.apk');
       expect(() => lib.apkFileName('1.1.0/../../x')).toThrow(lib.FriendlyError);
     });
 

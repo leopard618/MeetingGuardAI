@@ -509,11 +509,17 @@ function localPropertiesText(existing, sdkDir) {
   return [...kept, line, ''].join('\n');
 }
 
-function apkFileName(version) {
+function apkFileName(version, when = new Date()) {
   if (!/^[0-9A-Za-z][0-9A-Za-z._-]*$/.test(String(version ?? ''))) {
     throw new FriendlyError(`Unexpected app version "${version}" in app.config.js.`);
   }
-  return `MeetingGuardAI-${version}-test.apk`;
+  // Build-time stamp: every build gets its own file, so a rebuild of the same version never
+  // silently replaces the APK a tester already has.
+  const pad = (value) => String(value).padStart(2, '0');
+  const stamp =
+    `${when.getFullYear()}${pad(when.getMonth() + 1)}${pad(when.getDate())}` +
+    `-${pad(when.getHours())}${pad(when.getMinutes())}`;
+  return `MeetingGuardAI-${version}-test-${stamp}.apk`;
 }
 
 /** Default output folder: "deliver" next to the repository folder. */
