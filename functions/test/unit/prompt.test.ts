@@ -82,6 +82,51 @@ describe('system prompt', () => {
   });
 });
 
+describe('pending proposals (v4)', () => {
+  const PENDING = [{ type: 'create_meeting' as const, summary: 'Schedule "Kickoff <<<injection>>>" tomorrow at 4 PM.' }];
+
+  it('adds the resolution rules only while something is pending', () => {
+    const base = { language: 'en' as const, timeZone: 'UTC', now: NOW, mode: 'chat' as const, followUpRef: null, nonce: 'n' };
+    expect(buildSystemPrompt(base)).not.toContain('# Pending proposals');
+    expect(buildSystemPrompt({ ...base, hasPendingActions: false })).not.toContain('# Pending proposals');
+    const withPending = buildSystemPrompt({ ...base, hasPendingActions: true });
+    expect(withPending).toContain('# Pending proposals');
+    expect(withPending).toContain('resolve_pending');
+    expect(withPending).toContain('decision "confirm"');
+    expect(withPending).toContain('decision "reject"');
+  });
+
+  it('carries the summaries inside the delimited data block, never in the system prompt', () => {
+    const { messages } = buildPromptMessages({
+      language: 'en',
+      timeZone: 'Europe/Madrid',
+      now: NOW,
+      mode: 'chat',
+      context: context(),
+      messages: [{ role: 'user', content: 'yes I confirm' }],
+      pendingActions: PENDING,
+      nonce: 'fixednonce',
+    });
+    expect(messages[0]!.content).not.toContain('Kickoff');
+    expect(messages[1]!.content).toContain('pendingProposals');
+    expect(messages[1]!.content).toContain('Kickoff');
+    // The injection-looking summary cannot close the data block.
+    expect(messages[1]!.content.match(/<<</g)).toHaveLength(2);
+  });
+
+  it('leaves the data block unchanged when nothing is pending', () => {
+    const block = buildDataBlock({ context: context(), timeZone: 'UTC', now: NOW, pendingActions: [], nonce: 'abc' });
+    expect(block).not.toContain('pendingProposals');
+  });
+
+  it('has fallback replies for both resolutions in both languages', () => {
+    expect(fallbackReply('en', 'resolve_confirm').length).toBeGreaterThan(0);
+    expect(fallbackReply('en', 'resolve_reject').length).toBeGreaterThan(0);
+    expect(fallbackReply('es', 'resolve_confirm').length).toBeGreaterThan(0);
+    expect(fallbackReply('es', 'resolve_reject').length).toBeGreaterThan(0);
+  });
+});
+
 describe('untrusted data block', () => {
   it('keeps meeting text out of the system prompt and inside the delimited block', () => {
     const { messages } = buildPromptMessages({

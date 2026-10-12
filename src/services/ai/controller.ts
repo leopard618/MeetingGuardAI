@@ -145,6 +145,19 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
 
     try {
       const context = deps.getContext();
+      // v4: tell the server which proposals are still on screen, so plain consent ("yes I
+      // confirm", in any wording) resolves them instead of producing duplicates.
+      const pendingActions =
+        kind.mode === 'chat'
+          ? selectPendingActionIds(snapshot.thread)
+              .flatMap((actionId) => {
+                const state = snapshot.thread.actions[actionId];
+                return state && state.status === 'proposed' && state.action.summary.length > 0
+                  ? [{ type: state.action.type, summary: state.action.summary.slice(0, AI_LIMITS.maxSummaryChars) }]
+                  : [];
+              })
+              .slice(0, AI_LIMITS.maxActions)
+          : [];
       const request: AssistantRequest = {
         messages: kind.mode === 'chat' ? buildRequestMessages(snapshot.thread.messages) : [],
         language: context.language,
@@ -152,6 +165,7 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
         nowIso: context.now.toISOString(),
         mode: kind.mode,
         followUpMeetingId,
+        ...(pendingActions.length > 0 ? { pendingActions } : {}),
       };
       const response = await deps.client.send(request);
       if (gen !== generation) return;
@@ -168,6 +182,15 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
       };
       apply({ type: 'request_succeeded', userMessageId, reply, actions, usage: response.usage, followUpMeetingId });
       update({ isSending: false, followUpInFlight: null });
+      // v4: the model judged the message as plain consent/refusal of the pending proposals.
+      // Only honored when we sent pending proposals and nothing new was proposed; the cards
+      // then run through exactly the same paths as the on-screen buttons.
+      const resolution = pendingActions.length > 0 && actions.length === 0 ? (response.resolution ?? null) : null;
+      if (resolution === 'confirm') {
+        await confirmAll();
+      } else if (resolution === 'reject') {
+        for (const actionId of selectPendingActionIds(snapshot.thread)) reject(actionId);
+      }
       const newIds = new Set(actions.map((a) => a.id));
       void previewAll((id) => newIds.has(id));
     } catch (error) {

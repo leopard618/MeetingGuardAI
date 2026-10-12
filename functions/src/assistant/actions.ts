@@ -32,6 +32,7 @@ import {
   type ConferenceDetails,
   type Language,
   type MeetingLocation,
+  type PendingResolution,
   type RecurrenceRule,
 } from '../shared/aiContract';
 import type { ContextMeeting, MeetingContext } from './context';
@@ -50,6 +51,7 @@ import {
   createMeetingArgsSchema,
   deleteMeetingArgsSchema,
   listMeetingsArgsSchema,
+  resolvePendingArgsSchema,
   shareMeetingArgsSchema,
   suggestRepliesArgsSchema,
   updateMeetingArgsSchema,
@@ -91,6 +93,8 @@ export type DropReason = (typeof DROP_REASONS)[number];
 export interface MappingResult {
   actions: AiAction[];
   suggestions: string[];
+  /** v4: the model resolved the request's pending proposals (handler gates and applies it). */
+  resolution: PendingResolution | null;
   dropped: Partial<Record<DropReason, number>>;
 }
 
@@ -620,6 +624,7 @@ export function mapToolCalls(toolCalls: readonly ToolCall[], ctx: MappingContext
   const actions: AiAction[] = [];
   const seen = new Set<string>();
   const suggestions: string[] = [];
+  let resolution: PendingResolution | null = null;
   const dropped: Partial<Record<DropReason, number>> = {};
   const count = (reason: DropReason) => {
     dropped[reason] = (dropped[reason] ?? 0) + 1;
@@ -627,6 +632,11 @@ export function mapToolCalls(toolCalls: readonly ToolCall[], ctx: MappingContext
 
   for (const call of toolCalls) {
     try {
+      if (call.name === TOOL_NAMES.resolve) {
+        const args = parseArgs(resolvePendingArgsSchema, call.arguments);
+        resolution = resolution ?? args.decision;
+        continue;
+      }
       if (call.name === TOOL_NAMES.suggest) {
         const args = parseArgs(suggestRepliesArgsSchema, call.arguments);
         for (const suggestion of args.suggestions) {
@@ -683,5 +693,5 @@ export function mapToolCalls(toolCalls: readonly ToolCall[], ctx: MappingContext
       else throw error;
     }
   }
-  return { actions, suggestions, dropped };
+  return { actions, suggestions, resolution, dropped };
 }

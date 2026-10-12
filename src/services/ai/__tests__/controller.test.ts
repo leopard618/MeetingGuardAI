@@ -255,6 +255,59 @@ describe('assistant controller', () => {
     expect(controller.getSnapshot().thread.actions[ids[3]!]?.status).toBe('rejected');
   });
 
+  it('sends the pending proposal briefs with the next chat message (v4)', async () => {
+    const { controller, requests } = setup({ replies: [response({}, [createAction('x')]), response()] });
+    await flush();
+    await controller.send('Create it');
+    expect(requests[0]).not.toHaveProperty('pendingActions');
+
+    await controller.send('yes why not, go for it my friend');
+
+    expect(requests[1]!.pendingActions).toEqual([{ type: 'create_meeting', summary: 'Proposed by the assistant' }]);
+  });
+
+  it('a confirm resolution executes the pending actions exactly like the buttons (v4)', async () => {
+    const { controller, executor } = setup({
+      replies: [response({}, [createAction('x')]), response({ reply: 'Confirming it now.', resolution: 'confirm' })],
+    });
+    await flush();
+    await controller.send('Create it');
+    const actionId = controller.getSnapshot().thread.messages[1]!.actionIds[0]!;
+
+    await controller.send('yes why not, go for it my friend');
+
+    expect(executor.execute).toHaveBeenCalledTimes(1);
+    expect(controller.getSnapshot().thread.actions[actionId]?.status).toBe('done');
+  });
+
+  it('a reject resolution dismisses the pending actions without executing (v4)', async () => {
+    const { controller, executor } = setup({
+      replies: [response({}, [createAction('x')]), response({ reply: 'Dismissed.', resolution: 'reject' })],
+    });
+    await flush();
+    await controller.send('Create it');
+    const actionId = controller.getSnapshot().thread.messages[1]!.actionIds[0]!;
+
+    await controller.send('mmm better not');
+
+    expect(executor.execute).not.toHaveBeenCalled();
+    expect(controller.getSnapshot().thread.actions[actionId]?.status).toBe('rejected');
+  });
+
+  it('ignores a resolution that arrives alongside new proposals (v4)', async () => {
+    const { controller, executor } = setup({
+      replies: [response({}, [createAction('x')]), response({ resolution: 'confirm' }, [createAction('y')])],
+    });
+    await flush();
+    await controller.send('Create it');
+
+    await controller.send('yes but make it at five');
+
+    expect(executor.execute).not.toHaveBeenCalled();
+    const statuses = Object.values(controller.getSnapshot().thread.actions).map((state) => state.status);
+    expect(statuses.sort()).toEqual(['proposed', 'proposed']);
+  });
+
   it('puts an action back to proposed when the user cancels the share sheet', async () => {
     const { controller, executor } = setup({ replies: [response({}, [shareAction('s', 'm1')])] });
     await flush();

@@ -32,7 +32,7 @@ import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
 import { buildPromptMessages, collectUserText, fallbackReply } from './prompt';
 import { consumeQuota, refundQuota, type QuotaDecision, type QuotaStore } from './quota';
 import { isValidTimeZone } from './time';
-import { ASSISTANT_TOOLS } from './tools';
+import { ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL } from './tools';
 
 export interface AssistantDeps {
   quota: QuotaStore;
@@ -160,6 +160,9 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       throw new GlobalBudgetExhaustedError();
     }
     const context = await loadMeetingContext(deps.meetings, uid, now, request.followUpMeetingId);
+    // v4: unconfirmed proposals the app is showing. Only chat mode carries them, and the
+    // resolve_pending tool exists for the model only while there is something to resolve.
+    const pendingActions = request.mode === 'chat' ? (request.pendingActions ?? []) : [];
     const { messages } = buildPromptMessages({
       language: request.language,
       timeZone: request.timezone,
@@ -167,13 +170,14 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       mode: request.mode,
       context,
       messages: request.messages,
+      pendingActions,
       ...(deps.nonce ? { nonce: deps.nonce() } : {}),
     });
     const llm = deps.llm();
     llmStarted = true;
     const completion: LlmResult = await llm.complete({
       messages,
-      tools: ASSISTANT_TOOLS,
+      tools: pendingActions.length > 0 ? [...ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL] : ASSISTANT_TOOLS,
       toolChoice: request.mode === 'followup' ? 'required' : 'auto',
       safetyIdentifier: safetyIdentifierFor(uid),
     });
@@ -201,13 +205,27 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       ...(deps.newActionId ? { newActionId: deps.newActionId } : {}),
     });
 
+    // A resolution only counts when something was pending AND the model proposed nothing new:
+    // "yes but change X" style answers come back as proposals and must never auto-confirm.
+    const resolution = pendingActions.length > 0 && mapped.actions.length === 0 ? mapped.resolution : null;
+
     let reply = (completion.content ?? '').trim();
     if (reply.length === 0 && completion.refusal) reply = completion.refusal.trim();
     if (reply.length === 0) {
       const onlyLists = mapped.actions.length > 0 && mapped.actions.every((action) => action.type === 'list');
       reply = fallbackReply(
         request.language,
-        request.mode === 'followup' ? 'followup' : onlyLists ? 'list' : mapped.actions.length > 0 ? 'actions' : 'empty',
+        request.mode === 'followup'
+          ? 'followup'
+          : resolution !== null
+            ? resolution === 'confirm'
+              ? 'resolve_confirm'
+              : 'resolve_reject'
+            : onlyLists
+              ? 'list'
+              : mapped.actions.length > 0
+                ? 'actions'
+                : 'empty',
       );
     }
     if (reply.length > AI_LIMITS.maxReplyChars) reply = reply.slice(0, AI_LIMITS.maxReplyChars);
@@ -217,6 +235,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       actions: mapped.actions,
       suggestions: mapped.suggestions,
       usage: quota.usage,
+      ...(resolution !== null ? { resolution } : {}),
     };
     const checked = assistantResponseSchema.safeParse(response);
     if (!checked.success) {
@@ -232,6 +251,8 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       skippedMeetings: context.skippedInvalid,
       toolCalls: completion.toolCalls.length,
       actions: mapped.actions.length,
+      pendingActions: pendingActions.length,
+      resolution,
       suggestions: mapped.suggestions.length,
       dropped: mapped.dropped,
       finishReason: completion.finishReason,

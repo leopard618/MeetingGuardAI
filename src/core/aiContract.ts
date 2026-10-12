@@ -31,8 +31,16 @@ import { z } from 'zod';
  * 'occurrence', a 'following' update accepts the full change surface (it edits a series master).
  * A v2 server never sends 'following'; a v2 client rejects the unknown enum value, so servers
  * only propose it to clients that sent a v3-capable request (same release train here).
+ *
+ * v4: pending-proposal resolution (ADDITIVE only). The request may carry `pendingActions`,
+ * brief summaries of proposals the app still shows as unconfirmed cards, and the response may
+ * carry `resolution`: the model judged the user's latest message to be plain consent to (or
+ * refusal of) ALL pending proposals. The app then confirms or rejects the pending cards exactly
+ * as the on-screen buttons would; the server still never executes anything. An old client sends
+ * no pendingActions and can never receive a resolution; an old server strips the unknown
+ * request key, so both directions stay compatible.
  */
-export const AI_CONTRACT_VERSION = 3;
+export const AI_CONTRACT_VERSION = 4;
 
 // ---------------------------------------------------------------------------------------------
 // Trusted sign-in providers (verification gate)
@@ -127,6 +135,10 @@ export type AiActionType = (typeof AI_ACTION_TYPES)[number];
 
 export const SHARE_CHANNELS = ['email', 'system_share'] as const;
 export type ShareChannel = (typeof SHARE_CHANNELS)[number];
+
+/** v4: how the user's latest message resolved the pending proposals (assistantResponseSchema). */
+export const PENDING_RESOLUTIONS = ['confirm', 'reject'] as const;
+export type PendingResolution = (typeof PENDING_RESOLUTIONS)[number];
 
 export const RECURRENCE_FREQS = ['daily', 'weekly', 'monthly'] as const;
 export type RecurrenceFreq = (typeof RECURRENCE_FREQS)[number];
@@ -274,6 +286,13 @@ export const assistantMessageSchema = z.object({
 });
 export type AssistantMessage = z.infer<typeof assistantMessageSchema>;
 
+/** v4: a proposal the app still shows as an unconfirmed card (type + its card summary). */
+export const pendingActionBriefSchema = z.object({
+  type: z.enum(AI_ACTION_TYPES),
+  summary: z.string().min(1).max(AI_LIMITS.maxSummaryChars),
+});
+export type PendingActionBrief = z.infer<typeof pendingActionBriefSchema>;
+
 export const assistantRequestSchema = z
   .object({
     /** Conversation so far, oldest first. In chat mode the last message must be from the user. */
@@ -287,6 +306,8 @@ export const assistantRequestSchema = z
     mode: z.enum(ASSISTANT_MODES),
     /** Required in followup mode: the meeting that just ended. */
     followUpMeetingId: meetingIdSchema.nullable(),
+    /** v4, optional: proposals still awaiting confirmation in the app when this message was sent. */
+    pendingActions: z.array(pendingActionBriefSchema).max(AI_LIMITS.maxActions).optional(),
   })
   .refine((r) => r.mode !== 'followup' || r.followUpMeetingId !== null, {
     message: 'followUpMeetingId is required in followup mode',
@@ -496,6 +517,13 @@ export const assistantResponseSchema = z.object({
   /** Quick-reply chips (e.g. follow-up suggestions), in the request language. */
   suggestions: z.array(z.string().min(1).max(AI_LIMITS.maxSuggestionChars)).max(AI_LIMITS.maxSuggestions),
   usage: assistantUsageSchema,
+  /**
+   * v4, optional: set only when the request carried `pendingActions` and the user's latest
+   * message was plain consent to (or refusal of) them. The app confirms or rejects the pending
+   * cards exactly as the on-screen buttons would. A response that proposes actions never
+   * carries a resolution.
+   */
+  resolution: z.enum(PENDING_RESOLUTIONS).nullable().optional(),
 });
 export type AssistantResponse = z.infer<typeof assistantResponseSchema>;
 

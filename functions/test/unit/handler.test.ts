@@ -300,6 +300,74 @@ describe('handleAssistant', () => {
   });
 });
 
+describe('pending-proposal resolution (v4)', () => {
+  const PENDING = [{ type: 'create_meeting' as const, summary: 'Schedule "Kickoff" tomorrow at 4 PM.' }];
+
+  it('offers resolve_pending only when the request carries pending proposals', async () => {
+    const plain = setup();
+    await handleAssistant(caller(), chatRequest(), plain.deps);
+    expect(plain.llm.requests[0]!.tools.map((tool) => tool.function.name)).not.toContain('resolve_pending');
+
+    const withPending = setup();
+    await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), withPending.deps);
+    const request = withPending.llm.requests[0]!;
+    expect(request.tools.map((tool) => tool.function.name)).toContain('resolve_pending');
+    expect(request.messages[0]!.content).toContain('# Pending proposals');
+    expect(request.messages[1]!.content).toContain('pendingProposals');
+  });
+
+  it('returns the resolution when the model resolves and proposes nothing', async () => {
+    const { deps } = setup(
+      result({ content: '', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"confirm"}' }] }),
+    );
+    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
+    expect(response.resolution).toBe('confirm');
+    expect(response.actions).toEqual([]);
+    expect(response.reply).toBe('Got it, confirming it now.');
+    expect(assistantResponseSchema.parse(response).resolution).toBe('confirm');
+  });
+
+  it('returns reject with its own fallback reply', async () => {
+    const { deps } = setup(
+      result({ content: '', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"reject"}' }] }),
+    );
+    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
+    expect(response.resolution).toBe('reject');
+    expect(response.reply).toBe('Okay, I dismissed it. Nothing was changed.');
+  });
+
+  it('drops the resolution when the model also proposes actions', async () => {
+    const { deps } = setup(
+      result({
+        content: 'Changing it instead.',
+        toolCalls: [
+          { name: 'resolve_pending', arguments: '{"decision":"confirm"}' },
+          {
+            name: 'create_meeting',
+            arguments: JSON.stringify({
+              title: 'Kickoff', description: '', date: '2026-09-29', time: '17:00', all_day: false,
+              duration_minutes: null, timezone: null, location: null, conference: null,
+              participants: [], preparation_tips: [], alert_minutes_before: null, recurrence: null,
+              summary: 'Schedule "Kickoff" tomorrow at 5 PM.', confidence: 90,
+            }),
+          },
+        ],
+      }),
+    );
+    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
+    expect(response.resolution).toBeUndefined();
+    expect(response.actions).toHaveLength(1);
+  });
+
+  it('never returns a resolution to a request without pending proposals', async () => {
+    const { deps } = setup(
+      result({ content: 'ok', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"confirm"}' }] }),
+    );
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.resolution).toBeUndefined();
+  });
+});
+
 describe('admin stats hook (recordAiUsage)', () => {
   it('records the day key and token usage after a successful completion', async () => {
     const { deps } = setup();

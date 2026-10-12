@@ -111,7 +111,7 @@ const MAX_COMMAND_WORDS = 5;
 export function voiceCommand(text: string, language: Language): VoiceCommand | null {
   const normalized = text
     .toLowerCase()
-    .replace(/['’]/g, '')
+    .replace(/['\u2019]/g, '')
     .replace(/[.,!?¡¿;:]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();

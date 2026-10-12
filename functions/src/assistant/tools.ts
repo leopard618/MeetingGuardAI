@@ -12,6 +12,7 @@ import { z } from 'zod';
 import {
   CONFERENCE_PROVIDERS,
   LOCATION_TYPES,
+  PENDING_RESOLUTIONS,
   RECURRENCE_EDIT_SCOPES,
   RECURRENCE_FREQS,
   RECURRENCE_WEEKDAYS,
@@ -38,6 +39,7 @@ export const TOOL_NAMES = {
   bulk: 'bulk_update_meetings',
   list: 'list_meetings',
   suggest: 'suggest_replies',
+  resolve: 'resolve_pending',
 } as const;
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
 
@@ -272,6 +274,23 @@ export const ASSISTANT_TOOLS: readonly ToolDefinition[] = [
   },
 ];
 
+/**
+ * v4: offered IN ADDITION to ASSISTANT_TOOLS, and only when the request carries pendingActions
+ * (the model must never see it otherwise - handler.ts composes the tool list per request).
+ */
+export const RESOLVE_PENDING_TOOL: ToolDefinition = {
+  type: 'function',
+  function: {
+    name: TOOL_NAMES.resolve,
+    description:
+      'The pendingProposals in the data block are proposals you already made that the user has NOT confirmed yet; the app shows them as confirmation cards. Call this when the user\'s latest message is purely consent to ALL of them (decision "confirm") or purely refusal (decision "reject"). Never call it when the message changes any detail: propose the changed version with the normal tools instead.',
+    strict: true,
+    parameters: object({
+      decision: enumeration(PENDING_RESOLUTIONS, '"confirm" executes the pending proposals after this response; "reject" dismisses them.'),
+    }),
+  },
+};
+
 // ---------------------------------------------------------------------------------------------
 // Server-side argument schemas (shape only; value limits are applied when building actions)
 // ---------------------------------------------------------------------------------------------
@@ -379,3 +398,5 @@ export const bulkUpdateArgsSchema = z.object({
 export const listMeetingsArgsSchema = z.object({ meeting_refs: z.array(z.string()), ...summaryArgs });
 
 export const suggestRepliesArgsSchema = z.object({ suggestions: z.array(z.string()) });
+
+export const resolvePendingArgsSchema = z.object({ decision: z.enum(PENDING_RESOLUTIONS) });
