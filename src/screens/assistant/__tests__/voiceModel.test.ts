@@ -62,6 +62,15 @@ describe('voiceCommand', () => {
     expect(voiceCommand('Vale', 'es')).toBe('confirm');
   });
 
+  it('recognizes natural affirmations, with or without apostrophes', () => {
+    expect(voiceCommand("yeah that's right", 'en')).toBe('confirm');
+    expect(voiceCommand('yeah thats right', 'en')).toBe('confirm');
+    expect(voiceCommand("That's right.", 'en')).toBe('confirm');
+    expect(voiceCommand('Perfect', 'en')).toBe('confirm');
+    expect(voiceCommand('así es', 'es')).toBe('confirm');
+    expect(voiceCommand('perfecto', 'es')).toBe('confirm');
+  });
+
   it('recognizes explicit cancellations in both languages', () => {
     expect(voiceCommand('no', 'en')).toBe('cancel');
     expect(voiceCommand('Cancel it.', 'en')).toBe('cancel');

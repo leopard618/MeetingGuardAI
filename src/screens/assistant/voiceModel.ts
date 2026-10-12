@@ -54,14 +54,32 @@ export function shouldAutoSend(state: { endedByUser: boolean; failed: boolean },
  * NOT a command and goes to the assistant as a normal message, so a spoken reply can never
  * execute something the user did not clearly approve. Matching follows the app language.
  */
+// Apostrophes are stripped before matching, so phrases are stored without them ("thats right").
 const CONFIRM_PHRASES: Record<Language, readonly string[]> = {
-  en: ['yes', 'yes confirm', 'yes please', 'confirm', 'confirmed', 'ok', 'okay', 'go ahead', 'do it', 'sounds good'],
-  es: ['si', 'sí', 'si confirma', 'sí confirma', 'si confirmo', 'sí confirmo', 'confirma', 'confirmo', 'confirmar', 'vale', 'ok', 'de acuerdo', 'adelante', 'hazlo'],
+  en: [
+    'yes', 'yes confirm', 'yes please', 'yes do it', 'yes thats right', 'yes that is right',
+    'yeah', 'yeah thats right', 'yeah that is right', 'yep', 'sure', 'correct', 'exactly',
+    'perfect', 'thats right', 'that is right', 'confirm', 'confirmed', 'confirm it', 'ok',
+    'okay', 'go ahead', 'do it', 'sounds good', 'create it', 'book it', 'save it',
+  ],
+  es: [
+    'si', 'sí', 'si confirma', 'sí confirma', 'si confirmo', 'sí confirmo', 'si claro',
+    'sí claro', 'claro', 'correcto', 'exacto', 'perfecto', 'asi es', 'así es', 'eso es',
+    'esta bien', 'está bien', 'confirma', 'confirmo', 'confirmar', 'confirmalo', 'confírmalo',
+    'vale', 'ok', 'de acuerdo', 'adelante', 'hazlo', 'crealo', 'créalo',
+  ],
 };
 
 const CANCEL_PHRASES: Record<Language, readonly string[]> = {
-  en: ['no', 'no cancel', 'cancel', 'cancel it', 'dismiss', 'stop', 'never mind', 'forget it'],
-  es: ['no', 'no cancela', 'cancela', 'cancelalo', 'cancélalo', 'cancelar', 'descartar', 'descarta', 'olvidalo', 'olvídalo', 'para'],
+  en: [
+    'no', 'nope', 'no cancel', 'no thanks', 'no dont', 'dont', 'cancel', 'cancel it',
+    'cancel that', 'dismiss', 'dismiss it', 'stop', 'never mind', 'forget it', 'not now',
+  ],
+  es: [
+    'no', 'no cancela', 'no gracias', 'mejor no', 'ahora no', 'no lo hagas', 'cancela',
+    'cancelalo', 'cancélalo', 'cancelar', 'descartar', 'descarta', 'olvidalo', 'olvídalo',
+    'dejalo', 'déjalo', 'para',
+  ],
 };
 
 export type VoiceCommand = 'confirm' | 'cancel';
@@ -74,6 +92,7 @@ export type VoiceCommand = 'confirm' | 'cancel';
 export function voiceCommand(text: string, language: Language): VoiceCommand | null {
   const normalized = text
     .toLowerCase()
+    .replace(/['’]/g, '')
     .replace(/[.,!?¡¿;:]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
