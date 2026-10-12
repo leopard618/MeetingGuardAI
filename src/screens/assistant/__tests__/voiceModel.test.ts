@@ -62,6 +62,24 @@ describe('voiceCommand', () => {
     expect(voiceCommand('Vale', 'es')).toBe('confirm');
   });
 
+  it('recognizes word combinations around the strong words', () => {
+    expect(voiceCommand('yes I confirm', 'en')).toBe('confirm');
+    expect(voiceCommand('Yes, please confirm it', 'en')).toBe('confirm');
+    expect(voiceCommand('ok confirm it now', 'en')).toBe('confirm');
+    expect(voiceCommand('yes do it please', 'en')).toBe('confirm');
+    expect(voiceCommand('no, cancel it please', 'en')).toBe('cancel');
+    expect(voiceCommand('cancel them all', 'en')).toBe('cancel');
+    expect(voiceCommand('sí, lo confirmo', 'es')).toBe('confirm');
+    expect(voiceCommand('cancela todo por favor', 'es')).toBe('cancel');
+  });
+
+  it('refuses contradictions and content words in the fallback', () => {
+    expect(voiceCommand('yes cancel', 'en')).toBeNull();
+    expect(voiceCommand('do not confirm', 'en')).toBeNull();
+    expect(voiceCommand('yes confirm the meeting with Ana', 'en')).toBeNull();
+    expect(voiceCommand('yes i confirm but make it earlier', 'en')).toBeNull();
+  });
+
   it('recognizes natural affirmations, with or without apostrophes', () => {
     expect(voiceCommand("yeah that's right", 'en')).toBe('confirm');
     expect(voiceCommand('yeah thats right', 'en')).toBe('confirm');

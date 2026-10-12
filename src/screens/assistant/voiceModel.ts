@@ -84,10 +84,29 @@ const CANCEL_PHRASES: Record<Language, readonly string[]> = {
 
 export type VoiceCommand = 'confirm' | 'cancel';
 
+// Word-level fallback for compositions the phrase lists cannot enumerate ("yes i confirm",
+// "ok confirm it now"). STRONG words carry the decision; FILLER words are allowed around them.
+// Any word outside both sets means real content, and the utterance goes to the assistant.
+const CONFIRM_STRONG: Record<Language, readonly string[]> = {
+  en: ['yes', 'yeah', 'yep', 'confirm', 'confirmed', 'ok', 'okay', 'sure', 'correct', 'exactly', 'perfect'],
+  es: ['si', 'sí', 'confirma', 'confirmo', 'confirmar', 'confirmalo', 'confírmalo', 'vale', 'ok', 'claro', 'correcto', 'exacto', 'perfecto'],
+};
+const CANCEL_STRONG: Record<Language, readonly string[]> = {
+  en: ['no', 'nope', 'cancel', 'dismiss', 'stop', 'dont'],
+  es: ['no', 'cancela', 'cancelar', 'cancelalo', 'cancélalo', 'descarta', 'descartar', 'olvidalo', 'olvídalo'],
+};
+const FILLER_WORDS: Record<Language, readonly string[]> = {
+  en: ['i', 'it', 'that', 'is', 'im', 'please', 'now', 'the', 'this', 'one', 'all', 'them', 'both', 'do', 'lets', 'thanks'],
+  es: ['lo', 'la', 'los', 'las', 'yo', 'que', 'es', 'esta', 'está', 'bien', 'asi', 'así', 'eso', 'por', 'favor', 'ahora', 'todo', 'todos', 'de', 'acuerdo', 'gracias'],
+};
+
+const MAX_COMMAND_WORDS = 5;
+
 /**
  * The spoken command a final transcript amounts to while proposed actions are waiting, or null
- * when it is an ordinary message. Case and punctuation do not matter; anything longer than the
- * known phrases is never treated as a command.
+ * when it is an ordinary message. Case and punctuation do not matter. A short utterance made
+ * only of yes/confirm (or no/cancel) words plus harmless fillers counts; one that mixes both
+ * directions, or contains any real content word, never does.
  */
 export function voiceCommand(text: string, language: Language): VoiceCommand | null {
   const normalized = text
@@ -99,5 +118,16 @@ export function voiceCommand(text: string, language: Language): VoiceCommand | n
   if (normalized === '') return null;
   if (CONFIRM_PHRASES[language].includes(normalized)) return 'confirm';
   if (CANCEL_PHRASES[language].includes(normalized)) return 'cancel';
-  return null;
+
+  const words = normalized.split(' ');
+  if (words.length > MAX_COMMAND_WORDS) return null;
+  const filler = FILLER_WORDS[language];
+  const confirmStrong = words.some((word) => CONFIRM_STRONG[language].includes(word));
+  const cancelStrong = words.some((word) => CANCEL_STRONG[language].includes(word));
+  if (confirmStrong === cancelStrong) return null; // Neither, or contradictory ("yes cancel").
+  const known = words.every(
+    (word) => filler.includes(word) || CONFIRM_STRONG[language].includes(word) || CANCEL_STRONG[language].includes(word),
+  );
+  if (!known) return null;
+  return confirmStrong ? 'confirm' : 'cancel';
 }
