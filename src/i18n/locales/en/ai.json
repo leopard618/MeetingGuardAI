@@ -32,6 +32,7 @@
     "unavailable": "Voice input isn't available on this device.",
     "noSpeech": "I didn't hear anything. Tap the microphone and try again.",
     "error": "Voice input didn't work that time. Please try again or type your message.",
+    "dismissed": "Okay, dismissed. Nothing was changed.",
     "repliesOn": "Spoken replies are on",
     "repliesOff": "Spoken replies are off"
   },

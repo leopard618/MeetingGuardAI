@@ -151,6 +151,16 @@ function stopSpeaking(): void {
   }
 }
 
+/** Speaks one short acknowledgement (voice confirmation results); failures only log. */
+export function speakAloud(text: string, language: Language): void {
+  stopSpeaking();
+  try {
+    Speech.speak(text, { language: voiceLocale(language), rate: 1.0, pitch: 1.0 });
+  } catch (error) {
+    log.warn('speak failed', error);
+  }
+}
+
 export function useSpokenReplies({
   messages,
   language,

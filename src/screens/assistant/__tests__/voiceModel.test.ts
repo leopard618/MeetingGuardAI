@@ -1,4 +1,4 @@
-import { shouldAutoSend, voiceLocale, voiceProblemForError } from '../voiceModel';
+import { shouldAutoSend, voiceCommand, voiceLocale, voiceProblemForError } from '../voiceModel';
 
 describe('voiceLocale', () => {
   it('maps the app languages to the same tags as the alert readout', () => {
@@ -50,5 +50,39 @@ describe('shouldAutoSend', () => {
   it('never sends blank transcripts', () => {
     expect(shouldAutoSend(natural, '')).toBe(false);
     expect(shouldAutoSend(natural, '   ')).toBe(false);
+  });
+});
+
+describe('voiceCommand', () => {
+  it('recognizes explicit confirmations in both languages', () => {
+    expect(voiceCommand('yes, confirm', 'en')).toBe('confirm');
+    expect(voiceCommand('Confirm', 'en')).toBe('confirm');
+    expect(voiceCommand('OK!', 'en')).toBe('confirm');
+    expect(voiceCommand('sí, confirma', 'es')).toBe('confirm');
+    expect(voiceCommand('Vale', 'es')).toBe('confirm');
+  });
+
+  it('recognizes explicit cancellations in both languages', () => {
+    expect(voiceCommand('no', 'en')).toBe('cancel');
+    expect(voiceCommand('Cancel it.', 'en')).toBe('cancel');
+    expect(voiceCommand('cancela', 'es')).toBe('cancel');
+    expect(voiceCommand('No, cancela', 'es')).toBe('cancel');
+  });
+
+  it('ignores case and punctuation but never partial matches', () => {
+    expect(voiceCommand('YES', 'en')).toBe('confirm');
+    expect(voiceCommand('yes, but move it to 5pm', 'en')).toBeNull();
+    expect(voiceCommand('confirm the second one only', 'en')).toBeNull();
+    expect(voiceCommand('no idea what is on today', 'en')).toBeNull();
+  });
+
+  it('follows the app language strictly', () => {
+    expect(voiceCommand('confirma', 'en')).toBeNull();
+    expect(voiceCommand('go ahead', 'es')).toBeNull();
+  });
+
+  it('returns null for empty input', () => {
+    expect(voiceCommand('', 'en')).toBeNull();
+    expect(voiceCommand('  . ', 'en')).toBeNull();
   });
 });

@@ -45,8 +45,8 @@ import {
 import { useKeyboardAvoidance } from '../shared/useKeyboardAvoidance';
 import { useLiveNow } from '../shared/useLiveNow';
 import { VerifyEmailBanner, isVerificationGateError } from '../shared/VerifyEmailBanner';
-import { useSpokenReplies, useSpokenReplySetting, useVoiceInput } from './useVoice';
-import type { VoiceProblem } from './voiceModel';
+import { speakAloud, useSpokenReplies, useSpokenReplySetting, useVoiceInput } from './useVoice';
+import { voiceCommand, type VoiceCommand, type VoiceProblem } from './voiceModel';
 
 type Props = StackScreenProps<RootStackParamList, 'AIChat'>;
 
@@ -177,6 +177,33 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
   const voiceProblem = (problem: VoiceProblem): void =>
     setFeedback({ tone: problem === 'noSpeech' ? 'info' : 'warning', message: fmt.t(`ai:voice.${problem}`) });
 
+  /**
+   * Explicit voice confirmation (agreed V2 Stage 1 scope): with the proposed-action cards on
+   * screen, a short unambiguous "yes, confirm" / "cancel" acts on them directly instead of
+   * spending an AI request. Anything longer is an ordinary message to the assistant.
+   */
+  const handleVoiceCommand = async (command: VoiceCommand): Promise<void> => {
+    if (command === 'cancel') {
+      for (const actionId of assistant.pendingActionIds) assistant.reject(actionId);
+      const message = fmt.t('ai:voice.dismissed');
+      setFeedback({ tone: 'info', message });
+      if (spokenReplies) speakAloud(message, language);
+      return;
+    }
+    setConfirming(true);
+    let results: ActionResult[] = [];
+    try {
+      results = await assistant.confirmAll();
+    } finally {
+      setConfirming(false);
+    }
+    const summary = summarizeResults(fmt, results);
+    if (summary) {
+      setFeedback(summary);
+      if (spokenReplies) speakAloud(summary.message, language);
+    }
+  };
+
   const voice = useVoiceInput({
     language,
     onTranscript: setInput,
@@ -185,6 +212,14 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
       if (!meta.autoSend || sendable === null) {
         setInput(text);
         return;
+      }
+      if (assistant.pendingActionIds.length > 0) {
+        const command = voiceCommand(sendable, language);
+        if (command !== null) {
+          setInput('');
+          void handleVoiceCommand(command);
+          return;
+        }
       }
       setInput('');
       // Speaking to the assistant turns spoken replies on (visibly, via the speaker toggle).

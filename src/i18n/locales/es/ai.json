@@ -32,6 +32,7 @@
     "unavailable": "La entrada por voz no está disponible en este dispositivo.",
     "noSpeech": "No escuché nada. Toca el micrófono e inténtalo de nuevo.",
     "error": "La entrada por voz no funcionó esta vez. Inténtalo de nuevo o escribe tu mensaje.",
+    "dismissed": "Vale, descartado. No se cambió nada.",
     "repliesOn": "Respuestas habladas activadas",
     "repliesOff": "Respuestas habladas desactivadas"
   },
