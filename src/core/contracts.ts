@@ -48,6 +48,9 @@ import type {
   Plan,
   Preferences,
   PreferencesPatch,
+  Task,
+  TaskInput,
+  TaskPatch,
   UserProfile,
 } from './types';
 
@@ -329,6 +332,17 @@ export interface NotesRepository {
   subscribe(listener: (notes: Note[]) => void): Unsubscribe;
 }
 
+export interface TasksRepository {
+  /** Sorted: open before done; open by due (earliest first, no due date last), done by completedAt desc. */
+  list(): Promise<Task[]>;
+  get(id: string): Promise<Task | null>;
+  create(input: TaskInput): Promise<Task>;
+  update(id: string, patch: TaskPatch): Promise<Task>;
+  /** Hard delete. */
+  remove(id: string): Promise<void>;
+  subscribe(listener: (tasks: Task[]) => void): Unsubscribe;
+}
+
 export interface UserRepository {
   /** Creates users/{uid} once (no plan fields); later calls only update identity + lastLoginAt. */
   ensureProfile(user: AuthUser): Promise<UserProfile>;
@@ -427,6 +441,15 @@ export interface UseNotesResult {
   error: AppError | null;
   create(input: NoteInput): Promise<Note>;
   update(id: string, patch: NotePatch): Promise<Note>;
+  remove(id: string): Promise<void>;
+}
+
+export interface UseTasksResult {
+  tasks: Task[];
+  isLoading: boolean;
+  error: AppError | null;
+  create(input: TaskInput): Promise<Task>;
+  update(id: string, patch: TaskPatch): Promise<Task>;
   remove(id: string): Promise<void>;
 }
 

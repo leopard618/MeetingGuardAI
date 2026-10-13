@@ -14,9 +14,18 @@ import type {
   UseMeetingsResult,
   UseNotesResult,
   UsePreferencesResult,
+  UseTasksResult,
 } from '../../core/contracts';
 import { toAppError, type AppError } from '../../core/errors';
-import { effectivePlan, type Meeting, type NoteInput, type NotePatch, type PreferencesPatch } from '../../core/types';
+import {
+  effectivePlan,
+  type Meeting,
+  type NoteInput,
+  type NotePatch,
+  type PreferencesPatch,
+  type TaskInput,
+  type TaskPatch,
+} from '../../core/types';
 import { filterMeetings, type DataSnapshot } from './engine';
 import { dataEngine } from './instance';
 
@@ -86,6 +95,21 @@ export function useNotes(): UseNotesResult {
     notes: snapshot.notes as UseNotesResult['notes'],
     isLoading: snapshot.status === 'loading',
     error: snapshot.errors.notes,
+    create,
+    update,
+    remove,
+  };
+}
+
+export function useTasks(): UseTasksResult {
+  const snapshot = useDataSnapshot();
+  const create = useCallback((input: TaskInput) => dataEngine.createTask(input), []);
+  const update = useCallback((id: string, patch: TaskPatch) => dataEngine.updateTask(id, patch), []);
+  const remove = useCallback((id: string) => dataEngine.removeTask(id), []);
+  return {
+    tasks: snapshot.tasks as UseTasksResult['tasks'],
+    isLoading: snapshot.status === 'loading',
+    error: snapshot.errors.tasks,
     create,
     update,
     remove,

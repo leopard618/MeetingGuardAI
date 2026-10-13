@@ -15,6 +15,7 @@ import {
   normalizeAlertTimes,
   parseMeetingDoc,
   parseNoteDoc,
+  parseTaskDoc,
   preferencesPatchSchema,
   SERVER_OWNED_PROFILE_KEYS,
   type Preferences,
@@ -40,7 +41,9 @@ function isServerNewer(current: RemoteData, entry: OutboxEntry): boolean {
 }
 
 function isCurrentShape(entry: OutboxEntry, current: RemoteData): boolean {
-  return entry.kind === 'meeting' ? parseMeetingDoc(entry.docId, current) !== null : parseNoteDoc(entry.docId, current) !== null;
+  if (entry.kind === 'meeting') return parseMeetingDoc(entry.docId, current) !== null;
+  if (entry.kind === 'task') return parseTaskDoc(entry.docId, current) !== null;
+  return parseNoteDoc(entry.docId, current) !== null;
 }
 
 const REPLACE_LEGACY: CommitDecision = { type: 'delete', followUp: 'create' };
@@ -129,6 +132,7 @@ export function decideCommit(entry: OutboxEntry, current: RemoteData | null, ctx
   switch (entry.kind) {
     case 'meeting':
     case 'note':
+    case 'task':
       return decideDocument(entry, current);
     case 'preferences':
       return decidePreferences(entry, current, ctx.defaults);

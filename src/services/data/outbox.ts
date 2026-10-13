@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { APP_ERROR_CODES, type AppErrorCode } from '../../core/errors';
 import type { WriteOrigin } from '../../core/events';
 
-export const OUTBOX_KINDS = ['meeting', 'note', 'preferences', 'profile'] as const;
+export const OUTBOX_KINDS = ['meeting', 'note', 'task', 'preferences', 'profile'] as const;
 export type OutboxKind = (typeof OUTBOX_KINDS)[number];
 
 /**
@@ -27,7 +27,7 @@ export type OutboxKind = (typeof OUTBOX_KINDS)[number];
  * set     = full-document write, last-writer-wins on `updatedAt`.
  * migrate = rewrite a document stored in the pre-rebuild Firestore shape (skipped when another
  *           device already migrated it).
- * delete  = hard delete (notes), skipped when the server copy is newer.
+ * delete  = hard delete (notes, tasks), skipped when the server copy is newer.
  * merge   = field patch (preferences, profile).
  */
 export const OUTBOX_MODES = ['create', 'set', 'migrate', 'delete', 'merge'] as const;

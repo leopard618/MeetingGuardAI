@@ -17,9 +17,10 @@ export {
   migrationService,
   notesRepository,
   preferencesRepository,
+  tasksRepository,
   userRepository,
 } from './instance';
-export { DataProvider, useEntitlement, useMeeting, useMeetings, useNotes, usePreferences, useSyncState } from './react';
+export { DataProvider, useEntitlement, useMeeting, useMeetings, useNotes, usePreferences, useSyncState, useTasks } from './react';
 export { filterMeetings, type DataSnapshot, type DataStatus } from './engine';
 export type { AttachmentCategory, AttachmentRecord, AttachmentStore } from './attachments';
 export { ATTACHMENT_CATEGORIES } from './attachments';

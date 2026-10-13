@@ -24,6 +24,7 @@ const repositories = dataEngine.createRepositories();
 export const meetingRepository = repositories.meetingRepository;
 export const preferencesRepository = repositories.preferencesRepository;
 export const notesRepository = repositories.notesRepository;
+export const tasksRepository = repositories.tasksRepository;
 export const userRepository = repositories.userRepository;
 export const migrationService = repositories.migrationService;
 export const dataService = repositories.dataService;

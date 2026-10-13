@@ -17,6 +17,7 @@ import type { AlertIntensity } from './types';
  * users/{uid}                          UserProfile           owner read/write (never plan/role keys)
  * users/{uid}/meetings/{meetingId}     MeetingDoc            owner read/write
  * users/{uid}/notes/{noteId}           Note (without id)     owner read/write
+ * users/{uid}/tasks/{taskId}           Task (without id)     owner read/write
  * users/{uid}/settings/preferences     Preferences           owner read/write
  * entitlements/{uid}                   Entitlement           owner read, server write only
  * usage/{uid}/days/{yyyy-mm-dd}        { count, updatedAt }  owner read, server write only (UTC day)
@@ -25,6 +26,7 @@ export const FIRESTORE_COLLECTIONS = {
   users: 'users',
   meetings: 'meetings',
   notes: 'notes',
+  tasks: 'tasks',
   settings: 'settings',
   entitlements: 'entitlements',
   usage: 'usage',
@@ -39,6 +41,8 @@ export const firestorePaths = {
   meeting: (uid: string, meetingId: string): string => `users/${uid}/meetings/${meetingId}`,
   notes: (uid: string): string => `users/${uid}/notes`,
   note: (uid: string, noteId: string): string => `users/${uid}/notes/${noteId}`,
+  tasks: (uid: string): string => `users/${uid}/tasks`,
+  task: (uid: string, taskId: string): string => `users/${uid}/tasks/${taskId}`,
   preferences: (uid: string): string => `users/${uid}/settings/${PREFERENCES_DOC_ID}`,
   entitlement: (uid: string): string => `entitlements/${uid}`,
   usageDays: (uid: string): string => `usage/${uid}/days`,
@@ -75,6 +79,7 @@ export const USER_STORAGE = {
   outbox: 'outbox',
   preferences: 'preferences',
   notes: 'notes',
+  tasks: 'tasks',
   profile: 'profile',
   entitlement: 'entitlement',
   /** Legacy (v1.0.9) migration marker. Owner: data. */

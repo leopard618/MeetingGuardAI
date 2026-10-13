@@ -964,6 +964,209 @@ export function parseNoteDoc(id: string, raw: unknown): Note | null {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Tasks (users/{uid}/tasks/{id}) - hard delete (V2 Stage 1)
+// ---------------------------------------------------------------------------------------------
+
+export const TASK_STATUSES = ['open', 'done'] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+export const taskStatusSchema = z.enum(TASK_STATUSES);
+
+export const TASK_LIMITS = {
+  maxTitleChars: 200,
+  maxDescriptionChars: 4000,
+  maxPeople: 20,
+  /** Same bound as meeting alert offsets: 0 = at the due time, max one week before. */
+  maxReminderMinutes: 10_080,
+} as const;
+
+/** Someone a task involves; a name is enough ("call the landlord"), the email is optional. */
+export interface TaskPerson {
+  name: string;
+  email: string | null;
+}
+
+export const taskPersonSchema = z.object({
+  name: z.string().min(1).max(200),
+  email: emailSchema.nullable(),
+});
+
+export interface Task {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  /** Local day the task is due ("YYYY-MM-DD" in `timezone`), or null for no due date. */
+  dueDate: string | null;
+  /** Local time on dueDate ("HH:mm"), or null when only the day matters. Never set without dueDate. */
+  dueTime: string | null;
+  /** IANA zone anchoring dueDate/dueTime (and the reminder instant derived from them). */
+  timezone: string;
+  /** Minutes before the due time to remind (0 = at the due time), or null for no reminder. Needs dueTime. */
+  reminderMinutesBefore: number | null;
+  status: TaskStatus;
+  /** Optional link to a meeting ("prepare the proposal" before the kickoff). */
+  meetingId: string | null;
+  people: TaskPerson[];
+  /** Set exactly while status is 'done'. */
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const taskShapeSchema = z.object({
+  id: meetingIdSchema,
+  userId: z.string().min(1).max(128),
+  title: z.string().min(1).max(TASK_LIMITS.maxTitleChars),
+  description: z.string().max(TASK_LIMITS.maxDescriptionChars),
+  dueDate: localDateSchema.nullable(),
+  dueTime: localTimeSchema.nullable(),
+  timezone: timeZoneSchema,
+  reminderMinutesBefore: z.number().int().min(0).max(TASK_LIMITS.maxReminderMinutes).nullable(),
+  status: taskStatusSchema,
+  meetingId: meetingIdSchema.nullable(),
+  people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople),
+  completedAt: utcIsoSchema.nullable(),
+  createdAt: utcIsoSchema,
+  updatedAt: utcIsoSchema,
+});
+
+export const taskSchema = taskShapeSchema
+  .refine((t) => t.dueTime === null || t.dueDate !== null, { message: 'dueTime needs a dueDate', path: ['dueTime'] })
+  .refine((t) => t.reminderMinutesBefore === null || t.dueTime !== null, {
+    message: 'a reminder needs a due time',
+    path: ['reminderMinutesBefore'],
+  })
+  .refine((t) => (t.status === 'done') === (t.completedAt !== null), {
+    message: 'completedAt is set exactly for done tasks',
+    path: ['completedAt'],
+  });
+
+export interface TaskInput {
+  title: string;
+  description?: string;
+  dueDate?: string | null;
+  dueTime?: string | null;
+  /** Defaults to the builder context's zone (device zone). */
+  timezone?: string;
+  reminderMinutesBefore?: number | null;
+  meetingId?: string | null;
+  people?: TaskPerson[];
+}
+
+export const taskInputSchema = z.object({
+  title: z.string().trim().min(1).max(TASK_LIMITS.maxTitleChars),
+  description: z.string().max(TASK_LIMITS.maxDescriptionChars).optional(),
+  dueDate: localDateSchema.nullable().optional(),
+  dueTime: localTimeSchema.nullable().optional(),
+  timezone: timeZoneSchema.optional(),
+  reminderMinutesBefore: z.number().int().min(0).max(TASK_LIMITS.maxReminderMinutes).nullable().optional(),
+  meetingId: meetingIdSchema.nullable().optional(),
+  people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople).optional(),
+});
+
+/** Patch semantics: undefined = keep, null = clear. Completing goes through `status`. */
+export type TaskPatch = Partial<TaskInput> & { status?: TaskStatus };
+export const taskPatchSchema = taskInputSchema.partial().extend({ status: taskStatusSchema.optional() });
+
+/**
+ * Due fields are normalized instead of rejected (clearing the date also clears the time and the
+ * reminder; clearing the time clears the reminder), so UI and assistant edits cannot produce a
+ * contradictory task.
+ */
+function normalizeDue(task: Pick<Task, 'dueDate' | 'dueTime' | 'reminderMinutesBefore'>): Pick<Task, 'dueDate' | 'dueTime' | 'reminderMinutesBefore'> {
+  const dueDate = task.dueDate;
+  const dueTime = dueDate === null ? null : task.dueTime;
+  const reminderMinutesBefore = dueTime === null ? null : task.reminderMinutesBefore;
+  return { dueDate, dueTime, reminderMinutesBefore };
+}
+
+export function buildTask(input: TaskInput, ctx: { id: string; userId: string; timezone: string; now: DateInput }): Task {
+  const parsed = taskInputSchema.safeParse(input);
+  if (!parsed.success) throw zodToAppError(parsed.error, 'task input');
+  const v = parsed.data;
+  const timezone = v.timezone ?? ctx.timezone;
+  if (!isValidTimeZone(timezone)) throw new AppError('invalid_input', `Unknown time zone "${timezone}"`);
+  const nowIso = toDate(ctx.now).toISOString();
+  const task: Task = {
+    id: ctx.id,
+    userId: ctx.userId,
+    title: v.title,
+    description: v.description ?? '',
+    timezone,
+    ...normalizeDue({
+      dueDate: v.dueDate ?? null,
+      dueTime: v.dueTime ?? null,
+      reminderMinutesBefore: v.reminderMinutesBefore ?? null,
+    }),
+    status: 'open',
+    meetingId: v.meetingId ?? null,
+    people: v.people ?? [],
+    completedAt: null,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+  const checked = taskSchema.safeParse(task);
+  if (!checked.success) throw zodToAppError(checked.error, 'task');
+  return checked.data;
+}
+
+export function applyTaskPatch(task: Task, patch: TaskPatch, now: DateInput): Task {
+  const parsed = taskPatchSchema.safeParse(patch);
+  if (!parsed.success) throw zodToAppError(parsed.error, 'task patch');
+  const v = parsed.data;
+  const timezone = v.timezone ?? task.timezone;
+  if (!isValidTimeZone(timezone)) throw new AppError('invalid_input', `Unknown time zone "${timezone}"`);
+  const nowIso = toDate(now).toISOString();
+  const status = v.status ?? task.status;
+  const next: Task = {
+    ...task,
+    title: v.title ?? task.title,
+    description: v.description ?? task.description,
+    timezone,
+    ...normalizeDue({
+      dueDate: v.dueDate !== undefined ? v.dueDate : task.dueDate,
+      dueTime: v.dueTime !== undefined ? v.dueTime : task.dueTime,
+      reminderMinutesBefore: v.reminderMinutesBefore !== undefined ? v.reminderMinutesBefore : task.reminderMinutesBefore,
+    }),
+    status,
+    meetingId: v.meetingId !== undefined ? v.meetingId : task.meetingId,
+    people: v.people ?? task.people,
+    completedAt: status === 'done' ? (task.status === 'done' ? task.completedAt : nowIso) : null,
+    updatedAt: nowIso,
+  };
+  const checked = taskSchema.safeParse(next);
+  if (!checked.success) throw zodToAppError(checked.error, 'task');
+  return checked.data;
+}
+
+const taskDocReadSchema = taskShapeSchema.omit({ id: true }).extend({
+  description: z.string().max(TASK_LIMITS.maxDescriptionChars).default(''),
+  dueDate: localDateSchema.nullable().default(null),
+  dueTime: localTimeSchema.nullable().default(null),
+  timezone: timeZoneSchema.default('UTC'),
+  reminderMinutesBefore: z.number().int().min(0).max(TASK_LIMITS.maxReminderMinutes).nullable().default(null),
+  status: taskStatusSchema.default('open'),
+  meetingId: meetingIdSchema.nullable().default(null),
+  people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople).default([]),
+  completedAt: utcIsoSchema.nullable().default(null),
+});
+
+/** Reads leniently and repairs cross-field drift (rules enforce the invariants on write). */
+export function parseTaskDoc(id: string, raw: unknown): Task | null {
+  if (!meetingIdSchema.safeParse(id).success) return null;
+  const parsed = taskDocReadSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const data = parsed.data;
+  const task: Task = {
+    ...data,
+    id,
+    ...normalizeDue(data),
+    completedAt: data.status === 'done' ? (data.completedAt ?? data.updatedAt) : null,
+  };
+  return taskSchema.safeParse(task).success ? task : null;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Auth user (from Firebase Auth; not stored as-is)
 // ---------------------------------------------------------------------------------------------
 

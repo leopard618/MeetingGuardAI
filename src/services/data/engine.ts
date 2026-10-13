@@ -24,6 +24,7 @@ import type {
   OutboxFlushResult,
   PreferencesRepository,
   SyncState,
+  TasksRepository,
   UserRepository,
 } from '../../core/contracts';
 import { AppError, toAppError, type AppErrorCode } from '../../core/errors';
@@ -35,8 +36,10 @@ import {
   applyMeetingPatch,
   applyNotePatch,
   applyPreferencesPatch,
+  applyTaskPatch,
   buildMeeting,
   buildNote,
+  buildTask,
   createDefaultPreferences,
   DEFAULT_ENTITLEMENT,
   LANGUAGES,
@@ -62,6 +65,9 @@ import {
   type Preferences,
   type PreferencesPatch,
   type RecurrenceOverride,
+  type Task,
+  type TaskInput,
+  type TaskPatch,
   type UserProfile,
 } from '../../core/types';
 import { relinkLegacyAttachments } from './attachments';
@@ -78,6 +84,8 @@ import {
   readRemoteMeeting,
   readRemoteNote,
   readRemoteProfile,
+  readRemoteTask,
+  taskToDoc,
   type ReadContext,
 } from './mapping';
 import { planLegacyMigration, removeLegacyKeys } from './migration';
@@ -113,7 +121,7 @@ function originForProvider(provider: CalendarProvider): WriteOrigin {
 // ---------------------------------------------------------------------------------------------
 
 export type DataStatus = 'signed_out' | 'loading' | 'ready';
-export type DataErrorSlot = 'meetings' | 'notes' | 'preferences' | 'entitlement';
+export type DataErrorSlot = 'meetings' | 'notes' | 'tasks' | 'preferences' | 'entitlement';
 
 /** Immutable view consumed by the React hooks (useSyncExternalStore). */
 export interface DataSnapshot {
@@ -128,6 +136,9 @@ export interface DataSnapshot {
   notesVersion: number;
   /** Pinned first, then updatedAt desc. */
   notes: readonly Note[];
+  tasksVersion: number;
+  /** Open before done; open by due (earliest first, no due date last), done by completedAt desc. */
+  tasks: readonly Task[];
   preferences: Preferences;
   /** Preferences are usable (server, cache, or the defaults fallback after a timeout). */
   preferencesLoaded: boolean;
@@ -188,7 +199,7 @@ export interface DataEngineDeps {
 // Session state
 // ---------------------------------------------------------------------------------------------
 
-type ListenerKey = 'meetings' | 'notes' | 'preferences' | 'entitlement';
+type ListenerKey = 'meetings' | 'notes' | 'tasks' | 'preferences' | 'entitlement';
 
 interface Session {
   uid: string;
@@ -199,6 +210,7 @@ interface Session {
   loaded: boolean;
   meetings: Map<string, Meeting>;
   notes: Map<string, Note>;
+  tasks: Map<string, Task>;
   preferences: Preferences;
   /** Preferences are usable for gating (server seen, cached, or fallback after timeout). */
   preferencesKnown: boolean;
@@ -211,6 +223,7 @@ interface Session {
   outbox: OutboxState;
   meetingsBaseline: boolean;
   notesBaseline: boolean;
+  tasksBaseline: boolean;
   listeners: Map<ListenerKey, Unsubscribe>;
   subscriptions: Unsubscribe[];
   timers: Set<ReturnType<typeof setTimeout>>;
@@ -239,6 +252,8 @@ interface LocalChange {
   removeMeetings?: readonly string[];
   notes?: readonly Note[];
   removeNotes?: readonly string[];
+  tasks?: readonly Task[];
+  removeTasks?: readonly string[];
   preferences?: Preferences;
   profile?: UserProfile;
   writes?: readonly OutboxWrite[];
@@ -253,6 +268,7 @@ interface LocalWritePlan<T> {
 interface PersistRequest {
   meetingIds?: readonly string[];
   noteIds?: readonly string[];
+  taskIds?: readonly string[];
   preferences?: boolean;
   entitlement?: boolean;
   profile?: boolean;
@@ -276,6 +292,29 @@ function sortNotes(notes: Iterable<Note>): Note[] {
   return [...notes].sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     if (a.updatedAt !== b.updatedAt) return a.updatedAt > b.updatedAt ? -1 : 1;
+    return a.id < b.id ? -1 : a.id === b.id ? 0 : 1;
+  });
+}
+
+/** "2026-10-14T09:30"-style sortable key; tasks without a due date sort last among open ones. */
+function taskDueKey(task: Task): string {
+  if (task.dueDate === null) return '9999-99-99T99:99';
+  return `${task.dueDate}T${task.dueTime ?? '99:99'}`;
+}
+
+function sortTasks(tasks: Iterable<Task>): Task[] {
+  return [...tasks].sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'open' ? -1 : 1;
+    if (a.status === 'open') {
+      const dueA = taskDueKey(a);
+      const dueB = taskDueKey(b);
+      if (dueA !== dueB) return dueA < dueB ? -1 : 1;
+      if (a.updatedAt !== b.updatedAt) return a.updatedAt > b.updatedAt ? -1 : 1;
+    } else {
+      const doneA = a.completedAt ?? a.updatedAt;
+      const doneB = b.completedAt ?? b.updatedAt;
+      if (doneA !== doneB) return doneA > doneB ? -1 : 1;
+    }
     return a.id < b.id ? -1 : a.id === b.id ? 0 : 1;
   });
 }
@@ -384,8 +423,10 @@ export class DataEngine {
   private snapshot: DataSnapshot | null = null;
   private meetingsVersion = 0;
   private notesVersion = 0;
+  private tasksVersion = 0;
   private sortedCache: { version: number; all: Meeting[]; active: Meeting[]; byId: Map<string, Meeting> } | null = null;
   private notesCache: { version: number; notes: Note[] } | null = null;
+  private tasksCache: { version: number; tasks: Task[] } | null = null;
 
   constructor(deps: DataEngineDeps) {
     this.remote = deps.remote;
@@ -503,6 +544,10 @@ export class DataEngine {
     this.notesVersion += 1;
   }
 
+  private bumpTasks(): void {
+    this.tasksVersion += 1;
+  }
+
   private buildSnapshot(): DataSnapshot {
     const s = this.session;
     if (!this.sortedCache || this.sortedCache.version !== this.meetingsVersion) {
@@ -517,6 +562,9 @@ export class DataEngine {
     if (!this.notesCache || this.notesCache.version !== this.notesVersion) {
       this.notesCache = { version: this.notesVersion, notes: s ? sortNotes(s.notes.values()) : [] };
     }
+    if (!this.tasksCache || this.tasksCache.version !== this.tasksVersion) {
+      this.tasksCache = { version: this.tasksVersion, tasks: s ? sortTasks(s.tasks.values()) : [] };
+    }
     const status: DataStatus = !s ? 'signed_out' : s.loaded ? 'ready' : 'loading';
     return {
       uid: s?.uid ?? null,
@@ -527,12 +575,14 @@ export class DataEngine {
       meetingsById: this.sortedCache.byId,
       notesVersion: this.notesVersion,
       notes: this.notesCache.notes,
+      tasksVersion: this.tasksVersion,
+      tasks: this.tasksCache.tasks,
       preferences: s?.preferences ?? this.defaultPreferences(),
       preferencesLoaded: s?.preferencesKnown ?? false,
       preferencesSettled: s ? s.preferencesServerSeen || s.preferencesCached : false,
       entitlement: s?.entitlement ?? { ...DEFAULT_ENTITLEMENT },
       entitlementLoaded: s?.entitlementKnown ?? false,
-      errors: s ? { ...s.errors } : { meetings: null, notes: null, preferences: null, entitlement: null },
+      errors: s ? { ...s.errors } : { meetings: null, notes: null, tasks: null, preferences: null, entitlement: null },
       sync: this.getSyncState(),
     };
   }
@@ -564,6 +614,9 @@ export class DataEngine {
     for (const note of change.notes ?? []) {
       pairs.push([cacheKeys.note(s.uid, note.id), JSON.stringify(noteToDoc(note))]);
     }
+    for (const task of change.tasks ?? []) {
+      pairs.push([cacheKeys.task(s.uid, task.id), JSON.stringify(taskToDoc(task))]);
+    }
     if (change.preferences) {
       pairs.push([
         cacheKeys.preferences(s.uid),
@@ -574,6 +627,7 @@ export class DataEngine {
     if (change.writes && change.writes.length > 0) pairs.push([cacheKeys.outbox(s.uid), JSON.stringify(outbox)]);
     const removeKeys = [
       ...(change.removeNotes ?? []).map((id) => cacheKeys.note(s.uid, id)),
+      ...(change.removeTasks ?? []).map((id) => cacheKeys.task(s.uid, id)),
       ...(change.removeMeetings ?? []).map((id) => cacheKeys.meeting(s.uid, id)),
     ];
 
@@ -595,6 +649,11 @@ export class DataEngine {
       for (const note of change.notes ?? []) s.notes.set(note.id, note);
       for (const id of change.removeNotes ?? []) s.notes.delete(id);
       this.bumpNotes();
+    }
+    if ((change.tasks && change.tasks.length > 0) || (change.removeTasks && change.removeTasks.length > 0)) {
+      for (const task of change.tasks ?? []) s.tasks.set(task.id, task);
+      for (const id of change.removeTasks ?? []) s.tasks.delete(id);
+      this.bumpTasks();
     }
     if (change.preferences) {
       s.preferences = change.preferences;
@@ -619,6 +678,11 @@ export class DataEngine {
           const note = s.notes.get(id);
           if (note) pairs.push([cacheKeys.note(s.uid, id), JSON.stringify(noteToDoc(note))]);
           else removeKeys.push(cacheKeys.note(s.uid, id));
+        }
+        for (const id of request.taskIds ?? []) {
+          const task = s.tasks.get(id);
+          if (task) pairs.push([cacheKeys.task(s.uid, id), JSON.stringify(taskToDoc(task))]);
+          else removeKeys.push(cacheKeys.task(s.uid, id));
         }
         if (request.preferences) {
           pairs.push([
@@ -698,6 +762,7 @@ export class DataEngine {
       loaded: false,
       meetings: new Map(),
       notes: new Map(),
+      tasks: new Map(),
       preferences: defaults,
       preferencesKnown: false,
       preferencesServerSeen: false,
@@ -708,6 +773,7 @@ export class DataEngine {
       outbox: { ...EMPTY_OUTBOX, entries: [] },
       meetingsBaseline: false,
       notesBaseline: false,
+      tasksBaseline: false,
       listeners: new Map(),
       subscriptions: [],
       timers: new Set(),
@@ -718,7 +784,7 @@ export class DataEngine {
       remoteSuspended: false,
       legacyProfilePreferences: null,
       migration: null,
-      errors: { meetings: null, notes: null, preferences: null, entitlement: null },
+      errors: { meetings: null, notes: null, tasks: null, preferences: null, entitlement: null },
       lastSyncedAt: null,
       forceServer: new Set(),
       preferencesWaiters: new Set(),
@@ -726,6 +792,7 @@ export class DataEngine {
     this.session = s;
     this.bumpMeetings();
     this.bumpNotes();
+    this.bumpTasks();
     this.notify();
 
     try {
@@ -733,6 +800,7 @@ export class DataEngine {
       this.assertCurrent(s);
       s.meetings = cache.meetings;
       s.notes = cache.notes;
+      s.tasks = cache.tasks;
       s.outbox = cache.outbox;
       if (cache.preferences) {
         s.preferences = cache.preferences.preferences;
@@ -755,6 +823,7 @@ export class DataEngine {
         this.epoch += 1;
         this.bumpMeetings();
         this.bumpNotes();
+        this.bumpTasks();
         this.notify();
       }
       throw appError;
@@ -762,6 +831,7 @@ export class DataEngine {
 
     this.bumpMeetings();
     this.bumpNotes();
+    this.bumpTasks();
     this.notify();
     this.events.emit('meetings:changed', { uid, reason: 'cache_loaded' });
     this.events.emit('preferences:changed', { uid, preferences: s.preferences, changedKeys: [...PREFERENCE_KEYS], origin: 'cache' });
@@ -804,6 +874,7 @@ export class DataEngine {
 
     this.bumpMeetings();
     this.bumpNotes();
+    this.bumpTasks();
     this.notify();
     this.events.emit('meetings:changed', { uid: s.uid, reason: 'session_reset' });
     if (outcome.error) throw outcome.error;
@@ -1005,6 +1076,13 @@ export class DataEngine {
         (error) => this.onListenerError(s, 'notes', error),
       ),
     );
+    attach('tasks', () =>
+      this.remote.listenCollection(
+        firestorePaths.tasks(uid),
+        (snapshot) => this.onTasksSnapshot(s, snapshot),
+        (error) => this.onListenerError(s, 'tasks', error),
+      ),
+    );
     attach('preferences', () =>
       this.remote.listenDoc(
         firestorePaths.preferences(uid),
@@ -1165,6 +1243,51 @@ export class DataEngine {
     if (changedIds.length > 0) {
       this.bumpNotes();
       void this.persist(s, { noteIds: changedIds });
+    }
+    this.notify();
+  }
+
+  private onTasksSnapshot(s: Session, snapshot: RemoteCollectionSnapshot): void {
+    if (!this.isCurrent(s) || s.remoteSuspended) return;
+    const changedIds: string[] = [];
+    for (const change of snapshot.changes) {
+      if (change.type === 'removed') {
+        if (snapshot.fromCache || hasPending(s.outbox, 'task', change.id)) continue;
+        if (s.tasks.delete(change.id)) changedIds.push(change.id);
+        continue;
+      }
+      const incoming = readRemoteTask(change.id, change.data);
+      if (!incoming) {
+        log.warn(`skipping invalid task document ${change.id}`);
+        continue;
+      }
+      const local = s.tasks.get(change.id);
+      // Tasks are hard-deleted like notes: a snapshot that still carries a task whose delete is
+      // waiting in the outbox must not resurrect it.
+      if (!local && pendingEntries(s.outbox, 'task', change.id).some((entry) => entry.mode === 'delete')) continue;
+      const forced = s.forceServer.delete(`task:${change.id}`);
+      if (!forced && !shouldAcceptRemote(local, incoming)) continue;
+      if (local && deepEqual(local, incoming)) continue;
+      s.tasks.set(change.id, incoming);
+      changedIds.push(change.id);
+    }
+    if (!snapshot.fromCache) {
+      if (!s.tasksBaseline) {
+        s.tasksBaseline = true;
+        const serverIds = new Set(snapshot.ids);
+        for (const id of [...s.tasks.keys()]) {
+          if (!serverIds.has(id) && !hasPending(s.outbox, 'task', id)) {
+            s.tasks.delete(id);
+            changedIds.push(id);
+          }
+        }
+      }
+      s.errors.tasks = null;
+      s.lastSyncedAt = this.nowIso();
+    }
+    if (changedIds.length > 0) {
+      this.bumpTasks();
+      void this.persist(s, { taskIds: changedIds });
     }
     this.notify();
   }
@@ -1412,6 +1535,8 @@ export class DataEngine {
         return firestorePaths.meeting(uid, entry.docId);
       case 'note':
         return firestorePaths.note(uid, entry.docId);
+      case 'task':
+        return firestorePaths.task(uid, entry.docId);
       case 'preferences':
         return firestorePaths.preferences(uid);
       case 'profile':
@@ -1520,6 +1645,17 @@ export class DataEngine {
         }
         return true;
       }
+      case 'task': {
+        if (decision.type === 'skip' && current && !hasPending(s.outbox, 'task', entry.docId)) {
+          const task = readRemoteTask(entry.docId, current);
+          if (task && !deepEqual(s.tasks.get(entry.docId), task)) {
+            s.tasks.set(entry.docId, task);
+            this.bumpTasks();
+            void this.persist(s, { taskIds: [entry.docId] });
+          }
+        }
+        return true;
+      }
       case 'preferences': {
         const serverDoc = decision.type === 'write' ? decision.data : current;
         if (serverDoc) {
@@ -1546,7 +1682,7 @@ export class DataEngine {
 
   /** After a permanently rejected write: re-read the server copy so the local state stops diverging. */
   private async restoreFromServer(s: Session, entry: OutboxEntry, remoteMeetingIds: string[]): Promise<void> {
-    if (entry.kind !== 'meeting' && entry.kind !== 'note') return;
+    if (entry.kind !== 'meeting' && entry.kind !== 'note' && entry.kind !== 'task') return;
     const key = `${entry.kind}:${entry.docId}`;
     try {
       const snapshot = await withTimeout(this.remote.getDoc(this.docPath(s.uid, entry)), this.timeouts.fetchMs, 'server copy read');
@@ -1558,6 +1694,12 @@ export class DataEngine {
         this.bumpMeetings();
         remoteMeetingIds.push(entry.docId);
         void this.persist(s, { meetingIds: [entry.docId] });
+      } else if (entry.kind === 'task') {
+        const task = snapshot.exists ? readRemoteTask(entry.docId, snapshot.data) : null;
+        if (task) s.tasks.set(entry.docId, task);
+        else s.tasks.delete(entry.docId);
+        this.bumpTasks();
+        void this.persist(s, { taskIds: [entry.docId] });
       } else {
         const note = snapshot.exists ? readRemoteNote(entry.docId, snapshot.data) : null;
         if (note) s.notes.set(entry.docId, note);
@@ -2226,6 +2368,92 @@ export class DataEngine {
     return this.subscribeSnapshot(deliver);
   }
 
+  // ---- tasks -----------------------------------------------------------------------------------
+
+  async listTasks(): Promise<Task[]> {
+    const s = await this.readySession();
+    return sortTasks(s.tasks.values());
+  }
+
+  async getTask(id: string): Promise<Task | null> {
+    const s = await this.readySession();
+    return s.tasks.get(id) ?? null;
+  }
+
+  async createTask(input: TaskInput): Promise<Task> {
+    const s = await this.readySession();
+    const task = await this.localWrite(s, () => {
+      const id = this.remote.newId(firestorePaths.tasks(s.uid));
+      const built = buildTask(input, { id, userId: s.uid, timezone: this.timeZone(), now: this.now() });
+      return {
+        result: built,
+        change: {
+          tasks: [built],
+          writes: [{ kind: 'task', docId: id, mode: 'create', data: taskToDoc(built) as unknown as RemoteData, updatedAt: built.updatedAt, origin: 'user' }],
+        },
+      };
+    });
+    this.notify();
+    this.scheduleFlush(s);
+    return task;
+  }
+
+  async updateTask(id: string, patch: TaskPatch): Promise<Task> {
+    const s = await this.readySession();
+    let changed = false;
+    const task = await this.localWrite(s, () => {
+      const current = s.tasks.get(id);
+      if (!current) throw new AppError('not_found', 'Task not found');
+      const next = applyTaskPatch(current, patch, nextTimestamp(this.now(), current.updatedAt));
+      const doc = taskToDoc(next);
+      const { updatedAt: _a, ...nextRest } = next;
+      const { updatedAt: _b, ...currentRest } = current;
+      if (deepEqual(nextRest, currentRest)) return { result: current, change: null };
+      changed = true;
+      return {
+        result: next,
+        change: { tasks: [next], writes: [{ kind: 'task', docId: id, mode: 'set', data: doc as unknown as RemoteData, updatedAt: next.updatedAt, origin: 'user' }] },
+      };
+    });
+    if (changed) {
+      this.notify();
+      this.scheduleFlush(s);
+    }
+    return task;
+  }
+
+  async removeTask(id: string): Promise<void> {
+    const s = await this.readySession();
+    await this.localWrite(s, () => {
+      const current = s.tasks.get(id);
+      if (!current) throw new AppError('not_found', 'Task not found');
+      return {
+        result: undefined,
+        change: {
+          removeTasks: [id],
+          writes: [{ kind: 'task', docId: id, mode: 'delete', data: null, updatedAt: nextTimestamp(this.now(), current.updatedAt), origin: 'user' }],
+        },
+      };
+    });
+    this.notify();
+    this.scheduleFlush(s);
+  }
+
+  subscribeTasks(listener: (tasks: Task[]) => void): Unsubscribe {
+    let lastVersion = -1;
+    let lastUid: string | null | undefined;
+    const deliver = (): void => {
+      const snapshot = this.getSnapshot();
+      if (snapshot.tasksVersion !== lastVersion || snapshot.uid !== lastUid) {
+        lastVersion = snapshot.tasksVersion;
+        lastUid = snapshot.uid;
+        listener([...snapshot.tasks]);
+      }
+    };
+    deliver();
+    return this.subscribeSnapshot(deliver);
+  }
+
   // ---- profile / entitlement -----------------------------------------------------------------
 
   async ensureProfile(user: AuthUser): Promise<UserProfile> {
@@ -2533,6 +2761,7 @@ export class DataEngine {
       MeetingRecurrenceOps & { upsertExternal(items: readonly ExternalMeetingUpsert[]): Promise<ExternalUpsertResultWithInvalid> };
     preferencesRepository: PreferencesRepository;
     notesRepository: NotesRepository;
+    tasksRepository: TasksRepository;
     userRepository: UserRepository;
     migrationService: MigrationService;
     dataService: DataService;
@@ -2568,6 +2797,14 @@ export class DataEngine {
         update: (id, patch) => this.updateNote(id, patch),
         remove: (id) => this.removeNote(id),
         subscribe: (listener) => this.subscribeNotes(listener),
+      },
+      tasksRepository: {
+        list: () => this.listTasks(),
+        get: (id) => this.getTask(id),
+        create: (input) => this.createTask(input),
+        update: (id, patch) => this.updateTask(id, patch),
+        remove: (id) => this.removeTask(id),
+        subscribe: (listener) => this.subscribeTasks(listener),
       },
       userRepository: {
         ensureProfile: (user) => this.ensureProfile(user),
