@@ -11,6 +11,8 @@ import {
   type AiActionType,
   type AiMeetingChanges,
   type AiMeetingDraft,
+  type AiTaskChanges,
+  type AiTaskDraft,
   type AssistantUsage,
   type BulkUpdateAction,
   type ConferenceDetails,
@@ -50,7 +52,12 @@ export type MeetingField =
   | 'alerts'
   | 'language'
   | 'repeats'
-  | 'scope';
+  | 'scope'
+  // v5 task fields:
+  | 'due'
+  | 'reminder'
+  | 'people'
+  | 'status';
 
 export interface DetailRow {
   field: MeetingField;
@@ -372,15 +379,78 @@ export function describeShare(fmt: AssistantFormatter, action: ShareMeetingActio
   };
 }
 
+// ---- v5 tasks -------------------------------------------------------------------------------
+
+function taskDueValue(fmt: AssistantFormatter, dueDate: string | null, dueTime: string | null): string {
+  if (dueDate === null) return fmt.t('ai:values.none');
+  const date = fmt.date(`${dueDate}T00:00:00`);
+  return dueTime === null ? date : `${date} ${fmt.time(`${dueDate}T${dueTime}:00`)}`;
+}
+
+function taskReminderValue(fmt: AssistantFormatter, minutes: number | null): string {
+  if (minutes === null) return fmt.t('ai:values.none');
+  if (minutes === 0) return fmt.t('ai:values.reminderAtDue');
+  return fmt.t('ai:values.reminderBefore', { duration: fmt.duration(minutes) });
+}
+
+/** Confirmation-card rows of a create_task proposal. */
+export function describeTaskDraft(fmt: AssistantFormatter, task: AiTaskDraft): DetailRow[] {
+  const rows: DetailRow[] = [
+    { field: 'title', label: fieldLabel(fmt, 'title'), value: task.title },
+    { field: 'due', label: fieldLabel(fmt, 'due'), value: taskDueValue(fmt, task.dueDate, task.dueTime) },
+  ];
+  if (task.reminderMinutesBefore !== null) {
+    rows.push({ field: 'reminder', label: fieldLabel(fmt, 'reminder'), value: taskReminderValue(fmt, task.reminderMinutesBefore) });
+  }
+  if (task.people.length > 0) {
+    rows.push({ field: 'people', label: fieldLabel(fmt, 'people'), value: task.people.map((person) => person.name).join(', ') });
+  }
+  if (task.description.trim().length > 0) {
+    rows.push({ field: 'description', label: fieldLabel(fmt, 'description'), value: truncate(task.description, DESCRIPTION_PREVIEW_CHARS) });
+  }
+  return rows;
+}
+
+/** Confirmation-card rows of an update_task proposal (the new values of the changed fields). */
+export function describeTaskChangeRows(fmt: AssistantFormatter, changes: AiTaskChanges): DetailRow[] {
+  const rows: DetailRow[] = [];
+  if (changes.status !== undefined) {
+    rows.push({
+      field: 'status',
+      label: fieldLabel(fmt, 'status'),
+      value: fmt.t(changes.status === 'done' ? 'ai:values.statusDone' : 'ai:values.statusOpen'),
+    });
+  }
+  if (changes.title !== undefined) rows.push({ field: 'title', label: fieldLabel(fmt, 'title'), value: changes.title });
+  if (changes.dueDate !== undefined) {
+    rows.push({ field: 'due', label: fieldLabel(fmt, 'due'), value: taskDueValue(fmt, changes.dueDate, changes.dueTime ?? null) });
+  } else if (changes.dueTime !== undefined) {
+    rows.push({ field: 'due', label: fieldLabel(fmt, 'due'), value: changes.dueTime ?? fmt.t('ai:values.none') });
+  }
+  if (changes.reminderMinutesBefore !== undefined) {
+    rows.push({ field: 'reminder', label: fieldLabel(fmt, 'reminder'), value: taskReminderValue(fmt, changes.reminderMinutesBefore) });
+  }
+  if (changes.people !== undefined) {
+    const names = changes.people.map((person) => person.name).join(', ');
+    rows.push({ field: 'people', label: fieldLabel(fmt, 'people'), value: names.length > 0 ? names : fmt.t('ai:values.none') });
+  }
+  if (changes.description !== undefined) {
+    rows.push({ field: 'description', label: fieldLabel(fmt, 'description'), value: truncate(changes.description, DESCRIPTION_PREVIEW_CHARS) });
+  }
+  return rows;
+}
+
 export function describeWarnings(
   fmt: AssistantFormatter,
   preview: Pick<AiActionPreview, 'warnings' | 'missingMeetingIds'> & {
     overlapping?: readonly Meeting[];
     newPeople?: readonly string[];
+    missingTaskIds?: readonly string[];
   },
 ): string[] {
   return preview.warnings.map((warning: ActionWarning) => {
     if (warning === 'meeting_not_found') return fmt.t('ai:warnings.meeting_not_found', { count: Math.max(1, preview.missingMeetingIds.length) });
+    if (warning === 'task_not_found') return fmt.t('ai:warnings.task_not_found', { count: Math.max(1, preview.missingTaskIds?.length ?? 1) });
     if (warning === 'new_people') {
       const emails = (preview.newPeople ?? []).join(', ');
       return fmt.t('ai:warnings.new_people', { emails, interpolation: { escapeValue: false } });
@@ -394,7 +464,7 @@ export function describeWarnings(
 }
 
 export function isDestructiveAction(action: AiAction): boolean {
-  return action.type === 'delete_meeting';
+  return action.type === 'delete_meeting' || action.type === 'delete_task';
 }
 
 export type AssistantIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -414,6 +484,14 @@ export function actionIconName(type: AiActionType): AssistantIconName {
       return 'calendar-multiple-check';
     case 'list':
       return 'format-list-bulleted';
+    case 'create_task':
+      return 'checkbox-marked-circle-plus-outline';
+    case 'update_task':
+      return 'checkbox-marked-circle-outline';
+    case 'delete_task':
+      return 'close-circle-outline';
+    case 'list_tasks':
+      return 'format-list-checks';
   }
 }
 
@@ -475,6 +553,14 @@ export function describeResult(fmt: AssistantFormatter, result: ActionResult | A
       return { tone: 'success', message: fmt.t('ai:results.systemShare') };
     case 'list':
       return { tone: 'info', message: fmt.t('ai:results.listed', { count: result.meetingIds.length }) };
+    case 'create_task':
+      return { tone: 'success', message: fmt.t('ai:results.taskCreated') };
+    case 'update_task':
+      return { tone: 'success', message: fmt.t(extra.taskCompleted === true ? 'ai:results.taskCompleted' : 'ai:results.taskUpdated') };
+    case 'delete_task':
+      return { tone: 'success', message: fmt.t('ai:results.taskDeleted') };
+    case 'list_tasks':
+      return { tone: 'info', message: fmt.t('ai:results.tasksListed', { count: extra.taskIds?.length ?? 0 }) };
   }
 }
 

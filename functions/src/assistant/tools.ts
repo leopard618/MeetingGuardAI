@@ -17,6 +17,7 @@ import {
   RECURRENCE_FREQS,
   RECURRENCE_WEEKDAYS,
   SHARE_CHANNELS,
+  TASK_ACTION_STATUSES,
 } from '../shared/aiContract';
 
 type JsonSchema = Record<string, unknown>;
@@ -40,6 +41,11 @@ export const TOOL_NAMES = {
   list: 'list_meetings',
   suggest: 'suggest_replies',
   resolve: 'resolve_pending',
+  // v5 (offered only to contractVersion >= 5 clients):
+  createTask: 'create_task',
+  updateTask: 'update_task',
+  deleteTask: 'delete_task',
+  listTasks: 'list_tasks',
 } as const;
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
 
@@ -274,6 +280,104 @@ export const ASSISTANT_TOOLS: readonly ToolDefinition[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------------------------
+// v5 task tools (offered only to contractVersion >= 5 clients; handler.ts composes the list)
+// ---------------------------------------------------------------------------------------------
+
+const TASK_REF = string('The `ref` of an existing task from the tasks data block (starts with "t"). Never invent one, and never use a meeting ref here.');
+const DUE_DATE = nullableString(`Due day. ${DATE} Null for no due date.`);
+const DUE_TIME = nullableString(`Due time on due_date. ${TIME} Null when only the day matters. Needs due_date.`);
+const REMINDER = nullableInteger('Minutes before the due time to remind the user (0 = at the due time, max 10080). Needs due_time. Null for no reminder.');
+const TASK_PEOPLE = array(
+  object({
+    name: string('Name of the person, as the user said it.'),
+    email: nullableString('Email address ONLY if the user typed it; otherwise null. Never invent addresses.'),
+  }),
+  'People this task involves, [] if none.',
+);
+const TASK_MEETING_REF = nullableString('The `ref` of a meeting from the meetings data block this task belongs to ("prepare before the kickoff"), or null.');
+
+export const TASK_TOOLS: readonly ToolDefinition[] = [
+  {
+    type: 'function',
+    function: {
+      name: TOOL_NAMES.createTask,
+      description: 'Propose creating a new task. Only a title is required. The user confirms it in the app before anything is saved.',
+      strict: true,
+      parameters: object({
+        title: string('Task title (max 200 characters).'),
+        description: string('Details, "" if none.'),
+        due_date: DUE_DATE,
+        due_time: DUE_TIME,
+        reminder_minutes_before: REMINDER,
+        meeting_ref: TASK_MEETING_REF,
+        people: TASK_PEOPLE,
+        summary: SUMMARY,
+        confidence: CONFIDENCE,
+      }),
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: TOOL_NAMES.updateTask,
+      description:
+        'Propose changing one existing task: edit fields, postpone (new due_date/due_time), complete (status "done") or reopen (status "open"). Only non-null fields change; the clear_* flags remove values.',
+      strict: true,
+      parameters: object({
+        task_ref: TASK_REF,
+        changes: object({
+          title: nullableString('New title, or null to keep it.'),
+          description: nullableString('New details, or null to keep them.'),
+          due_date: nullableString(`New due day (${DATE}), or null to keep it.`),
+          due_time: nullableString(`New due time (${TIME}), or null to keep it.`),
+          clear_due: boolean('true only if the user wants NO due date any more (also clears the time and the reminder).'),
+          reminder_minutes_before: nullableInteger('New reminder (minutes before the due time, 0-10080), or null to keep it.'),
+          clear_reminder: boolean('true only if the user wants the reminder removed.'),
+          status: nullable(enumeration(TASK_ACTION_STATUSES, '"done" completes the task, "open" reopens it.'), 'New status, or null to keep it.'),
+          meeting_ref: nullableString('Link the task to this meeting ref, or null to keep the current link.'),
+          clear_meeting: boolean('true only if the user wants the meeting link removed.'),
+          people: nullableArray(
+            object({
+              name: string('Name of the person.'),
+              email: nullableString('Email ONLY if the user typed it; otherwise null.'),
+            }),
+            'The COMPLETE new people list, or null to keep it.',
+          ),
+        }),
+        summary: SUMMARY,
+        confidence: CONFIDENCE,
+      }),
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: TOOL_NAMES.deleteTask,
+      description: 'Propose deleting one existing task (gone everywhere; completing is update_task with status "done" instead).',
+      strict: true,
+      parameters: object({
+        task_ref: TASK_REF,
+        summary: SUMMARY,
+        confidence: CONFIDENCE,
+      }),
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: TOOL_NAMES.listTasks,
+      description: 'Show the user a list of existing tasks (read-only), e.g. "what is overdue?" or "my tasks for today".',
+      strict: true,
+      parameters: object({
+        task_refs: array(string('Task ref.'), 'Refs of the matching tasks in a sensible order ([] if none match).'),
+        summary: SUMMARY,
+        confidence: CONFIDENCE,
+      }),
+    },
+  },
+];
+
 /**
  * v4: offered IN ADDITION to ASSISTANT_TOOLS, and only when the request carries pendingActions
  * (the model must never see it otherwise - handler.ts composes the tool list per request).
@@ -400,3 +504,42 @@ export const listMeetingsArgsSchema = z.object({ meeting_refs: z.array(z.string(
 export const suggestRepliesArgsSchema = z.object({ suggestions: z.array(z.string()) });
 
 export const resolvePendingArgsSchema = z.object({ decision: z.enum(PENDING_RESOLUTIONS) });
+
+const taskPersonArgs = z.object({ name: z.string(), email: z.string().nullable().default(null) });
+
+export const createTaskArgsSchema = z.object({
+  title: z.string(),
+  description: z.string().default(''),
+  due_date: z.string().nullable().default(null),
+  due_time: z.string().nullable().default(null),
+  reminder_minutes_before: z.number().int().nullable().default(null),
+  meeting_ref: z.string().nullable().default(null),
+  people: z.array(taskPersonArgs).default([]),
+  ...summaryArgs,
+});
+export type CreateTaskArgs = z.infer<typeof createTaskArgsSchema>;
+
+export const taskChangesArgsSchema = z.object({
+  title: z.string().nullable().default(null),
+  description: z.string().nullable().default(null),
+  due_date: z.string().nullable().default(null),
+  due_time: z.string().nullable().default(null),
+  clear_due: z.boolean().default(false),
+  reminder_minutes_before: z.number().int().nullable().default(null),
+  clear_reminder: z.boolean().default(false),
+  status: z.enum(TASK_ACTION_STATUSES).nullable().default(null),
+  meeting_ref: z.string().nullable().default(null),
+  clear_meeting: z.boolean().default(false),
+  people: z.array(taskPersonArgs).nullable().default(null),
+});
+export type TaskChangesArgs = z.infer<typeof taskChangesArgsSchema>;
+
+export const updateTaskArgsSchema = z.object({
+  task_ref: z.string(),
+  changes: taskChangesArgsSchema,
+  ...summaryArgs,
+});
+
+export const deleteTaskArgsSchema = z.object({ task_ref: z.string(), ...summaryArgs });
+
+export const listTasksArgsSchema = z.object({ task_refs: z.array(z.string()), ...summaryArgs });

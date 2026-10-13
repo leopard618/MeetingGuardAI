@@ -74,6 +74,8 @@ export type AiDoneResult = DoneResult & {
   meetLinkError?: AppErrorCode | null;
   /** share_meeting: who the email draft was addressed to. */
   recipients?: string[];
+  /** update_task: the change completed the task (status flipped to done). */
+  taskCompleted?: boolean;
 };
 
 export type AiActionResult = AiDoneResult | FailedResult;

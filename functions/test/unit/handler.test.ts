@@ -368,6 +368,123 @@ describe('pending-proposal resolution (v4)', () => {
   });
 });
 
+describe('task tools (v5)', () => {
+  const taskReader = {
+    listRecent: async () => [
+      {
+        id: 'taskkick1',
+        doc: {
+          title: 'Prepare the proposal',
+          description: '',
+          dueDate: '2026-09-29',
+          dueTime: '16:00',
+          timezone: 'Europe/Madrid',
+          reminderMinutesBefore: 30,
+          status: 'open',
+          meetingId: 'merger',
+          people: [],
+          completedAt: null,
+          updatedAt: '2026-09-28T10:00:00.000Z',
+        },
+      },
+    ],
+  };
+
+  it('offers the task tools and the tasks data only to contractVersion >= 5 clients', async () => {
+    const v5 = setup();
+    v5.deps.tasks = taskReader;
+    await handleAssistant(caller(), chatRequest({ contractVersion: 5 }), v5.deps);
+    const request = v5.llm.requests[0]!;
+    expect(request.tools.map((tool) => tool.function.name)).toEqual(expect.arrayContaining(['create_task', 'update_task', 'delete_task', 'list_tasks']));
+    expect(request.messages[0]!.content).toContain('# Tasks');
+    expect(request.messages[1]!.content).toContain('Prepare the proposal');
+    // The task's linked meeting is exposed as the meeting's REF, never its id.
+    expect(request.messages[1]!.content).not.toContain('"merger"');
+
+    const v4 = setup();
+    v4.deps.tasks = taskReader;
+    await handleAssistant(caller(), chatRequest(), v4.deps);
+    const old = v4.llm.requests[0]!;
+    expect(old.tools.map((tool) => tool.function.name)).not.toContain('create_task');
+    expect(old.messages[0]!.content).not.toContain('# Tasks');
+    expect(old.messages[1]!.content).not.toContain('Prepare the proposal');
+  });
+
+  it('maps a create_task call into a validated create_task action', async () => {
+    const { deps } = setup(
+      result({
+        content: 'Task ready.',
+        toolCalls: [
+          {
+            name: 'create_task',
+            arguments: JSON.stringify({
+              title: 'Prepare the slides',
+              description: '',
+              due_date: '2026-09-29',
+              due_time: '12:00',
+              reminder_minutes_before: 30,
+              meeting_ref: null,
+              people: [{ name: 'Ana', email: null }],
+              summary: 'Add a task "Prepare the slides" for tomorrow at noon.',
+              confidence: 90,
+            }),
+          },
+        ],
+      }),
+    );
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest({ contractVersion: 5 }), deps);
+    expect(response.actions).toHaveLength(1);
+    expect(response.actions[0]).toMatchObject({
+      type: 'create_task',
+      task: {
+        title: 'Prepare the slides',
+        dueDate: '2026-09-29',
+        dueTime: '12:00',
+        reminderMinutesBefore: 30,
+        meetingId: null,
+        people: [{ name: 'Ana', email: null }],
+      },
+    });
+  });
+
+  it('drops task actions whose ref is not in the task context', async () => {
+    const { deps } = setup(
+      result({
+        content: 'Done.',
+        toolCalls: [
+          { name: 'delete_task', arguments: JSON.stringify({ task_ref: 'tunknown99', summary: 'Delete it.', confidence: 80 }) },
+        ],
+      }),
+    );
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest({ contractVersion: 5 }), deps);
+    expect(response.actions).toEqual([]);
+  });
+
+  it('never emits task actions to a v4 request even if the model calls a task tool', async () => {
+    const { deps } = setup(
+      result({
+        content: 'ok',
+        toolCalls: [
+          {
+            name: 'create_task',
+            arguments: JSON.stringify({
+              title: 'X', description: '', due_date: null, due_time: null, reminder_minutes_before: null,
+              meeting_ref: null, people: [], summary: 'Add a task.', confidence: 80,
+            }),
+          },
+        ],
+      }),
+    );
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    // No tasksContext => the mapper cannot resolve anything task-shaped; the call is dropped
+    // as unknown-by-context work and the response stays v4-parseable.
+    expect(response.actions.every((action) => !action.type.includes('task'))).toBe(true);
+  });
+});
+
 describe('admin stats hook (recordAiUsage)', () => {
   it('records the day key and token usage after a successful completion', async () => {
     const { deps } = setup();

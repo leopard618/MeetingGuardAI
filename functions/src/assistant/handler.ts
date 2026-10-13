@@ -17,6 +17,7 @@ import * as logger from 'firebase-functions/logger';
 import { HttpsError } from 'firebase-functions/https';
 
 import {
+  AI_CONTRACT_VERSION,
   AI_LIMITS,
   assistantRequestSchema,
   assistantResponseSchema,
@@ -31,12 +32,15 @@ import type { GlobalBudget } from './globalBudget';
 import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
 import { buildPromptMessages, collectUserText, fallbackReply } from './prompt';
 import { consumeQuota, refundQuota, type QuotaDecision, type QuotaStore } from './quota';
+import { buildTaskContext, type TaskContext, type TaskReader } from './tasksContext';
 import { isValidTimeZone } from './time';
-import { ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL } from './tools';
+import { ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL, TASK_TOOLS } from './tools';
 
 export interface AssistantDeps {
   quota: QuotaStore;
   meetings: MeetingReader;
+  /** v5: absent (older fakes / the WhatsApp bridge wiring) = no task context, no task tools. */
+  tasks?: TaskReader;
   /** Created lazily (reads the secret only for requests that passed auth + quota). */
   llm: () => LlmClient;
   now: () => Date;
@@ -163,12 +167,21 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     // v4: unconfirmed proposals the app is showing. Only chat mode carries them, and the
     // resolve_pending tool exists for the model only while there is something to resolve.
     const pendingActions = request.mode === 'chat' ? (request.pendingActions ?? []) : [];
+    // v5: tasks exist for the model ONLY when the client said it can parse the task action
+    // types (an older client's response schema would reject the whole response otherwise).
+    const wantsTasks = request.mode === 'chat' && (request.contractVersion ?? 0) >= 5 && deps.tasks !== undefined;
+    let tasksContext: TaskContext | null = null;
+    if (wantsTasks && deps.tasks) {
+      const taskRecords = await deps.tasks.listRecent(uid, AI_LIMITS.maxActions * 20);
+      tasksContext = buildTaskContext(taskRecords, now);
+    }
     const { messages } = buildPromptMessages({
       language: request.language,
       timeZone: request.timezone,
       now,
       mode: request.mode,
       context,
+      tasksContext,
       messages: request.messages,
       pendingActions,
       ...(deps.nonce ? { nonce: deps.nonce() } : {}),
@@ -177,7 +190,11 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     llmStarted = true;
     const completion: LlmResult = await llm.complete({
       messages,
-      tools: pendingActions.length > 0 ? [...ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL] : ASSISTANT_TOOLS,
+      tools: [
+        ...ASSISTANT_TOOLS,
+        ...(tasksContext !== null ? TASK_TOOLS : []),
+        ...(pendingActions.length > 0 ? [RESOLVE_PENDING_TOOL] : []),
+      ],
       toolChoice: request.mode === 'followup' ? 'required' : 'auto',
       safetyIdentifier: safetyIdentifierFor(uid),
     });
@@ -201,6 +218,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       mode: request.mode,
       userTimeZone: request.timezone,
       context,
+      tasksContext,
       userText: collectUserText(request.messages),
       ...(deps.newActionId ? { newActionId: deps.newActionId } : {}),
     });
@@ -252,6 +270,8 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       toolCalls: completion.toolCalls.length,
       actions: mapped.actions.length,
       pendingActions: pendingActions.length,
+      tasks: tasksContext?.tasks.length ?? null,
+      contractVersion: Math.min(request.contractVersion ?? 0, AI_CONTRACT_VERSION),
       resolution,
       suggestions: mapped.suggestions.length,
       dropped: mapped.dropped,

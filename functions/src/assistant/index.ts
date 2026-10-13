@@ -24,6 +24,7 @@ import { adminDb } from '../firebase';
 import { instanceOpenAiKeyProvider, withKeyRetry } from '../openaiKey';
 import type { AssistantResponse } from '../shared/aiContract';
 import { firestoreMeetingReader } from './context';
+import { firestoreTaskReader } from './tasksContext';
 import { createGlobalBudget, firestoreGlobalBudgetStore, type GlobalBudget } from './globalBudget';
 import { handleAssistant, type AssistantCaller, type AssistantDeps } from './handler';
 import { createOpenAiClient } from './llm';
@@ -62,6 +63,9 @@ export function buildAssistantDeps(db: Firestore, logUid: string | null = null):
     globalBudget: instanceGlobalBudget(),
     meetings: firestoreMeetingReader(db, (count, truncated) =>
       logger.warn('assistant.meetings_skipped', { uid: logUid, count, truncated }),
+    ),
+    tasks: firestoreTaskReader(db, (count, truncated) =>
+      logger.warn('assistant.tasks_skipped', { uid: logUid, count, truncated }),
     ),
     llm: () => {
       const effortSetting = OPENAI_REASONING_EFFORT.value();

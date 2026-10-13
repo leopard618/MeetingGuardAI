@@ -10,7 +10,7 @@
  * - drops responses/results that arrive after a reset or a user switch (generation counter);
  * - on session end: clears memory and deletes the stored thread after pending writes.
  */
-import { AI_LIMITS, MEETING_ID_PATTERN, type AssistantRequest, type Language } from '../../core/aiContract';
+import { AI_CONTRACT_VERSION, AI_LIMITS, MEETING_ID_PATTERN, type AssistantRequest, type Language } from '../../core/aiContract';
 import type { ActionResult, AssistantClient, Unsubscribe } from '../../core/contracts';
 import { AppError, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -165,6 +165,8 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
         nowIso: context.now.toISOString(),
         mode: kind.mode,
         followUpMeetingId,
+        // v5: tells the server which capabilities this build can parse (task action types).
+        contractVersion: AI_CONTRACT_VERSION,
         ...(pendingActions.length > 0 ? { pendingActions } : {}),
       };
       const response = await deps.client.send(request);

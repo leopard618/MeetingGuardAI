@@ -29,6 +29,8 @@ import {
   describeMeeting,
   describeScopeRow,
   describeShare,
+  describeTaskChangeRows,
+  describeTaskDraft,
   describeWarnings,
   isDestructiveAction,
   type DetailRow,
@@ -58,6 +60,12 @@ export function confirmLabel(fmt: AssistantFormatter, actions: readonly Proposed
       return action.channel === 'email' ? fmt.t('ai:confirm.button.share_email') : fmt.t('ai:confirm.button.share_meeting');
     case 'bulk_update':
       return fmt.t('ai:confirm.button.bulk_update', { count: action.meetingIds.length });
+    case 'create_task':
+      return fmt.t('ai:confirm.button.create_task');
+    case 'update_task':
+      return fmt.t(action.changes.status === 'done' ? 'ai:confirm.button.complete_task' : 'ai:confirm.button.update_task');
+    case 'delete_task':
+      return fmt.t('ai:confirm.button.delete_task');
     default:
       return fmt.t('ai:confirm.confirm');
   }
@@ -301,6 +309,35 @@ function ActionBody({
       return <ShareBody action={action} preview={preview} fmt={fmt} colors={colors} />;
     case 'bulk_update':
       return <BulkBody action={action} preview={preview} fmt={fmt} colors={colors} />;
+    case 'create_task':
+      return <DetailRows rows={describeTaskDraft(fmt, action.task)} colors={colors} />;
+    case 'update_task': {
+      const task = preview?.tasks?.[0] ?? null;
+      return (
+        <>
+          {task ? <Text style={[styles.meetingTitle, { color: colors.onSurface }]}>{task.title}</Text> : null}
+          <DetailRows rows={describeTaskChangeRows(fmt, action.changes)} colors={colors} />
+          {!preview ? <LoadingDetails colors={colors} fmt={fmt} /> : null}
+        </>
+      );
+    }
+    case 'delete_task': {
+      const task = preview?.tasks?.[0] ?? null;
+      return (
+        <View style={[styles.notice, { backgroundColor: colors.errorContainer }]}>
+          <View style={styles.noticeLine}>
+            <MaterialCommunityIcons name="delete-alert-outline" size={componentMetrics.iconInline} color={colors.onErrorContainer} />
+            <Text style={[styles.noticeText, styles.bold, { color: colors.onErrorContainer }]}>{fmt.t('ai:confirm.taskDeleteWarning')}</Text>
+          </View>
+          {task ? (
+            <Text style={[styles.meetingTitle, { color: colors.onErrorContainer }]} numberOfLines={2}>
+              {task.title}
+            </Text>
+          ) : null}
+          {!preview ? <LoadingDetails colors={colors} fmt={fmt} /> : null}
+        </View>
+      );
+    }
     default:
       return null;
   }

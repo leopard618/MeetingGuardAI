@@ -102,9 +102,66 @@ function ListCard({ state, fmt, palette, onOpenMeeting }: Omit<ActionCardProps, 
   );
 }
 
+function taskDueLine(fmt: AssistantFormatter, task: { dueDate: string | null; dueTime: string | null; status: string }): string {
+  if (task.status === 'done') return fmt.t('ai:actions.taskDone');
+  if (task.dueDate === null) return '';
+  const date = fmt.date(`${task.dueDate}T00:00:00`);
+  return task.dueTime === null ? date : `${date} ${fmt.time(`${task.dueDate}T${task.dueTime}:00`)}`;
+}
+
+function TaskListCard({ state, fmt, palette }: Pick<ActionCardProps, 'state' | 'fmt' | 'palette'>): ReactElement {
+  const { action } = state;
+  const preview = state.preview as AiActionPreview | null;
+  const tasks = preview?.tasks ?? [];
+  return (
+    <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]} testID={`action-${action.id}`}>
+      <View style={styles.cardHeader}>
+        <ActionIcon state={state} palette={palette} />
+        <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={2}>
+          {action.summary}
+        </Text>
+      </View>
+      {!preview ? <ActivityIndicator size="small" color={palette.primary} /> : null}
+      {preview && tasks.length === 0 ? (
+        <Text style={[styles.cardNote, { color: palette.textMuted }]}>{fmt.t('ai:actions.taskListEmpty')}</Text>
+      ) : null}
+      {tasks.map((task) => {
+        const due = taskDueLine(fmt, task);
+        return (
+          <View key={task.id} style={[styles.listItem, { borderColor: palette.border }]} testID={`action-task-${task.id}`}>
+            <MaterialCommunityIcons
+              name={task.status === 'done' ? 'check-circle' : 'circle-outline'}
+              size={20}
+              color={task.status === 'done' ? palette.primary : palette.textMuted}
+            />
+            <View style={[styles.flex, styles.taskText]}>
+              <Text style={[styles.listItemTitle, { color: palette.text }]} numberOfLines={1}>
+                {task.title}
+              </Text>
+              {due ? (
+                <Text style={[styles.cardNote, { color: palette.textMuted }]} numberOfLines={1}>
+                  {due}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        );
+      })}
+      {preview && (preview.missingTaskIds?.length ?? 0) > 0 ? (
+        <Text style={[styles.cardNote, { color: palette.warning }]}>
+          {fmt.t('ai:warnings.task_not_found', { count: preview.missingTaskIds?.length ?? 1 })}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export function ActionCard({ state, fmt, palette, onReview, onReject, onOpenMeeting }: ActionCardProps): ReactElement {
   if (state.action.type === 'list') {
     return <ListCard state={state} fmt={fmt} palette={palette} onOpenMeeting={onOpenMeeting} />;
+  }
+  if (state.action.type === 'list_tasks') {
+    return <TaskListCard state={state} fmt={fmt} palette={palette} />;
   }
 
   const { action, status } = state;
@@ -271,5 +328,8 @@ const styles = StyleSheet.create({
   },
   listItemTitle: {
     ...typography.titleS,
+  },
+  taskText: {
+    marginLeft: spacing.sm,
   },
 });

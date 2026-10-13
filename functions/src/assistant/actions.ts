@@ -20,6 +20,7 @@ import { randomBytes } from 'node:crypto';
 import { CONTEXT_WINDOW } from '../config';
 import {
   AI_LIMITS,
+  AI_TASK_LIMITS,
   aiActionSchema,
   emailSchema,
   httpUrlSchema,
@@ -28,6 +29,9 @@ import {
   type AiMeetingChanges,
   type AiMeetingDraft,
   type AiParticipant,
+  type AiTaskChanges,
+  type AiTaskDraft,
+  type AiTaskPerson,
   type AssistantMode,
   type ConferenceDetails,
   type Language,
@@ -36,6 +40,7 @@ import {
   type RecurrenceRule,
 } from '../shared/aiContract';
 import type { ContextMeeting, MeetingContext } from './context';
+import type { TaskContext } from './tasksContext';
 import {
   formatIsoWithOffset,
   isValidLocalDate,
@@ -49,12 +54,16 @@ import {
   TOOL_NAMES,
   bulkUpdateArgsSchema,
   createMeetingArgsSchema,
+  createTaskArgsSchema,
   deleteMeetingArgsSchema,
+  deleteTaskArgsSchema,
   listMeetingsArgsSchema,
+  listTasksArgsSchema,
   resolvePendingArgsSchema,
   shareMeetingArgsSchema,
   suggestRepliesArgsSchema,
   updateMeetingArgsSchema,
+  updateTaskArgsSchema,
   type BulkChangesArgs,
   type RecurrenceArgs,
   type UpdateChangesArgs,
@@ -71,6 +80,8 @@ export interface MappingContext {
   mode: AssistantMode;
   userTimeZone: string;
   context: MeetingContext;
+  /** v5: the task context, or null when the client cannot parse task actions. */
+  tasksContext?: TaskContext | null;
   /** Concatenated text of the user's own messages. */
   userText: string;
   newActionId?: () => string;
@@ -300,6 +311,10 @@ const DEFAULT_SUMMARIES: Readonly<Record<Language, Record<AiAction['type'], stri
     share_meeting: 'Share a meeting',
     bulk_update: 'Update several meetings',
     list: 'Show meetings',
+    create_task: 'Create a task',
+    update_task: 'Update a task',
+    delete_task: 'Delete a task',
+    list_tasks: 'Show tasks',
   },
   es: {
     create_meeting: 'Crear una reunión',
@@ -308,6 +323,10 @@ const DEFAULT_SUMMARIES: Readonly<Record<Language, Record<AiAction['type'], stri
     share_meeting: 'Compartir una reunión',
     bulk_update: 'Actualizar varias reuniones',
     list: 'Mostrar reuniones',
+    create_task: 'Crear una tarea',
+    update_task: 'Actualizar una tarea',
+    delete_task: 'Eliminar una tarea',
+    list_tasks: 'Mostrar tareas',
   },
 };
 
@@ -613,6 +632,132 @@ function mapList(raw: string, ctx: MappingContext): AiAction {
   };
 }
 
+// ---- v5 tasks -------------------------------------------------------------------------------
+
+function taskPeople(list: readonly { name: string; email: string | null }[], provenance: Provenance): AiTaskPerson[] {
+  const people: AiTaskPerson[] = [];
+  const seen = new Set<string>();
+  for (const item of list) {
+    const name = clip(item.name, 200);
+    if (name.length === 0) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    // The app never emails task people, but a calendar-injected address must still not be saved
+    // onto the user's task: only addresses the user actually typed are kept.
+    const email = item.email !== null ? acceptEmail(item.email, provenance, NO_EMAILS) : null;
+    people.push({ name, email });
+  }
+  return people.slice(0, AI_TASK_LIMITS.maxPeople);
+}
+
+function taskDue(dueDate: string | null, dueTime: string | null): { dueDate: string | null; dueTime: string | null } {
+  if (dueDate === null) return { dueDate: null, dueTime: null };
+  if (!isValidLocalDate(dueDate)) drop('invalid_datetime');
+  if (dueTime !== null && !isValidLocalTime(dueTime)) drop('invalid_datetime');
+  return { dueDate, dueTime };
+}
+
+function taskReminder(value: number | null, hasDueTime: boolean): number | null {
+  if (value === null || !hasDueTime) return null;
+  return value >= 0 && value <= AI_TASK_LIMITS.maxReminderMinutes ? value : null;
+}
+
+function resolveTaskRef(ref: string, ctx: MappingContext): string {
+  const task = ctx.tasksContext?.byRef.get(ref.trim()) ?? drop('unknown_ref');
+  return task.taskId;
+}
+
+function resolveMeetingRefOrNull(ref: string | null, ctx: MappingContext): string | null {
+  if (ref === null) return null;
+  return resolveRef(ref, ctx).meetingId;
+}
+
+/** A task tool call without a task context (not offered to this client) is never mapped. */
+function requireTasks(ctx: MappingContext): TaskContext {
+  return ctx.tasksContext ?? drop('not_allowed');
+}
+
+function mapCreateTask(raw: string, ctx: MappingContext, provenance: Provenance): AiAction {
+  requireTasks(ctx);
+  const args = parseArgs(createTaskArgsSchema, raw);
+  const title = clip(args.title, AI_LIMITS.maxTitleChars);
+  if (title.length === 0) drop('bad_args');
+  const due = taskDue(args.due_date, args.due_time);
+  const task: AiTaskDraft = {
+    title,
+    description: clip(args.description, AI_LIMITS.maxDescriptionChars),
+    dueDate: due.dueDate,
+    dueTime: due.dueTime,
+    reminderMinutesBefore: taskReminder(args.reminder_minutes_before, due.dueTime !== null),
+    meetingId: resolveMeetingRefOrNull(args.meeting_ref, ctx),
+    people: taskPeople(args.people, provenance),
+  };
+  return { type: 'create_task', ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].create_task), task };
+}
+
+function mapUpdateTask(raw: string, ctx: MappingContext, provenance: Provenance): AiAction {
+  requireTasks(ctx);
+  const args = parseArgs(updateTaskArgsSchema, raw);
+  const taskId = resolveTaskRef(args.task_ref, ctx);
+  const c = args.changes;
+  const changes: AiTaskChanges = {};
+  if (c.title !== null) {
+    const title = clip(c.title, AI_LIMITS.maxTitleChars);
+    if (title.length > 0) changes.title = title;
+  }
+  if (c.description !== null) changes.description = clip(c.description, AI_LIMITS.maxDescriptionChars);
+  if (c.clear_due) {
+    changes.dueDate = null;
+    changes.dueTime = null;
+    changes.reminderMinutesBefore = null;
+  } else {
+    if (c.due_date !== null) {
+      if (!isValidLocalDate(c.due_date)) drop('invalid_datetime');
+      changes.dueDate = c.due_date;
+    }
+    if (c.due_time !== null) {
+      if (!isValidLocalTime(c.due_time)) drop('invalid_datetime');
+      changes.dueTime = c.due_time;
+    }
+  }
+  if (c.clear_reminder) changes.reminderMinutesBefore = null;
+  else if (c.reminder_minutes_before !== null && c.reminder_minutes_before >= 0 && c.reminder_minutes_before <= AI_TASK_LIMITS.maxReminderMinutes) {
+    changes.reminderMinutesBefore = c.reminder_minutes_before;
+  }
+  if (c.status !== null) changes.status = c.status;
+  if (c.clear_meeting) changes.meetingId = null;
+  else if (c.meeting_ref !== null) changes.meetingId = resolveMeetingRefOrNull(c.meeting_ref, ctx);
+  if (c.people !== null) changes.people = taskPeople(c.people, provenance);
+  if (Object.keys(changes).length === 0) drop('empty_changes');
+  return { type: 'update_task', ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].update_task), taskId, changes };
+}
+
+function mapDeleteTask(raw: string, ctx: MappingContext): AiAction {
+  requireTasks(ctx);
+  const args = parseArgs(deleteTaskArgsSchema, raw);
+  return {
+    type: 'delete_task',
+    ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].delete_task),
+    taskId: resolveTaskRef(args.task_ref, ctx),
+  };
+}
+
+function mapListTasks(raw: string, ctx: MappingContext): AiAction {
+  requireTasks(ctx);
+  const args = parseArgs(listTasksArgsSchema, raw);
+  const taskIds: string[] = [];
+  for (const ref of args.task_refs) {
+    const task = ctx.tasksContext?.byRef.get(ref.trim());
+    if (task && !taskIds.includes(task.taskId)) taskIds.push(task.taskId);
+  }
+  return {
+    type: 'list_tasks',
+    ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].list_tasks),
+    taskIds: taskIds.slice(0, AI_LIMITS.maxBulkMeetings),
+  };
+}
+
 function actionKey(action: AiAction): string {
   const { id: _id, summary: _summary, confidence: _confidence, ...rest } = action;
   return JSON.stringify(rest);
@@ -666,6 +811,18 @@ export function mapToolCalls(toolCalls: readonly ToolCall[], ctx: MappingContext
           break;
         case TOOL_NAMES.list:
           action = mapList(call.arguments, ctx);
+          break;
+        case TOOL_NAMES.createTask:
+          action = mapCreateTask(call.arguments, ctx, provenance);
+          break;
+        case TOOL_NAMES.updateTask:
+          action = mapUpdateTask(call.arguments, ctx, provenance);
+          break;
+        case TOOL_NAMES.deleteTask:
+          action = mapDeleteTask(call.arguments, ctx);
+          break;
+        case TOOL_NAMES.listTasks:
+          action = mapListTasks(call.arguments, ctx);
           break;
         default:
           count('unknown_tool');

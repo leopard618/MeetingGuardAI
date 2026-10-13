@@ -1,4 +1,4 @@
-import { ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL, TOOL_NAMES } from '../../src/assistant/tools';
+import { ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL, TASK_TOOLS, TOOL_NAMES } from '../../src/assistant/tools';
 
 type Schema = Record<string, unknown>;
 
@@ -28,11 +28,11 @@ function collectIssues(schema: Schema, path: string, issues: string[]): void {
   }
 }
 
-/** Every tool the model can ever see: the base set plus the conditional v4 resolution tool. */
-const ALL_TOOLS = [...ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL];
+/** Every tool the model can ever see: the base set plus the conditional v4 and v5 tools. */
+const ALL_TOOLS = [...ASSISTANT_TOOLS, ...TASK_TOOLS, RESOLVE_PENDING_TOOL];
 
 describe('assistant tools', () => {
-  it('defines one strict tool per action type plus suggestions and pending resolution', () => {
+  it('defines one strict tool per action type plus suggestions, tasks and pending resolution', () => {
     expect(ALL_TOOLS.map((tool) => tool.function.name).sort()).toEqual(Object.values(TOOL_NAMES).sort());
     for (const tool of ALL_TOOLS) {
       expect(tool.type).toBe('function');
@@ -44,6 +44,11 @@ describe('assistant tools', () => {
 
   it('keeps resolve_pending OUT of the base tool set (offered only with pending proposals)', () => {
     expect(ASSISTANT_TOOLS.map((tool) => tool.function.name)).not.toContain(TOOL_NAMES.resolve);
+  });
+
+  it('keeps the task tools OUT of the base tool set (offered only to v5 clients)', () => {
+    const base = ASSISTANT_TOOLS.map((tool) => tool.function.name);
+    for (const tool of TASK_TOOLS) expect(base).not.toContain(tool.function.name);
   });
 
   it('uses only strict-mode compatible JSON Schema', () => {

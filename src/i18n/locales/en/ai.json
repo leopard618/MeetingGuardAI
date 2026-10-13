@@ -74,7 +74,11 @@
       "delete_meeting": "Delete meeting",
       "share_meeting": "Share meeting",
       "bulk_update": "Change several meetings",
-      "list": "Meetings"
+      "list": "Meetings",
+      "create_task": "New task",
+      "update_task": "Change task",
+      "delete_task": "Delete task",
+      "list_tasks": "Tasks"
     },
     "status": {
       "proposed": "Needs confirmation",
@@ -88,6 +92,8 @@
     "tryAgain": "Try again",
     "openMeeting": "Open meeting",
     "listEmpty": "No matching meetings.",
+    "taskListEmpty": "No matching tasks.",
+    "taskDone": "Completed",
     "moreWarnings_one": "(+{{count}} more)",
     "moreWarnings_other": "(+{{count}} more)",
     "a11yMeeting": "{{title}}, {{when}}"
@@ -99,7 +105,11 @@
       "delete_meeting": "Delete this meeting?",
       "share_meeting": "Share this meeting?",
       "bulk_update": "Change these meetings?",
-      "list": "Meetings"
+      "list": "Meetings",
+      "create_task": "Create this task?",
+      "update_task": "Save these task changes?",
+      "delete_task": "Delete this task?",
+      "list_tasks": "Tasks"
     },
     "titleMany_one": "Confirm {{count}} action",
     "titleMany_other": "Confirm {{count}} actions",
@@ -111,7 +121,11 @@
       "share_meeting": "Share",
       "share_email": "Write email",
       "bulk_update_one": "Change {{count}} meeting",
-      "bulk_update_other": "Change {{count}} meetings"
+      "bulk_update_other": "Change {{count}} meetings",
+      "create_task": "Create task",
+      "update_task": "Save changes",
+      "complete_task": "Mark as done",
+      "delete_task": "Delete task"
     },
     "confirm": "Confirm",
     "confirmAll_one": "Confirm {{count}} action",
@@ -121,6 +135,7 @@
     "noChanges": "These values are already set; nothing will change.",
     "loadingDetails": "Checking your calendar...",
     "deleteWarning": "This meeting will be deleted and its alerts cancelled.",
+    "taskDeleteWarning": "This task will be deleted and its reminder cancelled.",
     "deleteWarningSynced": "This meeting will be deleted, its alerts cancelled, and it will also be removed from your synced calendar.",
     "channel": "Send via",
     "recipients_one": "Recipient",
@@ -147,7 +162,11 @@
     "alerts": "Alerts",
     "language": "Language",
     "repeats": "Repeats",
-    "scope": "Applies to"
+    "scope": "Applies to",
+    "due": "Due",
+    "reminder": "Reminder",
+    "people": "People",
+    "status": "Status"
   },
   "values": {
     "none": "None",
@@ -164,6 +183,10 @@
     "password": "password {{password}}",
     "shiftLater": "Move {{amount}} later",
     "shiftEarlier": "Move {{amount}} earlier",
+    "reminderAtDue": "At the due time",
+    "reminderBefore": "{{duration}} before",
+    "statusDone": "Completed",
+    "statusOpen": "Open",
     "language": {
       "en": "English",
       "es": "Spanish"
@@ -188,7 +211,9 @@
     "overlaps_with": "Overlaps with: {{titles}}",
     "google_meet_needs_calendar": "Connect Google Calendar to create a real Google Meet link. Without it, the meeting is saved without a link.",
     "no_recipients": "No email recipients were given.",
-    "new_people": "Not on this meeting yet: {{emails}}. Make sure you want to include them."
+    "new_people": "Not on this meeting yet: {{emails}}. Make sure you want to include them.",
+    "task_not_found_one": "This task no longer exists.",
+    "task_not_found_other": "{{count}} of these tasks no longer exist."
   },
   "results": {
     "created": "Meeting created.",
@@ -206,6 +231,12 @@
     "systemShare": "Share sheet opened.",
     "listed_one": "{{count}} meeting found.",
     "listed_other": "{{count}} meetings found.",
+    "taskCreated": "Task created.",
+    "taskUpdated": "Task updated.",
+    "taskCompleted": "Task completed.",
+    "taskDeleted": "Task deleted.",
+    "tasksListed_one": "{{count}} task found.",
+    "tasksListed_other": "{{count}} tasks found.",
     "duplicate": "Already done.",
     "cancelled": "Sharing cancelled.",
     "failed": "Couldn't complete this: {{reason}}",

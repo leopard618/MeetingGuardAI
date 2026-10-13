@@ -39,8 +39,14 @@ import { z } from 'zod';
  * as the on-screen buttons would; the server still never executes anything. An old client sends
  * no pendingActions and can never receive a resolution; an old server strips the unknown
  * request key, so both directions stay compatible.
+ *
+ * v5: tasks (V2 Stage 1). Four new action types (create_task, update_task, delete_task,
+ * list_tasks) over users/{uid}/tasks. New ACTION TYPES are the one thing an old client cannot
+ * tolerate (its enum rejects the whole response), so the request now carries `contractVersion`
+ * and the server offers the task tools and the task context ONLY when it is >= 5. The live v4
+ * production app and the WhatsApp bridge send no version and keep the exact v4 behavior.
  */
-export const AI_CONTRACT_VERSION = 4;
+export const AI_CONTRACT_VERSION = 5;
 
 // ---------------------------------------------------------------------------------------------
 // Trusted sign-in providers (verification gate)
@@ -130,6 +136,11 @@ export const AI_ACTION_TYPES = [
   'share_meeting',
   'bulk_update',
   'list',
+  // v5 (only ever sent to clients whose request said contractVersion >= 5):
+  'create_task',
+  'update_task',
+  'delete_task',
+  'list_tasks',
 ] as const;
 export type AiActionType = (typeof AI_ACTION_TYPES)[number];
 
@@ -139,6 +150,10 @@ export type ShareChannel = (typeof SHARE_CHANNELS)[number];
 /** v4: how the user's latest message resolved the pending proposals (assistantResponseSchema). */
 export const PENDING_RESOLUTIONS = ['confirm', 'reject'] as const;
 export type PendingResolution = (typeof PENDING_RESOLUTIONS)[number];
+
+/** v5: task status values the assistant may set (mirrors TASK_STATUSES in core/types.ts). */
+export const TASK_ACTION_STATUSES = ['open', 'done'] as const;
+export type TaskActionStatus = (typeof TASK_ACTION_STATUSES)[number];
 
 export const RECURRENCE_FREQS = ['daily', 'weekly', 'monthly'] as const;
 export type RecurrenceFreq = (typeof RECURRENCE_FREQS)[number];
@@ -308,6 +323,12 @@ export const assistantRequestSchema = z
     followUpMeetingId: meetingIdSchema.nullable(),
     /** v4, optional: proposals still awaiting confirmation in the app when this message was sent. */
     pendingActions: z.array(pendingActionBriefSchema).max(AI_LIMITS.maxActions).optional(),
+    /**
+     * v5, optional: the AI_CONTRACT_VERSION the client was built with. The server gates
+     * capabilities whose responses an older client cannot parse (the task action types) on it.
+     * Absent = v4 behavior.
+     */
+    contractVersion: z.number().int().min(1).max(1000).optional(),
   })
   .refine((r) => r.mode !== 'followup' || r.followUpMeetingId !== null, {
     message: 'followUpMeetingId is required in followup mode',
@@ -475,6 +496,90 @@ export const listActionSchema = z.object({
   meetingIds: z.array(meetingIdSchema).max(AI_LIMITS.maxBulkMeetings),
 });
 
+// ---- Tasks (v5) -----------------------------------------------------------------------------
+
+export const LOCAL_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+export const localTimeKeySchema = z.string().regex(LOCAL_TIME_PATTERN);
+
+/** Someone a task involves; a name is enough, the email is optional. */
+export const aiTaskPersonSchema = z.object({
+  name: z.string().min(1).max(200),
+  email: emailSchema.nullable(),
+});
+export type AiTaskPerson = z.infer<typeof aiTaskPersonSchema>;
+
+export const AI_TASK_LIMITS = {
+  maxPeople: 20,
+  maxReminderMinutes: 10_080,
+} as const;
+
+/**
+ * A task the assistant proposes to create. Due date and time are LOCAL values in the user's
+ * zone (the executor anchors them in the device zone); a reminder needs a due time.
+ */
+export const aiTaskDraftSchema = z
+  .object({
+    title: z.string().min(1).max(AI_LIMITS.maxTitleChars),
+    description: z.string().max(AI_LIMITS.maxDescriptionChars),
+    dueDate: localDateKeySchema.nullable(),
+    dueTime: localTimeKeySchema.nullable(),
+    reminderMinutesBefore: z.number().int().min(0).max(AI_TASK_LIMITS.maxReminderMinutes).nullable(),
+    meetingId: meetingIdSchema.nullable(),
+    people: z.array(aiTaskPersonSchema).max(AI_TASK_LIMITS.maxPeople),
+  })
+  .refine((t) => t.dueTime === null || t.dueDate !== null, { message: 'dueTime needs a dueDate', path: ['dueTime'] })
+  .refine((t) => t.reminderMinutesBefore === null || t.dueTime !== null, {
+    message: 'a reminder needs a due time',
+    path: ['reminderMinutesBefore'],
+  });
+export type AiTaskDraft = z.infer<typeof aiTaskDraftSchema>;
+
+/**
+ * Partial changes to an existing task. Absent key = unchanged; null (where allowed) = clear.
+ * `status: 'done'` completes, `status: 'open'` reopens. The executor normalizes the due fields
+ * (clearing the date clears the time and the reminder).
+ */
+export const aiTaskChangesSchema = z
+  .object({
+    title: z.string().min(1).max(AI_LIMITS.maxTitleChars),
+    description: z.string().max(AI_LIMITS.maxDescriptionChars),
+    dueDate: localDateKeySchema.nullable(),
+    dueTime: localTimeKeySchema.nullable(),
+    reminderMinutesBefore: z.number().int().min(0).max(AI_TASK_LIMITS.maxReminderMinutes).nullable(),
+    meetingId: meetingIdSchema.nullable(),
+    people: z.array(aiTaskPersonSchema).max(AI_TASK_LIMITS.maxPeople),
+    status: z.enum(TASK_ACTION_STATUSES),
+  })
+  .partial()
+  .refine((c) => Object.keys(c).length > 0, { message: 'changes must not be empty' });
+export type AiTaskChanges = z.infer<typeof aiTaskChangesSchema>;
+
+export const createTaskActionSchema = z.object({
+  type: z.literal('create_task'),
+  ...actionBase,
+  task: aiTaskDraftSchema,
+});
+
+export const updateTaskActionSchema = z.object({
+  type: z.literal('update_task'),
+  ...actionBase,
+  taskId: meetingIdSchema,
+  changes: aiTaskChangesSchema,
+});
+
+export const deleteTaskActionSchema = z.object({
+  type: z.literal('delete_task'),
+  ...actionBase,
+  taskId: meetingIdSchema,
+});
+
+/** Read-only: show these tasks (may be empty when nothing matched). */
+export const listTasksActionSchema = z.object({
+  type: z.literal('list_tasks'),
+  ...actionBase,
+  taskIds: z.array(meetingIdSchema).max(AI_LIMITS.maxBulkMeetings),
+});
+
 export const aiActionSchema = z.discriminatedUnion('type', [
   createMeetingActionSchema,
   updateMeetingActionSchema,
@@ -482,6 +587,10 @@ export const aiActionSchema = z.discriminatedUnion('type', [
   shareMeetingActionSchema,
   bulkUpdateActionSchema,
   listActionSchema,
+  createTaskActionSchema,
+  updateTaskActionSchema,
+  deleteTaskActionSchema,
+  listTasksActionSchema,
 ]);
 export type AiAction = z.infer<typeof aiActionSchema>;
 export type CreateMeetingAction = z.infer<typeof createMeetingActionSchema>;
@@ -490,10 +599,14 @@ export type DeleteMeetingAction = z.infer<typeof deleteMeetingActionSchema>;
 export type ShareMeetingAction = z.infer<typeof shareMeetingActionSchema>;
 export type BulkUpdateAction = z.infer<typeof bulkUpdateActionSchema>;
 export type ListAction = z.infer<typeof listActionSchema>;
+export type CreateTaskAction = z.infer<typeof createTaskActionSchema>;
+export type UpdateTaskAction = z.infer<typeof updateTaskActionSchema>;
+export type DeleteTaskAction = z.infer<typeof deleteTaskActionSchema>;
+export type ListTasksAction = z.infer<typeof listTasksActionSchema>;
 
-/** Actions that change data (everything except `list`). */
+/** Actions that change data (everything except the read-only lists). */
 export function isMutatingAction(action: AiAction): boolean {
-  return action.type !== 'list';
+  return action.type !== 'list' && action.type !== 'list_tasks';
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -761,6 +874,27 @@ export function nextUsageResetIso(date: Date): string {
  * needs for context. Must stay compatible with `meetingSchema` in src/core/types.ts
  * (a unit test enforces this). Unknown/missing fields fall back instead of failing.
  */
+/**
+ * v5: lenient reader for users/{uid}/tasks/{id} documents, limited to the fields the assistant
+ * needs for context. Must stay compatible with `taskSchema` in src/core/types.ts.
+ */
+export const aiTaskContextDocSchema = z.object({
+  title: z.string().catch(''),
+  description: z.string().catch(''),
+  dueDate: z.string().nullable().catch(null),
+  dueTime: z.string().nullable().catch(null),
+  timezone: z.string().catch('UTC'),
+  reminderMinutesBefore: z.number().nullable().catch(null),
+  status: z.string().catch('open'),
+  meetingId: z.string().nullable().catch(null),
+  people: z
+    .array(z.object({ name: z.string().catch(''), email: z.string().nullable().catch(null) }))
+    .catch([]),
+  completedAt: z.string().nullable().catch(null),
+  updatedAt: z.string().catch(''),
+});
+export type AiTaskContextDoc = z.infer<typeof aiTaskContextDocSchema>;
+
 export const aiMeetingContextDocSchema = z.object({
   title: z.string().catch(''),
   description: z.string().catch(''),

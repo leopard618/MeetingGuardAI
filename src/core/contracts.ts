@@ -1321,13 +1321,18 @@ export type ActionWarning =
   | 'google_meet_needs_calendar'
   | 'no_recipients'
   /** Recipients / participants that are not on the meeting yet (listed on the card). */
-  | 'new_people';
+  | 'new_people'
+  /** v5: a referenced task no longer exists. */
+  | 'task_not_found';
 
 export interface ActionPreview {
   action: AiAction;
   /** Referenced meetings that exist (for the confirmation card). */
   meetings: Meeting[];
   missingMeetingIds: string[];
+  /** v5 task actions: the referenced tasks that exist (for the confirmation card). */
+  tasks?: Task[];
+  missingTaskIds?: string[];
   warnings: ActionWarning[];
 }
 
@@ -1337,6 +1342,8 @@ export type ActionResult =
       actionId: string;
       type: AiActionType;
       meetingIds: string[];
+      /** v5 task actions: the tasks touched (meetingIds stays [] for them). */
+      taskIds?: string[];
       /** true when this action id had already been executed (idempotent no-op). */
       duplicate: boolean;
       /** share_meeting: how it was actually delivered (never claimed otherwise). */

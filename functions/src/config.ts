@@ -95,6 +95,8 @@ export const CONTEXT_WINDOW = {
   pastDays: 7,
   futureDays: 60,
   maxMeetings: 200,
+  /** v5: open tasks + recently completed ones the assistant sees (tasksContext.ts). */
+  maxTasks: 100,
   /** Firestore read cap before filtering tombstones. */
   queryLimit: 400,
   maxTitleChars: 120,

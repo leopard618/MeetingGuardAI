@@ -80,15 +80,19 @@ function base32(bytes: Uint8Array): string {
   return output;
 }
 
-/** Short refs for meeting ids: deterministic, unique within the set (grows on collision). */
-export function assignRefs(meetingIds: readonly string[]): Map<string, string> {
+/**
+ * Short refs for document ids: deterministic, unique within the set (grows on collision).
+ * Meetings use the default "m" prefix; tasks (v5) use "t", so the two ref spaces can never be
+ * confused or targeted across kinds.
+ */
+export function assignRefs(meetingIds: readonly string[], prefix = 'm'): Map<string, string> {
   const digests = new Map(meetingIds.map((id) => [id, base32(createHash('sha256').update(id).digest())]));
   for (let length = 7; length <= 52; length += 3) {
     const refs = new Map<string, string>();
     const seen = new Set<string>();
     let collision = false;
     for (const [id, digest] of digests) {
-      const ref = `m${digest.slice(0, length)}`;
+      const ref = `${prefix}${digest.slice(0, length)}`;
       if (seen.has(ref)) {
         collision = true;
         break;
@@ -99,7 +103,7 @@ export function assignRefs(meetingIds: readonly string[]): Map<string, string> {
     if (!collision) return refs;
   }
   // Unreachable in practice (52 base32 chars = 260 bits); fall back to positional refs.
-  return new Map(meetingIds.map((id, index) => [id, `m${index + 1}`]));
+  return new Map(meetingIds.map((id, index) => [id, `${prefix}${index + 1}`]));
 }
 
 export function isVisibleMeeting(doc: AiMeetingContextDoc): boolean {
