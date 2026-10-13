@@ -15,15 +15,37 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import type { Language } from '../../core/aiContract';
 import { createLogger } from '../../core/logger';
 import type { ChatMessage } from '../../services/ai/types';
-import { shouldAutoSend, voiceLocale, voiceProblemForError, type VoiceProblem, type VoiceStatus } from './voiceModel';
+import {
+  VOICE_MAX_SESSION_MS,
+  VOICE_SILENCE_AFTER_SPEECH_MS,
+  VOICE_SILENCE_NO_SPEECH_MS,
+  joinSegments,
+  shouldAutoSend,
+  voiceLocale,
+  voiceProblemForError,
+  type VoiceProblem,
+  type VoiceStatus,
+} from './voiceModel';
 
 const log = createLogger('assistant.voice');
 
 const SPOKEN_REPLIES_KEY = 'mg:assistant.spokenReplies';
+
+/**
+ * Continuous recognition (the app times the pause itself, so a thinking break never cuts the
+ * user off) needs Android 13+; iOS always supports it. Older Androids keep the platform's own
+ * end-of-speech detection, softened by the intent extras passed at start().
+ */
+function supportsContinuous(): boolean {
+  if (Platform.OS === 'ios') return true;
+  const version = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10);
+  return Number.isFinite(version) && version >= 33;
+}
 
 export interface VoiceInputHandlers {
   language: Language;
@@ -48,14 +70,54 @@ export function useVoiceInput(handlers: VoiceInputHandlers): VoiceInput {
   latest.current = handlers;
   const active = useRef(false);
   const transcript = useRef('');
+  /** Android continuous mode: finalized segments so far (iOS streams the whole transcript). */
+  const committed = useRef('');
   const endedByUser = useRef(false);
   const failed = useRef(false);
+  const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimers = (): void => {
+    if (silenceTimer.current) clearTimeout(silenceTimer.current);
+    if (sessionTimer.current) clearTimeout(sessionTimer.current);
+    silenceTimer.current = null;
+    sessionTimer.current = null;
+  };
+
+  /** Natural finish: stop the recognizer; the final result + end events deliver the outcome. */
+  const finishListening = (): void => {
+    if (!active.current) return;
+    try {
+      ExpoSpeechRecognitionModule.stop();
+    } catch (error) {
+      log.warn('voice stop failed', error);
+    }
+  };
+
+  const armSilenceTimer = (ms: number): void => {
+    if (silenceTimer.current) clearTimeout(silenceTimer.current);
+    silenceTimer.current = setTimeout(finishListening, ms);
+  };
+
+  useSpeechRecognitionEvent('start', () => {
+    if (!active.current) return;
+    armSilenceTimer(VOICE_SILENCE_NO_SPEECH_MS);
+    sessionTimer.current = setTimeout(finishListening, VOICE_MAX_SESSION_MS);
+  });
 
   useSpeechRecognitionEvent('result', (event) => {
     if (!active.current) return;
     const text = event.results[0]?.transcript ?? '';
-    transcript.current = text;
-    latest.current.onTranscript(text);
+    if (Platform.OS === 'android') {
+      // Android continuous sessions emit one result per segment; keep the finalized ones.
+      transcript.current = joinSegments(committed.current, text);
+      if (event.isFinal) committed.current = transcript.current;
+    } else {
+      // iOS streams the cumulative transcript of the whole session.
+      transcript.current = text;
+    }
+    latest.current.onTranscript(transcript.current);
+    armSilenceTimer(VOICE_SILENCE_AFTER_SPEECH_MS);
   });
 
   useSpeechRecognitionEvent('nomatch', () => {
@@ -75,11 +137,13 @@ export function useVoiceInput(handlers: VoiceInputHandlers): VoiceInput {
   // Always the last event of a session, after any error; delivers the outcome exactly once.
   useSpeechRecognitionEvent('end', () => {
     if (!active.current) return;
+    clearTimers();
     active.current = false;
     setStatus('idle');
     const text = transcript.current;
     const autoSend = shouldAutoSend({ endedByUser: endedByUser.current, failed: failed.current }, text);
     transcript.current = '';
+    committed.current = '';
     endedByUser.current = false;
     failed.current = false;
     latest.current.onFinal(text, { autoSend });
@@ -88,6 +152,7 @@ export function useVoiceInput(handlers: VoiceInputHandlers): VoiceInput {
   // Leaving the screen mid-listening aborts without delivering anything.
   useEffect(
     () => () => {
+      clearTimers();
       if (!active.current) return;
       active.current = false;
       try {
@@ -96,6 +161,7 @@ export function useVoiceInput(handlers: VoiceInputHandlers): VoiceInput {
         log.warn('voice abort failed', error);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -121,6 +187,7 @@ export function useVoiceInput(handlers: VoiceInputHandlers): VoiceInput {
           return;
         }
         transcript.current = '';
+        committed.current = '';
         endedByUser.current = false;
         failed.current = false;
         active.current = true;
@@ -128,8 +195,15 @@ export function useVoiceInput(handlers: VoiceInputHandlers): VoiceInput {
         ExpoSpeechRecognitionModule.start({
           lang: voiceLocale(latest.current.language),
           interimResults: true,
-          continuous: false,
+          // The app times the end of speech itself (silence timers above), so a thinking pause
+          // never cuts dictation off. Androids without continuous support keep the platform
+          // behavior, softened by the silence-length extras below.
+          continuous: supportsContinuous(),
           addsPunctuation: true,
+          androidIntentOptions: {
+            EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: VOICE_SILENCE_AFTER_SPEECH_MS,
+            EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: VOICE_SILENCE_AFTER_SPEECH_MS,
+          },
         });
       } catch (error) {
         active.current = false;

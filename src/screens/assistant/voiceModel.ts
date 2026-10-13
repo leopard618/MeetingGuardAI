@@ -46,6 +46,27 @@ export function shouldAutoSend(state: { endedByUser: boolean; failed: boolean },
 }
 
 // -----------------------------------------------------------------------------------------------
+// Listening session timing (client feedback: the platform's own silence detection cut users off
+// mid-dictation, so listening is continuous and the app times the pause itself)
+// -----------------------------------------------------------------------------------------------
+
+/** Pause allowed between words once something was heard; then listening ends and the text sends. */
+export const VOICE_SILENCE_AFTER_SPEECH_MS = 3000;
+/** Give up when nothing was heard at all. */
+export const VOICE_SILENCE_NO_SPEECH_MS = 8000;
+/** Hard cap on one listening session. */
+export const VOICE_MAX_SESSION_MS = 60_000;
+
+/** Android continuous mode delivers finalized segments one by one; join them with single spaces. */
+export function joinSegments(committed: string, segment: string): string {
+  const head = committed.trim();
+  const tail = segment.trim();
+  if (head === '') return tail;
+  if (tail === '') return head;
+  return `${head} ${tail}`;
+}
+
+// -----------------------------------------------------------------------------------------------
 // Voice confirmation of proposed actions (agreed with the client for V2 Stage 1)
 // -----------------------------------------------------------------------------------------------
 

@@ -1,4 +1,13 @@
-import { shouldAutoSend, voiceCommand, voiceLocale, voiceProblemForError } from '../voiceModel';
+import {
+  VOICE_MAX_SESSION_MS,
+  VOICE_SILENCE_AFTER_SPEECH_MS,
+  VOICE_SILENCE_NO_SPEECH_MS,
+  joinSegments,
+  shouldAutoSend,
+  voiceCommand,
+  voiceLocale,
+  voiceProblemForError,
+} from '../voiceModel';
 
 describe('voiceLocale', () => {
   it('maps the app languages to the same tags as the alert readout', () => {
@@ -50,6 +59,24 @@ describe('shouldAutoSend', () => {
   it('never sends blank transcripts', () => {
     expect(shouldAutoSend(natural, '')).toBe(false);
     expect(shouldAutoSend(natural, '   ')).toBe(false);
+  });
+});
+
+describe('listening session timing', () => {
+  it('allows a dictation pause well above typical platform cut-offs, within sane bounds', () => {
+    expect(VOICE_SILENCE_AFTER_SPEECH_MS).toBeGreaterThanOrEqual(2500);
+    expect(VOICE_SILENCE_AFTER_SPEECH_MS).toBeLessThanOrEqual(5000);
+    expect(VOICE_SILENCE_NO_SPEECH_MS).toBeGreaterThan(VOICE_SILENCE_AFTER_SPEECH_MS);
+    expect(VOICE_MAX_SESSION_MS).toBeGreaterThan(VOICE_SILENCE_NO_SPEECH_MS);
+  });
+});
+
+describe('joinSegments', () => {
+  it('joins finalized segments with single spaces', () => {
+    expect(joinSegments('', 'schedule a meeting')).toBe('schedule a meeting');
+    expect(joinSegments('schedule a meeting', 'with Ana tomorrow')).toBe('schedule a meeting with Ana tomorrow');
+    expect(joinSegments('schedule a meeting', '')).toBe('schedule a meeting');
+    expect(joinSegments('  padded  ', '  words  ')).toBe('padded words');
   });
 });
 
