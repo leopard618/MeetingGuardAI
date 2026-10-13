@@ -115,7 +115,7 @@ function series(overrides: Partial<Meeting> = {}): Meeting {
 
 function occurrenceAlertData(notifications: FakeNotifications, identifier: string): StoredAlertData {
   const spec = notifications.scheduled.get(identifier);
-  if (!spec || spec.kind === 'refill') throw new Error(`not scheduled: ${identifier}`);
+  if (!spec || spec.kind === 'refill' || spec.kind === 'task') throw new Error(`not scheduled: ${identifier}`);
   return spec.data;
 }
 

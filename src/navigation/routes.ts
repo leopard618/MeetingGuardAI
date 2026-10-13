@@ -20,6 +20,7 @@ export const ROUTES = {
   EditMeeting: 'EditMeeting',
   Calendar: 'Calendar',
   Notes: 'Notes',
+  Tasks: 'Tasks',
   Settings: 'Settings',
   AlertSettings: 'AlertSettings',
   Profile: 'Profile',

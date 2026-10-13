@@ -1170,6 +1170,7 @@ export const I18N_NAMESPACE_LIST = [
   'calendarView',
   'create',
   'notes',
+  'tasks',
   'attachments',
   'home',
   'insights',
@@ -1260,6 +1261,8 @@ export type MainStackParamList = {
   EditMeeting: { meetingId: string };
   Calendar: undefined;
   Notes: undefined;
+  /** First-class tasks (V2 Stage 1). */
+  Tasks: undefined;
   Settings: undefined;
   /** Settings > Alerts: every alert preference after onboarding. */
   AlertSettings: undefined;

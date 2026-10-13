@@ -1,4 +1,8 @@
 {
+  "taskReminder": {
+    "title": "Recordatorio de tarea",
+    "body": "{{title}} - vence a las {{time}}"
+  },
   "lead": {
     "minutes_one": "en {{count}} minuto",
     "minutes_other": "en {{count}} minutos",

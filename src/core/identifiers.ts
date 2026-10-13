@@ -232,6 +232,28 @@ export function snoozeNotificationId(meetingId: string): string {
   return `${NOTIFICATION_ID_PREFIX}:${meetingId}:snooze`;
 }
 
+/**
+ * Task reminders (V2 Stage 1) use their OWN prefix: the alert engine's reconcile manages `mg:*`
+ * identifiers only, so `mgtask:*` notifications are invisible to it and the two schedulers can
+ * never cancel each other's work (src/services/alerts/taskReminders.ts owns these).
+ */
+export const TASK_NOTIFICATION_ID_PREFIX = 'mgtask';
+
+/** "mgtask:{taskId}" - one reminder per task (at most). */
+export function taskReminderNotificationId(taskId: string): string {
+  if (!MEETING_ID_PATTERN.test(taskId)) {
+    throw new RangeError(`Invalid task id for a notification identifier: ${taskId}`);
+  }
+  return `${TASK_NOTIFICATION_ID_PREFIX}:${taskId}`;
+}
+
+export function parseTaskReminderNotificationId(identifier: string): { taskId: string } | null {
+  const parts = identifier.split(':');
+  const taskId = parts[1] ?? '';
+  if (parts.length !== 2 || parts[0] !== TASK_NOTIFICATION_ID_PREFIX || !MEETING_ID_PATTERN.test(taskId)) return null;
+  return { taskId };
+}
+
 export function parseNotificationId(identifier: string): ParsedNotificationId | null {
   const parts = identifier.split(':');
   if (parts[0] !== NOTIFICATION_ID_PREFIX) return null;

@@ -1,0 +1,98 @@
+{
+  "add": "New task",
+  "addA11y": "Create a new task",
+  "list": {
+    "loading": "Loading your tasks...",
+    "count_one": "{{count}} task",
+    "count_other": "{{count}} tasks"
+  },
+  "search": {
+    "placeholder": "Search tasks",
+    "clear": "Clear search"
+  },
+  "filters": {
+    "label": "Filter tasks",
+    "withCount": "{{label}} ({{count}})",
+    "open": "Open",
+    "today": "Today",
+    "overdue": "Overdue",
+    "done": "Done",
+    "all": "All"
+  },
+  "empty": {
+    "title": "No tasks yet",
+    "body": "Keep track of what needs to get done: on its own or linked to a meeting. You can also just tell the assistant.",
+    "action": "Add your first task"
+  },
+  "noMatches": {
+    "title": "No matching tasks",
+    "body": "Nothing matches the current search or filter.",
+    "action": "Clear filters"
+  },
+  "loadError": {
+    "title": "Tasks could not be loaded"
+  },
+  "toast": {
+    "saved": "Task saved",
+    "deleted": "Task deleted",
+    "completed": "Task completed",
+    "reopened": "Task reopened"
+  },
+  "delete": {
+    "title": "Delete \"{{title}}\"?",
+    "message": "The task is removed from all your devices.",
+    "confirm": "Delete"
+  },
+  "card": {
+    "open": "Open task {{title}}",
+    "complete": "Mark {{title}} as done",
+    "reopen": "Reopen {{title}}",
+    "delete": "Delete {{title}}",
+    "dueOn": "Due {{date}}",
+    "dueAt": "Due {{date}} at {{time}}",
+    "completed": "Completed {{when}}",
+    "meeting": "Open meeting {{title}}",
+    "meetingUnavailable": "The linked meeting no longer exists"
+  },
+  "editor": {
+    "newTitle": "New task",
+    "editTitle": "Edit task",
+    "save": "Save",
+    "close": "Close",
+    "titleLabel": "Title",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What exactly needs to happen?",
+    "dueSection": "Due",
+    "noDueDate": "No due date",
+    "dueAt": "{{date}} at {{time}}",
+    "pickDate": "Pick a date",
+    "changeDate": "Change date",
+    "pickTime": "Add a time",
+    "changeTime": "Change time",
+    "clearDue": "Clear",
+    "pickerDone": "Done",
+    "reminder": "Reminder",
+    "reminderNeedsTime": "Add a due time to set a reminder.",
+    "reminderNone": "None",
+    "reminderAtDue": "At the due time",
+    "reminderMinutes": "{{count}} min before",
+    "reminderDayBefore": "1 day before",
+    "people": "People",
+    "meeting": "Linked meeting",
+    "meetingNone": "Not linked to a meeting",
+    "linkMeeting": "Link a meeting",
+    "changeMeeting": "Change meeting",
+    "unlinkMeeting": "Unlink",
+    "unlinkA11y": "Remove the meeting link",
+    "delete": "Delete task",
+    "discardTitle": "Discard changes?",
+    "discardMessage": "Your edits have not been saved.",
+    "keepEditing": "Keep editing",
+    "discard": "Discard"
+  },
+  "errors": {
+    "titleRequired": "Give the task a title.",
+    "titleTooLong": "The title can have at most {{max}} characters.",
+    "descriptionTooLong": "The description can have at most {{max}} characters."
+  }
+}

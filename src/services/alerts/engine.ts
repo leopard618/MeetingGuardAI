@@ -8,12 +8,13 @@ import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import { getLanguage, t } from '../../i18n';
 import { formatTime } from '../../utils/format';
-import { dataService, meetingRepository, preferencesRepository } from '../data';
+import { dataService, meetingRepository, preferencesRepository, tasksRepository } from '../data';
 import { createAlertEngine, type AlertEngineImpl } from './engineCore';
 import { createExpoNotificationsPort } from './expoNotificationsPort';
 import { alertFeedback } from './feedback';
 import { fullScreenAlarm } from './fsi';
 import { createAppStatePort, createAsyncStoragePort, createSettingsPort } from './platformPorts';
+import { createTaskReminders, type TaskReminders } from './taskReminders';
 import type { AlertDataPort, AlertI18nPort } from './types';
 
 const dataPort: AlertDataPort = {
@@ -45,4 +46,14 @@ export const alertEngine: AlertEngineImpl = createAlertEngine({
   logger: createLogger('alerts'),
   deviceTimeZone: getDeviceTimeZone,
   fsi: fullScreenAlarm,
+});
+
+/** Task reminders (V2 Stage 1): its own mgtask:* scheduler beside the engine; started with it. */
+export const taskReminders: TaskReminders = createTaskReminders({
+  notifications: createExpoNotificationsPort(),
+  subscribeTasks: (listener) => tasksRepository.subscribe(listener),
+  getPreferences: () => preferencesRepository.get(),
+  i18n: i18nPort,
+  events: appEvents,
+  deviceTimeZone: getDeviceTimeZone,
 });

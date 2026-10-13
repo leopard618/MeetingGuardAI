@@ -40,6 +40,7 @@ import {
   MeetingDetailsScreen,
   NotesScreen,
   PricingScreen,
+  TasksScreen,
   PrivacyScreen,
   ProfileScreen,
   SettingsScreen,
@@ -144,6 +145,7 @@ export function RootNavigator(): ReactElement {
         <Stack.Screen name="EditMeeting" component={EditMeetingScreen} />
         <Stack.Screen name="Calendar" component={CalendarScreen} />
         <Stack.Screen name="Notes" component={NotesScreen} />
+        <Stack.Screen name="Tasks" component={TasksScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="AlertSettings" component={AlertSettingsScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />

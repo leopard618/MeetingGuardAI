@@ -23,7 +23,7 @@ import { ThemeProvider, useAppThemes } from '../contexts/ThemeContext';
 import { toAppError } from '../core/errors';
 import { createLogger, setErrorReporter } from '../core/logger';
 import { I18nProvider } from '../i18n';
-import { alertEngine } from '../services/alerts';
+import { alertEngine, taskReminders } from '../services/alerts';
 import { AuthProvider } from '../services/auth';
 import { DataProvider } from '../services/data';
 import { captureException } from '../services/sentry';
@@ -76,6 +76,7 @@ export function AppRoot(): ReactElement {
     alertEngine.init().catch((error: unknown) => {
       log.error('alert engine initialization failed', toAppError(error));
     });
+    taskReminders.start();
     return () => setErrorReporter(null);
   }, []);
 

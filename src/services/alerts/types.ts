@@ -78,8 +78,25 @@ export interface RefillNotificationSpec extends Omit<AlertNotificationSpec, 'kin
   data: RefillNotificationData;
 }
 
+/** content.data of a task reminder ("mgtask:{taskId}"; owner: taskReminders, not the engine). */
+export interface TaskReminderData {
+  v: 1;
+  kind: 'task';
+  taskId: string;
+  fireAt: string;
+  /** Task title at schedule time (a changed title reschedules the notification). */
+  title: string;
+}
+
+/** A task reminder (V2 Stage 1; scheduled by src/services/alerts/taskReminders.ts). */
+export interface TaskReminderSpec extends Omit<AlertNotificationSpec, 'kind' | 'meetingId' | 'intensity' | 'data'> {
+  kind: 'task';
+  taskId: string;
+  data: TaskReminderData;
+}
+
 /** Anything the engine hands to the OS. */
-export type ScheduledSpec = AlertNotificationSpec | RefillNotificationSpec;
+export type ScheduledSpec = AlertNotificationSpec | RefillNotificationSpec | TaskReminderSpec;
 
 /** Meeting fields needed to render notification text. */
 export interface MeetingSummary {

@@ -21,6 +21,7 @@ import enLegal from './locales/en/legal.json';
 import enMeetings from './locales/en/meetings.json';
 import enNavigation from './locales/en/navigation.json';
 import enNotes from './locales/en/notes.json';
+import enTasks from './locales/en/tasks.json';
 import enOnboarding from './locales/en/onboarding.json';
 import enPricing from './locales/en/pricing.json';
 import enSettings from './locales/en/settings.json';
@@ -43,6 +44,7 @@ import esLegal from './locales/es/legal.json';
 import esMeetings from './locales/es/meetings.json';
 import esNavigation from './locales/es/navigation.json';
 import esNotes from './locales/es/notes.json';
+import esTasks from './locales/es/tasks.json';
 import esOnboarding from './locales/es/onboarding.json';
 import esPricing from './locales/es/pricing.json';
 import esSettings from './locales/es/settings.json';
@@ -68,6 +70,7 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     calendarView: enCalendarView,
     create: enCreate,
     notes: enNotes,
+    tasks: enTasks,
     attachments: enAttachments,
     home: enHome,
     insights: enInsights,
@@ -92,6 +95,7 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     calendarView: esCalendarView,
     create: esCreate,
     notes: esNotes,
+    tasks: esTasks,
     attachments: esAttachments,
     home: esHome,
     insights: esInsights,

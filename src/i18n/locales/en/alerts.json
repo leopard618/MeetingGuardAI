@@ -1,4 +1,8 @@
 {
+  "taskReminder": {
+    "title": "Task reminder",
+    "body": "{{title}} - due at {{time}}"
+  },
   "lead": {
     "minutes_one": "in {{count}} minute",
     "minutes_other": "in {{count}} minutes",
