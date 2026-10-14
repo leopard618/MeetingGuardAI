@@ -368,6 +368,36 @@ describe('pending-proposal resolution (v4)', () => {
   });
 });
 
+describe('dropped-proposal fallback', () => {
+  it('asks for the missing detail when every proposal was dropped (timed meeting without a time)', async () => {
+    const { deps } = setup(
+      result({
+        content: '',
+        toolCalls: [
+          {
+            name: 'create_meeting',
+            arguments: JSON.stringify({
+              title: 'Meeting with Isaias', description: '', date: '2026-09-29', time: null, all_day: false,
+              duration_minutes: null, timezone: null, location: null, conference: null,
+              participants: [], preparation_tips: [], alert_minutes_before: null, recurrence: null,
+              summary: 'Schedule a meeting with Isaias tomorrow.', confidence: 80,
+            }),
+          },
+        ],
+      }),
+    );
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.actions).toEqual([]);
+    expect(response.reply).toContain('date or start time is missing');
+  });
+
+  it('keeps the plain empty fallback when the model proposed nothing at all', async () => {
+    const { deps } = setup(result({ content: '', toolCalls: [] }));
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.reply).toContain("couldn't come up with an answer");
+  });
+});
+
 describe('task tools (v5)', () => {
   const taskReader = {
     listRecent: async () => [

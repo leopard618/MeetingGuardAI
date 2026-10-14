@@ -96,7 +96,7 @@ export function buildSystemPrompt(input: {
     '2. Always also write a short reply (1-3 sentences) in the same response, even when you call tools. Never show refs or internal ids in the reply.',
     '3. Existing meetings can only be referenced by the `ref` values in the meetings data block. Never invent a ref. Match people by participant names as well as titles (for example "the 4pm meeting with Alejandro" is the meeting at 16:00 whose participants include someone named Alejandro). If no meeting matches, or several match and the request is ambiguous, ask a short clarifying question instead of calling a tool.',
     `4. Dates and times: give a local date "YYYY-MM-DD" and a 24-hour time "HH:mm" in the user time zone (${timeZone}); the server converts them. Times in the data block are already in the user time zone (all-day meetings show only a date). If a new meeting has no time and is not all-day, ask for the time. Default duration: 60 minutes.`,
-    '5. New meetings, missing details: when the user is clearly scheduling with another person but has not said who, or it is unclear whether they meet in person or on a video call, ask for the missing pieces in ONE short question before proposing (for example: "Who is the meeting with, and is it in person or a video call?"). Do not ask for a self-contained personal event ("dentist tomorrow at 9"), do not repeat the question if the user leaves it open or says to just book it (then propose with what you have), and never ask more than one clarifying question per request.',
+    '5. New meetings, missing details: when the user is clearly scheduling with another person but has not said who, or it is unclear whether they meet in person or on a video call, ask for the missing pieces in ONE short question before proposing (for example: "Who is the meeting with, and is it in person or a video call?"). Do not ask for a self-contained personal event ("dentist tomorrow at 9"). If the user leaves those open or says to just book it, propose with what you have - EXCEPT the start time: a timed meeting can never be proposed without its time (rule 4), so when the time is still missing it is the one thing you must still ask for (fold it into the same question when possible: "Who with, at what time, and in person or a video call?"). Never repeat a question the user already left open.',
     '6. Only include the fields that change in update proposals; use null for everything that stays the same.',
     '7. Never fabricate conference links, passwords, phone numbers or email addresses. Put a conference URL or password only if the user typed it in this conversation. For Google Meet without a link, use provider "google_meet" with url null: the app creates a real Meet link. For Zoom or Teams without a link, use url null.',
     '8. Recurring meetings: to make a meeting repeat ("every Monday at 9", "daily standup", "cada lunes"), set `recurrence` with freq daily|weekly|monthly, interval (default 1), by_weekday (weekly, MO..SU), by_month_day (monthly), and at most one of until_date (inclusive last day) or count (total occurrences). Meetings that repeat show `recurring: true` and a `repeats` description in the data block; their `start` is the FIRST occurrence of the series (possibly in the past) - work out the occurrence the user means from `repeats` and the date table. When updating or deleting such a meeting, decide the scope: "occurrence" with occurrence_date (that occurrence\'s ORIGINAL date) for one occurrence ("skip tomorrow\'s standup", "move only Friday\'s"), "following" with occurrence_date for that occurrence and every later one ("from next Monday move the standup to 10", "cancel the rest of the standups"), "series" for the whole series. If the user could mean more than one, ask which one before calling the tool. Occurrence-scoped updates may only change date, time, duration_minutes or title; "following" updates take the full change surface and the earlier occurrences keep their old values.',
@@ -208,7 +208,7 @@ export function collectUserText(messages: readonly AssistantMessage[]): string {
 // Server-generated fallback texts (used when the model returns tool calls without a reply)
 // ---------------------------------------------------------------------------------------------
 
-export type FallbackKind = 'actions' | 'list' | 'followup' | 'empty' | 'resolve_confirm' | 'resolve_reject';
+export type FallbackKind = 'actions' | 'list' | 'followup' | 'empty' | 'need_details' | 'resolve_confirm' | 'resolve_reject';
 
 const FALLBACK_TEXT: Readonly<Record<Language, Record<FallbackKind, string>>> = {
   en: {
@@ -216,6 +216,7 @@ const FALLBACK_TEXT: Readonly<Record<Language, Record<FallbackKind, string>>> = 
     list: 'Here are the meetings I found.',
     followup: 'Your meeting has ended. Here are some ideas to follow up.',
     empty: "Sorry, I couldn't come up with an answer. Could you rephrase your request?",
+    need_details: 'I could not prepare that yet - a detail like the exact date or start time is missing. Could you give it to me? For example: "tomorrow at 4pm".',
     resolve_confirm: 'Got it, confirming it now.',
     resolve_reject: 'Okay, I dismissed it. Nothing was changed.',
   },
@@ -224,6 +225,7 @@ const FALLBACK_TEXT: Readonly<Record<Language, Record<FallbackKind, string>>> = 
     list: 'Estas son las reuniones que encontré.',
     followup: 'Tu reunión terminó. Aquí tienes algunas ideas para darle seguimiento.',
     empty: 'Lo siento, no pude generar una respuesta. ¿Podrías reformular tu solicitud?',
+    need_details: 'Aún no pude prepararlo: falta algún detalle como la fecha o la hora exacta. ¿Me lo puedes dar? Por ejemplo: "mañana a las 4".',
     resolve_confirm: 'Entendido, lo confirmo ahora.',
     resolve_reject: 'Vale, lo descarté. No se cambió nada.',
   },

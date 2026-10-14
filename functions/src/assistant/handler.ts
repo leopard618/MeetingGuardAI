@@ -231,6 +231,10 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     if (reply.length === 0 && completion.refusal) reply = completion.refusal.trim();
     if (reply.length === 0) {
       const onlyLists = mapped.actions.length > 0 && mapped.actions.every((action) => action.type === 'list');
+      // Every proposal the model made was dropped (e.g. a timed meeting without a time): tell
+      // the user WHAT is missing instead of a useless "couldn't generate a response" loop.
+      const allDropped =
+        mapped.actions.length === 0 && completion.toolCalls.length > 0 && Object.keys(mapped.dropped).length > 0;
       reply = fallbackReply(
         request.language,
         request.mode === 'followup'
@@ -243,7 +247,9 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
               ? 'list'
               : mapped.actions.length > 0
                 ? 'actions'
-                : 'empty',
+                : allDropped
+                  ? 'need_details'
+                  : 'empty',
       );
     }
     if (reply.length > AI_LIMITS.maxReplyChars) reply = reply.slice(0, AI_LIMITS.maxReplyChars);
