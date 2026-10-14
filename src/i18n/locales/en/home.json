@@ -122,5 +122,15 @@
     "whatsappA11y": "WhatsApp: coming soon, not available yet",
     "whatsappReadyHint": "Create by message",
     "whatsappReadyA11y": "WhatsApp: create meetings by message. Opens the WhatsApp setup"
+  },
+  "tasks": {
+    "title": "Tasks",
+    "openCount_one": "{{count}} open",
+    "openCount_other": "{{count}} open",
+    "nothingDueToday": "Nothing due today. Your open tasks are in the Tasks screen.",
+    "empty": "No tasks yet. Add one, or just tell the assistant.",
+    "overdue": "Overdue",
+    "today": "Today",
+    "viewAll": "View all tasks"
   }
 }

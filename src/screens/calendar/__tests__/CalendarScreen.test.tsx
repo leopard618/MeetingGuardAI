@@ -28,6 +28,7 @@ jest.mock('../../../services/data', () => {
   return {
     useMeetings: () => ({ meetings: mockMeetings, isLoading: false, error: mockError, refresh: mockRefresh }),
     usePreferences: () => ({ preferences: defaults({ language: 'en', timezone: 'UTC' }), isLoaded: true, error: null }),
+    useTasks: () => ({ tasks: [], isLoading: false, error: null, create: jest.fn(), update: jest.fn(), remove: jest.fn() }),
     meetingRepository: { remove: jest.fn() },
   };
 });

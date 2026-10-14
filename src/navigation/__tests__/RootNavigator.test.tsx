@@ -45,6 +45,7 @@ jest.mock('../../services/calendar', () => ({
 jest.mock('../../services/data', () => ({
   usePreferences: () => mockUsePreferences(),
   useMeeting: (id: string | null) => mockUseMeeting(id),
+  useTasks: () => ({ tasks: [], isLoading: false, error: null, create: jest.fn(), update: jest.fn(), remove: jest.fn() }),
 }));
 
 /** A stand-in screen that renders its name + language prop and counts its mounts. */

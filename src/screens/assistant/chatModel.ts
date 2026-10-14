@@ -10,7 +10,7 @@ import { describeAssistantError, describeResult, type ErrorDescription, type Fee
 import type { AssistantFormatter, ChatMessage } from '../../services/ai/types';
 
 /** Example prompts shown on an empty conversation (keys of ai:examples). */
-export const EXAMPLE_KEYS = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'] as const;
+export const EXAMPLE_KEYS = ['e1', 'e7', 'e2', 'e8', 'e3', 'e6'] as const;
 
 /** How often the usage pill and relative reset times are re-evaluated. */
 export const USAGE_CLOCK_MS = 60_000;

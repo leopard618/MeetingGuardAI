@@ -24,12 +24,14 @@ export interface MonthGridProps {
   grid: readonly GridDay[];
   weekdays: readonly { short: string; full: string }[];
   index: ReadonlyMap<string, Meeting[]>;
+  /** Days with at least one OPEN task due (rendered as a hollow dot, distinct from meetings). */
+  taskDays?: ReadonlySet<string>;
   selectedKey: string;
   todayKey: string;
   onSelect(key: string): void;
 }
 
-function MonthGridComponent({ grid, weekdays, index, selectedKey, todayKey, onSelect }: MonthGridProps): ReactElement {
+function MonthGridComponent({ grid, weekdays, index, taskDays, selectedKey, todayKey, onSelect }: MonthGridProps): ReactElement {
   const t = useT();
   const { colors } = useAppTheme();
   const fmt = useFormatters();
@@ -64,6 +66,7 @@ function MonthGridComponent({ grid, weekdays, index, selectedKey, todayKey, onSe
           const meetings = index.get(day.key);
           const count = meetings?.length ?? 0;
           const dots = dayDots(meetings);
+          const hasTasks = taskDays?.has(day.key) ?? false;
           const selected = day.key === selectedKey;
           const today = day.key === todayKey;
           const numberColor = selected
@@ -76,6 +79,7 @@ function MonthGridComponent({ grid, weekdays, index, selectedKey, todayKey, onSe
           const label = [
             fmt.date(day.key, 'full'),
             count > 0 ? t('calendarView:meetingCount', { count }) : t('calendarView:noMeetings'),
+            hasTasks ? t('calendarView:hasTasks') : null,
             today ? t('calendarView:todayMarker') : null,
           ]
             .filter((part): part is string => part !== null && part !== '')
@@ -114,6 +118,12 @@ function MonthGridComponent({ grid, weekdays, index, selectedKey, todayKey, onSe
                     testID={`calendar-dot-${day.key}-${category}`}
                   />
                 ))}
+                {hasTasks ? (
+                  <View
+                    style={[styles.dot, styles.taskDot, { borderColor: colors.tertiary, opacity: day.inMonth ? 1 : 0.5 }]}
+                    testID={`calendar-taskdot-${day.key}`}
+                  />
+                ) : null}
               </View>
             </Pressable>
           );
@@ -157,5 +167,10 @@ const styles = StyleSheet.create({
     width: componentMetrics.calendarDotSize,
     height: componentMetrics.calendarDotSize,
     borderRadius: radii.full,
+  },
+  // Tasks are a hollow ring, so a day with both meetings and tasks reads at a glance.
+  taskDot: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
   },
 });

@@ -1,7 +1,7 @@
 {
   "chat": {
-    "subtitle": "Schedule, move, cancel and share meetings by chatting",
-    "welcome": "Hi! Tell me what you need: schedule, move, cancel or share a meeting, or ask what's on your calendar. I'll always show you exactly what will change and wait for your confirmation.",
+    "subtitle": "Manage meetings and tasks by chatting or talking",
+    "welcome": "Hi! Tell me what you need: schedule, move, cancel or share a meeting, add a task with a due date and reminder, mark one done, or ask what's on your agenda. I'll always show you exactly what will change and wait for your confirmation.",
     "examplesTitle": "Try asking",
     "placeholder": "Message the assistant...",
     "send": "Send",
@@ -42,7 +42,9 @@
     "e3": "What do I have this week?",
     "e4": "Move all my meetings tomorrow 30 minutes later",
     "e5": "Send the marketing meeting link to john@company.com",
-    "e6": "Cancel my meeting on Friday"
+    "e6": "Cancel my meeting on Friday",
+    "e7": "Add a task to prepare the proposal by Friday at 3pm",
+    "e8": "What tasks are overdue?"
   },
   "usage": {
     "today": "{{used}}/{{limit}} today · {{plan}}",

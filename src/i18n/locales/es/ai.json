@@ -1,7 +1,7 @@
 {
   "chat": {
-    "subtitle": "Programa, mueve, cancela y comparte reuniones chateando",
-    "welcome": "¡Hola! Dime qué necesitas: programar, mover, cancelar o compartir una reunión, o pregúntame qué tienes en tu calendario. Siempre te mostraré exactamente qué va a cambiar y esperaré tu confirmación.",
+    "subtitle": "Gestiona reuniones y tareas chateando o hablando",
+    "welcome": "¡Hola! Dime qué necesitas: programar, mover, cancelar o compartir una reunión, añadir una tarea con fecha y recordatorio, marcarla como hecha, o preguntarme qué hay en tu agenda. Siempre te mostraré exactamente qué va a cambiar y esperaré tu confirmación.",
     "examplesTitle": "Prueba a pedir",
     "placeholder": "Escribe al asistente...",
     "send": "Enviar",
@@ -42,7 +42,9 @@
     "e3": "¿Qué tengo esta semana?",
     "e4": "Retrasa 30 minutos todas mis reuniones de mañana",
     "e5": "Envía el enlace de la reunión de marketing a juan@empresa.com",
-    "e6": "Cancela mi reunión del viernes"
+    "e6": "Cancela mi reunión del viernes",
+    "e7": "Añade una tarea para preparar la propuesta el viernes a las 3",
+    "e8": "¿Qué tareas están atrasadas?"
   },
   "usage": {
     "today": "{{used}}/{{limit}} hoy · {{plan}}",
