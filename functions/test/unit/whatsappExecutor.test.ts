@@ -15,11 +15,14 @@ import {
   LIST_REPLY_LIMIT,
   WHATSAPP_TOMBSTONE_TITLE,
   draftToMeetingDoc,
+  draftToTaskDoc,
   executeConfirmedActions,
   formatMeetingForShare,
   formatMeetingList,
+  taskChangesToFieldUpdates,
   tombstoneFieldUpdates,
   type MeetingStore,
+  type TaskStore,
   type ZoomHooks,
 } from '../../src/whatsapp/executor';
 
@@ -318,6 +321,96 @@ describe('share/list formatting', () => {
     }
     const blocks = await formatMeetingList('u1', ['m0', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'], 'en', { store, now: () => NOW });
     expect(blocks).toHaveLength(LIST_REPLY_LIMIT);
+  });
+});
+
+describe('tasks over WhatsApp (v5)', () => {
+  class FakeTaskStore implements TaskStore {
+    docs = new Map<string, Record<string, unknown>>();
+    ids: string[] = ['task1', 'task2'];
+    async getTask(uid: string, taskId: string): Promise<unknown> {
+      return this.docs.get(`${uid}/${taskId}`);
+    }
+    async createTask(uid: string, taskId: string, doc: Record<string, unknown>): Promise<void> {
+      if (this.docs.has(`${uid}/${taskId}`)) throw new Error('already exists');
+      this.docs.set(`${uid}/${taskId}`, { ...doc });
+    }
+    async updateTaskFields(uid: string, taskId: string, fields: Record<string, unknown>): Promise<void> {
+      const doc = this.docs.get(`${uid}/${taskId}`);
+      if (!doc) throw new Error('missing');
+      Object.assign(doc, fields);
+    }
+    async deleteTask(uid: string, taskId: string): Promise<void> {
+      this.docs.delete(`${uid}/${taskId}`);
+    }
+    newTaskId(): string {
+      return this.ids.shift() ?? 'overflow';
+    }
+  }
+
+  const taskDraft = {
+    title: 'Prepare the proposal',
+    description: '',
+    dueDate: '2026-10-07',
+    dueTime: '16:00',
+    reminderMinutesBefore: 30,
+    meetingId: null,
+    people: [{ name: ' Ana ', email: null }],
+  };
+
+  it('creates a complete task document from a confirmed create_task', async () => {
+    const store = new FakeMeetingStore();
+    const tasks = new FakeTaskStore();
+    const action: AiAction = { type: 'create_task', id: 'a1', summary: 'Add a task.', confidence: 85, task: taskDraft };
+    const result = await executeConfirmedActions('u1', [action], { store, tasks, now: () => NOW }, 'Europe/Madrid');
+    expect(result).toEqual({ applied: 1, unsupported: 0, failed: 0 });
+    expect(tasks.docs.get('u1/task1')).toMatchObject({
+      userId: 'u1',
+      title: 'Prepare the proposal',
+      dueDate: '2026-10-07',
+      dueTime: '16:00',
+      reminderMinutesBefore: 30,
+      status: 'open',
+      completedAt: null,
+      people: [{ name: 'Ana', email: null }],
+      timezone: 'Europe/Madrid',
+    });
+  });
+
+  it('completes and reopens via update_task with completedAt managed', async () => {
+    const store = new FakeMeetingStore();
+    const tasks = new FakeTaskStore();
+    tasks.docs.set('u1/taskx', { ...draftToTaskDoc('u1', taskDraft, NOW, 'Europe/Madrid') });
+    const done: AiAction = { type: 'update_task', id: 'a2', summary: 'Done.', confidence: 90, taskId: 'taskx', changes: { status: 'done' } };
+    await executeConfirmedActions('u1', [done], { store, tasks, now: () => NOW }, 'Europe/Madrid');
+    expect(tasks.docs.get('u1/taskx')).toMatchObject({ status: 'done', completedAt: NOW.toISOString() });
+
+    const reopen: AiAction = { type: 'update_task', id: 'a3', summary: 'Reopen.', confidence: 90, taskId: 'taskx', changes: { status: 'open' } };
+    await executeConfirmedActions('u1', [reopen], { store, tasks, now: () => NOW }, 'Europe/Madrid');
+    expect(tasks.docs.get('u1/taskx')).toMatchObject({ status: 'open', completedAt: null });
+  });
+
+  it('clearing the due date clears the time and the reminder', () => {
+    const stored = { title: 'x', dueDate: '2026-10-07', dueTime: '16:00', timezone: 'UTC', reminderMinutesBefore: 30, status: 'open', completedAt: null };
+    const fields = taskChangesToFieldUpdates({ dueDate: null }, stored, NOW);
+    expect(fields).toMatchObject({ dueDate: null, dueTime: null, reminderMinutesBefore: null });
+  });
+
+  it('deletes a task hard and treats a missing one as already done', async () => {
+    const store = new FakeMeetingStore();
+    const tasks = new FakeTaskStore();
+    tasks.docs.set('u1/taskx', { ...draftToTaskDoc('u1', taskDraft, NOW, 'UTC') });
+    const del: AiAction = { type: 'delete_task', id: 'a4', summary: 'Delete.', confidence: 90, taskId: 'taskx' };
+    const result = await executeConfirmedActions('u1', [del, del], { store, tasks, now: () => NOW }, 'UTC');
+    expect(result.applied).toBe(2);
+    expect(tasks.docs.has('u1/taskx')).toBe(false);
+  });
+
+  it('counts task actions unsupported without a task store', async () => {
+    const store = new FakeMeetingStore();
+    const action: AiAction = { type: 'create_task', id: 'a5', summary: 'Add.', confidence: 80, task: taskDraft };
+    const result = await executeConfirmedActions('u1', [action], { store, now: () => NOW }, 'UTC');
+    expect(result).toEqual({ applied: 0, unsupported: 1, failed: 0 });
   });
 });
 

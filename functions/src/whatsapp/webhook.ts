@@ -17,6 +17,7 @@ import { HttpsError } from 'firebase-functions/https';
 
 import {
   AI_LIMITS,
+  AI_CONTRACT_VERSION,
   WHATSAPP_LINK_CODE_PATTERN,
   WHATSAPP_PHONE_PATTERN,
   isMutatingAction,
@@ -27,7 +28,7 @@ import {
 } from '../shared/aiContract';
 import { WHATSAPP_TUNING } from '../config';
 import { isValidTimeZone } from '../assistant/time';
-import { executeConfirmedActions, formatMeetingForShare, formatMeetingList, type ExecutorDeps } from './executor';
+import { executeConfirmedActions, formatMeetingForShare, formatMeetingList, formatTaskList, type ExecutorDeps } from './executor';
 import { bilingual, botStrings, formatConfirmPrompt } from './messages';
 import { eventDocId, hashLinkCode, phoneLogId } from './signature';
 import { emptySession, pushTurn, sessionPatch, withFreshContext, type WhatsappSession, type WhatsappStore } from './session';
@@ -294,6 +295,8 @@ async function handleBridge(
     nowIso: now.toISOString(),
     mode: 'chat',
     followUpMeetingId: null,
+    // v5: this bridge executes task actions server-side (executor.ts), so it may receive them.
+    contractVersion: AI_CONTRACT_VERSION,
   };
 
   let response: AssistantResponse;
@@ -318,6 +321,9 @@ async function handleBridge(
     if (action.type === 'list') {
       const blocks = await formatMeetingList(uid, action.meetingIds, language, deps.executor);
       shareBlocks.push(blocks.length > 0 ? blocks.join('\n\n') : s.listEmpty);
+    } else if (action.type === 'list_tasks') {
+      const lines = await formatTaskList(uid, action.taskIds, language, deps.executor);
+      shareBlocks.push(lines.length > 0 ? lines.join('\n') : s.taskListEmpty);
     } else if (action.type === 'share_meeting') {
       const block = await formatMeetingForShare(uid, action.meetingId, language, deps.executor);
       if (block !== null) shareBlocks.push(block);

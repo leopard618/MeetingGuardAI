@@ -53,7 +53,7 @@ import {
 } from '../shared/aiContract';
 import { zoomDeps, zoomWriteCallablesEnabledAtLoad } from '../zoom';
 import { handleZoomCreateMeeting, handleZoomDeleteMeeting, handleZoomSyncMeeting } from '../zoom/handler';
-import { firestoreMeetingStore, type ExecutorDeps, type ZoomHooks } from './executor';
+import { firestoreMeetingStore, firestoreTaskStore, type ExecutorDeps, type ZoomHooks } from './executor';
 import { firestoreLinkStore, handleLinkStart, handleLinkStatus, handleUnlink, whatsappError, type LinkDeps } from './link';
 import { createGraphSender } from './send';
 import { firestoreWhatsappStore } from './session';
@@ -179,7 +179,7 @@ function zoomHooks(): ZoomHooks | undefined {
 
 function webhookDeps(): WebhookDeps {
   const db = adminDb();
-  const executor: ExecutorDeps = { store: firestoreMeetingStore(db), now: () => new Date() };
+  const executor: ExecutorDeps = { store: firestoreMeetingStore(db), tasks: firestoreTaskStore(db), now: () => new Date() };
   const hooks = zoomHooks();
   if (hooks) executor.zoom = hooks;
   return {

@@ -46,6 +46,7 @@ interface BotStrings {
   error: string;
   summaryLabels: { when: string; duration: string; minutes: string; where: string; allDay: string };
   listEmpty: string;
+  taskListEmpty: string;
 }
 
 const EN: BotStrings = {
@@ -66,6 +67,7 @@ const EN: BotStrings = {
   error: 'Something went wrong. Please try again.',
   summaryLabels: { when: 'When', duration: 'Duration', minutes: 'min', where: 'Where', allDay: 'all day' },
   listEmpty: 'I found no matching meetings.',
+  taskListEmpty: 'I found no matching tasks.',
 };
 
 const ES: BotStrings = {
@@ -86,6 +88,7 @@ const ES: BotStrings = {
   error: 'Algo salió mal. Inténtalo de nuevo.',
   summaryLabels: { when: 'Cuándo', duration: 'Duración', minutes: 'min', where: 'Dónde', allDay: 'todo el día' },
   listEmpty: 'No encontré reuniones que coincidan.',
+  taskListEmpty: 'No encontré tareas que coincidan.',
 };
 
 export const BOT_STRINGS: Readonly<Record<Language, BotStrings>> = { en: EN, es: ES };

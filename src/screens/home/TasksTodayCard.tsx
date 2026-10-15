@@ -9,7 +9,7 @@ import { memo, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { IconButton, Text, TouchableRipple } from 'react-native-paper';
 
-import { SectionHeader } from '../../components/ui';
+import { Card, SectionHeader } from '../../components/ui';
 import type { Task } from '../../core/types';
 import { useT } from '../../i18n';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
@@ -44,7 +44,7 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
           </Text>
         }
       />
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.outlineVariant }]}>
+      <Card style={styles.card} testID="dashboard-tasks-card">
         {dueNow.length === 0 ? (
           <Text variant="bodyMedium" style={[styles.emptyText, { color: colors.onSurfaceVariant }]} testID="dashboard-tasks-empty">
             {openCount > 0 ? t('home:tasks.nothingDueToday') : t('home:tasks.empty')}
@@ -100,7 +100,7 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
             <MaterialCommunityIcons name="chevron-right" size={componentMetrics.iconMeta} color={colors.primary} />
           </View>
         </TouchableRipple>
-      </View>
+      </Card>
     </View>
   );
 }
@@ -111,10 +111,11 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  // The shared Card surface (same as the meetings and alerts cards); only local tweaks here.
   card: {
-    borderWidth: 1,
-    borderRadius: radii.lg,
     paddingTop: spacing.xs,
+    paddingBottom: 0,
+    paddingHorizontal: 0,
     overflow: 'hidden',
   },
   emptyText: {
