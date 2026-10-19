@@ -1,5 +1,5 @@
 /**
- * WCAG AA guard for the MG Indigo tokens: every documented pairing (docs/DESIGN_SYSTEM.md §2/§9)
+ * WCAG AA guard for the MG Indigo tokens: every documented pairing (docs/v1/DESIGN_SYSTEM.md §2/§9)
  * must hold in BOTH schemes. A token tweak that breaks a pairing fails here, not on a device.
  */
 import { AA_GRAPHICS, AA_TEXT, compositeOver, contrastRatio, parseColor, relativeLuminance } from '../contrast';
@@ -125,7 +125,7 @@ describe('mode-invariant alert overlay identities', () => {
     expect(contrastRatio(alertLight.body, alertLight.bg)).toBeGreaterThanOrEqual(AA_TEXT);
     expect(contrastRatio(alertLight.actionText, alertLight.actionBg)).toBeGreaterThanOrEqual(AA_TEXT);
     expect(contrastRatio(alertLight.icon, alertLight.bg)).toBeGreaterThanOrEqual(AA_GRAPHICS);
-    // AppToast semantic accents (docs/DESIGN_SYSTEM.md §7 group D) = dark-scheme hues on the card.
+    // AppToast semantic accents (docs/v1/DESIGN_SYSTEM.md §7 group D) = dark-scheme hues on the card.
     for (const accent of [darkColors.success, darkColors.error, darkColors.info, darkColors.warning]) {
       expect(contrastRatio(accent, alertLight.bg)).toBeGreaterThanOrEqual(AA_TEXT);
     }

@@ -17,6 +17,7 @@ import type { AlertIntensity } from './types';
  * users/{uid}                          UserProfile           owner read/write (never plan/role keys)
  * users/{uid}/meetings/{meetingId}     MeetingDoc            owner read/write
  * users/{uid}/notes/{noteId}           Note (without id)     owner read/write
+ * users/{uid}/tasks/{taskId}           Task (without id)     owner read/write
  * users/{uid}/settings/preferences     Preferences           owner read/write
  * entitlements/{uid}                   Entitlement           owner read, server write only
  * usage/{uid}/days/{yyyy-mm-dd}        { count, updatedAt }  owner read, server write only (UTC day)
@@ -25,6 +26,7 @@ export const FIRESTORE_COLLECTIONS = {
   users: 'users',
   meetings: 'meetings',
   notes: 'notes',
+  tasks: 'tasks',
   settings: 'settings',
   entitlements: 'entitlements',
   usage: 'usage',
@@ -39,6 +41,8 @@ export const firestorePaths = {
   meeting: (uid: string, meetingId: string): string => `users/${uid}/meetings/${meetingId}`,
   notes: (uid: string): string => `users/${uid}/notes`,
   note: (uid: string, noteId: string): string => `users/${uid}/notes/${noteId}`,
+  tasks: (uid: string): string => `users/${uid}/tasks`,
+  task: (uid: string, taskId: string): string => `users/${uid}/tasks/${taskId}`,
   preferences: (uid: string): string => `users/${uid}/settings/${PREFERENCES_DOC_ID}`,
   entitlement: (uid: string): string => `entitlements/${uid}`,
   usageDays: (uid: string): string => `usage/${uid}/days`,
@@ -75,6 +79,7 @@ export const USER_STORAGE = {
   outbox: 'outbox',
   preferences: 'preferences',
   notes: 'notes',
+  tasks: 'tasks',
   profile: 'profile',
   entitlement: 'entitlement',
   /** Legacy (v1.0.9) migration marker. Owner: data. */
@@ -227,6 +232,57 @@ export function snoozeNotificationId(meetingId: string): string {
   return `${NOTIFICATION_ID_PREFIX}:${meetingId}:snooze`;
 }
 
+/**
+ * Task reminders (V2 Stage 1) use their OWN prefix: the alert engine's reconcile manages `mg:*`
+ * identifiers only, so `mgtask:*` notifications are invisible to it and the two schedulers can
+ * never cancel each other's work (src/services/alerts/taskReminders.ts owns these).
+ */
+export const TASK_NOTIFICATION_ID_PREFIX = 'mgtask';
+
+/** "mgtask:{taskId}" - one reminder per task (at most). */
+export function taskReminderNotificationId(taskId: string): string {
+  if (!MEETING_ID_PATTERN.test(taskId)) {
+    throw new RangeError(`Invalid task id for a notification identifier: ${taskId}`);
+  }
+  return `${TASK_NOTIFICATION_ID_PREFIX}:${taskId}`;
+}
+
+/**
+ * The daily briefing (V2 Stage 1, week 4) is the THIRD scheduler and uses its own prefix again,
+ * for the same reason: the engine manages `mg:*` and taskReminders manages `mgtask:*`, so
+ * `mgbrief:*` belongs to src/services/alerts/briefing.ts alone. One notification per briefing
+ * DAY, so a day already scheduled is found and kept by its identifier.
+ */
+export const BRIEFING_NOTIFICATION_ID_PREFIX = 'mgbrief';
+
+/**
+ * The ongoing "alerts are on" notification (src/services/alerts/statusNotification.ts). One
+ * per device, so the id is constant; `mg:` ids belong to the engine and would be reconciled.
+ */
+export const STATUS_NOTIFICATION_ID = 'mgstatus:1';
+
+/** "mgbrief:{localDateKey}" - the day the briefing is ABOUT (and fires on). */
+export function briefingNotificationId(localDateKey: string): string {
+  if (!LOCAL_DATE_KEY_PATTERN.test(localDateKey)) {
+    throw new RangeError(`Invalid local date key for a notification identifier: ${localDateKey}`);
+  }
+  return `${BRIEFING_NOTIFICATION_ID_PREFIX}:${localDateKey}`;
+}
+
+export function parseBriefingNotificationId(identifier: string): { localDateKey: string } | null {
+  const parts = identifier.split(':');
+  if (parts.length !== 2 || parts[0] !== BRIEFING_NOTIFICATION_ID_PREFIX) return null;
+  const localDateKey = parts[1] ?? '';
+  return LOCAL_DATE_KEY_PATTERN.test(localDateKey) ? { localDateKey } : null;
+}
+
+export function parseTaskReminderNotificationId(identifier: string): { taskId: string } | null {
+  const parts = identifier.split(':');
+  const taskId = parts[1] ?? '';
+  if (parts.length !== 2 || parts[0] !== TASK_NOTIFICATION_ID_PREFIX || !MEETING_ID_PATTERN.test(taskId)) return null;
+  return { taskId };
+}
+
 export function parseNotificationId(identifier: string): ParsedNotificationId | null {
   const parts = identifier.split(':');
   if (parts[0] !== NOTIFICATION_ID_PREFIX) return null;
@@ -266,13 +322,17 @@ export const ANDROID_CHANNELS = {
   medium: 'mg-alert-medium-v2',
   light: 'mg-alert-light-v2',
   followup: 'mg-followup-v2',
+  briefing: 'mg-briefing-v1',
+  status: 'mg-status-v1',
   maxNoVibration: 'mg-alert-max-novib-v2',
   mediumNoVibration: 'mg-alert-medium-novib-v2',
   lightNoVibration: 'mg-alert-light-novib-v2',
   followupNoVibration: 'mg-followup-novib-v2',
+  briefingNoVibration: 'mg-briefing-novib-v1',
+  statusNoVibration: 'mg-status-novib-v1',
 } as const;
 export type AndroidChannelId = (typeof ANDROID_CHANNELS)[keyof typeof ANDROID_CHANNELS];
-export type AndroidChannelKind = AlertIntensity | 'followup';
+export type AndroidChannelKind = AlertIntensity | 'followup' | 'briefing' | 'status';
 
 /** Channels of earlier versions (deleted at start; their pending notifications are rescheduled). */
 export const SUPERSEDED_ANDROID_CHANNELS = [
@@ -291,6 +351,10 @@ export function channelFor(kind: AndroidChannelKind, vibrationEnabled = true): A
       return vibrationEnabled ? ANDROID_CHANNELS.medium : ANDROID_CHANNELS.mediumNoVibration;
     case 'light':
       return vibrationEnabled ? ANDROID_CHANNELS.light : ANDROID_CHANNELS.lightNoVibration;
+    case 'briefing':
+      return vibrationEnabled ? ANDROID_CHANNELS.briefing : ANDROID_CHANNELS.briefingNoVibration;
+    case 'status':
+      return vibrationEnabled ? ANDROID_CHANNELS.status : ANDROID_CHANNELS.statusNoVibration;
     default:
       return vibrationEnabled ? ANDROID_CHANNELS.followup : ANDROID_CHANNELS.followupNoVibration;
   }
@@ -361,7 +425,7 @@ export const DEEP_LINK_PREFIX = `${APP_SCHEME}://`;
  * OAuth redirect path for the Microsoft/Outlook PKCE flow (expo-auth-session):
  * `meetingguardai://auth/microsoft`. Handled by expo-auth-session's pending session, never by
  * navigation (parseDeepLink returns 'unknown' for it, which openDeepLink ignores). This exact URI
- * must be registered on the Azure app registration (docs/SETUP.md §10).
+ * must be registered on the Azure app registration (docs/v1/SETUP.md §10).
  */
 export const MS_AUTH_REDIRECT_PATH = 'auth/microsoft';
 

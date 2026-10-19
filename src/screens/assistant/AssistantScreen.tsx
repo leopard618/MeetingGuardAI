@@ -45,6 +45,8 @@ import {
 import { useKeyboardAvoidance } from '../shared/useKeyboardAvoidance';
 import { useLiveNow } from '../shared/useLiveNow';
 import { VerifyEmailBanner, isVerificationGateError } from '../shared/VerifyEmailBanner';
+import { speakAloud, useSpokenReplies, useSpokenReplySetting, useVoiceInput } from './useVoice';
+import { routeFinalTranscript, type VoiceCommand, type VoiceProblem } from './voiceModel';
 
 type Props = StackScreenProps<RootStackParamList, 'AIChat'>;
 
@@ -168,6 +170,68 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
     void assistant.send(text);
   };
 
+  // --- Voice (V2 Stage 1) ---------------------------------------------------------------------
+  const [spokenReplies, setSpokenReplies] = useSpokenReplySetting();
+  useSpokenReplies({ messages: assistant.messages, language, enabled: spokenReplies });
+
+  const voiceProblem = (problem: VoiceProblem): void =>
+    setFeedback({ tone: problem === 'noSpeech' ? 'info' : 'warning', message: fmt.t(`ai:voice.${problem}`) });
+
+  /**
+   * Explicit voice confirmation (agreed V2 Stage 1 scope): with the proposed-action cards on
+   * screen, a short unambiguous "yes, confirm" / "cancel" acts on them directly instead of
+   * spending an AI request. Anything longer is an ordinary message to the assistant.
+   */
+  const handleVoiceCommand = async (command: VoiceCommand): Promise<void> => {
+    if (command === 'cancel') {
+      for (const actionId of assistant.pendingActionIds) assistant.reject(actionId);
+      const message = fmt.t('ai:voice.dismissed');
+      setFeedback({ tone: 'info', message });
+      if (spokenReplies) speakAloud(message, language);
+      return;
+    }
+    setConfirming(true);
+    let results: ActionResult[] = [];
+    try {
+      results = await assistant.confirmAll();
+    } finally {
+      setConfirming(false);
+    }
+    const summary = summarizeResults(fmt, results);
+    if (summary) {
+      setFeedback(summary);
+      if (spokenReplies) speakAloud(summary.message, language);
+    }
+  };
+
+  const voice = useVoiceInput({
+    language,
+    onTranscript: setInput,
+    onFinal: (text, meta) => {
+      const route = routeFinalTranscript({
+        text,
+        sendable: sendableText(text, assistant),
+        autoSend: meta.autoSend,
+        hasPending: assistant.pendingActionIds.length > 0,
+        language,
+      });
+      if (route.kind === 'edit') {
+        setInput(route.text);
+        return;
+      }
+      setInput('');
+      if (route.kind === 'command') {
+        void handleVoiceCommand(route.command);
+        return;
+      }
+      // Speaking to the assistant turns spoken replies on (visibly, via the speaker toggle).
+      if (!spokenReplies) setSpokenReplies(true);
+      void assistant.send(route.text);
+    },
+    onProblem: voiceProblem,
+  });
+  const listening = voice.status === 'listening';
+
   /** A tapped suggestion chip is sent as is and marked as model-written (never "typed"). */
   const sendSuggestion = (chip: string): void => {
     const text = sendableText(chip, assistant);
@@ -247,6 +311,21 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
             {fmt.t('ai:chat.subtitle')}
           </Text>
           <UsagePill usage={usage} palette={palette} />
+          <Pressable
+            onPress={() => setSpokenReplies(!spokenReplies)}
+            hitSlop={ICON_HIT_SLOP}
+            style={styles.iconButton}
+            accessibilityRole="button"
+            accessibilityLabel={fmt.t(spokenReplies ? 'ai:voice.repliesOn' : 'ai:voice.repliesOff')}
+            accessibilityState={{ selected: spokenReplies }}
+            testID="assistant-spoken-replies"
+          >
+            <MaterialCommunityIcons
+              name={spokenReplies ? 'volume-high' : 'volume-off'}
+              size={componentMetrics.iconNav}
+              color={spokenReplies ? palette.primary : palette.textMuted}
+            />
+          </Pressable>
           <Pressable
             onPress={clearConversation}
             disabled={!hasMessages}
@@ -339,28 +418,43 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
           <TextInput
             value={input}
             onChangeText={setInput}
-            placeholder={fmt.t('ai:chat.placeholder')}
-            placeholderTextColor={palette.textMuted}
+            placeholder={fmt.t(listening ? 'ai:voice.listening' : 'ai:chat.placeholder')}
+            placeholderTextColor={listening ? palette.primary : palette.textMuted}
             style={[styles.input, { color: palette.text, backgroundColor: palette.inputSurface }]}
             multiline
             maxLength={AI_LIMITS.maxMessageChars}
-            editable={assistant.isLoaded}
+            editable={assistant.isLoaded && !listening}
             accessibilityLabel={fmt.t('ai:chat.placeholder')}
             testID="assistant-input"
           />
           <Pressable
+            onPress={voice.toggle}
+            disabled={!assistant.isLoaded}
+            style={[styles.sendButton, { backgroundColor: listening ? palette.danger : palette.inputSurface }]}
+            accessibilityRole="button"
+            accessibilityLabel={fmt.t(listening ? 'ai:voice.stop' : 'ai:voice.start')}
+            accessibilityState={{ disabled: !assistant.isLoaded }}
+            testID="assistant-mic"
+          >
+            <MaterialCommunityIcons
+              name={listening ? 'stop' : 'microphone-outline'}
+              size={componentMetrics.iconInline}
+              color={listening ? palette.onPrimary : palette.textMuted}
+            />
+          </Pressable>
+          <Pressable
             onPress={send}
-            disabled={!canSend}
-            style={[styles.sendButton, { backgroundColor: canSend ? palette.primary : palette.surfaceDisabled }]}
+            disabled={!canSend || listening}
+            style={[styles.sendButton, { backgroundColor: canSend && !listening ? palette.primary : palette.surfaceDisabled }]}
             accessibilityRole="button"
             accessibilityLabel={fmt.t('ai:chat.send')}
-            accessibilityState={{ disabled: !canSend }}
+            accessibilityState={{ disabled: !canSend || listening }}
             testID="assistant-send"
           >
             <MaterialCommunityIcons
               name="send"
               size={componentMetrics.iconInline}
-              color={canSend ? palette.onPrimary : palette.onSurfaceDisabled}
+              color={canSend && !listening ? palette.onPrimary : palette.onSurfaceDisabled}
             />
           </Pressable>
         </View>

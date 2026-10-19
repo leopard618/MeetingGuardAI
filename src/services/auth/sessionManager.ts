@@ -2,7 +2,7 @@
  * Session orchestration (owner: auth) - layer L6: wires the real services into the session core.
  *
  * May import data, authService, calendar and alerts. The start/end order is documented on
- * SessionManager in src/core/contracts.ts, in docs/ARCHITECTURE.md and in ./sessionCore.ts.
+ * SessionManager in src/core/contracts.ts, in docs/v1/ARCHITECTURE.md and in ./sessionCore.ts.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

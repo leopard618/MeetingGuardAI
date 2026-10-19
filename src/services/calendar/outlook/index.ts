@@ -1,7 +1,7 @@
 /**
  * Outlook calendar sync over Microsoft Graph (owner: calendar/outlook).
  *
- * Contract: `OutlookCalendarService` in src/core/contracts.ts and docs/ARCHITECTURE.md §17.
+ * Contract: `OutlookCalendarService` in src/core/contracts.ts and docs/v1/ARCHITECTURE.md §17.
  * - Auth: expo-auth-session PKCE against MICROSOFT_OAUTH.authority(EXPO_PUBLIC_MSAL_TENANT),
  *   redirect `meetingguardai://auth/microsoft`. ONLY the refresh token is persisted
  *   (src/services/auth/microsoftTokens.ts, expo-secure-store); access tokens stay in memory.

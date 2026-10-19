@@ -10,9 +10,9 @@ and basic usage metrics. It is an internal tool, so the UI is English only.
 - Backend: seven callables in `functions/src/admin/` (`adminListUsers`, `adminSetUserDisabled`,
   `adminSetUserPlan`, `adminGetMetrics`, plus v2 `adminGetStats`, `adminGetHealth`,
   `adminRotateOpenAiKey`; contract in `functions/src/admin/schemas.ts`,
-  design in docs/ARCHITECTURE.md §21 and §v2 below), plus the gated
+  design in docs/v1/ARCHITECTURE.md §21 and §v2 below), plus the gated
   `adminReconcileEntitlement` (`functions/src/revenuecat/reconcile.ts`, deployed only while
-  `REVENUECAT_RECONCILE_ENABLED=true`; setup in docs/SETUP.md §11.7).
+  `REVENUECAT_RECONCILE_ENABLED=true`; setup in docs/v1/SETUP.md §11.7).
 - Access: every callable requires the caller's ID token to carry the custom claim `admin: true`.
   The page only decides what to *show*; enforcement is entirely server-side. `firestore.rules`
   is unchanged — the callables use the Admin SDK, and `entitlements/{uid}` / `usage/{uid}/days`
@@ -110,7 +110,7 @@ its own Refresh. All dates and day buckets are UTC.
   ACTIVE store subscription still overwrites a comp), `no_data`
   (only sandbox or unverifiable data at RevenueCat). The backing callable `adminReconcileEntitlement` is
   deployed only while `REVENUECAT_RECONCILE_ENABLED=true` (secret `REVENUECAT_SECRET_KEY`
-  bound only there; setup and precedence rules in docs/SETUP.md §11.7 and docs/HANDOFF.md §6);
+  bound only there; setup and precedence rules in docs/v1/SETUP.md §11.7 and docs/v1/HANDOFF.md §6);
   until then the button reports "not deployed yet". Every run leaves a `revenuecat.reconciled`
   function-log line with actor, uid and outcome, never the API key.
 

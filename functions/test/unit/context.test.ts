@@ -9,6 +9,7 @@ import {
   toModelView,
   type MeetingRecord,
 } from '../../src/assistant/context';
+import { CONTEXT_WINDOW } from '../../src/config';
 import type { RecurrenceRule } from '../../src/shared/aiContract';
 import { FakeMeetingReader, meetingDoc } from './fakes';
 
@@ -253,5 +254,90 @@ describe('recurrence in the context (v2)', () => {
     const plainView = toModelView(oneOff, 'UTC', false);
     expect(plainView.recurring).toBeUndefined();
     expect(plainView.repeats).toBeUndefined();
+  });
+});
+
+describe('occurrence exceptions in the model view (agenda correctness)', () => {
+  const overrides = {
+    '2026-10-07': { status: 'cancelled', startAt: null },
+    '2026-10-14': { status: 'modified', startAt: '2026-10-14T16:30:00.000Z' },
+    '2026-10-21': { status: 'modified', startAt: null },
+  };
+
+  function recurringView(docOverrides: Record<string, unknown> = {}) {
+    const context = buildMeetingContext(
+      [
+        {
+          id: 'standup',
+          doc: meetingDoc({
+            title: 'Standup',
+            startAt: '2026-09-28T07:00:00.000Z',
+            recurrence: { freq: 'daily', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null },
+            ...docOverrides,
+          }),
+        },
+      ],
+      NOW,
+      { followUpMeetingId: null },
+    );
+    const meeting = context.meetings.find((entry) => entry.meetingId === 'standup');
+    if (!meeting) throw new Error('standup missing from the context');
+    return toModelView(meeting, 'Europe/Madrid', false);
+  }
+
+  it('lists cancelled occurrences so a skipped standup is never announced', () => {
+    const view = recurringView({ recurrenceOverrides: overrides });
+    expect(view.recurring).toBe(true);
+    expect(view.skipped).toEqual(['2026-10-07']);
+  });
+
+  it('lists moved occurrences with their new local start', () => {
+    const view = recurringView({ recurrenceOverrides: overrides });
+    // 16:30Z on 2026-10-14 is 18:30 in Madrid (CEST, +02:00).
+    expect(view.moved).toEqual([{ date: '2026-10-14', start: '2026-10-14 18:30' }]);
+  });
+
+  it('omits both fields for a series with no exceptions', () => {
+    const view = recurringView({ recurrenceOverrides: null });
+    expect(view.skipped).toBeUndefined();
+    expect(view.moved).toBeUndefined();
+  });
+
+  it('survives an override map that is not shaped as expected', () => {
+    const view = recurringView({ recurrenceOverrides: { '2026-10-07': { status: 'cancelled' }, bogus: null } });
+    expect(view.skipped).toEqual(['2026-10-07']);
+  });
+
+  it('caps the lists, because a long series can carry two hundred exceptions', () => {
+    const many: Record<string, unknown> = {};
+    for (let day = 1; day <= 20; day += 1) {
+      many[`2026-11-${String(day).padStart(2, '0')}`] = { status: 'cancelled', startAt: null };
+    }
+    const view = recurringView({ recurrenceOverrides: many });
+    expect(view.skipped).toHaveLength(CONTEXT_WINDOW.maxOccurrenceExceptions);
+    expect(view.skipped?.[0]).toBe('2026-11-01');
+  });
+});
+
+describe('preparation text (what should I prepare for tomorrow)', () => {
+  function viewFor(startAt: string, includePreparation: boolean) {
+    const context = buildMeetingContext(
+      [{ id: 'prep', doc: meetingDoc({ title: 'Board review', description: 'Bring the Q3 numbers', startAt }) }],
+      NOW,
+      { followUpMeetingId: null },
+    );
+    const meeting = context.meetings.find((entry) => entry.meetingId === 'prep');
+    if (!meeting) throw new Error('meeting missing from the context');
+    return toModelView(meeting, 'UTC', false, { includePreparation });
+  }
+
+  it('carries the agenda the user wrote when the caller asks for it', () => {
+    expect(viewFor('2026-10-06T09:00:00.000Z', true).preparation).toBe('Bring the Q3 numbers');
+  });
+
+  it('stays out of the view by default, which keeps the minimal-fields rule intact', () => {
+    const view = viewFor('2026-10-06T09:00:00.000Z', false);
+    expect(view.preparation).toBeUndefined();
+    expect(view.description).toBeUndefined();
   });
 });

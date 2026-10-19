@@ -26,11 +26,11 @@ import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone, getZonedParts } from '../../core/time';
-import type { Meeting } from '../../core/types';
+import type { Meeting, Task } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import { calendarSyncEngine } from '../../services/calendar';
-import { useMeetings, usePreferences } from '../../services/data';
+import { useMeetings, usePreferences, useTasks } from '../../services/data';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { computeDashboardSummary, weekStartForLanguage, type InsightContext } from '../insights/meetingInsights';
 import { capitalizeFirst } from '../shared/text';
@@ -42,6 +42,7 @@ import { InsightsSummaryCard } from './InsightsSummaryCard';
 import { NextMeetingCard } from './NextMeetingCard';
 import { OfflineBanner } from './OfflineBanner';
 import { QuickActions } from './QuickActions';
+import { TasksTodayCard } from './TasksTodayCard';
 import { TodayTimelineRow } from './TodayTimelineRow';
 import { useLiveNow } from '../shared/useLiveNow';
 
@@ -87,7 +88,9 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   const insets = useSafeAreaInsets();
   const { language } = useLanguage();
   const { meetings, isLoading, error, refresh } = useMeetings();
+  const { tasks, update: updateTask } = useTasks();
   const { preferences } = usePreferences();
+  const fmt = useFormatters();
   const now = useLiveNow(30_000);
   const timeZone = getDeviceTimeZone();
   const [refreshing, setRefreshing] = useState(false);
@@ -117,6 +120,17 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   const showData = !isLoading && !loadFailed;
 
   const openMeeting = useCallback((meeting: Meeting) => navigation.navigate('MeetingDetails', { meetingId: meeting.id }), [navigation]);
+
+  const completeTask = useCallback(
+    (task: Task): void => {
+      updateTask(task.id, { status: 'done' }).catch((caught: unknown) => {
+        const failure = toAppError(caught);
+        log.warn('could not complete a task from the dashboard', failure.code);
+        Toast.show({ type: 'error', text1: t(errorMessageKey(failure.code)) });
+      });
+    },
+    [updateTask, t],
+  );
 
   const join = useCallback(
     (url: string) => {
@@ -210,6 +224,16 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
 
   const footer = isLoading ? null : (
     <View>
+      {loadFailed ? null : (
+        <TasksTodayCard
+          tasks={tasks}
+          now={now}
+          deviceZone={timeZone}
+          fmt={fmt}
+          onToggle={completeTask}
+          onOpenTasks={() => navigation.navigate('Tasks')}
+        />
+      )}
       <AlertStatusCard preferences={preferences} meetings={meetings} now={now} onOpenSettings={() => navigation.navigate('AlertSettings')} />
       {loadFailed ? null : (
         <InsightsSummaryCard

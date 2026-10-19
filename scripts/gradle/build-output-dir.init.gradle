@@ -1,5 +1,5 @@
 // Gradle init script for the local test APK build on Windows only: scripts/build-test-apk.mjs passes
-// it with --init-script and sets MG_BUILD_OUTPUT_DIR (docs/TESTING.md B.2). Not used by EAS or CI.
+// it with --init-script and sets MG_BUILD_OUTPUT_DIR (docs/v1/TESTING.md B.2). Not used by EAS or CI.
 //
 // Why: on some Windows drives a file-system filter (antivirus scanning; on the owner's PC the D:
 // drive, not C:) holds every newly written file for a few milliseconds. Build tools that rename or

@@ -1,4 +1,4 @@
-// Pure helpers for scripts/build-test-apk.mjs (local test APK for emulators; docs/TESTING.md B.2).
+// Pure helpers for scripts/build-test-apk.mjs (local test APK for emulators; docs/v1/TESTING.md B.2).
 // No file system or process access here, so everything is unit tested
 // (scripts/lib/__tests__/testApk.test.js) and behaves the same on Windows, macOS and Linux (CI).
 const crypto = require('node:crypto');
@@ -47,7 +47,7 @@ const USAGE = [
   '  npm run apk:sha1                 only create the test key if needed and print its SHA-1 / SHA-256',
   '',
   'Direct: node scripts/build-test-apk.mjs [--sha1-only] [--out <dir>] [--help]',
-  'Guide: docs/TESTING.md, section B.2 "Emulator testing (no real phone)".',
+  'Guide: docs/v1/TESTING.md, section B.2 "Emulator testing (no real phone)".',
 ].join('\n');
 
 /** An error whose message is meant for the person running the script (printed without a stack). */
@@ -95,7 +95,7 @@ function windowsLocalAppData(env) {
   return path.win32.join(isBlank(env.USERPROFILE) ? 'C:\\Users\\Default' : env.USERPROFILE.trim(), 'AppData', 'Local');
 }
 
-// A JDK unpacked by hand next to the Android SDK, without Android Studio (docs/TESTING.md B.2):
+// A JDK unpacked by hand next to the Android SDK, without Android Studio (docs/v1/TESTING.md B.2):
 // %LOCALAPPDATA%\Android\jdk-17, jdk-17.0.20.1+1, jdk-21, ...
 const USER_JDK_DIR = /^jdk-(?:17|21)(?:\D|$)/i;
 const newestNameFirst = (a, b) => b.localeCompare(a, 'en', { numeric: true, sensitivity: 'base' });
@@ -173,7 +173,7 @@ function javaMissingMessage(tried) {
     '  3. Run this command again in a NEW terminal window.',
     '',
     'Without Android Studio: unpack a JDK 17 (for example Eclipse Temurin 17) into',
-    '%LOCALAPPDATA%\\Android\\jdk-17 so that jdk-17\\bin\\java.exe exists (docs/TESTING.md B.2).',
+    '%LOCALAPPDATA%\\Android\\jdk-17 so that jdk-17\\bin\\java.exe exists (docs/v1/TESTING.md B.2).',
     '',
     'Looked in:',
     formatTried(tried),
@@ -192,7 +192,7 @@ function sdkMissingMessage(tried) {
     '  3. Run this command again in a NEW terminal window.',
     '',
     'Without Android Studio: install the Android command-line tools into %LOCALAPPDATA%\\Android\\Sdk',
-    'and the SDK packages with sdkmanager (docs/TESTING.md B.2).',
+    'and the SDK packages with sdkmanager (docs/v1/TESTING.md B.2).',
     '',
     'Looked in:',
     tried.length > 0 ? formatTried(tried) : '  (no location to check: set ANDROID_HOME)',
@@ -272,7 +272,7 @@ function envProblemsMessage(report) {
         '',
         'Remove them from the file and build again. The app never needs a secret: every EXPO_PUBLIC_* value',
         'is copied into the APK where anyone can read it, and the OpenAI key and the Google client secret',
-        'live only in Firebase Functions secrets (docs/SETUP.md §6.2). Keep them in a password manager.',
+        'live only in Firebase Functions secrets (docs/v1/SETUP.md §6.2). Keep them in a password manager.',
       ].join('\n'),
     );
   }
@@ -326,7 +326,7 @@ function generatePassword(randomBytes = crypto.randomBytes) {
 
 function formatSigningProperties({ alias, password }) {
   return [
-    '# MeetingGuard AI local TEST signing key (scripts/build-test-apk.mjs, docs/TESTING.md B.2).',
+    '# MeetingGuard AI local TEST signing key (scripts/build-test-apk.mjs, docs/v1/TESTING.md B.2).',
     '# Keep this file and test-release.keystore private and out of any repository. This key signs only',
     '# APKs for emulators and test phones, never a Google Play upload.',
     `keyAlias=${alias}`,
@@ -509,11 +509,17 @@ function localPropertiesText(existing, sdkDir) {
   return [...kept, line, ''].join('\n');
 }
 
-function apkFileName(version) {
+function apkFileName(version, when = new Date()) {
   if (!/^[0-9A-Za-z][0-9A-Za-z._-]*$/.test(String(version ?? ''))) {
     throw new FriendlyError(`Unexpected app version "${version}" in app.config.js.`);
   }
-  return `MeetingGuardAI-${version}-test.apk`;
+  // Build-time stamp: every build gets its own file, so a rebuild of the same version never
+  // silently replaces the APK a tester already has.
+  const pad = (value) => String(value).padStart(2, '0');
+  const stamp =
+    `${when.getFullYear()}${pad(when.getMonth() + 1)}${pad(when.getDate())}` +
+    `-${pad(when.getHours())}${pad(when.getMinutes())}`;
+  return `MeetingGuardAI-${version}-test-${stamp}.apk`;
 }
 
 /** Default output folder: "deliver" next to the repository folder. */

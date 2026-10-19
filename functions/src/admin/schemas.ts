@@ -1,5 +1,5 @@
 /**
- * Admin callables: request/response schemas (owner: admin; docs/ARCHITECTURE.md §21).
+ * Admin callables: request/response schemas (owner: admin; docs/v1/ARCHITECTURE.md §21).
  * zod lives in functions ONLY (the admin web app is plain JS and validates nothing itself).
  *
  * Every callable in functions/src/admin/index.ts:
@@ -18,7 +18,7 @@ export const ADMIN_CALLABLES = {
   setUserDisabled: 'adminSetUserDisabled',
   setUserPlan: 'adminSetUserPlan',
   getMetrics: 'adminGetMetrics',
-  // v2 (docs/ADMIN.md §v2): time-series stats, runtime health and OpenAI key rotation.
+  // v2 (docs/v1/ADMIN.md §v2): time-series stats, runtime health and OpenAI key rotation.
   getStats: 'adminGetStats',
   getHealth: 'adminGetHealth',
   rotateOpenAiKey: 'adminRotateOpenAiKey',
@@ -149,7 +149,7 @@ export function adminStatsAiShardPath(dayKey: string, shard: number): string {
  * document (adminStats/ai/days/{day}); the read path sums whichever exist per day.
  * `requests` counts completions OpenAI returned (billed work); token fields come from the
  * completion's usage object (0 when OpenAI omitted it). Written only by the assistant callable.
- * uniqueUsers/byModel were considered and SKIPPED for v2 (decision in docs/ADMIN.md §v2).
+ * uniqueUsers/byModel were considered and SKIPPED for v2 (decision in docs/v1/ADMIN.md §v2).
  */
 export const adminStatsDayDocSchema = z.object({
   requests: z.number().int().min(0).catch(0),

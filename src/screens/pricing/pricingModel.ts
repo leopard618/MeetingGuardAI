@@ -1,5 +1,5 @@
 /**
- * Pure view model of the Plans screen (owner: billing; docs/ARCHITECTURE.md §20).
+ * Pure view model of the Plans screen (owner: billing; docs/v1/ARCHITECTURE.md §20).
  *
  * Plan cards merge the catalog (src/services/billing.ts) with the live RevenueCat offering:
  * - store unconfigured -> exactly the old catalog-only view ("coming soon", nothing purchasable);

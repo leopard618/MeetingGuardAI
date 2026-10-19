@@ -16,11 +16,15 @@
     "label": "Dot colors: {{sources}}",
     "meetingguard": "MeetingGuard",
     "google": "Google Calendar",
-    "device": "Device calendar"
+    "device": "Device calendar",
+    "tasks": "Tasks"
   },
   "emptyDay": "No meetings on this day.",
   "createOnDay": "New meeting on {{date}}",
   "createOnDayHint": "Opens the meeting form on this day",
   "loading": "Loading your meetings...",
-  "errorTitle": "Your meetings could not be loaded"
+  "errorTitle": "Your meetings could not be loaded",
+  "hasTasks": "has tasks",
+  "taskCount_one": "{{count}} task",
+  "taskCount_other": "{{count}} tasks"
 }

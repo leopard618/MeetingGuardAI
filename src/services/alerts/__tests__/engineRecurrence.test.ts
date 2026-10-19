@@ -1,5 +1,5 @@
 /**
- * Alert engine with RECURRING meetings (docs/ARCHITECTURE.md §16), against an in-memory
+ * Alert engine with RECURRING meetings (docs/v1/ARCHITECTURE.md §16), against an in-memory
  * NotificationsPort: occurrence scheduling, occurrence payloads, occurrence snoozes and their
  * validation across reconciles. One-off engine behaviour is covered by engine.test.ts.
  */
@@ -43,6 +43,7 @@ class FakeNotifications implements NotificationsPort {
       triggerDate: Date.parse(spec.fireAt),
     }));
   }
+  async present(): Promise<void> {}
   async schedule(spec: ScheduledSpec): Promise<void> {
     this.scheduled.set(spec.identifier, spec);
   }
@@ -115,7 +116,9 @@ function series(overrides: Partial<Meeting> = {}): Meeting {
 
 function occurrenceAlertData(notifications: FakeNotifications, identifier: string): StoredAlertData {
   const spec = notifications.scheduled.get(identifier);
-  if (!spec || spec.kind === 'refill') throw new Error(`not scheduled: ${identifier}`);
+  if (!spec || spec.kind === 'refill' || spec.kind === 'task' || spec.kind === 'briefing') {
+    throw new Error(`not scheduled: ${identifier}`);
+  }
   return spec.data;
 }
 

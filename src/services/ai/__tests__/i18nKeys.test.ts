@@ -14,6 +14,7 @@ import {
 import { MEETING_SOURCES } from '../../../core/types';
 import en from '../../../i18n/locales/en/ai.json';
 import es from '../../../i18n/locales/es/ai.json';
+import { VOICE_PROBLEMS } from '../../../screens/assistant/voiceModel';
 
 type Json = { [key: string]: Json } | string;
 
@@ -53,7 +54,7 @@ const DYNAMIC: Record<string, readonly string[]> = {
   'actions.status': ['proposed', 'executing', 'done', 'failed', 'rejected'],
   'confirm.title': AI_ACTION_TYPES,
   'confidence': ['high', 'medium', 'low'],
-  'examples': ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'],
+  'examples': ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e8'],
   'fields': ['title', 'when', 'duration', 'description', 'location', 'conference', 'participants', 'tips', 'alerts', 'language', 'repeats', 'scope'],
   'recurrence': RECURRENCE_FREQS,
   'recurrence.weekday': RECURRENCE_WEEKDAYS,
@@ -63,6 +64,7 @@ const DYNAMIC: Record<string, readonly string[]> = {
   'values.language': LANGUAGES,
   'values.locationType': LOCATION_TYPES,
   'values.provider': CONFERENCE_PROVIDERS,
+  'voice': VOICE_PROBLEMS,
   'warnings': ['meeting_not_found', 'start_in_past', 'overlaps_existing', 'google_meet_needs_calendar', 'no_recipients'],
 };
 

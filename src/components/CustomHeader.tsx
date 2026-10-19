@@ -6,7 +6,7 @@
  * - Left: back arrow when the stack can go back, otherwise the logo (goes to the dashboard).
  * - Right: language switch (EN <-> ES, instant, saved as the user's choice), light/dark switch,
  *   menu. Account actions (settings, sign-out) live in the sidebar.
- * - MG Indigo shell chrome (docs/DESIGN_SYSTEM.md §6): surface bg, 1px outlineVariant bottom
+ * - MG Indigo shell chrome (docs/v1/DESIGN_SYSTEM.md §6): surface bg, 1px outlineVariant bottom
  *   hairline, titleL, 44dp icon targets with onSurface@12% borderless ripples, labelM language
  *   pill. Top inset from the safe area (edge-to-edge).
  */

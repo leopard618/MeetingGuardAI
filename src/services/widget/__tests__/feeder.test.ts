@@ -1,6 +1,6 @@
 /**
  * Widget feeder: event wiring, coalescing, formatting handoff and the unavailable-module no-op
- * (docs/ARCHITECTURE.md §19). Real event bus + real i18next (widget namespace, EN + ES);
+ * (docs/v1/ARCHITECTURE.md §19). Real event bus + real i18next (widget namespace, EN + ES);
  * widget/data/format ports are fakes.
  */
 import { createInstance } from 'i18next';

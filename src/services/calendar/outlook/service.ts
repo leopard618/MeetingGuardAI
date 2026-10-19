@@ -30,7 +30,7 @@ import type { MicrosoftTokenManager } from './tokenManager';
 
 const log = createLogger('calendar');
 
-/** Exact URI registered on the Azure app registration (docs/SETUP.md §10). */
+/** Exact URI registered on the Azure app registration (docs/v1/SETUP.md §10). */
 export const MS_REDIRECT_URI = `${DEEP_LINK_PREFIX}${MS_AUTH_REDIRECT_PATH}`;
 
 export interface OutlookServiceDeps extends OutlookSyncDeps {

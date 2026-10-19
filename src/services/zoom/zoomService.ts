@@ -1,6 +1,6 @@
 /**
  * ZOOM link service (owner: zoom-app). Contract: ZoomService in src/core/contracts.ts;
- * design: docs/ARCHITECTURE.md §24.
+ * design: docs/v1/ARCHITECTURE.md §24.
  *
  * - Callables: CALLABLES.zoomStatus / zoomCreateMeeting / zoomSyncMeeting / zoomDeleteMeeting
  *   over the shared Firebase Functions instance (src/config/firebase.ts, already pinned to

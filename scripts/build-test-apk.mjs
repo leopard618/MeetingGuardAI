@@ -1,5 +1,5 @@
 // Builds a release APK for emulator and sideload testing, signed with a local TEST key
-// (docs/TESTING.md B.2 "Emulator testing (no real phone)").
+// (docs/v1/TESTING.md B.2 "Emulator testing (no real phone)").
 //
 //   npm run apk:sha1                    create the test key if needed and print its SHA-1 / SHA-256
 //   npm run apk:test [-- --out <dir>]   build <dir>/MeetingGuardAI-<version>-test.apk
@@ -132,7 +132,7 @@ function ensureKeystore(javaHome) {
           `  ${paths.properties}`,
           '',
           'Restore that file if you have a copy. Otherwise delete the keystore file and run the command again:',
-          'a NEW test key is created, and you must register its new SHA-1 in Google Cloud (docs/SETUP.md §4.2).',
+          'a NEW test key is created, and you must register its new SHA-1 in Google Cloud (docs/v1/SETUP.md §4.2).',
         ].join('\n'),
       );
     }
@@ -167,7 +167,7 @@ function printFingerprints(key) {
         indent(`${result.stdout}\n${result.stderr}`),
         '',
         `If the two files no longer match, delete both and run the command again: a NEW key is created and`,
-        'you must register its new SHA-1 in Google Cloud (docs/SETUP.md §4.2).',
+        'you must register its new SHA-1 in Google Cloud (docs/v1/SETUP.md §4.2).',
       ].join('\n'),
     );
   }
@@ -178,7 +178,7 @@ function printFingerprints(key) {
   out(`  SHA-256: ${sha256 ?? '(not shown by keytool)'}`);
   out('');
   out(`Register this SHA-1 in Google Cloud as an Android OAuth client for package ${lib.APP_PACKAGE}`);
-  out('(docs/SETUP.md §4.2). Until then, Google sign-in in the test APK fails with DEVELOPER_ERROR.');
+  out('(docs/v1/SETUP.md §4.2). Until then, Google sign-in in the test APK fails with DEVELOPER_ERROR.');
 }
 
 // --- Build ----------------------------------------------------------------------------------------
@@ -272,10 +272,10 @@ async function gradleAssembleRelease(env) {
         '    once (or finish the setup wizard), or run "sdkmanager --licenses" without Android Studio, then',
         '    run the command again.',
         '  - "Filename longer than 260 characters" / path too long: turn on Windows long paths or build from',
-        '    a shorter folder (docs/TESTING.md B.2).',
+        '    a shorter folder (docs/v1/TESTING.md B.2).',
         '  - Out of memory: close other programs; the build needs about 4 GB of free RAM.',
         '  - "being used by another process", "EBUSY" or "deleting depfile": another program (antivirus',
-        '    scanning, for example) held a build file each time. Run the command again (docs/TESTING.md B.2).',
+        '    scanning, for example) held a build file each time. Run the command again (docs/v1/TESTING.md B.2).',
       ].join('\n'),
     );
   }
@@ -326,7 +326,7 @@ async function main() {
       out(`Android SDK: ${sdk.dir} (${sdk.source})`);
       if (!isDirectory(path.join(sdk.dir, 'licenses'))) {
         out('Warning: no accepted SDK licences yet. Open Android Studio once and finish the setup wizard,');
-        out('or run "sdkmanager --licenses" from the command-line tools (docs/TESTING.md B.2).');
+        out('or run "sdkmanager --licenses" from the command-line tools (docs/v1/TESTING.md B.2).');
       }
     } else {
       problems.push(lib.sdkMissingMessage(sdk.tried));
@@ -390,7 +390,7 @@ async function main() {
   out(`  - adb install -r "${target}"`);
   out(`    (adb is ${adb}${fs.existsSync(adb) ? '' : ', not installed yet: Android Studio > SDK Manager > SDK Tools > Platform-Tools'})`);
   out(`If a build signed with another key (EAS, Google Play) is installed, remove it first: adb uninstall ${lib.APP_PACKAGE}`);
-  out('Test plan and emulator setup: docs/TESTING.md B.2.');
+  out('Test plan and emulator setup: docs/v1/TESTING.md B.2.');
 }
 
 main().catch((error) => {

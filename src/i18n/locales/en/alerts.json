@@ -1,4 +1,23 @@
 {
+  "taskReminder": {
+    "title": "Task reminder",
+    "body": "{{title}} - due at {{time}}"
+  },
+  "briefing": {
+    "title": "Your day",
+    "meetings_one": "1 meeting today at {{time}}: {{titles}}.",
+    "meetings_other": "{{count}} meetings today, the first at {{time}}.",
+    "tasksDue_one": "{{count}} task due today.",
+    "tasksDue_other": "{{count}} tasks due today.",
+    "tasksOverdue_one": "{{count}} task still overdue.",
+    "tasksOverdue_other": "{{count}} tasks still overdue.",
+    "empty": "No meetings and no tasks due today. Enjoy the clear day."
+  },
+  "status": {
+    "title": "MeetingGuard is on",
+    "next": "Next: {{title}} at {{time}}",
+    "idle": "No meetings coming up. Your alerts are armed."
+  },
   "lead": {
     "minutes_one": "in {{count}} minute",
     "minutes_other": "in {{count}} minutes",
@@ -40,6 +59,14 @@
     "followup": {
       "name": "Meeting follow-ups",
       "description": "After a meeting: capture notes and next steps with your AI assistant."
+    },
+    "briefing": {
+      "name": "Daily briefing",
+      "description": "Once a day, a summary of that day: your meetings and the tasks that are due."
+    },
+    "status": {
+      "name": "Status",
+      "description": "A silent, permanent notification showing that alerts are armed."
     },
     "noVibrationName": "{{name}} (no vibration)"
   },
@@ -111,6 +138,17 @@
     "followUp": {
       "label": "Post-meeting follow-ups",
       "description": "5 minutes after a meeting ends, get follow-up ideas from the AI assistant."
+    },
+    "briefing": {
+      "label": "Daily briefing",
+      "description": "Once a day, a short summary of that day: your meetings and the tasks that are due.",
+      "time": "Briefing time",
+      "at": "Briefing at {{time}}",
+      "done": "Done"
+    },
+    "statusNotification": {
+      "label": "Status notification",
+      "description": "Keep a permanent, silent notification showing that your alerts are armed and when the next meeting is."
     },
     "exactAlarms": {
       "granted": "Exact alarms are allowed. Alerts ring right on time."

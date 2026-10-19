@@ -1,5 +1,5 @@
 /**
- * RevenueCat webhook -> entitlements/{uid} writer (owner: billing; docs/ARCHITECTURE.md §20).
+ * RevenueCat webhook -> entitlements/{uid} writer (owner: billing; docs/v1/ARCHITECTURE.md §20).
  *
  * v2 onRequest, POST only. Auth: the RevenueCat dashboard sends the configured "Authorization
  * header value" VERBATIM; it is compared timing-safe against the REVENUECAT_WEBHOOK_AUTH secret
@@ -37,7 +37,7 @@ import {
 export const REVENUECAT_WEBHOOK_AUTH = defineSecret('REVENUECAT_WEBHOOK_AUTH');
 
 /**
- * true ONLY during the Play license-tester verification phase (docs/SETUP.md §11): sandbox
+ * true ONLY during the Play license-tester verification phase (docs/v1/SETUP.md §11): sandbox
  * events then write entitlements like production ones. Default false, so a sandbox purchase
  * (license tester, no real charge) can never grant - or expire - a production entitlement.
  */
@@ -114,7 +114,7 @@ function markerOf(event: RevenueCatEvent, now: Date): Record<string, unknown> {
  * unless `options.allowSandbox` is set: a sandbox INITIAL_PURCHASE would otherwise grant a real
  * production entitlement, and a developer's sandbox EXPIRATION for a uid that also holds a real
  * subscription would downgrade a paying user. The REVENUECAT_ALLOW_SANDBOX param turns them on
- * for the T17 license-tester verification phase (docs/SETUP.md §11) and off afterwards.
+ * for the T17 license-tester verification phase (docs/v1/SETUP.md §11) and off afterwards.
  */
 export function decideWebhook(body: unknown, now: Date, options: { allowSandbox?: boolean } = {}): WebhookDecision {
   const parsed = revenueCatWebhookBodySchema.safeParse(body);

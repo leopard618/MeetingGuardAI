@@ -19,11 +19,25 @@
  * - Never throws: failures resolve `{ status: 'failed', error: AppError }`. A dismissed share
  *   sheet resolves failed with code 'cancelled' (not recorded, so it can run again).
  */
-import type { AiAction, AiMeetingChanges, BulkUpdateAction, ConferenceDetails, UpdateMeetingAction } from '../../core/aiContract';
-import type { ActionExecutor, ActionWarning, MeetingRecurrenceOps } from '../../core/contracts';
+import type {
+  AiAction,
+  AiMeetingChanges,
+  AiTaskChanges,
+  AiTaskDraft,
+  BulkUpdateAction,
+  ConferenceDetails,
+  UpdateMeetingAction,
+} from '../../core/aiContract';
+import type {
+  ActionExecutionContext,
+  ActionExecutor,
+  ActionWarning,
+  MeetingRecurrenceOps,
+  TasksRepository,
+} from '../../core/contracts';
 import { AppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { createLogger } from '../../core/logger';
-import type { Meeting, MeetingPatch } from '../../core/types';
+import type { Meeting, MeetingPatch, Task, TaskInput, TaskPatch } from '../../core/types';
 
 import { actionIdempotencyKey, aiMeetingIdForAction } from './ids';
 import {
@@ -69,6 +83,8 @@ export interface ZoomPort {
 
 export interface ActionExecutorDeps {
   meetings: MeetingsPort;
+  /** v5 task actions. Absent in older wirings/tests: task actions then fail honestly. */
+  tasks?: Pick<TasksRepository, 'get' | 'create' | 'update' | 'remove'>;
   calendar: CalendarLinkPort;
   sharing: ShareAdapter;
   executed: ExecutedStore;
@@ -82,7 +98,7 @@ export interface ActionExecutorDeps {
 
 export interface AiActionExecutor extends ActionExecutor {
   preview(action: AiAction): Promise<AiActionPreview>;
-  execute(action: AiAction): Promise<AiActionResult>;
+  execute(action: AiAction, context?: ActionExecutionContext): Promise<AiActionResult>;
 }
 
 function referencedMeetingIds(action: AiAction): string[] {
@@ -96,7 +112,56 @@ function referencedMeetingIds(action: AiAction): string[] {
     case 'bulk_update':
     case 'list':
       return [...new Set(action.meetingIds)];
+    // Task actions reference a meeting only through the (new) link, so the card can show it.
+    case 'create_task':
+      return action.task.meetingId !== null ? [action.task.meetingId] : [];
+    case 'update_task':
+      return action.changes.meetingId != null ? [action.changes.meetingId] : [];
+    case 'delete_task':
+    case 'list_tasks':
+      return [];
   }
+}
+
+function referencedTaskIds(action: AiAction): string[] {
+  switch (action.type) {
+    case 'update_task':
+    case 'delete_task':
+      return [action.taskId];
+    case 'list_tasks':
+      return [...new Set(action.taskIds)];
+    default:
+      return [];
+  }
+}
+
+/**
+ * `linkedMeetingId` is the caller's resolution of the draft's v6 `meetingActionId` (the meeting
+ * the sibling create_meeting just produced). It only ever fills a link the draft left null.
+ */
+function taskDraftToInput(draft: AiTaskDraft, linkedMeetingId?: string | null): TaskInput {
+  return {
+    title: draft.title,
+    description: draft.description,
+    dueDate: draft.dueDate,
+    dueTime: draft.dueTime,
+    reminderMinutesBefore: draft.reminderMinutesBefore,
+    meetingId: draft.meetingId ?? linkedMeetingId ?? null,
+    people: draft.people.map((person) => ({ name: person.name, email: person.email })),
+  };
+}
+
+function taskChangesToPatch(changes: AiTaskChanges): TaskPatch {
+  const patch: TaskPatch = {};
+  if (changes.title !== undefined) patch.title = changes.title;
+  if (changes.description !== undefined) patch.description = changes.description;
+  if (changes.dueDate !== undefined) patch.dueDate = changes.dueDate;
+  if (changes.dueTime !== undefined) patch.dueTime = changes.dueTime;
+  if (changes.reminderMinutesBefore !== undefined) patch.reminderMinutesBefore = changes.reminderMinutesBefore;
+  if (changes.meetingId !== undefined) patch.meetingId = changes.meetingId;
+  if (changes.people !== undefined) patch.people = changes.people.map((person) => ({ name: person.name, email: person.email }));
+  if (changes.status !== undefined) patch.status = changes.status;
+  return patch;
 }
 
 function isActive(meeting: Meeting | null): meeting is Meeting {
@@ -204,10 +269,30 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     return [...new Set(emails.map((email) => email.trim().toLowerCase()))].filter((email) => !known.has(email));
   }
 
+  async function loadReferencedTasks(ids: readonly string[]): Promise<{ foundTasks: Task[]; missingTasks: string[] }> {
+    const foundTasks: Task[] = [];
+    const missingTasks: string[] = [];
+    for (const id of ids) {
+      let task: Task | null = null;
+      if (deps.tasks) {
+        try {
+          task = await deps.tasks.get(id);
+        } catch {
+          task = null;
+        }
+      }
+      if (task) foundTasks.push(task);
+      else missingTasks.push(id);
+    }
+    return { foundTasks, missingTasks };
+  }
+
   async function preview(action: AiAction): Promise<AiActionPreview> {
     const { found, missing } = await loadReferenced(referencedMeetingIds(action));
+    const { foundTasks, missingTasks } = await loadReferencedTasks(referencedTaskIds(action));
     const warnings: ActionWarning[] = [];
     if (missing.length > 0) warnings.push('meeting_not_found');
+    if (missingTasks.length > 0) warnings.push('task_not_found');
     let overlapping: Meeting[] = [];
     let newPeople: string[] = [];
     const calendar: { connected: boolean | null } = { connected: null };
@@ -272,6 +357,10 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
         break;
       case 'delete_meeting':
       case 'list':
+      case 'create_task':
+      case 'update_task':
+      case 'delete_task':
+      case 'list_tasks':
         break;
     }
     if (overlapping.length > 0) warnings.push('overlaps_existing');
@@ -280,6 +369,8 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
       action,
       meetings: found,
       missingMeetingIds: missing,
+      tasks: foundTasks,
+      missingTaskIds: missingTasks,
       warnings,
       overlapping,
       calendarConnected: calendar.connected,
@@ -500,8 +591,59 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     return { status: 'done', actionId: action.id, type: action.type, meetingIds: found.map((m) => m.id), duplicate: false };
   }
 
-  async function run(action: AiAction, key: string): Promise<AiActionResult> {
+  // ---- v5 task actions (users/{uid}/tasks via the tasks repository) --------------------------
+
+  function tasksPort(): NonNullable<ActionExecutorDeps['tasks']> {
+    if (!deps.tasks) throw new AppError('not_implemented', 'Task operations are not available');
+    return deps.tasks;
+  }
+
+  async function runListTasks(action: Extract<AiAction, { type: 'list_tasks' }>): Promise<AiDoneResult> {
+    const { foundTasks } = await loadReferencedTasks(referencedTaskIds(action));
+    return {
+      status: 'done',
+      actionId: action.id,
+      type: action.type,
+      meetingIds: [],
+      taskIds: foundTasks.map((task) => task.id),
+      duplicate: false,
+    };
+  }
+
+  async function runCreateTask(
+    action: Extract<AiAction, { type: 'create_task' }>,
+    linkedMeetingId?: string | null,
+  ): Promise<AiDoneResult> {
+    const task = await tasksPort().create(taskDraftToInput(action.task, linkedMeetingId));
+    return { status: 'done', actionId: action.id, type: action.type, meetingIds: [], taskIds: [task.id], duplicate: false };
+  }
+
+  async function runUpdateTask(action: Extract<AiAction, { type: 'update_task' }>): Promise<AiDoneResult> {
+    const current = await tasksPort().get(action.taskId);
+    if (!current) throw new AppError('not_found', 'Task not found', { details: { taskId: action.taskId } });
+    const updated = await tasksPort().update(current.id, taskChangesToPatch(action.changes));
+    const result: AiDoneResult = {
+      status: 'done',
+      actionId: action.id,
+      type: action.type,
+      meetingIds: [],
+      taskIds: [updated.id],
+      duplicate: false,
+    };
+    if (current.status !== 'done' && updated.status === 'done') result.taskCompleted = true;
+    return result;
+  }
+
+  async function runDeleteTask(action: Extract<AiAction, { type: 'delete_task' }>): Promise<AiDoneResult> {
+    const current = await tasksPort().get(action.taskId);
+    if (!current) throw new AppError('not_found', 'Task not found', { details: { taskId: action.taskId } });
+    await tasksPort().remove(current.id);
+    return { status: 'done', actionId: action.id, type: action.type, meetingIds: [], taskIds: [current.id], duplicate: false };
+  }
+
+  async function run(action: AiAction, key: string, context?: ActionExecutionContext): Promise<AiActionResult> {
     if (action.type === 'list') return runList(action);
+    if (action.type === 'list_tasks') return runListTasks(action);
 
     const uid = deps.getUid();
     if (!uid) return failed(action, new AppError('unauthenticated', 'No active session'));
@@ -526,6 +668,15 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
       case 'share_meeting':
         result = await runShare(action);
         break;
+      case 'create_task':
+        result = await runCreateTask(action, context?.linkedMeetingId);
+        break;
+      case 'update_task':
+        result = await runUpdateTask(action);
+        break;
+      case 'delete_task':
+        result = await runDeleteTask(action);
+        break;
     }
     if (result.status === 'done') await deps.executed.markDone(uid, key, result);
     return result;
@@ -533,11 +684,11 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
 
   return {
     preview,
-    execute(action: AiAction): Promise<AiActionResult> {
+    execute(action: AiAction, context?: ActionExecutionContext): Promise<AiActionResult> {
       const key = actionIdempotencyKey(action);
       const running = inFlight.get(key);
       if (running) return running;
-      const promise = run(action, key)
+      const promise = run(action, key, context)
         .catch((error: unknown): AiActionResult => {
           const appError = toAppError(error);
           if (appError.code !== 'not_found' && appError.code !== 'cancelled') {

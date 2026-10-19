@@ -1,5 +1,5 @@
 /**
- * Full error state with Retry (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §5/§8). Shown
+ * Full error state with Retry (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5/§8). Shown
  * ONLY when there is nothing cached to render (ARCHITECTURE §13) - cached content + an error
  * Banner otherwise. errorContainer circle, optional headlineS title, bodyM body, filled Retry
  * (label from common:actions.retry).

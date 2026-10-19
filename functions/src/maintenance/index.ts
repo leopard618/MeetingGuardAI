@@ -40,7 +40,7 @@ export function firestoreMaintenancePorts(): MaintenancePorts {
         .get();
       return snapshot.docs.map((document) => document.ref.path);
     },
-    // WhatsApp bot state (docs/ARCHITECTURE.md §27): single-field range queries, so the
+    // WhatsApp bot state (docs/v1/ARCHITECTURE.md §27): single-field range queries, so the
     // automatic single-field indexes cover them (no firestore.indexes.json entry needed).
     async listExpiredWhatsappEvents(nowIso, limit) {
       const snapshot = await db

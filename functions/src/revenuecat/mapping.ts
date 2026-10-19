@@ -1,5 +1,5 @@
 /**
- * RevenueCat webhook -> entitlements/{uid} mapping (owner: billing; docs/ARCHITECTURE.md §20).
+ * RevenueCat webhook -> entitlements/{uid} mapping (owner: billing; docs/v1/ARCHITECTURE.md §20).
  * PURE: no firebase imports, unit-tested standalone.
  *
  * Webhook shape (RevenueCat "Webhooks" integration): POST body { api_version: "1.0", event },

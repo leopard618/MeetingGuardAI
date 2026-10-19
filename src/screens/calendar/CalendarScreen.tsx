@@ -7,15 +7,17 @@
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { Animated, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Divider, FAB, IconButton, Text } from 'react-native-paper';
+import { ActivityIndicator, Divider, FAB, IconButton, Text, TouchableRipple } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
 import { Banner, ErrorState, MGButton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
-import { errorMessageKey } from '../../core/errors';
+import { errorMessageKey, toAppError } from '../../core/errors';
 import { getDeviceTimeZone, todayInZone } from '../../core/time';
+import type { Task } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
-import { useMeetings } from '../../services/data';
+import { useMeetings, useTasks } from '../../services/data';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { MeetingActionsSheet, useMeetingActions } from '../meetings/list/meetingActions';
 import { MeetingListItem, sourceColor } from '../meetings/list/MeetingListItem';
@@ -58,6 +60,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
   const [visibleMonth, setVisibleMonth] = useState<MonthRef>(() => monthOf(todayKey));
   const [sheetMeeting, setSheetMeeting] = useState<DisplayMeeting | null>(null);
   const { meetings, isLoading, error, refresh } = useMeetings();
+  const { tasks, update: updateTask } = useTasks();
   const actions = useMeetingActions();
   const { refreshing, onRefresh } = useMeetingsRefresh(refresh);
   const fab = useHideOnScroll();
@@ -72,6 +75,25 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
     return expandMeetingsForDisplay(meetings, displayWindowForDays(firstKey, lastKey, timeZone));
   }, [meetings, grid, timeZone]);
   const index = useMemo(() => indexMeetingsByDay(displayMeetings, timeZone), [displayMeetings, timeZone]);
+  // Dated tasks: a hollow dot on the grid (open ones) and a block in the day's agenda.
+  const tasksByDay = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const task of tasks) {
+      if (task.dueDate === null) continue;
+      const list = map.get(task.dueDate) ?? [];
+      list.push(task);
+      map.set(task.dueDate, list);
+    }
+    return map;
+  }, [tasks]);
+  const taskDays = useMemo(() => {
+    const days = new Set<string>();
+    for (const [key, list] of tasksByDay) {
+      if (list.some((task) => task.status === 'open')) days.add(key);
+    }
+    return days;
+  }, [tasksByDay]);
+  const dayTasks = tasksByDay.get(selectedKey) ?? [];
   const weekdays = useMemo(() => weekdayLabels(firstWeekday, language), [firstWeekday, language]);
   const dayMeetings = index.get(selectedKey) ?? [];
   const showingToday = selectedKey === todayKey && sameMonth(visibleMonth, monthOf(todayKey));
@@ -94,6 +116,17 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
   };
 
   const createOnDay = (): void => navigation.navigate('CreateMeeting', { date: selectedKey });
+
+  const toggleTask = useCallback(
+    async (task: Task): Promise<void> => {
+      try {
+        await updateTask(task.id, { status: task.status === 'done' ? 'open' : 'done' });
+      } catch (caught) {
+        Toast.show({ type: 'error', text1: t(errorMessageKey(toAppError(caught).code)) });
+      }
+    },
+    [updateTask, t],
+  );
 
   const relation = dayRelation(selectedKey, todayKey);
   const selectedDate = fmt.date(selectedKey, relation ? 'long' : 'full');
@@ -138,7 +171,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
         </MGButton>
       ) : null}
       <View style={styles.gridWrap}>
-        <MonthGrid grid={grid} weekdays={weekdays} index={index} selectedKey={selectedKey} todayKey={todayKey} onSelect={selectDay} />
+        <MonthGrid grid={grid} weekdays={weekdays} index={index} taskDays={taskDays} selectedKey={selectedKey} todayKey={todayKey} onSelect={selectDay} />
       </View>
       <View
         style={styles.legend}
@@ -155,6 +188,12 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
             </Text>
           </View>
         ))}
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, styles.legendTaskDot, { borderColor: colors.tertiary }]} />
+          <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
+            {t('calendarView:legend.tasks')}
+          </Text>
+        </View>
       </View>
       <Divider style={styles.divider} />
       <View style={styles.agendaHeader}>
@@ -164,9 +203,52 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
           </Text>
           <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
             {dayMeetings.length > 0 ? t('calendarView:meetingCount', { count: dayMeetings.length }) : t('calendarView:noMeetings')}
+            {dayTasks.length > 0 ? ` · ${t('calendarView:taskCount', { count: dayTasks.length })}` : ''}
           </Text>
         </View>
       </View>
+      {dayTasks.length > 0 ? (
+        <View style={[styles.tasksBlock, { borderColor: colors.outlineVariant, backgroundColor: colors.surface }]} testID="calendar-day-tasks">
+          {dayTasks.map((task) => {
+            const done = task.status === 'done';
+            return (
+              <View key={task.id} style={styles.taskRow}>
+                <IconButton
+                  icon={done ? 'check-circle' : 'circle-outline'}
+                  size={22}
+                  iconColor={done ? colors.primary : colors.onSurfaceVariant}
+                  onPress={() => void toggleTask(task)}
+                  accessibilityLabel={t(done ? 'tasks:card.reopen' : 'tasks:card.complete', { title: task.title })}
+                  style={styles.taskToggle}
+                  testID={`calendar-task-toggle-${task.id}`}
+                />
+                <TouchableRipple
+                  onPress={() => navigation.navigate('Tasks')}
+                  style={styles.taskBody}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('tasks:card.open', { title: task.title })}
+                  testID={`calendar-task-${task.id}`}
+                >
+                  <View style={styles.taskTextRow}>
+                    <Text
+                      variant="bodyMedium"
+                      numberOfLines={1}
+                      style={[styles.flex, done && [styles.taskDone, { color: colors.onSurfaceVariant }]]}
+                    >
+                      {task.title}
+                    </Text>
+                    {task.dueTime ? (
+                      <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
+                        {fmt.time(`${task.dueDate}T${task.dueTime}:00`)}
+                      </Text>
+                    ) : null}
+                  </View>
+                </TouchableRipple>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
       {error && meetings.length > 0 ? (
         <Banner tone="error" text={t(errorMessageKey(error.code))} style={styles.inlineError} testID="calendar-error-banner" />
       ) : null}
@@ -317,6 +399,36 @@ const styles = StyleSheet.create({
     height: componentMetrics.sourceDotSize,
     borderRadius: radii.full,
     marginRight: spacing.xs,
+  },
+  legendTaskDot: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+  },
+  tasksBlock: {
+    borderWidth: 1,
+    borderRadius: radii.md,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  taskToggle: {
+    margin: 0,
+  },
+  taskBody: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    paddingRight: spacing.md,
+  },
+  taskTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  taskDone: {
+    textDecorationLine: 'line-through',
   },
   divider: {
     marginTop: spacing.md,

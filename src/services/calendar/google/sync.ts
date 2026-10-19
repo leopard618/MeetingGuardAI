@@ -184,7 +184,7 @@ export function planGooglePull(input: PullPlanInput): PullPlan {
     // "mgev..." id. The local master already expands these occurrences, so importing them would
     // duplicate the series one meeting per occurrence. They are skipped entirely - including
     // per-instance cancellations/edits made in Google, a documented v1 limitation
-    // (docs/ARCHITECTURE.md §16: occurrence edits flow MeetingGuard -> Google only).
+    // (docs/v1/ARCHITECTURE.md §16: occurrence edits flow MeetingGuard -> Google only).
     if (event.recurringEventId !== undefined && meetingIdFromGoogleEventId(event.recurringEventId) !== null) {
       continue;
     }

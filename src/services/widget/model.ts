@@ -1,5 +1,5 @@
 /**
- * PURE next-widget-entry model (owner: widget; docs/ARCHITECTURE.md §19). No React Native,
+ * PURE next-widget-entry model (owner: widget; docs/v1/ARCHITECTURE.md §19). No React Native,
  * Expo or Firebase imports; unit-tested next to this file.
  *
  * Selection rules (the contract the feeder and tests pin down):

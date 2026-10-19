@@ -7,7 +7,7 @@
  *   parsed JSON produces different bytes and a false mismatch. Comparison is timing-safe.
  * - GET handshake: `hub.verify_token` must equal our configured verify token (timing-safe too).
  * - `phoneLogId` is the ONLY representation of a phone number that may appear in logs
- *   (docs/ARCHITECTURE.md §27 logging rule): sha256("wa:" + E.164 digits), first 16 hex chars.
+ *   (docs/v1/ARCHITECTURE.md §27 logging rule): sha256("wa:" + E.164 digits), first 16 hex chars.
  *   Unkeyed on purpose - the whatsapp* callables log too and bind no secrets - and treated as
  *   pseudonymous, not anonymous (the phone number space is small enough to brute-force), which
  *   is acceptable for access-controlled operational logs.

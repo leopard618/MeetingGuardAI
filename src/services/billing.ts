@@ -1,5 +1,5 @@
 /**
- * Plan catalog (subscriptions) - owner: billing; docs/ARCHITECTURE.md §20.
+ * Plan catalog (subscriptions) - owner: billing; docs/v1/ARCHITECTURE.md §20.
  *
  * Purchases run through RevenueCat + the platform store (src/services/purchases: Google Play on
  * Android, the App Store on iOS) and are enabled per platform by the matching public SDK key

@@ -1,5 +1,5 @@
 /**
- * Deployability contract of functions/src/zoom/index.ts (docs/ARCHITECTURE.md §24):
+ * Deployability contract of functions/src/zoom/index.ts (docs/v1/ARCHITECTURE.md §24):
  * - zoomStatus always exports and never binds the ZOOM_* secrets.
  * - the three write callables export ONLY while ZOOM_ENABLED is true when the module loads
  *   (CLI discovery), and they are the only functions binding the ZOOM_* secrets.

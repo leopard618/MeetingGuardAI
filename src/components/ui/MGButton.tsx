@@ -1,5 +1,5 @@
 /**
- * The app's one button (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §5). Wraps Paper's
+ * The app's one button (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5). Wraps Paper's
  * Button so loading / icon / disabled / accessibility keep working, and pins the MG shape and
  * type: height 48 (md) / 40 (sm), labelL, pill radius (small buttons r-sm).
  *

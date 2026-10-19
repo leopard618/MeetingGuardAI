@@ -54,6 +54,7 @@ export function meetingDoc(overrides: Partial<AiMeetingContextDoc> = {}): AiMeet
     location: null,
     conference: null,
     recurrence: null,
+    recurrenceOverrides: null,
     ...overrides,
   };
 }

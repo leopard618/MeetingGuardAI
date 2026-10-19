@@ -70,3 +70,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Microsoft Office lock files
+~$*

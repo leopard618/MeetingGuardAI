@@ -6,8 +6,8 @@ and cloud builds. Do the steps in order. Each step says where the value goes.
 - Accounts you need (the client owns most of them, so ask for access first): Google Cloud / Firebase,
   Expo (EAS), Google Play Console, OpenAI, GitHub. For the clean-up in §1 you also need Render,
   Supabase and Stripe. For iOS you need an Apple Developer account.
-- The release process is in `docs/DEPLOYMENT.md`, the tests in `docs/TESTING.md`, and the open
-  decisions in `docs/HANDOFF.md`.
+- The release process is in `docs/v1/DEPLOYMENT.md`, the tests in `docs/v1/TESTING.md`, and the open
+  decisions in `docs/v1/HANDOFF.md`.
 
 Contents:
 
@@ -62,7 +62,7 @@ Also do these:
 
 The client must accept that v1.0.9 features break during the rotation. Do not wait for v1.3.0 to ship
 before you rotate. Just before you start, prepare the v1.0.9 fixture phones for the upgrade test
-(`docs/HANDOFF.md` §2 step 2, `docs/TESTING.md` T12): it takes minutes, and afterwards v1.0.9 can no
+(`docs/v1/HANDOFF.md` §2 step 2, `docs/v1/TESTING.md` T12): it takes minutes, and afterwards v1.0.9 can no
 longer sign in to create that data.
 
 ### 1.2 Clean the git history (after the rotation)
@@ -122,7 +122,7 @@ What to do:
 | Firebase CLI | already a dev dependency of `functions/`: run `npx firebase ...` inside `functions/` | Functions, rules, hosting, backups |
 | Java 21 (for example Temurin 21) | only for the emulators and `npm run test:rules` | Local backend tests |
 | Android platform-tools (`adb`) | any recent | Installing builds, device tests |
-| `gcloud` | optional | Only for the Firestore export / import commands in `docs/DEPLOYMENT.md` |
+| `gcloud` | optional | Only for the Firestore export / import commands in `docs/v1/DEPLOYMENT.md` |
 
 Install the app dependencies (repository root). `npm ci` installs exactly what `package-lock.json`
 lists:
@@ -209,7 +209,7 @@ installed app. You need one Android OAuth client per signing key:
 | (a) **EAS upload key** | Every APK/AAB built by EAS (development, preview, production), unless you created more than one keystore | Run `eas credentials -p android` in the repository root, choose the Android keystore. It prints the MD5, SHA-1 and SHA-256 fingerprints. |
 | (b) **Google Play app signing key** | Every app installed from Google Play, on any track (internal, closed, production) | Play Console -> MeetingGuard AI -> **App integrity** (left menu, under "Test and release"; "Release" -> "Setup" in older consoles) -> App signing -> "App signing key certificate" -> SHA-1 |
 | (c) Debug key (optional) | Local `npm run android` builds | After `npx expo prebuild`, run `cd android` then `./gradlew signingReport` (needs JDK 17). |
-| (d) Local test key (optional) | Test APKs built on your PC with `npm run apk:test`, for emulators (`docs/TESTING.md` B.2) | Run `npm run apk:sha1`. It creates the key once in `%USERPROFILE%\.meetingguard\` and prints the SHA-1 and SHA-256. |
+| (d) Local test key (optional) | Test APKs built on your PC with `npm run apk:test`, for emulators (`docs/v1/TESTING.md` B.2) | Run `npm run apk:sha1`. It creates the key once in `%USERPROFILE%\.meetingguard\` and prints the SHA-1 and SHA-256. |
 
 The local test keystore (`npm run apk:sha1`) needs its own Android OAuth client, like every other key.
 
@@ -243,6 +243,9 @@ can also use the client Firebase created in §3.4.
 
 Google Auth Platform (older console: "OAuth consent screen"):
 
+**Status (2026-10-19): done.** Branding and `calendar.events` data access are verified and the
+publishing status is In production. The list below is kept for the next scope that needs it.
+
 - **Branding:**
   - App name "MeetingGuard AI" and a user support email.
   - App home page, privacy policy URL and terms URL.
@@ -251,9 +254,9 @@ Google Auth Platform (older console: "OAuth consent screen"):
   - A logo is optional, and adding one also triggers a review.
 - **Audience:** External. Start in **Testing**: only the test users you list (at most 100) can sign
   in, and their grants expire after 7 days. Add every internal tester and the Google account you give
-  the Play reviewers (`docs/DEPLOYMENT.md` §9, App access). Move to **In production** after
+  the Play reviewers (`docs/v1/DEPLOYMENT.md` §9, App access). Move to **In production** after
   verification. **Testing is enough for development and internal testing only:** a production
-  rollout needs In production and the verification (`docs/DEPLOYMENT.md` §4 item 4).
+  rollout needs In production and the verification (`docs/v1/DEPLOYMENT.md` §4 item 4).
 - **Data access (scopes):**
   - `openid`, `.../auth/userinfo.email` and `.../auth/userinfo.profile` (not sensitive).
   - `https://www.googleapis.com/auth/calendar.events` (**sensitive**). The app asks for it only when the
@@ -270,7 +273,7 @@ screen, and there is a 100-user limit. To verify you need:
 - A short written reason for the scope.
 
 Review takes days to weeks, so start early. The privacy policy exists today only inside the app
-(`src/i18n/locales/{en,es}/legal.json`). It needs a public web page first (see `docs/HANDOFF.md`).
+(`src/i18n/locales/{en,es}/legal.json`). It needs a public web page first (see `docs/v1/HANDOFF.md`).
 
 ### 4.5 Google Calendar API
 
@@ -341,7 +344,8 @@ eas env:pull --environment development      # writes .env.local (git-ignored)
 
 ### 5.3 Android versionCode: set it to 20 once
 
-Google Play already has versionCode 20 (v1.0.9). EAS stores the version code on its server
+Google Play had versionCode 20 (v1.0.9) when this was written; production is now versionCode 24
+(v1.4.0, 2026-10-06) and EAS holds the current value. EAS stores the version code on its server
 (`"appVersionSource": "remote"`), and the `production` profile increments it before each build
 (`autoIncrement`). Set the stored value to 20 **before the first production build**, so that build
 gets 21:
@@ -353,7 +357,7 @@ eas build:version:get -p android      # must show 20
 ```
 
 Do not put `android.versionCode` in `app.config.js`. `version` (1.3.0) is the user-facing version and
-also the OTA runtime version (`docs/DEPLOYMENT.md`).
+also the OTA runtime version (`docs/v1/DEPLOYMENT.md`).
 
 ### 5.4 Signing credentials
 
@@ -437,7 +441,7 @@ ASSISTANT_GLOBAL_DAILY_LIMIT=5000
 | Param | Meaning |
 |---|---|
 | `FUNCTIONS_REGION` | Region of both callables. It **must equal** `EXPO_PUBLIC_FUNCTIONS_REGION` in every EAS environment, and should be near the Firestore location. |
-| `OPENAI_MODEL` | The model name. The client must confirm the model (`docs/HANDOFF.md`). A change needs only a redeploy. |
+| `OPENAI_MODEL` | The model name. The client must confirm the model (`docs/v1/HANDOFF.md`). A change needs only a redeploy. |
 | `OPENAI_REASONING_EFFORT` | `none`, `minimal`, `low`, `medium`, `high`, or `omit` for models that reject the parameter. |
 | `ASSISTANT_GLOBAL_DAILY_LIMIT` | Project-wide limit on assistant requests per UTC day (spend guard). `0` turns it off. |
 
@@ -466,7 +470,7 @@ npm run deploy:rules    # firestore.rules + firestore.indexes.json
    ```
 
 3. The page is at `https://<project-id>.web.app/delete-account`. Use this URL in Play Console
-   (`docs/DEPLOYMENT.md`).
+   (`docs/v1/DEPLOYMENT.md`).
 
 ### 6.6 Emulators (optional, for backend work)
 
@@ -507,10 +511,16 @@ Development builds never send events (`enabled: !__DEV__` in `src/services/sentr
 
 ## 8. iOS: the complete runway to the App Store
 
-iOS has never been built. Work top to bottom; every step says where its values come from.
+**Status (2026-10-19): this runway has been completed.** iOS 1.4.0 build 9 was built with EAS and
+submitted to App Store Connect on 2026-10-07 (resubmitted 2026-10-08) and is Waiting for Review.
+Keep the steps below for the next build: 1.5.0 adds a native module, so it is a new EAS build and a
+new submission, and App Store Connect allows one version in review at a time, so it goes in once
+1.4.0 clears. The original text follows.
+
+iOS had never been built when this was written. Work top to bottom; every step says where its values come from.
 App code prerequisites (version 1.4.0) are already in the repo: `ios.usesAppleSignIn`, the
 Time Sensitive Notifications entitlement, EN+ES `supportedLocales`, the 1024x1024
-`assets/icon.png` and the `ios-simulator` build profile. Architecture: docs/ARCHITECTURE.md §26.
+`assets/icon.png` and the `ios-simulator` build profile. Architecture: docs/v1/ARCHITECTURE.md §26.
 
 ### 8.1 Apple Developer account and App Store Connect app
 
@@ -562,7 +572,7 @@ Firebase console -> Authentication -> Sign-in method -> Add new provider -> **Ap
   "Sign in with Apple", download the `.p8` once) and fill the Apple provider's **Team ID, Key
   ID and private key** fields in the Firebase console. The **Services ID** field is only needed
   if web/Android Apple sign-in is ever added. Revocation cannot be verified from Windows or a
-  cloud simulator: docs/TESTING.md T20 row 7 (the Apple ID settings check) is the blocking
+  cloud simulator: docs/v1/TESTING.md T20 row 7 (the Apple ID settings check) is the blocking
   proof before TestFlight.
 - The iOS Google OAuth client (§4.3) is separate and still required for Google sign-in on iOS
   (`EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` -> the URL scheme, §5.2).
@@ -595,7 +605,7 @@ versionCode/buildNumber is managed remotely by EAS like Android (`appVersionSour
 
 ### 8.7 On-device test plan
 
-Run docs/TESTING.md T20 (iOS rows) plus the regular T1/T5/T8/T11 on at least one real iPhone
+Run docs/v1/TESTING.md T20 (iOS rows) plus the regular T1/T5/T8/T11 on at least one real iPhone
 before review.
 
 ### 8.8 App Review checklist
@@ -639,7 +649,7 @@ You are done when all of these are true:
 - [ ] The consent screen is set up with `calendar.events`. The Google Calendar API is enabled.
       Verification is submitted. While it is pending you may keep the Testing status, with every
       tester and the Play reviewer account as test users, but only for development and internal
-      testing: the production rollout waits for `docs/DEPLOYMENT.md` §4 item 4.
+      testing: the production rollout waits for `docs/v1/DEPLOYMENT.md` §4 item 4.
 - [ ] `eas env:list` shows every required variable in all three environments.
       `eas build:version:get -p android` shows 20 (or higher after a production build).
 - [ ] `OPENAI_API_KEY` is set. `functions/.env.<project-id>` exists. The functions, rules and indexes
@@ -652,7 +662,7 @@ You are done when all of these are true:
 
 ## 10. Microsoft/Outlook (Azure app registration)
 
-Optional: Outlook calendar sync (docs/ARCHITECTURE.md §17). Without `EXPO_PUBLIC_MSAL_CLIENT_ID`
+Optional: Outlook calendar sync (docs/v1/ARCHITECTURE.md §17). Without `EXPO_PUBLIC_MSAL_CLIENT_ID`
 the whole Outlook feature is hidden - the app builds and runs fine without this section. A free
 personal Microsoft account is enough to create the registration; no Azure subscription and no
 client secret are needed (the app is a public client using PKCE).
@@ -727,7 +737,7 @@ Both values are public identifiers (like the Google client IDs): they may appear
 
 ## 11. RevenueCat + store subscriptions (in-app purchases)
 
-Optional: paid plans (docs/ARCHITECTURE.md §20). Without the platform's public SDK key
+Optional: paid plans (docs/v1/ARCHITECTURE.md §20). Without the platform's public SDK key
 (`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` on Android, `EXPO_PUBLIC_REVENUECAT_APPLE_KEY` on iOS)
 the Plans screen keeps its catalog-only "Subscriptions coming soon" view on that platform - the
 app builds and runs fine without this section, and each platform can go live independently.
@@ -810,7 +820,7 @@ their own entitlement; the Admin SDK bypasses the rules.
    `EXPO_PUBLIC_REVENUECAT_APPLE_KEY` = the Public SDK key of the App Store app (`appl_...`,
    §11.6); each platform reads only its own key.
 2. The SDK (`react-native-purchases`) is a NATIVE module: purchases need a new dev/store build
-   with a bumped `version` (docs/ARCHITECTURE.md §15 - never OTA). Expo Go stays catalog-only.
+   with a bumped `version` (docs/v1/ARCHITECTURE.md §15 - never OTA). Expo Go stays catalog-only.
    No config plugin and no extra iOS entitlement are needed (the In-App Purchase capability is
    on by default for every App ID; `npx expo config` output is unchanged).
 
@@ -859,7 +869,7 @@ Connect -> Business: signed and active - products stay "Missing Metadata" withou
 ### 11.7 Entitlement reconciliation (adminReconcileEntitlement)
 
 Optional self-heal for drifted entitlements (same-user Restore emits no webhook event; missed
-deliveries; see docs/ARCHITECTURE.md §20). Gated like Zoom/WhatsApp, so the default deploy
+deliveries; see docs/v1/ARCHITECTURE.md §20). Gated like Zoom/WhatsApp, so the default deploy
 never touches the secret:
 
 1. Set the secret FIRST: `firebase functions:secrets:set REVENUECAT_SECRET_KEY` = the
@@ -881,7 +891,7 @@ never touches the secret:
 ## 12. Zoom auto links (Server-to-Server OAuth app)
 
 Optional. Until this section is done the app simply keeps the paste-a-link behavior for Zoom
-(`zoomStatus` answers `configured: false`). Design: docs/ARCHITECTURE.md §24.
+(`zoomStatus` answers `configured: false`). Design: docs/v1/ARCHITECTURE.md §24.
 
 ### 12.1 Zoom marketplace app
 
@@ -926,7 +936,7 @@ npx firebase deploy --only firestore:rules,functions
 
 - The rules deploy ships the `external.zoomMeetingId` key (without it the app's meeting edits
   would be rejected once a link was created) and the explicit deny block for the server-only
-  `zoomMeetings/{id}` ownership registry (docs/ARCHITECTURE.md §24).
+  `zoomMeetings/{id}` ownership registry (docs/v1/ARCHITECTURE.md §24).
 - The functions deploy now includes `zoomStatus` AND the three write callables; the CLI grants
   their service account access to the three secrets.
 - To switch the feature OFF again: set `ZOOM_ENABLED=false` (or remove the line), deploy, and
@@ -960,7 +970,7 @@ npx firebase deploy --only firestore:rules,functions
 
 The app ships the email sign-in UI either way; this console switch makes it work. Without it,
 submitting the form shows "Email sign-in is not enabled" (`auth/operation-not-allowed` ->
-`auth:errors.providerDisabled`). Design: docs/ARCHITECTURE.md §25.
+`auth:errors.providerDisabled`). Design: docs/v1/ARCHITECTURE.md §25.
 
 1. Firebase console -> Authentication -> Sign-in method -> **Email/Password** -> Enable (leave
    "Email link (passwordless sign-in)" off) -> Save.
@@ -981,7 +991,7 @@ submitting the form shows "Email sign-in is not enabled" (`auth/operation-not-al
 
 ## 14. WhatsApp bot (Meta Cloud API)
 
-The bot (docs/ARCHITECTURE.md §27) answers from ONE server-owned WhatsApp number. Development
+The bot (docs/v1/ARCHITECTURE.md §27) answers from ONE server-owned WhatsApp number. Development
 runs on the FREE TEST NUMBER every Meta developer app gets (up to 5 allow-listed recipients, no
 business verification needed); the client's own number comes later and the swap is exactly TWO
 values (step 8). The client's Meta Business account is NEW, so his own number is not released
@@ -1022,7 +1032,7 @@ Business Portfolio (business.facebook.com). Everything runs on the test number u
    WHATSAPP_DISPLAY_NUMBER=<test number digits, e.g. 15551234567>
    ```
    Deploy: `firebase deploy --only functions,firestore:rules`. The webhook only deploys while
-   WHATSAPP_ENABLED=true (docs/ARCHITECTURE.md §27); with the flag false a deploy never touches
+   WHATSAPP_ENABLED=true (docs/v1/ARCHITECTURE.md §27); with the flag false a deploy never touches
    the secrets.
 6. **Register the webhook**: WhatsApp -> Configuration -> Webhook -> Edit:
    - Callback URL: `https://us-central1-meetingguard-ai-app.cloudfunctions.net/whatsappWebhook`
@@ -1035,7 +1045,7 @@ Business Portfolio (business.facebook.com). Everything runs on the test number u
          bilingual "linked" confirmation arrives.
    - [ ] "What do I have tomorrow?" -> an assistant answer; a create request -> summary with
          Confirm/Cancel buttons; Confirm -> the meeting appears in the app (source WhatsApp).
-   - [ ] docs/TESTING.md T21 for the full pass.
+   - [ ] docs/v1/TESTING.md T21 for the full pass.
 8. **Go live on the client's own number** (once Meta releases it to his new Business account):
    - Business verification: business.facebook.com -> Settings -> Security centre -> Start
      verification (Meta asks for business documents; this also lifts the new-account limits).

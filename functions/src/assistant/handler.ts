@@ -17,9 +17,11 @@ import * as logger from 'firebase-functions/logger';
 import { HttpsError } from 'firebase-functions/https';
 
 import {
+  AI_CONTRACT_VERSION,
   AI_LIMITS,
   assistantRequestSchema,
   assistantResponseSchema,
+  isMutatingAction,
   isTrustedSignInProvider,
   type AssistantRequest,
   type AssistantResponse,
@@ -29,21 +31,24 @@ import { FollowUpMeetingNotFoundError, loadMeetingContext, type MeetingReader } 
 import { UpstreamError, assistantError } from './errors';
 import type { GlobalBudget } from './globalBudget';
 import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
-import { buildPromptMessages, collectUserText, fallbackReply } from './prompt';
+import { buildPromptMessages, collectUserText, composeListAnswer, fallbackReply } from './prompt';
 import { consumeQuota, refundQuota, type QuotaDecision, type QuotaStore } from './quota';
+import { buildTaskContext, type TaskContext, type TaskReader } from './tasksContext';
 import { isValidTimeZone } from './time';
-import { ASSISTANT_TOOLS } from './tools';
+import { ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL, TASK_TOOLS } from './tools';
 
 export interface AssistantDeps {
   quota: QuotaStore;
   meetings: MeetingReader;
+  /** v5: absent (older fakes / the WhatsApp bridge wiring) = no task context, no task tools. */
+  tasks?: TaskReader;
   /** Created lazily (reads the secret only for requests that passed auth + quota). */
   llm: () => LlmClient;
   now: () => Date;
   /** Project-wide daily cap (optional: tests and the emulator run without one). */
   globalBudget?: GlobalBudget;
   /**
-   * Admin v2 stats hook (docs/ADMIN.md §v2): merge-set with increments on
+   * Admin v2 stats hook (docs/v1/ADMIN.md §v2): merge-set with increments on
    * adminStats/ai/days/{dayKey} after a successful completion. Optional, and guarded by its own
    * try/catch here: a stats failure is warn-logged and NEVER fails (or refunds) the request.
    */
@@ -160,20 +165,37 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       throw new GlobalBudgetExhaustedError();
     }
     const context = await loadMeetingContext(deps.meetings, uid, now, request.followUpMeetingId);
+    // v4: unconfirmed proposals the app is showing. Only chat mode carries them, and the
+    // resolve_pending tool exists for the model only while there is something to resolve.
+    const pendingActions = request.mode === 'chat' ? (request.pendingActions ?? []) : [];
+    // v5: tasks exist for the model ONLY when the client said it can parse the task action
+    // types (an older client's response schema would reject the whole response otherwise).
+    const wantsTasks = request.mode === 'chat' && (request.contractVersion ?? 0) >= 5 && deps.tasks !== undefined;
+    let tasksContext: TaskContext | null = null;
+    if (wantsTasks && deps.tasks) {
+      const taskRecords = await deps.tasks.listRecent(uid, AI_LIMITS.maxActions * 20);
+      tasksContext = buildTaskContext(taskRecords, now);
+    }
     const { messages } = buildPromptMessages({
       language: request.language,
       timeZone: request.timezone,
       now,
       mode: request.mode,
       context,
+      tasksContext,
       messages: request.messages,
+      pendingActions,
       ...(deps.nonce ? { nonce: deps.nonce() } : {}),
     });
     const llm = deps.llm();
     llmStarted = true;
     const completion: LlmResult = await llm.complete({
       messages,
-      tools: ASSISTANT_TOOLS,
+      tools: [
+        ...ASSISTANT_TOOLS,
+        ...(tasksContext !== null ? TASK_TOOLS : []),
+        ...(pendingActions.length > 0 ? [RESOLVE_PENDING_TOOL] : []),
+      ],
       toolChoice: request.mode === 'followup' ? 'required' : 'auto',
       safetyIdentifier: safetyIdentifierFor(uid),
     });
@@ -197,18 +219,49 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       mode: request.mode,
       userTimeZone: request.timezone,
       context,
+      tasksContext,
+      allowNewMeetingLinks: (request.contractVersion ?? 0) >= 6,
       userText: collectUserText(request.messages),
       ...(deps.newActionId ? { newActionId: deps.newActionId } : {}),
     });
 
+    // A resolution only counts when something was pending AND the model proposed nothing new:
+    // "yes but change X" style answers come back as proposals and must never auto-confirm.
+    const resolution = pendingActions.length > 0 && mapped.actions.length === 0 ? mapped.resolution : null;
+
     let reply = (completion.content ?? '').trim();
     if (reply.length === 0 && completion.refusal) reply = completion.refusal.trim();
     if (reply.length === 0) {
-      const onlyLists = mapped.actions.length > 0 && mapped.actions.every((action) => action.type === 'list');
-      reply = fallbackReply(
-        request.language,
-        request.mode === 'followup' ? 'followup' : onlyLists ? 'list' : mapped.actions.length > 0 ? 'actions' : 'empty',
-      );
+      // A read-only answer is never captioned "review and confirm": there is nothing to
+      // confirm. It is composed from the rows themselves, so a voice-only user hears the
+      // actual answer (and hears "nothing" when the answer is nothing).
+      const reads = mapped.actions.filter((action) => !isMutatingAction(action));
+      const onlyLists = mapped.actions.length > 0 && reads.length === mapped.actions.length;
+      // A read-only answer with no reply text is composed from the rows themselves, so the
+      // user hears the actual answer rather than "here are the meetings I found".
+      const listAnswer = onlyLists ? composeListAnswer(reads, context, tasksContext, request.language, request.timezone) : null;
+      // Every proposal the model made was dropped (e.g. a timed meeting without a time): tell
+      // the user WHAT is missing instead of a useless "couldn't generate a response" loop.
+      const allDropped =
+        mapped.actions.length === 0 && completion.toolCalls.length > 0 && Object.keys(mapped.dropped).length > 0;
+      if (listAnswer !== null) {
+        reply = listAnswer;
+      } else {
+        reply = fallbackReply(
+          request.language,
+          request.mode === 'followup'
+            ? 'followup'
+            : resolution !== null
+              ? resolution === 'confirm'
+                ? 'resolve_confirm'
+                : 'resolve_reject'
+              : mapped.actions.length > 0
+                ? 'actions'
+                : allDropped
+                  ? 'need_details'
+                  : 'empty',
+        );
+      }
     }
     if (reply.length > AI_LIMITS.maxReplyChars) reply = reply.slice(0, AI_LIMITS.maxReplyChars);
 
@@ -217,6 +270,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       actions: mapped.actions,
       suggestions: mapped.suggestions,
       usage: quota.usage,
+      ...(resolution !== null ? { resolution } : {}),
     };
     const checked = assistantResponseSchema.safeParse(response);
     if (!checked.success) {
@@ -232,6 +286,10 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       skippedMeetings: context.skippedInvalid,
       toolCalls: completion.toolCalls.length,
       actions: mapped.actions.length,
+      pendingActions: pendingActions.length,
+      tasks: tasksContext?.tasks.length ?? null,
+      contractVersion: Math.min(request.contractVersion ?? 0, AI_CONTRACT_VERSION),
+      resolution,
       suggestions: mapped.suggestions.length,
       dropped: mapped.dropped,
       finishReason: completion.finishReason,

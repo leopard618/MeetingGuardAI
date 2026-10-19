@@ -16,11 +16,15 @@
     "label": "Colores de los puntos: {{sources}}",
     "meetingguard": "MeetingGuard",
     "google": "Google Calendar",
-    "device": "Calendario del dispositivo"
+    "device": "Calendario del dispositivo",
+    "tasks": "Tareas"
   },
   "emptyDay": "No hay reuniones este día.",
   "createOnDay": "Nueva reunión el {{date}}",
   "createOnDayHint": "Abre el formulario de reunión con este día",
   "loading": "Cargando tus reuniones...",
-  "errorTitle": "No se pudieron cargar tus reuniones"
+  "errorTitle": "No se pudieron cargar tus reuniones",
+  "hasTasks": "con tareas",
+  "taskCount_one": "{{count}} tarea",
+  "taskCount_other": "{{count}} tareas"
 }

@@ -1,5 +1,11 @@
 import { createDefaultPreferences } from '../../../core/types';
-import { buildAlertSettingsPatch, isSettingsDraftValid, settingsDraftFromPreferences, snoozeChoices } from '../alertSettings';
+import {
+  briefingTimeToDate,
+  buildAlertSettingsPatch,
+  isSettingsDraftValid,
+  settingsDraftFromPreferences,
+  snoozeChoices,
+} from '../alertSettings';
 
 const prefs = createDefaultPreferences({ language: 'en', timezone: 'UTC' });
 
@@ -41,5 +47,34 @@ describe('alert settings model', () => {
     expect(isSettingsDraftValid({ ...draft, defaultAlertTimes: [] })).toBe(false);
     expect(isSettingsDraftValid({ ...draft, alertEnabled: false, defaultAlertTimes: [] })).toBe(true);
     expect(isSettingsDraftValid({ ...draft, snoozeMinutes: 0 })).toBe(false);
+  });
+});
+
+describe('daily briefing settings', () => {
+  it('round-trips the briefing switch and time', () => {
+    const draft = settingsDraftFromPreferences(prefs);
+    expect(draft).toMatchObject({ briefingEnabled: false, briefingTime: '08:00' });
+    expect(buildAlertSettingsPatch(prefs, { ...draft, briefingEnabled: true, briefingTime: '07:15' })).toEqual({
+      briefingEnabled: true,
+      briefingTime: '07:15',
+    });
+  });
+
+  it('refuses a time that would schedule nothing', () => {
+    const draft = settingsDraftFromPreferences(prefs);
+    expect(isSettingsDraftValid({ ...draft, briefingTime: '7:15' })).toBe(false);
+    expect(isSettingsDraftValid({ ...draft, briefingTime: '24:00' })).toBe(false);
+    expect(isSettingsDraftValid({ ...draft, briefingTime: '' })).toBe(false);
+    expect(isSettingsDraftValid({ ...draft, briefingTime: '23:59' })).toBe(true);
+  });
+
+  it('starts the picker at the stored wall-clock time, whatever the date', () => {
+    const date = briefingTimeToDate('07:15', new Date('2026-10-05T22:00:00.000Z'));
+    expect([date.getHours(), date.getMinutes(), date.getSeconds()]).toEqual([7, 15, 0]);
+  });
+
+  it('falls back to the default when the stored time is unusable', () => {
+    const date = briefingTimeToDate('nonsense', new Date('2026-10-05T22:00:00.000Z'));
+    expect([date.getHours(), date.getMinutes()]).toEqual([8, 0]);
   });
 });

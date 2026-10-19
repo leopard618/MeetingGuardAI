@@ -300,6 +300,410 @@ describe('handleAssistant', () => {
   });
 });
 
+describe('pending-proposal resolution (v4)', () => {
+  const PENDING = [{ type: 'create_meeting' as const, summary: 'Schedule "Kickoff" tomorrow at 4 PM.' }];
+
+  it('offers resolve_pending only when the request carries pending proposals', async () => {
+    const plain = setup();
+    await handleAssistant(caller(), chatRequest(), plain.deps);
+    expect(plain.llm.requests[0]!.tools.map((tool) => tool.function.name)).not.toContain('resolve_pending');
+
+    const withPending = setup();
+    await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), withPending.deps);
+    const request = withPending.llm.requests[0]!;
+    expect(request.tools.map((tool) => tool.function.name)).toContain('resolve_pending');
+    expect(request.messages[0]!.content).toContain('# Pending proposals');
+    expect(request.messages[1]!.content).toContain('pendingProposals');
+  });
+
+  it('returns the resolution when the model resolves and proposes nothing', async () => {
+    const { deps } = setup(
+      result({ content: '', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"confirm"}' }] }),
+    );
+    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
+    expect(response.resolution).toBe('confirm');
+    expect(response.actions).toEqual([]);
+    expect(response.reply).toBe('Got it, confirming it now.');
+    expect(assistantResponseSchema.parse(response).resolution).toBe('confirm');
+  });
+
+  it('returns reject with its own fallback reply', async () => {
+    const { deps } = setup(
+      result({ content: '', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"reject"}' }] }),
+    );
+    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
+    expect(response.resolution).toBe('reject');
+    expect(response.reply).toBe('Okay, I dismissed it. Nothing was changed.');
+  });
+
+  it('drops the resolution when the model also proposes actions', async () => {
+    const { deps } = setup(
+      result({
+        content: 'Changing it instead.',
+        toolCalls: [
+          { name: 'resolve_pending', arguments: '{"decision":"confirm"}' },
+          {
+            name: 'create_meeting',
+            arguments: JSON.stringify({
+              title: 'Kickoff', description: '', date: '2026-09-29', time: '17:00', all_day: false,
+              duration_minutes: null, timezone: null, location: null, conference: null,
+              participants: [], preparation_tips: [], alert_minutes_before: null, recurrence: null,
+              summary: 'Schedule "Kickoff" tomorrow at 5 PM.', confidence: 90,
+            }),
+          },
+        ],
+      }),
+    );
+    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
+    expect(response.resolution).toBeUndefined();
+    expect(response.actions).toHaveLength(1);
+  });
+
+  it('never returns a resolution to a request without pending proposals', async () => {
+    const { deps } = setup(
+      result({ content: 'ok', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"confirm"}' }] }),
+    );
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.resolution).toBeUndefined();
+  });
+});
+
+describe('dropped-proposal fallback', () => {
+  it('asks for the missing detail when every proposal was dropped (timed meeting without a time)', async () => {
+    const { deps } = setup(
+      result({
+        content: '',
+        toolCalls: [
+          {
+            name: 'create_meeting',
+            arguments: JSON.stringify({
+              title: 'Meeting with Isaias', description: '', date: '2026-09-29', time: null, all_day: false,
+              duration_minutes: null, timezone: null, location: null, conference: null,
+              participants: [], preparation_tips: [], alert_minutes_before: null, recurrence: null,
+              summary: 'Schedule a meeting with Isaias tomorrow.', confidence: 80,
+            }),
+          },
+        ],
+      }),
+    );
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.actions).toEqual([]);
+    expect(response.reply).toContain('date or start time is missing');
+  });
+
+  it('keeps the plain empty fallback when the model proposed nothing at all', async () => {
+    const { deps } = setup(result({ content: '', toolCalls: [] }));
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.reply).toContain("couldn't come up with an answer");
+  });
+
+  // An agenda answer is read-only. Captioning it "review and confirm" tells the user to confirm
+  // something that does not exist, and it is what a voice-only user HEARS.
+  describe('read-only answers are composed from the rows, never captioned as a proposal', () => {
+    // A minimal task reader: these tests only need the tasks context to EXIST.
+    const reads = {
+      listRecent: async () => [
+        {
+          id: 'taskonly1',
+          doc: {
+            title: 'Prepare the proposal',
+            description: '',
+            dueDate: '2026-09-29',
+            dueTime: '16:00',
+            timezone: 'Europe/Madrid',
+            reminderMinutesBefore: null,
+            status: 'open',
+            meetingId: null,
+            people: [],
+            completedAt: null,
+            updatedAt: '2026-09-28T10:00:00.000Z',
+          },
+        },
+      ],
+    };
+
+    function listCall(refs: string[]) {
+      return {
+        name: 'list_meetings',
+        arguments: JSON.stringify({ meeting_refs: refs, summary: 'Your meetings.', confidence: 90 }),
+      };
+    }
+    function listTasksCall(refs: string[]) {
+      return {
+        name: 'list_tasks',
+        arguments: JSON.stringify({ task_refs: refs, summary: 'Your tasks.', confidence: 90 }),
+      };
+    }
+
+    it('names the meetings and their times, so the spoken answer carries the agenda', async () => {
+      const { deps, llm } = setup(result({ content: '', toolCalls: [] }));
+      // Learn the refs the server assigned, then answer with them.
+      await handleAssistant(caller(), chatRequest(), deps);
+      const block = llm.requests[0]!.messages[1]!.content;
+      const refs = [...block.matchAll(/"ref":"([a-z0-9]+)"/g)].map((match) => match[1]!);
+      expect(refs.length).toBeGreaterThan(0);
+
+      const second = setup(result({ content: '', toolCalls: [listCall([refs[0]!])] }));
+      const response = await handleAssistant(caller(), chatRequest(), second.deps);
+      expect(response.actions).toHaveLength(1);
+      // Title plus the local time, not a content-free caption.
+      expect(response.reply).toMatch(/\(\d{2}:\d{2}\)\.$/);
+      expect(response.reply).not.toContain('confirm');
+    });
+
+    it('says plainly that there is nothing when the list is empty', async () => {
+      const { deps } = setup(result({ content: '', toolCalls: [listCall([])] }));
+      const response = await handleAssistant(caller(), chatRequest(), deps);
+      expect(response.reply).toBe('Nothing on your calendar for that.');
+    });
+
+    it('answers an empty task list in its own words', async () => {
+      const { deps } = setup(result({ content: '', toolCalls: [listTasksCall([])] }));
+      deps.tasks = reads;
+      const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+      expect(response.reply).toBe('No tasks match that.');
+    });
+
+    it('answers a mixed read with one sentence per kind', async () => {
+      const { deps } = setup(result({ content: '', toolCalls: [listCall([]), listTasksCall([])] }));
+      deps.tasks = reads;
+      const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+      expect(response.reply).toBe('Nothing on your calendar for that. No tasks match that.');
+    });
+
+    it('answers in Spanish', async () => {
+      const { deps } = setup(result({ content: '', toolCalls: [listCall([])] }));
+      const response = await handleAssistant(caller(), chatRequest({ language: 'es' }), deps);
+      expect(response.reply).toBe('No tienes nada en el calendario para eso.');
+    });
+
+    it('still asks for confirmation when a read is mixed with a real change', async () => {
+      const create = {
+        name: 'create_meeting',
+        arguments: JSON.stringify({
+          title: 'Kickoff', description: '', date: '2026-09-29', time: '17:00', all_day: false,
+          duration_minutes: null, timezone: null, location: null, conference: null,
+          participants: [], preparation_tips: [], alert_minutes_before: null, recurrence: null,
+          summary: 'Schedule Kickoff.', confidence: 90,
+        }),
+      };
+      const { deps } = setup(result({ content: '', toolCalls: [listCall([]), create] }));
+      const response = await handleAssistant(caller(), chatRequest(), deps);
+      expect(response.reply).toContain('review and confirm');
+    });
+  });
+});
+
+describe('task tools (v5)', () => {
+  const taskReader = {
+    listRecent: async () => [
+      {
+        id: 'taskkick1',
+        doc: {
+          title: 'Prepare the proposal',
+          description: '',
+          dueDate: '2026-09-29',
+          dueTime: '16:00',
+          timezone: 'Europe/Madrid',
+          reminderMinutesBefore: 30,
+          status: 'open',
+          meetingId: 'merger',
+          people: [],
+          completedAt: null,
+          updatedAt: '2026-09-28T10:00:00.000Z',
+        },
+      },
+    ],
+  };
+
+  it('offers the task tools and the tasks data only to contractVersion >= 5 clients', async () => {
+    const v5 = setup();
+    v5.deps.tasks = taskReader;
+    await handleAssistant(caller(), chatRequest({ contractVersion: 5 }), v5.deps);
+    const request = v5.llm.requests[0]!;
+    expect(request.tools.map((tool) => tool.function.name)).toEqual(expect.arrayContaining(['create_task', 'update_task', 'delete_task', 'list_tasks']));
+    expect(request.messages[0]!.content).toContain('# Tasks');
+    expect(request.messages[1]!.content).toContain('Prepare the proposal');
+    // The task's linked meeting is exposed as the meeting's REF, never its id.
+    expect(request.messages[1]!.content).not.toContain('"merger"');
+
+    const v4 = setup();
+    v4.deps.tasks = taskReader;
+    await handleAssistant(caller(), chatRequest(), v4.deps);
+    const old = v4.llm.requests[0]!;
+    expect(old.tools.map((tool) => tool.function.name)).not.toContain('create_task');
+    expect(old.messages[0]!.content).not.toContain('# Tasks');
+    expect(old.messages[1]!.content).not.toContain('Prepare the proposal');
+  });
+
+  it('maps a create_task call into a validated create_task action', async () => {
+    const { deps } = setup(
+      result({
+        content: 'Task ready.',
+        toolCalls: [
+          {
+            name: 'create_task',
+            arguments: JSON.stringify({
+              title: 'Prepare the slides',
+              description: '',
+              due_date: '2026-09-29',
+              due_time: '12:00',
+              reminder_minutes_before: 30,
+              meeting_ref: null,
+              people: [{ name: 'Ana', email: null }],
+              summary: 'Add a task "Prepare the slides" for tomorrow at noon.',
+              confidence: 90,
+            }),
+          },
+        ],
+      }),
+    );
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest({ contractVersion: 5 }), deps);
+    expect(response.actions).toHaveLength(1);
+    expect(response.actions[0]).toMatchObject({
+      type: 'create_task',
+      task: {
+        title: 'Prepare the slides',
+        dueDate: '2026-09-29',
+        dueTime: '12:00',
+        reminderMinutesBefore: 30,
+        meetingId: null,
+        people: [{ name: 'Ana', email: null }],
+      },
+    });
+  });
+
+  // "Book the call with Ana and add a task the day before to prepare the proposal": the meeting
+  // has no ref yet, so the task points at the create_meeting ACTION and the client resolves it.
+  function combined(linkToNewMeeting: boolean, meetings = 1) {
+    const meetingCalls = Array.from({ length: meetings }, (_unused, index) => ({
+      name: 'create_meeting',
+      arguments: JSON.stringify({
+        title: `Call with Ana ${index + 1}`, description: '', date: '2026-09-30', time: '10:00', all_day: false,
+        duration_minutes: null, timezone: null, location: null, conference: null,
+        participants: [], preparation_tips: [], alert_minutes_before: null, recurrence: null,
+        summary: 'Schedule the call with Ana.', confidence: 90,
+      }),
+    }));
+    return result({
+      content: 'Both ready.',
+      toolCalls: [
+        ...meetingCalls,
+        {
+          name: 'create_task',
+          arguments: JSON.stringify({
+            title: 'Prepare the proposal', description: '', due_date: '2026-09-29', due_time: '16:00',
+            reminder_minutes_before: null, meeting_ref: null, link_to_new_meeting: linkToNewMeeting,
+            people: [], summary: 'Add a task to prepare the proposal.', confidence: 90,
+          }),
+        },
+      ],
+    });
+  }
+
+  it('links a task to the meeting created in the same response', async () => {
+    const { deps } = setup(combined(true));
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+    expect(response.actions).toHaveLength(2);
+    const meeting = response.actions.find((action) => action.type === 'create_meeting');
+    const task = response.actions.find((action) => action.type === 'create_task');
+    expect(meeting).toBeDefined();
+    expect(task).toMatchObject({ task: { title: 'Prepare the proposal', meetingId: null } });
+    // The link is the sibling ACTION id, never a placeholder and never a meeting id.
+    expect(task?.type === 'create_task' && task.task.meetingActionId).toBe(meeting?.id);
+    expect(task?.type === 'create_task' && task.task.meetingActionId).not.toBe('__new_meeting__');
+  });
+
+  it('leaves the task unlinked when the response creates no meeting to point at', async () => {
+    const { deps } = setup(
+      result({
+        content: 'Task ready.',
+        toolCalls: [
+          {
+            name: 'create_task',
+            arguments: JSON.stringify({
+              title: 'Prepare the proposal', description: '', due_date: null, due_time: null,
+              reminder_minutes_before: null, meeting_ref: null, link_to_new_meeting: true,
+              people: [], summary: 'Add a task.', confidence: 90,
+            }),
+          },
+        ],
+      }),
+    );
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+    expect(response.actions).toHaveLength(1);
+    expect(response.actions[0]).toMatchObject({ type: 'create_task', task: { meetingId: null } });
+    // Keeping the task matters more than keeping the link; no placeholder leaks either.
+    expect(response.actions[0]?.type === 'create_task' && response.actions[0].task.meetingActionId).toBeUndefined();
+  });
+
+  it('leaves the task unlinked when several meetings are created and the target is ambiguous', async () => {
+    const { deps } = setup(combined(true, 2));
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+    expect(response.actions).toHaveLength(3);
+    const task = response.actions.find((action) => action.type === 'create_task');
+    expect(task?.type === 'create_task' && task.task.meetingActionId).toBeUndefined();
+  });
+
+  it('never sends the link to a v5 client, which cannot resolve it', async () => {
+    const { deps } = setup(combined(true));
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest({ contractVersion: 5 }), deps);
+    expect(response.actions).toHaveLength(2);
+    const task = response.actions.find((action) => action.type === 'create_task');
+    // Both actions still arrive, so the combined request works; only the link is withheld.
+    expect(task?.type === 'create_task' && task.task.meetingActionId).toBeUndefined();
+  });
+
+  it('does not link when the model did not ask for it', async () => {
+    const { deps } = setup(combined(false));
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+    const task = response.actions.find((action) => action.type === 'create_task');
+    expect(task?.type === 'create_task' && task.task.meetingActionId).toBeUndefined();
+  });
+
+  it('drops task actions whose ref is not in the task context', async () => {
+    const { deps } = setup(
+      result({
+        content: 'Done.',
+        toolCalls: [
+          { name: 'delete_task', arguments: JSON.stringify({ task_ref: 'tunknown99', summary: 'Delete it.', confidence: 80 }) },
+        ],
+      }),
+    );
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest({ contractVersion: 5 }), deps);
+    expect(response.actions).toEqual([]);
+  });
+
+  it('never emits task actions to a v4 request even if the model calls a task tool', async () => {
+    const { deps } = setup(
+      result({
+        content: 'ok',
+        toolCalls: [
+          {
+            name: 'create_task',
+            arguments: JSON.stringify({
+              title: 'X', description: '', due_date: null, due_time: null, reminder_minutes_before: null,
+              meeting_ref: null, people: [], summary: 'Add a task.', confidence: 80,
+            }),
+          },
+        ],
+      }),
+    );
+    deps.tasks = taskReader;
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    // No tasksContext => the mapper cannot resolve anything task-shaped; the call is dropped
+    // as unknown-by-context work and the response stays v4-parseable.
+    expect(response.actions.every((action) => !action.type.includes('task'))).toBe(true);
+  });
+});
+
 describe('admin stats hook (recordAiUsage)', () => {
   it('records the day key and token usage after a successful completion', async () => {
     const { deps } = setup();

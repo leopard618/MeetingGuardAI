@@ -33,7 +33,7 @@ import { createLogger } from '../../core/logger';
 import { initI18n } from '../../i18n';
 import { authService, sessionManager } from '../auth';
 import { calendarSyncEngine } from '../calendar';
-import { alertEngine } from './engine';
+import { alertEngine, briefingScheduler, statusNotification } from './engine';
 import { toIncomingResponse } from './expoNotificationsPort';
 
 const log = createLogger('alerts.tasks');
@@ -67,7 +67,16 @@ export async function runBackgroundRefresh(): Promise<BackgroundTask.BackgroundT
         // Calendar problems must not prevent the alert window from being refreshed.
         log.warn(`background calendar sync failed (${toAppError(error).code})`, error);
       }
-      return alertEngine.reconcile('background');
+      const reconciled = await alertEngine.reconcile('background');
+      // The briefing reads its own data, so it refreshes its text and arms the next day even
+      // while the app is closed. Its failure must never fail the alert refresh.
+      try {
+        await briefingScheduler.reconcile();
+        await statusNotification.refresh();
+      } catch (error) {
+        log.warn(`background briefing reconcile failed (${toAppError(error).code})`, error);
+      }
+      return reconciled;
     });
     if (result === null) log.info('background refresh: nobody is signed in');
     else if (result.skipped) log.info(`background refresh: reconcile skipped (${result.skipped})`);

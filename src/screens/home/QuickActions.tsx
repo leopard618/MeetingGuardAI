@@ -1,6 +1,6 @@
 /**
  * Quick actions: new meeting (form), new meeting with the AI assistant, and the WhatsApp bot.
- * The WhatsApp tile follows whatsappLinkStatus.enabled (docs/ARCHITECTURE.md §27): a disabled
+ * The WhatsApp tile follows whatsappLinkStatus.enabled (docs/v1/ARCHITECTURE.md §27): a disabled
  * "Coming soon" tile until the server-side bot is configured, then it opens the WhatsApp setup.
  * Three Card tiles across, each with a 40dp primaryContainer icon circle; labels wrap instead
  * of clipping at large font scales.

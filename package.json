@@ -1,6 +1,6 @@
 {
   "name": "meeting-guard-mobile",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "main": "index.js",
   "scripts": {
@@ -50,6 +50,7 @@
     "expo-notifications": "~57.0.21",
     "expo-secure-store": "~57.0.4",
     "expo-speech": "~57.0.3",
+    "expo-speech-recognition": "^57.1.1",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",

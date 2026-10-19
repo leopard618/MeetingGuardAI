@@ -6,7 +6,7 @@
  *   it. An invalid envelope (reply, suggestions, usage) is an upstream error, never a
  *   partially-trusted result. Each proposed action is validated on its own (aiActionSchema): an
  *   action this app version does not understand (a kind or enum value added on the server later)
- *   is dropped and logged, so a newer server never breaks older installs (docs/DEPLOYMENT.md §6).
+ *   is dropped and logged, so a newer server never breaks older installs (docs/v1/DEPLOYMENT.md §6).
  * - Maps every failure to AppError:
  *     quota_exceeded (details.usage from HttpsError.details), unauthenticated, invalid_input,
  *     upstream_error, offline, timeout; not_configured when Firebase is not set up in this build.

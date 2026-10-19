@@ -14,7 +14,9 @@ import {
   noteSchema,
   parseMeetingDoc,
   parseNoteDoc,
+  parseTaskDoc,
   preferencesSchema,
+  taskSchema,
   toMeetingDoc,
   userProfileSchema,
   type AuthUser,
@@ -24,6 +26,7 @@ import {
   type Note,
   type Preferences,
   type PreferencesPatch,
+  type Task,
   type UserProfile,
 } from '../../core/types';
 import { findUndefinedPath, firstValidIso } from './util';
@@ -61,6 +64,14 @@ export function noteToDoc(note: Note): Omit<Note, 'id'> {
   if (!checked.success) throw new AppError('invalid_input', `Invalid note ${note.id}`, { cause: checked.error });
   const { id: _id, ...doc } = checked.data;
   assertWritable(doc, 'note');
+  return doc;
+}
+
+export function taskToDoc(task: Task): Omit<Task, 'id'> {
+  const checked = taskSchema.safeParse(task);
+  if (!checked.success) throw new AppError('invalid_input', `Invalid task ${task.id}`, { cause: checked.error });
+  const { id: _id, ...doc } = checked.data;
+  assertWritable(doc, 'task');
   return doc;
 }
 
@@ -136,6 +147,10 @@ export function readRemoteMeeting(id: string, raw: unknown, ctx: ReadContext): R
 
 export function readRemoteNote(id: string, raw: unknown): Note | null {
   return parseNoteDoc(id, raw);
+}
+
+export function readRemoteTask(id: string, raw: unknown): Task | null {
+  return parseTaskDoc(id, raw);
 }
 
 /** Legacy users/{uid}.preferences map (snake_case) -> PreferencesPatch; null when absent. */

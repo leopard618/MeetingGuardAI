@@ -122,5 +122,15 @@
     "whatsappA11y": "WhatsApp: próximamente, aún no disponible",
     "whatsappReadyHint": "Crea por mensaje",
     "whatsappReadyA11y": "WhatsApp: crea reuniones por mensaje. Abre la configuración de WhatsApp"
+  },
+  "tasks": {
+    "title": "Tareas",
+    "openCount_one": "{{count}} pendiente",
+    "openCount_other": "{{count}} pendientes",
+    "nothingDueToday": "Nada vence hoy. Tus tareas pendientes están en la pantalla de Tareas.",
+    "empty": "Aún no hay tareas. Añade una o díselo al asistente.",
+    "overdue": "Atrasada",
+    "today": "Hoy",
+    "viewAll": "Ver todas las tareas"
   }
 }

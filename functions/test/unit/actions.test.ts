@@ -1,5 +1,6 @@
 import { mapToolCalls, type MappingContext, type ToolCall } from '../../src/assistant/actions';
 import { buildMeetingContext, type MeetingContext } from '../../src/assistant/context';
+import { buildTaskContext } from '../../src/assistant/tasksContext';
 import { aiActionSchema, type AiAction } from '../../src/shared/aiContract';
 import { meetingDoc } from './fakes';
 
@@ -936,5 +937,183 @@ describe('recurrence scope following (v3)', () => {
       ctx(),
     );
     expect(badDate.dropped).toEqual({ invalid_datetime: 1 });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Task mappers (Stage 1 acceptance: created, edited, postponed, completed and deleted by voice)
+// ---------------------------------------------------------------------------------------------
+
+describe('task mappers', () => {
+  const taskContext = buildTaskContext(
+    [
+      {
+        id: 'taskprep1',
+        doc: {
+          title: 'Prepare the proposal',
+          description: '',
+          dueDate: '2026-09-30',
+          dueTime: '16:00',
+          timezone: USER_TZ,
+          reminderMinutesBefore: 30,
+          status: 'open',
+          meetingId: 'marketing',
+          people: [],
+          completedAt: null,
+          updatedAt: '2026-09-27T10:00:00.000Z',
+        },
+      },
+    ],
+    NOW,
+  );
+
+  function taskCtx(): MappingContext {
+    return ctx({ tasksContext: taskContext });
+  }
+
+  function taskRef(): string {
+    const task = taskContext.tasks[0];
+    if (!task) throw new Error('no task in the context');
+    return task.ref;
+  }
+
+  function changes(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      title: null,
+      description: null,
+      due_date: null,
+      due_time: null,
+      clear_due: false,
+      reminder_minutes_before: null,
+      clear_reminder: false,
+      meeting_ref: null,
+      clear_meeting: false,
+      people: null,
+      status: null,
+      ...overrides,
+    };
+  }
+
+  function mapOne(name: string, args: Record<string, unknown>): AiAction {
+    const result = mapToolCalls([call(name, args)], taskCtx());
+    const action = result.actions[0];
+    if (!action) throw new Error(`dropped: ${JSON.stringify(result.dropped)}`);
+    expect(aiActionSchema.safeParse(action).success).toBe(true);
+    return action;
+  }
+
+  it('postpones a task by giving it a new due date', () => {
+    const action = mapOne('update_task', {
+      task_ref: taskRef(),
+      changes: changes({ due_date: '2026-10-02' }),
+      summary: 'Postpone it.',
+      confidence: 90,
+    });
+    expect(action).toMatchObject({ type: 'update_task', taskId: 'taskprep1', changes: { dueDate: '2026-10-02' } });
+    // Only what changed travels: the time and reminder are untouched, not re-sent.
+    expect(action.type === 'update_task' && Object.keys(action.changes)).toEqual(['dueDate']);
+  });
+
+  it('postpones a task by giving it a new time', () => {
+    const action = mapOne('update_task', {
+      task_ref: taskRef(),
+      changes: changes({ due_time: '18:30' }),
+      summary: 'Later today.',
+      confidence: 90,
+    });
+    expect(action).toMatchObject({ changes: { dueTime: '18:30' } });
+  });
+
+  it('completes and reopens through the status field', () => {
+    expect(mapOne('update_task', { task_ref: taskRef(), changes: changes({ status: 'done' }), summary: 'Done.', confidence: 95 })).toMatchObject({
+      changes: { status: 'done' },
+    });
+    expect(mapOne('update_task', { task_ref: taskRef(), changes: changes({ status: 'open' }), summary: 'Reopen.', confidence: 95 })).toMatchObject({
+      changes: { status: 'open' },
+    });
+  });
+
+  it('clearing the due date also clears the time and the reminder', () => {
+    const action = mapOne('update_task', {
+      task_ref: taskRef(),
+      changes: changes({ clear_due: true }),
+      summary: 'No date.',
+      confidence: 90,
+    });
+    expect(action).toMatchObject({ changes: { dueDate: null, dueTime: null, reminderMinutesBefore: null } });
+  });
+
+  it('clears only the reminder when asked', () => {
+    expect(mapOne('update_task', { task_ref: taskRef(), changes: changes({ clear_reminder: true }), summary: 'No alarm.', confidence: 90 })).toMatchObject({
+      changes: { reminderMinutesBefore: null },
+    });
+  });
+
+  it('links a task to an existing meeting and unlinks it again', () => {
+    expect(
+      mapOne('update_task', { task_ref: taskRef(), changes: changes({ meeting_ref: ref('standup') }), summary: 'Link.', confidence: 90 }),
+    ).toMatchObject({ changes: { meetingId: 'standup' } });
+    expect(
+      mapOne('update_task', { task_ref: taskRef(), changes: changes({ clear_meeting: true }), summary: 'Unlink.', confidence: 90 }),
+    ).toMatchObject({ changes: { meetingId: null } });
+  });
+
+  it('drops an impossible reminder, and the whole update when that was the only change', () => {
+    const onlyBadReminder = mapToolCalls(
+      [
+        call('update_task', {
+          task_ref: taskRef(),
+          changes: changes({ reminder_minutes_before: 999_999 }),
+          summary: 'Remind me.',
+          confidence: 90,
+        }),
+      ],
+      taskCtx(),
+    );
+    // Better than proposing a card with a silently missing field: nothing is proposed at all.
+    expect(onlyBadReminder.actions).toEqual([]);
+    expect(onlyBadReminder.dropped.empty_changes).toBe(1);
+
+    // Alongside a real change, the update still goes through without the bad reminder.
+    const withDate = mapOne('update_task', {
+      task_ref: taskRef(),
+      changes: changes({ due_date: '2026-10-02', reminder_minutes_before: 999_999 }),
+      summary: 'Postpone it.',
+      confidence: 90,
+    });
+    expect(withDate).toMatchObject({ changes: { dueDate: '2026-10-02' } });
+    expect(withDate.type === 'update_task' && withDate.changes.reminderMinutesBefore).toBeUndefined();
+  });
+
+  it('drops an update with nothing to change', () => {
+    const result = mapToolCalls([call('update_task', { task_ref: taskRef(), changes: changes(), summary: 'Nothing.', confidence: 50 })], taskCtx());
+    expect(result.actions).toEqual([]);
+    expect(Object.values(result.dropped).reduce((sum, count) => sum + count, 0)).toBe(1);
+  });
+
+  it('maps a delete and a list of tasks', () => {
+    expect(mapOne('delete_task', { task_ref: taskRef(), summary: 'Delete it.', confidence: 90 })).toMatchObject({
+      type: 'delete_task',
+      taskId: 'taskprep1',
+    });
+    expect(mapOne('list_tasks', { task_refs: [taskRef()], summary: 'Your tasks.', confidence: 90 })).toMatchObject({
+      type: 'list_tasks',
+      taskIds: ['taskprep1'],
+    });
+  });
+
+  it('silently drops task refs that are not in the context, like meeting refs', () => {
+    expect(mapOne('list_tasks', { task_refs: [taskRef(), 'tnope999'], summary: 'Your tasks.', confidence: 90 })).toMatchObject({
+      taskIds: ['taskprep1'],
+    });
+    const unknown = mapToolCalls([call('delete_task', { task_ref: 'tnope999', summary: 'Delete.', confidence: 90 })], taskCtx());
+    expect(unknown.actions).toEqual([]);
+    expect(unknown.dropped.unknown_ref).toBe(1);
+  });
+
+  it('never maps a task tool for a client without a task context', () => {
+    const result = mapToolCalls([call('delete_task', { task_ref: taskRef(), summary: 'Delete.', confidence: 90 })], ctx());
+    expect(result.actions).toEqual([]);
+    expect(result.dropped.not_allowed).toBe(1);
   });
 });

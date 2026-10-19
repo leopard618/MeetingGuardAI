@@ -2,7 +2,7 @@
  * CALENDAR area public API (owner: calendar).
  *
  * Layer L4: imports core, i18n, the data barrel and src/services/auth/authService (never the auth
- * barrel). Contract: CALENDAR section of src/core/contracts.ts. Details: docs/ARCHITECTURE.md §7.
+ * barrel). Contract: CALENDAR section of src/core/contracts.ts. Details: docs/v1/ARCHITECTURE.md §7.
  *
  * - googleCalendarService: two-way sync with the user's primary Google Calendar (REST with
  *   GoogleSignin access tokens; no secrets, tokens never stored).

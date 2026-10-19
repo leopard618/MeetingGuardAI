@@ -93,7 +93,7 @@ export interface GoogleEventWrite {
   conferenceData?: {
     createRequest: { requestId: string; conferenceSolutionKey: { type: 'hangoutsMeet' } };
   };
-  /** RRULE + EXDATE lines for recurring masters (toGoogleRecurrence, docs/ARCHITECTURE.md §16). */
+  /** RRULE + EXDATE lines for recurring masters (toGoogleRecurrence, docs/v1/ARCHITECTURE.md §16). */
   recurrence?: string[];
   extendedProperties?: { private: Record<string, string> };
 }

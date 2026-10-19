@@ -2,21 +2,24 @@
  * Alert preferences form shared by onboarding step 3 and Settings > Alerts:
  * master switch, intensity (+ visual preview and an audible sample), sound type (with the
  * "voice needs the app open" note), volume, vibration and default reminder times. `extended`
- * (settings screen) adds the snooze length and post-meeting follow-ups.
+ * (settings screen) adds the snooze length, post-meeting follow-ups and the daily briefing.
  *
  * AlertDeliverySection: notification permission, Android exact alarms and the MAX channel's
  * "Override Do Not Disturb" setting, and the iOS Focus explanation.
  */
-import type { ReactElement } from 'react';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useState, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { Chip, HelperText, RadioButton, SegmentedButtons, Switch, Text, TouchableRipple } from 'react-native-paper';
+import { Button, Chip, HelperText, RadioButton, SegmentedButtons, Switch, Text, TouchableRipple } from 'react-native-paper';
 
 import { Badge, MGButton } from '../../components/ui';
 import { ALERT_INTENSITIES, ALERT_SOUND_TYPES, type AlertIntensity, type AlertSoundType } from '../../core/types';
+import { FEATURES } from '../../core/features';
 import { useT } from '../../i18n';
 import { alertEngine, fullScreenAlarm } from '../../services/alerts';
 import { radii, spacing, useAppTheme } from '../../theme';
 import { AlertPreview } from '../onboarding/AlertPreview';
+import { dateToDueTime } from '../tasks/tasksModel';
 import {
   VOLUME_LEVELS,
   alertTimeChoices,
@@ -29,7 +32,7 @@ import {
 import { Section } from '../shared/Section';
 import type { AlertPermissionState, AlertSample } from './alertHooks';
 import { useFullScreenAlarmStatus, useOpenSystemSettings } from './alertHooks';
-import { snoozeChoices, type AlertSettingsDraft } from './alertSettings';
+import { briefingTimeToDate, snoozeChoices, type AlertSettingsDraft } from './alertSettings';
 
 export interface AlertPreferencesFormProps<D extends AlertDraft> {
   draft: D;
@@ -165,7 +168,7 @@ export function AlertPreferencesForm<D extends AlertDraft>({ draft, onChange, sa
   );
 }
 
-/** Settings-only fields: snooze length and post-meeting follow-ups. */
+/** Settings-only fields: snooze length, post-meeting follow-ups and the daily briefing. */
 export function AlertExtraSettings({
   draft,
   onChange,
@@ -175,6 +178,15 @@ export function AlertExtraSettings({
 }): ReactElement {
   const t = useT();
   const { colors } = useAppTheme();
+  const [pickingTime, setPickingTime] = useState(false);
+
+  function onTimePicked(event: DateTimePickerEvent, value?: Date): void {
+    // Android closes the dialog itself and fires once; iOS keeps the picker inline.
+    if (Platform.OS === 'android') setPickingTime(false);
+    if (event.type === 'dismissed' || !value) return;
+    onChange({ briefingTime: dateToDueTime(value) });
+  }
+
   return (
     <View>
       <Section title={t('alerts:settings.snooze.label')}>
@@ -201,6 +213,56 @@ export function AlertExtraSettings({
           />
         </View>
       </Section>
+      <Section title={t('alerts:settings.briefing.label')}>
+        <View style={styles.switchRow}>
+          <Text variant="bodyMedium" style={[styles.flex, { color: colors.onSurfaceVariant }]}>
+            {t('alerts:settings.briefing.description')}
+          </Text>
+          <Switch
+            value={draft.briefingEnabled}
+            onValueChange={(value) => onChange({ briefingEnabled: value })}
+            accessibilityLabel={t('alerts:settings.briefing.label')}
+            testID="alerts-briefing"
+          />
+        </View>
+        {draft.briefingEnabled ? (
+          <View>
+            <Button mode="outlined" onPress={() => setPickingTime(true)} testID="alerts-briefing-time">
+              {t('alerts:settings.briefing.at', { time: draft.briefingTime })}
+            </Button>
+            {pickingTime ? (
+              <DateTimePicker
+                value={briefingTimeToDate(draft.briefingTime)}
+                mode="time"
+                onChange={onTimePicked}
+                {...(Platform.OS === 'ios' ? { display: 'spinner' as const } : {})}
+                testID="alerts-briefing-picker"
+              />
+            ) : null}
+            {Platform.OS === 'ios' && pickingTime ? (
+              <Button mode="text" onPress={() => setPickingTime(false)} testID="alerts-briefing-picker-done">
+                {t('alerts:settings.briefing.done')}
+              </Button>
+            ) : null}
+          </View>
+        ) : null}
+      </Section>
+
+      {FEATURES.statusNotification ? (
+        <Section title={t('alerts:settings.statusNotification.label')}>
+          <View style={styles.switchRow}>
+            <Text variant="bodyMedium" style={[styles.flex, { color: colors.onSurfaceVariant }]}>
+              {t('alerts:settings.statusNotification.description')}
+            </Text>
+            <Switch
+              value={draft.statusNotificationEnabled}
+              onValueChange={(value) => onChange({ statusNotificationEnabled: value })}
+              accessibilityLabel={t('alerts:settings.statusNotification.label')}
+              testID="alerts-status-notification"
+            />
+          </View>
+        </Section>
+      ) : null}
     </View>
   );
 }

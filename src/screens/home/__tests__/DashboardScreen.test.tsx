@@ -36,6 +36,7 @@ jest.mock('../../../services/data', () => {
       error: null,
     }),
     useSyncState: () => ({ online: mockOnline, pendingWrites: mockPendingWrites, lastSyncedAt: null }),
+    useTasks: () => ({ tasks: [], isLoading: false, error: null, create: jest.fn(), update: jest.fn(), remove: jest.fn() }),
   };
 });
 

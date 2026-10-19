@@ -1,5 +1,5 @@
 /**
- * Render tests for the MG component kit (docs/DESIGN_SYSTEM.md §5): every component renders
+ * Render tests for the MG component kit (docs/v1/DESIGN_SYSTEM.md §5): every component renders
  * under the real providers, presses fire, disabled/selected states surface through
  * accessibilityState, and the semantic tones map to the documented Container token pairs.
  */

@@ -1,5 +1,5 @@
 /**
- * Video-call link semantics (pure; owner: architect/core). docs/ARCHITECTURE.md §22.
+ * Video-call link semantics (pure; owner: architect/core). docs/v1/ARCHITECTURE.md §22.
  *
  * A meeting's `conference` stores `{ provider, url, password } | null` and NOTHING else: the
  * app never fabricates a link, so `url === null` means "no link yet". What the UI must say

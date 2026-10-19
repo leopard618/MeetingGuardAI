@@ -3,7 +3,7 @@
  * action (Android back button blocked, no swipe dismissal). Looping alarm with a progressive
  * volume ramp, voice readout, repeating vibration (useAlertFeedback), and an auto-snooze countdown.
  *
- * Visuals are the mode-invariant `alertMax` identity (docs/DESIGN_SYSTEM.md §9): always dark so a
+ * Visuals are the mode-invariant `alertMax` identity (docs/v1/DESIGN_SYSTEM.md §9): always dark so a
  * MAX alarm reads identically day or night, every pair AA-checked by the theme contrast guard.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';

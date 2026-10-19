@@ -4,8 +4,11 @@
  * Layer L4: may import core, i18n, data (barrel). Must NOT import ./tasks (L7) or the auth barrel.
  * AlertHost lives in src/components/alerts; background tasks in ./tasks (imported by index.js).
  */
-export { alertEngine } from './engine';
+export { alertEngine, briefingScheduler, statusNotification, taskReminders } from './engine';
 export { computeAlertPlan } from './plan';
+export { computeTaskReminderPlan } from './taskReminders';
+export { BRIEFING_DAYS_AHEAD, computeBriefingPlan, renderBriefingSpec } from './briefing';
+export { computeStatusView, renderStatusSpec } from './statusNotification';
 export { fullScreenAlarm } from './fsi';
 export { usePendingAlerts } from './usePendingAlerts';
 

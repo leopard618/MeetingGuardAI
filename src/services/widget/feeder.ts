@@ -1,5 +1,5 @@
 /**
- * Widget feeder core (owner: widget; docs/ARCHITECTURE.md §19): event-driven glue between the
+ * Widget feeder core (owner: widget; docs/v1/ARCHITECTURE.md §19): event-driven glue between the
  * meeting store and the Android next-meeting widget, behind injected ports so it is unit-testable
  * without React Native. The app singleton is wired in ./index.ts.
  *

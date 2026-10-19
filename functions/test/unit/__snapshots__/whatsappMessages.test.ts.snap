@@ -27,6 +27,7 @@ exports[`bot strings EN snapshot 1`] = `
     "when": "When",
     "where": "Where",
   },
+  "taskListEmpty": "I found no matching tasks.",
   "unsupportedType": "I can only read text messages for now. Please type your request.",
 }
 `;
@@ -58,6 +59,7 @@ exports[`bot strings ES snapshot 1`] = `
     "when": "Cuándo",
     "where": "Dónde",
   },
+  "taskListEmpty": "No encontré tareas que coincidan.",
   "unsupportedType": "Por ahora solo puedo leer mensajes de texto. Escribe tu solicitud.",
 }
 `;

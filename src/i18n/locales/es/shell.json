@@ -1,4 +1,5 @@
 {
+  "assistantFab": "Abrir el asistente de IA",
   "header": {
     "back": "Volver",
     "home": "Ir al panel principal",
@@ -22,6 +23,7 @@
       "TotalMeetings": "Todas las reuniones",
       "Calendar": "Calendario",
       "Notes": "Notas",
+      "Tasks": "Tareas",
       "AIChat": "Asistente de IA",
       "Pricing": "Planes",
       "Settings": "Ajustes"

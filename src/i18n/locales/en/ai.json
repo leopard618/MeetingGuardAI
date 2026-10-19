@@ -1,7 +1,7 @@
 {
   "chat": {
-    "subtitle": "Schedule, move, cancel and share meetings by chatting",
-    "welcome": "Hi! Tell me what you need: schedule, move, cancel or share a meeting, or ask what's on your calendar. I'll always show you exactly what will change and wait for your confirmation.",
+    "subtitle": "Manage meetings and tasks by chatting or talking",
+    "welcome": "Hi! Tell me what you need: schedule, move, cancel or share a meeting, add a task with a due date and reminder, mark one done, or ask what's on your agenda. I'll always show you exactly what will change and wait for your confirmation.",
     "examplesTitle": "Try asking",
     "placeholder": "Message the assistant...",
     "send": "Send",
@@ -24,13 +24,27 @@
     "a11yUserMessage": "You, {{time}}: {{text}}",
     "a11yAssistantMessage": "Assistant, {{time}}: {{text}}"
   },
+  "voice": {
+    "start": "Speak to the assistant",
+    "stop": "Stop listening",
+    "listening": "Listening...",
+    "denied": "Microphone access is off. Allow the microphone and speech recognition in your phone settings to talk to the assistant.",
+    "unavailable": "Voice input isn't available on this device.",
+    "noSpeech": "I didn't hear anything. Tap the microphone and try again.",
+    "error": "Voice input didn't work that time. Please try again or type your message.",
+    "dismissed": "Okay, dismissed. Nothing was changed.",
+    "repliesOn": "Spoken replies are on",
+    "repliesOff": "Spoken replies are off"
+  },
   "examples": {
     "e1": "Schedule a meeting with Ana tomorrow at 4pm",
     "e2": "Move my 4pm meeting to 5pm",
     "e3": "What do I have this week?",
     "e4": "Move all my meetings tomorrow 30 minutes later",
     "e5": "Send the marketing meeting link to john@company.com",
-    "e6": "Cancel my meeting on Friday"
+    "e6": "Cancel my meeting on Friday",
+    "e7": "Add a task to prepare the proposal by Friday at 3pm",
+    "e8": "What tasks are overdue?"
   },
   "usage": {
     "today": "{{used}}/{{limit}} today · {{plan}}",
@@ -62,7 +76,11 @@
       "delete_meeting": "Delete meeting",
       "share_meeting": "Share meeting",
       "bulk_update": "Change several meetings",
-      "list": "Meetings"
+      "list": "Meetings",
+      "create_task": "New task",
+      "update_task": "Change task",
+      "delete_task": "Delete task",
+      "list_tasks": "Tasks"
     },
     "status": {
       "proposed": "Needs confirmation",
@@ -76,6 +94,8 @@
     "tryAgain": "Try again",
     "openMeeting": "Open meeting",
     "listEmpty": "No matching meetings.",
+    "taskListEmpty": "No matching tasks.",
+    "taskDone": "Completed",
     "moreWarnings_one": "(+{{count}} more)",
     "moreWarnings_other": "(+{{count}} more)",
     "a11yMeeting": "{{title}}, {{when}}"
@@ -87,7 +107,11 @@
       "delete_meeting": "Delete this meeting?",
       "share_meeting": "Share this meeting?",
       "bulk_update": "Change these meetings?",
-      "list": "Meetings"
+      "list": "Meetings",
+      "create_task": "Create this task?",
+      "update_task": "Save these task changes?",
+      "delete_task": "Delete this task?",
+      "list_tasks": "Tasks"
     },
     "titleMany_one": "Confirm {{count}} action",
     "titleMany_other": "Confirm {{count}} actions",
@@ -99,7 +123,11 @@
       "share_meeting": "Share",
       "share_email": "Write email",
       "bulk_update_one": "Change {{count}} meeting",
-      "bulk_update_other": "Change {{count}} meetings"
+      "bulk_update_other": "Change {{count}} meetings",
+      "create_task": "Create task",
+      "update_task": "Save changes",
+      "complete_task": "Mark as done",
+      "delete_task": "Delete task"
     },
     "confirm": "Confirm",
     "confirmAll_one": "Confirm {{count}} action",
@@ -109,6 +137,7 @@
     "noChanges": "These values are already set; nothing will change.",
     "loadingDetails": "Checking your calendar...",
     "deleteWarning": "This meeting will be deleted and its alerts cancelled.",
+    "taskDeleteWarning": "This task will be deleted and its reminder cancelled.",
     "deleteWarningSynced": "This meeting will be deleted, its alerts cancelled, and it will also be removed from your synced calendar.",
     "channel": "Send via",
     "recipients_one": "Recipient",
@@ -135,7 +164,11 @@
     "alerts": "Alerts",
     "language": "Language",
     "repeats": "Repeats",
-    "scope": "Applies to"
+    "scope": "Applies to",
+    "due": "Due",
+    "reminder": "Reminder",
+    "people": "People",
+    "status": "Status"
   },
   "values": {
     "none": "None",
@@ -152,6 +185,10 @@
     "password": "password {{password}}",
     "shiftLater": "Move {{amount}} later",
     "shiftEarlier": "Move {{amount}} earlier",
+    "reminderAtDue": "At the due time",
+    "reminderBefore": "{{duration}} before",
+    "statusDone": "Completed",
+    "statusOpen": "Open",
     "language": {
       "en": "English",
       "es": "Spanish"
@@ -176,7 +213,9 @@
     "overlaps_with": "Overlaps with: {{titles}}",
     "google_meet_needs_calendar": "Connect Google Calendar to create a real Google Meet link. Without it, the meeting is saved without a link.",
     "no_recipients": "No email recipients were given.",
-    "new_people": "Not on this meeting yet: {{emails}}. Make sure you want to include them."
+    "new_people": "Not on this meeting yet: {{emails}}. Make sure you want to include them.",
+    "task_not_found_one": "This task no longer exists.",
+    "task_not_found_other": "{{count}} of these tasks no longer exist."
   },
   "results": {
     "created": "Meeting created.",
@@ -194,6 +233,12 @@
     "systemShare": "Share sheet opened.",
     "listed_one": "{{count}} meeting found.",
     "listed_other": "{{count}} meetings found.",
+    "taskCreated": "Task created.",
+    "taskUpdated": "Task updated.",
+    "taskCompleted": "Task completed.",
+    "taskDeleted": "Task deleted.",
+    "tasksListed_one": "{{count}} task found.",
+    "tasksListed_other": "{{count}} tasks found.",
     "duplicate": "Already done.",
     "cancelled": "Sharing cancelled.",
     "failed": "Couldn't complete this: {{reason}}",

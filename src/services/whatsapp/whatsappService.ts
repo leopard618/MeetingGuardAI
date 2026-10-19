@@ -1,6 +1,6 @@
 /**
  * WHATSAPP link service (owner: whatsapp-app). Contract: WhatsAppService in
- * src/core/contracts.ts; design: docs/ARCHITECTURE.md §27.
+ * src/core/contracts.ts; design: docs/v1/ARCHITECTURE.md §27.
  *
  * - Callables: whatsappLinkStatus / whatsappLinkStart / whatsappUnlink over the shared Firebase
  *   Functions instance (src/config/firebase.ts, pinned to env.functionsRegion, emulator-aware)

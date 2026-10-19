@@ -6,7 +6,7 @@
  * - String params come from `functions/.env.<projectId>`. The defaults below are only what the CLI
  *   offers: without that file an interactive `firebase deploy` asks for every param and a
  *   non-interactive deploy (CI) fails, so create the file once per project (functions/README.md,
- *   docs/SETUP.md §6.3).
+ *   docs/v1/SETUP.md §6.3).
  */
 import { defineBoolean, defineInt, defineSecret, defineString } from 'firebase-functions/params';
 
@@ -95,6 +95,8 @@ export const CONTEXT_WINDOW = {
   pastDays: 7,
   futureDays: 60,
   maxMeetings: 200,
+  /** v5: open tasks + recently completed ones the assistant sees (tasksContext.ts). */
+  maxTasks: 100,
   /** Firestore read cap before filtering tombstones. */
   queryLimit: 400,
   maxTitleChars: 120,
@@ -104,6 +106,10 @@ export const CONTEXT_WINDOW = {
   maxParticipantEmailChars: 254,
   /** Description is only sent for the follow-up meeting. */
   maxFollowUpDescriptionChars: 1_000,
+  /** Agenda text sent for ordinary meetings, so "what should I prepare?" has something real. */
+  maxPreparationChars: 300,
+  /** Cancelled or moved occurrences listed per series (a series may carry up to 200). */
+  maxOccurrenceExceptions: 8,
   /**
    * Load budget (serialized characters of the field-masked documents). A normal meeting is well
    * under 4 KB, so 400 meetings fit; oversized (abusive) documents are skipped, and reading stops
@@ -114,7 +120,7 @@ export const CONTEXT_WINDOW = {
 } as const;
 
 // ---------------------------------------------------------------------------------------------
-// Zoom auto links (zoom* callables; docs/ARCHITECTURE.md §24, docs/SETUP.md §12)
+// Zoom auto links (zoom* callables; docs/v1/ARCHITECTURE.md §24, docs/v1/SETUP.md §12)
 // ---------------------------------------------------------------------------------------------
 
 /**
@@ -122,7 +128,7 @@ export const CONTEXT_WINDOW = {
  * param alone, so it deploys and runs while the ZOOM_* secrets do not exist yet. It also gates
  * the DEPLOYMENT of the three write callables (functions/src/zoom/index.ts reads the matching
  * process.env value at load time): with the default `false`, `firebase deploy --only functions`
- * never touches the secrets and cannot fail on them. Owner order (docs/SETUP.md §12): set the
+ * never touches the secrets and cannot fail on them. Owner order (docs/v1/SETUP.md §12): set the
  * three secrets FIRST, then put ZOOM_ENABLED=true in functions/.env.<projectId>, then deploy.
  */
 export const ZOOM_ENABLED = defineBoolean('ZOOM_ENABLED', {
@@ -137,7 +143,7 @@ export const ZOOM_USER_DAILY_LIMIT = defineInt('ZOOM_USER_DAILY_LIMIT', {
 });
 
 /**
- * Zoom Server-to-Server OAuth app credentials (Secret Manager; docs/SETUP.md §12). Bound ONLY to
+ * Zoom Server-to-Server OAuth app credentials (Secret Manager; docs/v1/SETUP.md §12). Bound ONLY to
  * the zoom write callables - no other function may reference them, or a deploy without them
  * breaks the whole project.
  */
@@ -159,7 +165,7 @@ export const ZOOM_TUNING = {
 } as const;
 
 // ---------------------------------------------------------------------------------------------
-// WhatsApp bot (whatsappWebhook + whatsapp* callables; docs/ARCHITECTURE.md §27, docs/SETUP.md §14)
+// WhatsApp bot (whatsappWebhook + whatsapp* callables; docs/v1/ARCHITECTURE.md §27, docs/v1/SETUP.md §14)
 // ---------------------------------------------------------------------------------------------
 
 /**
@@ -168,7 +174,7 @@ export const ZOOM_TUNING = {
  * secrets do not exist yet. It also gates the DEPLOYMENT of the webhook
  * (functions/src/whatsapp/index.ts reads the matching process.env value at load time): with the
  * default `false`, `firebase deploy --only functions` never touches the secrets and cannot fail
- * on them. Owner order (docs/SETUP.md §14): set the three secrets FIRST, then put
+ * on them. Owner order (docs/v1/SETUP.md §14): set the three secrets FIRST, then put
  * WHATSAPP_ENABLED=true in functions/.env.<projectId>, then deploy.
  */
 export const WHATSAPP_ENABLED = defineBoolean('WHATSAPP_ENABLED', {
@@ -179,7 +185,7 @@ export const WHATSAPP_ENABLED = defineBoolean('WHATSAPP_ENABLED', {
 /**
  * Cloud API sender: the phone_number_id of the Meta phone number the bot sends FROM (test number
  * during development; the client's own number after go-live - swapping these two values plus the
- * access token is the whole migration, docs/SETUP.md §14).
+ * access token is the whole migration, docs/v1/SETUP.md §14).
  */
 export const WHATSAPP_PHONE_NUMBER_ID = defineString('WHATSAPP_PHONE_NUMBER_ID', {
   default: '',
@@ -204,7 +210,7 @@ export const WHATSAPP_USER_DAILY_LIMIT = defineInt('WHATSAPP_USER_DAILY_LIMIT', 
   description: 'Maximum inbound WhatsApp messages processed per phone number per UTC day.',
 });
 
-/** WhatsApp Cloud API credentials (Secret Manager; docs/SETUP.md §14). Bound ONLY on whatsappWebhook. */
+/** WhatsApp Cloud API credentials (Secret Manager; docs/v1/SETUP.md §14). Bound ONLY on whatsappWebhook. */
 export const WHATSAPP_ACCESS_TOKEN = defineSecret('WHATSAPP_ACCESS_TOKEN');
 export const WHATSAPP_APP_SECRET = defineSecret('WHATSAPP_APP_SECRET');
 export const WHATSAPP_VERIFY_TOKEN = defineSecret('WHATSAPP_VERIFY_TOKEN');

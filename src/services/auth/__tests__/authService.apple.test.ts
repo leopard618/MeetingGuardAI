@@ -1,5 +1,5 @@
 /**
- * authService Sign in with Apple suite (docs/ARCHITECTURE.md section 26) with mocked
+ * authService Sign in with Apple suite (docs/v1/ARCHITECTURE.md section 26) with mocked
  * expo-apple-authentication ({ virtual: true }: the package only resolves in iOS builds),
  * expo-crypto and firebase/auth. revokeAppleTokens() talks to the Identity Toolkit REST
  * endpoint directly (the JS SDK's revokeAccessToken mislabels the authorization code as an

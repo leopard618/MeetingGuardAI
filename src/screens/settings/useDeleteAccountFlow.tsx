@@ -5,7 +5,7 @@
  * ends and the gate returns to the landing screen. Failures are shown with the auth error
  * messages.
  *
- * Apple accounts (docs/ARCHITECTURE.md section 26): the Apple reauthentication also refreshes
+ * Apple accounts (docs/v1/ARCHITECTURE.md section 26): the Apple reauthentication also refreshes
  * the single-use authorizationCode, and the Apple token revocation (review 5.1.1(v)) runs right
  * after it, BEFORE the server delete (revocation needs a signed-in user). Revocation is best
  * effort: on failure the auth:deleteAccount.appleRevokeNotice toast explains the manual detach

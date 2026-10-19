@@ -1,5 +1,5 @@
 /**
- * Loading placeholder block (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §5/§8):
+ * Loading placeholder block (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5/§8):
  * surfaceVariant, r-sm, 700ms Animated opacity pulse 0.5 -> 1 (static at 0.7 under "reduce
  * motion"). Only for layouts that are known in advance; hidden from screen readers.
  */

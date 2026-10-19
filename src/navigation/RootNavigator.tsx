@@ -9,6 +9,7 @@
 import { createStackNavigator, type StackHeaderProps, type StackNavigationOptions } from '@react-navigation/stack';
 import { useEffect, type ReactElement, type ReactNode } from 'react';
 
+import { AssistantFab } from '../components/AssistantFab';
 import { CustomHeader } from '../components/CustomHeader';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { RootStackParamList, RouteName } from '../core/contracts';
@@ -40,6 +41,7 @@ import {
   MeetingDetailsScreen,
   NotesScreen,
   PricingScreen,
+  TasksScreen,
   PrivacyScreen,
   ProfileScreen,
   SettingsScreen,
@@ -67,6 +69,16 @@ function renderMainHeader({ route, back, navigation }: StackHeaderProps): ReactN
 /** A render error replaces only the failed screen (header and navigation keep working). */
 function renderScreenLayout({ children }: { children: ReactElement }): ReactElement {
   return <ErrorBoundary scope="screen">{children}</ErrorBoundary>;
+}
+
+/** Main screens additionally get the floating assistant button (hidden on the chat itself). */
+function renderMainScreenLayout({ children }: { children: ReactElement }): ReactElement {
+  return (
+    <ErrorBoundary scope="screen">
+      {children}
+      <AssistantFab />
+    </ErrorBoundary>
+  );
 }
 
 const HEADERLESS_OPTIONS: StackNavigationOptions = { headerShown: false };
@@ -135,7 +147,7 @@ export function RootNavigator(): ReactElement {
 
   return (
     <SidebarProvider>
-      <Stack.Navigator key="main" initialRouteName={MAIN_INITIAL_ROUTE} screenOptions={MAIN_OPTIONS} screenLayout={renderScreenLayout}>
+      <Stack.Navigator key="main" initialRouteName={MAIN_INITIAL_ROUTE} screenOptions={MAIN_OPTIONS} screenLayout={renderMainScreenLayout}>
         <Stack.Screen name="Dashboard" component={DashboardScreen} />
         <Stack.Screen name="ChooseCreationMethod" component={ChooseCreationMethodScreen} />
         <Stack.Screen name="CreateMeeting" component={CreateMeetingScreen} />
@@ -144,6 +156,7 @@ export function RootNavigator(): ReactElement {
         <Stack.Screen name="EditMeeting" component={EditMeetingScreen} />
         <Stack.Screen name="Calendar" component={CalendarScreen} />
         <Stack.Screen name="Notes" component={NotesScreen} />
+        <Stack.Screen name="Tasks" component={TasksScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="AlertSettings" component={AlertSettingsScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />

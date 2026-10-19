@@ -27,6 +27,7 @@ import {
 import { MeetingDetailsScreen as MeetingDetails } from '../screens/meetings/MeetingDetailsScreen';
 import { MeetingFormScreen } from '../screens/meetings/MeetingFormScreen';
 import { NotesScreen as NotesView } from '../screens/notes/NotesScreen';
+import { TasksScreen as TasksView } from '../screens/tasks/TasksScreen';
 import { PricingScreen as Pricing } from '../screens/pricing/PricingScreen';
 import { SettingsScreen as Settings } from '../screens/settings/SettingsScreen';
 import { WhatsAppConnectScreen as WhatsAppConnect } from '../screens/settings/WhatsAppConnectScreen';
@@ -39,6 +40,7 @@ export const CreateMeetingScreen = MeetingFormScreen;
 export const TotalMeetingsScreen = MeetingsList;
 export const CalendarScreen = CalendarView;
 export const NotesScreen = NotesView;
+export const TasksScreen = TasksView;
 export const SettingsScreen = Settings;
 /** "Profile" shows the settings screen (account section first). */
 export const ProfileScreen = Settings;

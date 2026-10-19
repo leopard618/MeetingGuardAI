@@ -1,6 +1,6 @@
 /**
  * "This and following" repository ops on the data engine (editFollowing / deleteFollowing,
- * MeetingRecurrenceOps, docs/ARCHITECTURE.md §16). The pure split math is covered by
+ * MeetingRecurrenceOps, docs/v1/ARCHITECTURE.md §16). The pure split math is covered by
  * src/core/__tests__/recurrenceSplit.test.ts; these tests cover the engine semantics: atomic
  * two-document writes, content copy, override partitioning, events, sources and failure modes.
  */

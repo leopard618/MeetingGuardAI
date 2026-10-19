@@ -1,7 +1,7 @@
 /**
  * Full-screen alarm glue (owner: alerts/fsi pass) over the local Expo module
  * modules/mg-fullscreen-alarm. Contract: FullScreenAlarmModule in src/core/contracts.ts and
- * docs/ARCHITECTURE.md §18.
+ * docs/v1/ARCHITECTURE.md §18.
  *
  * Engine integration contract (implemented in engineCore.ts):
  * - AlertEngineDeps gains optional `fsi?: FullScreenAlarmModule` (engine.ts wires this module).

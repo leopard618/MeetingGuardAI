@@ -1,5 +1,5 @@
 /**
- * Deployability contract of functions/src/whatsapp/index.ts (docs/ARCHITECTURE.md §27, mirroring
+ * Deployability contract of functions/src/whatsapp/index.ts (docs/v1/ARCHITECTURE.md §27, mirroring
  * the zoom §24 pattern):
  * - the three whatsapp* callables always export and never bind secrets;
  * - whatsappWebhook exports ONLY while WHATSAPP_ENABLED is true when the module loads, and it is

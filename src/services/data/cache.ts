@@ -6,6 +6,7 @@
  *                            per document keeps every value small (Android's SQLite cursor window
  *                            limits a single value to ~2 MB) and makes a write O(1).
  *   mg:{uid}:notes:{id}      Note JSON (without id)
+ *   mg:{uid}:tasks:{id}      Task JSON (without id)
  *   mg:{uid}:preferences     { v, known, preferences }
  *   mg:{uid}:entitlement     Entitlement JSON
  *   mg:{uid}:profile         UserProfile JSON
@@ -24,9 +25,10 @@ import {
   type Meeting,
   type Note,
   type Preferences,
+  type Task,
   type UserProfile,
 } from '../../core/types';
-import { readCachedMeeting, readRemoteNote } from './mapping';
+import { readCachedMeeting, readRemoteNote, readRemoteTask } from './mapping';
 import { EMPTY_OUTBOX, parseOutbox, type OutboxState } from './outbox';
 
 const log = createLogger('data.cache');
@@ -49,6 +51,8 @@ export const cacheKeys = {
   meeting: (uid: string, id: string): string => `${userStorageKey(uid, USER_STORAGE.meetings)}:${id}`,
   notePrefix: (uid: string): string => `${userStorageKey(uid, USER_STORAGE.notes)}:`,
   note: (uid: string, id: string): string => `${userStorageKey(uid, USER_STORAGE.notes)}:${id}`,
+  taskPrefix: (uid: string): string => `${userStorageKey(uid, USER_STORAGE.tasks)}:`,
+  task: (uid: string, id: string): string => `${userStorageKey(uid, USER_STORAGE.tasks)}:${id}`,
   preferences: (uid: string): string => userStorageKey(uid, USER_STORAGE.preferences),
   entitlement: (uid: string): string => userStorageKey(uid, USER_STORAGE.entitlement),
   profile: (uid: string): string => userStorageKey(uid, USER_STORAGE.profile),
@@ -66,6 +70,7 @@ export interface CachedPreferences {
 export interface UserCache {
   meetings: Map<string, Meeting>;
   notes: Map<string, Note>;
+  tasks: Map<string, Task>;
   preferences: CachedPreferences | null;
   entitlement: Entitlement | null;
   profile: UserProfile | null;
@@ -89,7 +94,8 @@ export async function loadUserCache(storage: KeyValueStorage, uid: string, defau
   }
   const meetingPrefix = cacheKeys.meetingPrefix(uid);
   const notePrefix = cacheKeys.notePrefix(uid);
-  const docKeys = allKeys.filter((key) => key.startsWith(meetingPrefix) || key.startsWith(notePrefix));
+  const taskPrefix = cacheKeys.taskPrefix(uid);
+  const docKeys = allKeys.filter((key) => key.startsWith(meetingPrefix) || key.startsWith(notePrefix) || key.startsWith(taskPrefix));
   const singleKeys = [cacheKeys.preferences(uid), cacheKeys.entitlement(uid), cacheKeys.profile(uid), cacheKeys.outbox(uid)];
 
   let pairs: readonly (readonly [string, string | null])[];
@@ -102,6 +108,7 @@ export async function loadUserCache(storage: KeyValueStorage, uid: string, defau
   const cache: UserCache = {
     meetings: new Map(),
     notes: new Map(),
+    tasks: new Map(),
     preferences: null,
     entitlement: null,
     profile: null,
@@ -127,6 +134,11 @@ export async function loadUserCache(storage: KeyValueStorage, uid: string, defau
       const id = key.slice(notePrefix.length);
       const note = readRemoteNote(id, value);
       if (note) cache.notes.set(id, note);
+      else cache.corruptKeys.push(key);
+    } else if (key.startsWith(taskPrefix)) {
+      const id = key.slice(taskPrefix.length);
+      const task = readRemoteTask(id, value);
+      if (task) cache.tasks.set(id, task);
       else cache.corruptKeys.push(key);
     } else if (key === cacheKeys.preferences(uid)) {
       const record = (value ?? {}) as { preferences?: unknown; known?: unknown };

@@ -1,5 +1,5 @@
 /**
- * WhatsApp bot Firestore state (docs/ARCHITECTURE.md §27). ALL collections are server-only
+ * WhatsApp bot Firestore state (docs/v1/ARCHITECTURE.md §27). ALL collections are server-only
  * (explicit deny blocks in firestore.rules, like zoomMeetings):
  *
  *   whatsappLinks/{phoneE164}     { uid, linkedAt, profileName|null }  phone -> uid

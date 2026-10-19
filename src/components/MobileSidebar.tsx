@@ -52,6 +52,7 @@ export const SIDEBAR_ITEMS: readonly SidebarItem[] = [
   { route: 'TotalMeetings', icon: 'list-outline' },
   { route: 'Calendar', icon: 'calendar-outline' },
   { route: 'Notes', icon: 'document-text-outline' },
+  { route: 'Tasks', icon: 'checkbox-outline' },
   { route: 'AIChat', icon: 'chatbubbles-outline' },
   { route: 'Pricing', icon: 'pricetags-outline' },
   { route: 'Settings', icon: 'settings-outline' },

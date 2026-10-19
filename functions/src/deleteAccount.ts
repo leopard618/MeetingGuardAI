@@ -45,7 +45,7 @@ export interface AccountDeletionPorts {
   revokeRefreshTokens(uid: string): Promise<boolean>;
   /**
    * Removes the user's WhatsApp link state (whatsappLinks/{phone}, whatsappSessions/{phone},
-   * whatsappUsers/{uid}, any active link code; docs/ARCHITECTURE.md §27). Idempotent.
+   * whatsappUsers/{uid}, any active link code; docs/v1/ARCHITECTURE.md §27). Idempotent.
    */
   deleteWhatsAppData(uid: string): Promise<void>;
 }

@@ -124,6 +124,9 @@ Open https://console.cloud.google.com and **select the same project** in the top
    - the calendar consent shows a mild "unverified app" notice — normal;
    - calendar access expires after **7 days** in Testing → reconnect in the app (normal, not a bug).
 
+**Status (2026-10-19): done.** Verification is approved and the publishing status is In production,
+so none of the notices above appear any more and test users are no longer needed to sign in.
+
 ### 4.3 Android OAuth client(s) — one per signing key
 
 ☰ → **APIs & Services → Credentials** → **+ Create credentials → OAuth client ID** → **Android**:
@@ -229,7 +232,7 @@ cd functions
 gcloud auth application-default login         # once, as a project owner
 node scripts/set-admin-claim.mjs <email> --project <project-id>
 ```
-Then open `https://<project-id>.web.app/admin/` and sign in with that email (docs/ADMIN.md).
+Then open `https://<project-id>.web.app/admin/` and sign in with that email (docs/v1/ADMIN.md).
 
 ---
 

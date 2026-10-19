@@ -99,7 +99,7 @@ eq(formatUsd(1), '$1.00', 'formatUsd(1)');
 eq(intTickFormat(1250), '1.3K', 'intTickFormat integer tick');
 eq(intTickFormat(1.25), '', 'intTickFormat fractional tick -> blank label');
 
-// ---- series builders (colorVar wiring is the docs/ADMIN.md §v2 contract) ---------------------
+// ---- series builders (colorVar wiring is the docs/v1/ADMIN.md §v2 contract) ---------------------
 const day = { date: '2026-10-01', requests: 2, inputTokens: 30, outputTokens: 40 };
 eq(requestsSeries([day]), [{ label: 'Requests', colorVar: '--chart-1', points: [{ x: '2026-10-01', y: 2 }] }], 'requestsSeries');
 eq(signupsSeries([{ date: '2026-10-01', count: 3 }]), [{ label: 'Signups', colorVar: '--chart-5', points: [{ x: '2026-10-01', y: 3 }] }], 'signupsSeries');

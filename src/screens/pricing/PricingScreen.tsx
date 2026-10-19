@@ -1,5 +1,5 @@
 /**
- * Plans (owner: billing; docs/ARCHITECTURE.md §20).
+ * Plans (owner: billing; docs/v1/ARCHITECTURE.md §20).
  *
  * State machine (pricingModel.ts):
  * - purchases UNCONFIGURED (no RevenueCat key for this platform / no native SDK): the old

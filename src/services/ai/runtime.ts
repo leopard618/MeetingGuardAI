@@ -10,7 +10,7 @@ import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import { getLanguage } from '../../i18n';
 import { googleCalendarService } from '../calendar';
-import { dataEngine, dataService, meetingRepository } from '../data';
+import { dataEngine, dataService, meetingRepository, tasksRepository } from '../data';
 import { zoomService } from '../zoom';
 
 import { createActionExecutor, type AiActionExecutor } from './actionExecutor';
@@ -42,6 +42,7 @@ export const assistantClient = createAssistantClient({
 
 export const actionExecutor: AiActionExecutor = createActionExecutor({
   meetings: meetingRepository,
+  tasks: tasksRepository,
   calendar: googleCalendarService,
   sharing: reactNativeShareAdapter,
   zoom: zoomService,
@@ -78,13 +79,16 @@ export function getAssistantController(): AssistantController {
       getContext: () => ({ language: getLanguage(), timezone: getDeviceTimeZone(), now: new Date() }),
     });
     let timer: ReturnType<typeof setTimeout> | null = null;
-    appEvents.on('meetings:changed', () => {
+    const refreshSoon = (): void => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
         void created.refreshPreviews();
       }, PREVIEW_REFRESH_DEBOUNCE_MS);
-    });
+    };
+    appEvents.on('meetings:changed', refreshSoon);
+    // Tasks changed elsewhere (Tasks screen, sync, another device): open task proposals refresh.
+    tasksRepository.subscribe(refreshSoon);
     controller = created;
   }
   return controller;

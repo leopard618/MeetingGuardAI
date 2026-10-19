@@ -1,6 +1,6 @@
 /**
- * Entitlement self-heal against the RevenueCat REST API (owner: billing; docs/ARCHITECTURE.md
- * §20, setup docs/SETUP.md §11). Closes the known webhook gaps: a same-user Restore emits NO
+ * Entitlement self-heal against the RevenueCat REST API (owner: billing; docs/v1/ARCHITECTURE.md
+ * §20, setup docs/v1/SETUP.md §11). Closes the known webhook gaps: a same-user Restore emits NO
  * webhook event, deliveries can be missed while functions were undeployed, and an admin write
  * can drift from the store truth.
  *
@@ -17,10 +17,10 @@
  * Deploy gating (the exact ZOOM_ENABLED / WHATSAPP_ENABLED pattern): the callable is exported
  * ONLY while the non-secret REVENUECAT_RECONCILE_ENABLED param is true at deploy time, so a
  * default deploy never references REVENUECAT_SECRET_KEY and cannot fail on a missing secret.
- * Owner order (docs/SETUP.md §11): set the secret FIRST, then
+ * Owner order (docs/v1/SETUP.md §11): set the secret FIRST, then
  * REVENUECAT_RECONCILE_ENABLED=true in functions/.env.<projectId>, then deploy.
  *
- * Reconcile vs the other writers (docs/HANDOFF.md §6 precedence):
+ * Reconcile vs the other writers (docs/v1/HANDOFF.md §6 precedence):
  * - An ACTIVE (or in-grace) store subscription is ground truth and overwrites anything,
  *   including an admin grant - exactly like the next webhook event would.
  * - An EMPTY or lapsed RevenueCat state never overwrites an admin grant (`source: 'admin'`):

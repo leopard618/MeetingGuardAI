@@ -1,0 +1,98 @@
+{
+  "add": "Nueva tarea",
+  "addA11y": "Crear una nueva tarea",
+  "list": {
+    "loading": "Cargando tus tareas...",
+    "count_one": "{{count}} tarea",
+    "count_other": "{{count}} tareas"
+  },
+  "search": {
+    "placeholder": "Buscar tareas",
+    "clear": "Borrar búsqueda"
+  },
+  "filters": {
+    "label": "Filtrar tareas",
+    "withCount": "{{label}} ({{count}})",
+    "open": "Pendientes",
+    "today": "Hoy",
+    "overdue": "Atrasadas",
+    "done": "Hechas",
+    "all": "Todas"
+  },
+  "empty": {
+    "title": "Aún no hay tareas",
+    "body": "Lleva el control de lo que hay que hacer: por su cuenta o vinculado a una reunión. También puedes decírselo al asistente.",
+    "action": "Añade tu primera tarea"
+  },
+  "noMatches": {
+    "title": "Ninguna tarea coincide",
+    "body": "Nada coincide con la búsqueda o el filtro actual.",
+    "action": "Quitar filtros"
+  },
+  "loadError": {
+    "title": "No se pudieron cargar las tareas"
+  },
+  "toast": {
+    "saved": "Tarea guardada",
+    "deleted": "Tarea eliminada",
+    "completed": "Tarea completada",
+    "reopened": "Tarea reabierta"
+  },
+  "delete": {
+    "title": "¿Eliminar \"{{title}}\"?",
+    "message": "La tarea se elimina de todos tus dispositivos.",
+    "confirm": "Eliminar"
+  },
+  "card": {
+    "open": "Abrir la tarea {{title}}",
+    "complete": "Marcar {{title}} como hecha",
+    "reopen": "Reabrir {{title}}",
+    "delete": "Eliminar {{title}}",
+    "dueOn": "Vence {{date}}",
+    "dueAt": "Vence {{date}} a las {{time}}",
+    "completed": "Completada {{when}}",
+    "meeting": "Abrir la reunión {{title}}",
+    "meetingUnavailable": "La reunión vinculada ya no existe"
+  },
+  "editor": {
+    "newTitle": "Nueva tarea",
+    "editTitle": "Editar tarea",
+    "save": "Guardar",
+    "close": "Cerrar",
+    "titleLabel": "Título",
+    "descriptionLabel": "Descripción",
+    "descriptionPlaceholder": "¿Qué hay que hacer exactamente?",
+    "dueSection": "Vencimiento",
+    "noDueDate": "Sin fecha de vencimiento",
+    "dueAt": "{{date}} a las {{time}}",
+    "pickDate": "Elegir fecha",
+    "changeDate": "Cambiar fecha",
+    "pickTime": "Añadir hora",
+    "changeTime": "Cambiar hora",
+    "clearDue": "Quitar",
+    "pickerDone": "Listo",
+    "reminder": "Recordatorio",
+    "reminderNeedsTime": "Añade una hora de vencimiento para poner un recordatorio.",
+    "reminderNone": "Ninguno",
+    "reminderAtDue": "A la hora de vencimiento",
+    "reminderMinutes": "{{count}} min antes",
+    "reminderDayBefore": "1 día antes",
+    "people": "Personas",
+    "meeting": "Reunión vinculada",
+    "meetingNone": "Sin reunión vinculada",
+    "linkMeeting": "Vincular una reunión",
+    "changeMeeting": "Cambiar reunión",
+    "unlinkMeeting": "Desvincular",
+    "unlinkA11y": "Quitar el vínculo con la reunión",
+    "delete": "Eliminar tarea",
+    "discardTitle": "¿Descartar los cambios?",
+    "discardMessage": "Tus cambios no se han guardado.",
+    "keepEditing": "Seguir editando",
+    "discard": "Descartar"
+  },
+  "errors": {
+    "titleRequired": "Ponle un título a la tarea.",
+    "titleTooLong": "El título puede tener como máximo {{max}} caracteres.",
+    "descriptionTooLong": "La descripción puede tener como máximo {{max}} caracteres."
+  }
+}

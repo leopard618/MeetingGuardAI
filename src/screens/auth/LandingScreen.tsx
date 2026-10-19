@@ -7,7 +7,7 @@
  *   or the dashboard by itself on success. A closed account picker is not an error.
  * - On iOS, the official "Continue with Apple" button sits directly above Google (equal
  *   prominence - App Review 4.8) and runs useAuth().signInWithApple(); a dismissed Apple sheet
- *   is as silent as a closed Google picker (AppleSignInButton.tsx, docs/ARCHITECTURE.md
+ *   is as silent as a closed Google picker (AppleSignInButton.tsx, docs/v1/ARCHITECTURE.md
  *   section 26).
  * - EN / ES switch (explicit choice, applied instantly) and the consent line with separate,
  *   screen-reader friendly links to the Terms and the Privacy Policy (both in the Auth stack).

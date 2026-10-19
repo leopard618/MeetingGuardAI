@@ -1,6 +1,6 @@
 /**
  * WhatsApp connect (route "WhatsAppConnect", reached from Settings and from the creation
- * chooser): links this account to the WhatsApp bot (docs/ARCHITECTURE.md §27).
+ * chooser): links this account to the WhatsApp bot (docs/v1/ARCHITECTURE.md §27).
  * - unavailable: the server integration is off (WHATSAPP_ENABLED false) - explainer only;
  * - not linked: explainer + "Generate code"; with a code: the 6 digits, the bot number to send
  *   it to (WhatsApp may live on another device), a live countdown, copy, and "Open WhatsApp"

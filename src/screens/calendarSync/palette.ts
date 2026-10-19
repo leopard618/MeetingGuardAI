@@ -1,7 +1,7 @@
 /**
  * Colors of the calendar sync screen and the "Connect Google Calendar" prompt, following the
  * app theme (ThemeContext: system / light / dark). Every value is an MG Indigo token
- * (src/theme/tokens.ts) - the old blue/slate literals are gone (docs/DESIGN_SYSTEM.md §7 D).
+ * (src/theme/tokens.ts) - the old blue/slate literals are gone (docs/v1/DESIGN_SYSTEM.md §7 D).
  */
 import { useTheme } from '../../contexts/ThemeContext';
 // Tokens are imported directly (not the src/theme barrel): this module is consumed by screens

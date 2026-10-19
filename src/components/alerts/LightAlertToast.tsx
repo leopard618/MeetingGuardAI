@@ -3,7 +3,7 @@
  * a brief chime. It can be dismissed after 3 seconds and hides itself after a while (acknowledged).
  * The follow-up variant offers "Open assistant" (AI follow-up for the meeting).
  *
- * Visuals are the mode-invariant `alertLight` identity (docs/DESIGN_SYSTEM.md §9): an always-dark
+ * Visuals are the mode-invariant `alertLight` identity (docs/v1/DESIGN_SYSTEM.md §9): an always-dark
  * elevated card with an indigo icon, identical in light and dark mode, every pair AA-checked.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';

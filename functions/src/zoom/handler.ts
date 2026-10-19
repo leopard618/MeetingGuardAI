@@ -1,6 +1,6 @@
 /**
  * Logic of the zoom write callables, independent of Firebase wiring (ports injected, like
- * assistant/handler.ts). Design: docs/ARCHITECTURE.md §24; the callable shells (auth, schema
+ * assistant/handler.ts). Design: docs/v1/ARCHITECTURE.md §24; the callable shells (auth, schema
  * parse, ZOOM_ENABLED guard) live in ./index.ts.
  *
  * Order of zoomCreateMeeting: load + validate the caller's own meeting document (ownership is

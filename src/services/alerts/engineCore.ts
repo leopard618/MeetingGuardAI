@@ -429,6 +429,8 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       { kind: 'medium', importance: 'high', sound: CHIME_SOUND_FILE, bypassDnd: false, alarmUsage: false },
       { kind: 'light', importance: 'default', sound: CHIME_SOUND_FILE, bypassDnd: false, alarmUsage: false },
       { kind: 'followup', importance: 'default', sound: 'default', bypassDnd: false, alarmUsage: false },
+      { kind: 'briefing', importance: 'default', sound: 'default', bypassDnd: false, alarmUsage: false },
+      { kind: 'status', importance: 'low', sound: null, bypassDnd: false, alarmUsage: false },
     ] as const;
     const specs: ChannelSpec[] = [];
     for (const vibration of [true, false]) {

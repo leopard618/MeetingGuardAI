@@ -11,6 +11,8 @@ import {
   type AiActionType,
   type AiMeetingChanges,
   type AiMeetingDraft,
+  type AiTaskChanges,
+  type AiTaskDraft,
   type AssistantUsage,
   type BulkUpdateAction,
   type ConferenceDetails,
@@ -24,9 +26,10 @@ import {
 } from '../../core/aiContract';
 import type { ActionResult, ActionWarning } from '../../core/contracts';
 import { AppError, isAppError, type AppErrorCode } from '../../core/errors';
+import { expandOccurrences } from '../../core/recurrence';
 import type { Meeting } from '../../core/types';
 // Service-layer file: tokens are imported directly (never the src/theme barrel, which pulls in
-// React hooks) - docs/DESIGN_SYSTEM.md §7 group D.
+// React hooks) - docs/v1/DESIGN_SYSTEM.md §7 group D.
 import { mgColors, type MGColors } from '../../theme/tokens';
 
 import { quotaUsageFromError } from './assistantClient';
@@ -50,7 +53,12 @@ export type MeetingField =
   | 'alerts'
   | 'language'
   | 'repeats'
-  | 'scope';
+  | 'scope'
+  // v5 task fields:
+  | 'due'
+  | 'reminder'
+  | 'people'
+  | 'status';
 
 export interface DetailRow {
   field: MeetingField;
@@ -71,10 +79,46 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}...` : text;
 }
 
+/** How far ahead a list row looks for the occurrence to show. */
+const LIST_ROW_HORIZON_MS = 400 * 86_400_000;
+
 function fieldLabel(fmt: AssistantFormatter, field: MeetingField): string {
   return fmt.t(`ai:fields.${field}`);
 }
 
+/**
+ * The occurrence a read-only list row should show. A repeating meeting stores the FIRST
+ * occurrence of the series as its startAt, often months in the past, so printing it would put
+ * the wrong date on an agenda answer. This returns the first occurrence that has not ended yet,
+ * with the per-occurrence overrides applied (a moved occurrence keeps its new time, a cancelled
+ * one is skipped), and falls back to the stored values when the rule cannot be expanded.
+ */
+/** Shape formatWhen needs; the local date is derived from the effective start. */
+export interface ListRowWhen {
+  startAt: string;
+  durationMinutes: number;
+  allDay: boolean;
+  timezone: string;
+}
+
+export function occurrenceForListRow(meeting: Meeting, now: Date = new Date()): ListRowWhen {
+  const own: ListRowWhen = {
+    startAt: meeting.startAt,
+    durationMinutes: meeting.durationMinutes,
+    allDay: meeting.allDay,
+    timezone: meeting.timezone,
+  };
+  if (meeting.recurrence === null) return own;
+  const from = new Date(now.getTime() - meeting.durationMinutes * 60_000).toISOString();
+  const to = new Date(now.getTime() + LIST_ROW_HORIZON_MS).toISOString();
+  try {
+    const next = expandOccurrences(meeting, from, to)[0];
+    if (!next) return own;
+    return { ...own, startAt: next.startAt, durationMinutes: next.durationMinutes };
+  } catch {
+    return own;
+  }
+}
 export function formatWhen(
   fmt: AssistantFormatter,
   value: { startAt: string; durationMinutes: number; allDay: boolean; timezone: string; date?: string },
@@ -372,15 +416,78 @@ export function describeShare(fmt: AssistantFormatter, action: ShareMeetingActio
   };
 }
 
+// ---- v5 tasks -------------------------------------------------------------------------------
+
+function taskDueValue(fmt: AssistantFormatter, dueDate: string | null, dueTime: string | null): string {
+  if (dueDate === null) return fmt.t('ai:values.none');
+  const date = fmt.date(`${dueDate}T00:00:00`);
+  return dueTime === null ? date : `${date} ${fmt.time(`${dueDate}T${dueTime}:00`)}`;
+}
+
+function taskReminderValue(fmt: AssistantFormatter, minutes: number | null): string {
+  if (minutes === null) return fmt.t('ai:values.none');
+  if (minutes === 0) return fmt.t('ai:values.reminderAtDue');
+  return fmt.t('ai:values.reminderBefore', { duration: fmt.duration(minutes) });
+}
+
+/** Confirmation-card rows of a create_task proposal. */
+export function describeTaskDraft(fmt: AssistantFormatter, task: AiTaskDraft): DetailRow[] {
+  const rows: DetailRow[] = [
+    { field: 'title', label: fieldLabel(fmt, 'title'), value: task.title },
+    { field: 'due', label: fieldLabel(fmt, 'due'), value: taskDueValue(fmt, task.dueDate, task.dueTime) },
+  ];
+  if (task.reminderMinutesBefore !== null) {
+    rows.push({ field: 'reminder', label: fieldLabel(fmt, 'reminder'), value: taskReminderValue(fmt, task.reminderMinutesBefore) });
+  }
+  if (task.people.length > 0) {
+    rows.push({ field: 'people', label: fieldLabel(fmt, 'people'), value: task.people.map((person) => person.name).join(', ') });
+  }
+  if (task.description.trim().length > 0) {
+    rows.push({ field: 'description', label: fieldLabel(fmt, 'description'), value: truncate(task.description, DESCRIPTION_PREVIEW_CHARS) });
+  }
+  return rows;
+}
+
+/** Confirmation-card rows of an update_task proposal (the new values of the changed fields). */
+export function describeTaskChangeRows(fmt: AssistantFormatter, changes: AiTaskChanges): DetailRow[] {
+  const rows: DetailRow[] = [];
+  if (changes.status !== undefined) {
+    rows.push({
+      field: 'status',
+      label: fieldLabel(fmt, 'status'),
+      value: fmt.t(changes.status === 'done' ? 'ai:values.statusDone' : 'ai:values.statusOpen'),
+    });
+  }
+  if (changes.title !== undefined) rows.push({ field: 'title', label: fieldLabel(fmt, 'title'), value: changes.title });
+  if (changes.dueDate !== undefined) {
+    rows.push({ field: 'due', label: fieldLabel(fmt, 'due'), value: taskDueValue(fmt, changes.dueDate, changes.dueTime ?? null) });
+  } else if (changes.dueTime !== undefined) {
+    rows.push({ field: 'due', label: fieldLabel(fmt, 'due'), value: changes.dueTime ?? fmt.t('ai:values.none') });
+  }
+  if (changes.reminderMinutesBefore !== undefined) {
+    rows.push({ field: 'reminder', label: fieldLabel(fmt, 'reminder'), value: taskReminderValue(fmt, changes.reminderMinutesBefore) });
+  }
+  if (changes.people !== undefined) {
+    const names = changes.people.map((person) => person.name).join(', ');
+    rows.push({ field: 'people', label: fieldLabel(fmt, 'people'), value: names.length > 0 ? names : fmt.t('ai:values.none') });
+  }
+  if (changes.description !== undefined) {
+    rows.push({ field: 'description', label: fieldLabel(fmt, 'description'), value: truncate(changes.description, DESCRIPTION_PREVIEW_CHARS) });
+  }
+  return rows;
+}
+
 export function describeWarnings(
   fmt: AssistantFormatter,
   preview: Pick<AiActionPreview, 'warnings' | 'missingMeetingIds'> & {
     overlapping?: readonly Meeting[];
     newPeople?: readonly string[];
+    missingTaskIds?: readonly string[];
   },
 ): string[] {
   return preview.warnings.map((warning: ActionWarning) => {
     if (warning === 'meeting_not_found') return fmt.t('ai:warnings.meeting_not_found', { count: Math.max(1, preview.missingMeetingIds.length) });
+    if (warning === 'task_not_found') return fmt.t('ai:warnings.task_not_found', { count: Math.max(1, preview.missingTaskIds?.length ?? 1) });
     if (warning === 'new_people') {
       const emails = (preview.newPeople ?? []).join(', ');
       return fmt.t('ai:warnings.new_people', { emails, interpolation: { escapeValue: false } });
@@ -394,7 +501,7 @@ export function describeWarnings(
 }
 
 export function isDestructiveAction(action: AiAction): boolean {
-  return action.type === 'delete_meeting';
+  return action.type === 'delete_meeting' || action.type === 'delete_task';
 }
 
 export type AssistantIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -414,6 +521,14 @@ export function actionIconName(type: AiActionType): AssistantIconName {
       return 'calendar-multiple-check';
     case 'list':
       return 'format-list-bulleted';
+    case 'create_task':
+      return 'checkbox-marked-circle-plus-outline';
+    case 'update_task':
+      return 'checkbox-marked-circle-outline';
+    case 'delete_task':
+      return 'close-circle-outline';
+    case 'list_tasks':
+      return 'format-list-checks';
   }
 }
 
@@ -475,6 +590,14 @@ export function describeResult(fmt: AssistantFormatter, result: ActionResult | A
       return { tone: 'success', message: fmt.t('ai:results.systemShare') };
     case 'list':
       return { tone: 'info', message: fmt.t('ai:results.listed', { count: result.meetingIds.length }) };
+    case 'create_task':
+      return { tone: 'success', message: fmt.t('ai:results.taskCreated') };
+    case 'update_task':
+      return { tone: 'success', message: fmt.t(extra.taskCompleted === true ? 'ai:results.taskCompleted' : 'ai:results.taskUpdated') };
+    case 'delete_task':
+      return { tone: 'success', message: fmt.t('ai:results.taskDeleted') };
+    case 'list_tasks':
+      return { tone: 'info', message: fmt.t('ai:results.tasksListed', { count: extra.taskIds?.length ?? 0 }) };
   }
 }
 
@@ -606,7 +729,7 @@ export function buildMailtoUrl(recipients: readonly string[], content: ShareCont
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Every value is an MG Indigo token (src/theme/tokens.ts) - docs/DESIGN_SYSTEM.md §7 group D.
+ * Every value is an MG Indigo token (src/theme/tokens.ts) - docs/v1/DESIGN_SYSTEM.md §7 group D.
  * The legacy emerald/slate literals are gone; the field names stay so consumers compile, and a
  * few token-named fields were added for the restyled chat pieces. All pairings are AA in both
  * schemes (see src/theme/__tests__/contrast.test.ts for the documented pairs).
@@ -646,7 +769,7 @@ export interface AssistantPalette {
   info: string;
   infoSurface: string;
   onInfoSurface: string;
-  /** Disabled controls (docs/DESIGN_SYSTEM.md par.8): surfaceDisabled fill + disabled label/icon. */
+  /** Disabled controls (docs/v1/DESIGN_SYSTEM.md par.8): surfaceDisabled fill + disabled label/icon. */
   disabledText: string;
   surfaceDisabled: string;
   onSurfaceDisabled: string;

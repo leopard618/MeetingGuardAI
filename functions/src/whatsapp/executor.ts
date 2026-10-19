@@ -1,5 +1,5 @@
 /**
- * Server-side executor for CONFIRMED AiActions over WhatsApp (docs/ARCHITECTURE.md §27). This is
+ * Server-side executor for CONFIRMED AiActions over WhatsApp (docs/v1/ARCHITECTURE.md §27). This is
  * the ONLY place the server mutates meetings; everywhere else the app executes confirmed actions
  * itself.
  *
@@ -36,6 +36,8 @@ import {
   type AiAction,
   type AiMeetingChanges,
   type AiMeetingDraft,
+  type AiTaskChanges,
+  type AiTaskDraft,
   type Language,
 } from '../shared/aiContract';
 import { isValidTimeZone, toLocalDate, toLocalTime } from '../assistant/time';
@@ -65,8 +67,22 @@ export interface ZoomHooks {
   remove(uid: string, meetingId: string, zoomMeetingId: string): Promise<void>;
 }
 
+export interface TaskStore {
+  /** Raw users/{uid}/tasks/{id} data, or undefined when the document does not exist. */
+  getTask(uid: string, taskId: string): Promise<unknown>;
+  /** Creates users/{uid}/tasks/{id} (fails when it exists). */
+  createTask(uid: string, taskId: string, doc: Record<string, unknown>): Promise<void>;
+  /** Partial update; keys are Firestore field paths. */
+  updateTaskFields(uid: string, taskId: string, fields: Record<string, unknown>): Promise<void>;
+  /** Hard delete (tasks have no tombstones). */
+  deleteTask(uid: string, taskId: string): Promise<void>;
+  newTaskId(): string;
+}
+
 export interface ExecutorDeps {
   store: MeetingStore;
+  /** v5 task actions over WhatsApp. Absent in older wirings: task actions count unsupported. */
+  tasks?: TaskStore;
   now: () => Date;
   zoom?: ZoomHooks;
 }
@@ -247,6 +263,138 @@ export function tombstoneFieldUpdates(now: Date): Record<string, unknown> {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Tasks (v5): stored documents, draft -> document, changes -> field updates
+// ---------------------------------------------------------------------------------------------
+
+const storedTaskSchema = z.object({
+  title: z.string().catch(''),
+  dueDate: z.string().nullable().catch(null),
+  dueTime: z.string().nullable().catch(null),
+  timezone: z.string().catch('UTC'),
+  reminderMinutesBefore: z.number().nullable().catch(null),
+  status: z.string().catch('open'),
+  completedAt: z.string().nullable().catch(null),
+});
+type StoredTask = z.infer<typeof storedTaskSchema>;
+
+function parseStoredTask(raw: unknown): StoredTask | null {
+  const parsed = storedTaskSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+function toTaskPeople(list: AiTaskDraft['people']): { name: string; email: string | null }[] {
+  return list
+    .map((person) => ({ name: person.name.trim(), email: person.email }))
+    .filter((person) => person.name.length > 0)
+    .slice(0, 20);
+}
+
+/**
+ * Builds a complete task document from a validated draft: the exact shape firestore.rules
+ * isValidTask accepts and the app's parseTaskDoc reads (the due invariants come revalidated
+ * from aiTaskDraftSchema). Exported for tests.
+ */
+export function draftToTaskDoc(
+  uid: string,
+  draft: AiTaskDraft,
+  now: Date,
+  fallbackTimezone: string,
+  linkedMeetingId: string | null = null,
+): Record<string, unknown> {
+  const nowIso = now.toISOString();
+  const dueTime = draft.dueDate === null ? null : draft.dueTime;
+  return {
+    userId: uid,
+    title: draft.title,
+    description: draft.description,
+    dueDate: draft.dueDate,
+    dueTime,
+    timezone: usableZone(fallbackTimezone, 'UTC'),
+    reminderMinutesBefore: dueTime === null ? null : draft.reminderMinutesBefore,
+    status: 'open',
+    meetingId: draft.meetingId ?? linkedMeetingId,
+    people: toTaskPeople(draft.people),
+    completedAt: null,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+}
+
+/**
+ * Field updates for task changes, with the due invariants applied against the STORED values
+ * (clearing the date clears the time and the reminder; a time never exists without a date; a
+ * reminder never without a time; completedAt tracks the status). Exported for tests.
+ */
+export function taskChangesToFieldUpdates(
+  changes: AiTaskChanges,
+  stored: StoredTask,
+  now: Date,
+): Record<string, unknown> {
+  const nowIso = now.toISOString();
+  const fields: Record<string, unknown> = { updatedAt: nowIso };
+  if (changes.title !== undefined) fields.title = changes.title;
+  if (changes.description !== undefined) fields.description = changes.description;
+  if (changes.meetingId !== undefined) fields.meetingId = changes.meetingId;
+  if (changes.people !== undefined) fields.people = toTaskPeople(changes.people);
+  if (changes.dueDate !== undefined || changes.dueTime !== undefined || changes.reminderMinutesBefore !== undefined) {
+    const dueDate = changes.dueDate !== undefined ? changes.dueDate : stored.dueDate;
+    const dueTime = dueDate === null ? null : changes.dueTime !== undefined ? changes.dueTime : stored.dueTime;
+    const reminder =
+      dueTime === null
+        ? null
+        : changes.reminderMinutesBefore !== undefined
+          ? changes.reminderMinutesBefore
+          : stored.reminderMinutesBefore;
+    fields.dueDate = dueDate;
+    fields.dueTime = dueTime;
+    fields.reminderMinutesBefore = reminder;
+  }
+  if (changes.status !== undefined && changes.status !== stored.status) {
+    fields.status = changes.status;
+    fields.completedAt = changes.status === 'done' ? nowIso : null;
+  }
+  return fields;
+}
+
+async function executeCreateTask(
+  uid: string,
+  action: Extract<AiAction, { type: 'create_task' }>,
+  tasks: TaskStore,
+  now: () => Date,
+  fallbackTimezone: string,
+  linkedMeetingId: string | null = null,
+): Promise<void> {
+  const taskId = tasks.newTaskId();
+  await tasks.createTask(uid, taskId, draftToTaskDoc(uid, action.task, now(), fallbackTimezone, linkedMeetingId));
+  logger.info('whatsapp.action_applied', { uid, type: action.type, taskId });
+}
+
+async function executeUpdateTask(
+  uid: string,
+  action: Extract<AiAction, { type: 'update_task' }>,
+  tasks: TaskStore,
+  now: () => Date,
+): Promise<'applied' | 'failed'> {
+  const stored = parseStoredTask(await tasks.getTask(uid, action.taskId));
+  if (stored === null) return 'failed';
+  await tasks.updateTaskFields(uid, action.taskId, taskChangesToFieldUpdates(action.changes, stored, now()));
+  logger.info('whatsapp.action_applied', { uid, type: action.type, taskId: action.taskId });
+  return 'applied';
+}
+
+async function executeDeleteTask(
+  uid: string,
+  action: Extract<AiAction, { type: 'delete_task' }>,
+  tasks: TaskStore,
+): Promise<'applied' | 'failed'> {
+  const stored = parseStoredTask(await tasks.getTask(uid, action.taskId));
+  if (stored === null) return 'applied'; // Already gone: the goal state is reached.
+  await tasks.deleteTask(uid, action.taskId);
+  logger.info('whatsapp.action_applied', { uid, type: action.type, taskId: action.taskId });
+  return 'applied';
+}
+
+// ---------------------------------------------------------------------------------------------
 // Zoom reuse (best effort, never fatal)
 // ---------------------------------------------------------------------------------------------
 
@@ -285,7 +433,7 @@ async function executeCreate(
   action: Extract<AiAction, { type: 'create_meeting' }>,
   deps: ExecutorDeps,
   fallbackTimezone: string,
-): Promise<void> {
+): Promise<string> {
   const meetingId = deps.store.newMeetingId();
   const doc = draftToMeetingDoc(uid, meetingId, action.meeting, action.confidence, deps.now(), fallbackTimezone);
   await deps.store.createMeeting(uid, meetingId, doc);
@@ -294,6 +442,7 @@ async function executeCreate(
     await bestEffortZoom(uid, meetingId, 'create', () => zoom.ensureLink(uid, meetingId));
   }
   logger.info('whatsapp.action_applied', { uid, type: action.type, meetingId });
+  return meetingId;
 }
 
 async function executeUpdate(
@@ -388,6 +537,10 @@ export async function executeConfirmedActions(
   fallbackTimezone: string,
 ): Promise<ExecutionResult> {
   const result: ExecutionResult = { applied: 0, unsupported: 0, failed: 0 };
+  // v6 combined requests: a create_task draft may point at the create_meeting action of the same
+  // response, whose id only exists once we create it here. Actions run in order, so the meeting is
+  // already in this map by the time its task runs; an unresolved link just leaves the task unlinked.
+  const createdMeetingIds = new Map<string, string>();
   for (const candidate of actions) {
     const parsed = aiActionSchema.safeParse(candidate);
     if (!parsed.success) {
@@ -398,7 +551,7 @@ export async function executeConfirmedActions(
     try {
       switch (action.type) {
         case 'create_meeting':
-          await executeCreate(uid, action, deps, fallbackTimezone);
+          createdMeetingIds.set(action.id, await executeCreate(uid, action, deps, fallbackTimezone));
           result.applied += 1;
           break;
         case 'update_meeting':
@@ -427,8 +580,28 @@ export async function executeConfirmedActions(
           result.failed += bulk.failed > 0 || bulk.applied === 0 ? 1 : 0;
           break;
         }
+        case 'create_task':
+          if (!deps.tasks) {
+            result.unsupported += 1;
+          } else {
+            const link = action.task.meetingActionId ?? null;
+            const linkedMeetingId = link === null ? null : createdMeetingIds.get(link) ?? null;
+            await executeCreateTask(uid, action, deps.tasks, deps.now, fallbackTimezone, linkedMeetingId);
+            result.applied += 1;
+          }
+          break;
+        case 'update_task':
+          if (!deps.tasks) result.unsupported += 1;
+          else if ((await executeUpdateTask(uid, action, deps.tasks, deps.now)) === 'applied') result.applied += 1;
+          else result.failed += 1;
+          break;
+        case 'delete_task':
+          if (!deps.tasks) result.unsupported += 1;
+          else if ((await executeDeleteTask(uid, action, deps.tasks)) === 'applied') result.applied += 1;
+          else result.failed += 1;
+          break;
         default:
-          // share_meeting / list never reach the pending set (proposal-time replies).
+          // share_meeting / list / list_tasks never reach the pending set (proposal-time replies).
           result.unsupported += 1;
           break;
       }
@@ -473,6 +646,30 @@ export async function formatMeetingForShare(
 /** How many meetings a list reply shows at most. */
 export const LIST_REPLY_LIMIT = 5;
 
+/** One task as a WhatsApp list line: "- title (due 2026-10-15 16:00)" / "- title (done)". */
+export async function formatTaskList(
+  uid: string,
+  taskIds: readonly string[],
+  language: Language,
+  deps: ExecutorDeps,
+): Promise<string[]> {
+  if (!deps.tasks) return [];
+  const doneWord = language === 'es' ? 'hecha' : 'done';
+  const dueWord = language === 'es' ? 'vence' : 'due';
+  const lines: string[] = [];
+  for (const taskId of taskIds.slice(0, LIST_REPLY_LIMIT)) {
+    const stored = parseStoredTask(await deps.tasks.getTask(uid, taskId));
+    if (stored === null || stored.title.length === 0) continue;
+    let suffix = '';
+    if (stored.status === 'done') suffix = ` (${doneWord})`;
+    else if (stored.dueDate !== null) {
+      suffix = ` (${dueWord} ${stored.dueDate}${stored.dueTime !== null ? ` ${stored.dueTime}` : ''})`;
+    }
+    lines.push(`- ${stored.title}${suffix}`);
+  }
+  return lines;
+}
+
 export async function formatMeetingList(
   uid: string,
   meetingIds: readonly string[],
@@ -505,6 +702,28 @@ export function firestoreMeetingStore(db: Firestore): MeetingStore {
       await ref(uid, meetingId).update(fields);
     },
     newMeetingId() {
+      return db.collection('users').doc().id;
+    },
+  };
+}
+
+export function firestoreTaskStore(db: Firestore): TaskStore {
+  const ref = (uid: string, taskId: string) => db.doc(`users/${uid}/tasks/${taskId}`);
+  return {
+    async getTask(uid, taskId) {
+      const snapshot = await ref(uid, taskId).get();
+      return snapshot.exists ? snapshot.data() : undefined;
+    },
+    async createTask(uid, taskId, doc) {
+      await ref(uid, taskId).create(doc);
+    },
+    async updateTaskFields(uid, taskId, fields) {
+      await ref(uid, taskId).update(fields);
+    },
+    async deleteTask(uid, taskId) {
+      await ref(uid, taskId).delete();
+    },
+    newTaskId() {
       return db.collection('users').doc().id;
     },
   };

@@ -1,7 +1,7 @@
 {
   "chat": {
-    "subtitle": "Programa, mueve, cancela y comparte reuniones chateando",
-    "welcome": "¡Hola! Dime qué necesitas: programar, mover, cancelar o compartir una reunión, o pregúntame qué tienes en tu calendario. Siempre te mostraré exactamente qué va a cambiar y esperaré tu confirmación.",
+    "subtitle": "Gestiona reuniones y tareas chateando o hablando",
+    "welcome": "¡Hola! Dime qué necesitas: programar, mover, cancelar o compartir una reunión, añadir una tarea con fecha y recordatorio, marcarla como hecha, o preguntarme qué hay en tu agenda. Siempre te mostraré exactamente qué va a cambiar y esperaré tu confirmación.",
     "examplesTitle": "Prueba a pedir",
     "placeholder": "Escribe al asistente...",
     "send": "Enviar",
@@ -24,13 +24,27 @@
     "a11yUserMessage": "Tú, {{time}}: {{text}}",
     "a11yAssistantMessage": "Asistente, {{time}}: {{text}}"
   },
+  "voice": {
+    "start": "Hablar al asistente",
+    "stop": "Dejar de escuchar",
+    "listening": "Escuchando...",
+    "denied": "El acceso al micrófono está desactivado. Permite el micrófono y el reconocimiento de voz en los ajustes de tu teléfono para hablar con el asistente.",
+    "unavailable": "La entrada por voz no está disponible en este dispositivo.",
+    "noSpeech": "No escuché nada. Toca el micrófono e inténtalo de nuevo.",
+    "error": "La entrada por voz no funcionó esta vez. Inténtalo de nuevo o escribe tu mensaje.",
+    "dismissed": "Vale, descartado. No se cambió nada.",
+    "repliesOn": "Respuestas habladas activadas",
+    "repliesOff": "Respuestas habladas desactivadas"
+  },
   "examples": {
     "e1": "Programa una reunión con Ana mañana a las 4 p. m.",
     "e2": "Mueve mi reunión de las 4 a las 5",
     "e3": "¿Qué tengo esta semana?",
     "e4": "Retrasa 30 minutos todas mis reuniones de mañana",
     "e5": "Envía el enlace de la reunión de marketing a juan@empresa.com",
-    "e6": "Cancela mi reunión del viernes"
+    "e6": "Cancela mi reunión del viernes",
+    "e7": "Añade una tarea para preparar la propuesta el viernes a las 3",
+    "e8": "¿Qué tareas están atrasadas?"
   },
   "usage": {
     "today": "{{used}}/{{limit}} hoy · {{plan}}",
@@ -62,7 +76,11 @@
       "delete_meeting": "Eliminar reunión",
       "share_meeting": "Compartir reunión",
       "bulk_update": "Cambiar varias reuniones",
-      "list": "Reuniones"
+      "list": "Reuniones",
+      "create_task": "Nueva tarea",
+      "update_task": "Cambiar tarea",
+      "delete_task": "Eliminar tarea",
+      "list_tasks": "Tareas"
     },
     "status": {
       "proposed": "Pendiente de confirmar",
@@ -78,7 +96,9 @@
     "listEmpty": "No hay reuniones que coincidan.",
     "moreWarnings_one": "(+{{count}} más)",
     "moreWarnings_other": "(+{{count}} más)",
-    "a11yMeeting": "{{title}}, {{when}}"
+    "a11yMeeting": "{{title}}, {{when}}",
+    "taskListEmpty": "No hay tareas que coincidan.",
+    "taskDone": "Completada"
   },
   "confirm": {
     "title": {
@@ -87,7 +107,11 @@
       "delete_meeting": "¿Eliminar esta reunión?",
       "share_meeting": "¿Compartir esta reunión?",
       "bulk_update": "¿Cambiar estas reuniones?",
-      "list": "Reuniones"
+      "list": "Reuniones",
+      "create_task": "¿Crear esta tarea?",
+      "update_task": "¿Guardar estos cambios de la tarea?",
+      "delete_task": "¿Eliminar esta tarea?",
+      "list_tasks": "Tareas"
     },
     "titleMany_one": "Confirmar {{count}} acción",
     "titleMany_other": "Confirmar {{count}} acciones",
@@ -99,7 +123,11 @@
       "share_meeting": "Compartir",
       "share_email": "Redactar correo",
       "bulk_update_one": "Cambiar {{count}} reunión",
-      "bulk_update_other": "Cambiar {{count}} reuniones"
+      "bulk_update_other": "Cambiar {{count}} reuniones",
+      "create_task": "Crear tarea",
+      "update_task": "Guardar cambios",
+      "complete_task": "Marcar como hecha",
+      "delete_task": "Eliminar tarea"
     },
     "confirm": "Confirmar",
     "confirmAll_one": "Confirmar {{count}} acción",
@@ -121,7 +149,8 @@
     "a11yBefore": "Antes: {{value}}",
     "a11yAfter": "Después: {{value}}",
     "deleteOccurrenceWarning": "Solo se elimina esta repetición. El resto de la serie se mantiene.",
-    "deleteFollowingWarning": "Se eliminan esta repetición y todas las posteriores. Las anteriores se mantienen."
+    "deleteFollowingWarning": "Se eliminan esta repetición y todas las posteriores. Las anteriores se mantienen.",
+    "taskDeleteWarning": "La tarea se eliminará y se cancelará su recordatorio."
   },
   "fields": {
     "title": "Título",
@@ -135,7 +164,11 @@
     "alerts": "Alertas",
     "language": "Idioma",
     "repeats": "Repetición",
-    "scope": "Se aplica a"
+    "scope": "Se aplica a",
+    "due": "Vencimiento",
+    "reminder": "Recordatorio",
+    "people": "Personas",
+    "status": "Estado"
   },
   "values": {
     "none": "Ninguno",
@@ -166,7 +199,11 @@
       "teams": "Microsoft Teams",
       "google_meet": "Google Meet",
       "other": "Videollamada"
-    }
+    },
+    "reminderAtDue": "A la hora de vencimiento",
+    "reminderBefore": "{{duration}} antes",
+    "statusDone": "Completada",
+    "statusOpen": "Pendiente"
   },
   "warnings": {
     "meeting_not_found_one": "Esta reunión ya no existe.",
@@ -176,7 +213,9 @@
     "overlaps_with": "Se solapa con: {{titles}}",
     "google_meet_needs_calendar": "Conecta Google Calendar para crear un enlace real de Google Meet. Sin él, la reunión se guarda sin enlace.",
     "no_recipients": "No se indicó ningún destinatario de correo.",
-    "new_people": "Todavía no están en esta reunión: {{emails}}. Asegúrate de que quieres incluirlos."
+    "new_people": "Todavía no están en esta reunión: {{emails}}. Asegúrate de que quieres incluirlos.",
+    "task_not_found_one": "Esta tarea ya no existe.",
+    "task_not_found_other": "{{count}} de estas tareas ya no existen."
   },
   "results": {
     "created": "Reunión creada.",
@@ -199,7 +238,13 @@
     "failed": "No se pudo completar: {{reason}}",
     "allDone_one": "{{count}} acción completada.",
     "allDone_other": "Las {{count}} acciones se completaron.",
-    "someFailed": "Se completaron {{done}} de {{total}} acciones. Revisa las que fallaron."
+    "someFailed": "Se completaron {{done}} de {{total}} acciones. Revisa las que fallaron.",
+    "taskCreated": "Tarea creada.",
+    "taskUpdated": "Tarea actualizada.",
+    "taskCompleted": "Tarea completada.",
+    "taskDeleted": "Tarea eliminada.",
+    "tasksListed_one": "{{count}} tarea encontrada.",
+    "tasksListed_other": "{{count}} tareas encontradas."
   },
   "share": {
     "subject": "Reunión: {{title}}",

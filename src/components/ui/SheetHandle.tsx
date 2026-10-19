@@ -1,5 +1,5 @@
 /**
- * Bottom-sheet drag handle (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §5): 32x4 outline
+ * Bottom-sheet drag handle (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5): 32x4 outline
  * bar, self-centered, decorative only (hidden from screen readers).
  */
 import type { ReactElement } from 'react';

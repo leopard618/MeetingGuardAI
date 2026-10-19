@@ -10,7 +10,14 @@
  * - drops responses/results that arrive after a reset or a user switch (generation counter);
  * - on session end: clears memory and deletes the stored thread after pending writes.
  */
-import { AI_LIMITS, MEETING_ID_PATTERN, type AssistantRequest, type Language } from '../../core/aiContract';
+import {
+  AI_CONTRACT_VERSION,
+  AI_LIMITS,
+  MEETING_ID_PATTERN,
+  type AiAction,
+  type AssistantRequest,
+  type Language,
+} from '../../core/aiContract';
 import type { ActionResult, AssistantClient, Unsubscribe } from '../../core/contracts';
 import { AppError, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -145,6 +152,19 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
 
     try {
       const context = deps.getContext();
+      // v4: tell the server which proposals are still on screen, so plain consent ("yes I
+      // confirm", in any wording) resolves them instead of producing duplicates.
+      const pendingActions =
+        kind.mode === 'chat'
+          ? selectPendingActionIds(snapshot.thread)
+              .flatMap((actionId) => {
+                const state = snapshot.thread.actions[actionId];
+                return state && state.status === 'proposed' && state.action.summary.length > 0
+                  ? [{ type: state.action.type, summary: state.action.summary.slice(0, AI_LIMITS.maxSummaryChars) }]
+                  : [];
+              })
+              .slice(0, AI_LIMITS.maxActions)
+          : [];
       const request: AssistantRequest = {
         messages: kind.mode === 'chat' ? buildRequestMessages(snapshot.thread.messages) : [],
         language: context.language,
@@ -152,6 +172,9 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
         nowIso: context.now.toISOString(),
         mode: kind.mode,
         followUpMeetingId,
+        // v5: tells the server which capabilities this build can parse (task action types).
+        contractVersion: AI_CONTRACT_VERSION,
+        ...(pendingActions.length > 0 ? { pendingActions } : {}),
       };
       const response = await deps.client.send(request);
       if (gen !== generation) return;
@@ -168,6 +191,15 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
       };
       apply({ type: 'request_succeeded', userMessageId, reply, actions, usage: response.usage, followUpMeetingId });
       update({ isSending: false, followUpInFlight: null });
+      // v4: the model judged the message as plain consent/refusal of the pending proposals.
+      // Only honored when we sent pending proposals and nothing new was proposed; the cards
+      // then run through exactly the same paths as the on-screen buttons.
+      const resolution = pendingActions.length > 0 && actions.length === 0 ? (response.resolution ?? null) : null;
+      if (resolution === 'confirm') {
+        await confirmAll();
+      } else if (resolution === 'reject') {
+        for (const actionId of selectPendingActionIds(snapshot.thread)) reject(actionId);
+      }
       const newIds = new Set(actions.map((a) => a.id));
       void previewAll((id) => newIds.has(id));
     } catch (error) {
@@ -286,6 +318,24 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
     await enqueue(() => runRequest({ mode: 'chat' }, lastUser.id));
   }
 
+  /**
+   * v6 combined requests: a create_task draft can point at the create_meeting action of the same
+   * response (`meetingActionId`) because the server cannot know the id that meeting will get.
+   * Resolve it here, where the executed results live, and return null when that meeting has not
+   * run or did not produce one - the task is then created unlinked rather than refused. The value
+   * travels beside the action, never inside it, so the idempotency key stays stable.
+   */
+  function resolveLinkedMeetingId(action: AiAction): string | null {
+    if (action.type !== 'create_task') return null;
+    // assignActionIds already remapped this to the sibling's thread-local id.
+    const target = action.task.meetingActionId;
+    if (target == null || action.task.meetingId !== null) return null;
+    const source = snapshot.thread.actions[target];
+    if (!source || source.action.type !== 'create_meeting') return null;
+    if (source.status !== 'done' || source.result?.status !== 'done') return null;
+    return source.result.meetingIds[0] ?? null;
+  }
+
   function confirm(actionId: string): Promise<ActionResult> {
     const state = snapshot.thread.actions[actionId];
     if (!state) return Promise.reject(new AppError('not_found', 'Unknown assistant action'));
@@ -305,7 +355,9 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
     const promise = (async (): Promise<ActionResult> => {
       let result: ActionResult;
       try {
-        result = await deps.executor.execute(state.action);
+        result = await deps.executor.execute(state.action, {
+          linkedMeetingId: resolveLinkedMeetingId(state.action),
+        });
       } catch (error) {
         result = { status: 'failed', actionId, type: state.action.type, error: toAppError(error) };
       }
