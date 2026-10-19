@@ -3,7 +3,7 @@
 A complete, ordered walkthrough of every feature that can be tested today, written for the
 current setup: no real phone, LDPlayer 9 on the PC, the local test APK, and the live
 `meetingguard-ai-app` backend. The master test plan with every edge case is
-`docs/TESTING.md` (T1 to T21); this guide tells you which parts to run now, in what order,
+`docs/v1/TESTING.md` (T1 to T21); this guide tells you which parts to run now, in what order,
 with condensed steps and expected results. When a step here feels too thin, open the matching
 T-section in TESTING.md for the full table.
 
@@ -67,11 +67,11 @@ count it as a failure unless the app crashes or an alert is missed.
 
 | Area | Why blocked | Unblocks when |
 |---|---|---|
-| T12 upgrade from v1.0.9 | Needs builds signed with the Google Play key, on a real phone | Play internal testing build |
+| T12 upgrade from v1.0.9 | Historical: the production upgrade to 1.4.0 shipped on 2026-10-06 | Nothing to unblock |
 | T13 performance | Emulator speed says nothing about a budget phone | Real low-end phone |
 | T15 Outlook sync | No Azure app registration; the Outlook card is hidden by design | Azure setup (SETUP §10) |
-| T17 purchases | No Play products or RevenueCat key yet; paid cards show but buying is off | Store runway after Francisco confirms prices |
-| T20 iOS / Apple sign-in | No iOS build; Apple button is iOS-only | iOS runway (SETUP §8) |
+| T17 purchases | Verified on 2026-10-05 with a license-tester account; without one, buying stays off on an emulator | A device signed in as a license tester |
+| T20 iOS / Apple sign-in | iOS 1.4.0 build 9 exists (App Store Connect, Waiting for Review); LDPlayer is Android-only | A TestFlight build on an iPhone |
 | T21 WhatsApp bot | Deployed dormant; waiting for Francisco's Meta values | Meta credentials |
 | Real vibration, battery killers | Emulator limitation | Real phone |
 
@@ -216,5 +216,5 @@ Send me the notes in any form; I will fix and rebuild the APK (`npm run apk:test
 | Session 1 | T1, T2, T19 |
 | Session 2 | T3, T4, T8, T9, T18 |
 | Session 3 | T5, T6, T7, T10, T11, T14, T16 |
-| Session 4 | T17 (UI and grant pipeline only), docs/ADMIN.md checks |
+| Session 4 | T17 (UI and grant pipeline only), docs/v1/ADMIN.md checks |
 | Out of scope | T12, T13, T15, T17 purchases, T20, T21 |

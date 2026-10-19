@@ -50,10 +50,10 @@ These rules prevent import cycles:
 | attachments | `src/services/attachments` (`attachmentService`, `useMeetingAttachments`); metadata in the data layer's `attachmentStore` | notes |
 | shell | `src/contexts/ThemeContext.tsx` (`ThemeProvider`, `useTheme`, `useAppThemes`), `src/components/{CustomHeader,MobileSidebar,ThemeToggle,ErrorBoundary,AppToast}.tsx`, `src/hooks/useResponsive.ts` | shell |
 | screens | `src/screens/<area>` (one folder per screen group, §13); `src/screens/shared` (`useFormatters`, `Section` / `ScreenBody`, `MeetingStatus`, `useLiveNow`, `useKeyboardAvoidance`, `useDiscardChangesGuard`, `text`) | screen groups |
-| release | `src/services/updates.ts` (OTA state), `app.config.js` (`updates`, `runtimeVersion`), `eas.json` channels, `docs/DEPLOYMENT.md` | release |
+| release | `src/services/updates.ts` (OTA state), `app.config.js` (`updates`, `runtimeVersion`), `eas.json` channels, `docs/v1/DEPLOYMENT.md` | release |
 | widget | `modules/mg-next-meeting-widget` (local Expo module), `src/services/widget` (`registerWidgetFeeder`, `refreshWidget`, `widgetStringsOf`, `computeNextWidgetEntry`), i18n namespace `widget` (§19) | widget |
 | billing | `src/services/billing.ts` (catalog), `src/services/purchases` (`purchasesService`), `functions/src/revenuecat` (webhook), `src/screens/pricing`, i18n namespace `pricing` (§20) | billing |
-| admin | `public/admin` (build-free web app), `functions/src/admin` (callables), `functions/scripts/set-admin-claim.mjs`, `docs/ADMIN.md` (§21) | admin |
+| admin | `public/admin` (build-free web app), `functions/src/admin` (callables), `functions/scripts/set-admin-claim.mjs`, `docs/v1/ADMIN.md` (§21) | admin |
 | functions | `functions/src/index.ts` (`assistant`, `deleteAccount`, scheduled `dailyMaintenance`); `functions/src/shared/aiContract.ts` is a **verbatim** copy of `src/core/aiContract.ts`, and CI diffs the two; `firestore.rules`, `firestore.indexes.json`, `firebase.json` | functions |
 
 ## 3. Data model (summary; `types.ts` has the details)
@@ -436,7 +436,7 @@ and admin callables) and the admin dashboard (§21).
 - Each `eas.json` build profile listens to its own channel (`development`, `preview`, `production`). `npm run update:preview -- "message"` / `npm run update:production -- "message"` publish with the matching EAS environment, so the `EXPO_PUBLIC_*` values are bundled.
 - A native change (new native module, permission, plugin option, SDK upgrade) needs a new `version` and a store build, never an OTA update.
 - `src/services/updates.ts` reads the running update; Settings shows its short id and channel. A downloaded update that crashes on start is marked failed by expo-updates' error recovery, which relaunches the previous update (`isEmergencyLaunch` stays false); the signal for a bad OTA update is new Sentry crashes grouped by the tag `expo.updates.update_id`. An "emergency launch" means the update store itself could not be used (the embedded bundle runs); Sentry's Expo integration reports it (tag `expo.updates.emergency_launch`), and the app only logs a warning.
-- Release checklist, rollback, backups and the Firebase side: `docs/DEPLOYMENT.md`. Project setup: `docs/SETUP.md`. Tests and the device plan: `docs/TESTING.md`. Open work and decisions: `docs/HANDOFF.md`.
+- Release checklist, rollback, backups and the Firebase side: `docs/v1/DEPLOYMENT.md`. Project setup: `docs/v1/SETUP.md`. Tests and the device plan: `docs/v1/TESTING.md`. Open work and decisions: `docs/v1/HANDOFF.md`.
 
 ## 16. Recurring meetings (phase 1)
 
@@ -550,7 +550,7 @@ re-pushes the meeting as a one-off.
   optional `EXPO_PUBLIC_MSAL_CLIENT_ID` (absent => Outlook hidden). ONLY the refresh token is
   persisted, in expo-secure-store under `SECURE_STORE_KEYS.microsoftRefreshToken(uid)`
   (`src/services/auth/microsoftTokens.ts`); access tokens live in memory. Disconnect and session
-  end clear it. Azure app registration steps: docs/SETUP.md §10.
+  end clear it. Azure app registration steps: docs/v1/SETUP.md §10.
 - **Pull:** `GET /me/calendarView/delta` over `CALENDAR_SYNC_WINDOW` with the deltaLink persisted
   in `mg:{uid}:calendar.outlook` (`USER_STORAGE.outlookCalendar`); HTTP 410 => full resync;
   `@removed` => deleted upsert. Results go to `meetingRepository.upsertExternal` with provider
@@ -641,7 +641,7 @@ Contract: `PurchasesService`, `PLAY_PRODUCT_IDS`, `APP_STORE_PRODUCT_IDS`, `Stor
 in `src/core/contracts.ts`; implementation `src/services/purchases/**`; webhook mapping
 `functions/src/revenuecat/mapping.ts` (pure, IMPLEMENTED); reconciliation
 `functions/src/revenuecat/reconcile.ts`; catalog stays `src/services/billing.ts`. Setup guide:
-docs/SETUP.md §11 (RevenueCat project, Play Console + App Store Connect subscriptions
+docs/v1/SETUP.md §11 (RevenueCat project, Play Console + App Store Connect subscriptions
 `pro_monthly` / `pro_yearly` / `premium_monthly` / `premium_yearly` - the SAME product ids on
 both stores, each with a 3-day free trial; RevenueCat entitlements `pro` and `premium`; webhook
 + Authorization value; reconciliation secret + param).
@@ -733,7 +733,7 @@ both stores, each with a 3-day free trial; RevenueCat entitlements `pro` and `pr
 Contract: `functions/src/admin/schemas.ts` (zod, IMPLEMENTED - the callable names and shapes are
 fixed there); callables in `functions/src/admin/index.ts` exported from `functions/src/index.ts`;
 web app in `public/admin/` served by Firebase Hosting (firebase.json already serves `public/`);
-short guide docs/ADMIN.md (EN).
+short guide docs/v1/ADMIN.md (EN).
 
 - **Auth:** every callable requires `request.auth.token.admin === true` (custom claim), else
   `permission-denied` (`unauthenticated` without auth). The claim is set offline with
@@ -827,13 +827,13 @@ set) without a url never gets one.
 - **billing**: `src/services/billing.ts`, `src/services/purchases/**`, `src/screens/pricing/**`,
   `src/config/env.ts` + `env.example` (EXPO_PUBLIC_REVENUECAT_ANDROID_KEY /
   EXPO_PUBLIC_REVENUECAT_APPLE_KEY), `functions/src/revenuecat/**` (webhook + reconcile) + their
-  export lines in `functions/src/index.ts`, functions tests, i18n `pricing.json`, docs/SETUP.md
+  export lines in `functions/src/index.ts`, functions tests, i18n `pricing.json`, docs/v1/SETUP.md
   §11. The admin Users-table "Reconcile" button in `public/admin/admin.js` is the one sanctioned
   cross-over into the admin area (its callable lives under revenuecat/).
 - **admin**: `public/admin/**`, `functions/src/admin/**` + the admin export lines in
   `functions/src/index.ts`, `functions/scripts/set-admin-claim.mjs`, functions tests,
   `firebase.json` (the scoped `/admin/**` headers entry ONLY), `firestore.indexes.json`
-  (the `days.updatedAt` collection-group index ONLY), docs/ADMIN.md.
+  (the `days.updatedAt` collection-group index ONLY), docs/v1/ADMIN.md.
 - **shared**: `src/i18n/resources.ts` and navigation registrations - own lines only. Version
   bump, CHANGELOG, HANDOFF/TESTING updates: integrator.
 
@@ -843,7 +843,7 @@ Contract: zoom* schemas + `CALLABLES.zoom*` + `ZOOM_ERROR_CODES` in `src/core/ai
 (mirrored verbatim in `functions/src/shared/aiContract.ts`); app service contract `ZoomService` /
 `UseZoomStatusResult` in `src/core/contracts.ts` (stubs in `src/services/zoom/`); capability mode
 `auto_zoom` in `src/core/conference.ts` (IMPLEMENTED); callables in `functions/src/zoom/`
-(zoomStatus IMPLEMENTED, write callables stubbed). Owner setup + deploy order: docs/SETUP.md §12.
+(zoomStatus IMPLEMENTED, write callables stubbed). Owner setup + deploy order: docs/v1/SETUP.md §12.
 
 The server owns ONE Zoom Server-to-Server OAuth app (host account `me`); users never connect
 their own Zoom accounts and the app never sees Zoom credentials.
@@ -957,7 +957,7 @@ resendVerification / reloadUser` in `src/core/contracts.ts` (authService IMPLEME
 `AuthContextValueImpl` adds `resendVerification()` and `refreshUser()` (IMPLEMENTED); error
 mapping in `src/services/auth/authErrors.ts` (IMPLEMENTED); screen stub
 `src/screens/auth/EmailAuthScreen.tsx` (route `EmailAuth` in the Auth stack); banner stub
-`src/screens/shared/VerifyEmailBanner.tsx`. Owner console steps: docs/SETUP.md §13.
+`src/screens/shared/VerifyEmailBanner.tsx`. Owner console steps: docs/v1/SETUP.md §13.
 
 - **Provider**: Firebase Email/Password. The server may not have it enabled:
   `auth/operation-not-allowed` maps to `not_configured` / reason `provider_disabled`
@@ -999,7 +999,7 @@ Contract: `AuthService.signInWithApple / revokeAppleTokens` and the reauthentica
 in `src/core/contracts.ts`; `AuthContextValueImpl.signInWithApple` (wrapper, mirrors the Google
 one: cancel -> `authCancelled`, errors -> `toFailure`); error mapping `mapAppleSignInError` in
 `src/services/auth/authErrors.ts`; the official button in
-`src/screens/auth/AppleSignInButton.tsx`. Owner console steps: docs/SETUP.md §8.
+`src/screens/auth/AppleSignInButton.tsx`. Owner console steps: docs/v1/SETUP.md §8.
 New runtime dependency: `expo-apple-authentication` (installed with `npx expo install`; the
 `app.config.js` plugin entry activates itself once the package resolves).
 
@@ -1033,12 +1033,12 @@ New runtime dependency: `expo-apple-authentication` (installed with `npx expo in
   Apple ID, `auth/user-mismatch`, is never kept) -> `authService.revokeAppleTokens()` (a direct
   Identity Toolkit `accounts:revokeToken` POST with `tokenType: AUTHORIZATION_CODE` - the same
   request the native iOS SDK's `revokeToken(withAuthorizationCode:)` makes; Firebase exchanges
-  the code with the Sign in with Apple key from docs/SETUP.md §8.4 and revokes the Apple refresh token
+  the code with the Sign in with Apple key from docs/v1/SETUP.md §8.4 and revokes the Apple refresh token
   server-side. The JS SDK's `revokeAccessToken(auth, token)` is deliberately NOT used: it
   labels its argument an Apple ACCESS token, and Apple answers 200 to unrecognized token
   strings per RFC 7009, so passing the authorization code through it resolves while revoking
   nothing - an invisible failure of exactly this review requirement, only provable on a real
-  device: docs/TESTING.md T20 row 7) -> `sessionManager.deleteAccount()`
+  device: docs/v1/TESTING.md T20 row 7) -> `sessionManager.deleteAccount()`
   (unchanged: callable -> revokeGoogleAccess best effort -> END). Revocation is BEST EFFORT +
   PROCEED: on failure show the `auth:deleteAccount.appleRevokeNotice` toast and continue. Why:
   the user's right to delete the account may not depend on Apple/Firebase revocation uptime (the
@@ -1071,7 +1071,7 @@ New runtime dependency: `expo-apple-authentication` (installed with `npx expo in
 Contract: whatsapp* schemas + `CALLABLES.whatsapp*` + `WHATSAPP_ERROR_CODES` in
 `src/core/aiContract.ts` (mirrored verbatim in `functions/src/shared/aiContract.ts`); functions in
 `functions/src/whatsapp/` (IMPLEMENTED); app service `src/services/whatsapp/` + the
-`WhatsAppConnect` screen (owner app-ui). Owner setup + deploy order: docs/SETUP.md §14.
+`WhatsAppConnect` screen (owner app-ui). Owner setup + deploy order: docs/v1/SETUP.md §14.
 
 The server owns ONE WhatsApp Cloud API phone number (Meta's free TEST number during development,
 the client's own number after business verification; the go-live swap is exactly two values,

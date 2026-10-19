@@ -6,8 +6,8 @@ This runbook covers shipping MeetingGuard AI:
 - over-the-air JavaScript updates (EAS Update)
 - the Firebase backend, backups, monitoring and the Play Console declarations
 
-The one-time setup is in `docs/SETUP.md`, the tests in `docs/TESTING.md`, and the design in
-`docs/ARCHITECTURE.md` §15.
+The one-time setup is in `docs/v1/SETUP.md`, the tests in `docs/v1/TESTING.md`, and the design in
+`docs/v1/ARCHITECTURE.md` §15.
 
 ## Release and rollback in brief
 
@@ -24,7 +24,7 @@ sections below have the details.
 3. Build and upload to internal testing:
    `eas build --profile production --platform android`, then
    `eas submit --profile production --platform android --latest`.
-4. Run the device plan (`docs/TESTING.md` Part B) on that build.
+4. Run the device plan (`docs/v1/TESTING.md` Part B) on that build.
 5. Promote in Play Console to Production with a staged rollout: 10% -> 50% -> 100%, 24 to 48 hours
    apart, watching Sentry and Android vitals (§8).
 6. Tag the commit: `git tag v<version>`.
@@ -59,7 +59,7 @@ sections below have the details.
 - **Build numbers.** EAS keeps `versionCode` / `buildNumber` (`appVersionSource: "remote"`), and
   `production` adds 1 before each build. Check with `eas build:version:get -p android`.
 - **Environment.** Every build and every update reads the `EXPO_PUBLIC_*` values of its EAS
-  environment (`docs/SETUP.md` §5.2).
+  environment (`docs/v1/SETUP.md` §5.2).
 - **Shared channel.** The internal testing track and production users of the same version share the
   `production` channel. Test OTA updates on a `preview` build first.
 
@@ -94,7 +94,7 @@ Run these from the repository root.
    1. Add the tester emails.
    2. Copy the join link and send it to the testers.
    3. Each tester opens the link, accepts, and installs or updates the app from Google Play.
-5. Run the device plan in `docs/TESTING.md` on this build. It includes the upgrade from v1.0.9 and a
+5. Run the device plan in `docs/v1/TESTING.md` on this build. It includes the upgrade from v1.0.9 and a
    low-end phone.
 6. **Promote:** only when every item of §4 passes, including item 4 (Google OAuth in production and
    verified). Internal testing -> the release -> Promote release -> Production (or a closed track
@@ -118,7 +118,7 @@ Run these from the repository root.
    - A lawyer has reviewed both texts.
    - The support email replaces the placeholder in `public/delete-account.html`.
    - The privacy policy has a public URL.
-3. `docs/SETUP.md` §9 is complete. The functions and rules are deployed (§6). Backups are on (§7).
+3. `docs/v1/SETUP.md` §9 is complete. The functions and rules are deployed (§6). Backups are on (§7).
    **Deploy order for the first iOS (1.4.0) build**: the 1.4.0 functions (trusted-provider
    verified-caller gate) must be deployed BEFORE any build with Sign in with Apple reaches a
    tester - against the older google-only gate, an Apple-provider user gets a generic
@@ -133,6 +133,10 @@ Run these from the repository root.
      users see the "Google hasn't verified this app" screen and the app is limited to 100 users.
    - The only exception is a written decision by the client to launch unverified and accept that
      screen and the 100-user cap.
+
+   **Status (2026-10-19): passed.** Publishing status is In production and the Verification Center
+   shows branding and `calendar.events` approved. The gate above stays in force for any future
+   scope change that adds a sensitive or restricted scope.
 
    Internal testing cannot catch this: every tester is on the test-user list. Check it in the
    console before each promotion to production.
@@ -158,7 +162,7 @@ npm run update:production -- "Fix: <what changed>"    # the same commit, after Q
 - **How to see it:** Settings shows "Update <id> · <channel>". Sentry events carry the tags
   `expo.updates.update_id`, `expo.updates.channel` and `expo.updates.runtime_version`.
 - **Sentry source maps:** after an update, run `npx sentry-expo-upload-sourcemaps dist`
-  (`docs/SETUP.md` §7).
+  (`docs/v1/SETUP.md` §7).
 - **Old versions:** OTA only reaches binaries that contain `expo-updates`, which means 1.2.0 and
   later. v1.0.9 users must install the store update first.
 
@@ -328,7 +332,8 @@ gcloud was not available when this runbook was written, so check the flags of th
     §6).
 - **App access:** reviewers must sign in with Google. Give them a test Google account and the steps.
   While the OAuth consent screen is still in Testing (internal or closed tracks only, see §4), add that
-  account to its test users, or the review fails at sign-in.
+  account to its test users, or the review fails at sign-in. (No longer needed: the consent screen has
+  been In production and verified since October 2026, so any Google account signs in.)
 - Also complete: the privacy policy URL, Ads (the app shows none), the content rating and the target
   audience.
 

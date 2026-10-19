@@ -54,7 +54,7 @@ What they cover:
   generated `build.gradle`, `plugins/__tests__/fixtures/app-build.gradle`; regenerate it after an Expo
   SDK upgrade) and the test-APK helpers in `scripts/lib/`.
 
-Rules for new tests are in `docs/ARCHITECTURE.md` §12. Tests must not need the network or any
+Rules for new tests are in `docs/v1/ARCHITECTURE.md` §12. Tests must not need the network or any
 `EXPO_PUBLIC_*` value. Mock Firebase, Expo native modules and GoogleSignin with `jest.mock`.
 
 ### A.2 Cloud Functions and Firestore rules (`functions/`)
@@ -276,7 +276,7 @@ it again after a change.
 - **Real performance:** the emulator uses the PC's CPU and GPU, so its speed says nothing about a
   budget phone. T13 needs a real low-end phone.
 - **T12 (upgrade from v1.0.9):** it needs builds signed with the Google Play key. The local test APK
-  has its own key.
+  has its own key. T12 is historical now: the production upgrade to 1.4.0 shipped on 2026-10-06.
 
 The rest of the plan works on an emulator: notifications and channels, killed app, Doze commands,
 Do Not Disturb, exact alarms, `adb reboot`, deep links, Google sign-in and Calendar sync, phone
@@ -296,7 +296,7 @@ Once, before the first build:
    `%USERPROFILE%\.meetingguard\test-release.keystore` (alias `mgtest`, valid 25 years) and
    `test-release.properties` next to it with its random password. The password is never printed.
    It prints the key's SHA-1 and SHA-256. Register the SHA-1 in Google Cloud as an Android OAuth
-   client for package `com.meetingguard.ai` (`docs/SETUP.md` §4.2). Keep both files private and never
+   client for package `com.meetingguard.ai` (`docs/v1/SETUP.md` §4.2). Keep both files private and never
    use this key for Google Play. If you lose them, delete both, run `npm run apk:sha1` again and
    register the new SHA-1.
 
@@ -393,7 +393,7 @@ If the build fails:
 ### T3. Create, edit, delete: manual and AI
 
 **Precondition for the recurring rows (10, 17-23):** the phase-1 Firestore rules must be deployed
-(`docs/HANDOFF.md` §2 step 10). Against the older rules the server rejects recurring-meeting
+(`docs/v1/HANDOFF.md` §2 step 10). Against the older rules the server rejects recurring-meeting
 writes; the outbox retries for a while, but persistent rejections are eventually dropped and the
 meeting is rolled back (a fresh recurring create disappears).
 
@@ -503,7 +503,7 @@ Focus allows it. There is no exact-alarm setting on iOS.
 | 3 | With Google sync on, look at the Google calendars in that list. | They show "Already synced through Google Calendar" and are not imported twice. |
 | 4 | Choose an export calendar under "Add MeetingGuard meetings to". Create a meeting in the app. | The meeting appears in that phone calendar, without calendar reminders. Editing and deleting it in the app update the phone calendar. |
 | 5 | Deny the calendar permission. | An explanation with a way to open the settings. No crash. |
-| 6 | With an export calendar chosen, create a repeating meeting in the app (or add a repeat rule to an already exported one). | Repeating meetings are NOT exported to the phone calendar in this version (documented in `docs/ARCHITECTURE.md` §16); a copy exported before the repeat was added is removed on the next sync. One-off meetings keep exporting. |
+| 6 | With an export calendar chosen, create a repeating meeting in the app (or add a repeat rule to an already exported one). | Repeating meetings are NOT exported to the phone calendar in this version (documented in `docs/v1/ARCHITECTURE.md` §16); a copy exported before the repeat was added is removed on the next sync. One-off meetings keep exporting. |
 
 ### T10. Language switch EN/ES, notifications and date formats
 
@@ -530,9 +530,12 @@ Focus allows it. There is no exact-alarm setting on iOS.
 
 ### T12. Upgrade in place from v1.0.9 (versionCode 20)
 
+**Status (2026-10-19): historical.** v1.4.0 (versionCode 24) went to 100 percent production on
+2026-10-06, so real users have already upgraded. This section is kept for reference only.
+
 v1.0.9 signs in through the old Render backend, and the secret rotation and the Render lockdown
-(`docs/SETUP.md` §1.1, §1.3; `docs/HANDOFF.md` §2 step 3) break that sign-in. So row 1 is done
-**before** that step, on **fixture phones** (`docs/HANDOFF.md` §2 step 2): phones with v1.0.9 from
+(`docs/v1/SETUP.md` §1.1, §1.3; `docs/v1/HANDOFF.md` §2 step 3) break that sign-in. So row 1 is done
+**before** that step, on **fixture phones** (`docs/v1/HANDOFF.md` §2 step 2): phones with v1.0.9 from
 Google Play, signed in, with the data of row 1, auto-update for the app turned off in the Play Store,
 and not opened again until this test. Rows 2 to 6 run later on those phones, with the v1.2.0
 internal-testing build. A phone that kept v1.0.9 data from earlier use works too.
@@ -540,7 +543,7 @@ internal-testing build. A phone that kept v1.0.9 data from earlier use works too
 To update in place, the new build must have the same signature as the installed app:
 
 - **Path A (recommended; the same path as real users):** install v1.0.9 from Google Play
-  (production). Update to v1.2.0 through the internal testing join link (`docs/DEPLOYMENT.md` §3).
+  (production). Update to v1.2.0 through the internal testing join link (`docs/v1/DEPLOYMENT.md` §3).
 - **Path B (no Play):** the v1.0.9 AAB is `../deploy/aab(publish)_v20_1.0.9.aab` (outside the
   repository).
   1. Download the EAS keystore (`eas credentials -p android`).
@@ -589,7 +592,7 @@ alarms" section then shows a real granted/denied state instead of only a setting
 
 **Known limitation (not a bug):** notifications posted by the native full-screen module have no
 Snooze buttons - snoozing a MAX alert delivered this way happens through the in-app full-screen
-alarm after tapping it (MEDIUM alerts keep the notification Snooze buttons; `docs/ARCHITECTURE.md`
+alarm after tapping it (MEDIUM alerts keep the notification Snooze buttons; `docs/v1/ARCHITECTURE.md`
 §18).
 
 | # | Step | Expected result |
@@ -606,10 +609,10 @@ alarm after tapping it (MEDIUM alerts keep the notification Snooze buttons; `doc
 
 ### T15. Outlook / Microsoft 365 sync
 
-Needs the Azure app registration from `docs/SETUP.md` §10 and `EXPO_PUBLIC_MSAL_CLIENT_ID` in the
+Needs the Azure app registration from `docs/v1/SETUP.md` §10 and `EXPO_PUBLIC_MSAL_CLIENT_ID` in the
 build, plus a Microsoft account with a few calendar events. Without the client id the Outlook card
 does not exist and this section is skipped. **Precondition: the phase-1 Firestore rules must be
-deployed first** (`docs/HANDOFF.md` §2 step 10). Against the older rules, Outlook-imported and
+deployed first** (`docs/v1/HANDOFF.md` §2 step 10). Against the older rules, Outlook-imported and
 recurring-meeting writes are rejected by the server; the outbox retries them for a while (the
 "unsynced" count), but persistent rejections are eventually dropped and rolled back - do not run
 this section, or any recurring-meeting rows, before the rules redeploy.
@@ -623,7 +626,7 @@ this section, or any recurring-meeting rows, before the rules redeploy.
 | 5 | Edit the event's time in Outlook web, then pull to refresh the meetings list. | The meeting moves in the app. Its alerts move with it. |
 | 6 | Delete the event in Outlook web, refresh. | The meeting disappears in the app (or is marked cancelled), and its alerts are gone. |
 | 7 | Check cross-provider isolation: a meeting imported from Google or from a phone calendar. | It never appears in Outlook, and an Outlook-imported meeting never appears in Google Calendar or the phone calendar. No duplicates anywhere. |
-| 8 | Create a recurring meeting while Outlook is connected. | The series syncs to Google (T3) but NOT to Outlook (v1 limitation, `docs/ARCHITECTURE.md` §17). One-off meetings keep syncing. |
+| 8 | Create a recurring meeting while Outlook is connected. | The series syncs to Google (T3) but NOT to Outlook (v1 limitation, `docs/v1/ARCHITECTURE.md` §17). One-off meetings keep syncing. |
 | 8b | Take a one-off meeting that is already in Outlook (row 3) and edit it to repeat weekly. | The single event is REMOVED from Outlook on the next sync (a stale copy is never left behind); the series stays in the app and in Google. Removing the repeat again pushes it back to Outlook as a one-off. |
 | 9 | Sign out of the app, sign back in. | Outlook shows Disconnected (the refresh token is deleted at session end); Connect works again. |
 | 10 | Tap **Disconnect** (with "remove access" if offered). | The card shows Disconnected, Outlook-imported meetings are removed from the app, app-created meetings stay (their Outlook link is cleared), and with revoke the Microsoft consent page opens. |
@@ -653,7 +656,7 @@ sync, language change) - there is no polling.
 
 ### T17. Subscriptions (RevenueCat + Google Play / App Store, only when configured)
 
-Needs ALL of `docs/SETUP.md` §11 first: the four Play subscriptions with their 3-day trial
+Needs ALL of `docs/v1/SETUP.md` §11 first: the four Play subscriptions with their 3-day trial
 offers, the RevenueCat project (entitlements `pro`/`premium`, a current offering), the deployed
 `revenuecatWebhook` with `REVENUECAT_WEBHOOK_AUTH` set and the webhook URL in the RevenueCat
 dashboard, and `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` in the build env. Without the key this
@@ -662,7 +665,7 @@ view. Use a **license-tester** Google account (Play Console -> License testing) 
 **real device**: LDPlayer 9's Play services may not support test subscriptions. The build must
 be installed through Play (internal testing) for purchases to work.
 
-iOS rows (10-12) additionally need `docs/SETUP.md` §11.6 (App Store Connect subscription group
+iOS rows (10-12) additionally need `docs/v1/SETUP.md` §11.6 (App Store Connect subscription group
 + products, the RevenueCat Apple app with the In-App Purchase key, and
 `EXPO_PUBLIC_REVENUECAT_APPLE_KEY` in the build env) plus a Sandbox Apple Account on a
 TestFlight or dev build. Row 13 needs §11.7 (`REVENUECAT_SECRET_KEY` +
@@ -688,15 +691,15 @@ TestFlight or dev build. Row 13 needs §11.7 (`REVENUECAT_SECRET_KEY` +
 | 13 | Admin dashboard -> Users -> "Reconcile" on (a) a user whose entitlement was manually broken in Firestore, (b) an untouched subscriber, (c) an admin-comped user with no store subscription. | (a) toast "updated" and the row's plan matches RevenueCat again; (b) "unchanged", no write; (c) "skipped_admin", the comp survives. Function logs show `revenuecat.reconciled` with outcome, never the API key. |
 
 License-tester purchases are SANDBOX events: the webhook ignores them unless it was deployed
-with `REVENUECAT_ALLOW_SANDBOX=true` (`docs/SETUP.md` §11) - set it for this section and turn it
+with `REVENUECAT_ALLOW_SANDBOX=true` (`docs/v1/SETUP.md` §11) - set it for this section and turn it
 back off afterwards, or rows 4-8 never flip the plan.
 
 Row 4 stuck on "activating" for minutes -> the webhook is not reachable or its secret is wrong:
-check the RevenueCat webhook log and the function logs, then `docs/SETUP.md` §11. After ~2
+check the RevenueCat webhook log and the function logs, then `docs/v1/SETUP.md` §11. After ~2
 minutes the screen honestly returns to idle ("Still processing"); the plan still flips on its
 own once the webhook works - verify it does.
 
-### T18. Zoom auto links (only when `docs/SETUP.md` §12 is done)
+### T18. Zoom auto links (only when `docs/v1/SETUP.md` §12 is done)
 
 Before the Zoom setup, the only check is the OFF state: Video call = Zoom shows the paste hint
 plus the muted "Automatic Zoom links are not set up yet" note, and saving without a link keeps
@@ -724,7 +727,7 @@ Known limitation (ARCHITECTURE §24): deleting a linked meeting while OFFLINE le
 meeting on the host account for good (nothing retries the Zoom delete later) - remove it in the
 Zoom web portal if it matters.
 
-### T19. Email sign-in and the verification gate (`docs/SETUP.md` §13)
+### T19. Email sign-in and the verification gate (`docs/v1/SETUP.md` §13)
 
 | # | Step | Expected result |
 |---|---|---|
@@ -739,12 +742,12 @@ Zoom web portal if it matters.
 | 8 | Sign in with Google on the same device. | No verification banner anywhere (Google accounts count as verified); Settings shows no email-verified row. |
 | 9 | Repeat rows 1-4 in Spanish. | Natural Spanish throughout; the "Crear cuenta" tab label survives large font scales. |
 
-**Admin dashboard** verification (not a device test): `docs/ADMIN.md` - deploy steps, granting
+**Admin dashboard** verification (not a device test): `docs/v1/ADMIN.md` - deploy steps, granting
 the admin claim, and a per-callable checklist (user list, disable/enable, set plan, metrics).
 
 If iOS is in scope, repeat T1 to T11 on an iPhone and run T20.
 
-### T20. iOS: Sign in with Apple, gate parity and deletion (`docs/SETUP.md` §8)
+### T20. iOS: Sign in with Apple, gate parity and deletion (`docs/v1/SETUP.md` §8)
 
 Device: a real iPhone (TestFlight or a registered-device build). Rows marked (sim) also work in
 a simulator build (Appetize) WITHOUT an iCloud account; the Apple sign-in rows need a device
@@ -768,7 +771,7 @@ catch them.
 | 11 | T5 alert spot-check on the iPhone: one MAX and one MEDIUM alert with the app in background. | Both fire on time; MAX/MEDIUM break through a Focus mode (time-sensitive entitlement works). |
 | 12 | (sim) Icon + splash check on a clean install. | The 1024 icon renders crisp on the home screen and in Settings; no letterboxing artifacts. |
 
-### T21. WhatsApp bot: linking, assistant bridge, confirm flow (`docs/SETUP.md` §14)
+### T21. WhatsApp bot: linking, assistant bridge, confirm flow (`docs/v1/SETUP.md` §14)
 
 Needs: the Meta TEST number configured (SETUP §14 steps 1-6), YOUR phone on the allow-list, the
 app signed in with a verified account, and `WHATSAPP_ENABLED=true` deployed. "Bot" = the test

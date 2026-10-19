@@ -9,7 +9,7 @@
 // "appVersion"), so an update only reaches binaries with the same version. Bump `version`
 // whenever native code or native config changes (new native module, permission, plugin
 // option); JS/asset-only fixes ship with `npm run update:<channel>`. Each eas.json build
-// profile listens to its own channel. Runbook and rollback: docs/DEPLOYMENT.md.
+// profile listens to its own channel. Runbook and rollback: docs/v1/DEPLOYMENT.md.
 //
 // Expo SDK 57 platform defaults (no expo-build-properties needed): Android minSdk 24,
 // compileSdk/targetSdk 36, New Architecture + Hermes always on, edge-to-edge always on
@@ -31,7 +31,7 @@ const trim = (value) => (typeof value === 'string' ? value.trim() : '');
 
 const EAS_PROJECT_ID = '139b18d2-655f-458f-854a-27e423530626';
 
-// Local test APKs built on a PC (scripts/build-test-apk.mjs, `npm run apk:test`; docs/TESTING.md B.2)
+// Local test APKs built on a PC (scripts/build-test-apk.mjs, `npm run apk:test`; docs/v1/TESTING.md B.2)
 // set MG_LOCAL_TEST_BUILD=1. They listen to no EAS Update channel, so expo-updates is turned off in
 // them: the APK always runs the bundle it was built with and never contacts EAS Update. EAS builds
 // never set this variable, so their config is unchanged.
@@ -71,7 +71,7 @@ function googleSignInPlugin() {
  * com.apple.developer.applesignin entitlement as `ios.usesAppleSignIn: true`, but listing it
  * keeps the native setup explicit and future plugin options available. The entry is conditional
  * because a config plugin whose package is missing makes every `npx expo config` / prebuild
- * fail: on a checkout where `npx expo install expo-apple-authentication` (docs/SETUP.md §8) has
+ * fail: on a checkout where `npx expo install expo-apple-authentication` (docs/v1/SETUP.md §8) has
  * not run yet, the plugin is left out and the entitlement still comes from usesAppleSignIn.
  */
 function appleAuthPlugin() {
@@ -136,7 +136,7 @@ module.exports = {
     ios: {
       // iPhone only for the first iOS release: the layouts are portrait-only and untested on iPad
       // (an iPad build must support every orientation and needs iPad screenshots). iPads run the
-      // iPhone app in compatibility mode. Turn on after iPad QA (docs/SETUP.md §8).
+      // iPhone app in compatibility mode. Turn on after iPad QA (docs/v1/SETUP.md §8).
       supportsTablet: false,
       bundleIdentifier: 'com.meetingguard.ai',
       // Full-bleed square icon: the shared icon.png has a transparent margin and baked rounded
@@ -147,7 +147,7 @@ module.exports = {
       // expo-apple-authentication is installed (until then `npx expo config --type introspect`
       // prints a warning and emits no entitlement - harmless, nothing can build iOS before the
       // install either). EAS registers the capability on the App ID from the generated
-      // entitlements (docs/SETUP.md §8).
+      // entitlements (docs/v1/SETUP.md §8).
       usesAppleSignIn: true,
       // MAX / MEDIUM meeting alerts use interruptionLevel "timeSensitive" (they break through
       // Focus modes). The App ID needs the "Time Sensitive Notifications" capability.
