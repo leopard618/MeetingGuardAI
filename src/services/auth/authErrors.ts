@@ -219,7 +219,7 @@ export function mapGoogleSignInError(error: unknown, codes: GoogleStatusCodes): 
 }
 
 // ---------------------------------------------------------------------------------------------
-// Sign in with Apple (expo-apple-authentication; iOS only - docs/ARCHITECTURE.md §26)
+// Sign in with Apple (expo-apple-authentication; iOS only - docs/v1/ARCHITECTURE.md §26)
 // ---------------------------------------------------------------------------------------------
 
 /** expo-apple-authentication rejection codes (CodedError.code). */

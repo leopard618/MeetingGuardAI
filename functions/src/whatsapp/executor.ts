@@ -1,5 +1,5 @@
 /**
- * Server-side executor for CONFIRMED AiActions over WhatsApp (docs/ARCHITECTURE.md §27). This is
+ * Server-side executor for CONFIRMED AiActions over WhatsApp (docs/v1/ARCHITECTURE.md §27). This is
  * the ONLY place the server mutates meetings; everywhere else the app executes confirmed actions
  * itself.
  *
@@ -299,6 +299,7 @@ export function draftToTaskDoc(
   draft: AiTaskDraft,
   now: Date,
   fallbackTimezone: string,
+  linkedMeetingId: string | null = null,
 ): Record<string, unknown> {
   const nowIso = now.toISOString();
   const dueTime = draft.dueDate === null ? null : draft.dueTime;
@@ -311,7 +312,7 @@ export function draftToTaskDoc(
     timezone: usableZone(fallbackTimezone, 'UTC'),
     reminderMinutesBefore: dueTime === null ? null : draft.reminderMinutesBefore,
     status: 'open',
-    meetingId: draft.meetingId,
+    meetingId: draft.meetingId ?? linkedMeetingId,
     people: toTaskPeople(draft.people),
     completedAt: null,
     createdAt: nowIso,
@@ -361,9 +362,10 @@ async function executeCreateTask(
   tasks: TaskStore,
   now: () => Date,
   fallbackTimezone: string,
+  linkedMeetingId: string | null = null,
 ): Promise<void> {
   const taskId = tasks.newTaskId();
-  await tasks.createTask(uid, taskId, draftToTaskDoc(uid, action.task, now(), fallbackTimezone));
+  await tasks.createTask(uid, taskId, draftToTaskDoc(uid, action.task, now(), fallbackTimezone, linkedMeetingId));
   logger.info('whatsapp.action_applied', { uid, type: action.type, taskId });
 }
 
@@ -431,7 +433,7 @@ async function executeCreate(
   action: Extract<AiAction, { type: 'create_meeting' }>,
   deps: ExecutorDeps,
   fallbackTimezone: string,
-): Promise<void> {
+): Promise<string> {
   const meetingId = deps.store.newMeetingId();
   const doc = draftToMeetingDoc(uid, meetingId, action.meeting, action.confidence, deps.now(), fallbackTimezone);
   await deps.store.createMeeting(uid, meetingId, doc);
@@ -440,6 +442,7 @@ async function executeCreate(
     await bestEffortZoom(uid, meetingId, 'create', () => zoom.ensureLink(uid, meetingId));
   }
   logger.info('whatsapp.action_applied', { uid, type: action.type, meetingId });
+  return meetingId;
 }
 
 async function executeUpdate(
@@ -534,6 +537,10 @@ export async function executeConfirmedActions(
   fallbackTimezone: string,
 ): Promise<ExecutionResult> {
   const result: ExecutionResult = { applied: 0, unsupported: 0, failed: 0 };
+  // v6 combined requests: a create_task draft may point at the create_meeting action of the same
+  // response, whose id only exists once we create it here. Actions run in order, so the meeting is
+  // already in this map by the time its task runs; an unresolved link just leaves the task unlinked.
+  const createdMeetingIds = new Map<string, string>();
   for (const candidate of actions) {
     const parsed = aiActionSchema.safeParse(candidate);
     if (!parsed.success) {
@@ -544,7 +551,7 @@ export async function executeConfirmedActions(
     try {
       switch (action.type) {
         case 'create_meeting':
-          await executeCreate(uid, action, deps, fallbackTimezone);
+          createdMeetingIds.set(action.id, await executeCreate(uid, action, deps, fallbackTimezone));
           result.applied += 1;
           break;
         case 'update_meeting':
@@ -577,7 +584,9 @@ export async function executeConfirmedActions(
           if (!deps.tasks) {
             result.unsupported += 1;
           } else {
-            await executeCreateTask(uid, action, deps.tasks, deps.now, fallbackTimezone);
+            const link = action.task.meetingActionId ?? null;
+            const linkedMeetingId = link === null ? null : createdMeetingIds.get(link) ?? null;
+            await executeCreateTask(uid, action, deps.tasks, deps.now, fallbackTimezone, linkedMeetingId);
             result.applied += 1;
           }
           break;

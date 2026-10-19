@@ -13,7 +13,7 @@
  *   alerts leave, so they never push a real alert out of the OS schedule. When the alerts alone do
  *   not fit, one slot is reserved for the refill reminder (refillReminderAt): it fires before the
  *   scheduled window runs out and asks the user to open the app (which reconciles again).
- * - Recurring meetings (docs/ARCHITECTURE.md §16): the master expands into occurrences over
+ * - Recurring meetings (docs/v1/ARCHITECTURE.md §16): the master expands into occurrences over
  *   [now - followUpDelay, horizon + largest offset] and each occurrence gets its own items with
  *   4-part ids ("mg:{id}:{localDateKey}:{offset}" / ":followup") and `localDateKey` set; cancelled
  *   occurrences get nothing; modified ones alert at their EFFECTIVE time. A series that continues

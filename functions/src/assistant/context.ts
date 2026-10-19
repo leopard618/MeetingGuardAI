@@ -214,6 +214,15 @@ export interface MeetingModelView {
   recurring?: true;
   /** Compact rule, e.g. "every 2 weeks on MO,WE until 2026-12-31" (see compactRecurrence). */
   repeats?: string;
+  /**
+   * Occurrence dates of a series that are CANCELLED (original local dates). An agenda answer
+   * must never announce one of these, and a scoped edit must never target one.
+   */
+  skipped?: string[];
+  /** Occurrences that were MOVED: the original date and the new local start. */
+  moved?: { date: string; start: string }[];
+  /** Agenda or notes the user wrote, for meetings close enough to prepare for. */
+  preparation?: string;
 }
 
 /**
@@ -242,7 +251,41 @@ function clip(value: string, max: number): string {
   return trimmed.length > max ? `${trimmed.slice(0, max - 1)}...` : trimmed;
 }
 
-export function toModelView(meeting: ContextMeeting, userTimeZone: string, isFollowUp: boolean): MeetingModelView {
+/**
+ * Compact view of a series' per-occurrence exceptions. Sorted by date and capped, because a
+ * long-running series can carry up to 200 of them and the data block has a byte budget. Only
+ * cancelled and moved occurrences change an agenda answer; a title-only override does not.
+ */
+export function summarizeOverrides(
+  overrides: Readonly<Record<string, { status: string; startAt: string | null }>> | null,
+  displayZone: string,
+): { skipped: string[]; moved: { date: string; start: string }[] } {
+  const skipped: string[] = [];
+  const moved: { date: string; start: string }[] = [];
+  if (overrides === null) return { skipped, moved };
+  for (const date of Object.keys(overrides).sort()) {
+    const override = overrides[date];
+    if (!override) continue;
+    if (override.status === 'cancelled') {
+      if (skipped.length < CONTEXT_WINDOW.maxOccurrenceExceptions) skipped.push(date);
+      continue;
+    }
+    if (override.startAt === null) continue;
+    const instant = parseInstant(override.startAt);
+    if (instant === null) continue;
+    if (moved.length < CONTEXT_WINDOW.maxOccurrenceExceptions) {
+      moved.push({ date, start: `${toLocalDate(instant, displayZone)} ${toLocalTime(instant, displayZone)}` });
+    }
+  }
+  return { skipped, moved };
+}
+
+export function toModelView(
+  meeting: ContextMeeting,
+  userTimeZone: string,
+  isFollowUp: boolean,
+  options: { includePreparation?: boolean } = {},
+): MeetingModelView {
   const { doc } = meeting;
   const meetingZone = isValidTimeZone(doc.timezone) ? doc.timezone : userTimeZone;
   const displayZone = doc.allDay ? meetingZone : userTimeZone;
@@ -276,9 +319,16 @@ export function toModelView(meeting: ContextMeeting, userTimeZone: string, isFol
   if (doc.recurrence !== null && doc.recurrence !== undefined) {
     view.recurring = true;
     view.repeats = compactRecurrence(doc.recurrence, meetingZone);
+    const exceptions = summarizeOverrides(doc.recurrenceOverrides ?? null, displayZone);
+    if (exceptions.skipped.length > 0) view.skipped = exceptions.skipped;
+    if (exceptions.moved.length > 0) view.moved = exceptions.moved;
   }
   if (isFollowUp && doc.description.trim().length > 0) {
     view.description = clip(doc.description, CONTEXT_WINDOW.maxFollowUpDescriptionChars);
+  } else if (options.includePreparation === true && doc.description.trim().length > 0) {
+    // "What should I prepare for tomorrow?" has to answer from what the user actually wrote,
+    // not from invention, so the agenda text travels with every meeting (shorter budget).
+    view.preparation = clip(doc.description, CONTEXT_WINDOW.maxPreparationChars);
   }
   return view;
 }
@@ -302,6 +352,7 @@ export const CONTEXT_FIELDS = [
   'location',
   'conference',
   'recurrence',
+  'recurrenceOverrides',
 ] as const;
 
 /** Rough serialized size of a document (characters of its JSON). */

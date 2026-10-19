@@ -10,7 +10,7 @@
  *   marked as failed and the app relaunches with the previous update (or the embedded bundle).
  *   `isEmergencyLaunch` stays false. The signal for a bad OTA update is therefore in Sentry: new
  *   crashes / errors grouped by the tag `expo.updates.update_id` right after a publish, and a
- *   falling crash-free rate (docs/DEPLOYMENT.md §8).
+ *   falling crash-free rate (docs/v1/DEPLOYMENT.md §8).
  * - An "emergency launch" means expo-updates could not use its update store at all (database or
  *   directory failure) and started the embedded bundle. The Sentry SDK already reports it
  *   (`expoContextIntegration`: a warning event tagged `expo.updates.emergency_launch=true`) and

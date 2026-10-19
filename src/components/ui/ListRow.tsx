@@ -1,5 +1,5 @@
 /**
- * List / settings row (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §5): minHeight 56
+ * List / settings row (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5): minHeight 56
  * (72 with supporting text), leading 24dp MCI icon in onSurfaceVariant, title titleM, supporting
  * bodyM, trailing node or chevron. Selected rows tint surfaceContainerHigh; disabled rows use
  * disabledText (never opacity on the whole row). Ripple onSurface@8%.

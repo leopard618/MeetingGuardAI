@@ -1,5 +1,5 @@
 /**
- * Account linking (docs/ARCHITECTURE.md §27): the app mints a 6-digit code (whatsappLinkStart),
+ * Account linking (docs/v1/ARCHITECTURE.md §27): the app mints a 6-digit code (whatsappLinkStart),
  * the user sends it to the bot number, the webhook redeems it (session.ts). This module holds
  * the callable logic on injected ports plus the deleteAccount / unlink cleanup.
  *

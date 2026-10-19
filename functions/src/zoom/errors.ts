@@ -5,7 +5,7 @@
  *   HTTPS code from ZOOM_ERROR_HTTPS_CODES) - defined here so handler.ts and index.ts share it
  *   without a cycle (index.ts re-exports it).
  * - `ZoomApiError` is the internal failure of a Zoom HTTP call (token mint or REST), already
- *   mapped to its reason per the table in docs/ARCHITECTURE.md §24: 401 after one token
+ *   mapped to its reason per the table in docs/v1/ARCHITECTURE.md §24: 401 after one token
  *   refresh retry => not_configured; 404 => not_found; 429 => quota_exceeded; anything else
  *   => upstream_error. Handlers convert it with `toZoomHttpsError`.
  */

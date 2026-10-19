@@ -1,4 +1,5 @@
 import { AppError } from '../../../core/errors';
+import type { Meeting } from '../../../core/types';
 import {
   NOW,
   bulkAction,
@@ -28,6 +29,7 @@ import {
   describeWarnings,
   formatShift,
   isOccurrenceDelete,
+  occurrenceForListRow,
 } from '../presentation';
 
 const fmt = createTestFormatter();
@@ -315,5 +317,50 @@ describe('recurrence on the cards (v2)', () => {
     const rows = describeDraft(fmtEs, makeDraft({ recurrence: { ...rule, until: '2030-06-30T21:59:00.000Z' } }));
     const byField = Object.fromEntries(rows.map((r) => [r.field, r.value]));
     expect(byField.repeats).toBe('Se repite cada semana los lunes, hasta el 2030-06-30');
+  });
+});
+
+describe('occurrenceForListRow (agenda rows show the right occurrence)', () => {
+  const DAILY = { freq: 'daily' as const, interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null };
+  const CLOCK = new Date('2026-10-05T12:00:00.000Z');
+
+  function series(overrides: Partial<Meeting> = {}): Meeting {
+    return {
+      ...makeMeeting('standup', { startAt: '2026-06-01T07:00:00.000Z', durationMinutes: 15 }),
+      recurrence: DAILY,
+      ...overrides,
+    };
+  }
+
+  it('leaves a one-off meeting exactly as it is', () => {
+    const meeting = makeMeeting('m1', { startAt: '2026-10-06T09:00:00.000Z' });
+    expect(occurrenceForListRow(meeting, CLOCK)).toMatchObject({ startAt: '2026-10-06T09:00:00.000Z' });
+  });
+
+  it('shows the next occurrence, not the first one months ago', () => {
+    const row = occurrenceForListRow(series(), CLOCK);
+    expect(row.startAt).toBe('2026-10-06T07:00:00.000Z');
+    expect(row.startAt).not.toBe('2026-06-01T07:00:00.000Z');
+  });
+
+  it('skips a cancelled occurrence', () => {
+    const withSkip = series({
+      recurrenceOverrides: { '2026-10-06': { status: 'cancelled', startAt: null, durationMinutes: null, title: null } },
+    });
+    expect(occurrenceForListRow(withSkip, CLOCK).startAt).toBe('2026-10-07T07:00:00.000Z');
+  });
+
+  it('uses the new time of a moved occurrence', () => {
+    const moved = series({
+      recurrenceOverrides: {
+        '2026-10-06': { status: 'modified', startAt: '2026-10-06T15:00:00.000Z', durationMinutes: 30, title: null },
+      },
+    });
+    expect(occurrenceForListRow(moved, CLOCK)).toMatchObject({ startAt: '2026-10-06T15:00:00.000Z', durationMinutes: 30 });
+  });
+
+  it('falls back to the stored start when the series has run out', () => {
+    const finished = series({ recurrence: { ...DAILY, until: '2026-07-01T00:00:00.000Z' } });
+    expect(occurrenceForListRow(finished, CLOCK).startAt).toBe('2026-06-01T07:00:00.000Z');
   });
 });

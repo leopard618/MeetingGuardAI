@@ -398,7 +398,7 @@ export function recurrenceEndsAt(meeting: RecurringMeetingLike): string | null {
  * How an update/delete applies to a recurring meeting. v2 of the recurrence model adds
  * 'following' ("this and the following occurrences"): the series is SPLIT at the target
  * occurrence's ORIGINAL local date (splitRecurrenceAt below; repository ops
- * editFollowing / deleteFollowing in MeetingRecurrenceOps, docs/ARCHITECTURE.md §16).
+ * editFollowing / deleteFollowing in MeetingRecurrenceOps, docs/v1/ARCHITECTURE.md §16).
  */
 export const RECURRENCE_EDIT_SCOPES = ['occurrence', 'series', 'following'] as const;
 export type RecurrenceEditScope = (typeof RECURRENCE_EDIT_SCOPES)[number];
@@ -573,7 +573,7 @@ const RRULE_FREQ: Readonly<Record<RecurrenceFreq, string>> = {
  * All-day series use DATE values for UNTIL and EXDATE (RFC 5545 requires the DTSTART value type
  * and Google rejects date-times on an all-day event); the UNTIL date is the instant's local date
  * in the meeting's timezone, which keeps the inclusive-day semantics (original starts are local
- * midnights). Time-modified overrides are NOT pushed in v1 (docs/ARCHITECTURE.md §16).
+ * midnights). Time-modified overrides are NOT pushed in v1 (docs/v1/ARCHITECTURE.md §16).
  */
 export function toGoogleRecurrence(meeting: RecurringMeetingLike): string[] {
   const rule = meeting.recurrence;

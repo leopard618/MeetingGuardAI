@@ -11,7 +11,7 @@
  * 2. Account deletion log. `deleteAccount` writes accountDeletions/{uid} = { deletedAt } BEFORE it
  *    deletes anything. Firestore backups (daily, kept 14 days) and point-in-time recovery (7 days)
  *    still hold a deleted user's data, and a restore imports it back. After any restore, the
- *    runbook replays every deletion recorded since the backup time (docs/DEPLOYMENT.md §7), so a
+ *    runbook replays every deletion recorded since the backup time (docs/v1/DEPLOYMENT.md §7), so a
  *    deleted account stays deleted. The record holds only the anonymous user id and the time, and
  *    is itself deleted after DELETION_LOG_RETENTION_DAYS (longer than any backup is kept).
  */
@@ -23,7 +23,7 @@ export const TOMBSTONE_RETENTION_DAYS = 60;
 export const DELETION_LOG_RETENTION_DAYS = 30;
 
 /**
- * WhatsApp bot state retention (docs/ARCHITECTURE.md §27): dedupe markers (whatsappEvents) and
+ * WhatsApp bot state retention (docs/v1/ARCHITECTURE.md §27): dedupe markers (whatsappEvents) and
  * link codes (whatsappLinkCodes) carry their own `expiresAt` and are purged once it passed;
  * sessions idle longer than WHATSAPP_SESSION_RETENTION_DAYS (their `updatedAt`) are purged too
  * (must equal WHATSAPP_TUNING.sessionPurgeDays in ../config.ts; a unit test checks it).

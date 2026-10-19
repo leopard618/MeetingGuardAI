@@ -152,3 +152,36 @@ export function voiceCommand(text: string, language: Language): VoiceCommand | n
   if (!known) return null;
   return confirmStrong ? 'confirm' : 'cancel';
 }
+
+/**
+ * What a finished dictation should do. Extracted from the screen so the Stage 1 acceptance
+ * property ("an unclear reply never executes anything") is a pure, tested decision rather than
+ * inline screen code:
+ *
+ * - 'edit' keeps the text in the input and acts on nothing. This is a dictation the user stopped
+ *   with the mic button, or one that arrived while the assistant was busy.
+ * - 'command' only ever happens with proposals ON SCREEN and an unambiguous phrase. Without
+ *   pending proposals, "yes" is just a message.
+ * - 'send' is everything else, including every unclear, partial or qualified answer.
+ */
+export type VoiceRoute =
+  | { kind: 'edit'; text: string }
+  | { kind: 'command'; command: VoiceCommand }
+  | { kind: 'send'; text: string };
+
+export function routeFinalTranscript(input: {
+  text: string;
+  /** chatModel.sendableText: null while the assistant is busy or the text is blank. */
+  sendable: string | null;
+  /** False when the user stopped the dictation themselves, to edit it. */
+  autoSend: boolean;
+  hasPending: boolean;
+  language: Language;
+}): VoiceRoute {
+  if (!input.autoSend || input.sendable === null) return { kind: 'edit', text: input.text };
+  if (input.hasPending) {
+    const command = voiceCommand(input.sendable, input.language);
+    if (command !== null) return { kind: 'command', command };
+  }
+  return { kind: 'send', text: input.sendable };
+}

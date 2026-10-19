@@ -1,5 +1,5 @@
 /**
- * computeAlertPlan for RECURRING meetings (docs/ARCHITECTURE.md §16) + occurrenceEffective.
+ * computeAlertPlan for RECURRING meetings (docs/v1/ARCHITECTURE.md §16) + occurrenceEffective.
  * One-off behaviour is covered by plan.test.ts and must not change.
  */
 import type { Meeting, MeetingRecurrence, RecurrenceOverrides } from '../../../core/types';

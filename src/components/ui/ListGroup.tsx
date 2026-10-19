@@ -1,5 +1,5 @@
 /**
- * Grouped list container (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §5): surface, r-md,
+ * Grouped list container (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5): surface, r-md,
  * 1px outlineVariant border, hairline dividers between children (settings / details pattern).
  */
 import { Children, Fragment, type ReactElement, type ReactNode } from 'react';

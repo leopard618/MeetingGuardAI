@@ -3,7 +3,7 @@
  * animation. It can be minimized to a pill but not dismissed: it stays until the user
  * acknowledges, snoozes, joins or opens the meeting. One chime + voice + vibration on appearance.
  *
- * Visuals are the mode-invariant `alertMedium` identity (docs/DESIGN_SYSTEM.md §9): an elevated
+ * Visuals are the mode-invariant `alertMedium` identity (docs/v1/DESIGN_SYSTEM.md §9): an elevated
  * dark card with a 4dp amber accent bar, identical in light and dark mode, every pair AA-checked.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';

@@ -12,7 +12,7 @@ import { IconButton, Text, TouchableRipple } from 'react-native-paper';
 import { Card, SectionHeader } from '../../components/ui';
 import type { Task } from '../../core/types';
 import { useT } from '../../i18n';
-import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
+import { componentMetrics, spacing, useAppTheme } from '../../theme';
 import { isDueToday, isOverdue } from '../tasks/tasksModel';
 import type { Formatters } from '../shared/useFormatters';
 

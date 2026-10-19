@@ -1,5 +1,5 @@
 /**
- * Empty state (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §5/§8): 96dp surfaceVariant
+ * Empty state (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5/§8): 96dp surfaceVariant
  * circle with a 48dp MCI icon, headlineS title, bodyM body, optional tonal action. Centered,
  * pv 40 - replaces the per-screen dashed boxes and plain-text empties.
  */
@@ -22,7 +22,7 @@ export interface EmptyStateProps {
   /**
    * "error" gives the icon circle the errorContainer pair - for a load failure with nothing
    * cached on screens that (yet) have no retry path, so it never reads like a neutral empty
-   * (docs/DESIGN_SYSTEM.md §8). Prefer ErrorState whenever a retry handler exists.
+   * (docs/v1/DESIGN_SYSTEM.md §8). Prefer ErrorState whenever a retry handler exists.
    */
   tone?: 'neutral' | 'error';
   action?: EmptyStateAction;

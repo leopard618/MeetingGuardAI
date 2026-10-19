@@ -21,6 +21,7 @@ import {
   AI_LIMITS,
   assistantRequestSchema,
   assistantResponseSchema,
+  isMutatingAction,
   isTrustedSignInProvider,
   type AssistantRequest,
   type AssistantResponse,
@@ -30,7 +31,7 @@ import { FollowUpMeetingNotFoundError, loadMeetingContext, type MeetingReader } 
 import { UpstreamError, assistantError } from './errors';
 import type { GlobalBudget } from './globalBudget';
 import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
-import { buildPromptMessages, collectUserText, fallbackReply } from './prompt';
+import { buildPromptMessages, collectUserText, composeListAnswer, fallbackReply } from './prompt';
 import { consumeQuota, refundQuota, type QuotaDecision, type QuotaStore } from './quota';
 import { buildTaskContext, type TaskContext, type TaskReader } from './tasksContext';
 import { isValidTimeZone } from './time';
@@ -47,7 +48,7 @@ export interface AssistantDeps {
   /** Project-wide daily cap (optional: tests and the emulator run without one). */
   globalBudget?: GlobalBudget;
   /**
-   * Admin v2 stats hook (docs/ADMIN.md §v2): merge-set with increments on
+   * Admin v2 stats hook (docs/v1/ADMIN.md §v2): merge-set with increments on
    * adminStats/ai/days/{dayKey} after a successful completion. Optional, and guarded by its own
    * try/catch here: a stats failure is warn-logged and NEVER fails (or refunds) the request.
    */
@@ -219,6 +220,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       userTimeZone: request.timezone,
       context,
       tasksContext,
+      allowNewMeetingLinks: (request.contractVersion ?? 0) >= 6,
       userText: collectUserText(request.messages),
       ...(deps.newActionId ? { newActionId: deps.newActionId } : {}),
     });
@@ -230,27 +232,36 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     let reply = (completion.content ?? '').trim();
     if (reply.length === 0 && completion.refusal) reply = completion.refusal.trim();
     if (reply.length === 0) {
-      const onlyLists = mapped.actions.length > 0 && mapped.actions.every((action) => action.type === 'list');
+      // A read-only answer is never captioned "review and confirm": there is nothing to
+      // confirm. It is composed from the rows themselves, so a voice-only user hears the
+      // actual answer (and hears "nothing" when the answer is nothing).
+      const reads = mapped.actions.filter((action) => !isMutatingAction(action));
+      const onlyLists = mapped.actions.length > 0 && reads.length === mapped.actions.length;
+      // A read-only answer with no reply text is composed from the rows themselves, so the
+      // user hears the actual answer rather than "here are the meetings I found".
+      const listAnswer = onlyLists ? composeListAnswer(reads, context, tasksContext, request.language, request.timezone) : null;
       // Every proposal the model made was dropped (e.g. a timed meeting without a time): tell
       // the user WHAT is missing instead of a useless "couldn't generate a response" loop.
       const allDropped =
         mapped.actions.length === 0 && completion.toolCalls.length > 0 && Object.keys(mapped.dropped).length > 0;
-      reply = fallbackReply(
-        request.language,
-        request.mode === 'followup'
-          ? 'followup'
-          : resolution !== null
-            ? resolution === 'confirm'
-              ? 'resolve_confirm'
-              : 'resolve_reject'
-            : onlyLists
-              ? 'list'
+      if (listAnswer !== null) {
+        reply = listAnswer;
+      } else {
+        reply = fallbackReply(
+          request.language,
+          request.mode === 'followup'
+            ? 'followup'
+            : resolution !== null
+              ? resolution === 'confirm'
+                ? 'resolve_confirm'
+                : 'resolve_reject'
               : mapped.actions.length > 0
                 ? 'actions'
                 : allDropped
                   ? 'need_details'
                   : 'empty',
-      );
+        );
+      }
     }
     if (reply.length > AI_LIMITS.maxReplyChars) reply = reply.slice(0, AI_LIMITS.maxReplyChars);
 

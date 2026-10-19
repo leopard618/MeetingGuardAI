@@ -75,7 +75,7 @@ export interface RcCustomerInfoLike {
  * Google Play product change (react-native-purchases GoogleProductChangeInfo): buying a
  * different subscription product must REPLACE the active one, never open a second one.
  * ANDROID ONLY: on iOS all four products share one subscription group, so StoreKit replaces
- * by itself and no product change is passed (docs/ARCHITECTURE.md section 20).
+ * by itself and no product change is passed (docs/v1/ARCHITECTURE.md section 20).
  */
 export interface RcProductChangeInfoLike {
   oldProductIdentifier: string;
@@ -98,7 +98,7 @@ export interface PurchasesSdkLike {
    * MUST receive a package object returned by getOfferings (the bridge maps its fields).
    * The real 10.x signature is purchasePackage(pkg, upgradeInfo?, productChangeInfo?, ...):
    * `upgradeInfo` is the DEPRECATED slot (always passed as null here) and `productChangeInfo`
-   * carries the Google product change for tier upgrades (docs/ARCHITECTURE.md §20).
+   * carries the Google product change for tier upgrades (docs/v1/ARCHITECTURE.md §20).
    */
   purchasePackage(
     pkg: RcPackageLike,

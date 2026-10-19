@@ -1,6 +1,6 @@
 /**
  * MG Indigo design tokens (owner: shell / Foundation). Single source of truth for every design
- * value in the app - see docs/DESIGN_SYSTEM.md for intent and per-screen application.
+ * value in the app - see docs/v1/DESIGN_SYSTEM.md for intent and per-screen application.
  *
  * Pure module: no React, no react-native, no react-native-paper imports, so it can be consumed
  * by src/contexts/themeColors.ts (Paper theme construction), by components via the src/theme
@@ -489,7 +489,7 @@ export const radii = {
 export type MGRadii = typeof radii;
 
 /**
- * Alpha levels for pressed / ripple feedback (docs/DESIGN_SYSTEM.md §8), applied with withAlpha:
+ * Alpha levels for pressed / ripple feedback (docs/v1/DESIGN_SYSTEM.md §8), applied with withAlpha:
  * cards ripple primary@10%, list rows onSurface@8%, 44dp icon buttons onSurface@12%.
  */
 export const stateAlpha = {
@@ -504,7 +504,7 @@ export const pressedOpacity = 0.96;
 /**
  * Visible pressed dim for Pressables WITHOUT an `android_ripple` (alert-overlay buttons, banner /
  * section-header text actions, bespoke pill buttons). 0.96 is imperceptible on Android, so
- * ripple-less controls use this instead on both platforms (docs/DESIGN_SYSTEM.md §8).
+ * ripple-less controls use this instead on both platforms (docs/v1/DESIGN_SYSTEM.md §8).
  */
 export const pressedDimOpacity = 0.75;
 

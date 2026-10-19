@@ -1,6 +1,6 @@
 /**
  * MG Indigo component kit (owner: shell / Foundation) - the shared building blocks every screen
- * group consumes (docs/DESIGN_SYSTEM.md §5). Import from this barrel:
+ * group consumes (docs/v1/DESIGN_SYSTEM.md §5). Import from this barrel:
  *
  *   import { Card, MGButton, SectionHeader, ListGroup, ListRow, EmptyState, ErrorState,
  *            LoadingState, Skeleton, Badge, Banner, SheetHandle } from '../../components/ui';

@@ -412,6 +412,40 @@ describe('tasks over WhatsApp (v5)', () => {
     const result = await executeConfirmedActions('u1', [action], { store, now: () => NOW }, 'UTC');
     expect(result).toEqual({ applied: 0, unsupported: 1, failed: 0 });
   });
+  // v6: "book the call and add a task the day before" arrives as two confirmed actions; here the
+  // SERVER creates both, so it resolves the link itself from the id it just minted.
+  it('links a task to the meeting created by the same confirmed batch', async () => {
+    const store = new FakeMeetingStore();
+    const tasks = new FakeTaskStore();
+    const meeting: AiAction = createAction({ id: 'a1' });
+    const task: AiAction = {
+      type: 'create_task',
+      id: 'a2',
+      summary: 'Add a task.',
+      confidence: 85,
+      task: { ...taskDraft, meetingActionId: 'a1' },
+    };
+    const result = await executeConfirmedActions('u1', [meeting, task], { store, tasks, now: () => NOW }, 'Europe/Madrid');
+    expect(result).toEqual({ applied: 2, unsupported: 0, failed: 0 });
+    const createdMeetingId = [...store.docs.keys()].find((key) => key.startsWith('u1/'))?.slice(3);
+    expect(createdMeetingId).toBeDefined();
+    expect(tasks.docs.get('u1/task1')).toMatchObject({ meetingId: createdMeetingId });
+  });
+
+  it('creates the task unlinked when the link points at no meeting in the batch', async () => {
+    const store = new FakeMeetingStore();
+    const tasks = new FakeTaskStore();
+    const task: AiAction = {
+      type: 'create_task',
+      id: 'a2',
+      summary: 'Add a task.',
+      confidence: 85,
+      task: { ...taskDraft, meetingActionId: 'a_missing' },
+    };
+    const result = await executeConfirmedActions('u1', [task], { store, tasks, now: () => NOW }, 'Europe/Madrid');
+    expect(result).toEqual({ applied: 1, unsupported: 0, failed: 0 });
+    expect(tasks.docs.get('u1/task1')).toMatchObject({ meetingId: null });
+  });
 });
 
 describe('tombstoneFieldUpdates', () => {

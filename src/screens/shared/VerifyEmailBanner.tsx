@@ -1,6 +1,6 @@
 /**
  * "Verify your email" banner and verification-gate helpers (owner: email-auth). Design:
- * docs/ARCHITECTURE.md section 25. i18n: auth:verify.* (EN+ES).
+ * docs/v1/ARCHITECTURE.md section 25. i18n: auth:verify.* (EN+ES).
  *
  * Where it mounts: AssistantScreen above the thread (the assistant callable REJECTS unverified
  * accounts server-side) and the AI suggestions entry on the insights screen. The Settings

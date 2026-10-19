@@ -4,7 +4,7 @@
  * always white; our toasts often carry the useful part at the end ("Calendar sync failed: <reason>"),
  * in two languages, so these layouts:
  * - wrap (title up to 3 lines, message up to 4) and grow with the text and the font scale;
- * - use the mode-invariant MG toast identity (docs/DESIGN_SYSTEM.md §7 group D): the always-dark
+ * - use the mode-invariant MG toast identity (docs/v1/DESIGN_SYSTEM.md §7 group D): the always-dark
  *   `alertLight` card in both themes, with a semantic dark-scheme accent per tone (AA-checked on
  *   the dark card by the theme contrast guard);
  * - are announced by screen readers (accessibilityRole "alert", polite live region).

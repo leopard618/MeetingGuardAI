@@ -3,6 +3,21 @@
     "title": "Recordatorio de tarea",
     "body": "{{title}} - vence a las {{time}}"
   },
+  "briefing": {
+    "title": "Tu día",
+    "meetings_one": "1 reunión hoy a las {{time}}: {{titles}}.",
+    "meetings_other": "{{count}} reuniones hoy, la primera a las {{time}}.",
+    "tasksDue_one": "{{count}} tarea para hoy.",
+    "tasksDue_other": "{{count}} tareas para hoy.",
+    "tasksOverdue_one": "{{count}} tarea vencida.",
+    "tasksOverdue_other": "{{count}} tareas vencidas.",
+    "empty": "Hoy no tienes reuniones ni tareas. Disfruta el día libre."
+  },
+  "status": {
+    "title": "MeetingGuard está activo",
+    "next": "Siguiente: {{title}} a las {{time}}",
+    "idle": "No hay reuniones próximas. Tus alertas están activas."
+  },
   "lead": {
     "minutes_one": "en {{count}} minuto",
     "minutes_other": "en {{count}} minutos",
@@ -44,6 +59,14 @@
     "followup": {
       "name": "Seguimiento de reuniones",
       "description": "Después de una reunión: registra notas y próximos pasos con tu asistente de IA."
+    },
+    "briefing": {
+      "name": "Resumen diario",
+      "description": "Una vez al día, un resumen de ese día: tus reuniones y las tareas que vencen."
+    },
+    "status": {
+      "name": "Estado",
+      "description": "Notificación fija y silenciosa que muestra que las alertas están activas."
     },
     "noVibrationName": "{{name}} (sin vibración)"
   },
@@ -115,6 +138,17 @@
     "followUp": {
       "label": "Seguimiento después de las reuniones",
       "description": "5 minutos después de que termine una reunión, recibe ideas de seguimiento del asistente de IA."
+    },
+    "briefing": {
+      "label": "Resumen diario",
+      "description": "Una vez al día, un resumen corto de ese día: tus reuniones y las tareas que vencen.",
+      "time": "Hora del resumen",
+      "at": "Resumen a las {{time}}",
+      "done": "Listo"
+    },
+    "statusNotification": {
+      "label": "Notificación de estado",
+      "description": "Mantén una notificación fija y silenciosa que muestra que tus alertas están activas y cuál es la próxima reunión."
     },
     "exactAlarms": {
       "granted": "Las alarmas exactas están permitidas. Las alertas suenan puntuales."

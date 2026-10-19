@@ -95,8 +95,52 @@ export interface TaskReminderSpec extends Omit<AlertNotificationSpec, 'kind' | '
   data: TaskReminderData;
 }
 
+/**
+ * content.data of a daily briefing ("mgbrief:{localDateKey}"; owner: briefing.ts, not the engine).
+ * Deliberately carries NO `alertType` key and no `type: 'persistent'`: diff.isLegacyNotification
+ * treats either of those as a stale pre-V2 notification and cancels it on every reconcile.
+ */
+export interface BriefingData {
+  v: 1;
+  kind: 'briefing';
+  /** The day this briefing is about, in the device zone. */
+  localDateKey: string;
+  fireAt: string;
+  /** Hash of everything visible: a changed body reschedules, an unchanged one is kept. */
+  hash: string;
+}
+
+/** The optional daily agenda notification (V2 Stage 1, week 4; src/services/alerts/briefing.ts). */
+export interface BriefingSpec extends Omit<AlertNotificationSpec, 'kind' | 'meetingId' | 'intensity' | 'data'> {
+  kind: 'briefing';
+  localDateKey: string;
+  data: BriefingData;
+}
+
+/**
+ * content.data of the ongoing status notification ("mgstatus:1"; owner: statusNotification.ts).
+ * Like the briefing it must carry no `alertType` and no `type: "persistent"`, or the engine
+ * would treat it as a stale pre-V2 notification and cancel it on every reconcile.
+ */
+export interface StatusNotificationData {
+  v: 1;
+  kind: 'status';
+  hash: string;
+}
+
+/**
+ * The ongoing "alerts are on" notification. It is PRESENTED, not scheduled, so it has no
+ * fireAt and never enters the ScheduledSpec union.
+ */
+export interface StatusNotificationSpec {
+  identifier: string;
+  channelId: string;
+  title: string;
+  body: string;
+  data: StatusNotificationData;
+}
 /** Anything the engine hands to the OS. */
-export type ScheduledSpec = AlertNotificationSpec | RefillNotificationSpec | TaskReminderSpec;
+export type ScheduledSpec = AlertNotificationSpec | RefillNotificationSpec | TaskReminderSpec | BriefingSpec;
 
 /** Meeting fields needed to render notification text. */
 export interface MeetingSummary {
@@ -195,7 +239,7 @@ export interface ChannelSpec {
   id: string;
   name: string;
   description: string;
-  importance: 'max' | 'high' | 'default';
+  importance: 'max' | 'high' | 'default' | 'low';
   /** Sound file name, "default" or null (silent). */
   sound: string | null;
   vibrationPattern: number[];
@@ -227,6 +271,8 @@ export interface NotificationsPort {
   requestPermission(): Promise<RawPermission>;
   getScheduled(): Promise<ScheduledNotificationRecord[]>;
   schedule(spec: ScheduledSpec): Promise<void>;
+  /** Shows an ongoing notification right now (no trigger); replaces one with the same id. */
+  present(spec: StatusNotificationSpec): Promise<void>;
   cancel(identifier: string): Promise<void>;
   getPresented(): Promise<PresentedNotificationRecord[]>;
   dismiss(identifier: string): Promise<void>;

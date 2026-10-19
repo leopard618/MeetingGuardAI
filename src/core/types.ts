@@ -109,6 +109,8 @@ export type EntitlementSource = (typeof ENTITLEMENT_SOURCES)[number];
 export const DEFAULT_MEETING_DURATION_MINUTES = 60;
 export const DEFAULT_ALERT_TIMES: readonly number[] = [15, 5, 0];
 export const DEFAULT_SNOOZE_MINUTES = 5;
+/** When the daily briefing fires once the user turns it on (device-local wall clock). */
+export const DEFAULT_BRIEFING_TIME = '08:00';
 
 // ---------------------------------------------------------------------------------------------
 // Primitive schemas
@@ -166,7 +168,7 @@ export interface ExternalRefs {
   googleUpdatedAt: string | null;
   deviceEventId: string | null;
   deviceCalendarId: string | null;
-  /** Microsoft Graph event id (Outlook sync; see docs/ARCHITECTURE.md §17). */
+  /** Microsoft Graph event id (Outlook sync; see docs/v1/ARCHITECTURE.md §17). */
   outlookEventId: string | null;
   outlookCalendarId: string | null;
   /** Graph `changeKey` of the last pulled/pushed version. */
@@ -175,7 +177,7 @@ export interface ExternalRefs {
   outlookUpdatedAt: string | null;
   /**
    * Zoom's numeric meeting id as a string (zoomCreateMeeting wrote conference.url for it; see
-   * docs/ARCHITECTURE.md §24). Written server-side via the Admin SDK; stored sparsely like the
+   * docs/v1/ARCHITECTURE.md §24). Written server-side via the Admin SDK; stored sparsely like the
    * outlook keys.
    */
   zoomMeetingId: string | null;
@@ -680,6 +682,12 @@ export interface Preferences {
   snoozeMinutes: number;
   /** Post-meeting follow-up notification (end + 5 min) opening the assistant. */
   followUpEnabled: boolean;
+  /** Optional once-a-day agenda notification (V2 Stage 1, week 4). Off until the user asks. */
+  briefingEnabled: boolean;
+  /** Local time of day "HH:mm" the briefing fires at, in the DEVICE zone. */
+  briefingTime: string;
+  /** Permanent silent notification showing that alerts are armed and the next meeting. */
+  statusNotificationEnabled: boolean;
   /** null = locale default (expo-localization uses24hourClock). */
   use24HourClock: boolean | null;
   onboardingCompleted: boolean;
@@ -702,6 +710,9 @@ export const preferencesSchema = z.object({
   defaultAlertTimes: alertTimesSchema,
   snoozeMinutes: z.number().int().min(1).max(60),
   followUpEnabled: z.boolean(),
+  briefingEnabled: z.boolean(),
+  briefingTime: localTimeSchema,
+  statusNotificationEnabled: z.boolean(),
   use24HourClock: z.boolean().nullable(),
   onboardingCompleted: z.boolean(),
   googleCalendarSyncEnabled: z.boolean(),
@@ -725,6 +736,9 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   defaultAlertTimes: [...DEFAULT_ALERT_TIMES],
   snoozeMinutes: DEFAULT_SNOOZE_MINUTES,
   followUpEnabled: true,
+  briefingEnabled: false,
+  briefingTime: DEFAULT_BRIEFING_TIME,
+  statusNotificationEnabled: false,
   use24HourClock: null,
   onboardingCompleted: false,
   googleCalendarSyncEnabled: false,

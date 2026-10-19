@@ -1,5 +1,5 @@
 /**
- * Section heading above cards / list groups (owner: shell / Foundation; docs/DESIGN_SYSTEM.md
+ * Section heading above cards / list groups (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md
  * §5): titleS onSurfaceVariant, sentence case (never UPPERCASE), mt 24 / mb 8, optional trailing
  * text action ("See all") with a 44dp touch target via hitSlop, or a plain non-pressable
  * `trailing` node (count label, Badge).

@@ -2,7 +2,7 @@
  * Data engine: one per app (index.ts creates the default instance). Owns the active data session:
  * the in-memory state, the per-user AsyncStorage cache, the outbox and the Firestore listeners.
  *
- * Write path (offline-first, docs/ARCHITECTURE.md §9):
+ * Write path (offline-first, docs/v1/ARCHITECTURE.md §9):
  *   validate with the core builder -> persist cache doc + outbox entry (one AsyncStorage multiSet)
  *   -> apply to memory -> emit the app event -> resolve -> send to Firestore in the background.
  * Read path: memory (loaded from the cache at session start, kept current by onSnapshot).
@@ -331,7 +331,7 @@ function pickPreferences(preferences: Preferences, keys: readonly PreferenceKey[
 
 /**
  * A recurring master is in a `from`-bounded range while its series still runs: its own startAt is
- * the FIRST occurrence (docs/ARCHITECTURE.md §16), which can be far behind the window start while
+ * the FIRST occurrence (docs/v1/ARCHITECTURE.md §16), which can be far behind the window start while
  * future occurrences are still due (the consumers expand occurrences themselves and window them).
  * `recurrenceEndsAt` is the last occurrence's start (null = endless series); the occurrence's
  * duration is added so the final occurrence stays listed until it ends (its follow-up alert).
@@ -371,7 +371,7 @@ function isPermanentFailure(error: AppError): boolean {
 /**
  * Meeting writes that carry phase-1 fields (recurrence / Outlook, stored sparsely: present only
  * when set). A 'permission_denied' for one of these most likely means the DEPLOYED Firestore
- * rules predate phase 1 (docs/HANDOFF.md §2 step 10), not a real ownership problem, so the entry
+ * rules predate phase 1 (docs/v1/HANDOFF.md §2 step 10), not a real ownership problem, so the entry
  * stays queued and retries (bounded by MAX_SEND_ATTEMPTS) instead of being dropped and rolled
  * back to the server copy - a rollback would DELETE a freshly created recurring meeting locally.
  */
@@ -1807,7 +1807,7 @@ export class DataEngine {
     if (removed) this.afterMeetingWrite(s, [id], 'deleted', origin);
   }
 
-  // ---- recurring meetings (MeetingRecurrenceOps; docs/ARCHITECTURE.md §16) -------------------
+  // ---- recurring meetings (MeetingRecurrenceOps; docs/v1/ARCHITECTURE.md §16) -------------------
 
   /**
    * Shared write path of the occurrence operations: validates the meeting (present, active,

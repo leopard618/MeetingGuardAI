@@ -378,3 +378,80 @@ describe('assistant controller', () => {
     expect(client.send).not.toHaveBeenCalled();
   });
 });
+
+describe('combined requests: linking a task to the meeting of the same response', () => {
+  function taskAction(id: string, meetingActionId: string | null): AiAction {
+    return {
+      type: 'create_task',
+      id,
+      summary: 'Add a task to prepare the proposal.',
+      confidence: 90,
+      task: {
+        title: 'Prepare the proposal',
+        description: '',
+        dueDate: '2030-03-11',
+        dueTime: '16:00',
+        reminderMinutesBefore: null,
+        meetingId: null,
+        ...(meetingActionId === null ? {} : { meetingActionId }),
+        people: [],
+      },
+    };
+  }
+
+  function contextOf(executor: { execute: jest.Mock }, type: string): { linkedMeetingId?: string | null } | undefined {
+    const call = executor.execute.mock.calls.find(([action]) => (action as AiAction).type === type);
+    return call?.[1] as { linkedMeetingId?: string | null } | undefined;
+  }
+
+  it('resolves the link to the meeting the sibling action created', async () => {
+    const actions = [createAction('x'), taskAction('y', 'x')];
+    const { controller, executor } = setup({ replies: [response({}, actions)] });
+    await flush();
+    await controller.send('Book the call with Ana and add a task the day before to prepare the proposal');
+
+    await controller.confirmAll();
+
+    // The meeting runs first (confirmAll is ordered), so its id is known by the time the task runs.
+    expect(executor.execute.mock.calls.map(([action]) => (action as AiAction).type)).toEqual(['create_meeting', 'create_task']);
+    expect(contextOf(executor, 'create_task')).toEqual({ linkedMeetingId: 'm1' });
+    // The resolved id travels beside the action, never inside it: the draft stays unlinked, and
+    // its meetingActionId is the sibling's thread-local id (assignActionIds remapped it from 'x').
+    const ids = controller.getSnapshot().thread.messages[1]!.actionIds;
+    const task = executor.execute.mock.calls[1]?.[0] as Extract<AiAction, { type: 'create_task' }>;
+    expect(task.task.meetingId).toBeNull();
+    expect(task.task.meetingActionId).toBe(ids[0]);
+    expect(task.task.meetingActionId).not.toBe('x');
+  });
+
+  it('passes a null link when the meeting was rejected, so the task is still created', async () => {
+    const actions = [createAction('x'), taskAction('y', 'x')];
+    const { controller, executor } = setup({ replies: [response({}, actions)] });
+    await flush();
+    await controller.send('Both please');
+    const ids = controller.getSnapshot().thread.messages[1]!.actionIds;
+    controller.reject(ids[0]!);
+
+    await controller.confirmAll();
+
+    expect(executor.execute).toHaveBeenCalledTimes(1);
+    expect(contextOf(executor, 'create_task')).toEqual({ linkedMeetingId: null });
+  });
+
+  it('passes a null link when the draft points at nothing', async () => {
+    const { controller, executor } = setup({ replies: [response({}, [taskAction('y', null)])] });
+    await flush();
+    await controller.send('Just the task');
+    await controller.confirmAll();
+    expect(contextOf(executor, 'create_task')).toEqual({ linkedMeetingId: null });
+  });
+
+  it('ignores a link that points at something that is not a create_meeting', async () => {
+    const actions = [listAction('x', ['m1']), taskAction('y', 'x')];
+    const { controller, executor } = setup({ replies: [response({}, actions)] });
+    await flush();
+    await controller.send('List and add');
+    await controller.confirmAll();
+    expect(contextOf(executor, 'create_task')).toEqual({ linkedMeetingId: null });
+  });
+});

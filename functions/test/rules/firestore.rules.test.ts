@@ -285,7 +285,7 @@ describe('meetings: recurrence and outlook (phase 1)', () => {
   });
 });
 
-describe('meetings: zoom external ref (phase 2, docs/ARCHITECTURE.md 24)', () => {
+describe('meetings: zoom external ref (phase 2, docs/v1/ARCHITECTURE.md 24)', () => {
   // external.zoomMeetingId is first written by the zoomCreateMeeting callable (Admin SDK), but
   // it must stay CLIENT-writable like the outlook refs: every later client edit rewrites the
   // whole document, external refs included.
@@ -433,7 +433,7 @@ describe('server-owned collections', () => {
     await assertFails(deleteDoc(doc(alice(), 'accountDeletions/alice')));
   });
 
-  it('keeps the zoom ownership registry server-only (docs/ARCHITECTURE.md 24)', async () => {
+  it('keeps the zoom ownership registry server-only (docs/v1/ARCHITECTURE.md 24)', async () => {
     await seed('zoomMeetings/987654321', { uid: 'alice', meetingId: 'm1', createdAt: ISO });
     await assertFails(getDoc(doc(alice(), 'zoomMeetings/987654321')));
     await assertFails(setDoc(doc(alice(), 'zoomMeetings/987654321'), { uid: 'alice', meetingId: 'm1', createdAt: ISO }));

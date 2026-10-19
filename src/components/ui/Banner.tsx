@@ -1,5 +1,5 @@
 /**
- * Inline notice banner (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §5): r-md, semantic
+ * Inline notice banner (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5): r-md, semantic
  * Container bg, 20dp icon, bodyM text (optional labelL title line above), optional trailing
  * text action. Announced politely to
  * screen readers; slides in softly (skipped under "reduce motion"). Used for offline / error

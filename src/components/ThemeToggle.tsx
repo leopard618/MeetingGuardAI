@@ -1,7 +1,7 @@
 /**
  * Light / dark switch (owner: shell). Pressing it makes an explicit choice opposite to the scheme
  * on screen (ThemeContext persists it); "follow the system" is chosen in Settings or the sidebar.
- * 44dp target, surfaceVariant circle, onSurface@12% ripple (docs/DESIGN_SYSTEM.md §6).
+ * 44dp target, surfaceVariant circle, onSurface@12% ripple (docs/v1/DESIGN_SYSTEM.md §6).
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ReactElement } from 'react';

@@ -3,7 +3,7 @@
  *
  * The bot ONLY replies to inbound messages, so every send is inside Meta's 24 hour customer
  * service window and free-form messages are always allowed (no templates needed). Failures are
- * LOG AND DROP by design (docs/ARCHITECTURE.md §27): the webhook never retries a send, because
+ * LOG AND DROP by design (docs/v1/ARCHITECTURE.md §27): the webhook never retries a send, because
  * Meta redelivers the inbound event on a non-200 and a retry loop could storm the user.
  * Logs carry status codes and ids only - never message text or phone numbers (phoneLogId only).
  */

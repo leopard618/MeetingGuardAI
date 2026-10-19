@@ -58,9 +58,24 @@ export function buildRequestMessages(messages: readonly ChatMessage[], max: numb
   return usable.slice(Math.max(0, usable.length - max));
 }
 
-/** Gives each proposed action a thread-unique id (`<messageId>-<n>`). */
+/**
+ * Gives each proposed action a thread-unique id (`<messageId>-<n>`), replacing the server's own
+ * id (unique only inside one response). A v6 `meetingActionId` points at a sibling action by that
+ * server id, so it is remapped here too, or nulled when it pointed outside this response - the
+ * task then simply has no link. Without this the link would survive as a dangling server id.
+ */
 export function assignActionIds(messageId: string, actions: readonly AiAction[]): AiAction[] {
-  return actions.map((action, index) => ({ ...action, id: `${messageId}-${index + 1}` }));
+  const localIds = new Map<string, string>();
+  actions.forEach((action, index) => {
+    localIds.set(action.id, `${messageId}-${index + 1}`);
+  });
+  return actions.map((action, index) => {
+    const next = { ...action, id: `${messageId}-${index + 1}` };
+    if (next.type === 'create_task' && next.task.meetingActionId != null) {
+      return { ...next, task: { ...next.task, meetingActionId: localIds.get(next.task.meetingActionId) ?? null } };
+    }
+    return next;
+  });
 }
 
 /** Proposed, mutating actions in conversation order ("confirm all"). */

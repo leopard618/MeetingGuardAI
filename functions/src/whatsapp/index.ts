@@ -1,6 +1,6 @@
 /**
- * WhatsApp bot functions (owner: fn-bot). Design: docs/ARCHITECTURE.md §27; owner setup and
- * deploy order: docs/SETUP.md §14. Contract: shared/aiContract.ts (whatsapp* schemas,
+ * WhatsApp bot functions (owner: fn-bot). Design: docs/v1/ARCHITECTURE.md §27; owner setup and
+ * deploy order: docs/v1/SETUP.md §14. Contract: shared/aiContract.ts (whatsapp* schemas,
  * WHATSAPP_ERROR_CODES).
  *
  * Deployability rules (same pattern as functions/src/zoom/index.ts - DO NOT break them):

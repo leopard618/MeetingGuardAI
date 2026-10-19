@@ -66,8 +66,11 @@ export interface VoiceInput {
 export function useVoiceInput(handlers: VoiceInputHandlers): VoiceInput {
   const [status, setStatus] = useState<VoiceStatus>('idle');
   // Refs, not state: event handlers fire between renders and must see the latest values.
+  // Written in an effect, never during render: the handlers only ever fire after a commit.
   const latest = useRef(handlers);
-  latest.current = handlers;
+  useEffect(() => {
+    latest.current = handlers;
+  });
   const active = useRef(false);
   const transcript = useRef('');
   /** Android continuous mode: finalized segments so far (iOS streams the whole transcript). */
@@ -161,7 +164,6 @@ export function useVoiceInput(handlers: VoiceInputHandlers): VoiceInput {
         log.warn('voice abort failed', error);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

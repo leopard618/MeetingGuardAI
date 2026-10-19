@@ -54,7 +54,7 @@ const DYNAMIC: Record<string, readonly string[]> = {
   'actions.status': ['proposed', 'executing', 'done', 'failed', 'rejected'],
   'confirm.title': AI_ACTION_TYPES,
   'confidence': ['high', 'medium', 'low'],
-  'examples': ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'],
+  'examples': ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e8'],
   'fields': ['title', 'when', 'duration', 'description', 'location', 'conference', 'participants', 'tips', 'alerts', 'language', 'repeats', 'scope'],
   'recurrence': RECURRENCE_FREQS,
   'recurrence.weekday': RECURRENCE_WEEKDAYS,

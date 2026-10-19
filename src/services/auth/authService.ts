@@ -12,7 +12,7 @@
  *   client secret, no refresh token and no token is ever stored by the app.
  * - Every native Google call is serialized: the native module rejects a second concurrent call
  *   of the same kind (ASYNC_OP_IN_PROGRESS), and calendar sync may ask for tokens in parallel.
- * - Sign in with Apple (expo-apple-authentication, iOS only - docs/ARCHITECTURE.md section 26):
+ * - Sign in with Apple (expo-apple-authentication, iOS only - docs/v1/ARCHITECTURE.md section 26):
  *   nonce-protected signInAsync -> OAuthProvider('apple.com').credential({ idToken, rawNonce })
  *   -> signInWithCredential. The module is require()d lazily like Google's; the Apple
  *   authorizationCode is stashed in-process for revokeAppleTokens() (account deletion) only
@@ -268,7 +268,7 @@ async function interactiveGoogleSignIn(): Promise<GoogleUser | null> {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Sign in with Apple (iOS only; docs/ARCHITECTURE.md section 26)
+// Sign in with Apple (iOS only; docs/v1/ARCHITECTURE.md section 26)
 // ---------------------------------------------------------------------------------------------
 
 /**
@@ -439,7 +439,7 @@ function formatAppleName(fullName: AppleAuthCredential['fullName']): string {
     .join(' ');
 }
 
-// Sign in with Apple, iOS ONLY (contract: src/core/contracts.ts + docs/ARCHITECTURE.md §26).
+// Sign in with Apple, iOS ONLY (contract: src/core/contracts.ts + docs/v1/ARCHITECTURE.md §26).
 async function firebaseAppleSignIn(): Promise<SignInResult> {
   const authInstance = requireAuth();
   const apple = loadAppleModule();
@@ -840,7 +840,7 @@ export const authService: AuthServiceImpl = {
     // ACCESS_TOKEN, and Apple answers 200 to unrecognized token strings (RFC 7009), so passing
     // the authorization code through it "succeeds" while revoking nothing. With
     // AUTHORIZATION_CODE, Firebase exchanges the code using the Sign in with Apple key
-    // configured on the Apple provider (docs/SETUP.md section 8.4) and revokes the Apple
+    // configured on the Apple provider (docs/v1/SETUP.md section 8.4) and revokes the Apple
     // refresh token server-side.
     let response: Response;
     try {

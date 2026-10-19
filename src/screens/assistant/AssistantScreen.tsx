@@ -46,7 +46,7 @@ import { useKeyboardAvoidance } from '../shared/useKeyboardAvoidance';
 import { useLiveNow } from '../shared/useLiveNow';
 import { VerifyEmailBanner, isVerificationGateError } from '../shared/VerifyEmailBanner';
 import { speakAloud, useSpokenReplies, useSpokenReplySetting, useVoiceInput } from './useVoice';
-import { voiceCommand, type VoiceCommand, type VoiceProblem } from './voiceModel';
+import { routeFinalTranscript, type VoiceCommand, type VoiceProblem } from './voiceModel';
 
 type Props = StackScreenProps<RootStackParamList, 'AIChat'>;
 
@@ -208,23 +208,25 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
     language,
     onTranscript: setInput,
     onFinal: (text, meta) => {
-      const sendable = sendableText(text, assistant);
-      if (!meta.autoSend || sendable === null) {
-        setInput(text);
+      const route = routeFinalTranscript({
+        text,
+        sendable: sendableText(text, assistant),
+        autoSend: meta.autoSend,
+        hasPending: assistant.pendingActionIds.length > 0,
+        language,
+      });
+      if (route.kind === 'edit') {
+        setInput(route.text);
         return;
       }
-      if (assistant.pendingActionIds.length > 0) {
-        const command = voiceCommand(sendable, language);
-        if (command !== null) {
-          setInput('');
-          void handleVoiceCommand(command);
-          return;
-        }
-      }
       setInput('');
+      if (route.kind === 'command') {
+        void handleVoiceCommand(route.command);
+        return;
+      }
       // Speaking to the assistant turns spoken replies on (visibly, via the speaker toggle).
       if (!spokenReplies) setSpokenReplies(true);
-      void assistant.send(sendable);
+      void assistant.send(route.text);
     },
     onProblem: voiceProblem,
   });

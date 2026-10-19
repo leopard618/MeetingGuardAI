@@ -4,7 +4,7 @@
  * - One operation = one HTTP call with a Bearer token from the shared token manager; an
  *   unexpected 401 (expired/revoked token despite the cache window) invalidates the cache and
  *   retries ONCE with a fresh token.
- * - Status mapping (docs/ARCHITECTURE.md §24): second 401 => not_configured; 404 => not_found
+ * - Status mapping (docs/v1/ARCHITECTURE.md §24): second 401 => not_configured; 404 => not_found
  *   (update/delete translate it to "gone" for the caller); 429 => quota_exceeded; anything
  *   else non-2xx => upstream_error.
  * - SECURITY: requests/responses carry meeting topics and join URLs; nothing from them is ever
@@ -19,9 +19,9 @@ import { type ZoomCredentials, type ZoomTokenManager } from './token';
 export const ZOOM_API_BASE = 'https://api.zoom.us/v2';
 
 /**
- * Host user of every created meeting (docs/ARCHITECTURE.md §24: the account's own user). Zoom
+ * Host user of every created meeting (docs/v1/ARCHITECTURE.md §24: the account's own user). Zoom
  * resolves `me` from the access token; if a given account rejects the alias for S2S tokens
- * (create fails with not_configured / status 404, see docs/SETUP.md §12.5), replace it with
+ * (create fails with not_configured / status 404, see docs/v1/SETUP.md §12.5), replace it with
  * the host's email address - this constant is the only place.
  */
 export const ZOOM_HOST_USER = 'me';

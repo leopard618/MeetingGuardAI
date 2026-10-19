@@ -28,6 +28,7 @@ import type {
   RawPermission,
   ScheduledNotificationRecord,
   ScheduledSpec,
+  StatusNotificationSpec,
 } from './types';
 
 // MG Indigo brand primary; notification accents are rendered by the OS on its own surfaces, so
@@ -76,6 +77,8 @@ function importanceOf(value: ChannelSpec['importance']): Notifications.AndroidIm
       return Notifications.AndroidImportance.MAX;
     case 'high':
       return Notifications.AndroidImportance.HIGH;
+    case 'low':
+      return Notifications.AndroidImportance.LOW;
     default:
       return Notifications.AndroidImportance.DEFAULT;
   }
@@ -215,6 +218,25 @@ export function createExpoNotificationsPort(): NotificationsPort {
       });
     },
 
+    async present(spec: StatusNotificationSpec) {
+      // trigger null = show it now. Ongoing and non-auto-dismissing, so it stays in the shade
+      // while alerts are armed; silent, because it is re-posted on every reconcile.
+      await Notifications.scheduleNotificationAsync({
+        identifier: spec.identifier,
+        content: {
+          title: spec.title,
+          body: spec.body,
+          data: { ...spec.data },
+          sound: false,
+          priority: Notifications.AndroidNotificationPriority.LOW,
+          vibrate: [],
+          sticky: true,
+          autoDismiss: false,
+          color: ACCENT_COLOR,
+        },
+        trigger: null,
+      });
+    },
     async cancel(identifier: string) {
       await Notifications.cancelScheduledNotificationAsync(identifier);
     },

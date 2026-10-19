@@ -341,7 +341,7 @@ export function meetingToGoogleEvent(meeting: GoogleWritableMeeting, options: Go
   const rule = meeting.recurrence ?? null;
   if (rule !== null) {
     // The master pushes its rule (one RRULE line) plus one EXDATE line per cancelled occurrence;
-    // time-modified overrides stay local (docs/ARCHITECTURE.md §16). date/time are re-derived
+    // time-modified overrides stay local (docs/v1/ARCHITECTURE.md §16). date/time are re-derived
     // from startAt + timezone, exactly like the stored derived fields.
     const local = toLocalDateTime(meeting.startAt, meeting.timezone);
     body.recurrence = toGoogleRecurrence({

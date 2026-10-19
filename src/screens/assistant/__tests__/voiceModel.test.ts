@@ -7,6 +7,7 @@ import {
   voiceCommand,
   voiceLocale,
   voiceProblemForError,
+  routeFinalTranscript,
 } from '../voiceModel';
 
 describe('voiceLocale', () => {
@@ -138,5 +139,49 @@ describe('voiceCommand', () => {
   it('returns null for empty input', () => {
     expect(voiceCommand('', 'en')).toBeNull();
     expect(voiceCommand('  . ', 'en')).toBeNull();
+  });
+});
+
+describe('routeFinalTranscript (Stage 1: an unclear reply never executes anything)', () => {
+  const base = { autoSend: true, hasPending: true, language: 'en' as const };
+
+  function route(text: string, overrides: Partial<Parameters<typeof routeFinalTranscript>[0]> = {}) {
+    return routeFinalTranscript({ text, sendable: text.trim() || null, ...base, ...overrides });
+  }
+
+  it('confirms and cancels on an unambiguous phrase while proposals are on screen', () => {
+    expect(route('yes, I confirm')).toEqual({ kind: 'command', command: 'confirm' });
+    expect(route('cancel')).toEqual({ kind: 'command', command: 'cancel' });
+    expect(route('sí, confirmo', { language: 'es' })).toEqual({ kind: 'command', command: 'confirm' });
+  });
+
+  it('SENDS every unclear, qualified or contradictory reply instead of executing it', () => {
+    for (const text of [
+      'yes but make it earlier',
+      'yes cancel',
+      'do not confirm',
+      'confirm the second one only',
+      'yes I confirm but move it to 5pm',
+      'no idea what is on today',
+    ]) {
+      expect(route(text)).toEqual({ kind: 'send', text });
+    }
+  });
+
+  it('never treats a bare yes as a command when nothing is proposed', () => {
+    expect(route('yes, I confirm', { hasPending: false })).toEqual({ kind: 'send', text: 'yes, I confirm' });
+  });
+
+  it('keeps a dictation the user stopped to edit, and acts on nothing', () => {
+    expect(route('yes, I confirm', { autoSend: false })).toEqual({ kind: 'edit', text: 'yes, I confirm' });
+  });
+
+  it('acts on nothing while the assistant is busy', () => {
+    expect(route('yes, I confirm', { sendable: null })).toEqual({ kind: 'edit', text: 'yes, I confirm' });
+  });
+
+  it('follows the app language, so a Spanish phrase is a message in English', () => {
+    expect(route('confirma')).toEqual({ kind: 'send', text: 'confirma' });
+    expect(route('go ahead', { language: 'es' })).toEqual({ kind: 'send', text: 'go ahead' });
   });
 });

@@ -82,6 +82,8 @@ export interface MappingContext {
   context: MeetingContext;
   /** v5: the task context, or null when the client cannot parse task actions. */
   tasksContext?: TaskContext | null;
+  /** v6: the client resolves a task's meetingActionId, so it may link to a meeting of this response. */
+  allowNewMeetingLinks?: boolean;
   /** Concatenated text of the user's own messages. */
   userText: string;
   newActionId?: () => string;
@@ -678,21 +680,52 @@ function requireTasks(ctx: MappingContext): TaskContext {
   return ctx.tasksContext ?? drop('not_allowed');
 }
 
+/**
+ * Placeholder for "the meeting created by this same response". It never leaves mapToolCalls:
+ * linkPendingMeetings either replaces it with the create_meeting action's id or removes it, so a
+ * client can never receive it. It is deliberately not a valid action id.
+ */
+const PENDING_NEW_MEETING = '__new_meeting__';
+
+/**
+ * Resolves every v6 placeholder link once all tool calls are mapped. The link is only meaningful
+ * when the response creates EXACTLY one meeting; with none, or with several, there is no single
+ * meeting to point at, so the link is dropped and the task stays unlinked. Losing a link is never
+ * worth losing the task the user asked for.
+ */
+function linkPendingMeetings(actions: readonly AiAction[]): void {
+  const created = actions.filter((action) => action.type === 'create_meeting');
+  const target = created.length === 1 ? created[0]?.id : undefined;
+  for (const action of actions) {
+    if (action.type !== 'create_task') continue;
+    if (action.task.meetingActionId !== PENDING_NEW_MEETING) continue;
+    if (target === undefined) delete action.task.meetingActionId;
+    else action.task.meetingActionId = target;
+  }
+}
+
 function mapCreateTask(raw: string, ctx: MappingContext, provenance: Provenance): AiAction {
   requireTasks(ctx);
   const args = parseArgs(createTaskArgsSchema, raw);
   const title = clip(args.title, AI_LIMITS.maxTitleChars);
   if (title.length === 0) drop('bad_args');
   const due = taskDue(args.due_date, args.due_time);
+  const meetingId = resolveMeetingRefOrNull(args.meeting_ref, ctx);
   const task: AiTaskDraft = {
     title,
     description: clip(args.description, AI_LIMITS.maxDescriptionChars),
     dueDate: due.dueDate,
     dueTime: due.dueTime,
     reminderMinutesBefore: taskReminder(args.reminder_minutes_before, due.dueTime !== null),
-    meetingId: resolveMeetingRefOrNull(args.meeting_ref, ctx),
+    meetingId,
     people: taskPeople(args.people, provenance),
   };
+  // v6: the meeting is being created in this same response, so its id does not exist yet.
+  // linkPendingMeetings replaces the placeholder with that action's real id once every tool call
+  // is mapped; an existing meeting_ref always wins, since that link is already resolvable.
+  if (meetingId === null && args.link_to_new_meeting && ctx.allowNewMeetingLinks === true) {
+    task.meetingActionId = PENDING_NEW_MEETING;
+  }
   return { type: 'create_task', ...common(args, ctx, DEFAULT_SUMMARIES[ctx.language].create_task), task };
 }
 
@@ -850,5 +883,6 @@ export function mapToolCalls(toolCalls: readonly ToolCall[], ctx: MappingContext
       else throw error;
     }
   }
+  linkPendingMeetings(actions);
   return { actions, suggestions, resolution, dropped };
 }

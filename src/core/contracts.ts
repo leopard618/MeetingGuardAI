@@ -476,7 +476,7 @@ export interface AuthService {
   /** Native Google sign-in -> GoogleAuthProvider.credential(idToken) -> signInWithCredential. Throws AppError (not on cancel). */
   signInWithGoogle(): Promise<SignInResult>;
   /**
-   * Sign in with Apple, iOS ONLY (docs/ARCHITECTURE.md §26). expo-apple-authentication:
+   * Sign in with Apple, iOS ONLY (docs/v1/ARCHITECTURE.md §26). expo-apple-authentication:
    * availability check (isAvailableAsync) -> nonce (a raw random string; its SHA-256 hash from
    * expo-crypto goes to Apple's request) -> signInAsync({ requestedScopes: FULL_NAME + EMAIL,
    * nonce: <hash> }) -> OAuthProvider('apple.com').credential({ idToken: identityToken,
@@ -529,7 +529,7 @@ export interface AuthService {
    * SDK's `revokeAccessToken(auth, token)` is NOT used: it labels its argument an Apple access
    * token, and Apple answers 200 to unrecognized token strings, so it would "succeed" without
    * revoking.) Required before deleting an apple.com account (App Review 5.1.1(v);
-   * docs/ARCHITECTURE.md §26). The code is single-use and short-lived: call this right after
+   * docs/v1/ARCHITECTURE.md §26). The code is single-use and short-lived: call this right after
    * reauthenticate(). Throws AppError('unauthenticated', details.reason
    * 'requires_recent_login') when no fresh code is stashed; the delete flow treats ANY failure
    * as BEST EFFORT (notice toast, then the deletion proceeds).
@@ -1358,9 +1358,22 @@ export type ActionResult =
  * (Meet links, invites) and the OS share sheet / mail composer. Idempotent per action.id
  * (mg:{uid}:assistant.executed; create uses WriteOptions.id derived from the action id).
  */
+/**
+ * v6: values the CALLER resolves for one execution, kept outside the action itself so the
+ * action's content - and therefore its idempotency key - never changes between attempts.
+ */
+export interface ActionExecutionContext {
+  /**
+   * What a create_task draft's `meetingActionId` resolved to: the id of the meeting that sibling
+   * create_meeting action produced, or null when it has not run or failed. Null means the task is
+   * created without the link; it is never a reason to refuse the task.
+   */
+  linkedMeetingId?: string | null;
+}
+
 export interface ActionExecutor {
   preview(action: AiAction): Promise<ActionPreview>;
-  execute(action: AiAction): Promise<ActionResult>;
+  execute(action: AiAction, context?: ActionExecutionContext): Promise<ActionResult>;
 }
 
 export interface AssistantChatMessage {
@@ -1424,7 +1437,7 @@ export interface ZoomLinkResult {
 
 /**
  * Server-created Zoom links through the zoom* callables (CALLABLES.zoom*, aiContract.ts; design
- * in docs/ARCHITECTURE.md §24). The service is stateful per SESSION: the zoomStatus answer and
+ * in docs/v1/ARCHITECTURE.md §24). The service is stateful per SESSION: the zoomStatus answer and
  * per-meeting failures are cached in memory and cleared on `session:ended` (never persisted).
  * All methods are safe while Firebase is unconfigured (isAvailable resolves false).
  */
@@ -1559,7 +1572,7 @@ export const PLAY_PRODUCT_IDS: Readonly<Record<PaidPlanTier, Record<BillingCycle
  * purpose: one `PRODUCT_TO_PLAN` mapping serves both stores, the RevenueCat entitlements
  * ('pro'/'premium') attach each store's products to the same plan, and the webhook's
  * product-id fallback (`planFromEvent`) keeps working for APP_STORE events. All four live in ONE
- * App Store subscription group (upgrade/crossgrade semantics; docs/SETUP.md §11). A guard test
+ * App Store subscription group (upgrade/crossgrade semantics; docs/v1/SETUP.md §11). A guard test
  * asserts the two tables never drift apart.
  */
 export const APP_STORE_PRODUCT_IDS: Readonly<Record<PaidPlanTier, Record<BillingCycle, string>>> = {

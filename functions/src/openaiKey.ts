@@ -1,5 +1,5 @@
 /**
- * OpenAI key at runtime (admin v2; spec in docs/ADMIN.md §v2).
+ * OpenAI key at runtime (admin v2; spec in docs/v1/ADMIN.md §v2).
  *
  * WHY: key rotation from the admin dashboard (adminRotateOpenAiKey) adds a Secret Manager
  * version at RUNTIME, but the env-bound defineSecret value is frozen per deploy. This module

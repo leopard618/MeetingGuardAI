@@ -1,5 +1,5 @@
 /**
- * Google sync of RECURRING meetings (docs/ARCHITECTURE.md §16): RRULE/EXDATE push, the
+ * Google sync of RECURRING meetings (docs/v1/ARCHITECTURE.md §16): RRULE/EXDATE push, the
  * change-detection hash, the import skip of our own series instances, and full-sync sweep safety.
  */
 import { googleEventIdForMeeting } from '../../../core/identifiers';

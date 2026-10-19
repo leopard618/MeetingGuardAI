@@ -39,6 +39,7 @@ function fakeNotifications(platform: NotificationsPort['platform'] = 'android'):
         triggerDate: Date.parse(spec.fireAt),
       })),
     ),
+    present: jest.fn(async () => undefined),
     schedule: jest.fn(async (spec: ScheduledSpec) => {
       scheduled.set(spec.identifier, spec);
     }),

@@ -1,5 +1,5 @@
 /**
- * In-app purchases via RevenueCat (owner: billing; docs/ARCHITECTURE.md §20).
+ * In-app purchases via RevenueCat (owner: billing; docs/v1/ARCHITECTURE.md §20).
  *
  * Contract: PurchasesService in src/core/contracts.ts; implementation in ./service.ts (factory,
  * unit-tested with a fake SDK), optional-dependency loading in ./sdk.ts.

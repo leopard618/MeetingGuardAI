@@ -180,7 +180,7 @@ describe('helpers', () => {
     expect(fallbackReply('en', 'actions')).toMatch(/confirm/);
     expect(fallbackReply('es', 'actions')).toMatch(/confírmalo/);
     expect(fallbackReply('es', 'followup')).toMatch(/reunión/);
-    expect(fallbackReply('es', 'list')).toBe('Estas son las reuniones que encontré.');
+    expect(fallbackReply('es', 'empty')).toMatch(/respuesta/);
   });
 });
 
@@ -210,5 +210,94 @@ describe('people in the data block (brief: "move my 4pm meeting with Alejandro")
     const prompt = buildSystemPrompt({ language: 'en', timeZone: 'Europe/Madrid', now: NOW, mode: 'chat', followUpRef: null, nonce: 'n' });
     expect(prompt).toContain('participant names');
     expect(prompt).toContain('Alejandro');
+  });
+
+  describe('moving a meeting that has linked tasks', () => {
+    function taskPrompt(hasTasks: boolean): string {
+      return buildSystemPrompt({
+        language: 'en',
+        timeZone: 'Europe/Madrid',
+        now: NOW,
+        mode: 'chat',
+        followUpRef: null,
+        hasTasks,
+        nonce: 'n',
+      });
+    }
+
+    it('tells the model to ask once, by name, instead of moving the task silently', () => {
+      const prompt = taskPrompt(true);
+      expect(prompt).toContain('Moving a meeting that has tasks');
+      expect(prompt).toContain('never move that task silently');
+      expect(prompt).toContain('ask ONE short question that names the task');
+      // The question comes first; the task change waits for the answer.
+      expect(prompt).toContain('propose the task change only after the user answers');
+    });
+
+    it('keeps the relative gap and skips the question when nothing is due', () => {
+      const prompt = taskPrompt(true);
+      expect(prompt).toContain('stays the day before after the move');
+      expect(prompt).toContain('Linked tasks with no due date need no question');
+    });
+
+    it('still proposes both at once when the user asked for both', () => {
+      expect(taskPrompt(true)).toContain('asked for both in the same message');
+    });
+
+    it('is absent when the client cannot act on tasks', () => {
+      expect(taskPrompt(false)).not.toContain('Moving a meeting that has tasks');
+    });
+  });
+});
+
+describe('agenda questions (Stage 1 acceptance: today, overdue, tomorrow)', () => {
+  function prompt(hasTasks = true): string {
+    return buildSystemPrompt({
+      language: 'en',
+      timeZone: 'Europe/Madrid',
+      now: NOW,
+      mode: 'chat',
+      followUpRef: null,
+      hasTasks,
+      nonce: 'n',
+    });
+  }
+
+  it('binds the answer to the reply text, because the reply is what is read aloud', () => {
+    const text = prompt();
+    expect(text).toContain('ALWAYS put the answer itself in your reply text');
+    expect(text).toContain('the reply is also what gets read aloud');
+    expect(text).toContain('the list is a convenience, never the answer');
+  });
+
+  it('excludes cancelled meetings from a day', () => {
+    expect(prompt()).toContain('NEVER include a meeting whose status is "cancelled"');
+  });
+
+  it('tells the model that occurrence exceptions beat the repeat rule', () => {
+    const text = prompt();
+    expect(text).toContain('`skipped` lists occurrence dates that are CANCELLED');
+    expect(text).toContain('`moved` lists occurrences whose start changed');
+    expect(text).toContain('say that date in your reply');
+  });
+
+  it('defines overdue instead of leaving the boundary to the model', () => {
+    expect(prompt()).toContain('whose due date is before today, or whose due date is today with a due time already past');
+  });
+
+  it('answers a preparation question from recorded data only', () => {
+    const text = prompt();
+    expect(text).toContain('whose "meetingRef" points at it');
+    expect(text).toContain('Never invent preparation advice');
+  });
+
+  it('requires an explicit empty answer rather than an empty list card', () => {
+    expect(prompt()).toContain('An empty answer is a real answer');
+  });
+
+  it('keeps the task half of the agenda rules out of a client that cannot act on tasks', () => {
+    expect(prompt(false)).not.toContain('What counts as overdue');
+    // The meeting half is always relevant.
+    expect(prompt(false)).toContain('# Agenda questions');
   });
 });

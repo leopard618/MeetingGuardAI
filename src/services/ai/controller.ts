@@ -10,7 +10,14 @@
  * - drops responses/results that arrive after a reset or a user switch (generation counter);
  * - on session end: clears memory and deletes the stored thread after pending writes.
  */
-import { AI_CONTRACT_VERSION, AI_LIMITS, MEETING_ID_PATTERN, type AssistantRequest, type Language } from '../../core/aiContract';
+import {
+  AI_CONTRACT_VERSION,
+  AI_LIMITS,
+  MEETING_ID_PATTERN,
+  type AiAction,
+  type AssistantRequest,
+  type Language,
+} from '../../core/aiContract';
 import type { ActionResult, AssistantClient, Unsubscribe } from '../../core/contracts';
 import { AppError, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -311,6 +318,24 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
     await enqueue(() => runRequest({ mode: 'chat' }, lastUser.id));
   }
 
+  /**
+   * v6 combined requests: a create_task draft can point at the create_meeting action of the same
+   * response (`meetingActionId`) because the server cannot know the id that meeting will get.
+   * Resolve it here, where the executed results live, and return null when that meeting has not
+   * run or did not produce one - the task is then created unlinked rather than refused. The value
+   * travels beside the action, never inside it, so the idempotency key stays stable.
+   */
+  function resolveLinkedMeetingId(action: AiAction): string | null {
+    if (action.type !== 'create_task') return null;
+    // assignActionIds already remapped this to the sibling's thread-local id.
+    const target = action.task.meetingActionId;
+    if (target == null || action.task.meetingId !== null) return null;
+    const source = snapshot.thread.actions[target];
+    if (!source || source.action.type !== 'create_meeting') return null;
+    if (source.status !== 'done' || source.result?.status !== 'done') return null;
+    return source.result.meetingIds[0] ?? null;
+  }
+
   function confirm(actionId: string): Promise<ActionResult> {
     const state = snapshot.thread.actions[actionId];
     if (!state) return Promise.reject(new AppError('not_found', 'Unknown assistant action'));
@@ -330,7 +355,9 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
     const promise = (async (): Promise<ActionResult> => {
       let result: ActionResult;
       try {
-        result = await deps.executor.execute(state.action);
+        result = await deps.executor.execute(state.action, {
+          linkedMeetingId: resolveLinkedMeetingId(state.action),
+        });
       } catch (error) {
         result = { status: 'failed', actionId, type: state.action.type, error: toAppError(error) };
       }

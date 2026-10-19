@@ -28,7 +28,13 @@ import type {
   ConferenceDetails,
   UpdateMeetingAction,
 } from '../../core/aiContract';
-import type { ActionExecutor, ActionWarning, MeetingRecurrenceOps, TasksRepository } from '../../core/contracts';
+import type {
+  ActionExecutionContext,
+  ActionExecutor,
+  ActionWarning,
+  MeetingRecurrenceOps,
+  TasksRepository,
+} from '../../core/contracts';
 import { AppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import type { Meeting, MeetingPatch, Task, TaskInput, TaskPatch } from '../../core/types';
@@ -92,7 +98,7 @@ export interface ActionExecutorDeps {
 
 export interface AiActionExecutor extends ActionExecutor {
   preview(action: AiAction): Promise<AiActionPreview>;
-  execute(action: AiAction): Promise<AiActionResult>;
+  execute(action: AiAction, context?: ActionExecutionContext): Promise<AiActionResult>;
 }
 
 function referencedMeetingIds(action: AiAction): string[] {
@@ -129,14 +135,18 @@ function referencedTaskIds(action: AiAction): string[] {
   }
 }
 
-function taskDraftToInput(draft: AiTaskDraft): TaskInput {
+/**
+ * `linkedMeetingId` is the caller's resolution of the draft's v6 `meetingActionId` (the meeting
+ * the sibling create_meeting just produced). It only ever fills a link the draft left null.
+ */
+function taskDraftToInput(draft: AiTaskDraft, linkedMeetingId?: string | null): TaskInput {
   return {
     title: draft.title,
     description: draft.description,
     dueDate: draft.dueDate,
     dueTime: draft.dueTime,
     reminderMinutesBefore: draft.reminderMinutesBefore,
-    meetingId: draft.meetingId,
+    meetingId: draft.meetingId ?? linkedMeetingId ?? null,
     people: draft.people.map((person) => ({ name: person.name, email: person.email })),
   };
 }
@@ -600,8 +610,11 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     };
   }
 
-  async function runCreateTask(action: Extract<AiAction, { type: 'create_task' }>): Promise<AiDoneResult> {
-    const task = await tasksPort().create(taskDraftToInput(action.task));
+  async function runCreateTask(
+    action: Extract<AiAction, { type: 'create_task' }>,
+    linkedMeetingId?: string | null,
+  ): Promise<AiDoneResult> {
+    const task = await tasksPort().create(taskDraftToInput(action.task, linkedMeetingId));
     return { status: 'done', actionId: action.id, type: action.type, meetingIds: [], taskIds: [task.id], duplicate: false };
   }
 
@@ -628,7 +641,7 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     return { status: 'done', actionId: action.id, type: action.type, meetingIds: [], taskIds: [current.id], duplicate: false };
   }
 
-  async function run(action: AiAction, key: string): Promise<AiActionResult> {
+  async function run(action: AiAction, key: string, context?: ActionExecutionContext): Promise<AiActionResult> {
     if (action.type === 'list') return runList(action);
     if (action.type === 'list_tasks') return runListTasks(action);
 
@@ -656,7 +669,7 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
         result = await runShare(action);
         break;
       case 'create_task':
-        result = await runCreateTask(action);
+        result = await runCreateTask(action, context?.linkedMeetingId);
         break;
       case 'update_task':
         result = await runUpdateTask(action);
@@ -671,11 +684,11 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
 
   return {
     preview,
-    execute(action: AiAction): Promise<AiActionResult> {
+    execute(action: AiAction, context?: ActionExecutionContext): Promise<AiActionResult> {
       const key = actionIdempotencyKey(action);
       const running = inFlight.get(key);
       if (running) return running;
-      const promise = run(action, key)
+      const promise = run(action, key, context)
         .catch((error: unknown): AiActionResult => {
           const appError = toAppError(error);
           if (appError.code !== 'not_found' && appError.code !== 'cancelled') {

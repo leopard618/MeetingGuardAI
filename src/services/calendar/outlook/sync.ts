@@ -392,7 +392,7 @@ async function awaitTeamsLink(deps: OutlookSyncDeps, event: GraphEvent): Promise
 /** Meetings that are pushed to Outlook at all (imports from other providers never are). */
 export function isOutlookPushable(meeting: Pick<Meeting, 'source' | 'recurrence'>): boolean {
   if (meeting.source === 'google' || meeting.source === 'device') return false;
-  // v1: recurrence rules are not pushed to Graph (docs/ARCHITECTURE.md §17); the local master
+  // v1: recurrence rules are not pushed to Graph (docs/v1/ARCHITECTURE.md §17); the local master
   // stays local-only for Outlook while its Google push carries the RRULE.
   return meeting.recurrence === null;
 }

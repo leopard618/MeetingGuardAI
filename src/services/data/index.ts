@@ -1,7 +1,7 @@
 /**
  * DATA area public API (owner: data). Other areas import ONLY from this barrel.
  *
- * Contract: src/core/contracts.ts (DATA section); design: docs/ARCHITECTURE.md §3, §4, §9.
+ * Contract: src/core/contracts.ts (DATA section); design: docs/v1/ARCHITECTURE.md §3, §4, §9.
  * - Firestore is the source of truth (users/{uid}/meetings|notes|settings/preferences, users/{uid},
  *   entitlements/{uid} read-only); the app keeps a per-user AsyncStorage cache and a durable
  *   outbox because the React Native Firestore SDK only has a memory cache.

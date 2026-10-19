@@ -1,4 +1,4 @@
-import { AI_LIMITS } from '../../../core/aiContract';
+import { AI_LIMITS, type AiAction } from '../../../core/aiContract';
 import type { ProposedActionState } from '../../../core/contracts';
 import { AppError } from '../../../core/errors';
 import { createAction, deleteAction, listAction, shareAction, usage } from '../__fixtures__/aiTestKit';
@@ -78,6 +78,43 @@ describe('trimming', () => {
   it('re-keys server action ids to be unique in the thread', () => {
     const ids = assignActionIds('a_xyz', [createAction('act_1'), deleteAction('act_1', 'm1')]).map((a) => a.id);
     expect(ids).toEqual(['a_xyz-1', 'a_xyz-2']);
+  });
+
+  describe('v6 same-turn meeting links', () => {
+    function taskAction(id: string, meetingActionId: string | null): AiAction {
+      return {
+        type: 'create_task',
+        id,
+        summary: 'Add a task.',
+        confidence: 90,
+        task: {
+          title: 'Prepare the proposal',
+          description: '',
+          dueDate: null,
+          dueTime: null,
+          reminderMinutesBefore: null,
+          meetingId: null,
+          meetingActionId,
+          people: [],
+        },
+      };
+    }
+
+    it('remaps the link onto the re-keyed sibling, so it is never a dangling server id', () => {
+      const [meeting, task] = assignActionIds('a_xyz', [createAction('act_1'), taskAction('act_2', 'act_1')]);
+      expect(meeting?.id).toBe('a_xyz-1');
+      expect(task?.type === 'create_task' && task.task.meetingActionId).toBe('a_xyz-1');
+    });
+
+    it('nulls a link that points outside this response', () => {
+      const [, task] = assignActionIds('a_xyz', [createAction('act_1'), taskAction('act_2', 'act_99')]);
+      expect(task?.type === 'create_task' && task.task.meetingActionId).toBeNull();
+    });
+
+    it('leaves a task without a link untouched', () => {
+      const [task] = assignActionIds('a_xyz', [taskAction('act_1', null)]);
+      expect(task?.type === 'create_task' && task.task.meetingActionId).toBeNull();
+    });
   });
 });
 

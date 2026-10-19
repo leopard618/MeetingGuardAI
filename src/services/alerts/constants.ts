@@ -30,7 +30,9 @@ export const CHANNEL_VIBRATION = {
   medium: [0, 450, 250, 450],
   light: [0, 250],
   followup: [0, 200],
-} as const satisfies Record<AlertIntensity | 'followup', readonly number[]>;
+  briefing: [0, 200],
+  status: [],
+} as const satisfies Record<AlertIntensity | 'followup' | 'briefing' | 'status', readonly number[]>;
 
 /** In-app MAX vibration (repeated until the alert is handled). */
 export const IN_APP_MAX_VIBRATION = [0, 800, 400, 800, 400, 800, 1400] as const;

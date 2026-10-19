@@ -480,7 +480,7 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
       if (meeting.deletedAt !== null) checkedTombstones.add(meeting.id);
       // Recurring masters are never exported: the mapping writes a single plain event, which
       // would freeze the series' FIRST occurrence in the phone calendar and go stale forever
-      // (docs/ARCHITECTURE.md §16). A copy exported before the meeting became recurring is
+      // (docs/v1/ARCHITECTURE.md §16). A copy exported before the meeting became recurring is
       // removed below (staleCopy).
       const shouldExport =
         targetRaw !== null &&

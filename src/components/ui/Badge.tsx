@@ -1,5 +1,5 @@
 /**
- * Status badge / meta pill (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §5): r-xs, labelM,
+ * Status badge / meta pill (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5): r-xs, labelM,
  * semantic Container pairs - the AA-checked bg/on-bg combinations from tokens. Padding, never a
  * fixed height, so scaled text does not clip.
  */

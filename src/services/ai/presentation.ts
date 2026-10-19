@@ -26,9 +26,10 @@ import {
 } from '../../core/aiContract';
 import type { ActionResult, ActionWarning } from '../../core/contracts';
 import { AppError, isAppError, type AppErrorCode } from '../../core/errors';
+import { expandOccurrences } from '../../core/recurrence';
 import type { Meeting } from '../../core/types';
 // Service-layer file: tokens are imported directly (never the src/theme barrel, which pulls in
-// React hooks) - docs/DESIGN_SYSTEM.md §7 group D.
+// React hooks) - docs/v1/DESIGN_SYSTEM.md §7 group D.
 import { mgColors, type MGColors } from '../../theme/tokens';
 
 import { quotaUsageFromError } from './assistantClient';
@@ -78,10 +79,46 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}...` : text;
 }
 
+/** How far ahead a list row looks for the occurrence to show. */
+const LIST_ROW_HORIZON_MS = 400 * 86_400_000;
+
 function fieldLabel(fmt: AssistantFormatter, field: MeetingField): string {
   return fmt.t(`ai:fields.${field}`);
 }
 
+/**
+ * The occurrence a read-only list row should show. A repeating meeting stores the FIRST
+ * occurrence of the series as its startAt, often months in the past, so printing it would put
+ * the wrong date on an agenda answer. This returns the first occurrence that has not ended yet,
+ * with the per-occurrence overrides applied (a moved occurrence keeps its new time, a cancelled
+ * one is skipped), and falls back to the stored values when the rule cannot be expanded.
+ */
+/** Shape formatWhen needs; the local date is derived from the effective start. */
+export interface ListRowWhen {
+  startAt: string;
+  durationMinutes: number;
+  allDay: boolean;
+  timezone: string;
+}
+
+export function occurrenceForListRow(meeting: Meeting, now: Date = new Date()): ListRowWhen {
+  const own: ListRowWhen = {
+    startAt: meeting.startAt,
+    durationMinutes: meeting.durationMinutes,
+    allDay: meeting.allDay,
+    timezone: meeting.timezone,
+  };
+  if (meeting.recurrence === null) return own;
+  const from = new Date(now.getTime() - meeting.durationMinutes * 60_000).toISOString();
+  const to = new Date(now.getTime() + LIST_ROW_HORIZON_MS).toISOString();
+  try {
+    const next = expandOccurrences(meeting, from, to)[0];
+    if (!next) return own;
+    return { ...own, startAt: next.startAt, durationMinutes: next.durationMinutes };
+  } catch {
+    return own;
+  }
+}
 export function formatWhen(
   fmt: AssistantFormatter,
   value: { startAt: string; durationMinutes: number; allDay: boolean; timezone: string; date?: string },
@@ -692,7 +729,7 @@ export function buildMailtoUrl(recipients: readonly string[], content: ShareCont
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Every value is an MG Indigo token (src/theme/tokens.ts) - docs/DESIGN_SYSTEM.md §7 group D.
+ * Every value is an MG Indigo token (src/theme/tokens.ts) - docs/v1/DESIGN_SYSTEM.md §7 group D.
  * The legacy emerald/slate literals are gone; the field names stay so consumers compile, and a
  * few token-named fields were added for the restyled chat pieces. All pairings are AA in both
  * schemes (see src/theme/__tests__/contrast.test.ts for the documented pairs).
@@ -732,7 +769,7 @@ export interface AssistantPalette {
   info: string;
   infoSurface: string;
   onInfoSurface: string;
-  /** Disabled controls (docs/DESIGN_SYSTEM.md par.8): surfaceDisabled fill + disabled label/icon. */
+  /** Disabled controls (docs/v1/DESIGN_SYSTEM.md par.8): surfaceDisabled fill + disabled label/icon. */
   disabledText: string;
   surfaceDisabled: string;
   onSurfaceDisabled: string;

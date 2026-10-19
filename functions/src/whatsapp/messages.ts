@@ -1,5 +1,5 @@
 /**
- * Every user-visible string the WhatsApp bot sends (EN + ES; docs/ARCHITECTURE.md §27).
+ * Every user-visible string the WhatsApp bot sends (EN + ES; docs/v1/ARCHITECTURE.md §27).
  *
  * Language: a LINKED user gets their app language (users/{uid}/settings/preferences.language),
  * falling back to 'en'. The inbound Cloud API payload carries NO locale, so an UNLINKED sender

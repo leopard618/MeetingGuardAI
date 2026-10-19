@@ -15,7 +15,7 @@ import {
   describeResult,
   describeWarnings,
   feedbackColors,
-  formatWhen,
+  formatWhen, occurrenceForListRow,
   isDestructiveAction,
   type AssistantPalette,
 } from '../../services/ai/presentation';
@@ -70,7 +70,8 @@ function ListCard({ state, fmt, palette, onOpenMeeting }: Omit<ActionCardProps, 
         <Text style={[styles.cardNote, { color: palette.textMuted }]}>{fmt.t('ai:actions.listEmpty')}</Text>
       ) : null}
       {meetings.map((meeting) => {
-        const when = formatWhen(fmt, meeting);
+        // A repeating meeting stores its FIRST occurrence; show the one this answer is about.
+        const when = formatWhen(fmt, occurrenceForListRow(meeting));
         return (
           <Pressable
             key={meeting.id}

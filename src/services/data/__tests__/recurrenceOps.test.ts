@@ -1,6 +1,6 @@
 /**
  * MeetingRecurrenceOps on the data engine (updateOccurrence / cancelOccurrence /
- * restoreOccurrence) + the pure occurrence-date validation. docs/ARCHITECTURE.md §16.
+ * restoreOccurrence) + the pure occurrence-date validation. docs/v1/ARCHITECTURE.md §16.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

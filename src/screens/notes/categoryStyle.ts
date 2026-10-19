@@ -1,6 +1,6 @@
 /**
  * Icon and accent color of each note category. Colors come from the canonical chart palette and
- * note-category index in src/theme/tokens.ts (docs/DESIGN_SYSTEM.md §2), so the hue of a
+ * note-category index in src/theme/tokens.ts (docs/v1/DESIGN_SYSTEM.md §2), so the hue of a
  * category never forks from the rest of the app; both variants keep >= 3:1 on surface.
  */
 import type MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';

@@ -26,7 +26,7 @@ import { z } from 'zod';
  * v3: scope 'following' (ADDITIVE only). update/delete on a recurring meeting may target "this
  * and the following occurrences": `occurrenceDate` doubles as the split date (the FIRST affected
  * occurrence's ORIGINAL local date). The executor splits the series at that date
- * (docs/ARCHITECTURE.md §16): the master is truncated and a NEW series carries the remaining
+ * (docs/v1/ARCHITECTURE.md §16): the master is truncated and a NEW series carries the remaining
  * occurrences with the changes applied (update) or is simply never created (delete). Unlike
  * 'occurrence', a 'following' update accepts the full change surface (it edits a series master).
  * A v2 server never sends 'following'; a v2 client rejects the unknown enum value, so servers
@@ -45,8 +45,18 @@ import { z } from 'zod';
  * tolerate (its enum rejects the whole response), so the request now carries `contractVersion`
  * and the server offers the task tools and the task context ONLY when it is >= 5. The live v4
  * production app and the WhatsApp bridge send no version and keep the exact v4 behavior.
+ *
+ * v6: combined requests that LINK (ADDITIVE only). "Book the call with Ana and add a task the
+ * day before to prepare the proposal" proposes a create_meeting and a create_task in one
+ * response, and the task should belong to the meeting that does not exist yet. The server cannot
+ * know that meeting's id (the client derives it, see services/ai/ids), so the task draft may
+ * instead carry `meetingActionId`: the `id` of the create_meeting action in the SAME response.
+ * The client resolves it to the real id once that meeting is created, and falls back to an
+ * UNLINKED task when the meeting was not created - a missing link never costs the user the task.
+ * Both directions stay compatible: the key is optional, so an old server simply omits it and an
+ * old client strips it and creates the task without the link.
  */
-export const AI_CONTRACT_VERSION = 5;
+export const AI_CONTRACT_VERSION = 6;
 
 // ---------------------------------------------------------------------------------------------
 // Trusted sign-in providers (verification gate)
@@ -525,12 +535,24 @@ export const aiTaskDraftSchema = z
     dueTime: localTimeKeySchema.nullable(),
     reminderMinutesBefore: z.number().int().min(0).max(AI_TASK_LIMITS.maxReminderMinutes).nullable(),
     meetingId: meetingIdSchema.nullable(),
+    /**
+     * v6, additive: the `id` of a create_meeting action in the SAME response whose meeting this
+     * task belongs to. Set only when that meeting does not exist yet, so `meetingId` is null and
+     * the server has no id to give. The executor resolves it after creating the meeting and
+     * creates an unlinked task when it cannot (the meeting failed, or an older server sent
+     * nothing). Never both this and `meetingId`.
+     */
+    meetingActionId: z.string().min(1).max(64).nullable().optional(),
     people: z.array(aiTaskPersonSchema).max(AI_TASK_LIMITS.maxPeople),
   })
   .refine((t) => t.dueTime === null || t.dueDate !== null, { message: 'dueTime needs a dueDate', path: ['dueTime'] })
   .refine((t) => t.reminderMinutesBefore === null || t.dueTime !== null, {
     message: 'a reminder needs a due time',
     path: ['reminderMinutesBefore'],
+  })
+  .refine((t) => t.meetingActionId === null || t.meetingActionId === undefined || t.meetingId === null, {
+    message: 'meetingActionId is only for a meeting that does not exist yet',
+    path: ['meetingActionId'],
   });
 export type AiTaskDraft = z.infer<typeof aiTaskDraftSchema>;
 
@@ -694,7 +716,7 @@ export const deleteAccountResponseSchema = z.object({ deleted: z.literal(true) }
 export type DeleteAccountResponse = z.infer<typeof deleteAccountResponseSchema>;
 
 // ---------------------------------------------------------------------------------------------
-// Zoom auto links (zoom* callables; docs/ARCHITECTURE.md §24, docs/SETUP.md §12)
+// Zoom auto links (zoom* callables; docs/v1/ARCHITECTURE.md §24, docs/v1/SETUP.md §12)
 // ---------------------------------------------------------------------------------------------
 //
 // The server owns a Zoom Server-to-Server OAuth app (one host account for every user). The app
@@ -775,7 +797,7 @@ export const zoomErrorDetailsSchema = z.object({ reason: z.enum(ZOOM_ERROR_CODES
 export type ZoomErrorDetails = z.infer<typeof zoomErrorDetailsSchema>;
 
 // ---------------------------------------------------------------------------------------------
-// WhatsApp bot (whatsapp* callables; docs/ARCHITECTURE.md §27, docs/SETUP.md §14)
+// WhatsApp bot (whatsapp* callables; docs/v1/ARCHITECTURE.md §27, docs/v1/SETUP.md §14)
 // ---------------------------------------------------------------------------------------------
 //
 // The server owns ONE WhatsApp Cloud API phone number (the Meta test number during development).
@@ -910,6 +932,18 @@ export const aiMeetingContextDocSchema = z.object({
     .catch([]),
   location: meetingLocationSchema.nullable().catch(null),
   conference: conferenceDetailsSchema.nullable().catch(null),
+  /**
+   * v6: per-occurrence exceptions of a series, keyed by the ORIGINAL occurrence date. Without
+   * these an agenda answer announces a standup that was cancelled, or announces a moved one at
+   * its old time. Only the status and the new start are read; everything else is tolerated.
+   */
+  recurrenceOverrides: z
+    .record(
+      z.string(),
+      z.object({ status: z.string().catch('modified'), startAt: z.string().nullable().catch(null) }).catch({ status: 'modified', startAt: null }),
+    )
+    .nullable()
+    .catch(null),
   /** v2: the repeat rule, so the assistant can describe series and propose scoped edits. */
   recurrence: recurrenceRuleSchema.nullable().catch(null),
 });

@@ -14,6 +14,8 @@ import { createExpoNotificationsPort } from './expoNotificationsPort';
 import { alertFeedback } from './feedback';
 import { fullScreenAlarm } from './fsi';
 import { createAppStatePort, createAsyncStoragePort, createSettingsPort } from './platformPorts';
+import { createBriefingScheduler, type BriefingScheduler } from './briefing';
+import { createStatusNotification, type StatusNotification } from './statusNotification';
 import { createTaskReminders, type TaskReminders } from './taskReminders';
 import type { AlertDataPort, AlertI18nPort } from './types';
 
@@ -55,5 +57,36 @@ export const taskReminders: TaskReminders = createTaskReminders({
   getPreferences: () => preferencesRepository.get(),
   i18n: i18nPort,
   events: appEvents,
+  deviceTimeZone: getDeviceTimeZone,
+});
+
+/**
+ * The optional daily briefing (V2 Stage 1, week 4): its own mgbrief:* scheduler, started with
+ * the engine. It reads meetings and tasks itself so the background refresh can reconcile it
+ * while the app is closed.
+ */
+export const briefingScheduler: BriefingScheduler = createBriefingScheduler({
+  notifications: createExpoNotificationsPort(),
+  getPreferences: () => preferencesRepository.get(),
+  listMeetings: (range) => meetingRepository.list(range),
+  listTasks: () => tasksRepository.list(),
+  subscribeTasks: (listener) => tasksRepository.subscribe(listener),
+  i18n: i18nPort,
+  events: appEvents,
+  appState: createAppStatePort(),
+  deviceTimeZone: getDeviceTimeZone,
+});
+
+/**
+ * The ongoing "alerts are on" notification. Off until the user asks for it in Settings > Alerts;
+ * it is reassurance and a next-meeting readout, not what makes alarms fire.
+ */
+export const statusNotification: StatusNotification = createStatusNotification({
+  notifications: createExpoNotificationsPort(),
+  getPreferences: () => preferencesRepository.get(),
+  listMeetings: (range) => meetingRepository.list(range),
+  i18n: i18nPort,
+  events: appEvents,
+  appState: createAppStatePort(),
   deviceTimeZone: getDeviceTimeZone,
 });

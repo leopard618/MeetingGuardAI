@@ -1,8 +1,19 @@
-import type { ConferenceDetails } from '../../../core/aiContract';
+import type { AiAction, AiTaskDraft, ConferenceDetails } from '../../../core/aiContract';
 import type { MeetingRange, WriteOptions } from '../../../core/contracts';
 import { AppError } from '../../../core/errors';
 import { CANCELLED_OVERRIDE, splitRecurrenceAt, withRecurrenceOverride } from '../../../core/recurrence';
-import { applyMeetingPatch, buildMeeting, tombstoneMeeting, type Meeting, type MeetingCreateInput, type MeetingPatch } from '../../../core/types';
+import {
+  applyMeetingPatch,
+  buildMeeting,
+  buildTask,
+  tombstoneMeeting,
+  type Meeting,
+  type MeetingCreateInput,
+  type MeetingPatch,
+  applyTaskPatch,
+  type TaskInput,
+  type TaskPatch,
+} from '../../../core/types';
 import {
   NOW,
   UID,
@@ -851,5 +862,166 @@ describe('zoom hooks (§24)', () => {
     expectDone(await executor.execute(bulkAction('a_z7', ['m1', 'm2'], { shiftMinutes: 30 })));
     await flushZoomHooks();
     expect(zoom.syncIfNeeded).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('task actions and same-turn meeting links', () => {
+  function taskSetup() {
+    const createdInputs: TaskInput[] = [];
+    const tasks = {
+      get: jest.fn(async () => null),
+      create: jest.fn(async (input: TaskInput) => {
+        createdInputs.push(input);
+        return buildTask(input, { id: `t_${createdInputs.length}`, userId: UID, timezone: 'UTC', now: NOW });
+      }),
+      update: jest.fn(),
+      remove: jest.fn(),
+    };
+    const executor = createActionExecutor({
+      meetings: new FakeMeetings(),
+      tasks,
+      calendar: { isConnected: async () => false, createMeetLink: jest.fn() },
+      sharing: { openMailComposer: jest.fn(), shareText: jest.fn() },
+      executed: createExecutedStore(memoryStorage(), () => NOW),
+      getUid: () => UID,
+      getFormatter: () => createTestFormatter(),
+      now: () => NOW,
+    });
+    return { executor, tasks, createdInputs };
+  }
+
+  function createTaskAction(id: string, task: Partial<AiTaskDraft> = {}): Extract<AiAction, { type: 'create_task' }> {
+    return {
+      type: 'create_task',
+      id,
+      summary: 'Proposed by the assistant',
+      confidence: 92,
+      task: {
+        title: 'Prepare the proposal',
+        description: '',
+        dueDate: null,
+        dueTime: null,
+        reminderMinutesBefore: null,
+        meetingId: null,
+        people: [],
+        ...task,
+      },
+    };
+  }
+
+  it('creates the task with the link the caller resolved for meetingActionId', async () => {
+    const { executor, createdInputs } = taskSetup();
+    const action = createTaskAction('a_t1', { meetingActionId: 'a_m1' });
+    expectDone(await executor.execute(action, { linkedMeetingId: 'ai_a_m1_hash' }));
+    expect(createdInputs[0]?.meetingId).toBe('ai_a_m1_hash');
+  });
+
+  it('creates the task unlinked when the meeting it pointed at never produced one', async () => {
+    const { executor, createdInputs } = taskSetup();
+    const action = createTaskAction('a_t2', { meetingActionId: 'a_m1' });
+    // The sibling create_meeting failed, so the caller resolves null. The task is still created.
+    expectDone(await executor.execute(action, { linkedMeetingId: null }));
+    expect(createdInputs[0]?.meetingId).toBeNull();
+  });
+
+  it('never lets a resolved link override an explicit meetingId', async () => {
+    const { executor, createdInputs } = taskSetup();
+    const action = createTaskAction('a_t3', { meetingId: 'm_existing' });
+    expectDone(await executor.execute(action, { linkedMeetingId: 'ai_other' }));
+    expect(createdInputs[0]?.meetingId).toBe('m_existing');
+  });
+
+  it('keeps the idempotency key independent of the resolved link', async () => {
+    const action = createTaskAction('a_t4', { meetingActionId: 'a_m1' });
+    const first = actionIdempotencyKey(action);
+    const { executor } = taskSetup();
+    await executor.execute(action, { linkedMeetingId: 'ai_a_m1_hash' });
+    // Same action, different resolution: the key must not move, or a retry would duplicate.
+    expect(actionIdempotencyKey(action)).toBe(first);
+  });
+
+  it('postpones a task, and reports completion only on the open to done flip', async () => {
+    const stored = buildTask(
+      { title: 'Prepare the proposal', dueDate: '2030-03-12', dueTime: '16:00', reminderMinutesBefore: 30 },
+      { id: 't_1', userId: UID, timezone: 'UTC', now: NOW },
+    );
+    const patches: TaskPatch[] = [];
+    const tasks = {
+      get: jest.fn(async () => stored),
+      create: jest.fn(),
+      update: jest.fn(async (_id: string, patch: TaskPatch) => {
+        patches.push(patch);
+        return applyTaskPatch(stored, patch, NOW);
+      }),
+      remove: jest.fn(),
+    };
+    const executor = createActionExecutor({
+      meetings: new FakeMeetings(),
+      tasks,
+      calendar: { isConnected: async () => false, createMeetLink: jest.fn() },
+      sharing: { openMailComposer: jest.fn(), shareText: jest.fn() },
+      executed: createExecutedStore(memoryStorage(), () => NOW),
+      getUid: () => UID,
+      getFormatter: () => createTestFormatter(),
+      now: () => NOW,
+    });
+
+    const postponed = expectDone(
+      await executor.execute({ type: 'update_task', id: 'a_u1', summary: 's', confidence: 90, taskId: 't_1', changes: { dueDate: '2030-03-14' } }),
+    );
+    expect(patches[0]).toEqual({ dueDate: '2030-03-14' });
+    expect(postponed.taskCompleted).toBeUndefined();
+
+    const completed = expectDone(
+      await executor.execute({ type: 'update_task', id: 'a_u2', summary: 's', confidence: 90, taskId: 't_1', changes: { status: 'done' } }),
+    );
+    expect(completed.taskCompleted).toBe(true);
+  });
+
+  it('fails honestly when the task is gone', async () => {
+    const tasks = { get: jest.fn(async () => null), create: jest.fn(), update: jest.fn(), remove: jest.fn() };
+    const executor = createActionExecutor({
+      meetings: new FakeMeetings(),
+      tasks,
+      calendar: { isConnected: async () => false, createMeetLink: jest.fn() },
+      sharing: { openMailComposer: jest.fn(), shareText: jest.fn() },
+      executed: createExecutedStore(memoryStorage(), () => NOW),
+      getUid: () => UID,
+      getFormatter: () => createTestFormatter(),
+      now: () => NOW,
+    });
+    const result = await executor.execute({ type: 'delete_task', id: 'a_d1', summary: 's', confidence: 90, taskId: 't_missing' });
+    expect(result.status).toBe('failed');
+    expect(tasks.remove).not.toHaveBeenCalled();
+  });
+
+  it('deletes a task that exists', async () => {
+    const stored = buildTask(
+      { title: 'Old task' },
+      { id: 't_2', userId: UID, timezone: 'UTC', now: NOW },
+    );
+    const tasks = { get: jest.fn(async () => stored), create: jest.fn(), update: jest.fn(), remove: jest.fn(async () => undefined) };
+    const executor = createActionExecutor({
+      meetings: new FakeMeetings(),
+      tasks,
+      calendar: { isConnected: async () => false, createMeetLink: jest.fn() },
+      sharing: { openMailComposer: jest.fn(), shareText: jest.fn() },
+      executed: createExecutedStore(memoryStorage(), () => NOW),
+      getUid: () => UID,
+      getFormatter: () => createTestFormatter(),
+      now: () => NOW,
+    });
+    const result = expectDone(await executor.execute({ type: 'delete_task', id: 'a_d2', summary: 's', confidence: 90, taskId: 't_2' }));
+    expect(result.taskIds).toEqual(['t_2']);
+    expect(tasks.remove).toHaveBeenCalledWith('t_2');
+  });
+
+  it('a second confirm of the same task action does not create a second task', async () => {
+    const { executor, tasks } = taskSetup();
+    const action = createTaskAction('a_t5', { meetingActionId: 'a_m1' });
+    expectDone(await executor.execute(action, { linkedMeetingId: 'ai_a_m1_hash' }));
+    const again = expectDone(await executor.execute(action, { linkedMeetingId: 'ai_a_m1_hash' }));
+    expect(again.duplicate).toBe(true);
+    expect(tasks.create).toHaveBeenCalledTimes(1);
   });
 });

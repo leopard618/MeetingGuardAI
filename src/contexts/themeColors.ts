@@ -62,7 +62,7 @@ export const APP_COLORS: Readonly<Record<ColorScheme, AppColors>> = {
 };
 
 /**
- * Weight bumps so Paper `<Text variant>` matches the token type scale (docs/DESIGN_SYSTEM.md §3);
+ * Weight bumps so Paper `<Text variant>` matches the token type scale (docs/v1/DESIGN_SYSTEM.md §3);
  * MD3 default sizes stay as they are.
  */
 const MG_FONTS = configureFonts({

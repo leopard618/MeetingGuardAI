@@ -1,5 +1,5 @@
 /**
- * WhatsApp webhook logic (docs/ARCHITECTURE.md §27), independent of Firebase wiring.
+ * WhatsApp webhook logic (docs/v1/ARCHITECTURE.md §27), independent of Firebase wiring.
  *
  * POST order: 1) signature over the RAW body (./signature.ts) - the shell answers 401 before
  * anything else runs; 2) per-message age check + dedupe (whatsappEvents create-once absorbs

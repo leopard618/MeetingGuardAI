@@ -1,5 +1,5 @@
 /**
- * Admin callables (owner: admin; contract in ./schemas.ts, docs/ARCHITECTURE.md §21).
+ * Admin callables (owner: admin; contract in ./schemas.ts, docs/v1/ARCHITECTURE.md §21).
  *
  * Every callable requires an authenticated caller whose ID token carries the custom claim
  * `admin: true` (set with functions/scripts/set-admin-claim.mjs). Handlers are pure functions
@@ -443,7 +443,7 @@ export const adminGetMetrics = onCall(ADMIN_CALLABLE_OPTIONS, (request): Promise
 );
 
 // =============================================================================================
-// v2: adminGetStats / adminGetHealth / adminRotateOpenAiKey (docs/ADMIN.md §v2).
+// v2: adminGetStats / adminGetHealth / adminRotateOpenAiKey (docs/v1/ADMIN.md §v2).
 // The v1 code above is untouched; everything below is additive.
 // =============================================================================================
 

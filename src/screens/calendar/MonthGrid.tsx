@@ -2,7 +2,7 @@
  * Month grid of the calendar screen: 6 x 7 day cells with one dot per meeting source on the day,
  * today tinted (primaryContainer), the selected day filled (primary). Every cell is a button
  * whose label reads the full date, the number of meetings and "today" / "selected". Day circles
- * scale with the available width and never drop below 40dp (docs/DESIGN_SYSTEM.md §7).
+ * scale with the available width and never drop below 40dp (docs/v1/DESIGN_SYSTEM.md §7).
  */
 import { memo, useState, type ReactElement } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';

@@ -3,14 +3,57 @@
 All notable changes to MeetingGuard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
-## [1.4.0] - Unreleased (branch `stabilization`)
+## [1.5.0] - Unreleased (V2 Stage 1, branch `v2`)
+
+The conversational agent: two-way voice, tasks as a first-class item, combined requests and the
+agenda. Adds the native speech-recognition module and the microphone permission, so this version
+ships only as a store/APK build, never as an OTA update onto 1.4.x.
+
+### Added
+
+- **Two-way voice conversation** (week 1): on-device speech recognition in English and Spanish,
+  the recognized text on screen and correctable by typing, spoken replies with a toggle, and
+  context carried across turns. Every action still ends in a confirmation card.
+- **Tasks as a first-class item** (week 2): create, edit, postpone, complete, reopen and delete,
+  with description, optional due date and time, a reminder through the alarm engine, status and
+  links to meetings and people. Tasks appear on the dashboard and the calendar, and can be
+  created over WhatsApp.
+- **Voice confirmation of actions**: an explicit spoken "yes, confirm" or "cancel" executes or
+  dismisses the pending proposals through exactly the same path as the card buttons. An unclear
+  or contradictory reply never executes anything; it is sent to the assistant as a normal
+  message instead.
+- **Combined requests that link** (week 3, AI contract v6): "book the call with Ana and add a
+  task the day before to prepare the proposal" proposes both in one response, and the task is
+  linked to the meeting that does not exist yet (`meetingActionId`, resolved on the device once
+  the meeting is created). A missing link never costs the user the task.
+- **Meeting-move prompts**: moving a meeting that has linked tasks asks once, by name, whether
+  the task should move too, and keeps the gap the user set up.
+- **Daily briefing** (week 4): an optional once-a-day notification summarizing that day, at a
+  time the user controls (Settings > Alerts). Its own `mgbrief:*` scheduler and Android channel,
+  so it can never collide with meeting alerts or task reminders, and its own switch.
+- **Agenda answers** (week 4): "what do I have today", "what is overdue" and "what should I
+  prepare for tomorrow". The server now composes the answer text from the resolved rows when the
+  model writes none, so a voice-only user hears the items instead of a caption, and hears
+  "nothing" when the answer is nothing. Series exceptions (`skipped`, `moved`) and the agenda
+  text of near-term meetings reach the model, so a cancelled standup is never announced and
+  preparation advice is never invented.
+
+### Fixed
+
+- A read-only answer is no longer captioned "review and confirm", which asked the user to
+  confirm something that did not exist.
+- A repeating meeting in an agenda list showed the series master's date (often months past)
+  instead of the occurrence the answer was about.
+- The assistant voice hook updated a ref during render.
+
+## [1.4.0] - Released October 6, 2026 (Google Play, production, 100 percent). iOS submitted October 8, 2026 and still in App Store review.
 
 iOS pass: Sign in with Apple and App Store readiness. New native module + entitlement, so this
 version ships only as a store/APK build - never as an OTA update onto 1.3.x.
 
 ### Added
 
-- **Sign in with Apple** (iOS only; docs/ARCHITECTURE.md §26): official Apple button above
+- **Sign in with Apple** (iOS only; docs/v1/ARCHITECTURE.md §26): official Apple button above
   "Continue with Google" on the landing screen (App Review 4.8, equal prominence), nonce-checked
   `signInAsync` -> Firebase `signInWithCredential`, silent cancel, first-sign-in name capture.
   New runtime dependency `expo-apple-authentication`; new i18n keys (EN+ES) for the button,
@@ -30,26 +73,26 @@ version ships only as a store/APK build - never as an OTA update onto 1.3.x.
   the credential, so a wrong-identity code (auth/user-mismatch) is never revocable. Revocation
   is best effort: on failure a notice toast explains the manual detach path and the deletion
   still proceeds. Deploy order: the 1.4.0 functions (trusted-provider gate) go live BEFORE any
-  iOS build reaches testers (docs/DEPLOYMENT.md section 4).
-- **iOS build/store runway** (docs/SETUP.md §8): `ios.usesAppleSignIn`, time-sensitive
+  iOS build reaches testers (docs/v1/DEPLOYMENT.md section 4).
+- **iOS build/store runway** (docs/v1/SETUP.md §8): `ios.usesAppleSignIn`, time-sensitive
   notifications entitlement, `ITSAppUsesNonExemptEncryption: false`, EN+ES locales, iPhone-only
   first release (`supportsTablet: false`), `ios-simulator` EAS build profile (Appetize browser
   testing), and the full owner checklist from Apple Developer enrollment to TestFlight,
-  privacy labels and review notes. On-device test plan: docs/TESTING.md T20.
+  privacy labels and review notes. On-device test plan: docs/v1/TESTING.md T20.
 
 ### Changed
 
 - `assets/icon.png` is now the final 1024x1024 App Store icon (Android adaptive icon unchanged).
 - Version 1.4.0 in `app.config.js` / `package.json` (OTA runtime version separation from 1.3.x).
 
-## [1.3.1] - Unreleased (branch `stabilization`)
+## [1.3.1] - Released inside 1.4.0 on October 6, 2026 (branch `stabilization`)
 
 UI modernization ("MG Indigo"): a visual-only restyle of every screen. No business logic,
 navigation, i18n keys (beyond two added alert-status strings) or alert behavior changed.
 
 ### Added
 
-- **Zoom auto links, server-created** (docs/ARCHITECTURE.md §24; owner setup docs/SETUP.md §12):
+- **Zoom auto links, server-created** (docs/v1/ARCHITECTURE.md §24; owner setup docs/v1/SETUP.md §12):
   picking Video call = Zoom and saving without a link now creates a real Zoom meeting on the
   owner's Server-to-Server OAuth app and writes the join url/passcode into the meeting
   (`zoomCreateMeeting`/`zoomSyncMeeting`/`zoomDeleteMeeting` callables + `zoomStatus`); edits
@@ -58,13 +101,13 @@ navigation, i18n keys (beyond two added alert-status strings) or alert behavior 
   paste-a-link behavior, and the default functions deploy never references the secrets. New
   Firestore rules key `external.zoomMeetingId` ships with this (deploy rules with the
   functions); per-user daily caps guard abuse.
-- **Email/password sign-in + verification gate** (docs/ARCHITECTURE.md §25; owner console
-  switch docs/SETUP.md §13): a second landing button opens sign-in / create-account with
+- **Email/password sign-in + verification gate** (docs/v1/ARCHITECTURE.md §25; owner console
+  switch docs/v1/SETUP.md §13): a second landing button opens sign-in / create-account with
   show/hide password, autofill hints and an inline no-enumeration password reset; unverified
   email accounts get a verify banner (resend with cooldown + "I verified") on the AI assistant
   surfaces, which stay gated until verified - everything else works unverified. Graceful
   "email sign-in is not enabled" message while the Firebase provider is off.
-- **Admin dashboard v2** (`/admin`; docs/ADMIN.md): modern dark UI on the app design tokens,
+- **Admin dashboard v2** (`/admin`; docs/v1/ADMIN.md): modern dark UI on the app design tokens,
   four hash-routed tabs (Overview, Users, AI usage, Settings) with hand-rolled SVG charts
   (requests/day, signups/day, input/output tokens/day; 7/30/90-day ranges) and an estimated-cost
   tile driven by the `OPENAI_PRICE_IN_PER_M` / `OPENAI_PRICE_OUT_PER_M` params. New callables
@@ -101,7 +144,7 @@ navigation, i18n keys (beyond two added alert-status strings) or alert behavior 
 - Accessibility: 44dp touch targets, font-scaling-safe layouts at 360dp (no fixed text
   heights), kept/extended accessibility roles, labels and states throughout.
 
-## [1.3.0] - Unreleased (branch `stabilization`)
+## [1.3.0] - Released inside 1.4.0 on October 6, 2026 (branch `stabilization`)
 
 The version jumped because this release ships **new native code** (the widget module and the
 purchases SDK): it needs a store/APK build and must never reach a 1.2.0 binary as an OTA update.
@@ -122,10 +165,10 @@ purchases SDK): it needs a store/APK build and must never reach a 1.2.0 binary a
   (monthly/yearly, 3-day free trials, prices straight from Google Play), with purchase,
   restore and "Manage subscription". Plans are activated by the server (RevenueCat webhook
   `revenuecatWebhook`); the app never writes its own plan. Without the key the screen keeps
-  saying "Subscriptions coming soon" exactly as before. Setup: `docs/SETUP.md` §11.
+  saying "Subscriptions coming soon" exactly as before. Setup: `docs/v1/SETUP.md` §11.
 - **Admin dashboard** (`/admin` on Firebase Hosting, admins only via a custom claim): user list
   with plan and today's AI usage, disable/enable accounts, set a plan manually, and usage
-  metrics. Guide: `docs/ADMIN.md`.
+  metrics. Guide: `docs/v1/ADMIN.md`.
 - **Video-call links:** the meeting form and details now derive their link text from the chosen
   provider AND the live calendar connections. Teams links are created automatically when a
   meeting is first pushed to a connected Outlook account; Google Meet keeps working on every
@@ -173,11 +216,11 @@ purchases SDK): it needs a store/APK build and must never reach a 1.2.0 binary a
 - `react-native-purchases` 10.10.2 added; the entitlement document gained the sources
   `revenuecat` and `admin` (server-written, as before).
 
-## [1.2.0] - Unreleased (branch `stabilization`)
+## [1.2.0] - Released inside 1.4.0 on October 6, 2026 (branch `stabilization`)
 
 This version is a rebuild. It is compared here with **v1.0.9**, the version on Google Play
 (versionCode 20, built in September 2025 from commit `ef4963f`). None of the later v1.0.x work on
-`main` (up to `3308b9d`) was ever released. The developer handoff is in `docs/HANDOFF.md`.
+`main` (up to `3308b9d`) was ever released. The developer handoff is in `docs/v1/HANDOFF.md`.
 
 The version number jumped from 1.1.0 (test builds only, never published) to 1.2.0 when the
 full-screen alarm native module was added: a new native module changes the runtime version, so it
@@ -233,7 +276,7 @@ needs a new store/APK build and must never ship as an OTA update onto a 1.1.0 bi
   - **Outlook / Microsoft 365 sync (phase 1):** connect a Microsoft account (PKCE sign-in, no
     server); two-way sync with the account's default calendar over Microsoft Graph delta queries,
     with Teams links for online meetings. Needs an Azure app registration
-    (`EXPO_PUBLIC_MSAL_CLIENT_ID`, `docs/SETUP.md` §10); the Outlook card is hidden when it is not
+    (`EXPO_PUBLIC_MSAL_CLIENT_ID`, `docs/v1/SETUP.md` §10); the Outlook card is hidden when it is not
     configured. In this version recurring series, and meetings that came from Google or the phone
     calendars, are not pushed to Outlook.
   - Import from and export to the calendars on the phone (Apple / Android).
@@ -277,7 +320,7 @@ needs a new store/APK build and must never ship as an OTA update onto a 1.1.0 bi
   - GitHub Actions CI and about 1,000 automated tests (app, Cloud Functions, Firestore rules).
   - Local test APKs for emulator testing without EAS: `npm run apk:test` builds a release APK signed
     with a local test key (EAS Update off) and `npm run apk:sha1` prints that key's SHA-1
-    (`docs/TESTING.md` B.2).
+    (`docs/v1/TESTING.md` B.2).
 
 ### Changed
 
@@ -352,7 +395,7 @@ needs a new store/APK build and must never ship as an OTA update onto a 1.1.0 bi
 
 ### Known issues
 
-See `docs/HANDOFF.md` §4. The main ones:
+See `docs/v1/HANDOFF.md` §4. The main ones:
 
 - Full-screen alarms over the lock screen are Android-only and need the `mg-fullscreen-alarm`
   native module in the build (revocable by the user on Android 14+; the app then falls back to a

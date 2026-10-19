@@ -1,5 +1,5 @@
 /**
- * Widget feeder (owner: widget; docs/ARCHITECTURE.md §19): keeps the Android next-meeting
+ * Widget feeder (owner: widget; docs/v1/ARCHITECTURE.md §19): keeps the Android next-meeting
  * home-screen widget (modules/mg-next-meeting-widget) in step with the meeting store.
  *
  * This file only wires the app singleton; the logic lives in ./feeder.ts (injected ports,

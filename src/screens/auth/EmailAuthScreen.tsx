@@ -1,7 +1,7 @@
 /**
  * Email/password sign-in and account creation (owner: email-auth). Route "EmailAuth" in the
  * Auth stack (headerless), reached from Landing's "Continue with email" button.
- * Design: docs/ARCHITECTURE.md section 25. i18n namespace: auth (auth:emailAuth.*).
+ * Design: docs/v1/ARCHITECTURE.md section 25. i18n namespace: auth (auth:emailAuth.*).
  *
  * - Mode toggle sign-in / create-account; email + password fields (secureTextEntry with a
  *   show/hide toggle, textContentType/autoComplete autofill hints, keyboard-safe via ScreenBody),
@@ -16,7 +16,7 @@
  * - Bad credentials always show the ONE generic auth:errors.invalidCredentials message
  *   (authErrors.ts maps invalid-credential/user-not-found/wrong-password together);
  *   auth/operation-not-allowed shows auth:errors.providerDisabled (owner hint: enable the
- *   provider, docs/SETUP.md section 13). Both arrive here as the localized `result.error`.
+ *   provider, docs/v1/SETUP.md section 13). Both arrive here as the localized `result.error`.
  */
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';

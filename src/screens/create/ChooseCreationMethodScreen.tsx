@@ -3,7 +3,7 @@
  * - Manual form (route CreateMeeting).
  * - AI assistant (route AIChat); every message uses one of the day's AI requests of the plan.
  * - WhatsApp: live only when the server-side bot is configured (whatsappLinkStatus.enabled,
- *   docs/ARCHITECTURE.md §27) - then the card opens the WhatsAppConnect setup. Otherwise it
+ *   docs/v1/ARCHITECTURE.md §27) - then the card opens the WhatsAppConnect setup. Otherwise it
  *   stays the disabled "Coming soon" card, so nothing pretends a bot exists.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';

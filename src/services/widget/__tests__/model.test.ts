@@ -1,6 +1,6 @@
 /**
  * computeNextWidgetEntry: candidate filtering, recurring expansion, the 5-minute started grace
- * and the 7-day horizon (docs/ARCHITECTURE.md §19).
+ * and the 7-day horizon (docs/v1/ARCHITECTURE.md §19).
  */
 import type { MeetingRecurrence } from '../../../core/recurrence';
 import { buildMeeting, type Meeting, type MeetingCreateInput } from '../../../core/types';

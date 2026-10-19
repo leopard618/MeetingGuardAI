@@ -1,5 +1,5 @@
 /**
- * Resting-content card (owner: shell / Foundation; docs/DESIGN_SYSTEM.md §5): surface, r-lg,
+ * Resting-content card (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5): surface, r-lg,
  * 1px outlineVariant hairline, p-16, elevation 0 (depth = border, never border + shadow).
  * `accent="primary"` is the ONE focal card a screen may have (primaryContainer, no border).
  * With `onPress` it ripples primary@10% (Android) / dims to 0.96 (iOS).

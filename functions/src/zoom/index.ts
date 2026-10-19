@@ -1,7 +1,7 @@
 /**
  * zoom* callables (owner: zoom-server).
- * Contract: shared/aiContract.ts (zoom* schemas, ZOOM_ERROR_CODES); design: docs/ARCHITECTURE.md
- * §24; owner setup and deploy order: docs/SETUP.md §12.
+ * Contract: shared/aiContract.ts (zoom* schemas, ZOOM_ERROR_CODES); design: docs/v1/ARCHITECTURE.md
+ * §24; owner setup and deploy order: docs/v1/SETUP.md §12.
  *
  * Deployability rules (DO NOT break them):
  * - `zoomStatus` NEVER references the ZOOM_* secrets. It answers from the non-secret
@@ -10,7 +10,7 @@
  *   ZOOM_ENABLED is true at deploy time (`zoomWriteCallablesEnabledAtLoad()` below reads the
  *   param's env value when the CLI loads this module for discovery). While the param is false
  *   (the default) a full `firebase deploy --only functions` never validates the secrets and
- *   cannot fail on them. ONE amendment (docs/ARCHITECTURE.md §27): `whatsappWebhook` also binds
+ *   cannot fail on them. ONE amendment (docs/v1/ARCHITECTURE.md §27): `whatsappWebhook` also binds
  *   the ZOOM_* secrets, but ONLY while ZOOM_ENABLED is true at its load time (same
  *   `zoomWriteCallablesEnabledAtLoad()` check), and SETUP §12 orders the secrets before the
  *   flag - so a deploy still can never fail on missing ZOOM_* secrets. Beyond that pair of
@@ -101,7 +101,7 @@ export function zoomWriteCallablesEnabledAtLoad(): boolean {
  * `zoomStatus` {} -> { configured }: is the server-side Zoom integration set up? Always
  * deployed, no secrets (see the header). The app caches the answer per session
  * (src/services/zoom). `configured: true` implies the write callables were deployed with it
- * (same param flips both; docs/SETUP.md §12 orders the owner steps).
+ * (same param flips both; docs/v1/SETUP.md §12 orders the owner steps).
  */
 export const zoomStatus = onCall(
   {

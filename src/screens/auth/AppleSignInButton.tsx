@@ -1,5 +1,5 @@
 /**
- * Sign in with Apple button (Landing; iOS ONLY) - owner: shell. docs/ARCHITECTURE.md section 26.
+ * Sign in with Apple button (Landing; iOS ONLY) - owner: shell. docs/v1/ARCHITECTURE.md section 26.
  *
  * - Renders the OFFICIAL AppleAuthentication.AppleAuthenticationButton (App Review 4.8 / Apple
  *   HIG: equal prominence). On the Landing screen it sits directly ABOVE "Continue with Google",

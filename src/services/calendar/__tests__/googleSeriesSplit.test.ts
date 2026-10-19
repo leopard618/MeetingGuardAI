@@ -1,5 +1,5 @@
 /**
- * Google push behavior of a "this and following" series split (docs/ARCHITECTURE.md §16): the
+ * Google push behavior of a "this and following" series split (docs/v1/ARCHITECTURE.md §16): the
  * split is two ordinary local writes, so the existing push must PATCH the old event with the
  * truncated RRULE (UNTIL) and INSERT the tail as a brand-new series event with the deterministic
  * id, while the ref write-backs (origin 'calendar_google') are never re-pushed and an unchanged

@@ -296,6 +296,9 @@ const TASK_PEOPLE = array(
   'People this task involves, [] if none.',
 );
 const TASK_MEETING_REF = nullableString('The `ref` of a meeting from the meetings data block this task belongs to ("prepare before the kickoff"), or null.');
+const LINK_TO_NEW_MEETING = boolean(
+  'true only when this task belongs to a meeting you are creating in THIS SAME response ("book the call and add a task the day before to prepare"), which has no ref yet. Then leave meeting_ref null. Set false whenever meeting_ref is used or the task belongs to no meeting.',
+);
 
 export const TASK_TOOLS: readonly ToolDefinition[] = [
   {
@@ -311,6 +314,7 @@ export const TASK_TOOLS: readonly ToolDefinition[] = [
         due_time: DUE_TIME,
         reminder_minutes_before: REMINDER,
         meeting_ref: TASK_MEETING_REF,
+        link_to_new_meeting: LINK_TO_NEW_MEETING,
         people: TASK_PEOPLE,
         summary: SUMMARY,
         confidence: CONFIDENCE,
@@ -514,6 +518,8 @@ export const createTaskArgsSchema = z.object({
   due_time: z.string().nullable().default(null),
   reminder_minutes_before: z.number().int().nullable().default(null),
   meeting_ref: z.string().nullable().default(null),
+  /** v6: the meeting this task belongs to is being created in this same response. */
+  link_to_new_meeting: z.boolean().default(false),
   people: z.array(taskPersonArgs).default([]),
   ...summaryArgs,
 });
