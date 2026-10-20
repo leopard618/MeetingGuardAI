@@ -460,11 +460,17 @@ async function firebaseAppleSignIn(): Promise<SignInResult> {
     // that as a wrong email or password, which is what App Review saw on 2026-10-20 and what no
     // Apple user can act on. Name the real situation instead.
     if (getAuthErrorReason(mapped) === 'invalid_credentials') {
-      throw authError('upstream_error', 'apple_sign_in_rejected', 'Firebase refused the Apple credential', {
+      const raw = error as { code?: unknown; message?: unknown; customData?: { _serverResponse?: unknown } } | null;
+      const rejected = authError('upstream_error', 'apple_sign_in_rejected', 'Firebase refused the Apple credential', {
         cause: error,
-        providerCode: typeof error === 'object' && error !== null && typeof (error as { code?: unknown }).code === 'string' ? (error as { code: string }).code : undefined,
+        providerCode: typeof raw?.code === 'string' ? raw.code : undefined,
         retryable: true,
       });
+      // Reported, not only shown: the Identity Toolkit detail ("audience mismatch", "nonce
+      // mismatch", ...) is the only thing that says WHY, and it is visible nowhere on the device.
+      const detail = typeof raw?.customData?._serverResponse === 'string' ? raw.customData._serverResponse : typeof raw?.message === 'string' ? raw.message : 'no detail';
+      log.error(`Apple credential refused by Firebase: ${detail}`, rejected);
+      throw rejected;
     }
     throw mapped;
   }
