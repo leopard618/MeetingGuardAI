@@ -301,3 +301,35 @@ describe('agenda questions (Stage 1 acceptance: today, overdue, tomorrow)', () =
     expect(prompt(false)).toContain('# Agenda questions');
   });
 });
+
+describe('combined requests produce every tool call in one response (week 3 field defect)', () => {
+  // Seen in production on 2026-10-19: "book the call with Ana and add a task the day before"
+  // produced one tool call and no reply text; the task was never proposed.
+  it('is a first-class rule, not only a line in the optional tasks block', () => {
+    const withoutTasks = buildSystemPrompt({
+      language: 'en',
+      timeZone: 'Europe/Madrid',
+      now: NOW,
+      mode: 'chat',
+      followUpRef: null,
+      hasTasks: false,
+      nonce: 'n',
+    });
+    expect(withoutTasks).toContain('call EVERY tool they need in this same response, never only the first');
+    expect(withoutTasks).toContain('leaving the task for after confirmation is wrong');
+  });
+
+  it('names the exact pairing and keeps the reply text in the same response', () => {
+    const prompt = buildSystemPrompt({
+      language: 'en',
+      timeZone: 'Europe/Madrid',
+      now: NOW,
+      mode: 'chat',
+      followUpRef: null,
+      hasTasks: true,
+      nonce: 'n',
+    });
+    expect(prompt).toContain('create_meeting AND create_task (with link_to_new_meeting true) together');
+    expect(prompt).toContain('The short reply of rule 2 is part of that same response');
+  });
+});

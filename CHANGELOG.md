@@ -27,7 +27,15 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
   linked to the meeting that does not exist yet (`meetingActionId`, resolved on the device once
   the meeting is created). A missing link never costs the user the task.
 - **Meeting-move prompts**: moving a meeting that has linked tasks asks once, by name, whether
-  the task should move too, and keeps the gap the user set up.
+  the task should move too, and keeps the gap the user set up. The question is guaranteed by the
+  server: when the model moves a meeting and says nothing about a linked, dated, open task, the
+  question is appended to the reply.
+- **Server-side consent guard**: a spoken or typed answer to a confirmation card is honoured as
+  confirm or cancel only when it is short and carries no qualifier ("yes but make it earlier"
+  leaves the cards on screen), whatever the model decided. Logged as resolutionBlocked so it can
+  be checked without a device.
+- **Composed agenda answers** skip cancelled meetings and read a repeating meeting as a time of
+  day, since its stored start is the first occurrence of the series.
 - **Daily briefing** (week 4): an optional once-a-day notification summarizing that day, at a
   time the user controls (Settings > Alerts). Its own `mgbrief:*` scheduler and Android channel,
   so it can never collide with meeting alerts or task reminders, and its own switch.

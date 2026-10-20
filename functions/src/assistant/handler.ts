@@ -31,7 +31,8 @@ import { FollowUpMeetingNotFoundError, loadMeetingContext, type MeetingReader } 
 import { UpstreamError, assistantError } from './errors';
 import type { GlobalBudget } from './globalBudget';
 import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
-import { buildPromptMessages, collectUserText, composeListAnswer, fallbackReply } from './prompt';
+import { isPlainConsent, lastUserText, missingMoveQuestion } from './guards';
+import { buildPromptMessages, collectUserText, composeListAnswer, fallbackReply, listAnswerItems } from './prompt';
 import { consumeQuota, refundQuota, type QuotaDecision, type QuotaStore } from './quota';
 import { buildTaskContext, type TaskContext, type TaskReader } from './tasksContext';
 import { isValidTimeZone } from './time';
@@ -227,19 +228,30 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
 
     // A resolution only counts when something was pending AND the model proposed nothing new:
     // "yes but change X" style answers come back as proposals and must never auto-confirm.
-    const resolution = pendingActions.length > 0 && mapped.actions.length === 0 ? mapped.resolution : null;
+    // ... and, as a deterministic backstop, only when the user's own words were plain consent or
+    // refusal. "Yes but make it earlier" must never execute, whatever the model decided.
+    const plainConsent = isPlainConsent(lastUserText(request.messages));
+    const resolutionBlocked = pendingActions.length > 0 && mapped.actions.length === 0 && mapped.resolution !== null && !plainConsent;
+    const resolution =
+      pendingActions.length > 0 && mapped.actions.length === 0 && plainConsent ? mapped.resolution : null;
 
     let reply = (completion.content ?? '').trim();
     if (reply.length === 0 && completion.refusal) reply = completion.refusal.trim();
+    // A read-only answer is never captioned "review and confirm": there is nothing to confirm.
+    // It is composed from the rows themselves, because the reply is what gets read aloud and a
+    // voice-only user must hear the actual items (and hear "nothing" when the answer is nothing).
+    const reads = mapped.actions.filter((action) => !isMutatingAction(action));
+    const onlyLists = mapped.actions.length > 0 && reads.length === mapped.actions.length;
+    const listAnswer = onlyLists ? composeListAnswer(reads, context, tasksContext, request.language, request.timezone) : null;
+    if (reply.length > 0 && listAnswer !== null) {
+      // The model wrote a caption ("Here is your day.") and left the items to the card. Append
+      // the composed items unless the reply already names at least one of them.
+      const items = listAnswerItems(reads, context, tasksContext, request.timezone);
+      const lower = reply.toLowerCase();
+      const namesOne = items.some((item) => item.title.trim().length > 0 && lower.includes(item.title.trim().toLowerCase()));
+      if (items.length > 0 && !namesOne) reply = reply + " " + listAnswer;
+    }
     if (reply.length === 0) {
-      // A read-only answer is never captioned "review and confirm": there is nothing to
-      // confirm. It is composed from the rows themselves, so a voice-only user hears the
-      // actual answer (and hears "nothing" when the answer is nothing).
-      const reads = mapped.actions.filter((action) => !isMutatingAction(action));
-      const onlyLists = mapped.actions.length > 0 && reads.length === mapped.actions.length;
-      // A read-only answer with no reply text is composed from the rows themselves, so the
-      // user hears the actual answer rather than "here are the meetings I found".
-      const listAnswer = onlyLists ? composeListAnswer(reads, context, tasksContext, request.language, request.timezone) : null;
       // Every proposal the model made was dropped (e.g. a timed meeting without a time): tell
       // the user WHAT is missing instead of a useless "couldn't generate a response" loop.
       const allDropped =
@@ -263,6 +275,10 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
         );
       }
     }
+    // A meeting move with linked, dated tasks must ask about them; append the question when the
+    // model left it out, so the promise does not depend on the model remembering.
+    const moveQuestion = missingMoveQuestion(mapped.actions, tasksContext, request.language, reply);
+    if (moveQuestion !== null) reply = reply.length > 0 ? reply + ' ' + moveQuestion : moveQuestion;
     if (reply.length > AI_LIMITS.maxReplyChars) reply = reply.slice(0, AI_LIMITS.maxReplyChars);
 
     const response: AssistantResponse = {
@@ -292,6 +308,11 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       resolution,
       suggestions: mapped.suggestions.length,
       dropped: mapped.dropped,
+      // Field evidence without a device: how many tasks arrived linked to a same-response meeting,
+      // whether the consent backstop vetoed a resolution, and whether a move question was added.
+      linkedTasks: mapped.actions.filter((action) => action.type === 'create_task' && action.task.meetingActionId !== null && action.task.meetingActionId !== undefined).length,
+      resolutionBlocked,
+      moveQuestion: moveQuestion !== null,
       finishReason: completion.finishReason,
       promptTokens: completion.usage?.promptTokens ?? null,
       completionTokens: completion.usage?.completionTokens ?? null,

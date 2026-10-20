@@ -25,6 +25,8 @@ Status as told to the client. Weeks 1 and 2 are delivered; weeks 3 and 4 are bei
 
 ## Week 5 in practice
 
+The step-by-step runbook, the store declarations, the release notes and the acceptance table are in RELEASE-1.5.0.md in this folder. In short:
+
 - Build 1.5.0 for Android (EAS production profile) and upload it to Google Play as an update over 1.4.0; staged rollout.
 - Build 1.5.0 for iOS with EAS. App Store Connect allows one version in review at a time: if 1.4.0 has cleared, submit 1.5.0 as the next version; if 1.4.0 is still waiting, cancel it and submit 1.5.0 in its place, since 1.4.0 has never been live on the App Store and nothing is lost.
 - Update both store listings and screenshots for voice and tasks (EN and ES); add the microphone and speech-recognition disclosure to Play Data Safety and the App Store privacy labels.

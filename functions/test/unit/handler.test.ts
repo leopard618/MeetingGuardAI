@@ -320,7 +320,7 @@ describe('pending-proposal resolution (v4)', () => {
     const { deps } = setup(
       result({ content: '', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"confirm"}' }] }),
     );
-    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
+    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING, messages: [{ role: 'user', content: 'Yes, I confirm.' }] }), deps);
     expect(response.resolution).toBe('confirm');
     expect(response.actions).toEqual([]);
     expect(response.reply).toBe('Got it, confirming it now.');
@@ -331,7 +331,7 @@ describe('pending-proposal resolution (v4)', () => {
     const { deps } = setup(
       result({ content: '', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"reject"}' }] }),
     );
-    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
+    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING, messages: [{ role: 'user', content: 'no' }] }), deps);
     expect(response.resolution).toBe('reject');
     expect(response.reply).toBe('Okay, I dismissed it. Nothing was changed.');
   });
@@ -357,6 +357,20 @@ describe('pending-proposal resolution (v4)', () => {
     const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
     expect(response.resolution).toBeUndefined();
     expect(response.actions).toHaveLength(1);
+  });
+
+  // "An unclear reply never executes anything": the model may still answer "yes but make it
+  // earlier" with resolve_pending(confirm). The server honours a resolution only for plain words.
+  it('blocks the resolution when the user qualified the answer, keeping the cards on screen', async () => {
+    for (const content of ['yes but make it earlier', 'Move my meeting to 11:00', 'sí pero más tarde']) {
+      const { deps } = setup(
+        result({ content: 'Confirming.', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"confirm"}' }] }),
+      );
+      const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING, messages: [{ role: 'user', content }] }), deps);
+      expect(response.resolution).toBeUndefined();
+      expect(response.actions).toEqual([]);
+      expect(logger.info).toHaveBeenCalledWith('assistant.completed', expect.objectContaining({ resolutionBlocked: true }));
+    }
   });
 
   it('never returns a resolution to a request without pending proposals', async () => {
@@ -451,6 +465,32 @@ describe('dropped-proposal fallback', () => {
       expect(response.reply).not.toContain('confirm');
     });
 
+    // What the composer reads aloud must match the calendar: a cancelled meeting is not part of
+    // the day, and a repeating meeting's stored start is its FIRST occurrence, so only its time
+    // of day is said.
+    it('drops a cancelled meeting and says a repeating meeting as a time of day', async () => {
+      function withExtras(llmResult = result({ content: '', toolCalls: [] })) {
+        const built = setup(llmResult);
+        built.meetings
+          .add('gone', { title: 'Cancelled sync', startAt: '2026-09-29T09:00:00.000Z', status: 'cancelled' })
+          .add('standup', {
+            title: 'Standup', startAt: '2026-09-01T07:00:00.000Z',
+            recurrence: { freq: 'weekly', interval: 1, byWeekday: ['mo', 'tu', 'we', 'th', 'fr'], byMonthDay: null, until: null, count: null },
+          });
+        return built;
+      }
+      const probe = withExtras();
+      await handleAssistant(caller(), chatRequest(), probe.deps);
+      const refs = [PRIVATE_TEXT, 'Cancelled sync', 'Standup'].map((title) => refOf(probe.llm, title));
+
+      const second = withExtras(result({ content: '', toolCalls: [listCall(refs)] }));
+      const response = await handleAssistant(caller(), chatRequest(), second.deps);
+      expect(response.reply).not.toContain('Cancelled sync');
+      expect(response.reply).not.toContain('2026-09-01');
+      // Madrid is UTC+2 in September: 07:00Z is 09:00 local.
+      expect(response.reply).toContain('Standup (09:00)');
+      expect(response.reply).toContain(PRIVATE_TEXT);
+    });
     it('says plainly that there is nothing when the list is empty', async () => {
       const { deps } = setup(result({ content: '', toolCalls: [listCall([])] }));
       const response = await handleAssistant(caller(), chatRequest(), deps);
@@ -571,6 +611,59 @@ describe('task tools (v5)', () => {
         meetingId: null,
         people: [{ name: 'Ana', email: null }],
       },
+    });
+  });
+
+  // "When a meeting moves, the assistant asks whether related task dates should move too": the
+  // question is appended by the server when the model moved the meeting and said nothing about
+  // the linked task, and left alone when the model handled it.
+  describe('a meeting move asks about its linked dated tasks', () => {
+    function moveCall(ref: string) {
+      return {
+        name: 'update_meeting',
+        arguments: JSON.stringify({
+          meeting_ref: ref,
+          changes: {
+            title: null, description: null, date: '2026-10-01', time: '11:00', all_day: null, timezone: null,
+            duration_minutes: null, location: null, clear_location: false, conference: null, clear_conference: false,
+            participants: null, preparation_tips: null, alert_minutes_before: null, reset_alert_times: false,
+          },
+          summary: 'Move the merger meeting to Oct 1 at 11:00.', confidence: 90,
+        }),
+      };
+    }
+    async function refForMerger() {
+      const probe = setup();
+      probe.deps.tasks = taskReader;
+      await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), probe.deps);
+      return refOf(probe.llm, PRIVATE_TEXT);
+    }
+
+    it('appends the question when the model forgot it', async () => {
+      const ref = await refForMerger();
+      const { deps } = setup(result({ content: 'Moving it to October 1 at 11:00.', toolCalls: [moveCall(ref)] }));
+      deps.tasks = taskReader;
+      const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+      expect(response.actions).toHaveLength(1);
+      expect(response.reply).toBe('Moving it to October 1 at 11:00. Should I move "Prepare the proposal" as well?');
+      expect(logger.info).toHaveBeenCalledWith('assistant.completed', expect.objectContaining({ moveQuestion: true }));
+    });
+
+    it('asks in Spanish for a Spanish request', async () => {
+      const ref = await refForMerger();
+      const { deps } = setup(result({ content: 'La muevo al 1 de octubre.', toolCalls: [moveCall(ref)] }));
+      deps.tasks = taskReader;
+      const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6, language: 'es' }), deps);
+      expect(response.reply).toBe('La muevo al 1 de octubre. ¿Muevo también "Prepare the proposal"?');
+    });
+
+    it('leaves the reply alone when the model already asked', async () => {
+      const ref = await refForMerger();
+      const { deps } = setup(result({ content: 'Moving it. Should I move Prepare the proposal too?', toolCalls: [moveCall(ref)] }));
+      deps.tasks = taskReader;
+      const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+      expect(response.reply).toBe('Moving it. Should I move Prepare the proposal too?');
+      expect(logger.info).toHaveBeenCalledWith('assistant.completed', expect.objectContaining({ moveQuestion: false }));
     });
   });
 
@@ -752,5 +845,44 @@ describe('admin stats hook (recordAiUsage)', () => {
     const recordAiUsage = jest.fn(async () => undefined);
     await expectAssistantError(handleAssistant(caller(), chatRequest(), { ...deps, recordAiUsage }), 'resource-exhausted', 'quota_exceeded');
     expect(recordAiUsage).not.toHaveBeenCalled();
+  });
+});
+
+describe('a list answer always carries the items, because the reply is what is read aloud', () => {
+  async function learnFirstMeeting() {
+    const probe = setup(result({ content: '', toolCalls: [] }));
+    await handleAssistant(caller(), chatRequest(), probe.deps);
+    const block = probe.llm.requests[0]!.messages[1]!.content;
+    const payload = JSON.parse(block.split('\n')[1]!) as { meetings: { ref: string; title: string }[] };
+    const first = payload.meetings[0];
+    if (!first) throw new Error('no meeting in the data block');
+    return first;
+  }
+
+  function listCall(refs: string[]) {
+    return { name: 'list_meetings', arguments: JSON.stringify({ meeting_refs: refs, summary: 'Your meetings.', confidence: 90 }) };
+  }
+
+  it('appends the items when the model only wrote a caption', async () => {
+    const meeting = await learnFirstMeeting();
+    const { deps } = setup(result({ content: 'Here is your day.', toolCalls: [listCall([meeting.ref])] }));
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.reply.startsWith('Here is your day. ')).toBe(true);
+    expect(response.reply).toContain(meeting.title);
+    expect(response.reply).toMatch(/\(\d{2}:\d{2}\)\.$/);
+  });
+
+  it('leaves the reply alone when the model already named an item', async () => {
+    const meeting = await learnFirstMeeting();
+    const content = 'You have ' + meeting.title + ' this afternoon.';
+    const { deps } = setup(result({ content, toolCalls: [listCall([meeting.ref])] }));
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.reply).toBe(content);
+  });
+
+  it('leaves the reply alone when the list is empty and the model said so', async () => {
+    const { deps } = setup(result({ content: 'Nothing on that day.', toolCalls: [listCall([])] }));
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.reply).toBe('Nothing on that day.');
   });
 });
