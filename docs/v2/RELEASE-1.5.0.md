@@ -8,8 +8,10 @@ docs/v1/DEPLOYMENT.md and is not repeated here; this page only adds what is spec
 Facts this plan rests on (checked in the consoles on 2026-10-19):
 
 - Google Play: 1.4.0 (versionCode 24) has been in production since 2026-10-06 at 100 percent.
-- App Store: 1.4.0 build 9 is Waiting for Review (submitted 2026-10-07, resubmitted 2026-10-08).
-  An expedited review was requested and accepted on 2026-10-19. 1.4.0 has never been live on iOS.
+- App Store: 1.4.0 build 9 was REJECTED on 2026-10-20 after the expedited review: 2.1(b) the
+  subscription products were never submitted, 2.1(a) Sign in with Apple errored on the review
+  iPad, 3.1.2(c) no Terms of Use link in the listing. The fix guide is APP-REVIEW-2026-10-20.md
+  in this folder. 1.4.0 has never been live on iOS; the next iOS submission is 1.5.0.
 - 1.5.0 adds a native module (expo-speech-recognition) and the microphone permission. It can only
   ship as a store build. It can never be an OTA update onto 1.4.x, and OTA updates published to
   the production channel after this release only reach 1.5.0 binaries (the runtime version follows
@@ -63,14 +65,11 @@ EAS build page by hand, which is how 1.4.0 was released.
 
 ## 2. iOS
 
-App Store Connect accepts one version in review at a time. Two cases:
-
-- 1.4.0 has been approved and released by the time the 1.5.0 build exists: create version 1.5.0
-  in App Store Connect and submit the new build as a normal update.
-- 1.4.0 is still Waiting for Review: remove it from review (the version page, the build, Remove
-  from review or Cancel the submission), then submit 1.5.0 in its place. Nothing is lost, since
-  1.4.0 was never live on iOS. Say in the review notes that 1.5.0 supersedes the withdrawn 1.4.0
-  and that an expedited review was granted for the app on 2026-10-19.
+The three findings of the 2026-10-20 rejection are closed first (APP-REVIEW-2026-10-20.md: the
+subscription products created and attached, Sign in with Apple proven on a real iPhone, the EULA
+link in both descriptions). Then the rejected 1.4.0 version in App Store Connect is edited in
+place: its version string changed to 1.5.0, the 1.5.0 build selected, the products attached, and
+the review notes rewritten to answer each finding. Nothing is lost, since 1.4.0 was never live.
 
 ```
 eas build --platform ios --profile production

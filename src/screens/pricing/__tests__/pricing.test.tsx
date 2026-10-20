@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
+
 import { createStackNavigator } from '@react-navigation/stack';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
-import { Linking, Platform } from 'react-native';
+import { Linking, Platform, Text } from 'react-native';
+import type { ReactElement } from 'react';
 import { PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
@@ -267,6 +269,11 @@ describe('pricing model', () => {
 });
 
 const Stack = createStackNavigator();
+// App Store rule 3.1.2: the Plans screen links to the legal pages. The stubs stand in for the
+// real legal screens so the link press is proven by what ends up on screen.
+function LegalStub(): ReactElement {
+  return <Text testID="legal-stub">legal</Text>;
+}
 
 async function renderPricing() {
   await render(
@@ -274,8 +281,10 @@ async function renderPricing() {
       <ThemeProvider>
         <PaperProvider>
           <NavigationContainer>
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
               <Stack.Screen name="Pricing" component={PricingScreen} />
+              <Stack.Screen name="Privacy" component={LegalStub} />
+              <Stack.Screen name="Terms" component={LegalStub} />
             </Stack.Navigator>
           </NavigationContainer>
         </PaperProvider>
@@ -370,6 +379,18 @@ describe('PricingScreen (purchases configured)', () => {
     expect(screen.getByText('Most popular')).toBeTruthy();
     expect(screen.getByTestId('pricing-restore')).toBeTruthy();
     expect(screen.queryByTestId('pricing-coming-soon-pro_monthly')).toBeNull();
+  });
+
+  it('states the renewal terms and links to the privacy policy and terms of use (App Store 3.1.2)', async () => {
+    await renderPricing();
+    expect(screen.getByTestId('pricing-renewal').props.children).toContain('renew automatically');
+    expect(screen.getByTestId('pricing-privacy')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('pricing-terms'));
+    });
+    // The transition (animation 'none') still settles on a timer; let it finish in the test.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(screen.getByTestId('legal-stub')).toBeTruthy();
   });
 
   it('shows catalog prices, an error banner with Retry and NO buy buttons when the offering fails', async () => {

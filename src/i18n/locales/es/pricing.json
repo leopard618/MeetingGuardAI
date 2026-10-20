@@ -89,6 +89,12 @@
   },
   "footer": "Los precios están en dólares estadounidenses. Antes de cualquier compra, Google Play te mostrará el precio final en tu moneda, con impuestos incluidos.",
   "footerIos": "Los precios están en dólares estadounidenses. Antes de cualquier compra, App Store te mostrará el precio final en tu moneda, con impuestos incluidos.",
+  "renewal": "Las suscripciones son mensuales o anuales y se renuevan automáticamente al mismo precio hasta que las canceles en Google Play, al menos 24 horas antes de que termine el periodo.",
+  "renewalIos": "Las suscripciones son mensuales o anuales y se renuevan automáticamente al mismo precio hasta que las canceles en los ajustes de App Store, al menos 24 horas antes de que termine el periodo.",
+  "legal": {
+    "privacy": "Política de privacidad",
+    "terms": "Términos de uso"
+  },
   "planChanged": {
     "title": "Plan actualizado",
     "body": "Tu plan ahora es {{plan}}"

@@ -34,6 +34,9 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
   confirm or cancel only when it is short and carries no qualifier ("yes but make it earlier"
   leaves the cards on screen), whatever the model decided. Logged as resolutionBlocked so it can
   be checked without a device.
+- **Plans screen subscription terms** (App Store rule 3.1.2): the renewal terms in one line and
+  links to the privacy policy and the terms of use on the Plans screen itself, in English and
+  Spanish. Apple rejected 1.4.0 on 2026-10-20 partly for their absence.
 - **Composed agenda answers** skip cancelled meetings and read a repeating meeting as a time of
   day, since its stored start is the first occurrence of the series.
 - **Daily briefing** (week 4): an optional once-a-day notification summarizing that day, at a
