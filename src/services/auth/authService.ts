@@ -62,7 +62,7 @@ import type { Unsubscribe } from '../../core/events';
 import { createLogger } from '../../core/logger';
 import type { AuthUser } from '../../core/types';
 
-import { authError, mapAppleSignInError, mapFirebaseAuthError, mapGoogleSignInError, type GoogleStatusCodes } from './authErrors';
+import { authError, getAuthErrorReason, mapAppleSignInError, mapFirebaseAuthError, mapGoogleSignInError, type GoogleStatusCodes } from './authErrors';
 import { createSerialQueue } from './serialQueue';
 
 export { registerSessionCleanup } from './sessionCleanup';
@@ -454,7 +454,19 @@ async function firebaseAppleSignIn(): Promise<SignInResult> {
   try {
     result = await signInWithCredential(authInstance, requested.firebaseCredential);
   } catch (error) {
-    throw mapFirebaseAuthError(error);
+    const mapped = mapFirebaseAuthError(error);
+    // Firebase answers auth/invalid-credential when it refuses the Apple token (the iOS app not
+    // registered in the project, a nonce mismatch, an expired token). The generic mapping words
+    // that as a wrong email or password, which is what App Review saw on 2026-10-20 and what no
+    // Apple user can act on. Name the real situation instead.
+    if (getAuthErrorReason(mapped) === 'invalid_credentials') {
+      throw authError('upstream_error', 'apple_sign_in_rejected', 'Firebase refused the Apple credential', {
+        cause: error,
+        providerCode: typeof error === 'object' && error !== null && typeof (error as { code?: unknown }).code === 'string' ? (error as { code: string }).code : undefined,
+        retryable: true,
+      });
+    }
+    throw mapped;
   }
   // Only now is the code known to belong to the signed-in user (see appleAuthorizationCode).
   stashAppleAuthorizationCode(requested.apple.authorizationCode);

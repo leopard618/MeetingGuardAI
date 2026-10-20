@@ -290,7 +290,11 @@ describe('signInWithApple', () => {
     mockApple.signInAsync.mockResolvedValue(appleCredential());
     loaded.fb.signInWithCredential.mockRejectedValue(nativeError('auth/invalid-credential'));
 
-    await expect(loaded.authService.signInWithApple()).rejects.toMatchObject({ code: 'unauthenticated' });
+    // A refused Apple token is named as such, never as a wrong email or password (App Review 2026-10-20).
+    await expect(loaded.authService.signInWithApple()).rejects.toMatchObject({
+      code: 'upstream_error',
+      details: { reason: 'apple_sign_in_rejected', providerCode: 'auth/invalid-credential' },
+    });
 
     // The unvalidated code must not be revocable: it may belong to a different Apple ID.
     loaded.firebaseConfig.auth.currentUser = firebaseUser();

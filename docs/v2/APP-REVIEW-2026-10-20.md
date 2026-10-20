@@ -84,6 +84,25 @@ The reviewer tapped Sign in with Apple on an iPad Air (iPadOS 27.0.1) and got an
 flow has never been run on a real Apple device by us. The most likely cause is configuration.
 Check in this order.
 
+### 2.0 What the reviewer saw (screenshot received 2026-10-20)
+
+The reviewer's iPad showed the dialog "Couldn't sign in. The email or password is incorrect." right
+after the Apple sheet. That text is the app's wording for Firebase's auth/invalid-credential, which
+is what Firebase answers when it REFUSES the Apple token. So the native Apple sheet worked (the
+capability is fine) and Firebase rejected the result. The usual reason: no iOS app with bundle
+ID com.meetingguard.ai registered in the Firebase project (Project settings > General > Your
+apps), so the token's audience is not one Firebase accepts. The provider list already shows
+Apple Enabled (screenshot received), so 2.1 is a formality; 2.1b is the check that matters.
+
+The app now names this situation ("Apple sign-in was not accepted") instead of blaming an email
+or password, from the next build.
+
+### 2.1b Firebase: the iOS app registration
+
+Firebase console > Project settings (gear) > General > Your apps. [shot] If there is no iOS app:
+Add app > iOS > bundle ID com.meetingguard.ai > Register. Skip downloading
+GoogleService-Info.plist and the SDK steps (the app uses the JS SDK). Nothing to rebuild.
+
 ### 2.1 Firebase: the Apple provider
 
 Firebase console > project meetingguard-ai-app > Authentication > Sign-in method. [shot of the

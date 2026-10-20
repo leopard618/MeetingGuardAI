@@ -38,6 +38,7 @@ export const AUTH_ERROR_REASONS = [
   'user_mismatch',
   'apple_sign_in_unavailable',
   'apple_sign_in_failed',
+  'apple_sign_in_rejected',
 ] as const;
 export type AuthErrorReason = (typeof AUTH_ERROR_REASONS)[number];
 
@@ -291,6 +292,7 @@ const REASON_MESSAGE_KEYS: Readonly<Record<AuthErrorReason, string>> = {
   user_mismatch: 'auth:errors.userMismatch',
   apple_sign_in_unavailable: 'auth:errors.appleSignInUnavailable',
   apple_sign_in_failed: 'auth:errors.appleSignInFailed',
+  apple_sign_in_rejected: 'auth:errors.appleSignInRejected',
 };
 
 const CODE_MESSAGE_KEYS: Partial<Readonly<Record<AppErrorCode, string>>> = {
