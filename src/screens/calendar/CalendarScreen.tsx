@@ -136,40 +136,43 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
 
   const header = (
     <View style={[styles.header, { paddingLeft: insets.left + componentMetrics.screenGutter, paddingRight: insets.right + componentMetrics.screenGutter }]}>
+      {/* Month title on the left, the month arrows grouped on the right, "Today" between them
+          only while another day or month is showing. One row, no centred title that jumps. */}
       <View style={styles.monthRow}>
-        <IconButton
-          icon="chevron-left"
-          onPress={() => changeMonth(-1)}
-          accessibilityLabel={t('calendarView:previousMonth')}
-          style={styles.navButton}
-          hitSlop={4}
-          testID="calendar-prev"
-        />
         <Text variant="titleLarge" style={styles.monthTitle} accessibilityRole="header" accessibilityLiveRegion="polite" testID="calendar-month-title">
           {title}
         </Text>
-        <IconButton
-          icon="chevron-right"
-          onPress={() => changeMonth(1)}
-          accessibilityLabel={t('calendarView:nextMonth')}
-          style={styles.navButton}
-          hitSlop={4}
-          testID="calendar-next"
-        />
+        {!showingToday ? (
+          <MGButton
+            variant="ghost"
+            size="sm"
+            icon="calendar-today"
+            onPress={goToToday}
+            accessibilityLabel={t('calendarView:goToToday')}
+            testID="calendar-today"
+          >
+            {t('calendarView:today')}
+          </MGButton>
+        ) : null}
+        <View style={[styles.navGroup, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
+          <IconButton
+            icon="chevron-left"
+            onPress={() => changeMonth(-1)}
+            accessibilityLabel={t('calendarView:previousMonth')}
+            style={styles.navButton}
+            hitSlop={4}
+            testID="calendar-prev"
+          />
+          <IconButton
+            icon="chevron-right"
+            onPress={() => changeMonth(1)}
+            accessibilityLabel={t('calendarView:nextMonth')}
+            style={styles.navButton}
+            hitSlop={4}
+            testID="calendar-next"
+          />
+        </View>
       </View>
-      {!showingToday ? (
-        <MGButton
-          variant="ghost"
-          size="sm"
-          icon="calendar-today"
-          onPress={goToToday}
-          style={styles.todayButton}
-          accessibilityLabel={t('calendarView:goToToday')}
-          testID="calendar-today"
-        >
-          {t('calendarView:today')}
-        </MGButton>
-      ) : null}
       <View style={styles.gridWrap}>
         <MonthGrid grid={grid} weekdays={weekdays} index={index} taskDays={taskDays} selectedKey={selectedKey} todayKey={todayKey} onSelect={selectDay} />
       </View>
@@ -363,19 +366,23 @@ const styles = StyleSheet.create({
   monthRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    minHeight: componentMetrics.touchTargetMin,
   },
   monthTitle: {
     flex: 1,
-    textAlign: 'center',
+    fontWeight: '700',
+  },
+  navGroup: {
+    flexDirection: 'row',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.full,
   },
   navButton: {
-    width: componentMetrics.touchTargetMin,
-    height: componentMetrics.touchTargetMin,
+    width: componentMetrics.touchTargetMin - 4,
+    height: componentMetrics.touchTargetMin - 4,
     margin: 0,
-  },
-  todayButton: {
-    alignSelf: 'center',
   },
   gridWrap: {
     width: '100%',
@@ -386,13 +393,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
+    gap: spacing.xs,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: spacing.sm,
-    marginVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   legendDot: {
     width: componentMetrics.sourceDotSize,

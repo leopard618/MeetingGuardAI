@@ -58,6 +58,11 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
 
 ### Fixed
 
+- **Calendar showed six columns** on some phones: the seventh weekday and every Saturday wrapped
+  onto the next line because seven cells of exactly one seventh of the width overflowed by a
+  fraction of a pixel. The grid is now rows of seven flexible cells, which cannot wrap. The
+  calendar header also moved to a left-aligned month title with grouped arrows, the grid sits on
+  a rounded surface, today is a ring and the selected day a filled circle.
 - A read-only answer is no longer captioned "review and confirm", which asked the user to
   confirm something that did not exist.
 - A repeating meeting in an agenda list showed the series master's date (often months past)
