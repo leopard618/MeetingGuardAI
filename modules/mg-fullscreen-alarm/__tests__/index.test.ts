@@ -77,7 +77,9 @@ it('delegates to the native module on Android', async () => {
   expect(wrapper.isNativeModuleAvailable()).toBe(true);
 
   await wrapper.setAlarms([SPEC]);
-  expect(native.setAlarms).toHaveBeenCalledWith([SPEC]);
+  expect(native.setAlarms).toHaveBeenCalledWith([SPEC], null);
+  await wrapper.setAlarms([SPEC], 'mgbrief:');
+  expect(native.setAlarms).toHaveBeenLastCalledWith([SPEC], 'mgbrief:');
 
   await wrapper.clearAlarms(['mg:m1:5']);
   expect(native.clearAlarms).toHaveBeenCalledWith(['mg:m1:5']);

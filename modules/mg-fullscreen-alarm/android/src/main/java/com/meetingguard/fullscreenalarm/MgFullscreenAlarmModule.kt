@@ -43,8 +43,8 @@ class MgFullscreenAlarmModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MgFullscreenAlarm")
 
-    AsyncFunction("setAlarms") { alarms: List<AlarmSpecRecord> ->
-      setAlarmsInternal(alarms)
+    AsyncFunction("setAlarms") { alarms: List<AlarmSpecRecord>, scope: String? ->
+      setAlarmsInternal(alarms, scope)
     }
 
     AsyncFunction("clearAlarms") { ids: List<String>? ->
@@ -60,8 +60,13 @@ class MgFullscreenAlarmModule : Module() {
     }
   }
 
-  /** Replace-all: alarms missing from `alarms` are cancelled, the rest are (re)scheduled. */
-  private fun setAlarmsInternal(alarms: List<AlarmSpecRecord>) {
+  /**
+   * Replace-all: alarms missing from `alarms` are cancelled, the rest are (re)scheduled. When
+   * `scope` is non-empty the replace-all is restricted to stored alarms whose id starts with it,
+   * so the meeting engine ("mg:") and the daily briefing ("mgbrief:") can each own their alarms
+   * without cancelling the other's. A null/empty scope keeps the whole-set replace-all.
+   */
+  private fun setAlarmsInternal(alarms: List<AlarmSpecRecord>, scope: String?) {
     val context = reactContext
     val now = System.currentTimeMillis()
     val nextIds = HashSet<String>()
@@ -69,7 +74,8 @@ class MgFullscreenAlarmModule : Module() {
       if (spec.id.isNotEmpty()) nextIds.add(spec.id)
     }
     for (existing in AlarmStore.all(context)) {
-      if (existing.id !in nextIds) {
+      val inScope = scope.isNullOrEmpty() || existing.id.startsWith(scope)
+      if (inScope && existing.id !in nextIds) {
         AlarmScheduler.cancel(context, existing.id)
         AlarmStore.remove(context, existing.id)
       }

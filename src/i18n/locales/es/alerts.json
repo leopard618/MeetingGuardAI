@@ -144,7 +144,9 @@
       "description": "Una vez al día, un resumen corto de ese día: tus reuniones y las tareas que vencen.",
       "time": "Hora del resumen",
       "at": "Resumen a las {{time}}",
-      "done": "Listo"
+      "done": "Listo",
+      "fullScreen": "Mostrar a pantalla completa",
+      "fullScreenHint": "A la hora fijada, el resumen ocupa toda la pantalla como una alarma de reunión. Necesita el permiso de pantalla completa (ver Entrega de alertas más abajo). Solo en Android."
     },
     "statusNotification": {
       "label": "Notificación de estado",

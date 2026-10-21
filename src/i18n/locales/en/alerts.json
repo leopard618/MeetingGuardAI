@@ -144,7 +144,9 @@
       "description": "Once a day, a short summary of that day: your meetings and the tasks that are due.",
       "time": "Briefing time",
       "at": "Briefing at {{time}}",
-      "done": "Done"
+      "done": "Done",
+      "fullScreen": "Show full screen",
+      "fullScreenHint": "At the set time, the briefing takes over the screen like a meeting alarm. Needs the full-screen permission (see Alert delivery below). Android only."
     },
     "statusNotification": {
       "label": "Status notification",

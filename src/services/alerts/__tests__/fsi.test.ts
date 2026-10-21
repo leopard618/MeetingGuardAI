@@ -55,9 +55,8 @@ describe('module missing (iOS / web / old binary)', () => {
 describe('module present (Android)', () => {
   beforeEach(() => mockWrapper.isNativeModuleAvailable.mockReturnValue(true));
 
-  it('delegates setAlarms with the exact spec fields', async () => {
-    await fullScreenAlarm.setAlarms([SPEC]);
-    expect(mockWrapper.setAlarms).toHaveBeenCalledWith([
+  it('delegates setAlarms with the exact spec fields and the scope', async () => {
+    const mapped = [
       {
         id: 'mg:m1:5',
         atMs: 1_760_000_000_000,
@@ -66,7 +65,11 @@ describe('module present (Android)', () => {
         deepLink: 'meetingguardai://meeting/m1',
         channelId: 'mg-alert-max-v2',
       },
-    ]);
+    ];
+    await fullScreenAlarm.setAlarms([SPEC]);
+    expect(mockWrapper.setAlarms).toHaveBeenLastCalledWith(mapped, undefined);
+    await fullScreenAlarm.setAlarms([SPEC], 'mg:');
+    expect(mockWrapper.setAlarms).toHaveBeenLastCalledWith(mapped, 'mg:');
   });
 
   it('delegates clearAlarms with and without ids', async () => {

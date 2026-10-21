@@ -1060,8 +1060,13 @@ export interface FullScreenAlarmStatus {
 export interface FullScreenAlarmModule {
   /** Native module present and platform android. Synchronous so reconcile can branch cheaply. */
   isAvailable(): boolean;
-  /** DECLARATIVE: replaces the whole pending set (alarms not in `alarms` are cancelled natively). */
-  setAlarms(alarms: readonly FullScreenAlarmSpec[]): Promise<void>;
+  /**
+   * DECLARATIVE: replaces the pending set. With `scope` (an id prefix such as "mg:" or "mgbrief:")
+   * the replace-all is restricted to alarms whose id starts with it, so independent schedulers
+   * (the meeting engine and the daily briefing) never cancel each other's alarms. Without `scope`
+   * it replaces every pending alarm, as before.
+   */
+  setAlarms(alarms: readonly FullScreenAlarmSpec[], scope?: string): Promise<void>;
   /** Cancels the given ids, or every pending alarm when omitted (session end). */
   clearAlarms(ids?: readonly string[]): Promise<void>;
   getStatus(): Promise<FullScreenAlarmStatus>;

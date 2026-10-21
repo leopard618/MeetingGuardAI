@@ -165,6 +165,13 @@ saying alerts are on and naming the next meeting with its time. Create a meeting
 that one; the notification text should update within a few seconds. Swipe the app away from
 recent apps; the notification must stay. Turn the setting off; it must disappear.
 
+**E7. Full-screen morning summary (Android, new).** Settings > Alerts > Daily briefing >
+turn on "Show full screen". If the app asks for the full-screen permission, allow it. Set the
+briefing time two to three minutes ahead, close the app. Expect: at that time the summary takes
+over the screen like a meeting alarm, over the lock screen, with the day's meeting and task
+counts. Tap it; the app opens. Turn "Show full screen" off and repeat; expect the quiet
+notification instead. On an iPhone the toggle is not shown and it stays a notification.
+
 ## Part F. The Spanish pass
 
 Settings > Language > Español. Check the dashboard, tasks, calendar and settings are in Spanish.

@@ -60,6 +60,12 @@ describe('daily briefing settings', () => {
     });
   });
 
+  it('round-trips the full-screen briefing switch', () => {
+    const draft = settingsDraftFromPreferences(prefs);
+    expect(draft.briefingFullScreen).toBe(false);
+    expect(buildAlertSettingsPatch(prefs, { ...draft, briefingFullScreen: true })).toEqual({ briefingFullScreen: true });
+  });
+
   it('refuses a time that would schedule nothing', () => {
     const draft = settingsDraftFromPreferences(prefs);
     expect(isSettingsDraftValid({ ...draft, briefingTime: '7:15' })).toBe(false);

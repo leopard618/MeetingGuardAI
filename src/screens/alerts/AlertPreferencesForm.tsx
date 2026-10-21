@@ -244,6 +244,26 @@ export function AlertExtraSettings({
                 {t('alerts:settings.briefing.done')}
               </Button>
             ) : null}
+            {Platform.OS === 'android' && fullScreenAlarm.isAvailable() ? (
+              <View>
+                <View style={styles.switchRow}>
+                  <Text variant="bodyMedium" style={[styles.flex, { color: colors.onSurfaceVariant }]}>
+                    {t('alerts:settings.briefing.fullScreen')}
+                  </Text>
+                  <Switch
+                    value={draft.briefingFullScreen}
+                    onValueChange={(value) => onChange({ briefingFullScreen: value })}
+                    accessibilityLabel={t('alerts:settings.briefing.fullScreen')}
+                    testID="alerts-briefing-fullscreen"
+                  />
+                </View>
+                {draft.briefingFullScreen ? (
+                  <HelperText type="info" visible>
+                    {t('alerts:settings.briefing.fullScreenHint')}
+                  </HelperText>
+                ) : null}
+              </View>
+            ) : null}
           </View>
         ) : null}
       </Section>

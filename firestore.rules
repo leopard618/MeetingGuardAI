@@ -290,7 +290,7 @@ service cloud.firestore {
       return d.keys().hasOnly(['language', 'timezone', 'alertEnabled', 'alertIntensity', 'alertSoundType',
                                'alertVolume', 'vibrationEnabled', 'defaultAlertTimes', 'snoozeMinutes',
                                'followUpEnabled', 'briefingEnabled', 'briefingTime',
-                               'statusNotificationEnabled',
+                               'statusNotificationEnabled', 'briefingFullScreen',
                                'use24HourClock', 'onboardingCompleted',
                                'googleCalendarSyncEnabled', 'deviceCalendarImportIds',
                                'deviceCalendarExportId', 'updatedAt'])
@@ -307,6 +307,7 @@ service cloud.firestore {
         && d.get('followUpEnabled', true) is bool
         && d.get('briefingEnabled', false) is bool
         && d.get('statusNotificationEnabled', false) is bool
+        && d.get('briefingFullScreen', false) is bool
         && (d.get('briefingTime', null) == null
             || (d.briefingTime is string && d.briefingTime.matches('([01][0-9]|2[0-3]):[0-5][0-9]')))
         && (d.get('use24HourClock', null) == null || d.use24HourClock is bool)

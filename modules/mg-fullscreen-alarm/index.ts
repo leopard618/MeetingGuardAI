@@ -30,7 +30,7 @@ export interface MgFullScreenAlarmStatus {
 }
 
 interface NativeFullScreenAlarmModule {
-  setAlarms(alarms: MgFullScreenAlarmSpec[]): Promise<void>;
+  setAlarms(alarms: MgFullScreenAlarmSpec[], scope: string | null): Promise<void>;
   clearAlarms(ids: string[] | null): Promise<void>;
   getStatus(): Promise<MgFullScreenAlarmStatus>;
   openFullScreenIntentSettings(): Promise<void>;
@@ -59,10 +59,14 @@ export function isNativeModuleAvailable(): boolean {
   return nativeModule !== null;
 }
 
-/** DECLARATIVE: replaces the whole pending set. No-op when the module is missing. */
-export async function setAlarms(alarms: readonly MgFullScreenAlarmSpec[]): Promise<void> {
+/**
+ * DECLARATIVE: replaces the pending set, restricted to ids starting with `scope` when given (so
+ * the engine's "mg:" alarms and the briefing's "mgbrief:" alarms never cancel each other).
+ * No-op when the module is missing.
+ */
+export async function setAlarms(alarms: readonly MgFullScreenAlarmSpec[], scope?: string): Promise<void> {
   if (!nativeModule) return;
-  await nativeModule.setAlarms([...alarms]);
+  await nativeModule.setAlarms([...alarms], scope ?? null);
 }
 
 /** Cancels the given ids (and their tray copies), or every pending alarm when omitted. */

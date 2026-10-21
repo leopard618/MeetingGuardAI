@@ -16,6 +16,8 @@ export interface AlertSettingsDraft extends AlertDraft {
   /** Local time of day "HH:mm"; only meaningful while briefingEnabled. */
   briefingTime: string;
   statusNotificationEnabled: boolean;
+  /** Android: fire the briefing full-screen instead of as a notification. */
+  briefingFullScreen: boolean;
 }
 
 export function settingsDraftFromPreferences(preferences: Preferences): AlertSettingsDraft {
@@ -26,6 +28,7 @@ export function settingsDraftFromPreferences(preferences: Preferences): AlertSet
     briefingEnabled: preferences.briefingEnabled,
     briefingTime: preferences.briefingTime,
     statusNotificationEnabled: preferences.statusNotificationEnabled,
+    briefingFullScreen: preferences.briefingFullScreen,
   };
 }
 
@@ -64,5 +67,6 @@ export function buildAlertSettingsPatch(preferences: Preferences, draft: AlertSe
   if (draft.statusNotificationEnabled !== preferences.statusNotificationEnabled) {
     patch.statusNotificationEnabled = draft.statusNotificationEnabled;
   }
+  if (draft.briefingFullScreen !== preferences.briefingFullScreen) patch.briefingFullScreen = draft.briefingFullScreen;
   return patch;
 }

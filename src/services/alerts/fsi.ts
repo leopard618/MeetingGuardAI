@@ -51,9 +51,9 @@ export const fullScreenAlarm: FullScreenAlarmModule = {
     return isNativeModuleAvailable();
   },
 
-  async setAlarms(alarms: readonly FullScreenAlarmSpec[]): Promise<void> {
+  async setAlarms(alarms: readonly FullScreenAlarmSpec[], scope?: string): Promise<void> {
     if (!isNativeModuleAvailable()) return;
-    await nativeSetAlarms(alarms.map(toNativeSpec));
+    await nativeSetAlarms(alarms.map(toNativeSpec), scope);
   },
 
   async clearAlarms(ids?: readonly string[]): Promise<void> {

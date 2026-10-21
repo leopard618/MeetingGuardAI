@@ -24,7 +24,7 @@
  * - Reconciles are serialized on one chain, so overlapping triggers never interleave their
  *   cancel/schedule calls.
  */
-import type { Unsubscribe } from '../../core/contracts';
+import type { FullScreenAlarmModule, FullScreenAlarmSpec, Unsubscribe } from '../../core/contracts';
 import { appEvents, type AppEventMap, type EventBus } from '../../core/events';
 import { BRIEFING_NOTIFICATION_ID_PREFIX, briefingNotificationId, channelFor } from '../../core/identifiers';
 import { createLogger } from '../../core/logger';
@@ -223,8 +223,34 @@ export function renderBriefingSpec(item: BriefingItem, preferences: Preferences,
   };
 }
 
+/** Native alarm scope this scheduler owns; disjoint from the engine's "mg:" (engineCore.ts). */
+export const BRIEFING_ALARM_SCOPE = `${BRIEFING_NOTIFICATION_ID_PREFIX}:`;
+
+/**
+ * A briefing rendered as a full-screen alarm instead of a notification. The summary text is the
+ * notification's title and body; it posts on the MAX alert channel (high importance) so Android
+ * actually shows it full-screen, and an empty deep link opens the app itself. Android only.
+ */
+export function toBriefingAlarmSpec(spec: BriefingSpec, preferences: Preferences): FullScreenAlarmSpec {
+  return {
+    id: spec.identifier,
+    atMs: Date.parse(spec.fireAt),
+    title: spec.title,
+    body: spec.body,
+    deepLink: '',
+    channelId: channelFor('max', preferences.vibrationEnabled),
+  };
+}
+
 export interface BriefingDeps {
   notifications: Pick<NotificationsPort, 'getScheduled' | 'schedule' | 'cancel'>;
+  /**
+   * Full-screen alarm module (Android). When present and the user turned on full-screen briefings
+   * AND the permission is granted, the briefing fires full-screen (scoped to BRIEFING_ALARM_SCOPE)
+   * and no notification is scheduled; otherwise it stays a notification and any stale full-screen
+   * briefing alarm is cleared. Absent on iOS / web / a binary without the module.
+   */
+  fsi?: FullScreenAlarmModule;
   /** Rejects while signed out; the plan is then empty (everything is cancelled). */
   getPreferences(): Promise<Preferences>;
   /** Meetings around today; may include cancelled and deleted ones (they are filtered out). */
@@ -292,21 +318,46 @@ export function createBriefingScheduler(deps: BriefingDeps): BriefingScheduler {
     const specs = preferences === null ? [] : desired.map((item) => renderBriefingSpec(item, preferences, textDeps(preferences, timeZone)));
     const specById = new Map(specs.map((spec) => [spec.identifier, spec]));
 
+    // Full-screen only when the user asked for it, the module is present (Android), and the
+    // permission is actually granted. getStatus can reject, which is treated as "not allowed".
+    let useFullScreen = false;
+    const fsiAvailable = deps.fsi !== undefined && deps.fsi.isAvailable();
+    if (preferences !== null && preferences.briefingFullScreen && fsiAvailable && deps.fsi) {
+      try {
+        const status = await deps.fsi.getStatus();
+        useFullScreen = status.fullScreenAllowed && status.notificationsAllowed;
+      } catch {
+        useFullScreen = false;
+      }
+    }
+
+    // Each briefing day is delivered through exactly one channel. The other channel is always
+    // cleared, so toggling the setting (or losing the permission) never leaves a stale copy.
+    if (useFullScreen && deps.fsi) {
+      const alarms = specs.map((spec) => toBriefingAlarmSpec(spec, preferences as Preferences));
+      await deps.fsi.setAlarms(alarms, BRIEFING_ALARM_SCOPE);
+    } else if (fsiAvailable && deps.fsi) {
+      await deps.fsi.setAlarms([], BRIEFING_ALARM_SCOPE);
+    }
+
     const scheduled = await deps.notifications.getScheduled();
     const kept = new Set<string>();
     for (const record of scheduled) {
-      if (!record.identifier.startsWith(`${BRIEFING_NOTIFICATION_ID_PREFIX}:`)) continue;
-      const want = specById.get(record.identifier);
+      if (!record.identifier.startsWith(BRIEFING_ALARM_SCOPE)) continue;
+      const want = useFullScreen ? undefined : specById.get(record.identifier);
       const data = (record.data ?? {}) as Partial<BriefingData>;
       if (want && data.fireAt === want.data.fireAt && data.hash === want.data.hash) {
         kept.add(record.identifier);
         continue;
       }
+      // In full-screen mode every briefing notification is cancelled (the alarm replaces it).
       await deps.notifications.cancel(record.identifier);
     }
-    for (const spec of specs) {
-      if (kept.has(spec.identifier)) continue;
-      await deps.notifications.schedule(spec);
+    if (!useFullScreen) {
+      for (const spec of specs) {
+        if (kept.has(spec.identifier)) continue;
+        await deps.notifications.schedule(spec);
+      }
     }
   }
 

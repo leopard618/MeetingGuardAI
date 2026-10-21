@@ -76,9 +76,15 @@ function fakeFsi(overrides: Partial<{ available: boolean; status: FullScreenAlar
     alarms: new Map<string, FullScreenAlarmSpec>(),
     setError: null,
   };
-  const setAlarms = jest.fn(async (alarms: readonly FullScreenAlarmSpec[]) => {
+  const setAlarms = jest.fn(async (alarms: readonly FullScreenAlarmSpec[], scope?: string) => {
     if (state.setError) throw state.setError;
-    state.alarms = new Map(alarms.map((alarm) => [alarm.id, alarm]));
+    // Faithful to the native module: a scope restricts the replace-all to ids starting with it.
+    const next = new Map(alarms.map((alarm) => [alarm.id, alarm]));
+    for (const id of [...state.alarms.keys()]) {
+      const inScope = scope === undefined || scope === '' || id.startsWith(scope);
+      if (inScope && !next.has(id)) state.alarms.delete(id);
+    }
+    for (const [id, alarm] of next) state.alarms.set(id, alarm);
   });
   const clearAlarms = jest.fn(async (ids?: readonly string[]) => {
     if (ids === undefined) state.alarms.clear();
@@ -153,6 +159,21 @@ async function startSession(engine: AlertEngineImpl): Promise<void> {
 }
 
 describe('full-screen alarm routing (MAX path)', () => {
+  it('scopes its reconcile to the engine prefix so briefing alarms survive', async () => {
+    const fsi = fakeFsi();
+    // A briefing full-screen alarm already in the native store (owned by briefing.ts).
+    fsi.state.alarms.set('mgbrief:2026-10-22', {
+      id: 'mgbrief:2026-10-22', atMs: Date.parse(minutesFrom(NOW, 600)), title: 'Briefing', body: '3 meetings', deepLink: '', channelId: 'mg-alert-max-v2',
+    });
+    const { engine } = setup({ meetings: [maxMeeting()], fsi });
+    await startSession(engine);
+
+    expect(fsi.setAlarms).toHaveBeenCalledWith(expect.any(Array), 'mg:');
+    // The engine added its own alarm and left the briefing's alone.
+    expect(fsi.state.alarms.has('mg:m-max:5')).toBe(true);
+    expect(fsi.state.alarms.has('mgbrief:2026-10-22')).toBe(true);
+  });
+
   it('routes MAX alerts to fsi.setAlarms and keeps them OFF the expo schedule', async () => {
     const { engine, notifications, fsi } = setup({ meetings: [maxMeeting(), mediumMeeting()] });
     await startSession(engine);
@@ -225,8 +246,10 @@ describe('full-screen alarm routing (MAX path)', () => {
     const { engine, notifications } = setup({ meetings: [maxMeeting()], fsi });
     await startSession(engine);
 
-    expect(fsi.setAlarms).not.toHaveBeenCalled();
-    expect(fsi.clearAlarms).toHaveBeenCalledWith(); // deactivated => native set wiped
+    // Deactivated: the engine clears only its own scope (an empty scoped replace-all), never
+    // the briefing's alarms, and does not touch the global clearAlarms.
+    expect(fsi.setAlarms).toHaveBeenCalledWith([], 'mg:');
+    expect(fsi.clearAlarms).not.toHaveBeenCalled();
     expect([...notifications.scheduled.keys()]).toEqual(['mg:m-max:5']);
   });
 

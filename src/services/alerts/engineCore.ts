@@ -238,6 +238,9 @@ function occurrenceKeyOf(identifier: string, payload: StoredAlertData | null): s
 }
 
 /** Native alarm of a rendered MAX alert (the id IS the notification identifier). */
+/** The engine owns every "mg:" full-screen alarm; the briefing owns "mgbrief:" (briefing.ts). */
+const ENGINE_ALARM_SCOPE = 'mg:';
+
 function toFullScreenAlarmSpec(spec: AlertNotificationSpec): FullScreenAlarmSpec {
   return {
     id: spec.identifier,
@@ -941,7 +944,9 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       if (fsi && fsiAvailable && gen === generation) {
         if (fsiActive) {
           try {
-            await fsi.setAlarms(fsiRendered.map(toFullScreenAlarmSpec));
+            // Scoped to the engine's own id prefix: the daily briefing's "mgbrief:" full-screen
+            // alarms live in the same native store and must survive an engine reconcile.
+            await fsi.setAlarms(fsiRendered.map(toFullScreenAlarmSpec), ENGINE_ALARM_SCOPE);
             fsiScheduled = fsiRendered.map(toFsiScheduledInfo);
           } catch (error) {
             log.warn('full-screen alarms could not be set; falling back to notifications', error);
@@ -951,7 +956,8 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
         if (!fsiActive) {
           fsiScheduled = [];
           try {
-            await fsi.clearAlarms();
+            // Clear only the engine's alarms (an empty scoped replace-all), never the briefing's.
+            await fsi.setAlarms([], ENGINE_ALARM_SCOPE);
           } catch (error) {
             log.warn('full-screen alarms could not be cleared', error);
           }

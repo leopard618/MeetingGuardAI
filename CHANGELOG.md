@@ -34,6 +34,12 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
   confirm or cancel only when it is short and carries no qualifier ("yes but make it earlier"
   leaves the cards on screen), whatever the model decided. Logged as resolutionBlocked so it can
   be checked without a device.
+- **Full-screen morning summary** (week 5, Android; Francisco request): the daily briefing can
+  take over the screen like a meeting alarm at the time you set, instead of a quiet notification.
+  Settings > Alerts > Daily briefing > Show full screen (Android only, off by default, needs the
+  full-screen permission). It reuses the meeting-alarm module; a new scoped setAlarms keeps the
+  briefing and meeting alarms from cancelling each other. On iPhone and where the permission is
+  off it stays a notification.
 - **"Alerts are on" status notification** (week 5): an optional, silent, ongoing notification
   that says alerts are armed and names the next meeting, kept current while the app is closed.
   Settings > Alerts > Status notification, off by default. Its own low-importance channel on

@@ -688,6 +688,12 @@ export interface Preferences {
   briefingTime: string;
   /** Permanent silent notification showing that alerts are armed and the next meeting. */
   statusNotificationEnabled: boolean;
+  /**
+   * When the daily briefing fires, take over the screen like a meeting alarm instead of a quiet
+   * notification (V2 week 5). Android only: iOS and devices without the full-screen alarm module,
+   * or without the full-screen permission, always get the notification. Off until the user asks.
+   */
+  briefingFullScreen: boolean;
   /** null = locale default (expo-localization uses24hourClock). */
   use24HourClock: boolean | null;
   onboardingCompleted: boolean;
@@ -713,6 +719,7 @@ export const preferencesSchema = z.object({
   briefingEnabled: z.boolean(),
   briefingTime: localTimeSchema,
   statusNotificationEnabled: z.boolean(),
+  briefingFullScreen: z.boolean(),
   use24HourClock: z.boolean().nullable(),
   onboardingCompleted: z.boolean(),
   googleCalendarSyncEnabled: z.boolean(),
@@ -739,6 +746,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   briefingEnabled: false,
   briefingTime: DEFAULT_BRIEFING_TIME,
   statusNotificationEnabled: false,
+  briefingFullScreen: false,
   use24HourClock: null,
   onboardingCompleted: false,
   googleCalendarSyncEnabled: false,
