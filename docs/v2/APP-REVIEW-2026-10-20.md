@@ -190,3 +190,29 @@ the Stage 1 features (docs/v2/RELEASE-1.5.0.md). When the 1.5.0 build is process
 3. Reply in the Messages thread of the rejected submission with the same text, plus the screen
    recording that shows the Plans screen with its links and Sign in with Apple succeeding.
 4. Submit for review.
+
+## Status on 2026-10-20 (evening) and the remaining checklist
+
+Verified from console screenshots: Firebase has the iOS app (com.meetingguard.ai, App Store ID
+6819847236) and the Apple provider enabled; the four App Store subscriptions exist with review
+screenshots and read Ready for Review; RevenueCat has both store apps, the four iOS products
+(status Could not check until the In-App Purchase key is uploaded), entitlements and the
+offering complete. The Plans screen on the Play build loads live prices.
+
+Remaining, in order:
+
+1. Apple key for Firebase (needed for account-deletion revocation): developer.apple.com > Keys >
+   new key, Sign in with Apple, primary App ID com.meetingguard.ai; then Firebase > Authentication
+   > Apple provider > OAuth code flow: Team ID D695835P4T, Key ID, .p8 contents. Save.
+2. Firebase > Project settings > iOS app > Team ID D695835P4T (optional).
+3. Francisco: TestFlight build 1.4.0 (9) on an iPhone, tap Sign in with Apple, photo of the
+   result. Decides whether the refusal is deterministic or iPad/account specific.
+4. App Store Connect: group display name (EN, ES), levels Premium 1 / Pro 2 (drag by the
+   handle; not blocking), Add for Review on the group so the draft holds the group, descriptions
+   with the two legal links in EN and ES, Privacy Policy URL field.
+5. App Store Connect > Users and Access > Integrations > In-App Purchase key; upload to RevenueCat
+   > Apps > MeetingGuard iOS; the four iOS products stop saying Could not check.
+6. Week 3 and 4 device guide results (docs/v2/TEST-GUIDE-STAGE1.md).
+7. Code side: status notification flag on, 1.5.0 builds (Android internal testing, iOS
+   TestFlight), Sign in with Apple tap on the TestFlight build (Sentry now carries the Firebase
+   refusal detail), then version 1.4.0 edited to 1.5.0 and submitted with the group.
