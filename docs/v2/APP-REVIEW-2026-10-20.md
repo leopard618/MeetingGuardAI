@@ -97,6 +97,12 @@ Apple Enabled (screenshot received), so 2.1 is a formality; 2.1b is the check th
 The app now names this situation ("Apple sign-in was not accepted") instead of blaming an email
 or password, from the next build.
 
+**Resolved 2026-10-20 evening.** The iOS app was NOT registered in Firebase at review time; it
+was added on 2026-10-20. Afterwards Sign in with Apple succeeded on Francisco's physical iPhone
+with the same build 9 (chat 20:57). Root cause: Firebase refused the Apple token because its
+audience (the bundle ID) was unknown to the project. No code change needed; the review notes
+state cause and fix and attach the recording.
+
 ### 2.1b Firebase: the iOS app registration
 
 Firebase console > Project settings (gear) > General > Your apps. [shot] If there is no iOS app:
