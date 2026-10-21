@@ -33,6 +33,7 @@ import type { GlobalBudget } from './globalBudget';
 import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
 import { isPlainConsent, lastUserText, missingMoveQuestion } from './guards';
 import { buildPromptMessages, collectUserText, composeListAnswer, fallbackReply, listAnswerItems } from './prompt';
+import { recoverToolCallsFromText } from './recover';
 import { consumeQuota, refundQuota, type QuotaDecision, type QuotaStore } from './quota';
 import { buildTaskContext, type TaskContext, type TaskReader } from './tasksContext';
 import { isValidTimeZone } from './time';
@@ -190,13 +191,14 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     });
     const llm = deps.llm();
     llmStarted = true;
+    const tools = [
+      ...ASSISTANT_TOOLS,
+      ...(tasksContext !== null ? TASK_TOOLS : []),
+      ...(pendingActions.length > 0 ? [RESOLVE_PENDING_TOOL] : []),
+    ];
     const completion: LlmResult = await llm.complete({
       messages,
-      tools: [
-        ...ASSISTANT_TOOLS,
-        ...(tasksContext !== null ? TASK_TOOLS : []),
-        ...(pendingActions.length > 0 ? [RESOLVE_PENDING_TOOL] : []),
-      ],
+      tools,
       toolChoice: request.mode === 'followup' ? 'required' : 'auto',
       safetyIdentifier: safetyIdentifierFor(uid),
     });
@@ -215,7 +217,12 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       }
     }
 
-    const mapped = mapToolCalls(completion.toolCalls, {
+    // The model sometimes writes a tool's arguments as JSON text instead of calling it (seen on a
+    // device, 2026-10-21). Such objects become tool calls, validated like any other, and no raw
+    // JSON ever reaches the reply. Real tool calls win when both are present.
+    const recovered = recoverToolCallsFromText(completion.content ?? '', new Set(tools.map((tool) => tool.function.name)));
+    const toolCalls = completion.toolCalls.length > 0 ? completion.toolCalls : recovered.toolCalls;
+    const mapped = mapToolCalls(toolCalls, {
       language: request.language,
       mode: request.mode,
       userTimeZone: request.timezone,
@@ -235,7 +242,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     const resolution =
       pendingActions.length > 0 && mapped.actions.length === 0 && plainConsent ? mapped.resolution : null;
 
-    let reply = (completion.content ?? '').trim();
+    let reply = recovered.text.trim();
     if (reply.length === 0 && completion.refusal) reply = completion.refusal.trim();
     // A read-only answer is never captioned "review and confirm": there is nothing to confirm.
     // It is composed from the rows themselves, because the reply is what gets read aloud and a
@@ -255,7 +262,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       // Every proposal the model made was dropped (e.g. a timed meeting without a time): tell
       // the user WHAT is missing instead of a useless "couldn't generate a response" loop.
       const allDropped =
-        mapped.actions.length === 0 && completion.toolCalls.length > 0 && Object.keys(mapped.dropped).length > 0;
+        mapped.actions.length === 0 && toolCalls.length > 0 && Object.keys(mapped.dropped).length > 0;
       if (listAnswer !== null) {
         reply = listAnswer;
       } else {
@@ -301,6 +308,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       meetings: context.meetings.length,
       skippedMeetings: context.skippedInvalid,
       toolCalls: completion.toolCalls.length,
+      recoveredToolCalls: completion.toolCalls.length > 0 ? 0 : recovered.toolCalls.length,
       actions: mapped.actions.length,
       pendingActions: pendingActions.length,
       tasks: tasksContext?.tasks.length ?? null,

@@ -42,6 +42,13 @@ describe('system prompt', () => {
     expect(prompt).not.toContain('Follow-up mode');
   });
 
+  it('forbids tool arguments in the reply text and counts reminders as tasks (device findings 2026-10-21)', () => {
+    const text = buildSystemPrompt({ language: 'en', timeZone: 'Europe/Madrid', now: NOW, mode: 'chat', followUpRef: null, nonce: 'n0nce' });
+    expect(text).toContain('15. Tool arguments go ONLY into tool calls');
+    expect(text).toContain('Never write JSON, field names or braces in the reply');
+    expect(text).toContain('"Remind me two days before to send the slides"');
+  });
+
   it('explains recurring meetings: the rule shape, the repeats field and the scope question', () => {
     const prompt = buildSystemPrompt({
       language: 'en',

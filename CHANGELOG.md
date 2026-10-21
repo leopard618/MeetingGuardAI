@@ -58,6 +58,12 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
 
 ### Fixed
 
+- **The assistant sometimes printed raw JSON instead of a confirmation card**: for some
+  phrasings (seen with "rename the call ... and add the Zoom link later") the model wrote a
+  tool's arguments into its reply text and made no tool call, so the user saw a JSON blob and
+  no card. The server now recovers such a tool call, validates it like any other, and never
+  shows raw JSON in a reply. Prompt rule 15 tells the model not to do it, and rule 14 now also
+  treats "remind me ..." as a linked task.
 - **Calendar showed six columns** on some phones: the seventh weekday and every Saturday wrapped
   onto the next line because seven cells of exactly one seventh of the width overflowed by a
   fraction of a pixel. The grid is now rows of seven flexible cells, which cannot wrap. The

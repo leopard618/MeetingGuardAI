@@ -475,7 +475,7 @@ describe('dropped-proposal fallback', () => {
           .add('gone', { title: 'Cancelled sync', startAt: '2026-09-29T09:00:00.000Z', status: 'cancelled' })
           .add('standup', {
             title: 'Standup', startAt: '2026-09-01T07:00:00.000Z',
-            recurrence: { freq: 'weekly', interval: 1, byWeekday: ['mo', 'tu', 'we', 'th', 'fr'], byMonthDay: null, until: null, count: null },
+            recurrence: { freq: 'weekly', interval: 1, byWeekday: ['MO', 'TU', 'WE', 'TH', 'FR'], byMonthDay: null, until: null, count: null },
           });
         return built;
       }
@@ -664,6 +664,40 @@ describe('task tools (v5)', () => {
       const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
       expect(response.reply).toBe('Moving it. Should I move Prepare the proposal too?');
       expect(logger.info).toHaveBeenCalledWith('assistant.completed', expect.objectContaining({ moveQuestion: false }));
+    });
+  });
+
+  // 2026-10-21 device case: the model wrote update_meeting's arguments as JSON text and made no
+  // tool call. The server recovers the call and the user sees a card and a clean sentence.
+  describe('tool calls written as JSON text are recovered', () => {
+    it('maps the JSON object into the action and strips it from the reply', async () => {
+      const probe = setup();
+      probe.deps.tasks = taskReader;
+      await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), probe.deps);
+      const ref = refOf(probe.llm, PRIVATE_TEXT);
+      const json = JSON.stringify({
+        meeting_ref: ref,
+        changes: {
+          title: 'Nexa proposal call', description: null, date: null, time: null, all_day: null, timezone: null,
+          duration_minutes: null, location: null, clear_location: false, conference: null, clear_conference: false,
+          participants: null, preparation_tips: null, alert_minutes_before: null, reset_alert_times: false,
+        },
+        summary: 'Rename the call to Nexa proposal call.', confidence: 97,
+      });
+      const { deps } = setup(result({ content: `${json}\nI prepared the rename for you.`, toolCalls: [] }));
+      deps.tasks = taskReader;
+      const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+      expect(response.actions).toHaveLength(1);
+      expect(response.actions[0]).toMatchObject({ type: 'update_meeting', changes: { title: 'Nexa proposal call' } });
+      expect(response.reply).toBe('I prepared the rename for you.');
+      expect(logger.info).toHaveBeenCalledWith('assistant.completed', expect.objectContaining({ recoveredToolCalls: 1, toolCalls: 0 }));
+    });
+
+    it('never shows raw JSON even when nothing can be recovered', async () => {
+      const { deps } = setup(result({ content: '{"hello":"world"} All set.', toolCalls: [] }));
+      const response = await handleAssistant(caller(), chatRequest(), deps);
+      expect(response.actions).toEqual([]);
+      expect(response.reply).toBe('All set.');
     });
   });
 
