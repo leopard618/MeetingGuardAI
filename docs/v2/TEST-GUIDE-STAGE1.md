@@ -159,6 +159,12 @@ Lock the phone. Expect: the reminder rings on the lock screen like a meeting ale
 E5. Create a meeting 3 minutes ahead by voice, confirm, lock the phone. Expect: the meeting alert
 fires as it did in version 1.4.
 
+**E6. Status notification (week 5, builds from 20261020 on).** Settings > Alerts > turn on the
+status notification. Press Home. Expect a silent, non-dismissable notification in the shade
+saying alerts are on and naming the next meeting with its time. Create a meeting earlier than
+that one; the notification text should update within a few seconds. Swipe the app away from
+recent apps; the notification must stay. Turn the setting off; it must disappear.
+
 ## Part F. The Spanish pass
 
 Settings > Language > Español. Check the dashboard, tasks, calendar and settings are in Spanish.

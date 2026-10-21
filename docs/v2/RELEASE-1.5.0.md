@@ -25,14 +25,10 @@ Facts this plan rests on (checked in the consoles on 2026-10-19):
 1. The week 3 and week 4 device guide passed on a phone, and one Spanish pass was done. Each
    failure is read in the function logs (`assistant.completed`: `toolCalls`, `actions`,
    `linkedTasks`, `resolutionBlocked`, `moveQuestion`) and fixed before the build, not after.
-2. Turn the status notification on. It is week 5 scope and was built in advance, hidden behind a
-   build-time switch so the week 3 and 4 test builds did not show it:
-   - `src/core/features.ts`: `statusNotification: false` becomes `true`.
-   - `src/services/alerts/__tests__/statusNotificationFlag.test.ts`: the first test asserts the
-     switch is off. Flip that assertion to `true`; the second test then proves "nothing is
-     presented" with the preference OFF instead of the switch (adjust `makePrefs`). Run `npm test`.
-   - Settings > Alerts then shows the "Alerts are on" switch (off by default). On Android the
-     notification lives on its own low-importance channel, so it never sounds or vibrates.
+2. The status notification is ON (done 2026-10-20: `src/core/features.ts` statusNotification
+   true, flag test updated). Settings > Alerts shows the "Alerts are on" switch, off by default.
+   On Android the notification lives on its own low-importance channel, so it never sounds or
+   vibrates. Test builds from 20261020 onwards carry it.
 3. Clean checkout checks, exactly as docs/v1/DEPLOYMENT.md section 4 item 1 lists them, in both
    tiers. The app tier is the one that changed since 1.4.0 in a way the stores can see.
 4. `eas env:list --environment production` is complete. `eas build:version:get -p android` returns
