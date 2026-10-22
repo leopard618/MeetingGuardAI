@@ -1057,6 +1057,16 @@ Business Portfolio (business.facebook.com). Everything runs on the test number u
      user token ONLY if the app changed (normally the step-3 token keeps working). Redeploy
      functions. The allow-list stops applying; any WhatsApp user can message the bot.
    - [ ] Repeat the step-7 checks from a NON-allow-listed phone.
+   - If the Meta app was created fresh (for example after a blocked business account) and the
+     WhatsApp product tile does NOT appear on its dashboard, the Webhooks product works instead
+     (object "Whatsapp Business Account", subscribe to messages), but two Graph calls are then
+     still required, both with the system-user token: POST /{phone_number_id}/register with
+     {messaging_product:"whatsapp", pin:"NNNNNN"} (WhatsApp otherwise reports the number
+     "isn't on WhatsApp"), and POST /{waba_id}/subscribed_apps (without it the account sends
+     its messages nowhere; GET the same path lists what is subscribed). The dashboard "Test"
+     button sends Meta's sample payload (wamid ABGGFlA5Fpa, years-old timestamp), which the
+     webhook logs as whatsapp.stale_dropped; that is not a real message. Done this way on
+     2026-10-22 for +44 7403 693109 (phone number id 1427445667111962, WABA 1116238597569973).
 
 Notes: the webhook rejects unsigned requests (App Secret HMAC over the raw body), so the URL
 being public is fine. Firestore gets five new server-only collections (whatsapp*; rules deploy
