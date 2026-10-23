@@ -39,15 +39,17 @@ four stages:
 The plan also adds an interface modernization and a feature that turns the meeting summaries from a
 notetaker into tasks with alarms.
 
-Stage 1 is being delivered week by week. The weekly plan, its current status and the client's V2
-roadmap are in [`docs/v2/`](docs/v2/), starting with [`docs/v2/PLAN.md`](docs/v2/PLAN.md).
+Stage 1 (weeks 1 to 5) is released. The working plan for weeks 6 to 17, the scope and price
+record and the client's V2 roadmap are in [`docs/v2/`](docs/v2/), starting with
+`docs/v2/Project-Plan-2026-10-22.docx`.
 
 ## Where things are
 
 | You want | Look at |
 |---|---|
 | What changed, version by version | `CHANGELOG.md` |
-| The weekly V2 plan and its status | `docs/v2/PLAN.md` |
+| The working plan, weeks 6 to 17 (overview, per-developer weeks, to-do lists) | `docs/v2/Project-Plan-2026-10-22.docx` |
+| The agreed scope, prices and the status of weeks 1 to 5 | `docs/v2/PLAN.md` |
 | The client's V2 roadmap | `docs/v2/MeetingGuard_Roadmap_for_Dusko-7.docx` |
 | How the app is built | `docs/v1/ARCHITECTURE.md` |
 | Console setup, deployment, testing | `docs/v1/` |
