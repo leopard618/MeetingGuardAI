@@ -67,4 +67,4 @@ what was tested on a real phone:
 
 - `docs/v1/ARCHITECTURE.md`: how the app, functions and admin fit together.
 - `docs/v2/TEST-GUIDE-STAGE1.md`: the device test guide; extend it when you add a feature.
-- `docs/v2/Milestones-2026-10-25.docx`: the current milestone plan.
+- `docs/v2/Milestones-2026-10-26.docx`: the current milestone plan.
