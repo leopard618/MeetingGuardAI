@@ -5,7 +5,7 @@
 
 interface WrapperModule {
   isNativeModuleAvailable(): boolean;
-  setAlarms(alarms: readonly unknown[]): Promise<void>;
+  setAlarms(alarms: readonly unknown[], scope?: string): Promise<void>;
   clearAlarms(ids?: readonly string[]): Promise<void>;
   getStatus(): Promise<{ exactAllowed: boolean; fullScreenAllowed: boolean; notificationsAllowed: boolean }>;
   openFullScreenIntentSettings(): Promise<void>;
