@@ -1,7 +1,7 @@
 # MeetingGuard V2: weekly plan
 
 > Scope and price record. The working plan from week 6 (overview, per-developer weeks, to-do
-> lists) is `Project-Plan-2026-10-22.docx` in this folder; this file keeps the agreed scope,
+> lists) is `Project-Plan-2026-10-25.docx` in this folder; this file keeps the agreed scope,
 > what is included versus a new addition, and the status of weeks 1 to 5.
 
 Status as told to the client. Weeks 1 and 2 are delivered; weeks 3 and 4 are being demonstrated now; week 5 is the Stage 1 release. Twelve weeks are the original agreed scope; five are new additions quoted separately (section 10 of the agreement). Dates assume one week per row from October 19, 2026.
