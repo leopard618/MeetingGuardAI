@@ -25,10 +25,12 @@ import { defineBoolean, defineSecret } from 'firebase-functions/params';
 import { FUNCTIONS_REGION } from '../config';
 import { adminDb } from '../firebase';
 import {
+  billingFromEvent,
   entitlementFromEvent,
   isAnonymousAppUserId,
   planFromEvent,
   revenueCatWebhookBodySchema,
+  type BillingInfo,
   type EntitlementWrite,
   type RevenueCatEvent,
 } from './mapping';
@@ -74,6 +76,8 @@ export interface EntitlementTarget {
   uid: string;
   write: EntitlementWrite;
   eventTimestampMs: number | null;
+  /** Stored as entitlements/{uid}.billing for the admin revenue view (extra key; the app's parser ignores it). */
+  billing?: BillingInfo;
 }
 
 export type WebhookDecision =
@@ -95,6 +99,9 @@ function firstUsableUid(ids: readonly string[] | null | undefined): string | nul
 }
 
 function markerOf(event: RevenueCatEvent, now: Date): Record<string, unknown> {
+  // The billing fields feed the admin revenue view (functions/src/admin/revenue.ts); they are
+  // facts about the event, never inputs to the entitlement decision.
+  const billing = billingFromEvent(event);
   return {
     type: event.type,
     appUserId: event.app_user_id ?? null,
@@ -102,6 +109,14 @@ function markerOf(event: RevenueCatEvent, now: Date): Record<string, unknown> {
     store: event.store ?? null,
     eventTimestampMs: event.event_timestamp_ms ?? null,
     receivedAt: now.toISOString(),
+    plan: planFromEvent(event),
+    productId: billing.productId,
+    periodType: billing.periodType,
+    cancelReason: event.cancel_reason ?? null,
+    expirationReason: event.expiration_reason ?? null,
+    isTrialConversion: event.is_trial_conversion ?? null,
+    priceUsd: billing.priceUsd,
+    currency: billing.currency,
   };
 }
 
@@ -142,8 +157,9 @@ export function decideWebhook(body: unknown, now: Date, options: { allowSandbox?
       typeof event.expiration_at_ms === 'number' && Number.isFinite(event.expiration_at_ms)
         ? new Date(event.expiration_at_ms).toISOString()
         : null;
+    const billing = billingFromEvent(event);
     const writes: EntitlementTarget[] = [
-      { uid: toUid, write: { plan, status: 'active', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs },
+      { uid: toUid, write: { plan, status: 'active', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs, billing },
     ];
     if (fromUid !== null && fromUid !== toUid) {
       writes.push({ uid: fromUid, write: { plan, status: 'expired', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs });
@@ -158,7 +174,12 @@ export function decideWebhook(body: unknown, now: Date, options: { allowSandbox?
 
   const write = entitlementFromEvent(event, now);
   if (write === null) return { kind: 'ignored', reason: 'unhandled_type_or_plan', ...base };
-  return { kind: 'apply', ...base, marker: markerOf(event, now), writes: [{ uid: appUserId, write, eventTimestampMs }] };
+  return {
+    kind: 'apply',
+    ...base,
+    marker: markerOf(event, now),
+    writes: [{ uid: appUserId, write, eventTimestampMs, billing: billingFromEvent(event) }],
+  };
 }
 
 /**
@@ -286,7 +307,11 @@ export function firestoreRevenueCatStore(): RevenueCatStore {
           }
           // eventTimestampMs is persisted for the next comparison; the app's entitlement
           // parser (z.object, non-strict) ignores the extra key.
-          tx.set(ref, { ...target.write, eventTimestampMs: target.eventTimestampMs });
+          tx.set(ref, {
+            ...target.write,
+            eventTimestampMs: target.eventTimestampMs,
+            ...(target.billing ? { billing: target.billing } : {}),
+          });
         }
         return 'applied' as const;
       });

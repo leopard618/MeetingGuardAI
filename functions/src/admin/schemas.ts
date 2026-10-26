@@ -22,6 +22,8 @@ export const ADMIN_CALLABLES = {
   getStats: 'adminGetStats',
   getHealth: 'adminGetHealth',
   rotateOpenAiKey: 'adminRotateOpenAiKey',
+  // Revenue view (docs/v1/ADMIN.md "Revenue"): subscription events + paying users + est. MRR.
+  getRevenue: 'adminGetRevenue',
 } as const;
 
 /**
@@ -269,3 +271,59 @@ export const rotateOpenAiKeyResponseSchema = z.object({
 });
 
 export type RotateOpenAiKeyResponse = z.infer<typeof rotateOpenAiKeyResponseSchema>;
+
+// ---- adminGetRevenue (subscription funnel from the RevenueCat markers + paying users) ---------
+
+/** days = UTC calendar days INCLUDING today; counting rules in functions/src/admin/revenue.ts. */
+export const getRevenueRequestSchema = z.object({
+  days: z.union([z.literal(7), z.literal(30), z.literal(90)]),
+});
+
+const count = z.number().int().min(0);
+
+export const revenueDayPointSchema = z.object({
+  date: statsDateSchema,
+  trialsStarted: count,
+  newPaid: count,
+  cancellations: count,
+  expirations: count,
+});
+
+/**
+ * `days` is oldest -> newest, EXACTLY `request.days` entries, zero-filled. `active` is the state
+ * NOW from entitlements/{uid} (not from the events). `mrr.estimateUsd` sums each paying user's
+ * last known monthly price (yearly / 12); users without a stored price use the list price and
+ * are counted in defaultPriceCount so the dashboard can say how much is measured.
+ */
+export const getRevenueResponseSchema = z.object({
+  since: z.string(),
+  days: z.array(revenueDayPointSchema),
+  totals: z.object({
+    trialsStarted: count,
+    trialConversions: count,
+    newPaid: count,
+    renewals: count,
+    uncancellations: count,
+    productChanges: count,
+    cancellations: count,
+    refunds: count,
+    billingIssues: count,
+    expirations: count,
+    eventsCounted: count,
+    sandboxIgnored: count,
+  }),
+  active: z.object({
+    paying: count,
+    gracePeriod: count,
+    byPlan: z.object({ pro: count, premium: count }),
+    byStore: z.object({ playStore: count, appStore: count, other: count }),
+    comps: count,
+  }),
+  mrr: z.object({
+    estimateUsd: z.number().min(0),
+    measuredPriceCount: count,
+    defaultPriceCount: count,
+  }),
+});
+
+export type GetRevenueResponse = z.infer<typeof getRevenueResponseSchema>;

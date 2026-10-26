@@ -144,6 +144,7 @@ describe('bodies and decisions', () => {
           updatedAt: '2026-09-30T11:59:00.000Z',
         },
         eventTimestampMs: Date.parse('2026-09-30T11:59:00.000Z'),
+        billing: { store: 'PLAY_STORE', productId: 'pro_monthly', periodType: null, priceUsd: null, currency: null },
       },
     ]);
   });
@@ -194,6 +195,7 @@ describe('bodies and decisions', () => {
         uid: 'uid-new',
         write: { plan: 'premium', status: 'active', expiresAt: '2026-10-30T12:00:00.000Z', source: 'revenuecat', updatedAt: NOW.toISOString() },
         eventTimestampMs: Date.parse('2026-09-30T11:59:00.000Z'),
+        billing: { store: 'PLAY_STORE', productId: 'premium_yearly', periodType: null, priceUsd: null, currency: null },
       },
       {
         uid: 'uid-old',

@@ -42,6 +42,11 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
   off it stays a notification.
 - **"Alerts are on" status notification** (week 5): an optional, silent, ongoing notification
   that says alerts are armed and names the next meeting, kept current while the app is closed.
+- **Admin: Revenue tab** (milestone M1): paying users by plan and store, estimated MRR, trials
+  started, new paid, cancellations, refunds and expirations per day from the store webhook
+  events (`adminGetRevenue`). The billing webhook now keeps the billing facts (store, product,
+  period, price) on each event marker and next to the entitlement; it never uses them for
+  entitlement decisions.
   Settings > Alerts > Status notification, off by default. Its own low-importance channel on
   Android.
 - **Apple sign-in errors tell the truth**: a refused Apple credential is reported as such (EN/ES)

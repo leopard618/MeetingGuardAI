@@ -36,6 +36,8 @@ import {
 } from '../openaiKey';
 import { planSchema, usageDayKey, type Plan } from '../shared/aiContract';
 import { resolveEffectivePlan } from '../shared/entitlement';
+import { ENTITLEMENTS_COLLECTION, REVENUECAT_EVENTS_COLLECTION } from '../revenuecat';
+import { computeRevenue } from './revenue';
 import {
   adminStatsAiDayPath,
   adminStatsDayDocSchema,
@@ -43,6 +45,8 @@ import {
   getHealthResponseSchema,
   getMetricsRequestSchema,
   getMetricsResponseSchema,
+  getRevenueRequestSchema,
+  getRevenueResponseSchema,
   getStatsRequestSchema,
   getStatsResponseSchema,
   listUsersRequestSchema,
@@ -52,6 +56,7 @@ import {
   setUserDisabledRequestSchema,
   setUserPlanRequestSchema,
   type GetHealthResponse,
+  type GetRevenueResponse,
   type GetStatsResponse,
   type ListUsersResponse,
   type GetMetricsResponse,
@@ -849,4 +854,54 @@ export const adminGetHealth = onCall(
 
 export const adminRotateOpenAiKey = onCall(ADMIN_CALLABLE_OPTIONS, (request): Promise<RotateOpenAiKeyResponse> =>
   handleRotateOpenAiKey(callerOf(request.auth), request.data, adminRotatePorts()),
+);
+
+// =============================================================================================
+// Revenue view: adminGetRevenue (docs/v1/ADMIN.md "Revenue"). Additive, like the v2 block.
+// =============================================================================================
+
+export interface AdminRevenuePorts {
+  /** Raw revenuecatEvents marker documents with receivedAt >= sinceIso (ISO string compare). */
+  listRevenueMarkers(sinceIso: string): Promise<unknown[]>;
+  /** Raw entitlements/{uid} documents (every user with a stored entitlement). */
+  listEntitlements(): Promise<unknown[]>;
+}
+
+export async function handleGetRevenue(
+  caller: AdminCaller | null,
+  data: unknown,
+  ports: AdminRevenuePorts,
+  now: Date = new Date(),
+): Promise<GetRevenueResponse> {
+  requireAdmin(caller);
+  const parsed = getRevenueRequestSchema.safeParse(data);
+  if (!parsed.success) throw invalidArgument('adminGetRevenue');
+  try {
+    const dayKeys = statsDayKeys(now, parsed.data.days);
+    const since = `${dayKeys[0]}T00:00:00.000Z`;
+    const [markers, entitlements] = await Promise.all([ports.listRevenueMarkers(since), ports.listEntitlements()]);
+    return getRevenueResponseSchema.parse(computeRevenue(markers, entitlements, dayKeys, now, since));
+  } catch (error) {
+    wrapUnexpected('adminGetRevenue', caller.uid, error);
+  }
+}
+
+function firebaseRevenuePorts(): AdminRevenuePorts {
+  const db = adminDb();
+  return {
+    async listRevenueMarkers(sinceIso) {
+      // Single-field range query: no composite index needed. The collection holds one small
+      // document per delivered webhook event, so a 90-day read stays in the hundreds.
+      const snapshot = await db.collection(REVENUECAT_EVENTS_COLLECTION).where('receivedAt', '>=', sinceIso).get();
+      return snapshot.docs.map((doc) => doc.data());
+    },
+    async listEntitlements() {
+      const snapshot = await db.collection(ENTITLEMENTS_COLLECTION).get();
+      return snapshot.docs.map((doc) => doc.data());
+    },
+  };
+}
+
+export const adminGetRevenue = onCall(ADMIN_CALLABLE_OPTIONS, (request): Promise<GetRevenueResponse> =>
+  handleGetRevenue(callerOf(request.auth), request.data, firebaseRevenuePorts()),
 );

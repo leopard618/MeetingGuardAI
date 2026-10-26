@@ -5,7 +5,7 @@
  * - assistant: AI assistant proposals (never mutates meetings) with a server-side daily quota.
  * - deleteAccount: deletes all of the caller's data and their Auth user.
  * - adminListUsers / adminSetUserDisabled / adminSetUserPlan / adminGetMetrics, plus the v2
- *   adminGetStats / adminGetHealth / adminRotateOpenAiKey: admin dashboard (custom claim `admin`
+ *   adminGetStats / adminGetHealth / adminRotateOpenAiKey / adminGetRevenue: admin dashboard (custom claim `admin`
  *   required; src/admin, docs/v1/ARCHITECTURE.md §21, docs/v1/ADMIN.md §v2).
  * - zoomStatus (always deployed, no secrets) and zoomCreateMeeting / zoomSyncMeeting /
  *   zoomDeleteMeeting (deployed only while ZOOM_ENABLED=true; the ONLY functions binding the
@@ -34,6 +34,7 @@ export { adminReconcileEntitlement } from './revenuecat/reconcile';
 export {
   adminGetHealth,
   adminGetMetrics,
+  adminGetRevenue,
   adminGetStats,
   adminListUsers,
   adminRotateOpenAiKey,
