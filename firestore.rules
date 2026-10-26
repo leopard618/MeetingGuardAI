@@ -380,6 +380,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // adminAudit/{autoId}: one document per administrative write (who, what, before, after,
+    // outcome; functions/src/admin/audit.ts). Written by the admin callables with the Admin SDK
+    // and read only through a callable: clients get NOTHING here, admins included.
+    match /adminAudit/{entryId} {
+      allow read, write: if false;
+    }
+
     // Zoom ownership registry (zoomMeetings/{zoomMeetingId} = { uid, meetingId, createdAt }):
     // written by the zoomCreateMeeting callable's transaction and read by the zoom write
     // callables to attest WHO owns a Zoom meeting id - external.zoomMeetingId on meeting

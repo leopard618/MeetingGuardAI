@@ -1,10 +1,12 @@
-// Grants (or removes) the `admin: true` custom claim that the admin callables and the admin
-// dashboard require (docs/ARCHITECTURE.md §21, docs/ADMIN.md).
+// Grants (or removes) the admin dashboard claims (docs/ARCHITECTURE.md §21, docs/ADMIN.md):
+//   admin: true           full access (every callable, read and write)
+//   adminRole: 'viewer'   read-only access (every view, no write action)
 //
 // Usage (from functions/, with Application Default Credentials of an account that may manage the
 // project's users: `gcloud auth application-default login`):
-//   node scripts/set-admin-claim.mjs <uid-or-email> [--remove] [--project <project-id>]
+//   node scripts/set-admin-claim.mjs <uid-or-email> [--role admin|viewer] [--remove] [--project <project-id>]
 //
+// --role defaults to admin. --remove clears BOTH claims. Granting one role replaces the other.
 // Without --project the Admin SDK resolves the project from the environment
 // (GOOGLE_CLOUD_PROJECT / the ADC quota project); pass it explicitly when in doubt.
 //
@@ -22,13 +24,14 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     remove: { type: 'boolean', default: false },
+    role: { type: 'string', default: 'admin' },
     project: { type: 'string' },
   },
 });
 
 const target = positionals[0];
-if (!target || positionals.length > 1) {
-  console.error('Usage: node scripts/set-admin-claim.mjs <uid-or-email> [--remove] [--project <project-id>]');
+if (!target || positionals.length > 1 || !['admin', 'viewer'].includes(values.role)) {
+  console.error('Usage: node scripts/set-admin-claim.mjs <uid-or-email> [--role admin|viewer] [--remove] [--project <project-id>]');
   process.exit(2);
 }
 
@@ -44,20 +47,26 @@ try {
 }
 
 const claims = { ...(user.customClaims ?? {}) };
+const label = `${user.uid} (${user.email ?? 'no email'})`;
 if (values.remove) {
-  if (claims.admin === undefined) {
-    console.log(`${user.uid} (${user.email ?? 'no email'}) has no admin claim; nothing to do.`);
+  if (claims.admin === undefined && claims.adminRole === undefined) {
+    console.log(`${label} has no admin claims; nothing to do.`);
     process.exit(0);
   }
   delete claims.admin;
+  delete claims.adminRole;
+} else if (values.role === 'viewer') {
+  delete claims.admin;
+  claims.adminRole = 'viewer';
 } else {
+  delete claims.adminRole;
   claims.admin = true;
 }
 
 await auth.setCustomUserClaims(user.uid, claims);
 console.log(
   values.remove
-    ? `Removed the admin claim from ${user.uid} (${user.email ?? 'no email'}).`
-    : `Granted the admin claim to ${user.uid} (${user.email ?? 'no email'}).`,
+    ? `Removed the admin claims from ${label}.`
+    : `Granted the ${values.role} role to ${label}.`,
 );
 console.log('The change is inside the ID token: the user must sign in again or refresh the token (getIdToken(true)) to see it.');

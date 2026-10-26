@@ -127,6 +127,7 @@ function fakeRotatePorts(options: RotateFakeOptions = {}) {
     invalidateKeyCache: jest.fn(() => {
       calls.push('invalidate');
     }),
+    audit: { writeAudit: jest.fn(async () => undefined) },
   };
   return { ports, calls };
 }

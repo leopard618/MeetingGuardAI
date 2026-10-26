@@ -42,6 +42,10 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
   off it stays a notification.
 - **"Alerts are on" status notification** (week 5): an optional, silent, ongoing notification
   that says alerts are armed and names the next meeting, kept current while the app is closed.
+- **Admin: read-only role and audit log** (milestone M2): a `viewer` claim (granted with
+  `set-admin-claim.mjs --role viewer`) opens every dashboard view without any write action,
+  enforced server-side; every administrative write (plan change, disable, key rotation,
+  reconcile) records who, what, before, after and outcome in `adminAudit`.
 - **Admin: Revenue tab** (milestone M1): paying users by plan and store, estimated MRR, trials
   started, new paid, cancellations, refunds and expirations per day from the store webhook
   events (`adminGetRevenue`). The billing webhook now keeps the billing facts (store, product,

@@ -57,8 +57,9 @@
       <p><span id="not-admin-email" class="strong"></span> is signed in, but this account has no
         admin access.</p>
       <p class="muted">Admin access is granted with
-        <code>node scripts/set-admin-claim.mjs &lt;uid-or-email&gt;</code> (from
-        <code>functions/</code>). After it is granted, sign out and sign in again.</p>
+        <code>node scripts/set-admin-claim.mjs &lt;uid-or-email&gt;</code> (full access) or
+        <code>--role viewer</code> (read-only), from <code>functions/</code>. After it is granted,
+        sign out and sign in again.</p>
       <button id="not-admin-sign-out" class="btn btn-primary" type="button">Sign out</button>
     </div>
   </section>
@@ -100,6 +101,7 @@
       <div class="sb-session" id="session" hidden>
         <span class="avatar avatar-sm av-0" id="session-avatar" aria-hidden="true"></span>
         <span id="session-email" class="sb-email muted"></span>
+        <span id="session-role" class="badge badge-warn" title="This account can see every view but change nothing" hidden>Read-only</span>
         <button id="sign-out" class="btn btn-ghost btn-icon" type="button" aria-label="Sign out" title="Sign out">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4"/><path d="M15 8l4 4-4 4"/><path d="M19 12H9"/></svg>
         </button>

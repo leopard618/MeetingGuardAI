@@ -47,6 +47,7 @@ import { z } from 'zod';
 import { FUNCTIONS_REGION } from '../config';
 import { adminDb } from '../firebase';
 import { requireAdmin, type AdminCaller } from '../admin';
+import { entitlementSummary, firestoreAuditWriter, type AuditWriter } from '../admin/audit';
 import { planFromEvent, type EntitlementWrite } from './mapping';
 import { ENTITLEMENTS_COLLECTION, REVENUECAT_ALLOW_SANDBOX } from './index';
 
@@ -324,6 +325,8 @@ export interface ReconcilePorts {
   reconcileEntitlement(uid: string, decide: (stored: unknown) => Record<string, unknown> | null): Promise<unknown>;
   allowSandbox(): boolean;
   now?(): Date;
+  /** adminAudit writer: who reconciled whom, before and after, outcome. */
+  audit: AuditWriter;
 }
 
 export async function handleAdminReconcileEntitlement(
@@ -392,6 +395,15 @@ export async function handleAdminReconcileEntitlement(
     plan: resultDoc?.plan ?? 'free',
     status: resultDoc?.status ?? 'active',
   });
+  await ports.audit.writeAudit({
+    at: now.toISOString(),
+    actorUid: caller.uid,
+    action: 'reconcileEntitlement',
+    targetUid: uid,
+    before: entitlementSummary(stored),
+    after: resultDoc ? entitlementSummary(resultDoc) : null,
+    outcome,
+  });
   return adminReconcileEntitlementResponseSchema.parse({
     uid,
     outcome,
@@ -429,6 +441,7 @@ export function restReconcilePorts(): ReconcilePorts {
       });
     },
     allowSandbox: () => REVENUECAT_ALLOW_SANDBOX.value() === true,
+    audit: firestoreAuditWriter(db),
   };
 }
 

@@ -737,7 +737,7 @@ short guide docs/v1/ADMIN.md (EN).
 
 - **Auth:** every callable requires `request.auth.token.admin === true` (custom claim), else
   `permission-denied` (`unauthenticated` without auth). The claim is set offline with
-  `functions/scripts/set-admin-claim.mjs <uid-or-email> [--remove]` (Admin SDK, ADC creds).
+  `functions/scripts/set-admin-claim.mjs <uid-or-email> [--role admin|viewer] [--remove]` (Admin SDK, ADC creds); `adminRole: 'viewer'` reads every view and writes nothing; every admin write lands in `adminAudit` (functions/src/admin/audit.ts).
   Custom claims travel INSIDE the ID token: after setting the claim, an already-signed-in admin
   must refresh (`getIdToken(true)`); the page does that once automatically after sign-in before
   deciding whether to show the UI, and shows a "not an admin" block state otherwise.

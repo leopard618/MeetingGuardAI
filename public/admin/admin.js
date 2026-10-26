@@ -194,6 +194,8 @@ const revenueState = { days: 30, loading: false };
 /** Tabs whose first load already ran this session (cleared on every sign-in). */
 const loadedTabs = new Set();
 let activeTab = 'overview';
+/** 'admin' (read and write) or 'viewer' (read-only), from the ID token claims at sign-in. */
+let sessionRole = null;
 
 // ---------------------------------------------------------------------------------------------
 // Tabs (hash-routed; lazy per-tab loading)
@@ -565,7 +567,7 @@ function buildPlanCell(row) {
   reconcile.setAttribute('aria-label', `Reconcile entitlement of ${userLabel(row)} against RevenueCat`);
   reconcile.addEventListener('click', () => reconcileRow(row, reconcile));
   editor.append(select, expiry, apply, reconcile);
-  wrap.appendChild(editor);
+  if (sessionRole !== 'viewer') wrap.appendChild(editor); // read-only sessions see the plan, not the controls
 
   cell.appendChild(wrap);
   return cell;
@@ -634,7 +636,7 @@ function buildStatusCell(row) {
     toggle.title = 'You cannot disable your own account.';
   }
   toggle.addEventListener('click', () => toggleDisabled(row, toggle));
-  wrap.appendChild(toggle);
+  if (sessionRole !== 'viewer') wrap.appendChild(toggle);
   cell.appendChild(wrap);
   return cell;
 }
@@ -725,7 +727,9 @@ function renderHealth(data) {
   // Rotation needs the same grant (secretVersionManager rides with it): without it the attempt
   // can only fail, so gate the button instead of letting it misfire.
   const rotate = $('rotate-run');
-  rotate.disabled = !data.secretRuntime.iamReady;
+  rotate.disabled = !data.secretRuntime.iamReady || sessionRole === 'viewer';
+  $('ping-run').disabled = sessionRole === 'viewer';
+  $('rotate-key').disabled = sessionRole === 'viewer';
   rotate.title = data.secretRuntime.iamReady
     ? ''
     : 'Secret Manager grant missing - run the gcloud commands in the health card first, then Refresh.';
@@ -825,11 +829,15 @@ async function handleSignedIn(user) {
     sessionAvatar.textContent = (user.email || user.uid || '?').charAt(0).toUpperCase();
     sessionAvatar.className = `avatar avatar-sm av-${avatarIndex(user.uid)}`;
     $('session').hidden = false;
-    if (result.claims.admin !== true) {
+    const role = result.claims.admin === true ? 'admin' : result.claims.adminRole === 'viewer' ? 'viewer' : null;
+    if (role === null) {
       $('not-admin-email').textContent = user.email ?? user.uid;
       showView('view-not-admin');
       return;
     }
+    sessionRole = role;
+    document.body.dataset.role = role;
+    $('session-role').hidden = role !== 'viewer';
     currentUid = user.uid;
     usersState.rows = [];
     usersState.nextPageToken = null;

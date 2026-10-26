@@ -91,6 +91,7 @@ function fakePorts(options: FakeOptions = {}) {
     countAuthUsers: jest.fn(async () => options.totalUsers ?? 0),
     listAllEntitlements: jest.fn(async () => options.allEntitlements ?? []),
     sumUsageCountsSince: jest.fn(async (sinceIso: string) => options.usageSums?.[sinceIso] ?? 0),
+    audit: { writeAudit: jest.fn(async () => undefined) },
   };
   return { ports, calls, entitlementWrites };
 }
