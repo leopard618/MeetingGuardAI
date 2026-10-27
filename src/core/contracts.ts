@@ -1037,6 +1037,24 @@ export interface FullScreenAlarmSpec {
   deepLink: string;
   /** Existing alert channel id (channelForIntensity); the native notification posts on it. */
   channelId: string;
+  /**
+   * The alert payload (StoredAlertData) as JSON text. The module stores it and hands it back
+   * through getFired(), so the engine can present a fired alarm in-app exactly like a tray entry.
+   * Absent for alarms without an in-app presentation (the daily briefing).
+   */
+  data?: string;
+}
+
+/** An alarm the native module fired (notification posted) that the engine has not consumed yet. */
+export interface FiredFullScreenAlarm {
+  id: string;
+  /** When the native receiver posted it, epoch ms. */
+  firedAtMs: number;
+  title: string;
+  body: string;
+  deepLink: string;
+  /** The spec's data as given ('' when none). */
+  data: string;
 }
 
 export interface FullScreenAlarmStatus {
@@ -1072,6 +1090,15 @@ export interface FullScreenAlarmModule {
   getStatus(): Promise<FullScreenAlarmStatus>;
   /** Android 14+: ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT settings screen; no-op elsewhere. */
   openFullScreenIntentSettings(): Promise<void>;
+  /**
+   * Alarms that fired and were not cleared yet, oldest first, restricted to ids starting with
+   * `scope` when given. The fired notification is NOT an expo-notifications one (the tray sweep
+   * never lists it), so this is how the engine learns that a MAX alert fired while the app was
+   * closed and shows the in-app alarm (sound loop, voice readout, snooze). Empty when unavailable.
+   */
+  getFired(scope?: string): Promise<FiredFullScreenAlarm[]>;
+  /** Forgets fired records (all when omitted). The tray copy stays until the alert is handled. */
+  clearFired(ids?: readonly string[]): Promise<void>;
 }
 
 /** src/services/alerts/tasks.ts */

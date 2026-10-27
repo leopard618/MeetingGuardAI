@@ -239,8 +239,9 @@ These are true in v1.3.0. Some are platform limits, some are not built yet.
   "Override Do Not Disturb" for the MAX channel (the button is in Alert settings). On iOS, MAX / MEDIUM
   are time-sensitive and break through a Focus only if the Focus allows it. There are no iOS critical
   alerts.
-- **Voice readout and the looping alarm** play only while the app is open. A notification always plays
-  the channel sound.
+- **Voice readout and the looping alarm** play in the in-app alert. On Android the full-screen alarm
+  opens the app and the fired alarm is shown in-app (since 1.5.0; before, only the meeting page
+  opened); on iOS the user opens the alert. A notification always plays the channel sound first.
 - **Alert window.**
   - Alerts are scheduled up to 14 days ahead, with at most 60 pending (an iOS limit).
   - When more are needed, a "refill" reminder asks the user to open the app.

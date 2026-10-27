@@ -128,7 +128,7 @@
     "body": "Abre MeetingGuard para que programe tus próximas alertas."
   },
   "settings": {
-    "voiceNeedsApp": "La lectura por voz necesita la app abierta. Con la app cerrada, las alertas reproducen el sonido de la notificación.",
+    "voiceNeedsApp": "La lectura por voz suena dentro de la app. En Android la alarma a pantalla completa abre la app y lee la reunión; en iPhone, abre la alerta para escucharla. Con la app cerrada, primero suena el sonido de la notificación.",
     "saved": "Ajustes de alertas guardados.",
     "snooze": {
       "label": "Duración del aplazamiento",

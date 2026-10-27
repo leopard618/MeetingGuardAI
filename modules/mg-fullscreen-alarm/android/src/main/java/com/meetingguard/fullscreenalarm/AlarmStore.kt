@@ -4,7 +4,13 @@ import android.content.Context
 import android.content.SharedPreferences
 import org.json.JSONObject
 
-/** One pending full-screen alarm. `id` is the MeetingGuard notification identifier ("mg:..."). */
+/**
+ * One pending full-screen alarm. `id` is the MeetingGuard notification identifier ("mg:...").
+ * `data` is the alert payload as JSON text (the same object the expo-notifications path carries
+ * as `content.data`); the module never reads it, it hands it back to JS when the alarm has fired
+ * so the app can show the in-app alarm screen (sound loop, voice readout, snooze). Empty for
+ * alarms that have no in-app presentation (the daily briefing).
+ */
 data class StoredAlarm(
   val id: String,
   val atMs: Long,
@@ -12,6 +18,7 @@ data class StoredAlarm(
   val body: String,
   val deepLink: String,
   val channelId: String,
+  val data: String = "",
 )
 
 /**
@@ -49,6 +56,7 @@ internal object AlarmStore {
     .put("body", alarm.body)
     .put("deepLink", alarm.deepLink)
     .put("channelId", alarm.channelId)
+    .put("data", alarm.data)
     .toString()
 
   private fun parse(id: String, raw: String): StoredAlarm? = try {
@@ -60,6 +68,7 @@ internal object AlarmStore {
       body = json.optString("body"),
       deepLink = json.optString("deepLink"),
       channelId = json.optString("channelId"),
+      data = json.optString("data"),
     )
   } catch (_: Exception) {
     null

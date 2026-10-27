@@ -11,6 +11,8 @@ const mockWrapper = {
   clearAlarms: jest.fn(async (_ids?: readonly string[]) => undefined),
   getStatus: jest.fn(async () => ({ exactAllowed: true, fullScreenAllowed: true, notificationsAllowed: true })),
   openFullScreenIntentSettings: jest.fn(async () => undefined),
+  getFired: jest.fn(async (_scope?: string) => [] as unknown[]),
+  clearFired: jest.fn(async (_ids?: readonly string[]) => undefined),
   UNAVAILABLE_STATUS: { exactAllowed: false, fullScreenAllowed: false, notificationsAllowed: false },
 };
 
@@ -49,6 +51,10 @@ describe('module missing (iOS / web / old binary)', () => {
     expect(mockWrapper.clearAlarms).not.toHaveBeenCalled();
     expect(mockWrapper.getStatus).not.toHaveBeenCalled();
     expect(mockWrapper.openFullScreenIntentSettings).not.toHaveBeenCalled();
+    await expect(fullScreenAlarm.getFired('mg:')).resolves.toEqual([]);
+    await expect(fullScreenAlarm.clearFired(['mg:m1:5'])).resolves.toBeUndefined();
+    expect(mockWrapper.getFired).not.toHaveBeenCalled();
+    expect(mockWrapper.clearFired).not.toHaveBeenCalled();
   });
 });
 
@@ -87,6 +93,19 @@ describe('module present (Android)', () => {
     });
     await fullScreenAlarm.openFullScreenIntentSettings();
     expect(mockWrapper.openFullScreenIntentSettings).toHaveBeenCalled();
+  });
+
+  it('passes the data field through and delegates the fired-alarm calls', async () => {
+    await fullScreenAlarm.setAlarms([{ ...SPEC, data: '{"v":1}' }], 'mg:');
+    expect(mockWrapper.setAlarms).toHaveBeenLastCalledWith([expect.objectContaining({ id: 'mg:m1:5', data: '{"v":1}' })], 'mg:');
+    const fired = [{ id: 'mg:m1:5', firedAtMs: 1, title: 't', body: 'b', deepLink: '', data: '{"v":1}' }];
+    mockWrapper.getFired.mockResolvedValueOnce(fired);
+    await expect(fullScreenAlarm.getFired('mg:')).resolves.toEqual(fired);
+    expect(mockWrapper.getFired).toHaveBeenCalledWith('mg:');
+    await fullScreenAlarm.clearFired(['mg:m1:5']);
+    expect(mockWrapper.clearFired).toHaveBeenCalledWith(['mg:m1:5']);
+    await fullScreenAlarm.clearFired();
+    expect(mockWrapper.clearFired).toHaveBeenLastCalledWith(undefined);
   });
 
   it('propagates native failures to the caller (the engine logs and falls back)', async () => {

@@ -16,7 +16,11 @@
  * - When the module is unavailable or the permission is denied/revoked, the same entries fall
  *   back to the expo path in the SAME reconcile (never dropped), and `fsi.clearAlarms()` runs
  *   when FSI was active before but is not now.
- * - endSession()/cancelAll() also call `fsi.clearAlarms()`.
+ * - endSession()/cancelAll() also call `fsi.clearAlarms()` (which also forgets fired records).
+ * - The tray sweep (session start, foreground, host attach) reads `fsi.getFired('mg:')`: a MAX
+ *   alert fired by the module while the app was closed is presented in-app through the same
+ *   rules as an unhandled tray entry (so the sound loop, the voice readout and snooze appear
+ *   when the full-screen intent opens the app), then `fsi.clearFired(ids)` forgets it.
  * - getStatus() surfaces AlertEngineStatus.fullScreenAlarms; permission changes reconcile on
  *   AppState 'active' like the exact-alarm setting.
  *
@@ -24,9 +28,11 @@
  * isAvailable() is false and every method resolves as a safe no-op, so the engine keeps using
  * expo-notifications everywhere and an alert is never lost.
  */
-import type { FullScreenAlarmModule, FullScreenAlarmSpec, FullScreenAlarmStatus } from '../../core/contracts';
+import type { FiredFullScreenAlarm, FullScreenAlarmModule, FullScreenAlarmSpec, FullScreenAlarmStatus } from '../../core/contracts';
 import {
   clearAlarms as nativeClearAlarms,
+  clearFired as nativeClearFired,
+  getFired as nativeGetFired,
   getStatus as nativeGetStatus,
   isNativeModuleAvailable,
   openFullScreenIntentSettings as nativeOpenFullScreenIntentSettings,
@@ -43,6 +49,7 @@ function toNativeSpec(spec: FullScreenAlarmSpec): MgFullScreenAlarmSpec {
     body: spec.body,
     deepLink: spec.deepLink,
     channelId: spec.channelId,
+    ...(spec.data !== undefined ? { data: spec.data } : {}),
   };
 }
 
@@ -69,5 +76,15 @@ export const fullScreenAlarm: FullScreenAlarmModule = {
   async openFullScreenIntentSettings(): Promise<void> {
     if (!isNativeModuleAvailable()) return;
     await nativeOpenFullScreenIntentSettings();
+  },
+
+  async getFired(scope?: string): Promise<FiredFullScreenAlarm[]> {
+    if (!isNativeModuleAvailable()) return [];
+    return nativeGetFired(scope);
+  },
+
+  async clearFired(ids?: readonly string[]): Promise<void> {
+    if (!isNativeModuleAvailable()) return;
+    await nativeClearFired(ids);
   },
 };

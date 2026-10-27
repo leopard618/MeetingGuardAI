@@ -25,6 +25,9 @@ class AlarmSpecRecord : Record {
   @Field var deepLink: String = ""
 
   @Field var channelId: String = ""
+
+  /** Alert payload as JSON text, returned by getFired(); empty when the alarm has none. */
+  @Field var data: String = ""
 }
 
 /**
@@ -34,7 +37,9 @@ class AlarmSpecRecord : Record {
  *
  * setAlarms is DECLARATIVE: it replaces the whole pending set, which makes the module the native
  * side of the alert engine's reconcile diff. Pending alarms persist in SharedPreferences
- * (AlarmStore) and BootReceiver restores them after reboots / app updates.
+ * (AlarmStore) and BootReceiver restores them after reboots / app updates. Fired alarms are kept
+ * in FiredStore until JS reads and clears them (getFired / clearFired), so the app can show its
+ * in-app alarm screen for an alarm that fired while it was closed.
  */
 class MgFullscreenAlarmModule : Module() {
   private val reactContext: Context
@@ -57,6 +62,14 @@ class MgFullscreenAlarmModule : Module() {
 
     AsyncFunction<Unit>("openFullScreenIntentSettings") {
       openFullScreenIntentSettingsInternal()
+    }
+
+    AsyncFunction("getFired") { scope: String? ->
+      getFiredInternal(scope)
+    }
+
+    AsyncFunction("clearFired") { ids: List<String>? ->
+      clearFiredInternal(ids)
     }
   }
 
@@ -100,7 +113,7 @@ class MgFullscreenAlarmModule : Module() {
         }
         // Slightly past (scheduling race): AlarmManager fires it immediately.
       }
-      val stored = StoredAlarm(spec.id, atMs, spec.title, spec.body, spec.deepLink, spec.channelId)
+      val stored = StoredAlarm(spec.id, atMs, spec.title, spec.body, spec.deepLink, spec.channelId, spec.data)
       AlarmStore.put(context, stored)
       AlarmScheduler.schedule(context, stored)
     }
@@ -115,12 +128,36 @@ class MgFullscreenAlarmModule : Module() {
       AlarmScheduler.cancel(context, id)
       AlarmStore.remove(context, id)
       try {
-        manager?.cancel(id, 0)
+        manager?.cancel(id, AlarmReceiver.NOTIFY_ID)
       } catch (_: Exception) {
         // Removing a tray copy is best-effort.
       }
     }
-    if (ids == null) AlarmStore.clear(context)
+    if (ids == null) {
+      AlarmStore.clear(context)
+      FiredStore.clear(context)
+    } else {
+      FiredStore.remove(context, ids)
+    }
+  }
+
+  /** Fired alarms not yet handed to JS, oldest first; scoped by id prefix like setAlarms. */
+  private fun getFiredInternal(scope: String?): List<Map<String, Any>> =
+    FiredStore.all(reactContext, scope).map {
+      mapOf(
+        "id" to it.id,
+        "firedAtMs" to it.firedAtMs.toDouble(),
+        "title" to it.title,
+        "body" to it.body,
+        "deepLink" to it.deepLink,
+        "data" to it.data,
+      )
+    }
+
+  /** Forgets fired records (the tray copy stays; the engine dismisses it when the alert is handled). */
+  private fun clearFiredInternal(ids: List<String>?) {
+    val context = reactContext
+    if (ids == null) FiredStore.clear(context) else FiredStore.remove(context, ids)
   }
 
   private fun statusInternal(): Map<String, Boolean> {

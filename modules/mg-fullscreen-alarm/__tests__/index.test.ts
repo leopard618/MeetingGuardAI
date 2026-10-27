@@ -35,6 +35,8 @@ function fakeNative(): Record<string, jest.Mock> {
     clearAlarms: jest.fn(async () => undefined),
     getStatus: jest.fn(async () => ({ exactAllowed: true, fullScreenAllowed: false, notificationsAllowed: true })),
     openFullScreenIntentSettings: jest.fn(async () => undefined),
+    getFired: jest.fn(async () => []),
+    clearFired: jest.fn(async () => undefined),
   };
 }
 
@@ -77,9 +79,10 @@ it('delegates to the native module on Android', async () => {
   expect(wrapper.isNativeModuleAvailable()).toBe(true);
 
   await wrapper.setAlarms([SPEC]);
-  expect(native.setAlarms).toHaveBeenCalledWith([SPEC], null);
+  // The optional data field always reaches the native record (an empty string when absent).
+  expect(native.setAlarms).toHaveBeenCalledWith([{ ...SPEC, data: '' }], null);
   await wrapper.setAlarms([SPEC], 'mgbrief:');
-  expect(native.setAlarms).toHaveBeenLastCalledWith([SPEC], 'mgbrief:');
+  expect(native.setAlarms).toHaveBeenLastCalledWith([{ ...SPEC, data: '' }], 'mgbrief:');
 
   await wrapper.clearAlarms(['mg:m1:5']);
   expect(native.clearAlarms).toHaveBeenCalledWith(['mg:m1:5']);
@@ -104,5 +107,49 @@ it('sanitizes a malformed native status to booleans', async () => {
     exactAllowed: false,
     fullScreenAllowed: false,
     notificationsAllowed: true,
+  });
+});
+
+describe('fired alarms', () => {
+  it('returns nothing and does nothing without the module', async () => {
+    const wrapper = loadWrapper({ platform: 'android', native: null }) as WrapperModule & {
+      getFired(scope?: string): Promise<unknown[]>;
+      clearFired(ids?: readonly string[]): Promise<void>;
+    };
+    await expect(wrapper.getFired('mg:')).resolves.toEqual([]);
+    await expect(wrapper.clearFired(['mg:m1:5'])).resolves.toBeUndefined();
+  });
+
+  it('delegates getFired (normalising the records) and clearFired', async () => {
+    const native = fakeNative();
+    native.getFired.mockResolvedValueOnce([
+      { id: 'mg:m1:5', firedAtMs: 1_760_000_000_000, title: 't', body: 'b', deepLink: 'meetingguardai://meeting/m1', data: '{"v":1}' },
+      { id: 'mg:m2:5', firedAtMs: 'bad' },
+      { title: 'no id' },
+      null,
+    ]);
+    const wrapper = loadWrapper({ platform: 'android', native }) as WrapperModule & {
+      getFired(scope?: string): Promise<unknown[]>;
+      clearFired(ids?: readonly string[]): Promise<void>;
+    };
+    await expect(wrapper.getFired('mg:')).resolves.toEqual([
+      { id: 'mg:m1:5', firedAtMs: 1_760_000_000_000, title: 't', body: 'b', deepLink: 'meetingguardai://meeting/m1', data: '{"v":1}' },
+      { id: 'mg:m2:5', firedAtMs: 0, title: '', body: '', deepLink: '', data: '' },
+    ]);
+    expect(native.getFired).toHaveBeenCalledWith('mg:');
+    await wrapper.getFired();
+    expect(native.getFired).toHaveBeenLastCalledWith(null);
+
+    await wrapper.clearFired(['mg:m1:5']);
+    expect(native.clearFired).toHaveBeenCalledWith(['mg:m1:5']);
+    await wrapper.clearFired();
+    expect(native.clearFired).toHaveBeenLastCalledWith(null);
+  });
+
+  it('passes the data field through setAlarms', async () => {
+    const native = fakeNative();
+    const wrapper = loadWrapper({ platform: 'android', native });
+    await wrapper.setAlarms([{ ...SPEC, data: '{"v":1}' }], 'mg:');
+    expect(native.setAlarms).toHaveBeenCalledWith([{ ...SPEC, data: '{"v":1}' }], 'mg:');
   });
 });

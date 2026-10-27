@@ -73,6 +73,11 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
 
 ### Fixed
 
+- **Alarm voice readout on Android**: a MAX alert fired by the native full-screen alarm while the
+  app was closed opened the app on the meeting page only, without the in-app alarm (sound loop,
+  spoken readout, snooze). The native module now records fired alarms with their payload and the
+  alert engine re-shows them in-app when the app opens (within 20 minutes), through the same rules
+  as a tray notification. Native change: ships with the next store/APK build.
 - **The assistant sometimes printed raw JSON instead of a confirmation card**: for some
   phrasings (seen with "rename the call ... and add the Zoom link later") the model wrote a
   tool's arguments into its reply text and made no tool call, so the user saw a JSON blob and

@@ -25,6 +25,7 @@ import type {
   AlertEngineStatus,
   AlertPermissionStatus,
   AlertPlan,
+  FiredFullScreenAlarm,
   FullScreenAlarmModule,
   FullScreenAlarmSpec,
   FullScreenAlarmStatus,
@@ -111,6 +112,7 @@ import type {
   ChannelSpec,
   FeedbackPort,
   IncomingNotification,
+  PresentedNotificationRecord,
   IncomingResponse,
   KeyValueStorage,
   Meeting,
@@ -249,6 +251,8 @@ function toFullScreenAlarmSpec(spec: AlertNotificationSpec): FullScreenAlarmSpec
     body: spec.body,
     deepLink: spec.data.url,
     channelId: spec.channelId,
+    // Handed back by fsi.getFired() so a fired alarm can be presented in-app like a tray entry.
+    data: JSON.stringify(spec.data),
   };
 }
 
@@ -762,18 +766,58 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
   /**
    * Delivered notifications still in the tray: removes stale ones (meeting gone / ended, legacy),
    * and re-shows unhandled MAX/MEDIUM alerts in-app (the user opened the app without tapping).
+   * Then the alarms the native full-screen module fired while the app was closed (same rules).
    */
   async function sweepPresented(): Promise<void> {
     if (!sessionUid) return;
     const presented = await notifications.getPresented();
-    const nowMs = nowDate().getTime();
     for (const record of presented) {
+      await sweepRecord(record);
+    }
+    await sweepFiredAlarms();
+  }
+
+  /**
+   * MAX alerts fired by the native full-screen alarm module (Android) while the app was in the
+   * background or closed. Their notification is not an expo-notifications one, so getPresented()
+   * never lists it and, before this, opening the app from the alarm only navigated to the
+   * meeting: no sound loop, no voice readout, no snooze. The module keeps a fired record instead;
+   * each record goes through the tray rules (stale => dismissed, acknowledged => dismissed,
+   * within the re-show window => presented in-app) and is then forgotten. Records are left alone
+   * while no host is attached (a cold start can sweep before AlertHost mounts; the host attach
+   * schedules another sweep), so an alarm is never consumed unseen.
+   */
+  async function sweepFiredAlarms(): Promise<void> {
+    const fsi = deps.fsi;
+    if (!fsi || notifications.platform !== 'android' || !fsi.isAvailable() || !hostAttached()) return;
+    let fired: FiredFullScreenAlarm[];
+    try {
+      fired = await fsi.getFired(ENGINE_ALARM_SCOPE);
+    } catch (error) {
+      log.warn('could not read the fired full-screen alarms', error);
+      return;
+    }
+    if (fired.length === 0) return;
+    for (const alarm of fired) {
+      await sweepRecord({ identifier: alarm.id, data: alarm.data, date: alarm.firedAtMs });
+    }
+    try {
+      await fsi.clearFired(fired.map((alarm) => alarm.id));
+    } catch (error) {
+      log.warn('could not clear the fired full-screen alarms', error);
+    }
+  }
+
+  /** One delivered record (tray entry or fired native alarm): dismiss when stale, re-show when unhandled. */
+  async function sweepRecord(record: PresentedNotificationRecord): Promise<void> {
+    const nowMs = nowDate().getTime();
+    {
       if (isLegacyNotification(record.identifier, record.data)) {
         await dismissQuietly(record.identifier);
-        continue;
+        return;
       }
       const parsed = parseNotificationId(record.identifier);
-      if (!parsed) continue;
+      if (!parsed) return;
       const payload = parseAlertData(record.data);
       const meeting = meetingCache.get(parsed.meetingId);
       // Occurrence notifications end when the OCCURRENCE ends (the master's own start can be far
@@ -794,16 +838,16 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       const gone = (meeting !== undefined && !isAlertEligibleMeeting(meeting)) || occurrenceGone;
       if (gone || (endMs !== null && nowMs - endMs > PRESENTED_CLEANUP_AFTER_END_MS)) {
         await dismissQuietly(record.identifier);
-        continue;
+        return;
       }
-      if (parsed.kind === 'followup' || !payload || payload.intensity === 'light') continue;
+      if (parsed.kind === 'followup' || !payload || payload.intensity === 'light') return;
       const key = registryKey(record.identifier, payload.fireAt);
       if (isAcknowledged(registry, key)) {
         await dismissQuietly(record.identifier);
-        continue;
+        return;
       }
-      if (nowMs - record.date > PRESENTED_RESHOW_WINDOW_MS) continue;
-      if (active.some((alert) => alert.key === record.identifier)) continue;
+      if (nowMs - record.date > PRESENTED_RESHOW_WINDOW_MS) return;
+      if (active.some((alert) => alert.key === record.identifier)) return;
       await presentIncoming(record, 'notification_received', { force: true });
     }
   }

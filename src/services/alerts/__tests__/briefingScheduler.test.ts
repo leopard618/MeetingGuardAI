@@ -223,6 +223,12 @@ function setupFs(options: { available?: boolean; status?: Partial<FullScreenAlar
       if (ids === undefined) alarms.clear();
       else for (const id of ids) alarms.delete(id);
     },
+    async getFired() {
+      return [];
+    },
+    async clearFired() {
+      return undefined;
+    },
     async getStatus() {
       return { ...status };
     },

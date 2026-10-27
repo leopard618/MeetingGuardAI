@@ -12,9 +12,11 @@ import android.os.Build
 /**
  * Fires a scheduled alarm: posts a full-screen-intent notification on the meeting's EXISTING
  * alert channel (the channel id comes from JS: channelForIntensity, "mg-alert-max-v2" or its
- * no-vibration variant - the app creates these channels at startup, before any alarm exists) and
- * removes the alarm from the store. The full-screen intent and the tap both open the app through
- * the meeting deep link ("meetingguardai://meeting/{id}").
+ * no-vibration variant - the app creates these channels at startup, before any alarm exists),
+ * records the alarm as fired (FiredStore, read by the app so it can show the in-app alarm screen
+ * with the sound loop and the voice readout) and removes it from the pending store. The
+ * full-screen intent and the tap both open the app through the meeting deep link
+ * ("meetingguardai://meeting/{id}").
  */
 class AlarmReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
@@ -28,7 +30,15 @@ class AlarmReceiver : BroadcastReceiver() {
     /** Fired notifications remove themselves after an hour if never opened. */
     private const val TIMEOUT_MS = 60L * 60_000L
 
+    /** The notification id used with the alarm id as tag (expo-notifications dismisses tag + 0). */
+    const val NOTIFY_ID = 0
+
     fun postNotification(context: Context, alarm: StoredAlarm) {
+      // Recorded first: even when notifications are blocked, an opened app still shows the alarm.
+      FiredStore.put(
+        context,
+        FiredAlarm(alarm.id, System.currentTimeMillis(), alarm.title, alarm.body, alarm.deepLink, alarm.data),
+      )
       val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
       if (!manager.areNotificationsEnabled()) return
 
@@ -62,7 +72,7 @@ class AlarmReceiver : BroadcastReceiver() {
       }
       try {
         // Tag = alarm id: unique per occurrence/offset without hash collisions.
-        manager.notify(alarm.id, 0, builder.build())
+        manager.notify(alarm.id, NOTIFY_ID, builder.build())
       } catch (_: Exception) {
         // A missing channel (never created by the app) must not crash the broadcast.
       }

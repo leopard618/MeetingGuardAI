@@ -206,8 +206,9 @@ setting applies. The v1 channels are deleted at start and their notifications re
 
 MAX and MEDIUM notifications are sticky (Android `ongoing`: "minimizable, not dismissible"); the
 tap, Open and Snooze actions and the tray sweep remove them. The OS notification always plays the
-channel sound, also with `alertSoundType: 'voice_only'` (the voice readout needs the app in the
-foreground); the alert settings screen says so.
+channel sound, also with `alertSoundType: 'voice_only'` (the voice readout runs in the in-app
+alert; on Android the full-screen alarm opens the app and the fired alarm is re-shown in-app, §18;
+on iOS the user opens the alert); the alert settings screen says so.
 
 Create the channels **before** requesting permission.
 
@@ -575,7 +576,8 @@ receivers; a store build - never an OTA update - ships it, hence version 1.2.0).
 
 - **Native contract:** `setAlarms(alarms)` is DECLARATIVE (replaces the whole pending set);
   `clearAlarms(ids?)`; `getStatus() -> { exactAllowed, fullScreenAllowed, notificationsAllowed }`
-  (finally a real exact-alarm read); `openFullScreenIntentSettings()`. Each alarm:
+  (finally a real exact-alarm read); `openFullScreenIntentSettings()`; `getFired(scope?)` /
+  `clearFired(ids?)` (below). Each alarm:
   AlarmManager `setExactAndAllowWhileIdle` -> BroadcastReceiver -> NotificationCompat notification
   with `fullScreenIntent` (PendingIntent to MainActivity carrying the deepLink) on the meeting's
   EXISTING alert channel. Pending alarms persist in SharedPreferences; a `BOOT_COMPLETED`
@@ -584,6 +586,17 @@ receivers; a store build - never an OTA update - ships it, hence version 1.2.0).
   `mg-alert` category does). A MAX alert delivered through the module in the background is
   snoozed from the in-app full-screen alarm after tapping it; MEDIUM alerts keep the buttons.
   Adding native snooze actions is future work (TESTING T14 tells testers it is not a bug).
+- **Fired alarms reach the in-app alarm (1.5.0 fix):** the fired native notification is not an
+  expo-notifications one, so `getPresentedNotificationsAsync` never lists it and the tray sweep
+  could not re-show it: opening the app from the alarm only navigated to the meeting, without
+  the sound loop, the voice readout or snooze. Now each spec carries `data` (the StoredAlertData
+  as JSON); the receiver records the fired alarm (SharedPreferences `FiredStore`, pruned after 2
+  hours) before posting; the engine's tray sweep (session start, foreground, host attach) reads
+  `getFired('mg:')`, runs each record through the same rules as a tray entry (stale / acknowledged
+  => dismissed; within `PRESENTED_RESHOW_WINDOW_MS` => `presentIncoming` in-app) and then
+  `clearFired(ids)`. Records are untouched while no `AlertHost` is attached. `clearAlarms` also
+  forgets fired records; the tray copy (tag = id, notify id 0, the pair expo's dismiss cancels) is
+  removed when the alert is handled, as for expo deliveries.
 - **Engine integration** (spelled out in fsi.ts): during reconcile, when android + available +
   `fullScreenAllowed && notificationsAllowed`, desired entries with kind `alert` and intensity
   `max` are routed to `setAlarms` (id = the notification identifier, so the diff extends to the
