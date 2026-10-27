@@ -49,6 +49,9 @@ record and the client's V2 roadmap are in [`docs/v2/`](docs/v2/), starting with
 |---|---|
 | What changed, version by version | `CHANGELOG.md` |
 | The working plan, weeks 6 to 17 (overview, per-developer weeks, to-do lists) | `docs/v2/Project-Plan-2026-10-25.docx` |
+| The milestone plan to December 25 with the payment each milestone releases | `docs/v2/Milestones-and-Payments-2026-10-26.docx` |
+| The scope and payment breakdown (existing agreement, new work, what is paid and what remains) | `docs/v2/Payment-Breakdown-2026-10-26.docx` |
+| The proposal of October 26 (assistant, website, operating costs, security) | `docs/v2/Proposal-Francisco-2026-10-26.docx` |
 | The agreed scope, prices and the status of weeks 1 to 5 | `docs/v2/PLAN.md` |
 | The client's V2 roadmap | `docs/v2/MeetingGuard_Roadmap_for_Dusko-7.docx` |
 | How the app is built | `docs/v1/ARCHITECTURE.md` |
