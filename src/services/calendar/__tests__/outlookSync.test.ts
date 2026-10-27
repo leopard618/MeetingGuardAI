@@ -3,6 +3,7 @@ import { graphHttpStatus, type OutlookGraphApi } from '../outlook/api';
 import { OUTLOOK_DEFAULT_CALENDAR } from '../outlook/mapping';
 import { defaultOutlookSyncState, type OutlookSyncState } from '../outlook/state';
 import {
+  applyOccurrenceOverrides,
   deleteOutlookEvent,
   enqueueOutlookPushes,
   enqueueUpcomingOwnMeetings,
@@ -49,7 +50,7 @@ function timedEvent(id: string, overrides: Partial<GraphEvent> = {}): GraphEvent
 }
 
 interface GraphCall {
-  method: 'startDelta' | 'deltaPage' | 'get' | 'create' | 'patch' | 'delete' | 'me';
+  method: 'startDelta' | 'deltaPage' | 'get' | 'create' | 'patch' | 'delete' | 'me' | 'instances';
   id?: string;
   url?: string;
   body?: GraphEventWrite;
@@ -63,6 +64,8 @@ class FakeGraphApi implements OutlookGraphApi {
   failures: Partial<Record<GraphCall['method'], AppError[]>> = {};
   /** Whether created Teams meetings get a join URL right away. */
   teamsJoinUrlOnCreate = true;
+  /** Series master id -> generated instances (set by tests; a real Graph generates them). */
+  instances = new Map<string, GraphEvent[]>();
   private seq = 0;
   private byTransactionId = new Map<string, string>();
 
@@ -138,7 +141,52 @@ class FakeGraphApi implements OutlookGraphApi {
       event.onlineMeetingProvider = 'teamsForBusiness';
       if (this.teamsJoinUrlOnCreate) event.onlineMeeting = { joinUrl: `https://teams.microsoft.com/l/meetup-join/${id}` };
     }
+    if (body.recurrence !== undefined) {
+      event.type = 'seriesMaster';
+      event.recurrence = body.recurrence;
+    }
     return this.store(event);
+  }
+
+  async listInstances(masterId: string, startIso: string, endIso: string): Promise<GraphEvent[]> {
+    this.calls.push({ method: 'instances', id: masterId, url: `${startIso}..${endIso}` });
+    this.fail('instances');
+    if (!this.events.has(masterId)) throw graphError(404, 'ErrorItemNotFound');
+    const from = Date.parse(startIso);
+    const to = Date.parse(endIso);
+    return (this.instances.get(masterId) ?? [])
+      .filter((instance) => this.events.has(instance.id))
+      .filter((instance) => {
+        const start = Date.parse(`${(instance.start?.dateTime ?? '').replace(/\.\d+$/, '')}Z`);
+        return start >= from && start < to;
+      })
+      .map((instance) => JSON.parse(JSON.stringify(instance)) as GraphEvent);
+  }
+
+  /** Registers generated instances of a master (they become deletable / patchable events). */
+  generateInstances(masterId: string, starts: readonly string[], durationMinutes = 60): string[] {
+    const ids: string[] = [];
+    const list: GraphEvent[] = [];
+    for (const start of starts) {
+      this.seq += 1;
+      const id = `${masterId}-i${this.seq}`;
+      const startMs = Date.parse(start);
+      const instance: GraphEvent = {
+        id,
+        type: 'occurrence',
+        seriesMasterId: masterId,
+        originalStart: new Date(startMs).toISOString().replace('.000Z', 'Z'),
+        subject: this.events.get(masterId)?.subject,
+        start: { dateTime: new Date(startMs).toISOString().replace('Z', '0000'), timeZone: 'UTC' },
+        end: { dateTime: new Date(startMs + durationMinutes * 60_000).toISOString().replace('Z', '0000'), timeZone: 'UTC' },
+        isAllDay: false,
+      };
+      this.events.set(id, { ...instance, changeKey: `${id}-ck1` });
+      list.push(instance);
+      ids.push(id);
+    }
+    this.instances.set(masterId, list);
+    return ids;
   }
 
   /** Completes a pending Teams meeting (the next get returns the link). */
@@ -347,7 +395,7 @@ describe('pushOutlookMeeting', () => {
     expect(recreated.meeting.external.outlookEventId).not.toBe(pushed.external.outlookEventId);
   });
 
-  it('never pushes meetings imported from Google or the device, nor recurring masters (v1)', async () => {
+  it('never pushes meetings imported from Google or the device; recurring masters are pushable', async () => {
     const { api, meetings, deps } = setup();
     const fromGoogle = meetings.add({ title: 'From Google', startAt: '2026-10-03T09:00:00.000Z', source: 'google' });
     const fromDevice = meetings.add({ title: 'From phone', startAt: '2026-10-03T10:00:00.000Z', source: 'device' });
@@ -359,40 +407,130 @@ describe('pushOutlookMeeting', () => {
     });
     expect(isOutlookPushable(fromGoogle)).toBe(false);
     expect(isOutlookPushable(fromDevice)).toBe(false);
-    expect(isOutlookPushable(recurring)).toBe(false);
+    expect(isOutlookPushable(recurring)).toBe(true);
 
-    for (const meeting of [fromGoogle, fromDevice, recurring]) {
+    for (const meeting of [fromGoogle, fromDevice]) {
       const outcome = await pushOutlookMeeting(deps, meeting);
       expect(outcome.sent).toBe(false);
     }
     expect(api.calls).toHaveLength(0);
   });
 
-  it('a one-off already in Outlook that becomes recurring: the stale Graph event is deleted and the refs cleared', async () => {
+  it('creates a recurring master as a Graph series, remembers the shape and suppresses the re-push', async () => {
+    const { api, meetings, deps, state } = setup();
+    const weekly = meetings.add({
+      title: 'Weekly',
+      startAt: '2026-10-03T11:00:00.000Z', // a Saturday
+      source: 'manual',
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: ['MO'], byMonthDay: null, until: null, count: 4 },
+    });
+    const outcome = await pushOutlookMeeting(deps, weekly);
+    expect(outcome.sent).toBe(true);
+    const create = api.calls.find((call) => call.method === 'create');
+    expect(create?.body?.recurrence).toEqual({
+      pattern: { type: 'weekly', interval: 1, daysOfWeek: ['monday'], firstDayOfWeek: 'monday' },
+      range: { type: 'numbered', startDate: '2026-10-05', numberOfOccurrences: 4, recurrenceTimeZone: 'UTC' },
+    });
+    // The anchor moved to the first Monday, same wall-clock time.
+    expect(create?.body?.start).toEqual({ dateTime: '2026-10-05T11:00:00', timeZone: 'UTC' });
+    const eventId = outcome.meeting.external.outlookEventId as string;
+    expect(api.events.get(eventId)?.type).toBe('seriesMaster');
+    expect(state.value.kinds[eventId]).toBe('series');
+    // No overrides: no instance listing was needed.
+    expect(api.calls.some((call) => call.method === 'instances')).toBe(false);
+
+    api.calls = [];
+    const again = await pushOutlookMeeting(deps, outcome.meeting);
+    expect(again.sent).toBe(false);
+    expect(api.calls).toHaveLength(0);
+  });
+
+  it('applies cancelled and modified occurrences to the generated instances after a series push', async () => {
     const { api, meetings, deps } = setup();
-    const meeting = meetings.add({ title: 'Planning', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' });
+    const weekly = meetings.add({
+      title: 'Weekly',
+      startAt: '2026-10-05T11:00:00.000Z', // Monday
+      source: 'manual',
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null },
+    });
+    const pushed = (await pushOutlookMeeting(deps, weekly)).meeting;
+    const masterId = pushed.external.outlookEventId as string;
+    const [first, second, third] = api.generateInstances(masterId, ['2026-10-05T11:00:00.000Z', '2026-10-12T11:00:00.000Z', '2026-10-19T11:00:00.000Z']);
+
+    const edited = await meetings.update(
+      pushed.id,
+      {
+        recurrenceOverrides: {
+          '2026-10-12': { status: 'cancelled', startAt: null, durationMinutes: null, title: null },
+          '2026-10-19': { status: 'modified', startAt: '2026-10-19T13:00:00.000Z', durationMinutes: 30, title: 'Weekly (short)' },
+        },
+      },
+      { origin: 'user' },
+    );
+    api.calls = [];
+    const outcome = await pushOutlookMeeting(deps, edited);
+    expect(outcome.sent).toBe(true);
+    // The master is patched (rule unchanged, overrides changed the hash), then the instances.
+    expect(api.calls.map((call) => call.method)).toEqual(['patch', 'instances', 'delete', 'patch']);
+    expect(api.calls[2]).toMatchObject({ method: 'delete', id: second });
+    expect(api.calls[3]).toMatchObject({
+      method: 'patch',
+      id: third,
+      body: { subject: 'Weekly (short)', start: { dateTime: '2026-10-19T13:00:00', timeZone: 'UTC' }, end: { dateTime: '2026-10-19T13:30:00', timeZone: 'UTC' } },
+    });
+    expect(api.events.has(first)).toBe(true);
+    expect(api.events.has(second)).toBe(false);
+
+    // Idempotent: the same overrides again find the deleted instance gone and re-patch the other.
+    api.instances.set(masterId, (api.instances.get(masterId) ?? []).filter((instance) => instance.id !== second));
+    api.calls = [];
+    const result = await applyOccurrenceOverrides(deps, outcome.meeting, masterId);
+    expect(result).toEqual({ deleted: 0, patched: 1 });
+  });
+
+  it('a one-off already in Outlook that becomes recurring is deleted and re-created as a series (and back)', async () => {
+    const { api, meetings, deps, state } = setup();
+    const meeting = meetings.add({ title: 'Planning', startAt: '2026-10-05T09:00:00.000Z', source: 'manual' });
     const pushed = (await pushOutlookMeeting(deps, meeting)).meeting;
-    expect(api.events.size).toBe(1);
+    const singleId = pushed.external.outlookEventId as string;
+    expect(state.value.kinds[singleId]).toBe('single');
 
     const recurring = await meetings.update(
       pushed.id,
       { recurrence: { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null } },
       { origin: 'user' },
     );
-    const outcome = await pushOutlookMeeting(deps, recurring);
-
-    // The old single event must not linger in Outlook (stale copy; an Outlook-side edit of it
-    // would rewrite the local series anchor), and the master is unlinked.
-    expect(outcome.sent).toBe(true);
-    expect(api.events.size).toBe(0);
-    expect(outcome.meeting.external.outlookEventId).toBeNull();
-    expect(outcome.meeting.external.outlookChangeKey).toBeNull();
-
-    // Re-pushing the now-unlinked series is a no-op (not pushable in v1).
     api.calls = [];
-    const again = await pushOutlookMeeting(deps, outcome.meeting);
-    expect(again.sent).toBe(false);
-    expect(api.calls).toHaveLength(0);
+    const outcome = await pushOutlookMeeting(deps, recurring);
+    expect(outcome.sent).toBe(true);
+    expect(api.calls.map((call) => call.method)).toEqual(['delete', 'create']);
+    expect(api.events.has(singleId)).toBe(false);
+    const seriesId = outcome.meeting.external.outlookEventId as string;
+    expect(seriesId).not.toBe(singleId);
+    expect(api.events.get(seriesId)?.type).toBe('seriesMaster');
+    expect(state.value.kinds).toEqual({ [seriesId]: 'series' });
+    // A fresh, deterministic transactionId: never the original one (that would replay the deleted event).
+    const create = api.calls.find((call) => call.method === 'create');
+    expect(create?.body?.transactionId).toMatch(new RegExp(`^${outlookTransactionId(pushed.id)}-k`));
+
+    // Removing the repeat again: the series is deleted and a single event re-created.
+    const single = await meetings.update(outcome.meeting.id, { recurrence: null }, { origin: 'user' });
+    api.calls = [];
+    const back = await pushOutlookMeeting(deps, single);
+    expect(api.calls.map((call) => call.method)).toEqual(['delete', 'create']);
+    expect(api.events.has(seriesId)).toBe(false);
+    expect(state.value.kinds[back.meeting.external.outlookEventId as string]).toBe('single');
+  });
+
+  it('a link made before shapes were tracked counts as a single event', async () => {
+    const { api, meetings, deps } = setup();
+    const meeting = meetings.add({ title: 'Legacy', startAt: '2026-10-05T09:00:00.000Z', source: 'manual' });
+    const pushed = (await pushOutlookMeeting(deps, meeting)).meeting;
+    await deps.state.update((current) => ({ ...current, kinds: {} }));
+    api.calls = [];
+    const edited = await meetings.update(pushed.id, { title: 'Legacy renamed' }, { origin: 'user' });
+    await pushOutlookMeeting(deps, edited);
+    expect(api.calls.map((call) => call.method)).toEqual(['patch']);
   });
 
   it('deletes the event of a deleted meeting (missing events count as deleted)', async () => {
@@ -485,7 +623,7 @@ describe('flushOutlookPushes', () => {
 });
 
 describe('enqueueUpcomingOwnMeetings', () => {
-  it('queues only own, upcoming, unlinked, non-recurring meetings', async () => {
+  it('queues only own, upcoming, unlinked meetings (recurring masters included)', async () => {
     const { meetings, state, deps } = setup();
     meetings.add({ title: 'Own', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' });
     meetings.add({ title: 'Imported', startAt: '2026-10-03T09:00:00.000Z', source: 'google' });
@@ -498,8 +636,35 @@ describe('enqueueUpcomingOwnMeetings', () => {
     meetings.add({ title: 'Long past', startAt: '2020-01-01T09:00:00.000Z', source: 'manual' });
 
     const queued = await enqueueUpcomingOwnMeetings(deps);
-    expect(queued).toBe(1);
-    expect(Object.keys(state.value.pending)).toHaveLength(1);
+    expect(queued).toBe(2);
+    expect(Object.keys(state.value.pending)).toHaveLength(2);
+  });
+});
+
+describe('pull and our own series', () => {
+  it('skips the instances of a series we pushed and never sweeps the master on a full sync', async () => {
+    const { api, meetings, deps } = setup();
+    const weekly = meetings.add({
+      title: 'Weekly',
+      startAt: '2026-10-05T11:00:00.000Z',
+      source: 'manual',
+      recurrence: { freq: 'weekly', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null },
+    });
+    const pushed = (await pushOutlookMeeting(deps, weekly)).meeting;
+    const masterId = pushed.external.outlookEventId as string;
+    api.generateInstances(masterId, ['2026-10-05T11:00:00.000Z', '2026-10-12T11:00:00.000Z']);
+    // calendarView lists the instances (never the master) plus an ordinary event.
+    api.events.set('other', timedEvent('other'));
+    const instances = api.instances.get(masterId) ?? [];
+    api.deltaResponses.push({ value: [...instances, timedEvent('other')], '@odata.deltaLink': 'https://graph.microsoft.com/v1.0/d1' });
+
+    const result = await pullOutlookChanges(deps, { full: true });
+    expect(result.counts.created).toBe(1);
+    expect(result.counts.removed).toBe(0);
+    const titles = (await meetings.list({ includeDeleted: true }))
+      .map((meeting) => [meeting.title, meeting.deletedAt === null] as const)
+      .sort((x, y) => x[0].localeCompare(y[0]));
+    expect(titles).toEqual([['Event other', true], ['Weekly', true]]);
   });
 });
 

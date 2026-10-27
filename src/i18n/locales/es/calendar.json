@@ -34,7 +34,7 @@
   },
   "outlook": {
     "title": "Calendario de Outlook",
-    "description": "Sincronización en ambos sentidos con el calendario de tu cuenta Microsoft (Outlook, Microsoft 365). Las reuniones que creas aquí aparecen en Outlook y tus eventos de Outlook reciben las alertas de MeetingGuard. En esta versión, las reuniones que se repiten no se envían a Outlook.",
+    "description": "Sincronización en ambos sentidos con el calendario de tu cuenta Microsoft (Outlook, Microsoft 365). Las reuniones que creas aquí aparecen en Outlook, también las que se repiten, y tus eventos de Outlook reciben las alertas de MeetingGuard.",
     "state": {
       "connected": "Conectado",
       "notConnected": "Sin conectar"

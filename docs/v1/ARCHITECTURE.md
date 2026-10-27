@@ -488,7 +488,7 @@ and `types.ts`. One stored document per series (the **master**); occurrences are
     result: the original series ends the day before the split, a new independent series starts
     at it; EXDATEs follow the override partition. A Google-side edit of either event keeps
     syncing to its own local meeting. Outlook: unchanged - recurring meetings are never pushed
-    to Graph (§17), so neither side of the split appears in Outlook.
+    to Graph before Stage 2; since M6 the split is two ordinary series pushes to Graph as well (§17).
   - **UI:** the occurrence/series choice dialogs (`src/screens/meetings/list/meetingActions.tsx`)
     gain the third option `meetings:actions.scopeFollowing`; a "following" EDIT uses the
     occurrence sheet surface (title/date/time/duration -> `editFollowing` patch), the full form
@@ -536,13 +536,26 @@ Contract: `OutlookCalendarService` + `MICROSOFT_OAUTH` in `src/core/contracts.ts
 in `src/services/calendar/outlook/` (api/mapping/sync/service mirror the Google provider; without
 `EXPO_PUBLIC_MSAL_CLIENT_ID`, `isConfigured()` is false, the whole UI is hidden and the engine
 does not register the provider). The Microsoft account is independent of the app's
-Google/Firebase identity. v1 limitations (documented): MeetingGuard recurrence rules and meetings
-imported from Google/device calendars are never pushed to Graph, and a Teams link is only created
-with the event (Graph cannot reliably turn an existing event into a Teams meeting here). When a
-one-off that was already pushed to Outlook gains a recurrence rule, the push DELETES the Graph
-event and clears the `external.outlook*` refs - a stale single event must not linger in Outlook,
-and an Outlook-side edit of it must not rewrite the local series anchor. Removing the rule again
-re-pushes the meeting as a one-off.
+Google/Firebase identity. Limitations (documented): meetings imported from Google/device
+calendars are never pushed to Graph, and a Teams link is only created with the event (Graph cannot
+reliably turn an existing event into a Teams meeting here).
+- **Series (Stage 2, M6):** a recurring master is pushed as a Graph series master.
+  `toGraphRecurrence` (mapping.ts) maps daily / weekly (`daysOfWeek`, Monday weeks) / monthly
+  (`dayOfMonth`) rules with `interval`; `until` becomes the local date of the LAST generated
+  occurrence (`endDate`), `count` a `numbered` range; `recurrenceTimeZone` is the meeting zone. An
+  off-pattern anchor moves the master start (same wall-clock time) to the first generated
+  occurrence, which is what `expandOccurrences` renders locally. After every series create / patch,
+  `applyOccurrenceOverrides` (sync.ts) lists the instances around each override
+  (`GET /me/events/{id}/instances`, matched by `originalStart`) and DELETEs cancelled ones /
+  PATCHes modified ones (start, end, subject); Graph regenerates the occurrences when the master
+  recurrence is patched, so the pass is idempotent. The visible hash of a series includes the rule
+  and every override. `state.kinds` (event id -> single | series) remembers what we created: a
+  shape change (one-off <-> series) deletes the old event and creates a new one with a fresh
+  deterministic transactionId (`-k<hash of the old link>`), never a cross-shape PATCH; links made
+  before the field existed count as single. Import skips instances whose `seriesMasterId` is one of
+  our masters and the full-sync sweep never tombstones a master (masters are not in calendarView),
+  so Outlook-side occurrence edits or a series deletion in Outlook do not flow back (same one-way
+  rule as the Google provider, §16).
 
 - **Auth:** expo-auth-session PKCE against
   `https://login.microsoftonline.com/{EXPO_PUBLIC_MSAL_TENANT||'common'}/v2.0`, scopes `openid

@@ -41,6 +41,36 @@ export interface GraphOnlineMeetingInfo {
 
 export type GraphEventType = 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
 
+export type GraphDayOfWeek = 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday';
+
+/** https://learn.microsoft.com/graph/api/resources/recurrencepattern (the subset MeetingGuard writes). */
+export interface GraphRecurrencePattern {
+  type: 'daily' | 'weekly' | 'absoluteMonthly' | 'relativeMonthly' | 'absoluteYearly' | 'relativeYearly';
+  interval: number;
+  /** weekly */
+  daysOfWeek?: GraphDayOfWeek[];
+  firstDayOfWeek?: GraphDayOfWeek;
+  /** absoluteMonthly / absoluteYearly */
+  dayOfMonth?: number;
+  month?: number;
+  index?: 'first' | 'second' | 'third' | 'fourth' | 'last';
+}
+
+/** https://learn.microsoft.com/graph/api/resources/recurrencerange */
+export interface GraphRecurrenceRange {
+  type: 'endDate' | 'noEnd' | 'numbered';
+  /** "YYYY-MM-DD" in recurrenceTimeZone. */
+  startDate: string;
+  endDate?: string;
+  numberOfOccurrences?: number;
+  recurrenceTimeZone?: string;
+}
+
+export interface GraphPatternedRecurrence {
+  pattern: GraphRecurrencePattern;
+  range: GraphRecurrenceRange;
+}
+
 export interface GraphEvent {
   id: string;
   /** Concurrency/echo token; changes on every modification. */
@@ -49,6 +79,9 @@ export interface GraphEvent {
   lastModifiedDateTime?: string;
   type?: GraphEventType;
   seriesMasterId?: string | null;
+  /** Occurrences / exceptions: the start the series generated for them (UTC ISO), before any edit. */
+  originalStart?: string | null;
+  recurrence?: GraphPatternedRecurrence | null;
   subject?: string | null;
   body?: GraphItemBody;
   bodyPreview?: string;
@@ -83,6 +116,14 @@ export interface GraphEventWrite {
   transactionId?: string;
   isOnlineMeeting?: boolean;
   onlineMeetingProvider?: 'teamsForBusiness';
+  /** Series masters: the rule (toGraphRecurrence). Never sent for one-off events. */
+  recurrence?: GraphPatternedRecurrence;
+}
+
+/** GET /me/events/{id}/instances page. */
+export interface GraphInstancesPage {
+  value?: GraphEvent[];
+  '@odata.nextLink'?: string;
 }
 
 export interface GraphDeltaPage {

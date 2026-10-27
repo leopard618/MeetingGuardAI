@@ -34,7 +34,7 @@
   },
   "outlook": {
     "title": "Outlook Calendar",
-    "description": "Two-way sync with the calendar of your Microsoft account (Outlook, Microsoft 365). Meetings you create here appear in Outlook, and your Outlook events get MeetingGuard alerts. Repeating meetings are not sent to Outlook in this version.",
+    "description": "Two-way sync with the calendar of your Microsoft account (Outlook, Microsoft 365). Meetings you create here appear in Outlook, repeating ones included, and your Outlook events get MeetingGuard alerts.",
     "state": {
       "connected": "Connected",
       "notConnected": "Not connected"

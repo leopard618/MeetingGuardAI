@@ -3,6 +3,34 @@
 All notable changes to MeetingGuard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
+## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
+
+Stage 2 of the V2 agreement: the calendar and task integrations (Outlook, Microsoft To Do, Google
+Tasks), the spoken debrief and the running-late message. Includes a native change (full-screen
+alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5.x.
+
+### Added
+
+- **Outlook calendar sync, activated** (milestone M6): the Microsoft Graph two-way sync built in
+  v1 is switched on by setting `EXPO_PUBLIC_MSAL_CLIENT_ID` (Azure app registration, SETUP §10).
+  Connect a Microsoft account on the Calendar sync screen; meetings flow both ways with the
+  existing conflict rules, and alerts re-reconcile after every pull.
+- **Repeating meetings reach Outlook**: a MeetingGuard series is pushed as a Graph series master
+  (daily, weekly, monthly rules; until and count; the anchor moved to the first generated
+  occurrence when the rule skips it). Cancelled occurrences delete their Outlook instance,
+  modified ones (time, duration, title) patch it; the shape change one-off <-> series is handled
+  by delete and re-create. Instances of our own series coming back through calendarView are
+  skipped, and a full sync never tombstones a series master. Occurrence edits made in Outlook on a
+  MeetingGuard series stay in Outlook (same one-way rule as Google).
+
+### Fixed
+
+- **Alarm voice readout on Android**: a MAX alert fired by the native full-screen alarm while the
+  app was closed opened the app on the meeting page only, without the in-app alarm (sound loop,
+  spoken readout, snooze). The native module now records fired alarms with their payload and the
+  alert engine re-shows them in-app when the app opens (within 20 minutes), through the same rules
+  as a tray notification. Native change: ships with the next store/APK build.
+
 ## [1.5.0] - Unreleased (V2 Stage 1, branch `v2`)
 
 The conversational agent: two-way voice, tasks as a first-class item, combined requests and the
@@ -73,11 +101,7 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
 
 ### Fixed
 
-- **Alarm voice readout on Android**: a MAX alert fired by the native full-screen alarm while the
-  app was closed opened the app on the meeting page only, without the in-app alarm (sound loop,
-  spoken readout, snooze). The native module now records fired alarms with their payload and the
-  alert engine re-shows them in-app when the app opens (within 20 minutes), through the same rules
-  as a tray notification. Native change: ships with the next store/APK build.
+
 - **The assistant sometimes printed raw JSON instead of a confirmation card**: for some
   phrasings (seen with "rename the call ... and add the Zoom link later") the model wrote a
   tool's arguments into its reply text and made no tool call, so the user saw a JSON blob and
