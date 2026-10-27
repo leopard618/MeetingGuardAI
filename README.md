@@ -49,7 +49,8 @@ record and the client's V2 roadmap are in [`docs/v2/`](docs/v2/), starting with
 |---|---|
 | What changed, version by version | `CHANGELOG.md` |
 | The working plan, weeks 6 to 17 (overview, per-developer weeks, to-do lists) | `docs/v2/Project-Plan-2026-10-25.docx` |
-| The revised plan and proposal after the client postponed the assistant: Dusko M1 to M13 under the existing agreement, Sven landing page and web agenda, totals (replaces the October 26 proposal, milestone plan and breakdown) | `docs/v2/Revised-Plan-2026-10-26.docx` |
+| The consolidated plan and schedule after the client approved the landing page and web agenda (October 27): every milestone with owner, date, acceptance criteria, payment and dependencies; payments received and ahead; launches; languages dated; bug-fix coverage. Same data as Excel and calendar files (generators: scratchpad schedule-data.js, make-schedule*.js) | `docs/v2/Consolidated-Schedule-2026-10-27.docx`, `docs/v2/MeetingGuard-Schedule-2026-10-27.xlsx`, `docs/v2/MeetingGuard-Schedule-2026-10-27.ics` |
+| The revised plan of October 26 (assistant postponed); superseded by the consolidated schedule | `docs/v2/Revised-Plan-2026-10-26.docx` |
 | Superseded on October 26 evening, kept for the assistant design notes: the proposal (assistant, website, operating costs, security), the milestone plan with payment column, the scope and payment breakdown | `docs/v2/Proposal-Francisco-2026-10-26.docx`, `docs/v2/Milestones-and-Payments-2026-10-26.docx`, `docs/v2/Payment-Breakdown-2026-10-26.docx` |
 | The agreed scope, prices and the status of weeks 1 to 5 | `docs/v2/PLAN.md` |
 | The client's V2 roadmap | `docs/v2/MeetingGuard_Roadmap_for_Dusko-7.docx` |

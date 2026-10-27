@@ -1,0 +1,670 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//MeetingGuard team//Schedule 2026-10-27//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:MeetingGuard schedule (October 27, 2026)
+BEGIN:VEVENT
+UID:mg-m5@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261030
+DTEND;VALUE=DATE:20261031
+SUMMARY:MG M5 demo (Dusko): Stage 1 release and acceptance
+DESCRIPTION:Deliverable: Build 1.5.0 live on Google Play and submitted to t
+ he App Store\; listings and screenshots EN and ES\; microphone disclosure\
+ ; status notification (no charge). The Stage 1 checklist run on a physical
+  phone\, screen recorded (October 28)\, with a pass/fail list.\nAcceptance
+ : Your written Stage 1 acceptance after the recording and checklist.\nPaym
+ ent: USD 550\, Payment 5\nDependencies: Francisco: written acceptance by O
+ ctober 30. Apple: verdict on 1.5.0 (iOS goes live when it arrives).
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-m6@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261110
+DTEND;VALUE=DATE:20261111
+SUMMARY:MG M6 demo (Dusko): Outlook calendar\, two-way sync
+DESCRIPTION:Deliverable: Connected accounts screen\; Microsoft sign-in\; me
+ etings both ways with no duplicates and no loops\; conflict rule (most rec
+ ent edit wins\, the loser kept as a visible note for a day)\; recurrence a
+ nd exceptions\, time zones\, all-day events\, cancellations\, declined inv
+ itations\, token expiry and re-consent\; alerts re-reconcile after every s
+ ync\; clear error messages\; 24 hour soak on two phones.\nAcceptance: A me
+ eting created in the app appears in Outlook\; an Outlook edit appears in t
+ he app\; alarms follow\; no duplicates after the soak.\nPayment: USD 550\,
+  Payment 6\nDependencies: Francisco: the Azure app registration by Novembe
+ r 3 (steps provided).
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-m7@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261117
+DTEND;VALUE=DATE:20261118
+SUMMARY:MG M7 demo (Dusko): Microsoft To Do\, two-way sync
+DESCRIPTION:Deliverable: List choice\, always shown before you confirm\; ti
+ tle\, notes\, due date\, done state and deletion both ways\; a task comple
+ ted in To Do silences its alarm here within a minute\; voice tasks land in
+  the chosen list\; "what is due today" includes synced tasks\; the app say
+ s when Microsoft lacks something.\nAcceptance: A task created in the app a
+ ppears in the chosen list\; completing it in either place syncs within a m
+ inute.\nPayment: USD 550\, Payment 7\nDependencies: M6 (the connected-acco
+ unts framework).
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-m8@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261124
+DTEND;VALUE=DATE:20261125
+SUMMARY:MG M8 demo (Dusko): Google Tasks sync\; the spoken debrief
+DESCRIPTION:Deliverable: Google Tasks two-way with the same engine and test
+ s (public switch when Google approves the scope\, as agreed). After a meet
+ ing\, speak for up to 60 seconds\; the app proposes tasks with owners and 
+ due dates linked to the meeting\; you edit and confirm\; nothing saved bef
+ ore that. EN and ES.\nAcceptance: A spoken debrief becoming confirmed\, li
+ nked tasks with reminders. Google Tasks syncing on a test account.\nPaymen
+ t: USD 550\, Payment 8\nDependencies: Google: scope approval for the publi
+ c switch (test accounts work at once).
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-m9@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261127
+DTEND;VALUE=DATE:20261128
+SUMMARY:MG M9 demo (Dusko): Running late\; Stage 2 close and release
+DESCRIPTION:Deliverable: Pick 5\, 10\, 15 or 30 minutes\; a ready message i
+ n your language with the title and new time\; sent from your phone through
+  the share sheet\; the meeting moves only if you confirm. Feature freeze\,
+  the full device test guide on both platforms\, fixes\, store builds\, rel
+ ease notes EN and ES\, Android staged rollout\, iOS submission.\nAcceptanc
+ e: The Stage 2 checklist recorded line by line\; your written Stage 2 acce
+ ptance.\nPayment: USD 550\, Payment 9\nDependencies: M6 to M8. Francisco: 
+ Stage 2 acceptance by November 30.
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-m10@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261201
+DTEND;VALUE=DATE:20261202
+SUMMARY:MG M10 demo (Dusko): Summaries arrive by themselves
+DESCRIPTION:Deliverable: A private forwarding address for the summary your 
+ notetaker already writes\; matched to the meeting by time and title\; unma
+ tched ones wait in a summary inbox\; checks that keep a fake summary out o
+ f your account\; stored for you only\, encrypted\, deletable.\nAcceptance:
+  A real recap email forwarded in lands against the correct meeting\; a for
+ ged one is refused.\nPayment: USD 550\, Summaries addition\, part 1\nDepen
+ dencies: Francisco: one real notetaker summary email by November 24.
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-m11@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261208
+DTEND;VALUE=DATE:20261209
+SUMMARY:MG M11 demo (Dusko): Summaries become commitments
+DESCRIPTION:Deliverable: The app reads the summary and proposes what was pr
+ omised\, by whom and by when\, with the source sentence\; review screen (a
+ ccept all\, edit\, drop) turns accepted items into tasks with alarms linke
+ d to the meeting\; the same on WhatsApp for linked users\; every item labe
+ lled with its origin\; connect and disconnect screen\; retention rules.\nA
+ cceptance: A real recap becoming tasks with alarms\, in the app and on Wha
+ tsApp.\nPayment: USD 550\, Summaries addition\, part 2\nDependencies: M10.
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-m12@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261211
+DTEND;VALUE=DATE:20261212
+SUMMARY:MG M12 demo (Dusko): Portuguese\; the Hindi verdict
+DESCRIPTION:Deliverable: Portuguese everywhere: interface\, speaking\, list
+ ening\, confirmation cards\, reminders\, dates\, the store listing. Hindi 
+ tested with real mixed Hindi and English speech and a written verdict on w
+ hether it is good enough to ship.\nAcceptance: A complete Portuguese voice
+  flow (create\, move\, cancel\, agenda aloud) on a phone\; the Hindi findi
+ ngs in writing.\nPayment: none\, inside the agreement\nDependencies: None.
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-m13@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261215
+DTEND;VALUE=DATE:20261216
+SUMMARY:MG M13 demo (Dusko): WhatsApp complete\; Stage 3 close and release
+DESCRIPTION:Deliverable: A WhatsApp voice note becomes a meeting or a task\
+ ; debriefs\, confirmations and the daily agenda through approved templates
+ \, only to users who opted in\, with a stop keyword\; one set of records w
+ ith the app. Full test guide EN\, ES and PT\; release to both stores.\nAcc
+ eptance: A WhatsApp voice note creating a meeting\; the agenda arriving\; 
+ the Stage 3 checklist recorded\; your written Stage 3 acceptance.\nPayment
+ : USD 550\, Payment 10 (last weekly payment)\nDependencies: Meta: template
+ s approved and the app set to Live (submitted by December 1). Francisco: S
+ tage 3 acceptance by December 17.
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-m14@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261218
+DTEND;VALUE=DATE:20261219
+SUMMARY:MG M14 demo (Dusko): French and German\; the Mandarin verdict
+DESCRIPTION:Deliverable: French and German to the same standard as Portugue
+ se\; the written Mandarin verdict. Store listings in the new languages.\nA
+ cceptance: A complete French and a complete German voice flow on a phone\;
+  the Mandarin findings in writing.\nPayment: none\, inside the agreement\n
+ Dependencies: M12 (the language framework).
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-m15@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261222
+DTEND;VALUE=DATE:20261223
+SUMMARY:MG M15 demo (Dusko): Guest invitation links\; final pass\; Stage 4 
+ acceptance
+DESCRIPTION:Deliverable: Send a link and your guest accepts\, declines or p
+ roposes another time from a phone browser without installing anything\; yo
+ u are notified\; only a proposal you approve changes the meeting and re-re
+ conciles alarms and synced calendars (the guest page is served from the we
+ b agenda\, Sven S6). The complete device test guide in all five languages 
+ on both platforms\, accessibility and performance checks\, the final store
+  submission\, the handover document.\nAcceptance: A guest responding from 
+ a phone browser and the organiser seeing it in the app\; the Stage 4 check
+ list recorded\; your written final acceptance.\nPayment: USD 700\, Final a
+ cceptance\nDependencies: M6 to M14\; S6. Francisco: final acceptance by De
+ cember 25.
+CATEGORIES:MeetingGuard\,Milestone\,Dusko
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-s1@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261104
+DTEND;VALUE=DATE:20261105
+SUMMARY:MG S1 demo (Sven): Content and design\, your sign-off
+DESCRIPTION:Deliverable: The buyer and what they search for\; one page from
+  "what is this" to an install in under a minute: promise\, how it works in
+  three steps\, features with real screenshots\, WhatsApp block\, pricing a
+ s in the app\, short FAQ\, download block with store badges and QR code\, 
+ support and contact\; EN and ES copy\; design light and dark\, phone first
+  and desktop\; legal pages kept at their current addresses.\nAcceptance: D
+ esign review with you (30 minutes) and your written sign-off before any co
+ de.\nPayment: USD 550\, Landing page 1 of 2\nDependencies: Dusko: real scr
+ eenshots by October 30. Francisco: 30 minutes on November 4.
+CATEGORIES:MeetingGuard\,Milestone\,Sven
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-s2@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261113
+DTEND;VALUE=DATE:20261114
+SUMMARY:MG S2 demo (Sven): Build and launch on meetingguard.ai
+DESCRIPTION:Deliverable: Fast static site EN and ES (Spanish under /es/) in
+  the existing Firebase project next to the admin\, header rules reviewed b
+ y Dusko\; contact form through one function\; SEO (titles\, descriptions\,
+  Open Graph\, structured data\, sitemap\, redirects from every old address
+ )\; analytics with consent\; accessibility and speed pass (Lighthouse 90 o
+ r better)\; old page retired\; handover note.\nAcceptance: Live on meeting
+ guard.ai in both languages\; store links work\; legal addresses unchanged\
+ ; Lighthouse report attached.\nPayment: USD 550\, Landing page 2 of 2\nDep
+ endencies: S1. Francisco: domain\, DNS and hosting access by November 6.
+CATEGORIES:MeetingGuard\,Milestone\,Sven
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-s3@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261124
+DTEND;VALUE=DATE:20261125
+SUMMARY:MG S3 demo (Sven): Sign in and see your agenda
+DESCRIPTION:Deliverable: The same account as the app (the app's sign-in met
+ hods)\, the same meetings and tasks\, live both ways because both read the
+  same records\; day\, week and month views\; meeting details\; synced cale
+ ndars as in the app\; the plan shown as in the app (Free\, Pro\, Premium) 
+ with the same permissions\; phone and desktop\; EN and ES.\nAcceptance: Si
+ gn in with your app account on the web\; a meeting created on the phone ap
+ pears on the web within seconds\; a Pro-only feature is locked on a Free a
+ ccount on both.\nPayment: USD 550\, Web agenda 1 of 4\nDependencies: S2 (h
+ osting and shared components).
+CATEGORIES:MeetingGuard\,Milestone\,Sven
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-s4@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261204
+DTEND;VALUE=DATE:20261205
+SUMMARY:MG S4 demo (Sven): Meetings from the web
+DESCRIPTION:Deliverable: Create\, edit\, move and cancel meetings through t
+ he same validation the app uses\; the phone's alarms and synced calendars 
+ re-reconcile within a minute of a web change\; the linked-task move questi
+ on\; recurring meetings and time zones\; tested on two phones against the 
+ web.\nAcceptance: A meeting created on the web rings on the phone at the r
+ ight time\; moving it on the web moves the alarm and the Outlook copy.\nPa
+ yment: USD 550\, Web agenda 2 of 4\nDependencies: S3\; M6 (Outlook) for th
+ e synced-calendar check.
+CATEGORIES:MeetingGuard\,Milestone\,Sven
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-s5@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261211
+DTEND;VALUE=DATE:20261212
+SUMMARY:MG S5 demo (Sven): Tasks from the web
+DESCRIPTION:Deliverable: Task list by due date\, overdue and done\; create\
+ , edit\, complete and delete\; due date\, time and reminder\; tasks linked
+  to meetings\; synced lists (To Do\, Google Tasks) as in the app\; quick c
+ apture by typing\; the same confirmation rules as the app.\nAcceptance: A 
+ task created on the web reminds on the phone\; completing it on the phone 
+ updates the web within seconds.\nPayment: USD 550\, Web agenda 3 of 4\nDep
+ endencies: S4\; M7 and M8 for the synced-list check.
+CATEGORIES:MeetingGuard\,Milestone\,Sven
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-s6@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261218
+DTEND;VALUE=DATE:20261219
+SUMMARY:MG S6 demo (Sven): Polish\, security review\, launch
+DESCRIPTION:Deliverable: Spanish complete\, dark mode\, keyboard access\, p
+ erformance on a slow connection\, error states\, the account page (plan\, 
+ manage subscription in the store\, sign out\, delete account)\; Dusko's se
+ curity review (server rules\, headers\, sign-in)\; the guest page for Dusk
+ o's invitation links hosted here (M15)\; launch at the web address you cho
+ ose\; handover note.\nAcceptance: Live at the chosen address\; the device 
+ script (sign in\, create\, move\, complete\, plan lock) passes on phone an
+ d desktop\; the security review signed by Dusko.\nPayment: USD 550\, Web a
+ genda 4 of 4\nDependencies: S5. Francisco: the web address by December 11.
+CATEGORIES:MeetingGuard\,Milestone\,Sven
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-m5@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261030
+DTEND;VALUE=DATE:20261031
+SUMMARY:MG payment USD 550: Payment 5 (M5)
+DESCRIPTION:Line: A. Dusko\, agreement of October 9\nReleased after the rec
+ orded demo and code push of M5.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-s1@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261104
+DTEND;VALUE=DATE:20261105
+SUMMARY:MG payment USD 550: Landing page 1 of 2 (S1)
+DESCRIPTION:Line: B1. Sven\, landing page\nReleased after the recorded demo
+  and code push of S1.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-m6@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261110
+DTEND;VALUE=DATE:20261111
+SUMMARY:MG payment USD 550: Payment 6 (M6)
+DESCRIPTION:Line: A. Dusko\, agreement of October 9\nReleased after the rec
+ orded demo and code push of M6.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-s2@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261113
+DTEND;VALUE=DATE:20261114
+SUMMARY:MG payment USD 550: Landing page 2 of 2 (S2)
+DESCRIPTION:Line: B1. Sven\, landing page\nReleased after the recorded demo
+  and code push of S2.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-m7@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261117
+DTEND;VALUE=DATE:20261118
+SUMMARY:MG payment USD 550: Payment 7 (M7)
+DESCRIPTION:Line: A. Dusko\, agreement of October 9\nReleased after the rec
+ orded demo and code push of M7.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-m8@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261124
+DTEND;VALUE=DATE:20261125
+SUMMARY:MG payment USD 550: Payment 8 (M8)
+DESCRIPTION:Line: A. Dusko\, agreement of October 9\nReleased after the rec
+ orded demo and code push of M8.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-s3@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261124
+DTEND;VALUE=DATE:20261125
+SUMMARY:MG payment USD 550: Web agenda 1 of 4 (S3)
+DESCRIPTION:Line: B2. Sven\, web agenda\nReleased after the recorded demo a
+ nd code push of S3.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-m9@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261127
+DTEND;VALUE=DATE:20261128
+SUMMARY:MG payment USD 550: Payment 9 (M9)
+DESCRIPTION:Line: A. Dusko\, agreement of October 9\nReleased after the rec
+ orded demo and code push of M9.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-m10@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261201
+DTEND;VALUE=DATE:20261202
+SUMMARY:MG payment USD 550: Summaries addition\, part 1 (M10)
+DESCRIPTION:Line: A. Dusko\, summaries addition\nReleased after the recorde
+ d demo and code push of M10.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-s4@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261204
+DTEND;VALUE=DATE:20261205
+SUMMARY:MG payment USD 550: Web agenda 2 of 4 (S4)
+DESCRIPTION:Line: B2. Sven\, web agenda\nReleased after the recorded demo a
+ nd code push of S4.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-m11@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261208
+DTEND;VALUE=DATE:20261209
+SUMMARY:MG payment USD 550: Summaries addition\, part 2 (M11)
+DESCRIPTION:Line: A. Dusko\, summaries addition\nReleased after the recorde
+ d demo and code push of M11.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-s5@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261211
+DTEND;VALUE=DATE:20261212
+SUMMARY:MG payment USD 550: Web agenda 3 of 4 (S5)
+DESCRIPTION:Line: B2. Sven\, web agenda\nReleased after the recorded demo a
+ nd code push of S5.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-m13@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261215
+DTEND;VALUE=DATE:20261216
+SUMMARY:MG payment USD 550: Payment 10 (last weekly payment) (M13)
+DESCRIPTION:Line: A. Dusko\, agreement of October 9\nReleased after the rec
+ orded demo and code push of M13.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-s6@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261218
+DTEND;VALUE=DATE:20261219
+SUMMARY:MG payment USD 550: Web agenda 4 of 4 (S6)
+DESCRIPTION:Line: B2. Sven\, web agenda\nReleased after the recorded demo a
+ nd code push of S6.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-pay-m15@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261222
+DTEND;VALUE=DATE:20261223
+SUMMARY:MG payment USD 700: Final acceptance (M15)
+DESCRIPTION:Line: A. Dusko\, agreement of October 9\nReleased after the rec
+ orded demo and code push of M15.
+CATEGORIES:MeetingGuard\,Payment
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-launch-1@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261030
+DTEND;VALUE=DATE:20261031
+SUMMARY:MG launch: Stage 1 app release 1
+DESCRIPTION:Stage 1 app release 1.5.0 accepted: Android live on Google Play
+ \; iOS live when Apple approves. The app can be promoted from this date wi
+ th the store links\; it does not wait for the website.\nOwner: Dusko
+CATEGORIES:MeetingGuard\,Launch
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-launch-2@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261113
+DTEND;VALUE=DATE:20261114
+SUMMARY:MG launch: Landing page live on meetingguard
+DESCRIPTION:Landing page live on meetingguard.ai (EN and ES).\nOwner: Sven
+CATEGORIES:MeetingGuard\,Launch
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-launch-3@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261127
+DTEND;VALUE=DATE:20261128
+SUMMARY:MG launch: Stage 2 app release: Android staged rollout\, iOS submit
+ ted (Outlook\, To Do\, Google Tasks\, debrief\, running late)
+DESCRIPTION:Stage 2 app release: Android staged rollout\, iOS submitted (Ou
+ tlook\, To Do\, Google Tasks\, debrief\, running late).\nOwner: Dusko
+CATEGORIES:MeetingGuard\,Launch
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-launch-4@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261215
+DTEND;VALUE=DATE:20261216
+SUMMARY:MG launch: Stage 3 app release: Android staged rollout\, iOS submit
+ ted (summaries\, Portuguese\, WhatsApp complete)
+DESCRIPTION:Stage 3 app release: Android staged rollout\, iOS submitted (su
+ mmaries\, Portuguese\, WhatsApp complete).\nOwner: Dusko
+CATEGORIES:MeetingGuard\,Launch
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-launch-5@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261218
+DTEND;VALUE=DATE:20261219
+SUMMARY:MG launch: Web agenda live at the chosen address
+DESCRIPTION:Web agenda live at the chosen address.\nOwner: Sven
+CATEGORIES:MeetingGuard\,Launch
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-launch-6@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261222
+DTEND;VALUE=DATE:20261223
+SUMMARY:MG launch: Final app release submitted to both stores (guest links\
+ , French\, German)\; the guest page live on the web agenda
+DESCRIPTION:Final app release submitted to both stores (guest links\, Frenc
+ h\, German)\; the guest page live on the web agenda. Stage 4 and final acc
+ eptance.\nOwner: Dusko
+CATEGORIES:MeetingGuard\,Launch
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-launch-7@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261225
+DTEND;VALUE=DATE:20261226
+SUMMARY:MG launch: Overall deadline
+DESCRIPTION:Overall deadline. Buffer of three days after the last milestone
+ .\nOwner: Both
+CATEGORIES:MeetingGuard\,Launch
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-need-1@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261030
+DTEND;VALUE=DATE:20261031
+SUMMARY:MG needed from Francisco: Stage 1 acceptance in writing
+DESCRIPTION:Stage 1 acceptance in writing\; the Apple verdict when it arriv
+ es.
+CATEGORIES:MeetingGuard\,Francisco
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-need-2@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261103
+DTEND;VALUE=DATE:20261104
+SUMMARY:MG needed from Francisco: Azure app registration for Outlook
+DESCRIPTION:Azure app registration for Outlook (steps provided).
+CATEGORIES:MeetingGuard\,Francisco
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-need-3@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261104
+DTEND;VALUE=DATE:20261105
+SUMMARY:MG needed from Francisco: Landing page design review
+DESCRIPTION:Landing page design review (30 minutes) and written sign-off\; 
+ Google account email for the read-only admin login.
+CATEGORIES:MeetingGuard\,Francisco
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-need-4@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261106
+DTEND;VALUE=DATE:20261107
+SUMMARY:MG needed from Francisco: Domain\, DNS and hosting access for the l
+ anding page.
+DESCRIPTION:Domain\, DNS and hosting access for the landing page.
+CATEGORIES:MeetingGuard\,Francisco
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-need-5@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261124
+DTEND;VALUE=DATE:20261125
+SUMMARY:MG needed from Francisco: One real notetaker summary email.
+DESCRIPTION:One real notetaker summary email.
+CATEGORIES:MeetingGuard\,Francisco
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-need-6@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261130
+DTEND;VALUE=DATE:20261201
+SUMMARY:MG needed from Francisco: Stage 2 acceptance in writing.
+DESCRIPTION:Stage 2 acceptance in writing.
+CATEGORIES:MeetingGuard\,Francisco
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-need-7@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261211
+DTEND;VALUE=DATE:20261212
+SUMMARY:MG needed from Francisco: Web address for the web agenda.
+DESCRIPTION:Web address for the web agenda.
+CATEGORIES:MeetingGuard\,Francisco
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-need-8@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261217
+DTEND;VALUE=DATE:20261218
+SUMMARY:MG needed from Francisco: Stage 3 acceptance in writing.
+DESCRIPTION:Stage 3 acceptance in writing.
+CATEGORIES:MeetingGuard\,Francisco
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-need-9@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20261225
+DTEND;VALUE=DATE:20261226
+SUMMARY:MG needed from Francisco: Final acceptance in writing
+DESCRIPTION:Final acceptance in writing (deadline).
+CATEGORIES:MeetingGuard\,Francisco
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-support-the-app-sta@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20270220
+DTEND;VALUE=DATE:20270221
+SUMMARY:MG bug-fix period ends: The app (Stages 1 to 4\, the summaries addi
+ tion\, the languages)
+DESCRIPTION:60 days of bug fixes at no charge\, counted from the acceptance
+  on Tuesday\, December 22\, 2026.
+CATEGORIES:MeetingGuard\,Support
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-support-landing-page@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20270112
+DTEND;VALUE=DATE:20270113
+SUMMARY:MG bug-fix period ends: Landing page
+DESCRIPTION:60 days of bug fixes at no charge\, counted from the acceptance
+  on Friday\, November 13\, 2026.
+CATEGORIES:MeetingGuard\,Support
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:mg-support-web-agenda@meetingguard.ai
+DTSTAMP:20261027T090000Z
+DTSTART;VALUE=DATE:20270216
+DTEND;VALUE=DATE:20270217
+SUMMARY:MG bug-fix period ends: Web agenda
+DESCRIPTION:60 days of bug fixes at no charge\, counted from the acceptance
+  on Friday\, December 18\, 2026.
+CATEGORIES:MeetingGuard\,Support
+TRANSP:TRANSPARENT
+END:VEVENT
+END:VCALENDAR
