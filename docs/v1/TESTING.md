@@ -626,8 +626,10 @@ this section, or any recurring-meeting rows, before the rules redeploy.
 | 5 | Edit the event's time in Outlook web, then pull to refresh the meetings list. | The meeting moves in the app. Its alerts move with it. |
 | 6 | Delete the event in Outlook web, refresh. | The meeting disappears in the app (or is marked cancelled), and its alerts are gone. |
 | 7 | Check cross-provider isolation: a meeting imported from Google or from a phone calendar. | It never appears in Outlook, and an Outlook-imported meeting never appears in Google Calendar or the phone calendar. No duplicates anywhere. |
-| 8 | Create a recurring meeting while Outlook is connected. | The series syncs to Google (T3) but NOT to Outlook (v1 limitation, `docs/v1/ARCHITECTURE.md` §17). One-off meetings keep syncing. |
-| 8b | Take a one-off meeting that is already in Outlook (row 3) and edit it to repeat weekly. | The single event is REMOVED from Outlook on the next sync (a stale copy is never left behind); the series stays in the app and in Google. Removing the repeat again pushes it back to Outlook as a one-off. |
+| 8 | Create a weekly meeting (3 occurrences) while Outlook is connected. | Outlook web shows a repeating series with the same days, time and time zone, and exactly 3 occurrences; no extra one-off copies. |
+| 8b | In the app, move one occurrence of that series to another hour and cancel another one. | In Outlook the moved occurrence shows the new hour and the cancelled one is gone; the rest of the series is untouched. |
+| 8c | Take a one-off meeting that is already in Outlook (row 3) and edit it to repeat weekly, then remove the repeat again. | The single event is replaced by a series in Outlook (never two copies); removing the repeat replaces the series with a one-off again. |
+| 8d | In Outlook web, edit one occurrence of a MeetingGuard series, then pull to refresh. | The app does not change (occurrence edits made in Outlook on our series stay in Outlook, same one-way rule as Google). |
 | 9 | Sign out of the app, sign back in. | Outlook shows Disconnected (the refresh token is deleted at session end); Connect works again. |
 | 10 | Tap **Disconnect** (with "remove access" if offered). | The card shows Disconnected, Outlook-imported meetings are removed from the app, app-created meetings stay (their Outlook link is cleared), and with revoke the Microsoft consent page opens. |
 | 11 | Repeat rows 2-6 in Spanish. | All Outlook card texts, states and toasts are natural Spanish. |

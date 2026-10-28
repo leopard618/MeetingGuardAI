@@ -689,8 +689,9 @@ client secret are needed (the app is a public client using PKCE).
 ### 10.2 Permissions
 
 Open **API permissions**. `User.Read` is present by default; add **Microsoft Graph -> Delegated
-permissions -> `Calendars.ReadWrite`**, plus `offline_access`, `openid` and `profile` if they are
-not already listed. These are all delegated permissions that the user consents to at sign-in;
+permissions -> `Calendars.ReadWrite`** and **`Tasks.ReadWrite`** (Microsoft To Do, Stage 2 M7; harmless
+to add now, the app only requests it once the To Do sync ships), plus `offline_access`, `openid` and
+`profile` if they are not already listed. These are all delegated permissions that the user consents to at sign-in;
 **Grant admin consent** is NOT required for personal accounts or the `common` audience.
 
 Under **Authentication**, confirm the redirect URI is listed under "Mobile and desktop
