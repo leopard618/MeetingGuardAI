@@ -457,6 +457,7 @@ meeting is rolled back (a fresh recurring create disappears).
 | 10 | Turn alerts off (master switch), wait for a planned alert, then turn them on again. | Nothing fires while they are off. After you turn them on, `dumpsys alarm` shows alarms again. |
 | 11 | Vibration off. | No vibration anywhere (the app uses the "no vibration" channels). |
 | 12 | Sound type "voice only", app in the background. | The notification still plays the channel sound. The voice only speaks while the app is open. The alert settings screen says this. |
+| 13 | Alert settings -> "Events from other calendars" -> Light. Import a phone-calendar event with a time (T4) and create a MeetingGuard meeting, both a few minutes ahead. | The imported event rings LIGHT, the MeetingGuard meeting rings at the intensity above. The meeting form shows "Default (Light)" for the imported one. A per-meeting intensity on the imported event still wins. Birthdays and other all-day events never ring. |
 
 On iOS, a Focus mode replaces DND: MAX and MEDIUM are time-sensitive and break through when the
 Focus allows it. There is no exact-alarm setting on iOS.
@@ -488,6 +489,7 @@ Focus allows it. There is no exact-alarm setting on iOS.
 | 2 | In the app, create a meeting with Google Meet (no link), with participant B. | Within a few seconds the event is in account A's Google Calendar, with a real `meet.google.com` link. B gets an invitation email. The app's details show the Meet link. |
 | 3 | In the app, move the meeting 1 hour later. | The Google event moves, and B gets an update. |
 | 4 | In Google Calendar (web), change the title. In the app, pull down to refresh on the Dashboard (or tap "Sync now"). | The app shows the new title, and the alerts move with it. |
+| 4b | Add an all-day event for tomorrow in Google Calendar (a birthday) while the next timed meeting is the day after. Sync. | The Dashboard's Next meeting card shows the timed meeting with its countdown, and below it "Also coming up" with the birthday and "All day". Details opens it. The "Tasks today" card sits right under that card, before Quick actions. |
 | 5 | Create an event in Google Calendar (web). Sync. | It appears in the app with alerts. |
 | 6 | Delete that event in Google. Sync. | It disappears from the app and its alerts are removed. |
 | 7 | Delete a synced meeting in the app. | The confirm text says it is also removed from Google. It is gone from Google. |
