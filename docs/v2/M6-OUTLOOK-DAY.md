@@ -9,6 +9,11 @@ morning; say so in the delivery note.
 Secrets: the Microsoft login goes in the password manager, never in chat logs or this repo. The
 Application (client) ID is a public identifier and may be committed in docs and the bundle.
 
+Status, October 28, 2026: Francisco registered the app himself under his own Microsoft account and
+sent the Application (client) ID: `d6517b23-5dd5-49eb-995a-ed369474a9ae`. Section 1 is therefore
+done on his side (ask for the API permissions screenshot if it has not arrived). The ID is in the
+local `.env` and in all three EAS environments (section 2 done). Tenant stays empty (common).
+
 ## 1. Azure app registration (15 minutes)
 
 Sign in at <https://portal.azure.com> with the account Francisco sent. Skip any offer to start an
