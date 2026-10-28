@@ -3,7 +3,7 @@
  * unit-tested). The onboarding step edits the base AlertDraft; the settings screen also edits the
  * snooze length and post-meeting follow-ups. (The 12 h / 24 h clock is in Settings > Time format.)
  */
-import { DEFAULT_BRIEFING_TIME, localTimeSchema, type Preferences, type PreferencesPatch } from '../../core/types';
+import { DEFAULT_BRIEFING_TIME, localTimeSchema, type AlertIntensity, type Preferences, type PreferencesPatch } from '../../core/types';
 import { buildAlertPreferencesPatch, draftFromPreferences, isDraftValid, type AlertDraft } from '../onboarding/alertOptions';
 
 /** Snooze lengths offered (Preferences.snoozeMinutes, 1..60). */
@@ -18,6 +18,8 @@ export interface AlertSettingsDraft extends AlertDraft {
   statusNotificationEnabled: boolean;
   /** Android: fire the briefing full-screen instead of as a notification. */
   briefingFullScreen: boolean;
+  /** Intensity for imported calendar events; null = same as alertIntensity. */
+  importedAlertIntensity: AlertIntensity | null;
 }
 
 export function settingsDraftFromPreferences(preferences: Preferences): AlertSettingsDraft {
@@ -29,6 +31,7 @@ export function settingsDraftFromPreferences(preferences: Preferences): AlertSet
     briefingTime: preferences.briefingTime,
     statusNotificationEnabled: preferences.statusNotificationEnabled,
     briefingFullScreen: preferences.briefingFullScreen,
+    importedAlertIntensity: preferences.importedAlertIntensity,
   };
 }
 
@@ -68,5 +71,6 @@ export function buildAlertSettingsPatch(preferences: Preferences, draft: AlertSe
     patch.statusNotificationEnabled = draft.statusNotificationEnabled;
   }
   if (draft.briefingFullScreen !== preferences.briefingFullScreen) patch.briefingFullScreen = draft.briefingFullScreen;
+  if (draft.importedAlertIntensity !== preferences.importedAlertIntensity) patch.importedAlertIntensity = draft.importedAlertIntensity;
   return patch;
 }

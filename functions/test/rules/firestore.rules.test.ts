@@ -62,6 +62,7 @@ function preferences(overrides: Record<string, unknown> = {}): Record<string, un
     timezone: 'America/Bogota',
     alertEnabled: true,
     alertIntensity: 'max',
+    importedAlertIntensity: null,
     alertSoundType: 'voice_and_sound',
     alertVolume: 0.8,
     vibrationEnabled: true,
@@ -384,6 +385,7 @@ describe('preferences', () => {
   it.each([
     ['a volume above 1', { alertVolume: 1.5 }],
     ['an unknown intensity', { alertIntensity: 'maximum' }],
+    ['an unknown imported intensity', { importedAlertIntensity: 'loud' }],
     ['a Google access token', { google_access_token: 'ya29.token' }],
     ['a Google refresh token', { google_refresh_token: '1//token' }],
     ['a bad snooze', { snoozeMinutes: 0 }],

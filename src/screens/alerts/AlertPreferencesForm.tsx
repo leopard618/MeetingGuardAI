@@ -189,6 +189,21 @@ export function AlertExtraSettings({
 
   return (
     <View>
+      <Section title={t('alerts:settings.imported.label')}>
+        <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }}>
+          {t('alerts:settings.imported.description')}
+        </Text>
+        <SegmentedButtons
+          style={styles.subheading}
+          value={draft.importedAlertIntensity ?? 'default'}
+          onValueChange={(value) => onChange({ importedAlertIntensity: value === 'default' ? null : (value as AlertIntensity) })}
+          buttons={[
+            { value: 'default', label: t('alerts:settings.imported.default') },
+            ...ALERT_INTENSITIES.map((intensity) => ({ value: intensity, label: t(`onboarding:alerts.intensity.${intensity}.title`) })),
+          ]}
+        />
+      </Section>
+
       <Section title={t('alerts:settings.snooze.label')}>
         <SegmentedButtons
           value={String(draft.snoozeMinutes)}

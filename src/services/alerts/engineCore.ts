@@ -51,7 +51,7 @@ import {
   type ParsedNotificationId,
 } from '../../core/identifiers';
 import type { Logger } from '../../core/logger';
-import { DEFAULT_PREFERENCES, DEFAULT_SNOOZE_MINUTES, type PreferenceKey } from '../../core/types';
+import { DEFAULT_PREFERENCES, DEFAULT_SNOOZE_MINUTES, effectiveAlertIntensity, type PreferenceKey } from '../../core/types';
 import {
   CHANNEL_VIBRATION,
   FOREGROUND_SWEEP_DELAY_MS,
@@ -152,6 +152,7 @@ const IMMEDIATE_REASONS: ReadonlySet<ReconcileReason> = new Set<ReconcileReason>
 const ALERT_PREFERENCE_KEYS: ReadonlySet<PreferenceKey> = new Set<PreferenceKey>([
   'alertEnabled',
   'alertIntensity',
+  'importedAlertIntensity',
   'defaultAlertTimes',
   'followUpEnabled',
   'snoozeMinutes',
@@ -561,7 +562,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     const occurrence = meeting && occurrenceKey !== undefined ? occurrenceEffective(meeting, occurrenceKey) : null;
     if (meeting && meeting.recurrence !== null && occurrenceKey !== undefined && occurrence === null) return null;
     const prefs = prefsOrDefault();
-    const intensity = item.intensity ?? meeting?.alertIntensity ?? prefs.alertIntensity;
+    const intensity = item.intensity ?? (meeting ? effectiveAlertIntensity(meeting, prefs) : prefs.alertIntensity);
     const base: ActiveAlert = {
       key: item.identifier,
       meetingId: item.meetingId,

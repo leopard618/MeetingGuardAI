@@ -64,6 +64,29 @@ export function findNowAndNext(meetings: readonly Meeting[], now: Date): NowAndN
   return { current, next };
 }
 
+/**
+ * The first all-day meeting after today (device zone) that comes no later than the next timed
+ * meeting: a birthday or holiday the timed "next" skips. Today's all-day items are already in the
+ * timeline. Client feedback, Oct 28 2026.
+ */
+export function findNextAllDay(meetings: readonly Meeting[], context: InsightContext, next: Meeting | null): Meeting | null {
+  const today = todayOf(context);
+  const limit = next ? (meetingDates(next, context.timeZone)[0] ?? null) : null;
+  let best: Meeting | null = null;
+  let bestDate = '';
+  for (const meeting of meetings) {
+    if (!meeting.allDay || !isCountable(meeting)) continue;
+    const first = meetingDates(meeting, context.timeZone)[0];
+    if (first === undefined || first <= today) continue;
+    if (limit !== null && first > limit) continue;
+    if (best === null || first < bestDate || (first === bestDate && meeting.title.localeCompare(best.title) < 0)) {
+      best = meeting;
+      bestDate = first;
+    }
+  }
+  return best;
+}
+
 export interface CountdownParts {
   /** Whole seconds left (0 when the target has passed). */
   totalSeconds: number;

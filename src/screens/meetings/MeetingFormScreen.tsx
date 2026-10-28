@@ -32,7 +32,7 @@ import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
-import type { Meeting, MeetingPatch } from '../../core/types';
+import { effectiveAlertIntensity, type Meeting, type MeetingPatch } from '../../core/types';
 import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { attachmentService } from '../../services/attachments';
@@ -803,7 +803,11 @@ function MeetingForm({
               onPress={() => change({ alertIntensity: choice })}
             >
               {choice === 'default'
-                ? t('meetings:form.intensityDefault', { intensity: t(`onboarding:alerts.intensity.${preferences.alertIntensity}.title`) })
+                ? t('meetings:form.intensityDefault', {
+                    intensity: t(
+                      `onboarding:alerts.intensity.${effectiveAlertIntensity({ source: meeting?.source ?? 'manual', alertIntensity: null }, preferences)}.title`,
+                    ),
+                  })
                 : t(`onboarding:alerts.intensity.${choice}.title`)}
             </Chip>
           ))}

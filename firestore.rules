@@ -287,7 +287,7 @@ service cloud.firestore {
     // ------------------------------------------------------------------ preferences
 
     function isValidPreferences(d) {
-      return d.keys().hasOnly(['language', 'timezone', 'alertEnabled', 'alertIntensity', 'alertSoundType',
+      return d.keys().hasOnly(['language', 'timezone', 'alertEnabled', 'alertIntensity', 'importedAlertIntensity', 'alertSoundType',
                                'alertVolume', 'vibrationEnabled', 'defaultAlertTimes', 'snoozeMinutes',
                                'followUpEnabled', 'briefingEnabled', 'briefingTime',
                                'statusNotificationEnabled', 'briefingFullScreen',
@@ -298,6 +298,7 @@ service cloud.firestore {
         && (d.get('timezone', null) == null || isTimeZone(d.timezone))
         && d.get('alertEnabled', true) is bool
         && d.get('alertIntensity', 'max') in ['max', 'medium', 'light']
+        && (d.get('importedAlertIntensity', null) == null || d.importedAlertIntensity in ['max', 'medium', 'light'])
         && d.get('alertSoundType', 'voice_and_sound') in ['voice_and_sound', 'voice_only', 'sound_only']
         && (d.get('alertVolume', null) == null
             || (d.alertVolume is number && d.alertVolume >= 0 && d.alertVolume <= 1))

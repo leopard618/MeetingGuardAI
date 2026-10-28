@@ -37,7 +37,7 @@ import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
 import { AlertStatusCard } from './AlertStatusCard';
 import { displayKeyOf, displayWindowAround, expandMeetingsForDisplay } from '../meetings/occurrences';
-import { buildTodayTimeline, dayPeriodOf, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
+import { buildTodayTimeline, dayPeriodOf, findNextAllDay, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
 import { InsightsSummaryCard } from './InsightsSummaryCard';
 import { NextMeetingCard } from './NextMeetingCard';
 import { OfflineBanner } from './OfflineBanner';
@@ -114,6 +114,7 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   // occurrence of this week, not just its stored master).
   const summary = useMemo(() => computeDashboardSummary(displayMeetings, context), [displayMeetings, context]);
   const { current, next } = useMemo(() => findNowAndNext(displayMeetings, now), [displayMeetings, now]);
+  const nextAllDay = useMemo(() => findNextAllDay(displayMeetings, context, next), [displayMeetings, context, next]);
   // Nothing could be read (first launch offline, permission denied): say so instead of showing
   // "no meetings" empty states next to the error (a failure is not an empty list).
   const loadFailed = error !== null && !isLoading && meetings.length === 0;
@@ -184,7 +185,17 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
           />
         )
       ) : null}
-      {showData ? <NextMeetingCard current={current} next={next} onOpen={openMeeting} onJoin={join} /> : null}
+      {showData ? <NextMeetingCard current={current} next={next} nextAllDay={nextAllDay} onOpen={openMeeting} onJoin={join} /> : null}
+      {showData ? (
+        <TasksTodayCard
+          tasks={tasks}
+          now={now}
+          deviceZone={timeZone}
+          fmt={fmt}
+          onToggle={completeTask}
+          onOpenTasks={() => navigation.navigate('Tasks')}
+        />
+      ) : null}
       <QuickActions
         onNewManual={() => navigation.navigate('CreateMeeting')}
         onNewWithAi={() => navigation.navigate('AIChat')}
@@ -224,16 +235,6 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
 
   const footer = isLoading ? null : (
     <View>
-      {loadFailed ? null : (
-        <TasksTodayCard
-          tasks={tasks}
-          now={now}
-          deviceZone={timeZone}
-          fmt={fmt}
-          onToggle={completeTask}
-          onOpenTasks={() => navigation.navigate('Tasks')}
-        />
-      )}
       <AlertStatusCard preferences={preferences} meetings={meetings} now={now} onOpenSettings={() => navigation.navigate('AlertSettings')} />
       {loadFailed ? null : (
         <InsightsSummaryCard

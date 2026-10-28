@@ -26,6 +26,7 @@
     "noneHint": "Create a meeting or connect a calendar to see it here.",
     "startsIn": "Starts in {{time}}",
     "startsWhen": "Starts {{when}}",
+    "allDayTitle": "Also coming up",
     "startingNow": "Starting now",
     "endsIn": "Ends in {{time}}",
     "join": "Join",

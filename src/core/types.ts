@@ -673,6 +673,12 @@ export interface Preferences {
   timezone: string;
   alertEnabled: boolean;
   alertIntensity: AlertIntensity;
+  /**
+   * Intensity for meetings imported from a phone, Google or Outlook calendar (birthdays,
+   * holidays, invitations) when the meeting has no override of its own; null = the same as
+   * alertIntensity. All-day events never ring regardless. Client feedback, Oct 28 2026.
+   */
+  importedAlertIntensity: AlertIntensity | null;
   alertSoundType: AlertSoundType;
   /** 0..1 */
   alertVolume: number;
@@ -710,6 +716,7 @@ export const preferencesSchema = z.object({
   timezone: timeZoneSchema,
   alertEnabled: z.boolean(),
   alertIntensity: alertIntensitySchema,
+  importedAlertIntensity: alertIntensitySchema.nullable(),
   alertSoundType: alertSoundTypeSchema,
   alertVolume: z.number().min(0).max(1),
   vibrationEnabled: z.boolean(),
@@ -737,6 +744,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   timezone: 'UTC',
   alertEnabled: true,
   alertIntensity: 'max',
+  importedAlertIntensity: null,
   alertSoundType: 'voice_and_sound',
   alertVolume: 0.8,
   vibrationEnabled: true,
@@ -1200,4 +1208,24 @@ export interface AuthUser {
   emailVerified: boolean;
   /** Firebase providerData ids, e.g. ["google.com"]. */
   providerIds: string[];
+}
+
+/** Sources whose meetings come from another calendar (never created in MeetingGuard). */
+export const IMPORTED_MEETING_SOURCES: ReadonlySet<MeetingSource> = new Set<MeetingSource>(['google', 'device', 'outlook']);
+
+export function isImportedMeeting(meeting: Pick<Meeting, 'source'>): boolean {
+  return IMPORTED_MEETING_SOURCES.has(meeting.source);
+}
+
+/**
+ * The intensity a meeting rings at: its own override, else the imported-events default for a
+ * meeting from another calendar, else the general preference.
+ */
+export function effectiveAlertIntensity(
+  meeting: Pick<Meeting, 'source' | 'alertIntensity'>,
+  preferences: Pick<Preferences, 'alertIntensity' | 'importedAlertIntensity'>,
+): AlertIntensity {
+  if (meeting.alertIntensity !== null) return meeting.alertIntensity;
+  if (isImportedMeeting(meeting) && preferences.importedAlertIntensity !== null) return preferences.importedAlertIntensity;
+  return preferences.alertIntensity;
 }

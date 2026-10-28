@@ -60,6 +60,15 @@ describe('daily briefing settings', () => {
     });
   });
 
+  it('round-trips the imported-events intensity', () => {
+    const draft = settingsDraftFromPreferences(prefs);
+    expect(draft.importedAlertIntensity).toBeNull();
+    expect(buildAlertSettingsPatch(prefs, { ...draft, importedAlertIntensity: 'light' })).toEqual({ importedAlertIntensity: 'light' });
+    expect(buildAlertSettingsPatch({ ...prefs, importedAlertIntensity: 'light' }, { ...draft, importedAlertIntensity: null })).toEqual({
+      importedAlertIntensity: null,
+    });
+  });
+
   it('round-trips the full-screen briefing switch', () => {
     const draft = settingsDraftFromPreferences(prefs);
     expect(draft.briefingFullScreen).toBe(false);

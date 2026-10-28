@@ -6,6 +6,7 @@ import {
   countdownTickMs,
   countdownTo,
   dayPeriodOf,
+  findNextAllDay,
   findNowAndNext,
   firstNameOf,
   formatCountdownClock,
@@ -52,6 +53,29 @@ describe('findNowAndNext', () => {
 
   it('returns nulls without meetings', () => {
     expect(findNowAndNext([], NOW)).toEqual({ current: null, next: null });
+  });
+});
+
+describe('findNextAllDay', () => {
+  const next = makeMeeting({ id: 'next', startAt: '2026-10-02T09:00:00.000Z' });
+  const allDay = (id: string, date: string): ReturnType<typeof makeMeeting> =>
+    makeMeeting({ id, startAt: `${date}T00:00:00.000Z`, date, allDay: true, durationMinutes: 1440 });
+
+  it('returns the first all-day item after today that is no later than the next timed meeting', () => {
+    const meetings = [allDay('today', '2026-09-30'), allDay('later', '2026-10-02'), allDay('birthday', '2026-10-01'), next];
+    expect(findNextAllDay(meetings, CONTEXT, next)?.id).toBe('birthday');
+  });
+
+  it('allows an all-day item on the same day as the next timed meeting, not after it', () => {
+    expect(findNextAllDay([allDay('sameDay', '2026-10-02'), next], CONTEXT, next)?.id).toBe('sameDay');
+    expect(findNextAllDay([allDay('after', '2026-10-03'), next], CONTEXT, next)).toBeNull();
+  });
+
+  it('skips today, cancelled and timed meetings, and works without a next timed meeting', () => {
+    const cancelled = { ...allDay('gone', '2026-10-01'), status: 'cancelled' as const };
+    expect(findNextAllDay([allDay('today', '2026-09-30'), cancelled, next], CONTEXT, next)).toBeNull();
+    expect(findNextAllDay([allDay('far', '2026-12-24')], CONTEXT, null)?.id).toBe('far');
+    expect(findNextAllDay([], CONTEXT, null)).toBeNull();
   });
 });
 

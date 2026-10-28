@@ -26,6 +26,7 @@
     "noneHint": "Crea una reunión o conecta un calendario para verla aquí.",
     "startsIn": "Empieza en {{time}}",
     "startsWhen": "Empieza {{when}}",
+    "allDayTitle": "También se acerca",
     "startingNow": "Empieza ahora",
     "endsIn": "Termina en {{time}}",
     "join": "Unirse",

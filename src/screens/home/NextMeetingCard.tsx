@@ -1,7 +1,8 @@
 /**
  * Next meeting card: the meeting happening now (if any) and the next one, each with a live
  * countdown (every second in the last hour, every 30 s otherwise), a Join button only when the
- * meeting has a real http(s) link, and a Details button.
+ * meeting has a real http(s) link, and a Details button. Below them, the next all-day item
+ * (birthday, holiday) when it comes no later than the next timed meeting.
  *
  * MG Indigo: this is the dashboard's single focal card - Card accent="primary"
  * (primaryContainer / onPrimaryContainer), countdown headlineS tabular-nums, Join filled small.
@@ -26,6 +27,7 @@ import { useLiveNow } from '../shared/useLiveNow';
 export interface NextMeetingCardProps {
   current: Meeting | null;
   next: Meeting | null;
+  nextAllDay: Meeting | null;
   onOpen(meeting: Meeting): void;
   onJoin(url: string): void;
 }
@@ -135,7 +137,41 @@ function MeetingBlock({
   );
 }
 
-export function NextMeetingCard({ current, next, onOpen, onJoin }: NextMeetingCardProps): ReactElement {
+function AllDayBlock({ meeting, onOpen }: { meeting: Meeting; onOpen(meeting: Meeting): void }): ReactElement {
+  const t = useT();
+  const { colors } = useAppTheme();
+  const fmt = useFormatters();
+  const onCard = colors.onPrimaryContainer;
+  return (
+    <View testID="next-all-day">
+      <Text variant="labelLarge" style={{ color: onCard }}>
+        {t('home:next.allDayTitle')}
+      </Text>
+      <Text variant="titleMedium" style={[styles.title, { color: onCard }]} numberOfLines={2} testID="next-all-day-title">
+        {meeting.title}
+      </Text>
+      <Text variant="bodySmall" style={{ color: onCard }}>
+        {fmt.meetingRange(meeting)}
+      </Text>
+      <View style={styles.actions}>
+        <MGButton
+          variant="ghost"
+          size="sm"
+          icon="information-outline"
+          textColor={onCard}
+          onPress={() => onOpen(meeting)}
+          style={styles.action}
+          accessibilityLabel={t('home:next.detailsA11y', { title: meeting.title })}
+          testID="next-all-day-details"
+        >
+          {t('home:next.details')}
+        </MGButton>
+      </View>
+    </View>
+  );
+}
+
+export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: NextMeetingCardProps): ReactElement {
   const t = useT();
   const { colors } = useAppTheme();
   const fmt = useFormatters();
@@ -148,7 +184,7 @@ export function NextMeetingCard({ current, next, onOpen, onJoin }: NextMeetingCa
   );
   if (wanted !== tickMs) setTickMs(wanted);
 
-  if (!current && !next) {
+  if (!current && !next && !nextAllDay) {
     return (
       <Card testID="next-meeting-card">
         <Text variant="labelLarge" style={{ color: colors.primary }}>
@@ -187,6 +223,10 @@ export function NextMeetingCard({ current, next, onOpen, onJoin }: NextMeetingCa
           testID="next-meeting"
         />
       ) : null}
+      {nextAllDay && (current || next) ? (
+        <View style={[styles.divider, { backgroundColor: withAlpha(colors.onPrimaryContainer, 0.16) }]} />
+      ) : null}
+      {nextAllDay ? <AllDayBlock meeting={nextAllDay} onOpen={onOpen} /> : null}
     </Card>
   );
 }

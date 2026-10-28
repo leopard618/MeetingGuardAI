@@ -23,6 +23,15 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
   skipped, and a full sync never tombstones a series master. Occurrence edits made in Outlook on a
   MeetingGuard series stay in Outlook (same one-way rule as Google).
 
+- **Home screen, client feedback (Oct 28)**: the Next meeting card also shows the next all-day item
+  (a birthday or holiday from a phone calendar) when it comes no later than the next timed meeting,
+  with its own Details button; the "Tasks today" card moved up, right under that card, so it is seen
+  without scrolling. All-day items were already in today's timeline and in the lists.
+- **Alert intensity for events from other calendars** (Settings > Alerts > "Events from other
+  calendars"): one intensity for meetings imported from a phone, Google or Outlook calendar, or
+  "same as above". A meeting's own intensity still wins; all-day events never ring. The Default
+  chip in the meeting form and the details line name the intensity that really applies.
+
 ### Fixed
 
 - **Alarm voice readout on Android**: a MAX alert fired by the native full-screen alarm while the

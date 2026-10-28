@@ -26,7 +26,7 @@ import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { expandOccurrences, type MeetingOccurrence } from '../../core/recurrence';
 import { getDeviceTimeZone } from '../../core/time';
-import type { Meeting } from '../../core/types';
+import { effectiveAlertIntensity, type Meeting } from '../../core/types';
 import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { useAuth } from '../../services/auth';
@@ -411,7 +411,7 @@ function MeetingDetails({
         </Text>
         <Text variant="bodyMedium" style={styles.listItem}>
           {t('meetings:details.intensity', {
-            intensity: t(`onboarding:alerts.intensity.${meeting.alertIntensity ?? preferences.alertIntensity}.title`),
+            intensity: t(`onboarding:alerts.intensity.${effectiveAlertIntensity(meeting, preferences)}.title`),
           })}
           {meeting.alertIntensity === null ? ` ${t('meetings:details.intensityDefault')}` : ''}
         </Text>

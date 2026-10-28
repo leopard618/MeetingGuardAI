@@ -130,6 +130,11 @@
   "settings": {
     "voiceNeedsApp": "The voice readout plays inside the app. On Android the full-screen alarm opens the app and reads the meeting out; on iPhone, open the alert to hear it. With the app closed, the notification sound rings first.",
     "saved": "Alert settings saved.",
+    "imported": {
+      "label": "Events from other calendars",
+      "description": "Meetings that come from your phone calendar, Google or Outlook: birthdays, holidays, invitations. All-day events never ring. A meeting's own setting still wins.",
+      "default": "Same as above"
+    },
     "snooze": {
       "label": "Snooze length",
       "minutes_one": "{{count}} min",

@@ -95,7 +95,7 @@ Storage rules:
 **Preferences** has one document per user. Fields:
 
 - `language`, `timezone`
-- `alertEnabled` (master switch), `alertIntensity` (`max|medium|light`), `alertSoundType` (`voice_and_sound|voice_only|sound_only`), `alertVolume` (0-1), `vibrationEnabled`
+- `alertEnabled` (master switch), `alertIntensity` (`max|medium|light`), `importedAlertIntensity` (the same values or null = same as `alertIntensity`; applies to meetings from a phone, Google or Outlook calendar without an override of their own), `alertSoundType` (`voice_and_sound|voice_only|sound_only`), `alertVolume` (0-1), `vibrationEnabled`
 - `defaultAlertTimes` (default `[15,5,0]`), `snoozeMinutes`, `followUpEnabled`
 - `use24HourClock` (null means the locale default), `onboardingCompleted`
 - `googleCalendarSyncEnabled`, `deviceCalendarImportIds[]`, `deviceCalendarExportId`
