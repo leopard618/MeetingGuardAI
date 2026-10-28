@@ -9,10 +9,16 @@ morning; say so in the delivery note.
 Secrets: the Microsoft login goes in the password manager, never in chat logs or this repo. The
 Application (client) ID is a public identifier and may be committed in docs and the bundle.
 
-Status, October 28, 2026: Francisco registered the app himself under his own Microsoft account and
-sent the Application (client) ID: `d6517b23-5dd5-49eb-995a-ed369474a9ae`. Section 1 is therefore
-done on his side (ask for the API permissions screenshot if it has not arrived). The ID is in the
-local `.env` and in all three EAS environments (section 2 done). Tenant stays empty (common).
+Status, October 28, 2026: Francisco registered the app under his own Microsoft Entra tenant and sent
+the Application (client) ID `2c60069e-f0ee-488f-803f-b856568c0deb` (tenant
+`13b2c69a-35da-4aab-bbdd-241fe2a8439f`, account types: any org plus personal; admin consent granted
+for User.Read, openid, profile, offline_access, Calendars.ReadWrite, Mail.Read, Mail.Send). An
+earlier ID he sent (`d6517b23-...`) does not resolve on the common endpoint and is not used. The ID
+is in the local `.env` and in all three EAS environments (section 2 done). Tenant stays empty
+(common). Still on his side before row 2 of the test can pass: add the redirect URI under Mobile and
+desktop applications, set Allow public client flows to Yes, add Tasks.ReadWrite (M7). The client
+secret he created is not used by the app (public client) and must never be put in the bundle.
+
 
 ## 1. Azure app registration (15 minutes)
 
