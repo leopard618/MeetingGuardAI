@@ -101,9 +101,10 @@ export function outlookConnectOutcome(
   return null;
 }
 
-function providerLabel(t: TranslateFn, provider: CalendarProvider): string {
+function providerLabel(t: TranslateFn, provider: CalendarProvider | 'todo'): string {
   if (provider === 'google') return t('calendar:sync.providers.google');
   if (provider === 'outlook') return t('calendar:sync.providers.outlook');
+  if (provider === 'todo') return t('calendar:sync.providers.todo');
   return t('calendar:sync.providers.device');
 }
 
@@ -121,6 +122,10 @@ export function syncReportSummary(t: TranslateFn, report: CalendarSyncReport): A
   if (report.device) {
     lines.push(t('calendar:sync.deviceResult', { ...report.device.counts }));
     if (report.device.counts.failed > 0) lines.push(t('calendar:sync.failedDevice', { count: report.device.counts.failed }));
+  }
+  if (report.todo) {
+    lines.push(t('calendar:sync.todoResult', { ...report.todo.counts }));
+    if (report.todo.counts.failed > 0) lines.push(t('calendar:sync.failedTodo', { count: report.todo.counts.failed }));
   }
   for (const failure of report.errors) {
     lines.push(

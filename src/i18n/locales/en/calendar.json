@@ -91,12 +91,16 @@
     "failedOutlook_other": "{{count}} changes could not be sent to Outlook.",
     "failedDevice_one": "{{count}} meeting could not be added to your phone calendar.",
     "failedDevice_other": "{{count}} meetings could not be added to your phone calendar.",
+    "todoResult": "Microsoft To Do: {{created}} new, {{updated}} updated, {{removed}} removed, {{pushed}} sent to To Do.",
+    "failedTodo_one": "{{count}} task could not be sent to Microsoft To Do.",
+    "failedTodo_other": "{{count}} tasks could not be sent to Microsoft To Do.",
     "providerError": "{{provider}}: {{error}}",
     "nothingToSync": "Nothing to sync yet. Connect Google Calendar or choose calendars on this phone first.",
     "providers": {
       "google": "Google Calendar",
       "outlook": "Outlook",
-      "device": "Phone calendars"
+      "device": "Phone calendars",
+      "todo": "Microsoft To Do"
     }
   },
   "actions": {

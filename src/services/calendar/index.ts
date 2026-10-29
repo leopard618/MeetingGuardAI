@@ -38,6 +38,7 @@ import { createDeviceCalendarService } from './device/service';
 import { createCalendarSyncEngine, type AppStateStatus } from './engine';
 import { createGoogleCalendarApi } from './google/api';
 import { createGoogleCalendarService } from './google/service';
+import { todoInternal, todoSyncService } from '../tasks/todo';
 import { outlookCalendarService, outlookInternal } from './outlook';
 import {
   createUserStateStore,
@@ -143,8 +144,9 @@ function googleAccessHook(): ((listener: () => void) => Unsubscribe) | undefined
 const engine = createCalendarSyncEngine({
   google: googleInternal,
   device: deviceInternal,
-  // The Outlook provider only exists for the engine when the build is configured for it.
+  // The Outlook and To Do providers only exist for the engine when the build is configured for them.
   outlook: outlookInternal.isConfigured() ? outlookInternal : undefined,
+  todo: todoInternal.isConfigured() ? todoInternal : undefined,
   preferences: preferencesRepository,
   getActiveUid: getUid,
   status,
@@ -176,6 +178,9 @@ export const googleCalendarService: GoogleCalendarService = {
 
 /** Contract object (OutlookCalendarService; ./outlook owns the wiring). */
 export { outlookCalendarService };
+
+/** Contract object (TodoSyncService; ../tasks/todo owns the wiring, same Microsoft account). */
+export { todoSyncService };
 
 export const deviceCalendarService: DeviceCalendarService = {
   getPermission: deviceInternal.getPermission,

@@ -8,9 +8,13 @@
  *   calendar-origin writes are never pushed (loop prevention).
  * - syncNow() (UI "Sync now", background task, foreground/interval/connectivity): Google flush +
  *   pull, Outlook flush + pull (when the optional provider is registered and connected), device
- *   import + export. At most one run at a time; calls made while a run is in flight
- *   are coalesced into ONE follow-up run that starts when it ends (the running one read its
- *   preferences when it started, so a settings change during it must not be lost).
+ *   import + export, Microsoft To Do flush + pull (when registered and enabled). At most one run
+ *   at a time; calls made while a run is in flight are coalesced into ONE follow-up run that
+ *   starts when it ends (the running one read its preferences when it started, so a settings
+ *   change during it must not be lost).
+ * - Tasks (tasks:changed, origin 'user' | 'ai') are queued for Microsoft To Do the same way.
+ *   While the app is active, To Do is also pulled on its own every TODO_FOREGROUND_INTERVAL_MS so
+ *   a task completed in To Do silences its reminder here within a minute.
  */
 import type {
   CalendarStatus,
@@ -20,9 +24,11 @@ import type {
   PreferencesRepository,
 } from '../../core/contracts';
 import { AppError, toAppError } from '../../core/errors';
-import type { AppEventMap, EventBus, MeetingsChangedEvent, PreferencesChangedEvent, Unsubscribe } from '../../core/events';
+import type { AppEventMap, EventBus, MeetingsChangedEvent, PreferencesChangedEvent, TasksChangedEvent, Unsubscribe } from '../../core/events';
 import { createLogger } from '../../core/logger';
 import type { Preferences } from '../../core/types';
+import type { TodoSyncServiceInternal } from '../tasks/todo/service';
+import type { TodoQueueItem } from '../tasks/todo/sync';
 import type { DeviceCalendarServiceInternal } from './device/service';
 import type { GoogleCalendarServiceInternal } from './google/service';
 import type { OutlookCalendarServiceInternal } from './outlook/service';
@@ -32,6 +38,8 @@ const log = createLogger('calendar');
 
 export const PUSH_DEBOUNCE_MS = 2000;
 export const FOREGROUND_INTERVAL_MS = 5 * 60 * 1000;
+/** Microsoft To Do is pulled on its own this often while the app is active (reminder silencing). */
+export const TODO_FOREGROUND_INTERVAL_MS = 60 * 1000;
 /** Minimum spacing of automatic (non-manual) syncs. */
 export const AUTO_SYNC_THROTTLE_MS = 2 * 60 * 1000;
 
@@ -42,6 +50,8 @@ export interface EngineDeps {
   device: DeviceCalendarServiceInternal;
   /** Registered only when EXPO_PUBLIC_MSAL_CLIENT_ID is set (outlookInternal.isConfigured()). */
   outlook?: OutlookCalendarServiceInternal;
+  /** Registered only when EXPO_PUBLIC_MSAL_CLIENT_ID is set (todoInternal.isConfigured()). */
+  todo?: TodoSyncServiceInternal;
   preferences: Pick<PreferencesRepository, 'get'>;
   getActiveUid(): string | null;
   status: CalendarStatusStore;
@@ -75,7 +85,13 @@ export function isPushableChange(event: MeetingsChangedEvent): boolean {
   );
 }
 
+export function isPushableTaskChange(event: TasksChangedEvent): boolean {
+  return (event.origin === 'user' || event.origin === 'ai') && event.reason !== 'remote' && event.changedIds.length > 0;
+}
+
 export interface CalendarSyncEngineInternal extends CalendarSyncEngine {
+  /** Handler attached to 'tasks:changed' while started (exposed for tests / explicit calls). */
+  onTaskChanged(event: TasksChangedEvent): void;
   /** Pushes queued local changes now (tests / explicit calls). */
   flushLocalChanges(): Promise<void>;
   isStarted(): boolean;
@@ -96,6 +112,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
   let preferences: Preferences | null = null;
   let debounceHandle: unknown = null;
   let intervalHandle: unknown = null;
+  let todoIntervalHandle: unknown = null;
   let inflight: Promise<CalendarSyncReport> | null = null;
   /** The coalesced follow-up of the run in flight (shared by every call made meanwhile). */
   let followUp: Promise<CalendarSyncReport> | null = null;
@@ -104,11 +121,17 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
   const pendingGoogle = new Map<string, 'upsert' | 'delete'>();
   const pendingOutlook = new Map<string, 'upsert' | 'delete'>();
   const pendingDevice = new Set<string>();
+  const pendingTodo = new Map<string, TodoQueueItem>();
   let flushing: Promise<void> | null = null;
 
   /** Cheap connected probe (the status store is kept current by the outlook service). */
   function outlookConnected(): boolean {
     return deps.outlook !== undefined && deps.status.get().outlook?.connected === true;
+  }
+
+  /** Cheap enabled probe (the status store is kept current by the todo service). */
+  function todoEnabled(): boolean {
+    return deps.todo !== undefined && deps.status.get().todo?.enabled === true;
   }
 
   function isCurrent(gen: number): boolean {
@@ -144,7 +167,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
   async function flushLocalChanges(): Promise<void> {
     if (flushing) {
       await flushing;
-      if (pendingGoogle.size === 0 && pendingOutlook.size === 0 && pendingDevice.size === 0) return;
+      if (pendingGoogle.size === 0 && pendingOutlook.size === 0 && pendingDevice.size === 0 && pendingTodo.size === 0) return;
     }
     const gen = generation;
     const run = (async () => {
@@ -155,6 +178,8 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       pendingOutlook.clear();
       const deviceBatch = [...pendingDevice];
       pendingDevice.clear();
+      const todoBatch = [...pendingTodo.values()];
+      pendingTodo.clear();
 
       if (prefs.googleCalendarSyncEnabled && googleBatch.length > 0) {
         try {
@@ -188,6 +213,15 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
           } catch (error) {
             log.warn('Exporting local changes to the device calendar failed', { code: toAppError(error).code });
           }
+        }
+      }
+      const todo = deps.todo;
+      if (todo !== undefined && todoEnabled() && todoBatch.length > 0) {
+        try {
+          await todo.enqueue(todoBatch);
+          if (isCurrent(gen)) await todo.flushPending();
+        } catch (error) {
+          log.warn('Pushing local changes to Microsoft To Do failed', { code: toAppError(error).code });
         }
       }
     })();
@@ -224,6 +258,32 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     void outlook
       .enqueue(ids, op)
       .catch((error: unknown) => log.warn('Could not queue local changes for Outlook', { code: toAppError(error).code }));
+  }
+
+  /** Persist-first for To Do: a task change made just before the app dies still reaches Graph. */
+  function persistTodoPushes(items: readonly TodoQueueItem[]): void {
+    const todo = deps.todo;
+    if (todo === undefined || !todoEnabled()) return;
+    const gen = generation;
+    if (!isCurrent(gen)) return;
+    void todo
+      .enqueue(items)
+      .catch((error: unknown) => log.warn('Could not queue local changes for Microsoft To Do', { code: toAppError(error).code }));
+  }
+
+  function onTaskChanged(event: TasksChangedEvent): void {
+    if (uid === null || event.uid !== uid) return;
+    if (!isPushableTaskChange(event)) return;
+    const op = event.reason === 'deleted' ? 'delete' : 'upsert';
+    const links = new Map((event.removed ?? []).map((item) => [item.id, item.external]));
+    const items: TodoQueueItem[] = event.changedIds.map((id) => {
+      const external = links.get(id);
+      const link = external && external.todoListId !== null && external.todoTaskId !== null ? { listId: external.todoListId, taskId: external.todoTaskId } : null;
+      return { id, op, link };
+    });
+    for (const item of items) pendingTodo.set(item.id, item);
+    persistTodoPushes(items);
+    scheduleFlush();
   }
 
   function onMeetingChanged(event: MeetingsChangedEvent): void {
@@ -285,6 +345,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     await applyPreferencesToStatus(prefs);
     const report: CalendarSyncReport = { google: null, device: null, errors: [] };
     if (deps.outlook !== undefined) report.outlook = null;
+    if (deps.todo !== undefined) report.todo = null;
 
     if (prefs.googleCalendarSyncEnabled) {
       try {
@@ -310,6 +371,14 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       if (own.importIds.length > 0 || own.exportId !== null) report.device = result;
     } catch (error) {
       report.errors.push({ provider: 'device', code: toAppError(error).code });
+    }
+    if (deps.todo !== undefined) {
+      try {
+        const { enabled } = await deps.todo.refreshStatus();
+        if (enabled) report.todo = await deps.todo.sync();
+      } catch (error) {
+        report.errors.push({ provider: 'todo', code: toAppError(error).code });
+      }
     }
     log.debug('Calendar sync finished', { reason: options.reason, errors: report.errors.length });
     return report;
@@ -360,15 +429,29 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     );
   }
 
+  /** The quick To Do pull (not throttled with the calendars: one delta call per synced list). */
+  function todoTick(): void {
+    const todo = deps.todo;
+    if (todo === undefined || !todoEnabled() || inflight !== null) return;
+    void todo.sync().catch((error: unknown) => log.debug('Microsoft To Do pull failed', { code: toAppError(error).code }));
+  }
+
   function startInterval(): void {
-    if (intervalHandle !== null) return;
-    intervalHandle = timers.setInterval(() => autoSync('foreground'), FOREGROUND_INTERVAL_MS);
+    if (intervalHandle === null) intervalHandle = timers.setInterval(() => autoSync('foreground'), FOREGROUND_INTERVAL_MS);
+    if (todoIntervalHandle === null && deps.todo !== undefined) {
+      todoIntervalHandle = timers.setInterval(todoTick, TODO_FOREGROUND_INTERVAL_MS);
+    }
   }
 
   function stopInterval(): void {
-    if (intervalHandle === null) return;
-    timers.clearInterval(intervalHandle);
-    intervalHandle = null;
+    if (intervalHandle !== null) {
+      timers.clearInterval(intervalHandle);
+      intervalHandle = null;
+    }
+    if (todoIntervalHandle !== null) {
+      timers.clearInterval(todoIntervalHandle);
+      todoIntervalHandle = null;
+    }
   }
 
   async function initialize(gen: number): Promise<void> {
@@ -385,6 +468,15 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
         log.warn('Could not read the Outlook sync state', { code: toAppError(error).code });
       }
     }
+    if (deps.todo !== undefined) {
+      try {
+        const todoState = await deps.todo.loadState();
+        if (!isCurrent(gen)) return;
+        deps.status.patchTodo({ lastSyncAt: todoState.lastSyncAt, lastError: todoState.lastError });
+      } catch (error) {
+        log.warn('Could not read the Microsoft To Do sync state', { code: toAppError(error).code });
+      }
+    }
     const prefs = await currentPreferences();
     if (!isCurrent(gen)) return;
     await applyPreferencesToStatus(prefs);
@@ -394,6 +486,9 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       ),
       deps.outlook?.refreshStatus().catch((error: unknown) =>
         log.warn('Could not read the Outlook connection state', { code: toAppError(error).code }),
+      ) ?? Promise.resolve(),
+      deps.todo?.refreshStatus().catch((error: unknown) =>
+        log.warn('Could not read the Microsoft To Do state', { code: toAppError(error).code }),
       ) ?? Promise.resolve(),
       deps.device.getPermission().catch((error: unknown) =>
         log.warn('Could not read the calendar permission', { code: toAppError(error).code }),
@@ -413,6 +508,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       const gen = generation;
       subscriptions = [
         deps.events.on('meetings:changed', (event) => onMeetingChanged(event)),
+        deps.events.on('tasks:changed', (event) => onTaskChanged(event)),
         deps.events.on('preferences:changed', (event) => onPreferencesChanged(event)),
       ];
       if (deps.appState) {
@@ -466,6 +562,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       pendingGoogle.clear();
       pendingOutlook.clear();
       pendingDevice.clear();
+      pendingTodo.clear();
       preferences = null;
       lastAutoSyncAt = 0;
       deps.status.reset();
@@ -473,6 +570,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
 
     syncNow,
     onMeetingChanged,
+    onTaskChanged,
     getStatus: (): CalendarStatus => deps.status.get(),
     subscribeStatus: (listener) => deps.status.subscribe(listener),
     flushLocalChanges,

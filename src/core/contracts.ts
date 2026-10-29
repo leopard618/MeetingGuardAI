@@ -719,7 +719,8 @@ export interface GoogleCalendarService {
  */
 export const MICROSOFT_OAUTH = {
   defaultTenant: 'common',
-  scopes: ['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.ReadWrite'],
+  /** Calendars for the Outlook sync (M6), Tasks for the Microsoft To Do sync (M7): one consent. */
+  scopes: ['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.ReadWrite', 'Tasks.ReadWrite'],
   authority: (tenant: string): string => `https://login.microsoftonline.com/${tenant}/v2.0`,
 } as const;
 
@@ -763,6 +764,68 @@ export interface OutlookCalendarService {
   pullChanges(options?: { full?: boolean }): Promise<CalendarPullResult>;
 }
 
+// ---- Microsoft To Do (Graph) -----------------------------------------------------------------
+
+/** A To Do list of the connected Microsoft account (GET /me/todo/lists). */
+export interface TodoList {
+  id: string;
+  name: string;
+  /** The account's built-in "Tasks" list (wellknownListName 'defaultList'). */
+  isDefault: boolean;
+}
+
+export interface TodoSyncCounts {
+  created: number;
+  updated: number;
+  removed: number;
+  unchanged: number;
+  pushed: number;
+  failed: number;
+}
+
+export interface TodoSyncResult {
+  /** true when a full listing ran (first sync, list change, or an expired delta link). */
+  fullSync: boolean;
+  counts: TodoSyncCounts;
+  syncedAt: string;
+}
+
+/**
+ * Microsoft To Do two-way task sync (M7) on the Microsoft account the Outlook sync connects
+ * (same refresh token, scope Tasks.ReadWrite). Tasks go to ONE chosen list by default
+ * (Preferences.todoListId / todoListName, shown before every task confirm); a task may name
+ * another list (external.todoListId). Title, notes, due date, reminder, done state and deletion
+ * sync both ways; due time without a reminder, people and the meeting link stay in MeetingGuard.
+ * - Push: POST / PATCH / DELETE /me/todo/lists/{listId}/tasks; link write-backs use origin
+ *   'tasks_todo' (never pushed back). Moving a task to another list deletes and re-creates it.
+ * - Pull: /me/todo/lists/{listId}/tasks/delta per synced list with persisted delta links
+ *   (USER_STORAGE.todoTasks); HTTP 410 => full listing. '@removed' deletes the local task.
+ *   Tasks completed in To Do before they were ever seen here are not imported.
+ * - "Enabled" is per device (like the Outlook connection); the chosen list is in preferences.
+ */
+export interface TodoSyncService {
+  /** EXPO_PUBLIC_MSAL_CLIENT_ID present (To Do UI hidden otherwise). */
+  isConfigured(): boolean;
+  /** A Microsoft refresh token is stored for the active user (Outlook card: Connected). */
+  isAccountConnected(): Promise<boolean>;
+  /** Requires the account connection. */
+  listLists(): Promise<TodoList[]>;
+  /**
+   * Turns the sync on with this list as the default: stores the list in preferences, pulls the
+   * list, queues every open unlinked task for push and flushes. Requires the account connection.
+   */
+  enable(list: Pick<TodoList, 'id' | 'name'>): Promise<TodoSyncResult | null>;
+  /** Changes the default list for NEW tasks (existing links stay where they are). */
+  setList(list: Pick<TodoList, 'id' | 'name'>): Promise<void>;
+  /**
+   * Turns the sync off: forgets the queue and delta links, deletes the tasks imported from To Do
+   * (source 'todo') and clears the links of the others. The To Do copies stay in Microsoft.
+   */
+  disable(): Promise<void>;
+  /** Flush queued pushes, then pull every synced list. Throws calendar_not_connected when off. */
+  sync(): Promise<TodoSyncResult>;
+}
+
 export interface DeviceCalendarInfo {
   id: string;
   title: string;
@@ -796,7 +859,9 @@ export interface CalendarSyncReport {
   device: CalendarPullResult | null;
   /** Absent/null when Outlook is not configured or not connected. */
   outlook?: CalendarPullResult | null;
-  errors: { provider: CalendarProvider; code: AppErrorCode }[];
+  /** Absent/null when the Microsoft To Do sync is not configured or not enabled. */
+  todo?: TodoSyncResult | null;
+  errors: { provider: CalendarProvider | 'todo'; code: AppErrorCode }[];
 }
 
 export interface ProviderStatus {
@@ -811,6 +876,11 @@ export interface CalendarStatus {
   device: ProviderStatus & { permission: PermissionState; importCalendarIds: string[]; exportCalendarId: string | null };
   /** Absent until the Outlook provider is registered (EXPO_PUBLIC_MSAL_CLIENT_ID present). */
   outlook?: ProviderStatus & { configured: boolean; connected: boolean; accountEmail: string | null };
+  /**
+   * Microsoft To Do (absent until configured). `connected` mirrors the Outlook account connection,
+   * `enabled` is the per-device sync switch, the list is the default list from preferences.
+   */
+  todo?: ProviderStatus & { configured: boolean; connected: boolean; listId: string | null; listName: string | null };
 }
 
 /**

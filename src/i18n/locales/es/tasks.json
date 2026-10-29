@@ -1,4 +1,7 @@
 {
+  "todo": {
+    "untitledTask": "(Sin título)"
+  },
   "add": "Nueva tarea",
   "addA11y": "Crear una nueva tarea",
   "list": {

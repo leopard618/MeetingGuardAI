@@ -91,12 +91,16 @@
     "failedOutlook_other": "{{count}} cambios no se pudieron enviar a Outlook.",
     "failedDevice_one": "{{count}} reunión no se pudo añadir al calendario del teléfono.",
     "failedDevice_other": "{{count}} reuniones no se pudieron añadir al calendario del teléfono.",
+    "todoResult": "Microsoft To Do: {{created}} nuevas, {{updated}} actualizadas, {{removed}} eliminadas, {{pushed}} enviadas a To Do.",
+    "failedTodo_one": "{{count}} tarea no se pudo enviar a Microsoft To Do.",
+    "failedTodo_other": "{{count}} tareas no se pudieron enviar a Microsoft To Do.",
     "providerError": "{{provider}}: {{error}}",
     "nothingToSync": "Todavía no hay nada que sincronizar. Primero conecta Google Calendar o elige calendarios de este teléfono.",
     "providers": {
       "google": "Google Calendar",
       "outlook": "Outlook",
-      "device": "Calendarios del teléfono"
+      "device": "Calendarios del teléfono",
+      "todo": "Microsoft To Do"
     }
   },
   "actions": {

@@ -225,7 +225,8 @@
       "calendars": "Your calendars could not be synced",
       "google": "Google Calendar could not be synced",
       "device": "Your device calendars could not be synced",
-      "outlook": "Outlook could not be synced"
+      "outlook": "Outlook could not be synced",
+      "todo": "Microsoft To Do could not be synced"
     },
     "repeats": "Repeats"
   },

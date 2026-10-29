@@ -88,6 +88,8 @@ export const USER_STORAGE = {
   googleCalendar: 'calendar.google',
   /** Device calendar sync state. Owner: calendar. */
   deviceCalendar: 'calendar.device',
+  /** Microsoft To Do sync state: per-list delta links, pending pushes, hashes (never tokens). Owner: tasks. */
+  todoTasks: 'tasks.todo',
   /** Outlook sync state: deltaLink, lastSyncAt, pending pushes (never tokens). Owner: calendar. */
   outlookCalendar: 'calendar.outlook',
   /** Fired/acknowledged alerts, snoozes, last reconcile. Owner: alerts. */

@@ -1,4 +1,7 @@
 {
+  "todo": {
+    "untitledTask": "(No title)"
+  },
   "add": "New task",
   "addA11y": "Create a new task",
   "list": {
