@@ -43,6 +43,7 @@ These rules prevent import cycles:
 | data | `src/services/data` (`dataService`, `meetingRepository`, `preferencesRepository`, `notesRepository`, `userRepository`, `migrationService`, `DataProvider`, `useMeetings`, `useMeeting`, `usePreferences`, `useNotes`, `useEntitlement`, `useSyncState`); `src/config/firebase.ts` | data |
 | auth | `src/services/auth/authService.ts` (`authService`); `src/services/auth` (`authService`, `sessionManager`, `AuthProvider`, `useAuth`) | auth |
 | calendar | `src/services/calendar` (`googleCalendarService`, `deviceCalendarService`, `calendarSyncEngine`, `useCalendarStatus`); `src/services/calendar/outlook` (`outlookCalendarService`, §17) | calendar |
+| tasks | `src/services/tasks/todo` (`todoSyncService`, §28, re-exported by the calendar barrel); `src/services/microsoft/graphHttp.ts` (the Graph HTTP core both Microsoft syncs use) | tasks |
 | alerts | `src/services/alerts` (`alertEngine`, `computeAlertPlan`, `usePendingAlerts`); `src/services/alerts/fsi.ts` (`fullScreenAlarm`, §18); `src/services/alerts/tasks.ts` (`registerBackgroundTasks`, `unregisterBackgroundTasks`, plus the module-scope task definitions); `src/components/alerts` (`AlertHost`) | alerts |
 | i18n + navigation | `src/i18n` (`i18n`, `initI18n`, `t`, `getLanguage`, `setLanguage`, `SUPPORTED_LANGUAGES`, `I18N_NAMESPACES`, `I18nProvider`, `useT`, `useLanguage`); `src/utils/format.ts`; `src/navigation` (`navigationRef`, `navigate`, `openDeepLink`, `isNavigationReady`, `linking`, `RootNavigator`, `ROUTES`); `src/screens/onboarding` | i18n-nav |
 | ai | `src/services/ai` (`assistantClient`, `actionExecutor`, `useAssistant`) | ai |
@@ -99,6 +100,7 @@ Storage rules:
 - `defaultAlertTimes` (default `[15,5,0]`), `snoozeMinutes`, `followUpEnabled`
 - `use24HourClock` (null means the locale default), `onboardingCompleted`
 - `googleCalendarSyncEnabled`, `deviceCalendarImportIds[]`, `deviceCalendarExportId`
+- `todoListId`, `todoListName` (the Microsoft To Do list new tasks go to, §28; null = not chosen)
 - `updatedAt`
 
 Reads use `mergePreferences`, which merges field by field so one bad field never resets the rest (the old bug #19). Google tokens are **never** stored.
@@ -108,6 +110,7 @@ Reads use `mergePreferences`, which merges field by field so one bad field never
 - **UserProfile**: `uid`, `email`, `displayName`, `photoURL`, timestamps, `legacyMigratedAt`. It has **no** plan, role or subscription fields (`SERVER_OWNED_PROFILE_KEYS`).
 - **Entitlement**: `{ plan free|pro|premium, status, expiresAt, source, updatedAt }`. It is server-owned and read-only on the client. A missing document means free. `effectivePlan()` downgrades expired plans.
 - **Note**: `title`, `content`, `category` (`general|work|ideas|personal`), `meetingId`, `pinned`. Notes are hard-deleted.
+- **Task** (V2 Stage 1): `title`, `description`, `dueDate` + `dueTime` + `timezone` (a time needs a date), `reminderMinutesBefore` (needs a time), `status` (`open|done`) with `completedAt` set exactly while done, `meetingId`, `people[]`, `source` (`manual|ai_chat|whatsapp|todo`), `external` (`{ todoListId, todoTaskId, todoUpdatedAt }`, the Microsoft To Do link, §28). Tasks are hard-deleted. Every write goes through `buildTask` / `applyTaskPatch`; reads through `parseTaskDoc` (older documents get `source: 'manual'` and an empty link).
 
 ## 4. Firestore layout and rules intent
 
@@ -116,6 +119,7 @@ Reads use `mergePreferences`, which merges field by field so one bad field never
 | `users/{uid}` | UserProfile | owner read and write; writes that contain any `SERVER_OWNED_PROFILE_KEYS` key are rejected |
 | `users/{uid}/meetings/{id}` | MeetingDoc | owner read and write; `userId == uid`; type and size checks on `title`, `startAt`, `durationMinutes`, `source`; every alert-time element an int in [0, 10080]; string lists (`preparationTips`) join-checked for type and total size (participant maps cannot be iterated in rules: the assistant bounds what it loads) |
 | `users/{uid}/notes/{id}` | Note (without id) | owner read and write |
+| `users/{uid}/tasks/{id}` | Task (without id) | owner read and write; `userId == uid`; due/reminder invariants, `source` and the `external` keys validated (`isValidTask`, `isValidTaskExternal`; `src/core/__tests__/tasksRulesDrift.test.ts` keeps the allowlist in step with the Task shape) |
 | `users/{uid}/settings/preferences` | Preferences | owner read and write; only doc id `preferences` |
 | `entitlements/{uid}` | Entitlement | owner read; **no client write** |
 | `usage/{uid}/days/{yyyy-mm-dd}` (UTC day) | `{ count, updatedAt }` | owner read; **no client write** |
@@ -559,7 +563,8 @@ reliably turn an existing event into a Teams meeting here).
 
 - **Auth:** expo-auth-session PKCE against
   `https://login.microsoftonline.com/{EXPO_PUBLIC_MSAL_TENANT||'common'}/v2.0`, scopes `openid
-  profile offline_access User.Read Calendars.ReadWrite`, redirect
+  profile offline_access User.Read Calendars.ReadWrite Tasks.ReadWrite` (one consent for the
+  calendar and the To Do sync, §28), redirect
   `meetingguardai://auth/microsoft` (`MS_AUTH_REDIRECT_PATH`; navigation ignores it). Client id:
   optional `EXPO_PUBLIC_MSAL_CLIENT_ID` (absent => Outlook hidden). ONLY the refresh token is
   persisted, in expo-secure-store under `SECURE_STORE_KEYS.microsoftRefreshToken(uid)`
@@ -1234,3 +1239,68 @@ then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions 
   linked phone (`linkedLast4`). Known gap (accepted for now): there is no owner push/email on a
   successful link - the server has no push pipeline yet; the masked number plus the 8 s poll is
   the visibility story until one exists.
+
+## 28. Microsoft To Do (Graph; V2 Stage 2, M7)
+
+Contract: `TodoSyncService` in `src/core/contracts.ts`; implementation in
+`src/services/tasks/todo/` (api / mapping / state / sync / service mirror the Outlook provider,
+§17) on the shared Graph HTTP core `src/services/microsoft/graphHttp.ts` (Bearer token,
+401 refresh-once, 429/5xx backoff, AppError mapping; the Outlook client uses the same core).
+Without `EXPO_PUBLIC_MSAL_CLIENT_ID` the service is unconfigured, `CalendarStatus.todo` stays
+absent, the To Do card is hidden and the engine skips the provider.
+
+- **Account.** The Microsoft account the Outlook card connects: the same refresh token
+  (`microsoftTokenManager`, exported by `src/services/calendar/outlook`) and one consent that
+  includes `Tasks.ReadWrite`. A consent granted before M7 (no Tasks scope) makes Graph answer 403
+  on `/me/todo`; the service records `permission_denied` and the card asks to reconnect Outlook.
+  "Connected" (`status.todo.connected`) mirrors the Outlook connection; "enabled" is this
+  device's switch (`mg:{uid}:tasks.todo`, like the Outlook connection it does not sync between
+  devices). The chosen DEFAULT LIST is in Preferences (`todoListId`, `todoListName`), synced.
+- **List choice.** `enable(list)` stores the list, pulls it, queues every open unlinked task and
+  flushes; `setList` changes the default for NEW tasks only. A task can name its own list
+  (`external.todoListId`, set at creation through `TaskInput.todoListId` or later through
+  `TaskPatch.todoListId`); the push engine deletes the old copy and creates a new one when the
+  desired list differs from the actual one (Graph cannot move tasks). `state.links` (local task
+  id -> actual list + To Do id, this device) tells the two apart; other devices read the link
+  from the task document. The assistant's confirm card and the task editor show the list name
+  before anything is saved (`AiActionPreview.todoListName`, `TaskEditorTodo`).
+- **What syncs.** Title, notes (`body`, text), due DATE, reminder (a To Do instant: due time
+  minus the offset), done state (`status: completed`), deletion. What stays in MeetingGuard only,
+  and the editor says so: a due time without a reminder, people, the meeting link, the zone.
+  Due dates are pushed as local midnight of the task's zone (UTC with the Prefer header) and read
+  back as the local date NEAREST to the instant in the device zone, so UTC-midnight dates from
+  other clients land on the right day too (`nearestLocalDate`). A To Do reminder coming back
+  becomes due time + whole-day offset when the days differ by at most a week, else a reminder at
+  the due time. A task completed in To Do before MeetingGuard ever saw it is history and is not
+  imported.
+- **Pull.** `/me/todo/lists/{listId}/tasks/delta` for the default list plus every list a linked
+  task lives in; delta links persisted per list; a full listing on the first sync of a list,
+  every 7 days and on HTTP 410. `@removed` deletes the local task; a linked task missing from a
+  full listing is deleted too. Imports use `tasksRepository.create` with the deterministic id
+  `td_<To Do id or hash>`, origin `tasks_todo`, source `todo`; link write-backs use origin
+  `tasks_todo` (the engine never pushes that origin). Conflict rule: a local change waiting in
+  the queue wins over the pulled version; otherwise To Do's `lastModifiedDateTime` wins when it is
+  newer than the stored `todoUpdatedAt`; an unchanged visible hash is skipped (echo suppression).
+- **Push.** `tasks:changed` events with origin `user` / `ai` (the data engine emits them for local
+  task writes and remote snapshots, carrying the removed tasks' links on delete) are queued
+  persist-first in `state.pending` and flushed after the engine's 2 s debounce; POST / PATCH /
+  DELETE `/me/todo/lists/{listId}/tasks`; a 404 on PATCH re-creates; blocking codes (offline,
+  token, 403) keep the queue, retryable ones count attempts up to 8, the rest are dropped and
+  counted as failed. A finished task that was never pushed is not created in To Do.
+- **Timing.** `syncNow` (session start, foreground, 5-minute interval, connectivity, "Sync now",
+  pull-to-refresh, background refresh) runs the To Do flush + pull after the calendars. While the
+  app is active the engine also pulls To Do on its own every `TODO_FOREGROUND_INTERVAL_MS` (60 s),
+  so a task completed in To Do silences its reminder here within a minute (the task reminder
+  reconciler reacts to the repository change). In the background the cadence is the OS background
+  refresh.
+- **Disable.** Forgets the queue, delta links and links; deletes the tasks imported from To Do
+  (their copies stay in Microsoft); clears the links of the other tasks and the list in
+  preferences. Session end wipes `mg:{uid}:*` like every other sync state; the token is the
+  Outlook cleanup hook's job.
+- **Status.** `CalendarStatus.todo` (`configured`, `connected`, `enabled`, `listId`, `listName`,
+  syncing / lastSyncAt / lastError) through `useCalendarStatus`; sync reports gain
+  `report.todo` (`TodoSyncResult`) and errors use provider `'todo'`.
+- **Tests.** `src/services/tasks/__tests__` (mapping, sync with a scriptable Graph fake, service),
+  `src/services/calendar/__tests__/engineTodo.test.ts`, the data engine's task write options and
+  event (`engineTasks.test.ts`), the rules drift test, the calendar sync screen's To Do card and
+  the executor preview. Device test guide: `docs/v1/TESTING.md` T22.

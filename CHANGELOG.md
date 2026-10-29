@@ -23,6 +23,17 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
   skipped, and a full sync never tombstones a series master. Occurrence edits made in Outlook on a
   MeetingGuard series stay in Outlook (same one-way rule as Google).
 
+- **Microsoft To Do, two-way task sync** (milestone M7): on the Microsoft account the Outlook card
+  connects (one consent, now with `Tasks.ReadWrite`), tasks sync both ways with a chosen To Do
+  list: title, notes, due date, reminder, done state and deletion. The list is chosen when the
+  sync is turned on (Calendar sync screen, Microsoft To Do card), can be changed for new tasks,
+  and a task can be moved to another list from its editor; the editor and the assistant's confirm
+  sheet name the list before anything is saved, and the editor says what To Do does not keep (a
+  due time without a reminder, people, the meeting link). Tasks completed in To Do silence their
+  reminder here within a minute while the app is open (a one-minute To Do pull on top of the
+  calendar sync). Tasks finished in To Do before the sync never saw them are not imported.
+  Task documents gain `source` and the To Do link (`external`), preferences the default list;
+  Firestore rules updated.
 - **Home screen, client feedback (Oct 28)**: the Next meeting card also shows the next all-day item
   (a birthday or holiday from a phone calendar) when it comes no later than the next timed meeting,
   with its own Details button; the "Tasks today" card moved up, right under that card, so it is seen

@@ -800,3 +800,30 @@ number chat in WhatsApp. Webhook rows 1-3 can be checked with curl before touchi
 | 15 | Check the function logs for rows 4-14. | Only uids, wamids and 16-char phone hashes; no message text, meeting titles, codes or raw phone numbers. |
 | 16 | Sign into a SECOND account in the app on any device, generate a code there, and send it from the SAME WhatsApp phone that row 5 linked to the first account. | The "linked" reply in the second account's app language; the second account's Settings flips to linked (same masked digits), the first account's to not linked. |
 | 17 | Propose two changes at once (e.g. "delete X and move Y to 9"), delete meeting X in the APP before tapping Confirm, then Confirm. | The reply says Done AND that some changes could not be applied - never a bare "Done." over a half-applied set. |
+
+### T22. Microsoft To Do sync (`docs/v1/SETUP.md` §10; V2 Stage 2, M7)
+
+Needs the Outlook connection from T15 (same Microsoft account, consent with `Tasks.ReadWrite`:
+a Microsoft account connected BEFORE this build must stop the Outlook sync and connect again, the
+card says so) and Microsoft To Do open in a browser (<https://to-do.office.com> or the To Do app)
+on the same account with two lists, for example "Tasks" (the built-in one) and "Work".
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Settings -> Calendar sync with Outlook NOT connected. | The "Microsoft To Do" card shows Off and says to connect Outlook first; no button. |
+| 2 | Connect Outlook (T15 row 2), then tap **Sync tasks with To Do**. | The card lists the account's To Do lists with the built-in one marked as default. The flagged-email list is not offered. |
+| 3 | Pick "Work" and tap **Start sync**. | An alert with the real counts (tasks imported, tasks sent). The card shows Syncing, "List: Work" and a last-synced line. |
+| 4 | Before row 3, have two open tasks and one finished task in To Do "Work". | The two open tasks appear in the app's Tasks screen (title, notes, due date). The finished one is NOT imported. |
+| 5 | Have an open MeetingGuard task (no To Do copy) before row 3. | It appears in To Do "Work" after the first sync, with its title, notes and due date. |
+| 6 | Create a task in the app with a due time and a reminder (for example 16:00, 30 min before). | In To Do the task has the due date and a reminder at 15:30 the same day. The editor's To Do box says the time without a reminder, people and the meeting link stay in MeetingGuard. |
+| 7 | In To Do, rename the row 5 task, change its due date and add notes; wait a minute with the app open (or pull to refresh). | The app shows the new title, date and notes within a minute. |
+| 8 | In the app, complete the row 6 task. | To Do marks it completed within one sync. Reopen it in the app: To Do reopens it. |
+| 9 | In To Do, complete a task that has a reminder a few minutes ahead in the app. Keep the app open. | Within a minute the app shows it done and the reminder does NOT ring at its time. |
+| 10 | Delete a task in To Do; delete another one in the app. | Each disappears on the other side within one sync. No duplicates anywhere after "Sync now" three times. |
+| 11 | Assistant: "add a task to send the proposal tomorrow", confirm sheet. | The sheet shows "To Do list: Work" before Confirm. After Confirm the task is in To Do "Work". |
+| 12 | Edit a synced task in the app, open **Change list** in the To Do box and pick "Tasks". | The task leaves "Work" and appears in "Tasks" in To Do (one copy), still linked in the app. |
+| 13 | Calendar sync screen -> **Change list** -> "Tasks"; create a new task. | New tasks go to "Tasks"; the earlier ones stay where they were. |
+| 14 | "What do I have today?" by voice with a synced task due today. | The answer includes the imported task like any other. |
+| 15 | Turn the To Do switch off, confirm "Stop sync". | Tasks imported from To Do leave the app, MeetingGuard's own tasks stay (unlinked), the list is cleared. Nothing is deleted in To Do. |
+| 16 | Repeat rows 2, 3, 6 and 15 in Spanish. | Card, editor box, confirm row and alerts read naturally in Spanish. |
+| 17 | Microsoft account connected before this build (consent without tasks): tap Sync tasks with To Do. | The lists cannot load (access denied) and the card explains: stop the Outlook sync above and connect it again. After reconnecting, row 2 works. |

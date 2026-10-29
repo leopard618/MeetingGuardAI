@@ -87,14 +87,17 @@ export function TaskEditor({
   const errors = validateTaskDraft(draft);
   const dirty = isDraftDirty(draft, original);
   const change = (patch: Partial<TaskDraft>): void => setDraft((current) => ({ ...current, ...patch }));
-  const [todoLists, setTodoLists] = useState<{ lists: TodoList[]; loading: boolean; failed: boolean } | null>(null);
+  // The lists are needed to name a non-default list and to offer a change; one cheap call.
+  const [todoLists, setTodoLists] = useState<{ lists: TodoList[]; loading: boolean; failed: boolean }>({
+    lists: [],
+    loading: todo !== null,
+    failed: false,
+  });
   const [choosingList, setChoosingList] = useState(false);
 
   useEffect(() => {
-    // The lists are needed to name a non-default list and to offer a change; one cheap call.
-    if (todo === null || todoLists !== null) return;
+    if (todo === null) return;
     let cancelled = false;
-    setTodoLists({ lists: [], loading: true, failed: false });
     todo
       .listLists()
       .then((lists) => {
@@ -106,16 +109,16 @@ export function TaskEditor({
     return () => {
       cancelled = true;
     };
-  }, [todo, todoLists]);
+  }, [todo]);
 
   const todoListName = (): string => {
     if (todo === null) return '';
     if (draft.todoListId === null || draft.todoListId === todo.defaultList?.id) {
       return todo.defaultList ? t('tasks:editor.todoListDefault', { name: todo.defaultList.name }) : t('tasks:editor.todoNoList');
     }
-    const named = todoLists?.lists.find((list) => list.id === draft.todoListId);
+    const named = todoLists.lists.find((list) => list.id === draft.todoListId);
     if (named) return named.name;
-    return todoLists?.loading ? t('tasks:editor.todoLoading') : t('tasks:editor.todoOtherList');
+    return todoLists.loading ? t('tasks:editor.todoLoading') : t('tasks:editor.todoOtherList');
   };
 
   const errorText = (error: TaskDraftError | undefined): string | null => {
@@ -369,13 +372,13 @@ export function TaskEditor({
                       {todoListName()}
                     </Text>
                     {choosingList ? (
-                      todoLists?.failed ? (
+                      todoLists.failed ? (
                         <Text variant="bodyMedium" style={[styles.boxValue, { color: theme.colors.error }]}>
                           {t('tasks:editor.todoListsFailed')}
                         </Text>
                       ) : (
                         <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={t('tasks:editor.todoSection')}>
-                          {(todoLists?.lists ?? []).map((list) => {
+                          {todoLists.lists.map((list) => {
                             const selected = (draft.todoListId ?? todo.defaultList?.id ?? null) === list.id;
                             return (
                               <Chip
@@ -402,7 +405,7 @@ export function TaskEditor({
                           mode="outlined"
                           icon="format-list-checks"
                           onPress={() => setChoosingList(true)}
-                          disabled={todoLists === null || todoLists.loading}
+                          disabled={todoLists.loading}
                           style={styles.boxButton}
                           testID="task-todo-change-list"
                         >

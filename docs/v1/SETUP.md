@@ -689,8 +689,9 @@ client secret are needed (the app is a public client using PKCE).
 ### 10.2 Permissions
 
 Open **API permissions**. `User.Read` is present by default; add **Microsoft Graph -> Delegated
-permissions -> `Calendars.ReadWrite`** and **`Tasks.ReadWrite`** (Microsoft To Do, Stage 2 M7; harmless
-to add now, the app only requests it once the To Do sync ships), plus `offline_access`, `openid` and
+permissions -> `Calendars.ReadWrite`** and **`Tasks.ReadWrite`** (Microsoft To Do, Stage 2 M7: the
+app requests both at sign-in; a consent granted without `Tasks.ReadWrite` must be redone by
+stopping the Outlook sync and connecting again), plus `offline_access`, `openid` and
 `profile` if they are not already listed. These are all delegated permissions that the user consents to at sign-in;
 **Grant admin consent** is NOT required for personal accounts or the `common` audience.
 
@@ -716,12 +717,13 @@ Both values are public identifiers (like the Google client IDs): they may appear
 
 - Sign-in: expo-auth-session PKCE against
   `https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize`, scopes `openid profile
-  offline_access User.Read Calendars.ReadWrite`. The Microsoft account is independent of the
-  app's Google/Firebase sign-in.
+  offline_access User.Read Calendars.ReadWrite Tasks.ReadWrite`. The Microsoft account is
+  independent of the app's Google/Firebase sign-in.
 - Only the refresh token is stored, in expo-secure-store (`mg.ms.refresh.{uid}`); it is deleted on
   disconnect and at sign-out. Access tokens stay in memory.
 - Sync: `/me/calendarView/delta` pull + create/patch/delete push on the account's default
-  calendar. "Stop sync and review access" opens <https://account.live.com/consent/Manage>
+  calendar; tasks: `/me/todo/lists/{id}/tasks/delta` pull + create/patch/delete push on the
+  chosen To Do list (ARCHITECTURE §28). "Stop sync and review access" opens <https://account.live.com/consent/Manage>
   (work/school accounts use <https://myapps.microsoft.com>), because Graph offers no programmatic
   consent revoke.
 
@@ -733,6 +735,8 @@ Both values are public identifiers (like the Google client IDs): they may appear
       account and "Connected".
 - [ ] "Sync now" reports an Outlook line; an event created in Outlook on the web appears in
       MeetingGuard within one sync, and a meeting created in MeetingGuard appears in Outlook.
+- [ ] The "Microsoft To Do" card appears under the Outlook card; "Sync tasks with To Do" lists the
+      account's lists and, once started, a task created in the app appears in the chosen list.
 
 ---
 
