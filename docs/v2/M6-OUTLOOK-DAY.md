@@ -19,6 +19,14 @@ is in the local `.env` and in all three EAS environments (section 2 done). Tenan
 desktop applications, set Allow public client flows to Yes, add Tasks.ReadWrite (M7). The client
 secret he created is not used by the app (public client) and must never be put in the bundle.
 
+Update, same day, afternoon: Dusko was made owner of the registration (guest in the tenant) and set
+the redirect URI, public client flows and Tasks.ReadWrite himself. T15 rows 2 to 11 passed on the
+emulator with the `MeetingGuardAI-1.5.0-test-20261028-1219.apk` build against the Microsoft account
+luzheng75@outlook.com. Two lessons: a fresh registration answers "unauthorized_client ... not enabled
+for consumers" at login.live.com for about an hour until the consumer side syncs (poll the
+/consumers authorize URL in a browser), and check `adb shell dumpsys package com.meetingguard.ai`
+for lastUpdateTime before blaming Azure (the emulator still had the previous APK).
+
 
 ## 1. Azure app registration (15 minutes)
 
@@ -110,8 +118,9 @@ loops) and send it as the last piece of evidence.
    if it changed. Push `v2`.
 2. Send Francisco, in the group: the recording, the table above with pass marks and times, the
    APK name and SHA-256, and one line that the soak result follows next morning.
-3. Hand back the Microsoft account: tell Francisco the setup is done and he can change the
-   password whenever he likes; the registration stays in the account.
+3. The registration lives in Francisco's tenant and Dusko stays owner of the app; no password
+   changed hands. Remind Francisco that "Grant admin consent" is his click if company accounts
+   need it, and that publisher verification (MPN id + verified domain) is his later task.
 4. Payment 6 is due on acceptance per the consolidated schedule.
 
 Message skeleton (ASCII only, short):
@@ -119,7 +128,6 @@ Message skeleton (ASCII only, short):
 ```
 Hi Francisco, milestone 6 is ready: Outlook two-way sync. Recording and checklist attached,
 test build <file name>. Everything in the list passed on a phone and on the emulator against
-the Microsoft account you sent. The 24 hour no-duplicates check runs overnight, I send the
-screenshots tomorrow morning. You can change that Microsoft password any time now; the app
-registration stays inside the account.
+a real Microsoft account. The 24 hour no-duplicates check runs overnight, I send the
+screenshots tomorrow morning.
 ```
