@@ -178,3 +178,20 @@ describe('picker conversions', () => {
     expect(dateToDueTime(value)).toBe('09:05');
   });
 });
+
+describe('the editor draft and the Microsoft To Do list (M7)', () => {
+  it('starts from the task\x27s list and patches only a real list change', () => {
+    const original = task('todo1', { todoListId: 'list-work' });
+    const draft = draftFromTask(original);
+    expect(draft.todoListId).toBe('list-work');
+    expect(draftToPatch(original, draft)).toBeNull();
+    expect(draftToPatch(original, { ...draft, todoListId: 'list-home' })).toEqual({ todoListId: 'list-home' });
+    expect(draftToPatch(original, { ...draft, todoListId: null })).toEqual({ todoListId: null });
+    expect(isDraftDirty({ ...draft, todoListId: 'list-home' }, draft)).toBe(true);
+  });
+
+  it('carries the chosen list into a new task', () => {
+    expect(newTaskDraft().todoListId).toBeNull();
+    expect(draftToInput({ ...newTaskDraft(), title: 'Call Ana', todoListId: 'list-work' }).todoListId).toBe('list-work');
+  });
+});

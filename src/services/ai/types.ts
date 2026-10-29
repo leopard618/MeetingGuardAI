@@ -62,6 +62,8 @@ export interface AiActionPreview extends ActionPreview {
    * The confirmation card lists them so a proposal can never quietly add or mail someone new.
    */
   newPeople?: string[];
+  /** create_task: the Microsoft To Do list the task will go to (null when the sync is off). */
+  todoListName?: string | null;
 }
 
 type DoneResult = Extract<ActionResult, { status: 'done' }>;

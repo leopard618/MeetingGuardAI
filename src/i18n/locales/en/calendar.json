@@ -55,6 +55,34 @@
     "disconnectedTitle": "Outlook sync is off",
     "untitledEvent": "(No title)"
   },
+  "todo": {
+    "title": "Microsoft To Do",
+    "description": "Two-way sync of your tasks with Microsoft To Do on the same Microsoft account as Outlook. Title, notes, due date, reminder and done state go both ways.",
+    "state": {
+      "on": "Syncing",
+      "off": "Off"
+    },
+    "connectFirst": "Connect Outlook above first. Tasks sync through the same Microsoft account.",
+    "syncTasks": "Sync tasks with To Do",
+    "chooseList": "Which list should your tasks go to?",
+    "defaultList": "{{name}} (To Do default)",
+    "loadingLists": "Loading your lists...",
+    "listsFailed": "Your To Do lists could not be loaded: {{error}}",
+    "startSync": "Start sync",
+    "starting": "Starting...",
+    "syncSwitch": "Sync tasks",
+    "listLabel": "List: {{name}}",
+    "changeList": "Change list",
+    "enabledTitle": "Microsoft To Do connected",
+    "firstSyncSummary": "Imported {{created}} tasks and sent {{pushed}} tasks to To Do.",
+    "firstSyncFailed": "Turned on, but the first sync did not finish: {{error}} MeetingGuard will try again automatically.",
+    "disableTitle": "Stop To Do sync?",
+    "disableMessage": "Tasks imported from To Do will be removed from MeetingGuard. Nothing is deleted in Microsoft To Do.",
+    "disable": "Stop sync",
+    "disabling": "Stopping sync...",
+    "disabledTitle": "To Do sync is off",
+    "permissionHint": "Microsoft has not allowed task access for this connection yet. Stop the Outlook sync above and connect it again to grant it."
+  },
   "device": {
     "title": "Calendars on this phone",
     "description": "Import events from the calendars on this phone and, if you like, add your MeetingGuard meetings to one of them.",

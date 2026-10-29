@@ -23,13 +23,14 @@ import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting, Task } from '../../core/types';
 import { useT } from '../../i18n';
+import { todoSyncService, useCalendarStatus } from '../../services/calendar';
 import { useMeetings, useSyncState, useTasks } from '../../services/data';
 import { componentMetrics, spacing } from '../../theme';
 import { FAB_SLIDE_DP, useHideOnScroll } from '../meetings/list/useHideOnScroll';
 import { useFormatters } from '../shared/useFormatters';
 import { useLiveNow } from '../shared/useLiveNow';
 import { TaskCard } from './TaskCard';
-import { TaskEditor } from './TaskEditor';
+import { TaskEditor, type TaskEditorTodo } from './TaskEditor';
 import {
   TASK_FILTERS,
   countByFilter,
@@ -151,6 +152,19 @@ export function TasksScreen({ navigation }: Props): ReactElement {
       }
     },
     [update, showError, t],
+  );
+
+  // Microsoft To Do (M7): the editor shows the target list while the sync is on.
+  const todoStatus = useCalendarStatus().todo;
+  const todoEnabled = todoStatus?.enabled === true;
+  const todoListId = todoStatus?.listId ?? null;
+  const todoListName = todoStatus?.listName ?? '';
+  const todo = useMemo<TaskEditorTodo | null>(
+    () =>
+      todoEnabled
+        ? { defaultList: todoListId !== null ? { id: todoListId, name: todoListName } : null, listLists: () => todoSyncService.listLists() }
+        : null,
+    [todoEnabled, todoListId, todoListName],
   );
 
   const openTask = useCallback((task: Task) => openEditor({ mode: 'edit', task }), [openEditor]);
@@ -340,6 +354,7 @@ export function TasksScreen({ navigation }: Props): ReactElement {
       {editor ? (
         <TaskEditor
           task={editor.mode === 'edit' ? editor.task : null}
+          todo={todo}
           meetings={meetings}
           meetingsById={meetingsById}
           fmt={fmt}

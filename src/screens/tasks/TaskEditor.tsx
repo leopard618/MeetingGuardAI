@@ -1,16 +1,18 @@
 /**
  * Full-screen task editor (create and edit): title, description, due date + time (native
  * pickers), reminder choice, optional linked meeting (MeetingPicker) and delete. People set by
- * the assistant are shown read-only. Closing with unsaved changes asks first. Persistence is the
- * caller's job (`onSubmit`).
+ * the assistant are shown read-only. While the Microsoft To Do sync is on, the editor shows which
+ * list the task goes to (changeable) and what To Do does not keep. Closing with unsaved changes
+ * asks first. Persistence is the caller's job (`onSubmit`).
  */
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Chip, HelperText, IconButton, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MGButton } from '../../components/ui';
+import type { TodoList } from '../../core/contracts';
 import type { Meeting, Task } from '../../core/types';
 import { useT } from '../../i18n';
 import { componentMetrics, radii, spacing } from '../../theme';
@@ -31,9 +33,17 @@ import {
   type TaskDraftError,
 } from './tasksModel';
 
+/** Microsoft To Do sync as the editor sees it (null = off: no list box). */
+export interface TaskEditorTodo {
+  /** The list new tasks go to by default (Preferences.todoListId). */
+  defaultList: { id: string; name: string } | null;
+  listLists(): Promise<TodoList[]>;
+}
+
 export interface TaskEditorProps {
   /** null = a new task. */
   task: Task | null;
+  todo?: TaskEditorTodo | null;
   meetings: readonly Meeting[];
   meetingsById: ReadonlyMap<string, Meeting>;
   fmt: Formatters;
@@ -53,7 +63,17 @@ export function reminderLabelKey(minutes: number | null): { key: string; count?:
   return { key: 'tasks:editor.reminderMinutes', count: minutes };
 }
 
-export function TaskEditor({ task, meetings, meetingsById, fmt, onClose, onSubmit, onDelete, errorMessage = null }: TaskEditorProps): ReactElement {
+export function TaskEditor({
+  task,
+  todo = null,
+  meetings,
+  meetingsById,
+  fmt,
+  onClose,
+  onSubmit,
+  onDelete,
+  errorMessage = null,
+}: TaskEditorProps): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
   const insets = useSafeAreaInsets();
@@ -67,6 +87,36 @@ export function TaskEditor({ task, meetings, meetingsById, fmt, onClose, onSubmi
   const errors = validateTaskDraft(draft);
   const dirty = isDraftDirty(draft, original);
   const change = (patch: Partial<TaskDraft>): void => setDraft((current) => ({ ...current, ...patch }));
+  const [todoLists, setTodoLists] = useState<{ lists: TodoList[]; loading: boolean; failed: boolean } | null>(null);
+  const [choosingList, setChoosingList] = useState(false);
+
+  useEffect(() => {
+    // The lists are needed to name a non-default list and to offer a change; one cheap call.
+    if (todo === null || todoLists !== null) return;
+    let cancelled = false;
+    setTodoLists({ lists: [], loading: true, failed: false });
+    todo
+      .listLists()
+      .then((lists) => {
+        if (!cancelled) setTodoLists({ lists, loading: false, failed: false });
+      })
+      .catch(() => {
+        if (!cancelled) setTodoLists({ lists: [], loading: false, failed: true });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [todo, todoLists]);
+
+  const todoListName = (): string => {
+    if (todo === null) return '';
+    if (draft.todoListId === null || draft.todoListId === todo.defaultList?.id) {
+      return todo.defaultList ? t('tasks:editor.todoListDefault', { name: todo.defaultList.name }) : t('tasks:editor.todoNoList');
+    }
+    const named = todoLists?.lists.find((list) => list.id === draft.todoListId);
+    if (named) return named.name;
+    return todoLists?.loading ? t('tasks:editor.todoLoading') : t('tasks:editor.todoOtherList');
+  };
 
   const errorText = (error: TaskDraftError | undefined): string | null => {
     if (!submitted || !error) return null;
@@ -311,6 +361,60 @@ export function TaskEditor({ task, meetings, meetingsById, fmt, onClose, onSubmi
                     ) : null}
                   </View>
                 </View>
+
+                {todo !== null ? (
+                  <View style={[styles.box, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]} testID="task-todo-box">
+                    <Text variant="labelLarge">{t('tasks:editor.todoSection')}</Text>
+                    <Text variant="bodyLarge" style={styles.boxValue} testID="task-todo-list">
+                      {todoListName()}
+                    </Text>
+                    {choosingList ? (
+                      todoLists?.failed ? (
+                        <Text variant="bodyMedium" style={[styles.boxValue, { color: theme.colors.error }]}>
+                          {t('tasks:editor.todoListsFailed')}
+                        </Text>
+                      ) : (
+                        <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={t('tasks:editor.todoSection')}>
+                          {(todoLists?.lists ?? []).map((list) => {
+                            const selected = (draft.todoListId ?? todo.defaultList?.id ?? null) === list.id;
+                            return (
+                              <Chip
+                                key={list.id}
+                                selected={selected}
+                                showSelectedOverlay
+                                onPress={() => {
+                                  change({ todoListId: list.id === todo.defaultList?.id && draft.todoListId === null ? null : list.id });
+                                  setChoosingList(false);
+                                }}
+                                style={styles.chip}
+                                accessibilityRole="radio"
+                                testID={`task-todo-list-${list.id}`}
+                              >
+                                {list.name}
+                              </Chip>
+                            );
+                          })}
+                        </View>
+                      )
+                    ) : (
+                      <View style={styles.boxActions}>
+                        <Button
+                          mode="outlined"
+                          icon="format-list-checks"
+                          onPress={() => setChoosingList(true)}
+                          disabled={todoLists === null || todoLists.loading}
+                          style={styles.boxButton}
+                          testID="task-todo-change-list"
+                        >
+                          {t('tasks:editor.todoChangeList')}
+                        </Button>
+                      </View>
+                    )}
+                    <Text variant="bodySmall" style={[styles.boxValue, { color: theme.colors.onSurfaceVariant }]} testID="task-todo-hint">
+                      {t('tasks:editor.todoHint')}
+                    </Text>
+                  </View>
+                ) : null}
 
                 {task && onDelete ? (
                   <Button

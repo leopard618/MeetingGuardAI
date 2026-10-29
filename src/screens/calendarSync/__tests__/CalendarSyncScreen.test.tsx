@@ -37,6 +37,18 @@ const mockOutlook = {
   connect: jest.fn(),
   disconnect: jest.fn(async () => undefined),
 };
+const mockTodo = {
+  isConfigured: jest.fn(() => false),
+  isAccountConnected: jest.fn(async () => false),
+  listLists: jest.fn(async () => [
+    { id: 'list-tasks', name: 'Tasks', isDefault: true },
+    { id: 'list-work', name: 'Work', isDefault: false },
+  ]),
+  enable: jest.fn(),
+  setList: jest.fn(async () => undefined),
+  disable: jest.fn(async () => undefined),
+  sync: jest.fn(),
+};
 const mockEngine = {
   syncNow: jest.fn(),
   getStatus: jest.fn(() => mockStatus.current),
@@ -57,6 +69,9 @@ jest.mock('../../../services/calendar', () => ({
   get outlookCalendarService() {
     return mockOutlook;
   },
+  get todoSyncService() {
+    return mockTodo;
+  },
   get calendarSyncEngine() {
     return mockEngine;
   },
@@ -74,6 +89,7 @@ function status(
     google?: Partial<CalendarStatus['google']>;
     device?: Partial<CalendarStatus['device']>;
     outlook?: Partial<NonNullable<CalendarStatus['outlook']>>;
+    todo?: Partial<NonNullable<CalendarStatus['todo']>>;
   } = {},
 ): CalendarStatus {
   const base: CalendarStatus = {
@@ -99,6 +115,19 @@ function status(
       connected: false,
       accountEmail: null,
       ...overrides.outlook,
+    };
+  }
+  if (overrides.todo) {
+    base.todo = {
+      enabled: false,
+      syncing: false,
+      lastSyncAt: null,
+      lastError: null,
+      configured: true,
+      connected: false,
+      listId: null,
+      listName: null,
+      ...overrides.todo,
     };
   }
   return base;
@@ -392,4 +421,71 @@ it('includes the Outlook line in the sync summary', async () => {
     fireEvent.press(screen.getByTestId('calendar-sync-now'));
   });
   expect(Alert.alert).toHaveBeenCalledWith('Sync complete', 'Outlook: 2 new, 1 updated, 0 removed, 3 sent to Outlook.');
+});
+
+describe('Microsoft To Do card (M7)', () => {
+  it('asks to connect Outlook first while the Microsoft account is not connected', async () => {
+    mockStatus.current = status({ outlook: { configured: true, connected: false }, todo: { configured: true, connected: false } });
+    await renderScreen();
+    expect(screen.getByTestId('calendar-todo-card')).toBeTruthy();
+    expect(screen.getByTestId('calendar-todo-state').props.children).toBe('Off');
+    expect(screen.getByTestId('calendar-todo-connect-first')).toBeTruthy();
+    expect(screen.queryByTestId('calendar-todo-enable')).toBeNull();
+  });
+
+  it('turns the sync on with a chosen list and reports the first sync', async () => {
+    mockStatus.current = status({
+      outlook: { configured: true, connected: true, enabled: true, accountEmail: 'me@outlook.com' },
+      todo: { configured: true, connected: true },
+    });
+    mockTodo.enable.mockResolvedValue({
+      fullSync: true,
+      counts: { created: 2, updated: 0, removed: 0, unchanged: 0, pushed: 3, failed: 0 },
+      syncedAt: '2030-01-01T00:00:00.000Z',
+    });
+    await renderScreen();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-enable'));
+    });
+    expect(mockTodo.listLists).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('calendar-todo-chooser')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-list-list-work'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-start'));
+    });
+    expect(mockTodo.enable).toHaveBeenCalledWith({ id: 'list-work', name: 'Work', isDefault: false });
+    expect(Alert.alert).toHaveBeenCalledWith('Microsoft To Do connected', 'Imported 2 tasks and sent 3 tasks to To Do.');
+  });
+
+  it('shows the list while on, changes it, and asks before stopping the sync', async () => {
+    mockStatus.current = status({
+      outlook: { configured: true, connected: true, enabled: true, accountEmail: 'me@outlook.com' },
+      todo: { configured: true, connected: true, enabled: true, listId: 'list-tasks', listName: 'Tasks', lastSyncAt: new Date().toISOString() },
+    });
+    await renderScreen();
+    expect(screen.getByTestId('calendar-todo-state').props.children).toBe('Syncing');
+    expect(screen.getByText('List: Tasks')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-change-list'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-list-list-work'));
+    });
+    expect(mockTodo.setList).toHaveBeenCalledWith({ id: 'list-work', name: 'Work', isDefault: false });
+
+    await act(async () => {
+      fireEvent(screen.getByTestId('calendar-todo-switch'), 'valueChange', false);
+    });
+    expect(Alert.alert).toHaveBeenCalledWith('Stop To Do sync?', expect.any(String), expect.any(Array));
+    const stop = lastAlertButtons().find((button) => button.style === 'destructive');
+    await act(async () => {
+      stop?.onPress?.();
+    });
+    expect(mockTodo.disable).toHaveBeenCalledTimes(1);
+    expect(Alert.alert).toHaveBeenLastCalledWith('To Do sync is off');
+  });
 });

@@ -55,6 +55,34 @@
     "disconnectedTitle": "La sincronización con Outlook está desactivada",
     "untitledEvent": "(Sin título)"
   },
+  "todo": {
+    "title": "Microsoft To Do",
+    "description": "Sincronización en ambos sentidos de tus tareas con Microsoft To Do, en la misma cuenta Microsoft que Outlook. Título, notas, fecha límite, recordatorio y estado van en ambos sentidos.",
+    "state": {
+      "on": "Sincronizando",
+      "off": "Desactivado"
+    },
+    "connectFirst": "Primero conecta Outlook arriba. Las tareas se sincronizan con la misma cuenta Microsoft.",
+    "syncTasks": "Sincronizar tareas con To Do",
+    "chooseList": "¿A qué lista deben ir tus tareas?",
+    "defaultList": "{{name}} (predeterminada de To Do)",
+    "loadingLists": "Cargando tus listas...",
+    "listsFailed": "No se pudieron cargar tus listas de To Do: {{error}}",
+    "startSync": "Empezar a sincronizar",
+    "starting": "Empezando...",
+    "syncSwitch": "Sincronizar tareas",
+    "listLabel": "Lista: {{name}}",
+    "changeList": "Cambiar lista",
+    "enabledTitle": "Microsoft To Do conectado",
+    "firstSyncSummary": "Se importaron {{created}} tareas y se enviaron {{pushed}} tareas a To Do.",
+    "firstSyncFailed": "Activado, pero la primera sincronización no terminó: {{error}} MeetingGuard lo intentará de nuevo automáticamente.",
+    "disableTitle": "¿Detener la sincronización con To Do?",
+    "disableMessage": "Las tareas importadas de To Do se quitarán de MeetingGuard. No se elimina nada en Microsoft To Do.",
+    "disable": "Detener sincronización",
+    "disabling": "Deteniendo la sincronización...",
+    "disabledTitle": "La sincronización con To Do está desactivada",
+    "permissionHint": "Microsoft todavía no ha permitido el acceso a las tareas para esta conexión. Detén la sincronización con Outlook arriba y conéctala de nuevo para concederlo."
+  },
   "device": {
     "title": "Calendarios de este teléfono",
     "description": "Importa eventos de los calendarios de este teléfono y, si quieres, añade tus reuniones de MeetingGuard a uno de ellos.",

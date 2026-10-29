@@ -85,6 +85,8 @@ export interface ActionExecutorDeps {
   meetings: MeetingsPort;
   /** v5 task actions. Absent in older wirings/tests: task actions then fail honestly. */
   tasks?: Pick<TasksRepository, 'get' | 'create' | 'update' | 'remove'>;
+  /** M7: the Microsoft To Do list new tasks go to (null = sync off), named on the confirm card. */
+  todoDestination?: () => { name: string } | null;
   calendar: CalendarLinkPort;
   sharing: ShareAdapter;
   executed: ExecutedStore;
@@ -375,6 +377,7 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
       overlapping,
       calendarConnected: calendar.connected,
       newPeople,
+      todoListName: action.type === 'create_task' ? (deps.todoDestination?.()?.name ?? null) : null,
     };
   }
 
@@ -614,7 +617,7 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     action: Extract<AiAction, { type: 'create_task' }>,
     linkedMeetingId?: string | null,
   ): Promise<AiDoneResult> {
-    const task = await tasksPort().create(taskDraftToInput(action.task, linkedMeetingId));
+    const task = await tasksPort().create(taskDraftToInput(action.task, linkedMeetingId), { origin: 'ai' });
     return { status: 'done', actionId: action.id, type: action.type, meetingIds: [], taskIds: [task.id], duplicate: false };
   }
 

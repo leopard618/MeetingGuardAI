@@ -168,7 +168,8 @@
     "due": "Due",
     "reminder": "Reminder",
     "people": "People",
-    "status": "Status"
+    "status": "Status",
+    "list": "To Do list"
   },
   "values": {
     "none": "None",

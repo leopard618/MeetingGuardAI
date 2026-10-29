@@ -58,7 +58,9 @@ export type MeetingField =
   | 'due'
   | 'reminder'
   | 'people'
-  | 'status';
+  | 'status'
+  // M7: the Microsoft To Do list a new task goes to.
+  | 'list';
 
 export interface DetailRow {
   field: MeetingField;
@@ -430,12 +432,16 @@ function taskReminderValue(fmt: AssistantFormatter, minutes: number | null): str
   return fmt.t('ai:values.reminderBefore', { duration: fmt.duration(minutes) });
 }
 
-/** Confirmation-card rows of a create_task proposal. */
-export function describeTaskDraft(fmt: AssistantFormatter, task: AiTaskDraft): DetailRow[] {
+/**
+ * Confirmation-card rows of a create_task proposal. `todoListName` is the Microsoft To Do list
+ * the task will land in (shown before confirming whenever the sync is on).
+ */
+export function describeTaskDraft(fmt: AssistantFormatter, task: AiTaskDraft, todoListName: string | null = null): DetailRow[] {
   const rows: DetailRow[] = [
     { field: 'title', label: fieldLabel(fmt, 'title'), value: task.title },
     { field: 'due', label: fieldLabel(fmt, 'due'), value: taskDueValue(fmt, task.dueDate, task.dueTime) },
   ];
+  if (todoListName !== null) rows.push({ field: 'list', label: fieldLabel(fmt, 'list'), value: todoListName });
   if (task.reminderMinutesBefore !== null) {
     rows.push({ field: 'reminder', label: fieldLabel(fmt, 'reminder'), value: taskReminderValue(fmt, task.reminderMinutesBefore) });
   }

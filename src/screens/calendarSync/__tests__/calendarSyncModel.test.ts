@@ -13,6 +13,8 @@ import {
   outlookConnectOutcome,
   outlookStateView,
   syncReportSummary,
+  todoEnableOutcome,
+  todoStateView,
 } from '../calendarSyncModel';
 
 /** Echoes the key and its options, so assertions do not depend on the English wording. */
@@ -283,5 +285,28 @@ describe('calendar namespace', () => {
       }
     }
     expect(missing).toEqual([]);
+  });
+});
+
+function todo(overrides: Partial<NonNullable<CalendarStatus['todo']>> = {}): NonNullable<CalendarStatus['todo']> {
+  return { enabled: false, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: false, listId: null, listName: null, ...overrides };
+}
+
+describe('todoStateView', () => {
+  it('is on only while enabled on a connected Microsoft account', () => {
+    expect(todoStateView(todo({ enabled: true, connected: true }), true)).toEqual({ labelKey: 'calendar:todo.state.on', tone: 'success' });
+    expect(todoStateView(todo({ enabled: true }), false)).toEqual({ labelKey: 'calendar:todo.state.off', tone: 'muted' });
+    expect(todoStateView(todo(), true)).toEqual({ labelKey: 'calendar:todo.state.off', tone: 'muted' });
+  });
+});
+
+describe('todoEnableOutcome', () => {
+  it('reports the first sync counts, or why it did not finish', () => {
+    const result = { fullSync: true, counts: { created: 2, updated: 0, removed: 0, unchanged: 0, pushed: 3, failed: 0 }, syncedAt: '2026-10-01T08:00:00.000Z' };
+    expect(todoEnableOutcome(t, result, null)).toEqual({
+      title: 'calendar:todo.enabledTitle',
+      message: 'calendar:todo.firstSyncSummary {"created":2,"pushed":3}',
+    });
+    expect(todoEnableOutcome(t, null, 'permission_denied').message).toBe('calendar:todo.firstSyncFailed {"error":"common:errors.permission_denied"}');
   });
 });

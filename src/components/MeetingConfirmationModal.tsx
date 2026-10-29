@@ -310,7 +310,7 @@ function ActionBody({
     case 'bulk_update':
       return <BulkBody action={action} preview={preview} fmt={fmt} colors={colors} />;
     case 'create_task':
-      return <DetailRows rows={describeTaskDraft(fmt, action.task)} colors={colors} />;
+      return <DetailRows rows={describeTaskDraft(fmt, action.task, preview?.todoListName ?? null)} colors={colors} />;
     case 'update_task': {
       const task = preview?.tasks?.[0] ?? null;
       return (

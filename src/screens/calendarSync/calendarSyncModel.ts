@@ -12,6 +12,7 @@ import type {
   DeviceCalendarService,
   GoogleConnectResult,
   OutlookConnectResult,
+  TodoSyncResult,
   TranslateFn,
 } from '../../core/contracts';
 import { errorMessageKey, toAppError, type AppErrorCode } from '../../core/errors';
@@ -46,9 +47,31 @@ export function outlookStateView(outlook: NonNullable<CalendarStatus['outlook']>
   return { labelKey: 'calendar:outlook.state.notConnected', tone: 'muted' };
 }
 
+export interface TodoStateView {
+  labelKey: 'calendar:todo.state.on' | 'calendar:todo.state.off';
+  tone: Tone;
+}
+
+/** Syncing (on, and the Microsoft account is connected), else off. */
+export function todoStateView(todo: NonNullable<CalendarStatus['todo']>, outlookConnected: boolean): TodoStateView {
+  if (todo.enabled && outlookConnected) return { labelKey: 'calendar:todo.state.on', tone: 'success' };
+  return { labelKey: 'calendar:todo.state.off', tone: 'muted' };
+}
+
 export interface AlertMessage {
   title: string;
   message: string;
+}
+
+/**
+ * What to tell the user after todoSyncService.enable(): the first sync's real counts, or that it
+ * did not finish (with the service's last error).
+ */
+export function todoEnableOutcome(t: TranslateFn, result: TodoSyncResult | null, lastError: AppErrorCode | null): AlertMessage {
+  const message = result
+    ? t('calendar:todo.firstSyncSummary', { created: result.counts.created, pushed: result.counts.pushed })
+    : t('calendar:todo.firstSyncFailed', { error: lastError ? errorText(t, lastError) : '' });
+  return { title: t('calendar:todo.enabledTitle'), message };
 }
 
 /**

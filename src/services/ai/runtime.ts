@@ -9,7 +9,7 @@ import { appEvents } from '../../core/events';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import { getLanguage } from '../../i18n';
-import { googleCalendarService } from '../calendar';
+import { calendarSyncEngine, googleCalendarService } from '../calendar';
 import { dataEngine, dataService, meetingRepository, tasksRepository } from '../data';
 import { zoomService } from '../zoom';
 
@@ -43,6 +43,10 @@ export const assistantClient = createAssistantClient({
 export const actionExecutor: AiActionExecutor = createActionExecutor({
   meetings: meetingRepository,
   tasks: tasksRepository,
+  todoDestination: () => {
+    const todo = calendarSyncEngine.getStatus().todo;
+    return todo?.enabled === true && todo.listName !== null ? { name: todo.listName } : null;
+  },
   calendar: googleCalendarService,
   sharing: reactNativeShareAdapter,
   zoom: zoomService,

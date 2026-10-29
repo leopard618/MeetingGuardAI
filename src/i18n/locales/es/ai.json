@@ -168,7 +168,8 @@
     "due": "Vencimiento",
     "reminder": "Recordatorio",
     "people": "Personas",
-    "status": "Estado"
+    "status": "Estado",
+    "list": "Lista de To Do"
   },
   "values": {
     "none": "Ninguno",

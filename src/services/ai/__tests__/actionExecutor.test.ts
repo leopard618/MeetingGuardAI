@@ -1025,3 +1025,47 @@ describe('task actions and same-turn meeting links', () => {
     expect(tasks.create).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('tasks and the Microsoft To Do list (M7)', () => {
+  function todoSetup(destination: { name: string } | null) {
+    const tasks = {
+      get: jest.fn(async () => null),
+      create: jest.fn(async (input: TaskInput) => buildTask(input, { id: 't_1', userId: UID, timezone: 'UTC', now: NOW })),
+      update: jest.fn(),
+      remove: jest.fn(),
+    };
+    const executor = createActionExecutor({
+      meetings: new FakeMeetings(),
+      tasks,
+      todoDestination: () => destination,
+      calendar: { isConnected: async () => false, createMeetLink: jest.fn() },
+      sharing: { openMailComposer: jest.fn(), shareText: jest.fn() },
+      executed: createExecutedStore(memoryStorage(), () => NOW),
+      getUid: () => UID,
+      getFormatter: () => createTestFormatter(),
+      now: () => NOW,
+    });
+    return { executor, tasks };
+  }
+
+  const action: Extract<AiAction, { type: 'create_task' }> = {
+    type: 'create_task',
+    id: 'a_todo1',
+    summary: 'Proposed by the assistant',
+    confidence: 92,
+    task: { title: 'Prepare the proposal', description: '', dueDate: null, dueTime: null, reminderMinutesBefore: null, meetingId: null, people: [] },
+  };
+
+  it('names the To Do list on the preview while the sync is on, and nothing when it is off', async () => {
+    const on = todoSetup({ name: 'Work' });
+    expect((await on.executor.preview(action)).todoListName).toBe('Work');
+    const off = todoSetup(null);
+    expect((await off.executor.preview(action)).todoListName).toBeNull();
+  });
+
+  it('creates assistant tasks with origin ai so they count as ai_chat', async () => {
+    const { executor, tasks } = todoSetup(null);
+    expectDone(await executor.execute(action));
+    expect(tasks.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Prepare the proposal' }), { origin: 'ai' });
+  });
+});

@@ -6,6 +6,8 @@
  *   permission is missing, stop sync (optionally revoking access), last sync / last error;
  * - Outlook (only when EXPO_PUBLIC_MSAL_CLIENT_ID is set): connect through the Microsoft sign-in,
  *   account, stop sync (optionally opening the Microsoft consent page), last sync / last error;
+ * - Microsoft To Do (same account, M7): turn the task sync on with a chosen list, change the list,
+ *   stop it (TodoCard);
  * - phone calendars: permission, which calendars to import, which calendar receives MeetingGuard
  *   meetings (writable calendars only), last sync / last error;
  * - "Sync now" with a per-provider summary.
@@ -18,11 +20,18 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Alert, Linking, SectionList, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { CalendarStatus, RootStackParamList, TranslateFn } from '../../core/contracts';
+import type { CalendarStatus, RootStackParamList, TodoList, TranslateFn } from '../../core/contracts';
 import type { Language, PreferencesPatch } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
-import { calendarSyncEngine, deviceCalendarService, googleCalendarService, outlookCalendarService, useCalendarStatus } from '../../services/calendar';
+import {
+  calendarSyncEngine,
+  deviceCalendarService,
+  googleCalendarService,
+  outlookCalendarService,
+  todoSyncService,
+  useCalendarStatus,
+} from '../../services/calendar';
 import { usePreferences } from '../../services/data';
 import {
   buildDeviceRows,
@@ -31,28 +40,31 @@ import {
   nextImportIds,
   outlookStateView,
   syncReportSummary,
+  todoEnableOutcome,
   type DeviceCalendarsState,
   type DeviceRow,
 } from './calendarSyncModel';
 import { componentMetrics, radii, spacing, typography } from '../../theme/tokens';
 import { CardBottom, CardMiddle, CardTop, ImportRow, InlineProgress, PrimaryButton, RadioRow, SyncLine, partStyles } from './CalendarSyncParts';
 import { toneBadgeColors, useCalendarPalette, type CalendarPalette } from './palette';
+import { TodoCard, type TodoWork } from './TodoCard';
 import { refreshGoogleState, refreshOutlookState, showCalendarError, useGoogleConnect, useOutlookConnect } from './useCalendarActions';
 import { useLiveNow } from '../shared/useLiveNow';
 import { useDeviceCalendars } from './useDeviceCalendars';
 
 type Props = StackScreenProps<RootStackParamList, 'CalendarSync'>;
 
-type Busy = 'disconnect' | 'outlookDisconnect' | 'sync' | null;
+type Busy = 'disconnect' | 'outlookDisconnect' | 'todoEnable' | 'todoDisable' | 'sync' | null;
 
 const CLOCK_MS = 60_000;
 const INITIAL_ROWS = 40;
 
 type GoogleItem = { kind: 'google'; key: 'google' };
 type OutlookItem = { kind: 'outlook'; key: 'outlook' };
-type Item = GoogleItem | OutlookItem | DeviceRow;
+type TodoItem = { kind: 'todo'; key: 'todo' };
+type Item = GoogleItem | OutlookItem | TodoItem | DeviceRow;
 interface Section {
-  key: 'google' | 'outlook' | 'device';
+  key: 'google' | 'outlook' | 'todo' | 'device';
   data: Item[];
 }
 
@@ -410,6 +422,46 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
     ]);
   };
 
+  const enableTodo = async (list: TodoList): Promise<void> => {
+    setBusy('todoEnable');
+    try {
+      const result = await todoSyncService.enable(list);
+      const outcome = todoEnableOutcome(t, result, calendarSyncEngine.getStatus().todo?.lastError ?? null);
+      Alert.alert(outcome.title, outcome.message);
+    } catch (error) {
+      showCalendarError(t, error);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const changeTodoList = async (list: TodoList): Promise<void> => {
+    try {
+      await todoSyncService.setList(list);
+    } catch (error) {
+      showCalendarError(t, error);
+    }
+  };
+
+  const disableTodo = async (): Promise<void> => {
+    setBusy('todoDisable');
+    try {
+      await todoSyncService.disable();
+      Alert.alert(t('calendar:todo.disabledTitle'));
+    } catch (error) {
+      showCalendarError(t, error);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const confirmDisableTodo = (): void => {
+    Alert.alert(t('calendar:todo.disableTitle'), t('calendar:todo.disableMessage'), [
+      { text: t('calendar:actions.cancel'), style: 'cancel' },
+      { text: t('calendar:todo.disable'), style: 'destructive', onPress: () => void disableTodo() },
+    ]);
+  };
+
   const requestDevicePermission = async (): Promise<void> => {
     try {
       const result = await deviceCalendarService.requestPermission();
@@ -466,12 +518,15 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
   const deviceRows = devices.state.phase === 'ready' ? buildDeviceRows(devices.state.calendars, preferences, googleAccountEmail) : [];
   // The Outlook card exists only when the provider is registered (EXPO_PUBLIC_MSAL_CLIENT_ID set).
   const outlookStatus = status.outlook;
+  const todoStatus = status.todo;
   const sections: Section[] = [
     { key: 'google', data: [{ kind: 'google', key: 'google' }] },
     ...(outlookStatus !== undefined ? [{ key: 'outlook', data: [{ kind: 'outlook', key: 'outlook' }] } satisfies Section] : []),
+    ...(todoStatus !== undefined ? [{ key: 'todo', data: [{ kind: 'todo', key: 'todo' }] } satisfies Section] : []),
     { key: 'device', data: deviceRows },
   ];
-  const anySyncing = status.google.syncing || status.device.syncing || outlookStatus?.syncing === true;
+  const anySyncing = status.google.syncing || status.device.syncing || outlookStatus?.syncing === true || todoStatus?.syncing === true;
+  const todoWork: TodoWork = busy === 'todoEnable' ? 'enable' : busy === 'todoDisable' ? 'disable' : null;
   const syncing = busy === 'sync' || anySyncing;
   const anyConnecting = google.connecting || outlook.connecting;
 
@@ -504,6 +559,26 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
           t={t}
           language={language}
           now={now}
+        />
+      ) : (
+        <View />
+      );
+    }
+    if (item.kind === 'todo') {
+      return todoStatus !== undefined ? (
+        <TodoCard
+          todo={todoStatus}
+          outlookConnected={outlookStatus?.connected === true}
+          locked={busy !== null && busy !== 'todoEnable' && busy !== 'todoDisable'}
+          working={todoWork}
+          palette={palette}
+          t={t}
+          language={language}
+          now={now}
+          loadLists={() => todoSyncService.listLists()}
+          onEnable={(list) => void enableTodo(list)}
+          onChangeList={(list) => void changeTodoList(list)}
+          onDisable={confirmDisableTodo}
         />
       ) : (
         <View />
