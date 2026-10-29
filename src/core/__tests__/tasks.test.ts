@@ -148,3 +148,52 @@ describe('parseTaskDoc', () => {
     expect(parseTaskDoc('bad id!', doc())).toBeNull();
   });
 });
+
+describe('Microsoft To Do link fields (M7)', () => {
+  it('builds manual tasks without a To Do link by default', () => {
+    const task = buildTask({ title: 'Prepare the proposal' }, CTX);
+    expect(task.source).toBe('manual');
+    expect(task.external).toEqual({ todoListId: null, todoTaskId: null, todoUpdatedAt: null });
+  });
+
+  it('takes the source from the builder context and the target list from the input', () => {
+    const task = buildTask({ title: 'Call Ana', todoListId: 'list-work' }, { ...CTX, source: 'ai_chat' });
+    expect(task.source).toBe('ai_chat');
+    expect(task.external).toEqual({ todoListId: 'list-work', todoTaskId: null, todoUpdatedAt: null });
+  });
+
+  it('merges link write-backs and list moves into external without touching the rest', () => {
+    const task = buildTask({ title: 'Call Ana', todoListId: 'list-work' }, CTX);
+    const linked = applyTaskPatch(
+      task,
+      { external: { todoTaskId: 'AAMk1', todoUpdatedAt: '2030-03-10T09:05:00.000Z' } },
+      '2030-03-10T09:05:00.000Z',
+    );
+    expect(linked.external).toEqual({ todoListId: 'list-work', todoTaskId: 'AAMk1', todoUpdatedAt: '2030-03-10T09:05:00.000Z' });
+    expect(linked.title).toBe('Call Ana');
+
+    const moved = applyTaskPatch(linked, { todoListId: 'list-home' }, '2030-03-10T09:06:00.000Z');
+    expect(moved.external).toEqual({ todoListId: 'list-home', todoTaskId: 'AAMk1', todoUpdatedAt: '2030-03-10T09:05:00.000Z' });
+
+    const unlinked = applyTaskPatch(moved, { todoListId: null }, '2030-03-10T09:07:00.000Z');
+    expect(unlinked.external.todoListId).toBeNull();
+  });
+
+  it('reads documents written before the link existed as manual and unlinked', () => {
+    const task = parseTaskDoc('task1', {
+      userId: 'u1',
+      title: 'Old doc',
+      timezone: 'UTC',
+      status: 'open',
+      createdAt: '2030-03-10T09:00:00.000Z',
+      updatedAt: '2030-03-10T09:00:00.000Z',
+    });
+    expect(task).toMatchObject({ source: 'manual', external: { todoListId: null, todoTaskId: null, todoUpdatedAt: null } });
+    expect(taskSchema.safeParse(task).success).toBe(true);
+  });
+
+  it('rejects an unknown source', () => {
+    const base = buildTask({ title: 'x' }, CTX);
+    expect(taskSchema.safeParse({ ...base, source: 'google' }).success).toBe(false);
+  });
+});

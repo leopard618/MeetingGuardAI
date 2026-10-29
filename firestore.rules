@@ -259,10 +259,18 @@ service cloud.firestore {
 
     // ------------------------------------------------------------------ tasks
 
+    // Link to the task's copy in Microsoft To Do (M7); all three null until synced.
+    function isValidTaskExternal(e) {
+      return e.keys().hasOnly(['todoListId', 'todoTaskId', 'todoUpdatedAt'])
+        && isNullableStringMax(e.get('todoListId', null), 512)
+        && isNullableStringMax(e.get('todoTaskId', null), 512)
+        && isNullableUtcIso(e.get('todoUpdatedAt', null));
+    }
+
     function isValidTask(uid, d) {
       return d.keys().hasOnly(['userId', 'title', 'description', 'dueDate', 'dueTime', 'timezone',
                                'reminderMinutesBefore', 'status', 'meetingId', 'people',
-                               'completedAt', 'createdAt', 'updatedAt'])
+                               'completedAt', 'source', 'external', 'createdAt', 'updatedAt'])
         && d.keys().hasAll(['userId', 'title', 'timezone', 'status', 'createdAt', 'updatedAt'])
         && d.userId == uid
         && isNonEmptyStringMax(d.title, 200)
@@ -280,6 +288,8 @@ service cloud.firestore {
         && isListMax(d.get('people', []), 20)
         && ((d.status == 'done') == (d.get('completedAt', null) != null))
         && isNullableUtcIso(d.get('completedAt', null))
+        && d.get('source', 'manual') in ['manual', 'ai_chat', 'whatsapp', 'todo']
+        && (!('external' in d) || isValidTaskExternal(d.external))
         && isUtcIso(d.createdAt)
         && isUtcIso(d.updatedAt);
     }
@@ -293,7 +303,7 @@ service cloud.firestore {
                                'statusNotificationEnabled', 'briefingFullScreen',
                                'use24HourClock', 'onboardingCompleted',
                                'googleCalendarSyncEnabled', 'deviceCalendarImportIds',
-                               'deviceCalendarExportId', 'updatedAt'])
+                               'deviceCalendarExportId', 'todoListId', 'todoListName', 'updatedAt'])
         && isLanguage(d.get('language', 'en'))
         && (d.get('timezone', null) == null || isTimeZone(d.timezone))
         && d.get('alertEnabled', true) is bool
@@ -316,6 +326,8 @@ service cloud.firestore {
         && d.get('googleCalendarSyncEnabled', false) is bool
         && isStringListMax(d.get('deviceCalendarImportIds', []), 50, 25600)
         && isNullableStringMax(d.get('deviceCalendarExportId', null), 512)
+        && isNullableStringMax(d.get('todoListId', null), 512)
+        && isNullableStringMax(d.get('todoListName', null), 256)
         && isNullableUtcIso(d.get('updatedAt', null));
     }
 

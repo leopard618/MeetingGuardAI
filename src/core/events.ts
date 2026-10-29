@@ -11,14 +11,23 @@
  */
 import type { AppErrorCode } from './errors';
 import { createLogger } from './logger';
-import type { AlertIntensity, Language, Preferences, PreferenceKey } from './types';
+import type { AlertIntensity, Language, Preferences, PreferenceKey, TaskExternalRefs } from './types';
 
 // ---------------------------------------------------------------------------------------------
 // Payloads
 // ---------------------------------------------------------------------------------------------
 
 /** Who caused a data write. Calendar sync only pushes changes whose origin is 'user' or 'ai'. */
-export type WriteOrigin = 'user' | 'ai' | 'calendar_google' | 'calendar_device' | 'calendar_outlook' | 'migration' | 'system';
+export type WriteOrigin =
+  | 'user'
+  | 'ai'
+  | 'calendar_google'
+  | 'calendar_device'
+  | 'calendar_outlook'
+  /** Microsoft To Do sync (imports and link write-backs; never pushed back). */
+  | 'tasks_todo'
+  | 'migration'
+  | 'system';
 
 export type MeetingsChangeReason =
   /** Local create/update/delete through MeetingRepository (see `origin`). */
@@ -43,6 +52,24 @@ export interface MeetingsChangedEvent {
   reason: MeetingsChangeReason;
   /** Present for local writes ('created' | 'updated' | 'deleted' | 'imported'). */
   origin?: WriteOrigin;
+}
+
+export type TasksChangeReason =
+  /** Local create/update/delete through TasksRepository (see `origin`). */
+  | 'created'
+  | 'updated'
+  | 'deleted'
+  /** Firestore snapshot brought changes made on another device / by the server. */
+  | 'remote';
+
+export interface TasksChangedEvent {
+  uid: string;
+  changedIds: string[];
+  reason: TasksChangeReason;
+  /** Present for local writes. */
+  origin?: WriteOrigin;
+  /** For 'deleted': what the removed tasks were linked to, so a sync engine can delete the copy. */
+  removed?: Array<{ id: string; external: TaskExternalRefs }>;
 }
 
 export interface PreferencesChangedEvent {
@@ -94,6 +121,7 @@ export interface LanguageChangedEvent {
 
 export interface AppEventMap {
   'meetings:changed': MeetingsChangedEvent;
+  'tasks:changed': TasksChangedEvent;
   'preferences:changed': PreferencesChangedEvent;
   'session:started': SessionStartedEvent;
   'session:ended': SessionEndedEvent;

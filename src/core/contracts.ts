@@ -51,6 +51,7 @@ import type {
   Task,
   TaskInput,
   TaskPatch,
+  TaskSource,
   UserProfile,
 } from './types';
 
@@ -332,14 +333,23 @@ export interface NotesRepository {
   subscribe(listener: (notes: Note[]) => void): Unsubscribe;
 }
 
+export interface TaskWriteOptions {
+  /** Default 'user'. The To Do sync pushes only 'user' and 'ai' writes; its own writes are 'tasks_todo'. */
+  origin?: WriteOrigin;
+  /** Caller-chosen id for idempotent creates (imports); an existing task with this id is returned unchanged. */
+  id?: string;
+  /** Default 'manual', or 'ai_chat' for origin 'ai'. Imports pass 'todo'. */
+  source?: TaskSource;
+}
+
 export interface TasksRepository {
   /** Sorted: open before done; open by due (earliest first, no due date last), done by completedAt desc. */
   list(): Promise<Task[]>;
   get(id: string): Promise<Task | null>;
-  create(input: TaskInput): Promise<Task>;
-  update(id: string, patch: TaskPatch): Promise<Task>;
+  create(input: TaskInput, options?: TaskWriteOptions): Promise<Task>;
+  update(id: string, patch: TaskPatch, options?: TaskWriteOptions): Promise<Task>;
   /** Hard delete. */
-  remove(id: string): Promise<void>;
+  remove(id: string, options?: TaskWriteOptions): Promise<void>;
   subscribe(listener: (tasks: Task[]) => void): Unsubscribe;
 }
 

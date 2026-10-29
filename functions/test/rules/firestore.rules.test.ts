@@ -63,6 +63,8 @@ function preferences(overrides: Record<string, unknown> = {}): Record<string, un
     alertEnabled: true,
     alertIntensity: 'max',
     importedAlertIntensity: null,
+    todoListId: null,
+    todoListName: null,
     alertSoundType: 'voice_and_sound',
     alertVolume: 0.8,
     vibrationEnabled: true,

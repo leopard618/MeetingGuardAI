@@ -25,6 +25,7 @@ import type {
   PreferencesRepository,
   SyncState,
   TasksRepository,
+  TaskWriteOptions,
   UserRepository,
 } from '../../core/contracts';
 import { AppError, toAppError, type AppErrorCode } from '../../core/errors';
@@ -68,6 +69,7 @@ import {
   type Task,
   type TaskInput,
   type TaskPatch,
+  type TaskExternalRefs,
   type UserProfile,
 } from '../../core/types';
 import { relinkLegacyAttachments } from './attachments';
@@ -1290,6 +1292,7 @@ export class DataEngine {
       void this.persist(s, { taskIds: changedIds });
     }
     this.notify();
+    if (changedIds.length > 0) this.events.emit('tasks:changed', { uid: s.uid, changedIds, reason: 'remote' });
   }
 
   private markPreferencesKnown(s: Session): void {
@@ -2380,26 +2383,37 @@ export class DataEngine {
     return s.tasks.get(id) ?? null;
   }
 
-  async createTask(input: TaskInput): Promise<Task> {
+  async createTask(input: TaskInput, options: TaskWriteOptions = {}): Promise<Task> {
     const s = await this.readySession();
+    const origin = options.origin ?? 'user';
+    const source = options.source ?? (origin === 'ai' ? 'ai_chat' : 'manual');
+    if (options.id !== undefined && !isValidDocumentId(options.id)) {
+      throw new AppError('invalid_input', 'Invalid task id');
+    }
+    let created = false;
     const task = await this.localWrite(s, () => {
-      const id = this.remote.newId(firestorePaths.tasks(s.uid));
-      const built = buildTask(input, { id, userId: s.uid, timezone: this.timeZone(), now: this.now() });
+      if (options.id !== undefined) {
+        const existing = s.tasks.get(options.id);
+        if (existing) return { result: existing, change: null };
+      }
+      const id = options.id ?? this.remote.newId(firestorePaths.tasks(s.uid));
+      const built = buildTask(input, { id, userId: s.uid, timezone: this.timeZone(), now: this.now(), source });
+      created = true;
       return {
         result: built,
         change: {
           tasks: [built],
-          writes: [{ kind: 'task', docId: id, mode: 'create', data: taskToDoc(built) as unknown as RemoteData, updatedAt: built.updatedAt, origin: 'user' }],
+          writes: [{ kind: 'task', docId: id, mode: 'create', data: taskToDoc(built) as unknown as RemoteData, updatedAt: built.updatedAt, origin }],
         },
       };
     });
-    this.notify();
-    this.scheduleFlush(s);
+    if (created) this.afterTaskWrite(s, [task.id], 'created', origin);
     return task;
   }
 
-  async updateTask(id: string, patch: TaskPatch): Promise<Task> {
+  async updateTask(id: string, patch: TaskPatch, options: TaskWriteOptions = {}): Promise<Task> {
     const s = await this.readySession();
+    const origin = options.origin ?? 'user';
     let changed = false;
     const task = await this.localWrite(s, () => {
       const current = s.tasks.get(id);
@@ -2412,30 +2426,41 @@ export class DataEngine {
       changed = true;
       return {
         result: next,
-        change: { tasks: [next], writes: [{ kind: 'task', docId: id, mode: 'set', data: doc as unknown as RemoteData, updatedAt: next.updatedAt, origin: 'user' }] },
+        change: { tasks: [next], writes: [{ kind: 'task', docId: id, mode: 'set', data: doc as unknown as RemoteData, updatedAt: next.updatedAt, origin }] },
       };
     });
-    if (changed) {
-      this.notify();
-      this.scheduleFlush(s);
-    }
+    if (changed) this.afterTaskWrite(s, [id], 'updated', origin);
     return task;
   }
 
-  async removeTask(id: string): Promise<void> {
+  async removeTask(id: string, options: TaskWriteOptions = {}): Promise<void> {
     const s = await this.readySession();
+    const origin = options.origin ?? 'user';
+    const removed: Array<{ id: string; external: TaskExternalRefs }> = [];
     await this.localWrite(s, () => {
       const current = s.tasks.get(id);
       if (!current) throw new AppError('not_found', 'Task not found');
+      removed.push({ id, external: current.external });
       return {
         result: undefined,
         change: {
           removeTasks: [id],
-          writes: [{ kind: 'task', docId: id, mode: 'delete', data: null, updatedAt: nextTimestamp(this.now(), current.updatedAt), origin: 'user' }],
+          writes: [{ kind: 'task', docId: id, mode: 'delete', data: null, updatedAt: nextTimestamp(this.now(), current.updatedAt), origin }],
         },
       };
     });
+    this.afterTaskWrite(s, [id], 'deleted', origin, removed);
+  }
+
+  private afterTaskWrite(
+    s: Session,
+    ids: string[],
+    reason: 'created' | 'updated' | 'deleted',
+    origin: WriteOrigin,
+    removed?: Array<{ id: string; external: TaskExternalRefs }>,
+  ): void {
     this.notify();
+    this.events.emit('tasks:changed', { uid: s.uid, changedIds: ids, reason, origin, ...(removed ? { removed } : {}) });
     this.scheduleFlush(s);
   }
 

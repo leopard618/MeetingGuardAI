@@ -708,6 +708,12 @@ export interface Preferences {
   deviceCalendarImportIds: string[];
   /** Device calendar that receives exported MeetingGuard meetings (null = no export). */
   deviceCalendarExportId: string | null;
+  /**
+   * Microsoft To Do list that receives new tasks (M7). The name is cached so the task confirm
+   * card can show "List: Work" without a network call; null = not chosen (To Do sync stays off).
+   */
+  todoListId: string | null;
+  todoListName: string | null;
   updatedAt: string | null;
 }
 
@@ -732,6 +738,8 @@ export const preferencesSchema = z.object({
   googleCalendarSyncEnabled: z.boolean(),
   deviceCalendarImportIds: z.array(z.string().min(1).max(512)).max(50),
   deviceCalendarExportId: z.string().min(1).max(512).nullable(),
+  todoListId: z.string().min(1).max(512).nullable(),
+  todoListName: z.string().min(1).max(256).nullable(),
   updatedAt: utcIsoSchema.nullable(),
 });
 
@@ -760,6 +768,8 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   googleCalendarSyncEnabled: false,
   deviceCalendarImportIds: [],
   deviceCalendarExportId: null,
+  todoListId: null,
+  todoListName: null,
   updatedAt: null,
 } satisfies Preferences);
 
@@ -994,12 +1004,45 @@ export function parseNoteDoc(id: string, raw: unknown): Note | null {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Tasks (users/{uid}/tasks/{id}) - hard delete (V2 Stage 1)
+// Tasks (users/{uid}/tasks/{id}) - hard delete (V2 Stage 1; Microsoft To Do sync in Stage 2, M7)
 // ---------------------------------------------------------------------------------------------
 
 export const TASK_STATUSES = ['open', 'done'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export const taskStatusSchema = z.enum(TASK_STATUSES);
+
+/** Where a task came from. 'todo' = imported from Microsoft To Do (never created here). */
+export const TASK_SOURCES = ['manual', 'ai_chat', 'whatsapp', 'todo'] as const;
+export type TaskSource = (typeof TASK_SOURCES)[number];
+export const taskSourceSchema = z.enum(TASK_SOURCES);
+
+/**
+ * Link to the copy of a task in Microsoft To Do. `todoListId` is set as soon as the user (or the
+ * default list) chose where the task goes; `todoTaskId` only once the task exists in To Do.
+ * `todoUpdatedAt` is Graph's lastModifiedDateTime of the copy we last saw (conflict resolution).
+ */
+export interface TaskExternalRefs {
+  todoListId: string | null;
+  todoTaskId: string | null;
+  todoUpdatedAt: string | null;
+}
+
+export const taskExternalRefsSchema = z.object({
+  todoListId: z.string().min(1).max(512).nullable(),
+  todoTaskId: z.string().min(1).max(512).nullable(),
+  todoUpdatedAt: utcIsoSchema.nullable(),
+});
+
+export const EMPTY_TASK_EXTERNAL_REFS: Readonly<TaskExternalRefs> = Object.freeze({
+  todoListId: null,
+  todoTaskId: null,
+  todoUpdatedAt: null,
+});
+
+/** True once the task has a copy in Microsoft To Do. */
+export function isTodoLinked(task: Pick<Task, 'external'>): boolean {
+  return task.external.todoTaskId !== null;
+}
 
 export const TASK_LIMITS = {
   maxTitleChars: 200,
@@ -1039,6 +1082,8 @@ export interface Task {
   people: TaskPerson[];
   /** Set exactly while status is 'done'. */
   completedAt: string | null;
+  source: TaskSource;
+  external: TaskExternalRefs;
   createdAt: string;
   updatedAt: string;
 }
@@ -1056,6 +1101,8 @@ const taskShapeSchema = z.object({
   meetingId: meetingIdSchema.nullable(),
   people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople),
   completedAt: utcIsoSchema.nullable(),
+  source: taskSourceSchema,
+  external: taskExternalRefsSchema,
   createdAt: utcIsoSchema,
   updatedAt: utcIsoSchema,
 });
@@ -1081,6 +1128,8 @@ export interface TaskInput {
   reminderMinutesBefore?: number | null;
   meetingId?: string | null;
   people?: TaskPerson[];
+  /** Microsoft To Do list the task should go to (null = the default list, or none when To Do is off). */
+  todoListId?: string | null;
 }
 
 export const taskInputSchema = z.object({
@@ -1092,11 +1141,18 @@ export const taskInputSchema = z.object({
   reminderMinutesBefore: z.number().int().min(0).max(TASK_LIMITS.maxReminderMinutes).nullable().optional(),
   meetingId: meetingIdSchema.nullable().optional(),
   people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople).optional(),
+  todoListId: z.string().min(1).max(512).nullable().optional(),
 });
 
-/** Patch semantics: undefined = keep, null = clear. Completing goes through `status`. */
-export type TaskPatch = Partial<TaskInput> & { status?: TaskStatus };
-export const taskPatchSchema = taskInputSchema.partial().extend({ status: taskStatusSchema.optional() });
+/**
+ * Patch semantics: undefined = keep, null = clear. Completing goes through `status`. `external`
+ * is for the To Do sync engine only (link write-backs); `todoListId` moves the task to another
+ * list (the engine re-creates it there, Graph cannot move tasks).
+ */
+export type TaskPatch = Partial<TaskInput> & { status?: TaskStatus; external?: Partial<TaskExternalRefs> };
+export const taskPatchSchema = taskInputSchema
+  .partial()
+  .extend({ status: taskStatusSchema.optional(), external: taskExternalRefsSchema.partial().optional() });
 
 /**
  * Due fields are normalized instead of rejected (clearing the date also clears the time and the
@@ -1110,7 +1166,10 @@ function normalizeDue(task: Pick<Task, 'dueDate' | 'dueTime' | 'reminderMinutesB
   return { dueDate, dueTime, reminderMinutesBefore };
 }
 
-export function buildTask(input: TaskInput, ctx: { id: string; userId: string; timezone: string; now: DateInput }): Task {
+export function buildTask(
+  input: TaskInput,
+  ctx: { id: string; userId: string; timezone: string; now: DateInput; source?: TaskSource },
+): Task {
   const parsed = taskInputSchema.safeParse(input);
   if (!parsed.success) throw zodToAppError(parsed.error, 'task input');
   const v = parsed.data;
@@ -1132,6 +1191,8 @@ export function buildTask(input: TaskInput, ctx: { id: string; userId: string; t
     meetingId: v.meetingId ?? null,
     people: v.people ?? [],
     completedAt: null,
+    source: ctx.source ?? 'manual',
+    external: { ...EMPTY_TASK_EXTERNAL_REFS, todoListId: v.todoListId ?? null },
     createdAt: nowIso,
     updatedAt: nowIso,
   };
@@ -1162,6 +1223,11 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: DateInput): Ta
     meetingId: v.meetingId !== undefined ? v.meetingId : task.meetingId,
     people: v.people ?? task.people,
     completedAt: status === 'done' ? (task.status === 'done' ? task.completedAt : nowIso) : null,
+    external: {
+      ...task.external,
+      ...(v.external ?? {}),
+      ...(v.todoListId !== undefined ? { todoListId: v.todoListId } : {}),
+    },
     updatedAt: nowIso,
   };
   const checked = taskSchema.safeParse(next);
@@ -1179,6 +1245,8 @@ const taskDocReadSchema = taskShapeSchema.omit({ id: true }).extend({
   meetingId: meetingIdSchema.nullable().default(null),
   people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople).default([]),
   completedAt: utcIsoSchema.nullable().default(null),
+  source: taskSourceSchema.default('manual'),
+  external: taskExternalRefsSchema.default({ ...EMPTY_TASK_EXTERNAL_REFS }),
 });
 
 /** Reads leniently and repairs cross-field drift (rules enforce the invariants on write). */
