@@ -599,6 +599,20 @@ describe('flushOutlookPushes', () => {
     expect(Object.keys(state.value.pending)).toHaveLength(0);
   });
 
+  it('skips a held meeting (Zoom link on its way) and keeps it queued', async () => {
+    const { meetings, state, deps } = setup();
+    const m1 = meetings.add({ title: 'One', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' });
+    const m2 = meetings.add({ title: 'Two', startAt: '2026-10-04T09:00:00.000Z', source: 'manual' });
+    await enqueueOutlookPushes(deps, [m1.id, m2.id], 'upsert');
+
+    deps.holdPush = (meetingId) => meetingId === m1.id;
+    expect(await flushOutlookPushes(deps)).toMatchObject({ pushed: 1, failed: 0, pending: 1, blockedBy: null });
+    expect(Object.keys(state.value.pending)).toEqual([m1.id]);
+
+    deps.holdPush = () => false;
+    expect(await flushOutlookPushes(deps)).toMatchObject({ pushed: 1, pending: 0 });
+  });
+
   it('a blocking error stops the flush and keeps everything queued', async () => {
     const { api, meetings, state, deps } = setup();
     const m1 = meetings.add({ title: 'One', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' });

@@ -946,6 +946,18 @@ their own Zoom accounts and the app never sees Zoom credentials.
   `onMeetingDeleted(meeting)`. The AI executor treats provider-zoom create/update the same way
   after executing the confirmed action. A pasted link always wins; `ensureLink` is never called
   when a url exists.
+- **One invitation email** (push hold, `src/core/pushHold.ts`): the link is written server-side
+  seconds after the meeting is saved, and the calendar engine had already pushed the meeting on
+  Save, so attendees got an invitation without the link followed by an "updated invitation"
+  with it (user report, 2026-10-30). `ensureLink` now HOLDS the meeting id on
+  `calendarPushHold` for the whole call: the engine's debounced flush keeps held ids in its
+  local queues and the persisted Google and Outlook queues skip them (`holdPush` dep), the
+  device export too. When the call settles, link or failure, the service re-announces the
+  meeting as a local change (`meetings:changed`, origin user) and releases the hold; the engine
+  flushes on the release, so ONE insert goes out carrying the join link (or none, after a
+  failure). Holds nest and expire on their own after `PUSH_HOLD_MAX_MS` (30 s, longer than
+  the callable timeout), so a lost release can never block a push. Edits made during the hold
+  ride along in the same push.
 - **"This and following" semantics** (§16 split of a zoom series): the server-created Zoom
   meeting ATTACHES TO THE ORIGINAL MASTER. The tail is built with `conference.url`/`password`
   nulled whenever the master has provider zoom AND an `external.zoomMeetingId`

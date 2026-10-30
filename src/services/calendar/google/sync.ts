@@ -78,6 +78,8 @@ export interface GoogleSyncDeps {
   /** Localized "(No title)". */
   untitledTitle(): string;
   sleep(ms: number): Promise<void>;
+  /** true while the meeting waits for its Zoom link: its queued push is skipped, not dropped. */
+  holdPush?(meetingId: string): boolean;
 }
 
 function updatedIso(event: GoogleEvent): string | null {
@@ -615,6 +617,8 @@ export async function flushGooglePushes(deps: GoogleSyncDeps): Promise<FlushResu
   const byId = new Map(locals.map((meeting) => [meeting.id, meeting]));
 
   for (const [meetingId, entry] of entries) {
+    // Waiting for its Zoom link (core/pushHold.ts): stays queued for the flush after the release.
+    if (deps.holdPush?.(meetingId) === true) continue;
     const meeting = byId.get(meetingId);
     try {
       if (meeting) {

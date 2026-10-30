@@ -19,6 +19,7 @@ import type { OutlookCalendarService } from '../../../core/contracts';
 import { toAppError } from '../../../core/errors';
 import { appEvents } from '../../../core/events';
 import { createLogger } from '../../../core/logger';
+import { calendarPushHold } from '../../../core/pushHold';
 import { getDeviceTimeZone } from '../../../core/time';
 import { t } from '../../../i18n';
 import { clearMicrosoftToken, getMicrosoftRefreshToken, saveMicrosoftRefreshToken } from '../../auth/microsoftTokens';
@@ -85,6 +86,7 @@ export const outlookInternal: OutlookCalendarServiceInternal = createOutlookCale
   sleep,
   defaultTimeZone: getDeviceTimeZone,
   untitledTitle: () => t('calendar:outlook.untitledEvent'),
+  holdPush: calendarPushHold.isHeld,
   config: { clientId: env.msal.clientId, tenant: env.msal.tenant },
 });
 

@@ -45,6 +45,11 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+- **One invitation email for Zoom meetings**: a meeting saved with an automatic Zoom link was
+  pushed to Google/Outlook at once and again seconds later when the link landed, so attendees got
+  an invitation without the link followed by an "updated invitation" with it. The calendar pushes
+  now wait for the link (held at most 30 s, released on success or failure), so one invitation goes
+  out with the join link in it.
 - **Alarm voice readout on Android**: a MAX alert fired by the native full-screen alarm while the
   app was closed opened the app on the meeting page only, without the in-app alarm (sound loop,
   spoken readout, snooze). The native module now records fired alarms with their payload and the

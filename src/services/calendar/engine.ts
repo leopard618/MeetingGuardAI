@@ -12,6 +12,9 @@
  *   at a time; calls made while a run is in flight are coalesced into ONE follow-up run that
  *   starts when it ends (the running one read its preferences when it started, so a settings
  *   change during it must not be lost).
+ * - A meeting held by the push hold (core/pushHold.ts: its Zoom link is being created) stays in
+ *   the local queues until the hold is released, so attendees get one invitation email that
+ *   already has the join link. The persisted Google/Outlook queues skip held ids the same way.
  * - Tasks (tasks:changed, origin 'user' | 'ai') are queued for Microsoft To Do the same way.
  *   While the app is active, To Do is also pulled on its own every TODO_FOREGROUND_INTERVAL_MS so
  *   a task completed in To Do silences its reminder here within a minute.
@@ -26,6 +29,7 @@ import type {
 import { AppError, toAppError } from '../../core/errors';
 import type { AppEventMap, EventBus, MeetingsChangedEvent, PreferencesChangedEvent, TasksChangedEvent, Unsubscribe } from '../../core/events';
 import { createLogger } from '../../core/logger';
+import type { PushHold } from '../../core/pushHold';
 import type { Preferences } from '../../core/types';
 import type { TodoSyncServiceInternal } from '../tasks/todo/service';
 import type { TodoQueueItem } from '../tasks/todo/sync';
@@ -53,6 +57,8 @@ export interface EngineDeps {
   /** Registered only when EXPO_PUBLIC_MSAL_CLIENT_ID is set (todoInternal.isConfigured()). */
   todo?: TodoSyncServiceInternal;
   preferences: Pick<PreferencesRepository, 'get'>;
+  /** Meetings waiting for their Zoom link are not pushed until released (core/pushHold.ts). */
+  pushHold?: Pick<PushHold, 'isHeld' | 'onRelease'>;
   getActiveUid(): string | null;
   status: CalendarStatusStore;
   events: EventBus<AppEventMap>;
@@ -164,6 +170,16 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     }, PUSH_DEBOUNCE_MS);
   }
 
+  /** Held meetings (Zoom link on its way) stay queued; the hold's release flushes them. */
+  function isHeld(meetingId: string): boolean {
+    return deps.pushHold?.isHeld(meetingId) === true;
+  }
+
+  function onHoldReleased(meetingId: string): void {
+    if (uid === null) return;
+    if (pendingGoogle.has(meetingId) || pendingOutlook.has(meetingId) || pendingDevice.has(meetingId)) scheduleFlush();
+  }
+
   async function flushLocalChanges(): Promise<void> {
     if (flushing) {
       await flushing;
@@ -172,12 +188,12 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     const gen = generation;
     const run = (async () => {
       const prefs = await currentPreferences();
-      const googleBatch = [...pendingGoogle.entries()];
-      pendingGoogle.clear();
-      const outlookBatch = [...pendingOutlook.entries()];
-      pendingOutlook.clear();
-      const deviceBatch = [...pendingDevice];
-      pendingDevice.clear();
+      const googleBatch = [...pendingGoogle.entries()].filter(([id]) => !isHeld(id));
+      for (const [id] of googleBatch) pendingGoogle.delete(id);
+      const outlookBatch = [...pendingOutlook.entries()].filter(([id]) => !isHeld(id));
+      for (const [id] of outlookBatch) pendingOutlook.delete(id);
+      const deviceBatch = [...pendingDevice].filter((id) => !isHeld(id));
+      for (const id of deviceBatch) pendingDevice.delete(id);
       const todoBatch = [...pendingTodo.values()];
       pendingTodo.clear();
 
@@ -511,6 +527,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
         deps.events.on('tasks:changed', (event) => onTaskChanged(event)),
         deps.events.on('preferences:changed', (event) => onPreferencesChanged(event)),
       ];
+      if (deps.pushHold) subscriptions.push(deps.pushHold.onRelease(onHoldReleased));
       if (deps.appState) {
         subscriptions.push(
           deps.appState.subscribe((state) => {

@@ -1,6 +1,7 @@
 import type { CalendarPullResult } from '../../../core/contracts';
 import { AppError } from '../../../core/errors';
 import { createEventBus, type AppEventMap, type MeetingsChangedEvent } from '../../../core/events';
+import { createPushHold } from '../../../core/pushHold';
 import { createDefaultPreferences, type Preferences } from '../../../core/types';
 import type { DeviceCalendarServiceInternal } from '../device/service';
 import { createCalendarSyncEngine, isPushableChange, PUSH_DEBOUNCE_MS } from '../engine';
@@ -19,7 +20,7 @@ function pullResult(provider: 'google' | 'device'): CalendarPullResult {
   };
 }
 
-function setup(prefs: Partial<Preferences> = {}) {
+function setup(prefs: Partial<Preferences> = {}, extra: { pushHold?: ReturnType<typeof createPushHold> } = {}) {
   const preferences: Preferences = { ...createDefaultPreferences(), googleCalendarSyncEnabled: true, ...prefs };
   const google = {
     isConnected: jest.fn(async () => true),
@@ -57,6 +58,7 @@ function setup(prefs: Partial<Preferences> = {}) {
     google,
     device,
     preferences: { get: async () => preferences },
+    pushHold: extra.pushHold,
     getActiveUid: () => UID,
     status,
     events,
@@ -127,6 +129,31 @@ describe('calendarSyncEngine', () => {
     expect(google.enqueue).toHaveBeenCalledWith(['m1'], 'upsert');
     expect(google.enqueue).toHaveBeenCalledWith(['m2'], 'delete');
     expect(google.flushPending).toHaveBeenCalledTimes(1);
+    engine.stop();
+  });
+
+  it('keeps a held meeting (Zoom link on its way) out of the flush until its release', async () => {
+    const pushHold = createPushHold();
+    const { engine, google, device, events } = setup({ deviceCalendarExportId: 'dabcdefghij12.3' }, { pushHold });
+    engine.start(UID);
+    await jest.runAllTimersAsync();
+
+    const release = pushHold.hold('m1');
+    events.emit('meetings:changed', change({ changedIds: ['m1'], reason: 'created' }));
+    events.emit('meetings:changed', change({ changedIds: ['m2'] }));
+    await jest.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS);
+    await settle();
+    // m1 is persisted (survives a kill) but neither flushed to Google nor exported; m2 goes out.
+    expect(google.enqueue).toHaveBeenCalledWith(['m1'], 'upsert');
+    expect(google.enqueue).toHaveBeenCalledWith(['m2'], 'upsert');
+    expect(google.flushPending).toHaveBeenCalledTimes(1);
+    expect(device.syncExports).toHaveBeenCalledWith({ meetingIds: ['m2'] });
+
+    release();
+    await jest.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS);
+    await settle();
+    expect(google.flushPending).toHaveBeenCalledTimes(2);
+    expect(device.syncExports).toHaveBeenCalledWith({ meetingIds: ['m1'] });
     engine.stop();
   });
 

@@ -299,6 +299,22 @@ describe('flushGooglePushes', () => {
     expect(Object.keys(state.value.pending)).toHaveLength(0);
   });
 
+  it('skips a held meeting (Zoom link on its way) and keeps it queued', async () => {
+    const { api, meetings, state, deps } = setup();
+    const a = meetings.add({ title: 'A', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' });
+    const b = meetings.add({ title: 'B', startAt: '2026-10-03T11:00:00.000Z', source: 'manual' });
+    await enqueueGooglePushes(deps, [a.id, b.id], 'upsert');
+
+    deps.holdPush = (meetingId) => meetingId === a.id;
+    expect(await flushGooglePushes(deps)).toMatchObject({ pushed: 1, failed: 0, pending: 1, blockedBy: null });
+    expect(Object.keys(state.value.pending)).toEqual([a.id]);
+    expect(api.calls.filter((call) => call.method === 'insert')).toHaveLength(1);
+
+    deps.holdPush = () => false;
+    expect(await flushGooglePushes(deps)).toMatchObject({ pushed: 1, pending: 0 });
+    expect(api.calls.filter((call) => call.method === 'insert')).toHaveLength(2);
+  });
+
   it('retries transient failures and drops permanent ones', async () => {
     const { api, meetings, state, deps } = setup();
     const a = meetings.add({ title: 'A', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' });

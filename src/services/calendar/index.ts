@@ -28,6 +28,7 @@ import { toAppError } from '../../core/errors';
 import { appEvents, type Unsubscribe } from '../../core/events';
 import { GLOBAL_STORAGE_KEYS } from '../../core/identifiers';
 import { createLogger } from '../../core/logger';
+import { calendarPushHold } from '../../core/pushHold';
 import { getDeviceTimeZone } from '../../core/time';
 import { t } from '../../i18n';
 import { authService } from '../auth/authService';
@@ -111,6 +112,7 @@ const googleInternal = createGoogleCalendarService({
   sleep,
   defaultTimeZone: getDeviceTimeZone,
   untitledTitle,
+  holdPush: calendarPushHold.isHeld,
 });
 
 const deviceInternal = createDeviceCalendarService({
@@ -148,6 +150,7 @@ const engine = createCalendarSyncEngine({
   outlook: outlookInternal.isConfigured() ? outlookInternal : undefined,
   todo: todoInternal.isConfigured() ? todoInternal : undefined,
   preferences: preferencesRepository,
+  pushHold: calendarPushHold,
   getActiveUid: getUid,
   status,
   events: appEvents,
