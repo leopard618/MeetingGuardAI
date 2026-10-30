@@ -40,7 +40,19 @@ const QUALIFIERS: ReadonlySet<string> = new Set([
   // Spanish
   'pero', 'excepto', 'salvo', 'solo', 'sólo', 'mejor', 'cambia', 'cambiar', 'cambialo', 'cámbialo',
   'mueve', 'mover', 'muevelo', 'muévelo', 'antes', 'después', 'despues', 'también', 'tambien',
-  'agrega', 'añade', 'anade', 'quita', 'otro', 'otra', 'sin', 'si',
+  'agrega', 'añade', 'anade', 'quita', 'otro', 'otra', 'sin',
+]);
+
+/**
+ * Words that only restate a yes or a no. "si" is both the common unaccented "yes" and "if": it
+ * qualifies the answer only when a condition follows it ("sí si es a las 9"), never alone or next
+ * to another consent word ("si", "ok si", "si claro", "si por favor").
+ */
+const CONSENT_WORDS: ReadonlySet<string> = new Set([
+  'yes', 'yeah', 'yep', 'ok', 'okay', 'sure', 'confirm', 'confirmed', 'please', 'go', 'ahead', 'do', 'it', 'thanks', 'thank', 'you',
+  'no', 'nope', 'cancel',
+  'sí', 'si', 'claro', 'vale', 'dale', 'adelante', 'confirmo', 'confirmar', 'confirmado', 'por', 'favor', 'hazlo', 'gracias',
+  'cancela', 'cancelar',
 ]);
 
 function words(text: string): string[] {
@@ -55,7 +67,12 @@ function words(text: string): string[] {
 export function isPlainConsent(text: string): boolean {
   const tokens = words(text);
   if (tokens.length === 0 || tokens.length > CONSENT_MAX_WORDS) return false;
-  return !tokens.some((token) => QUALIFIERS.has(token));
+  return !tokens.some((token, index) => {
+    if (QUALIFIERS.has(token)) return true;
+    if (token !== 'si' && token !== 'sí') return false;
+    const next = tokens[index + 1];
+    return next !== undefined && !CONSENT_WORDS.has(next);
+  });
 }
 
 const MOVE_QUESTION = {

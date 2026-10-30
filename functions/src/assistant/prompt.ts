@@ -369,7 +369,7 @@ export function composeListAnswer(
 // Server-generated fallback texts (used when the model returns tool calls without a reply)
 // ---------------------------------------------------------------------------------------------
 
-export type FallbackKind = 'actions' | 'followup' | 'empty' | 'need_details' | 'resolve_confirm' | 'resolve_reject';
+export type FallbackKind = 'actions' | 'followup' | 'empty' | 'need_details' | 'resolve_confirm' | 'resolve_reject' | 'resolve_tap';
 
 const FALLBACK_TEXT: Readonly<Record<Language, Record<FallbackKind, string>>> = {
   en: {
@@ -379,6 +379,7 @@ const FALLBACK_TEXT: Readonly<Record<Language, Record<FallbackKind, string>>> = 
     need_details: 'I could not prepare that yet - a detail like the exact date or start time is missing. Could you give it to me? For example: "tomorrow at 4pm".',
     resolve_confirm: 'Got it, confirming it now.',
     resolve_reject: 'Okay, I dismissed it. Nothing was changed.',
+    resolve_tap: 'I have not applied that yet. Tap Confirm on the proposal below, or tell me what to change.',
   },
   es: {
     actions: 'Preparé lo siguiente para ti. Revísalo y confírmalo.',
@@ -387,6 +388,7 @@ const FALLBACK_TEXT: Readonly<Record<Language, Record<FallbackKind, string>>> = 
     need_details: 'Aún no pude prepararlo: falta algún detalle como la fecha o la hora exacta. ¿Me lo puedes dar? Por ejemplo: "mañana a las 4".',
     resolve_confirm: 'Entendido, lo confirmo ahora.',
     resolve_reject: 'Vale, lo descarté. No se cambió nada.',
+    resolve_tap: 'Aún no lo apliqué. Toca Confirmar en la propuesta de abajo o dime qué cambiar.',
   },
 };
 

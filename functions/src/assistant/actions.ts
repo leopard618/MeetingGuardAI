@@ -884,5 +884,9 @@ export function mapToolCalls(toolCalls: readonly ToolCall[], ctx: MappingContext
     }
   }
   linkPendingMeetings(actions);
+  // A task linked to a meeting created in the same reply runs after that meeting exists; the
+  // model's tool-call order is not guaranteed. Stable sort: everything else keeps its order.
+  const rank = (action: AiAction): number => (action.type === 'create_task' && action.task.meetingActionId !== undefined ? 1 : 0);
+  actions.sort((a, b) => rank(a) - rank(b));
   return { actions, suggestions, resolution, dropped };
 }

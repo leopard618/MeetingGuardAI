@@ -1066,6 +1066,7 @@ describe('tasks and the Microsoft To Do list (M7)', () => {
   it('creates assistant tasks with origin ai so they count as ai_chat', async () => {
     const { executor, tasks } = todoSetup(null);
     expectDone(await executor.execute(action));
-    expect(tasks.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Prepare the proposal' }), { origin: 'ai' });
+    // The deterministic id makes a retry after a crash find the task instead of creating a twin.
+    expect(tasks.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Prepare the proposal' }), { origin: 'ai', id: expect.stringMatching(/^ai_/) });
   });
 });

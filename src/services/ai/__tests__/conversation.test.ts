@@ -10,6 +10,7 @@ import {
   createEmptyThread,
   detectFailedRequest,
   reviveThread,
+  selectLatestPendingActionIds,
   selectPendingActionIds,
   threadReducer,
   trimThread,
@@ -194,6 +195,24 @@ describe('threadReducer', () => {
       messages: [message('a1', 'assistant', 'x', { actionIds: [a.id, b.id] }), message('a2', 'assistant', 'y', { actionIds: [c.id] })],
       actions: { [c.id]: proposed(c), [a.id]: proposed(a), [b.id]: proposed(b) },
     };
+    expect(selectPendingActionIds(thread)).toEqual(['a1-1', 'a2-1']);
+  });
+
+  it('scopes a plain "yes" to the newest reply that proposed something', () => {
+    const a = createAction('a1-1');
+    const c = deleteAction('a2-1', 'm1');
+    const thread: ThreadState = {
+      ...createEmptyThread(),
+      messages: [
+        message('a1', 'assistant', 'x', { actionIds: [a.id] }),
+        message('u2', 'user', 'and what about Ana?'),
+        message('a2', 'assistant', 'y', { actionIds: [c.id] }),
+        message('a3', 'assistant', 'anything else?'),
+      ],
+      actions: { [a.id]: proposed(a), [c.id]: proposed(c) },
+    };
+    // The delete proposed five turns ago must not run on a yes to the newest question.
+    expect(selectLatestPendingActionIds(thread)).toEqual(['a2-1']);
     expect(selectPendingActionIds(thread)).toEqual(['a1-1', 'a2-1']);
   });
 

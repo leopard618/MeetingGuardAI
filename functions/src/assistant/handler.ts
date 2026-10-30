@@ -258,6 +258,11 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       const namesOne = items.some((item) => item.title.trim().length > 0 && lower.includes(item.title.trim().toLowerCase()));
       if (items.length > 0 && !namesOne) reply = reply + " " + listAnswer;
     }
+    if (resolutionBlocked) {
+      // The model took a qualified answer for consent and nothing was applied: its own
+      // "confirming it now" sentence would be a lie. Say what to do instead.
+      reply = fallbackReply(request.language, 'resolve_tap');
+    }
     if (reply.length === 0) {
       // Every proposal the model made was dropped (e.g. a timed meeting without a time): tell
       // the user WHAT is missing instead of a useless "couldn't generate a response" loop.

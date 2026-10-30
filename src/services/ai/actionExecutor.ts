@@ -39,7 +39,7 @@ import { AppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import type { Meeting, MeetingPatch, Task, TaskInput, TaskPatch } from '../../core/types';
 
-import { actionIdempotencyKey, aiMeetingIdForAction } from './ids';
+import { actionIdempotencyKey, aiMeetingIdForAction, aiTaskIdForAction } from './ids';
 import {
   changesToPatch,
   draftToCreateInput,
@@ -518,6 +518,7 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     const alreadyDone = new Set(await deps.executed.getProgress(uid, key));
     const updatedIds: string[] = [...alreadyDone];
     const skipped: string[] = [];
+    const failures: AppError[] = [];
     let meetRequested = 0;
     let meetCreated = 0;
     let meetError: AppErrorCode | null = null;
@@ -538,7 +539,21 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
         }
         patch.startAt = startAt;
       }
-      const updated = await deps.meetings.update(id, patch, { origin: 'ai' });
+      let updated: Meeting;
+      try {
+        updated = await deps.meetings.update(id, patch, { origin: 'ai' });
+      } catch (error) {
+        // One meeting failing must not hide the ones already moved: the card reports it as
+        // skipped and the rest go on (a retry is idempotent through the progress record).
+        const appError = toAppError(error);
+        // Offline or a flaky server: nothing after this one would succeed either, so the whole
+        // action fails and a later retry resumes from the progress record.
+        if (appError.retryable) throw appError;
+        log.warn('bulk update: one meeting failed', { meetingId: id, code: appError.code });
+        failures.push(appError);
+        skipped.push(id);
+        continue;
+      }
       updatedIds.push(id);
       await deps.executed.markProgress(uid, key, id);
       zoomHooks(updated, patch);
@@ -551,6 +566,8 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     }
 
     if (updatedIds.length === 0) {
+      const first = failures[0];
+      if (first !== undefined) throw first;
       throw new AppError('not_found', 'None of the meetings could be updated', { details: { skipped: skipped.length } });
     }
     const result: AiDoneResult = { status: 'done', actionId: action.id, type: action.type, meetingIds: updatedIds, duplicate: false };
@@ -617,7 +634,7 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
     action: Extract<AiAction, { type: 'create_task' }>,
     linkedMeetingId?: string | null,
   ): Promise<AiDoneResult> {
-    const task = await tasksPort().create(taskDraftToInput(action.task, linkedMeetingId), { origin: 'ai' });
+    const task = await tasksPort().create(taskDraftToInput(action.task, linkedMeetingId), { origin: 'ai', id: aiTaskIdForAction(action) });
     return { status: 'done', actionId: action.id, type: action.type, meetingIds: [], taskIds: [task.id], duplicate: false };
   }
 

@@ -29,6 +29,7 @@ import {
   buildRequestMessages,
   createEmptyThread,
   detectFailedRequest,
+  selectLatestPendingActionIds,
   selectPendingActionIds,
   threadReducer,
   type ThreadEvent,
@@ -156,7 +157,7 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
       // confirm", in any wording) resolves them instead of producing duplicates.
       const pendingActions =
         kind.mode === 'chat'
-          ? selectPendingActionIds(snapshot.thread)
+          ? selectLatestPendingActionIds(snapshot.thread)
               .flatMap((actionId) => {
                 const state = snapshot.thread.actions[actionId];
                 return state && state.status === 'proposed' && state.action.summary.length > 0
@@ -196,9 +197,9 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
       // then run through exactly the same paths as the on-screen buttons.
       const resolution = pendingActions.length > 0 && actions.length === 0 ? (response.resolution ?? null) : null;
       if (resolution === 'confirm') {
-        await confirmAll();
+        await confirmLatest();
       } else if (resolution === 'reject') {
-        for (const actionId of selectPendingActionIds(snapshot.thread)) reject(actionId);
+        for (const actionId of selectLatestPendingActionIds(snapshot.thread)) reject(actionId);
       }
       const newIds = new Set(actions.map((a) => a.id));
       void previewAll((id) => newIds.has(id));
@@ -374,8 +375,17 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
   }
 
   async function confirmAll(): Promise<ActionResult[]> {
+    return confirmIds(selectPendingActionIds(snapshot.thread));
+  }
+
+  /** The newest reply's proposals only (plain consent, typed or spoken). */
+  async function confirmLatest(): Promise<ActionResult[]> {
+    return confirmIds(selectLatestPendingActionIds(snapshot.thread));
+  }
+
+  async function confirmIds(actionIds: readonly string[]): Promise<ActionResult[]> {
     const results: ActionResult[] = [];
-    for (const actionId of selectPendingActionIds(snapshot.thread)) {
+    for (const actionId of actionIds) {
       // Sequential on purpose: later actions may depend on earlier ones (create, then share).
       const state = snapshot.thread.actions[actionId];
       if (!state || state.status !== 'proposed') continue;
@@ -411,6 +421,7 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
     retry,
     confirm,
     confirmAll,
+    confirmLatest,
     reject,
     reset,
     refreshPreviews: () => previewAll(() => true),

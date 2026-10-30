@@ -156,6 +156,10 @@ export interface AssistantHookResult extends UseAssistantResult {
   pendingActionIds: string[];
   /** Confirms every pending action in order; resolves with each result. */
   confirmAll(): Promise<ActionResult[]>;
+  /** Confirms the newest reply's pending actions only (what a plain "yes" means). */
+  confirmLatest(): Promise<ActionResult[]>;
+  /** Confirms the newest reply's pending actions only (what a plain "yes" means). */
+  confirmLatest(): Promise<ActionResult[]>;
   followUpInFlight: string | null;
   /** Meetings whose follow-up was already requested (the start button is hidden for them). */
   followUpsRequested: string[];
@@ -171,6 +175,8 @@ export interface AssistantController {
   retry(): Promise<void>;
   confirm(actionId: string): Promise<ActionResult>;
   confirmAll(): Promise<ActionResult[]>;
+  /** Confirms the newest reply's pending actions only (what a plain "yes" means). */
+  confirmLatest(): Promise<ActionResult[]>;
   reject(actionId: string): void;
   reset(): Promise<void>;
   /** Recomputes previews of actions that can still run (after data changes). */

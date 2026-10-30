@@ -61,6 +61,15 @@ export function actionIdempotencyKey(action: AiAction): string {
   return `${action.id}#${contentHash(action)}`;
 }
 
+/**
+ * Deterministic task id for a create_task action: a retry after a crash between the create and
+ * its idempotency record finds the task instead of creating a second one. Same derivation as the
+ * meeting id (tasks live in their own collection, so the two never collide).
+ */
+export function aiTaskIdForAction(action: AiAction): string {
+  return aiMeetingIdForAction(action);
+}
+
 /** Deterministic meeting id for a create_meeting action (always matches MEETING_ID_PATTERN). */
 export function aiMeetingIdForAction(action: AiAction): string {
   const safeId = action.id.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 48);

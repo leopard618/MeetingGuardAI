@@ -41,6 +41,7 @@ export function useAssistantController(controller: AssistantController, options:
       startFollowUp: controller.startFollowUp,
       confirm: controller.confirm,
       confirmAll: controller.confirmAll,
+      confirmLatest: controller.confirmLatest,
       reject: controller.reject,
       retry: controller.retry,
       reset: controller.reset,

@@ -4,7 +4,11 @@ import type { AiAction } from '../../src/shared/aiContract';
 
 describe('isPlainConsent (server backstop for "an unclear reply never executes")', () => {
   it('accepts plain consent and plain refusal in both languages', () => {
-    for (const text of ['yes', 'Yes, I confirm.', 'ok go ahead', 'sure, do it', 'no', 'cancel', 'sí, confirmo', 'vale', 'no, cancela']) {
+    for (const text of [
+      'yes', 'Yes, I confirm.', 'ok go ahead', 'sure, do it', 'no', 'cancel', 'sí, confirmo', 'vale', 'no, cancela',
+      // Unaccented "si" is the common typed yes; it only means "if" when a condition follows it.
+      'si', 'Si', 'si claro', 'ok si', 'si por favor', 'si, confirmo',
+    ]) {
       expect(isPlainConsent(text)).toBe(true);
     }
   });
@@ -17,6 +21,8 @@ describe('isPlainConsent (server backstop for "an unclear reply never executes")
       'yes and add Ana',
       'sí pero más tarde',
       'confirma solo la reunión',
+      'sí si es a las 9',
+      'si solo la primera',
     ]) {
       expect(isPlainConsent(text)).toBe(false);
     }

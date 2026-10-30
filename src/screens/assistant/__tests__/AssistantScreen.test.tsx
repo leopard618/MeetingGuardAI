@@ -97,6 +97,7 @@ function assistantState(overrides: Partial<AssistantHookResult> = {}): Assistant
       }),
     ),
     confirmAll: jest.fn(async () => []),
+    confirmLatest: jest.fn(async () => []),
     reject: jest.fn(),
     retry: jest.fn(async () => undefined),
     reset: jest.fn(async () => undefined),

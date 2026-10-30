@@ -193,7 +193,8 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
     setConfirming(true);
     let results: ActionResult[] = [];
     try {
-      results = await assistant.confirmAll();
+      // A spoken "yes" answers the newest proposal, like a typed one; older cards keep waiting.
+      results = await assistant.confirmLatest();
     } finally {
       setConfirming(false);
     }
