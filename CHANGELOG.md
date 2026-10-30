@@ -45,6 +45,52 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+Code audit of October 30, 2026 (docs/v2/AUDIT-2026-10-30.md has the full list and the
+countermeasures that need a device run):
+
+- **Dashboard and list jank with daily series**: recurring meetings were re-expanded over a year
+  on every 30 s clock tick, and every time-zone check built a new Intl formatter. Expansions are
+  now keyed on the local day, the zone validity and the device zone are cached, and daily/weekly
+  rules start iterating near the window instead of at the anchor.
+- **Outlook, fresh install or second device**: the first pull could import this user's own pushed
+  events as foreign meetings (duplicates whose deletion deleted the real event). Own events are
+  recognised by their transactionId and the session-start pull waits for the server's meetings.
+- **Outlook all-day events east of UTC** arrived one day early (Graph converts all-day midnights
+  to UTC); the calendar date is now taken correctly.
+- **Outlook invitations for hybrid meetings** (address plus video link) carried no join link; the
+  link now travels in the body like it does for Google, and is stripped again on import.
+- **Google and Outlook connect** wiped the queued pushes, so edits and deletes made while the
+  connection was lost never reached the calendar; the queue now survives a reconnect.
+- **Edits pulled from one calendar reach the other** for meetings linked to both (a meeting moved
+  in Google Calendar is moved in Outlook too).
+- **Google 412 on an attendee RSVP** dropped the local edit; an invisible remote change now
+  retries the write, and "this and following" masters Google derives from ours are recognised.
+- **Microsoft To Do**: the public tasks repository dropped the write options, so imports lost
+  their deterministic id and source (Stop sync left them behind, duplicates on restart); links are
+  learned on import so Change list leaves one copy; a reminder after the due date keeps its instant;
+  date-only values at UTC+13 no longer shift; a 403 on one task no longer blocks the whole sync;
+  disconnecting Outlook turns the To Do sync off.
+- **Microsoft sign-in**: a token refresh still in flight at sign-out could re-store the token or
+  hand it to the next user; a keystore write failure while rotating the token no longer counts as
+  a revoked consent.
+- **Assistant**: a typed "si" (no accent) never executed while the reply said it was confirming;
+  a plain "yes" now resolves the newest proposal only, not every card in the thread; a bulk move
+  that fails on one meeting reports the rest as done; assistant tasks get a deterministic id (no
+  twins on retry); an exhausted OpenAI quota is logged as configuration, not as traffic; a task
+  linked to a meeting created in the same reply runs after the meeting.
+- **Data layer**: preferences written by an older build no longer reset keys it does not know;
+  transaction contention is retried instead of dropped; one stuck document no longer blocks every
+  other write for up to an hour; an unreadable outbox row no longer blocks the session; the
+  Android AsyncStorage limit is raised to 50 MB (plugins/withAsyncStorageDbSize.js).
+- **Alerts**: the iOS pending budget now accounts for task reminders and briefings (64 cap); the
+  native alarm no longer re-fires when a reconcile races the fire instant (native change); the
+  exact-alarm card stops asking once the permission is granted.
+- **Meeting details**: no "Meeting not found" flash while deleting; next occurrences follow the
+  clock; task due times show in the device zone like their reminders.
+- **Server**: WhatsApp sessions of unlinked phones are purged on schedule; a message that fails
+  after its dedupe claim gets an error reply instead of silence; account deletion removes the
+  Zoom ownership registry and the restore replay removes WhatsApp links; google-auth-library is
+  a declared dependency.
 - **One invitation email for Zoom meetings**: a meeting saved with an automatic Zoom link was
   pushed to Google/Outlook at once and again seconds later when the link landed, so attendees got
   an invitation without the link followed by an "updated invitation" with it. The calendar pushes

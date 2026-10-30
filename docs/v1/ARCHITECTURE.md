@@ -241,7 +241,9 @@ Alerts that have already fired or been acknowledged are recorded in `mg:{uid}:al
 
 **Platform limits and background refresh:**
 
-- iOS keeps 64 pending notifications and Android allows about 500 alarms, so the budget is 60 in total.
+- iOS keeps 64 pending notifications and Android allows about 500 alarms, so the budget is 60 in total,
+  MINUS what the task reminders (`mgtask:`) and the morning briefing (`mgbrief:`) hold at reconcile
+  time: they share the same per-app cap (audit 2026-10-30).
 - `SCHEDULE_EXACT_ALARM` is declared. `openExactAlarmSettings()` opens the setting through expo-intent-launcher. There is no JS API to check it, so reconcile again after the user returns (AppState active).
 - There is no full-screen intent.
 - expo-background-task (`mg-background-refresh`, every 60 minutes or more) restores the persisted language (`initI18n`), calls `withHeadlessSession`, then `calendarSyncEngine.syncNow({ headless: true })`, then `alertEngine.reconcile('background')`. Without an alert session the notification text follows `prefs.language`. It only refreshes the rolling window. Delivery itself never depends on it.

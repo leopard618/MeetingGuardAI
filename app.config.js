@@ -281,6 +281,8 @@ module.exports = {
       './modules/mg-fullscreen-alarm/app.plugin.js',
       'expo-dev-client',
       './plugins/withNoDeviceTransfer',
+      // AsyncStorage database limit on Android (default 6 MB; plugins/withAsyncStorageDbSize.js).
+      './plugins/withAsyncStorageDbSize',
       // Signs local release builds with the test key outside the repository. Always listed because it
       // does nothing unless MG_LOCAL_SIGNING=1 at prebuild time (and never on an EAS build server), so
       // EAS builds get the same native project as before, and `MG_LOCAL_SIGNING=1 npx expo prebuild`
