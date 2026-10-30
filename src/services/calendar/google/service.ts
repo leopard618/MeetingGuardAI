@@ -14,7 +14,7 @@ import type { AppEventMap, EventBus } from '../../../core/events';
 import { createLogger } from '../../../core/logger';
 import type { ConferenceDetails, Meeting } from '../../../core/types';
 import { createMutex } from '../shared';
-import type { GoogleSyncState } from '../stateStore';
+import { defaultGoogleSyncState, type GoogleSyncState } from '../stateStore';
 import type { CalendarStatusStore } from '../status';
 import {
   deleteGoogleEvent,
@@ -156,8 +156,9 @@ export function createGoogleCalendarService(deps: GoogleServiceDeps): GoogleCale
           deps.status.patchGoogle({ hasScope: false });
           return { status: 'scope_denied', initialSync: null };
         }
-        // A new connection starts from a clean slate (full listing, no stale queue).
-        await deps.state.clear();
+        // A new connection starts from a clean slate (full listing, fresh hashes), but the queued
+        // pushes survive: edits and deletes made while the scope was lost must still reach Google.
+        await deps.state.update((current) => ({ ...defaultGoogleSyncState(), pending: current.pending }));
         await deps.preferences.update({ googleCalendarSyncEnabled: true });
         deps.status.patchGoogle({ enabled: true, hasScope: true, lastError: null });
 

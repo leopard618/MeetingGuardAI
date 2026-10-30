@@ -96,13 +96,22 @@ export async function loadUserCache(storage: KeyValueStorage, uid: string, defau
   const notePrefix = cacheKeys.notePrefix(uid);
   const taskPrefix = cacheKeys.taskPrefix(uid);
   const docKeys = allKeys.filter((key) => key.startsWith(meetingPrefix) || key.startsWith(notePrefix) || key.startsWith(taskPrefix));
-  const singleKeys = [cacheKeys.preferences(uid), cacheKeys.entitlement(uid), cacheKeys.profile(uid), cacheKeys.outbox(uid)];
+  const singleKeys = [cacheKeys.preferences(uid), cacheKeys.entitlement(uid), cacheKeys.profile(uid)];
 
   let pairs: readonly (readonly [string, string | null])[];
   try {
     pairs = await storage.multiGet([...docKeys, ...singleKeys]);
   } catch (error) {
     throw toAppError(error);
+  }
+  // The outbox is one row that can outgrow what the storage can return (hundreds of queued
+  // imports); read on its own so an unreadable row costs the queue, never the whole session.
+  const outboxKey = cacheKeys.outbox(uid);
+  try {
+    const [outboxPair] = await storage.multiGet([outboxKey]);
+    if (outboxPair) pairs = [...pairs, outboxPair];
+  } catch (error) {
+    log.error('outbox unreadable; starting with an empty queue', toAppError(error));
   }
 
   const cache: UserCache = {

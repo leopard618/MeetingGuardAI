@@ -78,6 +78,8 @@ export interface GraphEvent {
   /** UTC ISO ("2026-10-05T09:00:00Z" style). */
   lastModifiedDateTime?: string;
   type?: GraphEventType;
+  /** Our own create marker ("mgev-<meeting id>"); selected so own events are recognised on pull. */
+  transactionId?: string;
   seriesMasterId?: string | null;
   /** Occurrences / exceptions: the start the series generated for them (UTC ISO), before any edit. */
   originalStart?: string | null;

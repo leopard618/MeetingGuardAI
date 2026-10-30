@@ -118,9 +118,10 @@ describe('To Do -> MeetingGuard', () => {
       dueTime: '09:00',
       reminderMinutesBefore: 1440,
     });
-    // More than a week before: not representable, so remind at the due time.
+    // More than a week before: not representable as an offset, so the reminder instant is kept
+    // and the due date moves onto it (ringing on the original due date would be weeks late).
     expect(reminderToDueTime('2026-09-20T15:00:00.000Z', '2026-10-05', 'America/Mexico_City')).toEqual({
-      dueDate: '2026-10-05',
+      dueDate: '2026-09-20',
       dueTime: '09:00',
       reminderMinutesBefore: 0,
     });

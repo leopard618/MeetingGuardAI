@@ -79,6 +79,20 @@ describe('outlookEventToMeetingInput', () => {
     expect(input).toMatchObject({ startAt: '2026-10-04T22:00:00.000Z', durationMinutes: 2 * 1440, allDay: true });
   });
 
+  it('keeps the calendar date of an all-day event that Graph converted to UTC (east of UTC)', () => {
+    // Created in Madrid for Oct 5: with the UTC Prefer header Graph returns 22:00Z of Oct 4, and
+    // taking the date part verbatim put the meeting on Oct 4.
+    const input = outlookEventToMeetingInput(
+      timedEvent({
+        isAllDay: true,
+        start: { dateTime: '2026-10-04T22:00:00.0000000', timeZone: 'UTC' },
+        end: { dateTime: '2026-10-05T22:00:00.0000000', timeZone: 'UTC' },
+      }),
+      ctx,
+    );
+    expect(input).toMatchObject({ startAt: '2026-10-04T22:00:00.000Z', durationMinutes: 1440, allDay: true });
+  });
+
   it('falls back to the localized untitled title', () => {
     expect(outlookEventToMeetingInput(timedEvent({ subject: '  ' }), ctx)?.title).toBe('(No title)');
   });
@@ -154,6 +168,19 @@ describe('meetingToOutlookEvent', () => {
     conference: null,
     participants: [{ email: 'ana@example.com', name: 'Ana', status: null }],
   };
+
+  it('puts the join link in the body next to a physical address and strips it again on import', () => {
+    const body = meetingToOutlookEvent({
+      ...meeting,
+      language: 'en',
+      conference: { provider: 'zoom', url: 'https://us05web.zoom.us/j/1', password: 'A1' },
+    });
+    expect(body.location).toEqual({ displayName: 'HQ' });
+    expect(body.body?.content).toContain('https://us05web.zoom.us/j/1');
+    const back = outlookEventToMeetingInput(timedEvent({ body: { contentType: 'text', content: body.body?.content ?? '' }, location: { displayName: 'HQ' } }), ctx);
+    expect(back?.description).toBe(meeting.description);
+    expect(back?.conference).toMatchObject({ provider: 'zoom', url: 'https://us05web.zoom.us/j/1' });
+  });
 
   it('writes wall clock in the meeting zone with attendees and location text', () => {
     const body = meetingToOutlookEvent(meeting);

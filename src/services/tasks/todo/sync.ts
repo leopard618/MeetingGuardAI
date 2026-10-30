@@ -36,10 +36,11 @@ const BLOCKING_CODES: ReadonlySet<AppErrorCode> = new Set<AppErrorCode>([
   'offline',
   'timeout',
   'unauthenticated',
-  'permission_denied',
   'calendar_not_connected',
   'not_configured',
 ]);
+// permission_denied is NOT blocking: a 403 on one task (a shared, read-only list) counts as that
+// task's failure and is dropped after MAX_PUSH_ATTEMPTS; the other tasks and the pull go on.
 
 export type TodoTasksPort = Pick<TasksRepository, 'list' | 'get' | 'create' | 'update' | 'remove'>;
 
@@ -145,6 +146,9 @@ async function pullList(deps: TodoSyncDeps, listId: string, options: { full: boo
   }
   const counts = { created: 0, updated: 0, removed: 0, unchanged: 0 };
   const hashUpdates: Record<string, string | null> = {};
+  // Where each linked task's copy lives, learned from the listing: a later "Change list" then
+  // deletes the old copy before creating the new one, also for tasks this device never pushed.
+  const linkUpdates: Record<string, TodoLink> = {};
   const seen = new Set<string>();
 
   for (const item of listing.tasks) {
@@ -169,6 +173,7 @@ async function pullList(deps: TodoSyncDeps, listId: string, options: { full: boo
     const hash = visibleHash(imported.visible);
     const todoUpdatedAt = todoUpdatedIso(item);
     if (local) {
+      linkUpdates[local.id] = { listId, taskId: item.id };
       if (state.hashes[item.id] === hash) {
         counts.unchanged += 1;
         continue;
@@ -189,7 +194,15 @@ async function pullList(deps: TodoSyncDeps, listId: string, options: { full: boo
       }
       const id = todoTaskLocalId(item.id);
       const created = await deps.tasks.create({ ...imported.input, todoListId: listId }, { id, origin: 'tasks_todo', source: 'todo' });
+      if (created.external.todoTaskId !== null && created.external.todoTaskId !== item.id) {
+        // The deterministic id returned a task that was moved to another list since (its copy
+        // there is the live one): this listing's copy is a leftover, never re-link to it.
+        counts.unchanged += 1;
+        hashUpdates[item.id] = hash;
+        continue;
+      }
       await deps.tasks.update(created.id, { external: { todoListId: listId, todoTaskId: item.id, todoUpdatedAt } }, { origin: 'tasks_todo' });
+      linkUpdates[created.id] = { listId, taskId: item.id };
       counts.created += 1;
     }
     hashUpdates[item.id] = hash;
@@ -217,7 +230,7 @@ async function pullList(deps: TodoSyncDeps, listId: string, options: { full: boo
       },
     },
     hashes: applyHashUpdates(current.hashes, hashUpdates),
-    links: pruneLinks(current.links, hashUpdates),
+    links: { ...pruneLinks(current.links, hashUpdates), ...linkUpdates },
   }));
   return { counts, fullSync: full };
 }
@@ -473,7 +486,9 @@ export async function flushTodoPushes(deps: TodoSyncDeps): Promise<FlushResult> 
         break;
       }
       const attempts = entry.attempts + 1;
-      if (appError.retryable && attempts < MAX_PUSH_ATTEMPTS) {
+      // A 403 is retried like a transient error (the consent may still be propagating) and
+      // dropped after MAX_PUSH_ATTEMPTS; it never blocks the other tasks or the pull.
+      if ((appError.retryable || appError.code === 'permission_denied') && attempts < MAX_PUSH_ATTEMPTS) {
         await settle(deps, taskId, entry.queuedAt, { ...entry, attempts, lastError: appError.code });
       } else {
         result.failed += 1;

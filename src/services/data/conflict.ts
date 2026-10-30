@@ -77,7 +77,14 @@ function decidePreferences(entry: OutboxEntry, current: RemoteData | null, defau
   const patch = preferencesPatchSchema.safeParse(requireData(entry));
   if (!patch.success) throw new AppError('invalid_input', 'Invalid preferences patch in outbox', { cause: patch.error });
   const base = current ? mergePreferences(current, defaults) : { ...defaults };
-  const merged: Preferences = { ...base, ...patch.data, updatedAt: maxIso(base.updatedAt, entry.updatedAt) };
+  // Keys this build does not know (written by a newer version on another device) ride along
+  // untouched: a full-document write from an older build must not reset them to defaults.
+  const merged = {
+    ...(current ?? {}),
+    ...base,
+    ...patch.data,
+    updatedAt: maxIso(base.updatedAt, entry.updatedAt),
+  } as unknown as Preferences;
   merged.defaultAlertTimes = normalizeAlertTimes(merged.defaultAlertTimes);
   return write(merged as unknown as RemoteData);
 }

@@ -26,6 +26,7 @@ import {
 import { addDaysToLocalDate, isLocalDate, isValidTimeZone, minutesBetween, toLocalDateTime, toUtcIso, zonedDateTimeToUtcIso } from '../../../core/time';
 import type { Meeting, ParticipantInput, ParticipantStatus } from '../../../core/types';
 import {
+  appendJoinBlock,
   clampDuration,
   conferenceProviderForUrl,
   deriveLocationFromText,
@@ -40,6 +41,7 @@ import {
   PARTICIPANTS_MAX,
   renderLocationText,
   stableHash,
+  stripJoinBlock,
   TITLE_MAX,
   truncate,
   type ExternalMeetingInput,
@@ -168,12 +170,25 @@ interface Timing {
   allDay: boolean;
 }
 
+/**
+ * The calendar date of an all-day boundary. Graph converts all-day midnights into the zone the
+ * request asked for (UTC, api.ts Prefer header), so an all-day event created in Madrid arrives as
+ * 22:00 of the PREVIOUS day. The instant shifted by 12 hours lands on the right date for every
+ * zone offset in (-12, +12); taking the date part verbatim was one day early east of UTC.
+ */
+function allDayLocalDate(value: GraphDateTimeTimeZone | undefined): string | null {
+  const instant = graphDateTimeToUtcIso(value);
+  if (instant === null) return null;
+  const date = new Date(Date.parse(instant) + 12 * 60 * 60_000).toISOString().slice(0, 10);
+  return isLocalDate(date) ? date : null;
+}
+
 function eventTiming(event: GraphEvent, ctx: OutlookMappingContext): Timing | null {
   if (event.isAllDay === true) {
-    const startDate = event.start?.dateTime?.split('T')[0];
-    if (!startDate || !isLocalDate(startDate)) return null;
-    const endDate = event.end?.dateTime?.split('T')[0];
-    const days = endDate !== undefined && isLocalDate(endDate) ? Math.max(1, daysBetweenLocalDates(startDate, endDate)) : 1;
+    const startDate = allDayLocalDate(event.start);
+    if (startDate === null) return null;
+    const endDate = allDayLocalDate(event.end);
+    const days = endDate !== null ? Math.max(1, daysBetweenLocalDates(startDate, endDate)) : 1;
     return {
       startAt: zonedDateTimeToUtcIso(startDate, '00:00', ctx.defaultTimeZone),
       durationMinutes: Math.min(DURATION_MAX_MINUTES, days * MINUTES_PER_DAY),
@@ -210,7 +225,8 @@ export function outlookEventToMeetingInput(event: GraphEvent, ctx: OutlookMappin
 
   return {
     title: title.length > 0 ? title : ctx.untitledTitle,
-    description: truncate(bodyText(event), DESCRIPTION_MAX),
+    // Our own pushed join block comes back out (the conference is stored separately).
+    description: truncate(stripJoinBlock(bodyText(event)), DESCRIPTION_MAX),
     startAt: timing.startAt,
     durationMinutes: timing.durationMinutes,
     timezone: timing.timezone,
@@ -234,6 +250,8 @@ type OutlookWritableMeeting = Pick<
   Meeting,
   'title' | 'description' | 'startAt' | 'durationMinutes' | 'timezone' | 'allDay' | 'location' | 'conference' | 'participants'
 > &
+  /** The join block's language (full meetings carry it; defaults to English). */
+  Partial<Pick<Meeting, 'language'>> &
   /** Present on full meetings; a recurring master pushes its rule as a Graph series (§17). */
   Partial<Pick<Meeting, 'recurrence' | 'recurrenceOverrides'>>;
 
@@ -370,7 +388,9 @@ export function meetingToOutlookEvent(meeting: OutlookWritableMeeting, options: 
 
   const body: GraphEventWrite = {
     subject: meeting.title,
-    body: { contentType: 'text', content: meeting.description },
+    // The join link travels in the body like the Google writer does: the location field holds
+    // the address when there is one, and attendees must still find the link in their invitation.
+    body: { contentType: 'text', content: appendJoinBlock(truncate(meeting.description, DESCRIPTION_MAX), meeting.conference, meeting.language ?? 'en') },
     start,
     end,
     isAllDay: meeting.allDay,

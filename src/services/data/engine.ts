@@ -378,6 +378,9 @@ function isPermanentFailure(error: AppError): boolean {
  * back to the server copy - a rollback would DELETE a freshly created recurring meeting locally.
  */
 function isRulesSkewEntry(entry: OutboxEntry): boolean {
+  // A preferences write carries every key the build knows (new keys included), so against older
+  // deployed rules it is denied as a whole: it waits for the rules deploy like the meeting cases.
+  if (entry.kind === 'preferences') return true;
   if (entry.kind !== 'meeting' || entry.data === null) return false;
   const doc = entry.data;
   if (doc.recurrence !== undefined || doc.recurrenceOverrides !== undefined || doc.seriesId !== undefined) return true;
@@ -486,6 +489,24 @@ export class DataEngine {
 
   private assertCurrent(s: Session): void {
     if (!this.isCurrent(s)) throw new AppError('unauthenticated', 'The data session ended');
+  }
+
+  /**
+   * Resolves true once the active session received its first server snapshot of meetings, false
+   * after `timeoutMs`, offline, or without a session. The calendar engine waits for it before its
+   * first pull: on a fresh install a provider listing matched against an empty cache would import
+   * this user's own pushed events as foreign meetings.
+   */
+  async waitForMeetingsBaseline(timeoutMs: number): Promise<boolean> {
+    const s = this.session;
+    if (!s) return false;
+    const deadline = Date.now() + timeoutMs;
+    while (this.session === s) {
+      if (s.meetingsBaseline) return true;
+      if (Date.now() >= deadline) return false;
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    }
+    return false;
   }
 
   /** The active session once its cache is loaded; AppError('unauthenticated') when there is none. */
@@ -1559,9 +1580,13 @@ export class DataEngine {
     if (!this.remote.isAvailable || this.online === false) {
       return { flushed, pending: pendingCount(), rejected };
     }
+    // Documents whose send failed in this run for a non-network reason: the entry stays queued
+    // with its backoff, the OTHER documents go through now (order only matters per document).
+    const deferred = new Set<string>();
+    let retryAttempts = 0;
     for (;;) {
       if (!this.isCurrent(s) || s.remoteSuspended) break;
-      const entry = orderedEntries(s.outbox)[0];
+      const entry = orderedEntries(s.outbox).find((candidate) => !deferred.has(`${candidate.kind}:${candidate.docId}`));
       if (!entry) break;
       let result: CommitResult;
       try {
@@ -1586,12 +1611,18 @@ export class DataEngine {
         }
         log.warn(`outbox send failed (${appError.code}); will retry`);
         await this.mutateOutbox(s, (state) => recordFailure(state, entry.id, appError.code)).catch(() => undefined);
-        this.scheduleRetry(s, entry.attempts + 1);
-        break;
+        if (isNetworkFailure(appError)) {
+          this.scheduleRetry(s, entry.attempts + 1);
+          break;
+        }
+        deferred.add(`${entry.kind}:${entry.docId}`);
+        retryAttempts = Math.max(retryAttempts, entry.attempts + 1);
+        continue;
       }
       if (!this.isCurrent(s)) break;
       if (await this.afterCommit(s, entry, result, { synced, remoteMeetingIds })) flushed += 1;
     }
+    if (retryAttempts > 0 && this.isCurrent(s)) this.scheduleRetry(s, retryAttempts);
 
     if (this.isCurrent(s)) {
       if (flushed > 0) s.lastSyncedAt = this.nowIso();
@@ -2436,7 +2467,7 @@ export class DataEngine {
   async removeTask(id: string, options: TaskWriteOptions = {}): Promise<void> {
     const s = await this.readySession();
     const origin = options.origin ?? 'user';
-    const removed: Array<{ id: string; external: TaskExternalRefs }> = [];
+    const removed: { id: string; external: TaskExternalRefs }[] = [];
     await this.localWrite(s, () => {
       const current = s.tasks.get(id);
       if (!current) throw new AppError('not_found', 'Task not found');
@@ -2457,7 +2488,7 @@ export class DataEngine {
     ids: string[],
     reason: 'created' | 'updated' | 'deleted',
     origin: WriteOrigin,
-    removed?: Array<{ id: string; external: TaskExternalRefs }>,
+    removed?: { id: string; external: TaskExternalRefs }[],
   ): void {
     this.notify();
     this.events.emit('tasks:changed', { uid: s.uid, changedIds: ids, reason, origin, ...(removed ? { removed } : {}) });
@@ -2826,9 +2857,9 @@ export class DataEngine {
       tasksRepository: {
         list: () => this.listTasks(),
         get: (id) => this.getTask(id),
-        create: (input) => this.createTask(input),
-        update: (id, patch) => this.updateTask(id, patch),
-        remove: (id) => this.removeTask(id),
+        create: (input, options) => this.createTask(input, options),
+        update: (id, patch, options) => this.updateTask(id, patch, options),
+        remove: (id, options) => this.removeTask(id, options),
         subscribe: (listener) => this.subscribeTasks(listener),
       },
       userRepository: {

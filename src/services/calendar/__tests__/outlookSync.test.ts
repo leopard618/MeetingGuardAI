@@ -14,6 +14,8 @@ import {
   pushOutlookMeeting,
   removeOutlookLinks,
   type OutlookSyncDeps,
+  OWN_TRANSACTION_PREFIX,
+  planOutlookPull,
 } from '../outlook/sync';
 import type { GraphDeltaPage, GraphEvent, GraphEventWrite } from '../outlook/types';
 import { FakeClock, FakeMeetings, memoryStateStore } from '../__testUtils__/fakes';
@@ -34,6 +36,24 @@ function graphError(status: number, code: string | null = null): AppError {
   const appCode = status === 404 || status === 410 ? 'not_found' : status === 409 || status === 412 ? 'conflict' : 'upstream_error';
   return new AppError(appCode, `HTTP ${status}`, { details: { status, graphCode: code }, retryable: status === 429 || status >= 500 });
 }
+
+describe('planOutlookPull: events we created that this device does not know yet', () => {
+  const ctx = { defaultTimeZone: 'Europe/Madrid', untitledTitle: '(No title)', selfEmail: null };
+  const window = { timeMin: '2026-09-01T00:00:00.000Z', timeMax: '2026-12-31T00:00:00.000Z' };
+
+  it('skips an event carrying our transactionId and the instances of such a series master', () => {
+    // A fresh install before the Firestore baseline, or another device's new meeting: importing
+    // these as foreign meetings would duplicate the real one the moment it arrives.
+    const master = timedEvent('own-master', { type: 'seriesMaster', transactionId: `${OWN_TRANSACTION_PREFIX}m-1` });
+    const instance = timedEvent('own-master-occ', { type: 'occurrence', seriesMasterId: 'own-master' });
+    const single = timedEvent('own-single', { transactionId: `${OWN_TRANSACTION_PREFIX}m-2` });
+    const foreign = timedEvent('theirs');
+    const plan = planOutlookPull({ events: [instance, master, single, foreign], locals: [], pending: {}, fullSync: true, window, ctx });
+    expect(plan.upserts.map((upsert) => upsert.externalId)).toEqual(['theirs']);
+    // Still "seen", so a full-sync sweep never treats them as gone.
+    expect(plan.seen.has('own-single')).toBe(true);
+  });
+});
 
 function timedEvent(id: string, overrides: Partial<GraphEvent> = {}): GraphEvent {
   return {

@@ -32,7 +32,7 @@ import { calendarPushHold } from '../../core/pushHold';
 import { getDeviceTimeZone } from '../../core/time';
 import { t } from '../../i18n';
 import { authService } from '../auth/authService';
-import { dataService, meetingRepository, preferencesRepository } from '../data';
+import { dataEngine, dataService, meetingRepository, preferencesRepository } from '../data';
 import { createExpoCalendarPort } from './device/adapter';
 import { generateDeviceKey, isValidDeviceKey } from './device/mapping';
 import { createDeviceCalendarService } from './device/service';
@@ -143,9 +143,13 @@ function googleAccessHook(): ((listener: () => void) => Unsubscribe) | undefined
   return (listener) => (candidate as (listener: () => void) => Unsubscribe).call(authService, listener);
 }
 
+/** How long the session-start pull waits for the server's meetings before going ahead. */
+const BASELINE_WAIT_MS = 10_000;
+
 const engine = createCalendarSyncEngine({
   google: googleInternal,
   device: deviceInternal,
+  awaitMeetingsBaseline: () => dataEngine.waitForMeetingsBaseline(BASELINE_WAIT_MS),
   // The Outlook and To Do providers only exist for the engine when the build is configured for them.
   outlook: outlookInternal.isConfigured() ? outlookInternal : undefined,
   todo: todoInternal.isConfigured() ? todoInternal : undefined,
@@ -206,6 +210,12 @@ export const calendarSyncEngine: CalendarSyncEngine = {
 /** Live calendar status (connected, syncing, last sync, last error, permission, selection). */
 export function useCalendarStatus(): CalendarStatus {
   return useSyncExternalStore(engine.subscribeStatus, engine.getStatus, engine.getStatus);
+}
+
+// Disconnecting Outlook ends the To Do sync too: both use the same Microsoft account, and a
+// later connect with a different account must not resume against the old list ids.
+if (outlookInternal.isConfigured() && todoInternal.isConfigured()) {
+  outlookInternal.setDisconnectHook(() => todoInternal.disable());
 }
 
 // Safety net next to the session manager's explicit calls (both are idempotent).

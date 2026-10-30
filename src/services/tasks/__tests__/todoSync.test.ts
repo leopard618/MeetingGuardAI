@@ -276,15 +276,18 @@ describe('queue and flush', () => {
     const a = tasks.add({ title: 'A' });
     await enqueueTodoPushes(deps, [{ id: a.id, op: 'upsert' }]);
 
+    // A 403 is about this task (a read-only list), never the connection: it counts an attempt
+    // and the flush goes on, so the pull still runs and reports a missing consent itself.
     api.failures.push({ method: 'create', error: graphError(403, 'ErrorAccessDenied') });
-    const blocked = await flushTodoPushes(deps);
-    expect(blocked).toMatchObject({ pushed: 0, pending: 1, blockedBy: 'permission_denied' });
+    const denied = await flushTodoPushes(deps);
+    expect(denied).toMatchObject({ pushed: 0, failed: 0, pending: 1, blockedBy: null });
     expect(state.value.pending[a.id]?.lastError).toBe('permission_denied');
+    expect(state.value.pending[a.id]?.attempts).toBe(1);
 
     api.failures.push({ method: 'create', error: graphError(503) });
     const retried = await flushTodoPushes(deps);
     expect(retried).toMatchObject({ pushed: 0, failed: 0, pending: 1, blockedBy: null });
-    expect(state.value.pending[a.id]?.attempts).toBe(1);
+    expect(state.value.pending[a.id]?.attempts).toBe(2);
 
     api.failures.push({ method: 'create', error: graphError(400, 'invalidRequest') });
     const dropped = await flushTodoPushes(deps);

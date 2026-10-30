@@ -59,6 +59,12 @@ export interface EngineDeps {
   preferences: Pick<PreferencesRepository, 'get'>;
   /** Meetings waiting for their Zoom link are not pushed until released (core/pushHold.ts). */
   pushHold?: Pick<PushHold, 'isHeld' | 'onRelease'>;
+  /**
+   * Resolves once the data layer holds the server's meetings (or gives up). The session-start
+   * pull waits for it: against an empty cache a provider listing would import this user's own
+   * pushed events as foreign meetings.
+   */
+  awaitMeetingsBaseline?: () => Promise<unknown>;
   getActiveUid(): string | null;
   status: CalendarStatusStore;
   events: EventBus<AppEventMap>;
@@ -317,6 +323,22 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       scheduleFlush();
       return;
     }
+    // A change pulled from one provider reaches the other provider's copy of the same own
+    // meeting (moved in Google Calendar => moved in Outlook too). The push skips meetings the
+    // other provider owns (isOutlookPushable / source checks), and its write-back is a
+    // calendar-origin 'updated' event, which is never pushable: no loop.
+    if (event.reason === 'imported' && event.changedIds && event.changedIds.length > 0) {
+      if (event.origin === 'calendar_google' && deps.outlook !== undefined) {
+        for (const id of event.changedIds) pendingOutlook.set(id, 'upsert');
+        persistOutlookPushes(event.changedIds, 'upsert');
+        scheduleFlush();
+      } else if (event.origin === 'calendar_outlook') {
+        for (const id of event.changedIds) pendingGoogle.set(id, 'upsert');
+        persistGooglePushes(event.changedIds, 'upsert');
+        scheduleFlush();
+      }
+      return;
+    }
     // Edits synced from another device: refresh this device's exported copies.
     if (event.reason === 'remote' && event.changedIds && event.changedIds.length > 0) {
       for (const id of event.changedIds) pendingDevice.add(id);
@@ -511,6 +533,10 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       ),
     ]);
     if (!isCurrent(gen)) return;
+    if (deps.awaitMeetingsBaseline) {
+      await deps.awaitMeetingsBaseline();
+      if (!isCurrent(gen)) return;
+    }
     lastAutoSyncAt = deps.now().getTime();
     await syncNow({ reason: 'session_start' });
   }

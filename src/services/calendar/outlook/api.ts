@@ -12,7 +12,8 @@ export { GRAPH_API_BASE, graphErrorCode, graphHttpStatus, type GraphTokenProvide
 /** Event fields MeetingGuard reads (smaller payloads; delta supports $select). */
 export const EVENT_SELECT =
   'id,changeKey,lastModifiedDateTime,type,seriesMasterId,subject,body,bodyPreview,start,end,isAllDay,' +
-  'isCancelled,location,attendees,organizer,responseStatus,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,onlineMeetingUrl';
+  'isCancelled,location,attendees,organizer,responseStatus,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,onlineMeetingUrl,' +
+  'transactionId';
 
 /** Instances of a series master additionally carry the generated start (override matching). */
 export const INSTANCE_SELECT = `${EVENT_SELECT},originalStart`;

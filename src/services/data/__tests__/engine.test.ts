@@ -385,6 +385,25 @@ describe('real-time snapshots', () => {
     expect(await h.engine.listMeetings()).toEqual([]);
   });
 
+  it('a document rejected for a non-network reason does not block the other queued writes', async () => {
+    const h = harness();
+    await h.engine.startSession(UID);
+    await settle();
+    h.remote.online = false;
+    const a = await h.engine.createMeeting({ title: 'A', startAt: '2026-10-06T08:00:00.000Z', source: 'manual' });
+    const b = await h.engine.createMeeting({ title: 'B', startAt: '2026-10-06T09:00:00.000Z', source: 'manual' });
+    // The first send (A, oldest) fails with a retryable server error: A waits for its backoff, B
+    // must not sit behind it.
+    h.remote.commitFailures.push(new FakeProviderError('internal'));
+
+    h.setOnline(true);
+    await settle();
+
+    expect(h.remote.docs.has(firestorePaths.meeting(UID, b.id))).toBe(true);
+    expect(h.remote.docs.has(firestorePaths.meeting(UID, a.id))).toBe(false);
+    expect(await h.engine.getPendingWriteCount()).toBe(1);
+  });
+
   it('drops cached meetings that were deleted on the server while offline, but keeps pending local ones', async () => {
     const gone = storedMeeting('gone', 'Deleted elsewhere', '2026-10-05T08:00:00.000Z');
     await AsyncStorage.setItem(cacheKeys.meeting(UID, 'gone'), JSON.stringify(toMeetingDoc(gone)));

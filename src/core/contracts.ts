@@ -994,7 +994,8 @@ export interface AlertPermissionStatus {
    * Android 12+: exact alarms are user-granted and there is no JS API to read the state, so this is
    * 'unknown' there (offer openExactAlarmSettings). 'not_required' on iOS / Android < 12.
    */
-  exactAlarms: 'not_required' | 'unknown';
+  /** Android 12+: 'granted' / 'denied' from the native module when available, else 'unknown'. */
+  exactAlarms: 'not_required' | 'unknown' | 'granted' | 'denied';
 }
 
 export type ReconcileReason =

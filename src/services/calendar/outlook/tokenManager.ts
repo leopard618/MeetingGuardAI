@@ -98,7 +98,10 @@ export function createMicrosoftTokenManager(deps: TokenManagerDeps): MicrosoftTo
   const scope = MICROSOFT_OAUTH.scopes.join(' ');
 
   let cached: { uid: string; accessToken: string; expiresAtMs: number } | null = null;
-  let refreshing: Promise<string> | null = null;
+  /** The refresh in flight, keyed by uid: another uid never awaits (or receives) someone else's token. */
+  let refreshing: { uid: string; promise: Promise<string> } | null = null;
+  /** Bumped by clear()/dropMemory(): a refresh that started before must not adopt its result. */
+  let generation = 0;
 
   function requireUid(): string {
     const uid = deps.getUid();
@@ -150,24 +153,45 @@ export function createMicrosoftTokenManager(deps: TokenManagerDeps): MicrosoftTo
     };
   }
 
-  async function adopt(uid: string, grant: TokenGrant): Promise<void> {
-    if (grant.refreshToken !== null) await deps.store.save(uid, grant.refreshToken);
+  /**
+   * Caches the access token and persists the rotated refresh token. On a connect the persisted
+   * token is REQUIRED (the connection cannot survive a restart without it) and a keystore failure
+   * fails the connect. On a refresh the token is already stored: a transient keystore failure is
+   * logged and the session keeps working on the cached access token; the previous refresh token
+   * is tried again next time, and only Microsoft's own invalid_grant disconnects.
+   */
+  async function adopt(uid: string, grant: TokenGrant, options: { persistRequired: boolean }): Promise<void> {
     const lifetimeS = grant.expiresIn ?? DEFAULT_TOKEN_LIFETIME_S;
     cached = { uid, accessToken: grant.accessToken, expiresAtMs: now().getTime() + lifetimeS * 1000 - TOKEN_EXPIRY_MARGIN_MS };
+    if (grant.refreshToken === null) return;
+    try {
+      await deps.store.save(uid, grant.refreshToken);
+    } catch (error) {
+      if (options.persistRequired) throw error;
+      log.warn('Could not persist the rotated Microsoft refresh token; keeping the previous one', toAppError(error).code);
+    }
   }
 
   async function refresh(uid: string): Promise<string> {
+    const gen = generation;
     const refreshToken = await deps.store.get(uid);
     if (refreshToken === null) {
       throw new AppError('calendar_not_connected', 'Outlook is not connected on this device');
     }
     try {
       const grant = await tokenRequest({ grant_type: 'refresh_token', refresh_token: refreshToken });
-      await adopt(uid, grant);
+      if (gen !== generation || deps.getUid() !== uid) {
+        // Signed out (or switched user) while the request was in flight: the token was deleted on
+        // purpose, so never re-persist it or hand it to the next session.
+        throw new AppError('cancelled', 'The session changed during the Microsoft token refresh');
+      }
+      await adopt(uid, grant, { persistRequired: false });
       return grant.accessToken;
     } catch (error) {
       const appError = toAppError(error);
-      if (appError.code === 'calendar_not_connected') {
+      // Only Microsoft's own answer (invalid_grant and friends, set by tokenRequest) means the
+      // consent is gone; a local storage or session problem keeps the stored token.
+      if (appError.code === 'calendar_not_connected' && appError.details?.oauthError !== undefined && gen === generation) {
         // Consent revoked or the refresh token expired: forget it and surface "not connected".
         cached = null;
         await deps.store.clear(uid).catch(() => undefined);
@@ -196,12 +220,14 @@ export function createMicrosoftTokenManager(deps: TokenManagerDeps): MicrosoftTo
     async getAccessToken() {
       const uid = requireUid();
       if (cached && cached.uid === uid && cached.expiresAtMs > now().getTime()) return cached.accessToken;
-      if (!refreshing) {
-        refreshing = refresh(uid).finally(() => {
-          refreshing = null;
+      if (refreshing === null || refreshing.uid !== uid) {
+        const entry = { uid, promise: Promise.resolve<string>('') };
+        entry.promise = refresh(uid).finally(() => {
+          if (refreshing === entry) refreshing = null;
         });
+        refreshing = entry;
       }
-      return refreshing;
+      return refreshing.promise;
     },
 
     async invalidateAccessToken(token) {
@@ -213,7 +239,7 @@ export function createMicrosoftTokenManager(deps: TokenManagerDeps): MicrosoftTo
       if (grant.refreshToken === null) {
         throw new AppError('calendar_not_connected', 'Microsoft did not return a refresh token (offline_access missing?)');
       }
-      await adopt(uid, grant);
+      await adopt(uid, grant, { persistRequired: true });
     },
 
     exchangeCode(code, codeVerifier, redirectUri) {
@@ -227,12 +253,16 @@ export function createMicrosoftTokenManager(deps: TokenManagerDeps): MicrosoftTo
 
     async clear() {
       const uid = deps.getUid();
+      generation += 1;
       cached = null;
+      refreshing = null;
       if (uid) await deps.store.clear(uid);
     },
 
     dropMemory() {
+      generation += 1;
       cached = null;
+      refreshing = null;
     },
   };
 }

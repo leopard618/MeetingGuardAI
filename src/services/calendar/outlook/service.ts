@@ -13,7 +13,7 @@ import type { Meeting } from '../../../core/types';
 import { createMutex } from '../shared';
 import type { CalendarStatusStore } from '../status';
 import type { MicrosoftAuthPort } from './authAdapter';
-import type { OutlookSyncState } from './state';
+import { defaultOutlookSyncState, type OutlookSyncState } from './state';
 import {
   deleteOutlookEvent,
   enqueueOutlookPushes,
@@ -56,10 +56,13 @@ export interface OutlookCalendarServiceInternal extends OutlookCalendarService {
   resetLocalState(): Promise<void>;
   /** Re-reads configuration + token presence into the status store. */
   refreshStatus(): Promise<{ configured: boolean; connected: boolean }>;
+  /** Runs before a user disconnect (the To Do sync, which shares the account, turns itself off). */
+  setDisconnectHook(hook: () => Promise<void>): void;
 }
 
 export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookCalendarServiceInternal {
   const mutex = createMutex();
+  let disconnectHook: (() => Promise<void>) | null = null;
   const configured = deps.config.clientId !== null;
 
   async function readAccountEmail(): Promise<string | null> {
@@ -189,8 +192,9 @@ export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookC
         return { status: 'cancelled', initialSync: null };
       }
       await deps.tokens.adoptGrant(grant);
-      // A new connection starts from a clean slate (full listing, no stale queue).
-      await deps.state.clear();
+      // A new connection starts from a clean slate (full listing, fresh hashes), but the queued
+      // pushes survive: changes made while the consent was expired must still reach Outlook.
+      await deps.state.update((current) => ({ ...defaultOutlookSyncState(), pending: current.pending }));
       try {
         const me = await deps.api.getMe();
         accountEmail = me.mail ?? me.userPrincipalName ?? null;
@@ -245,6 +249,13 @@ export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookC
 
     disconnect(options = {}) {
       return mutex.run(async () => {
+        if (disconnectHook !== null) {
+          try {
+            await disconnectHook();
+          } catch (error) {
+            log.warn('Outlook disconnect hook failed', toAppError(error).code);
+          }
+        }
         await deps.tokens.clear();
         deps.status.patchOutlook({ connected: false, enabled: false, accountEmail: null, lastError: null });
         const done = deps.status.beginSync('outlook');
@@ -330,6 +341,9 @@ export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookC
     },
 
     refreshStatus,
+    setDisconnectHook(hook) {
+      disconnectHook = hook;
+    },
   };
   return service;
 }

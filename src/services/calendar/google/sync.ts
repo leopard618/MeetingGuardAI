@@ -126,6 +126,15 @@ async function listAll(
   throw new AppError('upstream_error', 'Google Calendar returned too many result pages', { details: { pages: MAX_LIST_PAGES } });
 }
 
+/**
+ * Google derives new ids from ours: "<id>_R20261005T090000Z" for the tail master of a "this and
+ * following" edit, "<id>_20261005T090000Z" for an instance. Stripped before decoding, so those
+ * stay recognised as our own series (otherwise every future occurrence came back as a duplicate).
+ */
+export function baseGoogleEventId(eventId: string): string {
+  return eventId.replace(/_R?\d{8}T\d{6}Z?$/, '');
+}
+
 export function isFullSyncDue(lastFullSyncAt: string | null, now: Date): boolean {
   if (lastFullSyncAt === null) return true;
   const last = Date.parse(lastFullSyncAt);
@@ -187,10 +196,10 @@ export function planGooglePull(input: PullPlanInput): PullPlan {
     // duplicate the series one meeting per occurrence. They are skipped entirely - including
     // per-instance cancellations/edits made in Google, a documented v1 limitation
     // (docs/v1/ARCHITECTURE.md §16: occurrence edits flow MeetingGuard -> Google only).
-    if (event.recurringEventId !== undefined && meetingIdFromGoogleEventId(event.recurringEventId) !== null) {
+    if (event.recurringEventId !== undefined && meetingIdFromGoogleEventId(baseGoogleEventId(event.recurringEventId)) !== null) {
       continue;
     }
-    const decodedId = meetingIdFromGoogleEventId(event.id);
+    const decodedId = meetingIdFromGoogleEventId(baseGoogleEventId(event.id));
     const local = byGoogleId.get(event.id) ?? (decodedId !== null ? byId.get(decodedId) : undefined);
     const linked = local !== undefined && local.external.googleEventId === event.id;
 
@@ -514,10 +523,21 @@ export async function pushGoogleMeeting(deps: GoogleSyncDeps, meeting: Meeting, 
     } catch (error) {
       const status = googleHttpStatus(error);
       if (status === 412) {
-        // Changed in Google since our last sync: last writer wins.
+        // Changed in Google since our last sync. When nothing WE show changed there (an attendee
+        // RSVP, a colour: etag and updated move, the visible hash does not), this edit still
+        // wins and is retried without the stale etag. When Google holds a newer visible version,
+        // last writer wins and the pull brings it here.
         const current = await deps.api.getEvent(calendarId, linkedId);
         const remoteUpdated = updatedIso(current);
-        if (remoteUpdated !== null && toDate(remoteUpdated).getTime() > toDate(meeting.updatedAt).getTime()) {
+        const state = await deps.state.load();
+        const remoteInput = googleEventToMeetingInput(current, {
+          calendarTimeZone: state.calendarTimeZone,
+          defaultTimeZone,
+          untitledTitle: deps.untitledTitle(),
+        });
+        const remoteHash = remoteInput ? googleVisibleHash(remoteInput, defaultTimeZone) : null;
+        const visiblyChanged = remoteHash === null || remoteHash !== state.hashes[linkedId];
+        if (visiblyChanged && remoteUpdated !== null && toDate(remoteUpdated).getTime() > toDate(meeting.updatedAt).getTime()) {
           log.info('Google has a newer version; keeping it', { meetingId: meeting.id });
           return { meeting, sent: false };
         }

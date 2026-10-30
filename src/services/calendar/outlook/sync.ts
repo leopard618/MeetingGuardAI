@@ -51,8 +51,11 @@ export const INSTANCE_SPAN_DAYS = 180;
 
 /** The Graph idempotency key of a MeetingGuard-created event. */
 export function outlookTransactionId(meetingId: string): string {
-  return `mgev-${meetingId}`;
+  return `${OWN_TRANSACTION_PREFIX}${meetingId}`;
 }
+
+/** Every event MeetingGuard creates carries a transactionId with this prefix (re-creates too). */
+export const OWN_TRANSACTION_PREFIX = 'mgev-';
 
 /** Errors that are not about one meeting: stop flushing and keep everything queued. */
 const BLOCKING_CODES: ReadonlySet<AppErrorCode> = new Set<AppErrorCode>([
@@ -169,6 +172,19 @@ export function planOutlookPull(input: OutlookPullPlanInput): OutlookPullPlan {
     }
   }
 
+  // Events WE created (transactionId "mgev-...") that this device does not know yet: a fresh
+  // install whose Firestore baseline has not landed, or a meeting another device just pushed.
+  // Importing them as foreign meetings would duplicate the real one the moment it arrives (and
+  // deleting that duplicate would delete the real event). Their series masters are remembered so
+  // their instances are skipped as well.
+  const ownUnknownIds = new Set<string>();
+  for (const event of input.events) {
+    if (!event.id || typeof event.transactionId !== 'string' || !event.transactionId.startsWith(OWN_TRANSACTION_PREFIX)) continue;
+    if (byOutlookId.has(event.id)) continue;
+    ownUnknownIds.add(event.id);
+    if (event.type === 'seriesMaster') ownMasterIds.add(event.id);
+  }
+
   const plan: OutlookPullPlan = { upserts: [], unchanged: 0, hashUpdates: {}, seen: new Set() };
   const upsert = (event: GraphEvent, deleted: boolean, meeting: ExternalMeetingUpsert['meeting']): void => {
     plan.upserts.push({
@@ -190,6 +206,7 @@ export function planOutlookPull(input: OutlookPullPlanInput): OutlookPullPlan {
     // entirely, including per-instance edits made in Outlook (occurrence edits flow
     // MeetingGuard -> Outlook only, like the Google provider; docs/v1/ARCHITECTURE.md §17).
     if (typeof event.seriesMasterId === 'string' && ownMasterIds.has(event.seriesMasterId)) continue;
+    if (ownUnknownIds.has(event.id)) continue;
     const local = byOutlookId.get(event.id);
     const linked = local !== undefined && local.external.outlookEventId === event.id;
 

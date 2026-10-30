@@ -54,6 +54,9 @@ function utcDateTime(iso: string): GraphDateTimeTimeZone {
 
 /** The local date nearest to the instant in `timeZone` (see the header). */
 export function nearestLocalDate(instantIso: string, timeZone: string): string {
+  // Exactly midnight UTC is Graph's own date-only convention: that date, in every zone (the
+  // "+24 h when past noon" rule below would move it a day late at UTC+13 and beyond).
+  if (/T00:00:00(?:\.0+)?Z$/.test(instantIso)) return instantIso.slice(0, 10);
   const local = toLocalDateTime(instantIso, timeZone);
   const hour = Number(local.time.slice(0, 2));
   if (hour < 12) return local.date;
@@ -158,9 +161,13 @@ export function reminderToDueTime(
       return { dueDate, dueTime: local.time, reminderMinutesBefore: minutes };
     }
   } catch {
-    // Fall through: remind at the due time on the due date.
+    // Fall through.
   }
-  return { dueDate, dueTime: local.time, reminderMinutesBefore: 0 };
+  // The reminder is after the due date, or further ahead of it than the app allows: keep the
+  // reminder INSTANT the user set in To Do and move the due date onto it. Ringing at that time
+  // on the original due date would be days early, and pushing that back would destroy the
+  // reminder in To Do as well.
+  return { dueDate: local.date, dueTime: local.time, reminderMinutesBefore: 0 };
 }
 
 /**
