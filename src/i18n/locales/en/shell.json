@@ -29,6 +29,15 @@
       "Settings": "Settings"
     }
   },
+  "bottomBar": {
+    "items": {
+      "Dashboard": "Home",
+      "TotalMeetings": "Meetings",
+      "Calendar": "Calendar",
+      "Tasks": "Tasks",
+      "Notes": "Notes"
+    }
+  },
   "errorBoundary": {
     "title": "Something went wrong",
     "message": "MeetingGuard ran into an unexpected problem. Try again. If it keeps happening, close and reopen the app.",

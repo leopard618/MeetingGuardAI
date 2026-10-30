@@ -12,11 +12,11 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useMemo, type ReactElement } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SheetHandle } from './ui';
 import type { AiAction } from '../core/aiContract';
 import type { ProposedActionState } from '../core/contracts';
+import { useWindowInsets } from '../hooks/useWindowInsets';
 import { useLanguage, useT } from '../i18n';
 import { createAssistantFormatter } from '../services/ai/formatter';
 import {
@@ -415,7 +415,7 @@ export function MeetingConfirmationModal({
   const t = useT();
   const { language } = useLanguage();
   const { colors } = useAppTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useWindowInsets();
   const fmt = useMemo(() => createAssistantFormatter({ t, language, use24Hour }), [t, language, use24Hour]);
 
   const destructive = actions.some((state) => isDestructiveAction(state.action));

@@ -12,7 +12,6 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import { useState, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Chip, HelperText, Modal, Portal, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { ListGroup, ListRow, MGButton, SheetHandle } from '../../components/ui';
@@ -20,6 +19,7 @@ import type { MeetingRecurrenceOps, MeetingRepository } from '../../core/contrac
 import { AppError, errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
+import { useWindowInsets } from '../../hooks/useWindowInsets';
 import { useT } from '../../i18n';
 import { meetingRepository } from '../../services/data';
 import { radii, spacing } from '../../theme';
@@ -64,7 +64,7 @@ function SheetBody({ target, onDismiss }: { target: OccurrenceEditTarget; onDism
   const t = useT();
   const theme = usePaperTheme();
   const fmt = useFormatters();
-  const insets = useSafeAreaInsets();
+  const insets = useWindowInsets();
   const deviceZone = getDeviceTimeZone();
   const { entry, localDateKey, scope } = target;
   const [draft, setDraft] = useState<OccurrenceEditDraft>(() => occurrenceEditDraftOf(entry));

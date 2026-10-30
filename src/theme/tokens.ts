@@ -547,6 +547,10 @@ export const componentMetrics = {
   fabSize: 56,
   headerMinHeight: 56,
   headerRippleRadius: 22,
+  /** Bottom navigation bar of the Main group: row height above the safe-area inset; active pill behind the icon. */
+  bottomBarHeight: 64,
+  bottomBarPillWidth: 56,
+  bottomBarPillHeight: 32,
   emptyStateCircle: 96,
   emptyStateIcon: 48,
   sheetHandleWidth: 32,

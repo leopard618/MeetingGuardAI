@@ -1,6 +1,6 @@
 /**
- * Header + sidebar of the Main group: live language and theme, navigation to existing routes only,
- * sign-out through the shared flow (which handles unsynced changes).
+ * Header, sidebar and bottom bar of the Main group: live language and theme, navigation to existing
+ * routes only, sign-out through the shared flow (which handles unsynced changes).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -9,6 +9,7 @@ import type { ReactElement } from 'react';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import { I18nProvider, i18n } from '../../i18n';
 import { ROUTES } from '../../navigation/routes';
+import { BOTTOM_BAR_ITEMS, BottomNavBar, isBottomBarVisible } from '../BottomNavBar';
 import { CustomHeader, nextLanguage } from '../CustomHeader';
 import { MobileSidebar, SIDEBAR_ITEMS } from '../MobileSidebar';
 
@@ -152,5 +153,47 @@ describe('MobileSidebar', () => {
   it('renders nothing while closed', async () => {
     await renderWithProviders(<MobileSidebar visible={false} onClose={jest.fn()} />);
     expect(screen.queryByTestId('sidebar-panel')).toBeNull();
+  });
+});
+
+describe('BottomNavBar', () => {
+  it('only lists existing routes, each once', () => {
+    const routes = Object.values(ROUTES) as string[];
+    for (const item of BOTTOM_BAR_ITEMS) expect(routes).toContain(item.route);
+    expect(new Set(BOTTOM_BAR_ITEMS.map((item) => item.route)).size).toBe(BOTTOM_BAR_ITEMS.length);
+  });
+
+  it('marks the current route and navigates to a top-level destination', async () => {
+    await renderWithProviders(<BottomNavBar currentRouteName="Calendar" />);
+    expect(screen.getByTestId('bottom-bar')).toBeTruthy();
+    expect(screen.getByTestId('bottom-bar-item-Calendar').props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
+    expect(screen.getByTestId('bottom-bar-item-Dashboard').props.accessibilityState).toEqual(expect.objectContaining({ selected: false }));
+    expect(screen.getByText('Meetings')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('bottom-bar-item-Tasks'));
+    });
+    expect(mockNavigateToTopLevel).toHaveBeenCalledWith('Tasks');
+  });
+
+  it('selects nothing on a pushed detail screen and labels in the live language', async () => {
+    await renderWithProviders(<BottomNavBar currentRouteName="MeetingDetails" />);
+    for (const item of BOTTOM_BAR_ITEMS) {
+      expect(screen.getByTestId(`bottom-bar-item-${item.route}`).props.accessibilityState).toEqual(expect.objectContaining({ selected: false }));
+    }
+    await act(async () => {
+      await i18n.changeLanguage('es');
+    });
+    expect(screen.getByText('Inicio')).toBeTruthy();
+    expect(screen.getByText('Reuniones')).toBeTruthy();
+  });
+
+  it('collapses to the safe-area strip on the AI chat and shows before the navigator is ready', async () => {
+    expect(isBottomBarVisible('AIChat')).toBe(false);
+    expect(isBottomBarVisible(null)).toBe(true);
+    expect(isBottomBarVisible('Dashboard')).toBe(true);
+    await renderWithProviders(<BottomNavBar currentRouteName="AIChat" />);
+    expect(screen.queryByTestId('bottom-bar')).toBeNull();
+    expect(screen.getByTestId('bottom-bar-collapsed')).toBeTruthy();
   });
 });

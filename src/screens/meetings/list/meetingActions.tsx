@@ -15,7 +15,6 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Alert, Platform, StyleSheet, View, type AlertButton } from 'react-native';
 import { List, Modal, Portal, Text, useTheme as usePaperTheme } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { SheetHandle } from '../../../components/ui';
@@ -25,6 +24,7 @@ import type { MeetingRecurrenceOps, MeetingRepository, RootStackParamList } from
 import { AppError, errorMessageKey, toAppError } from '../../../core/errors';
 import { createLogger } from '../../../core/logger';
 import type { Meeting } from '../../../core/types';
+import { useWindowInsets } from '../../../hooks/useWindowInsets';
 import { useT } from '../../../i18n';
 import { meetingRepository } from '../../../services/data';
 import { zoomService } from '../../../services/zoom';
@@ -266,7 +266,7 @@ export function MeetingActionsSheet({
 }): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useWindowInsets();
 
   const run = (action: (meeting: DisplayMeeting) => void) => () => {
     onDismiss();

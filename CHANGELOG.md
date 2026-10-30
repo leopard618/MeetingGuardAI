@@ -11,6 +11,11 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
+- **Bottom navigation bar**: Home, Meetings, Calendar, Tasks and Notes are one tap away from every
+  main screen (hidden on the AI chat, whose composer owns the bottom edge). The menu keeps the
+  remaining destinations (new meeting, assistant, plans, settings). The bar owns the bottom
+  safe-area inset, so list paddings and the floating buttons sit right above it; modal sheets and
+  editors keep their window insets.
 - **Outlook calendar sync, activated** (milestone M6): the Microsoft Graph two-way sync built in
   v1 is switched on by setting `EXPO_PUBLIC_MSAL_CLIENT_ID` (Azure app registration, SETUP §10).
   Connect a Microsoft account on the Calendar sync screen; meetings flow both ways with the

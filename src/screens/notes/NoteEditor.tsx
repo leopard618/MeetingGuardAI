@@ -6,10 +6,10 @@
 import { useState, type ReactElement } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Chip, HelperText, IconButton, Switch, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MGButton } from '../../components/ui';
 import { NOTE_CATEGORIES, type Meeting, type Note } from '../../core/types';
+import { useWindowInsets } from '../../hooks/useWindowInsets';
 import { useT } from '../../i18n';
 import { componentMetrics, radii, spacing } from '../../theme';
 import type { Formatters } from '../shared/useFormatters';
@@ -62,7 +62,7 @@ export function NoteEditor({
 }: NoteEditorProps): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useWindowInsets();
   const [original] = useState<NoteDraft>(() => (note ? draftFromNote(note) : { ...newNoteDraft(), ...initialDraft }));
   const [draft, setDraft] = useState<NoteDraft>(original);
   const [submitted, setSubmitted] = useState(false);

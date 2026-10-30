@@ -94,6 +94,14 @@ jest.mock('../../components/CustomHeader', () => {
   return { __esModule: true, CustomHeader: MockHeader, default: MockHeader };
 });
 jest.mock('../../components/MobileSidebar', () => ({ __esModule: true, MobileSidebar: () => null, default: () => null }));
+// The real bar needs the ThemeProvider; this stand-in only reports the route it was given.
+jest.mock('../../components/BottomNavBar', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  const MockBar = ({ currentRouteName }: { currentRouteName: string | null }) =>
+    React.createElement(Text, { testID: 'bottom-bar' }, `bar:${currentRouteName ?? 'none'}`);
+  return { __esModule: true, BottomNavBar: MockBar, default: MockBar };
+});
 jest.mock('../../screens/onboarding', () => {
   const stepScreen = (name: string) => () => mockScreen(name).default({});
   return {
@@ -246,10 +254,22 @@ describe('RootNavigator gate', () => {
     expect(screen.getByTestId('app-splash')).toBeTruthy();
   });
 
-  it('shows the Main group with the header when onboarding is completed', async () => {
+  it('shows the Main group with the header and the bottom bar when onboarding is completed', async () => {
     await renderNavigator();
     expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|-');
     expect(screen.getByTestId('header').props.children).toBe('header:Dashboard');
+    expect(screen.getByTestId('bottom-bar').props.children).toBe('bar:Dashboard');
+
+    await act(async () => {
+      navigate('Calendar');
+    });
+    expect(screen.getByTestId('bottom-bar').props.children).toBe('bar:Calendar');
+  });
+
+  it('has no bottom bar outside the Main group', async () => {
+    mockUseAuth.mockReturnValue(authState('signed_out'));
+    await renderNavigator();
+    expect(screen.queryByTestId('bottom-bar')).toBeNull();
   });
 });
 

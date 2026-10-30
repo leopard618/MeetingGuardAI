@@ -9,11 +9,11 @@ import DateTimePicker, { type DateTimePickerEvent } from '@react-native-communit
 import { useEffect, useState, type ReactElement } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Chip, HelperText, IconButton, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MGButton } from '../../components/ui';
 import type { TodoList } from '../../core/contracts';
 import type { Meeting, Task } from '../../core/types';
+import { useWindowInsets } from '../../hooks/useWindowInsets';
 import { useT } from '../../i18n';
 import { componentMetrics, radii, spacing } from '../../theme';
 import { MeetingPicker } from '../notes/MeetingPicker';
@@ -76,7 +76,7 @@ export function TaskEditor({
 }: TaskEditorProps): ReactElement {
   const t = useT();
   const theme = usePaperTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useWindowInsets();
   const [original] = useState<TaskDraft>(() => (task ? draftFromTask(task) : newTaskDraft()));
   const [draft, setDraft] = useState<TaskDraft>(original);
   const [submitted, setSubmitted] = useState(false);

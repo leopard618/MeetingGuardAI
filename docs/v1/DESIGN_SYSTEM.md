@@ -209,7 +209,10 @@ Dashboard + Calendar + list screens only.
    insets, title titleL, 44×44 icon buttons with `android_ripple {onSurface@12%, borderless,
    radius:22}`, language pill surfaceVariant/r-full/labelM), `MobileSidebar` (surface bg, active
    route = secondaryContainer pill + onSecondaryContainer, inactive onSurfaceVariant, scrim
-   token, shadow via colors.shadow), `ThemeToggle` (44×44), `src/screens/shared/Section.tsx` /
+   token, shadow via colors.shadow), `BottomNavBar` (surface bg, 1px top outlineVariant, row
+   `bottomBarHeight` 64 + bottom inset, five tabs with a 56×32 r-full secondaryContainer pill behind
+   the active icon (filled Ionicon, onSecondaryContainer), labelS label onSurface / onSurfaceVariant,
+   onSurface@12% borderless ripple, role tab + selected), `ThemeToggle` (44×44), `src/screens/shared/Section.tsx` /
    `ScreenBody` (bg background, gutter 16, paddingBottom insets.bottom+24; Section card = Card
    spec) — every screen inherits the new card baseline from here.
 7. `src/services/alerts/expoNotificationsPort.ts`: notification accent `#1E40AF` → `#4646D3`.

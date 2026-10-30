@@ -1,6 +1,6 @@
 /**
  * Route registrations and their titles stay consistent: every route has a header title in EN and
- * ES, and no title or sidebar label is left behind for a route that no longer exists.
+ * ES, and no title, sidebar label or bottom-bar label is left behind for a route that no longer exists.
  */
 import type { Language } from '../../core/types';
 import { RESOURCES } from '../../i18n/resources';
@@ -28,6 +28,12 @@ describe('route titles', () => {
 
   it.each(LANGUAGES)('labels only existing routes in the sidebar (%s)', (language) => {
     const labels = Object.keys(table(language, 'shell', 'sidebar.items'));
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.filter((route) => !ROUTE_NAMES.includes(route))).toEqual([]);
+  });
+
+  it.each(LANGUAGES)('labels only existing routes in the bottom bar (%s)', (language) => {
+    const labels = Object.keys(table(language, 'shell', 'bottomBar.items'));
     expect(labels.length).toBeGreaterThan(0);
     expect(labels.filter((route) => !ROUTE_NAMES.includes(route))).toEqual([]);
   });
