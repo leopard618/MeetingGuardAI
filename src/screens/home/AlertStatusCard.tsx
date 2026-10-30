@@ -151,7 +151,7 @@ export function AlertStatusCard({ preferences, meetings, now, onOpenSettings }: 
           </View>
         ) : null}
 
-        {enabled && Platform.OS === 'android' && permission?.exactAlarms === 'unknown' ? (
+        {enabled && Platform.OS === 'android' && (permission?.exactAlarms === 'unknown' || permission?.exactAlarms === 'denied') ? (
           <View style={styles.line}>
             <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
               {t('home:alerts.exactAlarms.hint')}

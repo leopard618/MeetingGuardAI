@@ -103,6 +103,12 @@ class MgFullscreenAlarmModule : Module() {
           // reconcile racing the fire time cannot double-post it.
           continue
         }
+        if (previous == null && FiredStore.all(context, null).any { it.id == spec.id }) {
+          // It fired a moment ago (the receiver drops the stored entry before posting, so
+          // `previous` is gone): a reconcile planned before the fire instant must not set it
+          // again, or the alarm sounds twice.
+          continue
+        }
         if (now - atMs > AlarmScheduler.SET_PAST_GRACE_MS) {
           // Too old to fire. An outdated copy under this id is removed.
           if (previous != null) {

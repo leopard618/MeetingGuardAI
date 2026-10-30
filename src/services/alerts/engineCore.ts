@@ -39,10 +39,12 @@ import type { AppEventMap, EventBus } from '../../core/events';
 import {
   ALERT_HORIZON_DAYS,
   ALERT_NOTIFICATION_BUDGET,
+  BRIEFING_NOTIFICATION_ID_PREFIX,
   NOTIFICATION_ACTIONS,
   NOTIFICATION_CATEGORIES,
   REFILL_NOTIFICATION_ID,
   SUPERSEDED_ANDROID_CHANNELS,
+  TASK_NOTIFICATION_ID_PREFIX,
   USER_STORAGE,
   channelFor,
   parseNotificationId,
@@ -925,9 +927,16 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       const legacyIds = records.filter((r) => isLegacyNotification(r.identifier, r.data)).map((r) => r.identifier);
 
       const validSnoozes = prefs.alertEnabled ? snoozeEntries(existing).filter((entry) => isValidSnooze(entry, nowMs)) : [];
+      // iOS keeps at most 64 pending requests per app and silently drops the rest. The task
+      // reminders and the morning briefing share that cap, so the meeting budget shrinks by what
+      // they hold (the refill reminder then covers what no longer fits).
+      const sharedPending = records.filter(
+        (record) =>
+          record.identifier.startsWith(`${TASK_NOTIFICATION_ID_PREFIX}:`) || record.identifier.startsWith(`${BRIEFING_NOTIFICATION_ID_PREFIX}:`),
+      ).length;
       const plan = prefs.alertEnabled
         ? computeAlertPlan(meetings, prefs, now, {
-            budget: ALERT_NOTIFICATION_BUDGET - validSnoozes.length,
+            budget: Math.max(0, ALERT_NOTIFICATION_BUDGET - validSnoozes.length - sharedPending),
             suppress: validSnoozes.map((entry) => ({ meetingId: entry.data!.meetingId, fireAt: entry.fireAt! })),
             suppressWindowMs: SNOOZE_DEDUPE_WINDOW_MS,
           })
@@ -1148,10 +1157,21 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
   // ---- permissions -------------------------------------------------------------------------------
   async function getPermissionStatus(): Promise<AlertPermissionStatus> {
     const raw = await notifications.getPermission();
+    let exactAlarms: AlertPermissionStatus['exactAlarms'] = settings.exactAlarmSettingsAvailable ? 'unknown' : 'not_required';
+    if (settings.exactAlarmSettingsAvailable && deps.fsi && notifications.platform === 'android' && deps.fsi.isAvailable()) {
+      // The native module reads canScheduleExactAlarms(): the home card then stops asking once
+      // the permission is granted instead of nagging forever.
+      try {
+        const fsiStatus = await deps.fsi.getStatus();
+        if (typeof fsiStatus.exactAllowed === 'boolean') exactAlarms = fsiStatus.exactAllowed ? 'granted' : 'denied';
+      } catch {
+        // Stays 'unknown'.
+      }
+    }
     const status: AlertPermissionStatus = {
       notifications: raw.provisional ? 'provisional' : raw.status,
       canAskAgain: raw.canAskAgain,
-      exactAlarms: settings.exactAlarmSettingsAvailable ? 'unknown' : 'not_required',
+      exactAlarms,
     };
     return status;
   }

@@ -365,7 +365,7 @@ export function AlertDeliverySection({
         ) : null}
       </Section>
 
-      {status?.exactAlarms === 'unknown' ? (
+      {status?.exactAlarms === 'unknown' || status?.exactAlarms === 'denied' ? (
         <Section title={t('onboarding:alerts.exactAlarms.title')}>
           {exactAllowed === true ? (
             <Badge tone="success" label={t('alerts:settings.exactAlarms.granted')} testID="alerts-exact-granted" />
