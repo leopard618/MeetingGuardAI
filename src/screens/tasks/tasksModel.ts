@@ -17,6 +17,14 @@ export type TaskFilter = (typeof TASK_FILTERS)[number];
 export const REMINDER_CHOICES: readonly (number | null)[] = [null, 0, 5, 15, 30, 60, 1440];
 
 /** The task's due instant (UTC ms), or null without a due date / with broken zone data. */
+/**
+ * The due instant as a UTC ISO string, for display in the device zone: a task due 17:00 in Madrid
+ * shows 11:00 in New York, the same instant its reminder and the overdue rule use.
+ */
+export function taskDueInstant(task: Pick<Task, 'dueDate' | 'dueTime' | 'timezone'>): string {
+  return zonedDateTimeToUtcIso(task.dueDate ?? '1970-01-01', task.dueTime ?? '23:59', task.timezone);
+}
+
 export function dueInstantMs(task: Pick<Task, 'dueDate' | 'dueTime' | 'timezone'>): number | null {
   if (task.dueDate === null) return null;
   try {

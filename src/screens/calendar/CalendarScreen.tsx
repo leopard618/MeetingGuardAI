@@ -21,10 +21,11 @@ import { useMeetings, useTasks } from '../../services/data';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { MeetingActionsSheet, useMeetingActions } from '../meetings/list/meetingActions';
 import { MeetingListItem, sourceColor } from '../meetings/list/MeetingListItem';
-import { dayRelation, type SourceCategory } from '../meetings/list/meetingListModel';
+import { dayRelation, isInProgress, type SourceCategory } from '../meetings/list/meetingListModel';
 import { useMeetingsRefresh } from '../meetings/list/useMeetingsRefresh';
 import { FAB_SLIDE_DP, useHideOnScroll } from '../meetings/list/useHideOnScroll';
 import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay, type DisplayMeeting } from '../meetings/occurrences';
+import { taskDueInstant } from '../tasks/tasksModel';
 import { OccurrenceEditSheet } from '../meetings/OccurrenceEditSheet';
 import { useFormatters } from '../shared/useFormatters';
 import { capitalizeFirst } from '../shared/text';
@@ -242,7 +243,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
                     </Text>
                     {task.dueTime ? (
                       <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
-                        {fmt.time(`${task.dueDate}T${task.dueTime}:00`)}
+                        {fmt.time(taskDueInstant(task))}
                       </Text>
                     ) : null}
                   </View>
@@ -301,7 +302,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
         renderItem={({ item }) => (
           <MeetingListItem
             meeting={item}
-            now={now}
+            inProgress={isInProgress(item, now)}
             timeZone={timeZone}
             fmt={fmt}
             deleting={actions.deletingId === item.id}

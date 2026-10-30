@@ -26,6 +26,7 @@ import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { expandOccurrences, type MeetingOccurrence } from '../../core/recurrence';
 import { getDeviceTimeZone } from '../../core/time';
+import { useLiveNow } from '../shared/useLiveNow';
 import { effectiveAlertIntensity, type Meeting } from '../../core/types';
 import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
@@ -79,12 +80,17 @@ function whenText(meeting: Meeting, fmt: Formatters): { local: string; meetingZo
 
 export function MeetingDetailsScreen({ navigation, route }: Props): ReactElement {
   const id = route.params?.meetingId ?? null;
-  const { meeting, isLoading } = useMeeting(id);
+  const { meeting: current, isLoading } = useMeeting(id);
+  // A delete tombstones the meeting before the screen pops: keep showing the last version during
+  // the back animation instead of flashing "Meeting not found".
+  const [leaving, setLeaving] = useState<Meeting | null>(null);
+  const meeting = current ?? leaving;
   if (!meeting) return <MeetingStatus loading={id !== null && isLoading} />;
   return (
     <MeetingDetails
       meeting={meeting}
       onEdit={() => navigation.navigate('EditMeeting', { meetingId: meeting.id })}
+      onDeleting={() => setLeaving(meeting)}
       onDeleted={() => navigation.goBack()}
       onOpenCalendarSync={() => navigation.navigate('CalendarSync')}
     />
@@ -94,11 +100,14 @@ export function MeetingDetailsScreen({ navigation, route }: Props): ReactElement
 function MeetingDetails({
   meeting,
   onEdit,
+  onDeleting,
   onDeleted,
   onOpenCalendarSync,
 }: {
   meeting: Meeting;
   onEdit(): void;
+  /** Fired right before the delete is sent (the parent keeps the last version on screen). */
+  onDeleting(): void;
   onDeleted(): void;
   onOpenCalendarSync(): void;
 }): ReactElement {
@@ -112,18 +121,19 @@ function MeetingDetails({
   const isDevice = meeting.source === 'device';
   const isGoogle = meeting.source === 'google' || meeting.external.googleEventId !== null;
   const isRecurring = meeting.recurrence !== null;
-  // The next few occurrences of a series (details show the master; §16 expands on demand).
+  // The next few occurrences of a series (details show the master; §16 expands on demand). Keyed
+  // on a live clock so an occurrence that just passed drops off while the screen stays open.
+  const now = useLiveNow(60_000);
   const nextOccurrences = useMemo<MeetingOccurrence[]>(() => {
     if (meeting.recurrence === null) return [];
     try {
-      const from = new Date();
-      const to = new Date(from.getTime() + NEXT_OCCURRENCES_WINDOW_MS);
-      return expandOccurrences(meeting, from.toISOString(), to.toISOString(), { max: NEXT_OCCURRENCES_SHOWN });
+      const to = new Date(now.getTime() + NEXT_OCCURRENCES_WINDOW_MS);
+      return expandOccurrences(meeting, now.toISOString(), to.toISOString(), { max: NEXT_OCCURRENCES_SHOWN });
     } catch (caught) {
       log.warn('could not expand the meeting occurrences', toAppError(caught).code);
       return [];
     }
-  }, [meeting]);
+  }, [meeting, now]);
   const alertTimes = meeting.customAlertTimes ?? preferences.defaultAlertTimes;
   const alertTimesText = alertTimes
     .map((minutes) => {
@@ -134,6 +144,7 @@ function MeetingDetails({
 
   const remove = async (): Promise<void> => {
     setDeleting(true);
+    onDeleting();
     try {
       await meetingRepository.remove(meeting.id, { origin: 'user' });
       // §24: best effort, never blocks the UI - deletes the server-created Zoom meeting (no-op

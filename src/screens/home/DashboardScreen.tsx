@@ -25,7 +25,7 @@ import { Banner, EmptyState, ErrorState, SectionHeader, Skeleton } from '../../c
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
-import { getDeviceTimeZone, getZonedParts } from '../../core/time';
+import { addDaysToLocalDate, getDeviceTimeZone, getZonedParts, todayInZone } from '../../core/time';
 import type { Meeting, Task } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
@@ -36,7 +36,7 @@ import { computeDashboardSummary, weekStartForLanguage, type InsightContext } fr
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
 import { AlertStatusCard } from './AlertStatusCard';
-import { displayKeyOf, displayWindowAround, expandMeetingsForDisplay } from '../meetings/occurrences';
+import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay } from '../meetings/occurrences';
 import { buildTodayTimeline, dayPeriodOf, findNextAllDay, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
 import { InsightsSummaryCard } from './InsightsSummaryCard';
 import { NextMeetingCard } from './NextMeetingCard';
@@ -105,10 +105,13 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
 
   const context = useMemo<InsightContext>(() => ({ now, timeZone, weekStartsOn: weekStartForLanguage(language) }), [now, timeZone, language]);
   // Recurring meetings appear as their occurrences (today's timeline, next meeting; occurrences.ts).
-  const displayMeetings = useMemo(
-    () => expandMeetingsForDisplay(meetings, displayWindowAround(now, timeZone, DASHBOARD_PAST_DAYS, DASHBOARD_FUTURE_DAYS)),
-    [meetings, timeZone, now],
+  // The window only moves with the local DAY, so the expansion is keyed on it, not on the 30 s clock.
+  const todayKey = todayInZone(timeZone, now);
+  const displayWindow = useMemo(
+    () => displayWindowForDays(addDaysToLocalDate(todayKey, -DASHBOARD_PAST_DAYS + 1), addDaysToLocalDate(todayKey, DASHBOARD_FUTURE_DAYS - 1), timeZone),
+    [todayKey, timeZone],
   );
+  const displayMeetings = useMemo(() => expandMeetingsForDisplay(meetings, displayWindow), [meetings, displayWindow]);
   const timeline = useMemo(() => buildTodayTimeline(displayMeetings, context), [displayMeetings, context]);
   // The summary counts the same occurrence rows the timeline shows (a weekly series counts every
   // occurrence of this week, not just its stored master).

@@ -28,7 +28,7 @@ import {
 } from '../../../theme';
 import type { Formatters } from '../../shared/useFormatters';
 import type { DisplayMeeting } from '../occurrences';
-import { isInProgress, type SourceCategory } from './meetingListModel';
+import { type SourceCategory } from './meetingListModel';
 
 const MINUTES_PER_DAY = 1440;
 
@@ -71,7 +71,8 @@ function placeText(meeting: Meeting, t: TranslateFn): { icon: 'map-marker-outlin
 export interface MeetingListItemProps {
   /** A meeting, or one materialized occurrence of a recurring meeting (occurrences.ts). */
   meeting: DisplayMeeting;
-  now: Date;
+  /** Computed by the screen from its clock, so a tick re-renders only rows whose state changed. */
+  inProgress: boolean;
   timeZone: string;
   /** The screen's formatters (UI language + clock preference). */
   fmt: Formatters;
@@ -84,7 +85,7 @@ export interface MeetingListItemProps {
 
 function MeetingListItemComponent({
   meeting,
-  now,
+  inProgress,
   timeZone,
   fmt,
   deleting = false,
@@ -99,7 +100,7 @@ function MeetingListItemComponent({
   const when = meetingTimeText(meeting, fmt, timeZone, t);
   const place = placeText(meeting, t);
   const cancelled = meeting.status === 'cancelled';
-  const live = !cancelled && isInProgress(meeting, now);
+  const live = !cancelled && inProgress;
   const source = t(`meetings:source.${meeting.source}`);
   const muted = colors.onSurfaceVariant;
   const repeats = meeting.recurrence !== null;

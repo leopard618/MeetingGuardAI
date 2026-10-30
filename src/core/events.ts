@@ -69,7 +69,7 @@ export interface TasksChangedEvent {
   /** Present for local writes. */
   origin?: WriteOrigin;
   /** For 'deleted': what the removed tasks were linked to, so a sync engine can delete the copy. */
-  removed?: Array<{ id: string; external: TaskExternalRefs }>;
+  removed?: { id: string; external: TaskExternalRefs }[];
 }
 
 export interface PreferencesChangedEvent {

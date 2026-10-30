@@ -244,9 +244,21 @@ function daysBetweenLocalDates(a: string, b: string): number {
  * ORIGINAL local dates of the series, in order, starting at the meeting's own date. The generator
  * is endless for endless rules; callers stop it (count/until/window/caps).
  */
-function* candidateDates(anchorDate: string, rule: MeetingRecurrence): Generator<string> {
+/**
+ * `fromDate`: a local date the caller is not interested in anything before. Daily and weekly rules
+ * then start iterating close to it instead of walking every occurrence since the anchor (a daily
+ * meeting created a year ago otherwise costs hundreds of zone conversions per expansion). Only
+ * used when the rule has no `count`: a counted rule must number its occurrences from the anchor.
+ */
+function* candidateDates(anchorDate: string, rule: MeetingRecurrence, fromDate: string | null = null): Generator<string> {
+  const skipTo = rule.count === null && fromDate !== null && daysBetweenLocalDates(anchorDate, fromDate) > 0 ? fromDate : null;
   if (rule.freq === 'daily') {
     let date = anchorDate;
+    if (skipTo !== null) {
+      // Land on the last occurrence at or before fromDate, so the window's first day is covered.
+      const steps = Math.floor((daysBetweenLocalDates(anchorDate, skipTo) - 1) / rule.interval);
+      if (steps > 0) date = addDaysToLocalDate(anchorDate, steps * rule.interval);
+    }
     for (;;) {
       yield date;
       date = addDaysToLocalDate(date, rule.interval);
@@ -260,7 +272,13 @@ function* candidateDates(anchorDate: string, rule: MeetingRecurrence): Generator
     );
     // Monday of the anchor's week.
     const weekStart = addDaysToLocalDate(anchorDate, -weekdayIndexOfLocalDate(anchorDate));
-    for (let week = 0; ; week += 1) {
+    let firstWeek = 0;
+    if (skipTo !== null) {
+      // Whole interval-weeks that end before fromDate's week can be skipped outright.
+      const weeks = Math.floor((daysBetweenLocalDates(weekStart, skipTo) - 7) / (7 * rule.interval));
+      if (weeks > 0) firstWeek = weeks;
+    }
+    for (let week = firstWeek; ; week += 1) {
       const start = addDaysToLocalDate(weekStart, week * rule.interval * 7);
       for (let offset = 0; offset < 7; offset += 1) {
         if (!selected.has(offset)) continue;
@@ -322,7 +340,10 @@ export function expandOccurrences(
   const out: MeetingOccurrence[] = [];
   let generated = 0;
   let iterations = 0;
-  for (const localDateKey of candidateDates(meeting.date, checkedRule.data)) {
+  // Occurrences before the window are never returned (an override cannot move one forward by
+  // more than OVERRIDE_LOOKAHEAD_MS, and the generator lands one step before fromDate anyway).
+  const fromDate = toLocalDateTime(new Date(windowStartMs - OVERRIDE_LOOKAHEAD_MS).toISOString(), meeting.timezone).date;
+  for (const localDateKey of candidateDates(meeting.date, checkedRule.data, fromDate)) {
     iterations += 1;
     if (iterations > MAX_EXPANSION_ITERATIONS) break;
 

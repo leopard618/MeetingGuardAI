@@ -13,7 +13,7 @@ import { Card, SectionHeader } from '../../components/ui';
 import type { Task } from '../../core/types';
 import { useT } from '../../i18n';
 import { componentMetrics, spacing, useAppTheme } from '../../theme';
-import { isDueToday, isOverdue } from '../tasks/tasksModel';
+import { isDueToday, isOverdue, taskDueInstant } from '../tasks/tasksModel';
 import type { Formatters } from '../shared/useFormatters';
 
 const MAX_ROWS = 3;
@@ -78,7 +78,7 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
                       {overdue
                         ? t('home:tasks.overdue')
                         : task.dueTime
-                          ? fmt.time(`${task.dueDate}T${task.dueTime}:00`)
+                          ? fmt.time(taskDueInstant(task))
                           : t('home:tasks.today')}
                     </Text>
                   </View>

@@ -110,6 +110,13 @@ describe('day helpers', () => {
 describe('device time zone provider', () => {
   afterEach(() => setDeviceTimeZoneProvider(null));
 
+  it('registering a new provider replaces the cached answer at once', () => {
+    setDeviceTimeZoneProvider(() => 'America/Bogota');
+    expect(getDeviceTimeZone()).toBe('America/Bogota');
+    setDeviceTimeZoneProvider(() => 'Europe/Madrid');
+    expect(getDeviceTimeZone()).toBe('Europe/Madrid');
+  });
+
   it('prefers a valid registered provider and ignores invalid ones', () => {
     setDeviceTimeZoneProvider(() => 'America/Bogota');
     expect(getDeviceTimeZone()).toBe('America/Bogota');

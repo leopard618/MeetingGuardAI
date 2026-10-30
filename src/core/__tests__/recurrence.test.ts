@@ -159,6 +159,35 @@ describe('expandOccurrences: daily', () => {
   });
 });
 
+describe('expandOccurrences: windows far from the anchor', () => {
+  const rule = { freq: 'daily' as const, interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null };
+
+  it('a daily series anchored two years ago yields the window dates (without walking every day since)', () => {
+    const meeting = series({ date: '2024-01-01', recurrence: rule });
+    const out = expandOccurrences(meeting, '2026-03-06T00:00:00.000Z', '2026-03-10T00:00:00.000Z');
+    expect(out.map((o) => o.localDateKey)).toEqual(['2026-03-06', '2026-03-07', '2026-03-08', '2026-03-09']);
+  });
+
+  it('an every-third-day series keeps its phase from the anchor', () => {
+    // 2024-01-01 to 2026-03-06 is 795 days, a multiple of 3: March 6 is an occurrence, March 9 the next.
+    const meeting = series({ date: '2024-01-01', recurrence: { ...rule, interval: 3 } });
+    const out = expandOccurrences(meeting, '2026-03-06T00:00:00.000Z', '2026-03-10T00:00:00.000Z');
+    expect(out.map((o) => o.localDateKey)).toEqual(['2026-03-06', '2026-03-09']);
+  });
+
+  it('a counted rule still numbers its occurrences from the anchor', () => {
+    const meeting = series({ date: '2024-01-01', recurrence: { ...rule, count: 3 } });
+    expect(expandOccurrences(meeting, '2026-03-06T00:00:00.000Z', '2026-03-10T00:00:00.000Z')).toEqual([]);
+  });
+
+  it('a weekly series anchored two years ago keeps its weekday', () => {
+    // 2024-01-01 was a Monday; so are 2026-03-02 and 2026-03-09.
+    const meeting = series({ date: '2024-01-01', recurrence: { ...rule, freq: 'weekly' as const } });
+    const out = expandOccurrences(meeting, '2026-03-02T00:00:00.000Z', '2026-03-16T00:00:00.000Z');
+    expect(out.map((o) => o.localDateKey)).toEqual(['2026-03-02', '2026-03-09']);
+  });
+});
+
 describe('expandOccurrences: weekly', () => {
   it('defaults byWeekday to the first occurrence weekday', () => {
     const meeting = series({ recurrence: rule({ freq: 'weekly' }) });
