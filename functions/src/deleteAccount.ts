@@ -31,6 +31,7 @@ import { adminAuth, adminDb } from './firebase';
 import { ACCOUNT_DELETIONS_COLLECTION } from './maintenance/core';
 import { deleteAccountRequestSchema, type DeleteAccountResponse } from './shared/aiContract';
 import { deleteWhatsAppDataForUid, firestoreLinkStore } from './whatsapp/link';
+import { ZOOM_OWNERS_COLLECTION } from './zoom/handler';
 
 export interface AccountDeletionPorts {
   /** Writes (or overwrites) the deletion record of the user. */
@@ -48,6 +49,11 @@ export interface AccountDeletionPorts {
    * whatsappUsers/{uid}, any active link code; docs/v1/ARCHITECTURE.md §27). Idempotent.
    */
   deleteWhatsAppData(uid: string): Promise<void>;
+  /**
+   * Removes the user's zoomMeetings/{id} ownership entries and records their ids on the deletion
+   * record (this function holds no Zoom secrets; an owner script deletes the host-side meetings).
+   */
+  deleteZoomRegistry(uid: string): Promise<void>;
 }
 
 export async function deleteAccountData(uid: string, ports: AccountDeletionPorts, now: Date = new Date()): Promise<DeleteAccountResponse> {
@@ -58,6 +64,7 @@ export async function deleteAccountData(uid: string, ports: AccountDeletionPorts
   await ports.deleteDocument(`entitlements/${uid}`);
   await ports.recursiveDelete(`usage/${uid}`);
   await ports.deleteWhatsAppData(uid);
+  await ports.deleteZoomRegistry(uid);
   await ports.deleteAuthUser(uid);
   // Late writes accepted between the first pass and the Auth deletion (see the header).
   await ports.recursiveDelete(`users/${uid}`);
@@ -101,6 +108,17 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
     },
     async deleteWhatsAppData(uid) {
       await deleteWhatsAppDataForUid(uid, firestoreLinkStore(db));
+    },
+    async deleteZoomRegistry(uid) {
+      const snapshot = await db.collection(ZOOM_OWNERS_COLLECTION).where('uid', '==', uid).select().get();
+      if (snapshot.empty) return;
+      const ids = snapshot.docs.map((document) => document.id);
+      for (let start = 0; start < snapshot.docs.length; start += 400) {
+        const batch = db.batch();
+        for (const document of snapshot.docs.slice(start, start + 400)) batch.delete(document.ref);
+        await batch.commit();
+      }
+      await db.collection(ACCOUNT_DELETIONS_COLLECTION).doc(uid).set({ zoomMeetingIds: ids }, { merge: true });
     },
   };
 }

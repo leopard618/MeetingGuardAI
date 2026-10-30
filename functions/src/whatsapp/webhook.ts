@@ -504,6 +504,9 @@ export async function processWebhookPayload(payload: unknown, deps: WebhookDeps)
         phone: phoneLogId(message.from),
         errorName: error instanceof Error ? error.name : typeof error,
       });
+      // The dedupe marker is already claimed, so Meta's redelivery would be dropped: tell the
+      // user instead of going silent (best effort; a failed send is logged by safeSend).
+      await safeSend(deps, message.from, message.wamid, () => deps.sender.sendText(message.from, bilingual('error')));
     }
     processed += 1;
   }

@@ -17,6 +17,7 @@ const require = createRequire(import.meta.url);
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { ACCOUNT_DELETIONS_COLLECTION, replayAccountDeletions } = require('../lib/maintenance/core.js');
+const { deleteWhatsAppDataForUid, firestoreLinkStore } = require('../lib/whatsapp/link.js');
 
 const { values } = parseArgs({
   options: {
@@ -43,6 +44,9 @@ const uids = await replayAccountDeletions(
     },
     async recursiveDelete(path) {
       await db.recursiveDelete(db.doc(path));
+    },
+    async deleteWhatsAppData(uid) {
+      await deleteWhatsAppDataForUid(uid, firestoreLinkStore(db));
     },
     async deleteDocument(path) {
       await db.doc(path).delete();

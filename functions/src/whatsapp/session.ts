@@ -246,7 +246,9 @@ async function bumpCounter(
     const current = parseSession(snapshot.exists ? snapshot.data() : null, now);
     const counts = rolledCounts(current.counts, now);
     const next: SessionCounts = { ...counts, [field]: counts[field] + 1 };
-    tx.set(ref, { counts: next }, { merge: true });
+    // A phone that only ever counts (unlinked, flood-capped) still gets a first updatedAt, or the
+    // retention purge (which filters on that field) would never find its document.
+    tx.set(ref, snapshot.exists ? { counts: next } : { counts: next, updatedAt: now.toISOString() }, { merge: true });
     return next;
   });
 }
