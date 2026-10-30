@@ -6,7 +6,7 @@
  * - Left: back arrow when the stack can go back, otherwise the logo (goes to the dashboard).
  * - Right: language switch (EN <-> ES, instant, saved as the user's choice), light/dark switch,
  *   menu. Account actions (settings, sign-out) live in the sidebar.
- * - MG Indigo shell chrome (docs/v1/DESIGN_SYSTEM.md §6): surface bg, 1px outlineVariant bottom
+ * - MG Indigo shell chrome (docs/v1/DESIGN_SYSTEM.md §6): surface bg, 2dp primary-gradient bottom
  *   hairline, titleL, 44dp icon targets with onSurface@12% borderless ripples, labelM language
  *   pill. Top inset from the safe area (edge-to-edge).
  */
@@ -22,6 +22,7 @@ import { navigateToTopLevel } from '../navigation/navigationService';
 import { ROUTES } from '../navigation/routes';
 import { componentMetrics, radii, spacing, stateAlpha, typography, withAlpha } from '../theme';
 import { ThemeToggle } from './ThemeToggle';
+import { GradientSurface } from './ui';
 
 const APP_LOGO = require('../../assets/icon.png') as number;
 
@@ -59,7 +60,7 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
 
   return (
     <View
-      style={[styles.header, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: colors.surface, borderBottomColor: colors.outlineVariant }]}
+      style={[styles.header, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: colors.surface }]}
       testID="main-header"
     >
       <View style={styles.row}>
@@ -129,13 +130,15 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
           </Pressable>
         ) : null}
       </View>
+      <GradientSurface direction="horizontal" style={styles.hairline} pointerEvents="none" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    borderBottomWidth: 1,
+  header: {},
+  hairline: {
+    height: 2,
   },
   row: {
     flexDirection: 'row',

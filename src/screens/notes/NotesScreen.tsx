@@ -11,11 +11,11 @@
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { Alert, Animated, FlatList, ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Chip, FAB, Searchbar, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { ActivityIndicator, Chip, Searchbar, Text, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { Banner, EmptyState, MGButton } from '../../components/ui';
+import { Banner, EmptyState, GradientFab, MGButton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -317,7 +317,7 @@ export function NotesScreen({ navigation }: Props): ReactElement {
           },
         ]}
       >
-        <FAB
+        <GradientFab
           icon="plus"
           label={t('notes:add')}
           accessibilityLabel={t('notes:addA11y')}

@@ -95,7 +95,7 @@ function MeetingListItemComponent({
   onDelete,
 }: MeetingListItemProps): ReactElement {
   const t = useT();
-  const { colors } = useAppTheme();
+  const { colors, elevated } = useAppTheme();
   const accent = meetingSourceColor(meeting.source, colors);
   const when = meetingTimeText(meeting, fmt, timeZone, t);
   const place = placeText(meeting, t);
@@ -135,7 +135,7 @@ function MeetingListItemComponent({
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.surface, borderColor: colors.outlineVariant },
+        elevated,
         deleting && styles.deleting,
       ]}
     >
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     borderWidth: 1,
     marginHorizontal: componentMetrics.screenGutter,
     marginBottom: componentMetrics.cardGap,

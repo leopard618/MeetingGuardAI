@@ -7,11 +7,11 @@
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { Animated, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Divider, FAB, IconButton, Text, TouchableRipple } from 'react-native-paper';
+import { ActivityIndicator, Divider, IconButton, Text, TouchableRipple } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { Banner, ErrorState, MGButton } from '../../components/ui';
+import { Banner, ErrorState, GradientFab, MGButton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { getDeviceTimeZone, todayInZone } from '../../core/time';
@@ -339,7 +339,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
           },
         ]}
       >
-        <FAB
+        <GradientFab
           icon="plus"
           label={t('meetings:list.newMeeting')}
           onPress={createOnDay}

@@ -11,11 +11,21 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
-- **Bottom navigation bar**: Home, Meetings, Calendar, Tasks and Notes are one tap away from every
-  main screen (hidden on the AI chat, whose composer owns the bottom edge). The menu keeps the
-  remaining destinations (new meeting, assistant, plans, settings). The bar owns the bottom
-  safe-area inset, so list paddings and the floating buttons sit right above it; modal sheets and
-  editors keep their window insets.
+- **Bottom navigation bar with the AI assistant in the middle**: Home, Meetings, AI, Calendar and
+  Tasks are one tap away from every main screen; the assistant is a raised gradient orb that
+  breathes until the chat is open (it replaces the floating assistant button). The menu keeps the
+  remaining destinations (new meeting, notes, plans, settings). The bar owns the bottom safe-area
+  inset, so list paddings and the floating buttons sit right above it; modal sheets and editors
+  keep their window insets.
+- **Visual refresh**: indigo gradients on the primary buttons, the floating "new" buttons, the
+  header hairline and the active tab; a gradient hero card on the dashboard with the greeting and
+  today's numbers (meetings today, tasks due); the next-meeting card and every resting card are
+  lifted with a soft indigo shadow (tonal step in dark mode) and rounder corners; the landing
+  photo sits under an indigo-to-night gradient and the sign-in button is a gradient pill; empty
+  states get a gradient icon circle. Motion: cards, tiles, tabs and buttons spring to 97 percent
+  while pressed, dashboard blocks and today's rows fade in with a short stagger, the active tab
+  pill springs in. Everything is static under the system "reduce motion" setting. Needs
+  `expo-linear-gradient` (native module), so it ships with the next APK and store build.
 - **Outlook calendar sync, activated** (milestone M6): the Microsoft Graph two-way sync built in
   v1 is switched on by setting `EXPO_PUBLIC_MSAL_CLIENT_ID` (Azure app registration, SETUP §10).
   Connect a Microsoft account on the Calendar sync screen; meetings flow both ways with the

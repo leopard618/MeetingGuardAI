@@ -7,6 +7,13 @@
     "afternoonNoName": "Good afternoon",
     "eveningNoName": "Good evening"
   },
+  "hero": {
+    "meetings_one": "{{count}} meeting today",
+    "meetings_other": "{{count}} meetings today",
+    "tasks_one": "{{count}} task due",
+    "tasks_other": "{{count}} tasks due",
+    "allClear": "Nothing scheduled yet"
+  },
   "offline": {
     "title": "You're offline",
     "message": "You can keep working. Changes are saved on this device and sync when you're back online.",

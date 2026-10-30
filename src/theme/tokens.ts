@@ -309,6 +309,77 @@ export const mgColors: Readonly<Record<MGSchemeName, MGColors>> = {
 };
 
 /**
+ * Gradients (audit 2026-10-30 visual refresh). Two stops, drawn diagonally (top-left to
+ * bottom-right) unless a component says otherwise. Every stop was checked against its on-color:
+ * light primary / hero / ai carry white text at >= 4.5:1 on BOTH stops (the lightest stop of
+ * the ai ramp is 4.3:1, icons only); dark primary carries indigo 10 at >= 5.7:1.
+ * - primary: filled buttons, FABs, the active tab pill, the header hairline.
+ * - hero: the dashboard hero card and other one-per-screen banners (white text).
+ * - ai: the assistant orb in the bottom bar and the assistant tiles (white icon).
+ */
+export type MGGradientStops = readonly [string, string];
+
+export interface MGGradients {
+  primary: MGGradientStops;
+  hero: MGGradientStops;
+  ai: MGGradientStops;
+}
+
+export const gradients: Readonly<Record<MGSchemeName, MGGradients>> = {
+  light: {
+    primary: ['#3A3AB8', '#5B5CDF'],
+    hero: ['#3B3BC4', '#7C5CE6'],
+    ai: ['#4646D3', '#6A4BD6'],
+  },
+  dark: {
+    primary: ['#AFB4FF', '#8F94F3'],
+    hero: ['#26268F', '#4646D3'],
+    ai: ['#6A6BE8', '#4646D3'],
+  },
+};
+
+/** Text and icon color on each gradient. */
+export const onGradient: Readonly<Record<MGSchemeName, Readonly<Record<keyof MGGradients, string>>>> = {
+  light: { primary: '#FFFFFF', hero: '#FFFFFF', ai: '#FFFFFF' },
+  dark: { primary: '#101273', hero: '#FFFFFF', ai: '#FFFFFF' },
+};
+
+/**
+ * Soft elevation for resting cards (light scheme only; dark surfaces use a tonal step plus the
+ * outlineVariant hairline because shadows vanish on dark backgrounds). Indigo-tinted so the
+ * shadow reads as depth, not dirt.
+ */
+export const softShadow = {
+  shadowColor: '#101273',
+  shadowOpacity: 0.08,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 2,
+} as const;
+
+/** Stronger, colored shadow for floating controls (FAB, assistant orb). */
+export const floatingShadow = {
+  shadowColor: '#4646D3',
+  shadowOpacity: 0.32,
+  shadowRadius: 14,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 8,
+} as const;
+
+/** Motion (ms) and the one press spring. Every animation skips itself under "reduce motion". */
+export const motion = {
+  fast: 120,
+  base: 220,
+  slow: 320,
+  reveal: 360,
+  /** Staggered list reveals: per-row delay and the largest row index that still waits. */
+  staggerMs: 40,
+  staggerMaxIndex: 8,
+  pressScale: 0.97,
+  spring: { damping: 18, stiffness: 320, mass: 0.7 },
+} as const;
+
+/**
  * Canonical chart-palette index per meeting source (accent bars, calendar dots, timeline dots,
  * legends). Groups B, C and D must all read from this map so the hue for a source never forks.
  */

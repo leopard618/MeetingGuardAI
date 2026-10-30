@@ -9,7 +9,7 @@ import type { ReactElement } from 'react';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import { I18nProvider, i18n } from '../../i18n';
 import { ROUTES } from '../../navigation/routes';
-import { BOTTOM_BAR_ITEMS, BottomNavBar, isBottomBarVisible } from '../BottomNavBar';
+import { BOTTOM_BAR_ITEMS, BottomNavBar } from '../BottomNavBar';
 import { CustomHeader, nextLanguage } from '../CustomHeader';
 import { MobileSidebar, SIDEBAR_ITEMS } from '../MobileSidebar';
 
@@ -188,12 +188,25 @@ describe('BottomNavBar', () => {
     expect(screen.getByText('Reuniones')).toBeTruthy();
   });
 
-  it('collapses to the safe-area strip on the AI chat and shows before the navigator is ready', async () => {
-    expect(isBottomBarVisible('AIChat')).toBe(false);
-    expect(isBottomBarVisible(null)).toBe(true);
-    expect(isBottomBarVisible('Dashboard')).toBe(true);
+  it('carries the AI assistant as the middle item and stays on the chat screen', async () => {
+    expect(BOTTOM_BAR_ITEMS[2]).toEqual(expect.objectContaining({ route: 'AIChat', kind: 'ai' }));
     await renderWithProviders(<BottomNavBar currentRouteName="AIChat" />);
-    expect(screen.queryByTestId('bottom-bar')).toBeNull();
-    expect(screen.getByTestId('bottom-bar-collapsed')).toBeTruthy();
+    expect(screen.getByTestId('bottom-bar')).toBeTruthy();
+    const orb = screen.getByTestId('bottom-bar-item-AIChat');
+    expect(orb.props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
+    expect(screen.getByText('AI')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('bottom-bar-item-Dashboard'));
+    });
+    expect(mockNavigateToTopLevel).toHaveBeenCalledWith('Dashboard');
+  });
+
+  it('opens the assistant from the orb on any screen (null = navigator not ready yet)', async () => {
+    await renderWithProviders(<BottomNavBar currentRouteName={null} />);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('bottom-bar-item-AIChat'));
+    });
+    expect(mockNavigateToTopLevel).toHaveBeenCalledWith('AIChat');
   });
 });

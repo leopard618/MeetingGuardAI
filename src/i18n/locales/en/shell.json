@@ -1,5 +1,4 @@
 {
-  "assistantFab": "Open the AI assistant",
   "header": {
     "back": "Go back",
     "home": "Go to the dashboard",
@@ -33,9 +32,9 @@
     "items": {
       "Dashboard": "Home",
       "TotalMeetings": "Meetings",
+      "AIChat": "AI",
       "Calendar": "Calendar",
-      "Tasks": "Tasks",
-      "Notes": "Notes"
+      "Tasks": "Tasks"
     }
   },
   "errorBoundary": {

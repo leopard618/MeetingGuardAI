@@ -20,6 +20,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useRef, useState, type ComponentProps, type ReactElement } from 'react';
 import { ActivityIndicator, Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -32,7 +33,8 @@ import { createLogger } from '../../core/logger';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth, type AuthActionResult } from '../../services/auth';
-import { componentMetrics, lightColors, pressedDimOpacity, pressedOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
+import { GradientSurface } from '../../components/ui';
+import { componentMetrics, indigoRamp, lightColors, pressedDimOpacity, pressedOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
 
 import { AppleSignInButton } from './AppleSignInButton';
 
@@ -45,7 +47,8 @@ const LOGO_WITH_TITLE = require('../../../assets/mark_with_title.png') as number
 const ON_HERO = lightColors.onPrimary;
 const ON_HERO_MUTED = withAlpha(lightColors.onPrimary, 0.85);
 const ON_HERO_BORDER = withAlpha(lightColors.onPrimary, 0.7);
-const HERO_SCRIM = lightColors.scrim;
+/** Indigo-to-night scrim over the photo: brand hue on top, legible card area below. */
+const HERO_SCRIM: readonly [string, string] = [withAlpha(indigoRamp[10], 0.55), withAlpha(lightColors.onBackground, 0.82)];
 const HERO_TEXT_SHADOW = withAlpha(lightColors.shadow, 0.35);
 /** Dark label on the selected (white) language chip. */
 const ON_HERO_INVERSE = lightColors.onSurface;
@@ -61,7 +64,7 @@ export const VALUE_PROPS: readonly { key: 'alerts' | 'calendars' | 'assistant' |
 
 export function LandingScreen(): ReactElement {
   const t = useT();
-  const { colors } = useAppTheme();
+  const { colors, onGradient } = useAppTheme();
   const insets = useSafeAreaInsets();
   const layout = useResponsive();
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
@@ -100,7 +103,7 @@ export function LandingScreen(): ReactElement {
   return (
     <ImageBackground source={BACKGROUND} style={styles.fill} resizeMode="cover" testID="landing-screen">
       {focused ? <StatusBar style="light" /> : null}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: HERO_SCRIM }]} />
+      <LinearGradient colors={HERO_SCRIM} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
       <ScrollView
         style={styles.fill}
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom + spacing.lg }]}
@@ -166,19 +169,21 @@ export function LandingScreen(): ReactElement {
               void handleSignIn(signInWithGoogle);
             }}
             disabled={busy}
-            style={({ pressed }) => [styles.signInButton, { backgroundColor: colors.primary }, pressed ? styles.pressedDim : busy ? styles.pressed : null]}
+            style={({ pressed }) => [styles.signInHost, pressed ? styles.pressedDim : busy ? styles.pressed : null]}
             accessibilityRole="button"
             accessibilityState={{ disabled: busy, busy }}
             testID="landing-sign-in"
           >
-            {busy ? (
-              <ActivityIndicator color={colors.onPrimary} style={styles.signInIcon} />
-            ) : (
-              <Ionicons name="logo-google" size={componentMetrics.iconInline} color={colors.onPrimary} style={styles.signInIcon} />
-            )}
-            <Text style={[styles.signInText, { color: colors.onPrimary }]}>
-              {busy ? t('landing:signIn.busy') : t('landing:signIn.google')}
-            </Text>
+            <GradientSurface style={styles.signInButton}>
+              {busy ? (
+                <ActivityIndicator color={onGradient.primary} style={styles.signInIcon} />
+              ) : (
+                <Ionicons name="logo-google" size={componentMetrics.iconInline} color={onGradient.primary} style={styles.signInIcon} />
+              )}
+              <Text style={[styles.signInText, { color: onGradient.primary }]}>
+                {busy ? t('landing:signIn.busy') : t('landing:signIn.google')}
+              </Text>
+            </GradientSurface>
           </Pressable>
 
           <Pressable
@@ -310,6 +315,11 @@ const styles = StyleSheet.create({
   appleButton: {
     marginTop: spacing.sm,
   },
+  signInHost: {
+    borderRadius: radii.full,
+    overflow: 'hidden',
+    marginTop: spacing.sm,
+  },
   signInButton: {
     minHeight: componentMetrics.buttonHeight,
     borderRadius: radii.full,
@@ -317,7 +327,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
-    marginTop: spacing.sm,
   },
   signInIcon: {
     marginRight: spacing.sm,

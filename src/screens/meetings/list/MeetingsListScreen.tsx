@@ -10,10 +10,10 @@
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useMemo, useState, type ReactElement } from 'react';
 import { Animated, RefreshControl, ScrollView, SectionList, StyleSheet, View, type SectionListData } from 'react-native';
-import { ActivityIndicator, Chip, FAB, Searchbar, SegmentedButtons, Text } from 'react-native-paper';
+import { ActivityIndicator, Chip, Searchbar, SegmentedButtons, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Banner, EmptyState, ErrorState, MGButton } from '../../../components/ui';
+import { Banner, EmptyState, ErrorState, GradientFab, MGButton } from '../../../components/ui';
 import type { RootStackParamList } from '../../../core/contracts';
 import { errorMessageKey } from '../../../core/errors';
 import { addDaysToLocalDate, getDeviceTimeZone, todayInZone } from '../../../core/time';
@@ -282,7 +282,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
           },
         ]}
       >
-        <FAB
+        <GradientFab
           icon="plus"
           label={t('meetings:list.newMeeting')}
           onPress={createMeeting}

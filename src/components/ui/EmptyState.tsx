@@ -1,14 +1,16 @@
 /**
- * Empty state (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5/§8): 96dp surfaceVariant
- * circle with a 48dp MCI icon, headlineS title, bodyM body, optional tonal action. Centered,
- * pv 40 - replaces the per-screen dashed boxes and plain-text empties.
+ * Empty state (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5/§8): 96dp circle on a soft
+ * primaryContainer-to-tertiaryContainer gradient with a 48dp MCI icon in primary, headlineS title,
+ * bodyM body, optional tonal action. Centered, pv 40, revealed with the kit's mount animation.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ComponentProps, ReactElement } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { componentMetrics, radii, spacing, typography, useAppTheme } from '../../theme';
 import { MGButton } from './MGButton';
+import { Reveal } from './Reveal';
 
 export interface EmptyStateAction {
   label: string;
@@ -33,27 +35,32 @@ export interface EmptyStateProps {
 export function EmptyState({ icon, title, body, tone = 'neutral', action, style, testID }: EmptyStateProps): ReactElement {
   const { colors } = useAppTheme();
   const error = tone === 'error';
+  const circleColors: readonly [string, string] = error
+    ? [colors.errorContainer, colors.errorContainer]
+    : [colors.primaryContainer, colors.tertiaryContainer];
   return (
-    <View style={[styles.container, style]} testID={testID}>
-      <View style={[styles.circle, { backgroundColor: error ? colors.errorContainer : colors.surfaceVariant }]}>
+    <Reveal style={[styles.container, style]} testID={testID}>
+      <LinearGradient colors={circleColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.circle}>
         <MaterialCommunityIcons
           name={icon}
           size={componentMetrics.emptyStateIcon}
-          color={error ? colors.onErrorContainer : colors.onSurfaceVariant}
+          color={error ? colors.onErrorContainer : colors.primary}
           accessibilityElementsHidden
           importantForAccessibility="no"
         />
-      </View>
+      </LinearGradient>
       <Text style={[styles.title, { color: colors.onSurface }]} accessibilityRole="header">
         {title}
       </Text>
       <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>{body}</Text>
       {action ? (
-        <MGButton variant="tonal" onPress={action.onPress} style={styles.action} testID={testID ? `${testID}-action` : undefined}>
-          {action.label}
-        </MGButton>
+        <View style={styles.action}>
+          <MGButton variant="tonal" onPress={action.onPress} testID={testID ? `${testID}-action` : undefined}>
+            {action.label}
+          </MGButton>
+        </View>
       ) : null}
-    </View>
+    </Reveal>
   );
 }
 

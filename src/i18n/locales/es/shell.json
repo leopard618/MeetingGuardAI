@@ -1,5 +1,4 @@
 {
-  "assistantFab": "Abrir el asistente de IA",
   "header": {
     "back": "Volver",
     "home": "Ir al panel principal",
@@ -33,9 +32,9 @@
     "items": {
       "Dashboard": "Inicio",
       "TotalMeetings": "Reuniones",
+      "AIChat": "IA",
       "Calendar": "Calendario",
-      "Tasks": "Tareas",
-      "Notes": "Notas"
+      "Tasks": "Tareas"
     }
   },
   "errorBoundary": {

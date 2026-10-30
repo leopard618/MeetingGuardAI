@@ -102,6 +102,24 @@ groups, identical in both schemes — see §9).
 toasts. Never border + shadow on the same element. Dark-mode shadows never hard-code `#000` —
 use `colors.shadow`.
 
+### 2.1 Gradients, depth and motion (visual refresh, October 30, 2026)
+
+- **Gradients** (`gradients` / `onGradient` in tokens.ts, drawn ONLY through `GradientSurface`):
+  `primary` (filled buttons, FABs, the header hairline, the active tab pill), `hero` (one banner
+  per screen: the dashboard HeroCard), `ai` (the assistant orb and assistant tiles). Two stops,
+  diagonal by default. Every stop was checked against its on-color (white on light primary / hero /
+  ai at >= 4.5:1 for text, 4.3:1 on the lightest `ai` stop which carries icons only; indigo 10 on
+  dark primary at >= 5.7:1). Never put a gradient behind body text or behind more than one block
+  per screen.
+- **Depth**: resting cards are `elevated` (`useAppTheme().elevated`): white surface with the
+  indigo-tinted `softShadow` in light, elevation level1 + outlineVariant hairline in dark (shadows
+  vanish on dark). Floating controls (GradientFab, the assistant orb) use `floatingShadow`
+  (primary-colored). `variant="outlined"` keeps the flat hairline card for dense lists.
+- **Motion** (`motion` in tokens.ts; all of it skips under "reduce motion"): press feedback is a
+  spring to 97 percent (`PressableScale`), blocks and rows fade-rise in over 360 ms (`Reveal`,
+  rows staggered 40 ms up to index 8), the tab pill springs in, the assistant orb breathes
+  (1.00 to 1.06, 2.4 s) until the chat is open, skeletons pulse (700 ms).
+
 ## 3. Typography (`typography` in tokens.ts; system font, no custom font)
 
 | Variant | size/line | weight | Use |
@@ -210,9 +228,13 @@ Dashboard + Calendar + list screens only.
    radius:22}`, language pill surfaceVariant/r-full/labelM), `MobileSidebar` (surface bg, active
    route = secondaryContainer pill + onSecondaryContainer, inactive onSurfaceVariant, scrim
    token, shadow via colors.shadow), `BottomNavBar` (surface bg, 1px top outlineVariant, row
-   `bottomBarHeight` 64 + bottom inset, five tabs with a 56×32 r-full secondaryContainer pill behind
-   the active icon (filled Ionicon, onSecondaryContainer), labelS label onSurface / onSurfaceVariant,
-   onSurface@12% borderless ripple, role tab + selected), `ThemeToggle` (44×44), `src/screens/shared/Section.tsx` /
+   `bottomBarHeight` 64 + bottom inset; Home, Meetings, AI, Calendar, Tasks; regular tabs get a
+   56×32 r-full secondaryContainer pill that springs in behind the active icon (filled Ionicon,
+   onSecondaryContainer), labelS label onSurface / onSurfaceVariant, onSurface@12% borderless
+   ripple, role tab + selected; the AI item is a 56dp orb on the `ai` gradient raised 18dp above the
+   bar with `floatingShadow`, a white@90% 3dp ring when the chat is open, breathing otherwise; the
+   old floating assistant button is gone), the header hairline is a 2dp `primary` gradient,
+   `ThemeToggle` (44×44), `src/screens/shared/Section.tsx` /
    `ScreenBody` (bg background, gutter 16, paddingBottom insets.bottom+24; Section card = Card
    spec) — every screen inherits the new card baseline from here.
 7. `src/services/alerts/expoNotificationsPort.ts`: notification accent `#1E40AF` → `#4646D3`.

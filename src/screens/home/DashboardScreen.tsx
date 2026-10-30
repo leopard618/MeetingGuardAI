@@ -10,8 +10,10 @@
  * - insights computed on the device, "Ask the assistant" and the full insights screen.
  * Pull to refresh flushes the outbox, re-reads the meetings and runs a calendar sync.
  *
- * MG Indigo hierarchy: greeting headlineL, ONE focal card (NextMeetingCard, primaryContainer),
- * everything else neutral Cards under sentence-case SectionHeaders. A load failure with nothing
+ * MG Indigo hierarchy (2026-10-30 refresh): the HeroCard (greeting + today's numbers on the hero
+ * gradient) is the screen's banner, the NextMeetingCard an elevated card with a gradient accent,
+ * everything else neutral Cards under sentence-case SectionHeaders; blocks and rows reveal with
+ * the kit's mount animation. A load failure with nothing
  * cached shows ErrorState; cached content + failure shows an error Banner (ARCHITECTURE §13).
  */
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -21,7 +23,7 @@ import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { Banner, EmptyState, ErrorState, SectionHeader, Skeleton } from '../../components/ui';
+import { Banner, EmptyState, ErrorState, Reveal, SectionHeader, Skeleton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -35,8 +37,10 @@ import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { computeDashboardSummary, weekStartForLanguage, type InsightContext } from '../insights/meetingInsights';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
+import { isDueToday } from '../tasks/tasksModel';
 import { AlertStatusCard } from './AlertStatusCard';
 import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay } from '../meetings/occurrences';
+import { HeroCard } from './HeroCard';
 import { buildTodayTimeline, dayPeriodOf, findNextAllDay, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
 import { InsightsSummaryCard } from './InsightsSummaryCard';
 import { NextMeetingCard } from './NextMeetingCard';
@@ -57,12 +61,9 @@ type Props = StackScreenProps<RootStackParamList, 'Dashboard'>;
 const DASHBOARD_PAST_DAYS = 7;
 const DASHBOARD_FUTURE_DAYS = 370;
 
-function Greeting({ now, timeZone }: { now: Date; timeZone: string }): ReactElement {
-  const t = useT();
-  const { colors } = useAppTheme();
-  const fmt = useFormatters();
-  const { authUser } = useAuth();
-  const name = firstNameOf(authUser?.displayName);
+/** "Good morning, Ana" in the UI language for the hour in `timeZone`. */
+function greetingText(now: Date, timeZone: string, displayName: string | null | undefined, t: ReturnType<typeof useT>): string {
+  const name = firstNameOf(displayName);
   let hour = now.getHours();
   try {
     hour = getZonedParts(now, timeZone).hour;
@@ -70,16 +71,7 @@ function Greeting({ now, timeZone }: { now: Date; timeZone: string }): ReactElem
     // Keep the runtime's hour.
   }
   const period = dayPeriodOf(hour);
-  return (
-    <View style={styles.greeting}>
-      <Text variant="headlineLarge" accessibilityRole="header" testID="dashboard-greeting">
-        {name ? t(`home:greeting.${period}`, { name }) : t(`home:greeting.${period}NoName`)}
-      </Text>
-      <Text variant="bodyMedium" style={[styles.greetingDate, { color: colors.onSurfaceVariant }]}>
-        {capitalizeFirst(fmt.date(now, 'full'))}
-      </Text>
-    </View>
-  );
+  return name ? t(`home:greeting.${period}`, { name }) : t(`home:greeting.${period}NoName`);
 }
 
 export function DashboardScreen({ navigation }: Props): ReactElement {
@@ -90,6 +82,7 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   const { meetings, isLoading, error, refresh } = useMeetings();
   const { tasks, update: updateTask } = useTasks();
   const { preferences } = usePreferences();
+  const { authUser } = useAuth();
   const fmt = useFormatters();
   const now = useLiveNow(30_000);
   const timeZone = getDeviceTimeZone();
@@ -122,6 +115,7 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   // "no meetings" empty states next to the error (a failure is not an empty list).
   const loadFailed = error !== null && !isLoading && meetings.length === 0;
   const showData = !isLoading && !loadFailed;
+  const tasksDue = useMemo(() => tasks.filter((task) => isDueToday(task, now, timeZone)).length, [tasks, now, timeZone]);
 
   const openMeeting = useCallback((meeting: Meeting) => navigation.navigate('MeetingDetails', { meetingId: meeting.id }), [navigation]);
 
@@ -167,13 +161,24 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   }, [refresh, t]);
 
   const renderItem = useCallback<ListRenderItem<TimelineItem>>(
-    ({ item, index }) => <TodayTimelineRow item={item} isLast={index === timeline.length - 1} onOpen={openMeeting} />,
+    ({ item, index }) => (
+      <Reveal index={index}>
+        <TodayTimelineRow item={item} isLast={index === timeline.length - 1} onOpen={openMeeting} />
+      </Reveal>
+    ),
     [openMeeting, timeline.length],
   );
 
   const header = (
     <View>
-      <Greeting now={now} timeZone={timeZone} />
+      <View style={styles.hero}>
+        <HeroCard
+          greeting={greetingText(now, timeZone, authUser?.displayName, t)}
+          dateLabel={capitalizeFirst(fmt.date(now, 'full'))}
+          meetingsToday={showData ? summary.today.count : null}
+          tasksDue={showData ? tasksDue : null}
+        />
+      </View>
       <OfflineBanner />
       {error ? (
         loadFailed ? (
@@ -188,22 +193,30 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
           />
         )
       ) : null}
-      {showData ? <NextMeetingCard current={current} next={next} nextAllDay={nextAllDay} onOpen={openMeeting} onJoin={join} /> : null}
       {showData ? (
-        <TasksTodayCard
-          tasks={tasks}
-          now={now}
-          deviceZone={timeZone}
-          fmt={fmt}
-          onToggle={completeTask}
-          onOpenTasks={() => navigation.navigate('Tasks')}
-        />
+        <Reveal delay={60}>
+          <NextMeetingCard current={current} next={next} nextAllDay={nextAllDay} onOpen={openMeeting} onJoin={join} />
+        </Reveal>
       ) : null}
-      <QuickActions
-        onNewManual={() => navigation.navigate('CreateMeeting')}
-        onNewWithAi={() => navigation.navigate('AIChat')}
-        onWhatsApp={() => navigation.navigate('WhatsAppConnect')}
-      />
+      {showData ? (
+        <Reveal delay={120}>
+          <TasksTodayCard
+            tasks={tasks}
+            now={now}
+            deviceZone={timeZone}
+            fmt={fmt}
+            onToggle={completeTask}
+            onOpenTasks={() => navigation.navigate('Tasks')}
+          />
+        </Reveal>
+      ) : null}
+      <Reveal delay={180}>
+        <QuickActions
+          onNewManual={() => navigation.navigate('CreateMeeting')}
+          onNewWithAi={() => navigation.navigate('AIChat')}
+          onWhatsApp={() => navigation.navigate('WhatsAppConnect')}
+        />
+      </Reveal>
       {loadFailed ? null : (
         <SectionHeader
           title={t('home:today.title')}
@@ -271,11 +284,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: componentMetrics.screenGutter,
     paddingTop: spacing.md,
   },
-  greeting: {
+  hero: {
     marginBottom: spacing.md,
-  },
-  greetingDate: {
-    marginTop: spacing.xs,
   },
   errorBanner: {
     marginBottom: spacing.md,

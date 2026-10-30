@@ -15,7 +15,6 @@ import { useEffect, useMemo, type ReactElement, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AssistantFab } from '../components/AssistantFab';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { CustomHeader } from '../components/CustomHeader';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -79,16 +78,6 @@ function renderScreenLayout({ children }: { children: ReactElement }): ReactElem
   return <ErrorBoundary scope="screen">{children}</ErrorBoundary>;
 }
 
-/** Main screens additionally get the floating assistant button (hidden on the chat itself). */
-function renderMainScreenLayout({ children }: { children: ReactElement }): ReactElement {
-  return (
-    <ErrorBoundary scope="screen">
-      {children}
-      <AssistantFab />
-    </ErrorBoundary>
-  );
-}
-
 const HEADERLESS_OPTIONS: StackNavigationOptions = { headerShown: false };
 const MAIN_OPTIONS: StackNavigationOptions = { header: renderMainHeader };
 
@@ -115,7 +104,7 @@ function MainGroup(): ReactElement {
       <View style={styles.main}>
         <WindowInsetsProvider value={windowInsets}>
           <SafeAreaInsetsContext.Provider value={screenInsets}>
-            <Stack.Navigator key="main" initialRouteName={MAIN_INITIAL_ROUTE} screenOptions={MAIN_OPTIONS} screenLayout={renderMainScreenLayout}>
+            <Stack.Navigator key="main" initialRouteName={MAIN_INITIAL_ROUTE} screenOptions={MAIN_OPTIONS} screenLayout={renderScreenLayout}>
               <Stack.Screen name="Dashboard" component={DashboardScreen} />
               <Stack.Screen name="ChooseCreationMethod" component={ChooseCreationMethodScreen} />
               <Stack.Screen name="CreateMeeting" component={CreateMeetingScreen} />
