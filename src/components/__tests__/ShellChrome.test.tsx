@@ -10,7 +10,7 @@ import { ThemeProvider } from '../../contexts/ThemeContext';
 import { I18nProvider, i18n } from '../../i18n';
 import { ROUTES } from '../../navigation/routes';
 import { BOTTOM_BAR_ITEMS, BottomNavBar } from '../BottomNavBar';
-import { CustomHeader, nextLanguage } from '../CustomHeader';
+import { avatarInitial, CustomHeader, nextLanguage } from '../CustomHeader';
 import { MobileSidebar, SIDEBAR_ITEMS } from '../MobileSidebar';
 
 jest.mock('expo-localization', () => ({
@@ -69,14 +69,17 @@ describe('CustomHeader', () => {
     expect(onMenuPress).toHaveBeenCalledTimes(1);
   });
 
-  it('toggles the theme and persists the choice', async () => {
-    await renderWithProviders(<CustomHeader title="Dashboard" onMenuPress={jest.fn()} />);
-    expect(screen.getByLabelText('Switch to dark mode')).toBeTruthy();
+  it('shows the account avatar with the user initial as the menu button', async () => {
+    const onMenuPress = jest.fn();
+    await renderWithProviders(<CustomHeader title="Dashboard" onMenuPress={onMenuPress} />);
+    expect(screen.queryByTestId('header-theme')).toBeNull();
+    expect(screen.getByText('A')).toBeTruthy();
+    expect(avatarInitial(null, 'zoe@example.com')).toBe('Z');
+    expect(avatarInitial('  ', '')).toBeNull();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('header-theme'));
+      fireEvent.press(screen.getByTestId('header-menu'));
     });
-    expect(screen.getByLabelText('Switch to light mode')).toBeTruthy();
-    await expect(AsyncStorage.getItem('mg:theme')).resolves.toBe('dark');
+    expect(onMenuPress).toHaveBeenCalledTimes(1);
   });
 
   it('shows a back button instead of the logo when the stack can go back', async () => {

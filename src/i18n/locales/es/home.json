@@ -7,12 +7,10 @@
     "afternoonNoName": "Buenas tardes",
     "eveningNoName": "Buenas noches"
   },
-  "hero": {
-    "meetings_one": "{{count}} reunión hoy",
-    "meetings_other": "{{count}} reuniones hoy",
-    "tasks_one": "{{count}} tarea pendiente",
-    "tasks_other": "{{count}} tareas pendientes",
-    "allClear": "Nada programado todavía"
+  "stats": {
+    "today": "Hoy",
+    "tasksDue": "Tareas pendientes",
+    "thisWeek": "Esta semana"
   },
   "offline": {
     "title": "Sin conexión",

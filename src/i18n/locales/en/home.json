@@ -7,12 +7,10 @@
     "afternoonNoName": "Good afternoon",
     "eveningNoName": "Good evening"
   },
-  "hero": {
-    "meetings_one": "{{count}} meeting today",
-    "meetings_other": "{{count}} meetings today",
-    "tasks_one": "{{count}} task due",
-    "tasks_other": "{{count}} tasks due",
-    "allClear": "Nothing scheduled yet"
+  "stats": {
+    "today": "Today",
+    "tasksDue": "Tasks due",
+    "thisWeek": "This week"
   },
   "offline": {
     "title": "You're offline",

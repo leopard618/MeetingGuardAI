@@ -485,15 +485,35 @@ export const paperColorOverrides: Readonly<Record<MGSchemeName, MGPaperColorOver
   dark: toPaperColors(darkColors),
 };
 
-/** Assignable to react-native TextStyle.fontWeight. */
-export type MGFontWeight = '400' | '500' | '600' | '700';
+/** Semantic weights of the type scale. */
+export type MGFontWeight = '400' | '500' | '600' | '700' | '800';
+
+/**
+ * Plus Jakarta Sans (visual refresh, October 30, 2026): one family name per weight, as expo-font
+ * registers them (@expo-google-fonts/plus-jakarta-sans, loaded in AppRoot). A style sets the
+ * family of its weight and keeps `fontWeight: '400'`, because Android would otherwise stack a
+ * synthetic bold on an already-bold file. Until the fonts are loaded the system font shows.
+ */
+export const fontFamilies: Readonly<Record<MGFontWeight, string>> = {
+  '400': 'PlusJakartaSans_400Regular',
+  '500': 'PlusJakartaSans_500Medium',
+  '600': 'PlusJakartaSans_600SemiBold',
+  '700': 'PlusJakartaSans_700Bold',
+  '800': 'PlusJakartaSans_800ExtraBold',
+};
 
 /** Spread directly into a StyleSheet text style. */
 export interface MGTypeStyle {
+  fontFamily: string;
   fontSize: number;
   lineHeight: number;
-  fontWeight: MGFontWeight;
+  /** Always '400': the weight lives in the family (see fontFamilies). */
+  fontWeight: '400';
   letterSpacing: number;
+}
+
+function type(weight: MGFontWeight, fontSize: number, lineHeight: number, letterSpacing: number): MGTypeStyle {
+  return { fontFamily: fontFamilies[weight], fontSize, lineHeight, fontWeight: '400', letterSpacing };
 }
 
 export type MGTypographyVariant =
@@ -513,20 +533,21 @@ export type MGTypographyVariant =
 
 export type MGTypography = Readonly<Record<MGTypographyVariant, MGTypeStyle>>;
 
+/** Headlines tight and heavy, body relaxed: the editorial contrast of current planner apps. */
 export const typography: MGTypography = {
-  displayS: { fontSize: 36, lineHeight: 44, fontWeight: '700', letterSpacing: 0 },
-  headlineL: { fontSize: 28, lineHeight: 36, fontWeight: '700', letterSpacing: 0 },
-  headlineM: { fontSize: 24, lineHeight: 32, fontWeight: '700', letterSpacing: 0 },
-  headlineS: { fontSize: 20, lineHeight: 28, fontWeight: '600', letterSpacing: 0 },
-  titleL: { fontSize: 20, lineHeight: 28, fontWeight: '600', letterSpacing: 0 },
-  titleM: { fontSize: 16, lineHeight: 24, fontWeight: '600', letterSpacing: 0.1 },
-  titleS: { fontSize: 14, lineHeight: 20, fontWeight: '600', letterSpacing: 0.1 },
-  bodyL: { fontSize: 16, lineHeight: 24, fontWeight: '400', letterSpacing: 0.15 },
-  bodyM: { fontSize: 14, lineHeight: 20, fontWeight: '400', letterSpacing: 0.25 },
-  bodyS: { fontSize: 12, lineHeight: 16, fontWeight: '400', letterSpacing: 0.4 },
-  labelL: { fontSize: 14, lineHeight: 20, fontWeight: '600', letterSpacing: 0.1 },
-  labelM: { fontSize: 12, lineHeight: 16, fontWeight: '500', letterSpacing: 0.3 },
-  labelS: { fontSize: 11, lineHeight: 16, fontWeight: '500', letterSpacing: 0.4 },
+  displayS: type('800', 40, 48, -0.8),
+  headlineL: type('800', 32, 40, -0.6),
+  headlineM: type('700', 26, 34, -0.4),
+  headlineS: type('700', 22, 30, -0.2),
+  titleL: type('700', 20, 28, -0.2),
+  titleM: type('600', 16, 24, 0),
+  titleS: type('600', 14, 20, 0),
+  bodyL: type('400', 16, 24, 0.1),
+  bodyM: type('400', 14, 20, 0.15),
+  bodyS: type('400', 12, 16, 0.2),
+  labelL: type('600', 14, 20, 0.1),
+  labelM: type('500', 12, 16, 0.2),
+  labelS: type('500', 11, 16, 0.3),
 };
 
 /** 4pt grid - the only spacing values allowed in StyleSheets. */
@@ -544,8 +565,8 @@ export const spacing = {
 export type MGSpacing = typeof spacing;
 
 /**
- * Radius scale: xs badge, sm chip/small button, md input/list group/banner, lg card/toast,
- * xl FAB/modal, sheet = bottom-sheet top corners, full = pill/avatar.
+ * Radius scale: xs badge, sm chip/small button, md input/list group/banner, lg toast,
+ * xl FAB/modal, xxl card / floating tab bar, sheet = bottom-sheet top corners, full = pill/avatar.
  */
 export const radii = {
   xs: 6,
@@ -553,6 +574,8 @@ export const radii = {
   md: 12,
   lg: 16,
   xl: 20,
+  /** Resting cards and the floating tab bar. */
+  xxl: 24,
   sheet: 28,
   full: 999,
 } as const;

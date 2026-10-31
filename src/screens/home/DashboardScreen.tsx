@@ -10,10 +10,10 @@
  * - insights computed on the device, "Ask the assistant" and the full insights screen.
  * Pull to refresh flushes the outbox, re-reads the meetings and runs a calendar sync.
  *
- * MG Indigo hierarchy (2026-10-30 refresh): the HeroCard (greeting + today's numbers on the hero
- * gradient) is the screen's banner, the NextMeetingCard an elevated card with a gradient accent,
- * everything else neutral Cards under sentence-case SectionHeaders; blocks and rows reveal with
- * the kit's mount animation. A load failure with nothing
+ * MG Indigo hierarchy (2026-10-30 refresh): a big greeting (headlineL, date in bodyM) with no app
+ * bar above it, three stat tiles (today / tasks due / this week), THE focal card on the primary
+ * gradient (NextMeetingCard), everything else neutral elevated Cards under sentence-case
+ * SectionHeaders; blocks and rows reveal with the kit's mount animation. A load failure with nothing
  * cached shows ErrorState; cached content + failure shows an error Banner (ARCHITECTURE §13).
  */
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -40,7 +40,7 @@ import { useFormatters } from '../shared/useFormatters';
 import { isDueToday } from '../tasks/tasksModel';
 import { AlertStatusCard } from './AlertStatusCard';
 import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay } from '../meetings/occurrences';
-import { HeroCard } from './HeroCard';
+import { StatsRow } from './StatsRow';
 import { buildTodayTimeline, dayPeriodOf, findNextAllDay, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
 import { InsightsSummaryCard } from './InsightsSummaryCard';
 import { NextMeetingCard } from './NextMeetingCard';
@@ -171,14 +171,19 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
 
   const header = (
     <View>
-      <View style={styles.hero}>
-        <HeroCard
-          greeting={greetingText(now, timeZone, authUser?.displayName, t)}
-          dateLabel={capitalizeFirst(fmt.date(now, 'full'))}
-          meetingsToday={showData ? summary.today.count : null}
-          tasksDue={showData ? tasksDue : null}
-        />
-      </View>
+      <Reveal style={styles.greeting}>
+        <Text variant="headlineLarge" accessibilityRole="header" numberOfLines={2} testID="dashboard-greeting">
+          {greetingText(now, timeZone, authUser?.displayName, t)}
+        </Text>
+        <Text variant="bodyMedium" style={[styles.greetingDate, { color: colors.onSurfaceVariant }]}>
+          {capitalizeFirst(fmt.date(now, 'full'))}
+        </Text>
+      </Reveal>
+      <StatsRow
+        meetingsToday={showData ? summary.today.count : null}
+        tasksDue={showData ? tasksDue : null}
+        meetingsThisWeek={showData ? summary.week.count : null}
+      />
       <OfflineBanner />
       {error ? (
         loadFailed ? (
@@ -284,8 +289,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: componentMetrics.screenGutter,
     paddingTop: spacing.md,
   },
-  hero: {
-    marginBottom: spacing.md,
+  greeting: {
+    marginBottom: spacing.lg,
+  },
+  greetingDate: {
+    marginTop: spacing.xs,
   },
   errorBanner: {
     marginBottom: spacing.md,

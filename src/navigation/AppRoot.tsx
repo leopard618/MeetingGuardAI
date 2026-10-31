@@ -8,6 +8,14 @@
  * The session manager (auth area) starts/stops the data session, calendar sync and alerts; this
  * root only initializes the alert engine once and registers the crash reporter for the logger.
  */
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+  useFonts,
+} from '@expo-google-fonts/plus-jakarta-sans';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, type ReactElement } from 'react';
@@ -33,6 +41,15 @@ import { navigationRef, onNavigationReady } from './navigationService';
 import { RootNavigator } from './RootNavigator';
 
 const log = createLogger('app');
+
+/** The app typeface (tokens.ts fontFamilies). Loaded once; a load failure falls back to the system font. */
+const APP_FONTS = {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+};
 
 /** Registered when this module loads (before the first render), so ErrorBoundary can report a crash of the very first render. */
 function registerCrashReporter(): void {
@@ -68,7 +85,11 @@ function ThemedApp(): ReactElement {
   );
 }
 
-export function AppRoot(): ReactElement {
+export function AppRoot(): ReactElement | null {
+  const [fontsLoaded, fontError] = useFonts(APP_FONTS);
+  useEffect(() => {
+    if (fontError) log.warn('app fonts failed to load; using the system font', fontError.message);
+  }, [fontError]);
   useEffect(() => {
     registerCrashReporter();
     // Logs the running bundle (Sentry's Expo integration reports emergency launches itself).
@@ -81,6 +102,9 @@ export function AppRoot(): ReactElement {
     statusNotification.start();
     return () => setErrorReporter(null);
   }, []);
+
+  // The native splash stays up until the first frame; the fonts take a few tens of milliseconds.
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <ErrorBoundary>

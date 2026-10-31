@@ -52,3 +52,13 @@ jest.mock('expo-audio', () => ({
   setAudioModeAsync: jest.fn(() => Promise.resolve()),
   useAudioPlayer: jest.fn(() => ({ play: jest.fn(), pause: jest.fn(), remove: jest.fn() })),
 }));
+
+// The app typeface: expo-font's loader is native; tests render with the fonts reported as loaded.
+jest.mock('@expo-google-fonts/plus-jakarta-sans', () => ({
+  useFonts: () => [true, null],
+  PlusJakartaSans_400Regular: 1,
+  PlusJakartaSans_500Medium: 2,
+  PlusJakartaSans_600SemiBold: 3,
+  PlusJakartaSans_700Bold: 4,
+  PlusJakartaSans_800ExtraBold: 5,
+}));

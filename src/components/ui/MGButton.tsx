@@ -4,7 +4,8 @@
  *
  * Variants: filled (the one primary action: PRIMARY GRADIENT with press-scale feedback), tonal
  * (secondary emphasis), outline, ghost (low emphasis / dialog actions), destructive (ghost-style
- * red text; confirmation stays with the caller).
+ * red text; confirmation stays with the caller), inverse (the on-gradient button: onGradient
+ * surface with the gradient's darkest stop as text, for buttons inside a gradient card).
  *
  * The filled button is bespoke (Paper's Button cannot paint a gradient) and supports the props
  * the app uses: onPress, disabled, loading, a MaterialCommunityIcons `icon` name, children text,
@@ -26,7 +27,7 @@ import { componentMetrics, radii, stateAlpha, typography, useAppTheme, withAlpha
 import { GradientSurface } from './GradientSurface';
 import { PressableScale } from './PressableScale';
 
-export type MGButtonVariant = 'filled' | 'tonal' | 'outline' | 'ghost' | 'destructive';
+export type MGButtonVariant = 'filled' | 'tonal' | 'outline' | 'ghost' | 'destructive' | 'inverse';
 export type MGButtonSize = 'md' | 'sm';
 
 export interface MGButtonProps extends Omit<ComponentProps<typeof Button>, 'mode'> {
@@ -44,6 +45,7 @@ const PAPER_MODE: Record<MGButtonVariant, 'contained' | 'contained-tonal' | 'out
   outline: 'outlined',
   ghost: 'text',
   destructive: 'text',
+  inverse: 'contained',
 };
 
 const ICON_SIZE: Record<MGButtonSize, number> = { md: componentMetrics.iconInline, sm: 18 };
@@ -56,8 +58,9 @@ export function MGButton({
   labelStyle,
   ...rest
 }: MGButtonProps): ReactElement {
-  const { colors, onGradient } = useAppTheme();
+  const { colors, gradients, onGradient } = useAppTheme();
   const destructive = variant === 'destructive';
+  const inverse = variant === 'inverse';
 
   if (variant === 'filled' && !rest.disabled && (rest.icon === undefined || typeof rest.icon === 'string')) {
     const {
@@ -103,8 +106,9 @@ export function MGButton({
   return (
     <Button
       mode={PAPER_MODE[variant]}
-      textColor={destructive ? colors.error : undefined}
-      rippleColor={destructive ? withAlpha(colors.error, stateAlpha.rippleOnCard) : undefined}
+      buttonColor={inverse ? onGradient.primary : undefined}
+      textColor={destructive ? colors.error : inverse ? gradients.primary[0] : undefined}
+      rippleColor={destructive ? withAlpha(colors.error, stateAlpha.rippleOnCard) : inverse ? withAlpha(gradients.primary[0], stateAlpha.rippleOnCard) : undefined}
       hitSlop={size === 'sm' ? 4 : undefined}
       style={[size === 'sm' ? styles.shapeSm : styles.shape, style]}
       contentStyle={[size === 'sm' ? styles.contentSm : styles.content, contentStyle]}

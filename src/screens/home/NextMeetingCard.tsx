@@ -4,21 +4,20 @@
  * meeting has a real http(s) link, and a Details button. Below them, the next all-day item
  * (birthday, holiday) when it comes no later than the next timed meeting.
  *
- * MG Indigo (2026-10-30 refresh): an elevated card with a 5dp primary-gradient accent bar on the
- * left; labels and the countdown in primary, countdown headlineS tabular-nums, Join filled small
- * (gradient). The hero card above it is the screen's colored banner. The "no upcoming meetings"
- * variant is the same card without the accent bar (nothing to focus on).
+ * MG Indigo (2026-10-30 refresh): THE focal card of the dashboard, on the primary gradient with
+ * white text (checked >= 4.5:1 on both stops), the countdown in headlineM tabular-nums, Join as
+ * the inverse (white) pill, Details as ghost text. The "no upcoming meetings" variant stays a
+ * neutral elevated card (nothing to focus on).
  */
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useState, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
-import { Card, GradientSurface, MGButton } from '../../components/ui';
+import { Card, Icon, MGButton } from '../../components/ui';
 import type { TranslateFn } from '../../core/contracts';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
-import { componentMetrics, spacing, useAppTheme } from '../../theme';
+import { componentMetrics, spacing, useAppTheme, withAlpha } from '../../theme';
 import { formatRelative } from '../../utils/format';
 import { endMs, meetingJoinLink, startMs } from '../insights/meetingInsights';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
@@ -80,37 +79,39 @@ function MeetingBlock({
   testID: string;
 }): ReactElement {
   const t = useT();
-  const { colors } = useAppTheme();
+  const { onGradient } = useAppTheme();
   const fmt = useFormatters();
   const link = meetingJoinLink(meeting);
   const address = meeting.location?.address?.trim() ?? '';
-  const onCard = colors.onSurface;
+  const onCard = onGradient.primary;
+  const muted = withAlpha(onCard, 0.82);
 
   return (
     <View testID={testID}>
-      <Text variant="labelLarge" style={{ color: colors.primary }}>
+      <Text variant="labelLarge" style={{ color: muted }}>
         {label}
       </Text>
-      <Text variant="titleMedium" style={[styles.title, { color: onCard }]} numberOfLines={2} testID={`${testID}-title`}>
+      <Text variant="titleLarge" style={[styles.title, { color: onCard }]} numberOfLines={2} testID={`${testID}-title`}>
         {meeting.title}
       </Text>
-      <Text variant="bodySmall" style={{ color: onCard }}>
+      <Text variant="bodySmall" style={{ color: muted }}>
         {fmt.meetingRange(meeting)}
       </Text>
       {address ? (
         <View style={styles.placeRow}>
-          <MaterialCommunityIcons name="map-marker-outline" size={componentMetrics.iconMeta} color={onCard} />
-          <Text variant="bodySmall" style={[styles.placeText, { color: onCard }]} numberOfLines={1}>
+          <Icon name="place" size={componentMetrics.iconMeta} color={muted} />
+          <Text variant="bodySmall" style={[styles.placeText, { color: muted }]} numberOfLines={1}>
             {address}
           </Text>
         </View>
       ) : null}
-      <Text variant="headlineSmall" style={[styles.countdown, { color: colors.primary }]} testID={`${testID}-countdown`}>
+      <Text variant="headlineMedium" style={[styles.countdown, { color: onCard }]} testID={`${testID}-countdown`}>
         {countdown}
       </Text>
       <View style={styles.actions}>
         {link ? (
           <MGButton
+            variant="inverse"
             size="sm"
             icon="video"
             onPress={() => onJoin(link)}
@@ -122,7 +123,7 @@ function MeetingBlock({
           </MGButton>
         ) : null}
         <MGButton
-          variant={link ? 'ghost' : 'filled'}
+          variant={link ? 'ghost' : 'inverse'}
           size="sm"
           icon="information-outline"
           textColor={link ? onCard : undefined}
@@ -140,18 +141,19 @@ function MeetingBlock({
 
 function AllDayBlock({ meeting, onOpen }: { meeting: Meeting; onOpen(meeting: Meeting): void }): ReactElement {
   const t = useT();
-  const { colors } = useAppTheme();
+  const { onGradient } = useAppTheme();
   const fmt = useFormatters();
-  const onCard = colors.onSurface;
+  const onCard = onGradient.primary;
+  const muted = withAlpha(onCard, 0.82);
   return (
     <View testID="next-all-day">
-      <Text variant="labelLarge" style={{ color: colors.primary }}>
+      <Text variant="labelLarge" style={{ color: muted }}>
         {t('home:next.allDayTitle')}
       </Text>
       <Text variant="titleMedium" style={[styles.title, { color: onCard }]} numberOfLines={2} testID="next-all-day-title">
         {meeting.title}
       </Text>
-      <Text variant="bodySmall" style={{ color: onCard }}>
+      <Text variant="bodySmall" style={{ color: muted }}>
         {fmt.meetingRange(meeting)}
       </Text>
       <View style={styles.actions}>
@@ -174,7 +176,7 @@ function AllDayBlock({ meeting, onOpen }: { meeting: Meeting; onOpen(meeting: Me
 
 export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: NextMeetingCardProps): ReactElement {
   const t = useT();
-  const { colors } = useAppTheme();
+  const { colors, onGradient } = useAppTheme();
   const fmt = useFormatters();
   const [tickMs, setTickMs] = useState(30_000);
   const now = useLiveNow(tickMs);
@@ -202,8 +204,7 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
   }
 
   return (
-    <Card style={styles.focal} testID="next-meeting-card">
-      <GradientSurface direction="vertical" style={styles.accentBar} pointerEvents="none" />
+    <Card variant="gradient" testID="next-meeting-card">
       {current ? (
         <MeetingBlock
           meeting={current}
@@ -214,7 +215,7 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
           testID="current-meeting"
         />
       ) : null}
-      {current && next ? <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} /> : null}
+      {current && next ? <View style={[styles.divider, { backgroundColor: withAlpha(onGradient.primary, 0.24) }]} /> : null}
       {next ? (
         <MeetingBlock
           meeting={next}
@@ -226,7 +227,7 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
         />
       ) : null}
       {nextAllDay && (current || next) ? (
-        <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
+        <View style={[styles.divider, { backgroundColor: withAlpha(onGradient.primary, 0.24) }]} />
       ) : null}
       {nextAllDay ? <AllDayBlock meeting={nextAllDay} onOpen={onOpen} /> : null}
     </Card>
@@ -234,16 +235,6 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
 }
 
 const styles = StyleSheet.create({
-  focal: {
-    paddingLeft: componentMetrics.cardPadding + spacing.xs,
-  },
-  accentBar: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 5,
-  },
   title: {
     marginTop: spacing.xs,
   },

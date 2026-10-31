@@ -17,6 +17,13 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
   remaining destinations (new meeting, notes, plans, settings). The bar owns the bottom safe-area
   inset, so list paddings and the floating buttons sit right above it; modal sheets and editors
   keep their window insets.
+- **New typeface and icons**: the whole app is set in Plus Jakarta Sans (heavy, tight headlines,
+  relaxed body text) and the shell, dashboard, menu and meeting rows use one thin line-icon family
+  (Feather) through the kit's Icon component. The header is no longer an app bar: it sits on the
+  screen background with the title, the EN/ES pill and a gradient avatar with your initial that
+  opens the menu (the theme switch lives in the menu and in Settings). The bottom bar is a floating
+  pill. The dashboard opens with a big greeting, three stat tiles (today, tasks due, this week) and
+  the next meeting on a gradient card with a white Join button.
 - **Visual refresh**: indigo gradients on the primary buttons, the floating "new" buttons, the
   header hairline and the active tab; a gradient hero card on the dashboard with the greeting and
   today's numbers (meetings today, tasks due); the next-meeting card and every resting card are

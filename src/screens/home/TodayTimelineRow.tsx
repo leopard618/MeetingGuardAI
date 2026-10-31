@@ -6,12 +6,11 @@
  * MG Indigo: the rail dot takes the meeting's source color (§2 map), the meeting happening now
  * gets a primary dot and a surfaceContainerHigh-tinted card; conflicts keep the error border.
  */
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ReactElement } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
-import { Badge } from '../../components/ui';
+import { Badge, Icon } from '../../components/ui';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
 import { componentMetrics, pressedOpacity, radii, sourceColorIndex, spacing, stateAlpha, useAppTheme, withAlpha } from '../../theme';
@@ -27,7 +26,7 @@ export interface TodayTimelineRowProps {
 
 export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps): ReactElement {
   const t = useT();
-  const { colors } = useAppTheme();
+  const { colors, elevated } = useAppTheme();
   const fmt = useFormatters();
   const { meeting, state, overlapsWith, followsRightAfter } = item;
   const cancelled = meeting.status === 'cancelled';
@@ -75,11 +74,9 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
       <View
         style={[
           styles.content,
-          {
-            borderColor: conflict ? colors.error : tinted ? colors.surfaceContainerHigh : colors.outlineVariant,
-            backgroundColor: tinted ? colors.surfaceContainerHigh : colors.surface,
-          },
-          conflict && styles.conflictBorder,
+          elevated,
+          tinted && { backgroundColor: colors.surfaceContainerHigh },
+          conflict && [styles.conflictBorder, { borderColor: colors.error }],
         ]}
       >
         <Text
@@ -100,7 +97,7 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
         {stateLabel ? <Badge label={stateLabel} tone={isNow ? 'primary' : 'neutral'} style={styles.badge} /> : null}
         {conflict ? (
           <View style={styles.hintRow} testID={`timeline-${meeting.id}-overlap`}>
-            <MaterialCommunityIcons name="alert-circle-outline" size={componentMetrics.iconMeta} color={colors.error} />
+            <Icon name="alert" size={componentMetrics.iconMeta} color={colors.error} />
             <Text variant="bodySmall" style={[styles.hintText, { color: colors.error }]}>
               {overlapText}
             </Text>
@@ -108,7 +105,7 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
         ) : null}
         {!cancelled && followsRightAfter ? (
           <View style={styles.hintRow}>
-            <MaterialCommunityIcons name="timer-sand" size={componentMetrics.iconMeta} color={colors.tertiary} />
+            <Icon name="clock" size={componentMetrics.iconMeta} color={colors.tertiary} />
             <Text variant="bodySmall" style={[styles.hintText, { color: colors.onSurfaceVariant }]}>
               {rightAfterText}
             </Text>

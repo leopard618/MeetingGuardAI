@@ -75,7 +75,7 @@ describe('pure helpers', () => {
     expect(PAPER_THEMES.light.colors.primary).toBe(lightColors.primary);
     expect(PAPER_THEMES.dark.colors.primary).toBe(darkColors.primary);
     expect(PAPER_THEMES.light.colors.elevation.level1).toBe(lightColors.elevation.level1);
-    expect(PAPER_THEMES.light.fonts.titleMedium.fontWeight).toBe('600');
+    expect(PAPER_THEMES.light.fonts.titleMedium.fontFamily).toBe('PlusJakartaSans_600SemiBold');
   });
 
   it('migrates the legacy "theme" key once', async () => {

@@ -120,7 +120,22 @@ use `colors.shadow`.
   rows staggered 40 ms up to index 8), the tab pill springs in, the assistant orb breathes
   (1.00 to 1.06, 2.4 s) until the chat is open, skeletons pulse (700 ms).
 
-## 3. Typography (`typography` in tokens.ts; system font, no custom font)
+### 2.2 Icons (visual refresh, October 30, 2026)
+
+One thin rounded line family: **Feather** (bundled with `@expo/vector-icons`), through the kit's
+`Icon` component and its semantic names (`home`, `meetings`, `calendar`, `tasks`, `place`, `video`,
+`alert`, ...). The assistant keeps Ionicons' `sparkles` (`name="ai"`). New code never imports an icon
+family directly; MaterialCommunityIcons names survive only where Paper props or the EmptyState /
+ListRow APIs take them. Sizes: 16 meta, 20 inline, 24 bars and rows, 22 in the tab bar.
+
+## 3. Typography (`typography` in tokens.ts; Plus Jakarta Sans, loaded in AppRoot)
+
+The app typeface is **Plus Jakarta Sans** (400 / 500 / 600 / 700 / 800, `@expo-google-fonts`), the
+geometric humanist face of current planner apps. One family name per weight (`fontFamilies`); every
+style sets the family of its weight and keeps `fontWeight: '400'` (Android would fake a bold on
+top). Headlines are heavy and tight (headlineL 32/40 at -0.6, displayS 40/48 at -0.8), body relaxed.
+Paper `<Text variant>` and Paper controls (`fonts.default`) use the same families. Until the fonts
+load (a few tens of milliseconds, the native splash is still up) the system font shows.
 
 | Variant | size/line | weight | Use |
 |---|---|---|---|
@@ -234,7 +249,10 @@ Dashboard + Calendar + list screens only.
    ripple, role tab + selected; the AI item is a 56dp orb on the `ai` gradient raised 18dp above the
    bar with `floatingShadow`, a white@90% 3dp ring when the chat is open, breathing otherwise; the
    old floating assistant button is gone), the header hairline is a 2dp `primary` gradient,
-   `ThemeToggle` (44×44), `src/screens/shared/Section.tsx` /
+   `ThemeToggle` (44×44, in the menu and in Settings; no longer in the header), the header itself now sits
+   on the screen background with no hairline (logo or back, titleL title, EN/ES pill, 36dp gradient
+   avatar with the user initial that opens the menu); the tab bar is a floating r-xxl pill 16dp from the
+   sides on the background, `src/screens/shared/Section.tsx` /
    `ScreenBody` (bg background, gutter 16, paddingBottom insets.bottom+24; Section card = Card
    spec) — every screen inherits the new card baseline from here.
 7. `src/services/alerts/expoNotificationsPort.ts`: notification accent `#1E40AF` → `#4646D3`.

@@ -19,6 +19,7 @@ export { EmptyState, type EmptyStateAction, type EmptyStateProps } from './Empty
 export { ErrorState, type ErrorStateProps } from './ErrorState';
 export { GradientFab, type GradientFabProps } from './GradientFab';
 export { GradientSurface, type GradientDirection, type GradientSurfaceProps, type GradientVariant } from './GradientSurface';
+export { Icon, type IconName, type IconProps } from './Icon';
 export { ListGroup, type ListGroupProps } from './ListGroup';
 export { ListRow, type ListRowIconName, type ListRowProps, type ListRowTone } from './ListRow';
 export { LoadingState, type LoadingStateProps } from './LoadingState';

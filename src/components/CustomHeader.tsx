@@ -2,32 +2,32 @@
  * Header of the Main group screens (owner: shell), rendered through the stack's `header` option
  * (src/navigation/RootNavigator.tsx).
  *
- * - Title: navigation:screens.<routeName> in the live language, else the app name.
+ * Visual refresh (October 30, 2026): no app-bar chrome. The header sits on the screen background
+ * with no hairline, so a screen reads as one surface with a bold title at the top:
  * - Left: back arrow when the stack can go back, otherwise the logo (goes to the dashboard).
- * - Right: language switch (EN <-> ES, instant, saved as the user's choice), light/dark switch,
- *   menu. Account actions (settings, sign-out) live in the sidebar.
- * - MG Indigo shell chrome (docs/v1/DESIGN_SYSTEM.md §6): surface bg, 2dp primary-gradient bottom
- *   hairline, titleL, 44dp icon targets with onSurface@12% borderless ripples, labelM language
- *   pill. Top inset from the safe area (edge-to-edge).
+ * - Title: navigation:screens.<routeName> in the live language (titleL, tight tracking), else the
+ *   app name.
+ * - Right: the EN <-> ES pill (instant, saved as the user's choice) and the account avatar (the
+ *   user's initial on the primary gradient), which opens the menu. The theme switch lives in the
+ *   menu and in Settings. 44dp targets, Feather icons, onSurface@12% borderless ripples.
  */
-import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ReactElement } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '../contexts/ThemeContext';
 import type { Language } from '../core/types';
 import { useLanguage, useT } from '../i18n';
 import { navigateToTopLevel } from '../navigation/navigationService';
 import { ROUTES } from '../navigation/routes';
-import { componentMetrics, radii, spacing, stateAlpha, typography, withAlpha } from '../theme';
-import { ThemeToggle } from './ThemeToggle';
-import { GradientSurface } from './ui';
+import { useAuth } from '../services/auth';
+import { componentMetrics, radii, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../theme';
+import { GradientSurface, Icon } from './ui';
 
 const APP_LOGO = require('../../assets/icon.png') as number;
 
 /** Header text never grows past this multiple of its size (it must stay on one row). */
 const HEADER_MAX_FONT_SCALE = 1.4;
+const AVATAR_SIZE = 36;
 
 export interface CustomHeaderProps {
   /** Route name (title from navigation:screens.<name>); unknown names show the app name. */
@@ -43,15 +43,24 @@ export function nextLanguage(language: Language, supported: readonly Language[])
   return supported[(index + 1) % supported.length] ?? language;
 }
 
+/** First letter of the display name, else of the email, else null (icon fallback). */
+export function avatarInitial(displayName: string | null | undefined, email: string | null | undefined): string | null {
+  const source = displayName?.trim() || email?.trim() || '';
+  const first = source.charAt(0);
+  return first ? first.toUpperCase() : null;
+}
+
 export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress }: CustomHeaderProps): ReactElement {
-  const { colors } = useTheme();
+  const { colors, onGradient } = useAppTheme();
   const t = useT();
   const { language, setLanguage, supportedLanguages } = useLanguage();
+  const { authUser } = useAuth();
   const insets = useSafeAreaInsets();
 
   const appName = t('common:app.name');
   const displayTitle = title !== undefined && title in ROUTES ? t(`navigation:screens.${title}`) : appName;
   const next = nextLanguage(language, supportedLanguages);
+  const initial = avatarInitial(authUser?.displayName, authUser?.email);
   const iconRipple = {
     color: withAlpha(colors.onSurface, stateAlpha.rippleOnIcon),
     borderless: true,
@@ -60,7 +69,7 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
 
   return (
     <View
-      style={[styles.header, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: colors.surface }]}
+      style={[styles.header, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: colors.background }]}
       testID="main-header"
     >
       <View style={styles.row}>
@@ -74,7 +83,7 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
             hitSlop={4}
             testID="header-back"
           >
-            <Ionicons name="arrow-back" size={componentMetrics.iconNav} color={colors.onSurface} />
+            <Icon name="back" color={colors.onSurface} />
           </Pressable>
         ) : (
           <Pressable
@@ -114,8 +123,6 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
           </Text>
         </Pressable>
 
-        <ThemeToggle style={styles.spaced} testID="header-theme" />
-
         {showMenu && onMenuPress ? (
           <Pressable
             onPress={onMenuPress}
@@ -126,20 +133,24 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
             hitSlop={4}
             testID="header-menu"
           >
-            <Ionicons name="menu" size={componentMetrics.iconNav} color={colors.onSurface} />
+            <GradientSurface style={styles.avatar}>
+              {initial ? (
+                <Text style={[styles.avatarText, { color: onGradient.primary }]} maxFontSizeMultiplier={1.2}>
+                  {initial}
+                </Text>
+              ) : (
+                <Icon name="user" size={componentMetrics.iconInline} color={onGradient.primary} />
+              )}
+            </GradientSurface>
           </Pressable>
         ) : null}
       </View>
-      <GradientSurface direction="horizontal" style={styles.hairline} pointerEvents="none" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   header: {},
-  hairline: {
-    height: 2,
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -165,7 +176,7 @@ const styles = StyleSheet.create({
   },
   languageButton: {
     minWidth: componentMetrics.touchTargetMin,
-    minHeight: componentMetrics.buttonHeightSmall,
+    minHeight: componentMetrics.buttonHeightSmall - 4,
     borderRadius: radii.full,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
@@ -173,6 +184,17 @@ const styles = StyleSheet.create({
   },
   languageText: {
     ...typography.labelM,
+  },
+  avatar: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarText: {
+    ...typography.labelL,
   },
   spaced: {
     marginLeft: spacing.xs,

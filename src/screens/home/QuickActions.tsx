@@ -5,17 +5,14 @@
  * Three Card tiles across, each with a 40dp primaryContainer icon circle; labels wrap instead
  * of clipping at large font scales.
  */
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import type { ComponentProps, ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
-import { Card, SectionHeader } from '../../components/ui';
+import { Card, Icon, SectionHeader, type IconName } from '../../components/ui';
 import { useT } from '../../i18n';
 import { useWhatsAppStatus } from '../../services/whatsapp';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
-
-type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 export interface QuickActionsProps {
   onNewManual(): void;
@@ -50,11 +47,7 @@ function Tile({
       testID={testID}
     >
       <View style={[styles.circle, { backgroundColor: disabled ? colors.surfaceDisabled : colors.primaryContainer }]}>
-        <MaterialCommunityIcons
-          name={icon}
-          size={componentMetrics.iconNav}
-          color={disabled ? colors.onSurfaceDisabled : colors.onPrimaryContainer}
-        />
+        <Icon name={icon} size={componentMetrics.iconInline} color={disabled ? colors.onSurfaceDisabled : colors.onPrimaryContainer} />
       </View>
       <Text variant="labelLarge" style={[styles.label, disabled && { color: colors.disabledText }]}>
         {label}
@@ -74,8 +67,8 @@ export function QuickActions({ onNewManual, onNewWithAi, onWhatsApp }: QuickActi
     <View>
       <SectionHeader title={t('home:actions.title')} />
       <View style={styles.row}>
-        <Tile icon="calendar-plus" label={t('home:actions.manual')} hint={t('home:actions.manualHint')} onPress={onNewManual} testID="quick-new-manual" />
-        <Tile icon="robot-outline" label={t('home:actions.ai')} hint={t('home:actions.aiHint')} onPress={onNewWithAi} testID="quick-new-ai" />
+        <Tile icon="newMeeting" label={t('home:actions.manual')} hint={t('home:actions.manualHint')} onPress={onNewManual} testID="quick-new-manual" />
+        <Tile icon="ai" label={t('home:actions.ai')} hint={t('home:actions.aiHint')} onPress={onNewWithAi} testID="quick-new-ai" />
         <Tile
           icon="whatsapp"
           label={t('home:actions.whatsapp')}

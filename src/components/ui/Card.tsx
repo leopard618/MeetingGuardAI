@@ -2,7 +2,7 @@
  * Resting-content card (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5).
  *
  * Variants:
- * - elevated (default): surface, r-xl, p-16, soft indigo shadow in light; in dark a tonal step
+ * - elevated (default): surface, r-xxl, p-16, soft indigo shadow in light; in dark a tonal step
  *   (elevation level1) with the outlineVariant hairline, because shadows vanish on dark surfaces.
  * - outlined: the former flat card (surface + 1px hairline, no shadow) for dense lists.
  * - gradient: the primary gradient; text inside uses `useAppTheme().onGradient.primary`.
@@ -82,7 +82,7 @@ export function Card({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: radii.xl,
+    borderRadius: radii.xxl,
     padding: componentMetrics.cardPadding,
     // Keeps the Android ripple (and a gradient fill) inside the rounded corners.
     overflow: 'hidden',

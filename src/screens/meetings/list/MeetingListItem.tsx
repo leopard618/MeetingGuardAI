@@ -13,7 +13,7 @@ import type { TranslateFn } from '../../../core/contracts';
 import { endIso, toLocalDateTime } from '../../../core/time';
 import type { Meeting, MeetingSource } from '../../../core/types';
 import { useT } from '../../../i18n';
-import { Badge } from '../../../components/ui';
+import { Badge, Icon } from '../../../components/ui';
 import {
   componentMetrics,
   pressedOpacity,
@@ -61,10 +61,10 @@ export function meetingTimeText(meeting: Meeting, fmt: Formatters, timeZone: str
   return `${fmt.time(meeting.startAt, timeZone)} - ${fmt.time(end, timeZone)}`;
 }
 
-function placeText(meeting: Meeting, t: TranslateFn): { icon: 'map-marker-outline' | 'video-outline'; text: string } | null {
-  if (meeting.location?.address) return { icon: 'map-marker-outline', text: meeting.location.address };
-  if (meeting.conference) return { icon: 'video-outline', text: t(`alerts:provider.${meeting.conference.provider}`) };
-  if (meeting.location?.virtualUrl) return { icon: 'video-outline', text: t('meetings:list.online') };
+function placeText(meeting: Meeting, t: TranslateFn): { icon: 'place' | 'video'; text: string } | null {
+  if (meeting.location?.address) return { icon: 'place', text: meeting.location.address };
+  if (meeting.conference) return { icon: 'video', text: t(`alerts:provider.${meeting.conference.provider}`) };
+  if (meeting.location?.virtualUrl) return { icon: 'video', text: t('meetings:list.online') };
   return null;
 }
 
@@ -175,7 +175,7 @@ function MeetingListItemComponent({
           </Text>
           {place ? (
             <View style={styles.metaRow}>
-              <MaterialCommunityIcons name={place.icon} size={componentMetrics.iconMeta} color={muted} style={styles.metaIcon} />
+              <Icon name={place.icon} size={componentMetrics.iconMeta} color={muted} style={styles.metaIcon} />
               <Text variant="bodySmall" numberOfLines={1} style={[styles.flex, { color: muted }]}>
                 {place.text}
               </Text>
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: radii.xl,
+    borderRadius: radii.xxl,
     borderWidth: 1,
     marginHorizontal: componentMetrics.screenGutter,
     marginBottom: componentMetrics.cardGap,

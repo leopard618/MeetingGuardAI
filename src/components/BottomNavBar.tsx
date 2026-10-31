@@ -1,55 +1,53 @@
 /**
- * Bottom navigation bar of the Main group (owner: shell). Rendered ONCE under the navigator
- * (src/navigation/RootNavigator.tsx), like the sidebar, so no screen remounts when a tab is tapped.
+ * Floating bottom navigation bar of the Main group (owner: shell). Rendered ONCE under the
+ * navigator (src/navigation/RootNavigator.tsx), like the sidebar, so no screen remounts on a tap.
  *
- * - Items are typed Main routes (BOTTOM_BAR_ITEMS): Home, Meetings, the AI assistant in the
- *   middle, Calendar, Tasks; everything else stays in the sidebar. A tap goes through
- *   navigateToTopLevel (back to the existing screen of that name instead of pushing another copy).
- * - The assistant is a raised 56dp orb on the `ai` gradient with a colored floating shadow; it
- *   breathes (scale 1 -> 1.06, 2.4 s loop) until the chat is open and stays still under "reduce
- *   motion". Replaces the old floating assistant button: it is on every main screen, including
- *   the chat itself (the composer sits right above the bar).
- * - Regular tabs: a secondaryContainer pill springs in behind the active (filled) icon; labels
- *   labelS, onSurface when active, onSurfaceVariant otherwise. Role "tab" + selected state.
+ * - A detached pill (surface, r-xxl, soft shadow) on the screen background, 16dp from the sides
+ *   and 8dp above the system bar: Home, Meetings, the AI assistant in the middle, Calendar, Tasks
+ *   (typed Main routes, BOTTOM_BAR_ITEMS); everything else stays in the menu. A tap goes through
+ *   navigateToTopLevel (back to the existing screen instead of pushing another copy).
+ * - The assistant is a 56dp orb on the `ai` gradient raised above the pill with a colored
+ *   floating shadow; it breathes (1.00 -> 1.06, 2.4 s) until the chat is open and stays still
+ *   under "reduce motion". It is on every main screen, the chat included.
+ * - Regular tabs: Feather line icons through the kit's Icon; the active tab gets a
+ *   secondaryContainer pill that springs in behind the icon and an onSurface label.
  * - The bar owns the bottom safe-area inset (the Main group gives its screens a 0 bottom inset,
- *   see MainGroup in RootNavigator), surface bg, 1px outlineVariant top hairline.
+ *   see MainGroup in RootNavigator).
  */
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useState, type ComponentProps, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MainStackParamList, RouteName } from '../core/contracts';
 import { useT } from '../i18n';
 import { navigateToTopLevel } from '../navigation/navigationService';
-import { componentMetrics, floatingShadow, motion, radii, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../theme';
-import { GradientSurface, PressableScale, useReducedMotion } from './ui';
-
-type IconName = ComponentProps<typeof Ionicons>['name'];
+import { componentMetrics, floatingShadow, motion, radii, softShadow, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../theme';
+import { GradientSurface, Icon, PressableScale, useReducedMotion, type IconName } from './ui';
 
 export interface BottomBarItem {
   route: keyof MainStackParamList;
   icon: IconName;
-  activeIcon: IconName;
   /** "ai" renders the raised gradient orb instead of a regular tab. */
   kind?: 'tab' | 'ai';
 }
 
 /** Tabs, in order (labels: shell:bottomBar.items.<route>). */
 export const BOTTOM_BAR_ITEMS: readonly BottomBarItem[] = [
-  { route: 'Dashboard', icon: 'home-outline', activeIcon: 'home' },
-  { route: 'TotalMeetings', icon: 'list-outline', activeIcon: 'list' },
-  { route: 'AIChat', icon: 'sparkles-outline', activeIcon: 'sparkles', kind: 'ai' },
-  { route: 'Calendar', icon: 'calendar-outline', activeIcon: 'calendar' },
-  { route: 'Tasks', icon: 'checkbox-outline', activeIcon: 'checkbox' },
+  { route: 'Dashboard', icon: 'home' },
+  { route: 'TotalMeetings', icon: 'meetings' },
+  { route: 'AIChat', icon: 'ai', kind: 'ai' },
+  { route: 'Calendar', icon: 'calendar' },
+  { route: 'Tasks', icon: 'tasks' },
 ];
 
 /** Labels never grow past this multiple of their size (one row per tab). */
 const LABEL_MAX_FONT_SCALE = 1.3;
 const ORB_SIZE = 56;
-const ORB_RAISE = 18;
+const ORB_RAISE = 22;
 const BREATH_MS = 1200;
 const BREATH_SCALE = 1.06;
+const BAR_MARGIN = componentMetrics.screenGutter;
+const BAR_LIFT = spacing.sm;
 
 export interface BottomNavBarProps {
   currentRouteName: RouteName | null;
@@ -91,11 +89,7 @@ function TabItem({ item, active, label }: { item: BottomBarItem; active: boolean
             },
           ]}
         />
-        <Ionicons
-          name={active ? item.activeIcon : item.icon}
-          size={componentMetrics.iconNav}
-          color={active ? colors.onSecondaryContainer : colors.onSurfaceVariant}
-        />
+        <Icon name={item.icon} size={22} color={active ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
       </View>
       <Text
         style={[styles.label, { color: active ? colors.onSurface : colors.onSurfaceVariant }]}
@@ -138,12 +132,12 @@ function AiOrb({ item, active, label }: { item: BottomBarItem; active: boolean; 
       testID={`bottom-bar-item-${item.route}`}
     >
       <Animated.View style={[styles.orbShadow, { transform: [{ scale: breath }] }]}>
-        <GradientSurface variant="ai" style={[styles.orb, active && { borderColor: withAlpha(colors.surface, 0.9) }]}>
-          <Ionicons name={active ? item.activeIcon : item.icon} size={26} color={onGradient.ai} />
+        <GradientSurface variant="ai" style={[styles.orb, { borderColor: active ? withAlpha(colors.surface, 0.9) : colors.surface }]}>
+          <Icon name="ai" size={26} color={onGradient.ai} />
         </GradientSurface>
       </Animated.View>
       <Text
-        style={[styles.label, styles.orbLabel, { color: active ? colors.onSurface : colors.onSurfaceVariant }]}
+        style={[styles.label, { color: active ? colors.onSurface : colors.onSurfaceVariant }]}
         numberOfLines={1}
         maxFontSizeMultiplier={LABEL_MAX_FONT_SCALE}
       >
@@ -154,26 +148,31 @@ function AiOrb({ item, active, label }: { item: BottomBarItem; active: boolean; 
 }
 
 export function BottomNavBar({ currentRouteName }: BottomNavBarProps): ReactElement {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const t = useT();
   const insets = useSafeAreaInsets();
 
   return (
     <View
       style={[
-        styles.bar,
+        styles.host,
         {
-          paddingBottom: insets.bottom,
-          paddingLeft: insets.left,
-          paddingRight: insets.right,
-          backgroundColor: colors.surface,
-          borderTopColor: colors.outlineVariant,
+          paddingBottom: insets.bottom + BAR_LIFT,
+          paddingLeft: insets.left + BAR_MARGIN,
+          paddingRight: insets.right + BAR_MARGIN,
+          backgroundColor: colors.background,
         },
       ]}
-      accessibilityRole="tablist"
-      testID="bottom-bar"
+      testID="bottom-bar-host"
     >
-      <View style={styles.row}>
+      <View
+        style={[
+          styles.bar,
+          { backgroundColor: isDark ? colors.elevation.level2 : colors.surface, borderColor: colors.outlineVariant, borderWidth: isDark ? 1 : 0 },
+        ]}
+        accessibilityRole="tablist"
+        testID="bottom-bar"
+      >
         {BOTTOM_BAR_ITEMS.map((item) => {
           const active = currentRouteName === item.route;
           const label = t(`shell:bottomBar.items.${item.route}`);
@@ -189,15 +188,19 @@ export function BottomNavBar({ currentRouteName }: BottomNavBarProps): ReactElem
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    borderTopWidth: 1,
-    // The orb rises above the top edge.
+  host: {
+    // The orb rises above the pill.
+    paddingTop: ORB_RAISE,
     overflow: 'visible',
   },
-  row: {
+  bar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     minHeight: componentMetrics.bottomBarHeight,
+    borderRadius: radii.xxl,
+    paddingHorizontal: spacing.xs,
+    ...softShadow,
+    overflow: 'visible',
   },
   item: {
     flex: 1,
@@ -241,11 +244,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: 'transparent',
     overflow: 'hidden',
-  },
-  orbLabel: {
-    marginTop: spacing.xs,
   },
 });
 

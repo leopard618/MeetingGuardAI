@@ -8,8 +8,7 @@
  * - Theme-aware colors, safe-area insets, hardware back / scrim tap closes it, respects
  *   "reduce motion", keeps focus inside while open (accessibilityViewIsModal).
  */
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useState, type ComponentProps, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -32,13 +31,13 @@ import { navigateToTopLevel } from '../navigation/navigationService';
 import { useSignOutFlow } from '../navigation/useSignOut';
 import { useAuth } from '../services/auth';
 import { componentMetrics, radii, spacing, typography } from '../theme';
+import { GradientSurface, Icon, type IconName } from './ui';
+import { avatarInitial } from './CustomHeader';
 
 const APP_LOGO = require('../../assets/icon.png') as number;
 
 const ANIMATION_MS = 220;
 const MAX_WIDTH = 320;
-
-type IconName = ComponentProps<typeof Ionicons>['name'];
 
 export interface SidebarItem {
   route: keyof MainStackParamList;
@@ -47,21 +46,21 @@ export interface SidebarItem {
 
 /** Menu destinations, in order (labels: shell:sidebar.items.<route>). */
 export const SIDEBAR_ITEMS: readonly SidebarItem[] = [
-  { route: 'Dashboard', icon: 'grid-outline' },
-  { route: 'ChooseCreationMethod', icon: 'add-circle-outline' },
-  { route: 'TotalMeetings', icon: 'list-outline' },
-  { route: 'Calendar', icon: 'calendar-outline' },
-  { route: 'Notes', icon: 'document-text-outline' },
-  { route: 'Tasks', icon: 'checkbox-outline' },
-  { route: 'AIChat', icon: 'chatbubbles-outline' },
-  { route: 'Pricing', icon: 'pricetags-outline' },
-  { route: 'Settings', icon: 'settings-outline' },
+  { route: 'Dashboard', icon: 'home' },
+  { route: 'ChooseCreationMethod', icon: 'plus' },
+  { route: 'TotalMeetings', icon: 'meetings' },
+  { route: 'Calendar', icon: 'calendar' },
+  { route: 'Notes', icon: 'notes' },
+  { route: 'Tasks', icon: 'tasks' },
+  { route: 'AIChat', icon: 'ai' },
+  { route: 'Pricing', icon: 'plans' },
+  { route: 'Settings', icon: 'settings' },
 ];
 
 const THEME_ICONS: Readonly<Record<ThemeMode, IconName>> = {
-  system: 'phone-portrait-outline',
-  light: 'sunny-outline',
-  dark: 'moon-outline',
+  system: 'phone',
+  light: 'sun',
+  dark: 'moon',
 };
 
 export interface MobileSidebarProps {
@@ -192,14 +191,20 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
           hitSlop={4}
           testID="sidebar-close"
         >
-          <Ionicons name="close" size={24} color={colors.textSecondary} />
+          <Icon name="close" color={colors.textSecondary} />
         </Pressable>
       </View>
 
       <ScrollView style={styles.fill} contentContainerStyle={styles.scrollContent}>
         {authUser ? (
           <View style={[styles.userCard, { backgroundColor: colors.surfaceVariant }]} testID="sidebar-user">
-            <Ionicons name="person-circle-outline" size={32} color={colors.textSecondary} />
+            <GradientSurface style={styles.avatar}>
+              {avatarInitial(authUser.displayName, authUser.email) ? (
+                <Text style={[styles.avatarText, { color: colors.onPrimary }]}>{avatarInitial(authUser.displayName, authUser.email)}</Text>
+              ) : (
+                <Icon name="user" size={20} color={colors.onPrimary} />
+              )}
+            </GradientSurface>
             <View style={styles.userText}>
               {authUser.displayName ? (
                 <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1}>
@@ -231,7 +236,7 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
                 accessibilityState={{ selected: active }}
                 testID={`sidebar-item-${item.route}`}
               >
-                <Ionicons name={item.icon} size={22} color={active ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
+                <Icon name={item.icon} size={22} color={active ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
                 <Text
                   style={[styles.itemText, { color: active ? colors.onSecondaryContainer : colors.onSurfaceVariant }]}
                   numberOfLines={2}
@@ -289,7 +294,7 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
                   accessibilityState={{ selected }}
                   testID={`sidebar-theme-${mode}`}
                 >
-                  <Ionicons name={THEME_ICONS[mode]} size={16} color={selected ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
+                  <Icon name={THEME_ICONS[mode]} size={16} color={selected ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
                   <Text style={[styles.chipText, styles.themeChipText, { color: selected ? colors.onSecondaryContainer : colors.onSurfaceVariant }]}>
                     {t(`shell:sidebar.themeModes.${mode}`)}
                   </Text>
@@ -310,7 +315,7 @@ function SidebarContent({ colors, onClose, currentRouteName }: SidebarContentPro
           accessibilityRole="button"
           testID="sidebar-sign-out"
         >
-          <Ionicons name="log-out-outline" size={22} color={colors.error} />
+          <Icon name="signOut" size={22} color={colors.error} />
           <Text style={[styles.itemText, { color: colors.error }]}>{t('common:actions.signOut')}</Text>
         </Pressable>
       </View>
@@ -375,6 +380,17 @@ const styles = StyleSheet.create({
   userText: {
     flex: 1,
     marginLeft: spacing.md,
+  },
+  avatar: {
+    width: componentMetrics.avatarSize,
+    height: componentMetrics.avatarSize,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarText: {
+    ...typography.titleM,
   },
   userName: {
     ...typography.titleM,
