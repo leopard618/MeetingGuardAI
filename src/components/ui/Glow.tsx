@@ -1,5 +1,5 @@
 /**
- * Soft light bloom (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §2.1 "light"). Twelve
+ * Soft light bloom (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §2.1 "light"). 24
  * concentric translucent discs fake a radial gradient without a native module. Each disc adds a
  * small alpha so the stack follows a smooth quadratic falloff: the eye reads one soft glow, not
  * rings (four discs with big steps did read as rings). `intensity` is the alpha at the very
@@ -22,7 +22,7 @@ export interface GlowProps {
   testID?: string;
 }
 
-const RING_COUNT = 12;
+const RING_COUNT = 24;
 
 /** Cumulative alpha wanted at a radius fraction r (1 = rim, 0 = center): (1 - r)^2. */
 function profile(r: number): number {

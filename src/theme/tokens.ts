@@ -328,7 +328,7 @@ export interface MGGradients {
 
 export const gradients: Readonly<Record<MGSchemeName, MGGradients>> = {
   light: {
-    primary: ['#3A3AB8', '#5B5CDF'],
+    primary: ['#3F3FC6', '#6E5BE0'],
     hero: ['#3B3BC4', '#7C5CE6'],
     ai: ['#4646D3', '#6A4BD6'],
   },

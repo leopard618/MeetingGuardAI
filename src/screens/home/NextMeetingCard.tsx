@@ -205,7 +205,7 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
 
   return (
     <View style={styles.focalWrap}>
-      <Glow color={colors.primary} size={320} intensity={0.4} style={styles.focalGlow} />
+      <Glow color={colors.primary} size={260} intensity={0.22} style={styles.focalGlow} />
       <Card variant="gradient" testID="next-meeting-card">
       <Shimmer />
       {current ? (
@@ -244,8 +244,8 @@ const styles = StyleSheet.create({
   },
   focalGlow: {
     left: '50%',
-    marginLeft: -160,
-    bottom: -200,
+    marginLeft: -130,
+    bottom: -150,
   },
   title: {
     marginTop: spacing.xs,
