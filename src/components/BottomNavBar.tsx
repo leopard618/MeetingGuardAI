@@ -146,7 +146,7 @@ function AiOrb({ item, active, label }: { item: BottomBarItem; active: boolean; 
       testID={`bottom-bar-item-${item.route}`}
     >
       <View style={styles.orbStage}>
-        <Glow color={colors.primary} size={ORB_STAGE} intensity={active ? 0.75 : 0.5} style={styles.orbGlow} />
+        <Glow color={colors.primary} size={ORB_STAGE} intensity={active ? 0.5 : 0.32} style={styles.orbGlow} />
         <Animated.View style={[styles.orbShadow, { transform: [{ scale: breath }] }]}>
           <GradientSurface variant="ai" style={[styles.orb, { borderColor: active ? withAlpha('#FFFFFF', 0.85) : colors.surface }]}>
             <Icon name="ai" size={26} color={onGradient.ai} />

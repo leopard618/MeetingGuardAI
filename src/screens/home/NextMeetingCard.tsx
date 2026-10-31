@@ -205,7 +205,7 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
 
   return (
     <View style={styles.focalWrap}>
-      <Glow color={colors.primary} size={320} intensity={0.55} style={styles.focalGlow} />
+      <Glow color={colors.primary} size={320} intensity={0.4} style={styles.focalGlow} />
       <Card variant="gradient" testID="next-meeting-card">
       <Shimmer />
       {current ? (

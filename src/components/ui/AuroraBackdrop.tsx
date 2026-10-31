@@ -25,9 +25,9 @@ interface Bloom {
 }
 
 const BLOOMS: readonly Bloom[] = [
-  { x: 0.18, y: 0.1, size: 420, drift: 26, period: 16_000, colorKey: 'primary' },
-  { x: 0.88, y: 0.22, size: 360, drift: 22, period: 19_000, colorKey: 'violet' },
-  { x: 0.55, y: 0.62, size: 300, drift: 18, period: 23_000, colorKey: 'teal' },
+  { x: 0.1, y: 0.02, size: 460, drift: 26, period: 16_000, colorKey: 'primary' },
+  { x: 0.92, y: 0.3, size: 400, drift: 22, period: 19_000, colorKey: 'violet' },
+  { x: 0.5, y: 0.78, size: 340, drift: 18, period: 23_000, colorKey: 'teal' },
 ];
 
 const VIOLET = { light: '#7C5CE6', dark: '#7C5CE6' } as const;
@@ -35,7 +35,7 @@ const VIOLET = { light: '#7C5CE6', dark: '#7C5CE6' } as const;
 export interface AuroraBackdropProps {
   /** Height of the lit area in dp (default 360). */
   height?: number;
-  /** Peak alpha of the blooms (default 0.9 dark, 0.6 light). */
+  /** Alpha at the center of each bloom (default 0.34 dark, 0.22 light). */
   intensity?: number;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -82,7 +82,8 @@ function DriftingBloom({ bloom, color, intensity, hostHeight, reduceMotion }: { 
 export function AuroraBackdrop({ height = 360, intensity, style, testID }: AuroraBackdropProps): ReactElement {
   const { colors, isDark } = useAppTheme();
   const reduceMotion = useReducedMotion();
-  const peak = intensity ?? (isDark ? 0.9 : 0.55);
+  // Soft: the text above the blooms must stay legible (greeting date in onSurfaceVariant).
+  const peak = intensity ?? (isDark ? 0.34 : 0.22);
   const palette = {
     primary: colors.primary,
     violet: isDark ? VIOLET.dark : VIOLET.light,
