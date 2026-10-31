@@ -1,7 +1,6 @@
 {
   "language": "Idioma",
   "headline": "Avisos de reuniones que no se te escapan",
-  "subtitle": "MeetingGuard AI te avisa antes de cada reunión, de la forma que elijas.",
   "valueProps": {
     "alerts": {
       "title": "Avisos que llaman tu atención"

@@ -13,9 +13,11 @@
  *   screen-reader friendly links to the Terms and the Privacy Policy (both in the Auth stack).
  * - Scrolls, so it works with large fonts, small phones and landscape.
  *
- * The hero sits on a photo that is always dark, so its text colors are mode-invariant and come
- * from the light token set (white on the scrimmed image); everything on the content card follows
- * the active scheme.
+ * The top half is the brand image (assets/bg.jpg: the mark, the app name and the tagline over a
+ * night office, always dark), so the screen draws no logo or headline of its own; a spacer keeps
+ * the content card below the baked tagline and the scrim darkens only the card area. The language
+ * chips are mode-invariant (white on the image); everything on the content card follows the
+ * active scheme. Screen readers get the app name and the promise from the hero spacer.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
@@ -23,7 +25,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useRef, useState, type ComponentProps, type ReactElement } from 'react';
-import { ActivityIndicator, Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
@@ -34,22 +36,24 @@ import { useResponsive } from '../../hooks/useResponsive';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth, type AuthActionResult } from '../../services/auth';
 import { GradientSurface, Shimmer } from '../../components/ui';
-import { componentMetrics, indigoRamp, lightColors, pressedDimOpacity, pressedOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
+import { componentMetrics, lightColors, pressedDimOpacity, pressedOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
 
 import { AppleSignInButton } from './AppleSignInButton';
 
 const log = createLogger('landing');
 
+/** Brand image: mark, app name and tagline over a night office (941 x 1672, always dark). */
 const BACKGROUND = require('../../../assets/bg.jpg') as number;
-const LOGO_WITH_TITLE = require('../../../assets/mark_with_title.png') as number;
+/** The image's tagline ends at about 40% of its height; the content card starts below this. */
+const HERO_FRACTION = 0.46;
+const LANGUAGE_ROW_HEIGHT = 36;
 
 /** Text on the hero image (always dark behind it, whatever the scheme). */
 const ON_HERO = lightColors.onPrimary;
-const ON_HERO_MUTED = withAlpha(lightColors.onPrimary, 0.85);
 const ON_HERO_BORDER = withAlpha(lightColors.onPrimary, 0.7);
-/** Indigo-to-night scrim over the photo: brand hue on top, legible card area below. */
-const HERO_SCRIM: readonly [string, string] = [withAlpha(indigoRamp[10], 0.55), withAlpha(lightColors.onBackground, 0.82)];
-const HERO_TEXT_SHADOW = withAlpha(lightColors.shadow, 0.35);
+/** Scrim over the photo: clear on the branded top, night-dark behind the content card. */
+const HERO_SCRIM: readonly [string, string] = ['rgba(0,0,0,0)', withAlpha(lightColors.onBackground, 0.78)];
+const HERO_SCRIM_STOPS: readonly [number, number] = [0.4, 1];
 /** Dark label on the selected (white) language chip. */
 const ON_HERO_INVERSE = lightColors.onSurface;
 
@@ -103,7 +107,7 @@ export function LandingScreen(): ReactElement {
   return (
     <ImageBackground source={BACKGROUND} style={styles.fill} resizeMode="cover" testID="landing-screen">
       {focused ? <StatusBar style="light" /> : null}
-      <LinearGradient colors={HERO_SCRIM} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={HERO_SCRIM} locations={HERO_SCRIM_STOPS} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
       <ScrollView
         style={styles.fill}
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom + spacing.lg }]}
@@ -129,19 +133,14 @@ export function LandingScreen(): ReactElement {
           })}
         </View>
 
-        <View style={[styles.hero, columnStyle]}>
-          <Image
-            source={LOGO_WITH_TITLE}
-            style={[styles.logo, layout.isCompact && styles.logoCompact]}
-            resizeMode="contain"
-            accessibilityRole="image"
-            accessibilityLabel={t('common:app.name')}
-          />
-          <Text style={styles.headline} accessibilityRole="header">
-            {t('landing:headline')}
-          </Text>
-          <Text style={styles.subtitle}>{t('landing:subtitle')}</Text>
-        </View>
+        {/* The brand (mark, name, tagline) is part of the image: this spacer keeps the card below it and names it for screen readers. */}
+        <View
+          style={[styles.hero, { minHeight: Math.max(0, Math.round(layout.height * HERO_FRACTION) - LANGUAGE_ROW_HEIGHT - insets.top - spacing.sm) }]}
+          accessible
+          accessibilityRole="header"
+          accessibilityLabel={`${t('common:app.name')}. ${t('landing:headline')}`}
+          testID="landing-hero"
+        />
 
         <View style={[styles.card, columnStyle, { backgroundColor: colors.surface }]}>
           {VALUE_PROPS.map(({ key, icon }) => (
@@ -243,7 +242,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   languageChip: {
-    minHeight: 36,
+    minHeight: LANGUAGE_ROW_HEIGHT,
     paddingHorizontal: spacing.lg,
     justifyContent: 'center',
     borderRadius: radii.full,
@@ -264,31 +263,7 @@ const styles = StyleSheet.create({
     color: ON_HERO_INVERSE,
   },
   hero: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-  },
-  logo: {
-    width: 240,
-    height: 120,
-  },
-  logoCompact: {
-    width: 180,
-    height: 90,
-  },
-  headline: {
-    ...typography.headlineL,
-    color: ON_HERO,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-    textShadowColor: HERO_TEXT_SHADOW,
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  subtitle: {
-    ...typography.bodyL,
-    color: ON_HERO_MUTED,
-    textAlign: 'center',
-    marginTop: spacing.md,
+    width: '100%',
   },
   card: {
     borderRadius: radii.xl,

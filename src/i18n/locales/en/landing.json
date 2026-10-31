@@ -1,7 +1,6 @@
 {
   "language": "Language",
   "headline": "Meeting alerts you won't miss",
-  "subtitle": "MeetingGuard AI reminds you before every meeting, in the way you choose.",
   "valueProps": {
     "alerts": {
       "title": "Alerts that get your attention"
