@@ -13,7 +13,7 @@ import { Text } from 'react-native-paper';
 import { Badge, Icon } from '../../components/ui';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
-import { componentMetrics, pressedOpacity, radii, sourceColorIndex, spacing, stateAlpha, useAppTheme, withAlpha } from '../../theme';
+import { componentMetrics, pressedOpacity, radii, sourceColorIndex, spacing, useAppTheme } from '../../theme';
 import { endMs } from '../insights/meetingInsights';
 import { useFormatters } from '../shared/useFormatters';
 import type { TimelineItem } from './homeModel';
@@ -58,7 +58,6 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
       onPress={() => onOpen(meeting)}
       accessibilityRole="button"
       accessibilityLabel={t('home:today.itemA11y', { time: meeting.allDay ? timeLabel : rangeLabel, title: meeting.title, state: a11yState })}
-      android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnRow) }}
       style={({ pressed }) => [styles.row, pressed && Platform.OS !== 'android' && styles.pressed]}
       testID={`timeline-${meeting.id}`}
     >
@@ -121,8 +120,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     borderRadius: radii.md,
-    // Keeps the Android ripple inside the rounded corners.
-    overflow: 'hidden',
   },
   pressed: {
     opacity: pressedOpacity,
@@ -152,7 +149,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
     padding: spacing.md,
     marginLeft: spacing.sm,

@@ -17,6 +17,12 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
   remaining destinations (new meeting, notes, plans, settings). The bar owns the bottom safe-area
   inset, so list paddings and the floating buttons sit right above it; modal sheets and editors
   keep their window insets.
+- **Light and spark**: an ambient aurora (three drifting color blooms) behind the dashboard
+  greeting and glass stat tiles, a soft glow and twinkling sparks around the assistant orb, a
+  light sweep across the next-meeting card and the sign-in button, a glass tab bar, fade-and-rise
+  screen transitions, and vivid indigo-to-violet gradients in dark mode instead of the pale ones.
+  Cards now cast their shadow on Android (they no longer clip their own box). All effects are
+  decorative, ignore touches and stay still under "reduce motion".
 - **New typeface and icons**: the whole app is set in Plus Jakarta Sans (heavy, tight headlines,
   relaxed body text) and the shell, dashboard, menu and meeting rows use one thin line-icon family
   (Feather) through the kit's Icon component. The header is no longer an app bar: it sits on the

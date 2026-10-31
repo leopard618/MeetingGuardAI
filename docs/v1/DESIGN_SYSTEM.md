@@ -115,6 +115,16 @@ use `colors.shadow`.
   indigo-tinted `softShadow` in light, elevation level1 + outlineVariant hairline in dark (shadows
   vanish on dark). Floating controls (GradientFab, the assistant orb) use `floatingShadow`
   (primary-colored). `variant="outlined"` keeps the flat hairline card for dense lists.
+- **Light and spark** (decorative layers, pointerEvents none, hidden from screen readers, static
+  under "reduce motion"): `AuroraBackdrop` (three drifting indigo / violet / teal blooms fading
+  into the page, behind the dashboard greeting and stats), `Glow` (a radial bloom under the
+  assistant orb and the focal card), `Shimmer` (a white light sweep every ~4.6 s across the focal
+  card and the landing sign-in pill), `Sparkles` (four twinkling stars around the assistant orb).
+  Never more than one aurora per screen and one shimmer per viewport. The dark scheme uses the same
+  vivid indigo-to-violet ramps as light (white text) so gradients glow instead of washing out;
+  `Card variant="glass"` (white at 6 percent dark / 72 percent light, faint light border) sits
+  on the aurora. Cards never clip their own box (no `overflow: hidden` on a shadow host), so the
+  elevation renders on Android; a child view clips ripples and accent bars instead.
 - **Motion** (`motion` in tokens.ts; all of it skips under "reduce motion"): press feedback is a
   spring to 97 percent (`PressableScale`), blocks and rows fade-rise in over 360 ms (`Reveal`,
   rows staggered 40 ms up to index 8), the tab pill springs in, the assistant orb breathes

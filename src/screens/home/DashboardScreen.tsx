@@ -23,7 +23,7 @@ import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { Banner, EmptyState, ErrorState, Reveal, SectionHeader, Skeleton } from '../../components/ui';
+import { AuroraBackdrop, Banner, EmptyState, ErrorState, Reveal, SectionHeader, Skeleton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -171,6 +171,7 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
 
   const header = (
     <View>
+      <AuroraBackdrop style={styles.aurora} />
       <Reveal style={styles.greeting}>
         <Text variant="headlineLarge" accessibilityRole="header" numberOfLines={2} testID="dashboard-greeting">
           {greetingText(now, timeZone, authUser?.displayName, t)}
@@ -288,6 +289,11 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: componentMetrics.screenGutter,
     paddingTop: spacing.md,
+  },
+  aurora: {
+    top: -spacing.md,
+    left: -componentMetrics.screenGutter,
+    right: -componentMetrics.screenGutter,
   },
   greeting: {
     marginBottom: spacing.lg,

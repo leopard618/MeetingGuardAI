@@ -33,7 +33,7 @@ import { createLogger } from '../../core/logger';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth, type AuthActionResult } from '../../services/auth';
-import { GradientSurface } from '../../components/ui';
+import { GradientSurface, Shimmer } from '../../components/ui';
 import { componentMetrics, indigoRamp, lightColors, pressedDimOpacity, pressedOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
 
 import { AppleSignInButton } from './AppleSignInButton';
@@ -175,6 +175,7 @@ export function LandingScreen(): ReactElement {
             testID="landing-sign-in"
           >
             <GradientSurface style={styles.signInButton}>
+              <Shimmer />
               {busy ? (
                 <ActivityIndicator color={onGradient.primary} style={styles.signInIcon} />
               ) : (

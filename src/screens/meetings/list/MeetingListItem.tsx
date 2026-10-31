@@ -139,6 +139,7 @@ function MeetingListItemComponent({
         deleting && styles.deleting,
       ]}
     >
+      <View style={styles.inner}>
       <Pressable
         style={({ pressed }) => [styles.pressable, pressed && Platform.OS !== 'android' && styles.pressed]}
         android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnRow) }}
@@ -207,6 +208,7 @@ function MeetingListItemComponent({
         style={styles.more}
         testID={`meeting-row-more-${meeting.id}`}
       />
+      </View>
     </View>
   );
 }
@@ -215,12 +217,16 @@ export const MeetingListItem = memo(MeetingListItemComponent);
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
     borderRadius: radii.xxl,
     borderWidth: 1,
     marginHorizontal: componentMetrics.screenGutter,
     marginBottom: componentMetrics.cardGap,
+  },
+  inner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: radii.xxl,
+    // Keeps the accent bar and the Android ripple inside the corners; the outer card casts the shadow.
     overflow: 'hidden',
   },
   deleting: {

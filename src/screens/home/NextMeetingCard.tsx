@@ -13,7 +13,7 @@ import { useState, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
-import { Card, Icon, MGButton } from '../../components/ui';
+import { Card, Glow, Icon, MGButton, Shimmer } from '../../components/ui';
 import type { TranslateFn } from '../../core/contracts';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
@@ -204,7 +204,10 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
   }
 
   return (
-    <Card variant="gradient" testID="next-meeting-card">
+    <View style={styles.focalWrap}>
+      <Glow color={colors.primary} size={320} intensity={0.55} style={styles.focalGlow} />
+      <Card variant="gradient" testID="next-meeting-card">
+      <Shimmer />
       {current ? (
         <MeetingBlock
           meeting={current}
@@ -230,11 +233,20 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
         <View style={[styles.divider, { backgroundColor: withAlpha(onGradient.primary, 0.24) }]} />
       ) : null}
       {nextAllDay ? <AllDayBlock meeting={nextAllDay} onOpen={onOpen} /> : null}
-    </Card>
+      </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  focalWrap: {
+    position: 'relative',
+  },
+  focalGlow: {
+    left: '50%',
+    marginLeft: -160,
+    bottom: -200,
+  },
   title: {
     marginTop: spacing.xs,
   },

@@ -11,7 +11,11 @@ import { PAPER_THEMES } from '../../../contexts/themeColors';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
 import { I18nProvider } from '../../../i18n';
 import { gradients, lightColors } from '../../../theme';
+import { AuroraBackdrop } from '../AuroraBackdrop';
 import { Card } from '../Card';
+import { Glow } from '../Glow';
+import { Shimmer } from '../Shimmer';
+import { Sparkles } from '../Sparkles';
 import { GradientFab } from '../GradientFab';
 import { GradientSurface } from '../GradientSurface';
 import { MGButton } from '../MGButton';
@@ -152,5 +156,28 @@ describe('MGButton filled (gradient)', () => {
       fireEvent.press(screen.getByTestId('join'));
     });
     expect(onPress).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('light and spark effects', () => {
+  it('render as decorative layers that take no touches and no focus', async () => {
+    await renderKit(
+      <>
+        <Glow color="#4646D3" size={120} testID="glow" />
+        <Shimmer testID="shimmer" />
+        <Sparkles color="#FFFFFF" size={96} testID="sparks" />
+        <AuroraBackdrop testID="aurora" />
+        <Card variant="glass" testID="glass">
+          <Text>Glass</Text>
+        </Card>
+      </>,
+    );
+    for (const id of ['glow', 'shimmer', 'sparks', 'aurora']) {
+      // Decorative layers are hidden from the accessibility tree, so the query must include them.
+      const node = screen.getByTestId(id, { includeHiddenElements: true });
+      expect(node.props.pointerEvents).toBe('none');
+      expect(node.props.accessibilityElementsHidden).toBe(true);
+    }
+    expect(screen.getByText('Glass')).toBeTruthy();
   });
 });

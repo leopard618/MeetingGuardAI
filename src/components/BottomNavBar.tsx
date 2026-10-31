@@ -2,12 +2,13 @@
  * Floating bottom navigation bar of the Main group (owner: shell). Rendered ONCE under the
  * navigator (src/navigation/RootNavigator.tsx), like the sidebar, so no screen remounts on a tap.
  *
- * - A detached pill (surface, r-xxl, soft shadow) on the screen background, 16dp from the sides
+ * - A detached glass pill (translucent surface, faint light border, soft shadow) on the screen
+ *   background, 16dp from the sides
  *   and 8dp above the system bar: Home, Meetings, the AI assistant in the middle, Calendar, Tasks
  *   (typed Main routes, BOTTOM_BAR_ITEMS); everything else stays in the menu. A tap goes through
  *   navigateToTopLevel (back to the existing screen instead of pushing another copy).
  * - The assistant is a 56dp orb on the `ai` gradient raised above the pill with a colored
- *   floating shadow; it breathes (1.00 -> 1.06, 2.4 s) until the chat is open and stays still
+ *   floating shadow, a soft glow underneath and tiny sparks twinkling around it; it breathes (1.00 -> 1.06, 2.4 s) until the chat is open and stays still
  *   under "reduce motion". It is on every main screen, the chat included.
  * - Regular tabs: Feather line icons through the kit's Icon; the active tab gets a
  *   secondaryContainer pill that springs in behind the icon and an onSurface label.
@@ -22,7 +23,7 @@ import type { MainStackParamList, RouteName } from '../core/contracts';
 import { useT } from '../i18n';
 import { navigateToTopLevel } from '../navigation/navigationService';
 import { componentMetrics, floatingShadow, motion, radii, softShadow, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../theme';
-import { GradientSurface, Icon, PressableScale, useReducedMotion, type IconName } from './ui';
+import { Glow, GradientSurface, Icon, PressableScale, Sparkles, useReducedMotion, type IconName } from './ui';
 
 export interface BottomBarItem {
   route: keyof MainStackParamList;
@@ -44,6 +45,19 @@ export const BOTTOM_BAR_ITEMS: readonly BottomBarItem[] = [
 const LABEL_MAX_FONT_SCALE = 1.3;
 const ORB_SIZE = 56;
 const ORB_RAISE = 22;
+/** Square stage around the orb for the glow and the sparks. */
+const ORB_STAGE = 104;
+
+/** Cheap luminance test on a hex color (the sparks are pale on dark grounds, indigo on light). */
+function isDarkColor(hex: string): boolean {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return false;
+  const value = parseInt(match[1] ?? '0', 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
+}
 const BREATH_MS = 1200;
 const BREATH_SCALE = 1.06;
 const BAR_MARGIN = componentMetrics.screenGutter;
@@ -131,11 +145,15 @@ function AiOrb({ item, active, label }: { item: BottomBarItem; active: boolean; 
       accessibilityState={{ selected: active }}
       testID={`bottom-bar-item-${item.route}`}
     >
-      <Animated.View style={[styles.orbShadow, { transform: [{ scale: breath }] }]}>
-        <GradientSurface variant="ai" style={[styles.orb, { borderColor: active ? withAlpha(colors.surface, 0.9) : colors.surface }]}>
-          <Icon name="ai" size={26} color={onGradient.ai} />
-        </GradientSurface>
-      </Animated.View>
+      <View style={styles.orbStage}>
+        <Glow color={colors.primary} size={ORB_STAGE} intensity={active ? 0.75 : 0.5} style={styles.orbGlow} />
+        <Animated.View style={[styles.orbShadow, { transform: [{ scale: breath }] }]}>
+          <GradientSurface variant="ai" style={[styles.orb, { borderColor: active ? withAlpha('#FFFFFF', 0.85) : colors.surface }]}>
+            <Icon name="ai" size={26} color={onGradient.ai} />
+          </GradientSurface>
+        </Animated.View>
+        <Sparkles color={isDarkColor(colors.background) ? '#DCE0FF' : colors.primary} size={ORB_STAGE} style={styles.orbSparks} />
+      </View>
       <Text
         style={[styles.label, { color: active ? colors.onSurface : colors.onSurfaceVariant }]}
         numberOfLines={1}
@@ -168,7 +186,10 @@ export function BottomNavBar({ currentRouteName }: BottomNavBarProps): ReactElem
       <View
         style={[
           styles.bar,
-          { backgroundColor: isDark ? colors.elevation.level2 : colors.surface, borderColor: colors.outlineVariant, borderWidth: isDark ? 1 : 0 },
+          {
+            backgroundColor: isDark ? withAlpha(colors.elevation.level3, 0.92) : withAlpha('#FFFFFF', 0.94),
+            borderColor: isDark ? withAlpha('#FFFFFF', 0.1) : withAlpha('#FFFFFF', 0.9),
+          },
         ]}
         accessibilityRole="tablist"
         testID="bottom-bar"
@@ -198,9 +219,26 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     minHeight: componentMetrics.bottomBarHeight,
     borderRadius: radii.xxl,
+    borderWidth: 1,
     paddingHorizontal: spacing.xs,
     ...softShadow,
     overflow: 'visible',
+  },
+  orbStage: {
+    width: ORB_STAGE,
+    height: ORB_STAGE,
+    marginTop: -ORB_RAISE - (ORB_STAGE - ORB_SIZE) / 2,
+    marginBottom: -(ORB_STAGE - ORB_SIZE) / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orbGlow: {
+    left: 0,
+    top: 0,
+  },
+  orbSparks: {
+    left: 0,
+    top: 0,
   },
   item: {
     flex: 1,
@@ -231,7 +269,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   orbShadow: {
-    marginTop: -ORB_RAISE,
     borderRadius: radii.full,
     ...floatingShadow,
     // Android ignores shadow* and draws from elevation; iOS needs a background to cast from.

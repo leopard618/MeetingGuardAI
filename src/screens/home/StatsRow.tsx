@@ -1,6 +1,6 @@
 /**
  * Dashboard numbers at a glance: meetings today, tasks due, meetings this week, as three compact
- * elevated tiles (big tabular value, small label, Feather icon in a tinted circle). Sits between
+ * glass tiles over the aurora (tabular value, small label, Feather icon in a tinted circle). Sits between
  * the greeting and the next-meeting card (docs/v1/DESIGN_SYSTEM.md §7, Group B). Values are null
  * while the data is loading or failed: the tile then shows a dash and no count for screen readers.
  */
@@ -22,6 +22,7 @@ function Tile({ icon, label, value, tint, onTint, index, testID }: { icon: IconN
   return (
     <Reveal index={index} style={styles.tileWrap}>
       <Card
+        variant="glass"
         style={styles.tile}
         accessibilityLabel={value === null ? label : `${label}: ${value}`}
         testID={testID}
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
   },
   tile: {
     padding: spacing.md,
-    minHeight: 112,
+    minHeight: 100,
   },
   iconCircle: {
     width: 32,
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   value: {
-    ...typography.headlineM,
+    ...typography.headlineS,
     marginTop: spacing.sm,
     fontVariant: ['tabular-nums'],
   },

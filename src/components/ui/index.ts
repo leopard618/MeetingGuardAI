@@ -12,11 +12,13 @@
  * Chips stay Paper `Chip` and inputs stay Paper `TextInput mode="outlined"` with
  * `outlineStyle={{ borderRadius: radii.md }}` - both are themed by the MG Paper themes.
  */
+export { AuroraBackdrop, type AuroraBackdropProps } from './AuroraBackdrop';
 export { Badge, type BadgeProps, type BadgeTone } from './Badge';
 export { Banner, type BannerAction, type BannerProps, type BannerTone } from './Banner';
 export { Card, type CardAccent, type CardProps, type CardVariant } from './Card';
 export { EmptyState, type EmptyStateAction, type EmptyStateProps } from './EmptyState';
 export { ErrorState, type ErrorStateProps } from './ErrorState';
+export { Glow, type GlowProps } from './Glow';
 export { GradientFab, type GradientFabProps } from './GradientFab';
 export { GradientSurface, type GradientDirection, type GradientSurfaceProps, type GradientVariant } from './GradientSurface';
 export { Icon, type IconName, type IconProps } from './Icon';
@@ -28,5 +30,7 @@ export { PressableScale, type PressableScaleProps } from './PressableScale';
 export { Reveal, revealDelay, type RevealProps } from './Reveal';
 export { SectionHeader, type SectionHeaderAction, type SectionHeaderProps } from './SectionHeader';
 export { SheetHandle } from './SheetHandle';
+export { Shimmer, type ShimmerProps } from './Shimmer';
+export { Sparkles, type SparklesProps } from './Sparkles';
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { useReducedMotion } from './useReducedMotion';

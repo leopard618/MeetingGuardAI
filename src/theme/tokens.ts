@@ -192,7 +192,7 @@ export const lightColors: MGColors = {
   onTertiary: '#FFFFFF',
   tertiaryContainer: '#D3F2F7',
   onTertiaryContainer: '#0F4E5A',
-  background: '#F6F8FB',
+  background: '#F3F4FA',
   onBackground: '#0F172A',
   surface: '#FFFFFF',
   onSurface: '#0F172A',
@@ -311,8 +311,9 @@ export const mgColors: Readonly<Record<MGSchemeName, MGColors>> = {
 /**
  * Gradients (audit 2026-10-30 visual refresh). Two stops, drawn diagonally (top-left to
  * bottom-right) unless a component says otherwise. Every stop was checked against its on-color:
- * light primary / hero / ai carry white text at >= 4.5:1 on BOTH stops (the lightest stop of
- * the ai ramp is 4.3:1, icons only); dark primary carries indigo 10 at >= 5.7:1.
+ * every ramp carries white text at >= 4.5:1 on BOTH stops (the lightest stop of the ai ramp is
+ * 4.3:1, icons only). Dark mode uses the same vivid indigo-to-violet ramps, never the pale
+ * tonal primary, so buttons and the focal card glow instead of washing out.
  * - primary: filled buttons, FABs, the active tab pill, the header hairline.
  * - hero: the dashboard hero card and other one-per-screen banners (white text).
  * - ai: the assistant orb in the bottom bar and the assistant tiles (white icon).
@@ -332,8 +333,8 @@ export const gradients: Readonly<Record<MGSchemeName, MGGradients>> = {
     ai: ['#4646D3', '#6A4BD6'],
   },
   dark: {
-    primary: ['#AFB4FF', '#8F94F3'],
-    hero: ['#26268F', '#4646D3'],
+    primary: ['#4F4FD8', '#7C5CE6'],
+    hero: ['#3B3BC4', '#7C5CE6'],
     ai: ['#6A6BE8', '#4646D3'],
   },
 };
@@ -341,7 +342,7 @@ export const gradients: Readonly<Record<MGSchemeName, MGGradients>> = {
 /** Text and icon color on each gradient. */
 export const onGradient: Readonly<Record<MGSchemeName, Readonly<Record<keyof MGGradients, string>>>> = {
   light: { primary: '#FFFFFF', hero: '#FFFFFF', ai: '#FFFFFF' },
-  dark: { primary: '#101273', hero: '#FFFFFF', ai: '#FFFFFF' },
+  dark: { primary: '#FFFFFF', hero: '#FFFFFF', ai: '#FFFFFF' },
 };
 
 /**

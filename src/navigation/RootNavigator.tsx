@@ -10,7 +10,7 @@
  * links, notification taps, the onboarding's "first meeting" choice) are flushed once the target
  * group is mounted.
  */
-import { createStackNavigator, type StackHeaderProps, type StackNavigationOptions } from '@react-navigation/stack';
+import { createStackNavigator, TransitionPresets, type StackHeaderProps, type StackNavigationOptions } from '@react-navigation/stack';
 import { useEffect, useMemo, type ReactElement, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -79,7 +79,8 @@ function renderScreenLayout({ children }: { children: ReactElement }): ReactElem
 }
 
 const HEADERLESS_OPTIONS: StackNavigationOptions = { headerShown: false };
-const MAIN_OPTIONS: StackNavigationOptions = { header: renderMainHeader };
+/** Main screens fade and rise into place (the Android "fade from bottom" preset, 250 ms). */
+const MAIN_OPTIONS: StackNavigationOptions = { ...TransitionPresets.FadeFromBottomAndroid, header: renderMainHeader };
 
 /** Current gate from the session and the user's preferences (exported for tests/diagnostics). */
 export function useAppGate(): AppGate {
