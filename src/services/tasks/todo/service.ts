@@ -9,6 +9,7 @@ import { AppError, toAppError } from '../../../core/errors';
 import { createLogger } from '../../../core/logger';
 import { createMutex } from '../../calendar/shared';
 import type { CalendarStatusStore } from '../../calendar/status';
+import { graphErrorText, graphHttpStatus } from './api';
 import type { TodoSyncState } from './state';
 import {
   enqueueTodoPushes,
@@ -180,7 +181,11 @@ export function createTodoSyncService(deps: TodoServiceDeps): TodoSyncServiceInt
           return result;
         } catch (error) {
           // Enabled; the first sync failed (shown through status.lastError, retried by the engine).
-          log.warn('Initial Microsoft To Do sync failed', { code: toAppError(error).code });
+          log.warn('Initial Microsoft To Do sync failed', {
+            code: toAppError(error).code,
+            status: graphHttpStatus(error),
+            graph: graphErrorText(error),
+          });
           return null;
         }
       });

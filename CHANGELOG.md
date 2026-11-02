@@ -110,6 +110,10 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+- **Microsoft To Do first sync failed with "Some of the information isn't valid"** (November 2):
+  personal Microsoft accounts answer HTTP 400 to the `$select` parameter on the To Do task
+  endpoints, so the first pull never finished. The app no longer sends it; Microsoft Graph's own
+  error text is now kept in the logs for the next report.
 - **Google Tasks could not be turned on** (November 2): the list chooser demanded the Tasks
   permission before anything had asked for it, so a fresh account always saw "Meeting Guard needs
   permission to access your Google Tasks". Loading the lists now asks for the permission; declining

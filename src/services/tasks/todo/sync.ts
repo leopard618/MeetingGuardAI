@@ -20,7 +20,7 @@ import { createLogger } from '../../../core/logger';
 import type { Task, TaskPatch } from '../../../core/types';
 import { stableHash } from '../../calendar/shared';
 import type { StateStore } from '../../calendar/stateStore';
-import { graphHttpStatus, type TodoGraphApi } from './api';
+import { graphErrorText, graphHttpStatus, type TodoGraphApi } from './api';
 import { importToPatch, taskToTodoWrite, taskVisibleHash, todoTaskToImport, todoUpdatedIso, visibleHash, type TodoMappingContext } from './mapping';
 import type { PendingTodoPush, TodoLink, TodoListState, TodoSyncState } from './state';
 import type { GraphTodoDeltaPage, GraphTodoTask } from './types';
@@ -492,7 +492,12 @@ export async function flushTodoPushes(deps: TodoSyncDeps): Promise<FlushResult> 
         await settle(deps, taskId, entry.queuedAt, { ...entry, attempts, lastError: appError.code });
       } else {
         result.failed += 1;
-        log.warn('Dropping a change To Do rejected', { taskId, code: appError.code, status: graphHttpStatus(appError) });
+        log.warn('Dropping a change To Do rejected', {
+          taskId,
+          code: appError.code,
+          status: graphHttpStatus(appError),
+          graph: graphErrorText(appError),
+        });
         await settle(deps, taskId, entry.queuedAt, null);
       }
     }

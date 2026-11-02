@@ -2,15 +2,15 @@
  * Microsoft Graph To Do endpoints on the shared Graph HTTP core (src/services/microsoft/graphHttp.ts).
  * Lists: GET /me/todo/lists. Tasks: /me/todo/lists/{listId}/tasks (+ /delta for incremental
  * pulls). Delta links are absolute URLs and must stay on the Graph origin.
+ *
+ * No $select on the task endpoints: personal Microsoft accounts answer HTTP 400 to it (the
+ * documentation lists it as supported, the service does not honour it). The mapping reads the
+ * fields it needs from the full task.
  */
 import { createGraphHttp, type GraphTokenProvider } from '../../microsoft/graphHttp';
 import type { GraphTodoDeltaPage, GraphTodoList, GraphTodoListPage, GraphTodoTask, GraphTodoTaskWrite } from './types';
 
-export { graphErrorCode, graphHttpStatus, type GraphTokenProvider } from '../../microsoft/graphHttp';
-
-/** Task fields Meeting Guard reads (delta supports $select). */
-export const TODO_TASK_SELECT =
-  'id,title,body,status,importance,isReminderOn,reminderDateTime,dueDateTime,completedDateTime,createdDateTime,lastModifiedDateTime';
+export { graphErrorCode, graphErrorText, graphHttpStatus, type GraphTokenProvider } from '../../microsoft/graphHttp';
 
 /** UTC times (due and reminder instants are converted locally) + bounded pages. */
 const PREFER_HEADER = 'outlook.timezone="UTC", odata.maxpagesize=100';
@@ -59,14 +59,14 @@ export function createTodoGraphApi(options: TodoApiOptions): TodoGraphApi {
       return lists;
     },
     startDelta(listId) {
-      return http.required<GraphTodoDeltaPage>('GET', `${tasksUrl(listId)}/delta?$select=${encodeURIComponent(TODO_TASK_SELECT)}`, 'delta page');
+      return http.required<GraphTodoDeltaPage>('GET', `${tasksUrl(listId)}/delta`, 'delta page');
     },
     async getDeltaPage(url) {
       http.assertGraphUrl(url, 'a delta link');
       return http.required<GraphTodoDeltaPage>('GET', url, 'delta page');
     },
     getTask(listId, taskId) {
-      return http.required<GraphTodoTask>('GET', `${taskUrl(listId, taskId)}?$select=${encodeURIComponent(TODO_TASK_SELECT)}`, 'task');
+      return http.required<GraphTodoTask>('GET', taskUrl(listId, taskId), 'task');
     },
     createTask(listId, body) {
       return http.required<GraphTodoTask>('POST', tasksUrl(listId), 'task', body);

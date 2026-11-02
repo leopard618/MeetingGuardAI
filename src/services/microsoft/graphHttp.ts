@@ -50,6 +50,8 @@ export interface GraphHttp {
 interface GraphErrorInfo {
   status: number;
   graphCode: string | null;
+  /** Graph's own error text (never a token); for logs and bug reports. */
+  graphMessage: string | null;
   retryAfterMs: number | null;
 }
 
@@ -64,6 +66,15 @@ export function graphErrorCode(error: unknown): string | null {
   if (!isAppError(error)) return null;
   const code = error.details?.graphCode;
   return typeof code === 'string' ? code : null;
+}
+
+/** "code: message" of a Graph failure for logs (null for non-Graph errors). */
+export function graphErrorText(error: unknown): string | null {
+  if (!isAppError(error)) return null;
+  const code = error.details?.graphCode;
+  const message = error.details?.graphMessage;
+  if (typeof code !== 'string' && typeof message !== 'string') return null;
+  return [code, message].filter((part): part is string => typeof part === 'string').join(': ');
 }
 
 function isRetryable(info: GraphErrorInfo): boolean {
@@ -101,13 +112,15 @@ function parseRetryAfter(value: string | null): number | null {
 
 async function readErrorInfo(response: Response): Promise<GraphErrorInfo> {
   let graphCode: string | null = null;
+  let graphMessage: string | null = null;
   try {
-    const body = (await response.json()) as { error?: { code?: string } };
+    const body = (await response.json()) as { error?: { code?: string; message?: string } };
     graphCode = body.error?.code ?? null;
+    graphMessage = typeof body.error?.message === 'string' ? body.error.message.slice(0, 300) : null;
   } catch {
     // Non-JSON error body: the status is enough.
   }
-  return { status: response.status, graphCode, retryAfterMs: parseRetryAfter(response.headers.get('Retry-After')) };
+  return { status: response.status, graphCode, graphMessage, retryAfterMs: parseRetryAfter(response.headers.get('Retry-After')) };
 }
 
 const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -182,7 +195,7 @@ export function createGraphHttp(options: GraphHttpOptions): GraphHttp {
         continue;
       }
       throw new AppError(codeFor(info), `Microsoft Graph ${method} failed with HTTP ${info.status}`, {
-        details: { status: info.status, graphCode: info.graphCode, method },
+        details: { status: info.status, graphCode: info.graphCode, graphMessage: info.graphMessage, method },
         retryable: isRetryable(info),
       });
     }
