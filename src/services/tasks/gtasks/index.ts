@@ -3,7 +3,8 @@
  *
  * Contract: `GoogleTasksSyncService` in src/core/contracts.ts.
  * - Account: the Google account signed in natively on this device (GoogleSignin); the tasks
- *   scope (GOOGLE_TASKS_SCOPES) is requested incrementally when the sync is turned on.
+ *   scope (GOOGLE_TASKS_SCOPES) is requested incrementally when the user starts turning the sync
+ *   on (before the list chooser loads).
  * - Pull: tasks.list per synced list with a persisted updatedMin watermark in mg:{uid}:tasks.gtasks.
  *   Push: POST / PATCH / DELETE; link write-backs use origin 'tasks_gtasks' (never re-pushed).
  * - `isConfigured()` is the build switch: EXPO_PUBLIC_GOOGLE_TASKS_SYNC set to 'off' hides the

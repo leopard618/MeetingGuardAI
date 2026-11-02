@@ -863,7 +863,10 @@ export interface GoogleTasksSyncService {
   isConfigured(): boolean;
   /** A Google account is signed in natively on this device (the tasks scope may still be missing). */
   isAccountConnected(): Promise<boolean>;
-  /** Requires the account and the tasks scope (throws tasks_scope_missing otherwise). */
+  /**
+   * Requires the account; asks for the tasks scope when missing (the list chooser is the first
+   * step of turning the sync on) and throws tasks_scope_missing when declined.
+   */
   listLists(): Promise<TaskListInfo[]>;
   /**
    * Asks for the tasks scope when missing (throws tasks_scope_missing when declined), stores the

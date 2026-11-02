@@ -80,10 +80,12 @@ describe('google tasks service', () => {
     expect(status.get().gtasks).toMatchObject({ configured: true, connected: false, hasScope: false, enabled: false });
   });
 
-  it('needs the tasks scope to list, and asks for it on enable', async () => {
+  it('asks for the tasks scope once, when the lists are loaded, and not again on enable', async () => {
     const { service, auth, api, status } = setup({ hasScope: false });
     api.seed(LIST.id, { id: 'a1' });
-    await expect(service.listLists()).rejects.toMatchObject({ code: 'tasks_scope_missing' });
+    await expect(service.listLists()).resolves.toHaveLength(1);
+    expect(auth.requestTasksScope).toHaveBeenCalledTimes(1);
+    expect(status.get().gtasks).toMatchObject({ connected: true, hasScope: true, enabled: false });
 
     const result = await service.enable(LIST);
 
@@ -92,8 +94,16 @@ describe('google tasks service', () => {
     expect(status.get().gtasks).toMatchObject({ enabled: true, hasScope: true });
   });
 
+  it('asks for the tasks scope on enable when the lists were not loaded first', async () => {
+    const { service, auth } = setup({ hasScope: false });
+    await service.enable(LIST);
+    expect(auth.requestTasksScope).toHaveBeenCalledTimes(1);
+  });
+
   it('stays off when the user declines the tasks scope', async () => {
     const { service, state, status, prefs } = setup({ hasScope: false, grant: false });
+    await expect(service.listLists()).rejects.toMatchObject({ code: 'tasks_scope_missing' });
+    expect(status.get().gtasks).toMatchObject({ enabled: false, hasScope: false });
     await expect(service.enable(LIST)).rejects.toMatchObject({ code: 'tasks_scope_missing' });
     expect(state.value.enabled).toBe(false);
     expect(prefs().gtasksListId).toBeNull();

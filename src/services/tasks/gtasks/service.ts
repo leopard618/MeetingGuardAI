@@ -106,9 +106,16 @@ export function createGoogleTasksSyncService(deps: GtasksServiceDeps): GoogleTas
     if (!connected) throw new AppError('google_not_signed_in', 'No Google account is signed in on this device');
   }
 
-  async function ensureScope(): Promise<void> {
+  /** Asks for the tasks scope when it is missing (incremental consent); a decline throws. */
+  async function ensureScopeGranted(): Promise<void> {
     await ensureAccount();
-    if (!(await deps.auth.hasTasksScope())) throw new AppError('tasks_scope_missing', 'The Google Tasks scope has not been granted');
+    if (await deps.auth.hasTasksScope()) return;
+    const granted = await deps.auth.requestTasksScope();
+    if (!granted) {
+      deps.status.patchGtasks({ configured: true, connected: true, hasScope: false });
+      throw new AppError('tasks_scope_missing', 'The user declined the Google Tasks scope');
+    }
+    deps.status.patchGtasks({ configured: true, connected: true, hasScope: true });
   }
 
   async function ensureEnabled(): Promise<void> {
@@ -170,7 +177,8 @@ export function createGoogleTasksSyncService(deps: GtasksServiceDeps): GoogleTas
 
     listLists() {
       return mutex.run(async () => {
-        await ensureScope();
+        // The list chooser comes before "Start sync": this is where the permission is asked.
+        await ensureScopeGranted();
         const lists = await deps.api.listLists();
         return lists.map(toTaskListInfo);
       });
@@ -178,14 +186,7 @@ export function createGoogleTasksSyncService(deps: GtasksServiceDeps): GoogleTas
 
     enable(list) {
       return mutex.run(async () => {
-        await ensureAccount();
-        if (!(await deps.auth.hasTasksScope())) {
-          const granted = await deps.auth.requestTasksScope();
-          if (!granted) {
-            deps.status.patchGtasks({ configured: true, connected: true, hasScope: false });
-            throw new AppError('tasks_scope_missing', 'The user declined the Google Tasks scope');
-          }
-        }
+        await ensureScopeGranted();
         await deps.preferences.update({ gtasksListId: list.id, gtasksListName: list.name });
         // A fresh start: full listings, no stale queue, no stale links.
         await deps.state.update((current) => ({ ...current, enabled: true, lists: {}, pending: {}, hashes: {}, links: {}, lastError: null }));

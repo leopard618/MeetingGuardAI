@@ -1385,9 +1385,11 @@ section lists what differs.
   `CalendarStatus.gtasks`, the card is hidden, the engine skips the provider.
 - **Account and scope.** The Google account signed in natively on the device (GoogleSignin), the
   same one Google Calendar uses. The sensitive scope `https://www.googleapis.com/auth/tasks`
-  (`GOOGLE_TASKS_SCOPES`) is requested incrementally when the user turns the sync on
-  (`authService.requestTasksScope`, `GoogleSignin.addScopes`; an email/password user is signed in
-  to Google first). `getGoogleAccessToken({ requireTasks: true })` throws
+  (`GOOGLE_TASKS_SCOPES`) is requested incrementally when the user taps "Sync tasks with Google
+  Tasks": `listLists` asks for it before loading the lists, since the chooser comes before "Start
+  sync" (`enable` asks too when it was skipped; `authService.requestTasksScope`,
+  `GoogleSignin.addScopes`; an email/password user is signed in to Google first). A decline shows
+  the card's "access was not granted" text and nothing is queued. `getGoogleAccessToken({ requireTasks: true })` throws
   `tasks_scope_missing` (new `AppErrorCode`, EN/ES text) when the scope is missing; the card then
   says access was not granted. A Google Calendar disconnect with revoke disables the Google Tasks
   sync first (`googleCalendarService.disconnect`), since the revoke takes the tasks grant too.

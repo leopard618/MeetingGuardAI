@@ -110,6 +110,11 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+- **Google Tasks could not be turned on** (November 2): the list chooser demanded the Tasks
+  permission before anything had asked for it, so a fresh account always saw "Meeting Guard needs
+  permission to access your Google Tasks". Loading the lists now asks for the permission; declining
+  shows the card's "access was not granted" text.
+
 Code audit of October 30, 2026 (docs/v2/AUDIT-2026-10-30.md has the full list and the
 countermeasures that need a device run):
 

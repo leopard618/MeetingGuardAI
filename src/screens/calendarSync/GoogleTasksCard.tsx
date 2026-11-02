@@ -68,7 +68,11 @@ export function GoogleTasksCard({
         setChooser({ lists, loading: false, error: null, selectedId: preferred });
       })
       .catch((error: unknown) => {
-        setChooser({ lists: [], loading: false, error: t(errorMessageKey(toAppError(error).code)), selectedId: null });
+        const code = toAppError(error).code;
+        // Loading the lists asks for the Tasks permission: a decline gets the card's own words.
+        const message =
+          code === 'tasks_scope_missing' ? t('calendar:gtasks.scopeDenied') : t('calendar:gtasks.listsFailed', { error: t(errorMessageKey(code)) });
+        setChooser({ lists: [], loading: false, error: message, selectedId: null });
       });
   };
 
@@ -80,7 +84,7 @@ export function GoogleTasksCard({
       {chooser.loading ? <InlineProgress label={t('calendar:gtasks.loadingLists')} palette={palette} /> : null}
       {chooser.error !== null ? (
         <Text style={[partStyles.body, { color: palette.warning }]} testID="calendar-gtasks-lists-error">
-          {t('calendar:gtasks.listsFailed', { error: chooser.error })}
+          {chooser.error}
         </Text>
       ) : null}
       {chooser.lists.map((list) => (
