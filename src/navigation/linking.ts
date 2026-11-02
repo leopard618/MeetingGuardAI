@@ -88,7 +88,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
   config: {
     screens: {
       MeetingDetails: LINKING_PATHS.meeting,
-      AIChat: { path: LINKING_PATHS.assistant, parse: { followup: String } },
+      AIChat: { path: LINKING_PATHS.assistant, parse: { followup: String, debrief: String } },
     },
   },
   async getInitialURL() {

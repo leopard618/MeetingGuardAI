@@ -1,9 +1,9 @@
 /**
  * Full-screen task editor (create and edit): title, description, due date + time (native
  * pickers), reminder choice, optional linked meeting (MeetingPicker) and delete. People set by
- * the assistant are shown read-only. While the Microsoft To Do sync is on, the editor shows which
- * list the task goes to (changeable) and what To Do does not keep. Closing with unsaved changes
- * asks first. Persistence is the caller's job (`onSubmit`).
+ * the assistant are shown read-only. While the Microsoft To Do or Google Tasks sync is on, the
+ * editor shows which list the task goes to there (changeable) and what that provider does not
+ * keep. Closing with unsaved changes asks first. Persistence is the caller's job (`onSubmit`).
  */
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useEffect, useState, type ReactElement } from 'react';
@@ -33,17 +33,23 @@ import {
   type TaskDraftError,
 } from './tasksModel';
 
-/** Microsoft To Do sync as the editor sees it (null = off: no list box). */
-export interface TaskEditorTodo {
-  /** The list new tasks go to by default (Preferences.todoListId). */
+/** A task-list sync (Microsoft To Do, Google Tasks) as the editor sees it (null = off: no list box). */
+export interface TaskEditorListSync {
+  /** The list new tasks go to by default (Preferences.todoListId / gtasksListId). */
   defaultList: { id: string; name: string } | null;
   listLists(): Promise<TodoList[]>;
 }
+/** @deprecated Use TaskEditorListSync. */
+export type TaskEditorTodo = TaskEditorListSync;
+
+/** Which sync a list box belongs to: picks the strings (tasks:editor.<provider>*) and the draft field. */
+export type TaskEditorListProvider = 'todo' | 'gtasks';
 
 export interface TaskEditorProps {
   /** null = a new task. */
   task: Task | null;
-  todo?: TaskEditorTodo | null;
+  todo?: TaskEditorListSync | null;
+  gtasks?: TaskEditorListSync | null;
   meetings: readonly Meeting[];
   meetingsById: ReadonlyMap<string, Meeting>;
   fmt: Formatters;
@@ -66,6 +72,7 @@ export function reminderLabelKey(minutes: number | null): { key: string; count?:
 export function TaskEditor({
   task,
   todo = null,
+  gtasks = null,
   meetings,
   meetingsById,
   fmt,
@@ -87,39 +94,6 @@ export function TaskEditor({
   const errors = validateTaskDraft(draft);
   const dirty = isDraftDirty(draft, original);
   const change = (patch: Partial<TaskDraft>): void => setDraft((current) => ({ ...current, ...patch }));
-  // The lists are needed to name a non-default list and to offer a change; one cheap call.
-  const [todoLists, setTodoLists] = useState<{ lists: TodoList[]; loading: boolean; failed: boolean }>({
-    lists: [],
-    loading: todo !== null,
-    failed: false,
-  });
-  const [choosingList, setChoosingList] = useState(false);
-
-  useEffect(() => {
-    if (todo === null) return;
-    let cancelled = false;
-    todo
-      .listLists()
-      .then((lists) => {
-        if (!cancelled) setTodoLists({ lists, loading: false, failed: false });
-      })
-      .catch(() => {
-        if (!cancelled) setTodoLists({ lists: [], loading: false, failed: true });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [todo]);
-
-  const todoListName = (): string => {
-    if (todo === null) return '';
-    if (draft.todoListId === null || draft.todoListId === todo.defaultList?.id) {
-      return todo.defaultList ? t('tasks:editor.todoListDefault', { name: todo.defaultList.name }) : t('tasks:editor.todoNoList');
-    }
-    const named = todoLists.lists.find((list) => list.id === draft.todoListId);
-    if (named) return named.name;
-    return todoLists.loading ? t('tasks:editor.todoLoading') : t('tasks:editor.todoOtherList');
-  };
 
   const errorText = (error: TaskDraftError | undefined): string | null => {
     if (!submitted || !error) return null;
@@ -366,57 +340,11 @@ export function TaskEditor({
                 </View>
 
                 {todo !== null ? (
-                  <View style={[styles.box, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]} testID="task-todo-box">
-                    <Text variant="labelLarge">{t('tasks:editor.todoSection')}</Text>
-                    <Text variant="bodyLarge" style={styles.boxValue} testID="task-todo-list">
-                      {todoListName()}
-                    </Text>
-                    {choosingList ? (
-                      todoLists.failed ? (
-                        <Text variant="bodyMedium" style={[styles.boxValue, { color: theme.colors.error }]}>
-                          {t('tasks:editor.todoListsFailed')}
-                        </Text>
-                      ) : (
-                        <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={t('tasks:editor.todoSection')}>
-                          {todoLists.lists.map((list) => {
-                            const selected = (draft.todoListId ?? todo.defaultList?.id ?? null) === list.id;
-                            return (
-                              <Chip
-                                key={list.id}
-                                selected={selected}
-                                showSelectedOverlay
-                                onPress={() => {
-                                  change({ todoListId: list.id === todo.defaultList?.id && draft.todoListId === null ? null : list.id });
-                                  setChoosingList(false);
-                                }}
-                                style={styles.chip}
-                                accessibilityRole="radio"
-                                testID={`task-todo-list-${list.id}`}
-                              >
-                                {list.name}
-                              </Chip>
-                            );
-                          })}
-                        </View>
-                      )
-                    ) : (
-                      <View style={styles.boxActions}>
-                        <Button
-                          mode="outlined"
-                          icon="format-list-checks"
-                          onPress={() => setChoosingList(true)}
-                          disabled={todoLists.loading}
-                          style={styles.boxButton}
-                          testID="task-todo-change-list"
-                        >
-                          {t('tasks:editor.todoChangeList')}
-                        </Button>
-                      </View>
-                    )}
-                    <Text variant="bodySmall" style={[styles.boxValue, { color: theme.colors.onSurfaceVariant }]} testID="task-todo-hint">
-                      {t('tasks:editor.todoHint')}
-                    </Text>
-                  </View>
+                  <ListSyncBox provider="todo" sync={todo} listId={draft.todoListId} onChange={(id) => change({ todoListId: id })} />
+                ) : null}
+
+                {gtasks !== null ? (
+                  <ListSyncBox provider="gtasks" sync={gtasks} listId={draft.gtasksListId} onChange={(id) => change({ gtasksListId: id })} />
                 ) : null}
 
                 {task && onDelete ? (
@@ -438,6 +366,107 @@ export function TaskEditor({
         )}
       </View>
     </Modal>
+  );
+}
+
+/**
+ * The "which list does this task go to" box of one task-list sync. `listId` null means the
+ * default list; choosing the default list again stores null so a later change of the default
+ * follows the task. The lists are loaded once (needed to name a non-default list and to offer
+ * a change).
+ */
+function ListSyncBox({
+  provider,
+  sync,
+  listId,
+  onChange,
+}: {
+  provider: TaskEditorListProvider;
+  sync: TaskEditorListSync;
+  listId: string | null;
+  onChange(listId: string | null): void;
+}): ReactElement {
+  const t = useT();
+  const theme = usePaperTheme();
+  const [lists, setLists] = useState<{ lists: TodoList[]; loading: boolean; failed: boolean }>({ lists: [], loading: true, failed: false });
+  const [choosing, setChoosing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    sync
+      .listLists()
+      .then((loaded) => {
+        if (!cancelled) setLists({ lists: loaded, loading: false, failed: false });
+      })
+      .catch(() => {
+        if (!cancelled) setLists({ lists: [], loading: false, failed: true });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sync]);
+
+  const listName = (): string => {
+    if (listId === null || listId === sync.defaultList?.id) {
+      return sync.defaultList ? t(`tasks:editor.${provider}ListDefault`, { name: sync.defaultList.name }) : t(`tasks:editor.${provider}NoList`);
+    }
+    const named = lists.lists.find((list) => list.id === listId);
+    if (named) return named.name;
+    return lists.loading ? t(`tasks:editor.${provider}Loading`) : t(`tasks:editor.${provider}OtherList`);
+  };
+
+  return (
+    <View style={[styles.box, { borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }]} testID={`task-${provider}-box`}>
+      <Text variant="labelLarge">{t(`tasks:editor.${provider}Section`)}</Text>
+      <Text variant="bodyLarge" style={styles.boxValue} testID={`task-${provider}-list`}>
+        {listName()}
+      </Text>
+      {choosing ? (
+        lists.failed ? (
+          <Text variant="bodyMedium" style={[styles.boxValue, { color: theme.colors.error }]}>
+            {t(`tasks:editor.${provider}ListsFailed`)}
+          </Text>
+        ) : (
+          <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel={t(`tasks:editor.${provider}Section`)}>
+            {lists.lists.map((list) => {
+              const selected = (listId ?? sync.defaultList?.id ?? null) === list.id;
+              return (
+                <Chip
+                  key={list.id}
+                  selected={selected}
+                  showSelectedOverlay
+                  onPress={() => {
+                    onChange(list.id === sync.defaultList?.id && listId === null ? null : list.id);
+                    setChoosing(false);
+                  }}
+                  style={styles.chip}
+                  accessibilityRole="radio"
+                  testID={`task-${provider}-list-${list.id}`}
+                >
+                  {list.name}
+                </Chip>
+              );
+            })}
+          </View>
+        )
+      ) : (
+        <View style={styles.boxActions}>
+          <Button
+            mode="outlined"
+            icon="format-list-checks"
+            onPress={() => setChoosing(true)}
+            disabled={lists.loading}
+            style={styles.boxButton}
+            testID={`task-${provider}-change-list`}
+          >
+            {t(`tasks:editor.${provider}ChangeList`)}
+          </Button>
+        </View>
+      )}
+      <Text variant="bodySmall" style={[styles.boxValue, { color: theme.colors.onSurfaceVariant }]} testID={`task-${provider}-hint`}>
+        {t(`tasks:editor.${provider}Hint`)}
+      </Text>
+    </View>
   );
 }
 

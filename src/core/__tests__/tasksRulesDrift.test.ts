@@ -39,11 +39,11 @@ describe('firestore.rules task allowlist', () => {
     expect(hasOnlyKeys('isValidTask').filter((key) => !stored.has(key))).toEqual([]);
   });
 
-  it('names every To Do link field and nothing else', () => {
+  it('names every To Do and Google Tasks link field and nothing else', () => {
     expect(hasOnlyKeys('isValidTaskExternal').sort()).toEqual(Object.keys(EMPTY_TASK_EXTERNAL_REFS).sort());
   });
 
   it('accepts every task source the app can write', () => {
-    expect(rulesText()).toContain("d.get('source', 'manual') in ['manual', 'ai_chat', 'whatsapp', 'todo']");
+    expect(rulesText()).toContain("d.get('source', 'manual') in ['manual', 'ai_chat', 'whatsapp', 'todo', 'gtasks']");
   });
 });

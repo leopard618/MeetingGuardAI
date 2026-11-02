@@ -145,6 +145,16 @@ describe('threadReducer', () => {
     expect(detectFailedRequest(thread)).toBeNull();
   });
 
+  it('a failed debrief transcript is retried as a debrief of its meeting (v7)', () => {
+    let thread = threadReducer(createEmptyThread(), {
+      type: 'user_message',
+      message: message('u9', 'user', 'Ana sends the budget by Friday', { debriefMeetingId: 'meeting_7' }),
+    });
+    thread = threadReducer(thread, { type: 'request_started', userMessageId: 'u9' });
+    thread = threadReducer(thread, { type: 'request_failed', userMessageId: 'u9', usage: null });
+    expect(detectFailedRequest(thread)).toEqual({ mode: 'debrief', meetingId: 'meeting_7', userMessageId: 'u9' });
+  });
+
   it('remembers follow-ups and keeps them (and usage) on reset', () => {
     let thread = threadReducer(createEmptyThread(), {
       type: 'request_succeeded',

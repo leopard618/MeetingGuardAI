@@ -3,7 +3,7 @@
  *
  * One controller per app run, bound to the signed-in user:
  * - loads/persists the thread per uid (MAX_STORED_MESSAGES kept, MAX_REQUEST_MESSAGES sent);
- * - serializes requests (chat + post-meeting follow-up) so replies never interleave;
+ * - serializes requests (chat, post-meeting follow-up, spoken debrief) so replies never interleave;
  * - follow-up mode: a meeting's follow-up is requested once (remembered in the thread), even when
  *   the notification is opened again;
  * - executes CONFIRMED actions only (confirm / confirmAll), sharing one execution per action;
@@ -65,6 +65,7 @@ function initialSnapshot(uid: string | null): AssistantSnapshot {
     error: null,
     failedRequest: null,
     followUpInFlight: null,
+    debriefInFlight: null,
   };
 }
 
@@ -148,8 +149,9 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
     const gen = generation;
     if (!snapshot.uid) return;
     const followUpMeetingId = kind.mode === 'followup' ? kind.meetingId : null;
+    const debriefMeetingId = kind.mode === 'debrief' ? kind.meetingId : null;
     apply({ type: 'request_started', userMessageId });
-    update({ isSending: true, error: null, failedRequest: null, followUpInFlight: followUpMeetingId });
+    update({ isSending: true, error: null, failedRequest: null, followUpInFlight: followUpMeetingId, debriefInFlight: debriefMeetingId });
 
     try {
       const context = deps.getContext();
@@ -166,13 +168,22 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
               })
               .slice(0, AI_LIMITS.maxActions)
           : [];
+      // A debrief sends the transcript alone: the model turns that one message into tasks and
+      // must not be steered by earlier chat turns.
+      const debriefMessage = kind.mode === 'debrief' ? snapshot.thread.messages.find((m) => m.id === kind.userMessageId) : undefined;
       const request: AssistantRequest = {
-        messages: kind.mode === 'chat' ? buildRequestMessages(snapshot.thread.messages) : [],
+        messages:
+          kind.mode === 'chat'
+            ? buildRequestMessages(snapshot.thread.messages)
+            : debriefMessage
+              ? buildRequestMessages([debriefMessage], 1)
+              : [],
         language: context.language,
         timezone: context.timezone,
         nowIso: context.now.toISOString(),
         mode: kind.mode,
-        followUpMeetingId,
+        // Follow-up and debrief both name the meeting that ended.
+        followUpMeetingId: followUpMeetingId ?? debriefMeetingId,
         // v5: tells the server which capabilities this build can parse (task action types).
         contractVersion: AI_CONTRACT_VERSION,
         ...(pendingActions.length > 0 ? { pendingActions } : {}),
@@ -189,9 +200,10 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
         actionIds: actions.map((a) => a.id),
         suggestions: response.suggestions,
         followUpMeetingId,
+        ...(debriefMeetingId ? { debriefMeetingId } : {}),
       };
       apply({ type: 'request_succeeded', userMessageId, reply, actions, usage: response.usage, followUpMeetingId });
-      update({ isSending: false, followUpInFlight: null });
+      update({ isSending: false, followUpInFlight: null, debriefInFlight: null });
       // v4: the model judged the message as plain consent/refusal of the pending proposals.
       // Only honored when we sent pending proposals and nothing new was proposed; the cards
       // then run through exactly the same paths as the on-screen buttons.
@@ -207,7 +219,7 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
       if (gen !== generation) return;
       const appError = toAppError(error, 'upstream_error');
       apply({ type: 'request_failed', userMessageId, usage: quotaUsageFromError(appError) });
-      update({ isSending: false, error: appError, failedRequest: kind, followUpInFlight: null });
+      update({ isSending: false, error: appError, failedRequest: kind, followUpInFlight: null, debriefInFlight: null });
     }
   }
 
@@ -303,12 +315,50 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
     }
   }
 
+  /**
+   * v7: a debrief of an ended meeting. The transcript is shown as the user's message (labelled
+   * with the meeting) and sent alone in debrief mode; the reply's create_task proposals are
+   * ordinary cards the user confirms one by one. A meeting can be debriefed any number of times.
+   */
+  async function startDebrief(meetingId: string, transcript: string): Promise<void> {
+    if (!MEETING_ID_PATTERN.test(meetingId)) {
+      log.warn('ignoring an invalid debrief meeting id');
+      return;
+    }
+    const content = transcript.trim().slice(0, AI_LIMITS.maxMessageChars);
+    if (content === '') return;
+    if (!snapshot.isLoaded) await loading;
+    if (!snapshot.isLoaded || !snapshot.uid) {
+      update({ error: new AppError('unauthenticated', 'No active session') });
+      return;
+    }
+    const message: ChatMessage = {
+      id: createId('u_'),
+      role: 'user',
+      content,
+      createdAt: new Date().toISOString(),
+      actionIds: [],
+      suggestions: [],
+      debriefMeetingId: meetingId,
+    };
+    apply({ type: 'user_message', message });
+    await enqueue(() => runRequest({ mode: 'debrief', meetingId, userMessageId: message.id }, message.id));
+  }
+
   async function retry(): Promise<void> {
     const failed = snapshot.failedRequest;
     if (!failed || snapshot.isSending) return;
     if (failed.mode === 'followup') {
       update({ failedRequest: null, error: null });
       await startFollowUp(failed.meetingId);
+      return;
+    }
+    if (failed.mode === 'debrief') {
+      if (!snapshot.thread.messages.some((m) => m.id === failed.userMessageId)) {
+        update({ failedRequest: null, error: null });
+        return;
+      }
+      await enqueue(() => runRequest(failed, failed.userMessageId));
       return;
     }
     const lastUser = [...snapshot.thread.messages].reverse().find((m) => m.role === 'user');
@@ -403,7 +453,7 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
     executions.clear();
     followUpsInProgress.clear();
     apply({ type: 'reset' });
-    update({ isSending: false, error: null, failedRequest: null, followUpInFlight: null });
+    update({ isSending: false, error: null, failedRequest: null, followUpInFlight: null, debriefInFlight: null });
     await saveChain;
   }
 
@@ -418,6 +468,7 @@ export function createAssistantController(deps: AssistantControllerDeps): Assist
     setUid,
     send,
     startFollowUp,
+    startDebrief,
     retry,
     confirm,
     confirmAll,

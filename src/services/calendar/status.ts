@@ -10,7 +10,7 @@ import { createLogger } from '../../core/logger';
 
 const log = createLogger('calendar');
 
-export type CalendarProvider = 'google' | 'device' | 'outlook' | 'todo';
+export type CalendarProvider = 'google' | 'device' | 'outlook' | 'todo' | 'gtasks';
 
 export function initialCalendarStatus(): CalendarStatus {
   return {
@@ -54,6 +54,32 @@ export function initialTodoStatus(): NonNullable<CalendarStatus['todo']> {
     listId: null,
     listName: null,
   };
+}
+
+/** The `gtasks` entry the first patchGtasks starts from. */
+export function initialGtasksStatus(): NonNullable<CalendarStatus['gtasks']> {
+  return {
+    enabled: false,
+    syncing: false,
+    lastSyncAt: null,
+    lastError: null,
+    configured: false,
+    connected: false,
+    hasScope: false,
+    listId: null,
+    listName: null,
+  };
+}
+
+export interface GtasksStatusPatch {
+  configured?: boolean;
+  connected?: boolean;
+  hasScope?: boolean;
+  enabled?: boolean;
+  listId?: string | null;
+  listName?: string | null;
+  lastSyncAt?: string | null;
+  lastError?: AppErrorCode | null;
 }
 
 export interface TodoStatusPatch {
@@ -100,6 +126,8 @@ export interface CalendarStatusStore {
   patchOutlook(patch: OutlookStatusPatch): void;
   /** Creates the (absent-by-default) todo entry on first use, then merges. */
   patchTodo(patch: TodoStatusPatch): void;
+  /** Creates the (absent-by-default) gtasks entry on first use, then merges. */
+  patchGtasks(patch: GtasksStatusPatch): void;
   /** Marks a provider operation as running; call the returned function when it settles. */
   beginSync(provider: CalendarProvider): () => void;
   /** Back to the signed-out state (session end). */
@@ -112,7 +140,7 @@ function sameArray(a: readonly string[], b: readonly string[]): boolean {
 
 export function createCalendarStatusStore(): CalendarStatusStore {
   let status = initialCalendarStatus();
-  const running: Record<CalendarProvider, number> = { google: 0, device: 0, outlook: 0, todo: 0 };
+  const running: Record<CalendarProvider, number> = { google: 0, device: 0, outlook: 0, todo: 0, gtasks: 0 };
   const listeners = new Set<(status: CalendarStatus) => void>();
 
   function publish(next: CalendarStatus): void {
@@ -164,11 +192,21 @@ export function createCalendarStatusStore(): CalendarStatusStore {
     if (changed) publish({ ...status, todo: merged });
   }
 
+  function withGtasks(patch: Partial<NonNullable<CalendarStatus['gtasks']>>): void {
+    const current = status.gtasks ?? initialGtasksStatus();
+    const merged = { ...current, ...patch };
+    const changed =
+      status.gtasks === undefined ||
+      (Object.keys(merged) as (keyof typeof merged)[]).some((key) => merged[key] !== current[key]);
+    if (changed) publish({ ...status, gtasks: merged });
+  }
+
   function setSyncing(provider: CalendarProvider): void {
     const syncing = running[provider] > 0;
     if (provider === 'google') withGoogle({ syncing } satisfies Partial<ProviderStatus>);
     else if (provider === 'outlook') withOutlook({ syncing });
     else if (provider === 'todo') withTodo({ syncing });
+    else if (provider === 'gtasks') withGtasks({ syncing });
     else withDevice({ syncing });
   }
 
@@ -185,6 +223,7 @@ export function createCalendarStatusStore(): CalendarStatusStore {
     patchDevice: (patch) => withDevice(patch),
     patchOutlook: (patch) => withOutlook(patch),
     patchTodo: (patch) => withTodo(patch),
+    patchGtasks: (patch) => withGtasks(patch),
     beginSync(provider) {
       running[provider] += 1;
       setSyncing(provider);
@@ -201,6 +240,7 @@ export function createCalendarStatusStore(): CalendarStatusStore {
       running.device = 0;
       running.outlook = 0;
       running.todo = 0;
+      running.gtasks = 0;
       publish(initialCalendarStatus());
     },
   };

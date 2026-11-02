@@ -1318,3 +1318,116 @@ absent, the To Do card is hidden and the engine skips the provider.
   `src/services/calendar/__tests__/engineTodo.test.ts`, the data engine's task write options and
   event (`engineTasks.test.ts`), the rules drift test, the calendar sync screen's To Do card and
   the executor preview. Device test guide: `docs/v1/TESTING.md` T22.
+
+## 29. Spoken debrief (V2 Stage 2, M8)
+
+After a meeting the user says what was agreed, and the assistant turns that into task proposals
+linked to the meeting. Nothing is saved until each card is confirmed. Contract v7
+(`src/core/aiContract.ts` = `functions/src/shared/aiContract.ts`): a third assistant mode,
+`debrief`, carrying `followUpMeetingId` (the meeting that ended) and exactly one trailing user
+message, the transcript.
+
+- **Entry points.** Meeting details shows **Debrief this meeting** once the meeting has ended
+  (`canDebrief` in `src/screens/meetings/debrief.ts`: start + duration in the past; a series once
+  its first occurrence started; never a cancelled meeting). It opens the chat with
+  `AIChat { debrief: meetingId }` (deep link `meetingguardai://assistant?debrief=<id>`). The
+  follow-up banner (post-meeting notification, `followup` param) offers a **Debrief** button that
+  opens the same panel, so the notification flow and the details screen meet in one place.
+- **Capture.** `DebriefPanel` (`src/screens/assistant/DebriefPanel.tsx`) shows the meeting, a hint,
+  an editable transcript box and a microphone. The microphone is the chat screen's ONE voice
+  session (`useVoiceInput`, expo-speech-recognition, up to `VOICE_MAX_SESSION_MS` = 60 s, silence
+  timers as in the composer) routed by target: while the panel captures, interim text goes into
+  the panel instead of the composer and the final text never auto-sends. The user reads the
+  transcript, fixes it if needed and taps **Create tasks**; typing instead of speaking works too.
+  `sendableDebrief` caps the text at 4000 characters (the contract's message limit).
+- **Request.** `AssistantController.startDebrief(meetingId, transcript)` adds the transcript as a
+  user message carrying `debriefMeetingId` (the bubble is labelled "Debrief: <title>") and runs
+  the request with `mode: 'debrief'`, `followUpMeetingId: meetingId` and ONLY that one message:
+  earlier chat turns never steer a debrief. The reply is labelled the same way. A debrief does not
+  mark the meeting in `followUpsRequested` (a meeting can be debriefed again), and a failed one is
+  retried with the same transcript (`FailedRequest { mode: 'debrief', meetingId, userMessageId }`,
+  also detected for a thread restored from storage). `debriefInFlight` drives the loading text.
+- **Server.** `functions/src/assistant`: debrief mode always carries the task context and task
+  tools (a v7 client by definition), uses `toolChoice: 'required'` and a `# Debrief mode` prompt
+  block: the transcript is speech-to-text (expect misheard words), one `create_task` per
+  commitment, every task with `meeting_ref` = the ended meeting, the owner in `people` by name
+  (only names the user said or participants of that meeting; the user is never a person entry;
+  emails only when spelled out, like every other task person), relative deadlines resolved from
+  the date table, no date when none was said, titles that start with a verb in the transcript's
+  language, a 1-2 sentence reply. `mapToolCalls` enforces the rule the prompt states: in debrief
+  mode only `create_task`, `create_meeting` (an explicitly requested follow-up meeting), the two
+  list tools and `suggest_replies` are accepted; anything else is dropped as `not_allowed`.
+  Fallback replies: `debrief` (tasks proposed, empty model text) and `debrief_empty` (nothing to
+  turn into a task). A v6 server rejects the mode as `invalid_request`; deploy the functions with
+  the app (`npm run deploy` in `functions/`).
+- **Confirmation.** The proposals are the usual `create_task` cards (title, due, people, the
+  linked meeting, the To Do / Google Tasks list when a sync is on): Review and Confirm, Reject,
+  the pending bar's "Review all", and the spoken "yes, confirm" of the voice confirmation flow.
+  Confirmed tasks are created through the task executor with the meeting link and reach the
+  connected task providers through the normal push path (§28, §30).
+- **Tests.** Contract (`aiContract.test.ts` both sides), controller and conversation (debrief
+  request shape, labels, retry), chat model (params, `sendableDebrief`), the assistant screen
+  (panel open / send / close, loading text), meeting details (button and navigation),
+  `canDebrief`; server: prompt block, tool guard (`actions.test.ts`), handler end to end
+  (`handler.test.ts` "debrief mode (v7)"). Device test guide: `docs/v1/TESTING.md` T23.
+
+## 30. Google Tasks (Tasks API v1; V2 Stage 2, M8)
+
+Contract: `GoogleTasksSyncService` in `src/core/contracts.ts`; implementation in
+`src/services/tasks/gtasks/` (types / api / mapping / state / sync / service / index), a one-to-one
+mirror of the Microsoft To Do engine (§28) over the Google Tasks REST API
+(`https://tasks.googleapis.com/tasks/v1`). Everything said in §28 about queueing, echo
+suppression, conflict rule, timing, disable and status holds here with the `gtasks` names; this
+section lists what differs.
+
+- **Build switch.** `isConfigured()` is `EXPO_PUBLIC_GOOGLE_TASKS_SYNC !== 'off'` (default ON;
+  store builds set `off` until Google verifies the scope, `docs/v1/SETUP.md` §4.6). Off: no
+  `CalendarStatus.gtasks`, the card is hidden, the engine skips the provider.
+- **Account and scope.** The Google account signed in natively on the device (GoogleSignin), the
+  same one Google Calendar uses. The sensitive scope `https://www.googleapis.com/auth/tasks`
+  (`GOOGLE_TASKS_SCOPES`) is requested incrementally when the user turns the sync on
+  (`authService.requestTasksScope`, `GoogleSignin.addScopes`; an email/password user is signed in
+  to Google first). `getGoogleAccessToken({ requireTasks: true })` throws
+  `tasks_scope_missing` (new `AppErrorCode`, EN/ES text) when the scope is missing; the card then
+  says access was not granted. A Google Calendar disconnect with revoke disables the Google Tasks
+  sync first (`googleCalendarService.disconnect`), since the revoke takes the tasks grant too.
+- **Lists.** `tasks/v1/users/@me/lists`; the API has no default flag, so the first list (Google's
+  built-in "My Tasks") is marked `isDefault`. The chosen default list lives in Preferences
+  (`gtasksListId`, `gtasksListName`), a task's own list in `external.gtasksListId`
+  (`TaskInput.gtasksListId` / `TaskPatch.gtasksListId`). The API cannot move a task between
+  lists: delete + create, like To Do.
+- **What syncs.** Title, notes, due DATE and done state (`status: needsAction | completed`;
+  reopening clears `completed` explicitly). Google Tasks has no reminders and ignores the time
+  part of `due` (stored as `<date>T00:00:00.000Z`), so the due time, the reminder, people, the
+  meeting link and the zone stay in Meeting Guard; an import keeps the existing local due time and
+  reminder when the date did not change. The visible hash is title + notes + due date + done.
+  Subtasks are flattened (the parent is ignored). A task already completed when first seen is not
+  imported.
+- **Pull.** `tasks.list` with `showCompleted`, `showHidden` and `showDeleted` for the default
+  list plus every list a linked task lives in, paged (100 per page). No delta links: the state
+  keeps an `updatedMin` watermark per list (the previous pull time minus a 2-minute skew margin;
+  items inside the margin re-list as unchanged); a full listing runs on the first sync of a list,
+  every 7 days and whenever the watermark is missing. `deleted: true` deletes the local task; a
+  linked task missing from a full listing is deleted too. Imports use the deterministic id
+  `gt_<Google id or hash>`, origin `tasks_gtasks`, source `gtasks`; link write-backs use origin
+  `tasks_gtasks` (never pushed).
+- **Push.** Same queue as To Do (`state.pending`, persist-first, the engine's debounce; POST /
+  PATCH / DELETE; a 404 on PATCH re-creates). Blocking codes additionally include
+  `google_not_signed_in` and `tasks_scope_missing` (everything stays queued); a 403 on one task is
+  that task's failure. HTTP mapping in `gtasks/api.ts`: 401 invalidates the token and retries
+  once, 429 / 5xx / rate-limit 403 back off with jitter and honour Retry-After, scope 403 becomes
+  `tasks_scope_missing`.
+- **Storage and rules.** State in `mg:{uid}:tasks.gtasks` (`USER_STORAGE.gtasksTasks`).
+  Firestore: `external` accepts `gtasksListId / gtasksTaskId / gtasksUpdatedAt`, `source` accepts
+  `gtasks`, preferences accept `gtasksListId / gtasksListName` (`firestore.rules`; deploy with the
+  build).
+- **UI.** The "Google Tasks" card on the Calendar sync screen (`GoogleTasksCard`, states via
+  `gtasksStateView`; needs the Google session, else "Sign in with Google on this device first");
+  the task editor's second list box (`TaskEditor` `gtasks` prop, the box component is shared with
+  To Do as `ListSyncBox`); the assistant's confirm card shows "Google Tasks list: <name>" next to
+  the To Do list (`AiActionPreview.gtasksListName`, `describeTaskDraft`). Sync reports gain
+  `report.gtasks` and provider `'gtasks'`.
+- **Tests.** `src/services/tasks/__tests__/gtasks{Mapping,Sync,Service}.test.ts` with
+  `__testUtils__/gtasksFakes.ts`, the engine (`engineTodo.test.ts` gtasks cases), the auth
+  service scope cases, the calendar sync model and screen, the executor preview, the rules drift
+  test and the rules fixture. Device test guide: `docs/v1/TESTING.md` T24.

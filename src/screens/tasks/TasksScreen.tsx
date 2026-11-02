@@ -23,14 +23,14 @@ import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting, Task } from '../../core/types';
 import { useT } from '../../i18n';
-import { todoSyncService, useCalendarStatus } from '../../services/calendar';
+import { googleTasksSyncService, todoSyncService, useCalendarStatus } from '../../services/calendar';
 import { useMeetings, useSyncState, useTasks } from '../../services/data';
 import { componentMetrics, spacing } from '../../theme';
 import { FAB_SLIDE_DP, useHideOnScroll } from '../meetings/list/useHideOnScroll';
 import { useFormatters } from '../shared/useFormatters';
 import { useLiveNow } from '../shared/useLiveNow';
 import { TaskCard } from './TaskCard';
-import { TaskEditor, type TaskEditorTodo } from './TaskEditor';
+import { TaskEditor, type TaskEditorListSync } from './TaskEditor';
 import {
   TASK_FILTERS,
   countByFilter,
@@ -154,17 +154,29 @@ export function TasksScreen({ navigation }: Props): ReactElement {
     [update, showError, t],
   );
 
-  // Microsoft To Do (M7): the editor shows the target list while the sync is on.
-  const todoStatus = useCalendarStatus().todo;
+  // Microsoft To Do (M7) and Google Tasks (M8): the editor shows the target list while a sync is on.
+  const calendarStatus = useCalendarStatus();
+  const todoStatus = calendarStatus.todo;
   const todoEnabled = todoStatus?.enabled === true;
   const todoListId = todoStatus?.listId ?? null;
   const todoListName = todoStatus?.listName ?? '';
-  const todo = useMemo<TaskEditorTodo | null>(
+  const todo = useMemo<TaskEditorListSync | null>(
     () =>
       todoEnabled
         ? { defaultList: todoListId !== null ? { id: todoListId, name: todoListName } : null, listLists: () => todoSyncService.listLists() }
         : null,
     [todoEnabled, todoListId, todoListName],
+  );
+  const gtasksStatus = calendarStatus.gtasks;
+  const gtasksEnabled = gtasksStatus?.enabled === true;
+  const gtasksListId = gtasksStatus?.listId ?? null;
+  const gtasksListName = gtasksStatus?.listName ?? '';
+  const gtasks = useMemo<TaskEditorListSync | null>(
+    () =>
+      gtasksEnabled
+        ? { defaultList: gtasksListId !== null ? { id: gtasksListId, name: gtasksListName } : null, listLists: () => googleTasksSyncService.listLists() }
+        : null,
+    [gtasksEnabled, gtasksListId, gtasksListName],
   );
 
   const openTask = useCallback((task: Task) => openEditor({ mode: 'edit', task }), [openEditor]);
@@ -355,6 +367,7 @@ export function TasksScreen({ navigation }: Props): ReactElement {
         <TaskEditor
           task={editor.mode === 'edit' ? editor.task : null}
           todo={todo}
+          gtasks={gtasks}
           meetings={meetings}
           meetingsById={meetingsById}
           fmt={fmt}

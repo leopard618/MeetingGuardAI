@@ -11,6 +11,20 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
+- **Google Tasks two-way sync (M8)**: a "Google Tasks" card on the Calendar sync screen for the
+  Google account signed in on the phone (the Tasks permission is asked once, when the sync is
+  turned on). Pick a list; title, notes, due date and done state go both ways, deletions too; a
+  task can be moved to another list from the editor; the assistant's confirm card names the list.
+  The due time, the reminder, people and the linked meeting stay in Meeting Guard (Google Tasks
+  has no reminders). Build switch `EXPO_PUBLIC_GOOGLE_TASKS_SYNC=off` hides it until Google
+  verifies the scope. Firestore rules accept the new task and preference fields.
+- **Spoken debrief (M8)**: an ended meeting's details offer "Debrief this meeting", and the
+  post-meeting follow-up banner a "Debrief" button. The user says (up to 60 seconds) or types what
+  was agreed; the transcript stays editable, and "Create tasks" sends it in the assistant's new
+  debrief mode (contract v7). The reply proposes one task per commitment, linked to the meeting,
+  with the owner as a task person and the deadline resolved from the words ("by Friday"); each
+  task is an ordinary confirmation card and nothing is saved until confirmed. The server accepts
+  only new tasks (and an explicitly requested follow-up meeting) in that mode. English and Spanish.
 - **Dashboard after the client's mockup** (November 1): a deep-blue hero with the screen's own
   header (menu, wordmark, language pill with the flag) and the greeting in display size; a white
   next-meeting card pulled over the hero with a countdown column and one button; the tasks card

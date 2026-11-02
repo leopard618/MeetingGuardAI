@@ -12,6 +12,7 @@ import {
   todoTaskLocalId,
   type TodoSyncDeps,
 } from '../todo/sync';
+import { EMPTY_TASK_EXTERNAL_REFS } from '../../../core/types';
 import { FakeClock, FakeTasks, FakeTodoApi, graphError, memoryStateStore } from '../__testUtils__/fakes';
 
 const NOW = new Date('2026-10-01T08:00:00.000Z');
@@ -56,7 +57,7 @@ describe('ids and list selection', () => {
   it('syncs the default list plus every list a linked task lives in', () => {
     const { tasks } = setup();
     const linked = tasks.add({ title: 'Linked', todoListId: 'list-work' });
-    tasks.tasks.set(linked.id, { ...linked, external: { todoListId: 'list-work', todoTaskId: 'AAMk9=', todoUpdatedAt: null } });
+    tasks.tasks.set(linked.id, { ...linked, external: { ...EMPTY_TASK_EXTERNAL_REFS, todoListId: 'list-work', todoTaskId: 'AAMk9=' } });
     tasks.add({ title: 'Only chosen, not linked', todoListId: 'list-home' });
     expect(syncedListIds(LIST, tasks.all())).toEqual([LIST, 'list-work']);
     expect(syncedListIds(null, tasks.all())).toEqual(['list-work']);
@@ -67,7 +68,7 @@ describe('ids and list selection', () => {
     const open = tasks.add({ title: 'Open' });
     expect(isTodoPushable(open)).toBe(true);
     expect(isTodoPushable({ ...open, status: 'done' })).toBe(false);
-    expect(isTodoPushable({ ...open, status: 'done', external: { todoListId: LIST, todoTaskId: 'x', todoUpdatedAt: null } })).toBe(true);
+    expect(isTodoPushable({ ...open, status: 'done', external: { ...EMPTY_TASK_EXTERNAL_REFS, todoListId: LIST, todoTaskId: 'x' } })).toBe(true);
     expect(isTodoPushable({ ...open, source: 'todo' })).toBe(false);
   });
 });
@@ -145,7 +146,7 @@ describe('pullTodoChanges', () => {
     api.seed(LIST, { id: 'A1', title: 'From To Do' });
     await pullTodoChanges(deps);
     const own = tasks.add({ title: 'Mine, pushed earlier' });
-    tasks.tasks.set(own.id, { ...own, external: { todoListId: LIST, todoTaskId: 'B9', todoUpdatedAt: null } });
+    tasks.tasks.set(own.id, { ...own, external: { ...EMPTY_TASK_EXTERNAL_REFS, todoListId: LIST, todoTaskId: 'B9' } });
     api.failures.push({ method: 'deltaPage', error: graphError(410, 'syncStateNotFound') });
 
     const result = await pullTodoChanges(deps);
@@ -160,7 +161,7 @@ describe('pullTodoChanges', () => {
   it('pulls the lists of linked tasks too, with their own delta links', async () => {
     const { api, tasks, state, deps } = setup();
     const work = tasks.add({ title: 'Work item', todoListId: 'list-work' });
-    tasks.tasks.set(work.id, { ...work, external: { todoListId: 'list-work', todoTaskId: 'W1', todoUpdatedAt: null } });
+    tasks.tasks.set(work.id, { ...work, external: { ...EMPTY_TASK_EXTERNAL_REFS, todoListId: 'list-work', todoTaskId: 'W1' } });
     api.seed('list-work', { id: 'W1', title: 'Work item renamed', lastModifiedDateTime: '2026-10-01T09:00:00.000Z' });
 
     const result = await pullTodoChanges(deps);
@@ -320,7 +321,7 @@ describe('removeTodoLinks', () => {
 
     expect(result).toEqual({ removed: 1, unlinked: 1 });
     expect(await tasks.get(todoTaskLocalId('A1'))).toBeNull();
-    expect((await tasks.get(own.id))?.external).toEqual({ todoListId: null, todoTaskId: null, todoUpdatedAt: null });
+    expect((await tasks.get(own.id))?.external).toMatchObject({ todoListId: null, todoTaskId: null, todoUpdatedAt: null });
     expect((await tasks.get(plain.id))?.external.todoListId).toBeNull();
     expect(api.calls).toEqual([]);
     expect(api.tasks.get(LIST)?.size).toBe(2);

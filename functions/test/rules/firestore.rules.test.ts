@@ -65,6 +65,8 @@ function preferences(overrides: Record<string, unknown> = {}): Record<string, un
     importedAlertIntensity: null,
     todoListId: null,
     todoListName: null,
+    gtasksListId: null,
+    gtasksListName: null,
     alertSoundType: 'voice_and_sound',
     alertVolume: 0.8,
     vibrationEnabled: true,

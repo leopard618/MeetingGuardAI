@@ -42,6 +42,13 @@ describe('assistant request', () => {
     expect(assistantRequestSchema.safeParse({ ...base, mode: 'followup', messages: [] }).success).toBe(false);
     expect(assistantRequestSchema.safeParse({ ...base, mode: 'followup', followUpMeetingId: 'm1', messages: [] }).success).toBe(true);
   });
+
+  it('debrief mode (v7) needs the meeting AND the spoken transcript as a trailing user message', () => {
+    const transcript = [{ role: 'user', content: 'Ana sends the budget by Friday' }];
+    expect(assistantRequestSchema.safeParse({ ...base, mode: 'debrief', followUpMeetingId: 'm1', messages: transcript }).success).toBe(true);
+    expect(assistantRequestSchema.safeParse({ ...base, mode: 'debrief', messages: transcript }).success).toBe(false);
+    expect(assistantRequestSchema.safeParse({ ...base, mode: 'debrief', followUpMeetingId: 'm1', messages: [] }).success).toBe(false);
+  });
 });
 
 describe('actions', () => {

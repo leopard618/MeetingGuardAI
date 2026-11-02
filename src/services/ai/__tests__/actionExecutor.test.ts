@@ -1027,7 +1027,7 @@ describe('task actions and same-turn meeting links', () => {
 });
 
 describe('tasks and the Microsoft To Do list (M7)', () => {
-  function todoSetup(destination: { name: string } | null) {
+  function todoSetup(destination: { name: string } | null, gtasksDestination: { name: string } | null = null) {
     const tasks = {
       get: jest.fn(async () => null),
       create: jest.fn(async (input: TaskInput) => buildTask(input, { id: 't_1', userId: UID, timezone: 'UTC', now: NOW })),
@@ -1038,6 +1038,7 @@ describe('tasks and the Microsoft To Do list (M7)', () => {
       meetings: new FakeMeetings(),
       tasks,
       todoDestination: () => destination,
+      gtasksDestination: () => gtasksDestination,
       calendar: { isConnected: async () => false, createMeetLink: jest.fn() },
       sharing: { openMailComposer: jest.fn(), shareText: jest.fn() },
       executed: createExecutedStore(memoryStorage(), () => NOW),
@@ -1061,6 +1062,14 @@ describe('tasks and the Microsoft To Do list (M7)', () => {
     expect((await on.executor.preview(action)).todoListName).toBe('Work');
     const off = todoSetup(null);
     expect((await off.executor.preview(action)).todoListName).toBeNull();
+    expect((await off.executor.preview(action)).gtasksListName).toBeNull();
+  });
+
+  it('names the Google Tasks list on the preview while that sync is on (M8)', async () => {
+    const { executor } = todoSetup(null, { name: 'My Tasks' });
+    const preview = await executor.preview(action);
+    expect(preview.todoListName).toBeNull();
+    expect(preview.gtasksListName).toBe('My Tasks');
   });
 
   it('creates assistant tasks with origin ai so they count as ai_chat', async () => {

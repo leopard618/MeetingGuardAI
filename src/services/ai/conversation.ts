@@ -110,7 +110,9 @@ export function selectLatestPendingActionIds(thread: ThreadState): string[] {
 /** What retry() would re-send for a thread loaded from storage. */
 export function detectFailedRequest(thread: ThreadState): FailedRequest | null {
   const last = thread.messages[thread.messages.length - 1];
-  return last && last.role === 'user' && last.delivery === 'failed' ? { mode: 'chat' } : null;
+  if (!last || last.role !== 'user' || last.delivery !== 'failed') return null;
+  if (last.debriefMeetingId) return { mode: 'debrief', meetingId: last.debriefMeetingId, userMessageId: last.id };
+  return { mode: 'chat' };
 }
 
 /** Normalizes a thread loaded from storage (interrupted requests/executions become retryable). */

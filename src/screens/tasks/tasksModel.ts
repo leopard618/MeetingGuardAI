@@ -119,6 +119,8 @@ export interface TaskDraft {
   meetingId: string | null;
   /** Microsoft To Do list the task goes to (null = the default list while the sync is on). */
   todoListId: string | null;
+  /** Google Tasks list the task goes to (same convention). */
+  gtasksListId: string | null;
 }
 
 export function newTaskDraft(options: { meetingId?: string | null } = {}): TaskDraft {
@@ -130,6 +132,7 @@ export function newTaskDraft(options: { meetingId?: string | null } = {}): TaskD
     reminderMinutesBefore: null,
     meetingId: options.meetingId ?? null,
     todoListId: null,
+    gtasksListId: null,
   };
 }
 
@@ -142,6 +145,7 @@ export function draftFromTask(task: Task): TaskDraft {
     reminderMinutesBefore: task.reminderMinutesBefore,
     meetingId: task.meetingId,
     todoListId: task.external.todoListId,
+    gtasksListId: task.external.gtasksListId,
   };
 }
 
@@ -180,6 +184,7 @@ export function draftToInput(draft: TaskDraft): TaskInput {
     reminderMinutesBefore: clean.reminderMinutesBefore,
     meetingId: clean.meetingId,
     todoListId: clean.todoListId,
+    gtasksListId: clean.gtasksListId,
   };
 }
 
@@ -196,6 +201,7 @@ export function draftToPatch(task: Task, draft: TaskDraft): TaskPatch | null {
   }
   if ((next.meetingId ?? null) !== task.meetingId) patch.meetingId = next.meetingId ?? null;
   if ((next.todoListId ?? null) !== task.external.todoListId) patch.todoListId = next.todoListId ?? null;
+  if ((next.gtasksListId ?? null) !== task.external.gtasksListId) patch.gtasksListId = next.gtasksListId ?? null;
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -209,7 +215,8 @@ export function isDraftDirty(draft: TaskDraft, original: TaskDraft): boolean {
     (a.dueTime ?? null) !== (b.dueTime ?? null) ||
     (a.reminderMinutesBefore ?? null) !== (b.reminderMinutesBefore ?? null) ||
     (a.meetingId ?? null) !== (b.meetingId ?? null) ||
-    (a.todoListId ?? null) !== (b.todoListId ?? null)
+    (a.todoListId ?? null) !== (b.todoListId ?? null) ||
+    (a.gtasksListId ?? null) !== (b.gtasksListId ?? null)
   );
 }
 

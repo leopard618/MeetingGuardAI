@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { createEventBus, type AppEventMap, type TasksChangedEvent } from '../../../core/events';
 import { firestorePaths } from '../../../core/identifiers';
+import { EMPTY_TASK_EXTERNAL_REFS } from '../../../core/types';
 import { DataEngine } from '../engine';
 import type { NetworkMonitor } from '../platform';
 import { FakeRemote, settle } from '../testing/fakeRemote';
@@ -117,7 +118,7 @@ describe('task writes', () => {
       { origin: 'tasks_todo' },
     );
 
-    expect(linked.external).toEqual({ todoListId: 'list-work', todoTaskId: 'AAMk1', todoUpdatedAt: '2026-10-01T10:05:00.000Z' });
+    expect(linked.external).toEqual({ ...EMPTY_TASK_EXTERNAL_REFS, todoListId: 'list-work', todoTaskId: 'AAMk1', todoUpdatedAt: '2026-10-01T10:05:00.000Z' });
     expect(h.taskEvents.at(-1)).toEqual({ uid: UID, changedIds: [task.id], reason: 'updated', origin: 'tasks_todo' });
 
     // A no-op patch announces nothing.
@@ -140,7 +141,7 @@ describe('task writes', () => {
       changedIds: [task.id],
       reason: 'deleted',
       origin: 'user',
-      removed: [{ id: task.id, external: { todoListId: 'list-work', todoTaskId: 'AAMk1', todoUpdatedAt: null } }],
+      removed: [{ id: task.id, external: { ...EMPTY_TASK_EXTERNAL_REFS, todoListId: 'list-work', todoTaskId: 'AAMk1' } }],
     });
     expect(await h.engine.getTask(task.id)).toBeNull();
   });

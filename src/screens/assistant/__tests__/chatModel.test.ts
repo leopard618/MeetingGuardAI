@@ -8,6 +8,7 @@ import {
   messageTime,
   parseChatParams,
   reviewableStates,
+  sendableDebrief,
   sendableText,
   confirmInOrder,
   summarizeResults,
@@ -35,12 +36,19 @@ describe('parseChatParams', () => {
       followUpMeetingId: 'm1',
       prefill: 'Hi',
       autoStartFollowUp: true,
+      debriefMeetingId: null,
     });
   });
 
+  it('reads the debrief meeting (v7)', () => {
+    expect(parseChatParams({ debrief: 'm9' })).toMatchObject({ debriefMeetingId: 'm9', followUpMeetingId: null });
+    expect(parseChatParams({ debrief: ' ' }).debriefMeetingId).toBeNull();
+  });
+
   it('treats missing or blank values as absent', () => {
-    expect(parseChatParams(undefined)).toEqual({ followUpMeetingId: null, prefill: '', autoStartFollowUp: false });
-    expect(parseChatParams({ followup: '  ' })).toEqual({ followUpMeetingId: null, prefill: '', autoStartFollowUp: false });
+    const empty = { followUpMeetingId: null, prefill: '', autoStartFollowUp: false, debriefMeetingId: null };
+    expect(parseChatParams(undefined)).toEqual(empty);
+    expect(parseChatParams({ followup: '  ' })).toEqual(empty);
   });
 });
 
@@ -136,6 +144,16 @@ describe('sendableText', () => {
     expect(sendableText('   ', { isSending: false, isLoaded: true })).toBeNull();
     expect(sendableText('hi', { isSending: true, isLoaded: true })).toBeNull();
     expect(sendableText('hi', { isSending: false, isLoaded: false })).toBeNull();
+  });
+});
+
+describe('sendableDebrief', () => {
+  it('sends a trimmed, non-empty transcript only while idle and loaded', () => {
+    expect(sendableDebrief('  Ana sends it Friday  ', { isSending: false, isLoaded: true })).toBe('Ana sends it Friday');
+    expect(sendableDebrief('   ', { isSending: false, isLoaded: true })).toBeNull();
+    expect(sendableDebrief('x', { isSending: true, isLoaded: true })).toBeNull();
+    expect(sendableDebrief('x', { isSending: false, isLoaded: false })).toBeNull();
+    expect(sendableDebrief('a'.repeat(5000), { isSending: false, isLoaded: true })).toHaveLength(4000);
   });
 });
 

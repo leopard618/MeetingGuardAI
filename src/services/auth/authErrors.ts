@@ -303,6 +303,7 @@ const CODE_MESSAGE_KEYS: Partial<Readonly<Record<AppErrorCode, string>>> = {
   unauthenticated: 'auth:errors.sessionExpired',
   google_not_signed_in: 'auth:errors.googleNotSignedIn',
   calendar_scope_missing: 'auth:errors.calendarScopeMissing',
+  tasks_scope_missing: 'auth:errors.tasksScopeMissing',
   pending_writes: 'auth:errors.pendingWrites',
   quota_exceeded: 'auth:errors.tooManyRequests',
   unsupported: 'auth:errors.unsupported',

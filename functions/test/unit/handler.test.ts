@@ -920,3 +920,86 @@ describe('a list answer always carries the items, because the reply is what is r
     expect(response.reply).toBe('Nothing on that day.');
   });
 });
+
+describe('debrief mode (v7)', () => {
+  const noTasks = { listRecent: async () => [] };
+  const transcript = [{ role: 'user' as const, content: 'Ana sends the revised budget by Friday and I call the supplier tomorrow' }];
+
+  function debriefRequest(overrides: Partial<AssistantRequest> = {}): AssistantRequest {
+    return chatRequest({ mode: 'debrief', followUpMeetingId: 'ended', contractVersion: 7, messages: transcript, ...overrides });
+  }
+
+  it('requires the task tools, sends the debrief rules and the transcript, and links every task to the meeting', async () => {
+    // First pass learns the ref of the ended meeting (refs are assigned per request).
+    const probe = setup();
+    probe.deps.tasks = noTasks;
+    await handleAssistant(caller(), debriefRequest(), probe.deps);
+    const ref = refOf(probe.llm, 'Retro');
+    const probeRequest = probe.llm.requests[0]!;
+    expect(probeRequest.toolChoice).toBe('required');
+    expect(probeRequest.tools.map((tool) => tool.function.name)).toEqual(expect.arrayContaining(['create_task']));
+    expect(probeRequest.messages[0]!.content).toContain('# Debrief mode');
+    expect(probeRequest.messages[0]!.content).toContain(`set meeting_ref to "${ref}"`);
+    expect(probeRequest.messages[2]).toEqual({ role: 'user', content: transcript[0]!.content });
+
+    const { deps } = setup(
+      result({
+        content: '',
+        toolCalls: [
+          {
+            name: 'create_task',
+            arguments: JSON.stringify({
+              title: 'Send the revised budget',
+              description: 'Agreed in the retro',
+              due_date: '2026-10-02',
+              due_time: null,
+              reminder_minutes_before: null,
+              meeting_ref: ref,
+              people: [{ name: 'Ana', email: null }],
+              summary: 'Ana sends the revised budget by Friday.',
+              confidence: 85,
+            }),
+          },
+          {
+            name: 'create_task',
+            arguments: JSON.stringify({
+              title: 'Call the supplier',
+              description: '',
+              due_date: '2026-09-29',
+              due_time: null,
+              reminder_minutes_before: null,
+              meeting_ref: ref,
+              people: [],
+              summary: 'Call the supplier tomorrow.',
+              confidence: 85,
+            }),
+          },
+          // Not allowed in a debrief: dropped, never a proposal.
+          { name: 'delete_meeting', arguments: JSON.stringify({ meeting_ref: ref, scope: 'series', summary: 'Delete', confidence: 90 }) },
+        ],
+      }),
+    );
+    deps.tasks = noTasks;
+    const response = await handleAssistant(caller(), debriefRequest(), deps);
+    expect(assistantResponseSchema.safeParse(response).success).toBe(true);
+    expect(response.actions.map((action) => action.type)).toEqual(['create_task', 'create_task']);
+    expect(response.actions[0]).toMatchObject({ type: 'create_task', task: { meetingId: 'ended', dueDate: '2026-10-02', people: [{ name: 'Ana', email: null }] } });
+    expect(response.actions[1]).toMatchObject({ type: 'create_task', task: { meetingId: 'ended', people: [] } });
+    expect(response.reply).toBe('I turned your debrief into the tasks below. Review them and confirm the ones you want to keep.');
+  });
+
+  it('says so when the transcript held nothing to do, in the reply language', async () => {
+    const { deps } = setup(result({ content: '', toolCalls: [] }));
+    deps.tasks = noTasks;
+    const response = await handleAssistant(caller(), debriefRequest({ language: 'es' }), deps);
+    expect(response.actions).toEqual([]);
+    expect(response.reply).toBe('No encontré nada que convertir en tarea en ese resumen. Dime quién se comprometió a qué y para cuándo.');
+  });
+
+  it('rejects a debrief without a transcript or without the meeting before counting quota', async () => {
+    const { deps, quota } = setup();
+    await expectAssistantError(handleAssistant(caller(), debriefRequest({ messages: [] }), deps), 'invalid-argument', 'invalid_request');
+    await expectAssistantError(handleAssistant(caller(), debriefRequest({ followUpMeetingId: null }), deps), 'invalid-argument', 'invalid_request');
+    expect(quota.transactions).toBe(0);
+  });
+});

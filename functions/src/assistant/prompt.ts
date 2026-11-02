@@ -142,6 +142,20 @@ export function buildSystemPrompt(input: {
       'The data block field "pendingProposals" lists proposals you made earlier that the user has NOT confirmed yet; the app shows them as confirmation cards right now. If the user\'s latest message is purely consent to them (in any wording), call resolve_pending with decision "confirm" and reply with one short sentence; if it is purely refusal, call resolve_pending with decision "reject". If the message changes ANY detail, do not call resolve_pending: propose the updated version with the normal tools. Never propose again something identical to a pending proposal.',
     );
   }
+  if (mode === 'debrief') {
+    lines.push(
+      '',
+      '# Debrief mode',
+      `The meeting with ref "${followUpRef ?? ''}" has ended and the user is dictating what was agreed in it. The last user message is a SPEECH-TO-TEXT transcript (expect misheard words, missing punctuation and run-on sentences); it may be in either language. Your only job is to turn it into tasks:`,
+      '- Call create_task ONCE per commitment, action item or decision that needs doing. One sentence can hold several commitments; several sentences can describe one. Never merge different owners or different deadlines into one task.',
+      `- Every task belongs to that meeting: set meeting_ref to "${followUpRef ?? ''}" on each one.`,
+      '- Owner: when someone other than the user is responsible, put that person in people (name only; email null unless the user spelled one out). Use the names the user said; when a said name clearly matches a participant of that meeting, use the participant\'s spelling. Never invent a person, and never add the user themself as a person: a task the user owns has an empty people list.',
+      '- Due dates: resolve "by Friday", "next week", "in two days", "end of month" with the date table, counting from today. A commitment with no deadline gets due_date null; never guess a date. Use due_time only when the user said a time.',
+      '- Title: short and actionable, starting with a verb ("Send the revised budget to Marta"). Put the extra context in description. Keep the language of the transcript for titles and descriptions.',
+      '- Reply (1-2 sentences, reply language): say how many tasks you prepared and ask the user to review them. When the transcript holds no actionable commitment, say so plainly and call no task tool.',
+      '- Never propose deleting or changing meetings or tasks in this mode. Propose a create_meeting only when the user explicitly asked to schedule a follow-up meeting with a date or time.',
+    );
+  }
   if (mode === 'followup') {
     lines.push(
       '',
@@ -369,12 +383,23 @@ export function composeListAnswer(
 // Server-generated fallback texts (used when the model returns tool calls without a reply)
 // ---------------------------------------------------------------------------------------------
 
-export type FallbackKind = 'actions' | 'followup' | 'empty' | 'need_details' | 'resolve_confirm' | 'resolve_reject' | 'resolve_tap';
+export type FallbackKind =
+  | 'actions'
+  | 'followup'
+  | 'debrief'
+  | 'debrief_empty'
+  | 'empty'
+  | 'need_details'
+  | 'resolve_confirm'
+  | 'resolve_reject'
+  | 'resolve_tap';
 
 const FALLBACK_TEXT: Readonly<Record<Language, Record<FallbackKind, string>>> = {
   en: {
     actions: 'I prepared the following for you. Please review and confirm.',
     followup: 'Your meeting has ended. Here are some ideas to follow up.',
+    debrief: 'I turned your debrief into the tasks below. Review them and confirm the ones you want to keep.',
+    debrief_empty: 'I did not find anything to turn into a task in that debrief. Tell me who agreed to do what, and by when.',
     empty: "Sorry, I couldn't come up with an answer. Could you rephrase your request?",
     need_details: 'I could not prepare that yet - a detail like the exact date or start time is missing. Could you give it to me? For example: "tomorrow at 4pm".',
     resolve_confirm: 'Got it, confirming it now.',
@@ -384,6 +409,8 @@ const FALLBACK_TEXT: Readonly<Record<Language, Record<FallbackKind, string>>> = 
   es: {
     actions: 'Preparé lo siguiente para ti. Revísalo y confírmalo.',
     followup: 'Tu reunión terminó. Aquí tienes algunas ideas para darle seguimiento.',
+    debrief: 'Convertí tu resumen en las tareas de abajo. Revísalas y confirma las que quieras conservar.',
+    debrief_empty: 'No encontré nada que convertir en tarea en ese resumen. Dime quién se comprometió a qué y para cuándo.',
     empty: 'Lo siento, no pude generar una respuesta. ¿Podrías reformular tu solicitud?',
     need_details: 'Aún no pude prepararlo: falta algún detalle como la fecha o la hora exacta. ¿Me lo puedes dar? Por ejemplo: "mañana a las 4".',
     resolve_confirm: 'Entendido, lo confirmo ahora.',

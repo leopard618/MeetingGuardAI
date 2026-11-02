@@ -714,6 +714,9 @@ export interface Preferences {
    */
   todoListId: string | null;
   todoListName: string | null;
+  /** Google Tasks list that receives new tasks (M8); same convention as the To Do pair. */
+  gtasksListId: string | null;
+  gtasksListName: string | null;
   updatedAt: string | null;
 }
 
@@ -740,6 +743,8 @@ export const preferencesSchema = z.object({
   deviceCalendarExportId: z.string().min(1).max(512).nullable(),
   todoListId: z.string().min(1).max(512).nullable(),
   todoListName: z.string().min(1).max(256).nullable(),
+  gtasksListId: z.string().min(1).max(512).nullable(),
+  gtasksListName: z.string().min(1).max(256).nullable(),
   updatedAt: utcIsoSchema.nullable(),
 });
 
@@ -770,6 +775,8 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   deviceCalendarExportId: null,
   todoListId: null,
   todoListName: null,
+  gtasksListId: null,
+  gtasksListName: null,
   updatedAt: null,
 } satisfies Preferences);
 
@@ -1011,37 +1018,56 @@ export const TASK_STATUSES = ['open', 'done'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export const taskStatusSchema = z.enum(TASK_STATUSES);
 
-/** Where a task came from. 'todo' = imported from Microsoft To Do (never created here). */
-export const TASK_SOURCES = ['manual', 'ai_chat', 'whatsapp', 'todo'] as const;
+/**
+ * Where a task came from. 'todo' = imported from Microsoft To Do, 'gtasks' = imported from Google
+ * Tasks (neither is ever created here).
+ */
+export const TASK_SOURCES = ['manual', 'ai_chat', 'whatsapp', 'todo', 'gtasks'] as const;
 export type TaskSource = (typeof TASK_SOURCES)[number];
 export const taskSourceSchema = z.enum(TASK_SOURCES);
 
 /**
- * Link to the copy of a task in Microsoft To Do. `todoListId` is set as soon as the user (or the
- * default list) chose where the task goes; `todoTaskId` only once the task exists in To Do.
- * `todoUpdatedAt` is Graph's lastModifiedDateTime of the copy we last saw (conflict resolution).
+ * Links to the copies of a task in Microsoft To Do (M7) and Google Tasks (M8). `todoListId` /
+ * `gtasksListId` are set as soon as the user (or the default list) chose where the task goes;
+ * `todoTaskId` / `gtasksTaskId` only once the task exists there. `todoUpdatedAt` is Graph's
+ * lastModifiedDateTime and `gtasksUpdatedAt` the Google Tasks `updated` time of the copy we last
+ * saw (conflict resolution).
  */
 export interface TaskExternalRefs {
   todoListId: string | null;
   todoTaskId: string | null;
   todoUpdatedAt: string | null;
+  gtasksListId: string | null;
+  gtasksTaskId: string | null;
+  gtasksUpdatedAt: string | null;
 }
 
 export const taskExternalRefsSchema = z.object({
   todoListId: z.string().min(1).max(512).nullable(),
   todoTaskId: z.string().min(1).max(512).nullable(),
   todoUpdatedAt: utcIsoSchema.nullable(),
+  gtasksListId: z.string().min(1).max(512).nullable(),
+  gtasksTaskId: z.string().min(1).max(512).nullable(),
+  gtasksUpdatedAt: utcIsoSchema.nullable(),
 });
 
 export const EMPTY_TASK_EXTERNAL_REFS: Readonly<TaskExternalRefs> = Object.freeze({
   todoListId: null,
   todoTaskId: null,
   todoUpdatedAt: null,
+  gtasksListId: null,
+  gtasksTaskId: null,
+  gtasksUpdatedAt: null,
 });
 
 /** True once the task has a copy in Microsoft To Do. */
 export function isTodoLinked(task: Pick<Task, 'external'>): boolean {
   return task.external.todoTaskId !== null;
+}
+
+/** True once the task has a copy in Google Tasks. */
+export function isGtasksLinked(task: Pick<Task, 'external'>): boolean {
+  return task.external.gtasksTaskId !== null;
 }
 
 export const TASK_LIMITS = {
@@ -1130,6 +1156,8 @@ export interface TaskInput {
   people?: TaskPerson[];
   /** Microsoft To Do list the task should go to (null = the default list, or none when To Do is off). */
   todoListId?: string | null;
+  /** Google Tasks list the task should go to (null = the default list, or none when the sync is off). */
+  gtasksListId?: string | null;
 }
 
 export const taskInputSchema = z.object({
@@ -1142,12 +1170,13 @@ export const taskInputSchema = z.object({
   meetingId: meetingIdSchema.nullable().optional(),
   people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople).optional(),
   todoListId: z.string().min(1).max(512).nullable().optional(),
+  gtasksListId: z.string().min(1).max(512).nullable().optional(),
 });
 
 /**
  * Patch semantics: undefined = keep, null = clear. Completing goes through `status`. `external`
- * is for the To Do sync engine only (link write-backs); `todoListId` moves the task to another
- * list (the engine re-creates it there, Graph cannot move tasks).
+ * is for the task sync engines only (link write-backs); `todoListId` / `gtasksListId` move the
+ * task to another list (the engine re-creates it there; neither API moves tasks between lists).
  */
 export type TaskPatch = Partial<TaskInput> & { status?: TaskStatus; external?: Partial<TaskExternalRefs> };
 export const taskPatchSchema = taskInputSchema
@@ -1192,7 +1221,7 @@ export function buildTask(
     people: v.people ?? [],
     completedAt: null,
     source: ctx.source ?? 'manual',
-    external: { ...EMPTY_TASK_EXTERNAL_REFS, todoListId: v.todoListId ?? null },
+    external: { ...EMPTY_TASK_EXTERNAL_REFS, todoListId: v.todoListId ?? null, gtasksListId: v.gtasksListId ?? null },
     createdAt: nowIso,
     updatedAt: nowIso,
   };
@@ -1227,6 +1256,7 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: DateInput): Ta
       ...task.external,
       ...(v.external ?? {}),
       ...(v.todoListId !== undefined ? { todoListId: v.todoListId } : {}),
+      ...(v.gtasksListId !== undefined ? { gtasksListId: v.gtasksListId } : {}),
     },
     updatedAt: nowIso,
   };

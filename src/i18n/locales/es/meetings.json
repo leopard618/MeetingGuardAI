@@ -50,7 +50,8 @@
     "repeatsNone": "No hay próximas repeticiones.",
     "occurrenceModified": "editada",
     "deleteMessageSeries": "Esta reunión se repite: se eliminarán toda la serie y sus alertas.",
-    "deleteMessageSeriesGoogle": "Esta reunión se repite: se eliminarán toda la serie y sus alertas. Si la sincronización con Google Calendar está activada, la serie también se eliminará de Google Calendar y se avisará a los invitados."
+    "deleteMessageSeriesGoogle": "Esta reunión se repite: se eliminarán toda la serie y sus alertas. Si la sincronización con Google Calendar está activada, la serie también se eliminará de Google Calendar y se avisará a los invitados.",
+    "debrief": "Resumir esta reunión"
   },
   "form": {
     "title": "Título",

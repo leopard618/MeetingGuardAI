@@ -42,6 +42,7 @@ import { ScreenBody } from '../shared/Section';
 import { needsEmailVerification } from '../shared/VerifyEmailBanner';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
+import { canDebrief } from './debrief';
 import { conferenceCardState } from './meetingForm';
 
 const log = createLogger('meetings');
@@ -90,6 +91,7 @@ export function MeetingDetailsScreen({ navigation, route }: Props): ReactElement
     <MeetingDetails
       meeting={meeting}
       onEdit={() => navigation.navigate('EditMeeting', { meetingId: meeting.id })}
+      onDebrief={() => navigation.navigate('AIChat', { debrief: meeting.id })}
       onDeleting={() => setLeaving(meeting)}
       onDeleted={() => navigation.goBack()}
       onOpenCalendarSync={() => navigation.navigate('CalendarSync')}
@@ -100,12 +102,15 @@ export function MeetingDetailsScreen({ navigation, route }: Props): ReactElement
 function MeetingDetails({
   meeting,
   onEdit,
+  onDebrief,
   onDeleting,
   onDeleted,
   onOpenCalendarSync,
 }: {
   meeting: Meeting;
   onEdit(): void;
+  /** M8: opens the assistant with the spoken-debrief panel for this (ended) meeting. */
+  onDebrief(): void;
   /** Fired right before the delete is sent (the parent keeps the last version on screen). */
   onDeleting(): void;
   onDeleted(): void;
@@ -451,6 +456,11 @@ function MeetingDetails({
           {t('meetings:details.deviceNote')}
         </HelperText>
       ) : null}
+      {canDebrief(meeting, now) ? (
+        <MGButton icon="text-box-check-outline" onPress={onDebrief} style={styles.debriefButton} disabled={deleting} testID="meeting-debrief">
+          {t('meetings:details.debrief')}
+        </MGButton>
+      ) : null}
       <View style={styles.actions}>
         <MGButton variant="tonal" icon="pencil" onPress={onEdit} style={styles.actionButton} disabled={deleting} testID="meeting-edit">
           {t('meetings:details.edit')}
@@ -527,6 +537,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginTop: spacing.lg,
     marginBottom: spacing.lg,
+  },
+  debriefButton: {
+    marginTop: spacing.lg,
   },
   actionButton: {
     marginRight: spacing.md,

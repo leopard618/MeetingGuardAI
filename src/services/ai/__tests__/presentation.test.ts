@@ -25,6 +25,7 @@ import {
   describeResult,
   describeScopeRow,
   describeShare,
+  describeTaskDraft,
   describeUsage,
   describeWarnings,
   formatShift,
@@ -36,6 +37,17 @@ const fmt = createTestFormatter();
 const fmtEs = createTestFormatter({ language: 'es' });
 
 describe('confirmation cards', () => {
+  it('names the To Do and Google Tasks lists on a task card only while each sync is on (M7/M8)', () => {
+    const task = { title: 'Prepare the proposal', description: '', dueDate: null, dueTime: null, reminderMinutesBefore: null, meetingId: null, people: [] };
+    const fields = (rows: { field: string }[]): string[] => rows.map((row) => row.field);
+    expect(fields(describeTaskDraft(fmt, task))).toEqual(['title', 'due']);
+    expect(fields(describeTaskDraft(fmt, task, 'Work'))).toEqual(['title', 'due', 'list']);
+    const both = describeTaskDraft(fmt, task, 'Work', 'My Tasks');
+    expect(fields(both)).toEqual(['title', 'due', 'list', 'gtasksList']);
+    expect(both[3]).toMatchObject({ label: 'Google Tasks list', value: 'My Tasks' });
+    expect(fields(describeTaskDraft(fmt, task, null, 'My Tasks'))).toEqual(['title', 'due', 'gtasksList']);
+  });
+
   it('describes a new meeting with its fields', () => {
     const rows = describeDraft(
       fmt,

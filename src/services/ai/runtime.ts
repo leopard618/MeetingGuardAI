@@ -47,6 +47,10 @@ export const actionExecutor: AiActionExecutor = createActionExecutor({
     const todo = calendarSyncEngine.getStatus().todo;
     return todo?.enabled === true && todo.listName !== null ? { name: todo.listName } : null;
   },
+  gtasksDestination: () => {
+    const gtasks = calendarSyncEngine.getStatus().gtasks;
+    return gtasks?.enabled === true && gtasks.listName !== null ? { name: gtasks.listName } : null;
+  },
   calendar: googleCalendarService,
   sharing: reactNativeShareAdapter,
   zoom: zoomService,

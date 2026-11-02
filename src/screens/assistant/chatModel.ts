@@ -20,15 +20,31 @@ export interface ChatParams {
   prefill: string;
   /** Set only by the app's own follow-up notification; external links show a button instead. */
   autoStartFollowUp: boolean;
+  /** M8: the ended meeting to debrief (opens the debrief panel). */
+  debriefMeetingId: string | null;
+}
+
+function meetingParam(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 
 export function parseChatParams(params: RootStackParamList['AIChat'] | null | undefined): ChatParams {
-  const followup = params?.followup;
   return {
-    followUpMeetingId: typeof followup === 'string' && followup.trim() !== '' ? followup : null,
+    followUpMeetingId: meetingParam(params?.followup),
     prefill: typeof params?.prefill === 'string' ? params.prefill : '',
     autoStartFollowUp: params?.autoStart === true,
+    debriefMeetingId: meetingParam(params?.debrief),
   };
+}
+
+/** Longest debrief the panel accepts (the voice session itself stops at VOICE_MAX_SESSION_MS). */
+export const DEBRIEF_MAX_CHARS = 4000;
+
+/** The debrief text that can be sent, or null (empty, or a request is already running). */
+export function sendableDebrief(text: string, state: { isLoaded: boolean; isSending: boolean }): string | null {
+  const trimmed = text.trim();
+  if (trimmed === '' || !state.isLoaded || state.isSending) return null;
+  return trimmed.slice(0, DEBRIEF_MAX_CHARS);
 }
 
 /** Message timestamp; an unusable value renders as an empty string instead of throwing. */

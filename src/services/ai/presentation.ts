@@ -60,7 +60,9 @@ export type MeetingField =
   | 'people'
   | 'status'
   // M7: the Microsoft To Do list a new task goes to.
-  | 'list';
+  | 'list'
+  // M8: the Google Tasks list a new task goes to.
+  | 'gtasksList';
 
 export interface DetailRow {
   field: MeetingField;
@@ -434,14 +436,21 @@ function taskReminderValue(fmt: AssistantFormatter, minutes: number | null): str
 
 /**
  * Confirmation-card rows of a create_task proposal. `todoListName` is the Microsoft To Do list
- * the task will land in (shown before confirming whenever the sync is on).
+ * and `gtasksListName` the Google Tasks list the task will land in (each shown before confirming
+ * whenever that sync is on).
  */
-export function describeTaskDraft(fmt: AssistantFormatter, task: AiTaskDraft, todoListName: string | null = null): DetailRow[] {
+export function describeTaskDraft(
+  fmt: AssistantFormatter,
+  task: AiTaskDraft,
+  todoListName: string | null = null,
+  gtasksListName: string | null = null,
+): DetailRow[] {
   const rows: DetailRow[] = [
     { field: 'title', label: fieldLabel(fmt, 'title'), value: task.title },
     { field: 'due', label: fieldLabel(fmt, 'due'), value: taskDueValue(fmt, task.dueDate, task.dueTime) },
   ];
   if (todoListName !== null) rows.push({ field: 'list', label: fieldLabel(fmt, 'list'), value: todoListName });
+  if (gtasksListName !== null) rows.push({ field: 'gtasksList', label: fieldLabel(fmt, 'gtasksList'), value: gtasksListName });
   if (task.reminderMinutesBefore !== null) {
     rows.push({ field: 'reminder', label: fieldLabel(fmt, 'reminder'), value: taskReminderValue(fmt, task.reminderMinutesBefore) });
   }

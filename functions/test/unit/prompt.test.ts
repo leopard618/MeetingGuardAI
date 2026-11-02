@@ -79,6 +79,26 @@ describe('system prompt', () => {
     });
     expect(prompt).toContain('# Follow-up mode');
     expect(prompt).toContain('"mabcdefg" has just ended');
+    expect(prompt).not.toContain('# Debrief mode');
+  });
+
+  it('adds debrief instructions (v7) that pin every task to the ended meeting', () => {
+    const prompt = buildSystemPrompt({
+      language: 'es',
+      timeZone: 'UTC',
+      now: NOW,
+      mode: 'debrief',
+      followUpRef: 'mabcdefg',
+      hasTasks: true,
+      nonce: 'n',
+    });
+    expect(prompt).toContain('# Debrief mode');
+    expect(prompt).toContain('set meeting_ref to "mabcdefg"');
+    expect(prompt).toContain('SPEECH-TO-TEXT transcript');
+    expect(prompt).toContain('never guess a date');
+    expect(prompt).not.toContain('# Follow-up mode');
+    expect(fallbackReply('en', 'debrief')).toMatch(/tasks below/);
+    expect(fallbackReply('es', 'debrief_empty')).toMatch(/tarea/);
   });
 
   it('builds a date table from yesterday to two weeks ahead', () => {

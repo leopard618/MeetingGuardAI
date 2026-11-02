@@ -8,6 +8,8 @@
  *   account, stop sync (optionally opening the Microsoft consent page), last sync / last error;
  * - Microsoft To Do (same account, M7): turn the task sync on with a chosen list, change the list,
  *   stop it (TodoCard);
+ * - Google Tasks (same Google sign-in, M8): the same three actions plus the incremental tasks
+ *   permission (GoogleTasksCard); hidden when the build switch is off;
  * - phone calendars: permission, which calendars to import, which calendar receives Meeting Guard
  *   meetings (writable calendars only), last sync / last error;
  * - "Sync now" with a per-provider summary.
@@ -20,7 +22,8 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Alert, Linking, SectionList, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { CalendarStatus, RootStackParamList, TodoList, TranslateFn } from '../../core/contracts';
+import type { CalendarStatus, RootStackParamList, TaskListInfo, TodoList, TranslateFn } from '../../core/contracts';
+import { toAppError } from '../../core/errors';
 import type { Language, PreferencesPatch } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
@@ -28,6 +31,7 @@ import {
   calendarSyncEngine,
   deviceCalendarService,
   googleCalendarService,
+  googleTasksSyncService,
   outlookCalendarService,
   todoSyncService,
   useCalendarStatus,
@@ -37,6 +41,7 @@ import {
   buildDeviceRows,
   errorText,
   googleStateView,
+  gtasksEnableOutcome,
   nextImportIds,
   outlookStateView,
   syncReportSummary,
@@ -47,6 +52,7 @@ import {
 import { componentMetrics, radii, spacing, typography } from '../../theme/tokens';
 import { CardBottom, CardMiddle, CardTop, ImportRow, InlineProgress, PrimaryButton, RadioRow, SyncLine, partStyles } from './CalendarSyncParts';
 import { toneBadgeColors, useCalendarPalette, type CalendarPalette } from './palette';
+import { GoogleTasksCard, type GtasksWork } from './GoogleTasksCard';
 import { TodoCard, type TodoWork } from './TodoCard';
 import { refreshGoogleState, refreshOutlookState, showCalendarError, useGoogleConnect, useOutlookConnect } from './useCalendarActions';
 import { useLiveNow } from '../shared/useLiveNow';
@@ -54,7 +60,7 @@ import { useDeviceCalendars } from './useDeviceCalendars';
 
 type Props = StackScreenProps<RootStackParamList, 'CalendarSync'>;
 
-type Busy = 'disconnect' | 'outlookDisconnect' | 'todoEnable' | 'todoDisable' | 'sync' | null;
+type Busy = 'disconnect' | 'outlookDisconnect' | 'todoEnable' | 'todoDisable' | 'gtasksEnable' | 'gtasksDisable' | 'sync' | null;
 
 const CLOCK_MS = 60_000;
 const INITIAL_ROWS = 40;
@@ -62,9 +68,10 @@ const INITIAL_ROWS = 40;
 type GoogleItem = { kind: 'google'; key: 'google' };
 type OutlookItem = { kind: 'outlook'; key: 'outlook' };
 type TodoItem = { kind: 'todo'; key: 'todo' };
-type Item = GoogleItem | OutlookItem | TodoItem | DeviceRow;
+type GtasksItem = { kind: 'gtasks'; key: 'gtasks' };
+type Item = GoogleItem | OutlookItem | TodoItem | GtasksItem | DeviceRow;
 interface Section {
-  key: 'google' | 'outlook' | 'todo' | 'device';
+  key: 'google' | 'outlook' | 'todo' | 'gtasks' | 'device';
   data: Item[];
 }
 
@@ -462,6 +469,48 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
     ]);
   };
 
+  const enableGtasks = async (list: TaskListInfo): Promise<void> => {
+    setBusy('gtasksEnable');
+    try {
+      const result = await googleTasksSyncService.enable(list);
+      const outcome = gtasksEnableOutcome(t, result, calendarSyncEngine.getStatus().gtasks?.lastError ?? null);
+      Alert.alert(outcome.title, outcome.message);
+    } catch (error) {
+      // The user declined the Google Tasks permission: say so in the card's words.
+      if (toAppError(error).code === 'tasks_scope_missing') Alert.alert(t('calendar:gtasks.title'), t('calendar:gtasks.scopeDenied'));
+      else showCalendarError(t, error);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const changeGtasksList = async (list: TaskListInfo): Promise<void> => {
+    try {
+      await googleTasksSyncService.setList(list);
+    } catch (error) {
+      showCalendarError(t, error);
+    }
+  };
+
+  const disableGtasks = async (): Promise<void> => {
+    setBusy('gtasksDisable');
+    try {
+      await googleTasksSyncService.disable();
+      Alert.alert(t('calendar:gtasks.disabledTitle'));
+    } catch (error) {
+      showCalendarError(t, error);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const confirmDisableGtasks = (): void => {
+    Alert.alert(t('calendar:gtasks.disableTitle'), t('calendar:gtasks.disableMessage'), [
+      { text: t('calendar:actions.cancel'), style: 'cancel' },
+      { text: t('calendar:gtasks.disable'), style: 'destructive', onPress: () => void disableGtasks() },
+    ]);
+  };
+
   const requestDevicePermission = async (): Promise<void> => {
     try {
       const result = await deviceCalendarService.requestPermission();
@@ -519,14 +568,18 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
   // The Outlook card exists only when the provider is registered (EXPO_PUBLIC_MSAL_CLIENT_ID set).
   const outlookStatus = status.outlook;
   const todoStatus = status.todo;
+  const gtasksStatus = status.gtasks;
   const sections: Section[] = [
     { key: 'google', data: [{ kind: 'google', key: 'google' }] },
+    ...(gtasksStatus !== undefined ? [{ key: 'gtasks', data: [{ kind: 'gtasks', key: 'gtasks' }] } satisfies Section] : []),
     ...(outlookStatus !== undefined ? [{ key: 'outlook', data: [{ kind: 'outlook', key: 'outlook' }] } satisfies Section] : []),
     ...(todoStatus !== undefined ? [{ key: 'todo', data: [{ kind: 'todo', key: 'todo' }] } satisfies Section] : []),
     { key: 'device', data: deviceRows },
   ];
-  const anySyncing = status.google.syncing || status.device.syncing || outlookStatus?.syncing === true || todoStatus?.syncing === true;
+  const anySyncing =
+    status.google.syncing || status.device.syncing || outlookStatus?.syncing === true || todoStatus?.syncing === true || gtasksStatus?.syncing === true;
   const todoWork: TodoWork = busy === 'todoEnable' ? 'enable' : busy === 'todoDisable' ? 'disable' : null;
+  const gtasksWork: GtasksWork = busy === 'gtasksEnable' ? 'enable' : busy === 'gtasksDisable' ? 'disable' : null;
   const syncing = busy === 'sync' || anySyncing;
   const anyConnecting = google.connecting || outlook.connecting;
 
@@ -559,6 +612,25 @@ export function CalendarSyncScreen(_props: Props): ReactElement {
           t={t}
           language={language}
           now={now}
+        />
+      ) : (
+        <View />
+      );
+    }
+    if (item.kind === 'gtasks') {
+      return gtasksStatus !== undefined ? (
+        <GoogleTasksCard
+          gtasks={gtasksStatus}
+          locked={busy !== null && busy !== 'gtasksEnable' && busy !== 'gtasksDisable'}
+          working={gtasksWork}
+          palette={palette}
+          t={t}
+          language={language}
+          now={now}
+          loadLists={() => googleTasksSyncService.listLists()}
+          onEnable={(list) => void enableGtasks(list)}
+          onChangeList={(list) => void changeGtasksList(list)}
+          onDisable={confirmDisableGtasks}
         />
       ) : (
         <View />

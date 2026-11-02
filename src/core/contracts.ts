@@ -334,11 +334,11 @@ export interface NotesRepository {
 }
 
 export interface TaskWriteOptions {
-  /** Default 'user'. The To Do sync pushes only 'user' and 'ai' writes; its own writes are 'tasks_todo'. */
+  /** Default 'user'. The task syncs push only 'user' and 'ai' writes; their own writes are 'tasks_todo' / 'tasks_gtasks'. */
   origin?: WriteOrigin;
   /** Caller-chosen id for idempotent creates (imports); an existing task with this id is returned unchanged. */
   id?: string;
-  /** Default 'manual', or 'ai_chat' for origin 'ai'. Imports pass 'todo'. */
+  /** Default 'manual', or 'ai_chat' for origin 'ai'. Imports pass 'todo' / 'gtasks'. */
   source?: TaskSource;
 }
 
@@ -521,14 +521,21 @@ export interface AuthService {
   signOutProviders(): Promise<void>;
   /**
    * Fresh Google access token via GoogleSignin.getTokens() (native SDK refreshes; never stored).
-   * Throws AppError('google_not_signed_in') / AppError('calendar_scope_missing') when requireCalendar.
+   * Throws AppError('google_not_signed_in'), AppError('calendar_scope_missing') when requireCalendar
+   * and AppError('tasks_scope_missing') when requireTasks.
    */
-  getGoogleAccessToken(options: { requireCalendar: boolean }): Promise<string>;
+  getGoogleAccessToken(options: { requireCalendar: boolean; requireTasks?: boolean }): Promise<string>;
   /** After a 401 from a Google API: clearCachedAccessToken(token) so the next getTokens() refreshes. */
   invalidateGoogleAccessToken(token: string): Promise<void>;
   hasCalendarScope(): Promise<boolean>;
   /** Incremental consent via GoogleSignin.addScopes (GOOGLE_CALENDAR_SCOPES). false = declined. */
   requestCalendarScope(): Promise<boolean>;
+  /** A Google account is signed in natively on this device (restored silently when needed); no UI. */
+  hasGoogleSession(): Promise<boolean>;
+  /** The Google Tasks scope (GOOGLE_TASKS_SCOPES) is granted on this device (M8). */
+  hasTasksScope(): Promise<boolean>;
+  /** Incremental consent via GoogleSignin.addScopes (GOOGLE_TASKS_SCOPES). false = declined. */
+  requestTasksScope(): Promise<boolean>;
   /** GoogleSignin.revokeAccess() (disconnect calendar / account deletion). */
   revokeGoogleAccess(): Promise<void>;
   /**
@@ -564,6 +571,8 @@ export interface AuthService {
 
 /** Scopes requested incrementally for calendar sync. */
 export const GOOGLE_CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.events'] as const;
+/** Scopes requested incrementally for the Google Tasks sync (M8). */
+export const GOOGLE_TASKS_SCOPES = ['https://www.googleapis.com/auth/tasks'] as const;
 
 export type SessionStatus = 'initializing' | 'signed_out' | 'starting' | 'active' | 'ending';
 
@@ -826,6 +835,52 @@ export interface TodoSyncService {
   sync(): Promise<TodoSyncResult>;
 }
 
+// ---- Google Tasks ----------------------------------------------------------------------------
+
+/** A task list of the signed-in Google account (GET tasks/v1/users/@me/lists); same shape as TodoList. */
+export type TaskListInfo = TodoList;
+/** Result of a task sync run; same shape for both task providers. */
+export type TaskSyncResult = TodoSyncResult;
+
+/**
+ * Google Tasks two-way task sync (M8) on the Google account signed in on this device (incremental
+ * scope GOOGLE_TASKS_SCOPES, requested on enable). Same engine as Microsoft To Do: tasks go to
+ * ONE chosen list by default (Preferences.gtasksListId / gtasksListName, shown before every task
+ * confirm); a task may name another list (external.gtasksListId). Google Tasks keeps title, notes,
+ * due DATE and done state only: a due time, the reminder, people and the meeting link stay in
+ * Meeting Guard (the UI says so).
+ * - Push: POST / PATCH / DELETE tasks/v1/lists/{listId}/tasks; link write-backs use origin
+ *   'tasks_gtasks' (never pushed back). Moving a task to another list deletes and re-creates it.
+ * - Pull: tasks.list per synced list with showDeleted/showHidden and a persisted updatedMin per
+ *   list (USER_STORAGE.gtasksTasks); a full listing on the first sync, every 7 days and whenever
+ *   the marker is missing. `deleted: true` deletes the local task. Tasks completed in Google
+ *   before they were ever seen here are not imported.
+ * - "Enabled" is per device; the chosen list is in preferences.
+ * - isConfigured() is the build switch EXPO_PUBLIC_GOOGLE_TASKS_SYNC (anything but 'off' = on):
+ *   store builds keep it off until Google has verified the tasks scope.
+ */
+export interface GoogleTasksSyncService {
+  isConfigured(): boolean;
+  /** A Google account is signed in natively on this device (the tasks scope may still be missing). */
+  isAccountConnected(): Promise<boolean>;
+  /** Requires the account and the tasks scope (throws tasks_scope_missing otherwise). */
+  listLists(): Promise<TaskListInfo[]>;
+  /**
+   * Asks for the tasks scope when missing (throws tasks_scope_missing when declined), stores the
+   * list in preferences, pulls the list, queues every open unlinked task for push and flushes.
+   */
+  enable(list: Pick<TaskListInfo, 'id' | 'name'>): Promise<TaskSyncResult | null>;
+  /** Changes the default list for NEW tasks (existing links stay where they are). */
+  setList(list: Pick<TaskListInfo, 'id' | 'name'>): Promise<void>;
+  /**
+   * Turns the sync off: forgets the queue and markers, deletes the tasks imported from Google
+   * (source 'gtasks') and clears the links of the others. The Google copies stay.
+   */
+  disable(): Promise<void>;
+  /** Flush queued pushes, then pull every synced list. Throws calendar_not_connected when off. */
+  sync(): Promise<TaskSyncResult>;
+}
+
 export interface DeviceCalendarInfo {
   id: string;
   title: string;
@@ -861,7 +916,9 @@ export interface CalendarSyncReport {
   outlook?: CalendarPullResult | null;
   /** Absent/null when the Microsoft To Do sync is not configured or not enabled. */
   todo?: TodoSyncResult | null;
-  errors: { provider: CalendarProvider | 'todo'; code: AppErrorCode }[];
+  /** Absent/null when the Google Tasks sync is not configured or not enabled. */
+  gtasks?: TaskSyncResult | null;
+  errors: { provider: CalendarProvider | 'todo' | 'gtasks'; code: AppErrorCode }[];
 }
 
 export interface ProviderStatus {
@@ -881,6 +938,12 @@ export interface CalendarStatus {
    * `enabled` is the per-device sync switch, the list is the default list from preferences.
    */
   todo?: ProviderStatus & { configured: boolean; connected: boolean; listId: string | null; listName: string | null };
+  /**
+   * Google Tasks (absent until configured). `connected` = a Google account is signed in on this
+   * device, `hasScope` = the tasks scope is granted, `enabled` is the per-device sync switch, the
+   * list is the default list from preferences.
+   */
+  gtasks?: ProviderStatus & { configured: boolean; connected: boolean; hasScope: boolean; listId: string | null; listName: string | null };
 }
 
 /**
@@ -1385,7 +1448,8 @@ export type MainStackParamList = {
    * notification (never parsed from a URL): an external link opens the chat and offers a button,
    * so no paid request is sent without a user action.
    */
-  AIChat: { followup?: string; prefill?: string; autoStart?: boolean } | undefined;
+  /** `debrief`: open the chat with the spoken-debrief panel for that (ended) meeting (M8). */
+  AIChat: { followup?: string; prefill?: string; autoStart?: boolean; debrief?: string } | undefined;
   AIInsights: undefined;
   Privacy: undefined;
   Terms: undefined;
@@ -1528,6 +1592,8 @@ export interface UseAssistantResult {
   send(text: string, options?: { origin?: 'typed' | 'suggestion' }): Promise<void>;
   /** Requests the post-meeting follow-up for a meeting (once per meeting). */
   startFollowUp(meetingId: string): Promise<void>;
+  /** M8: sends a spoken/typed debrief of an ended meeting; the reply proposes its tasks. */
+  startDebrief(meetingId: string, transcript: string): Promise<void>;
   confirm(actionId: string): Promise<ActionResult>;
   reject(actionId: string): void;
   /** Re-sends the last failed request. */

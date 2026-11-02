@@ -283,6 +283,47 @@ APIs & Services -> Library -> "Google Calendar API" -> **Enable**. The gcloud co
 gcloud services enable calendar-json.googleapis.com --project <project-id>
 ```
 
+### 4.6 Google Tasks API and scope (V2 Stage 2, M8)
+
+Google Tasks two-way sync (docs/v1/ARCHITECTURE.md §30) uses the Google account the user signed in
+with and one more sensitive scope, requested incrementally when the user turns the sync on.
+
+1. **Enable the API**: APIs & Services -> Library -> "Google Tasks API" -> **Enable**
+   (<https://console.cloud.google.com/apis/library/tasks.googleapis.com>), or:
+
+   ```bash
+   gcloud services enable tasks.googleapis.com --project <project-id>
+   ```
+
+2. **Add the scope to the consent screen**: Google Auth Platform -> Data access
+   (<https://console.cloud.google.com/auth/scopes>) -> Add or remove scopes -> tick
+   `https://www.googleapis.com/auth/tasks` ("Create, edit, organize, and delete all your tasks") ->
+   Update -> Save. It is a **sensitive** scope: the app works right away for the test users listed
+   under Audience (and for everyone while the app is in Testing with at most 100 users), and shows
+   Google's "unverified app" interstitial to other users until the scope is verified.
+
+3. **Verification** (same procedure as `calendar.events` in §4.4): submit the new scope for
+   review with a short justification ("the user chooses to sync the tasks they create in the app
+   with a Google Tasks list of their own account; the app reads and writes only that list") and a
+   screencast showing the Google Tasks card in Settings -> Calendar sync, the consent screen with
+   the Tasks scope, a task created in the app appearing in Google Tasks and the other way round.
+   Google answers in days to weeks.
+
+4. **Feature switch**: the Google Tasks card is visible unless the build sets
+
+   ```bash
+   EXPO_PUBLIC_GOOGLE_TASKS_SYNC=off
+   ```
+
+   Keep it unset (on) for development and test APKs; set it to `off` in the EAS production
+   environment (§5.2) until Google approves the scope, then remove it and ship a new build. No
+   Firebase or functions change is needed for the switch.
+
+5. **Firestore rules**: the task documents and preferences gained Google Tasks fields
+   (`external.gtasksListId/gtasksTaskId/gtasksUpdatedAt`, `preferences.gtasksListId/gtasksListName`).
+   Deploy the rules with the build (`npm run deploy:rules` in `functions/`, §6.4); older rules
+   reject the first task write with a Google Tasks link as `permission_denied`.
+
 ---
 
 ## 5. EAS (Expo)

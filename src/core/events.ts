@@ -26,6 +26,7 @@ export type WriteOrigin =
   | 'calendar_outlook'
   /** Microsoft To Do sync (imports and link write-backs; never pushed back). */
   | 'tasks_todo'
+  | 'tasks_gtasks'
   | 'migration'
   | 'system';
 

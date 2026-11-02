@@ -84,9 +84,11 @@ function assistantState(overrides: Partial<AssistantHookResult> = {}): Assistant
     canRetry: false,
     pendingActionIds: [],
     followUpInFlight: null,
+    debriefInFlight: null,
     followUpsRequested: [],
     send: jest.fn(async () => undefined),
     startFollowUp: jest.fn(async () => undefined),
+    startDebrief: jest.fn(async () => undefined),
     confirm: jest.fn(
       async (actionId: string): Promise<ActionResult> => ({
         status: 'done',
@@ -117,7 +119,7 @@ const navigation = { navigate: jest.fn(), goBack: jest.fn(), canGoBack: jest.fn(
 
 type ScreenProps = Parameters<typeof AssistantScreen>[0];
 
-function renderChat(params: { followup?: string; prefill?: string; autoStart?: boolean } | undefined = {}) {
+function renderChat(params: { followup?: string; prefill?: string; autoStart?: boolean; debrief?: string } | undefined = {}) {
   const props = { navigation, route: { key: 'AIChat-1', name: 'AIChat', params } } as unknown as ScreenProps;
   return render(<AssistantScreen {...props} />);
 }
@@ -203,6 +205,50 @@ describe('AssistantScreen', () => {
     expect(useAssistant).toHaveBeenCalledWith({ followUpMeetingId: 'meeting_7', autoStartFollowUp: true });
     expect(screen.getByText('Meeting follow-up')).toBeTruthy();
     expect(screen.queryByTestId('assistant-start-followup')).toBeNull();
+  });
+
+  it('opens the debrief panel for a debrief param and sends the typed debrief (v7)', async () => {
+    const state = assistantState();
+    useAssistant.mockReturnValue(state);
+    useMeeting.mockReturnValue({ meeting: makeMeeting('meeting_7', { title: 'Budget review' }), isLoading: false, error: null });
+    await renderChat({ debrief: 'meeting_7' });
+    expect(useMeeting).toHaveBeenCalledWith('meeting_7');
+    expect(screen.getByTestId('assistant-debrief')).toBeTruthy();
+    expect(screen.getByText('Debrief: Budget review')).toBeTruthy();
+    // Nothing to send yet.
+    expect(screen.getByTestId('assistant-debrief-send').props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+
+    await fireEvent.changeText(screen.getByTestId('assistant-debrief-input'), '  Ana sends the budget by Friday  ');
+    await fireEvent.press(screen.getByTestId('assistant-debrief-send'));
+    expect(state.startDebrief).toHaveBeenCalledWith('meeting_7', 'Ana sends the budget by Friday');
+    // The panel closes once the debrief is sent; the proposals arrive as cards.
+    expect(screen.queryByTestId('assistant-debrief')).toBeNull();
+  });
+
+  it('the follow-up banner offers a Debrief button that opens the panel, and the panel can be closed', async () => {
+    const state = assistantState();
+    useAssistant.mockReturnValue(state);
+    await renderChat({ followup: 'meeting_7', autoStart: true });
+    expect(screen.queryByTestId('assistant-debrief')).toBeNull();
+    await fireEvent.press(screen.getByTestId('assistant-open-debrief'));
+    expect(screen.getByTestId('assistant-debrief')).toBeTruthy();
+    expect(screen.getByText('Meeting debrief')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('assistant-debrief-close'));
+    expect(screen.queryByTestId('assistant-debrief')).toBeNull();
+    expect(state.startDebrief).not.toHaveBeenCalled();
+  });
+
+  it('labels the debrief transcript and its reply with the meeting, and shows the debrief loading text', async () => {
+    const state = assistantState({
+      isSending: true,
+      debriefInFlight: 'meeting_7',
+      messages: [chatMessage('u1', 'user', 'Ana sends the budget by Friday', { debriefMeetingId: 'meeting_7', delivery: 'sending' })],
+    });
+    useAssistant.mockReturnValue(state);
+    useMeeting.mockReturnValue({ meeting: makeMeeting('meeting_7', { title: 'Budget review' }), isLoading: false, error: null });
+    await renderChat({ debrief: 'meeting_7' });
+    expect(screen.getAllByText('Debrief: Budget review').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Turning your debrief into tasks...')).toBeTruthy();
   });
 
   it('shows an update proposal, reviews it as a diff and confirms it', async () => {

@@ -225,6 +225,50 @@ describe('assistant controller', () => {
     expect(controller.getSnapshot().thread.followUpsRequested).toEqual(['meeting_7']);
   });
 
+  it('sends a debrief alone in debrief mode, labels both bubbles and never marks a follow-up (v7)', async () => {
+    const { controller, requests } = setup({ replies: [response({ reply: 'Two tasks ready.' }), response({ reply: 'Sure.' })] });
+    await flush();
+    await controller.send('Hello there');
+    await controller.startDebrief('meeting_7', '  Ana sends the budget by Friday. I call the supplier.  ');
+
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toMatchObject({
+      mode: 'debrief',
+      followUpMeetingId: 'meeting_7',
+      // The transcript travels alone: earlier chat turns never steer the debrief.
+      messages: [{ role: 'user', content: 'Ana sends the budget by Friday. I call the supplier.' }],
+    });
+    const { thread, debriefInFlight } = controller.getSnapshot();
+    expect(debriefInFlight).toBeNull();
+    expect(thread.followUpsRequested).toEqual([]);
+    expect(thread.messages[2]).toMatchObject({ role: 'user', debriefMeetingId: 'meeting_7' });
+    expect(thread.messages[3]).toMatchObject({ role: 'assistant', content: 'Sure.', debriefMeetingId: 'meeting_7' });
+    expect(thread.messages[3]?.followUpMeetingId).toBeNull();
+  });
+
+  it('a meeting can be debriefed again, and an empty or invalid debrief sends nothing', async () => {
+    const { controller, requests } = setup({ replies: [response(), response()] });
+    await flush();
+    await controller.startDebrief('meeting_7', 'First pass');
+    await controller.startDebrief('meeting_7', 'Second pass');
+    await controller.startDebrief('meeting_7', '   ');
+    await controller.startDebrief('not a valid id!', 'Something');
+    expect(requests.map((r) => r.mode)).toEqual(['debrief', 'debrief']);
+  });
+
+  it('retries a failed debrief with the same transcript', async () => {
+    const { controller, requests } = setup({ replies: [new AppError('timeout'), response()] });
+    await flush();
+    await controller.startDebrief('meeting_7', 'Ana sends the budget by Friday');
+    const failed = controller.getSnapshot().failedRequest;
+    expect(failed).toMatchObject({ mode: 'debrief', meetingId: 'meeting_7' });
+    expect(controller.getSnapshot().thread.messages[0]?.delivery).toBe('failed');
+    await controller.retry();
+    expect(requests.map((r) => r.mode)).toEqual(['debrief', 'debrief']);
+    expect(requests[1]?.messages).toEqual([{ role: 'user', content: 'Ana sends the budget by Friday' }]);
+    expect(controller.getSnapshot().thread.messages[0]?.delivery).toBeUndefined();
+  });
+
   it('executes a confirmed action once, even on double confirm', async () => {
     const { controller, executor } = setup({ replies: [response({}, [createAction('act_1')])] });
     await flush();

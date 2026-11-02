@@ -64,6 +64,7 @@
     "pending_writes": "Algunos cambios todavía no se sincronizaron.",
     "google_not_signed_in": "Inicia sesión con Google para usar esta función.",
     "calendar_scope_missing": "Meeting Guard necesita permiso para acceder a tu Google Calendar.",
+    "tasks_scope_missing": "Meeting Guard necesita permiso para acceder a tus Google Tasks.",
     "calendar_not_connected": "Google Calendar no está conectado.",
     "calendar_permission_denied": "Se denegó el acceso al calendario. Puedes permitirlo en los ajustes del dispositivo.",
     "notification_permission_denied": "Las notificaciones están desactivadas. Actívalas en los ajustes del dispositivo para no perderte ninguna reunión.",

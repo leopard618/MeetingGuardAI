@@ -87,10 +87,17 @@ export function MessageBubble({
 }): ReactElement {
   const time = messageTime(fmt, message.createdAt);
   const hasText = message.content.trim().length > 0;
+  // M8: the transcript and its reply are labelled with the meeting they debrief.
+  const debriefTag = message.debriefMeetingId
+    ? followUpTitle
+      ? fmt.t('ai:chat.debriefFor', { title: followUpTitle })
+      : fmt.t('ai:chat.debriefGeneric')
+    : null;
 
   if (message.role === 'user') {
     return (
       <View style={styles.userRow} testID={`message-${message.id}`}>
+        {debriefTag ? <Text style={[styles.followUpTag, styles.userTag, { color: palette.primary }]}>{debriefTag}</Text> : null}
         <View
           style={[styles.bubble, styles.userBubble, { backgroundColor: palette.userBubble }]}
           accessible
@@ -120,6 +127,7 @@ export function MessageBubble({
             {followUpTitle ? fmt.t('ai:chat.followUpFor', { title: followUpTitle }) : fmt.t('ai:chat.followUpGeneric')}
           </Text>
         ) : null}
+        {debriefTag ? <Text style={[styles.followUpTag, { color: palette.primary }]}>{debriefTag}</Text> : null}
         {hasText ? (
           <>
             <View
@@ -337,6 +345,10 @@ const styles = StyleSheet.create({
   },
   followUpTag: {
     ...typography.labelM,
+  },
+  userTag: {
+    alignSelf: 'flex-end',
+    marginBottom: spacing.xs,
   },
   failedLine: {
     flexDirection: 'row',

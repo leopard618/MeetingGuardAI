@@ -1,4 +1,4 @@
-import { applyTaskPatch, buildTask, parseTaskDoc, taskSchema, type Task } from '../types';
+import { applyTaskPatch, buildTask, EMPTY_TASK_EXTERNAL_REFS, parseTaskDoc, taskSchema, type Task } from '../types';
 
 const CTX = { id: 'task1', userId: 'u1', timezone: 'Europe/Madrid', now: '2030-03-10T09:00:00.000Z' };
 
@@ -153,13 +153,13 @@ describe('Microsoft To Do link fields (M7)', () => {
   it('builds manual tasks without a To Do link by default', () => {
     const task = buildTask({ title: 'Prepare the proposal' }, CTX);
     expect(task.source).toBe('manual');
-    expect(task.external).toEqual({ todoListId: null, todoTaskId: null, todoUpdatedAt: null });
+    expect(task.external).toEqual({ ...EMPTY_TASK_EXTERNAL_REFS });
   });
 
   it('takes the source from the builder context and the target list from the input', () => {
     const task = buildTask({ title: 'Call Ana', todoListId: 'list-work' }, { ...CTX, source: 'ai_chat' });
     expect(task.source).toBe('ai_chat');
-    expect(task.external).toEqual({ todoListId: 'list-work', todoTaskId: null, todoUpdatedAt: null });
+    expect(task.external).toEqual({ ...EMPTY_TASK_EXTERNAL_REFS, todoListId: 'list-work' });
   });
 
   it('merges link write-backs and list moves into external without touching the rest', () => {
@@ -169,11 +169,11 @@ describe('Microsoft To Do link fields (M7)', () => {
       { external: { todoTaskId: 'AAMk1', todoUpdatedAt: '2030-03-10T09:05:00.000Z' } },
       '2030-03-10T09:05:00.000Z',
     );
-    expect(linked.external).toEqual({ todoListId: 'list-work', todoTaskId: 'AAMk1', todoUpdatedAt: '2030-03-10T09:05:00.000Z' });
+    expect(linked.external).toEqual({ ...EMPTY_TASK_EXTERNAL_REFS, todoListId: 'list-work', todoTaskId: 'AAMk1', todoUpdatedAt: '2030-03-10T09:05:00.000Z' });
     expect(linked.title).toBe('Call Ana');
 
     const moved = applyTaskPatch(linked, { todoListId: 'list-home' }, '2030-03-10T09:06:00.000Z');
-    expect(moved.external).toEqual({ todoListId: 'list-home', todoTaskId: 'AAMk1', todoUpdatedAt: '2030-03-10T09:05:00.000Z' });
+    expect(moved.external).toEqual({ ...EMPTY_TASK_EXTERNAL_REFS, todoListId: 'list-home', todoTaskId: 'AAMk1', todoUpdatedAt: '2030-03-10T09:05:00.000Z' });
 
     const unlinked = applyTaskPatch(moved, { todoListId: null }, '2030-03-10T09:07:00.000Z');
     expect(unlinked.external.todoListId).toBeNull();

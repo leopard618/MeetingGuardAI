@@ -22,7 +22,17 @@
     "followUpStart": "Get follow-up ideas",
     "loading": "Loading your conversation...",
     "a11yUserMessage": "You, {{time}}: {{text}}",
-    "a11yAssistantMessage": "Assistant, {{time}}: {{text}}"
+    "a11yAssistantMessage": "Assistant, {{time}}: {{text}}",
+    "debriefFor": "Debrief: {{title}}",
+    "debriefGeneric": "Meeting debrief",
+    "debriefOpen": "Debrief",
+    "debriefHint": "Tell me what was agreed: who does what, and by when. Speak for up to 60 seconds, or type. I will turn it into tasks for you to confirm.",
+    "debriefPlaceholder": "Tap the microphone and speak, or type here",
+    "debriefMic": "Record the debrief",
+    "debriefStop": "Stop recording",
+    "debriefSend": "Create tasks",
+    "debriefClose": "Close the debrief",
+    "debriefLoading": "Turning your debrief into tasks..."
   },
   "voice": {
     "start": "Speak to the assistant",
@@ -169,7 +179,8 @@
     "reminder": "Reminder",
     "people": "People",
     "status": "Status",
-    "list": "To Do list"
+    "list": "To Do list",
+    "gtasksList": "Google Tasks list"
   },
   "values": {
     "none": "None",

@@ -55,8 +55,15 @@ import { z } from 'zod';
  * UNLINKED task when the meeting was not created - a missing link never costs the user the task.
  * Both directions stay compatible: the key is optional, so an old server simply omits it and an
  * old client strips it and creates the task without the link.
+ *
+ * v7: spoken debrief (M8). Mode 'debrief': after a meeting the user dictates what was agreed
+ * (one spoken transcript as the trailing user message, followUpMeetingId = that meeting) and the
+ * server answers ONLY with create_task proposals linked to the meeting (owners in people, due
+ * dates resolved from the transcript) plus a short reply. Nothing is saved until the user confirms
+ * each card in the app. A v6 server rejects the unknown mode (the app shows the error); a v7
+ * server keeps every older behavior unchanged.
  */
-export const AI_CONTRACT_VERSION = 6;
+export const AI_CONTRACT_VERSION = 7;
 
 // ---------------------------------------------------------------------------------------------
 // Trusted sign-in providers (verification gate)
@@ -136,7 +143,7 @@ export type ConferenceProvider = (typeof CONFERENCE_PROVIDERS)[number];
 export const LOCATION_TYPES = ['physical', 'virtual', 'hybrid'] as const;
 export type LocationType = (typeof LOCATION_TYPES)[number];
 
-export const ASSISTANT_MODES = ['chat', 'followup'] as const;
+export const ASSISTANT_MODES = ['chat', 'followup', 'debrief'] as const;
 export type AssistantMode = (typeof ASSISTANT_MODES)[number];
 
 export const AI_ACTION_TYPES = [
@@ -329,7 +336,7 @@ export const assistantRequestSchema = z
     /** Client clock, informational (the server uses its own clock for quotas). */
     nowIso: isoDateTimeSchema,
     mode: z.enum(ASSISTANT_MODES),
-    /** Required in followup mode: the meeting that just ended. */
+    /** Required in followup and debrief mode: the meeting that just ended. */
     followUpMeetingId: meetingIdSchema.nullable(),
     /** v4, optional: proposals still awaiting confirmation in the app when this message was sent. */
     pendingActions: z.array(pendingActionBriefSchema).max(AI_LIMITS.maxActions).optional(),
@@ -340,13 +347,13 @@ export const assistantRequestSchema = z
      */
     contractVersion: z.number().int().min(1).max(1000).optional(),
   })
-  .refine((r) => r.mode !== 'followup' || r.followUpMeetingId !== null, {
-    message: 'followUpMeetingId is required in followup mode',
+  .refine((r) => (r.mode !== 'followup' && r.mode !== 'debrief') || r.followUpMeetingId !== null, {
+    message: 'followUpMeetingId is required in followup and debrief mode',
     path: ['followUpMeetingId'],
   })
   .refine(
-    (r) => r.mode !== 'chat' || (r.messages.length > 0 && r.messages[r.messages.length - 1]?.role === 'user'),
-    { message: 'chat mode requires a trailing user message', path: ['messages'] },
+    (r) => r.mode === 'followup' || (r.messages.length > 0 && r.messages[r.messages.length - 1]?.role === 'user'),
+    { message: 'chat and debrief mode require a trailing user message', path: ['messages'] },
   );
 export type AssistantRequest = z.infer<typeof assistantRequestSchema>;
 

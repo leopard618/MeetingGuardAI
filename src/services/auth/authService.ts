@@ -56,7 +56,7 @@ import {
   type DeleteAccountRequest,
   type DeleteAccountResponse,
 } from '../../core/aiContract';
-import { GOOGLE_CALENDAR_SCOPES, type AuthService, type SignInResult } from '../../core/contracts';
+import { GOOGLE_CALENDAR_SCOPES, GOOGLE_TASKS_SCOPES, type AuthService, type SignInResult } from '../../core/contracts';
 import { AppError, isAppError } from '../../core/errors';
 import type { Unsubscribe } from '../../core/events';
 import { createLogger } from '../../core/logger';
@@ -104,6 +104,12 @@ export function toAuthUser(user: FirebaseUser): AuthUser {
 export function hasCalendarScopes(granted: readonly string[] | null | undefined): boolean {
   if (!granted) return false;
   return GOOGLE_CALENDAR_SCOPES.every((scope) => granted.includes(scope));
+}
+
+/** True when every Google Tasks scope is in `granted` (M8). */
+export function hasTasksScopes(granted: readonly string[] | null | undefined): boolean {
+  if (!granted) return false;
+  return GOOGLE_TASKS_SCOPES.every((scope) => granted.includes(scope));
 }
 
 function requireAuth(): Auth {
@@ -720,19 +726,24 @@ export const authService: AuthServiceImpl = {
     }
   },
 
-  getGoogleAccessToken({ requireCalendar }: { requireCalendar: boolean }): Promise<string> {
+  getGoogleAccessToken({ requireCalendar, requireTasks = false }: { requireCalendar: boolean; requireTasks?: boolean }): Promise<string> {
     return googleQueue.run(async () => {
       configureGoogle();
       let user = await restoreGoogleUser();
       if (!user) {
         throw new AppError('google_not_signed_in', 'No Google account is signed in on this device');
       }
-      if (requireCalendar && !hasCalendarScopes(user.scopes)) {
+      const scopesOk = (scopes: readonly string[] | null | undefined): boolean =>
+        (!requireCalendar || hasCalendarScopes(scopes)) && (!requireTasks || hasTasksScopes(scopes));
+      if (!scopesOk(user.scopes)) {
         // The cached user object can be stale (scopes added on another run): refresh it once.
         const refreshed = await silentGoogleSignIn();
         if (refreshed) user = refreshed;
-        if (!hasCalendarScopes(user.scopes)) {
+        if (requireCalendar && !hasCalendarScopes(user.scopes)) {
           throw new AppError('calendar_scope_missing', 'The Google Calendar scope has not been granted');
+        }
+        if (requireTasks && !hasTasksScopes(user.scopes)) {
+          throw new AppError('tasks_scope_missing', 'The Google Tasks scope has not been granted');
         }
       }
       let accessToken: string;
@@ -804,6 +815,67 @@ export const authService: AuthServiceImpl = {
       if (response.type === 'cancelled') return false;
       // With granular consent the user can untick the Calendar box: that is a decline.
       const granted = hasCalendarScopes(response.data.scopes);
+      notifyGoogleAccessChanged();
+      return granted;
+    });
+  },
+
+  hasGoogleSession(): Promise<boolean> {
+    return googleQueue.run(async () => {
+      configureGoogle();
+      try {
+        return (await restoreGoogleUser()) !== null;
+      } catch (error) {
+        log.warn('Could not restore the Google session', mapGoogle(error).code);
+        return false;
+      }
+    });
+  },
+
+  hasTasksScope(): Promise<boolean> {
+    return googleQueue.run(async () => {
+      configureGoogle();
+      const user = await restoreGoogleUser();
+      if (!user) return false;
+      if (hasTasksScopes(user.scopes)) return true;
+      if (scopeRefreshAttempted) return false;
+      scopeRefreshAttempted = true;
+      try {
+        const refreshed = await silentGoogleSignIn();
+        return refreshed !== null && hasTasksScopes(refreshed.scopes);
+      } catch (error) {
+        log.warn('Could not refresh the Google scopes', mapGoogle(error).code);
+        return false;
+      }
+    });
+  },
+
+  requestTasksScope(): Promise<boolean> {
+    return googleQueue.run(async () => {
+      configureGoogle();
+      let user = await restoreGoogleUser();
+      if (!user) {
+        // Email/password users (or a lost native session): sign in to Google for Tasks only.
+        user = await interactiveGoogleSignIn();
+        if (!user) return false;
+        notifyGoogleAccessChanged();
+      }
+      if (hasTasksScopes(user.scopes)) return true;
+
+      let response: SignInResponse | null;
+      try {
+        response = await gs().addScopes({ scopes: [...GOOGLE_TASKS_SCOPES] });
+      } catch (error) {
+        const mapped = mapGoogle(error);
+        if (mapped.code === 'cancelled') return false;
+        throw mapped;
+      }
+      if (response === null) {
+        throw new AppError('google_not_signed_in', 'No Google account is signed in on this device');
+      }
+      if (response.type === 'cancelled') return false;
+      // With granular consent the user can untick the Tasks box: that is a decline.
+      const granted = hasTasksScopes(response.data.scopes);
       notifyGoogleAccessChanged();
       return granted;
     });

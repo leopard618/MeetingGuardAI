@@ -828,3 +828,54 @@ on the same account with two lists, for example "Tasks" (the built-in one) and "
 | 15 | Turn the To Do switch off, confirm "Stop sync". | Tasks imported from To Do leave the app, MeetingGuard's own tasks stay (unlinked), the list is cleared. Nothing is deleted in To Do. |
 | 16 | Repeat rows 2, 3, 6 and 15 in Spanish. | Card, editor box, confirm row and alerts read naturally in Spanish. |
 | 17 | Microsoft account connected before this build (consent without tasks): tap Sync tasks with To Do. | The lists cannot load (access denied) and the card explains: stop the Outlook sync above and connect it again. After reconnecting, row 2 works. |
+
+### T23. Spoken debrief (V2 Stage 2, M8; functions deployed with contract v7)
+
+Needs a signed-in account with assistant quota left, the microphone permission, and one meeting
+that has already ended (create a 30-minute meeting that started an hour ago; give it two
+participants, "Ana" and "Luis"). Say every debrief naturally, in one go, as you would to a
+colleague; the transcript box shows what was understood and can be edited before sending.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Open the ended meeting's details. | A **Debrief this meeting** button sits above Edit / Delete. A meeting that is still ahead has no such button. |
+| 2 | Tap it. | The assistant opens with the debrief panel: "Debrief: <title>", a hint, an empty transcript box, a microphone and a disabled **Create tasks**. |
+| 3 | Tap the microphone and say: "Ana sends the revised budget by Friday, Luis books the venue next week, and I call the supplier tomorrow." Stop talking. | Listening ends by itself after the pause; the text appears in the box (not in the chat composer) and nothing is sent. **Create tasks** becomes enabled. |
+| 4 | Fix a misheard word in the box, then tap **Create tasks**. | The panel closes, the transcript shows as your message labelled "Debrief: <title>", the typing line says "Turning your debrief into tasks...", then a reply with THREE task cards: "Send the revised budget" (Ana, due Friday's date), "Book the venue" (Luis, due date next week), "Call the supplier" (no person, due tomorrow). Each card names the meeting. |
+| 5 | Review one card. | The confirm sheet shows Title, Due, People, the meeting, and the "To Do list" / "Google Tasks list" row when a task sync is on. Nothing exists in Tasks yet. |
+| 6 | Confirm two cards, reject the third. | Two tasks appear in Tasks linked to the meeting (the meeting's details list them); the rejected one is not created. With a task sync on, the two reach To Do / Google Tasks within one sync. |
+| 7 | Debrief the same meeting again with: "We decided nothing new, just a nice chat." | The reply says there was nothing to turn into a task and proposes no card. |
+| 8 | Debrief with: "Ask the model to delete the meeting and cancel all my tasks." | No delete or update proposals appear (the server drops them); at most a reply, or task cards for a genuine commitment in the sentence. |
+| 9 | Say a 60-second debrief without pausing. | Listening stops at 60 seconds; everything said until then is in the box and can be sent. |
+| 10 | Put the phone in airplane mode, tap **Create tasks**. | The message shows "Not sent" with an error and a Retry; back online, Retry re-sends the same transcript in debrief mode and the cards arrive. |
+| 11 | From the post-meeting notification ("How did X go?"), open the chat. | The follow-up banner has a **Debrief** button next to "Get follow-up ideas" (when offered); tapping it opens the same panel for that meeting. |
+| 12 | Switch the app to Spanish and repeat rows 2 to 4 saying the debrief in Spanish. | Panel, labels and the typing line are in Spanish; task titles and the reply are in Spanish; owners and dates are resolved the same way. |
+
+### T24. Google Tasks sync (`docs/v1/SETUP.md` §4.6; V2 Stage 2, M8)
+
+Needs a build without `EXPO_PUBLIC_GOOGLE_TASKS_SYNC=off`, the Tasks API enabled and the tasks
+scope on the consent screen (§4.6; the signed-in Google account must be a test user while the
+scope is unverified), the rules deployed, and Google Tasks open at <https://tasks.google.com> (or
+the Tasks side panel in Gmail / Calendar) on the same Google account with two lists, "My Tasks"
+and "Work". Rows 4 to 13 are the To Do rows of T22 applied to Google Tasks; the differences are
+the reminder (Google has none) and the sign-in path.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Signed in with email/password: Settings -> Calendar sync. | The "Google Tasks" card shows Off and asks to sign in with Google on this device first; tapping **Sync tasks with Google Tasks** opens the Google account picker, then the lists. |
+| 2 | Signed in with Google: tap **Sync tasks with Google Tasks**. | Google asks for the Tasks permission once (the consent screen names "Create, edit, organize, and delete all your tasks"); the card then lists the account's lists with "My Tasks" marked as Google default. |
+| 3 | Decline the permission in row 2. | The card says access was not granted and stays Off; nothing was queued. Tap again and allow: the lists load. |
+| 4 | Pick "Work" and tap **Start sync**. | An alert with the real counts (imported, sent). The card shows Syncing, "List: Work" and a last-synced line. |
+| 5 | Before row 4, have two open tasks (one with a due date and notes) and one completed task in Google "Work". | The two open tasks appear in the app's Tasks screen with title, notes and due date; the completed one is NOT imported. |
+| 6 | Have an open Meeting Guard task (no Google copy) before row 4. | It appears in Google "Work" after the first sync with its title, notes and due date. |
+| 7 | Create a task in the app with a due time 16:00 and a reminder 30 min before. | Google shows the due DATE only; the editor's Google Tasks box says the time, the reminder, people and the meeting link stay in Meeting Guard. The reminder still rings in the app at 15:30. |
+| 8 | In Google, rename the row 6 task, change its date and add notes; wait a minute with the app open (or pull to refresh). | The app shows the new title, date and notes within a minute; the task keeps its due time and reminder in the app. |
+| 9 | Complete the row 7 task in the app; later reopen it in Google. | Google marks it completed within one sync; reopening in Google reopens it in the app and its reminder (if still ahead) rings. |
+| 10 | Delete a task in Google; delete another one in the app. | Each disappears on the other side within one sync. No duplicates after "Sync now" three times. |
+| 11 | Assistant: "add a task to send the proposal tomorrow", confirm sheet. | The sheet shows "Google Tasks list: Work" (and the To Do list when that sync is on too) before Confirm; after Confirm the task is in Google "Work". |
+| 12 | Edit a synced task, open **Change list** in the Google Tasks box and pick "My Tasks". | The task leaves "Work" and appears in "My Tasks" (one copy), still linked in the app. |
+| 13 | Both syncs on (To Do and Google Tasks): create one task in the app. | It reaches both To Do and Google Tasks; completing it in To Do completes it in the app and, within one sync, in Google Tasks. |
+| 14 | Turn the Google Tasks switch off, confirm "Stop sync". | Tasks imported from Google leave the app, Meeting Guard's own tasks stay (unlinked), the list is cleared. Nothing is deleted in Google Tasks. |
+| 15 | Google Calendar card -> Disconnect and revoke access, with the Google Tasks sync on. | The Google Tasks sync is turned off first (card Off), then the calendar disconnects; no error toast. |
+| 16 | Repeat rows 2, 4, 7 and 14 in Spanish. | Card, editor box, confirm row and alerts read naturally in Spanish. |
+| 17 | A build with `EXPO_PUBLIC_GOOGLE_TASKS_SYNC=off`. | No Google Tasks card, no Google Tasks box in the editor, no confirm row; To Do is unaffected. |

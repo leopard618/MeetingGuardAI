@@ -150,7 +150,7 @@ describe('todo service', () => {
     await service.disable();
 
     expect(await tasks.get(todoTaskLocalId('A1'))).toBeNull();
-    expect((await tasks.get(mine.id))?.external).toEqual({ todoListId: null, todoTaskId: null, todoUpdatedAt: null });
+    expect((await tasks.get(mine.id))?.external).toMatchObject({ todoListId: null, todoTaskId: null, todoUpdatedAt: null });
     expect(prefs()).toMatchObject({ todoListId: null, todoListName: null });
     expect(state.value.enabled).toBe(false);
     expect(status.get().todo).toMatchObject({ enabled: false, listId: null });

@@ -50,7 +50,8 @@
     "repeatsNone": "No upcoming occurrences.",
     "occurrenceModified": "edited",
     "deleteMessageSeries": "This meeting repeats: the whole series and its alerts will be deleted.",
-    "deleteMessageSeriesGoogle": "This meeting repeats: the whole series and its alerts will be deleted. If Google Calendar sync is on, the series is also removed from Google Calendar and guests are notified."
+    "deleteMessageSeriesGoogle": "This meeting repeats: the whole series and its alerts will be deleted. If Google Calendar sync is on, the series is also removed from Google Calendar and guests are notified.",
+    "debrief": "Debrief this meeting"
   },
   "form": {
     "title": "Title",

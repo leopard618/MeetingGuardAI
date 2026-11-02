@@ -1,5 +1,5 @@
 /**
- * AI assistant chat (route "AIChat", params { followup?: meetingId, prefill?: text, autoStart? }).
+ * AI assistant chat (route "AIChat", params { followup?: meetingId, prefill?: text, autoStart?, debrief?: meetingId }).
  *
  * Built on useAssistant(): the Firebase "assistant" callable proposes actions, this screen shows
  * them as cards and nothing changes until the user confirms in MeetingConfirmationModal.
@@ -8,6 +8,9 @@
  * - Follow-up mode (post-meeting notification -> assistant?followup=<meetingId>): only the app's
  *   own notification starts the request by itself (`autoStart`); an external link shows a
  *   "Get follow-up ideas" button, so no paid request is sent without a tap.
+ * - Debrief (M8, `debrief` param or the banner's "Debrief" button): DebriefPanel captures what
+ *   was agreed (voice or typed, editable) and sends it in debrief mode; the proposed tasks arrive
+ *   as ordinary cards. The microphone session is shared with the composer and routed by target.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -30,6 +33,7 @@ import { useEntitlement, useMeeting, usePreferences } from '../../services/data'
 import { componentMetrics, radii, spacing, typography } from '../../theme';
 import { ActionCard } from './ActionCard';
 import { AssistantAvatar, ErrorNotice, MessageBubble, SuggestionChips, TypingIndicator, UsagePill, WelcomeBubble } from './ChatPieces';
+import { DebriefPanel } from './DebriefPanel';
 import {
   EXAMPLE_KEYS,
   USAGE_CLOCK_MS,
@@ -38,6 +42,7 @@ import {
   confirmInOrder,
   parseChatParams,
   reviewableStates,
+  sendableDebrief,
   sendableText,
   summarizeResults,
   visibleSuggestions,
@@ -122,11 +127,13 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
   const use24Hour = preferences.use24HourClock;
   const fmt = useMemo(() => createAssistantFormatter({ t, language, use24Hour }), [t, language, use24Hour]);
 
-  const { followUpMeetingId, prefill, autoStartFollowUp } = parseChatParams(route.params);
+  const { followUpMeetingId, prefill, autoStartFollowUp, debriefMeetingId } = parseChatParams(route.params);
   const { authUser } = useAuth();
   const assistant = useAssistant({ followUpMeetingId, autoStartFollowUp });
   const { plan, isLoaded: planLoaded } = useEntitlement();
-  const { meeting: followUpMeeting } = useMeeting(followUpMeetingId);
+  // The meeting the banner / debrief panel / message tags are about (one meeting per screen).
+  const taggedMeetingId = debriefMeetingId ?? followUpMeetingId;
+  const { meeting: followUpMeeting } = useMeeting(taggedMeetingId);
 
   const [input, setInput] = useState(prefill);
   const [appliedPrefill, setAppliedPrefill] = useState(prefill);
@@ -135,6 +142,16 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
     setAppliedPrefill(prefill);
     if (prefill) setInput(prefill);
   }
+  // Debrief panel: open on arrival with a `debrief` param (and again when that param changes).
+  const [debriefOpen, setDebriefOpen] = useState(debriefMeetingId !== null);
+  const [appliedDebrief, setAppliedDebrief] = useState(debriefMeetingId);
+  if (debriefMeetingId !== appliedDebrief) {
+    setAppliedDebrief(debriefMeetingId);
+    if (debriefMeetingId) setDebriefOpen(true);
+  }
+  const [debriefText, setDebriefText] = useState('');
+  /** Where the shared voice session delivers its text: the composer or the debrief panel. */
+  const [debriefCapturing, setDebriefCapturing] = useState(false);
   const [reviewIds, setReviewIds] = useState<string[] | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -207,8 +224,14 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
 
   const voice = useVoiceInput({
     language,
-    onTranscript: setInput,
+    onTranscript: (text) => (debriefCapturing ? setDebriefText(text) : setInput(text)),
     onFinal: (text, meta) => {
+      if (debriefCapturing) {
+        // The debrief never auto-sends: the user reads the transcript and taps "Create tasks".
+        setDebriefCapturing(false);
+        if (text.trim() !== '') setDebriefText(text);
+        return;
+      }
       const route = routeFinalTranscript({
         text,
         sendable: sendableText(text, assistant),
@@ -232,6 +255,32 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
     onProblem: voiceProblem,
   });
   const listening = voice.status === 'listening';
+  const composerListening = listening && !debriefCapturing;
+  const debriefListening = listening && debriefCapturing;
+
+  const toggleComposerMic = (): void => {
+    if (!listening) setDebriefCapturing(false);
+    voice.toggle();
+  };
+
+  const toggleDebriefMic = (): void => {
+    if (!listening) setDebriefCapturing(true);
+    voice.toggle();
+  };
+
+  const closeDebrief = (): void => {
+    if (debriefListening) voice.toggle();
+    setDebriefCapturing(false);
+    setDebriefOpen(false);
+  };
+
+  const sendDebrief = (): void => {
+    const text = sendableDebrief(debriefText, assistant);
+    if (text === null || taggedMeetingId === null) return;
+    setDebriefText('');
+    setDebriefOpen(false);
+    void assistant.startDebrief(taggedMeetingId, text);
+  };
 
   /** A tapped suggestion chip is sent as is and marked as model-written (never "typed"). */
   const sendSuggestion = (chip: string): void => {
@@ -282,7 +331,16 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
   const footer = (
     <View style={styles.footerStack}>
       {assistant.isSending ? (
-        <TypingIndicator palette={palette} label={assistant.followUpInFlight ? fmt.t('ai:chat.followUpLoading') : fmt.t('ai:chat.thinking')} />
+        <TypingIndicator
+          palette={palette}
+          label={
+            assistant.debriefInFlight
+              ? fmt.t('ai:chat.debriefLoading')
+              : assistant.followUpInFlight
+                ? fmt.t('ai:chat.followUpLoading')
+                : fmt.t('ai:chat.thinking')
+          }
+        />
       ) : null}
       {errorDescription && !assistant.isSending ? (
         <ErrorNotice
@@ -364,7 +422,34 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
                 <Text style={[styles.bannerButtonText, { color: palette.onPrimary }]}>{fmt.t('ai:chat.followUpStart')}</Text>
               </Pressable>
             ) : null}
+            {!debriefOpen ? (
+              <Pressable
+                onPress={() => setDebriefOpen(true)}
+                hitSlop={6}
+                style={[styles.bannerButton, styles.bannerButtonOutlined, { borderColor: palette.primary }]}
+                accessibilityRole="button"
+                testID="assistant-open-debrief"
+              >
+                <Text style={[styles.bannerButtonText, { color: palette.primary }]}>{fmt.t('ai:chat.debriefOpen')}</Text>
+              </Pressable>
+            ) : null}
           </View>
+        ) : null}
+
+        {debriefOpen && taggedMeetingId ? (
+          <DebriefPanel
+            fmt={fmt}
+            palette={palette}
+            meetingTitle={followUpTitle}
+            text={debriefText}
+            onChangeText={setDebriefText}
+            listening={debriefListening}
+            onToggleMic={toggleDebriefMic}
+            canSend={sendableDebrief(debriefText, assistant) !== null}
+            onSend={sendDebrief}
+            onClose={closeDebrief}
+            disabled={!assistant.isLoaded || composerListening}
+          />
         ) : null}
 
         {!assistant.isLoaded ? (
@@ -419,8 +504,8 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
           <TextInput
             value={input}
             onChangeText={setInput}
-            placeholder={fmt.t(listening ? 'ai:voice.listening' : 'ai:chat.placeholder')}
-            placeholderTextColor={listening ? palette.primary : palette.textMuted}
+            placeholder={fmt.t(composerListening ? 'ai:voice.listening' : 'ai:chat.placeholder')}
+            placeholderTextColor={composerListening ? palette.primary : palette.textMuted}
             style={[styles.input, { color: palette.text, backgroundColor: palette.inputSurface }]}
             multiline
             maxLength={AI_LIMITS.maxMessageChars}
@@ -429,18 +514,18 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
             testID="assistant-input"
           />
           <Pressable
-            onPress={voice.toggle}
-            disabled={!assistant.isLoaded}
-            style={[styles.sendButton, { backgroundColor: listening ? palette.danger : palette.inputSurface }]}
+            onPress={toggleComposerMic}
+            disabled={!assistant.isLoaded || debriefListening}
+            style={[styles.sendButton, { backgroundColor: composerListening ? palette.danger : palette.inputSurface }]}
             accessibilityRole="button"
-            accessibilityLabel={fmt.t(listening ? 'ai:voice.stop' : 'ai:voice.start')}
-            accessibilityState={{ disabled: !assistant.isLoaded }}
+            accessibilityLabel={fmt.t(composerListening ? 'ai:voice.stop' : 'ai:voice.start')}
+            accessibilityState={{ disabled: !assistant.isLoaded || debriefListening }}
             testID="assistant-mic"
           >
             <MaterialCommunityIcons
-              name={listening ? 'stop' : 'microphone-outline'}
+              name={composerListening ? 'stop' : 'microphone-outline'}
               size={componentMetrics.iconInline}
-              color={listening ? palette.onPrimary : palette.textMuted}
+              color={composerListening ? palette.onPrimary : palette.textMuted}
             />
           </Pressable>
           <Pressable
@@ -537,6 +622,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bannerButtonOutlined: {
+    borderWidth: 1,
   },
   bannerButtonText: {
     ...typography.labelL,

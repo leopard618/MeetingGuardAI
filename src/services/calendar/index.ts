@@ -39,6 +39,7 @@ import { createDeviceCalendarService } from './device/service';
 import { createCalendarSyncEngine, type AppStateStatus } from './engine';
 import { createGoogleCalendarApi } from './google/api';
 import { createGoogleCalendarService } from './google/service';
+import { googleTasksSyncService, gtasksInternal } from '../tasks/gtasks';
 import { todoInternal, todoSyncService } from '../tasks/todo';
 import { outlookCalendarService, outlookInternal } from './outlook';
 import {
@@ -153,6 +154,8 @@ const engine = createCalendarSyncEngine({
   // The Outlook and To Do providers only exist for the engine when the build is configured for them.
   outlook: outlookInternal.isConfigured() ? outlookInternal : undefined,
   todo: todoInternal.isConfigured() ? todoInternal : undefined,
+  // Google Tasks rides on the Google sign-in; the build switch hides it until the scope is verified.
+  gtasks: gtasksInternal.isConfigured() ? gtasksInternal : undefined,
   preferences: preferencesRepository,
   pushHold: calendarPushHold,
   getActiveUid: getUid,
@@ -176,7 +179,18 @@ const engine = createCalendarSyncEngine({
 export const googleCalendarService: GoogleCalendarService = {
   isConnected: googleInternal.isConnected,
   connect: googleInternal.connect,
-  disconnect: googleInternal.disconnect,
+  // Revoking Google access takes the tasks scope with it: the Google Tasks sync ends first (no
+  // network needed), so it never keeps running against an account that is gone.
+  disconnect: async (options) => {
+    if (options?.revoke && gtasksInternal.isConfigured()) {
+      try {
+        if (await gtasksInternal.isEnabled()) await gtasksInternal.disable();
+      } catch (error) {
+        log.warn('Could not stop the Google Tasks sync before revoking access', toAppError(error).code);
+      }
+    }
+    return googleInternal.disconnect(options);
+  },
   pushMeeting: googleInternal.pushMeeting,
   removeMeeting: googleInternal.removeMeeting,
   pullChanges: googleInternal.pullChanges,
@@ -188,6 +202,9 @@ export { outlookCalendarService };
 
 /** Contract object (TodoSyncService; ../tasks/todo owns the wiring, same Microsoft account). */
 export { todoSyncService };
+
+/** Contract object (GoogleTasksSyncService; ../tasks/gtasks owns the wiring, same Google sign-in). */
+export { googleTasksSyncService };
 
 export const deviceCalendarService: DeviceCalendarService = {
   getPermission: deviceInternal.getPermission,

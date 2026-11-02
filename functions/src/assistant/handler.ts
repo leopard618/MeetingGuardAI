@@ -172,7 +172,9 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     const pendingActions = request.mode === 'chat' ? (request.pendingActions ?? []) : [];
     // v5: tasks exist for the model ONLY when the client said it can parse the task action
     // types (an older client's response schema would reject the whole response otherwise).
-    const wantsTasks = request.mode === 'chat' && (request.contractVersion ?? 0) >= 5 && deps.tasks !== undefined;
+    // v7: a debrief is nothing but tasks, so it always carries them (a v7 client by definition).
+    const wantsTasks =
+      (request.mode === 'chat' || request.mode === 'debrief') && (request.contractVersion ?? 0) >= 5 && deps.tasks !== undefined;
     let tasksContext: TaskContext | null = null;
     if (wantsTasks && deps.tasks) {
       const taskRecords = await deps.tasks.listRecent(uid, AI_LIMITS.maxActions * 20);
@@ -199,7 +201,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     const completion: LlmResult = await llm.complete({
       messages,
       tools,
-      toolChoice: request.mode === 'followup' ? 'required' : 'auto',
+      toolChoice: request.mode === 'followup' || request.mode === 'debrief' ? 'required' : 'auto',
       safetyIdentifier: safetyIdentifierFor(uid),
     });
 
@@ -275,7 +277,11 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
           request.language,
           request.mode === 'followup'
             ? 'followup'
-            : resolution !== null
+            : request.mode === 'debrief'
+              ? mapped.actions.length > 0
+                ? 'debrief'
+                : 'debrief_empty'
+              : resolution !== null
               ? resolution === 'confirm'
                 ? 'resolve_confirm'
                 : 'resolve_reject'

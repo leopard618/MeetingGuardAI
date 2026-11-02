@@ -361,6 +361,21 @@ describe('delete, share, bulk and list', () => {
       meetingId: 'marketing',
     });
     expect(mapToolCalls([call('delete_meeting', args)], ctx({ mode: 'followup' })).dropped).toEqual({ not_allowed: 1 });
+    expect(mapToolCalls([call('delete_meeting', args)], ctx({ mode: 'debrief' })).dropped).toEqual({ not_allowed: 1 });
+  });
+
+  it('debrief mode (v7) only accepts new tasks, a new meeting, lists and suggestions', () => {
+    const update = call('update_meeting', {
+      meeting_ref: ref('marketing'),
+      changes: { title: 'Renamed' },
+      summary: 'Rename',
+      confidence: 90,
+    });
+    const share = call('share_meeting', { meeting_ref: ref('marketing'), channel: 'system_share', recipients: [], summary: 'Share', confidence: 90 });
+    const result = mapToolCalls([update, share, call('suggest_replies', { suggestions: ['Thanks'] })], ctx({ mode: 'debrief' }));
+    expect(result.actions).toEqual([]);
+    expect(result.dropped).toEqual({ not_allowed: 2 });
+    expect(result.suggestions).toEqual(['Thanks']);
   });
 
   it('never shares a meeting with a participant of ANOTHER meeting (injected recipients)', () => {

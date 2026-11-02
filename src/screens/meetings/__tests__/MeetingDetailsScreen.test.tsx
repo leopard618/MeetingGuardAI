@@ -95,6 +95,10 @@ function CalendarSyncStub() {
   return <Text testID="calendar-sync-screen">calendar sync</Text>;
 }
 
+function ChatStub({ route }: { route: { params?: Record<string, unknown> } }) {
+  return <Text testID="chat-screen">{JSON.stringify(route.params)}</Text>;
+}
+
 async function renderDetails() {
   await render(
     <I18nProvider>
@@ -104,6 +108,7 @@ async function renderDetails() {
             <Stack.Screen name="MeetingDetails" component={MeetingDetailsScreen} initialParams={{ meetingId: 'm1' }} />
             <Stack.Screen name="EditMeeting" component={EditStub} />
             <Stack.Screen name="CalendarSync" component={CalendarSyncStub} />
+            <Stack.Screen name="AIChat" component={ChatStub} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
@@ -368,4 +373,29 @@ it('warns that deleting a recurring meeting removes the whole series', async () 
     pressDestructive();
   });
   expect(mockRemove).toHaveBeenCalledWith('m1', { origin: 'user' });
+});
+
+describe('debrief (M8)', () => {
+  it('offers a debrief for a meeting that has ended and opens the assistant in debrief mode', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-06T17:00:00.000Z'));
+    try {
+      await renderDetails();
+      await act(async () => {
+        fireEvent.press(screen.getByTestId('meeting-debrief'));
+      });
+      expect(screen.getByTestId('chat-screen').props.children).toBe(JSON.stringify({ debrief: 'm1' }));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('hides the debrief button while the meeting is still ahead', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-01T00:00:00.000Z'));
+    try {
+      await renderDetails();
+      expect(screen.queryByTestId('meeting-debrief')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });

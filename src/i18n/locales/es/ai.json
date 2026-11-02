@@ -22,7 +22,17 @@
     "followUpStart": "Obtener ideas de seguimiento",
     "loading": "Cargando tu conversación...",
     "a11yUserMessage": "Tú, {{time}}: {{text}}",
-    "a11yAssistantMessage": "Asistente, {{time}}: {{text}}"
+    "a11yAssistantMessage": "Asistente, {{time}}: {{text}}",
+    "debriefFor": "Resumen: {{title}}",
+    "debriefGeneric": "Resumen de la reunión",
+    "debriefOpen": "Resumen",
+    "debriefHint": "Cuéntame qué se acordó: quién hace qué y para cuándo. Habla hasta 60 segundos o escribe. Lo convertiré en tareas para que las confirmes.",
+    "debriefPlaceholder": "Toca el micrófono y habla, o escribe aquí",
+    "debriefMic": "Grabar el resumen",
+    "debriefStop": "Detener la grabación",
+    "debriefSend": "Crear tareas",
+    "debriefClose": "Cerrar el resumen",
+    "debriefLoading": "Convirtiendo tu resumen en tareas..."
   },
   "voice": {
     "start": "Hablar al asistente",
@@ -169,7 +179,8 @@
     "reminder": "Recordatorio",
     "people": "Personas",
     "status": "Estado",
-    "list": "Lista de To Do"
+    "list": "Lista de To Do",
+    "gtasksList": "Lista de Google Tasks"
   },
   "values": {
     "none": "Ninguno",

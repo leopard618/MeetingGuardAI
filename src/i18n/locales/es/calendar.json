@@ -83,6 +83,35 @@
     "disabledTitle": "La sincronización con To Do está desactivada",
     "permissionHint": "Microsoft todavía no ha permitido el acceso a las tareas para esta conexión. Detén la sincronización con Outlook arriba y conéctala de nuevo para concederlo."
   },
+  "gtasks": {
+    "title": "Google Tasks",
+    "description": "Sincronización en ambos sentidos de tus tareas con Google Tasks, en la cuenta de Google con la que iniciaste sesión en este teléfono. Título, notas, fecha límite y estado van en ambos sentidos.",
+    "state": {
+      "on": "Sincronizando",
+      "off": "Desactivado"
+    },
+    "connectFirst": "Primero inicia sesión con Google en este dispositivo. Las tareas se sincronizan con esa cuenta de Google.",
+    "syncTasks": "Sincronizar tareas con Google Tasks",
+    "chooseList": "¿A qué lista deben ir tus tareas?",
+    "defaultList": "{{name}} (predeterminada de Google)",
+    "loadingLists": "Cargando tus listas...",
+    "listsFailed": "No se pudieron cargar tus listas de Google Tasks: {{error}}",
+    "startSync": "Empezar a sincronizar",
+    "starting": "Empezando...",
+    "syncSwitch": "Sincronizar tareas",
+    "listLabel": "Lista: {{name}}",
+    "changeList": "Cambiar lista",
+    "enabledTitle": "Google Tasks conectado",
+    "firstSyncSummary": "Se importaron {{created}} tareas y se enviaron {{pushed}} tareas a Google Tasks.",
+    "firstSyncFailed": "Activado, pero la primera sincronización no terminó: {{error}} Meeting Guard lo intentará de nuevo automáticamente.",
+    "scopeDenied": "No se concedió el acceso a Google Tasks. La sincronización sigue desactivada hasta que lo permitas.",
+    "disableTitle": "¿Detener la sincronización con Google Tasks?",
+    "disableMessage": "Las tareas importadas de Google Tasks se quitarán de Meeting Guard. No se elimina nada en Google Tasks.",
+    "disable": "Detener sincronización",
+    "disabling": "Deteniendo la sincronización...",
+    "disabledTitle": "La sincronización con Google Tasks está desactivada",
+    "permissionHint": "Google todavía no ha permitido el acceso a las tareas para esta cuenta. Detén la sincronización y empiézala de nuevo para concederlo."
+  },
   "device": {
     "title": "Calendarios de este teléfono",
     "description": "Importa eventos de los calendarios de este teléfono y, si quieres, añade tus reuniones de Meeting Guard a uno de ellos.",
@@ -122,13 +151,17 @@
     "todoResult": "Microsoft To Do: {{created}} nuevas, {{updated}} actualizadas, {{removed}} eliminadas, {{pushed}} enviadas a To Do.",
     "failedTodo_one": "{{count}} tarea no se pudo enviar a Microsoft To Do.",
     "failedTodo_other": "{{count}} tareas no se pudieron enviar a Microsoft To Do.",
+    "gtasksResult": "Google Tasks: {{created}} nuevas, {{updated}} actualizadas, {{removed}} eliminadas, {{pushed}} enviadas a Google Tasks.",
+    "failedGtasks_one": "{{count}} tarea no se pudo enviar a Google Tasks.",
+    "failedGtasks_other": "{{count}} tareas no se pudieron enviar a Google Tasks.",
     "providerError": "{{provider}}: {{error}}",
     "nothingToSync": "Todavía no hay nada que sincronizar. Primero conecta Google Calendar o elige calendarios de este teléfono.",
     "providers": {
       "google": "Google Calendar",
       "outlook": "Outlook",
       "device": "Calendarios del teléfono",
-      "todo": "Microsoft To Do"
+      "todo": "Microsoft To Do",
+      "gtasks": "Google Tasks"
     }
   },
   "actions": {

@@ -83,6 +83,35 @@
     "disabledTitle": "To Do sync is off",
     "permissionHint": "Microsoft has not allowed task access for this connection yet. Stop the Outlook sync above and connect it again to grant it."
   },
+  "gtasks": {
+    "title": "Google Tasks",
+    "description": "Two-way sync of your tasks with Google Tasks on the Google account signed in on this phone. Title, notes, due date and done state go both ways.",
+    "state": {
+      "on": "Syncing",
+      "off": "Off"
+    },
+    "connectFirst": "Sign in with Google on this device first. Tasks sync through that Google account.",
+    "syncTasks": "Sync tasks with Google Tasks",
+    "chooseList": "Which list should your tasks go to?",
+    "defaultList": "{{name}} (Google default)",
+    "loadingLists": "Loading your lists...",
+    "listsFailed": "Your Google Tasks lists could not be loaded: {{error}}",
+    "startSync": "Start sync",
+    "starting": "Starting...",
+    "syncSwitch": "Sync tasks",
+    "listLabel": "List: {{name}}",
+    "changeList": "Change list",
+    "enabledTitle": "Google Tasks connected",
+    "firstSyncSummary": "Imported {{created}} tasks and sent {{pushed}} tasks to Google Tasks.",
+    "firstSyncFailed": "Turned on, but the first sync did not finish: {{error}} Meeting Guard will try again automatically.",
+    "scopeDenied": "Google Tasks access was not granted. The sync stays off until you allow it.",
+    "disableTitle": "Stop Google Tasks sync?",
+    "disableMessage": "Tasks imported from Google Tasks will be removed from Meeting Guard. Nothing is deleted in Google Tasks.",
+    "disable": "Stop sync",
+    "disabling": "Stopping sync...",
+    "disabledTitle": "Google Tasks sync is off",
+    "permissionHint": "Google has not allowed task access for this account yet. Stop the sync and start it again to grant it."
+  },
   "device": {
     "title": "Calendars on this phone",
     "description": "Import events from the calendars on this phone and, if you like, add your Meeting Guard meetings to one of them.",
@@ -122,13 +151,17 @@
     "todoResult": "Microsoft To Do: {{created}} new, {{updated}} updated, {{removed}} removed, {{pushed}} sent to To Do.",
     "failedTodo_one": "{{count}} task could not be sent to Microsoft To Do.",
     "failedTodo_other": "{{count}} tasks could not be sent to Microsoft To Do.",
+    "gtasksResult": "Google Tasks: {{created}} new, {{updated}} updated, {{removed}} removed, {{pushed}} sent to Google Tasks.",
+    "failedGtasks_one": "{{count}} task could not be sent to Google Tasks.",
+    "failedGtasks_other": "{{count}} tasks could not be sent to Google Tasks.",
     "providerError": "{{provider}}: {{error}}",
     "nothingToSync": "Nothing to sync yet. Connect Google Calendar or choose calendars on this phone first.",
     "providers": {
       "google": "Google Calendar",
       "outlook": "Outlook",
       "device": "Phone calendars",
-      "todo": "Microsoft To Do"
+      "todo": "Microsoft To Do",
+      "gtasks": "Google Tasks"
     }
   },
   "actions": {

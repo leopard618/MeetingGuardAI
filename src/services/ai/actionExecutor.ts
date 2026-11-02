@@ -87,6 +87,8 @@ export interface ActionExecutorDeps {
   tasks?: Pick<TasksRepository, 'get' | 'create' | 'update' | 'remove'>;
   /** M7: the Microsoft To Do list new tasks go to (null = sync off), named on the confirm card. */
   todoDestination?: () => { name: string } | null;
+  /** M8: the Google Tasks list new tasks go to (null = sync off), named on the confirm card. */
+  gtasksDestination?: () => { name: string } | null;
   calendar: CalendarLinkPort;
   sharing: ShareAdapter;
   executed: ExecutedStore;
@@ -378,6 +380,7 @@ export function createActionExecutor(deps: ActionExecutorDeps): AiActionExecutor
       calendarConnected: calendar.connected,
       newPeople,
       todoListName: action.type === 'create_task' ? (deps.todoDestination?.()?.name ?? null) : null,
+      gtasksListName: action.type === 'create_task' ? (deps.gtasksDestination?.()?.name ?? null) : null,
     };
   }
 

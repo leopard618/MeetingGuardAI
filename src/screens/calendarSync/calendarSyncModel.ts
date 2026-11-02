@@ -12,6 +12,7 @@ import type {
   DeviceCalendarService,
   GoogleConnectResult,
   OutlookConnectResult,
+  TaskSyncResult,
   TodoSyncResult,
   TranslateFn,
 } from '../../core/contracts';
@@ -58,9 +59,31 @@ export function todoStateView(todo: NonNullable<CalendarStatus['todo']>, outlook
   return { labelKey: 'calendar:todo.state.off', tone: 'muted' };
 }
 
+export interface GtasksStateView {
+  labelKey: 'calendar:gtasks.state.on' | 'calendar:gtasks.state.off';
+  tone: Tone;
+}
+
+/** Syncing (on, Google signed in and the tasks scope granted), else off. */
+export function gtasksStateView(gtasks: NonNullable<CalendarStatus['gtasks']>): GtasksStateView {
+  if (gtasks.enabled && gtasks.connected && gtasks.hasScope) return { labelKey: 'calendar:gtasks.state.on', tone: 'success' };
+  return { labelKey: 'calendar:gtasks.state.off', tone: 'muted' };
+}
+
 export interface AlertMessage {
   title: string;
   message: string;
+}
+
+/**
+ * What to tell the user after googleTasksSyncService.enable(): the first sync's real counts, or
+ * that it did not finish (with the service's last error).
+ */
+export function gtasksEnableOutcome(t: TranslateFn, result: TaskSyncResult | null, lastError: AppErrorCode | null): AlertMessage {
+  const message = result
+    ? t('calendar:gtasks.firstSyncSummary', { created: result.counts.created, pushed: result.counts.pushed })
+    : t('calendar:gtasks.firstSyncFailed', { error: lastError ? errorText(t, lastError) : '' });
+  return { title: t('calendar:gtasks.enabledTitle'), message };
 }
 
 /**
@@ -124,10 +147,11 @@ export function outlookConnectOutcome(
   return null;
 }
 
-function providerLabel(t: TranslateFn, provider: CalendarProvider | 'todo'): string {
+function providerLabel(t: TranslateFn, provider: CalendarProvider | 'todo' | 'gtasks'): string {
   if (provider === 'google') return t('calendar:sync.providers.google');
   if (provider === 'outlook') return t('calendar:sync.providers.outlook');
   if (provider === 'todo') return t('calendar:sync.providers.todo');
+  if (provider === 'gtasks') return t('calendar:sync.providers.gtasks');
   return t('calendar:sync.providers.device');
 }
 
@@ -149,6 +173,10 @@ export function syncReportSummary(t: TranslateFn, report: CalendarSyncReport): A
   if (report.todo) {
     lines.push(t('calendar:sync.todoResult', { ...report.todo.counts }));
     if (report.todo.counts.failed > 0) lines.push(t('calendar:sync.failedTodo', { count: report.todo.counts.failed }));
+  }
+  if (report.gtasks) {
+    lines.push(t('calendar:sync.gtasksResult', { ...report.gtasks.counts }));
+    if (report.gtasks.counts.failed > 0) lines.push(t('calendar:sync.failedGtasks', { count: report.gtasks.counts.failed }));
   }
   for (const failure of report.errors) {
     lines.push(
