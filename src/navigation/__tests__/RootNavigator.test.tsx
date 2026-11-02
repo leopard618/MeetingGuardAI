@@ -254,15 +254,16 @@ describe('RootNavigator gate', () => {
     expect(screen.getByTestId('app-splash')).toBeTruthy();
   });
 
-  it('shows the Main group with the header and the assistant button, hidden on the chat', async () => {
+  it('shows the Main group: no stack header on the dashboard (the hero has its own), the header elsewhere, the assistant button hidden on the chat', async () => {
     await renderNavigator();
     expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|-');
-    expect(screen.getByTestId('header').props.children).toBe('header:Dashboard');
+    expect(screen.queryByTestId('header')).toBeNull();
     expect(screen.getByTestId('assistant-fab').props.children).toBe('fab:shown');
 
     await act(async () => {
       navigate('AIChat');
     });
+    expect(screen.getByTestId('header').props.children).toBe('header:AIChat');
     expect(screen.getByTestId('assistant-fab').props.children).toBe('fab:hidden');
   });
 

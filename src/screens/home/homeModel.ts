@@ -229,3 +229,9 @@ export function weekBars(days: readonly DayLoad[], todayDate: string, locale: st
     highlighted: day.date === todayDate,
   }));
 }
+
+/** Change of a weekly figure against last week in whole percent; null when last week had none. */
+export function weekDelta(current: number, last: number): number | null {
+  if (!(last > 0)) return null;
+  return Math.round(((current - last) / last) * 100);
+}

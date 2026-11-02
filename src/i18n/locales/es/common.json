@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "MeetingGuard AI"
+    "name": "MeetingGuard AI",
+    "shortName": "MeetingGuard"
   },
   "actions": {
     "continue": "Continuar",

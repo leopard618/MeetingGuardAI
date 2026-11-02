@@ -1,10 +1,10 @@
 /**
- * Quick actions: a 2 x 2 grid of rounded rectangular buttons in the RIGHT half of the row shared
- * with the tasks card: new meeting (filled primary), new meeting with the AI assistant, the
- * WhatsApp bot, and notes (surface tiles). Each tile is icon + label; WhatsApp carries a caption
- * ("Coming soon" until whatsappLinkStatus.enabled, then "Create by message"; docs/v1/ARCHITECTURE.md
- * §27) and is disabled until the server-side bot is configured. Labels wrap instead of clipping.
- * No motion: plain pressed dim.
+ * Quick actions (the client's mockup): a 2 x 2 grid of rounded tiles in the right half of the row
+ * shared with the tasks card. New meeting is the filled primary tile (plus icon, two-line label),
+ * the others are white tiles with a primary icon top-left and the label at the bottom: new with
+ * the AI assistant, the WhatsApp bot, notes. WhatsApp is disabled (dimmed) until
+ * whatsappLinkStatus.enabled (docs/v1/ARCHITECTURE.md §27); its state is spoken through the
+ * accessibility label, there is no caption. No motion: plain pressed dim.
  */
 import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -26,7 +26,6 @@ export interface QuickActionsProps {
 function Tile({
   icon,
   label,
-  caption,
   primary = false,
   onPress,
   disabled = false,
@@ -35,8 +34,6 @@ function Tile({
 }: {
   icon: IconName;
   label: string;
-  /** Small second line (WhatsApp: "Coming soon" / "Create by message"). */
-  caption?: string;
   /** The one filled tile (new meeting). */
   primary?: boolean;
   onPress?: () => void;
@@ -45,27 +42,22 @@ function Tile({
   testID: string;
 }): ReactElement {
   const { colors, elevated } = useAppTheme();
-  const fg = primary ? colors.onPrimary : disabled ? colors.onSurfaceDisabled : colors.onSurface;
-  const muted = primary ? colors.onPrimary : disabled ? colors.disabledText : colors.onSurfaceVariant;
+  const iconColor = primary ? colors.onPrimary : disabled ? colors.onSurfaceDisabled : colors.primary;
+  const labelColor = primary ? colors.onPrimary : disabled ? colors.disabledText : colors.onSurface;
   return (
     <PressableScale
       onPress={() => onPress?.()}
       disabled={disabled}
-      style={[styles.tile, primary ? { backgroundColor: colors.primary } : elevated, disabled && !primary && { backgroundColor: colors.surfaceDisabled, borderWidth: 0 }]}
+      style={[styles.tile, primary ? { backgroundColor: colors.primary } : elevated, disabled && !primary && styles.disabled]}
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? (caption ? `${label}. ${caption}` : label)}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled }}
       testID={testID}
     >
-      <Icon name={icon} size={22} color={primary ? colors.onPrimary : disabled ? colors.onSurfaceDisabled : colors.primary} />
-      <Text variant="labelMedium" style={[styles.label, { color: fg }]} numberOfLines={2}>
+      <Icon name={icon} size={24} color={iconColor} />
+      <Text variant="titleSmall" style={[styles.label, { color: labelColor }]} numberOfLines={2}>
         {label}
       </Text>
-      {caption ? (
-        <Text variant="labelSmall" style={[styles.caption, { color: muted }]} numberOfLines={2}>
-          {caption}
-        </Text>
-      ) : null}
     </PressableScale>
   );
 }
@@ -84,7 +76,6 @@ export function QuickActions({ onNewManual, onNewWithAi, onWhatsApp, onNotes, st
         <Tile
           icon="whatsapp"
           label={t('home:actions.whatsapp')}
-          caption={t(whatsappReady ? 'home:actions.whatsappReadyHint' : 'home:actions.whatsappHint')}
           disabled={!whatsappReady}
           onPress={whatsappReady ? onWhatsApp : undefined}
           accessibilityLabel={t(whatsappReady ? 'home:actions.whatsappReadyA11y' : 'home:actions.whatsappA11y')}
@@ -107,15 +98,15 @@ const styles = StyleSheet.create({
   },
   tile: {
     flex: 1,
-    minHeight: 84,
-    borderRadius: radii.lg,
+    minHeight: 100,
+    borderRadius: radii.xl,
     padding: spacing.md,
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  disabled: {
+    opacity: 0.55,
   },
   label: {
     marginTop: spacing.sm,
-  },
-  caption: {
-    marginTop: 2,
   },
 });

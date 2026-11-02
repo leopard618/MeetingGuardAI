@@ -45,7 +45,7 @@ const usedKeys = [
   .sort();
 
 const dynamicKeys = [
-  ...['morning', 'afternoon', 'evening'].flatMap((period) => [`home:greeting.${period}`, `home:greeting.${period}NoName`]),
+  ...['morning', 'afternoon', 'evening'].map((period) => `home:greeting.${period}NoName`),
   ...MEETING_SOURCES.map((source) => `insights:sources.${source}`),
   ...[0, 1, 2, 3, 4, 5, 6].flatMap((day) => [`insights:weekday.${day}`, `insights:weekdayLong.${day}`]),
 ];

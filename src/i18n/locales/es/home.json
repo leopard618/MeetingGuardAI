@@ -1,8 +1,5 @@
 {
   "greeting": {
-    "morning": "Buenos días, {{name}}",
-    "afternoon": "Buenas tardes, {{name}}",
-    "evening": "Buenas noches, {{name}}",
     "morningNoName": "Buenos días",
     "afternoonNoName": "Buenas tardes",
     "eveningNoName": "Buenas noches"
@@ -24,16 +21,19 @@
     "current": "En curso",
     "none": "No hay reuniones próximas",
     "noneHint": "Crea una reunión o conecta un calendario para verla aquí.",
-    "startsIn": "Empieza en {{time}}",
-    "startsWhen": "Empieza {{when}}",
     "allDayTitle": "También se acerca",
     "startingNow": "Empieza ahora",
-    "endsIn": "Termina en {{time}}",
     "join": "Unirse",
     "joinA11y": "Unirse a {{title}}",
     "details": "Detalles",
     "detailsA11y": "Detalles de {{title}}",
-    "openLinkFailed": "No se pudo abrir el enlace de la reunión."
+    "openLinkFailed": "No se pudo abrir el enlace de la reunión.",
+    "startsInLabel": "Empieza en",
+    "startsLabel": "Empieza",
+    "endsInLabel": "Termina en",
+    "online": "En línea",
+    "participants_one": "{{count}} participante",
+    "participants_other": "{{count}} participantes"
   },
   "today": {
     "title": "Hoy",
@@ -54,13 +54,9 @@
   },
   "insights": {
     "title": "Tu semana",
-    "subtitle": "Calculado en este dispositivo a partir de tus reuniones.",
-    "today": "Hoy",
     "thisWeek": "Esta semana",
     "meetings_one": "{{count}} reunión",
     "meetings_other": "{{count}} reuniones",
-    "time": "{{duration}} en reuniones",
-    "restOfWeek": "Lo que queda de semana",
     "overlaps_one": "{{count}} solapamiento entre reuniones",
     "overlaps_other": "{{count}} solapamientos entre reuniones",
     "backToBack_one": "{{count}} reunión empieza justo después de otra",
@@ -70,21 +66,18 @@
     "withTips_one": "{{count}} reunión tiene consejos de preparación",
     "withTips_other": "{{count}} reuniones tienen consejos de preparación",
     "allClear": "No hay solapamientos, reuniones seguidas ni enlaces pendientes en lo que queda de semana.",
-    "ask": "Preguntar al asistente",
-    "askPrompt": "Revisa mis reuniones de lo que queda de semana. ¿Cómo gestiono los solapamientos y las reuniones seguidas, y qué debería preparar?",
     "seeAll": "Ver todo el resumen",
-    "chartA11y": "Tiempo de reuniones por día esta semana"
+    "chartA11y": "Tiempo de reuniones por día esta semana",
+    "weeklySummary": "Resumen semanal",
+    "vsLastWeek": "vs. {{value}} la semana pasada",
+    "total": "{{duration}} en total"
   },
   "actions": {
     "title": "Acciones rápidas",
     "manual": "Nueva reunión",
-    "manualHint": "Rellena un formulario",
     "ai": "Nueva con IA",
-    "aiHint": "Descríbela con tus palabras",
     "whatsapp": "WhatsApp",
-    "whatsappHint": "Próximamente",
     "whatsappA11y": "WhatsApp: próximamente, aún no disponible",
-    "whatsappReadyHint": "Crea por mensaje",
     "whatsappReadyA11y": "WhatsApp: crea reuniones por mensaje. Abre la configuración de WhatsApp",
     "notes": "Notas"
   },
@@ -97,5 +90,9 @@
     "overdue": "Atrasada",
     "today": "Hoy",
     "viewAll": "Ver todas las tareas"
+  },
+  "assistantBanner": {
+    "title": "Pregunta al asistente",
+    "body": "Planifica reuniones, redacta agendas, resume notas y más."
   }
 }

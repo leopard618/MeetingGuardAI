@@ -1,11 +1,12 @@
 /**
- * Dashboard tasks card (client request): the day's tasks next to the day's meetings, in the LEFT
- * half of the row it shares with the quick actions. A compact surface card: "Tasks" with the open
- * count, up to MAX_ROWS open tasks due today or overdue (rounded-square checkbox that completes
- * the task on tap, one-line title, "Overdue" / due time / "Today" under it, overdue in the error
- * color), and "View all" at the bottom. Hidden only while nothing is known yet (the dashboard
- * skeleton covers loading).
+ * Dashboard tasks card (the client's mockup): the left half of the row it shares with the quick
+ * actions. A white card with a check icon and "Tasks" as the title, the open count as a pill,
+ * up to MAX_ROWS open tasks due today or overdue (rounded-square checkbox that completes the task
+ * on tap, one-line title, "Overdue" / due time / "Today" under it, overdue in the error color) or
+ * the empty line, "View all tasks" with an arrow at the bottom, and a faint checklist icon in the
+ * corner. Hidden only while nothing is known yet (the dashboard skeleton covers loading).
  */
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { memo, type ReactElement } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
@@ -13,7 +14,7 @@ import { Text } from 'react-native-paper';
 import { Card, Icon, PressableScale } from '../../components/ui';
 import type { Task } from '../../core/types';
 import { useT } from '../../i18n';
-import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme } from '../../theme';
+import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
 import { isDueToday, isOverdue, taskDueInstant } from '../tasks/tasksModel';
 import type { Formatters } from '../shared/useFormatters';
 
@@ -39,17 +40,22 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
 
   return (
     <Card style={[styles.card, style]} testID="dashboard-tasks">
+      <MaterialCommunityIcons name="clipboard-check-outline" size={72} color={withAlpha(colors.primary, 0.1)} style={styles.decoration} accessibilityElementsHidden importantForAccessibility="no" />
       <View style={styles.header}>
+        <Icon name="tasks" size={componentMetrics.iconInline} color={colors.onSurface} />
         <Text style={[styles.headerTitle, { color: colors.onSurface }]} accessibilityRole="header">
           {t('home:tasks.title')}
         </Text>
-        <Text style={[styles.count, { color: colors.onSurfaceVariant }]} testID="dashboard-tasks-count">
-          {t('home:tasks.openCount', { count: openCount })}
-        </Text>
+        <View style={styles.flex} />
+        <View style={[styles.countPill, { backgroundColor: colors.surfaceVariant }]}>
+          <Text style={[styles.count, { color: colors.onSurfaceVariant }]} testID="dashboard-tasks-count">
+            {t('home:tasks.openCount', { count: openCount })}
+          </Text>
+        </View>
       </View>
       <View style={styles.body} testID="dashboard-tasks-card">
         {dueNow.length === 0 ? (
-          <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }} testID="dashboard-tasks-empty">
+          <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }} testID="dashboard-tasks-empty">
             {openCount > 0 ? t('home:tasks.nothingDueToday') : t('home:tasks.empty')}
           </Text>
         ) : (
@@ -94,7 +100,7 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
         testID="dashboard-tasks-all"
       >
         <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('home:tasks.viewAll')}</Text>
-        <Icon name="chevronRight" size={componentMetrics.iconMeta} color={colors.primary} />
+        <Icon name="forward" size={componentMetrics.iconMeta} color={colors.primary} />
       </Pressable>
     </Card>
   );
@@ -103,17 +109,31 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
 export const TasksTodayCard = memo(TasksTodayCardView);
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   card: {
     padding: spacing.md,
+    overflow: 'hidden',
+  },
+  decoration: {
+    position: 'absolute',
+    right: -6,
+    bottom: -8,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     gap: spacing.xs,
   },
   headerTitle: {
-    ...typography.titleS,
+    ...typography.titleM,
+    marginLeft: spacing.xs,
+  },
+  countPill: {
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
   },
   count: {
     ...typography.labelS,
@@ -149,10 +169,11 @@ const styles = StyleSheet.create({
   viewAll: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.sm,
+    gap: spacing.xs,
+    marginTop: spacing.md,
     minHeight: 28,
   },
   viewAllText: {
-    ...typography.labelM,
+    ...typography.labelL,
   },
 });

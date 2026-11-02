@@ -159,11 +159,14 @@ afterEach(() => {
 
 it('shows the greeting, the meeting in progress and the next one with a live countdown', async () => {
   await renderDashboard();
-  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Good morning, Ana');
+  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('GOOD MORNING');
+  expect(screen.getByTestId('dashboard-greeting-name').props.children).toBe('Ana');
   expect(screen.getByTestId('current-meeting-title').props.children).toBe('Design review');
-  expect(screen.getByTestId('current-meeting-countdown').props.children).toBe('Ends in 30:00');
+  expect(screen.getByTestId('current-meeting-countdown-label').props.children).toBe('Ends in');
+  expect(screen.getByTestId('current-meeting-countdown').props.children).toBe('30:00');
   expect(screen.getByTestId('next-meeting-title').props.children).toBe('Vendor call');
-  expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('Starts in 20:00');
+  expect(screen.getByTestId('next-meeting-countdown-label').props.children).toBe('Starts in');
+  expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('20:00');
   // Join only for the meeting with a real link.
   expect(screen.getByTestId('current-meeting-join')).toBeTruthy();
   expect(screen.queryByTestId('next-meeting-join')).toBeNull();
@@ -233,19 +236,27 @@ it('has no alerts card: alert settings live in the menu and Settings', async () 
   expect(screen.getByTestId('dashboard-tasks')).toBeTruthy();
 });
 
-it('opens the assistant with a prefilled question and the insights screen', async () => {
+it('opens the assistant from the banner', async () => {
   await renderDashboard();
   await act(async () => {
     fireEvent.press(screen.getByTestId('insights-ask-assistant'));
   });
-  const params = JSON.parse(String((await screen.findByTestId('target-AIChat')).props.children)) as { prefill: string };
-  expect(params.prefill).toContain('rest of this week');
+  expect(await screen.findByTestId('target-AIChat')).toBeTruthy();
+});
+
+it('shows the week against last week and opens the insights screen from the week card', async () => {
+  await renderDashboard();
+  expect(screen.getByTestId('week-meetings').props.children).toBe('3 meetings');
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('insights-see-all'));
+  });
+  expect(await screen.findByTestId('target-AIInsights')).toBeTruthy();
 });
 
 it('offers manual and AI creation; WhatsApp is disabled ("coming soon")', async () => {
   await renderDashboard();
   expect(screen.getByTestId('quick-whatsapp').props.accessibilityState).toMatchObject({ disabled: true });
-  expect(screen.getByText('Coming soon')).toBeTruthy();
+  expect(screen.getByTestId('quick-whatsapp').props.accessibilityLabel).toBe('WhatsApp: coming soon, not available yet');
   await act(async () => {
     fireEvent.press(screen.getByTestId('quick-new-manual'));
   });
@@ -255,7 +266,7 @@ it('offers manual and AI creation; WhatsApp is disabled ("coming soon")', async 
 it('the WhatsApp tile opens the WhatsApp setup once the server-side bot is enabled', async () => {
   mockWhatsAppStatus = { enabled: true, linked: false, displayNumber: null, deepLink: null, linkedLast4: null };
   await renderDashboard();
-  expect(screen.getByText('Create by message')).toBeTruthy();
+  expect(screen.getByTestId('quick-whatsapp').props.accessibilityLabel).toBe('WhatsApp: create meetings by message. Opens the WhatsApp setup');
   await act(async () => {
     fireEvent.press(screen.getByTestId('quick-whatsapp'));
   });
@@ -292,7 +303,8 @@ it('shows the offline banner with the number of changes waiting to sync', async 
 it('renders in Spanish', async () => {
   await i18n.changeLanguage('es');
   await renderDashboard();
-  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Buenos días, Ana');
+  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('BUENOS DÍAS');
   expect(screen.getByText('Nueva reunión')).toBeTruthy();
-  expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('Empieza en 20:00');
+  expect(screen.getByTestId('next-meeting-countdown-label').props.children).toBe('Empieza en');
+  expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('20:00');
 });

@@ -1,8 +1,5 @@
 {
   "greeting": {
-    "morning": "Good morning, {{name}}",
-    "afternoon": "Good afternoon, {{name}}",
-    "evening": "Good evening, {{name}}",
     "morningNoName": "Good morning",
     "afternoonNoName": "Good afternoon",
     "eveningNoName": "Good evening"
@@ -24,16 +21,19 @@
     "current": "Happening now",
     "none": "No upcoming meetings",
     "noneHint": "Create a meeting or connect a calendar to see it here.",
-    "startsIn": "Starts in {{time}}",
-    "startsWhen": "Starts {{when}}",
     "allDayTitle": "Also coming up",
     "startingNow": "Starting now",
-    "endsIn": "Ends in {{time}}",
     "join": "Join",
     "joinA11y": "Join {{title}}",
     "details": "Details",
     "detailsA11y": "Details of {{title}}",
-    "openLinkFailed": "The meeting link could not be opened."
+    "openLinkFailed": "The meeting link could not be opened.",
+    "startsInLabel": "Starts in",
+    "startsLabel": "Starts",
+    "endsInLabel": "Ends in",
+    "online": "Online",
+    "participants_one": "{{count}} participant",
+    "participants_other": "{{count}} participants"
   },
   "today": {
     "title": "Today",
@@ -54,13 +54,9 @@
   },
   "insights": {
     "title": "Your week",
-    "subtitle": "Calculated on this device from your meetings.",
-    "today": "Today",
     "thisWeek": "This week",
     "meetings_one": "{{count}} meeting",
     "meetings_other": "{{count}} meetings",
-    "time": "{{duration}} in meetings",
-    "restOfWeek": "Rest of this week",
     "overlaps_one": "{{count}} overlap between meetings",
     "overlaps_other": "{{count}} overlaps between meetings",
     "backToBack_one": "{{count}} meeting starts right after another",
@@ -70,21 +66,18 @@
     "withTips_one": "{{count}} meeting has preparation tips",
     "withTips_other": "{{count}} meetings have preparation tips",
     "allClear": "No overlaps, back-to-back meetings or missing links for the rest of the week.",
-    "ask": "Ask the assistant",
-    "askPrompt": "Look at my meetings for the rest of this week. How should I handle overlaps and back-to-back meetings, and what should I prepare?",
     "seeAll": "See all insights",
-    "chartA11y": "Meeting time per day this week"
+    "chartA11y": "Meeting time per day this week",
+    "weeklySummary": "Weekly summary",
+    "vsLastWeek": "vs. {{value}} last week",
+    "total": "{{duration}} total"
   },
   "actions": {
     "title": "Quick actions",
     "manual": "New meeting",
-    "manualHint": "Fill in a form",
     "ai": "New with AI",
-    "aiHint": "Describe it in your words",
     "whatsapp": "WhatsApp",
-    "whatsappHint": "Coming soon",
     "whatsappA11y": "WhatsApp: coming soon, not available yet",
-    "whatsappReadyHint": "Create by message",
     "whatsappReadyA11y": "WhatsApp: create meetings by message. Opens the WhatsApp setup",
     "notes": "Notes"
   },
@@ -97,5 +90,9 @@
     "overdue": "Overdue",
     "today": "Today",
     "viewAll": "View all tasks"
+  },
+  "assistantBanner": {
+    "title": "Ask the assistant",
+    "body": "Plan meetings, draft agendas, summarize notes, and more."
   }
 }

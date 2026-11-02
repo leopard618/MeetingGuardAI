@@ -180,10 +180,10 @@ export const chartPalette: Readonly<Record<MGSchemeName, MGChartPalette>> = {
 };
 
 export const lightColors: MGColors = {
-  primary: '#4646D3',
+  primary: '#1D5BD6',
   onPrimary: '#FFFFFF',
-  primaryContainer: '#E3E6FC',
-  onPrimaryContainer: '#26268F',
+  primaryContainer: '#DCE7FB',
+  onPrimaryContainer: '#0B2F7A',
   secondary: '#44566E',
   onSecondary: '#FFFFFF',
   secondaryContainer: '#E3E9F1',
@@ -192,7 +192,7 @@ export const lightColors: MGColors = {
   onTertiary: '#FFFFFF',
   tertiaryContainer: '#D3F2F7',
   onTertiaryContainer: '#0F4E5A',
-  background: '#F3F4FA',
+  background: '#EEF3FA',
   onBackground: '#0F172A',
   surface: '#FFFFFF',
   onSurface: '#0F172A',
@@ -204,7 +204,7 @@ export const lightColors: MGColors = {
   outlineVariant: '#E1E7EE',
   inverseSurface: '#2A3446',
   inverseOnSurface: '#EEF2F7',
-  inversePrimary: '#AFB4FF',
+  inversePrimary: '#8FB4FF',
   error: '#C62B2B',
   onError: '#FFFFFF',
   errorContainer: '#FBE1E1',
@@ -242,10 +242,10 @@ export const lightColors: MGColors = {
 };
 
 export const darkColors: MGColors = {
-  primary: '#AFB4FF',
-  onPrimary: '#101273',
-  primaryContainer: '#34349E',
-  onPrimaryContainer: '#E3E6FC',
+  primary: '#8FB4FF',
+  onPrimary: '#06255F',
+  primaryContainer: '#1D3F8A',
+  onPrimaryContainer: '#DCE7FB',
   secondary: '#AEB7C7',
   onSecondary: '#1F2633',
   secondaryContainer: '#2A3040',
@@ -266,7 +266,7 @@ export const darkColors: MGColors = {
   outlineVariant: '#262B36',
   inverseSurface: '#E8EAF0',
   inverseOnSurface: '#1B1F29',
-  inversePrimary: '#4646D3',
+  inversePrimary: '#1D5BD6',
   error: '#FF9F9F',
   onError: '#4C0F0F',
   errorContainer: '#7C2222',
@@ -328,14 +328,14 @@ export interface MGGradients {
 
 export const gradients: Readonly<Record<MGSchemeName, MGGradients>> = {
   light: {
-    primary: ['#3F3FC6', '#6E5BE0'],
-    hero: ['#3B3BC4', '#7C5CE6'],
-    ai: ['#4646D3', '#6A4BD6'],
+    primary: ['#1D5BD6', '#2F7BF0'],
+    hero: ['#0B2F7F', '#1E5BD9'],
+    ai: ['#1D5BD6', '#2F7BF0'],
   },
   dark: {
-    primary: ['#4F4FD8', '#7C5CE6'],
-    hero: ['#3B3BC4', '#7C5CE6'],
-    ai: ['#6A6BE8', '#4646D3'],
+    primary: ['#2F6BE6', '#4A8CF5'],
+    hero: ['#0A2466', '#1B4FC2'],
+    ai: ['#2F6BE6', '#4A8CF5'],
   },
 };
 

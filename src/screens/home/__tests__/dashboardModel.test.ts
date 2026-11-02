@@ -5,7 +5,7 @@
 import { barHeight, MIN_FRACTION } from '../../../components/ui/MiniBars';
 import type { Meeting } from '../../../core/types';
 import type { DayLoad } from '../../insights/meetingInsights';
-import { elapsedFraction, participantInitial, weekBars, weekdayInitial } from '../homeModel';
+import { elapsedFraction, participantInitial, weekBars, weekDelta, weekdayInitial } from '../homeModel';
 
 function day(date: string, minutes: number, count = minutes > 0 ? 1 : 0): DayLoad {
   return { key: date, date, weekday: new Date(`${date}T12:00:00Z`).getUTCDay(), count, minutes };
@@ -46,6 +46,16 @@ describe('elapsedFraction', () => {
     expect(elapsedFraction(meeting, new Date('2026-11-01T09:59:00.000Z'))).toBeNull();
     expect(elapsedFraction(meeting, new Date('2026-11-01T11:01:00.000Z'))).toBeNull();
     expect(elapsedFraction({ ...meeting, durationMinutes: 0 }, new Date('2026-11-01T10:00:00.000Z'))).toBeNull();
+  });
+});
+
+describe('weekDelta', () => {
+  it('is the whole-percent change against last week, null without a last week', () => {
+    expect(weekDelta(1, 3)).toBe(-67);
+    expect(weekDelta(60, 240)).toBe(-75);
+    expect(weekDelta(4, 2)).toBe(100);
+    expect(weekDelta(2, 2)).toBe(0);
+    expect(weekDelta(2, 0)).toBeNull();
   });
 });
 

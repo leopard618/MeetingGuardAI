@@ -97,7 +97,7 @@ function MainGroup(): ReactElement {
     <SidebarProvider>
       <View style={styles.main}>
             <Stack.Navigator key="main" initialRouteName={MAIN_INITIAL_ROUTE} screenOptions={MAIN_OPTIONS} screenLayout={renderScreenLayout}>
-              <Stack.Screen name="Dashboard" component={DashboardScreen} />
+              <Stack.Screen name="Dashboard" component={DashboardScreen} options={HEADERLESS_OPTIONS} />
               <Stack.Screen name="ChooseCreationMethod" component={ChooseCreationMethodScreen} />
               <Stack.Screen name="CreateMeeting" component={CreateMeetingScreen} />
               <Stack.Screen name="TotalMeetings" component={TotalMeetingsScreen} />
