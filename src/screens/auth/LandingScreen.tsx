@@ -45,6 +45,9 @@ const log = createLogger('landing');
 const BACKGROUND = require('../../../assets/bg.jpg') as number;
 /** The image's tagline ends at about 40% of its height; the content card starts below this. */
 const HERO_FRACTION = 0.46;
+/** Buttons: narrower than the column and lifted off the bottom edge. */
+const ACTIONS_MAX_WIDTH = 340;
+const ACTIONS_BOTTOM_LIFT = spacing.xxxl + spacing.lg;
 const LANGUAGE_ROW_HEIGHT = 36;
 
 /** Text on the hero image (always dark behind it, whatever the scheme). */
@@ -102,7 +105,7 @@ export function LandingScreen(): ReactElement {
       <LinearGradient colors={HERO_SCRIM} locations={HERO_SCRIM_STOPS} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
       <ScrollView
         style={styles.fill}
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom + spacing.lg }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom + ACTIONS_BOTTOM_LIFT }]}
       >
         <View style={[styles.languageRow, columnStyle]} accessibilityRole="radiogroup" accessibilityLabel={t('landing:language')}>
           {supportedLanguages.map((code) => {
@@ -134,7 +137,7 @@ export function LandingScreen(): ReactElement {
           testID="landing-hero"
         />
 
-        <View style={[styles.actions, columnStyle]}>
+        <View style={[styles.actions, { width: Math.min(layout.contentWidth, ACTIONS_MAX_WIDTH) }]}>
           <AppleSignInButton
             onPress={() => {
               void handleSignIn(signInWithApple);
@@ -241,6 +244,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   actions: {
+    alignSelf: 'center',
     paddingBottom: spacing.sm,
   },
   appleButton: {
