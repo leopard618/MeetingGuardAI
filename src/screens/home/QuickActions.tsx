@@ -25,9 +25,9 @@ export interface QuickActionsProps {
   style?: object;
 }
 
-const ICON_SIZE = 32;
+const ICON_SIZE = 34;
 /** Square tiles (client: a regular quadrilateral, a little smaller, same icon size). */
-export const TILE_SIZE = 64;
+export const TILE_SIZE = 72;
 /** Gap between the tiles. */
 export const TILE_GAP = spacing.lg;
 /** Width of the 2 x 2 grid. */

@@ -2,8 +2,9 @@
  * Floating assistant button of the Main group (owner: shell). Rendered ONCE over the navigator
  * (src/navigation/RootNavigator.tsx), hidden on the chat screen.
  *
- * - A 60dp white disc with the client's headset-chat icon (DASHBOARD_ART.assistantIcon) or, until
- *   that file exists, a robot glyph in primary. A tap opens the AI chat.
+ * - An 88dp translucent white disc (45 percent) with the client's headset-chat icon
+ *   (DASHBOARD_ART.assistantIcon) or, until that file exists, a robot glyph in primary. A tap
+ *   opens the AI chat.
  * - The user can put it anywhere: LONG PRESS (LONG_PRESS_MS) starts a drag, the button follows the
  *   finger, and on release it stays where it was dropped (clamped inside the window and the safe
  *   areas). The position is saved per device (AsyncStorage, POSITION_KEY) and restored on launch;
@@ -22,13 +23,15 @@ import { createLogger } from '../core/logger';
 import { useT } from '../i18n';
 import { navigate } from '../navigation/navigationService';
 import { DASHBOARD_ART } from '../screens/home/dashboardArt';
-import { componentMetrics, spacing, useAppTheme } from '../theme';
+import { componentMetrics, radii, spacing, useAppTheme, withAlpha } from '../theme';
 
 const log = createLogger('assistantFab');
 
 export const POSITION_KEY = 'mg.assistantFab.position';
-export const FAB_SIZE = 72;
-const ICON_INSET = 0;
+export const FAB_SIZE = 88;
+const ICON_INSET = 4;
+/** Translucent white disc behind the icon (client: round background at about 45 percent). */
+const DISC_ALPHA = 0.45;
 /** Hold this long before the button starts following the finger. */
 export const LONG_PRESS_MS = 350;
 /** Finger travel that cancels a pending long press (the user is scrolling or tapping sloppily). */
@@ -220,7 +223,7 @@ export function AssistantFab({ hidden = false, testID = 'assistant-fab' }: Assis
       {...drag.panHandlers}
       style={[
         styles.fab,
-        { left: shown.x, top: shown.y },
+        { left: shown.x, top: shown.y, backgroundColor: withAlpha('#FFFFFF', DISC_ALPHA) },
         dragging && styles.dragging,
       ]}
       accessible
@@ -244,6 +247,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: FAB_SIZE,
     height: FAB_SIZE,
+    borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
