@@ -175,9 +175,10 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.sm,
     paddingRight: spacing.sm,
     borderRadius: radii.full,
-    backgroundColor: withAlpha('#FFFFFF', 0.16),
+    // Solid enough to stay legible over the bright parts of the artwork.
+    backgroundColor: withAlpha('#061A4F', 0.6),
     borderWidth: 1,
-    borderColor: withAlpha('#FFFFFF', 0.22),
+    borderColor: withAlpha('#FFFFFF', 0.28),
   },
   flag: {
     fontSize: 16,
