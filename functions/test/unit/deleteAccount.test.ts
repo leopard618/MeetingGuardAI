@@ -46,6 +46,9 @@ function fakePorts(options: { failOn?: string; userExists?: boolean } = {}) {
     deleteZoomRegistry: jest.fn(async (uid: string) => {
       calls.push(`zoom:${uid}`);
     }),
+    deleteMicrosoftIdentities: jest.fn(async (uid: string) => {
+      calls.push(`microsoft:${uid}`);
+    }),
   };
   return { ports, calls };
 }
@@ -62,6 +65,7 @@ describe('deleteAccount', () => {
       'recursive:usage/u1',
       'whatsapp:u1',
       'zoom:u1',
+      'microsoft:u1',
       'auth:u1',
       'recursive:users/u1',
     ]);

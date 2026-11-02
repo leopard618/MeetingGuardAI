@@ -427,6 +427,10 @@ service cloud.firestore {
     match /whatsappUsers/{uid} {
       allow read, write: if false;
     }
+    // Sign in with Microsoft identities (microsoftSignIn callable, ARCHITECTURE section 31): server only.
+    match /microsoftIdentities/{oid} {
+      allow read, write: if false;
+    }
     match /whatsappLinkCodes/{codeHash} {
       allow read, write: if false;
     }

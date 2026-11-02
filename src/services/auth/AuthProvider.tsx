@@ -12,6 +12,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import { env } from '../../config/env';
 import type { AuthContextValue, AuthProviderProps, SessionState } from '../../core/contracts';
 import { toAppError, type AppError, type AppErrorCode } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -39,6 +40,8 @@ export interface AuthContextValueImpl extends AuthContextValue {
   signInWithGoogle(): Promise<AuthActionResult>;
   /** iOS only (§26): wraps authService.signInWithApple() like the Google action (cancel is quiet). */
   signInWithApple(): Promise<AuthActionResult>;
+  /** Wraps authService.signInWithMicrosoft() like the Google action (cancel is quiet; §31). */
+  signInWithMicrosoft(): Promise<AuthActionResult>;
   signInWithEmail(email: string, password: string): Promise<AuthActionResult>;
   signUpWithEmail(email: string, password: string, name: string): Promise<AuthActionResult>;
   sendPasswordReset(email: string): Promise<AuthSimpleResult>;
@@ -194,6 +197,19 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
     [runBusy],
   );
 
+  const signInWithMicrosoft = useCallback(
+    () =>
+      runBusy(async (): Promise<AuthActionResult> => {
+        try {
+          const result = await authService.signInWithMicrosoft();
+          return result.status === 'success' ? authSuccess(result.user) : authCancelled();
+        } catch (error) {
+          return toFailure(error, 'Microsoft sign-in failed');
+        }
+      }),
+    [runBusy],
+  );
+
   const signInWithEmail = useCallback(
     (email: string, password: string) =>
       runBusy(async (): Promise<AuthActionResult> => {
@@ -286,6 +302,8 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       sessionError: session.error,
       signInWithGoogle,
       signInWithApple,
+      canSignInWithMicrosoft: env.msal.clientId !== null,
+      signInWithMicrosoft,
       signInWithEmail,
       signUpWithEmail,
       sendPasswordReset,
@@ -308,6 +326,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       calendarConnected,
       signInWithGoogle,
       signInWithApple,
+      signInWithMicrosoft,
       signInWithEmail,
       signUpWithEmail,
       sendPasswordReset,

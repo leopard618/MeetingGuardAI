@@ -27,6 +27,14 @@ export function authFailure(message: string, code: AppErrorCode, reason: AuthErr
   return { success: false, error: message, errorCode: code, errorReason: reason };
 }
 
+/**
+ * Signed in through the microsoftSignIn callable (docs/v1/ARCHITECTURE.md section 31): a
+ * custom-token session has no providerData, so an empty provider list is the Microsoft case.
+ */
+export function signedInWithMicrosoft(user: Pick<AuthUser, 'providerIds'> | null): boolean {
+  return user !== null && user.providerIds.length === 0;
+}
+
 /** Same identity fields (used to decide whether a same-uid auth event changed the profile). */
 export function sameIdentity(a: AuthUser | null, b: AuthUser | null): boolean {
   if (a === b) return true;

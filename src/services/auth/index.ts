@@ -6,5 +6,5 @@ export { authService, registerSessionCleanup, type AuthServiceImpl } from './aut
 export { sessionManager } from './sessionManager';
 export { AuthProvider, useAuth, type AuthContextValueImpl, type AuthSimpleResult } from './AuthProvider';
 export { authErrorMessageKey, getAuthErrorReason, type AuthErrorReason } from './authErrors';
-export type { AuthActionResult } from './authResults';
+export { signedInWithMicrosoft, type AuthActionResult } from './authResults';
 export type { SessionCleanupContext, SessionCleanupHook } from './sessionCleanup';

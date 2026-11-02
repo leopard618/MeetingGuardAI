@@ -1433,3 +1433,63 @@ section lists what differs.
   `__testUtils__/gtasksFakes.ts`, the engine (`engineTodo.test.ts` gtasks cases), the auth
   service scope cases, the calendar sync model and screen, the executor preview, the rules drift
   test and the rules fixture. Device test guide: `docs/v1/TESTING.md` T24.
+
+## 31. Sign in with Microsoft (custom token through the microsoftSignIn callable)
+
+Contract: `AuthService.signInWithMicrosoft`, the custom-token branch of `reauthenticate` and
+`AuthContextValue.signInWithMicrosoft / canSignInWithMicrosoft` in `src/core/contracts.ts`;
+request / response schemas and `MICROSOFT_SIGN_IN_REASONS` in `src/core/aiContract.ts` (=
+`functions/src/shared/aiContract.ts`). Client flow in `src/services/microsoft/signIn.ts` over the
+shared PKCE prompt `src/services/microsoft/authPrompt.ts` (the Outlook connection's
+`outlook/authAdapter.ts` is now a thin port over it); server in `functions/src/microsoftSignIn.ts`.
+Owner steps: docs/v1/SETUP.md §10.6.
+
+- **Why a callable.** The Firebase JS SDK cannot exchange a Microsoft token itself
+  (`signInWithCredential` is not supported for Microsoft, and the popup/redirect flow is web
+  only). The app therefore runs the Microsoft PKCE sign-in it already has for Outlook, with the
+  identity scopes only (`MICROSOFT_OAUTH.signInScopes` = openid profile email: no offline_access,
+  so no refresh token exists and nothing is stored), sends the id_token to `microsoftSignIn`
+  and signs in with the Firebase custom token it answers. One Azure registration serves both
+  flows; the Outlook connection remains its own consent with its own refresh token.
+- **Client.** `signInWithMicrosoft`: `EXPO_PUBLIC_MSAL_CLIENT_ID` required (else
+  `not_configured` / `microsoft_not_configured`; the Landing button is hidden through
+  `canSignInWithMicrosoft`), raw nonce (same generator as Apple's) in the authorize request,
+  `requestMicrosoftIdToken` (prompt with `prompt=select_account`, code exchange at
+  `/oauth2/v2.0/token` with a plain fetch, 30 s timeout) -> callable `{ idToken, nonce }` ->
+  `signInWithCustomToken`. A closed browser resolves `cancelled`; a second tap joins the running
+  flow. Server reasons map to auth reasons: `microsoft_not_configured`, `email_in_use`
+  (`conflict`), `microsoft_token_invalid` -> `microsoft_sign_in_rejected` (retryable); a failed
+  browser flow is `microsoft_sign_in_failed`. EN/ES texts in `auth:errors.*`.
+- **Server** (`handleMicrosoftSignIn`, unauthenticated by design, 30 s, maxInstances 10).
+  `verifyMicrosoftIdToken`: RS256 with Node crypto against Microsoft's published keys
+  (`login.microsoftonline.com/common/discovery/v2.0/keys`, cached 24 h, one refetch per minute on
+  an unknown kid); `aud` = `MICROSOFT_CLIENT_ID`, `iss` = `https://login.microsoftonline.com/{tid}/v2.0`
+  with `tid` under the `MICROSOFT_TENANT` policy (common: any; consumers: only the personal
+  tenant; organizations: anything but it; a GUID: that tenant), `exp` / `nbf` with 60 s skew,
+  `nonce` = the request nonce, `oid` and `sub` present. Email = the `email` claim, else
+  `preferred_username` when it is an address; `emailVerified` only for personal accounts (the
+  consumer tenant) or a work account carrying `xms_edov: true` (Microsoft does not vouch for
+  other work-account emails, which is what would otherwise allow an account takeover by email).
+- **User resolution.** `microsoftIdentities/{oid}` = `{ uid, tid, email, createdAt, lastSignInAt }`
+  (server only; rules deny clients). Known oid -> that uid. Unknown oid with an email that already
+  belongs to a Firebase user -> joined to that account (`linked`) only when the email is verified,
+  else `already-exists` / `email_in_use` (the user signs in with the method they used before).
+  Otherwise a new user `ms_<oid>` (`emailVerified` from the claim, display name from `name`).
+  The custom token carries the developer claim `signInProvider: 'microsoft.com'`. Account
+  deletion removes the identity documents (`deleteMicrosoftIdentities`, before the Auth user).
+- **Session shape.** A custom-token user has no `providerData`: `signedInWithMicrosoft(user)` in
+  `src/services/auth/authResults.ts` is `providerIds.length === 0`. The verification banner
+  follows `emailVerified` as for password accounts (a work account without the verified-domain
+  claim is asked to verify; the email is sent the usual way). `reauthenticate` for such a session
+  runs the Microsoft flow again and signs in with a fresh custom token for the SAME uid (a new
+  `auth_time` for the account deletion); another Microsoft account is `user_mismatch`, never a
+  switch. A Microsoft identity joined to a Google account keeps reauthenticating through Google.
+- **UI.** Landing: "Continue with Microsoft" between Google and email, the glass style of the
+  email button with the Microsoft mark (`testID landing-microsoft`), hidden without a client id.
+  The delete-account flow treats a custom-token session like a provider account (reauthenticate,
+  then the server call).
+- **Tests.** `src/services/microsoft/__tests__/signIn.test.ts`,
+  `src/services/auth/__tests__/authService.microsoft.test.ts`, the Landing and Settings screens;
+  server `functions/test/unit/microsoftSignIn.test.ts` (a key pair generated in the test covers
+  every verification failure, the tenant policy and the linking rules) and the deleteAccount
+  ordering. Device test guide: `docs/v1/TESTING.md` T25.

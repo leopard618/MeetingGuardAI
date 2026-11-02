@@ -13,6 +13,9 @@
 import { MICROSOFT_OAUTH } from '../../../core/contracts';
 import { AppError, toAppError } from '../../../core/errors';
 import { createLogger } from '../../../core/logger';
+import { microsoftEndpoints, type MicrosoftEndpoints } from '../../microsoft/authPrompt';
+
+export { microsoftEndpoints, type MicrosoftEndpoints };
 
 const log = createLogger('calendar');
 
@@ -25,21 +28,6 @@ const DEFAULT_TOKEN_LIFETIME_S = 3600;
 
 /** OAuth codes that mean "the user must sign in again" (not a transient failure). */
 const DISCONNECT_ERRORS: ReadonlySet<string> = new Set(['invalid_grant', 'interaction_required', 'unauthorized_client']);
-
-export interface MicrosoftEndpoints {
-  authorizationEndpoint: string;
-  tokenEndpoint: string;
-}
-
-/** v2.0 endpoints for a tenant, derived from the MICROSOFT_OAUTH authority. */
-export function microsoftEndpoints(tenant: string): MicrosoftEndpoints {
-  const issuer = MICROSOFT_OAUTH.authority(tenant); // https://login.microsoftonline.com/{tenant}/v2.0
-  const root = issuer.replace(/\/v2\.0$/, '');
-  return {
-    authorizationEndpoint: `${root}/oauth2/v2.0/authorize`,
-    tokenEndpoint: `${root}/oauth2/v2.0/token`,
-  };
-}
 
 export interface MicrosoftTokenStorePort {
   get(uid: string): Promise<string | null>;

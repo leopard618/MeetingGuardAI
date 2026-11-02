@@ -30,8 +30,15 @@ jest.mock(
 
 const mockSignInWithGoogle = jest.fn();
 const mockSignInWithApple = jest.fn();
+const mockSignInWithMicrosoft = jest.fn();
+let mockCanSignInWithMicrosoft = true;
 jest.mock('../../../services/auth', () => ({
-  useAuth: () => ({ signInWithGoogle: mockSignInWithGoogle, signInWithApple: mockSignInWithApple }),
+  useAuth: () => ({
+    signInWithGoogle: mockSignInWithGoogle,
+    signInWithApple: mockSignInWithApple,
+    signInWithMicrosoft: mockSignInWithMicrosoft,
+    canSignInWithMicrosoft: mockCanSignInWithMicrosoft,
+  }),
 }));
 
 const Stack = createStackNavigator();
@@ -63,6 +70,8 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
   mockSignInWithGoogle.mockReset();
   mockSignInWithApple.mockReset();
+  mockSignInWithMicrosoft.mockReset();
+  mockCanSignInWithMicrosoft = true;
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 });
 
@@ -73,6 +82,7 @@ afterEach(() => {
 it('presents only the sign-in buttons and the legal links (no panel, no copy)', async () => {
   await renderLanding();
   expect(screen.getByText('Continue with Google')).toBeTruthy();
+  expect(screen.getByText('Continue with Microsoft')).toBeTruthy();
   expect(screen.getByText('Continue with email')).toBeTruthy();
   expect(screen.queryByText(/assistant that asks first/)).toBeNull();
   expect(screen.queryByText(/free plan/)).toBeNull();
@@ -141,6 +151,33 @@ it('explains a failed Apple sign-in with the localized message from the auth ser
     fireEvent.press(screen.getByTestId('landing-apple-sign-in'));
   });
   expect(Alert.alert).toHaveBeenCalledWith("Couldn't sign in", 'Apple sign-in failed. Please try again.');
+});
+
+it('signs in with Microsoft and stays silent when the browser is closed (section 31)', async () => {
+  mockSignInWithMicrosoft.mockResolvedValueOnce({ success: false, cancelled: true });
+  await renderLanding();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('landing-microsoft'));
+  });
+  expect(mockSignInWithMicrosoft).toHaveBeenCalledTimes(1);
+  expect(mockSignInWithGoogle).not.toHaveBeenCalled();
+  expect(Alert.alert).not.toHaveBeenCalled();
+});
+
+it('explains a failed Microsoft sign-in with the localized message from the auth service', async () => {
+  mockSignInWithMicrosoft.mockResolvedValueOnce({ success: false, error: 'Microsoft sign-in was not accepted.' });
+  await renderLanding();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('landing-microsoft'));
+  });
+  expect(Alert.alert).toHaveBeenCalledWith("Couldn't sign in", 'Microsoft sign-in was not accepted.');
+});
+
+it('hides the Microsoft button in a build without a Microsoft client id', async () => {
+  mockCanSignInWithMicrosoft = false;
+  await renderLanding();
+  expect(screen.queryByTestId('landing-microsoft')).toBeNull();
+  expect(screen.getByText('Continue with Google')).toBeTruthy();
 });
 
 it('offers email sign-in as a secondary path', async () => {

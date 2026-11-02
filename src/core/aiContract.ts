@@ -98,6 +98,7 @@ export function isTrustedSignInProvider(provider: string | null | undefined): bo
 export const CALLABLES = {
   assistant: 'assistant',
   deleteAccount: 'deleteAccount',
+  microsoftSignIn: 'microsoftSignIn',
   zoomStatus: 'zoomStatus',
   zoomCreateMeeting: 'zoomCreateMeeting',
   zoomSyncMeeting: 'zoomSyncMeeting',
@@ -721,6 +722,49 @@ export const deleteAccountRequestSchema = z.object({ confirm: z.literal(true) })
 export type DeleteAccountRequest = z.infer<typeof deleteAccountRequestSchema>;
 export const deleteAccountResponseSchema = z.object({ deleted: z.literal(true) });
 export type DeleteAccountResponse = z.infer<typeof deleteAccountResponseSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// Sign in with Microsoft (microsoftSignIn callable; docs/v1/ARCHITECTURE.md §31, SETUP.md §10.6)
+// ---------------------------------------------------------------------------------------------
+//
+// The app runs the Microsoft PKCE sign-in (scopes openid profile email) and sends the id_token
+// plus the raw nonce it put in the request. The callable verifies the token against Microsoft's
+// published keys (audience = the Azure client id, issuer = the token's tenant, nonce, lifetime),
+// resolves or creates the Firebase user and answers with a custom token the app signs in with.
+// Unauthenticated by design (it IS the sign-in); it never reads anything but the token.
+
+/** Client-side timeout for microsoftSignIn (one JWKS fetch at most plus a token mint). */
+export const MICROSOFT_SIGN_IN_CALL_TIMEOUT_MS = 20_000;
+
+export const microsoftSignInRequestSchema = z.object({
+  /** The Microsoft id_token from the authorization-code exchange (RS256 JWT). */
+  idToken: z.string().min(1).max(8192),
+  /** The raw nonce the app sent in the authorize request; must equal the token's nonce claim. */
+  nonce: z.string().min(16).max(128),
+});
+export type MicrosoftSignInRequest = z.infer<typeof microsoftSignInRequestSchema>;
+
+export const microsoftSignInResponseSchema = z.object({
+  /** Firebase custom token for signInWithCustomToken. */
+  customToken: z.string().min(1),
+  uid: z.string().min(1),
+  /** The Firebase user was created by this call. */
+  created: z.boolean(),
+  /** The Microsoft identity was attached to an existing account with the same verified email. */
+  linked: z.boolean(),
+});
+export type MicrosoftSignInResponse = z.infer<typeof microsoftSignInResponseSchema>;
+
+/** `details.reason` values of a failed microsoftSignIn call (HttpsError codes in parentheses). */
+export const MICROSOFT_SIGN_IN_REASONS = [
+  /** failed-precondition: MICROSOFT_CLIENT_ID is not set on the functions. */
+  'microsoft_not_configured',
+  /** unauthenticated: signature, audience, issuer, nonce or lifetime check failed. */
+  'microsoft_token_invalid',
+  /** already-exists: an account with this email exists and the Microsoft email is not verified. */
+  'email_in_use',
+] as const;
+export type MicrosoftSignInReason = (typeof MICROSOFT_SIGN_IN_REASONS)[number];
 
 // ---------------------------------------------------------------------------------------------
 // Zoom auto links (zoom* callables; docs/v1/ARCHITECTURE.md §24, docs/v1/SETUP.md §12)

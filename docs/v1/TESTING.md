@@ -879,3 +879,24 @@ the reminder (Google has none) and the sign-in path.
 | 15 | Google Calendar card -> Disconnect and revoke access, with the Google Tasks sync on. | The Google Tasks sync is turned off first (card Off), then the calendar disconnects; no error toast. |
 | 16 | Repeat rows 2, 4, 7 and 14 in Spanish. | Card, editor box, confirm row and alerts read naturally in Spanish. |
 | 17 | A build with `EXPO_PUBLIC_GOOGLE_TASKS_SYNC=off`. | No Google Tasks card, no Google Tasks box in the editor, no confirm row; To Do is unaffected. |
+
+### T25. Continue with Microsoft (`docs/v1/SETUP.md` §10.6; functions deployed with MICROSOFT_CLIENT_ID)
+
+Needs a build with `EXPO_PUBLIC_MSAL_CLIENT_ID`, the functions deployed with the same client id in
+`MICROSOFT_CLIENT_ID`, a personal Microsoft account (outlook.com / hotmail.com) and, for rows 7 and
+8, a work or school account. Sign out of the app first.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Landing screen. | "Continue with Microsoft" sits between "Continue with Google" and "Continue with email" in the same outlined style as the email button. |
+| 2 | Tap it, close the browser without signing in. | Back on Landing, no alert. |
+| 3 | Tap it, sign in with a personal Microsoft account that never used the app, allow the consent (it lists only sign-in and profile, no calendar or tasks). | The app opens onboarding / the dashboard; Settings shows the account's name and email, no "verify your email" banner. |
+| 4 | Sign out, tap "Continue with Microsoft" again with the same account. | Same account and data as row 3 (no second account). The Microsoft picker may skip the password when the browser session is still alive. |
+| 5 | Settings -> Calendar sync -> Connect Outlook with that Microsoft account. | A second, separate consent (calendar and tasks); the Outlook and To Do cards work as in T15 / T22. Disconnecting Outlook does not sign the user out. |
+| 6 | Sign out, sign in with Google using a Gmail address, sign out, then "Continue with Microsoft" with a personal Microsoft account whose address is THAT Gmail address (an outlook.com account registered with a Gmail address). | Signed in to the SAME account as the Google sign-in (same meetings); no duplicate account. |
+| 7 | "Continue with Microsoft" with a work or school account whose address has no account in the app. | Signed in; the "verify your email" banner shows (Microsoft does not vouch for the address) and the verification email arrives through "Resend". |
+| 8 | Create a password account with address X, sign out, then "Continue with Microsoft" with a work account whose address is X. | Alert "An account with this email already exists. Sign in instead." and the user stays signed out. |
+| 9 | Signed in with Microsoft: Settings -> Delete account -> Delete. | The Microsoft sign-in opens again; after confirming the same account the deletion runs and the app returns to Landing. Signing in with Microsoft again creates a fresh account. |
+| 10 | Row 9 but pick a DIFFERENT Microsoft account in the picker. | Alert that the account does not match; nothing is deleted and the session is unchanged. |
+| 11 | A build without `EXPO_PUBLIC_MSAL_CLIENT_ID`, or functions deployed without `MICROSOFT_CLIENT_ID`. | Without the app id the button is absent. With the app id but no server id the button shows and the tap ends with "Microsoft sign-in isn't set up in this version of the app". |
+| 12 | Rows 1 to 3 in Spanish. | Button, consent return and alerts read naturally in Spanish. |

@@ -4,6 +4,7 @@
   "signIn": {
     "google": "Continue with Google",
     "apple": "Continue with Apple",
+    "microsoft": "Continue with Microsoft",
     "email": "Continue with email",
     "busy": "Signing in...",
     "failedTitle": "Couldn't sign in",

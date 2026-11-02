@@ -11,6 +11,13 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
+- **Continue with Microsoft** (November 2): a third sign-in button on the Landing screen, between
+  Google and email, for personal and work Microsoft accounts. The app runs the Microsoft sign-in it
+  already has for Outlook with the identity scopes only, and the new `microsoftSignIn` function
+  verifies the token and signs the user in to Firebase. A Microsoft account with the same verified
+  email as an existing Google account joins that account; the Outlook calendar connection stays a
+  separate step in Settings. Account deletion and the email verification banner cover the new
+  sign-in. Needs `MICROSOFT_CLIENT_ID` on the functions (SETUP §10.6).
 - **Google Tasks two-way sync (M8)**: a "Google Tasks" card on the Calendar sync screen for the
   Google account signed in on the phone (the Tasks permission is asked once, when the sync is
   turned on). Pick a list; title, notes, due date and done state go both ways, deletions too; a

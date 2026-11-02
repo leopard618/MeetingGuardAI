@@ -501,6 +501,19 @@ export interface AuthService {
    * AppError('unsupported', details.reason 'apple_sign_in_unavailable').
    */
   signInWithApple(): Promise<SignInResult>;
+  /**
+   * Sign in with Microsoft (docs/v1/ARCHITECTURE.md §31): the Microsoft PKCE sign-in with the
+   * identity scopes (MICROSOFT_OAUTH.signInScopes, a raw nonce in the request) -> id_token ->
+   * the `microsoftSignIn` callable verifies it (keys, audience, issuer, nonce, lifetime) and
+   * mints a Firebase custom token -> signInWithCustomToken. Needs EXPO_PUBLIC_MSAL_CLIENT_ID
+   * (else AppError('not_configured', details.reason 'microsoft_not_configured')) and the same
+   * client id on the functions (MICROSOFT_CLIENT_ID). A closed browser resolves
+   * { status: 'cancelled' }; a second call while the browser is open joins the running flow.
+   * An existing account with the same email is joined only when Microsoft vouches for the email
+   * (personal accounts, or a work account with the verified-domain claim); otherwise
+   * AppError('conflict', reason 'email_in_use').
+   */
+  signInWithMicrosoft(): Promise<SignInResult>;
   /** Email/password sign-in (EmailAuthScreen, §25). Errors map via authErrors.ts. */
   signInWithEmail(email: string, password: string): Promise<AuthUser>;
   /**
@@ -560,6 +573,9 @@ export interface AuthService {
   deleteAccountOnServer(): Promise<void>;
   /**
    * Confirms the signed-in user again (fresh auth_time for sensitive operations). Provider order:
+   * a custom-token session (no providerData: Sign in with Microsoft, §31) runs the Microsoft
+   * sign-in again and signs in with a fresh custom token for the SAME uid (another Microsoft
+   * account is 'user_mismatch', never a switch); then
    * apple.com FIRST on iOS when the native module is usable (the Apple sheet; it also refreshes
    * the authorizationCode that revokeAppleTokens() needs - §26), then google.com (the account
    * picker, reauthenticateWithCredential), then password accounts with `password`. 'cancelled'
@@ -641,6 +657,10 @@ export interface AuthContextValue {
   signInWithGoogle(): Promise<SignInActionResult>;
   /** iOS only (§26): authService.signInWithApple() wrapped like signInWithGoogle (cancel is not an error). */
   signInWithApple(): Promise<SignInActionResult>;
+  /** "Continue with Microsoft" is offered: EXPO_PUBLIC_MSAL_CLIENT_ID is set (§31). */
+  canSignInWithMicrosoft: boolean;
+  /** authService.signInWithMicrosoft() wrapped like signInWithGoogle (cancel is not an error; §31). */
+  signInWithMicrosoft(): Promise<SignInActionResult>;
   signInWithEmail(email: string, password: string): Promise<SignInActionResult>;
   signUpWithEmail(email: string, password: string, name: string): Promise<SignInActionResult>;
   /** Throws AppError('pending_writes') when unsynced writes exist and !force (see useSignOutFlow). */
@@ -730,6 +750,8 @@ export const MICROSOFT_OAUTH = {
   defaultTenant: 'common',
   /** Calendars for the Outlook sync (M6), Tasks for the Microsoft To Do sync (M7): one consent. */
   scopes: ['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.ReadWrite', 'Tasks.ReadWrite'],
+  /** "Continue with Microsoft" (§31): identity only, no refresh token, a separate consent from the Outlook sync. */
+  signInScopes: ['openid', 'profile', 'email'],
   authority: (tenant: string): string => `https://login.microsoftonline.com/${tenant}/v2.0`,
 } as const;
 
@@ -1877,6 +1899,7 @@ export interface PurchasesService {
 export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string; response: string }>> = {
   assistant: { request: 'assistantRequestSchema', response: 'assistantResponseSchema' },
   deleteAccount: { request: 'deleteAccountRequestSchema', response: 'deleteAccountResponseSchema' },
+  microsoftSignIn: { request: 'microsoftSignInRequestSchema', response: 'microsoftSignInResponseSchema' },
   zoomStatus: { request: 'zoomStatusRequestSchema', response: 'zoomStatusResponseSchema' },
   zoomCreateMeeting: { request: 'zoomCreateMeetingRequestSchema', response: 'zoomCreateMeetingResponseSchema' },
   zoomSyncMeeting: { request: 'zoomSyncMeetingRequestSchema', response: 'zoomSyncMeetingResponseSchema' },

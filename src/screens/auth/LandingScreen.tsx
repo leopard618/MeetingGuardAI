@@ -5,6 +5,10 @@
  *   no quota note (the value props live in onboarding).
  * - "Continue with Google" through useAuth().signInWithGoogle(); the gate switches to onboarding
  *   or the dashboard by itself on success. A closed account picker is not an error.
+ * - "Continue with Microsoft" (useAuth().signInWithMicrosoft(), docs/v1/ARCHITECTURE.md section
+ *   31) sits between Google and email, in the same glass style as the email button, and only when
+ *   the build has a Microsoft client id (useAuth().canSignInWithMicrosoft). A closed browser is as
+ *   silent as a closed Google picker.
  * - On iOS, the official "Continue with Apple" button sits directly above Google (equal
  *   prominence - App Review 4.8) and runs useAuth().signInWithApple(); a dismissed Apple sheet
  *   is as silent as a closed Google picker (AppleSignInButton.tsx, docs/v1/ARCHITECTURE.md
@@ -20,6 +24,7 @@
  * Screen readers get the app name and the promise from the hero spacer.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -58,7 +63,7 @@ const HERO_SCRIM: readonly [string, string] = ['rgba(0,0,0,0)', withAlpha(lightC
 const HERO_SCRIM_STOPS: readonly [number, number] = [0.4, 1];
 /** Dark label on the selected (white) language chip. */
 const ON_HERO_INVERSE = lightColors.onSurface;
-/** Glass fill of the email button on the photo. */
+/** Glass fill of the Microsoft and email buttons on the photo. */
 const ON_HERO_GLASS = withAlpha(lightColors.onPrimary, 0.1);
 
 export function LandingScreen(): ReactElement {
@@ -67,7 +72,7 @@ export function LandingScreen(): ReactElement {
   const insets = useSafeAreaInsets();
   const layout = useResponsive();
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
-  const { signInWithGoogle, signInWithApple } = useAuth();
+  const { signInWithGoogle, signInWithApple, signInWithMicrosoft, canSignInWithMicrosoft } = useAuth();
   const { language, setLanguage, supportedLanguages } = useLanguage();
   const [busy, setBusy] = useState(false);
   // Synchronous re-entry guard: with two provider buttons, same-frame multi-touch can run both
@@ -168,10 +173,26 @@ export function LandingScreen(): ReactElement {
             </GradientSurface>
           </Pressable>
 
+          {canSignInWithMicrosoft ? (
+            <Pressable
+              onPress={() => {
+                void handleSignIn(signInWithMicrosoft);
+              }}
+              disabled={busy}
+              style={({ pressed }) => [styles.glassButton, pressed && styles.pressedDim]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: busy }}
+              testID="landing-microsoft"
+            >
+              <MaterialCommunityIcons name="microsoft" size={componentMetrics.iconInline} color={ON_HERO} style={styles.signInIcon} />
+              <Text style={[styles.signInText, { color: ON_HERO }]}>{t('landing:signIn.microsoft')}</Text>
+            </Pressable>
+          ) : null}
+
           <Pressable
             onPress={() => navigation.navigate('EmailAuth')}
             disabled={busy}
-            style={({ pressed }) => [styles.emailButton, pressed && styles.pressedDim]}
+            style={({ pressed }) => [styles.glassButton, pressed && styles.pressedDim]}
             accessibilityRole="button"
             accessibilityState={{ disabled: busy }}
             testID="landing-email"
@@ -265,7 +286,7 @@ const styles = StyleSheet.create({
   signInIcon: {
     marginRight: spacing.sm,
   },
-  emailButton: {
+  glassButton: {
     minHeight: componentMetrics.buttonHeight,
     borderRadius: radii.full,
     borderWidth: 1,

@@ -46,6 +46,21 @@ export const ASSISTANT_GLOBAL_DAILY_LIMIT = defineInt('ASSISTANT_GLOBAL_DAILY_LI
 export const OPENAI_API_KEY = defineSecret('OPENAI_API_KEY');
 
 /**
+ * Azure "Application (client) ID" of the MeetingGuard registration (docs/v1/SETUP.md §10).
+ * Empty = Sign in with Microsoft disabled (the callable answers failed-precondition).
+ */
+export const MICROSOFT_CLIENT_ID = defineString('MICROSOFT_CLIENT_ID', {
+  default: '',
+  description: 'Azure app registration client id for Sign in with Microsoft (empty disables it). Must equal EXPO_PUBLIC_MSAL_CLIENT_ID in the app.',
+});
+
+/** Accepted tenant: common | organizations | consumers | a tenant GUID. Must equal EXPO_PUBLIC_MSAL_TENANT in the app. */
+export const MICROSOFT_TENANT = defineString('MICROSOFT_TENANT', {
+  default: 'common',
+  description: 'Microsoft tenant accepted by Sign in with Microsoft: common | organizations | consumers | a tenant GUID. Must equal EXPO_PUBLIC_MSAL_TENANT in the app.',
+});
+
+/**
  * OpenAI pricing for the admin dashboard's estimated-cost tile, in USD per MILLION tokens
  * (numeric strings; defineString because params have no float type). "0" on either side of the
  * pair that a token kind needs means "pricing not configured": adminGetStats then returns

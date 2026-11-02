@@ -477,6 +477,9 @@ FUNCTIONS_REGION=us-central1
 OPENAI_MODEL=gpt-5.4-mini
 OPENAI_REASONING_EFFORT=low
 ASSISTANT_GLOBAL_DAILY_LIMIT=5000
+# Sign in with Microsoft (§10.6); empty = disabled
+MICROSOFT_CLIENT_ID=
+MICROSOFT_TENANT=common
 ```
 
 | Param | Meaning |
@@ -778,6 +781,33 @@ Both values are public identifiers (like the Google client IDs): they may appear
       MeetingGuard within one sync, and a meeting created in MeetingGuard appears in Outlook.
 - [ ] The "Microsoft To Do" card appears under the Outlook card; "Sync tasks with To Do" lists the
       account's lists and, once started, a task created in the app appears in the chosen list.
+
+### 10.6 Continue with Microsoft (sign-in; docs/v1/ARCHITECTURE.md §31)
+
+The same registration also signs users IN to the app ("Continue with Microsoft" on the Landing
+screen). The app sends the Microsoft id_token to the `microsoftSignIn` function, which verifies it
+and answers with a Firebase custom token; no Firebase console provider is needed and no secret.
+
+1. **Azure**: nothing new when §10.1 and §10.2 are done. The sign-in asks only for `openid profile
+   email` (the `email` permission is in the registration's defaults; add **Microsoft Graph ->
+   Delegated -> email** if it is missing). Optional, recommended for work and school accounts:
+   **Token configuration -> Add optional claim -> ID -> xms_edov** ("email domain owner verified"),
+   which lets such a sign-in join an existing account with the same address instead of asking the
+   user to verify the email.
+2. **Functions**: add the client id to `functions/.env.<project-id>` (§6.3) and deploy:
+
+   ```dotenv
+   MICROSOFT_CLIENT_ID=00000000-0000-0000-0000-000000000000
+   MICROSOFT_TENANT=common
+   ```
+
+   Both must equal `EXPO_PUBLIC_MSAL_CLIENT_ID` / `EXPO_PUBLIC_MSAL_TENANT` of the app build. An
+   empty `MICROSOFT_CLIENT_ID` keeps the function deployed but disabled (the app shows "Microsoft
+   sign-in isn't set up").
+3. **Firestore rules**: the `microsoftIdentities` collection is server-only; deploy the rules with
+   the build (`npm run deploy:rules`).
+4. **Check**: Landing shows "Continue with Microsoft" when the app has the client id; a personal
+   Microsoft account signs in and lands on the dashboard (docs/v1/TESTING.md T25).
 
 ---
 

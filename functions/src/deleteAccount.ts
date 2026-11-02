@@ -29,6 +29,7 @@ import { HttpsError, onCall } from 'firebase-functions/https';
 import { FUNCTIONS_REGION } from './config';
 import { adminAuth, adminDb } from './firebase';
 import { ACCOUNT_DELETIONS_COLLECTION } from './maintenance/core';
+import { MICROSOFT_IDENTITIES_COLLECTION } from './microsoftSignIn';
 import { deleteAccountRequestSchema, type DeleteAccountResponse } from './shared/aiContract';
 import { deleteWhatsAppDataForUid, firestoreLinkStore } from './whatsapp/link';
 import { ZOOM_OWNERS_COLLECTION } from './zoom/handler';
@@ -54,6 +55,11 @@ export interface AccountDeletionPorts {
    * record (this function holds no Zoom secrets; an owner script deletes the host-side meetings).
    */
   deleteZoomRegistry(uid: string): Promise<void>;
+  /**
+   * Removes the user's Sign in with Microsoft identities (microsoftIdentities/{oid} with this
+   * uid; docs/v1/ARCHITECTURE.md §31), so the Microsoft account can sign up afresh. Idempotent.
+   */
+  deleteMicrosoftIdentities(uid: string): Promise<void>;
 }
 
 export async function deleteAccountData(uid: string, ports: AccountDeletionPorts, now: Date = new Date()): Promise<DeleteAccountResponse> {
@@ -65,6 +71,7 @@ export async function deleteAccountData(uid: string, ports: AccountDeletionPorts
   await ports.recursiveDelete(`usage/${uid}`);
   await ports.deleteWhatsAppData(uid);
   await ports.deleteZoomRegistry(uid);
+  await ports.deleteMicrosoftIdentities(uid);
   await ports.deleteAuthUser(uid);
   // Late writes accepted between the first pass and the Auth deletion (see the header).
   await ports.recursiveDelete(`users/${uid}`);
@@ -119,6 +126,15 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
         await batch.commit();
       }
       await db.collection(ACCOUNT_DELETIONS_COLLECTION).doc(uid).set({ zoomMeetingIds: ids }, { merge: true });
+    },
+    async deleteMicrosoftIdentities(uid) {
+      const snapshot = await db.collection(MICROSOFT_IDENTITIES_COLLECTION).where('uid', '==', uid).select().get();
+      if (snapshot.empty) return;
+      for (let start = 0; start < snapshot.docs.length; start += 400) {
+        const batch = db.batch();
+        for (const document of snapshot.docs.slice(start, start + 400)) batch.delete(document.ref);
+        await batch.commit();
+      }
     },
   };
 }
