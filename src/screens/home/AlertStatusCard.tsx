@@ -4,17 +4,20 @@
  * exact-alarm setting and the Do Not Disturb override of maximum alerts. Everything links to
  * Settings > Alerts, where the full settings live.
  *
- * MG Indigo: a neutral Card under a SectionHeader; the on/off state is a success / warning Badge
- * plus a tinted bell circle (never color alone - the text says it too).
+ * MG Indigo (2026-11-01 dashboard redesign): one compact pressable row card (the whole card opens
+ * the alert settings; the chevron says so): a bell on the primary gradient when alerts are on
+ * (a muted bell-off circle when off), the state in titleM, intensity and scheduled count under
+ * it, a success / warning Badge (never color alone - the text says it too), then the next alert
+ * and, only when something needs the user, the permission / exact-alarm / Do Not Disturb lines
+ * with their buttons.
  */
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
-import { Badge, Card, MGButton, SectionHeader } from '../../components/ui';
+import { Badge, Card, GradientSurface, Icon, MGButton, SectionHeader } from '../../components/ui';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import type { Meeting, Preferences } from '../../core/types';
@@ -36,7 +39,7 @@ export interface AlertStatusCardProps {
 
 export function AlertStatusCard({ preferences, meetings, now, onOpenSettings }: AlertStatusCardProps): ReactElement {
   const t = useT();
-  const { colors } = useAppTheme();
+  const { colors, onGradient } = useAppTheme();
   const fmt = useFormatters();
   const { pending, permission, isLoading, refresh } = usePendingAlerts();
   const enabled = preferences.alertEnabled;
@@ -78,26 +81,26 @@ export function AlertStatusCard({ preferences, meetings, now, onOpenSettings }: 
   const notifications = permission?.notifications ?? null;
   const blocked = notifications === 'denied' && permission?.canAskAgain === false;
   const canRequest = notifications !== null && notifications !== 'granted' && !blocked;
-  const permissionText =
-    notifications === null
-      ? isLoading
-        ? t('home:alerts.permission.checking')
-        : null
-      : t(`home:alerts.permission.${notifications}`);
   const permissionProblem = notifications !== null && notifications !== 'granted';
+  // The "allowed" line is noise on a compact card; problems (and the pending check) still show.
+  const permissionText =
+    notifications === null ? (isLoading ? t('home:alerts.permission.checking') : null) : permissionProblem ? t(`home:alerts.permission.${notifications}`) : null;
+  const exactAlarmsProblem = Platform.OS === 'android' && (permission?.exactAlarms === 'unknown' || permission?.exactAlarms === 'denied');
 
   return (
     <View>
       <SectionHeader title={t('home:alerts.title')} />
-      <Card testID="alert-status-card">
+      <Card onPress={onOpenSettings} accessibilityLabel={t('home:alerts.settings')} testID="alert-settings-link">
         <View style={styles.statusRow}>
-          <View style={[styles.statusCircle, { backgroundColor: enabled ? colors.primaryContainer : colors.surfaceVariant }]}>
-            <MaterialCommunityIcons
-              name={enabled ? 'bell-ring-outline' : 'bell-off-outline'}
-              size={componentMetrics.iconNav}
-              color={enabled ? colors.onPrimaryContainer : colors.onSurfaceVariant}
-            />
-          </View>
+          {enabled ? (
+            <GradientSurface style={styles.statusCircle}>
+              <Icon name="bell" size={componentMetrics.iconInline} color={onGradient.primary} />
+            </GradientSurface>
+          ) : (
+            <View style={[styles.statusCircle, { backgroundColor: colors.surfaceVariant }]}>
+              <Icon name="bellOff" size={componentMetrics.iconInline} color={colors.onSurfaceVariant} />
+            </View>
+          )}
           <View style={styles.flex}>
             <Text variant="titleMedium" testID="alert-status">
               {t(enabled ? 'home:alerts.on' : 'home:alerts.off')}
@@ -113,11 +116,12 @@ export function AlertStatusCard({ preferences, meetings, now, onOpenSettings }: 
               </Text>
             )}
           </View>
-          <Badge label={t(enabled ? 'home:alerts.badgeOn' : 'home:alerts.badgeOff')} tone={enabled ? 'success' : 'warning'} />
+          <Badge label={t(enabled ? 'home:alerts.badgeOn' : 'home:alerts.badgeOff')} tone={enabled ? 'success' : 'warning'} style={styles.badge} />
+          <Icon name="chevronRight" size={componentMetrics.iconInline} color={colors.onSurfaceVariant} />
         </View>
 
         {enabled ? (
-          <Text variant="bodyMedium" style={styles.line} testID="next-alert">
+          <Text variant="bodySmall" style={[styles.line, { color: colors.onSurfaceVariant }]} testID="next-alert">
             {nextAlertText ?? (isLoading ? '' : t('home:alerts.noneScheduled'))}
           </Text>
         ) : null}
@@ -151,7 +155,7 @@ export function AlertStatusCard({ preferences, meetings, now, onOpenSettings }: 
           </View>
         ) : null}
 
-        {enabled && Platform.OS === 'android' && (permission?.exactAlarms === 'unknown' || permission?.exactAlarms === 'denied') ? (
+        {enabled && exactAlarmsProblem ? (
           <View style={styles.line}>
             <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
               {t('home:alerts.exactAlarms.hint')}
@@ -186,10 +190,6 @@ export function AlertStatusCard({ preferences, meetings, now, onOpenSettings }: 
             ) : null}
           </View>
         ) : null}
-
-        <MGButton variant="outline" size="sm" icon="tune" style={styles.settings} onPress={onOpenSettings} testID="alert-settings-link">
-          {t('home:alerts.settings')}
-        </MGButton>
       </Card>
     </View>
   );
@@ -210,6 +210,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  badge: {
+    borderRadius: radii.full,
   },
   line: {
     marginTop: spacing.md,
@@ -217,9 +221,5 @@ const styles = StyleSheet.create({
   action: {
     alignSelf: 'flex-start',
     marginTop: spacing.xs,
-  },
-  settings: {
-    marginTop: spacing.md,
-    alignSelf: 'flex-start',
   },
 });

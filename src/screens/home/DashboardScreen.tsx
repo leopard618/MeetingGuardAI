@@ -10,10 +10,12 @@
  * - insights computed on the device, "Ask the assistant" and the full insights screen.
  * Pull to refresh flushes the outbox, re-reads the meetings and runs a calendar sync.
  *
- * MG Indigo hierarchy (2026-10-30 refresh): a big greeting (headlineL, date in bodyM) with no app
- * bar above it, three stat tiles (today / tasks due / this week), THE focal card on the primary
- * gradient (NextMeetingCard), everything else neutral elevated Cards under sentence-case
- * SectionHeaders; blocks and rows reveal with the kit's mount animation. A load failure with nothing
+ * MG Indigo hierarchy (2026-11-01 redesign): a big greeting (headlineL, date in bodyM) under a
+ * header that shows no title on this screen, ONE glass stat strip (today / tasks due / this week),
+ * THE focal card on the primary gradient with the orbit-ring motif (NextMeetingCard), a row of
+ * four round quick actions, the tasks list with pill statuses, the open timeline list, the
+ * compact alert row and the week card with its mini bar chart; blocks and rows reveal with the
+ * kit's mount animation. A load failure with nothing
  * cached shows ErrorState; cached content + failure shows an error Banner (ARCHITECTURE §13).
  */
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -34,7 +36,7 @@ import { useAuth } from '../../services/auth';
 import { calendarSyncEngine } from '../../services/calendar';
 import { useMeetings, usePreferences, useTasks } from '../../services/data';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
-import { computeDashboardSummary, weekStartForLanguage, type InsightContext } from '../insights/meetingInsights';
+import { computeDashboardSummary, computePeriodInsights, weekStartForLanguage, type InsightContext } from '../insights/meetingInsights';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
 import { isDueToday } from '../tasks/tasksModel';
@@ -109,6 +111,8 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   // The summary counts the same occurrence rows the timeline shows (a weekly series counts every
   // occurrence of this week, not just its stored master).
   const summary = useMemo(() => computeDashboardSummary(displayMeetings, context), [displayMeetings, context]);
+  // Per-day load of the current week for the week card's chart (same occurrence rows).
+  const week = useMemo(() => computePeriodInsights(displayMeetings, 'week', context), [displayMeetings, context]);
   const { current, next } = useMemo(() => findNowAndNext(displayMeetings, now), [displayMeetings, now]);
   const nextAllDay = useMemo(() => findNextAllDay(displayMeetings, context, next), [displayMeetings, context, next]);
   // Nothing could be read (first launch offline, permission denied): say so instead of showing
@@ -221,6 +225,7 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
           onNewManual={() => navigation.navigate('CreateMeeting')}
           onNewWithAi={() => navigation.navigate('AIChat')}
           onWhatsApp={() => navigation.navigate('WhatsAppConnect')}
+          onNotes={() => navigation.navigate('Notes')}
         />
       </Reveal>
       {loadFailed ? null : (
@@ -261,6 +266,9 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
       {loadFailed ? null : (
         <InsightsSummaryCard
           summary={summary}
+          days={week.days}
+          todayDate={todayKey}
+          locale={language === 'es' ? 'es-ES' : 'en-US'}
           onAskAssistant={() => navigation.navigate('AIChat', { prefill: t('home:insights.askPrompt') })}
           onSeeAll={() => navigation.navigate('AIInsights')}
         />

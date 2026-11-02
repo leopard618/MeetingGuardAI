@@ -11,6 +11,13 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
+- **Dashboard redesign**: one glass stat strip instead of three tiles, the next-meeting card with
+  the welcome image's orbit rings, a start-time pill, a progress bar while a meeting is running
+  and the first participants' initials, a row of four round quick actions (new meeting, new with
+  AI, WhatsApp, notes), a lighter tasks list with status pills, today's schedule as an open list
+  with colored accent bars, a compact alert row that opens the alert settings, and a "Your week"
+  card with a seven-day meeting-time chart. The header shows no title on the dashboard; section
+  titles across the app are now bolder (titleM onSurface).
 - **New welcome image**: the sign-in screen opens on the brand image (the mark, the app name and
   "Never Miss What Matters." over a night office) with only the sign-in buttons and the Terms and
   Privacy links below it; the old photo, logo, headline, feature list, quota note and white card

@@ -307,18 +307,34 @@ radii only from tokens; hierarchy = one focal element per screen.
   buttons `MGButton tonal`; preview swatches from alert tokens.
 
 ### Group B — home, insights
-- **DashboardScreen**: greeting headlineL + date bodyM onSurfaceVariant; **NextMeetingCard is the
-  single focal card**: `Card accent="primary"` (primaryContainer/onPrimaryContainer), title
-  titleM, countdown headlineS tabular-nums, meta bodyS, Join = `MGButton` filled sm; all other
-  sections stay neutral `Card`s with `SectionHeader`s (fixes audit #13 "six identical cards");
-  error box → `ErrorState` (only when nothing cached — ARCHITECTURE §13 rule), empty →
-  `EmptyState`, first load → skeleton cards.
-- **QuickActions**: 3 tiles across; icon 24 in 40px primaryContainer circle, label labelL, hint
-  bodyS onSurfaceVariant — remove the 2-line clamp and any fixed tile height (minHeight +
-  stretch) so ES + 1.3× scale wraps instead of clipping (audit #19); ripple primary@10%.
-- **TodayTimelineRow**: time rail labelM tabular-nums onSurfaceVariant (minWidth, not fixed
-  width); 8px dot in source color (§2 map; current meeting = primary dot + card tinted
-  surfaceContainerHigh); row card r-md p-12. Density exception: the timeline's meeting titles
+- **DashboardScreen** (redesign 2026-11-01): the header shows no title on this screen; greeting
+  headlineL + date bodyM onSurfaceVariant over the aurora; **StatsRow** is one glass strip (three
+  segments: 30px tinted icon circle, titleL tabular value, labelS label, hairline separators);
+  **NextMeetingCard is the single focal card**: `Card variant="gradient"` with `OrbitRings`
+  (the welcome image's rings) fading top-right and a `Shimmer`, glass label + start-time pills,
+  title headlineS, countdown headlineL tabular-nums, a 4dp elapsed bar for the meeting happening
+  now, participant initials (max 3, "+N"), Join = `MGButton inverse` sm, Details ghost; all
+  other sections are neutral `Card`s under `SectionHeader`s (titleM onSurface); error box →
+  `ErrorState` (only when nothing cached — ARCHITECTURE §13 rule), empty → `EmptyState`,
+  first load → skeleton cards.
+- **QuickActions**: a row of four 56px round buttons with labelM labels: new meeting (primary
+  gradient, plus), new with AI (ai gradient, sparkles), WhatsApp (tonal; disabled with a
+  "Coming soon" caption until the bot is enabled), notes (tonal); PressableScale feedback, labels
+  wrap instead of clipping.
+- **TasksTodayCard**: header row titleM + neutral count pill + "View all" action; rows = 24px
+  rounded-square checkbox (error border when overdue), title bodyL, status `Badge` (error
+  "Overdue" / neutral time or "Today"), hairline between rows.
+- **AlertStatusCard**: one pressable row card (the card opens Settings > Alerts, chevron at the
+  right): bell on the primary gradient when on / bell-off on surfaceVariant when off, state
+  titleM, intensity + scheduled count bodyS, success / warning Badge; the next alert and only the
+  problem lines (permission, exact alarms, Do Not Disturb) below.
+- **InsightsSummaryCard ("Your week")**: week count headlineS + time bodyS, today count at the
+  right, `MiniBars` (7 days, today on the gradient, weekday initials), then the rest-of-week
+  lines and the two buttons.
+- **TodayTimelineRow**: an open list, no bordered cards: start time titleS tabular-nums (minWidth,
+  not fixed width), 4px accent bar in source color (§2 map; current meeting = primary bar + row
+  tinted surfaceContainerHigh; conflict = error bar), title titleS, range bodyS, state pill,
+  chevron; hairline between rows. Density exception: the timeline's meeting titles
   stay titleS (not the §3 titleM row-title default) — the compact rail rows earn the smaller
   size; the meetings list keeps titleM for the same content.
 - **OfflineBanner** → `Banner tone="warning"`; **AlertStatusCard** → Card, status via `Badge`

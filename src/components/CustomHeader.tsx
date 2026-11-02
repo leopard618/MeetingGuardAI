@@ -6,7 +6,8 @@
  * with no hairline, so a screen reads as one surface with a bold title at the top:
  * - Left: back arrow when the stack can go back, otherwise the logo (goes to the dashboard).
  * - Title: navigation:screens.<routeName> in the live language (titleL, tight tracking), else the
- *   app name.
+ *   app name. The dashboard shows no title (its greeting is the title), only the logo and the
+ *   right-hand controls.
  * - Right: the EN <-> ES pill (instant, saved as the user's choice) and the account avatar (the
  *   user's initial on the primary gradient), which opens the menu. The theme switch lives in the
  *   menu and in Settings. 44dp targets, Feather icons, onSurface@12% borderless ripples.
@@ -58,7 +59,7 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
   const insets = useSafeAreaInsets();
 
   const appName = t('common:app.name');
-  const displayTitle = title !== undefined && title in ROUTES ? t(`navigation:screens.${title}`) : appName;
+  const displayTitle = title === 'Dashboard' ? '' : title !== undefined && title in ROUTES ? t(`navigation:screens.${title}`) : appName;
   const next = nextLanguage(language, supportedLanguages);
   const initial = avatarInitial(authUser?.displayName, authUser?.email);
   const iconRipple = {
@@ -99,14 +100,18 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
           </Pressable>
         )}
 
-        <Text
-          style={[styles.title, { color: colors.onSurface }]}
-          numberOfLines={1}
-          accessibilityRole="header"
-          maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE}
-        >
-          {displayTitle}
-        </Text>
+        {displayTitle ? (
+          <Text
+            style={[styles.title, { color: colors.onSurface }]}
+            numberOfLines={1}
+            accessibilityRole="header"
+            maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE}
+          >
+            {displayTitle}
+          </Text>
+        ) : (
+          <View style={styles.title} />
+        )}
 
         <Pressable
           onPress={() => {

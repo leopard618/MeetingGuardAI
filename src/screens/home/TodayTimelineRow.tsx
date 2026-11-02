@@ -3,17 +3,20 @@
  * (overlap in the error color, "starts right after" with a tertiary icon, always with an icon and
  * text so the meaning never depends on color alone). Tapping opens the meeting.
  *
- * MG Indigo: the rail dot takes the meeting's source color (§2 map), the meeting happening now
- * gets a primary dot and a surfaceContainerHigh-tinted card; conflicts keep the error border.
+ * MG Indigo (2026-11-01 dashboard redesign): an open schedule list instead of bordered cards.
+ * Bold tabular start time on the left, a 4dp accent bar in the meeting's source color (§2 map;
+ * primary for the meeting happening now, error for a conflict), title and range, then the state
+ * pill and hints. The row happening now sits on a surfaceContainerHigh tint; rows are separated
+ * by a hairline (none after the last).
  */
 import type { ReactElement } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
-import { Badge, Icon } from '../../components/ui';
+import { Badge, Icon, PressableScale } from '../../components/ui';
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
-import { componentMetrics, pressedOpacity, radii, sourceColorIndex, spacing, useAppTheme } from '../../theme';
+import { componentMetrics, radii, sourceColorIndex, spacing, useAppTheme } from '../../theme';
 import { endMs } from '../insights/meetingInsights';
 import { useFormatters } from '../shared/useFormatters';
 import type { TimelineItem } from './homeModel';
@@ -26,12 +29,13 @@ export interface TodayTimelineRowProps {
 
 export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps): ReactElement {
   const t = useT();
-  const { colors, elevated } = useAppTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const { meeting, state, overlapsWith, followsRightAfter } = item;
   const cancelled = meeting.status === 'cancelled';
   const conflict = !cancelled && overlapsWith.length > 0;
   const isNow = state === 'now' && !cancelled;
+  const dimmed = state === 'past' || cancelled;
 
   const timeLabel = meeting.allDay ? t('home:today.allDay') : fmt.time(meeting.startAt);
   const rangeLabel = meeting.allDay ? '' : `${fmt.time(meeting.startAt)} - ${fmt.time(new Date(endMs(meeting)))}`;
@@ -49,42 +53,35 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
   const rightAfterText = followsRightAfter ? t('home:today.rightAfter', { title: followsRightAfter.title }) : '';
   const a11yState = [stateLabel, conflict ? overlapText : '', !cancelled ? rightAfterText : ''].filter(Boolean).join('. ');
 
-  const dotColor = isNow ? colors.primary : colors.chart[sourceColorIndex[meeting.source]];
-  // Conflict cards stay on surface so the error border and text keep their checked contrast.
-  const tinted = isNow && !conflict;
+  const barColor = conflict ? colors.error : isNow ? colors.primary : colors.chart[sourceColorIndex[meeting.source]];
 
   return (
-    <Pressable
+    <PressableScale
       onPress={() => onOpen(meeting)}
       accessibilityRole="button"
       accessibilityLabel={t('home:today.itemA11y', { time: meeting.allDay ? timeLabel : rangeLabel, title: meeting.title, state: a11yState })}
-      style={({ pressed }) => [styles.row, pressed && Platform.OS !== 'android' && styles.pressed]}
+      style={[
+        styles.row,
+        isNow && { backgroundColor: colors.surfaceContainerHigh },
+        !isLast && !isNow && [styles.rowDivider, { borderBottomColor: colors.outlineVariant }],
+      ]}
       testID={`timeline-${meeting.id}`}
     >
       <View style={styles.timeColumn}>
-        <Text variant="labelMedium" style={[styles.time, { color: colors.onSurfaceVariant }]} numberOfLines={2}>
+        <Text
+          variant={meeting.allDay ? 'labelMedium' : 'titleSmall'}
+          style={[styles.time, { color: dimmed ? colors.onSurfaceVariant : colors.onSurface }]}
+          numberOfLines={2}
+        >
           {timeLabel}
         </Text>
       </View>
-      <View style={styles.rail}>
-        <View style={[styles.dot, { backgroundColor: dotColor }]} />
-        {!isLast ? <View style={[styles.line, { backgroundColor: colors.outlineVariant }]} /> : null}
-      </View>
-      <View
-        style={[
-          styles.content,
-          elevated,
-          tinted && { backgroundColor: colors.surfaceContainerHigh },
-          conflict && [styles.conflictBorder, { borderColor: colors.error }],
-        ]}
-      >
+      <View style={[styles.bar, { backgroundColor: barColor }, dimmed && styles.barDimmed]} />
+      <View style={styles.content}>
         <Text
           variant="titleSmall"
           numberOfLines={2}
-          style={[
-            (state === 'past' || cancelled) && { color: colors.onSurfaceVariant },
-            cancelled && styles.cancelled,
-          ]}
+          style={[dimmed && { color: colors.onSurfaceVariant }, cancelled && styles.cancelled]}
         >
           {meeting.title}
         </Text>
@@ -111,58 +108,49 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
           </View>
         ) : null}
       </View>
-    </Pressable>
+      <Icon name="chevronRight" size={componentMetrics.iconMeta} color={colors.onSurfaceVariant} style={styles.chevron} />
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'stretch',
-    borderRadius: radii.md,
+    alignItems: 'center',
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
-  pressed: {
-    opacity: pressedOpacity,
+  rowDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderRadius: 0,
   },
   timeColumn: {
-    minWidth: 56,
-    paddingTop: spacing.md,
+    minWidth: 60,
     paddingRight: spacing.xs,
   },
   time: {
     fontVariant: ['tabular-nums'],
   },
-  rail: {
-    width: spacing.lg,
-    alignItems: 'center',
-  },
-  dot: {
-    width: componentMetrics.sourceDotSize,
-    height: componentMetrics.sourceDotSize,
+  bar: {
+    width: componentMetrics.accentBarWidth,
+    alignSelf: 'stretch',
+    minHeight: 36,
     borderRadius: radii.full,
-    marginTop: spacing.lg,
+    marginRight: spacing.md,
   },
-  line: {
-    flex: 1,
-    width: 2,
-    marginTop: spacing.xs,
+  barDimmed: {
+    opacity: 0.45,
   },
   content: {
     flex: 1,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    padding: spacing.md,
-    marginLeft: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  conflictBorder: {
-    borderWidth: 1.5,
   },
   cancelled: {
     textDecorationLine: 'line-through',
   },
   badge: {
     marginTop: spacing.xs,
+    borderRadius: radii.full,
   },
   hintRow: {
     flexDirection: 'row',
@@ -172,5 +160,8 @@ const styles = StyleSheet.create({
   hintText: {
     marginLeft: spacing.sm,
     flex: 1,
+  },
+  chevron: {
+    marginLeft: spacing.sm,
   },
 });

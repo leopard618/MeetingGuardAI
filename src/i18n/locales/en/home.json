@@ -38,7 +38,9 @@
     "joinA11y": "Join {{title}}",
     "details": "Details",
     "detailsA11y": "Details of {{title}}",
-    "openLinkFailed": "The meeting link could not be opened."
+    "openLinkFailed": "The meeting link could not be opened.",
+    "participants_one": "{{count}} participant",
+    "participants_other": "{{count}} participants"
   },
   "today": {
     "title": "Today",
@@ -96,7 +98,7 @@
     "settings": "Alert settings"
   },
   "insights": {
-    "title": "Insights",
+    "title": "Your week",
     "subtitle": "Calculated on this device from your meetings.",
     "today": "Today",
     "thisWeek": "This week",
@@ -115,7 +117,8 @@
     "allClear": "No overlaps, back-to-back meetings or missing links for the rest of the week.",
     "ask": "Ask the assistant",
     "askPrompt": "Look at my meetings for the rest of this week. How should I handle overlaps and back-to-back meetings, and what should I prepare?",
-    "seeAll": "See all insights"
+    "seeAll": "See all insights",
+    "chartA11y": "Meeting time per day this week"
   },
   "actions": {
     "title": "Quick actions",
@@ -127,7 +130,8 @@
     "whatsappHint": "Coming soon",
     "whatsappA11y": "WhatsApp: coming soon, not available yet",
     "whatsappReadyHint": "Create by message",
-    "whatsappReadyA11y": "WhatsApp: create meetings by message. Opens the WhatsApp setup"
+    "whatsappReadyA11y": "WhatsApp: create meetings by message. Opens the WhatsApp setup",
+    "notes": "Notes"
   },
   "tasks": {
     "title": "Tasks",

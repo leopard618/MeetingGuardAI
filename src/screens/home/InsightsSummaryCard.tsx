@@ -1,45 +1,35 @@
 /**
- * Dashboard insights: honest numbers computed on the device (meetings today / this week, meeting
- * time, and what deserves a look in the rest of the week), plus "Ask the assistant" (opens the
- * chat with a prefilled question; nothing is sent until the user taps send) and a link to the
- * full insights screen. Neutral Card under a SectionHeader; values titleM tabular-nums.
+ * Dashboard week card ("Your week"): honest numbers computed on the device. The week's meeting
+ * count and time in large type, a mini bar chart of meeting time per day (today on the primary
+ * gradient, labels in the UI language), what deserves a look in the rest of the week (overlaps,
+ * back-to-back, missing links, preparation tips; each line with an icon and text), "Ask the
+ * assistant" (opens the chat with a prefilled question; nothing is sent until the user taps send)
+ * and a link to the full insights screen. Neutral Card under a SectionHeader.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
-import { Card, MGButton, SectionHeader } from '../../components/ui';
+import { Card, MGButton, MiniBars, SectionHeader } from '../../components/ui';
 import { useT } from '../../i18n';
 import { componentMetrics, spacing, useAppTheme } from '../../theme';
-import type { DashboardSummary } from '../insights/meetingInsights';
+import type { DashboardSummary, DayLoad } from '../insights/meetingInsights';
 import { useFormatters } from '../shared/useFormatters';
+import { weekBars, weekdayInitial } from './homeModel';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 export interface InsightsSummaryCardProps {
   summary: DashboardSummary;
+  /** The current week, one entry per date (computePeriodInsights(..., 'week')). */
+  days: readonly DayLoad[];
+  /** Today's local date ("YYYY-MM-DD"), highlighted in the chart. */
+  todayDate: string;
+  /** BCP 47 tag for the weekday labels ("en-US", "es-ES"). */
+  locale: string;
   onAskAssistant(): void;
   onSeeAll(): void;
-}
-
-function Stat({ label, count, minutes }: { label: string; count: number; minutes: number }): ReactElement {
-  const t = useT();
-  const { colors } = useAppTheme();
-  const fmt = useFormatters();
-  return (
-    <View style={styles.stat} accessible accessibilityLabel={`${label}: ${t('home:insights.meetings', { count })}, ${t('home:insights.time', { duration: fmt.duration(minutes) })}`}>
-      <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
-        {label}
-      </Text>
-      <Text variant="titleMedium" style={styles.statValue}>
-        {t('home:insights.meetings', { count })}
-      </Text>
-      <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-        {t('home:insights.time', { duration: fmt.duration(minutes) })}
-      </Text>
-    </View>
-  );
 }
 
 function Issue({ icon, text, color, testID }: { icon: IconName; text: string; color: string; testID: string }): ReactElement {
@@ -53,23 +43,40 @@ function Issue({ icon, text, color, testID }: { icon: IconName; text: string; co
   );
 }
 
-export function InsightsSummaryCard({ summary, onAskAssistant, onSeeAll }: InsightsSummaryCardProps): ReactElement {
+export function InsightsSummaryCard({ summary, days, todayDate, locale, onAskAssistant, onSeeAll }: InsightsSummaryCardProps): ReactElement {
   const t = useT();
   const { colors } = useAppTheme();
-  const { upcoming } = summary;
+  const fmt = useFormatters();
+  const { upcoming, week, today } = summary;
   const hasIssues = upcoming.overlaps + upcoming.backToBack + upcoming.missingPlace + upcoming.withTips > 0;
+  const bars = weekBars(days, todayDate, locale);
+  const chartA11y = `${t('home:insights.chartA11y')}. ${days
+    .map((day) => `${weekdayInitial(day.date ?? day.key, locale)}: ${t('home:insights.meetings', { count: day.count })}`)
+    .join(', ')}`;
 
   return (
     <View>
       <SectionHeader title={t('home:insights.title')} />
       <Card testID="insights-summary-card">
-        <Text variant="bodySmall" style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-          {t('home:insights.subtitle')}
-        </Text>
-        <View style={styles.stats}>
-          <Stat label={t('home:insights.today')} count={summary.today.count} minutes={summary.today.minutes} />
-          <Stat label={t('home:insights.thisWeek')} count={summary.week.count} minutes={summary.week.minutes} />
+        <View style={styles.headline}>
+          <View style={styles.flex} accessible accessibilityLabel={`${t('home:insights.thisWeek')}: ${t('home:insights.meetings', { count: week.count })}, ${t('home:insights.time', { duration: fmt.duration(week.minutes) })}`}>
+            <Text variant="headlineSmall" style={styles.value}>
+              {t('home:insights.meetings', { count: week.count })}
+            </Text>
+            <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+              {t('home:insights.time', { duration: fmt.duration(week.minutes) })}
+            </Text>
+          </View>
+          <View style={styles.todayStat} accessible accessibilityLabel={`${t('home:insights.today')}: ${t('home:insights.meetings', { count: today.count })}`}>
+            <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
+              {t('home:insights.today')}
+            </Text>
+            <Text variant="titleMedium" style={styles.value}>
+              {t('home:insights.meetings', { count: today.count })}
+            </Text>
+          </View>
         </View>
+        {bars.length > 0 ? <MiniBars bars={bars} height={64} accessibilityLabel={chartA11y} style={styles.chart} testID="week-chart" /> : null}
 
         <Text variant="titleSmall" style={[styles.heading, { color: colors.onSurfaceVariant }]}>
           {t('home:insights.restOfWeek')}
@@ -109,18 +116,22 @@ export function InsightsSummaryCard({ summary, onAskAssistant, onSeeAll }: Insig
 }
 
 const styles = StyleSheet.create({
-  subtitle: {
-    marginBottom: spacing.sm,
-  },
-  stats: {
-    flexDirection: 'row',
-  },
-  stat: {
+  flex: {
     flex: 1,
-    paddingRight: spacing.sm,
   },
-  statValue: {
+  headline: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.md,
+  },
+  todayStat: {
+    alignItems: 'flex-end',
+  },
+  value: {
     fontVariant: ['tabular-nums'],
+  },
+  chart: {
+    marginTop: spacing.lg,
   },
   heading: {
     marginTop: spacing.lg,
