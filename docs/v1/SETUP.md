@@ -806,7 +806,21 @@ and answers with a Firebase custom token; no Firebase console provider is needed
    sign-in isn't set up").
 3. **Firestore rules**: the `microsoftIdentities` collection is server-only; deploy the rules with
    the build (`npm run deploy:rules`).
-4. **Check**: Landing shows "Continue with Microsoft" when the app has the client id; a personal
+4. **IAM, once per project**: minting the Firebase custom token needs the
+   `iam.serviceAccounts.signBlob` permission, which the functions' runtime service account
+   (`<project-number>-compute@developer.gserviceaccount.com`, shown under Cloud Functions ->
+   microsoftSignIn -> Details) does not have by default. Without it every sign-in fails with
+   "The service isn't responding right now" and the function log says "Permission
+   iam.serviceAccounts.signBlob denied". Grant the account the **Service Account Token Creator**
+   role on itself:
+
+   ```bash
+   gcloud iam service-accounts add-iam-policy-binding <project-number>-compute@developer.gserviceaccount.com \n     --member="serviceAccount:<project-number>-compute@developer.gserviceaccount.com" \n     --role="roles/iam.serviceAccountTokenCreator" --project <project-id>
+   ```
+
+   or in the console: IAM & Admin -> IAM -> edit that principal -> add role "Service Account Token
+   Creator" -> Save. The grant takes a minute or two to apply.
+5. **Check**: Landing shows "Continue with Microsoft" when the app has the client id; a personal
    Microsoft account signs in and lands on the dashboard (docs/v1/TESTING.md T25).
 
 ---

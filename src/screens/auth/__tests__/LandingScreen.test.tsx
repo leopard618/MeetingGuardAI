@@ -164,6 +164,26 @@ it('signs in with Microsoft and stays silent when the browser is closed (section
   expect(Alert.alert).not.toHaveBeenCalled();
 });
 
+it('shows the spinner on the Microsoft button, not on Google, while Microsoft signs in', async () => {
+  let finish: (value: { success: boolean; cancelled: boolean }) => void = () => undefined;
+  mockSignInWithMicrosoft.mockReturnValue(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  await renderLanding();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('landing-microsoft'));
+  });
+  expect(screen.getByText('Continue with Google')).toBeTruthy();
+  expect(screen.getAllByText('Signing in...')).toHaveLength(1);
+  expect(screen.queryByText('Continue with Microsoft')).toBeNull();
+  await act(async () => {
+    finish({ success: false, cancelled: true });
+  });
+  expect(screen.getByText('Continue with Microsoft')).toBeTruthy();
+});
+
 it('explains a failed Microsoft sign-in with the localized message from the auth service', async () => {
   mockSignInWithMicrosoft.mockResolvedValueOnce({ success: false, error: 'Microsoft sign-in was not accepted.' });
   await renderLanding();

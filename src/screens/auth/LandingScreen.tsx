@@ -15,6 +15,9 @@
  *   section 26).
  * - EN / ES switch (explicit choice, applied instantly) and separate, screen-reader friendly links
  *   to the Terms and the Privacy Policy (both in the Auth stack).
+ * - While a sign-in runs, every button is disabled and the spinner replaces the icon of the
+ *   provider that is running (busyProvider), so a Microsoft sign-in never shows "Signing in" on
+ *   the Google button.
  * - Scrolls, so it works with large fonts, small phones and landscape.
  *
  * The top half is the brand image (assets/bg.jpg: the mark, the app name and the tagline over a
@@ -55,6 +58,8 @@ const ACTIONS_MAX_WIDTH = 340;
 const ACTIONS_BOTTOM_LIFT = spacing.xxxl + spacing.lg;
 const LANGUAGE_ROW_HEIGHT = 36;
 
+type SignInProvider = 'apple' | 'google' | 'microsoft';
+
 /** Text on the hero image (always dark behind it, whatever the scheme). */
 const ON_HERO = lightColors.onPrimary;
 const ON_HERO_BORDER = withAlpha(lightColors.onPrimary, 0.7);
@@ -74,7 +79,8 @@ export function LandingScreen(): ReactElement {
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
   const { signInWithGoogle, signInWithApple, signInWithMicrosoft, canSignInWithMicrosoft } = useAuth();
   const { language, setLanguage, supportedLanguages } = useLanguage();
-  const [busy, setBusy] = useState(false);
+  const [busyProvider, setBusyProvider] = useState<SignInProvider | null>(null);
+  const busy = busyProvider !== null;
   // Synchronous re-entry guard: with two provider buttons, same-frame multi-touch can run both
   // handlers before the `busy` re-render, and both would read the stale closure state. The ref
   // flips before the first await, so the second press returns immediately.
@@ -84,10 +90,10 @@ export function LandingScreen(): ReactElement {
   const focused = useIsFocused();
 
   // One handler for both providers: a dismissed picker / sheet is not an error (stay silent).
-  const handleSignIn = async (signIn: () => Promise<AuthActionResult>): Promise<void> => {
+  const handleSignIn = async (provider: SignInProvider, signIn: () => Promise<AuthActionResult>): Promise<void> => {
     if (busyRef.current) return;
     busyRef.current = true;
-    setBusy(true);
+    setBusyProvider(provider);
     try {
       const result = await signIn();
       if (result.success || result.cancelled) return;
@@ -98,7 +104,7 @@ export function LandingScreen(): ReactElement {
       Alert.alert(t('landing:signIn.failedTitle'), t(errorMessageKey('unknown')));
     } finally {
       busyRef.current = false;
-      setBusy(false);
+      setBusyProvider(null);
     }
   };
 
@@ -145,7 +151,7 @@ export function LandingScreen(): ReactElement {
         <View style={[styles.actions, { width: Math.min(layout.contentWidth, ACTIONS_MAX_WIDTH) }]}>
           <AppleSignInButton
             onPress={() => {
-              void handleSignIn(signInWithApple);
+              void handleSignIn('apple', signInWithApple);
             }}
             disabled={busy}
             style={styles.appleButton}
@@ -153,7 +159,7 @@ export function LandingScreen(): ReactElement {
 
           <Pressable
             onPress={() => {
-              void handleSignIn(signInWithGoogle);
+              void handleSignIn('google', signInWithGoogle);
             }}
             disabled={busy}
             style={({ pressed }) => [styles.signInHost, pressed ? styles.pressedDim : busy ? styles.pressed : null]}
@@ -162,13 +168,13 @@ export function LandingScreen(): ReactElement {
             testID="landing-sign-in"
           >
             <GradientSurface style={styles.signInButton}>
-              {busy ? (
+              {busyProvider === 'google' ? (
                 <ActivityIndicator color={onGradient.primary} style={styles.signInIcon} />
               ) : (
                 <Ionicons name="logo-google" size={componentMetrics.iconInline} color={onGradient.primary} style={styles.signInIcon} />
               )}
               <Text style={[styles.signInText, { color: onGradient.primary }]}>
-                {busy ? t('landing:signIn.busy') : t('landing:signIn.google')}
+                {busyProvider === 'google' ? t('landing:signIn.busy') : t('landing:signIn.google')}
               </Text>
             </GradientSurface>
           </Pressable>
@@ -176,7 +182,7 @@ export function LandingScreen(): ReactElement {
           {canSignInWithMicrosoft ? (
             <Pressable
               onPress={() => {
-                void handleSignIn(signInWithMicrosoft);
+                void handleSignIn('microsoft', signInWithMicrosoft);
               }}
               disabled={busy}
               style={({ pressed }) => [styles.glassButton, pressed && styles.pressedDim]}
@@ -184,8 +190,14 @@ export function LandingScreen(): ReactElement {
               accessibilityState={{ disabled: busy }}
               testID="landing-microsoft"
             >
-              <MaterialCommunityIcons name="microsoft" size={componentMetrics.iconInline} color={ON_HERO} style={styles.signInIcon} />
-              <Text style={[styles.signInText, { color: ON_HERO }]}>{t('landing:signIn.microsoft')}</Text>
+              {busyProvider === 'microsoft' ? (
+                <ActivityIndicator color={ON_HERO} style={styles.signInIcon} />
+              ) : (
+                <MaterialCommunityIcons name="microsoft" size={componentMetrics.iconInline} color={ON_HERO} style={styles.signInIcon} />
+              )}
+              <Text style={[styles.signInText, { color: ON_HERO }]}>
+                {busyProvider === 'microsoft' ? t('landing:signIn.busy') : t('landing:signIn.microsoft')}
+              </Text>
             </Pressable>
           ) : null}
 
