@@ -50,7 +50,7 @@ export function DashboardHero({ salute, name, dateText, testID = 'dashboard-hero
       colors={gradients.hero}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={[styles.hero, { paddingTop: insets.top + spacing.xs, paddingLeft: insets.left + spacing.sm, paddingRight: insets.right + spacing.sm }]}
+      style={[styles.hero, { paddingTop: insets.top + spacing.xs, paddingLeft: insets.left + spacing.lg, paddingRight: insets.right + spacing.lg }]}
       testID={testID}
     >
       {focused ? <StatusBar style="light" /> : null}
@@ -120,6 +120,8 @@ export function DashboardHero({ salute, name, dateText, testID = 'dashboard-hero
 
 const styles = StyleSheet.create({
   hero: {
+    // Full bleed: the list content is inset by the screen gutter.
+    marginHorizontal: -componentMetrics.screenGutter,
     paddingBottom: CARD_OVERLAP + spacing.lg,
   },
   headerRow: {

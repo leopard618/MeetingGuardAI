@@ -103,7 +103,7 @@ export function InsightsSummaryCard({ summary, lastWeek, days, todayDate, locale
           <StatRow
             icon="calendar"
             value={t('home:insights.meetings', { count: week.count })}
-            compare={t('home:insights.vsLastWeek', { value: t('home:insights.meetings', { count: lastWeek.count }) })}
+            compare={t('home:insights.vsLastWeek', { value: String(lastWeek.count) })}
             delta={weekDelta(week.count, lastWeek.count)}
             testID="week-meetings"
           />

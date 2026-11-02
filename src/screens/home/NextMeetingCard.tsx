@@ -140,8 +140,11 @@ function MeetingBlock({
   const link = meetingJoinLink(meeting);
   const address = meeting.location?.address?.trim() ?? '';
   const progress = running ? elapsedFraction(meeting, now) : null;
-  const dateText = fmt.date(meeting.allDay ? meeting.date ?? meeting.startAt : meeting.startAt, 'medium');
-  const rangeText = meeting.allDay ? t('home:today.allDay') : `${fmt.time(meeting.startAt)} - ${fmt.time(new Date(endMs(meeting)))}`;
+  // "Mon, Nov 2 · 4:00 - 5:00 PM": the day label and the clock range come from the one range formatter.
+  const range = fmt.meetingRange(meeting);
+  const split = range.indexOf(' · ');
+  const dateText = split > 0 ? range.slice(0, split) : range;
+  const rangeText = split > 0 ? range.slice(split + 3) : meeting.allDay ? t('home:today.allDay') : `${fmt.time(meeting.startAt)} - ${fmt.time(new Date(endMs(meeting)))}`;
 
   return (
     <View style={styles.block} testID={testID}>
@@ -171,7 +174,7 @@ function MeetingBlock({
             {countdown.label}
           </Text>
         ) : null}
-        <Text style={[styles.countdown, { color: colors.primary }]} numberOfLines={2} maxFontSizeMultiplier={1.2} testID={`${testID}-countdown`}>
+        <Text style={[styles.countdown, { color: colors.primary }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={1.2} testID={`${testID}-countdown`}>
           {countdown.value}
         </Text>
         {link ? (
@@ -277,7 +280,7 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
 
   return (
     <Card style={styles.card} testID="next-meeting-card">
-      <MaterialCommunityIcons name="calendar-month" size={96} color={withAlpha(colors.primary, 0.1)} style={styles.decoration} accessibilityElementsHidden importantForAccessibility="no" />
+      <MaterialCommunityIcons name="calendar-month" size={96} color={withAlpha(colors.primary, 0.08)} style={styles.decoration} accessibilityElementsHidden importantForAccessibility="no" />
       {current ? (
         <MeetingBlock meeting={current} label={t('home:next.current')} countdown={endsParts(current, now, t, fmt)} running now={now} onOpen={onOpen} onJoin={onJoin} testID="current-meeting" />
       ) : null}
@@ -301,8 +304,8 @@ const styles = StyleSheet.create({
   },
   decoration: {
     position: 'absolute',
-    top: -10,
-    right: -6,
+    top: -30,
+    right: -22,
   },
   block: {
     flexDirection: 'row',
@@ -318,9 +321,10 @@ const styles = StyleSheet.create({
     marginVertical: spacing.xs,
   },
   right: {
-    width: 136,
+    width: 148,
     paddingLeft: spacing.md,
-    justifyContent: 'center',
+    paddingTop: spacing.xxl,
+    justifyContent: 'flex-end',
   },
   label: {
     ...typography.labelM,
@@ -371,7 +375,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.full,
   },
   countdown: {
-    ...typography.headlineM,
+    ...typography.headlineS,
     fontVariant: ['tabular-nums'],
   },
   button: {
