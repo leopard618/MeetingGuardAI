@@ -37,7 +37,7 @@ jest.mock('../../services/auth', () => ({
 async function renderWithProviders(element: ReactElement) {
   await render(
     <I18nProvider>
-      <ThemeProvider>{element}</ThemeProvider>
+      <ThemeProvider initialMode="light">{element}</ThemeProvider>
     </I18nProvider>,
   );
   await act(async () => undefined);
@@ -171,7 +171,7 @@ describe('BottomNavBar', () => {
     expect(screen.getByTestId('bottom-bar')).toBeTruthy();
     expect(screen.getByTestId('bottom-bar-item-Calendar').props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
     expect(screen.getByTestId('bottom-bar-item-Dashboard').props.accessibilityState).toEqual(expect.objectContaining({ selected: false }));
-    expect(screen.getByText('Meetings')).toBeTruthy();
+    expect(screen.getByLabelText('Meetings')).toBeTruthy();
 
     await act(async () => {
       fireEvent.press(screen.getByTestId('bottom-bar-item-Tasks'));
@@ -187,8 +187,8 @@ describe('BottomNavBar', () => {
     await act(async () => {
       await i18n.changeLanguage('es');
     });
-    expect(screen.getByText('Inicio')).toBeTruthy();
-    expect(screen.getByText('Reuniones')).toBeTruthy();
+    expect(screen.getByLabelText('Inicio')).toBeTruthy();
+    expect(screen.getByLabelText('Reuniones')).toBeTruthy();
   });
 
   it('carries the AI assistant as the middle item and stays on the chat screen', async () => {
@@ -197,7 +197,7 @@ describe('BottomNavBar', () => {
     expect(screen.getByTestId('bottom-bar')).toBeTruthy();
     const orb = screen.getByTestId('bottom-bar-item-AIChat');
     expect(orb.props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
-    expect(screen.getByText('AI')).toBeTruthy();
+    expect(screen.getByLabelText('AI')).toBeTruthy();
 
     await act(async () => {
       fireEvent.press(screen.getByTestId('bottom-bar-item-Dashboard'));

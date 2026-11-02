@@ -1,13 +1,17 @@
 {
   "greeting": {
-    "morning": "Buenos días, {{name}}",
-    "afternoon": "Buenas tardes, {{name}}",
-    "evening": "Buenas noches, {{name}}",
+    "salute": {
+      "morning": "Buenos días,",
+      "afternoon": "Buenas tardes,",
+      "evening": "Buenas noches,"
+    },
     "morningNoName": "Buenos días",
     "afternoonNoName": "Buenas tardes",
     "eveningNoName": "Buenas noches"
   },
   "stats": {
+    "title": "Resumen",
+    "viewAll": "Ver todo",
     "today": "Hoy",
     "tasksDue": "Tareas pendientes",
     "thisWeek": "Esta semana"
@@ -40,7 +44,11 @@
     "detailsA11y": "Detalles de {{title}}",
     "openLinkFailed": "No se pudo abrir el enlace de la reunión.",
     "participants_one": "{{count}} participante",
-    "participants_other": "{{count}} participantes"
+    "participants_other": "{{count}} participantes",
+    "now": "Ahora",
+    "starts": "Empieza",
+    "started": "Empezó",
+    "ends": "Termina"
   },
   "today": {
     "title": "Hoy",
@@ -142,5 +150,10 @@
     "overdue": "Atrasada",
     "today": "Hoy",
     "viewAll": "Ver todas las tareas"
+  },
+  "ask": {
+    "placeholder": "Pregúntale lo que quieras al asistente...",
+    "button": "Preguntar al asistente",
+    "a11y": "Pregunta para el asistente"
   }
 }

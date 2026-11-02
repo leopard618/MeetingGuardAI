@@ -2,27 +2,28 @@
  * Floating bottom navigation bar of the Main group (owner: shell). Rendered ONCE under the
  * navigator (src/navigation/RootNavigator.tsx), like the sidebar, so no screen remounts on a tap.
  *
- * - A detached glass pill (translucent surface, faint light border, soft shadow) on the screen
- *   background, 16dp from the sides
- *   and 8dp above the system bar: Home, Meetings, the AI assistant in the middle, Calendar, Tasks
- *   (typed Main routes, BOTTOM_BAR_ITEMS); everything else stays in the menu. A tap goes through
- *   navigateToTopLevel (back to the existing screen instead of pushing another copy).
+ * - A detached pill (surface in light, charcoal in dark, faint border, soft shadow) on the screen
+ *   background, 16dp from the sides and 8dp above the system bar: Home, Meetings, the AI
+ *   assistant in the middle, Calendar, Tasks (typed Main routes, BOTTOM_BAR_ITEMS); everything
+ *   else stays in the menu. A tap goes through navigateToTopLevel (back to the existing screen
+ *   instead of pushing another copy).
+ * - Icons only (the reference style): the active tab is a 44dp circle on the primary gradient
+ *   with a white icon, the others are muted Feather icons. Each item carries its label as the
+ *   accessibility label (shell:bottomBar.items.<route>).
  * - The assistant is a 56dp orb on the `ai` gradient raised above the pill with a colored
- *   floating shadow, a soft glow underneath and tiny sparks twinkling around it; it breathes (1.00 -> 1.06, 2.4 s) until the chat is open and stays still
- *   under "reduce motion". It is on every main screen, the chat included.
- * - Regular tabs: Feather line icons through the kit's Icon; the active tab gets a
- *   secondaryContainer pill that springs in behind the icon and an onSurface label.
+ *   floating shadow, a soft glow underneath and tiny sparks twinkling around it; it breathes
+ *   (1.00 -> 1.06, 2.4 s) until the chat is open and stays still under "reduce motion".
  * - The bar owns the bottom safe-area inset (the Main group gives its screens a 0 bottom inset,
  *   see MainGroup in RootNavigator).
  */
 import { useEffect, useState, type ReactElement } from 'react';
-import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MainStackParamList, RouteName } from '../core/contracts';
 import { useT } from '../i18n';
 import { navigateToTopLevel } from '../navigation/navigationService';
-import { componentMetrics, floatingShadow, motion, radii, softShadow, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../theme';
+import { componentMetrics, floatingShadow, motion, radii, softShadow, spacing, useAppTheme, withAlpha } from '../theme';
 import { Glow, GradientSurface, Icon, PressableScale, Sparkles, useReducedMotion, type IconName } from './ui';
 
 export interface BottomBarItem {
@@ -41,8 +42,7 @@ export const BOTTOM_BAR_ITEMS: readonly BottomBarItem[] = [
   { route: 'Tasks', icon: 'tasks' },
 ];
 
-/** Labels never grow past this multiple of their size (one row per tab). */
-const LABEL_MAX_FONT_SCALE = 1.3;
+const ACTIVE_SIZE = 44;
 const ORB_SIZE = 56;
 const ORB_RAISE = 22;
 /** Square stage around the orb for the glow and the sparks. */
@@ -68,50 +68,35 @@ export interface BottomNavBarProps {
 }
 
 function TabItem({ item, active, label }: { item: BottomBarItem; active: boolean; label: string }): ReactElement {
-  const { colors } = useAppTheme();
+  const { colors, onGradient } = useAppTheme();
   const reduceMotion = useReducedMotion();
-  const [pill] = useState(() => new Animated.Value(active ? 1 : 0));
+  const [pop] = useState(() => new Animated.Value(active ? 1 : 0));
 
   useEffect(() => {
     if (reduceMotion) {
-      pill.setValue(active ? 1 : 0);
+      pop.setValue(active ? 1 : 0);
       return undefined;
     }
-    const animation = Animated.spring(pill, { toValue: active ? 1 : 0, useNativeDriver: true, ...motion.spring });
+    const animation = Animated.spring(pop, { toValue: active ? 1 : 0, useNativeDriver: true, ...motion.spring });
     animation.start();
     return () => animation.stop();
-  }, [active, pill, reduceMotion]);
+  }, [active, pop, reduceMotion]);
 
   return (
     <PressableScale
       onPress={() => navigateToTopLevel(item.route)}
-      android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnIcon), borderless: true }}
       style={styles.item}
       accessibilityRole="tab"
       accessibilityLabel={label}
       accessibilityState={{ selected: active }}
       testID={`bottom-bar-item-${item.route}`}
     >
-      <View style={styles.pillSlot}>
-        <Animated.View
-          style={[
-            styles.pill,
-            {
-              backgroundColor: colors.secondaryContainer,
-              opacity: pill,
-              transform: [{ scaleX: pill.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }],
-            },
-          ]}
-        />
-        <Icon name={item.icon} size={22} color={active ? colors.onSecondaryContainer : colors.onSurfaceVariant} />
+      <View style={styles.slot}>
+        <Animated.View style={[styles.activeCircle, { opacity: pop, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }]}>
+          <GradientSurface style={styles.activeFill} />
+        </Animated.View>
+        <Icon name={item.icon} size={22} color={active ? onGradient.primary : colors.onSurfaceVariant} />
       </View>
-      <Text
-        style={[styles.label, { color: active ? colors.onSurface : colors.onSurfaceVariant }]}
-        numberOfLines={1}
-        maxFontSizeMultiplier={LABEL_MAX_FONT_SCALE}
-      >
-        {label}
-      </Text>
     </PressableScale>
   );
 }
@@ -146,21 +131,14 @@ function AiOrb({ item, active, label }: { item: BottomBarItem; active: boolean; 
       testID={`bottom-bar-item-${item.route}`}
     >
       <View style={styles.orbStage}>
-        <Glow color={colors.primary} size={ORB_STAGE} intensity={active ? 0.5 : 0.32} style={styles.orbGlow} />
+        <Glow color={colors.primary} size={ORB_STAGE} intensity={active ? 0.5 : 0.32} style={styles.orbLayer} />
         <Animated.View style={[styles.orbShadow, { transform: [{ scale: breath }] }]}>
           <GradientSurface variant="ai" style={[styles.orb, { borderColor: active ? withAlpha('#FFFFFF', 0.85) : colors.surface }]}>
             <Icon name="ai" size={26} color={onGradient.ai} />
           </GradientSurface>
         </Animated.View>
-        <Sparkles color={isDarkColor(colors.background) ? '#DCE0FF' : colors.primary} size={ORB_STAGE} style={styles.orbSparks} />
+        <Sparkles color={isDarkColor(colors.background) ? '#DCE0FF' : colors.primary} size={ORB_STAGE} style={styles.orbLayer} />
       </View>
-      <Text
-        style={[styles.label, { color: active ? colors.onSurface : colors.onSurfaceVariant }]}
-        numberOfLines={1}
-        maxFontSizeMultiplier={LABEL_MAX_FONT_SCALE}
-      >
-        {label}
-      </Text>
     </PressableScale>
   );
 }
@@ -187,8 +165,8 @@ export function BottomNavBar({ currentRouteName }: BottomNavBarProps): ReactElem
         style={[
           styles.bar,
           {
-            backgroundColor: isDark ? withAlpha(colors.elevation.level3, 0.92) : withAlpha('#FFFFFF', 0.94),
-            borderColor: isDark ? withAlpha('#FFFFFF', 0.1) : withAlpha('#FFFFFF', 0.9),
+            backgroundColor: isDark ? colors.elevation.level2 : withAlpha('#FFFFFF', 0.96),
+            borderColor: isDark ? withAlpha('#FFFFFF', 0.08) : withAlpha('#FFFFFF', 0.9),
           },
         ]}
         accessibilityRole="tablist"
@@ -216,57 +194,49 @@ const styles = StyleSheet.create({
   },
   bar: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    minHeight: componentMetrics.bottomBarHeight,
+    alignItems: 'center',
+    height: componentMetrics.bottomBarHeight,
     borderRadius: radii.xxl,
     borderWidth: 1,
     paddingHorizontal: spacing.xs,
     ...softShadow,
     overflow: 'visible',
   },
-  orbStage: {
-    width: ORB_STAGE,
-    height: ORB_STAGE,
-    marginTop: -ORB_RAISE - (ORB_STAGE - ORB_SIZE) / 2,
-    marginBottom: -(ORB_STAGE - ORB_SIZE) / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orbGlow: {
-    left: 0,
-    top: 0,
-  },
-  orbSparks: {
-    left: 0,
-    top: 0,
-  },
   item: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-    paddingHorizontal: spacing.xs,
+    justifyContent: 'center',
     minHeight: componentMetrics.touchTargetMin,
   },
-  pillSlot: {
-    width: componentMetrics.bottomBarPillWidth,
-    height: componentMetrics.bottomBarPillHeight,
+  slot: {
+    width: ACTIVE_SIZE,
+    height: ACTIVE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pill: {
+  activeCircle: {
     position: 'absolute',
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
     borderRadius: radii.full,
+    overflow: 'hidden',
   },
-  label: {
-    ...typography.labelS,
-    marginTop: spacing.xs,
-    textAlign: 'center',
+  activeFill: {
+    flex: 1,
+  },
+  orbStage: {
+    width: ORB_STAGE,
+    height: ORB_STAGE,
+    marginTop: -ORB_RAISE - (ORB_STAGE - ORB_SIZE) / 2 + spacing.xs,
+    marginBottom: -(ORB_STAGE - ORB_SIZE) / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orbLayer: {
+    left: 0,
+    top: 0,
   },
   orbShadow: {
     borderRadius: radii.full,

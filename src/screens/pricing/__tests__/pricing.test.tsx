@@ -278,7 +278,7 @@ function LegalStub(): ReactElement {
 async function renderPricing() {
   await render(
     <I18nProvider>
-      <ThemeProvider>
+      <ThemeProvider initialMode="light">
         <PaperProvider>
           <NavigationContainer>
             <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>

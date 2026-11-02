@@ -159,7 +159,8 @@ afterEach(() => {
 
 it('shows the greeting, the meeting in progress and the next one with a live countdown', async () => {
   await renderDashboard();
-  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Good morning, Ana');
+  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Good morning,');
+  expect(screen.getByTestId('dashboard-greeting-name').props.children).toBe('Ana');
   expect(screen.getByTestId('current-meeting-title').props.children).toBe('Design review');
   expect(screen.getByTestId('current-meeting-countdown').props.children).toBe('Ends in 30:00');
   expect(screen.getByTestId('next-meeting-title').props.children).toBe('Vendor call');
@@ -312,7 +313,8 @@ it('shows the offline banner with the number of changes waiting to sync', async 
 it('renders in Spanish', async () => {
   await i18n.changeLanguage('es');
   await renderDashboard();
-  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Buenos días, Ana');
+  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Buenos días,');
+  expect(screen.getByTestId('dashboard-greeting-name').props.children).toBe('Ana');
   expect(screen.getByText('Acciones rápidas')).toBeTruthy();
   expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('Empieza en 20:00');
 });

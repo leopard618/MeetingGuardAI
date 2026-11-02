@@ -45,7 +45,7 @@ const usedKeys = [
   .sort();
 
 const dynamicKeys = [
-  ...['morning', 'afternoon', 'evening'].flatMap((period) => [`home:greeting.${period}`, `home:greeting.${period}NoName`]),
+  ...['morning', 'afternoon', 'evening'].flatMap((period) => [`home:greeting.salute.${period}`, `home:greeting.${period}NoName`]),
   ...ALERT_INTENSITIES.map((intensity) => `home:alerts.intensityName.${intensity}`),
   ...['granted', 'denied', 'undetermined', 'provisional'].map((state) => `home:alerts.permission.${state}`),
   ...MEETING_SOURCES.map((source) => `insights:sources.${source}`),

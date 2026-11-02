@@ -5,7 +5,9 @@
     "openMenu": "Abrir menú",
     "darkMode": "Cambiar a modo oscuro",
     "lightMode": "Cambiar a modo claro",
-    "switchLanguage": "Cambiar el idioma a {{language}}"
+    "switchLanguage": "Cambiar el idioma a {{language}}",
+    "welcome": "Hola de nuevo",
+    "alerts": "Ajustes de avisos"
   },
   "sidebar": {
     "close": "Cerrar menú",

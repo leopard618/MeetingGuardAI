@@ -1,5 +1,6 @@
 /**
- * Theme mode (owner: shell): 'system' (default, follows the OS scheme live), 'light' or 'dark'.
+ * Theme mode (owner: shell): 'dark' (default for a fresh install, the brand look), 'light' or
+ * 'system' (follows the OS scheme live). A saved choice always wins over the default.
  *
  * - The explicit choice is persisted in AsyncStorage (GLOBAL_STORAGE_KEYS.theme, "mg:theme"; the
  *   legacy "theme" key is read once and migrated). It is written only when the user changes it,
@@ -76,7 +77,7 @@ export interface ThemeProviderProps {
   initialMode?: ThemeMode;
 }
 
-export function ThemeProvider({ children, initialMode = 'system' }: ThemeProviderProps): ReactElement {
+export function ThemeProvider({ children, initialMode = 'dark' }: ThemeProviderProps): ReactElement {
   const systemScheme = useColorScheme();
   const [themeMode, setThemeModeState] = useState<ThemeMode>(initialMode);
   const [isLoaded, setIsLoaded] = useState(false);

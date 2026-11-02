@@ -41,6 +41,7 @@ import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
 import { isDueToday } from '../tasks/tasksModel';
 import { AlertStatusCard } from './AlertStatusCard';
+import { AskBar } from './AskBar';
 import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay } from '../meetings/occurrences';
 import { StatsRow } from './StatsRow';
 import { buildTodayTimeline, dayPeriodOf, findNextAllDay, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
@@ -63,8 +64,8 @@ type Props = StackScreenProps<RootStackParamList, 'Dashboard'>;
 const DASHBOARD_PAST_DAYS = 7;
 const DASHBOARD_FUTURE_DAYS = 370;
 
-/** "Good morning, Ana" in the UI language for the hour in `timeZone`. */
-function greetingText(now: Date, timeZone: string, displayName: string | null | undefined, t: ReturnType<typeof useT>): string {
+/** "Good morning," + "Ana" (the name on its own line, in accent) for the hour in `timeZone`. */
+export function greetingParts(now: Date, timeZone: string, displayName: string | null | undefined, t: ReturnType<typeof useT>): { salute: string; name: string | null } {
   const name = firstNameOf(displayName);
   let hour = now.getHours();
   try {
@@ -73,7 +74,7 @@ function greetingText(now: Date, timeZone: string, displayName: string | null | 
     // Keep the runtime's hour.
   }
   const period = dayPeriodOf(hour);
-  return name ? t(`home:greeting.${period}`, { name }) : t(`home:greeting.${period}NoName`);
+  return name ? { salute: t(`home:greeting.salute.${period}`), name } : { salute: t(`home:greeting.${period}NoName`), name: null };
 }
 
 export function DashboardScreen({ navigation }: Props): ReactElement {
@@ -173,17 +174,27 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
     [openMeeting, timeline.length],
   );
 
+  const greeting = greetingParts(now, timeZone, authUser?.displayName, t);
   const header = (
     <View>
       <AuroraBackdrop style={styles.aurora} />
       <Reveal style={styles.greeting}>
-        <Text variant="headlineLarge" accessibilityRole="header" numberOfLines={2} testID="dashboard-greeting">
-          {greetingText(now, timeZone, authUser?.displayName, t)}
+        <Text variant="headlineLarge" accessibilityRole="header" numberOfLines={1} testID="dashboard-greeting">
+          {greeting.salute}
         </Text>
+        {greeting.name ? (
+          <Text variant="headlineLarge" style={{ color: colors.primary }} numberOfLines={1} testID="dashboard-greeting-name">
+            {greeting.name}
+          </Text>
+        ) : null}
         <Text variant="bodyMedium" style={[styles.greetingDate, { color: colors.onSurfaceVariant }]}>
           {capitalizeFirst(fmt.date(now, 'full'))}
         </Text>
       </Reveal>
+      <Reveal delay={40}>
+        <AskBar onAsk={(question) => navigation.navigate('AIChat', question ? { prefill: question } : undefined)} />
+      </Reveal>
+      <SectionHeader title={t('home:stats.title')} action={{ label: t('home:stats.viewAll'), onPress: () => navigation.navigate('TotalMeetings') }} style={styles.overviewHeader} />
       <StatsRow
         meetingsToday={showData ? summary.today.count : null}
         tasksDue={showData ? tasksDue : null}
@@ -308,6 +319,9 @@ const styles = StyleSheet.create({
   },
   greetingDate: {
     marginTop: spacing.xs,
+  },
+  overviewHeader: {
+    marginTop: spacing.md,
   },
   errorBanner: {
     marginBottom: spacing.md,

@@ -101,7 +101,7 @@ function Home({ navigation }: { navigation: { navigate(name: string): void } }) 
 async function renderWith(name: 'Privacy' | 'Terms', component: () => React.ReactElement, withHome = false) {
   await render(
     <I18nProvider>
-      <ThemeProvider>
+      <ThemeProvider initialMode="light">
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             {withHome ? <Stack.Screen name="Home" component={Home} /> : null}

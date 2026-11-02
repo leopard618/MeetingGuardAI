@@ -35,7 +35,7 @@ jest.mock('expo-localization', () => ({
 async function renderKit(element: ReactElement) {
   await render(
     <I18nProvider>
-      <ThemeProvider>
+      <ThemeProvider initialMode="light">
         <PaperProvider theme={PAPER_THEMES.light}>{element}</PaperProvider>
       </ThemeProvider>
     </I18nProvider>,

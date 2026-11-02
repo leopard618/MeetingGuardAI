@@ -307,16 +307,24 @@ radii only from tokens; hierarchy = one focal element per screen.
   buttons `MGButton tonal`; preview swatches from alert tokens.
 
 ### Group B — home, insights
-- **DashboardScreen** (redesign 2026-11-01): the header shows no title on this screen; greeting
-  headlineL + date bodyM onSurfaceVariant over the aurora; **StatsRow** is one glass strip (three
-  segments: 30px tinted icon circle, titleL tabular value, labelS label, hairline separators);
-  **NextMeetingCard is the single focal card**: `Card variant="gradient"` with `OrbitRings`
-  (the welcome image's rings) fading top-right and a `Shimmer`, glass label + start-time pills,
-  title headlineS, countdown headlineL tabular-nums, a 4dp elapsed bar for the meeting happening
-  now, participant initials (max 3, "+N"), Join = `MGButton inverse` sm, Details ghost; all
-  other sections are neutral `Card`s under `SectionHeader`s (titleM onSurface); error box →
+- **DashboardScreen** (dark reference style, 2026-11-01): the header is the "welcome" layout
+  (avatar left opens the menu, "Welcome back" + first name, EN/ES pill, bell to Settings >
+  Alerts); greeting in two headlineL lines ("Good evening," onSurface, the first name in
+  primary) + date bodyM onSurfaceVariant over the aurora; **AskBar** (surface pill, sparkles,
+  placeholder, 40px gradient send button; opens the chat with the text prefilled); "Overview"
+  SectionHeader with "View all" → meetings; **StatsRow** = three surface tiles (32px primary@14%
+  icon box with a primary Feather icon, headlineM tabular value, labelM label); **NextMeetingCard
+  is the single focal card**: a surface `Card` (charcoal in dark, white in light) with faint
+  primary `OrbitRings` top-right, primary labelL label, title titleL, range bodyS, a route row
+  (now -> start, or started -> ends while running: labelS + titleS tabular points joined by 14
+  dashes, filled in primary by the elapsed share, with a primaryContainer icon circle in the
+  middle), the countdown titleL in primary, participant initials (max 3, "+N") and ONE
+  gradient-filled button (Join with a link, else Details; Details ghost beside Join); all other
+  sections are neutral `Card`s under `SectionHeader`s (titleM onSurface); error box →
   `ErrorState` (only when nothing cached — ARCHITECTURE §13 rule), empty → `EmptyState`,
-  first load → skeleton cards.
+  first load → skeleton cards. Dark is the default appearance for a fresh install; the dark
+  neutrals are charcoal (background #0A0C11, surface #12151D, cards elevation.level1 #171B24,
+  hairline #262B36).
 - **QuickActions**: a row of four 56px round buttons with labelM labels: new meeting (primary
   gradient, plus), new with AI (ai gradient, sparkles), WhatsApp (tonal; disabled with a
   "Coming soon" caption until the bot is enabled), notes (tonal); PressableScale feedback, labels

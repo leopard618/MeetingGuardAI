@@ -43,7 +43,7 @@ function Destination({ route }: { route: { name: string } }) {
 async function renderLanding() {
   await render(
     <I18nProvider>
-      <ThemeProvider>
+      <ThemeProvider initialMode="light">
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Landing" component={LandingScreen} />

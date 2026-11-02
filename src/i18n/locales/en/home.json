@@ -1,13 +1,17 @@
 {
   "greeting": {
-    "morning": "Good morning, {{name}}",
-    "afternoon": "Good afternoon, {{name}}",
-    "evening": "Good evening, {{name}}",
+    "salute": {
+      "morning": "Good morning,",
+      "afternoon": "Good afternoon,",
+      "evening": "Good evening,"
+    },
     "morningNoName": "Good morning",
     "afternoonNoName": "Good afternoon",
     "eveningNoName": "Good evening"
   },
   "stats": {
+    "title": "Overview",
+    "viewAll": "View all",
     "today": "Today",
     "tasksDue": "Tasks due",
     "thisWeek": "This week"
@@ -40,7 +44,11 @@
     "detailsA11y": "Details of {{title}}",
     "openLinkFailed": "The meeting link could not be opened.",
     "participants_one": "{{count}} participant",
-    "participants_other": "{{count}} participants"
+    "participants_other": "{{count}} participants",
+    "now": "Now",
+    "starts": "Starts",
+    "started": "Started",
+    "ends": "Ends"
   },
   "today": {
     "title": "Today",
@@ -142,5 +150,10 @@
     "overdue": "Overdue",
     "today": "Today",
     "viewAll": "View all tasks"
+  },
+  "ask": {
+    "placeholder": "Ask the assistant anything...",
+    "button": "Ask the assistant",
+    "a11y": "Question for the assistant"
   }
 }

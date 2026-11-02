@@ -4,19 +4,19 @@
  * meeting has a real http(s) link, and a Details button. Below them, the next all-day item
  * (birthday, holiday) when it comes no later than the next timed meeting.
  *
- * MG Indigo (2026-11-01 dashboard redesign): THE focal card of the dashboard, on the primary
- * gradient with white text (checked >= 4.5:1 on both stops), the welcome image's orbit rings
- * fading in the top-right corner and a light sweep. Each block: a glass label pill and the start
- * time pill, the title, the range, the countdown in headlineL tabular-nums, a thin progress bar
- * for the meeting happening now, the first participants as initials, Join as the inverse (white)
- * pill and Details as ghost text. The "no upcoming meetings" variant stays a neutral elevated card
- * (nothing to focus on).
+ * MG Indigo (2026-11-01, dark reference style): THE focal card is a surface card (charcoal in
+ * dark, white in light) with faint orbit rings, an accent label, the title, a "route" row (now ->
+ * start, or start -> end while running) joined by a dashed line with an icon in the middle (the
+ * elapsed share fills the line in accent while the meeting runs), the countdown in accent titleL,
+ * the first participants as initials, and ONE accent-filled button (Join when there is a link,
+ * else Details; Details becomes ghost next to Join). The "no upcoming meetings" variant is the
+ * same card with an icon row.
  */
 import { useState, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
-import { Card, Glow, Icon, MGButton, OrbitRings, Shimmer } from '../../components/ui';
+import { Card, Icon, MGButton, OrbitRings, type IconName } from '../../components/ui';
 import type { TranslateFn } from '../../core/contracts';
 import type { Meeting, Participant } from '../../core/types';
 import { useT } from '../../i18n';
@@ -37,6 +37,7 @@ export interface NextMeetingCardProps {
 
 const MAX_FACES = 3;
 const FACE = 28;
+const DASHES = 14;
 
 function relativeText(value: string, fmt: Formatters, now: Date): string {
   try {
@@ -69,22 +70,56 @@ export function endsText(meeting: Meeting, now: Date, t: TranslateFn, fmt: Forma
   return t('home:next.endsIn', { time });
 }
 
-function Faces({ participants, color }: { participants: readonly Participant[]; color: string }): ReactElement | null {
+/** Dashed line between the two route points; `progress` (0..1) fills it in accent from the left. */
+function RouteLine({ icon, progress, testID }: { icon: IconName; progress: number | null; testID?: string }): ReactElement {
+  const { colors } = useAppTheme();
+  const filled = progress === null ? 0 : Math.round(Math.min(1, Math.max(0, progress)) * DASHES);
+  return (
+    <View style={styles.routeLine} testID={testID}>
+      <View style={styles.dashes}>
+        {Array.from({ length: DASHES }, (_, index) => (
+          <View key={index} style={[styles.dash, { backgroundColor: index < filled ? colors.primary : colors.outline }]} />
+        ))}
+      </View>
+      <View style={[styles.routeIcon, { backgroundColor: colors.primaryContainer, borderColor: colors.surface }]}>
+        <Icon name={icon} size={componentMetrics.iconMeta} color={colors.onPrimaryContainer} />
+      </View>
+    </View>
+  );
+}
+
+function RoutePoint({ label, value, align }: { label: string; value: string; align: 'left' | 'right' }): ReactElement {
+  const { colors } = useAppTheme();
+  const alignStyle = align === 'right' ? styles.alignRight : null;
+  return (
+    <View style={styles.routePoint}>
+      <Text variant="labelSmall" style={[alignStyle, { color: colors.onSurfaceVariant }]}>
+        {label}
+      </Text>
+      <Text variant="titleSmall" style={[styles.routeValue, alignStyle]} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function Faces({ participants }: { participants: readonly Participant[] }): ReactElement | null {
   const t = useT();
+  const { colors } = useAppTheme();
   if (participants.length === 0) return null;
   const shown = participants.slice(0, MAX_FACES);
   const extra = participants.length - shown.length;
   return (
     <View style={styles.faces} accessible accessibilityLabel={t('home:next.participants', { count: participants.length })} testID="next-meeting-faces">
       {shown.map((participant, index) => (
-        <View key={participant.email} style={[styles.face, index > 0 && styles.faceOverlap, { backgroundColor: withAlpha(color, 0.22), borderColor: withAlpha(color, 0.5) }]}>
-          <Text variant="labelSmall" style={{ color }}>
+        <View key={participant.email} style={[styles.face, index > 0 && styles.faceOverlap, { backgroundColor: colors.secondaryContainer, borderColor: colors.surface }]}>
+          <Text variant="labelSmall" style={{ color: colors.onSecondaryContainer }}>
             {participantInitial(participant)}
           </Text>
         </View>
       ))}
       {extra > 0 ? (
-        <Text variant="labelMedium" style={[styles.facesMore, { color: withAlpha(color, 0.9) }]}>
+        <Text variant="labelMedium" style={[styles.facesMore, { color: colors.onSurfaceVariant }]}>
           +{extra}
         </Text>
       ) : null}
@@ -96,7 +131,8 @@ function MeetingBlock({
   meeting,
   label,
   countdown,
-  progress,
+  running,
+  now,
   onOpen,
   onJoin,
   testID,
@@ -104,65 +140,74 @@ function MeetingBlock({
   meeting: Meeting;
   label: string;
   countdown: string;
-  /** Elapsed share for the meeting happening now; null hides the bar. */
-  progress: number | null;
+  /** The meeting happening now: route = started -> ends, line filled by the elapsed share. */
+  running: boolean;
+  now: Date;
   onOpen(meeting: Meeting): void;
   onJoin(url: string): void;
   testID: string;
 }): ReactElement {
   const t = useT();
-  const { onGradient } = useAppTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const link = meetingJoinLink(meeting);
   const address = meeting.location?.address?.trim() ?? '';
-  const onCard = onGradient.primary;
-  const muted = withAlpha(onCard, 0.82);
-  const pill = { backgroundColor: withAlpha(onCard, 0.16) };
+  const progress = running ? elapsedFraction(meeting, now) : null;
+  const end = new Date(endMs(meeting));
 
   return (
     <View testID={testID}>
-      <View style={styles.pillRow}>
-        <View style={[styles.pill, pill]}>
-          <Text variant="labelMedium" style={{ color: onCard }}>
-            {label}
-          </Text>
-        </View>
-        {!meeting.allDay ? (
-          <View style={[styles.pill, styles.timePill, pill]}>
-            <Icon name="clock" size={14} color={onCard} />
-            <Text variant="labelMedium" style={[styles.timePillText, { color: onCard }]}>
-              {fmt.time(meeting.startAt)}
+      <View style={styles.labelRow}>
+        <Text variant="labelLarge" style={{ color: colors.primary }}>
+          {label}
+        </Text>
+        {address ? (
+          <View style={styles.placeRow}>
+            <Icon name="place" size={componentMetrics.iconMeta} color={colors.onSurfaceVariant} />
+            <Text variant="labelMedium" style={[styles.placeText, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+              {address}
             </Text>
           </View>
         ) : null}
       </View>
-      <Text variant="headlineSmall" style={[styles.title, { color: onCard }]} numberOfLines={2} testID={`${testID}-title`}>
+      <Text variant="titleLarge" style={styles.title} numberOfLines={2} testID={`${testID}-title`}>
         {meeting.title}
       </Text>
-      <Text variant="bodySmall" style={{ color: muted }}>
+      <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
         {fmt.meetingRange(meeting)}
       </Text>
-      {address ? (
-        <View style={styles.placeRow}>
-          <Icon name="place" size={componentMetrics.iconMeta} color={muted} />
-          <Text variant="bodySmall" style={[styles.placeText, { color: muted }]} numberOfLines={1}>
-            {address}
-          </Text>
+
+      {!meeting.allDay ? (
+        <View style={styles.route}>
+          <RoutePoint label={t(running ? 'home:next.started' : 'home:next.now')} value={fmt.time(running ? meeting.startAt : now)} align="left" />
+          <RouteLine icon={link ? 'video' : 'calendar'} progress={progress} testID={running ? `${testID}-progress` : undefined} />
+          <RoutePoint label={t(running ? 'home:next.ends' : 'home:next.starts')} value={fmt.time(running ? end : meeting.startAt)} align="right" />
         </View>
       ) : null}
-      <Text variant="headlineLarge" style={[styles.countdown, { color: onCard }]} testID={`${testID}-countdown`}>
-        {countdown}
-      </Text>
-      {progress !== null ? (
-        <View style={[styles.track, { backgroundColor: withAlpha(onCard, 0.24) }]} testID={`${testID}-progress`}>
-          <View style={[styles.fill, { backgroundColor: onCard, width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }]} />
-        </View>
-      ) : null}
+
       <View style={styles.footer}>
+        <View style={styles.flex}>
+          <Text variant="titleLarge" style={[styles.countdown, { color: colors.primary }]} testID={`${testID}-countdown`}>
+            {countdown}
+          </Text>
+          <Faces participants={meeting.participants} />
+        </View>
         <View style={styles.actions}>
           {link ? (
             <MGButton
-              variant="inverse"
+              variant="ghost"
+              size="sm"
+              onPress={() => onOpen(meeting)}
+              style={styles.action}
+              accessibilityLabel={t('home:next.detailsA11y', { title: meeting.title })}
+              testID={`${testID}-details`}
+            >
+              {t('home:next.details')}
+            </MGButton>
+          ) : null}
+          {link ? (
+            <MGButton
+              variant="filled"
               size="sm"
               icon="video"
               onPress={() => onJoin(link)}
@@ -172,21 +217,20 @@ function MeetingBlock({
             >
               {t('home:next.join')}
             </MGButton>
-          ) : null}
-          <MGButton
-            variant={link ? 'ghost' : 'inverse'}
-            size="sm"
-            icon="information-outline"
-            textColor={link ? onCard : undefined}
-            onPress={() => onOpen(meeting)}
-            style={styles.action}
-            accessibilityLabel={t('home:next.detailsA11y', { title: meeting.title })}
-            testID={`${testID}-details`}
-          >
-            {t('home:next.details')}
-          </MGButton>
+          ) : (
+            <MGButton
+              variant="filled"
+              size="sm"
+              icon="information-outline"
+              onPress={() => onOpen(meeting)}
+              style={styles.action}
+              accessibilityLabel={t('home:next.detailsA11y', { title: meeting.title })}
+              testID={`${testID}-details`}
+            >
+              {t('home:next.details')}
+            </MGButton>
+          )}
         </View>
-        <Faces participants={meeting.participants} color={onCard} />
       </View>
     </View>
   );
@@ -194,42 +238,37 @@ function MeetingBlock({
 
 function AllDayBlock({ meeting, onOpen }: { meeting: Meeting; onOpen(meeting: Meeting): void }): ReactElement {
   const t = useT();
-  const { onGradient } = useAppTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
-  const onCard = onGradient.primary;
-  const muted = withAlpha(onCard, 0.82);
   return (
-    <View testID="next-all-day">
-      <Text variant="labelLarge" style={{ color: muted }}>
-        {t('home:next.allDayTitle')}
-      </Text>
-      <Text variant="titleMedium" style={[styles.title, { color: onCard }]} numberOfLines={2} testID="next-all-day-title">
-        {meeting.title}
-      </Text>
-      <Text variant="bodySmall" style={{ color: muted }}>
-        {fmt.meetingRange(meeting)}
-      </Text>
-      <View style={styles.actions}>
-        <MGButton
-          variant="ghost"
-          size="sm"
-          icon="information-outline"
-          textColor={onCard}
-          onPress={() => onOpen(meeting)}
-          style={styles.action}
-          accessibilityLabel={t('home:next.detailsA11y', { title: meeting.title })}
-          testID="next-all-day-details"
-        >
-          {t('home:next.details')}
-        </MGButton>
+    <View style={styles.allDay} testID="next-all-day">
+      <View style={styles.flex}>
+        <Text variant="labelLarge" style={{ color: colors.primary }}>
+          {t('home:next.allDayTitle')}
+        </Text>
+        <Text variant="titleMedium" style={styles.allDayTitle} numberOfLines={2} testID="next-all-day-title">
+          {meeting.title}
+        </Text>
+        <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+          {fmt.meetingRange(meeting)}
+        </Text>
       </View>
+      <MGButton
+        variant="ghost"
+        size="sm"
+        onPress={() => onOpen(meeting)}
+        accessibilityLabel={t('home:next.detailsA11y', { title: meeting.title })}
+        testID="next-all-day-details"
+      >
+        {t('home:next.details')}
+      </MGButton>
     </View>
   );
 }
 
 export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: NextMeetingCardProps): ReactElement {
   const t = useT();
-  const { colors, onGradient } = useAppTheme();
+  const { colors } = useAppTheme();
   const fmt = useFormatters();
   const [tickMs, setTickMs] = useState(30_000);
   const now = useLiveNow(tickMs);
@@ -243,10 +282,10 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
   if (!current && !next && !nextAllDay) {
     return (
       <Card style={styles.emptyCard} testID="next-meeting-card">
-        <View style={[styles.emptyIcon, { backgroundColor: colors.primaryContainer }]}>
-          <Icon name="calendar" size={componentMetrics.iconInline} color={colors.onPrimaryContainer} />
+        <View style={[styles.emptyIcon, { backgroundColor: withAlpha(colors.primary, 0.14) }]}>
+          <Icon name="calendar" size={componentMetrics.iconInline} color={colors.primary} />
         </View>
-        <View style={styles.emptyTexts}>
+        <View style={styles.flex}>
           <Text variant="titleMedium">{t('home:next.none')}</Text>
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
             {t('home:next.noneHint')}
@@ -256,128 +295,125 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
     );
   }
 
-  const divider = { backgroundColor: withAlpha(onGradient.primary, 0.24) };
+  const divider = { backgroundColor: colors.outlineVariant };
 
   return (
-    <View style={styles.focalWrap}>
-      <Glow color={colors.primary} size={260} intensity={0.22} style={styles.focalGlow} />
-      <Card variant="gradient" testID="next-meeting-card">
-        <OrbitRings color={onGradient.primary} size={300} count={4} intensity={0.3} style={styles.rings} />
-        <Shimmer />
-        {current ? (
-          <MeetingBlock
-            meeting={current}
-            label={t('home:next.current')}
-            countdown={endsText(current, now, t, fmt)}
-            progress={elapsedFraction(current, now)}
-            onOpen={onOpen}
-            onJoin={onJoin}
-            testID="current-meeting"
-          />
-        ) : null}
-        {current && next ? <View style={[styles.divider, divider]} /> : null}
-        {next ? (
-          <MeetingBlock
-            meeting={next}
-            label={t('home:next.title')}
-            countdown={startsText(next, now, t, fmt)}
-            progress={null}
-            onOpen={onOpen}
-            onJoin={onJoin}
-            testID="next-meeting"
-          />
-        ) : null}
-        {nextAllDay && (current || next) ? <View style={[styles.divider, divider]} /> : null}
-        {nextAllDay ? <AllDayBlock meeting={nextAllDay} onOpen={onOpen} /> : null}
-      </Card>
-    </View>
+    <Card style={styles.card} testID="next-meeting-card">
+      <OrbitRings color={colors.primary} size={320} count={4} intensity={0.22} style={styles.rings} />
+      {current ? (
+        <MeetingBlock meeting={current} label={t('home:next.current')} countdown={endsText(current, now, t, fmt)} running now={now} onOpen={onOpen} onJoin={onJoin} testID="current-meeting" />
+      ) : null}
+      {current && next ? <View style={[styles.divider, divider]} /> : null}
+      {next ? (
+        <MeetingBlock meeting={next} label={t('home:next.title')} countdown={startsText(next, now, t, fmt)} running={false} now={now} onOpen={onOpen} onJoin={onJoin} testID="next-meeting" />
+      ) : null}
+      {nextAllDay && (current || next) ? <View style={[styles.divider, divider]} /> : null}
+      {nextAllDay ? <AllDayBlock meeting={nextAllDay} onOpen={onOpen} /> : null}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  focalWrap: {
-    position: 'relative',
+  flex: {
+    flex: 1,
   },
-  focalGlow: {
-    left: '50%',
-    marginLeft: -130,
-    bottom: -150,
+  card: {
+    overflow: 'hidden',
   },
   rings: {
-    top: -150,
-    right: -120,
+    top: -190,
+    right: -140,
   },
-  pillRow: {
+  labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  pill: {
-    borderRadius: radii.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  timePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  timePillText: {
-    marginLeft: spacing.xs,
-    fontVariant: ['tabular-nums'],
-  },
-  title: {
-    marginTop: spacing.md,
-  },
   placeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.xs,
+    flexShrink: 1,
   },
   placeText: {
     marginLeft: spacing.xs,
-    flex: 1,
+    flexShrink: 1,
   },
-  countdown: {
-    marginTop: spacing.md,
+  title: {
+    marginTop: spacing.sm,
+  },
+  route: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  routePoint: {
+    minWidth: 64,
+  },
+  routeValue: {
+    marginTop: 2,
     fontVariant: ['tabular-nums'],
   },
-  track: {
-    height: 4,
-    borderRadius: radii.full,
-    marginTop: spacing.sm,
-    overflow: 'hidden',
+  alignRight: {
+    textAlign: 'right',
   },
-  fill: {
-    height: '100%',
+  routeLine: {
+    flex: 1,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dashes: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dash: {
+    width: 6,
+    height: 2,
     borderRadius: radii.full,
+  },
+  routeIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: radii.full,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   footer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    marginTop: spacing.sm,
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  countdown: {
+    fontVariant: ['tabular-nums'],
   },
   actions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
   action: {
-    marginRight: spacing.sm,
-    marginTop: spacing.xs,
+    marginLeft: spacing.xs,
   },
   faces: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
   },
   face: {
     width: FACE,
     height: FACE,
     borderRadius: radii.full,
-    borderWidth: 1.5,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -389,7 +425,15 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    marginVertical: spacing.md,
+    marginVertical: spacing.lg,
+  },
+  allDay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  allDayTitle: {
+    marginTop: spacing.xs,
   },
   emptyCard: {
     flexDirection: 'row',
@@ -399,11 +443,8 @@ const styles = StyleSheet.create({
   emptyIcon: {
     width: componentMetrics.avatarSize,
     height: componentMetrics.avatarSize,
-    borderRadius: radii.full,
+    borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emptyTexts: {
-    flex: 1,
   },
 });

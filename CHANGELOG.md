@@ -11,6 +11,14 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
+- **Dark reference style**: the app now opens in dark mode on a fresh install (a saved choice
+  still wins), with charcoal neutrals instead of navy; the bottom bar is icons only with the
+  active tab on a filled gradient circle; the dashboard header is the welcome layout (avatar at
+  the left, "Welcome back" and your first name, the language pill and a bell that opens the alert
+  settings); the greeting puts your name on its own accent line; an ask bar under it opens the
+  assistant with your question; the next-meeting card is a dark card with a dashed "now to
+  start" route, the countdown in accent and one filled button; the stat tiles carry an accent
+  icon, a big number and a label.
 - **Dashboard redesign**: one glass stat strip instead of three tiles, the next-meeting card with
   the welcome image's orbit rings, a start-time pill, a progress bar while a meeting is running
   and the first participants' initials, a row of four round quick actions (new meeting, new with

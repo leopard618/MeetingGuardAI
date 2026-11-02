@@ -20,7 +20,7 @@ jest.mock('expo-localization', () => ({
 function wrap(element: ReactElement): ReactElement {
   return (
     <I18nProvider>
-      <ThemeProvider>
+      <ThemeProvider initialMode="light">
         <PaperProvider theme={PAPER_THEMES.light}>{element}</PaperProvider>
       </ThemeProvider>
     </I18nProvider>

@@ -5,7 +5,9 @@
     "openMenu": "Open menu",
     "darkMode": "Switch to dark mode",
     "lightMode": "Switch to light mode",
-    "switchLanguage": "Change language to {{language}}"
+    "switchLanguage": "Change language to {{language}}",
+    "welcome": "Welcome back",
+    "alerts": "Alert settings"
   },
   "sidebar": {
     "close": "Close menu",
