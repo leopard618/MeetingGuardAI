@@ -32,7 +32,7 @@ import { useAuth } from '../services/auth';
 import { usePreferences } from '../services/data';
 import { computeGate, type AppGate } from './gate';
 import { flushPendingNavigation, useCurrentRouteName } from './navigationService';
-import { MAIN_INITIAL_ROUTE, ONBOARDING_STEPS } from './routes';
+import { MAIN_INITIAL_ROUTE, ONBOARDING_STEPS, TAB_ROOT_ROUTES } from './routes';
 import {
   AIChatScreen,
   AIInsightsScreen,
@@ -69,8 +69,12 @@ function MainHeader({ routeName, onBackPress }: { routeName: RouteName; onBackPr
   return <CustomHeader title={routeName} onMenuPress={open} showMenu onBackPress={onBackPress} />;
 }
 
+// Tab roots (TAB_ROOT_ROUTES) show the logo or the welcome layout, never a back arrow, even when
+// the stack can go back (the system back still works).
 function renderMainHeader({ route, back, navigation }: StackHeaderProps): ReactNode {
-  return <MainHeader routeName={route.name as RouteName} onBackPress={back ? navigation.goBack : undefined} />;
+  const routeName = route.name as RouteName;
+  const canGoBack = back !== undefined && !TAB_ROOT_ROUTES.has(routeName);
+  return <MainHeader routeName={routeName} onBackPress={canGoBack ? navigation.goBack : undefined} />;
 }
 
 /** A render error replaces only the failed screen (header and navigation keep working). */

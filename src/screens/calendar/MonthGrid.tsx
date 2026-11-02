@@ -1,6 +1,6 @@
 /**
  * Month grid of the calendar screen: six rows of seven day cells with one dot per meeting source
- * on the day, today ringed in primary, the selected day filled (primary). Every cell is a button
+ * on the day, today ringed in primary, the selected day on a primary-gradient circle. Every cell is a button
  * whose label reads the full date, the number of meetings and "today" / "selected". Day circles
  * scale with the available width and never drop below 40dp (docs/v1/DESIGN_SYSTEM.md §7).
  *
@@ -14,6 +14,7 @@ import { Text } from 'react-native-paper';
 
 import type { Meeting } from '../../core/types';
 import { useT } from '../../i18n';
+import { GradientSurface } from '../../components/ui';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { sourceColor } from '../meetings/list/MeetingListItem';
 import { useFormatters } from '../shared/useFormatters';
@@ -49,7 +50,7 @@ export function weeksOf<T>(days: readonly T[]): T[][] {
 
 function MonthGridComponent({ grid, weekdays, index, taskDays, selectedKey, todayKey, onSelect }: MonthGridProps): ReactElement {
   const t = useT();
-  const { colors } = useAppTheme();
+  const { colors, onGradient } = useAppTheme();
   const fmt = useFormatters();
   const dimensions = useWindowDimensions();
   const [width, setWidth] = useState(Math.max(0, Math.min(dimensions.width, 560) - 2 * componentMetrics.screenGutter));
@@ -91,7 +92,7 @@ function MonthGridComponent({ grid, weekdays, index, taskDays, selectedKey, toda
             const selected = day.key === selectedKey;
             const today = day.key === todayKey;
             const numberColor = selected
-              ? colors.onPrimary
+              ? onGradient.primary
               : today
                 ? colors.primary
                 : day.inMonth
@@ -115,22 +116,25 @@ function MonthGridComponent({ grid, weekdays, index, taskDays, selectedKey, toda
                 accessibilityState={{ selected }}
                 testID={`calendar-day-${day.key}`}
               >
-                <View
-                  style={[
-                    styles.number,
-                    { width: circleSize, height: circleSize, borderRadius: radii.full },
-                    selected && { backgroundColor: colors.primary },
-                    !selected && today && { borderWidth: 1.5, borderColor: colors.primary },
-                  ]}
-                >
-                  <Text
-                    variant="bodyMedium"
-                    maxFontSizeMultiplier={MAX_FONT_SCALE}
-                    style={[{ color: numberColor }, (selected || today) && styles.bold]}
+                {selected ? (
+                  <GradientSurface style={[styles.number, styles.selected, { width: circleSize, height: circleSize, borderRadius: radii.full }]}>
+                    <Text variant="bodyMedium" maxFontSizeMultiplier={MAX_FONT_SCALE} style={[{ color: numberColor }, styles.bold]}>
+                      {day.day}
+                    </Text>
+                  </GradientSurface>
+                ) : (
+                  <View
+                    style={[
+                      styles.number,
+                      { width: circleSize, height: circleSize, borderRadius: radii.full },
+                      today && { borderWidth: 1.5, borderColor: colors.primary },
+                    ]}
                   >
-                    {day.day}
-                  </Text>
-                </View>
+                    <Text variant="bodyMedium" maxFontSizeMultiplier={MAX_FONT_SCALE} style={[{ color: numberColor }, today && styles.bold]}>
+                      {day.day}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.dots} testID={`calendar-dots-${day.key}`}>
                   {dots.map((category) => (
                     <View
@@ -158,6 +162,9 @@ function MonthGridComponent({ grid, weekdays, index, taskDays, selectedKey, toda
 export const MonthGrid = memo(MonthGridComponent);
 
 const styles = StyleSheet.create({
+  selected: {
+    overflow: 'hidden',
+  },
   card: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.lg,

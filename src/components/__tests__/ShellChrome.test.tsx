@@ -10,6 +10,7 @@ import { ThemeProvider } from '../../contexts/ThemeContext';
 import { I18nProvider, i18n } from '../../i18n';
 import { ROUTES } from '../../navigation/routes';
 import { BOTTOM_BAR_ITEMS, BottomNavBar } from '../BottomNavBar';
+import { TAB_ROOT_ROUTES } from '../../navigation/routes';
 import { avatarInitial, CustomHeader, nextLanguage } from '../CustomHeader';
 import { MobileSidebar, SIDEBAR_ITEMS } from '../MobileSidebar';
 
@@ -160,10 +161,11 @@ describe('MobileSidebar', () => {
 });
 
 describe('BottomNavBar', () => {
-  it('only lists existing routes, each once', () => {
+  it('only lists existing routes, each once, and they are the header tab roots', () => {
     const routes = Object.values(ROUTES) as string[];
     for (const item of BOTTOM_BAR_ITEMS) expect(routes).toContain(item.route);
     expect(new Set(BOTTOM_BAR_ITEMS.map((item) => item.route)).size).toBe(BOTTOM_BAR_ITEMS.length);
+    expect(new Set(BOTTOM_BAR_ITEMS.map((item) => item.route))).toEqual(TAB_ROOT_ROUTES);
   });
 
   it('marks the current route and navigates to a top-level destination', async () => {
