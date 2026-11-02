@@ -8,11 +8,10 @@
  * - hero-bg-dark.jpg (1456 x 816): the DARK hero: the client's artwork (deep blue waves, glass
  *   calendar at the right) extended upward with its own top colors so the picture covers the
  *   whole panel with no seam. Drawn with resizeMode cover over the panel.
- * - hero-bg-light.jpg (1456 x 816): the LIGHT hero: a pale blue wave composition with a soft glow
- *   at the right, drawn to the same proportions. Replace the file to change it.
- * - assistant-fab.png (square, transparent): the client's headset-chat icon for the floating
- *   assistant button. Set the slot to require('../../../assets/dashboard/assistant-fab.png')
- *   once the file exists; until then the button shows a robot glyph.
+ * - hero-bg-light.jpg (1456 x 816): the LIGHT hero: the client's pale artwork (white glass calendar
+ *   on light blue waves), extended upward the same way.
+ * - assistant-fab.png (320 px, transparent): the client's headset-chat icon on the floating
+ *   assistant button.
  * - next-meeting.png / tasks.png (512 x 512, transparent): optional card illustrations.
  */
 export interface DashboardArt {
@@ -27,7 +26,7 @@ export const DASHBOARD_ART: DashboardArt = {
     light: require('../../../assets/dashboard/hero-bg-light.jpg') as number,
     dark: require('../../../assets/dashboard/hero-bg-dark.jpg') as number,
   },
-  assistantIcon: null,
+  assistantIcon: require('../../../assets/dashboard/assistant-fab.png') as number,
   nextMeeting: null,
   tasks: null,
 };
