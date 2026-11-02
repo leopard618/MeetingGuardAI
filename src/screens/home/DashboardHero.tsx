@@ -10,8 +10,8 @@
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import type { ReactElement } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState, type ReactElement } from 'react';
+import { Image, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LANGUAGE_FLAGS, nextLanguage } from '../../components/CustomHeader';
@@ -46,9 +46,17 @@ export function DashboardHero({ salute, name, dateText, testID = 'dashboard-hero
   const sidebar = useOptionalSidebar();
   const focused = useIsFocused();
   const next = nextLanguage(language, supportedLanguages);
+  // The artwork gets the hero's measured size: an absolute-fill Image without explicit
+  // dimensions did not draw on Android.
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const onLayout = (event: LayoutChangeEvent): void => {
+    const { width, height } = event.nativeEvent.layout;
+    setSize((current) => (current && current.width === width && current.height === height ? current : { width, height }));
+  };
 
   return (
     <LinearGradient
+      onLayout={onLayout}
       colors={gradients.hero}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -56,8 +64,8 @@ export function DashboardHero({ salute, name, dateText, testID = 'dashboard-hero
       testID={testID}
     >
       {focused ? <StatusBar style="light" /> : null}
-      {DASHBOARD_ART.heroBackground ? (
-        <Image source={DASHBOARD_ART.heroBackground} style={styles.overlay} resizeMode="cover" accessibilityIgnoresInvertColors />
+      {DASHBOARD_ART.heroBackground && size ? (
+        <Image source={DASHBOARD_ART.heroBackground} style={[styles.overlay, { width: size.width, height: size.height }]} resizeMode="cover" accessibilityIgnoresInvertColors />
       ) : null}
       <View style={styles.headerRow}>
         {sidebar ? (
@@ -133,8 +141,6 @@ const styles = StyleSheet.create({
   overlay: {
     position: 'absolute',
     top: 0,
-    right: 0,
-    bottom: 0,
     left: 0,
   },
   headerRow: {
