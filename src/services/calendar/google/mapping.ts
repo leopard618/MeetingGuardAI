@@ -1,14 +1,14 @@
 /**
- * Pure mapping between Google Calendar events and MeetingGuard meetings (unit-tested).
+ * Pure mapping between Google Calendar events and Meeting Guard meetings (unit-tested).
  *
  * - Timed events keep their instant; the meeting zone is the event's zone (else the calendar's).
  * - All-day events start at local midnight of the event/calendar zone (never shifted through UTC)
  *   and last 1440 min x days (end date is exclusive in Google).
  * - Attendees map to participants (resources and the user themself excluded).
  * - Conference: Google Meet / add-on conferenceData or hangoutLink; otherwise the Zoom/Teams/Meet
- *   link MeetingGuard stored in the event's private extended properties; otherwise a join link
+ *   link Meeting Guard stored in the event's private extended properties; otherwise a join link
  *   found in the location/description text.
- * - MeetingGuard writes its rich location/conference as private extended properties so a round trip
+ * - Meeting Guard writes its rich location/conference as private extended properties so a round trip
  *   through Google does not lose passwords, hybrid locations or link-only locations.
  */
 import {
@@ -62,7 +62,7 @@ import type {
   GoogleResponseStatus,
 } from './types';
 
-/** MeetingGuard syncs the user's primary calendar. */
+/** Meeting Guard syncs the user's primary calendar. */
 export const GOOGLE_PRIMARY_CALENDAR = 'primary';
 
 /** Private extended properties written on pushed events (visible only to the calendar owner). */
@@ -157,7 +157,7 @@ export function extractGoogleConference(event: GoogleEvent): ConferenceDetails |
 }
 
 interface StoredProps {
-  /** The event was last written by MeetingGuard. */
+  /** The event was last written by Meeting Guard. */
   marker: boolean;
   /** undefined = not stored / unreadable. */
   location: MeetingLocation | null | undefined;

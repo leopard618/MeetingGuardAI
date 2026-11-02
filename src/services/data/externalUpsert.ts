@@ -2,15 +2,15 @@
  * Calendar import planning (pure; unit-tested). Turns provider events into meeting writes:
  *
  * Matching (in order): Google event id stored in external.googleEventId / device event id stored
- * in external.deviceEventId; a MeetingGuard-created Google event id ("mgev...") decoded to its
+ * in external.deviceEventId; a Meeting Guard-created Google event id ("mgev...") decoded to its
  * meeting id; the deterministic import id (ids.ts).
  *
  * Rules:
  * - deleted at the provider -> tombstone the matched meeting. Meetings imported from that provider
- *   are always removed; other meetings (MeetingGuard meetings pushed to the provider) only when
+ *   are always removed; other meetings (Meeting Guard meetings pushed to the provider) only when
  *   the provider change is not older than the local edit (last-writer-wins).
  * - changed at the provider -> apply the provided fields (fields absent in the event keep their
- *   MeetingGuard values: confidence, tips, custom alerts...) unless the local copy is newer.
+ *   Meeting Guard values: confidence, tips, custom alerts...) unless the local copy is newer.
  *   A locally deleted meeting is resurrected only by a newer provider change.
  * - Google etag / Outlook changeKey unchanged -> nothing to do.
  * - Refs-only changes (etag, updated) are written silently (not reported as changes).
@@ -176,7 +176,7 @@ export function planExternalUpserts(
         const importedFromProvider = existing.source === item.provider;
         // Google/Outlook: the calendar engine never sends an upsert while a local push of that
         // meeting is pending, so a provider deletion always wins here (updatedAt also moves for
-        // MeetingGuard-only edits and ref write-backs, which must not mask a provider change).
+        // Meeting Guard-only edits and ref write-backs, which must not mask a provider change).
         const localNewer = item.provider === 'device' && providerMs !== null && (isoMs(existing.updatedAt) ?? 0) > providerMs;
         if (!importedFromProvider && localNewer) {
           result.unchanged += 1;
@@ -232,7 +232,7 @@ export function planExternalUpserts(
       }
 
       // Google/Outlook changes are detected by the stored provider timestamp (providerChanged)
-      // only: local updatedAt also moves for MeetingGuard-only fields and ref write-backs, and
+      // only: local updatedAt also moves for Meeting Guard-only fields and ref write-backs, and
       // comparing it would skip a real provider edit while storing its new etag/changeKey (never
       // pulled again). Conflicts with pending local pushes are resolved by the calendar engine
       // before it upserts. Device imports keep last-writer-wins on updatedAt.

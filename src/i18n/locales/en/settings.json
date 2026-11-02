@@ -34,7 +34,7 @@
     "terms": "Terms of Service"
   },
   "about": {
-    "version": "MeetingGuard AI {{version}}",
+    "version": "Meeting Guard AI {{version}}",
     "update": "Update {{id}} · {{channel}}"
   },
   "timeFormat": {

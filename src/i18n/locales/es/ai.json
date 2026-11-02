@@ -256,7 +256,7 @@
     "joinWith": "Unirse ({{provider}}): {{url}}",
     "password": "Contraseña: {{password}}",
     "to": "Para: {{recipients}}",
-    "footer": "Compartido con MeetingGuard AI",
+    "footer": "Compartido con Meeting Guard AI",
     "channel": {
       "email": "Correo electrónico",
       "system_share": "Menú para compartir"

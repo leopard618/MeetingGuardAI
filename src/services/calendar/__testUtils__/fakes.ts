@@ -117,7 +117,7 @@ export class FakeMeetings {
           : meeting.external.deviceEventId === externalId,
     );
     if (linked) return linked;
-    // Like the data layer: MeetingGuard's own Google events match their meeting by decoded id.
+    // Like the data layer: Meeting Guard's own Google events match their meeting by decoded id.
     const decoded = provider === 'google' ? meetingIdFromGoogleEventId(externalId) : null;
     return decoded ? (this.meetings.get(decoded) ?? null) : null;
   }

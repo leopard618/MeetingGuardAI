@@ -188,7 +188,7 @@ async function pullList(deps: TodoSyncDeps, listId: string, options: { full: boo
       }
     } else {
       if (imported.done) {
-        // Finished before MeetingGuard ever saw it: history stays in To Do.
+        // Finished before Meeting Guard ever saw it: history stays in To Do.
         counts.unchanged += 1;
         continue;
       }

@@ -285,7 +285,7 @@ it('asks for the calendar permission and points to the settings when it is refus
     fireEvent.press(screen.getByTestId('calendar-device-permission'));
   });
   expect(mockDevice.requestPermission).toHaveBeenCalled();
-  expect(Alert.alert).toHaveBeenCalledWith('Calendars on this phone', 'Calendar access is turned off for MeetingGuard.', expect.any(Array));
+  expect(Alert.alert).toHaveBeenCalledWith('Calendars on this phone', 'Calendar access is turned off for Meeting Guard.', expect.any(Array));
   const settings = lastAlertButtons().find((button) => button.text === 'Open settings');
   settings?.onPress?.();
   expect(openSettings).toHaveBeenCalled();
@@ -328,14 +328,14 @@ it('leaves the back arrow and the title to the stack header', async () => {
   await renderScreen();
   expect(screen.queryByTestId('calendar-back')).toBeNull();
   expect(screen.queryByText('Calendar sync')).toBeNull();
-  expect(screen.getByText('Keep MeetingGuard in step with your connected calendars and the calendars on this phone.')).toBeTruthy();
+  expect(screen.getByText('Keep Meeting Guard in step with your connected calendars and the calendars on this phone.')).toBeTruthy();
 });
 
 it('renders in Spanish and in dark mode', async () => {
   mockDarkMode = true;
   await i18n.changeLanguage('es');
   await renderScreen();
-  expect(screen.getByText('Mantén MeetingGuard al día con tus calendarios conectados y con los calendarios de este teléfono.')).toBeTruthy();
+  expect(screen.getByText('Mantén Meeting Guard al día con tus calendarios conectados y con los calendarios de este teléfono.')).toBeTruthy();
   expect(screen.getByText('Conectar Google Calendar')).toBeTruthy();
 });
 

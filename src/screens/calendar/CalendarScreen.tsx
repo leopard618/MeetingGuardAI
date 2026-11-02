@@ -1,6 +1,6 @@
 /**
  * Calendar (route "Calendar"): a month grid with one dot per meeting source on each day (every
- * meeting from the data layer: MeetingGuard, AI assistant, Google Calendar and device-calendar
+ * meeting from the data layer: Meeting Guard, AI assistant, Google Calendar and device-calendar
  * imports; no direct Google API call here), the agenda of the selected day, and a FAB that
  * creates a meeting preset to the selected day. Days are local days in the user's zone.
  */

@@ -7,9 +7,9 @@
  * link shows "being created" and, after a failure this session, "could not be created" + Retry,
  * §24), participants, description,
  * preparation tips, alert settings, notes. Every meeting can be edited and deleted:
- * - MeetingGuard meetings and Google events: edits / deletes are also sent to Google Calendar by
+ * - Meeting Guard meetings and Google events: edits / deletes are also sent to Google Calendar by
  *   the calendar engine (origin 'user');
- * - device-calendar imports (one-way): the change stays in MeetingGuard and the user is told the
+ * - device-calendar imports (one-way): the change stays in Meeting Guard and the user is told the
  *   device calendar keeps its event.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';

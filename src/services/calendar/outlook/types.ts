@@ -1,5 +1,5 @@
 /**
- * Subset of the Microsoft Graph event resource used by MeetingGuard.
+ * Subset of the Microsoft Graph event resource used by Meeting Guard.
  * https://learn.microsoft.com/graph/api/resources/event
  *
  * Requests are sent with `Prefer: outlook.timezone="UTC"` and
@@ -43,7 +43,7 @@ export type GraphEventType = 'singleInstance' | 'occurrence' | 'exception' | 'se
 
 export type GraphDayOfWeek = 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday';
 
-/** https://learn.microsoft.com/graph/api/resources/recurrencepattern (the subset MeetingGuard writes). */
+/** https://learn.microsoft.com/graph/api/resources/recurrencepattern (the subset Meeting Guard writes). */
 export interface GraphRecurrencePattern {
   type: 'daily' | 'weekly' | 'absoluteMonthly' | 'relativeMonthly' | 'absoluteYearly' | 'relativeYearly';
   interval: number;

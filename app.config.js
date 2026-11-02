@@ -20,12 +20,12 @@
 // config.
 
 const CALENDAR_USAGE =
-  'MeetingGuard AI uses your calendar to show, create and update your meetings and to schedule meeting alerts.';
-const PHOTOS_USAGE = 'MeetingGuard AI lets you attach photos from your library to a meeting.';
-const CAMERA_USAGE = 'MeetingGuard AI lets you take a photo and attach it to a meeting.';
-const MICROPHONE_USAGE = 'MeetingGuard AI uses the microphone so you can speak to the assistant instead of typing.';
+  'Meeting Guard AI uses your calendar to show, create and update your meetings and to schedule meeting alerts.';
+const PHOTOS_USAGE = 'Meeting Guard AI lets you attach photos from your library to a meeting.';
+const CAMERA_USAGE = 'Meeting Guard AI lets you take a photo and attach it to a meeting.';
+const MICROPHONE_USAGE = 'Meeting Guard AI uses the microphone so you can speak to the assistant instead of typing.';
 const SPEECH_RECOGNITION_USAGE =
-  'MeetingGuard AI uses speech recognition to turn what you say into text for the assistant. You always see the text before anything happens.';
+  'Meeting Guard AI uses speech recognition to turn what you say into text for the assistant. You always see the text before anything happens.';
 
 const trim = (value) => (typeof value === 'string' ? value.trim() : '');
 
@@ -103,7 +103,7 @@ function sentryPlugin() {
 
 module.exports = {
   expo: {
-    name: 'MeetingGuard AI',
+    name: 'Meeting Guard AI',
     slug: 'meeting-guard-ai',
     // 1.2.0: the mg-fullscreen-alarm native module changed the native runtime (new module +
     // USE_FULL_SCREEN_INTENT). Builds of 1.1.0 must never receive 1.2.0 JS via OTA.

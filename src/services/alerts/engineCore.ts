@@ -494,7 +494,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
 
   async function removeLegacyArtifacts(): Promise<void> {
     try {
-      // Pre-rebuild channels + earlier MeetingGuard channel versions (their pending notifications
+      // Pre-rebuild channels + earlier Meeting Guard channel versions (their pending notifications
       // carry a different channel in their hash and are rescheduled by the next reconcile).
       await notifications.deleteChannels([...LEGACY_CHANNEL_IDS, ...SUPERSEDED_ANDROID_CHANNELS]);
       const presented = await notifications.getPresented();
@@ -1424,7 +1424,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     attachListeners();
     await setupChannelsAndCategories();
     await removeLegacyArtifacts();
-    // The response that launched the app (cold start). Every MeetingGuard response is handled
+    // The response that launched the app (cold start). Every Meeting Guard response is handled
     // here, not only snoozes: the Android response task that also sees "Open" / "Assistant" taps
     // may run in a separate headless runtime, so this runtime acknowledges the delivery and
     // removes the (sticky) tray copy itself. Snoozes stay de-duplicated by claimResponse.

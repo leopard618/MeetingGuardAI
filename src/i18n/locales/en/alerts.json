@@ -14,7 +14,7 @@
     "empty": "No meetings and no tasks due today. Enjoy the clear day."
   },
   "status": {
-    "title": "MeetingGuard is on",
+    "title": "Meeting Guard is on",
     "next": "Next: {{title}} at {{time}}",
     "idle": "No meetings coming up. Your alerts are armed."
   },
@@ -125,7 +125,7 @@
   },
   "refill": {
     "title": "Keep your meeting alerts up to date",
-    "body": "Open MeetingGuard so it can schedule your next alerts."
+    "body": "Open Meeting Guard so it can schedule your next alerts."
   },
   "settings": {
     "voiceNeedsApp": "The voice readout plays inside the app. On Android the full-screen alarm opens the app and reads the meeting out; on iPhone, open the alert to hear it. With the app closed, the notification sound rings first.",
@@ -170,7 +170,7 @@
     "dnd": {
       "title": "Do Not Disturb",
       "androidDescription": "Maximum alerts can ring during Do Not Disturb only if you allow it: open the settings of the maximum alerts and turn on \"Override Do Not Disturb\".",
-      "iosDescription": "To get alerts during a Focus, add MeetingGuard to the Focus's allowed apps in Settings > Focus.",
+      "iosDescription": "To get alerts during a Focus, add Meeting Guard to the Focus's allowed apps in Settings > Focus.",
       "open": "Allow maximum alerts to override Do Not Disturb"
     }
   }

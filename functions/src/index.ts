@@ -1,5 +1,5 @@
 /**
- * MeetingGuard AI Cloud Functions (v2, Node 22).
+ * Meeting Guard AI Cloud Functions (v2, Node 22).
  *
  * Callables (names and payloads: shared/aiContract.ts, a verbatim copy of src/core/aiContract.ts):
  * - assistant: AI assistant proposals (never mutates meetings) with a server-side daily quota.

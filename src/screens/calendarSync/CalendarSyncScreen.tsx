@@ -8,7 +8,7 @@
  *   account, stop sync (optionally opening the Microsoft consent page), last sync / last error;
  * - Microsoft To Do (same account, M7): turn the task sync on with a chosen list, change the list,
  *   stop it (TodoCard);
- * - phone calendars: permission, which calendars to import, which calendar receives MeetingGuard
+ * - phone calendars: permission, which calendars to import, which calendar receives Meeting Guard
  *   meetings (writable calendars only), last sync / last error;
  * - "Sync now" with a per-provider summary.
  * Rendered as a SectionList (Google card, optional Outlook card, then the phone-calendar card and

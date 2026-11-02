@@ -1,6 +1,6 @@
 {
   "screen": {
-    "subtitle": "Keep MeetingGuard in step with your connected calendars and the calendars on this phone."
+    "subtitle": "Keep Meeting Guard in step with your connected calendars and the calendars on this phone."
   },
   "status": {
     "lastSynced": "Last synced {{time}}",
@@ -9,23 +9,23 @@
   },
   "google": {
     "title": "Google Calendar",
-    "description": "Two-way sync with your primary Google Calendar. Meetings you create here appear in Google Calendar (with invitations for participants), and your Google events get MeetingGuard alerts.",
+    "description": "Two-way sync with your primary Google Calendar. Meetings you create here appear in Google Calendar (with invitations for participants), and your Google events get Meeting Guard alerts.",
     "state": {
       "connected": "Connected",
       "notConnected": "Not connected",
       "permissionNeeded": "Calendar access needed"
     },
-    "permissionNeededHint": "MeetingGuard no longer has access to your Google Calendar. Grant access again to keep syncing.",
+    "permissionNeededHint": "Meeting Guard no longer has access to your Google Calendar. Grant access again to keep syncing.",
     "twoWaySync": "Two-way sync",
     "connect": "Connect Google Calendar",
     "connecting": "Connecting...",
     "grantAccess": "Grant calendar access",
     "connectedTitle": "Google Calendar connected",
     "firstSyncSummary": "Imported {{created}} events and sent {{pushed}} meetings to Google Calendar.",
-    "firstSyncFailed": "Connected, but the first sync did not finish: {{error}} MeetingGuard will try again automatically.",
+    "firstSyncFailed": "Connected, but the first sync did not finish: {{error}} Meeting Guard will try again automatically.",
     "scopeDenied": "Calendar access was not granted. You can connect again at any time.",
     "disconnectTitle": "Stop Google Calendar sync?",
-    "disconnectMessage": "Events imported from Google Calendar will be removed from MeetingGuard. Nothing is deleted from your Google Calendar.",
+    "disconnectMessage": "Events imported from Google Calendar will be removed from Meeting Guard. Nothing is deleted from your Google Calendar.",
     "disconnect": "Stop sync",
     "disconnectAndRevoke": "Stop sync and remove access",
     "disconnecting": "Stopping sync...",
@@ -34,7 +34,7 @@
   },
   "outlook": {
     "title": "Outlook Calendar",
-    "description": "Two-way sync with the calendar of your Microsoft account (Outlook, Microsoft 365). Meetings you create here appear in Outlook, repeating ones included, and your Outlook events get MeetingGuard alerts.",
+    "description": "Two-way sync with the calendar of your Microsoft account (Outlook, Microsoft 365). Meetings you create here appear in Outlook, repeating ones included, and your Outlook events get Meeting Guard alerts.",
     "state": {
       "connected": "Connected",
       "notConnected": "Not connected"
@@ -45,10 +45,10 @@
     "connecting": "Connecting...",
     "connectedTitle": "Outlook connected",
     "firstSyncSummary": "Imported {{created}} events and sent {{pushed}} meetings to Outlook.",
-    "firstSyncFailed": "Connected, but the first sync did not finish: {{error}} MeetingGuard will try again automatically.",
+    "firstSyncFailed": "Connected, but the first sync did not finish: {{error}} Meeting Guard will try again automatically.",
     "connectFailed": "The Microsoft sign-in did not finish. Please try again.",
     "disconnectTitle": "Stop Outlook sync?",
-    "disconnectMessage": "Events imported from Outlook will be removed from MeetingGuard. Nothing is deleted from your Outlook calendar.",
+    "disconnectMessage": "Events imported from Outlook will be removed from Meeting Guard. Nothing is deleted from your Outlook calendar.",
     "disconnect": "Stop sync",
     "disconnectAndRevoke": "Stop sync and review access",
     "disconnecting": "Stopping sync...",
@@ -75,9 +75,9 @@
     "changeList": "Change list",
     "enabledTitle": "Microsoft To Do connected",
     "firstSyncSummary": "Imported {{created}} tasks and sent {{pushed}} tasks to To Do.",
-    "firstSyncFailed": "Turned on, but the first sync did not finish: {{error}} MeetingGuard will try again automatically.",
+    "firstSyncFailed": "Turned on, but the first sync did not finish: {{error}} Meeting Guard will try again automatically.",
     "disableTitle": "Stop To Do sync?",
-    "disableMessage": "Tasks imported from To Do will be removed from MeetingGuard. Nothing is deleted in Microsoft To Do.",
+    "disableMessage": "Tasks imported from To Do will be removed from Meeting Guard. Nothing is deleted in Microsoft To Do.",
     "disable": "Stop sync",
     "disabling": "Stopping sync...",
     "disabledTitle": "To Do sync is off",
@@ -85,10 +85,10 @@
   },
   "device": {
     "title": "Calendars on this phone",
-    "description": "Import events from the calendars on this phone and, if you like, add your MeetingGuard meetings to one of them.",
+    "description": "Import events from the calendars on this phone and, if you like, add your Meeting Guard meetings to one of them.",
     "permission": {
       "request": "Allow calendar access",
-      "denied": "Calendar access is turned off for MeetingGuard.",
+      "denied": "Calendar access is turned off for Meeting Guard.",
       "openSettings": "Open settings"
     },
     "loading": "Loading calendars...",
@@ -100,9 +100,9 @@
       "a11y": "Import events from {{calendar}}"
     },
     "export": {
-      "title": "Add MeetingGuard meetings to",
+      "title": "Add Meeting Guard meetings to",
       "none": "Don't add them to a phone calendar",
-      "hint": "Only MeetingGuard meetings are added, without calendar reminders (MeetingGuard alerts you). Repeating meetings are not added in this version."
+      "hint": "Only Meeting Guard meetings are added, without calendar reminders (Meeting Guard alerts you). Repeating meetings are not added in this version."
     }
   },
   "sync": {

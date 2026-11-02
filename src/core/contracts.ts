@@ -795,7 +795,7 @@ export interface TodoSyncResult {
  * (same refresh token, scope Tasks.ReadWrite). Tasks go to ONE chosen list by default
  * (Preferences.todoListId / todoListName, shown before every task confirm); a task may name
  * another list (external.todoListId). Title, notes, due date, reminder, done state and deletion
- * sync both ways; due time without a reminder, people and the meeting link stay in MeetingGuard.
+ * sync both ways; due time without a reminder, people and the meeting link stay in Meeting Guard.
  * - Push: POST / PATCH / DELETE /me/todo/lists/{listId}/tasks; link write-backs use origin
  *   'tasks_todo' (never pushed back). Moving a task to another list deletes and re-creates it.
  * - Pull: /me/todo/lists/{listId}/tasks/delta per synced list with persisted delta links
@@ -904,7 +904,7 @@ export interface CalendarSyncEngine {
 // ALERTS  (src/services/alerts, src/components/alerts, src/services/alerts/tasks.ts)
 // =============================================================================================
 
-/** JSON stored in notification content.data (all MeetingGuard notifications). */
+/** JSON stored in notification content.data (all Meeting Guard notifications). */
 export interface AlertNotificationData {
   v: 1;
   kind: NotificationKind;
@@ -955,7 +955,7 @@ export interface AlertPlan {
   refillBefore: string | null;
   /**
    * Set when the budget cut real ALERTS (not just follow-ups or the horizon): one budget slot is
-   * reserved for the "open MeetingGuard to keep your alerts up to date" notification, which fires
+   * reserved for the "open Meeting Guard to keep your alerts up to date" notification, which fires
    * at this instant (before the scheduled window runs out). null otherwise.
    */
   refillReminderAt: string | null;
@@ -1215,7 +1215,7 @@ export interface WidgetMeetingData {
 export interface WidgetStrings {
   /** Card title of the empty state ("No upcoming meetings"). */
   emptyTitle: string;
-  /** Second line of the empty state ("Open MeetingGuard to plan one"). */
+  /** Second line of the empty state ("Open Meeting Guard to plan one"). */
   emptyBody: string;
   /** Shown once `startAtMs` has passed ("Happening now"). */
   nowLabel: string;

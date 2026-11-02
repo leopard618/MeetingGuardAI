@@ -1,9 +1,9 @@
 /**
- * Pure mapping between Microsoft Graph To Do tasks and MeetingGuard tasks (unit-tested).
+ * Pure mapping between Microsoft Graph To Do tasks and Meeting Guard tasks (unit-tested).
  *
  * What To Do keeps: title, notes (body), due DATE, reminder (an instant), done state.
- * What stays in MeetingGuard only (the UI says so): a due time without a reminder, people, the
- * meeting link, the task's zone. The reminder carries the time: a MeetingGuard task with a due
+ * What stays in Meeting Guard only (the UI says so): a due time without a reminder, people, the
+ * meeting link, the task's zone. The reminder carries the time: a Meeting Guard task with a due
  * time and a reminder becomes a To Do reminder at (due - offset); a To Do reminder coming back
  * becomes due time + offset on the local task (reminder time if the days differ by more than a
  * week).
@@ -101,7 +101,7 @@ export function taskVisibleHash(task: Parameters<typeof taskToVisibleFields>[0])
 }
 
 // ---------------------------------------------------------------------------------------------
-// MeetingGuard -> To Do
+// Meeting Guard -> To Do
 // ---------------------------------------------------------------------------------------------
 
 /** Full write body for a create (every field To Do keeps) or a patch (same: To Do PATCH is a merge). */
@@ -126,7 +126,7 @@ export function taskToTodoWrite(task: Pick<Task, 'title' | 'description' | 'dueD
 }
 
 // ---------------------------------------------------------------------------------------------
-// To Do -> MeetingGuard
+// To Do -> Meeting Guard
 // ---------------------------------------------------------------------------------------------
 
 const TAG_RE = /<[^>]+>/g;

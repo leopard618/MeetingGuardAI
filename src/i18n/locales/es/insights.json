@@ -1,5 +1,5 @@
 {
-  "subtitle": "Calculado en este dispositivo a partir de las reuniones de MeetingGuard. No se envía nada a ningún sitio salvo que preguntes al asistente.",
+  "subtitle": "Calculado en este dispositivo a partir de las reuniones de Meeting Guard. No se envía nada a ningún sitio salvo que preguntes al asistente.",
   "period": {
     "week": "Esta semana",
     "month": "Este mes"
@@ -46,7 +46,7 @@
   },
   "sources": {
     "title": "De dónde vienen tus reuniones",
-    "manual": "Creadas en MeetingGuard",
+    "manual": "Creadas en Meeting Guard",
     "ai_chat": "Asistente de IA",
     "whatsapp": "WhatsApp",
     "google": "Google Calendar",

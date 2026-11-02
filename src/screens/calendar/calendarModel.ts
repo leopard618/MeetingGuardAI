@@ -7,7 +7,7 @@
  * - Day index: every local day a meeting touches in the user's zone (a timed meeting that runs
  *   past midnight, or a multi-day all-day event, marks each of its days). All-day meetings use
  *   their own dates, never shifted through UTC.
- * - Dots: one per source category present on the day (MeetingGuard, Google Calendar, device).
+ * - Dots: one per source category present on the day (Meeting Guard, Google Calendar, device).
  */
 import { format, type Locale } from 'date-fns';
 import { enUS, es } from 'date-fns/locale';

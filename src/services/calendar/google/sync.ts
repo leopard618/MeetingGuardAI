@@ -3,7 +3,7 @@
  *
  * PULL  events.list(singleEvents=true) with the stored syncToken; a full listing bounded by
  *       CALENDAR_SYNC_WINDOW on first sync, every 7 days (the window slides) and on 410 GONE.
- *       Cancelled events tombstone their meeting. Events MeetingGuard created (deterministic
+ *       Cancelled events tombstone their meeting. Events Meeting Guard created (deterministic
  *       "mgev..." ids) update their own meeting instead of creating a copy.
  * PUSH  insert with the deterministic id (409 => patch + status confirmed), patch with If-Match,
  *       delete. Only Google-visible changes are sent (hash of the visible fields), so editing
@@ -195,7 +195,7 @@ export function planGooglePull(input: PullPlanInput): PullPlan {
     // "mgev..." id. The local master already expands these occurrences, so importing them would
     // duplicate the series one meeting per occurrence. They are skipped entirely - including
     // per-instance cancellations/edits made in Google, a documented v1 limitation
-    // (docs/v1/ARCHITECTURE.md §16: occurrence edits flow MeetingGuard -> Google only).
+    // (docs/v1/ARCHITECTURE.md §16: occurrence edits flow Meeting Guard -> Google only).
     if (event.recurringEventId !== undefined && meetingIdFromGoogleEventId(baseGoogleEventId(event.recurringEventId)) !== null) {
       continue;
     }
@@ -234,12 +234,12 @@ export function planGooglePull(input: PullPlanInput): PullPlan {
       continue;
     }
     if (local && local.deletedAt !== null) {
-      // Deleted in MeetingGuard: the delete was (or will be) pushed; do not resurrect it.
+      // Deleted in Meeting Guard: the delete was (or will be) pushed; do not resurrect it.
       plan.unchanged += 1;
       continue;
     }
     if (!local && decodedId !== null) {
-      // Created by MeetingGuard (maybe on another device) and not in this device's data yet.
+      // Created by Meeting Guard (maybe on another device) and not in this device's data yet.
       continue;
     }
     const mapped = googleEventToMeetingInput(event, ctx);
@@ -263,7 +263,7 @@ export function planGooglePull(input: PullPlanInput): PullPlan {
       if (meeting.deletedAt !== null || pending[meeting.id] || meeting.source === 'device') continue;
       // Recurring masters never appear in singleEvents listings (only their instances do), so
       // their absence proves nothing: never sweep them. Deleting the whole series in Google
-      // therefore does not delete the local master (delete it in MeetingGuard) - documented §16.
+      // therefore does not delete the local master (delete it in Meeting Guard) - documented §16.
       if (meeting.recurrence !== null) continue;
       if (meeting.external.googleCalendarId !== null && meeting.external.googleCalendarId !== calendarId) continue;
       if (meeting.source !== 'google' && meeting.status !== 'scheduled') continue;
@@ -347,7 +347,7 @@ export async function pullGoogleChanges(deps: GoogleSyncDeps, options: { full?: 
   }
 
   // Remember what the repository actually stored (it may keep a newer local version), so a later
-  // MeetingGuard-only edit never pushes a stale copy over Google's.
+  // Meeting Guard-only edit never pushes a stale copy over Google's.
   const storedHashes: Record<string, string | null> = { ...plan.hashUpdates };
   const appliedIds = Object.entries(plan.hashUpdates)
     .filter(([, hash]) => hash !== null)
@@ -668,7 +668,7 @@ export async function flushGooglePushes(deps: GoogleSyncDeps): Promise<FlushResu
   return result;
 }
 
-/** Queues upcoming MeetingGuard meetings that were never pushed (first connection). */
+/** Queues upcoming Meeting Guard meetings that were never pushed (first connection). */
 export async function enqueueUpcomingOwnMeetings(deps: GoogleSyncDeps): Promise<number> {
   const now = deps.now();
   const window = syncWindow(now);

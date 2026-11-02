@@ -41,7 +41,7 @@ it('shows a localized fallback and reports the error through the logger (Sentry)
   expect(screen.getByTestId('error-boundary-fallback')).toBeTruthy();
   expect(screen.getByText('Something went wrong')).toBeTruthy();
   // The root boundary replaces the whole app, and says so.
-  expect(screen.getByText(/MeetingGuard ran into an unexpected problem/)).toBeTruthy();
+  expect(screen.getByText(/Meeting Guard ran into an unexpected problem/)).toBeTruthy();
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({ message: 'render exploded' }),
     expect.objectContaining({ scope: 'ui', message: 'unhandled render error' }),

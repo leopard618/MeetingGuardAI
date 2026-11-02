@@ -8,7 +8,7 @@ import type { GraphTodoDeltaPage, GraphTodoList, GraphTodoListPage, GraphTodoTas
 
 export { graphErrorCode, graphHttpStatus, type GraphTokenProvider } from '../../microsoft/graphHttp';
 
-/** Task fields MeetingGuard reads (delta supports $select). */
+/** Task fields Meeting Guard reads (delta supports $select). */
 export const TODO_TASK_SELECT =
   'id,title,body,status,importance,isReminderOn,reminderDateTime,dueDateTime,completedDateTime,createdDateTime,lastModifiedDateTime';
 

@@ -50,8 +50,8 @@ interface BotStrings {
 }
 
 const EN: BotStrings = {
-  linkSuccess: 'Your WhatsApp is now linked to MeetingGuard. Ask me about your meetings, for example "What do I have tomorrow?"',
-  linkPrompt: 'Hi! To use the MeetingGuard assistant here, open the app, go to Settings > WhatsApp, and send me the 6 digit code it shows you.',
+  linkSuccess: 'Your WhatsApp is now linked to Meeting Guard. Ask me about your meetings, for example "What do I have tomorrow?"',
+  linkPrompt: 'Hi! To use the Meeting Guard assistant here, open the app, go to Settings > WhatsApp, and send me the 6 digit code it shows you.',
   codeExpired: 'That code is not valid anymore. Open the app and generate a new one.',
   quotaExceeded: 'You reached your daily assistant limit. It resets at midnight UTC.',
   confirmPrompt: 'Should I apply this? Reply 1 to confirm or 2 to cancel.',
@@ -71,8 +71,8 @@ const EN: BotStrings = {
 };
 
 const ES: BotStrings = {
-  linkSuccess: 'Tu WhatsApp quedó vinculado a MeetingGuard. Pregúntame por tus reuniones, por ejemplo «¿Qué tengo mañana?»',
-  linkPrompt: '¡Hola! Para usar el asistente de MeetingGuard aquí, abre la app, entra en Ajustes > WhatsApp y envíame el código de 6 dígitos que te muestra.',
+  linkSuccess: 'Tu WhatsApp quedó vinculado a Meeting Guard. Pregúntame por tus reuniones, por ejemplo «¿Qué tengo mañana?»',
+  linkPrompt: '¡Hola! Para usar el asistente de Meeting Guard aquí, abre la app, entra en Ajustes > WhatsApp y envíame el código de 6 dígitos que te muestra.',
   codeExpired: 'Ese código ya no es válido. Abre la app y genera uno nuevo.',
   quotaExceeded: 'Alcanzaste tu límite diario del asistente. Se reinicia a medianoche UTC.',
   confirmPrompt: '¿Lo aplico? Responde 1 para confirmar o 2 para cancelar.',

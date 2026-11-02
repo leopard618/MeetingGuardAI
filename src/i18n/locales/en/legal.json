@@ -9,12 +9,12 @@
   },
   "privacy": {
     "title": "Privacy Policy",
-    "intro": "This policy explains what information the MeetingGuard AI app collects, how we use it, who we share it with and the choices you have. MeetingGuard AI is provided by {{company}} (\"we\", \"us\").",
+    "intro": "This policy explains what information the Meeting Guard AI app collects, how we use it, who we share it with and the choices you have. Meeting Guard AI is provided by {{company}} (\"we\", \"us\").",
     "sections": {
       "controller": {
         "title": "Who is responsible for your data",
         "body": [
-          "{{company}} (Company No. 14085985), registered at {{address}}, is responsible for the personal data processed through MeetingGuard AI. You can contact us at {{email}}."
+          "{{company}} (Company No. 14085985), registered at {{address}}, is responsible for the personal data processed through Meeting Guard AI. You can contact us at {{email}}."
         ]
       },
       "collect": {
@@ -60,10 +60,10 @@
       "google": {
         "title": "Google Calendar",
         "body": [
-          "If you connect Google Calendar, you allow MeetingGuard AI to view and edit the events of your Google calendars (the \"calendar.events\" permission). The app uses this permission to bring the events of your main calendar into MeetingGuard AI, so you get alerts for them, and to add, change or delete the events you manage in MeetingGuard AI, including creating Google Meet links and sending invitations to participants when you ask for it.",
-          "Events from Google Calendar are saved in your MeetingGuard AI account (Google Firebase) so that they are available on your devices, so that you get alerts for them and so that the AI assistant can answer questions about your schedule when you use it.",
-          "The access token that lets the app talk to Google Calendar stays on your device, is managed by Google Sign-In and is never stored on our servers. You can disconnect Google Calendar in the app at any time, or remove MeetingGuard AI's access in your Google Account (myaccount.google.com/permissions).",
-          "MeetingGuard AI's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements."
+          "If you connect Google Calendar, you allow Meeting Guard AI to view and edit the events of your Google calendars (the \"calendar.events\" permission). The app uses this permission to bring the events of your main calendar into Meeting Guard AI, so you get alerts for them, and to add, change or delete the events you manage in Meeting Guard AI, including creating Google Meet links and sending invitations to participants when you ask for it.",
+          "Events from Google Calendar are saved in your Meeting Guard AI account (Google Firebase) so that they are available on your devices, so that you get alerts for them and so that the AI assistant can answer questions about your schedule when you use it.",
+          "The access token that lets the app talk to Google Calendar stays on your device, is managed by Google Sign-In and is never stored on our servers. You can disconnect Google Calendar in the app at any time, or remove Meeting Guard AI's access in your Google Account (myaccount.google.com/permissions).",
+          "Meeting Guard AI's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements."
         ],
         "items": [
           "We use Google user data only to provide and improve the features described in this policy.",
@@ -75,7 +75,7 @@
       "deviceCalendars": {
         "title": "Calendars on your phone",
         "body": [
-          "If you allow calendar access, MeetingGuard AI reads the events of the phone calendars you choose and saves them in your account, so you get alerts for them. If you also choose a calendar for export, the app writes your MeetingGuard AI meetings into it. You can change these choices in the app, or turn off calendar access in your phone's settings."
+          "If you allow calendar access, Meeting Guard AI reads the events of the phone calendars you choose and saves them in your account, so you get alerts for them. If you also choose a calendar for export, the app writes your Meeting Guard AI meetings into it. You can change these choices in the app, or turn off calendar access in your phone's settings."
         ]
       },
       "ai": {
@@ -155,7 +155,7 @@
       "children": {
         "title": "Children",
         "body": [
-          "MeetingGuard AI is not intended for children under 16, and we do not knowingly collect personal information from them. If you think a child has given us personal information, contact us at {{email}} and we will delete it."
+          "Meeting Guard AI is not intended for children under 16, and we do not knowingly collect personal information from them. If you think a child has given us personal information, contact us at {{email}} and we will delete it."
         ]
       },
       "changes": {
@@ -168,24 +168,24 @@
   },
   "terms": {
     "title": "Terms of Service",
-    "intro": "Please read these terms carefully. They explain the rules for using MeetingGuard AI and what you can expect from us.",
+    "intro": "Please read these terms carefully. They explain the rules for using Meeting Guard AI and what you can expect from us.",
     "sections": {
       "agreement": {
         "title": "Agreement",
         "body": [
-          "These Terms of Service are an agreement between you and {{company}} (\"we\", \"us\"), a company registered in England and Wales under Company No. 14085985 with its registered office at {{address}}, for the use of the MeetingGuard AI app. By creating an account or using the app, you accept these terms and our Privacy Policy. If you do not agree, please do not use the app."
+          "These Terms of Service are an agreement between you and {{company}} (\"we\", \"us\"), a company registered in England and Wales under Company No. 14085985 with its registered office at {{address}}, for the use of the Meeting Guard AI app. By creating an account or using the app, you accept these terms and our Privacy Policy. If you do not agree, please do not use the app."
         ]
       },
       "service": {
         "title": "The service",
         "body": [
-          "MeetingGuard AI helps you manage your meetings: it stores your meetings and notes, schedules reminders on your device, syncs with Google Calendar and the calendars on your phone if you connect them, and offers an AI assistant that proposes changes for you to confirm. We may add, change or remove features over time. Features that are not available yet are marked as such in the app."
+          "Meeting Guard AI helps you manage your meetings: it stores your meetings and notes, schedules reminders on your device, syncs with Google Calendar and the calendars on your phone if you connect them, and offers an AI assistant that proposes changes for you to confirm. We may add, change or remove features over time. Features that are not available yet are marked as such in the app."
         ]
       },
       "account": {
         "title": "Your account",
         "body": [
-          "To use MeetingGuard AI:"
+          "To use Meeting Guard AI:"
         ],
         "items": [
           "You must be at least 16 years old, or older if your country requires it to use online services without a parent's consent.",
@@ -213,7 +213,7 @@
       "plans": {
         "title": "Plans and payments",
         "body": [
-          "MeetingGuard AI is currently free to use. The paid plans (Pro and Premium) are shown for information only and cannot be purchased yet. If we offer paid plans in the future, they will be sold through the App Store or Google Play, and the price, billing period, renewal and cancellation terms will be shown before you buy."
+          "Meeting Guard AI is currently free to use. The paid plans (Pro and Premium) are shown for information only and cannot be purchased yet. If we offer paid plans in the future, they will be sold through the App Store or Google Play, and the price, billing period, renewal and cancellation terms will be shown before you buy."
         ]
       },
       "content": {

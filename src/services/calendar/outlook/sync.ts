@@ -8,7 +8,7 @@
  *       idempotently), patch, delete. Only Outlook-visible changes are sent (hash of the visible
  *       fields), so editing alert times never emails attendees. Meetings imported from Google or
  *       a device calendar are NEVER pushed to Outlook (no cross-provider duplicates). Recurring
- *       MeetingGuard series are pushed as Graph series masters; cancelled / modified occurrences
+ *       Meeting Guard series are pushed as Graph series masters; cancelled / modified occurrences
  *       are applied to the generated instances (applyOccurrenceOverrides). A meeting whose shape
  *       changes (one-off <-> series) is deleted and re-created (state.kinds remembers the shape).
  *       Instances of our own masters coming back through calendarView are skipped on import.
@@ -49,12 +49,12 @@ export const TEAMS_POLL_DELAYS_MS: readonly number[] = [1000, 2000, 4000];
 /** Instance listings for overrides are chunked into spans of at most this many days. */
 export const INSTANCE_SPAN_DAYS = 180;
 
-/** The Graph idempotency key of a MeetingGuard-created event. */
+/** The Graph idempotency key of a Meeting Guard-created event. */
 export function outlookTransactionId(meetingId: string): string {
   return `${OWN_TRANSACTION_PREFIX}${meetingId}`;
 }
 
-/** Every event MeetingGuard creates carries a transactionId with this prefix (re-creates too). */
+/** Every event Meeting Guard creates carries a transactionId with this prefix (re-creates too). */
 export const OWN_TRANSACTION_PREFIX = 'mgev-';
 
 /** Errors that are not about one meeting: stop flushing and keep everything queued. */
@@ -204,7 +204,7 @@ export function planOutlookPull(input: OutlookPullPlanInput): OutlookPullPlan {
     // Instances of OUR OWN pushed series: the local master already expands these occurrences,
     // so importing them would duplicate the series one meeting per instance. They are skipped
     // entirely, including per-instance edits made in Outlook (occurrence edits flow
-    // MeetingGuard -> Outlook only, like the Google provider; docs/v1/ARCHITECTURE.md §17).
+    // Meeting Guard -> Outlook only, like the Google provider; docs/v1/ARCHITECTURE.md §17).
     if (typeof event.seriesMasterId === 'string' && ownMasterIds.has(event.seriesMasterId)) continue;
     if (ownUnknownIds.has(event.id)) continue;
     const local = byOutlookId.get(event.id);
@@ -241,7 +241,7 @@ export function planOutlookPull(input: OutlookPullPlanInput): OutlookPullPlan {
       continue;
     }
     if (local && local.deletedAt !== null) {
-      // Deleted in MeetingGuard: the delete was (or will be) pushed; do not resurrect it.
+      // Deleted in Meeting Guard: the delete was (or will be) pushed; do not resurrect it.
       plan.unchanged += 1;
       continue;
     }
@@ -265,7 +265,7 @@ export function planOutlookPull(input: OutlookPullPlanInput): OutlookPullPlan {
       if (meeting.deletedAt !== null || pending[meeting.id]) continue;
       // Series masters never appear in calendarView (only their instances do), so their absence
       // proves nothing: never sweep them. Deleting the whole series in Outlook therefore does not
-      // delete the local master (delete it in MeetingGuard), like the Google provider (§16).
+      // delete the local master (delete it in Meeting Guard), like the Google provider (§16).
       if (meeting.recurrence !== null) continue;
       if (meeting.source !== 'outlook' && meeting.status !== 'scheduled') continue;
       if (!overlapsWindow(meeting, input.window)) continue;
@@ -346,7 +346,7 @@ export async function pullOutlookChanges(deps: OutlookSyncDeps, options: { full?
   }
 
   // Remember what the repository actually stored (it may keep a newer local version), so a later
-  // MeetingGuard-only edit never pushes a stale copy over Outlook's.
+  // Meeting Guard-only edit never pushes a stale copy over Outlook's.
   const storedHashes: Record<string, string | null> = { ...plan.hashUpdates };
   const appliedIds = Object.entries(plan.hashUpdates)
     .filter(([, hash]) => hash !== null)
@@ -723,7 +723,7 @@ export async function flushOutlookPushes(deps: OutlookSyncDeps): Promise<FlushRe
   return result;
 }
 
-/** Queues upcoming MeetingGuard meetings that were never pushed to Outlook (first connection). */
+/** Queues upcoming Meeting Guard meetings that were never pushed to Outlook (first connection). */
 export async function enqueueUpcomingOwnMeetings(deps: OutlookSyncDeps): Promise<number> {
   const now = deps.now();
   const window = syncWindow(now);

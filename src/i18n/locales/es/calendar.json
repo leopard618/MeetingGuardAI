@@ -1,6 +1,6 @@
 {
   "screen": {
-    "subtitle": "Mantén MeetingGuard al día con tus calendarios conectados y con los calendarios de este teléfono."
+    "subtitle": "Mantén Meeting Guard al día con tus calendarios conectados y con los calendarios de este teléfono."
   },
   "status": {
     "lastSynced": "Última sincronización: {{time}}",
@@ -9,23 +9,23 @@
   },
   "google": {
     "title": "Google Calendar",
-    "description": "Sincronización en ambos sentidos con tu calendario principal de Google. Las reuniones que creas aquí aparecen en Google Calendar (con invitaciones para los participantes) y tus eventos de Google reciben las alertas de MeetingGuard.",
+    "description": "Sincronización en ambos sentidos con tu calendario principal de Google. Las reuniones que creas aquí aparecen en Google Calendar (con invitaciones para los participantes) y tus eventos de Google reciben las alertas de Meeting Guard.",
     "state": {
       "connected": "Conectado",
       "notConnected": "Sin conectar",
       "permissionNeeded": "Falta el acceso al calendario"
     },
-    "permissionNeededHint": "MeetingGuard ya no tiene acceso a tu Google Calendar. Vuelve a darle acceso para seguir sincronizando.",
+    "permissionNeededHint": "Meeting Guard ya no tiene acceso a tu Google Calendar. Vuelve a darle acceso para seguir sincronizando.",
     "twoWaySync": "Sincronización en ambos sentidos",
     "connect": "Conectar Google Calendar",
     "connecting": "Conectando...",
     "grantAccess": "Dar acceso al calendario",
     "connectedTitle": "Google Calendar conectado",
     "firstSyncSummary": "Se importaron {{created}} eventos y se enviaron {{pushed}} reuniones a Google Calendar.",
-    "firstSyncFailed": "Conectado, pero la primera sincronización no terminó: {{error}} MeetingGuard lo volverá a intentar automáticamente.",
+    "firstSyncFailed": "Conectado, pero la primera sincronización no terminó: {{error}} Meeting Guard lo volverá a intentar automáticamente.",
     "scopeDenied": "No se concedió el acceso al calendario. Puedes volver a conectarlo cuando quieras.",
     "disconnectTitle": "¿Dejar de sincronizar Google Calendar?",
-    "disconnectMessage": "Los eventos importados de Google Calendar se quitarán de MeetingGuard. No se borra nada de tu Google Calendar.",
+    "disconnectMessage": "Los eventos importados de Google Calendar se quitarán de Meeting Guard. No se borra nada de tu Google Calendar.",
     "disconnect": "Dejar de sincronizar",
     "disconnectAndRevoke": "Dejar de sincronizar y quitar el acceso",
     "disconnecting": "Deteniendo la sincronización...",
@@ -34,7 +34,7 @@
   },
   "outlook": {
     "title": "Calendario de Outlook",
-    "description": "Sincronización en ambos sentidos con el calendario de tu cuenta Microsoft (Outlook, Microsoft 365). Las reuniones que creas aquí aparecen en Outlook, también las que se repiten, y tus eventos de Outlook reciben las alertas de MeetingGuard.",
+    "description": "Sincronización en ambos sentidos con el calendario de tu cuenta Microsoft (Outlook, Microsoft 365). Las reuniones que creas aquí aparecen en Outlook, también las que se repiten, y tus eventos de Outlook reciben las alertas de Meeting Guard.",
     "state": {
       "connected": "Conectado",
       "notConnected": "Sin conectar"
@@ -45,10 +45,10 @@
     "connecting": "Conectando...",
     "connectedTitle": "Outlook conectado",
     "firstSyncSummary": "Se importaron {{created}} eventos y se enviaron {{pushed}} reuniones a Outlook.",
-    "firstSyncFailed": "Conectado, pero la primera sincronización no terminó: {{error}} MeetingGuard lo volverá a intentar automáticamente.",
+    "firstSyncFailed": "Conectado, pero la primera sincronización no terminó: {{error}} Meeting Guard lo volverá a intentar automáticamente.",
     "connectFailed": "El inicio de sesión de Microsoft no terminó. Inténtalo de nuevo.",
     "disconnectTitle": "¿Dejar de sincronizar Outlook?",
-    "disconnectMessage": "Los eventos importados de Outlook se quitarán de MeetingGuard. No se borra nada de tu calendario de Outlook.",
+    "disconnectMessage": "Los eventos importados de Outlook se quitarán de Meeting Guard. No se borra nada de tu calendario de Outlook.",
     "disconnect": "Dejar de sincronizar",
     "disconnectAndRevoke": "Dejar de sincronizar y revisar el acceso",
     "disconnecting": "Deteniendo la sincronización...",
@@ -75,9 +75,9 @@
     "changeList": "Cambiar lista",
     "enabledTitle": "Microsoft To Do conectado",
     "firstSyncSummary": "Se importaron {{created}} tareas y se enviaron {{pushed}} tareas a To Do.",
-    "firstSyncFailed": "Activado, pero la primera sincronización no terminó: {{error}} MeetingGuard lo intentará de nuevo automáticamente.",
+    "firstSyncFailed": "Activado, pero la primera sincronización no terminó: {{error}} Meeting Guard lo intentará de nuevo automáticamente.",
     "disableTitle": "¿Detener la sincronización con To Do?",
-    "disableMessage": "Las tareas importadas de To Do se quitarán de MeetingGuard. No se elimina nada en Microsoft To Do.",
+    "disableMessage": "Las tareas importadas de To Do se quitarán de Meeting Guard. No se elimina nada en Microsoft To Do.",
     "disable": "Detener sincronización",
     "disabling": "Deteniendo la sincronización...",
     "disabledTitle": "La sincronización con To Do está desactivada",
@@ -85,10 +85,10 @@
   },
   "device": {
     "title": "Calendarios de este teléfono",
-    "description": "Importa eventos de los calendarios de este teléfono y, si quieres, añade tus reuniones de MeetingGuard a uno de ellos.",
+    "description": "Importa eventos de los calendarios de este teléfono y, si quieres, añade tus reuniones de Meeting Guard a uno de ellos.",
     "permission": {
       "request": "Permitir acceso al calendario",
-      "denied": "El acceso al calendario está desactivado para MeetingGuard.",
+      "denied": "El acceso al calendario está desactivado para Meeting Guard.",
       "openSettings": "Abrir ajustes"
     },
     "loading": "Cargando calendarios...",
@@ -100,9 +100,9 @@
       "a11y": "Importar eventos de {{calendar}}"
     },
     "export": {
-      "title": "Añadir las reuniones de MeetingGuard a",
+      "title": "Añadir las reuniones de Meeting Guard a",
       "none": "No añadirlas a un calendario del teléfono",
-      "hint": "Solo se añaden las reuniones de MeetingGuard, sin recordatorios del calendario (MeetingGuard te avisa). En esta versión, las reuniones que se repiten no se añaden."
+      "hint": "Solo se añaden las reuniones de Meeting Guard, sin recordatorios del calendario (Meeting Guard te avisa). En esta versión, las reuniones que se repiten no se añaden."
     }
   },
   "sync": {

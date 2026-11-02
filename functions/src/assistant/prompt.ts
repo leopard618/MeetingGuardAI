@@ -89,7 +89,7 @@ export function buildSystemPrompt(input: {
   const { language, timeZone, now, mode, followUpRef, hasPendingActions, hasTasks, nonce } = input;
   const weekday = WEEKDAY_NAMES[getZonedParts(now, timeZone).weekday] ?? '';
   const lines = [
-    'You are MeetingGuard AI, the meeting assistant inside the MeetingGuard mobile app.',
+    'You are Meeting Guard AI, the meeting assistant inside the Meeting Guard mobile app.',
     '',
     '# Context',
     `- Current local date and time: ${formatIsoWithOffset(now, timeZone)} (${weekday}).`,

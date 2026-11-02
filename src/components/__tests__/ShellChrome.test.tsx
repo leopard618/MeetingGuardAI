@@ -93,7 +93,7 @@ describe('CustomHeader', () => {
 
   it('falls back to the app name for an unknown route and shows no menu button without a handler', async () => {
     await renderWithProviders(<CustomHeader title="Nowhere" />);
-    expect(screen.getByText('MeetingGuard AI')).toBeTruthy();
+    expect(screen.getByText('Meeting Guard AI')).toBeTruthy();
     expect(screen.queryByTestId('header-menu')).toBeNull();
     expect(screen.queryByTestId('header-back')).toBeNull();
   });

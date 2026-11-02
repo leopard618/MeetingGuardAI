@@ -1,5 +1,5 @@
 /**
- * All meetings (route "TotalMeetings"): every active meeting from the data layer (MeetingGuard,
+ * All meetings (route "TotalMeetings"): every active meeting from the data layer (Meeting Guard,
  * AI assistant, Google Calendar and device-calendar imports), grouped by day in the user's time
  * zone (Today / Tomorrow / Yesterday / dates), with search, time and source filters,
  * pull-to-refresh (data layer + calendar sync), and open / edit / delete actions (tap, long-press,

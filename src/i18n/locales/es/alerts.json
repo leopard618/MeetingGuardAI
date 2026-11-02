@@ -14,7 +14,7 @@
     "empty": "Hoy no tienes reuniones ni tareas. Disfruta el día libre."
   },
   "status": {
-    "title": "MeetingGuard está activo",
+    "title": "Meeting Guard está activo",
     "next": "Siguiente: {{title}} a las {{time}}",
     "idle": "No hay reuniones próximas. Tus alertas están activas."
   },
@@ -125,7 +125,7 @@
   },
   "refill": {
     "title": "Mantén al día tus alertas de reuniones",
-    "body": "Abre MeetingGuard para que programe tus próximas alertas."
+    "body": "Abre Meeting Guard para que programe tus próximas alertas."
   },
   "settings": {
     "voiceNeedsApp": "La lectura por voz suena dentro de la app. En Android la alarma a pantalla completa abre la app y lee la reunión; en iPhone, abre la alerta para escucharla. Con la app cerrada, primero suena el sonido de la notificación.",
@@ -170,7 +170,7 @@
     "dnd": {
       "title": "No molestar",
       "androidDescription": "Las alertas máximas solo pueden sonar con No molestar activado si lo permites: abre los ajustes de las alertas máximas y activa «Ignorar No molestar».",
-      "iosDescription": "Para recibir alertas durante un modo de concentración, añade MeetingGuard a las apps permitidas en Ajustes > Concentración.",
+      "iosDescription": "Para recibir alertas durante un modo de concentración, añade Meeting Guard a las apps permitidas en Ajustes > Concentración.",
       "open": "Permitir que las alertas máximas ignoren No molestar"
     }
   }

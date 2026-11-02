@@ -23,7 +23,7 @@ function todo(overrides: Partial<GraphTodoTask> = {}): GraphTodoTask {
   return { id: 'AAMk1=', title: 'Prepare the proposal', status: 'notStarted', body: { content: '', contentType: 'text' }, lastModifiedDateTime: NOW, ...overrides };
 }
 
-describe('MeetingGuard -> To Do', () => {
+describe('Meeting Guard -> To Do', () => {
   it('writes title, notes, local-midnight due date and no reminder for a plain task', () => {
     const write = taskToTodoWrite(task({ description: 'Numbers first', dueDate: '2026-10-05' }));
     expect(write).toEqual({
@@ -47,14 +47,14 @@ describe('MeetingGuard -> To Do', () => {
     expect(taskToTodoWrite(done).status).toBe('completed');
   });
 
-  it('keeps a due time without a reminder in MeetingGuard only (date-only in To Do)', () => {
+  it('keeps a due time without a reminder in Meeting Guard only (date-only in To Do)', () => {
     const write = taskToTodoWrite(task({ dueDate: '2026-10-05', dueTime: '16:00' }));
     expect(write.dueDateTime?.dateTime).toBe('2026-10-05T06:00:00.000');
     expect(write.isReminderOn).toBe(false);
   });
 });
 
-describe('To Do -> MeetingGuard', () => {
+describe('To Do -> Meeting Guard', () => {
   it('reads the nearest local date for both due-date conventions', () => {
     // Local midnight of Mexico City expressed in UTC (what To Do stores).
     expect(nearestLocalDate('2026-10-05T06:00:00.000Z', 'America/Mexico_City')).toBe('2026-10-05');

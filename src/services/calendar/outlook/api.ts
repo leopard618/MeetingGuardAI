@@ -9,7 +9,7 @@ import type { GraphDeltaPage, GraphEvent, GraphEventWrite, GraphInstancesPage, G
 
 export { GRAPH_API_BASE, graphErrorCode, graphHttpStatus, type GraphTokenProvider } from '../../microsoft/graphHttp';
 
-/** Event fields MeetingGuard reads (smaller payloads; delta supports $select). */
+/** Event fields Meeting Guard reads (smaller payloads; delta supports $select). */
 export const EVENT_SELECT =
   'id,changeKey,lastModifiedDateTime,type,seriesMasterId,subject,body,bodyPreview,start,end,isAllDay,' +
   'isCancelled,location,attendees,organizer,responseStatus,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,onlineMeetingUrl,' +
@@ -48,7 +48,7 @@ export interface OutlookGraphApi {
   /**
    * Occurrences and exceptions of a series master whose start falls in [startIso, endIso)
    * (GET /me/events/{id}/instances), every page followed. Used to find the Graph instance of a
-   * cancelled or modified MeetingGuard occurrence.
+   * cancelled or modified Meeting Guard occurrence.
    */
   listInstances(masterId: string, startIso: string, endIso: string): Promise<GraphEvent[]>;
   /** Signed-in Microsoft account (mail / userPrincipalName). */

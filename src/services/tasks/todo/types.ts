@@ -1,5 +1,5 @@
 /**
- * Microsoft Graph To Do resources (the fields MeetingGuard reads and writes).
+ * Microsoft Graph To Do resources (the fields Meeting Guard reads and writes).
  * Reference: https://learn.microsoft.com/graph/api/resources/todotask
  */
 

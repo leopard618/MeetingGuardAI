@@ -72,7 +72,7 @@ export interface RefillNotificationData {
   hash: string;
 }
 
-/** The "open MeetingGuard to keep your alerts up to date" notification. */
+/** The "open Meeting Guard to keep your alerts up to date" notification. */
 export interface RefillNotificationSpec extends Omit<AlertNotificationSpec, 'kind' | 'meetingId' | 'intensity' | 'data'> {
   kind: 'refill';
   data: RefillNotificationData;

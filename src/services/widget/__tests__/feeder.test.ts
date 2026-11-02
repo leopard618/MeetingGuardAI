@@ -152,7 +152,7 @@ it('pushes strings and the next meeting on session start', async () => {
   await flush();
   expect(h.widget.setStrings).toHaveBeenCalledWith({
     emptyTitle: 'No upcoming meetings',
-    emptyBody: 'Open MeetingGuard to plan one',
+    emptyBody: 'Open Meeting Guard to plan one',
     nowLabel: 'Happening now',
   });
   expect(h.widget.setNextMeeting).toHaveBeenCalledWith({
@@ -231,7 +231,7 @@ it('re-pushes strings in the new language and keeps feeding after a failure', as
   await flush();
   expect(h.widget.setStrings).toHaveBeenLastCalledWith({
     emptyTitle: 'No hay reuniones próximas',
-    emptyBody: 'Abre MeetingGuard para planificar una',
+    emptyBody: 'Abre Meeting Guard para planificar una',
     nowLabel: 'En curso',
   });
   expect(h.widget.setNextMeeting).toHaveBeenLastCalledWith(null);
@@ -277,7 +277,7 @@ it('re-feeds only when the device timezone changed since the last feed (pre-form
 it('widgetStringsOf reads the widget namespace', () => {
   expect(widgetStringsOf(translator('en'))).toEqual({
     emptyTitle: 'No upcoming meetings',
-    emptyBody: 'Open MeetingGuard to plan one',
+    emptyBody: 'Open Meeting Guard to plan one',
     nowLabel: 'Happening now',
   });
 });

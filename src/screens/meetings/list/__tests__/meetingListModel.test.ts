@@ -75,7 +75,7 @@ describe('filters', () => {
     expect(isInProgress(later, now)).toBe(false);
   });
 
-  it('filters by source category (AI and manual meetings are MeetingGuard meetings)', () => {
+  it('filters by source category (AI and manual meetings are Meeting Guard meetings)', () => {
     expect(sourceCategory('ai_chat')).toBe('meetingguard');
     expect(sourceCategory('whatsapp')).toBe('meetingguard');
     const only = (source: 'meetingguard' | 'google' | 'device') =>

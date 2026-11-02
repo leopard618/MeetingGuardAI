@@ -1,17 +1,17 @@
 {
   "progress": "Paso {{current}} de {{total}}",
   "language": {
-    "title": "Te damos la bienvenida a MeetingGuard AI",
+    "title": "Te damos la bienvenida a Meeting Guard AI",
     "subtitle": "Vamos a configurarlo todo para que no te pierdas ninguna reunión. Primero, elige tu idioma.",
     "hint": "Puedes cambiarlo cuando quieras desde el menú."
   },
   "calendars": {
     "title": "Conecta tus calendarios",
-    "subtitle": "MeetingGuard te avisa de las reuniones de tus calendarios y lo mantiene todo sincronizado.",
+    "subtitle": "Meeting Guard te avisa de las reuniones de tus calendarios y lo mantiene todo sincronizado.",
     "later": "Puedes cambiar esto más tarde en Ajustes.",
     "google": {
       "title": "Google Calendar",
-      "description": "Sincronización en ambos sentidos: las reuniones que crees aquí aparecen en Google Calendar y tus eventos de Google reciben alertas de MeetingGuard.",
+      "description": "Sincronización en ambos sentidos: las reuniones que crees aquí aparecen en Google Calendar y tus eventos de Google reciben alertas de Meeting Guard.",
       "connect": "Conectar Google Calendar",
       "connected": "Conectado",
       "success": "Google Calendar está conectado.",
@@ -29,7 +29,7 @@
   },
   "alerts": {
     "title": "¿Cómo quieres que te avisemos?",
-    "subtitle": "Elige cuánto debe insistir MeetingGuard para llamar tu atención antes de una reunión.",
+    "subtitle": "Elige cuánto debe insistir Meeting Guard para llamar tu atención antes de una reunión.",
     "enabled": "Alertas de reuniones",
     "intensity": {
       "label": "Intensidad de las alertas",
@@ -74,7 +74,7 @@
     },
     "permission": {
       "title": "Notificaciones",
-      "description": "MeetingGuard necesita las notificaciones para avisarte, incluso con la aplicación cerrada.",
+      "description": "Meeting Guard necesita las notificaciones para avisarte, incluso con la aplicación cerrada.",
       "allow": "Permitir notificaciones",
       "granted": "Las notificaciones están activadas.",
       "denied": "Las notificaciones están desactivadas. Actívalas en los ajustes del dispositivo para que las alertas te lleguen.",
@@ -82,12 +82,12 @@
     },
     "exactAlarms": {
       "title": "Alarmas exactas (Android)",
-      "description": "Android puede retrasar las alertas si MeetingGuard no tiene permiso para usar alarmas exactas. Activa «Alarmas y recordatorios» para MeetingGuard y las alertas sonarán a su hora.",
+      "description": "Android puede retrasar las alertas si Meeting Guard no tiene permiso para usar alarmas exactas. Activa «Alarmas y recordatorios» para Meeting Guard y las alertas sonarán a su hora.",
       "open": "Abrir ajustes de alarmas"
     },
     "timeSensitive": {
       "title": "Alertas urgentes (iPhone)",
-      "description": "Las alertas de reuniones se marcan como urgentes para que puedan atravesar los modos de concentración. Si los usas, permite las notificaciones urgentes de MeetingGuard."
+      "description": "Las alertas de reuniones se marcan como urgentes para que puedan atravesar los modos de concentración. Si los usas, permite las notificaciones urgentes de Meeting Guard."
     }
   },
   "assistant": {

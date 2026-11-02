@@ -706,7 +706,7 @@ export interface Preferences {
   googleCalendarSyncEnabled: boolean;
   /** Device calendar ids to import from (device-specific; unknown ids are ignored). */
   deviceCalendarImportIds: string[];
-  /** Device calendar that receives exported MeetingGuard meetings (null = no export). */
+  /** Device calendar that receives exported Meeting Guard meetings (null = no export). */
   deviceCalendarExportId: string | null;
   /**
    * Microsoft To Do list that receives new tasks (M7). The name is cached so the task confirm
@@ -1278,7 +1278,7 @@ export interface AuthUser {
   providerIds: string[];
 }
 
-/** Sources whose meetings come from another calendar (never created in MeetingGuard). */
+/** Sources whose meetings come from another calendar (never created in Meeting Guard). */
 export const IMPORTED_MEETING_SOURCES: ReadonlySet<MeetingSource> = new Set<MeetingSource>(['google', 'device', 'outlook']);
 
 export function isImportedMeeting(meeting: Pick<Meeting, 'source'>): boolean {

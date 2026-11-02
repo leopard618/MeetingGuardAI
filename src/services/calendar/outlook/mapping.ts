@@ -1,16 +1,16 @@
 /**
- * Pure mapping between Microsoft Graph events and MeetingGuard meetings (unit-tested).
+ * Pure mapping between Microsoft Graph events and Meeting Guard meetings (unit-tested).
  *
  * - Requests use `Prefer: outlook.timezone="UTC"`, so timed events arrive as UTC wall clock; the
  *   meeting keeps the device zone (Graph only exposes the original zone as a Windows name, which
- *   MeetingGuard does not map). All-day events start at local midnight of the device zone and
+ *   Meeting Guard does not map). All-day events start at local midnight of the device zone and
  *   last 1440 min x days (Graph's all-day end is exclusive, like Google's).
  * - Attendees map to participants (resources and the signed-in account excluded); the user's own
  *   `responseStatus: declined` imports the event as cancelled (visible, never alerting).
  * - Conference: the Teams/online-meeting join URL when present, otherwise the first Zoom / Teams /
  *   Meet link found in the location or body text.
  * - Recurring Graph series arrive as calendarView instances (occurrence/exception), one meeting
- *   per instance. MeetingGuard series are pushed the other way as Graph series masters
+ *   per instance. Meeting Guard series are pushed the other way as Graph series masters
  *   (toGraphRecurrence); cancelled and modified occurrences become instance deletes / patches
  *   (sync.ts applyOccurrenceOverrides). Instances of our own masters are skipped on import.
  */
@@ -59,7 +59,7 @@ import type {
   GraphResponse,
 } from './types';
 
-/** MeetingGuard syncs the Microsoft account's default calendar (no calendar id in the routes). */
+/** Meeting Guard syncs the Microsoft account's default calendar (no calendar id in the routes). */
 export const OUTLOOK_DEFAULT_CALENDAR = 'default';
 
 export type OutlookMeetingInput = ExternalMeetingInput;
@@ -297,7 +297,7 @@ export interface GraphRecurrenceResult {
 }
 
 /**
- * MeetingGuard rule -> Graph patternedRecurrence. Graph needs the series to start on an
+ * Meeting Guard rule -> Graph patternedRecurrence. Graph needs the series to start on an
  * occurrence the pattern generates, so an off-pattern anchor (a weekly rule without the anchor's
  * weekday, a monthly rule with a different day) moves the series start to the first generated
  * occurrence, exactly what expandOccurrences renders locally. `until` (an inclusive instant) becomes

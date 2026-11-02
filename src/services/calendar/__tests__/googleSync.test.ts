@@ -135,7 +135,7 @@ describe('pullGoogleChanges', () => {
     expect(meetings.all()[0]?.title).toBe('Edited here');
   });
 
-  it("links MeetingGuard's own events to their meeting instead of importing a copy", async () => {
+  it("links Meeting Guard's own events to their meeting instead of importing a copy", async () => {
     const { api, meetings, deps } = setup();
     const own = meetings.add({ title: 'Mine', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' }, 'ownMeeting');
     const ownEventId = googleEventIdForMeeting(own.id);
@@ -187,7 +187,7 @@ describe('pushGoogleMeeting', () => {
     expect(meetings.writes.at(-1)).toMatchObject({ id: meeting.id, origin: 'calendar_google', kind: 'update' });
   });
 
-  it('does not re-send (or email attendees) when only MeetingGuard fields changed', async () => {
+  it('does not re-send (or email attendees) when only Meeting Guard fields changed', async () => {
     const { api, meetings, deps } = setup();
     const meeting = meetings.add({
       title: 'Kickoff',

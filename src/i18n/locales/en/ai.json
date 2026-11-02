@@ -256,7 +256,7 @@
     "joinWith": "Join ({{provider}}): {{url}}",
     "password": "Password: {{password}}",
     "to": "To: {{recipients}}",
-    "footer": "Shared with MeetingGuard AI",
+    "footer": "Shared with Meeting Guard AI",
     "channel": {
       "email": "Email",
       "system_share": "Share sheet"

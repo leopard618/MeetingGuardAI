@@ -64,7 +64,7 @@ const storedAlertDataSchema = z.object({
 
 /**
  * Parses notification content.data. Accepts the object, or the JSON string some platforms deliver
- * (Android headless tasks pass `dataString`). null for anything that is not a v1 MeetingGuard payload.
+ * (Android headless tasks pass `dataString`). null for anything that is not a v1 Meeting Guard payload.
  */
 export function parseAlertData(raw: unknown): StoredAlertData | null {
   let value: unknown = raw;
@@ -367,7 +367,7 @@ export function parseRefillData(raw: unknown): RefillNotificationData | null {
 }
 
 /**
- * "Open MeetingGuard to keep your alerts up to date" (the OS budget cut real alerts). Low-key
+ * "Open Meeting Guard to keep your alerts up to date" (the OS budget cut real alerts). Low-key
  * follow-up channel, no actions; tapping it opens the app, which reconciles the alert window.
  */
 export function renderRefillSpec(fireAt: string, deps: AlertTextDeps): RefillNotificationSpec {

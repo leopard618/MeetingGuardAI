@@ -94,7 +94,7 @@
     "todoLoading": "Loading lists...",
     "todoListsFailed": "The lists could not be loaded.",
     "todoChangeList": "Change list",
-    "todoHint": "Synced with To Do: title, notes, due date, reminder, done. Stays in MeetingGuard only: a due time without a reminder, people and the linked meeting.",
+    "todoHint": "Synced with To Do: title, notes, due date, reminder, done. Stays in Meeting Guard only: a due time without a reminder, people and the linked meeting.",
     "delete": "Delete task",
     "discardTitle": "Discard changes?",
     "discardMessage": "Your edits have not been saved.",

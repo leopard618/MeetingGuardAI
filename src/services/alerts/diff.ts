@@ -24,7 +24,7 @@ export interface ReconcileDiff {
   keep: string[];
 }
 
-/** MeetingGuard entries of a getAllScheduledNotificationsAsync() result (others are ignored). */
+/** Meeting Guard entries of a getAllScheduledNotificationsAsync() result (others are ignored). */
 export function toScheduledEntries(records: readonly ScheduledNotificationRecord[]): ScheduledEntry[] {
   const entries: ScheduledEntry[] = [];
   const seen = new Set<string>();
@@ -43,7 +43,7 @@ export function toScheduledEntries(records: readonly ScheduledNotificationRecord
 }
 
 /**
- * @param existing  MeetingGuard notifications currently pending (toScheduledEntries).
+ * @param existing  Meeting Guard notifications currently pending (toScheduledEntries).
  * @param desired   Rendered plan (unique identifiers).
  * @param keepIds   Pending ids validated elsewhere and kept as they are (valid snoozes).
  */

@@ -196,7 +196,7 @@ describe('share text', () => {
       'Agenda:',
       '1. Budget',
       '',
-      'Compartido con MeetingGuard AI',
+      'Compartido con Meeting Guard AI',
     ]);
 
     const url = buildMailtoUrl(['john@company.com', 'o+x@y.io'], content);

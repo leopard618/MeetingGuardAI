@@ -1,5 +1,5 @@
 /**
- * MeetingGuard AI admin dashboard v2 (build-free ES module; docs/ADMIN.md, ARCHITECTURE.md §21).
+ * Meeting Guard AI admin dashboard v2 (build-free ES module; docs/ADMIN.md, ARCHITECTURE.md §21).
  *
  * - Firebase JS SDK from the gstatic CDN (the version tracks functions/package.json devDeps).
  * - Config comes from Firebase Hosting's reserved /__/firebase/init.json; a local ./config.js

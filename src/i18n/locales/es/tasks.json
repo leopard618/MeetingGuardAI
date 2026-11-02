@@ -94,7 +94,7 @@
     "todoLoading": "Cargando listas...",
     "todoListsFailed": "No se pudieron cargar las listas.",
     "todoChangeList": "Cambiar lista",
-    "todoHint": "Se sincroniza con To Do: título, notas, fecha límite, recordatorio, completada. Se queda solo en MeetingGuard: una hora límite sin recordatorio, las personas y la reunión vinculada.",
+    "todoHint": "Se sincroniza con To Do: título, notas, fecha límite, recordatorio, completada. Se queda solo en Meeting Guard: una hora límite sin recordatorio, las personas y la reunión vinculada.",
     "delete": "Eliminar tarea",
     "discardTitle": "¿Descartar los cambios?",
     "discardMessage": "Tus cambios no se han guardado.",
