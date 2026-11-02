@@ -5,7 +5,7 @@
  * small spaced capitals, the first name in display size, the date, and a short accent bar. The
  * next-meeting card below it is pulled up over its bottom edge (CARD_OVERLAP). The stack header is
  * hidden on the dashboard (RootNavigator), so this is the only header of the screen. Behind the
- * text sits the hero picture (DASHBOARD_ART.heroOverlay, right-weighted, fading left).
+ * text sits the client's artwork (DASHBOARD_ART.heroBackground, cover, calendar at the right).
  */
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -56,8 +56,8 @@ export function DashboardHero({ salute, name, dateText, testID = 'dashboard-hero
       testID={testID}
     >
       {focused ? <StatusBar style="light" /> : null}
-      {DASHBOARD_ART.heroOverlay ? (
-        <Image source={DASHBOARD_ART.heroOverlay} style={styles.overlay} resizeMode="cover" accessibilityIgnoresInvertColors />
+      {DASHBOARD_ART.heroBackground ? (
+        <Image source={DASHBOARD_ART.heroBackground} style={styles.overlay} resizeMode="cover" accessibilityIgnoresInvertColors />
       ) : null}
       <View style={styles.headerRow}>
         {sidebar ? (

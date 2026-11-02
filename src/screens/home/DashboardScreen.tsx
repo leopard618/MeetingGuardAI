@@ -174,7 +174,7 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   }, [refresh, t]);
 
   const renderItem = useCallback<ListRenderItem<TimelineItem>>(
-    ({ item, index }) => <TodayTimelineRow item={item} isLast={index === timeline.length - 1} onOpen={openMeeting} />,
+    ({ item, index }) => <TodayTimelineRow item={item} isFirst={index === 0} isLast={index === timeline.length - 1} onOpen={openMeeting} />,
     [openMeeting, timeline.length],
   );
 

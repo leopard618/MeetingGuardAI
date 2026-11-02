@@ -296,7 +296,7 @@ it('renders in Spanish', async () => {
   await i18n.changeLanguage('es');
   await renderDashboard();
   expect(screen.getByTestId('dashboard-greeting').props.children).toBe('BUENOS DÍAS');
-  expect(screen.getByText('Nueva reunión')).toBeTruthy();
+  expect(screen.getByTestId('quick-new-manual').props.accessibilityLabel).toBe('Nueva reunión');
   expect(screen.getByTestId('next-meeting-countdown-label').props.children).toBe('Empieza en');
   expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('20:00');
 });

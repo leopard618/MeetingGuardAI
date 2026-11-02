@@ -3,11 +3,11 @@
  * (overlap in the error color, "starts right after" with a tertiary icon, always with an icon and
  * text so the meaning never depends on color alone). Tapping opens the meeting.
  *
- * MG Indigo (2026-11-01 dashboard redesign): an open schedule list instead of bordered cards.
- * Bold tabular start time on the left, a 4dp accent bar in the meeting's source color (§2 map;
- * primary for the meeting happening now, error for a conflict), title and range, then the state
- * pill and hints. The row happening now sits on a surfaceContainerHigh tint; rows are separated
- * by a hairline (none after the last).
+ * Vertical timeline (client, November 1 evening): no cards. A time column on the left, then a
+ * rail with a dot (source color per the §2 map; primary and larger for the meeting happening now;
+ * error for a conflict) joined to the neighbours by a thin vertical line (none above the first
+ * row, none below the last), then the title, the range, the state pill and the hints, and a
+ * chevron. Rows sit directly on the screen background.
  */
 import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -23,11 +23,17 @@ import type { TimelineItem } from './homeModel';
 
 export interface TodayTimelineRowProps {
   item: TimelineItem;
+  isFirst?: boolean;
   isLast: boolean;
   onOpen(meeting: Meeting): void;
 }
 
-export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps): ReactElement {
+const DOT = 12;
+const DOT_NOW = 16;
+const RAIL_WIDTH = 24;
+const LINE_WIDTH = 2;
+
+export function TodayTimelineRow({ item, isFirst = false, isLast, onOpen }: TodayTimelineRowProps): ReactElement {
   const t = useT();
   const { colors } = useAppTheme();
   const fmt = useFormatters();
@@ -53,18 +59,16 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
   const rightAfterText = followsRightAfter ? t('home:today.rightAfter', { title: followsRightAfter.title }) : '';
   const a11yState = [stateLabel, conflict ? overlapText : '', !cancelled ? rightAfterText : ''].filter(Boolean).join('. ');
 
-  const barColor = conflict ? colors.error : isNow ? colors.primary : colors.chart[sourceColorIndex[meeting.source]];
+  const dotColor = conflict ? colors.error : isNow ? colors.primary : colors.chart[sourceColorIndex[meeting.source]];
+  const dotSize = isNow ? DOT_NOW : DOT;
+  const lineColor = colors.outlineVariant;
 
   return (
     <PressableScale
       onPress={() => onOpen(meeting)}
       accessibilityRole="button"
       accessibilityLabel={t('home:today.itemA11y', { time: meeting.allDay ? timeLabel : rangeLabel, title: meeting.title, state: a11yState })}
-      style={[
-        styles.row,
-        isNow && { backgroundColor: colors.surfaceContainerHigh },
-        !isLast && !isNow && [styles.rowDivider, { borderBottomColor: colors.outlineVariant }],
-      ]}
+      style={styles.row}
       testID={`timeline-${meeting.id}`}
     >
       <View style={styles.timeColumn}>
@@ -76,10 +80,14 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
           {timeLabel}
         </Text>
       </View>
-      <View style={[styles.bar, { backgroundColor: barColor }, dimmed && styles.barDimmed]} />
+      <View style={styles.rail}>
+        <View style={[styles.lineTop, { backgroundColor: isFirst ? 'transparent' : lineColor }]} />
+        <View style={[styles.dot, { width: dotSize, height: dotSize, backgroundColor: dotColor, borderColor: colors.background }, dimmed && styles.dotDimmed]} />
+        <View style={[styles.lineBottom, { backgroundColor: isLast ? 'transparent' : lineColor }]} />
+      </View>
       <View style={styles.content}>
         <Text
-          variant="titleSmall"
+          variant="titleMedium"
           numberOfLines={2}
           style={[dimmed && { color: colors.onSurfaceVariant }, cancelled && styles.cancelled]}
         >
@@ -116,34 +124,42 @@ export function TodayTimelineRow({ item, isLast, onOpen }: TodayTimelineRowProps
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: radii.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-  },
-  rowDivider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderRadius: 0,
+    alignItems: 'stretch',
   },
   timeColumn: {
-    minWidth: 60,
-    paddingRight: spacing.xs,
+    width: 76,
+    paddingTop: spacing.md,
+    paddingRight: spacing.sm,
+    alignItems: 'flex-end',
   },
   time: {
     fontVariant: ['tabular-nums'],
+    textAlign: 'right',
   },
-  bar: {
-    width: componentMetrics.accentBarWidth,
-    alignSelf: 'stretch',
-    minHeight: 36,
+  rail: {
+    width: RAIL_WIDTH,
+    alignItems: 'center',
+  },
+  lineTop: {
+    width: LINE_WIDTH,
+    height: spacing.md + 4,
+  },
+  dot: {
     borderRadius: radii.full,
-    marginRight: spacing.md,
+    borderWidth: 2,
   },
-  barDimmed: {
-    opacity: 0.45,
+  dotDimmed: {
+    opacity: 0.5,
+  },
+  lineBottom: {
+    width: LINE_WIDTH,
+    flex: 1,
   },
   content: {
     flex: 1,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    paddingLeft: spacing.sm,
   },
   cancelled: {
     textDecorationLine: 'line-through',
@@ -162,6 +178,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   chevron: {
+    marginTop: spacing.md + 2,
     marginLeft: spacing.sm,
   },
 });

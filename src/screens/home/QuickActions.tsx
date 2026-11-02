@@ -1,15 +1,14 @@
 /**
- * Quick actions (the client's mockup): a 2 x 2 grid of rounded tiles in the right half of the row
- * shared with the tasks card. New meeting is the filled primary tile (plus icon, two-line label),
- * the others are surface tiles with a primary icon top-left and the label at the bottom: new with
- * the AI assistant, the WhatsApp bot, notes. Icons are Ionicons (rounded, modern) at 28dp.
- * WhatsApp is disabled (dimmed) until whatsappLinkStatus.enabled (docs/v1/ARCHITECTURE.md §27);
- * its state is spoken through the accessibility label, there is no caption. No motion.
+ * Quick actions (the client's mockup, icon-only since November 1 evening): a 2 x 2 grid of rounded
+ * tiles in the right half of the row shared with the tasks card, each showing ONE large rounded
+ * Ionicons glyph and nothing else. New meeting is the filled primary tile (plus), the others are
+ * surface tiles with a primary icon: new with the AI assistant (sparkles), the WhatsApp bot (chat
+ * bubble), notes (document). Each tile's name is its accessibility label. WhatsApp is disabled
+ * (dimmed) until whatsappLinkStatus.enabled (docs/v1/ARCHITECTURE.md §27). No motion.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps, ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
 
 import { PressableScale } from '../../components/ui';
 import { useT } from '../../i18n';
@@ -26,7 +25,9 @@ export interface QuickActionsProps {
   style?: object;
 }
 
-const ICON_SIZE = 28;
+const ICON_SIZE = 40;
+/** Gap between the tiles (a step wider than the card gap elsewhere, per the client). */
+const TILE_GAP = spacing.md;
 
 function Tile({
   icon,
@@ -38,6 +39,7 @@ function Tile({
   testID,
 }: {
   icon: IonIconName;
+  /** Spoken name of the tile (no visible text). */
   label: string;
   /** The one filled tile (new meeting). */
   primary?: boolean;
@@ -48,7 +50,6 @@ function Tile({
 }): ReactElement {
   const { colors, elevated } = useAppTheme();
   const iconColor = primary ? colors.onPrimary : disabled ? colors.onSurfaceDisabled : colors.primary;
-  const labelColor = primary ? colors.onPrimary : disabled ? colors.disabledText : colors.onSurface;
   return (
     <PressableScale
       onPress={() => onPress?.()}
@@ -60,9 +61,6 @@ function Tile({
       testID={testID}
     >
       <Ionicons name={icon} size={ICON_SIZE} color={iconColor} accessibilityElementsHidden importantForAccessibility="no" />
-      <Text variant="titleSmall" style={[styles.label, { color: labelColor }]} numberOfLines={2}>
-        {label}
-      </Text>
     </PressableScale>
   );
 }
@@ -94,24 +92,21 @@ export function QuickActions({ onNewManual, onNewWithAi, onWhatsApp, onNotes, st
 
 const styles = StyleSheet.create({
   grid: {
-    gap: spacing.sm,
+    gap: TILE_GAP,
   },
   row: {
     flex: 1,
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: TILE_GAP,
   },
   tile: {
     flex: 1,
-    minHeight: 100,
+    minHeight: 92,
     borderRadius: radii.xl,
-    padding: spacing.md,
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   disabled: {
     opacity: 0.55,
-  },
-  label: {
-    marginTop: spacing.sm,
   },
 });
