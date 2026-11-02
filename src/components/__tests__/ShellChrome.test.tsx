@@ -8,9 +8,8 @@ import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import { I18nProvider, i18n } from '../../i18n';
-import { ROUTES } from '../../navigation/routes';
+import { ROUTES, TAB_ROOT_ROUTES } from '../../navigation/routes';
 import { BOTTOM_BAR_ITEMS, BottomNavBar } from '../BottomNavBar';
-import { TAB_ROOT_ROUTES } from '../../navigation/routes';
 import { avatarInitial, CustomHeader, nextLanguage } from '../CustomHeader';
 import { MobileSidebar, SIDEBAR_ITEMS } from '../MobileSidebar';
 
