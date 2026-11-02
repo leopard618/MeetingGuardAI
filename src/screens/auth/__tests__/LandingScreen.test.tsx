@@ -70,11 +70,13 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-it('presents honest value props, the free quota and the consent links', async () => {
+it('presents only the sign-in buttons and the legal links (no panel, no copy)', async () => {
   await renderLanding();
   expect(screen.getByText('Continue with Google')).toBeTruthy();
-  expect(screen.getByText('An AI assistant that asks first')).toBeTruthy();
-  expect(screen.getByText('The free plan includes 5 AI assistant requests per day.')).toBeTruthy();
+  expect(screen.getByText('Continue with email')).toBeTruthy();
+  expect(screen.queryByText(/assistant that asks first/)).toBeNull();
+  expect(screen.queryByText(/free plan/)).toBeNull();
+  expect(screen.queryByText(/By continuing/)).toBeNull();
   expect(screen.queryByText(/Outlook/)).toBeNull();
   expect(screen.getByText('Terms of Service')).toBeTruthy();
   expect(screen.getByText('Privacy Policy')).toBeTruthy();

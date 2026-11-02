@@ -11,9 +11,8 @@
  *   would push "Continue with Google" down mid-tap on a slow first frame (the check resolves
  *   within the first frames, but a busy JS thread can delay it past a user's first touch).
  * - buttonType CONTINUE (matches "Continue with Google" wording in both languages), buttonStyle
- *   WHITE on the dark scheme / BLACK on the light scheme (the card behind it uses
- *   colors.surface), cornerRadius componentMetrics.buttonHeight / 2 (pill like the other
- *   buttons). The native button draws its own system-localized label; accessibilityLabel is
+ *   WHITE in both schemes (it sits on the always-dark brand image), cornerRadius
+ *   componentMetrics.buttonHeight / 2 (pill like the other buttons). The native button draws its own system-localized label; accessibilityLabel is
  *   t('landing:signIn.apple') for parity and tests.
  * - The module is require()d lazily, NEVER imported at the top (Android bundles and unit tests
  *   must not resolve the iOS native module) - same pattern as loadGoogleModule() in
@@ -27,7 +26,7 @@ import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'reac
 
 import { createLogger } from '../../core/logger';
 import { useT } from '../../i18n';
-import { componentMetrics, pressedDimOpacity, useAppTheme } from '../../theme';
+import { componentMetrics, pressedDimOpacity } from '../../theme';
 
 const log = createLogger('landing');
 
@@ -78,7 +77,6 @@ export interface AppleSignInButtonProps {
 
 export function AppleSignInButton({ onPress, disabled = false, style }: AppleSignInButtonProps): ReactElement | null {
   const t = useT();
-  const { scheme } = useAppTheme();
   const module = Platform.OS === 'ios' ? loadAppleUiModule() : null;
   const [availability, setAvailability] = useState<'pending' | 'available' | 'unavailable'>('pending');
 
@@ -111,7 +109,7 @@ export function AppleSignInButton({ onPress, disabled = false, style }: AppleSig
     <View style={[disabled && styles.dimmed, style]}>
       <NativeButton
         buttonType={module.AppleAuthenticationButtonType.CONTINUE}
-        buttonStyle={scheme === 'dark' ? module.AppleAuthenticationButtonStyle.WHITE : module.AppleAuthenticationButtonStyle.BLACK}
+        buttonStyle={module.AppleAuthenticationButtonStyle.WHITE}
         cornerRadius={componentMetrics.buttonHeight / 2}
         onPress={() => {
           if (!disabled) onPress();

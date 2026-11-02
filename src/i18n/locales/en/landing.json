@@ -1,20 +1,6 @@
 {
   "language": "Language",
   "headline": "Meeting alerts you won't miss",
-  "valueProps": {
-    "alerts": {
-      "title": "Alerts that get your attention"
-    },
-    "calendars": {
-      "title": "Your calendars, together"
-    },
-    "assistant": {
-      "title": "An AI assistant that asks first"
-    },
-    "languages": {
-      "title": "English and Spanish"
-    }
-  },
   "signIn": {
     "google": "Continue with Google",
     "apple": "Continue with Apple",
@@ -23,10 +9,7 @@
     "failedTitle": "Couldn't sign in",
     "failed": "Google sign-in didn't work. Please try again."
   },
-  "freePlan_one": "The free plan includes {{count}} AI assistant request per day.",
-  "freePlan_other": "The free plan includes {{count}} AI assistant requests per day.",
   "consent": {
-    "text": "By continuing, you agree to the Terms of Service and confirm that you have read the Privacy Policy.",
     "terms": "Terms of Service",
     "privacy": "Privacy Policy"
   }

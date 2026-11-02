@@ -1,20 +1,6 @@
 {
   "language": "Idioma",
   "headline": "Avisos de reuniones que no se te escapan",
-  "valueProps": {
-    "alerts": {
-      "title": "Avisos que llaman tu atención"
-    },
-    "calendars": {
-      "title": "Tus calendarios, juntos"
-    },
-    "assistant": {
-      "title": "Un asistente de IA que pregunta antes"
-    },
-    "languages": {
-      "title": "Español e inglés"
-    }
-  },
   "signIn": {
     "google": "Continuar con Google",
     "apple": "Continuar con Apple",
@@ -23,10 +9,7 @@
     "failedTitle": "No se pudo iniciar sesión",
     "failed": "El inicio de sesión con Google no funcionó. Inténtalo de nuevo."
   },
-  "freePlan_one": "El plan gratuito incluye {{count}} consulta al asistente de IA al día.",
-  "freePlan_other": "El plan gratuito incluye {{count}} consultas al asistente de IA al día.",
   "consent": {
-    "text": "Al continuar, aceptas los Términos del servicio y confirmas que has leído la Política de privacidad.",
     "terms": "Términos del servicio",
     "privacy": "Política de privacidad"
   }

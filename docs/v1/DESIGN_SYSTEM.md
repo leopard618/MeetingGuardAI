@@ -278,8 +278,9 @@ radii only from tokens; hierarchy = one focal element per screen.
 - **LandingScreen** (`auth/LandingScreen.tsx`): bg.jpg is the brand image (mark, app name and
   tagline baked in over a night office, 941 x 1672, always dark); the screen draws no logo or
   headline, a spacer keeps the content card below the image's tagline (card starts at 46% of the
-  window) and the scrim is clear on top and night-dark behind the card; content card surface r-xl
-  p-24; buttons follow the
+  window) and the scrim is clear on top and night-dark behind the buttons; no content card, no
+  value props, no quota note: only Apple (iOS) / Google / email buttons and the Terms and Privacy
+  links sit on the image in white; buttons follow the
   MG filled/ghost spec (the sign-in stays a bespoke MG-spec Pressable — it asserts `busy`, see
   the §5 Paper Button limitation).
 - **Onboarding** (`OnboardingLayout` + 5 steps): bg background; ProgressBar themed (primary);

@@ -1,34 +1,33 @@
 /**
  * Landing (Auth group, signed out) - owner: shell.
  *
- * - What the app really does today (alerts, Google + device calendars, an assistant that asks
- *   before changing anything, English / Spanish) and the free daily assistant quota.
+ * - Only the brand image, the sign-in buttons and the two legal links: no panel, no feature list,
+ *   no quota note (the value props live in onboarding).
  * - "Continue with Google" through useAuth().signInWithGoogle(); the gate switches to onboarding
  *   or the dashboard by itself on success. A closed account picker is not an error.
  * - On iOS, the official "Continue with Apple" button sits directly above Google (equal
  *   prominence - App Review 4.8) and runs useAuth().signInWithApple(); a dismissed Apple sheet
  *   is as silent as a closed Google picker (AppleSignInButton.tsx, docs/v1/ARCHITECTURE.md
  *   section 26).
- * - EN / ES switch (explicit choice, applied instantly) and the consent line with separate,
- *   screen-reader friendly links to the Terms and the Privacy Policy (both in the Auth stack).
+ * - EN / ES switch (explicit choice, applied instantly) and separate, screen-reader friendly links
+ *   to the Terms and the Privacy Policy (both in the Auth stack).
  * - Scrolls, so it works with large fonts, small phones and landscape.
  *
  * The top half is the brand image (assets/bg.jpg: the mark, the app name and the tagline over a
  * night office, always dark), so the screen draws no logo or headline of its own; a spacer keeps
- * the content card below the baked tagline and the scrim darkens only the card area. The language
- * chips are mode-invariant (white on the image); everything on the content card follows the
- * active scheme. Screen readers get the app name and the promise from the hero spacer.
+ * the buttons below the baked tagline and the scrim darkens only the lower part. Everything sits
+ * on the image, so the colors are mode-invariant (white and the brand gradient on the dark photo).
+ * Screen readers get the app name and the promise from the hero spacer.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useRef, useState, type ComponentProps, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Alert, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
 import type { AuthStackParamList } from '../../core/contracts';
 import { errorMessageKey } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -56,19 +55,12 @@ const HERO_SCRIM: readonly [string, string] = ['rgba(0,0,0,0)', withAlpha(lightC
 const HERO_SCRIM_STOPS: readonly [number, number] = [0.4, 1];
 /** Dark label on the selected (white) language chip. */
 const ON_HERO_INVERSE = lightColors.onSurface;
-
-type IconName = ComponentProps<typeof Ionicons>['name'];
-
-export const VALUE_PROPS: readonly { key: 'alerts' | 'calendars' | 'assistant' | 'languages'; icon: IconName }[] = [
-  { key: 'alerts', icon: 'notifications-outline' },
-  { key: 'calendars', icon: 'calendar-outline' },
-  { key: 'assistant', icon: 'chatbubbles-outline' },
-  { key: 'languages', icon: 'language-outline' },
-];
+/** Glass fill of the email button on the photo. */
+const ON_HERO_GLASS = withAlpha(lightColors.onPrimary, 0.1);
 
 export function LandingScreen(): ReactElement {
   const t = useT();
-  const { colors, onGradient } = useAppTheme();
+  const { onGradient } = useAppTheme();
   const insets = useSafeAreaInsets();
   const layout = useResponsive();
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
@@ -142,19 +134,7 @@ export function LandingScreen(): ReactElement {
           testID="landing-hero"
         />
 
-        <View style={[styles.card, columnStyle, { backgroundColor: colors.surface }]}>
-          {VALUE_PROPS.map(({ key, icon }) => (
-            <View key={key} style={styles.valueRow} accessible testID={`landing-value-${key}`}>
-              <View style={[styles.valueIcon, { backgroundColor: colors.primaryContainer }]}>
-                <Ionicons name={icon} size={componentMetrics.iconNav} color={colors.onPrimaryContainer} />
-              </View>
-              <View style={styles.valueText}>
-                {/* Title-only rows: the detailed explanations live in onboarding (user asked for a lighter landing). */}
-                <Text style={[styles.valueTitle, { color: colors.onSurface }]}>{t(`landing:valueProps.${key}.title`)}</Text>
-              </View>
-            </View>
-          ))}
-
+        <View style={[styles.actions, columnStyle]}>
           <AppleSignInButton
             onPress={() => {
               void handleSignIn(signInWithApple);
@@ -189,20 +169,15 @@ export function LandingScreen(): ReactElement {
           <Pressable
             onPress={() => navigation.navigate('EmailAuth')}
             disabled={busy}
-            style={({ pressed }) => [styles.emailButton, { borderColor: colors.outline }, pressed && styles.pressedDim]}
+            style={({ pressed }) => [styles.emailButton, pressed && styles.pressedDim]}
             accessibilityRole="button"
             accessibilityState={{ disabled: busy }}
             testID="landing-email"
           >
-            <Ionicons name="mail-outline" size={componentMetrics.iconInline} color={colors.onSurface} style={styles.signInIcon} />
-            <Text style={[styles.signInText, { color: colors.onSurface }]}>{t('landing:signIn.email')}</Text>
+            <Ionicons name="mail-outline" size={componentMetrics.iconInline} color={ON_HERO} style={styles.signInIcon} />
+            <Text style={[styles.signInText, { color: ON_HERO }]}>{t('landing:signIn.email')}</Text>
           </Pressable>
 
-          <Text style={[styles.note, { color: colors.onSurfaceVariant }]}>
-            {t('landing:freePlan', { count: PLAN_DAILY_AI_LIMITS.free })}
-          </Text>
-
-          <Text style={[styles.consent, { color: colors.onSurfaceVariant }]}>{t('landing:consent.text')}</Text>
           <View style={styles.links}>
             <Pressable
               onPress={() => navigation.navigate('Terms')}
@@ -211,7 +186,7 @@ export function LandingScreen(): ReactElement {
               hitSlop={4}
               testID="landing-terms"
             >
-              <Text style={[styles.linkText, { color: colors.primary }]}>{t('landing:consent.terms')}</Text>
+              <Text style={styles.linkText}>{t('landing:consent.terms')}</Text>
             </Pressable>
             <Pressable
               onPress={() => navigation.navigate('Privacy')}
@@ -220,7 +195,7 @@ export function LandingScreen(): ReactElement {
               hitSlop={4}
               testID="landing-privacy"
             >
-              <Text style={[styles.linkText, { color: colors.primary }]}>{t('landing:consent.privacy')}</Text>
+              <Text style={styles.linkText}>{t('landing:consent.privacy')}</Text>
             </Pressable>
           </View>
         </View>
@@ -265,28 +240,8 @@ const styles = StyleSheet.create({
   hero: {
     width: '100%',
   },
-  card: {
-    borderRadius: radii.xl,
-    padding: spacing.xxl,
-  },
-  valueRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: spacing.lg,
-  },
-  valueIcon: {
-    width: componentMetrics.avatarSize,
-    height: componentMetrics.avatarSize,
-    borderRadius: radii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  valueText: {
-    flex: 1,
-  },
-  valueTitle: {
-    ...typography.titleM,
+  actions: {
+    paddingBottom: spacing.sm,
   },
   appleButton: {
     marginTop: spacing.sm,
@@ -311,6 +266,8 @@ const styles = StyleSheet.create({
     minHeight: componentMetrics.buttonHeight,
     borderRadius: radii.full,
     borderWidth: 1,
+    borderColor: ON_HERO_BORDER,
+    backgroundColor: ON_HERO_GLASS,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -326,21 +283,11 @@ const styles = StyleSheet.create({
   pressedDim: {
     opacity: pressedDimOpacity,
   },
-  note: {
-    ...typography.bodyS,
-    textAlign: 'center',
-    marginTop: spacing.md,
-  },
-  consent: {
-    ...typography.bodyS,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-  },
   links: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: spacing.xs,
+    marginTop: spacing.md,
   },
   link: {
     minHeight: componentMetrics.touchTargetMin,
@@ -349,6 +296,7 @@ const styles = StyleSheet.create({
   },
   linkText: {
     ...typography.labelL,
+    color: ON_HERO,
     textDecorationLine: 'underline',
   },
 });

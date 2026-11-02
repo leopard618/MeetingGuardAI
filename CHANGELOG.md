@@ -12,8 +12,9 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 ### Added
 
 - **New welcome image**: the sign-in screen opens on the brand image (the mark, the app name and
-  "Never Miss What Matters." over a night office) with the sign-in card below it; the old photo,
-  logo and headline text are gone.
+  "Never Miss What Matters." over a night office) with only the sign-in buttons and the Terms and
+  Privacy links below it; the old photo, logo, headline, feature list, quota note and white card
+  are gone.
 - **Bottom navigation bar with the AI assistant in the middle**: Home, Meetings, AI, Calendar and
   Tasks are one tap away from every main screen; the assistant is a raised gradient orb that
   breathes until the chat is open (it replaces the floating assistant button). The menu keeps the
