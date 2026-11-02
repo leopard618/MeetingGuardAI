@@ -2,7 +2,8 @@
  * Floating assistant button of the Main group (owner: shell). Rendered ONCE over the navigator
  * (src/navigation/RootNavigator.tsx), hidden on the chat screen.
  *
- * - A 56dp solid primary circle with the assistant (robot) icon. A tap opens the AI chat.
+ * - A 60dp white disc with the client's headset-chat icon (DASHBOARD_ART.assistantIcon) or, until
+ *   that file exists, a robot glyph in primary. A tap opens the AI chat.
  * - The user can put it anywhere: LONG PRESS (LONG_PRESS_MS) starts a drag, the button follows the
  *   finger, and on release it stays where it was dropped (clamped inside the window and the safe
  *   areas). The position is saved per device (AsyncStorage, POSITION_KEY) and restored on launch;
@@ -14,18 +15,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { PanResponder, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type PanResponderGestureState } from 'react-native';
+import { Image, PanResponder, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type PanResponderGestureState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createLogger } from '../core/logger';
 import { useT } from '../i18n';
 import { navigate } from '../navigation/navigationService';
-import { componentMetrics, floatingShadow, radii, spacing, useAppTheme } from '../theme';
+import { DASHBOARD_ART } from '../screens/home/dashboardArt';
+import { componentMetrics, floatingShadow, radii, spacing, useAppTheme, withAlpha } from '../theme';
 
 const log = createLogger('assistantFab');
 
 export const POSITION_KEY = 'mg.assistantFab.position';
-export const FAB_SIZE = componentMetrics.fabSize;
+export const FAB_SIZE = componentMetrics.fabSize + 4;
+const ICON_INSET = 8;
 /** Hold this long before the button starts following the finger. */
 export const LONG_PRESS_MS = 350;
 /** Finger travel that cancels a pending long press (the user is scrolling or tapping sloppily). */
@@ -185,7 +188,7 @@ export interface AssistantFabProps {
 
 export function AssistantFab({ hidden = false, testID = 'assistant-fab' }: AssistantFabProps): ReactElement | null {
   const t = useT();
-  const { colors, onGradient } = useAppTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const bounds = useMemo<FabBounds>(() => ({ width, height, insets }), [width, height, insets]);
@@ -217,7 +220,7 @@ export function AssistantFab({ hidden = false, testID = 'assistant-fab' }: Assis
       {...drag.panHandlers}
       style={[
         styles.fab,
-        { left: shown.x, top: shown.y, backgroundColor: colors.primary, borderColor: colors.background },
+        { left: shown.x, top: shown.y, backgroundColor: '#FFFFFF', borderColor: withAlpha(colors.primary, 0.25) },
         dragging && styles.dragging,
       ]}
       accessible
@@ -227,7 +230,11 @@ export function AssistantFab({ hidden = false, testID = 'assistant-fab' }: Assis
       accessibilityState={{ busy: dragging || undefined }}
       testID={testID}
     >
-      <MaterialCommunityIcons name="robot-outline" size={componentMetrics.iconNav + 4} color={onGradient.primary} />
+      {DASHBOARD_ART.assistantIcon ? (
+        <Image source={DASHBOARD_ART.assistantIcon} style={styles.icon} resizeMode="contain" accessibilityIgnoresInvertColors />
+      ) : (
+        <MaterialCommunityIcons name="robot-outline" size={componentMetrics.iconNav + 6} color={colors.primary} />
+      )}
     </View>
   );
 }
@@ -244,6 +251,10 @@ const styles = StyleSheet.create({
     ...floatingShadow,
     zIndex: 10,
     elevation: 8,
+  },
+  icon: {
+    width: FAB_SIZE - ICON_INSET * 2,
+    height: FAB_SIZE - ICON_INSET * 2,
   },
   dragging: {
     opacity: 0.85,
