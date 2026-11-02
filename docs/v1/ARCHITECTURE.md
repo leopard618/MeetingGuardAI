@@ -1292,7 +1292,9 @@ absent, the To Do card is hidden and the engine skips the provider.
   every 7 days and on HTTP 410. `@removed` deletes the local task; a linked task missing from a
   full listing is deleted too. Imports use `tasksRepository.create` with the deterministic id
   `td_<To Do id or hash>`, origin `tasks_todo`, source `todo`; link write-backs use origin
-  `tasks_todo` (the engine never pushes that origin). Conflict rule: a local change waiting in
+  `tasks_todo`. The engine pushes that origin on to Google Tasks only (the app bridges the two
+  providers, `taskPushTargets`), never back to To Do; the push-side hash check keeps a link
+  write-back from costing a call. Conflict rule: a local change waiting in
   the queue wins over the pulled version; otherwise To Do's `lastModifiedDateTime` wins when it is
   newer than the stored `todoUpdatedAt`; an unchanged visible hash is skipped (echo suppression).
 - **Push.** `tasks:changed` events with origin `user` / `ai` (the data engine emits them for local
@@ -1418,7 +1420,7 @@ section lists what differs.
   every 7 days and whenever the watermark is missing. `deleted: true` deletes the local task; a
   linked task missing from a full listing is deleted too. Imports use the deterministic id
   `gt_<Google id or hash>`, origin `tasks_gtasks`, source `gtasks`; link write-backs use origin
-  `tasks_gtasks` (never pushed).
+  `tasks_gtasks` (pushed on to Microsoft To Do only, never back to Google; §28).
 - **Push.** Same queue as To Do (`state.pending`, persist-first, the engine's debounce; POST /
   PATCH / DELETE; a 404 on PATCH re-creates). Blocking codes additionally include
   `google_not_signed_in` and `tasks_scope_missing` (everything stays queued); a 403 on one task is

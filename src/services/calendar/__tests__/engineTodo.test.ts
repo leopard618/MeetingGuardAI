@@ -291,6 +291,37 @@ describe('calendarSyncEngine + google tasks (M8)', () => {
     expect(report.gtasks).toBeNull();
   });
 
+  it('bridges the providers: a Google Tasks import goes to To Do and a To Do import to Google Tasks, never back', async () => {
+    const { engine, todo, gtasks, events } = setup({ gtasks: true });
+    engine.start(UID);
+    await jest.runOnlyPendingTimersAsync();
+    todo.enqueue.mockClear();
+    gtasks.enqueue.mockClear();
+
+    events.emit('tasks:changed', change({ reason: 'created', origin: 'tasks_gtasks', changedIds: ['g1'] }));
+    await Promise.resolve();
+    expect(todo.enqueue).toHaveBeenCalledWith([{ id: 'g1', op: 'upsert', link: null }]);
+    expect(gtasks.enqueue).not.toHaveBeenCalled();
+
+    todo.enqueue.mockClear();
+    events.emit(
+      'tasks:changed',
+      change({
+        reason: 'deleted',
+        origin: 'tasks_todo',
+        changedIds: ['t9'],
+        removed: [{ id: 't9', external: { ...EMPTY_TASK_EXTERNAL_REFS, gtasksListId: 'gl-default', gtasksTaskId: 'G9' } }],
+      }),
+    );
+    await Promise.resolve();
+    expect(gtasks.enqueue).toHaveBeenCalledWith([{ id: 't9', op: 'delete', link: { listId: 'gl-default', taskId: 'G9' } }]);
+    expect(todo.enqueue).not.toHaveBeenCalled();
+
+    await jest.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS);
+    expect(todo.flushPending).toHaveBeenCalled();
+    expect(gtasks.flushPending).toHaveBeenCalled();
+  });
+
   it('reports a Google Tasks failure under its own provider name', async () => {
     const { engine, gtasks } = setup({ gtasks: true });
     gtasks.sync.mockRejectedValue(new AppError('tasks_scope_missing', 'declined'));

@@ -16,7 +16,10 @@
  *   the local queues until the hold is released, so attendees get one invitation email that
  *   already has the join link. The persisted Google/Outlook queues skip held ids the same way.
  * - Tasks (tasks:changed, origin 'user' | 'ai') are queued for Microsoft To Do and Google Tasks
- *   the same way. While the app is active, both are also pulled on their own every
+ *   the same way. The app is also the bridge between the two task providers: an import from
+ *   Google Tasks (origin 'tasks_gtasks') is queued for To Do and an import from To Do (origin
+ *   'tasks_todo') for Google Tasks, never back to the provider it came from (taskPushTargets).
+ *   While the app is active, both are also pulled on their own every
  *   TODO_FOREGROUND_INTERVAL_MS so a task completed there silences its reminder here within a minute.
  * - syncTasksNow() (Tasks screen pull-to-refresh and focus): the two task providers only, both
  *   attempted, failures reported per provider; concurrent calls share one run.
@@ -104,8 +107,32 @@ export function isPushableChange(event: MeetingsChangedEvent): boolean {
   );
 }
 
+/**
+ * Which task providers a tasks:changed event is pushed to. Local writes (user / ai) go to both.
+ * The app bridges the two providers (docs/v1/ARCHITECTURE.md section 28): an import from Google
+ * Tasks (origin tasks_gtasks) is pushed on to Microsoft To Do and an import from To Do (origin
+ * tasks_todo) on to Google Tasks, never back to the provider it came from (that provider already
+ * has it, and its link write-backs carry the same origin). Every push also skips the network when
+ * nothing visible changed, so a link write-back never costs a call.
+ */
+export function taskPushTargets(event: TasksChangedEvent): { todo: boolean; gtasks: boolean } {
+  if (event.reason === 'remote' || event.changedIds.length === 0) return { todo: false, gtasks: false };
+  switch (event.origin) {
+    case 'user':
+    case 'ai':
+      return { todo: true, gtasks: true };
+    case 'tasks_gtasks':
+      return { todo: true, gtasks: false };
+    case 'tasks_todo':
+      return { todo: false, gtasks: true };
+    default:
+      return { todo: false, gtasks: false };
+  }
+}
+
 export function isPushableTaskChange(event: TasksChangedEvent): boolean {
-  return (event.origin === 'user' || event.origin === 'ai') && event.reason !== 'remote' && event.changedIds.length > 0;
+  const targets = taskPushTargets(event);
+  return targets.todo || targets.gtasks;
 }
 
 export interface CalendarSyncEngineInternal extends CalendarSyncEngine {
@@ -330,24 +357,30 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
 
   function onTaskChanged(event: TasksChangedEvent): void {
     if (uid === null || event.uid !== uid) return;
-    if (!isPushableTaskChange(event)) return;
+    const targets = taskPushTargets(event);
+    if (!targets.todo && !targets.gtasks) return;
     const op = event.reason === 'deleted' ? 'delete' : 'upsert';
     const links = new Map((event.removed ?? []).map((item) => [item.id, item.external]));
-    const items: TodoQueueItem[] = event.changedIds.map((id) => {
-      const external = links.get(id);
-      const link = external && external.todoListId !== null && external.todoTaskId !== null ? { listId: external.todoListId, taskId: external.todoTaskId } : null;
-      return { id, op, link };
-    });
-    for (const item of items) pendingTodo.set(item.id, item);
-    persistTodoPushes(items);
-    const gtasksItems: GtasksQueueItem[] = event.changedIds.map((id) => {
-      const external = links.get(id);
-      const link =
-        external && external.gtasksListId !== null && external.gtasksTaskId !== null ? { listId: external.gtasksListId, taskId: external.gtasksTaskId } : null;
-      return { id, op, link };
-    });
-    for (const item of gtasksItems) pendingGtasks.set(item.id, item);
-    persistGtasksPushes(gtasksItems);
+    if (targets.todo) {
+      const items: TodoQueueItem[] = event.changedIds.map((id) => {
+        const external = links.get(id);
+        const link =
+          external && external.todoListId !== null && external.todoTaskId !== null ? { listId: external.todoListId, taskId: external.todoTaskId } : null;
+        return { id, op, link };
+      });
+      for (const item of items) pendingTodo.set(item.id, item);
+      persistTodoPushes(items);
+    }
+    if (targets.gtasks) {
+      const gtasksItems: GtasksQueueItem[] = event.changedIds.map((id) => {
+        const external = links.get(id);
+        const link =
+          external && external.gtasksListId !== null && external.gtasksTaskId !== null ? { listId: external.gtasksListId, taskId: external.gtasksTaskId } : null;
+        return { id, op, link };
+      });
+      for (const item of gtasksItems) pendingGtasks.set(item.id, item);
+      persistGtasksPushes(gtasksItems);
+    }
     scheduleFlush();
   }
 

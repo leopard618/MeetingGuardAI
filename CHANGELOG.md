@@ -11,6 +11,9 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
+- **The app bridges Microsoft To Do and Google Tasks** (November 2): with both syncs on, a task
+  created, edited, completed or deleted in To Do now reaches Google Tasks through the app, and the
+  other way round. Before, only tasks created in the app went to both.
 - **Tasks screen sync triggers** (November 2): pull down on the Tasks screen to sync Microsoft To Do
   and Google Tasks right away (the dashboard already had this), and opening the Tasks screen runs
   the same sync quietly. The automatic one-minute pull and the immediate push of local edits are

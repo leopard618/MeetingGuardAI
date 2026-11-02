@@ -24,8 +24,9 @@ export type WriteOrigin =
   | 'calendar_google'
   | 'calendar_device'
   | 'calendar_outlook'
-  /** Microsoft To Do sync (imports and link write-backs; never pushed back). */
+  /** Microsoft To Do sync (imports and link write-backs): pushed on to Google Tasks, never back to To Do. */
   | 'tasks_todo'
+  /** Google Tasks sync (imports and link write-backs): pushed on to Microsoft To Do, never back to Google. */
   | 'tasks_gtasks'
   | 'migration'
   | 'system';
