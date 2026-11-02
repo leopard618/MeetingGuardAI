@@ -9,8 +9,8 @@
  * - one row: the tasks card (left) beside the 2 x 2 quick actions (right);
  * - "Today": the timeline with overlaps and back-to-back meetings highlighted, or one empty card
  *   with a New meeting button;
- * - "Your week": the weekly summary (bars, this week vs. last week, what deserves a look);
- * - the "Ask the assistant" banner.
+ * - "Your week": the weekly summary (bars, this week vs. last week, what deserves a look).
+ * The assistant is the floating button (AssistantFab), so the dashboard carries no banner.
  * Pull to refresh flushes the outbox, re-reads the meetings and runs a calendar sync. A load
  * failure with nothing cached shows ErrorState; cached content + failure shows an error Banner
  * (ARCHITECTURE §13). No decoration beyond the mockup, no motion.
@@ -36,7 +36,6 @@ import { componentMetrics, radii, spacing, typography, useAppTheme } from '../..
 import { computeDashboardSummary, computePeriodInsights, weekStartForLanguage, type InsightContext, type LoadSummary } from '../insights/meetingInsights';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
-import { AssistantBanner } from './AssistantBanner';
 import { CARD_OVERLAP, DashboardHero } from './DashboardHero';
 import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay } from '../meetings/occurrences';
 import { buildTodayTimeline, dayPeriodOf, findNextAllDay, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
@@ -281,7 +280,6 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
           />
         </>
       )}
-      <AssistantBanner onPress={() => navigation.navigate('AIChat')} />
     </View>
   );
 

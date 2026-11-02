@@ -15,8 +15,11 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
   header (menu, wordmark, language pill with the flag) and the greeting in display size; a white
   next-meeting card pulled over the hero with a countdown column and one button; the tasks card
   beside the 2 x 2 quick actions (no captions); a one-row empty card for Today; a "Weekly summary"
-  card comparing this week with last week (meetings and time, with change pills); and an "Ask the
-  assistant" banner. The palette moves to the mockup's blue; light is the default appearance again.
+  card comparing this week with last week (meetings and time, with change pills). The hero carries
+  a picture slot (a subtle glass-panel overlay ships until the client's building picture
+  arrives), the meeting and tasks cards have picture slots for the mockup's illustrations, and the
+  quick actions use rounded Ionicons. The palette moves to the mockup's blue; light is the default
+  appearance again.
 - **Flat dark UI** (client decision): the app opens in dark mode on a fresh install (a saved
   choice still wins) with charcoal neutrals; no gradients, no light or spark effects and no
   decorative motion anywhere; the accent is a solid indigo. The header is a menu button, the

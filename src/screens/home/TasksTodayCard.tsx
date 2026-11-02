@@ -3,20 +3,20 @@
  * actions. A white card with a check icon and "Tasks" as the title, the open count as a pill,
  * up to MAX_ROWS open tasks due today or overdue (rounded-square checkbox that completes the task
  * on tap, one-line title, "Overdue" / due time / "Today" under it, overdue in the error color) or
- * the empty line, "View all tasks" with an arrow at the bottom, and a faint checklist icon in the
- * corner. Hidden only while nothing is known yet (the dashboard skeleton covers loading).
+ * the empty line, "View all tasks" with an arrow at the bottom, and the mockup's checklist
+ * picture (DASHBOARD_ART.tasks) in the corner when it exists. Hidden only while nothing is known yet (the dashboard skeleton covers loading).
  */
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { memo, type ReactElement } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
 import { Card, Icon, PressableScale } from '../../components/ui';
 import type { Task } from '../../core/types';
 import { useT } from '../../i18n';
-import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
+import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme } from '../../theme';
 import { isDueToday, isOverdue, taskDueInstant } from '../tasks/tasksModel';
 import type { Formatters } from '../shared/useFormatters';
+import { DASHBOARD_ART } from './dashboardArt';
 
 const MAX_ROWS = 3;
 const CHECK = 20;
@@ -40,7 +40,9 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
 
   return (
     <Card style={[styles.card, style]} testID="dashboard-tasks">
-      <MaterialCommunityIcons name="clipboard-check-outline" size={72} color={withAlpha(colors.primary, 0.1)} style={styles.decoration} accessibilityElementsHidden importantForAccessibility="no" />
+      {DASHBOARD_ART.tasks ? (
+        <Image source={DASHBOARD_ART.tasks} style={styles.decoration} resizeMode="contain" accessibilityIgnoresInvertColors />
+      ) : null}
       <View style={styles.header}>
         <Icon name="tasks" size={componentMetrics.iconInline} color={colors.onSurface} />
         <Text style={[styles.headerTitle, { color: colors.onSurface }]} accessibilityRole="header">
@@ -118,8 +120,10 @@ const styles = StyleSheet.create({
   },
   decoration: {
     position: 'absolute',
-    right: -6,
-    bottom: -8,
+    right: -4,
+    bottom: -4,
+    width: 96,
+    height: 96,
   },
   header: {
     flexDirection: 'row',

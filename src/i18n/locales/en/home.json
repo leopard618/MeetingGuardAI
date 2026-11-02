@@ -90,9 +90,5 @@
     "overdue": "Overdue",
     "today": "Today",
     "viewAll": "View all tasks"
-  },
-  "assistantBanner": {
-    "title": "Ask the assistant",
-    "body": "Plan meetings, draft agendas, summarize notes, and more."
   }
 }

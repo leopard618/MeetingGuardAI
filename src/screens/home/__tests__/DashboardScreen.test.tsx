@@ -236,14 +236,6 @@ it('has no alerts card: alert settings live in the menu and Settings', async () 
   expect(screen.getByTestId('dashboard-tasks')).toBeTruthy();
 });
 
-it('opens the assistant from the banner', async () => {
-  await renderDashboard();
-  await act(async () => {
-    fireEvent.press(screen.getByTestId('insights-ask-assistant'));
-  });
-  expect(await screen.findByTestId('target-AIChat')).toBeTruthy();
-});
-
 it('shows the week against last week and opens the insights screen from the week card', async () => {
   await renderDashboard();
   expect(screen.getByTestId('week-meetings').props.children).toBe('3 meetings');

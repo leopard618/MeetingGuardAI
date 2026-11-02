@@ -5,16 +5,16 @@
  * participants as initials with "+N". Right column, behind a vertical divider: "Starts in" (or
  * "Ends in") small, the time left large in primary, and the one filled button (Join when there
  * is a link, else Details) with a chevron. A thin elapsed bar sits under the left column while a
- * meeting runs. A faint large calendar icon decorates the top-right corner.
+ * meeting runs. The mockup's 3D calendar (DASHBOARD_ART.nextMeeting) sits top-right when its
+ * picture exists.
  *
  * The meeting happening now (if any) and the next one are two blocks separated by a hairline;
  * below them the next all-day item (birthday, holiday) when it comes no later than the next
  * timed meeting. Countdowns tick every second in the last hour, every 30 s otherwise. The "no
  * upcoming meetings" variant is the same card with an icon row.
  */
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useState, type ReactElement } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
 import { Card, Icon, MGButton } from '../../components/ui';
@@ -23,6 +23,7 @@ import type { Meeting, Participant } from '../../core/types';
 import { useT } from '../../i18n';
 import { componentMetrics, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
 import { formatRelative } from '../../utils/format';
+import { DASHBOARD_ART } from './dashboardArt';
 import { endMs, meetingJoinLink, startMs } from '../insights/meetingInsights';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
 import { CLOCK_THRESHOLD_SECONDS, countdownDisplay, countdownTickMs, countdownTo, elapsedFraction, formatCountdownClock, participantInitial } from './homeModel';
@@ -280,7 +281,9 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
 
   return (
     <Card style={styles.card} testID="next-meeting-card">
-      <MaterialCommunityIcons name="calendar-month" size={96} color={withAlpha(colors.primary, 0.08)} style={styles.decoration} accessibilityElementsHidden importantForAccessibility="no" />
+      {DASHBOARD_ART.nextMeeting ? (
+        <Image source={DASHBOARD_ART.nextMeeting} style={styles.decoration} resizeMode="contain" accessibilityIgnoresInvertColors />
+      ) : null}
       {current ? (
         <MeetingBlock meeting={current} label={t('home:next.current')} countdown={endsParts(current, now, t, fmt)} running now={now} onOpen={onOpen} onJoin={onJoin} testID="current-meeting" />
       ) : null}
@@ -304,8 +307,10 @@ const styles = StyleSheet.create({
   },
   decoration: {
     position: 'absolute',
-    top: -30,
-    right: -22,
+    top: -12,
+    right: -8,
+    width: 112,
+    height: 112,
   },
   block: {
     flexDirection: 'row',

@@ -4,7 +4,8 @@
  * wordmark, language pill with the country flag and a chevron) and the greeting: the day part in
  * small spaced capitals, the first name in display size, the date, and a short accent bar. The
  * next-meeting card below it is pulled up over its bottom edge (CARD_OVERLAP). The stack header is
- * hidden on the dashboard (RootNavigator), so this is the only header of the screen.
+ * hidden on the dashboard (RootNavigator), so this is the only header of the screen. Behind the
+ * text sits the hero picture (DASHBOARD_ART.heroOverlay, right-weighted, fading left).
  */
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,6 +19,7 @@ import { Icon } from '../../components/ui';
 import { useLanguage, useT } from '../../i18n';
 import { useOptionalSidebar } from '../../navigation/sidebar';
 import { componentMetrics, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
+import { DASHBOARD_ART } from './dashboardArt';
 
 const APP_LOGO = require('../../../assets/icon.png') as number;
 
@@ -54,6 +56,9 @@ export function DashboardHero({ salute, name, dateText, testID = 'dashboard-hero
       testID={testID}
     >
       {focused ? <StatusBar style="light" /> : null}
+      {DASHBOARD_ART.heroOverlay ? (
+        <Image source={DASHBOARD_ART.heroOverlay} style={styles.overlay} resizeMode="cover" accessibilityIgnoresInvertColors />
+      ) : null}
       <View style={styles.headerRow}>
         {sidebar ? (
           <Pressable
@@ -123,6 +128,14 @@ const styles = StyleSheet.create({
     // Full bleed: the list content is inset by the screen gutter.
     marginHorizontal: -componentMetrics.screenGutter,
     paddingBottom: CARD_OVERLAP + spacing.lg,
+    overflow: 'hidden',
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   headerRow: {
     flexDirection: 'row',

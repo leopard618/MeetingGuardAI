@@ -90,9 +90,5 @@
     "overdue": "Atrasada",
     "today": "Hoy",
     "viewAll": "Ver todas las tareas"
-  },
-  "assistantBanner": {
-    "title": "Pregunta al asistente",
-    "body": "Planifica reuniones, redacta agendas, resume notas y más."
   }
 }
