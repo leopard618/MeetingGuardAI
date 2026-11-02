@@ -5,6 +5,7 @@
   "add": "Nueva tarea",
   "addA11y": "Crear una nueva tarea",
   "list": {
+    "refreshFailed": "No se pudieron sincronizar tus tareas",
     "loading": "Cargando tus tareas...",
     "count_one": "{{count}} tarea",
     "count_other": "{{count}} tareas"

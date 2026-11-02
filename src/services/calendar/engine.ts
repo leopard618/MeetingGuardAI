@@ -18,6 +18,8 @@
  * - Tasks (tasks:changed, origin 'user' | 'ai') are queued for Microsoft To Do and Google Tasks
  *   the same way. While the app is active, both are also pulled on their own every
  *   TODO_FOREGROUND_INTERVAL_MS so a task completed there silences its reminder here within a minute.
+ * - syncTasksNow() (Tasks screen pull-to-refresh and focus): the two task providers only, both
+ *   attempted, failures reported per provider; concurrent calls share one run.
  */
 import type {
   CalendarStatus,
@@ -25,6 +27,7 @@ import type {
   CalendarSyncReason,
   CalendarSyncReport,
   PreferencesRepository,
+  TaskSyncReport,
 } from '../../core/contracts';
 import { AppError, toAppError } from '../../core/errors';
 import type { AppEventMap, EventBus, MeetingsChangedEvent, PreferencesChangedEvent, TasksChangedEvent, Unsubscribe } from '../../core/events';
@@ -529,6 +532,39 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     }
   }
 
+  let tasksInflight: Promise<TaskSyncReport> | null = null;
+
+  /** The Tasks screen's sync: To Do and Google Tasks flush + pull, nothing else (contract doc). */
+  function syncTasksNow(): Promise<TaskSyncReport> {
+    if (tasksInflight !== null) return tasksInflight;
+    const run = (async (): Promise<TaskSyncReport> => {
+      const report: TaskSyncReport = { todo: null, gtasks: null, errors: [] };
+      // A calendar run pushes the same task queues: let it finish instead of racing it.
+      if (inflight !== null) await inflight.catch(() => undefined);
+      const todo = deps.todo;
+      if (todo !== undefined && todoEnabled()) {
+        try {
+          report.todo = await todo.sync();
+        } catch (error) {
+          report.errors.push({ provider: 'todo', code: toAppError(error).code });
+        }
+      }
+      const gtasks = deps.gtasks;
+      if (gtasks !== undefined && gtasksEnabled()) {
+        try {
+          report.gtasks = await gtasks.sync();
+        } catch (error) {
+          report.errors.push({ provider: 'gtasks', code: toAppError(error).code });
+        }
+      }
+      return report;
+    })().finally(() => {
+      tasksInflight = null;
+    });
+    tasksInflight = run;
+    return run;
+  }
+
   function startInterval(): void {
     if (intervalHandle === null) intervalHandle = timers.setInterval(() => autoSync('foreground'), FOREGROUND_INTERVAL_MS);
     if (todoIntervalHandle === null && (deps.todo !== undefined || deps.gtasks !== undefined)) {
@@ -683,6 +719,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     },
 
     syncNow,
+    syncTasksNow,
     onMeetingChanged,
     onTaskChanged,
     getStatus: (): CalendarStatus => deps.status.get(),

@@ -227,7 +227,8 @@
       "google": "No se pudo sincronizar Google Calendar",
       "device": "No se pudieron sincronizar los calendarios del dispositivo",
       "outlook": "No se pudo sincronizar Outlook",
-      "todo": "No se pudo sincronizar Microsoft To Do"
+      "todo": "No se pudo sincronizar Microsoft To Do",
+      "gtasks": "No se pudo sincronizar Google Tasks"
     },
     "repeats": "Se repite"
   },

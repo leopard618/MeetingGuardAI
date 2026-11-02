@@ -1314,6 +1314,12 @@ absent, the To Do card is hidden and the engine skips the provider.
 - **Status.** `CalendarStatus.todo` (`configured`, `connected`, `enabled`, `listId`, `listName`,
   syncing / lastSyncAt / lastError) through `useCalendarStatus`; sync reports gain
   `report.todo` (`TodoSyncResult`) and errors use provider `'todo'`.
+- **Tasks screen triggers.** Pull-to-refresh on the Tasks screen runs
+  `calendarSyncEngine.syncTasksNow()` (To Do and Google Tasks flush + pull only, no calendars;
+  `TaskSyncReport` with one error entry per failing provider, the first one shown as a toast), and
+  gaining focus runs the same sync quietly at most once every 15 s (`useTasksRefresh`,
+  `src/screens/tasks/useTasksRefresh.ts`), so opening the screen is enough to see what changed
+  elsewhere. The one-minute pull and the debounced push keep running in the background.
 - **Tests.** `src/services/tasks/__tests__` (mapping, sync with a scriptable Graph fake, service),
   `src/services/calendar/__tests__/engineTodo.test.ts`, the data engine's task write options and
   event (`engineTasks.test.ts`), the rules drift test, the calendar sync screen's To Do card and

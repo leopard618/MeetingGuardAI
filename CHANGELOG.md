@@ -11,6 +11,10 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
+- **Tasks screen sync triggers** (November 2): pull down on the Tasks screen to sync Microsoft To Do
+  and Google Tasks right away (the dashboard already had this), and opening the Tasks screen runs
+  the same sync quietly. The automatic one-minute pull and the immediate push of local edits are
+  unchanged.
 - **Continue with Microsoft** (November 2): a third sign-in button on the Landing screen, between
   Google and email, for personal and work Microsoft accounts. The app runs the Microsoft sign-in it
   already has for Outlook with the identity scopes only, and the new `microsoftSignIn` function

@@ -946,6 +946,13 @@ export interface CalendarSyncReport {
   errors: { provider: CalendarProvider | 'todo' | 'gtasks'; code: AppErrorCode }[];
 }
 
+/** Result of CalendarSyncEngine.syncTasksNow (the task providers only; a provider failure is an entry in errors). */
+export interface TaskSyncReport {
+  todo: TodoSyncResult | null;
+  gtasks: TaskSyncResult | null;
+  errors: { provider: 'todo' | 'gtasks'; code: AppErrorCode }[];
+}
+
 export interface ProviderStatus {
   enabled: boolean;
   syncing: boolean;
@@ -982,6 +989,13 @@ export interface CalendarSyncEngine {
   start(uid: string): void;
   stop(): void;
   syncNow(options?: { reason?: CalendarSyncReason; headless?: boolean }): Promise<CalendarSyncReport>;
+  /**
+   * Microsoft To Do and Google Tasks flush + pull only (no calendars): the Tasks screen's
+   * pull-to-refresh and focus sync. Both enabled providers are attempted; a provider failure is
+   * reported in the result, never thrown. Concurrent calls share one run; a calendar run in
+   * flight is awaited first (it pushes the same queues).
+   */
+  syncTasksNow(): Promise<TaskSyncReport>;
   /** Handler attached to 'meetings:changed' while started (exposed for tests / explicit calls). */
   onMeetingChanged(event: MeetingsChangedEvent): void;
   getStatus(): CalendarStatus;

@@ -300,3 +300,45 @@ describe('calendarSyncEngine + google tasks (M8)', () => {
     expect(report.errors).toEqual([{ provider: 'gtasks', code: 'tasks_scope_missing' }]);
   });
 });
+
+describe('syncTasksNow (Tasks screen refresh and focus)', () => {
+  it('flushes and pulls To Do and Google Tasks without the calendars, and shares one run', async () => {
+    const { engine, todo, gtasks } = setup({ gtasks: true });
+    engine.start(UID);
+    await jest.runOnlyPendingTimersAsync();
+    todo.sync.mockClear();
+    gtasks.sync.mockClear();
+
+    const [first, second] = await Promise.all([engine.syncTasksNow(), engine.syncTasksNow()]);
+
+    expect(first).toBe(second);
+    expect(todo.sync).toHaveBeenCalledTimes(1);
+    expect(gtasks.sync).toHaveBeenCalledTimes(1);
+    expect(first.todo?.counts.created).toBe(1);
+    expect(first.gtasks?.counts.created).toBe(1);
+    expect(first.errors).toEqual([]);
+  });
+
+  it('reports a failing provider and still syncs the other one', async () => {
+    const { engine, todo } = setup({ gtasks: true });
+    engine.start(UID);
+    await jest.runOnlyPendingTimersAsync();
+    todo.sync.mockRejectedValueOnce(new AppError('offline', 'no network'));
+
+    const report = await engine.syncTasksNow();
+
+    expect(report.todo).toBeNull();
+    expect(report.gtasks?.counts.created).toBe(1);
+    expect(report.errors).toEqual([{ provider: 'todo', code: 'offline' }]);
+  });
+
+  it('does nothing when no task sync is enabled', async () => {
+    const { engine, todo } = setup({ gtasks: true, enabled: false });
+    engine.start(UID);
+    await jest.runOnlyPendingTimersAsync();
+    todo.sync.mockClear();
+
+    await expect(engine.syncTasksNow()).resolves.toEqual({ todo: null, gtasks: null, errors: [] });
+    expect(todo.sync).not.toHaveBeenCalled();
+  });
+});

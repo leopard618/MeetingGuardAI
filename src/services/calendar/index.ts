@@ -219,6 +219,7 @@ export const calendarSyncEngine: CalendarSyncEngine = {
   start: engine.start,
   stop: engine.stop,
   syncNow: engine.syncNow,
+  syncTasksNow: engine.syncTasksNow,
   onMeetingChanged: engine.onMeetingChanged,
   getStatus: engine.getStatus,
   subscribeStatus: engine.subscribeStatus,

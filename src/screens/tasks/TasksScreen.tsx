@@ -31,6 +31,7 @@ import { useFormatters } from '../shared/useFormatters';
 import { useLiveNow } from '../shared/useLiveNow';
 import { TaskCard } from './TaskCard';
 import { TaskEditor, type TaskEditorListSync } from './TaskEditor';
+import { useTasksRefresh } from './useTasksRefresh';
 import {
   TASK_FILTERS,
   countByFilter,
@@ -69,6 +70,7 @@ export function TasksScreen({ navigation }: Props): ReactElement {
   const { tasks, isLoading, error, create, update, remove } = useTasks();
   const { meetings, isLoading: meetingsLoading } = useMeetings();
   const sync = useSyncState();
+  const { refreshing, onRefresh } = useTasksRefresh();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<TaskFilter>('open');
   const [editor, setEditor] = useState<EditorState>(null);
@@ -344,6 +346,8 @@ export function TasksScreen({ navigation }: Props): ReactElement {
         keyboardDismissMode="on-drag"
         onScroll={fab.onScroll}
         scrollEventThrottle={16}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         testID="tasks-list"
       />
 
