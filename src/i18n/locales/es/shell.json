@@ -1,13 +1,12 @@
 {
   "header": {
     "back": "Volver",
-    "home": "Ir al panel principal",
     "openMenu": "Abrir menú",
     "darkMode": "Cambiar a modo oscuro",
     "lightMode": "Cambiar a modo claro",
     "switchLanguage": "Cambiar el idioma a {{language}}",
-    "welcome": "Hola de nuevo",
-    "alerts": "Ajustes de avisos"
+    "assistant": "Abrir el asistente de IA",
+    "assistantHint": "Mantén pulsado y arrastra para moverlo"
   },
   "sidebar": {
     "close": "Cerrar menú",
@@ -28,15 +27,6 @@
       "AIChat": "Asistente de IA",
       "Pricing": "Planes",
       "Settings": "Ajustes"
-    }
-  },
-  "bottomBar": {
-    "items": {
-      "Dashboard": "Inicio",
-      "TotalMeetings": "Reuniones",
-      "AIChat": "IA",
-      "Calendar": "Calendario",
-      "Tasks": "Tareas"
     }
   },
   "errorBoundary": {

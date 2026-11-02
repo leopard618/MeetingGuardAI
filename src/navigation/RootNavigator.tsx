@@ -1,25 +1,21 @@
 /**
  * Root stack (single navigator) whose screen group follows the app gate:
  *   splash -> Auth (Landing, Privacy, Terms) -> Onboarding (5 resumable steps) -> Main.
- * The Main group is a column: the stack above, the bottom navigation bar below (BottomNavBar, one
- * instance like the sidebar). The bar owns the bottom safe-area inset, so the screens run with a
- * bottom inset of 0 (their FABs and list paddings land right above the bar); RN Modals opened from
- * a screen cover the whole window and read the real insets through useWindowInsets.
+ * The Main group: the stack, the floating assistant button over it (AssistantFab, one instance,
+ * draggable, hidden on the chat) and the sidebar next to them.
  * Every screen component is module-level (./screens, src/screens/onboarding). The navigator is
  * keyed by the gate so each group starts from a clean stack; queued navigation intents (deep
  * links, notification taps, the onboarding's "first meeting" choice) are flushed once the target
  * group is mounted.
  */
-import { createStackNavigator, TransitionPresets, type StackHeaderProps, type StackNavigationOptions } from '@react-navigation/stack';
-import { useEffect, useMemo, type ReactElement, type ReactNode } from 'react';
+import { createStackNavigator, type StackHeaderProps, type StackNavigationOptions } from '@react-navigation/stack';
+import { useEffect, type ReactElement, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BottomNavBar } from '../components/BottomNavBar';
+import { AssistantFab } from '../components/AssistantFab';
 import { CustomHeader } from '../components/CustomHeader';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { RootStackParamList, RouteName } from '../core/contracts';
-import { WindowInsetsProvider } from '../hooks/useWindowInsets';
 import {
   OnboardingAlertsScreen,
   OnboardingAssistantScreen,
@@ -32,7 +28,7 @@ import { useAuth } from '../services/auth';
 import { usePreferences } from '../services/data';
 import { computeGate, type AppGate } from './gate';
 import { flushPendingNavigation, useCurrentRouteName } from './navigationService';
-import { MAIN_INITIAL_ROUTE, ONBOARDING_STEPS, TAB_ROOT_ROUTES } from './routes';
+import { MAIN_INITIAL_ROUTE, ONBOARDING_STEPS } from './routes';
 import {
   AIChatScreen,
   AIInsightsScreen,
@@ -69,12 +65,8 @@ function MainHeader({ routeName, onBackPress }: { routeName: RouteName; onBackPr
   return <CustomHeader title={routeName} onMenuPress={open} showMenu onBackPress={onBackPress} />;
 }
 
-// Tab roots (TAB_ROOT_ROUTES) show the logo or the welcome layout, never a back arrow, even when
-// the stack can go back (the system back still works).
 function renderMainHeader({ route, back, navigation }: StackHeaderProps): ReactNode {
-  const routeName = route.name as RouteName;
-  const canGoBack = back !== undefined && !TAB_ROOT_ROUTES.has(routeName);
-  return <MainHeader routeName={routeName} onBackPress={canGoBack ? navigation.goBack : undefined} />;
+  return <MainHeader routeName={route.name as RouteName} onBackPress={back ? navigation.goBack : undefined} />;
 }
 
 /** A render error replaces only the failed screen (header and navigation keep working). */
@@ -83,8 +75,7 @@ function renderScreenLayout({ children }: { children: ReactElement }): ReactElem
 }
 
 const HEADERLESS_OPTIONS: StackNavigationOptions = { headerShown: false };
-/** Main screens fade and rise into place (the Android "fade from bottom" preset, 250 ms). */
-const MAIN_OPTIONS: StackNavigationOptions = { ...TransitionPresets.FadeFromBottomAndroid, header: renderMainHeader };
+const MAIN_OPTIONS: StackNavigationOptions = { header: renderMainHeader };
 
 /** Current gate from the session and the user's preferences (exported for tests/diagnostics). */
 export function useAppGate(): AppGate {
@@ -99,16 +90,12 @@ export function useAppGate(): AppGate {
   });
 }
 
-/** The Main group: stack + bottom bar in a column, the sidebar next to them. */
+/** The Main group: the stack with the floating assistant button over it, the sidebar next to them. */
 function MainGroup(): ReactElement {
-  const windowInsets = useSafeAreaInsets();
-  const screenInsets = useMemo(() => ({ ...windowInsets, bottom: 0 }), [windowInsets]);
   const currentRouteName = useCurrentRouteName();
   return (
     <SidebarProvider>
       <View style={styles.main}>
-        <WindowInsetsProvider value={windowInsets}>
-          <SafeAreaInsetsContext.Provider value={screenInsets}>
             <Stack.Navigator key="main" initialRouteName={MAIN_INITIAL_ROUTE} screenOptions={MAIN_OPTIONS} screenLayout={renderScreenLayout}>
               <Stack.Screen name="Dashboard" component={DashboardScreen} />
               <Stack.Screen name="ChooseCreationMethod" component={ChooseCreationMethodScreen} />
@@ -130,9 +117,7 @@ function MainGroup(): ReactElement {
               <Stack.Screen name="Pricing" component={PricingScreen} />
               <Stack.Screen name="WhatsAppConnect" component={WhatsAppConnectScreen} />
             </Stack.Navigator>
-          </SafeAreaInsetsContext.Provider>
-        </WindowInsetsProvider>
-        <BottomNavBar currentRouteName={currentRouteName} />
+        <AssistantFab hidden={currentRouteName === 'AIChat'} />
       </View>
       <MainSidebar />
     </SidebarProvider>

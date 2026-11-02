@@ -1,16 +1,14 @@
 /**
- * Empty state (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5/§8): 96dp circle on a soft
- * primaryContainer-to-tertiaryContainer gradient with a 48dp MCI icon in primary, headlineS title,
- * bodyM body, optional tonal action. Centered, pv 40, revealed with the kit's mount animation.
+ * Empty state (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5/§8): 96dp primaryContainer
+ * circle with a 48dp MCI icon in primary, headlineS title, bodyM body, optional tonal action.
+ * Centered, pv 40, static.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { ComponentProps, ReactElement } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { componentMetrics, radii, spacing, typography, useAppTheme } from '../../theme';
 import { MGButton } from './MGButton';
-import { Reveal } from './Reveal';
 
 export interface EmptyStateAction {
   label: string;
@@ -35,12 +33,9 @@ export interface EmptyStateProps {
 export function EmptyState({ icon, title, body, tone = 'neutral', action, style, testID }: EmptyStateProps): ReactElement {
   const { colors } = useAppTheme();
   const error = tone === 'error';
-  const circleColors: readonly [string, string] = error
-    ? [colors.errorContainer, colors.errorContainer]
-    : [colors.primaryContainer, colors.tertiaryContainer];
   return (
-    <Reveal style={[styles.container, style]} testID={testID}>
-      <LinearGradient colors={circleColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.circle}>
+    <View style={[styles.container, style]} testID={testID}>
+      <View style={[styles.circle, { backgroundColor: error ? colors.errorContainer : colors.primaryContainer }]}>
         <MaterialCommunityIcons
           name={icon}
           size={componentMetrics.emptyStateIcon}
@@ -48,7 +43,7 @@ export function EmptyState({ icon, title, body, tone = 'neutral', action, style,
           accessibilityElementsHidden
           importantForAccessibility="no"
         />
-      </LinearGradient>
+      </View>
       <Text style={[styles.title, { color: colors.onSurface }]} accessibilityRole="header">
         {title}
       </Text>
@@ -60,7 +55,7 @@ export function EmptyState({ icon, title, body, tone = 'neutral', action, style,
           </MGButton>
         </View>
       ) : null}
-    </Reveal>
+    </View>
   );
 }
 

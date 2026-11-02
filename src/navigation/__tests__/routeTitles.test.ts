@@ -31,10 +31,4 @@ describe('route titles', () => {
     expect(labels.length).toBeGreaterThan(0);
     expect(labels.filter((route) => !ROUTE_NAMES.includes(route))).toEqual([]);
   });
-
-  it.each(LANGUAGES)('labels only existing routes in the bottom bar (%s)', (language) => {
-    const labels = Object.keys(table(language, 'shell', 'bottomBar.items'));
-    expect(labels.length).toBeGreaterThan(0);
-    expect(labels.filter((route) => !ROUTE_NAMES.includes(route))).toEqual([]);
-  });
 });

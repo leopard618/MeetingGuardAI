@@ -1,26 +1,18 @@
 /**
- * Gradient-filled surface (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5). The ONLY place
- * the app draws a gradient: picks the stops for the active scheme from `gradients` so every
- * button, FAB, hero card and the assistant orb share the same two-stop ramps.
- *
- * `variant`: primary (buttons, FAB, active tab), hero (one banner per screen), ai (assistant).
- * `direction`: diagonal (default, top-left to bottom-right), horizontal, vertical.
- * Text inside takes `useAppTheme().onGradient[variant]`.
+ * Accent surface (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §2.1). A SOLID primary
+ * block: the one place the kit paints the accent as a surface (FAB, the assistant button, the
+ * sign-in button, avatars). The name is historical: the visual refresh of October 30 drew a
+ * gradient here, which the client rejected on November 1 ("remove all gradient"); the API stayed
+ * so callers did not change. `variant` and `direction` are accepted and ignored. Text inside
+ * takes `useAppTheme().onGradient.primary` (= colors.onPrimary).
  */
-import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactElement, ReactNode } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { useAppTheme, type MGGradients } from '../../theme';
+import { useAppTheme } from '../../theme';
 
-export type GradientVariant = keyof MGGradients;
+export type GradientVariant = 'primary' | 'hero' | 'ai';
 export type GradientDirection = 'diagonal' | 'horizontal' | 'vertical';
-
-const DIRECTIONS: Readonly<Record<GradientDirection, { start: { x: number; y: number }; end: { x: number; y: number } }>> = {
-  diagonal: { start: { x: 0, y: 0 }, end: { x: 1, y: 1 } },
-  horizontal: { start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
-  vertical: { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } },
-};
 
 export interface GradientSurfaceProps {
   variant?: GradientVariant;
@@ -31,19 +23,11 @@ export interface GradientSurfaceProps {
   testID?: string;
 }
 
-export function GradientSurface({
-  variant = 'primary',
-  direction = 'diagonal',
-  style,
-  children,
-  pointerEvents,
-  testID,
-}: GradientSurfaceProps): ReactElement {
-  const { gradients } = useAppTheme();
-  const points = DIRECTIONS[direction];
+export function GradientSurface({ style, children, pointerEvents, testID }: GradientSurfaceProps): ReactElement {
+  const { colors } = useAppTheme();
   return (
-    <LinearGradient colors={gradients[variant]} start={points.start} end={points.end} style={style} pointerEvents={pointerEvents} testID={testID}>
+    <View style={[{ backgroundColor: colors.primary }, style]} pointerEvents={pointerEvents} testID={testID}>
       {children}
-    </LinearGradient>
+    </View>
   );
 }

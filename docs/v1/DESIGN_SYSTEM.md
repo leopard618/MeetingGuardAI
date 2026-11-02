@@ -102,7 +102,15 @@ groups, identical in both schemes — see §9).
 toasts. Never border + shadow on the same element. Dark-mode shadows never hard-code `#000` —
 use `colors.shadow`.
 
-### 2.1 Gradients, depth and motion (visual refresh, October 30, 2026)
+### 2.1 Accent, depth and motion (flat since November 1, 2026)
+
+**Client decision (November 1, 2026): no gradients, no light or spark effects, no decorative
+motion.** `GradientSurface` paints a SOLID `primary` block (name kept for API stability; text on
+it is `onPrimary`, exposed as `onGradient.*`), `PressableScale` is a plain pressed dim,
+`Reveal` renders at rest, the aurora, glow, shimmer, sparkles and orbit rings are deleted, and
+the Main group uses the default stack transition. The notes below are history.
+
+#### Superseded: gradients, depth and motion (October 30, 2026)
 
 - **Gradients** (`gradients` / `onGradient` in tokens.ts, drawn ONLY through `GradientSurface`):
   `primary` (filled buttons, FABs, the header hairline, the active tab pill), `hero` (one banner

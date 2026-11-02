@@ -19,7 +19,6 @@ import {
   darkColors,
   gradients,
   lightColors,
-  onGradient,
   radii,
   softShadow,
   spacing,
@@ -79,7 +78,12 @@ export function useAppTheme(): AppTheme {
       radii,
       metrics: componentMetrics,
       gradients: gradients[colorScheme],
-      onGradient: onGradient[colorScheme],
+      // The accent surface is solid primary since November 1, 2026: text on it is onPrimary.
+      onGradient: {
+        primary: (colorScheme === 'dark' ? darkColors : lightColors).onPrimary,
+        hero: (colorScheme === 'dark' ? darkColors : lightColors).onPrimary,
+        ai: (colorScheme === 'dark' ? darkColors : lightColors).onPrimary,
+      },
       elevated: elevatedSurface(colorScheme),
     }),
     [colorScheme],

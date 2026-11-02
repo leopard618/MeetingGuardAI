@@ -10,12 +10,10 @@
  * - insights computed on the device, "Ask the assistant" and the full insights screen.
  * Pull to refresh flushes the outbox, re-reads the meetings and runs a calendar sync.
  *
- * MG Indigo hierarchy (2026-11-01 redesign): a big greeting (headlineL, date in bodyM) under a
- * header that shows no title on this screen, ONE glass stat strip (today / tasks due / this week),
- * THE focal card on the primary gradient with the orbit-ring motif (NextMeetingCard), a row of
- * four round quick actions, the tasks list with pill statuses, the open timeline list, the
- * compact alert row and the week card with its mini bar chart; blocks and rows reveal with the
- * kit's mount animation. A load failure with nothing
+ * Flat layout (2026-11-01, client's order): a short greeting (headlineS + date), the next-meeting
+ * card, then one row with the tasks card in the left half and the 2 x 2 quick-action grid in the
+ * right half, then today's timeline, then the week card. No alerts card (alert settings live in
+ * the menu and Settings), no stats strip, no ask bar, no decoration, no motion. A load failure with nothing
  * cached shows ErrorState; cached content + failure shows an error Banner (ARCHITECTURE §13).
  */
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -25,7 +23,7 @@ import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { AuroraBackdrop, Banner, EmptyState, ErrorState, Reveal, SectionHeader, Skeleton } from '../../components/ui';
+import { Banner, EmptyState, ErrorState, SectionHeader, Skeleton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
@@ -34,16 +32,12 @@ import type { Meeting, Task } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import { calendarSyncEngine } from '../../services/calendar';
-import { useMeetings, usePreferences, useTasks } from '../../services/data';
+import { useMeetings, useTasks } from '../../services/data';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { computeDashboardSummary, computePeriodInsights, weekStartForLanguage, type InsightContext } from '../insights/meetingInsights';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
-import { isDueToday } from '../tasks/tasksModel';
-import { AlertStatusCard } from './AlertStatusCard';
-import { AskBar } from './AskBar';
 import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay } from '../meetings/occurrences';
-import { StatsRow } from './StatsRow';
 import { buildTodayTimeline, dayPeriodOf, findNextAllDay, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
 import { InsightsSummaryCard } from './InsightsSummaryCard';
 import { NextMeetingCard } from './NextMeetingCard';
@@ -64,8 +58,8 @@ type Props = StackScreenProps<RootStackParamList, 'Dashboard'>;
 const DASHBOARD_PAST_DAYS = 7;
 const DASHBOARD_FUTURE_DAYS = 370;
 
-/** "Good morning," + "Ana" (the name on its own line, in accent) for the hour in `timeZone`. */
-export function greetingParts(now: Date, timeZone: string, displayName: string | null | undefined, t: ReturnType<typeof useT>): { salute: string; name: string | null } {
+/** "Good morning, Ana" in the UI language for the hour in `timeZone`. */
+export function greetingText(now: Date, timeZone: string, displayName: string | null | undefined, t: ReturnType<typeof useT>): string {
   const name = firstNameOf(displayName);
   let hour = now.getHours();
   try {
@@ -74,7 +68,7 @@ export function greetingParts(now: Date, timeZone: string, displayName: string |
     // Keep the runtime's hour.
   }
   const period = dayPeriodOf(hour);
-  return name ? { salute: t(`home:greeting.salute.${period}`), name } : { salute: t(`home:greeting.${period}NoName`), name: null };
+  return name ? t(`home:greeting.${period}`, { name }) : t(`home:greeting.${period}NoName`);
 }
 
 export function DashboardScreen({ navigation }: Props): ReactElement {
@@ -84,7 +78,6 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   const { language } = useLanguage();
   const { meetings, isLoading, error, refresh } = useMeetings();
   const { tasks, update: updateTask } = useTasks();
-  const { preferences } = usePreferences();
   const { authUser } = useAuth();
   const fmt = useFormatters();
   const now = useLiveNow(30_000);
@@ -120,7 +113,6 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   // "no meetings" empty states next to the error (a failure is not an empty list).
   const loadFailed = error !== null && !isLoading && meetings.length === 0;
   const showData = !isLoading && !loadFailed;
-  const tasksDue = useMemo(() => tasks.filter((task) => isDueToday(task, now, timeZone)).length, [tasks, now, timeZone]);
 
   const openMeeting = useCallback((meeting: Meeting) => navigation.navigate('MeetingDetails', { meetingId: meeting.id }), [navigation]);
 
@@ -166,40 +158,20 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   }, [refresh, t]);
 
   const renderItem = useCallback<ListRenderItem<TimelineItem>>(
-    ({ item, index }) => (
-      <Reveal index={index}>
-        <TodayTimelineRow item={item} isLast={index === timeline.length - 1} onOpen={openMeeting} />
-      </Reveal>
-    ),
+    ({ item, index }) => <TodayTimelineRow item={item} isLast={index === timeline.length - 1} onOpen={openMeeting} />,
     [openMeeting, timeline.length],
   );
 
-  const greeting = greetingParts(now, timeZone, authUser?.displayName, t);
   const header = (
     <View>
-      <AuroraBackdrop style={styles.aurora} />
-      <Reveal style={styles.greeting}>
-        <Text variant="headlineLarge" accessibilityRole="header" numberOfLines={1} testID="dashboard-greeting">
-          {greeting.salute}
+      <View style={styles.greeting}>
+        <Text variant="headlineSmall" accessibilityRole="header" numberOfLines={2} testID="dashboard-greeting">
+          {greetingText(now, timeZone, authUser?.displayName, t)}
         </Text>
-        {greeting.name ? (
-          <Text variant="headlineLarge" style={{ color: colors.primary }} numberOfLines={1} testID="dashboard-greeting-name">
-            {greeting.name}
-          </Text>
-        ) : null}
-        <Text variant="bodyMedium" style={[styles.greetingDate, { color: colors.onSurfaceVariant }]}>
+        <Text variant="bodySmall" style={[styles.greetingDate, { color: colors.onSurfaceVariant }]}>
           {capitalizeFirst(fmt.date(now, 'full'))}
         </Text>
-      </Reveal>
-      <Reveal delay={40}>
-        <AskBar onAsk={(question) => navigation.navigate('AIChat', question ? { prefill: question } : undefined)} />
-      </Reveal>
-      <SectionHeader title={t('home:stats.title')} action={{ label: t('home:stats.viewAll'), onPress: () => navigation.navigate('TotalMeetings') }} style={styles.overviewHeader} />
-      <StatsRow
-        meetingsToday={showData ? summary.today.count : null}
-        tasksDue={showData ? tasksDue : null}
-        meetingsThisWeek={showData ? summary.week.count : null}
-      />
+      </View>
       <OfflineBanner />
       {error ? (
         loadFailed ? (
@@ -214,31 +186,25 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
           />
         )
       ) : null}
-      {showData ? (
-        <Reveal delay={60}>
-          <NextMeetingCard current={current} next={next} nextAllDay={nextAllDay} onOpen={openMeeting} onJoin={join} />
-        </Reveal>
-      ) : null}
-      {showData ? (
-        <Reveal delay={120}>
-          <TasksTodayCard
-            tasks={tasks}
-            now={now}
-            deviceZone={timeZone}
-            fmt={fmt}
-            onToggle={completeTask}
-            onOpenTasks={() => navigation.navigate('Tasks')}
-          />
-        </Reveal>
-      ) : null}
-      <Reveal delay={180}>
+      {showData ? <NextMeetingCard current={current} next={next} nextAllDay={nextAllDay} onOpen={openMeeting} onJoin={join} /> : null}
+      <View style={styles.split}>
+        <TasksTodayCard
+          tasks={tasks}
+          now={now}
+          deviceZone={timeZone}
+          fmt={fmt}
+          onToggle={completeTask}
+          onOpenTasks={() => navigation.navigate('Tasks')}
+          style={styles.half}
+        />
         <QuickActions
           onNewManual={() => navigation.navigate('CreateMeeting')}
           onNewWithAi={() => navigation.navigate('AIChat')}
           onWhatsApp={() => navigation.navigate('WhatsAppConnect')}
           onNotes={() => navigation.navigate('Notes')}
+          style={styles.half}
         />
-      </Reveal>
+      </View>
       {loadFailed ? null : (
         <SectionHeader
           title={t('home:today.title')}
@@ -273,7 +239,6 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
 
   const footer = isLoading ? null : (
     <View>
-      <AlertStatusCard preferences={preferences} meetings={meetings} now={now} onOpenSettings={() => navigation.navigate('AlertSettings')} />
       {loadFailed ? null : (
         <InsightsSummaryCard
           summary={summary}
@@ -309,19 +274,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: componentMetrics.screenGutter,
     paddingTop: spacing.md,
   },
-  aurora: {
-    top: -spacing.md,
-    left: -componentMetrics.screenGutter,
-    right: -componentMetrics.screenGutter,
-  },
   greeting: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   greetingDate: {
-    marginTop: spacing.xs,
+    marginTop: 2,
   },
-  overviewHeader: {
+  split: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: spacing.sm,
     marginTop: spacing.md,
+  },
+  half: {
+    flex: 1,
   },
   errorBanner: {
     marginBottom: spacing.md,

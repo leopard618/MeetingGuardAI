@@ -95,12 +95,12 @@ jest.mock('../../components/CustomHeader', () => {
 });
 jest.mock('../../components/MobileSidebar', () => ({ __esModule: true, MobileSidebar: () => null, default: () => null }));
 // The real bar needs the ThemeProvider; this stand-in only reports the route it was given.
-jest.mock('../../components/BottomNavBar', () => {
+jest.mock('../../components/AssistantFab', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
-  const MockBar = ({ currentRouteName }: { currentRouteName: string | null }) =>
-    React.createElement(Text, { testID: 'bottom-bar' }, `bar:${currentRouteName ?? 'none'}`);
-  return { __esModule: true, BottomNavBar: MockBar, default: MockBar };
+  const MockFab = ({ hidden }: { hidden?: boolean }) =>
+    React.createElement(Text, { testID: 'assistant-fab' }, `fab:${hidden ? 'hidden' : 'shown'}`);
+  return { __esModule: true, AssistantFab: MockFab, default: MockFab };
 });
 jest.mock('../../screens/onboarding', () => {
   const stepScreen = (name: string) => () => mockScreen(name).default({});
@@ -254,22 +254,22 @@ describe('RootNavigator gate', () => {
     expect(screen.getByTestId('app-splash')).toBeTruthy();
   });
 
-  it('shows the Main group with the header and the bottom bar when onboarding is completed', async () => {
+  it('shows the Main group with the header and the assistant button, hidden on the chat', async () => {
     await renderNavigator();
     expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|-');
     expect(screen.getByTestId('header').props.children).toBe('header:Dashboard');
-    expect(screen.getByTestId('bottom-bar').props.children).toBe('bar:Dashboard');
+    expect(screen.getByTestId('assistant-fab').props.children).toBe('fab:shown');
 
     await act(async () => {
-      navigate('Calendar');
+      navigate('AIChat');
     });
-    expect(screen.getByTestId('bottom-bar').props.children).toBe('bar:Calendar');
+    expect(screen.getByTestId('assistant-fab').props.children).toBe('fab:hidden');
   });
 
-  it('has no bottom bar outside the Main group', async () => {
+  it('has no assistant button outside the Main group', async () => {
     mockUseAuth.mockReturnValue(authState('signed_out'));
     await renderNavigator();
-    expect(screen.queryByTestId('bottom-bar')).toBeNull();
+    expect(screen.queryByTestId('assistant-fab')).toBeNull();
   });
 });
 

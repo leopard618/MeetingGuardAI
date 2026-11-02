@@ -1,10 +1,10 @@
 /**
- * Dashboard week card ("Your week"): honest numbers computed on the device. The week's meeting
- * count and time in large type, a mini bar chart of meeting time per day (today on the primary
- * gradient, labels in the UI language), what deserves a look in the rest of the week (overlaps,
+ * Dashboard week card ("Your week"): honest numbers computed on the device. One line with the
+ * week's meeting count and time, a static seven-day bar row of meeting time (today in primary,
+ * weekday initials in the UI language), what deserves a look in the rest of the week (overlaps,
  * back-to-back, missing links, preparation tips; each line with an icon and text), "Ask the
  * assistant" (opens the chat with a prefilled question; nothing is sent until the user taps send)
- * and a link to the full insights screen. Neutral Card under a SectionHeader.
+ * and a link to the full insights screen. Flat surface Card under a SectionHeader.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
@@ -47,7 +47,7 @@ export function InsightsSummaryCard({ summary, days, todayDate, locale, onAskAss
   const t = useT();
   const { colors } = useAppTheme();
   const fmt = useFormatters();
-  const { upcoming, week, today } = summary;
+  const { upcoming, week } = summary;
   const hasIssues = upcoming.overlaps + upcoming.backToBack + upcoming.missingPlace + upcoming.withTips > 0;
   const bars = weekBars(days, todayDate, locale);
   const chartA11y = `${t('home:insights.chartA11y')}. ${days
@@ -58,27 +58,21 @@ export function InsightsSummaryCard({ summary, days, todayDate, locale, onAskAss
     <View>
       <SectionHeader title={t('home:insights.title')} />
       <Card testID="insights-summary-card">
-        <View style={styles.headline}>
-          <View style={styles.flex} accessible accessibilityLabel={`${t('home:insights.thisWeek')}: ${t('home:insights.meetings', { count: week.count })}, ${t('home:insights.time', { duration: fmt.duration(week.minutes) })}`}>
-            <Text variant="headlineSmall" style={styles.value}>
-              {t('home:insights.meetings', { count: week.count })}
-            </Text>
-            <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-              {t('home:insights.time', { duration: fmt.duration(week.minutes) })}
-            </Text>
-          </View>
-          <View style={styles.todayStat} accessible accessibilityLabel={`${t('home:insights.today')}: ${t('home:insights.meetings', { count: today.count })}`}>
-            <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
-              {t('home:insights.today')}
-            </Text>
-            <Text variant="titleMedium" style={styles.value}>
-              {t('home:insights.meetings', { count: today.count })}
-            </Text>
-          </View>
+        <View
+          style={styles.headline}
+          accessible
+          accessibilityLabel={`${t('home:insights.thisWeek')}: ${t('home:insights.meetings', { count: week.count })}, ${t('home:insights.time', { duration: fmt.duration(week.minutes) })}`}
+        >
+          <Text variant="titleMedium" style={styles.value}>
+            {t('home:insights.meetings', { count: week.count })}
+          </Text>
+          <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
+            {t('home:insights.time', { duration: fmt.duration(week.minutes) })}
+          </Text>
         </View>
-        {bars.length > 0 ? <MiniBars bars={bars} height={64} accessibilityLabel={chartA11y} style={styles.chart} testID="week-chart" /> : null}
+        {bars.length > 0 ? <MiniBars bars={bars} height={48} accessibilityLabel={chartA11y} style={styles.chart} testID="week-chart" /> : null}
 
-        <Text variant="titleSmall" style={[styles.heading, { color: colors.onSurfaceVariant }]}>
+        <Text variant="labelLarge" style={[styles.heading, { color: colors.onSurfaceVariant }]}>
           {t('home:insights.restOfWeek')}
         </Text>
         {upcoming.overlaps > 0 ? (
@@ -116,22 +110,17 @@ export function InsightsSummaryCard({ summary, days, todayDate, locale, onAskAss
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
   headline: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: spacing.md,
-  },
-  todayStat: {
-    alignItems: 'flex-end',
+    alignItems: 'baseline',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
   },
   value: {
     fontVariant: ['tabular-nums'],
   },
   chart: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
   },
   heading: {
     marginTop: spacing.lg,

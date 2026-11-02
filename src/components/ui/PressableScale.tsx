@@ -1,49 +1,25 @@
 /**
- * Pressable that springs to 97 percent while pressed (owner: shell / Foundation;
- * docs/v1/DESIGN_SYSTEM.md §8). The one press feedback for cards, tiles, FABs, tabs and the
- * filled button; `android_ripple` can still be passed for an in-surface ripple. Static under
- * "reduce motion". `style` is a plain style (no pressed-function): the scale IS the feedback.
+ * Press feedback (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §2.1): a plain Pressable
+ * that dims to `pressedOpacity` while held. No scale animation: the client asked for no motion
+ * effects (November 1, 2026). The name is historical so callers did not change; `scaleTo` is
+ * accepted and ignored.
  */
-import { useCallback, useState, type ReactElement } from 'react';
-import { Animated, Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import type { ReactElement, ReactNode } from 'react';
+import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 
-import { motion } from '../../theme';
-import { useReducedMotion } from './useReducedMotion';
+import { pressedOpacity } from '../../theme';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
+export interface PressableScaleProps extends Omit<PressableProps, 'style' | 'children'> {
   style?: StyleProp<ViewStyle>;
-  /** Scale while pressed (default motion.pressScale). */
+  /** Ignored (kept for API compatibility). */
   scaleTo?: number;
+  children?: ReactNode;
 }
 
-export function PressableScale({ style, scaleTo = motion.pressScale, onPressIn, onPressOut, children, ...rest }: PressableScaleProps): ReactElement {
-  const reduceMotion = useReducedMotion();
-  const [scale] = useState(() => new Animated.Value(1));
-
-  const animateTo = useCallback(
-    (value: number) => {
-      if (reduceMotion) return;
-      Animated.spring(scale, { toValue: value, useNativeDriver: true, ...motion.spring }).start();
-    },
-    [reduceMotion, scale],
-  );
-
+export function PressableScale({ style, scaleTo: _scaleTo, children, disabled, ...rest }: PressableScaleProps): ReactElement {
   return (
-    <AnimatedPressable
-      {...rest}
-      onPressIn={(event) => {
-        animateTo(scaleTo);
-        onPressIn?.(event);
-      }}
-      onPressOut={(event) => {
-        animateTo(1);
-        onPressOut?.(event);
-      }}
-      style={[style, { transform: [{ scale }] }]}
-    >
+    <Pressable disabled={disabled} style={({ pressed }) => [style, pressed && !disabled ? { opacity: pressedOpacity } : null]} {...rest}>
       {children}
-    </AnimatedPressable>
+    </Pressable>
   );
 }

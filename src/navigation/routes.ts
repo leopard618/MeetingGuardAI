@@ -31,12 +31,6 @@ export const ROUTES = {
   WhatsAppConnect: 'WhatsAppConnect',
 } as const satisfies { [K in RouteName]: K };
 
-/**
- * The bottom bar destinations: roots of the Main group. The header shows no back arrow on them
- * (RootNavigator.renderMainHeader); ShellChrome.test keeps this equal to BOTTOM_BAR_ITEMS.
- */
-export const TAB_ROOT_ROUTES: ReadonlySet<RouteName> = new Set<RouteName>(['Dashboard', 'TotalMeetings', 'AIChat', 'Calendar', 'Tasks']);
-
 export const AUTH_ROUTES = ['Landing', 'EmailAuth', 'Privacy', 'Terms'] as const satisfies readonly (keyof AuthStackParamList)[];
 
 /** Onboarding steps in order (progress indicator, next/previous, resume). */

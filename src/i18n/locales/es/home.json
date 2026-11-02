@@ -1,20 +1,11 @@
 {
   "greeting": {
-    "salute": {
-      "morning": "Buenos días,",
-      "afternoon": "Buenas tardes,",
-      "evening": "Buenas noches,"
-    },
+    "morning": "Buenos días, {{name}}",
+    "afternoon": "Buenas tardes, {{name}}",
+    "evening": "Buenas noches, {{name}}",
     "morningNoName": "Buenos días",
     "afternoonNoName": "Buenas tardes",
     "eveningNoName": "Buenas noches"
-  },
-  "stats": {
-    "title": "Resumen",
-    "viewAll": "Ver todo",
-    "today": "Hoy",
-    "tasksDue": "Tareas pendientes",
-    "thisWeek": "Esta semana"
   },
   "offline": {
     "title": "Sin conexión",
@@ -42,13 +33,7 @@
     "joinA11y": "Unirse a {{title}}",
     "details": "Detalles",
     "detailsA11y": "Detalles de {{title}}",
-    "openLinkFailed": "No se pudo abrir el enlace de la reunión.",
-    "participants_one": "{{count}} participante",
-    "participants_other": "{{count}} participantes",
-    "now": "Ahora",
-    "starts": "Empieza",
-    "started": "Empezó",
-    "ends": "Termina"
+    "openLinkFailed": "No se pudo abrir el enlace de la reunión."
   },
   "today": {
     "title": "Hoy",
@@ -66,44 +51,6 @@
     "overlapsMany_other": "Se solapa con {{count}} reuniones",
     "rightAfter": "Empieza justo después de {{title}}",
     "itemA11y": "{{time}}, {{title}}. {{state}}"
-  },
-  "alerts": {
-    "title": "Alertas",
-    "on": "Las alertas están activadas",
-    "off": "Las alertas están desactivadas",
-    "badgeOn": "Activas",
-    "badgeOff": "Apagadas",
-    "offHint": "No recibirás avisos de tus reuniones. Activa las alertas en los ajustes de alertas.",
-    "intensity": "Intensidad: {{intensity}}",
-    "intensityName": {
-      "max": "Máxima",
-      "medium": "Media",
-      "light": "Ligera"
-    },
-    "nextAlert": "Próxima alerta: {{time}} · {{title}}",
-    "nextAlertNoTitle": "Próxima alerta: {{time}}",
-    "noneScheduled": "No hay alertas programadas ahora mismo.",
-    "scheduled_one": "{{count}} alerta programada",
-    "scheduled_other": "{{count}} alertas programadas",
-    "permission": {
-      "checking": "Comprobando el permiso de notificaciones...",
-      "granted": "Las notificaciones están permitidas.",
-      "provisional": "Las notificaciones llegan en silencio. Permítelas del todo para que las alertas puedan avisarte.",
-      "undetermined": "Permite las notificaciones para recibir alertas con la app cerrada.",
-      "denied": "Las notificaciones están bloqueadas. Las alertas no te llegarán con la app cerrada.",
-      "allow": "Permitir notificaciones",
-      "openSettings": "Abrir ajustes"
-    },
-    "exactAlarms": {
-      "hint": "Android puede retrasar las alertas si MeetingGuard no tiene permiso para programar alarmas exactas («Alarmas y recordatorios»).",
-      "open": "Revisar alarmas exactas"
-    },
-    "dnd": {
-      "android": "Las alertas máximas solo suenan con No molestar si lo permites.",
-      "ios": "Para recibir alertas durante un modo de concentración, añade MeetingGuard a sus apps permitidas en Ajustes.",
-      "open": "Permitir anulación"
-    },
-    "settings": "Ajustes de alertas"
   },
   "insights": {
     "title": "Tu semana",
@@ -150,10 +97,5 @@
     "overdue": "Atrasada",
     "today": "Hoy",
     "viewAll": "Ver todas las tareas"
-  },
-  "ask": {
-    "placeholder": "Pregúntale lo que quieras al asistente...",
-    "button": "Preguntar al asistente",
-    "a11y": "Pregunta para el asistente"
   }
 }

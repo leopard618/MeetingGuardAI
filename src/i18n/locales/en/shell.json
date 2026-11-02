@@ -1,13 +1,12 @@
 {
   "header": {
     "back": "Go back",
-    "home": "Go to the dashboard",
     "openMenu": "Open menu",
     "darkMode": "Switch to dark mode",
     "lightMode": "Switch to light mode",
     "switchLanguage": "Change language to {{language}}",
-    "welcome": "Welcome back",
-    "alerts": "Alert settings"
+    "assistant": "Open the AI assistant",
+    "assistantHint": "Long press and drag to move it"
   },
   "sidebar": {
     "close": "Close menu",
@@ -28,15 +27,6 @@
       "AIChat": "AI assistant",
       "Pricing": "Plans",
       "Settings": "Settings"
-    }
-  },
-  "bottomBar": {
-    "items": {
-      "Dashboard": "Home",
-      "TotalMeetings": "Meetings",
-      "AIChat": "AI",
-      "Calendar": "Calendar",
-      "Tasks": "Tasks"
     }
   },
   "errorBoundary": {

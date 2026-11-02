@@ -1,9 +1,8 @@
 /**
- * Pure helpers of the redesigned dashboard: the week chart bars, weekday initials, the elapsed
- * share of the meeting happening now, participant initials, and the kit's ring / bar maths.
+ * Pure helpers of the dashboard: the week chart bars, weekday initials, the elapsed share of the
+ * meeting happening now, participant initials, and the kit's bar maths.
  */
 import { barHeight, MIN_FRACTION } from '../../../components/ui/MiniBars';
-import { orbitRings } from '../../../components/ui/OrbitRings';
 import type { Meeting } from '../../../core/types';
 import type { DayLoad } from '../../insights/meetingInsights';
 import { elapsedFraction, participantInitial, weekBars, weekdayInitial } from '../homeModel';
@@ -37,15 +36,6 @@ describe('barHeight', () => {
     expect(barHeight(0, 64)).toBe(Math.round(MIN_FRACTION * 64));
     expect(barHeight(4, 64)).toBe(64);
     expect(barHeight(Number.NaN, 64)).toBe(Math.round(MIN_FRACTION * 64));
-  });
-});
-
-describe('orbitRings', () => {
-  it('grows the diameter outward and fades the alpha', () => {
-    const rings = orbitRings(200, 4, 0.3);
-    expect(rings.map((ring) => ring.diameter)).toEqual([50, 100, 150, 200]);
-    expect(rings[0]!.alpha).toBeGreaterThan(rings[3]!.alpha);
-    expect(rings[3]!.alpha).toBeGreaterThan(0);
   });
 });
 

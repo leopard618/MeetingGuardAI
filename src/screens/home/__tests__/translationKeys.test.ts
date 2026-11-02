@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { I18N_NAMESPACE_LIST } from '../../../core/contracts';
-import { ALERT_INTENSITIES, MEETING_SOURCES } from '../../../core/types';
+import { MEETING_SOURCES } from '../../../core/types';
 import { RESOURCES } from '../../../i18n/resources';
 
 const SRC = path.join(__dirname, '..', '..', '..');
@@ -45,9 +45,7 @@ const usedKeys = [
   .sort();
 
 const dynamicKeys = [
-  ...['morning', 'afternoon', 'evening'].flatMap((period) => [`home:greeting.salute.${period}`, `home:greeting.${period}NoName`]),
-  ...ALERT_INTENSITIES.map((intensity) => `home:alerts.intensityName.${intensity}`),
-  ...['granted', 'denied', 'undetermined', 'provisional'].map((state) => `home:alerts.permission.${state}`),
+  ...['morning', 'afternoon', 'evening'].flatMap((period) => [`home:greeting.${period}`, `home:greeting.${period}NoName`]),
   ...MEETING_SOURCES.map((source) => `insights:sources.${source}`),
   ...[0, 1, 2, 3, 4, 5, 6].flatMap((day) => [`insights:weekday.${day}`, `insights:weekdayLong.${day}`]),
 ];

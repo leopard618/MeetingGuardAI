@@ -159,8 +159,7 @@ afterEach(() => {
 
 it('shows the greeting, the meeting in progress and the next one with a live countdown', async () => {
   await renderDashboard();
-  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Good morning,');
-  expect(screen.getByTestId('dashboard-greeting-name').props.children).toBe('Ana');
+  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Good morning, Ana');
   expect(screen.getByTestId('current-meeting-title').props.children).toBe('Design review');
   expect(screen.getByTestId('current-meeting-countdown').props.children).toBe('Ends in 30:00');
   expect(screen.getByTestId('next-meeting-title').props.children).toBe('Vendor call');
@@ -225,33 +224,13 @@ it('shows the loading state until the meetings are known', async () => {
   expect(screen.queryByTestId('next-meeting-card')).toBeNull();
 });
 
-it('shows the alert status and links to the alert settings', async () => {
-  mockPending = [
-    { identifier: 'mg:overlap:15', meetingId: 'overlap', kind: 'alert', offsetMinutes: 15, fireAt: minutesFromNow(5), intensity: 'max' },
-  ];
-  await renderDashboard();
-  expect(screen.getByTestId('alert-status').props.children).toBe('Alerts are on');
-  expect(screen.getByTestId('next-alert').props.children).toBe('Next alert: in 5 minutes (10:05 AM) · Vendor call');
-  await act(async () => {
-    fireEvent.press(screen.getByTestId('alert-settings-link'));
-  });
-  expect(await screen.findByTestId('target-AlertSettings')).toBeTruthy();
-});
-
-it('offers to allow notifications when they are not granted', async () => {
-  mockPermission = { notifications: 'undetermined', canAskAgain: true, exactAlarms: 'not_required' };
-  await renderDashboard();
-  await act(async () => {
-    fireEvent.press(screen.getByText('Allow notifications'));
-  });
-  expect(mockRequestPermissions).toHaveBeenCalled();
-});
-
-it('says when alerts are off', async () => {
+it('has no alerts card: alert settings live in the menu and Settings', async () => {
   mockAlertEnabled = false;
   await renderDashboard();
-  expect(screen.getByTestId('alert-status').props.children).toBe('Alerts are off');
+  expect(screen.queryByTestId('alert-status')).toBeNull();
   expect(screen.queryByText('Allow notifications')).toBeNull();
+  expect(screen.getByTestId('quick-actions')).toBeTruthy();
+  expect(screen.getByTestId('dashboard-tasks')).toBeTruthy();
 });
 
 it('opens the assistant with a prefilled question and the insights screen', async () => {
@@ -313,8 +292,7 @@ it('shows the offline banner with the number of changes waiting to sync', async 
 it('renders in Spanish', async () => {
   await i18n.changeLanguage('es');
   await renderDashboard();
-  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Buenos días,');
-  expect(screen.getByTestId('dashboard-greeting-name').props.children).toBe('Ana');
-  expect(screen.getByText('Acciones rápidas')).toBeTruthy();
+  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Buenos días, Ana');
+  expect(screen.getByText('Nueva reunión')).toBeTruthy();
   expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('Empieza en 20:00');
 });

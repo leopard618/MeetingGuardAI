@@ -11,21 +11,16 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
-- **Dark reference style**: the app now opens in dark mode on a fresh install (a saved choice
-  still wins), with charcoal neutrals instead of navy; the bottom bar is icons only with the
-  active tab on a filled gradient circle; the dashboard header is the welcome layout (avatar at
-  the left, "Welcome back" and your first name, the language pill and a bell that opens the alert
-  settings); the greeting puts your name on its own accent line; an ask bar under it opens the
-  assistant with your question; the next-meeting card is a dark card with a dashed "now to
-  start" route, the countdown in accent and one filled button; the stat tiles carry an accent
-  icon, a big number and a label.
-- **Dashboard redesign**: one glass stat strip instead of three tiles, the next-meeting card with
-  the welcome image's orbit rings, a start-time pill, a progress bar while a meeting is running
-  and the first participants' initials, a row of four round quick actions (new meeting, new with
-  AI, WhatsApp, notes), a lighter tasks list with status pills, today's schedule as an open list
-  with colored accent bars, a compact alert row that opens the alert settings, and a "Your week"
-  card with a seven-day meeting-time chart. The header shows no title on the dashboard; section
-  titles across the app are now bolder (titleM onSurface).
+- **Flat dark UI** (client decision): the app opens in dark mode on a fresh install (a saved
+  choice still wins) with charcoal neutrals; no gradients, no light or spark effects and no
+  decorative motion anywhere; the accent is a solid indigo. The header is a menu button, the
+  title and a language pill with the country flag. The bottom bar is gone: the AI assistant is a
+  floating button that opens the chat with a tap and can be long-pressed and dragged anywhere
+  (the spot is remembered). The dashboard is, in order: a short greeting, the next-meeting card
+  (clock line, countdown in accent, Details and Join), the tasks card beside a 2 x 2 grid of
+  quick actions (new meeting, new with AI, WhatsApp, notes), today's schedule, and a "Your week"
+  card with a static seven-day meeting-time chart. The overview tiles, the ask bar and the
+  alerts card are gone (alert settings stay in the menu and in Settings).
 - **New welcome image**: the sign-in screen opens on the brand image (the mark, the app name and
   "Never Miss What Matters." over a night office) with only the sign-in buttons and the Terms and
   Privacy links below it; the old photo, logo, headline, feature list, quota note and white card
