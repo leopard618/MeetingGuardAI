@@ -144,8 +144,9 @@ function MeetingBlock({
   // "Mon, Nov 2 · 4:00 - 5:00 PM": the day label and the clock range come from the one range formatter.
   const range = fmt.meetingRange(meeting);
   const split = range.indexOf(' · ');
+  // A meeting that crosses midnight (or an all-day one) has no separator: show the range once.
   const dateText = split > 0 ? range.slice(0, split) : range;
-  const rangeText = split > 0 ? range.slice(split + 3) : meeting.allDay ? t('home:today.allDay') : `${fmt.time(meeting.startAt)} - ${fmt.time(new Date(endMs(meeting)))}`;
+  const rangeText = split > 0 ? range.slice(split + 3) : null;
 
   return (
     <View style={styles.block} testID={testID}>
@@ -158,7 +159,7 @@ function MeetingBlock({
         </Text>
         <View style={styles.metaRow}>
           <Meta icon="calendar" text={dateText} />
-          <Meta icon="clock" text={rangeText} />
+          {rangeText ? <Meta icon="clock" text={rangeText} /> : null}
           {link ? <Meta icon="video" text={t('home:next.online')} /> : address ? <Meta icon="place" text={address} /> : null}
         </View>
         <Faces participants={meeting.participants} />
