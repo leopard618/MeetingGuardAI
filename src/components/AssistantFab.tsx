@@ -22,13 +22,13 @@ import { createLogger } from '../core/logger';
 import { useT } from '../i18n';
 import { navigate } from '../navigation/navigationService';
 import { DASHBOARD_ART } from '../screens/home/dashboardArt';
-import { componentMetrics, floatingShadow, radii, spacing, useAppTheme, withAlpha } from '../theme';
+import { componentMetrics, spacing, useAppTheme } from '../theme';
 
 const log = createLogger('assistantFab');
 
 export const POSITION_KEY = 'mg.assistantFab.position';
-export const FAB_SIZE = componentMetrics.fabSize + 4;
-const ICON_INSET = 8;
+export const FAB_SIZE = 72;
+const ICON_INSET = 0;
 /** Hold this long before the button starts following the finger. */
 export const LONG_PRESS_MS = 350;
 /** Finger travel that cancels a pending long press (the user is scrolling or tapping sloppily). */
@@ -220,7 +220,7 @@ export function AssistantFab({ hidden = false, testID = 'assistant-fab' }: Assis
       {...drag.panHandlers}
       style={[
         styles.fab,
-        { left: shown.x, top: shown.y, backgroundColor: '#FFFFFF', borderColor: withAlpha(colors.primary, 0.25) },
+        { left: shown.x, top: shown.y },
         dragging && styles.dragging,
       ]}
       accessible
@@ -244,13 +244,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: FAB_SIZE,
     height: FAB_SIZE,
-    borderRadius: radii.full,
-    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    ...floatingShadow,
     zIndex: 10,
-    elevation: 8,
   },
   icon: {
     width: FAB_SIZE - ICON_INSET * 2,

@@ -160,7 +160,9 @@ function MeetingBlock({
         <View style={styles.metaRow}>
           <Meta icon="calendar" text={dateText} />
           {rangeText ? <Meta icon="clock" text={rangeText} /> : null}
-          {link ? <Meta icon="video" text={t('home:next.online')} /> : address ? <Meta icon="place" text={address} /> : null}
+        </View>
+        <View style={styles.metaRow}>
+          {link ? <Meta icon="video" text={t('home:next.online')} /> : <Meta icon="place" text={address || t('home:next.noPlace')} />}
         </View>
         <Faces participants={meeting.participants} />
         {progress !== null ? (
@@ -304,7 +306,9 @@ const styles = StyleSheet.create({
   },
   card: {
     overflow: 'hidden',
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    minHeight: 168,
   },
   decoration: {
     position: 'absolute',
@@ -330,7 +334,7 @@ const styles = StyleSheet.create({
     width: 148,
     paddingLeft: spacing.md,
     paddingTop: spacing.xxl,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
   },
   label: {
     ...typography.labelM,

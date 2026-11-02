@@ -327,23 +327,23 @@ const styles = StyleSheet.create({
   },
   split: {
     flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: spacing.sm,
-    marginTop: spacing.md,
+    alignItems: 'flex-start',
+    gap: spacing.xl,
+    marginTop: spacing.xl,
   },
   tasksHalf: {
-    flex: 11,
+    flex: 1,
   },
   actionsHalf: {
-    flex: 9,
+    marginTop: spacing.xs,
   },
   sectionTitle: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: spacing.md,
-    marginTop: spacing.xxl,
-    marginBottom: spacing.md,
+    marginTop: spacing.xxxl,
+    marginBottom: spacing.lg,
   },
   sectionTitleText: {
     ...typography.headlineS,

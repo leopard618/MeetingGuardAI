@@ -33,7 +33,8 @@
     "endsInLabel": "Termina en",
     "online": "En línea",
     "participants_one": "{{count}} participante",
-    "participants_other": "{{count}} participantes"
+    "participants_other": "{{count}} participantes",
+    "noPlace": "Sin enlace ni lugar todavía"
   },
   "today": {
     "title": "Hoy",

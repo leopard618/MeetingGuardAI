@@ -26,8 +26,12 @@ export interface QuickActionsProps {
 }
 
 const ICON_SIZE = 32;
-/** Gap between the tiles (a step wider than the card gap elsewhere, per the client). */
-const TILE_GAP = spacing.md;
+/** Square tiles (client: a regular quadrilateral, a little smaller, same icon size). */
+export const TILE_SIZE = 64;
+/** Gap between the tiles. */
+export const TILE_GAP = spacing.lg;
+/** Width of the 2 x 2 grid. */
+export const GRID_WIDTH = TILE_SIZE * 2 + TILE_GAP;
 
 /** The four glyphs (client, November 2, 2026: "use the other icons"). */
 export const QUICK_ACTION_ICONS: Readonly<Record<'manual' | 'ai' | 'whatsapp' | 'notes', McIconName>> = {
@@ -100,17 +104,18 @@ export function QuickActions({ onNewManual, onNewWithAi, onWhatsApp, onNotes, st
 
 const styles = StyleSheet.create({
   grid: {
+    width: GRID_WIDTH,
     gap: TILE_GAP,
+    alignSelf: 'flex-start',
   },
   row: {
-    flex: 1,
     flexDirection: 'row',
     gap: TILE_GAP,
   },
   tile: {
-    flex: 1,
-    minHeight: 76,
-    borderRadius: radii.xl,
+    width: TILE_SIZE,
+    height: TILE_SIZE,
+    borderRadius: radii.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },

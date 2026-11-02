@@ -33,7 +33,8 @@
     "endsInLabel": "Ends in",
     "online": "Online",
     "participants_one": "{{count}} participant",
-    "participants_other": "{{count}} participants"
+    "participants_other": "{{count}} participants",
+    "noPlace": "No link or place yet"
   },
   "today": {
     "title": "Today",
