@@ -62,7 +62,7 @@ function Tile({
         {label}
       </Text>
       {caption ? (
-        <Text variant="labelSmall" style={[styles.caption, { color: muted }]} numberOfLines={1}>
+        <Text variant="labelSmall" style={[styles.caption, { color: muted }]} numberOfLines={2}>
           {caption}
         </Text>
       ) : null}
