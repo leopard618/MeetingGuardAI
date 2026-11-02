@@ -103,17 +103,19 @@ export function MGButton({
     );
   }
 
+  // An explicit textColor (even undefined) must not wipe the variant default when the rest is spread.
+  const { textColor, ...paperProps } = rest;
   return (
     <Button
       mode={PAPER_MODE[variant]}
       buttonColor={inverse ? onGradient.primary : undefined}
-      textColor={destructive ? colors.error : inverse ? gradients.primary[0] : undefined}
+      textColor={textColor ?? (destructive ? colors.error : inverse ? gradients.primary[0] : undefined)}
       rippleColor={destructive ? withAlpha(colors.error, stateAlpha.rippleOnCard) : inverse ? withAlpha(gradients.primary[0], stateAlpha.rippleOnCard) : undefined}
       hitSlop={size === 'sm' ? 4 : undefined}
       style={[size === 'sm' ? styles.shapeSm : styles.shape, style]}
       contentStyle={[size === 'sm' ? styles.contentSm : styles.content, contentStyle]}
       labelStyle={[styles.label, labelStyle]}
-      {...rest}
+      {...paperProps}
     />
   );
 }
