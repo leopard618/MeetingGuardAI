@@ -1,6 +1,6 @@
 /**
  * Dashboard tasks card (the client's mockup): the left half of the row it shares with the quick
- * actions. A white card with a check icon and "Tasks" as the title, the open count as a pill,
+ * actions. A plain block (no card, per the client) with a check icon and "Tasks" as the title, the open count as a pill,
  * up to MAX_ROWS open tasks due today or overdue (rounded-square checkbox that completes the task
  * on tap, one-line title, "Overdue" / due time / "Today" under it, overdue in the error color) or
  * the empty line, "View all tasks" with an arrow at the bottom, and the mockup's checklist
@@ -10,7 +10,7 @@ import { memo, type ReactElement } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
-import { Card, Icon, PressableScale } from '../../components/ui';
+import { Icon, PressableScale } from '../../components/ui';
 import type { Task } from '../../core/types';
 import { useT } from '../../i18n';
 import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme } from '../../theme';
@@ -39,7 +39,7 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
   const dueNow = tasks.filter((task) => isDueToday(task, now, deviceZone)).slice(0, MAX_ROWS);
 
   return (
-    <Card style={[styles.card, style]} testID="dashboard-tasks">
+    <View style={[styles.card, style]} testID="dashboard-tasks">
       {DASHBOARD_ART.tasks ? (
         <Image source={DASHBOARD_ART.tasks} style={styles.decoration} resizeMode="contain" accessibilityIgnoresInvertColors />
       ) : null}
@@ -104,7 +104,7 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
         <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('home:tasks.viewAll')}</Text>
         <Icon name="forward" size={componentMetrics.iconMeta} color={colors.primary} />
       </Pressable>
-    </Card>
+    </View>
   );
 }
 
@@ -115,7 +115,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   card: {
-    padding: spacing.md,
+    paddingVertical: spacing.xs,
+    paddingRight: spacing.sm,
     overflow: 'hidden',
   },
   decoration: {

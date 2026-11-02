@@ -25,7 +25,7 @@ export interface QuickActionsProps {
   style?: object;
 }
 
-const ICON_SIZE = 40;
+const ICON_SIZE = 32;
 /** Gap between the tiles (a step wider than the card gap elsewhere, per the client). */
 const TILE_GAP = spacing.md;
 
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   },
   tile: {
     flex: 1,
-    minHeight: 92,
+    minHeight: 76,
     borderRadius: radii.xl,
     alignItems: 'center',
     justifyContent: 'center',

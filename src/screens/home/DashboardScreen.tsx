@@ -1,9 +1,10 @@
 /**
  * Dashboard (route "Dashboard", the Main group's first screen), laid out after the client's mockup
  * of November 1, 2026:
- * - the hero (DashboardHero): deep-blue block with the screen's own header row (menu, logo and
- *   wordmark, language pill) and the greeting (day part, first name, date); the stack header is
+ * - a FIXED top bar over the list (DashboardTopBar: menu, logo and wordmark, language pill),
+ *   transparent over the hero and solid once the list has scrolled past it; the stack header is
  *   hidden on this screen;
+ * - the hero (DashboardHero): the scheme's artwork with the greeting (day part, first name, date);
  * - the next-meeting card pulled up over the hero: the meeting happening now (if any) and the
  *   next one with a live countdown, Join (real links only) and Details;
  * - one row: the tasks card (left) beside the 2 x 2 quick actions (right);
@@ -17,7 +18,7 @@
  */
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { FlatList, Linking, StyleSheet, View, type ListRenderItem } from 'react-native';
+import { FlatList, Linking, StyleSheet, View, type ListRenderItem, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -37,6 +38,7 @@ import { computeDashboardSummary, computePeriodInsights, weekStartForLanguage, t
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
 import { CARD_OVERLAP, DashboardHero } from './DashboardHero';
+import { DashboardTopBar } from './DashboardTopBar';
 import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay } from '../meetings/occurrences';
 import { buildTodayTimeline, dayPeriodOf, findNextAllDay, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
 import { InsightsSummaryCard } from './InsightsSummaryCard';
@@ -59,6 +61,8 @@ type Props = StackScreenProps<RootStackParamList, 'Dashboard'>;
 const DASHBOARD_PAST_DAYS = 14;
 const DASHBOARD_FUTURE_DAYS = 370;
 const DAY_MS = 86_400_000;
+/** Scroll offset (dp) past which the fixed top bar turns solid (the greeting has left the screen). */
+const TOP_BAR_SOLID_OFFSET = 160;
 
 /** "Good morning" (day part in the UI language) and the first name for the hero. */
 export function greetingParts(now: Date, timeZone: string, displayName: string | null | undefined, t: ReturnType<typeof useT>): { salute: string; name: string | null } {
@@ -95,7 +99,12 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   const now = useLiveNow(30_000);
   const timeZone = getDeviceTimeZone();
   const [refreshing, setRefreshing] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const mounted = useRef(true);
+  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const past = event.nativeEvent.contentOffset.y > TOP_BAR_SOLID_OFFSET;
+    setScrolled((current) => (current === past ? current : past));
+  }, []);
 
   useEffect(() => {
     mounted.current = true;
@@ -284,23 +293,32 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   );
 
   return (
-    <FlatList
-      data={showData ? timeline : []}
-      keyExtractor={(item) => displayKeyOf(item.meeting)}
-      renderItem={renderItem}
-      ListHeaderComponent={header}
-      ListEmptyComponent={empty}
-      ListFooterComponent={footer}
-      refreshing={refreshing}
-      onRefresh={() => void onRefresh()}
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
-      testID="dashboard-list"
-    />
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <FlatList
+        data={showData ? timeline : []}
+        keyExtractor={(item) => displayKeyOf(item.meeting)}
+        renderItem={renderItem}
+        ListHeaderComponent={header}
+        ListEmptyComponent={empty}
+        ListFooterComponent={footer}
+        refreshing={refreshing}
+        onRefresh={() => void onRefresh()}
+        onScroll={onScroll}
+        scrollEventThrottle={32}
+        progressViewOffset={insets.top + componentMetrics.headerMinHeight}
+        style={styles.screen}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
+        testID="dashboard-list"
+      />
+      <DashboardTopBar scrolled={scrolled} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
   content: {
     paddingHorizontal: componentMetrics.screenGutter,
   },

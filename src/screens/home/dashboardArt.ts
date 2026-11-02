@@ -5,11 +5,11 @@
  * button, nothing in a card corner).
  *
  * Files and how they are used:
- * - hero-bg.jpg (1456 x 645): the DARK hero artwork (deep blue waves, glass calendar at the
- *   right), cropped from the client's picture. Drawn bottom-anchored at the hero's width.
- * - hero-bg-light.jpg (same proportions): the LIGHT hero artwork (pale blue waves, white glass
- *   calendar). Set the slot to require('../../../assets/dashboard/hero-bg-light.jpg') once the
- *   file exists; until then light mode shows the light gradient only.
+ * - hero-bg-dark.jpg (1456 x 816): the DARK hero: the client's artwork (deep blue waves, glass
+ *   calendar at the right) extended upward with its own top colors so the picture covers the
+ *   whole panel with no seam. Drawn with resizeMode cover over the panel.
+ * - hero-bg-light.jpg (1456 x 816): the LIGHT hero: a pale blue wave composition with a soft glow
+ *   at the right, drawn to the same proportions. Replace the file to change it.
  * - assistant-fab.png (square, transparent): the client's headset-chat icon for the floating
  *   assistant button. Set the slot to require('../../../assets/dashboard/assistant-fab.png')
  *   once the file exists; until then the button shows a robot glyph.
@@ -24,8 +24,8 @@ export interface DashboardArt {
 
 export const DASHBOARD_ART: DashboardArt = {
   heroBackground: {
-    light: null,
-    dark: require('../../../assets/dashboard/hero-bg.jpg') as number,
+    light: require('../../../assets/dashboard/hero-bg-light.jpg') as number,
+    dark: require('../../../assets/dashboard/hero-bg-dark.jpg') as number,
   },
   assistantIcon: null,
   nextMeeting: null,
@@ -33,4 +33,4 @@ export const DASHBOARD_ART: DashboardArt = {
 };
 
 /** Aspect ratio (height / width) of the hero artwork files. */
-export const HERO_ART_RATIO = 645 / 1456;
+export const HERO_ART_RATIO = 816 / 1456;
