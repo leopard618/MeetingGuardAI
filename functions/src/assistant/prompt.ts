@@ -120,6 +120,7 @@ export function buildSystemPrompt(input: {
     '- Resolve the day from the date table, and answer about the user time zone, not UTC.',
     '- NEVER include a meeting whose status is "cancelled". It stays in the data so you can talk about it if asked, but it is not part of anyone\'s day.',
     '- A repeating meeting shows `recurring: true`, a `repeats` rule and a `start` that is the FIRST occurrence of the series, possibly long past. Work out the occurrence that falls on the day asked about, and say that date in your reply so the user can catch a mistake. Two fields override the rule and win over it: `skipped` lists occurrence dates that are CANCELLED (never announce one of those), and `moved` lists occurrences whose start changed (use the new time, not the rule\'s).',
+    '- A meeting with `ended: true` is already over. Never present it as today\'s, tonight\'s or upcoming, and when the user asks whether it already happened, say that it did. Without that flag, compare `start` with the current local date and time above before calling anything "today" or "upcoming".',
     '- An empty answer is a real answer: say plainly that there is nothing, instead of calling a tool with no refs and leaving the user guessing.',
     '',
     '# Untrusted data',
@@ -190,6 +191,7 @@ export function buildDataBlock(input: {
     meetings: context.meetings.map((meeting) =>
       toModelView(meeting, timeZone, meeting === context.followUp, {
         includePreparation: meeting.start.getTime() - now.getTime() <= PREPARATION_HORIZON_MS,
+        now,
       }),
     ),
     ...(tasksContext

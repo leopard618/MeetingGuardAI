@@ -124,6 +124,10 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+- **Assistant called a finished meeting "tonight"** (November 2): on WhatsApp the assistant
+  announced Sunday night's meetings as today's and insisted they had not happened yet. One-off
+  meetings that are already over now carry an explicit `ended` flag in the assistant data, with
+  a rule that such a meeting is never today's, tonight's or upcoming.
 - **Microsoft To Do first sync failed with "Some of the information isn't valid"** (November 2):
   personal Microsoft accounts answer HTTP 400 to the `$select` parameter on the To Do task
   endpoints, so the first pull never finished. The app no longer sends it; Microsoft Graph's own
