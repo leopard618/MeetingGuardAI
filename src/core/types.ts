@@ -1276,8 +1276,25 @@ const taskDocReadSchema = taskShapeSchema.omit({ id: true }).extend({
   people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople).default([]),
   completedAt: utcIsoSchema.nullable().default(null),
   source: taskSourceSchema.default('manual'),
-  external: taskExternalRefsSchema.default({ ...EMPTY_TASK_EXTERNAL_REFS }),
+  // Every key a later build adds to the external refs MUST be optional here: the M7 build wrote
+  // the three To Do keys only, and a reader that required the Google Tasks keys hid every one of
+  // those tasks while the server kept counting them (November 2, 2026). Same pattern as the
+  // meeting reader above.
+  external: taskExternalRefsSchema
+    .partial()
+    .default({})
+    .transform((refs): TaskExternalRefs => fillTaskExternalRefs(refs)),
 });
+
+/** Missing or undefined external keys become null (older documents never wrote them). */
+export function fillTaskExternalRefs(refs: Partial<TaskExternalRefs>): TaskExternalRefs {
+  const filled: TaskExternalRefs = { ...EMPTY_TASK_EXTERNAL_REFS };
+  for (const key of Object.keys(EMPTY_TASK_EXTERNAL_REFS) as (keyof TaskExternalRefs)[]) {
+    const value = refs[key];
+    if (value !== undefined) filled[key] = value;
+  }
+  return filled;
+}
 
 /** Reads leniently and repairs cross-field drift (rules enforce the invariants on write). */
 export function parseTaskDoc(id: string, raw: unknown): Task | null {

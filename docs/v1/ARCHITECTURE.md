@@ -1430,7 +1430,10 @@ section lists what differs.
 - **Storage and rules.** State in `mg:{uid}:tasks.gtasks` (`USER_STORAGE.gtasksTasks`).
   Firestore: `external` accepts `gtasksListId / gtasksTaskId / gtasksUpdatedAt`, `source` accepts
   `gtasks`, preferences accept `gtasksListId / gtasksListName` (`firestore.rules`; deploy with the
-  build).
+  build). The task READ schema (`taskDocReadSchema`) fills every external key an older build did
+  not write (`fillTaskExternalRefs`), like the meeting reader: a reader that requires a new key
+  silently hides every older document in the app while the server-side assistant still lists
+  them (the November 2, 2026 "WhatsApp still shows deleted tasks" report).
 - **UI.** The "Google Tasks" card on the Calendar sync screen (`GoogleTasksCard`, states via
   `gtasksStateView`; needs the Google session, else "Sign in with Google on this device first");
   the task editor's second list box (`TaskEditor` `gtasks` prop, the box component is shared with

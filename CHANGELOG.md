@@ -124,6 +124,12 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+- **Tasks from before the Google Tasks build vanished from the app but not from the assistant**
+  (November 2): the M8 reader required the three Google Tasks keys inside a task's `external`
+  map, so every task last written by the previous build (To Do keys only) was skipped as invalid
+  and disappeared from the Tasks screen, while WhatsApp and the in-app assistant, which read the
+  server copy, kept listing them. The reader now fills missing external keys with null, as the
+  meeting reader already did; the tasks come back and can be deleted normally.
 - **Assistant called a finished meeting "tonight"** (November 2): on WhatsApp the assistant
   announced Sunday night's meetings as today's and insisted they had not happened yet. One-off
   meetings that are already over now carry an explicit `ended` flag in the assistant data, with

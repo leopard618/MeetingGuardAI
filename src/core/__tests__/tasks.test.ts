@@ -120,6 +120,15 @@ describe('parseTaskDoc', () => {
     ...overrides,
   });
 
+  it('reads a document written before the Google Tasks keys existed (To Do keys only in external)', () => {
+    // The M7 build (October 28 to November 2, 2026) wrote exactly these three keys. Requiring the
+    // Google Tasks keys hid every such task in the app while the assistant still listed them.
+    const task = parseTaskDoc('task1', doc({ external: { todoListId: 'list-1', todoTaskId: null, todoUpdatedAt: null } as never }));
+    expect(task).not.toBeNull();
+    expect(task?.external).toEqual({ ...EMPTY_TASK_EXTERNAL_REFS, todoListId: 'list-1' });
+    expect(taskSchema.safeParse(task).success).toBe(true);
+  });
+
   it('parses a stored document and fills missing optionals', () => {
     const minimal = {
       userId: 'u1',
