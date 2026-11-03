@@ -124,6 +124,9 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+- **Alert intensity preview went blank** (November 2): on Alert settings and onboarding, choosing
+  Medium or Light and then Maximum again left the Maximum preview as an empty dark red card. The
+  three mockups now each get their own native view instead of restyling one shared view.
 - **Tasks from before the Google Tasks build vanished from the app but not from the assistant**
   (November 2): the M8 reader required the three Google Tasks keys inside a task's `external`
   map, so every task last written by the previous build (To Do keys only) was skipped as invalid
