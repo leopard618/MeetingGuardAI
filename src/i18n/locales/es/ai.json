@@ -180,7 +180,8 @@
     "people": "Personas",
     "status": "Estado",
     "list": "Lista de To Do",
-    "gtasksList": "Lista de Google Tasks"
+    "gtasksList": "Lista de Google Tasks",
+    "meeting": "Reunión"
   },
   "values": {
     "none": "Ninguno",

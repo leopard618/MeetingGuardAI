@@ -48,6 +48,15 @@ describe('confirmation cards', () => {
     expect(fields(describeTaskDraft(fmt, task, null, 'My Tasks'))).toEqual(['title', 'due', 'gtasksList']);
   });
 
+  it('names the linked meeting on a task card once the preview has resolved it (debrief, T23 row 5)', () => {
+    const task = { title: 'Send the revised budget', description: '', dueDate: '2026-11-06', dueTime: null, reminderMinutesBefore: null, meetingId: 'm1', people: [] };
+    const rows = describeTaskDraft(fmt, task, null, null, 'Budget review');
+    expect(rows.map((row) => row.field)).toEqual(['title', 'due', 'meeting']);
+    expect(rows[2]).toMatchObject({ label: 'Meeting', value: 'Budget review' });
+    expect(describeTaskDraft(fmtEs, task, 'Trabajo', null, 'Budget review')[2]).toMatchObject({ label: 'Reunión' });
+    expect(describeTaskDraft(fmt, task).map((row) => row.field)).toEqual(['title', 'due']);
+  });
+
   it('describes a new meeting with its fields', () => {
     const rows = describeDraft(
       fmt,

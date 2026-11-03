@@ -180,7 +180,8 @@
     "people": "People",
     "status": "Status",
     "list": "To Do list",
-    "gtasksList": "Google Tasks list"
+    "gtasksList": "Google Tasks list",
+    "meeting": "Meeting"
   },
   "values": {
     "none": "None",

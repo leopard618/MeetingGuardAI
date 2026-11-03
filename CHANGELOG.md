@@ -124,6 +124,10 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+- **Task confirmation sheet did not name the meeting** (November 3): a task card proposed from a
+  debrief (or any task the assistant links to a meeting) now shows a "Meeting" row with the
+  meeting's title on the confirmation sheet. The preview already loaded the meeting; the sheet
+  never rendered it.
 - **Alert intensity preview went blank** (November 2): on Alert settings and onboarding, choosing
   Medium or Light and then Maximum again left the Maximum preview as an empty dark red card. The
   three mockups now each get their own native view instead of restyling one shared view.

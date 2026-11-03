@@ -62,7 +62,8 @@ export type MeetingField =
   // M7: the Microsoft To Do list a new task goes to.
   | 'list'
   // M8: the Google Tasks list a new task goes to.
-  | 'gtasksList';
+  | 'gtasksList'
+  | 'meeting';
 
 export interface DetailRow {
   field: MeetingField;
@@ -444,11 +445,16 @@ export function describeTaskDraft(
   task: AiTaskDraft,
   todoListName: string | null = null,
   gtasksListName: string | null = null,
+  meetingTitle: string | null = null,
 ): DetailRow[] {
   const rows: DetailRow[] = [
     { field: 'title', label: fieldLabel(fmt, 'title'), value: task.title },
     { field: 'due', label: fieldLabel(fmt, 'due'), value: taskDueValue(fmt, task.dueDate, task.dueTime) },
   ];
+  // The meeting the task will be linked to (a debrief always sets one). Shown as soon as the
+  // preview has loaded it; a draft without a link, or a link the preview could not resolve
+  // (meeting deleted meanwhile), shows no row rather than an empty one.
+  if (meetingTitle !== null) rows.push({ field: 'meeting', label: fieldLabel(fmt, 'meeting'), value: meetingTitle });
   if (todoListName !== null) rows.push({ field: 'list', label: fieldLabel(fmt, 'list'), value: todoListName });
   if (gtasksListName !== null) rows.push({ field: 'gtasksList', label: fieldLabel(fmt, 'gtasksList'), value: gtasksListName });
   if (task.reminderMinutesBefore !== null) {
