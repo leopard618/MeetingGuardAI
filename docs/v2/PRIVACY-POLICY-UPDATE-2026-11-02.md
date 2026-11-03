@@ -197,7 +197,7 @@ assistant in the app: our server sends the text of your message, together with y
 meetings and open tasks, to OpenAI to understand the request, and nothing is created, changed or
 deleted until you confirm it in the chat. Meta processes the messages between you and our number
 under its own terms and privacy policy. We do not store the content of your messages beyond a
-short conversation state, which expires after a few hours, and our server logs never contain
+short conversation state, which resets after 15 minutes without messages, and our server logs never contain
 message text or phone numbers. Send STOP to pause the assistant, or unlink the number in Settings
 > WhatsApp, which deletes the link and the conversation state.
 
@@ -210,7 +210,7 @@ tratan como peticiones al asistente de IA de la app: nuestro servidor envia el t
 junto con tus proximas reuniones y tareas abiertas, a OpenAI para entender la peticion, y nada se
 crea, cambia o elimina hasta que lo confirmas en el chat. Meta procesa los mensajes entre tu y
 nuestro numero segun sus propios terminos y politica de privacidad. No guardamos el contenido de
-tus mensajes mas alla de un breve estado de la conversacion, que caduca a las pocas horas, y los
+tus mensajes mas alla de un breve estado de la conversacion, que se reinicia tras 15 minutos sin mensajes, y los
 registros de nuestro servidor nunca contienen texto de mensajes ni numeros de telefono. Envia STOP
 para pausar el asistente, o desvincula el numero en Ajustes > WhatsApp, lo que elimina el vinculo y
 el estado de la conversacion.
@@ -250,14 +250,14 @@ EN:
 - Tasks that the app added to Google Tasks or Microsoft To Do, and events it added to Outlook, stay
   there until you delete them.
 - The WhatsApp link (your phone number) is kept until you unlink it or delete your account. The
-  conversation state expires after a few hours.
+  conversation state resets after 15 minutes without messages.
 
 ES:
 
 - Las tareas que la app anadio a Google Tasks o Microsoft To Do, y los eventos que anadio a Outlook,
   permanecen alli hasta que los elimines.
 - El vinculo de WhatsApp (tu numero de telefono) se conserva hasta que lo desvinculas o eliminas tu
-  cuenta. El estado de la conversacion caduca a las pocas horas.
+  cuenta. El estado de la conversacion se reinicia tras 15 minutos sin mensajes.
 
 ## 8. Section "Your rights": extend the consent sentence
 
