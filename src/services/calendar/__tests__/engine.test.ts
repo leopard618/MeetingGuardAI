@@ -181,6 +181,22 @@ describe('calendarSyncEngine', () => {
     engine.stop();
   });
 
+  it('pushes a remote change the website flagged (pushRequested) to Google like a local write (section 32)', async () => {
+    const { engine, google, events } = setup();
+    engine.start(UID);
+    await jest.runAllTimersAsync();
+
+    events.emit('meetings:changed', change({ reason: 'remote', origin: undefined, changedIds: ['web1', 'm2'], pushRequested: ['web1'] }));
+    await settle();
+    // Persist-first, like a local write; the plain remote edit (m2) is not pushed.
+    expect(google.enqueue).toHaveBeenCalledWith(['web1'], 'upsert');
+    expect(google.enqueue).not.toHaveBeenCalledWith(expect.arrayContaining(['m2']), expect.anything());
+    await jest.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS);
+    await settle();
+    expect(google.flushPending).toHaveBeenCalled();
+    engine.stop();
+  });
+
   it('reports provider errors without failing the whole sync', async () => {
     const { engine, google } = setup({ deviceCalendarImportIds: ['dabcdefghij12.3'] });
     google.sync.mockRejectedValueOnce(new AppError('offline', 'down'));

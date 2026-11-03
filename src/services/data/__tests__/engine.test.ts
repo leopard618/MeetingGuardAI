@@ -385,6 +385,24 @@ describe('real-time snapshots', () => {
     expect(await h.engine.listMeetings()).toEqual([]);
   });
 
+  it('reports documents the website flagged pushPending so the calendar engine pushes them (section 32)', async () => {
+    const h = harness();
+    await h.engine.startSession(UID);
+    await settle();
+
+    const fromWeb = storedMeeting('fromWeb', 'Planned on the website', '2026-10-08T09:00:00.000Z');
+    h.remote.serverSet(firestorePaths.meeting(UID, fromWeb.id), {
+      ...(toMeetingDoc(fromWeb) as unknown as Record<string, unknown>),
+      pushPending: true,
+    });
+    await settle();
+    expect(h.meetingEvents.at(-1)).toEqual({ uid: UID, changedIds: ['fromWeb'], reason: 'remote', pushRequested: ['fromWeb'] });
+    // The flag never enters the model, so the next app write of the document leaves it out.
+    const stored = (await h.engine.listMeetings())[0] as unknown as Record<string, unknown>;
+    expect(stored.id).toBe('fromWeb');
+    expect('pushPending' in stored).toBe(false);
+  });
+
   it('a document rejected for a non-network reason does not block the other queued writes', async () => {
     const h = harness();
     await h.engine.startSession(UID);

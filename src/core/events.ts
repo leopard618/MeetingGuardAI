@@ -54,6 +54,13 @@ export interface MeetingsChangedEvent {
   reason: MeetingsChangeReason;
   /** Present for local writes ('created' | 'updated' | 'deleted' | 'imported'). */
   origin?: WriteOrigin;
+  /**
+   * 'remote' only: the ids among changedIds whose document carries `pushPending: true`, written
+   * by a client that cannot reach the calendar providers (the website). The calendar engine
+   * pushes them like local writes; the provider write-back rewrites the document without the
+   * flag (docs/v1/ARCHITECTURE.md section 32). Absent when no document was flagged.
+   */
+  pushRequested?: string[];
 }
 
 export type TasksChangeReason =

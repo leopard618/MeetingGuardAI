@@ -1138,7 +1138,7 @@ export class DataEngine {
     id: string,
     data: RemoteData | null,
     ctx: ReadContext,
-    acc: { changedIds: string[]; migrations: Meeting[] },
+    acc: { changedIds: string[]; pushRequested: string[]; migrations: Meeting[] },
   ): void {
     const read = readRemoteMeeting(id, data, ctx);
     if (read.kind === 'invalid') {
@@ -1155,12 +1155,16 @@ export class DataEngine {
     if (local && deepEqual(local, incoming)) return;
     s.meetings.set(id, incoming);
     acc.changedIds.push(id);
+    // The website cannot reach the calendar providers, so it flags what it writes; the flag never
+    // enters the model (the read schema drops it) and the next app write of the document, the
+    // provider write-back included, leaves it out (ARCHITECTURE section 32).
+    if (data !== null && data.pushPending === true) acc.pushRequested.push(id);
   }
 
   private onMeetingsSnapshot(s: Session, snapshot: RemoteCollectionSnapshot): void {
     if (!this.isCurrent(s) || s.remoteSuspended) return;
     const ctx = this.readContext(s);
-    const acc = { changedIds: [] as string[], migrations: [] as Meeting[] };
+    const acc = { changedIds: [] as string[], pushRequested: [] as string[], migrations: [] as Meeting[] };
     for (const change of snapshot.changes) {
       if (change.type === 'removed') {
         if (snapshot.fromCache || hasPending(s.outbox, 'meeting', change.id)) continue;
@@ -1188,7 +1192,12 @@ export class DataEngine {
     if (acc.changedIds.length > 0) {
       this.bumpMeetings();
       void this.persist(s, { meetingIds: acc.changedIds });
-      this.events.emit('meetings:changed', { uid: s.uid, changedIds: acc.changedIds, reason: 'remote' });
+      this.events.emit('meetings:changed', {
+        uid: s.uid,
+        changedIds: acc.changedIds,
+        reason: 'remote',
+        ...(acc.pushRequested.length > 0 ? { pushRequested: acc.pushRequested } : {}),
+      });
     }
     this.notify();
     if (acc.migrations.length > 0) void this.enqueueMeetingMigrations(s, acc.migrations);
@@ -1484,7 +1493,7 @@ export class DataEngine {
 
   private applyFetchedMeetings(s: Session, docs: readonly { id: string; data: RemoteData }[], options: { removeMissing: boolean }): void {
     const ctx = this.readContext(s);
-    const acc = { changedIds: [] as string[], migrations: [] as Meeting[] };
+    const acc = { changedIds: [] as string[], pushRequested: [] as string[], migrations: [] as Meeting[] };
     for (const item of docs) this.mergeRemoteMeeting(s, item.id, item.data, ctx, acc);
     if (options.removeMissing) {
       const serverIds = new Set(docs.map((item) => item.id));
@@ -1499,7 +1508,12 @@ export class DataEngine {
     if (acc.changedIds.length > 0) {
       this.bumpMeetings();
       void this.persist(s, { meetingIds: acc.changedIds });
-      this.events.emit('meetings:changed', { uid: s.uid, changedIds: acc.changedIds, reason: 'remote' });
+      this.events.emit('meetings:changed', {
+        uid: s.uid,
+        changedIds: acc.changedIds,
+        reason: 'remote',
+        ...(acc.pushRequested.length > 0 ? { pushRequested: acc.pushRequested } : {}),
+      });
     }
     this.notify();
     if (acc.migrations.length > 0) void this.enqueueMeetingMigrations(s, acc.migrations);

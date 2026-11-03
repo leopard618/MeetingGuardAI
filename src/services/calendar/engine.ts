@@ -415,6 +415,18 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       }
       return;
     }
+    if (event.reason === 'remote' && event.pushRequested !== undefined && event.pushRequested.length > 0) {
+      // Written by a client that cannot reach the providers (the website flags its documents
+      // with pushPending, ARCHITECTURE section 32): pushed like a local write. A tombstone goes as
+      // an upsert too, the push turns a deleted meeting into a delete. Two phones that both see
+      // the flag push the same deterministic event id; the second one patches, never duplicates.
+      for (const id of event.pushRequested) {
+        pendingGoogle.set(id, 'upsert');
+        pendingOutlook.set(id, 'upsert');
+      }
+      persistGooglePushes(event.pushRequested, 'upsert');
+      persistOutlookPushes(event.pushRequested, 'upsert');
+    }
     // Edits synced from another device: refresh this device's exported copies.
     if (event.reason === 'remote' && event.changedIds && event.changedIds.length > 0) {
       for (const id of event.changedIds) pendingDevice.add(id);

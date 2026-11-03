@@ -11,6 +11,13 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
+- **Meetings written by the website reach Google Calendar and Outlook through the app**
+  (November 3): the website cannot talk to the calendar providers (the Google token stays on the
+  phone), so it flags every meeting it creates, edits or cancels with `pushPending: true`. The app
+  treats such a document like a change made in the app: it pushes it, creates the Google Meet
+  link when one was requested, sends the invitations and its write-back drops the flag. Firestore
+  rules accept the flag (deploy with `npm run deploy:rules` in `functions`).
+  ARCHITECTURE section 32, TESTING T26.
 - **The app bridges Microsoft To Do and Google Tasks** (November 2): with both syncs on, a task
   created, edited, completed or deleted in To Do now reaches Google Tasks through the app, and the
   other way round. Before, only tasks created in the app went to both.

@@ -159,6 +159,16 @@ describe('calendarSyncEngine + outlook', () => {
     engine.stop();
   });
 
+  it('queues a remote change the website flagged (pushRequested) for Outlook too (section 32)', async () => {
+    const { engine, outlook, events } = setup();
+    engine.start(UID);
+    await jest.runAllTimersAsync();
+    events.emit('meetings:changed', change({ reason: 'remote', origin: undefined, changedIds: ['web1'], pushRequested: ['web1'] }));
+    await settle();
+    expect(outlook.enqueue).toHaveBeenCalledWith(['web1'], 'upsert');
+    engine.stop();
+  });
+
   it('queues local changes for Outlook (persist-first) and flushes after the debounce', async () => {
     const { engine, outlook, events } = setup();
     engine.start(UID);

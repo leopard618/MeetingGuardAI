@@ -255,7 +255,7 @@ Alerts that have already fired or been acknowledged are recorded in `mg:{uid}:al
 
 - **Tokens.** `authService.getGoogleAccessToken({ requireCalendar: true })` wraps `GoogleSignin.getTokens()`; the native SDK refreshes the token. There is no client secret and tokens are never persisted. A 401 triggers `invalidateGoogleAccessToken` and one retry.
 - **Scope.** `https://www.googleapis.com/auth/calendar.events`, requested incrementally with `addScopes`.
-- **Push.** The engine listens to `meetings:changed` and pushes only local writes with origin `user` or `ai`.
+- **Push.** The engine listens to `meetings:changed` and pushes only local writes with origin `user` or `ai`, plus remote changes the website flagged (`pushRequested`, section 32).
   - Inserts use the deterministic id `googleEventIdForMeeting(id)`, which is `mgev` + base32hex. A 409 response triggers get + patch.
   - Updates use patch and deletes use delete.
   - `sendUpdates: 'all'` is set when the meeting has participants.
@@ -1504,3 +1504,39 @@ Owner steps: docs/v1/SETUP.md §10.6.
   server `functions/test/unit/microsoftSignIn.test.ts` (a key pair generated in the test covers
   every verification failure, the tenant policy and the linking rules) and the deleteAccount
   ordering. Device test guide: `docs/v1/TESTING.md` T25.
+
+## 32. Website writes (pushPending; V2 Stage 2)
+
+The website (Sven's, a separate codebase) creates, edits and cancels meetings by writing the
+same `users/{uid}/meetings/{id}` documents the app writes. It cannot reach Google Calendar or
+Outlook: the Google token stays on the phone (privacy policy), and the website has no Google
+sign-in of its own. So a website write reaches the providers through the app, exactly like a
+change made in the app, and the website says which documents need that with ONE field.
+
+- **Contract.** The website writes `pushPending: true` on every meeting document it creates,
+  updates or cancels, together with a fresh `updatedAt` (the snapshot merge is last-writer-wins
+  on `updatedAt`, and an unchanged `updatedAt` is never applied). A cancel is the app's
+  tombstone (`deletedAt` = `updatedAt` = now, the other fields kept), never a document delete,
+  so the app can remove the provider event and the attendees get the cancellation mail. A Google
+  Meet request is `conference: { provider: 'google_meet', url: null, password: null }`; the push
+  creates the link (`wantsMeetLink`) and writes it back. Zoom links come from the server
+  (section 24) and are complete when written. The rules accept the flag as a boolean
+  (`isValidMeeting`); the website never clears it.
+- **App.** The read schema drops the flag (it never enters the `Meeting` model, so every app
+  write of the document, the provider write-back included, leaves it out). The data engine reports
+  the flagged ids on the `meetings:changed` event (`reason: 'remote'`, `pushRequested`) when it
+  accepts the document (`mergeRemoteMeeting`). The calendar engine queues those ids for Google
+  and Outlook as upserts, persist-first like a local write (`onMeetingChanged`); a tombstone is
+  turned into a delete by the push itself. Device calendar exports already refresh on every remote
+  change.
+- **Limits.** Nothing happens until a phone with the app receives the change and has the provider
+  connected (the website shows "Meet link pending" until then). A meeting written before Google or
+  Outlook is connected is picked up by the first-connection backfill
+  (`enqueueUpcomingOwnMeetings`). Two phones that both see the flag both push: the Google event
+  id is deterministic (`googleEventIdForMeeting`), so the second push patches instead of
+  duplicating, and an unchanged Google-visible hash is never re-sent. A document whose flag the
+  write-back never cleared (push failed for good) is pushed again the next time it arrives changed.
+- **Tests.** `src/services/data/__tests__/engine.test.ts` (flag reported, never stored),
+  `src/services/calendar/__tests__/engine.test.ts` and `engineOutlook.test.ts` (queued like a
+  local write), `functions/test/rules/firestore.rules.test.ts` (flag accepted, non-boolean
+  rejected). Device test guide: `docs/v1/TESTING.md` T26.

@@ -173,8 +173,14 @@ describe('meetings', () => {
     ['a string list element that is not a string', { preparationTips: ['ok', { big: 'x'.repeat(10) }] }],
     ['oversized preparation tips', { preparationTips: ['x'.repeat(4000), 'y'.repeat(4000)] }],
     ['an unknown language', { language: 'fr' }],
+    ['a non-boolean pushPending flag', { pushPending: 'yes' }],
   ])('rejects a meeting with %s', async (_label, overrides) => {
     await assertFails(setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting(overrides)));
+  });
+
+  it('accepts the website push flag (section 32) on create and on update', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting({ pushPending: true })));
+    await assertSucceeds(updateDoc(doc(alice(), 'users/alice/meetings/m1'), { pushPending: false, updatedAt: ISO }));
   });
 
   it('accepts valid alert times and tips', async () => {

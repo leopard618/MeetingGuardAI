@@ -203,7 +203,7 @@ service cloud.firestore {
                                'source', 'confidence', 'language', 'preparationTips',
                                'customAlertTimes', 'alertIntensity', 'notes', 'status', 'external',
                                'recurrence', 'recurrenceOverrides', 'seriesId',
-                               'createdAt', 'updatedAt', 'deletedAt'])
+                               'createdAt', 'updatedAt', 'deletedAt', 'pushPending'])
         && d.keys().hasAll(['userId', 'title', 'startAt', 'durationMinutes', 'timezone', 'source',
                             'status', 'createdAt', 'updatedAt'])
         && d.userId == uid
@@ -238,7 +238,10 @@ service cloud.firestore {
         && (d.get('seriesId', null) == null || isDocId(d.seriesId))
         && isUtcIso(d.createdAt)
         && isUtcIso(d.updatedAt)
-        && isNullableUtcIso(d.get('deletedAt', null));
+        && isNullableUtcIso(d.get('deletedAt', null))
+        // Set by a client that cannot reach the calendar providers (the website); the app pushes
+        // the meeting and its write-back drops the flag (docs/v1/ARCHITECTURE.md section 32).
+        && d.get('pushPending', false) is bool;
     }
 
     // ------------------------------------------------------------------ notes
