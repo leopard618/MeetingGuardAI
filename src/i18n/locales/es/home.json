@@ -34,7 +34,11 @@
     "online": "En línea",
     "participants_one": "{{count}} participante",
     "participants_other": "{{count}} participantes",
-    "noPlace": "Sin enlace ni lugar todavía"
+    "noPlace": "Sin enlace ni lugar todavía",
+    "runningLate": "Voy tarde",
+    "runningLateA11y": "Voy tarde a {{title}}",
+    "endNow": "Terminar ahora",
+    "endNowA11y": "Terminar {{title}} ahora"
   },
   "today": {
     "title": "Hoy",

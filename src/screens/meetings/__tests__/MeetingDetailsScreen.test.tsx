@@ -51,7 +51,12 @@ jest.mock('../../../services/auth', () => ({
   useAuth: () => ({ authUser: mockAuthUser }),
 }));
 
+// M9: the running-late sheet is a global host; the screen only opens it.
+const mockOpenRunningLate = jest.fn();
+jest.mock('../RunningLateSheet', () => ({ openRunningLate: (...args: unknown[]) => mockOpenRunningLate(...args) }));
+
 const mockRemove = jest.fn();
+const mockUpdate = jest.fn();
 let mockMeeting: Meeting | null = null;
 let mockUse24Hour: boolean | null = null;
 jest.mock('../../../services/data', () => {
@@ -63,7 +68,7 @@ jest.mock('../../../services/data', () => {
       isLoaded: true,
       error: null,
     }),
-    meetingRepository: { remove: (...args: unknown[]) => mockRemove(...args) },
+    meetingRepository: { remove: (...args: unknown[]) => mockRemove(...args), update: (...args: unknown[]) => mockUpdate(...args) },
   };
 });
 
@@ -373,6 +378,54 @@ it('warns that deleting a recurring meeting removes the whole series', async () 
     pressDestructive();
   });
   expect(mockRemove).toHaveBeenCalledWith('m1', { origin: 'user' });
+});
+
+describe('running late and end now (M9)', () => {
+  // A fixed clock: "End now" shortens the meeting to the elapsed whole minutes.
+  const NOW_MS = Date.parse('2026-10-06T15:00:00.000Z');
+  const minutesFromNow = (minutes: number) => new Date(NOW_MS + minutes * 60_000).toISOString();
+  beforeEach(() => {
+    jest.useFakeTimers({
+      now: NOW_MS,
+      doNotFake: ['hrtime', 'nextTick', 'performance', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'],
+    });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('hides both on a meeting that is over', async () => {
+    mockMeeting = meeting({ startAt: minutesFromNow(-120), durationMinutes: 60 });
+    await renderDetails();
+    expect(screen.queryByTestId('meeting-running-late')).toBeNull();
+    expect(screen.queryByTestId('meeting-end-now')).toBeNull();
+  });
+
+  it('opens the running-late sheet for an upcoming meeting; End now appears only while it runs', async () => {
+    mockOpenRunningLate.mockReset();
+    mockMeeting = meeting({ startAt: minutesFromNow(30), durationMinutes: 60 });
+    await renderDetails();
+    expect(screen.queryByTestId('meeting-end-now')).toBeNull();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-running-late'));
+    });
+    expect(mockOpenRunningLate).toHaveBeenCalledWith({ meetingId: 'm1', startAt: null });
+  });
+
+  it('ends a running meeting now after a confirmation (origin user)', async () => {
+    mockUpdate.mockReset().mockResolvedValue(undefined);
+    mockMeeting = meeting({ startAt: minutesFromNow(-25), durationMinutes: 60 });
+    await renderDetails();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-end-now'));
+    });
+    expect(Alert.alert).toHaveBeenCalledWith('End "Budget review" now?', expect.stringContaining('ends now'), expect.any(Array), expect.anything());
+    const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+    await act(async () => {
+      buttons.find((button) => button.text === 'End now')?.onPress?.();
+    });
+    expect(mockUpdate).toHaveBeenCalledWith('m1', { durationMinutes: 25 }, { origin: 'user' });
+  });
 });
 
 describe('debrief (M8)', () => {

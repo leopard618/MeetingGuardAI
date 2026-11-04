@@ -1547,3 +1547,52 @@ change made in the app, and the website says which documents need that with ONE 
   `src/services/calendar/__tests__/engine.test.ts` and `engineOutlook.test.ts` (queued like a
   local write), `functions/test/rules/firestore.rules.test.ts` (flag accepted, non-boolean
   rejected). Device test guide: `docs/v1/TESTING.md` T26.
+
+## 33. Running late (V2 Stage 2, M9)
+
+The user picks how late they are, gets a ready message in the UI language with the meeting title
+and the new time, edits it and sends it FROM THE PHONE through the share sheet or the mail
+composer. Moving the meeting is a separate decision taken afterwards, never a side effect of
+sending, and the app never claims a message was delivered.
+
+- **Entry points.** The dashboard card (`NextMeetingCard`: "Running late" under the buttons of
+  the running and the next meeting), meeting details ("Running late" while the meeting, or the
+  next live occurrence of a series, has not ended), the MAX alarm modal and the MEDIUM banner
+  ("Running late" next to Snooze; the alert is resolved as `open` first, like Details, so the
+  alarm stops and the full-screen modal unmounts before the sheet shows). Every entry point calls
+  `openRunningLate({ meetingId, startAt })` (`src/screens/meetings/RunningLateSheet.tsx`): a
+  module store read by `RunningLateHost`, rendered once in `AppRoot` next to `AlertHost`.
+  The host loads the live meeting (`useMeeting`) and resolves the ROW the user meant
+  (`resolveRunningLateMeeting`, `src/screens/meetings/runningLate.ts`): a one-off meeting as it
+  is, or one occurrence of a series (the one starting at `startAt` when the alert or the
+  dashboard row knows it, else the next live one; the details screen passes null). Nothing live
+  (deleted, cancelled, all-day, over) closes the sheet with a notice.
+- **Compose.** Chips for 5, 10, 15 and 30 minutes (`RUNNING_LATE_DELAYS`). The new start is
+  the delay after the scheduled start, or after now (next whole minute) once the meeting has
+  started, so the message never names a time in the past (`runningLateNewStart`). The message
+  (`buildRunningLateMessage`, `meetings:runningLate.message`) carries the title and the new
+  time (clock only on the same day, date too otherwise) and is an editable text box; a new delay
+  rewrites it. The participants are listed as a hint (the share sheet cannot pre-address) and
+  "Email participants" opens the mail composer with them as recipients (`buildMailtoUrl`).
+- **What the phone reports.** `shareOutcome`: iOS reports completion (`sharedAction`, the
+  chosen app finished its activity) or dismissal; Android reports `sharedAction` as soon as the
+  sheet opens. So the sheet says "your phone confirms the message was handed to the app you
+  chose" on iOS, "the message went to the app you chose; Meeting Guard cannot see whether it
+  was sent" on Android and after the mail composer, and "nothing was sent" (staying on the
+  message) when iOS reports a dismissal. The word "delivered" never appears.
+- **Move.** A second step, after the message or through "Just move the meeting" (people already
+  told): "Move the meeting to <time>?" with the scope spelled out (one occurrence of a series
+  only; Google / Outlook push when sync is on; a device-calendar import stays in the app) and
+  Move / Keep the time. Move is `runningLateMove` + `applyScopedWrite`
+  (`src/screens/meetings/scopedWrite.ts`): `meetingRepository.update` for a one-off meeting,
+  `updateOccurrence` (a 'modified' override, section 16) for a series, origin 'user' in both
+  cases, so the calendar engine pushes it and the alert engine re-plans the alarms like any
+  other edit. The length is kept: the meeting ends later.
+- **End meeting now** (client request, November 3; same module). The running meeting offers
+  "End now" on the dashboard card and "End meeting now" on details: after a confirmation
+  `endNowWrite` shortens it to the elapsed whole minutes (at least one; one occurrence only for a
+  series), so "Happening now" clears and the alarms stop.
+- **Tests.** `src/screens/meetings/__tests__/runningLate.test.ts` (resolution, new start,
+  message EN/ES, outcome, scoped writes), `RunningLateSheet.test.tsx` (compose, share,
+  dismissed, Android, mail, just move, series, not live, Spanish), the dashboard and details
+  screen tests (entry points, End now). Device test guide: `docs/v1/TESTING.md` T27.

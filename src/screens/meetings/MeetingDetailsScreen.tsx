@@ -6,7 +6,9 @@
  * provider and calendar connection - conferenceCardState, §22; a pending server-created Zoom
  * link shows "being created" and, after a failure this session, "could not be created" + Retry,
  * §24), participants, description,
- * preparation tips, alert settings, notes. Every meeting can be edited and deleted:
+ * preparation tips, alert settings, notes. A live meeting offers "Running late" (M9 sheet, the
+ * next live occurrence of a series) and, while it runs, "End meeting now". Every meeting can be
+ * edited and deleted:
  * - Meeting Guard meetings and Google events: edits / deletes are also sent to Google Calendar by
  *   the calendar engine (origin 'user');
  * - device-calendar imports (one-way): the change stays in Meeting Guard and the user is told the
@@ -44,6 +46,9 @@ import { capitalizeFirst } from '../shared/text';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
 import { canDebrief } from './debrief';
 import { conferenceCardState } from './meetingForm';
+import { endNowWrite, isRunningNow, resolveRunningLateMeeting } from './runningLate';
+import { openRunningLate } from './RunningLateSheet';
+import { applyScopedWrite } from './scopedWrite';
 
 const log = createLogger('meetings');
 
@@ -139,6 +144,37 @@ function MeetingDetails({
       return [];
     }
   }, [meeting, now]);
+  // M9: the live row (the meeting, or the next live occurrence of a series) for Running late / End now.
+  const liveRow = useMemo(() => resolveRunningLateMeeting(meeting, null, now), [meeting, now]);
+  const running = liveRow !== null && isRunningNow(liveRow, now);
+  const [ending, setEnding] = useState(false);
+  const endNow = (): void => {
+    if (liveRow === null) return;
+    Alert.alert(
+      t('meetings:endNow.title', { title: liveRow.title }),
+      liveRow.occurrence !== undefined ? t('meetings:endNow.messageSeries') : t('meetings:endNow.message'),
+      [
+        { text: t('common:actions.cancel'), style: 'cancel' },
+        {
+          text: t('meetings:endNow.confirm'),
+          onPress: () => {
+            const write = endNowWrite(liveRow, new Date());
+            if (write === null) return;
+            setEnding(true);
+            applyScopedWrite(write)
+              .then(() => Toast.show({ type: 'success', text1: t('meetings:endNow.ended') }))
+              .catch((caught: unknown) => {
+                const error = toAppError(caught);
+                log.warn('could not end the running meeting', error.code);
+                Toast.show({ type: 'error', text1: t(errorMessageKey(error.code)) });
+              })
+              .finally(() => setEnding(false));
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  };
   const alertTimes = meeting.customAlertTimes ?? preferences.defaultAlertTimes;
   const alertTimesText = alertTimes
     .map((minutes) => {
@@ -456,6 +492,25 @@ function MeetingDetails({
           {t('meetings:details.deviceNote')}
         </HelperText>
       ) : null}
+      {liveRow !== null ? (
+        <View style={styles.liveActions}>
+          <MGButton
+            variant="tonal"
+            icon="clock-alert-outline"
+            onPress={() => openRunningLate({ meetingId: meeting.id, startAt: null })}
+            style={styles.actionButton}
+            disabled={deleting || ending}
+            testID="meeting-running-late"
+          >
+            {t('meetings:runningLate.title')}
+          </MGButton>
+          {running ? (
+            <MGButton variant="outline" icon="stop-circle-outline" onPress={endNow} style={styles.actionButton} loading={ending} disabled={deleting || ending} testID="meeting-end-now">
+              {t('meetings:endNow.button')}
+            </MGButton>
+          ) : null}
+        </View>
+      ) : null}
       {canDebrief(meeting, now) ? (
         <MGButton icon="text-box-check-outline" onPress={onDebrief} style={styles.debriefButton} disabled={deleting} testID="meeting-debrief">
           {t('meetings:details.debrief')}
@@ -539,6 +594,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   debriefButton: {
+    marginTop: spacing.lg,
+  },
+  liveActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     marginTop: spacing.lg,
   },
   actionButton: {

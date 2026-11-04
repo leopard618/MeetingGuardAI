@@ -11,6 +11,17 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
+- **Running late (M9)** (November 4): "Running late" on the dashboard card, in meeting details
+  and on the MAX alarm and MEDIUM banner. Pick 5, 10, 15 or 30 minutes and get a ready message
+  in your language with the meeting title and the new time, edit it and send it from your phone
+  through the share sheet, or email the participants. The app reports only what the phone
+  reports: confirmed on iOS when the chosen app finished, handed over on Android and after the
+  mail composer, nothing sent when the sheet was dismissed. Moving the meeting to the new time is
+  a separate question afterwards (one occurrence only for a repeating meeting; Google and
+  Outlook get the change when sync is on). ARCHITECTURE section 33, TESTING T27.
+- **End meeting now** (November 4, client request): a running meeting offers "End now" on the
+  dashboard card and "End meeting now" in its details; after a confirmation the meeting is
+  shortened to end now, so "Happening now" clears and its alarms stop.
 - **Meetings written by the website reach Google Calendar and Outlook through the app**
   (November 3): the website cannot talk to the calendar providers (the Google token stays on the
   phone), so it flags every meeting it creates, edits or cancels with `pushPending: true`. The app
@@ -133,6 +144,8 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+- **"View all tasks" on the dashboard** (November 4, client request): a soft primary-tinted pill
+  instead of plain primary text, quieter next to the task rows.
 - **Task confirmation sheet did not name the meeting** (November 3): a task card proposed from a
   debrief (or any task the assistant links to a meeting) now shows a "Meeting" row with the
   meeting's title on the confirmation sheet. The preview already loaded the meeting; the sheet

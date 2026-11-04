@@ -1,7 +1,7 @@
 import { NavigationContainer, type RouteProp } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
-import { Linking, Text } from 'react-native';
+import { Alert, Linking, Text } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
@@ -17,6 +17,11 @@ jest.mock('expo-localization', () => ({
   getCalendars: jest.fn(() => [{ timeZone: 'UTC', uses24hourClock: false }]),
 }));
 jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { show: jest.fn() } }));
+
+// M9: the running-late sheet is a global host; the card only opens it with the row's start.
+const mockOpenRunningLate = jest.fn();
+jest.mock('../../meetings/RunningLateSheet', () => ({ openRunningLate: (...args: unknown[]) => mockOpenRunningLate(...args) }));
+const mockUpdate = jest.fn();
 
 jest.mock('../../../services/auth', () => ({
   useAuth: () => ({ authUser: { uid: 'u1', displayName: 'Ana López', email: 'ana@example.com' } }),
@@ -37,6 +42,7 @@ jest.mock('../../../services/data', () => {
     }),
     useSyncState: () => ({ online: mockOnline, pendingWrites: mockPendingWrites, lastSyncedAt: null }),
     useTasks: () => ({ tasks: [], isLoading: false, error: null, create: jest.fn(), update: jest.fn(), remove: jest.fn() }),
+    meetingRepository: { update: (...args: unknown[]) => mockUpdate(...args) },
   };
 });
 
@@ -184,6 +190,30 @@ it('opens the real meeting link and the meeting details', async () => {
     fireEvent.press(screen.getByTestId('next-meeting-details'));
   });
   expect(JSON.parse(String((await screen.findByTestId('target-MeetingDetails')).props.children))).toEqual({ meetingId: 'overlap' });
+});
+
+it('offers "Running late" on both meetings and "End now" on the running one (M9)', async () => {
+  mockOpenRunningLate.mockReset();
+  mockUpdate.mockReset().mockResolvedValue(undefined);
+  jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  await renderDashboard();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('next-meeting-running-late'));
+  });
+  expect(mockOpenRunningLate).toHaveBeenCalledWith({ meetingId: 'overlap', startAt: OVERLAPPING.startAt });
+  expect(screen.getByTestId('current-meeting-running-late')).toBeTruthy();
+  expect(screen.queryByTestId('next-meeting-end-now')).toBeNull();
+
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('current-meeting-end-now'));
+  });
+  expect(Alert.alert).toHaveBeenCalledWith('End "Design review" now?', 'The meeting is shortened so it ends now and its alerts stop.', expect.any(Array), expect.anything());
+  const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+  await act(async () => {
+    buttons.find((button) => button.text === 'End now')?.onPress?.();
+  });
+  // Started 10 minutes ago: it now lasts those 10 minutes.
+  expect(mockUpdate).toHaveBeenCalledWith('current', { durationMinutes: 10 }, { origin: 'user' });
 });
 
 it("lists today's meetings and highlights overlaps", async () => {

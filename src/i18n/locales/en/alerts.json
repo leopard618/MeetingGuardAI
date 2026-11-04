@@ -109,6 +109,7 @@
     "snooze_one": "Snooze {{count}} min",
     "snooze_other": "Snooze {{count}} min",
     "details": "Meeting details",
+    "runningLate": "Running late",
     "minimize": "Minimize",
     "dismiss": "Dismiss",
     "openAssistant": "Open assistant"

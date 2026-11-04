@@ -6,7 +6,8 @@
  * "Ends in") small, the time left large in primary, and the one filled button (Join when there
  * is a link, else Details) with a chevron. A thin elapsed bar sits under the left column while a
  * meeting runs. The mockup's 3D calendar (DASHBOARD_ART.nextMeeting) sits top-right when its
- * picture exists.
+ * picture exists. Under the buttons, two quiet links: "Running late" on both blocks (M9, the
+ * running-late sheet) and "End now" on the running meeting only (shortens it to now).
  *
  * The meeting happening now (if any) and the next one are two blocks separated by a hairline;
  * below them the next all-day item (birthday, holiday) when it comes no later than the next
@@ -35,6 +36,10 @@ export interface NextMeetingCardProps {
   nextAllDay: Meeting | null;
   onOpen(meeting: Meeting): void;
   onJoin(url: string): void;
+  /** M9: opens the running-late sheet for this row (its occurrence for a series). */
+  onRunningLate(meeting: Meeting): void;
+  /** Running meeting only: shortens it so it ends now (after a confirmation). */
+  onEndNow(meeting: Meeting): void;
 }
 
 export interface CountdownParts {
@@ -124,6 +129,8 @@ function MeetingBlock({
   now,
   onOpen,
   onJoin,
+  onRunningLate,
+  onEndNow,
   testID,
 }: {
   meeting: Meeting;
@@ -133,6 +140,8 @@ function MeetingBlock({
   now: Date;
   onOpen(meeting: Meeting): void;
   onJoin(url: string): void;
+  onRunningLate(meeting: Meeting): void;
+  onEndNow(meeting: Meeting): void;
   testID: string;
 }): ReactElement {
   const t = useT();
@@ -218,6 +227,30 @@ function MeetingBlock({
             {t('home:next.details')}
           </MGButton>
         ) : null}
+        <MGButton
+          variant="ghost"
+          size="sm"
+          icon="clock-alert-outline"
+          onPress={() => onRunningLate(meeting)}
+          style={styles.secondary}
+          accessibilityLabel={t('home:next.runningLateA11y', { title: meeting.title })}
+          testID={`${testID}-running-late`}
+        >
+          {t('home:next.runningLate')}
+        </MGButton>
+        {running ? (
+          <MGButton
+            variant="ghost"
+            size="sm"
+            icon="stop-circle-outline"
+            onPress={() => onEndNow(meeting)}
+            style={styles.secondary}
+            accessibilityLabel={t('home:next.endNowA11y', { title: meeting.title })}
+            testID={`${testID}-end-now`}
+          >
+            {t('home:next.endNow')}
+          </MGButton>
+        ) : null}
       </View>
     </View>
   );
@@ -251,7 +284,7 @@ function AllDayBlock({ meeting, onOpen }: { meeting: Meeting; onOpen(meeting: Me
   );
 }
 
-export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: NextMeetingCardProps): ReactElement {
+export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin, onRunningLate, onEndNow }: NextMeetingCardProps): ReactElement {
   const t = useT();
   const { colors } = useAppTheme();
   const fmt = useFormatters();
@@ -288,11 +321,11 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin }: N
         <Image source={DASHBOARD_ART.nextMeeting} style={styles.decoration} resizeMode="contain" accessibilityIgnoresInvertColors />
       ) : null}
       {current ? (
-        <MeetingBlock meeting={current} label={t('home:next.current')} countdown={endsParts(current, now, t, fmt)} running now={now} onOpen={onOpen} onJoin={onJoin} testID="current-meeting" />
+        <MeetingBlock meeting={current} label={t('home:next.current')} countdown={endsParts(current, now, t, fmt)} running now={now} onOpen={onOpen} onJoin={onJoin} onRunningLate={onRunningLate} onEndNow={onEndNow} testID="current-meeting" />
       ) : null}
       {current && next ? <View style={[styles.separator, separator]} /> : null}
       {next ? (
-        <MeetingBlock meeting={next} label={t('home:next.title')} countdown={startsParts(next, now, t, fmt)} running={false} now={now} onOpen={onOpen} onJoin={onJoin} testID="next-meeting" />
+        <MeetingBlock meeting={next} label={t('home:next.title')} countdown={startsParts(next, now, t, fmt)} running={false} now={now} onOpen={onOpen} onJoin={onJoin} onRunningLate={onRunningLate} onEndNow={onEndNow} testID="next-meeting" />
       ) : null}
       {nextAllDay && (current || next) ? <View style={[styles.separator, separator]} /> : null}
       {nextAllDay ? <AllDayBlock meeting={nextAllDay} onOpen={onOpen} /> : null}

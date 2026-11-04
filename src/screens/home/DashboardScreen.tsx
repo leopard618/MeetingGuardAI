@@ -6,7 +6,8 @@
  *   hidden on this screen;
  * - the hero (DashboardHero): the scheme's artwork with the greeting (day part, first name, date);
  * - the next-meeting card pulled up over the hero: the meeting happening now (if any) and the
- *   next one with a live countdown, Join (real links only) and Details;
+ *   next one with a live countdown, Join (real links only), Details, "Running late" (M9 sheet)
+ *   and, on the running meeting, "End now";
  * - one row: the tasks card (left) beside the 2 x 2 quick actions (right);
  * - "Today": the timeline with overlaps and back-to-back meetings highlighted, or one empty card
  *   with a New meeting button;
@@ -18,7 +19,7 @@
  */
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { FlatList, Linking, StyleSheet, View, type ListRenderItem, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Alert, FlatList, Linking, StyleSheet, View, type ListRenderItem, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -39,7 +40,10 @@ import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
 import { CARD_OVERLAP, DashboardHero } from './DashboardHero';
 import { DashboardTopBar } from './DashboardTopBar';
-import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay } from '../meetings/occurrences';
+import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay, type DisplayMeeting } from '../meetings/occurrences';
+import { endNowWrite } from '../meetings/runningLate';
+import { openRunningLate } from '../meetings/RunningLateSheet';
+import { applyScopedWrite } from '../meetings/scopedWrite';
 import { buildTodayTimeline, dayPeriodOf, findNextAllDay, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
 import { InsightsSummaryCard } from './InsightsSummaryCard';
 import { NextMeetingCard } from './NextMeetingCard';
@@ -140,6 +144,36 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   const showData = !isLoading && !loadFailed;
 
   const openMeeting = useCallback((meeting: Meeting) => navigation.navigate('MeetingDetails', { meetingId: meeting.id }), [navigation]);
+  // M9: the card's rows are display rows (one occurrence of a series); the sheet gets the row's start.
+  const runningLate = useCallback((meeting: Meeting) => openRunningLate({ meetingId: meeting.id, startAt: meeting.startAt }), []);
+  const endNow = useCallback(
+    (meeting: Meeting) => {
+      const row = meeting as DisplayMeeting;
+      Alert.alert(
+        t('meetings:endNow.title', { title: meeting.title }),
+        row.occurrence !== undefined && row.recurrence !== null ? t('meetings:endNow.messageSeries') : t('meetings:endNow.message'),
+        [
+          { text: t('common:actions.cancel'), style: 'cancel' },
+          {
+            text: t('meetings:endNow.confirm'),
+            onPress: () => {
+              const write = endNowWrite(row, new Date());
+              if (write === null) return;
+              applyScopedWrite(write)
+                .then(() => Toast.show({ type: 'success', text1: t('meetings:endNow.ended') }))
+                .catch((caught: unknown) => {
+                  const error = toAppError(caught);
+                  log.warn('could not end the running meeting', error.code);
+                  Toast.show({ type: 'error', text1: t(errorMessageKey(error.code)) });
+                });
+            },
+          },
+        ],
+        { cancelable: true },
+      );
+    },
+    [t],
+  );
 
   const completeTask = useCallback(
     (task: Task): void => {
@@ -206,7 +240,9 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
             />
           )
         ) : null}
-        {showData ? <NextMeetingCard current={current} next={next} nextAllDay={nextAllDay} onOpen={openMeeting} onJoin={join} /> : null}
+        {showData ? (
+          <NextMeetingCard current={current} next={next} nextAllDay={nextAllDay} onOpen={openMeeting} onJoin={join} onRunningLate={runningLate} onEndNow={endNow} />
+        ) : null}
         <View style={styles.split}>
           <TasksTodayCard
             tasks={tasks}

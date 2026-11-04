@@ -3,7 +3,8 @@
  * actions. A plain block (no card, per the client) with a check icon and "Tasks" as the title, the open count as a pill,
  * up to MAX_ROWS open tasks due today or overdue (rounded-square checkbox that completes the task
  * on tap, one-line title, "Overdue" / due time / "Today" under it, overdue in the error color) or
- * the empty line, "View all tasks" with an arrow at the bottom, and the mockup's checklist
+ * the empty line, "View all tasks" as a soft primary-tinted pill with an arrow at the bottom
+ * (the client asked for a quieter link than plain primary text), and the mockup's checklist
  * picture (DASHBOARD_ART.tasks) in the corner when it exists. Hidden only while nothing is known yet (the dashboard skeleton covers loading).
  */
 import { memo, type ReactElement } from 'react';
@@ -13,7 +14,7 @@ import { Text } from 'react-native-paper';
 import { Icon, PressableScale } from '../../components/ui';
 import type { Task } from '../../core/types';
 import { useT } from '../../i18n';
-import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme } from '../../theme';
+import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
 import { isDueToday, isOverdue, taskDueInstant } from '../tasks/tasksModel';
 import type { Formatters } from '../shared/useFormatters';
 import { DASHBOARD_ART } from './dashboardArt';
@@ -97,12 +98,12 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
       <Pressable
         onPress={onOpenTasks}
         hitSlop={8}
-        style={({ pressed }) => [styles.viewAll, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.viewAll, { backgroundColor: withAlpha(colors.primary, 0.1) }, pressed && styles.pressed]}
         accessibilityRole="button"
         testID="dashboard-tasks-all"
       >
-        <Text style={[styles.viewAllText, { color: colors.primary }]}>{t('home:tasks.viewAll')}</Text>
-        <Icon name="forward" size={componentMetrics.iconMeta} color={colors.primary} />
+        <Text style={[styles.viewAllText, { color: colors.onPrimaryContainer }]}>{t('home:tasks.viewAll')}</Text>
+        <Icon name="forward" size={componentMetrics.iconMeta} color={colors.onPrimaryContainer} />
       </Pressable>
     </View>
   );
@@ -174,11 +175,14 @@ const styles = StyleSheet.create({
   viewAll: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: spacing.xs,
     marginTop: spacing.md,
-    minHeight: 28,
+    minHeight: 32,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.full,
   },
   viewAllText: {
-    ...typography.labelL,
+    ...typography.labelM,
   },
 });

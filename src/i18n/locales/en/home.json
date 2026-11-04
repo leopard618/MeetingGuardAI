@@ -34,7 +34,11 @@
     "online": "Online",
     "participants_one": "{{count}} participant",
     "participants_other": "{{count}} participants",
-    "noPlace": "No link or place yet"
+    "noPlace": "No link or place yet",
+    "runningLate": "Running late",
+    "runningLateA11y": "Running late for {{title}}",
+    "endNow": "End now",
+    "endNowA11y": "End {{title}} now"
   },
   "today": {
     "title": "Today",

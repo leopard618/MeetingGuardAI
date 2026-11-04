@@ -4,7 +4,7 @@
  * Provider order (core/contracts PROVIDER_ORDER, outermost first):
  *   ErrorBoundary > SafeAreaProvider > I18nProvider > ThemeProvider > PaperProvider (light/dark)
  *   > AuthProvider (sessionManager.init) > DataProvider
- *   > NavigationContainer(ref=navigationRef, linking) { RootNavigator, AlertHost } + Toast
+ *   > NavigationContainer(ref=navigationRef, linking) { RootNavigator, AlertHost, RunningLateHost } + Toast
  * The session manager (auth area) starts/stops the data session, calendar sync and alerts; this
  * root only initializes the alert engine once and registers the crash reporter for the logger.
  */
@@ -24,6 +24,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import Toast from 'react-native-toast-message';
 
 import { AlertHost } from '../components/alerts';
+import { RunningLateHost } from '../screens/meetings/RunningLateSheet';
 import { toastConfig } from '../components/AppToast';
 import { PlanChangeNotice } from '../components/PlanChangeNotice';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -74,6 +75,7 @@ function ThemedApp(): ReactElement {
           >
             <RootNavigator />
             <AlertHost />
+            <RunningLateHost />
             <PlanChangeNotice />
           </NavigationContainer>
           {/* Themed, multi-line layouts (the library default is one white line). */}

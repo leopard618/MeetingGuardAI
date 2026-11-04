@@ -916,3 +916,22 @@ app does the Google Calendar part.
 | 5 | Force close the app, create a meeting on the website, then open the app. | The meeting shows and reaches Google Calendar on the session start sync. |
 | 6 | Turn Google Calendar sync OFF in the app, create a Google Meet meeting on the website. | The app shows the meeting with no link (the website says the link is pending). Turn the sync on again: the meeting is pushed and the link appears (first-connection backfill). |
 | 7 | Open the same account on a second phone and repeat row 1. | One event in Google Calendar, one invitation (the second phone's push patches the same event). |
+
+### T27. Running late (V2 Stage 2, M9; ARCHITECTURE section 33)
+
+Needs a meeting starting in a few minutes with one participant (a second address of yours) and,
+for rows 4 and 7, Google Calendar sync on. WhatsApp or Messages installed makes row 2 realistic.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Dashboard: tap "Running late" under the next meeting. | A sheet with the meeting, four chips (5, 10, 15, 30 min) and nothing else yet. |
+| 2 | Tap 10 min. | "New time" shows the start plus 10 minutes. The message reads, in the app language, that you are about 10 minutes late for the meeting title and proposes that time. The participants are listed under it. |
+| 3 | Edit the message, tap "Share message", pick WhatsApp (or Messages) and send it. | The share sheet opens with your edited text. Back in the app the sheet says, on Android, that the message went to the app you chose and Meeting Guard cannot see whether it was sent; on iOS, that your phone confirms it was handed to the app. Then "Move the meeting to <time>?". Nothing has moved yet. |
+| 4 | Tap "Move to <time>". | Toast "Meeting moved to <time>". The card, the list and Google Calendar show the new start; the length is unchanged; the participant gets the update mail; the alerts fire at the new time. |
+| 5 | Repeat rows 1 and 2 on another meeting, tap "Share message" and cancel the share sheet (iOS; Android cannot report a cancel). | Toast "Nothing was sent". The message stays; nothing moves. |
+| 6 | Tap "Share message" again, send it, then tap "Keep the time". | The sheet closes. The meeting keeps its time. |
+| 7 | Tap "Email participants" instead of "Share message". | The mail app opens addressed to the participants with the subject "Running late: <title>" and the message as body. Back in the app the sheet treats it as handed over and asks about moving. |
+| 8 | Let a MAX alert fire for a meeting and tap "Running late" on the alarm screen (MEDIUM: the same button on the banner). | The alarm stops, the alarm screen closes and the sheet opens for that meeting. |
+| 9 | On a weekly meeting, open its details and tap "Running late", pick 5 min and "Just move the meeting", then Move. | The note says only this occurrence moves. The next occurrence shows the new time with "edited"; the following week is unchanged. |
+| 10 | While a meeting is running, tap "End now" on the dashboard card (or "End meeting now" in its details) and confirm. | The meeting ends now: "Happening now" disappears, the details show the shortened length, no further alert for it fires. |
+| 11 | Switch the app to Spanish and repeat row 2. | The message is in Spanish ("Hola, voy unos 10 minutos tarde a ..."). |
