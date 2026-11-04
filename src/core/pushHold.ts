@@ -12,6 +12,21 @@
  *   and Outlook queues (held entries stay queued).
  * - onRelease(listener) tells the engine to flush what it kept back.
  */
+import type { ConferenceDetails } from './aiContract';
+
+/**
+ * True while a meeting's Zoom link is still being created server-side (`{ provider 'zoom', url
+ * null }`). The hold below covers the app's own writes; a document the WEBSITE wrote arrives
+ * through the snapshot with `pushPending: true` before zoomCreateMeeting has written the link,
+ * so the data engine keeps such a meeting out of `pushRequested`. The server's link write-back
+ * is a partial update that keeps `pushPending` and bumps `updatedAt`, and that second arrival
+ * is pushed: attendees get ONE invitation that already carries the link (ARCHITECTURE section 32).
+ * A tombstone is never held (a cancel must reach the providers).
+ */
+export function awaitsZoomLink(meeting: { conference: ConferenceDetails | null; deletedAt: string | null }): boolean {
+  return meeting.deletedAt === null && meeting.conference?.provider === 'zoom' && meeting.conference.url === null;
+}
+
 export interface PushHold {
   hold(meetingId: string, maxMs?: number): () => void;
   isHeld(meetingId: string): boolean;

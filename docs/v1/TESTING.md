@@ -911,7 +911,7 @@ app does the Google Calendar part.
 |---|---|---|
 | 1 | On the website, create a meeting for tomorrow with one participant (a second address of yours) and a Google Meet link. | The meeting appears in the app within seconds. Within about 10 seconds the Meet link appears in the app and on the website, and the participant receives the Google Calendar invitation. |
 | 2 | On the website, change the time of that meeting. | The app shows the new time; Google Calendar shows the new time; the participant receives the update mail. |
-| 3 | On the website, create a meeting with a Zoom link. | The Zoom link is visible right away (server-created); the invitation arrives once the app has pushed the meeting. |
+| 3 | On the website, create a meeting with a Zoom link and one participant. | The Zoom link is visible on the website and in the app right away (server-created). ONE invitation arrives, a few seconds later, and it already contains the Zoom link in the description and location (no second "updated invitation"). |
 | 4 | On the website, cancel the meeting from row 1. | It disappears from the app and from Google Calendar; the participant receives the cancellation. |
 | 5 | Force close the app, create a meeting on the website, then open the app. | The meeting shows and reaches Google Calendar on the session start sync. |
 | 6 | Turn Google Calendar sync OFF in the app, create a Google Meet meeting on the website. | The app shows the meeting with no link (the website says the link is pending). Turn the sync on again: the meeting is pushed and the link appears (first-connection backfill). |

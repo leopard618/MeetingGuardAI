@@ -403,6 +403,37 @@ describe('real-time snapshots', () => {
     expect('pushPending' in stored).toBe(false);
   });
 
+  it('keeps a website Zoom meeting out of pushRequested until the server has written the link (section 32)', async () => {
+    const h = harness();
+    await h.engine.startSession(UID);
+    await settle();
+
+    const pending = {
+      ...storedMeeting('webZoom', 'Zoom from the website', '2026-10-08T10:00:00.000Z'),
+      conference: { provider: 'zoom' as const, url: null, password: null },
+    };
+    h.remote.serverSet(firestorePaths.meeting(UID, pending.id), {
+      ...(toMeetingDoc(pending) as unknown as Record<string, unknown>),
+      pushPending: true,
+    });
+    await settle();
+    expect((await h.engine.listMeetings()).map((m) => m.id)).toEqual(['webZoom']);
+    expect(h.meetingEvents.at(-1)).toEqual({ uid: UID, changedIds: ['webZoom'], reason: 'remote' });
+
+    // zoomCreateMeeting's write-back: a partial update that keeps the flag and bumps updatedAt.
+    const linked = {
+      ...pending,
+      conference: { provider: 'zoom' as const, url: 'https://zoom.us/j/123456789', password: 'abc' },
+      updatedAt: '2026-10-05T10:00:05.000Z',
+    };
+    h.remote.serverSet(firestorePaths.meeting(UID, linked.id), {
+      ...(toMeetingDoc(linked) as unknown as Record<string, unknown>),
+      pushPending: true,
+    });
+    await settle();
+    expect(h.meetingEvents.at(-1)).toEqual({ uid: UID, changedIds: ['webZoom'], reason: 'remote', pushRequested: ['webZoom'] });
+  });
+
   it('a document rejected for a non-network reason does not block the other queued writes', async () => {
     const h = harness();
     await h.engine.startSession(UID);

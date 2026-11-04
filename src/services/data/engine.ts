@@ -32,6 +32,7 @@ import { AppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { appEvents, type AppEventMap, type EventBus, type Unsubscribe, type WriteOrigin } from '../../core/events';
 import { ALERT_HORIZON_DAYS, firestorePaths, LEGACY_DATA_KEY, PREFERENCES_DOC_ID } from '../../core/identifiers';
 import { createLogger } from '../../core/logger';
+import { awaitsZoomLink } from '../../core/pushHold';
 import { addMinutesIso, getDeviceTimeZone, toDate } from '../../core/time';
 import {
   applyMeetingPatch,
@@ -1157,8 +1158,10 @@ export class DataEngine {
     acc.changedIds.push(id);
     // The website cannot reach the calendar providers, so it flags what it writes; the flag never
     // enters the model (the read schema drops it) and the next app write of the document, the
-    // provider write-back included, leaves it out (ARCHITECTURE section 32).
-    if (data !== null && data.pushPending === true) acc.pushRequested.push(id);
+    // provider write-back included, leaves it out (ARCHITECTURE section 32). A Zoom meeting whose
+    // link the server is still creating waits: the link write-back keeps the flag and is pushed,
+    // so the invitation carries the link (same reason as the app's own push hold).
+    if (data !== null && data.pushPending === true && !awaitsZoomLink(incoming)) acc.pushRequested.push(id);
   }
 
   private onMeetingsSnapshot(s: Session, snapshot: RemoteCollectionSnapshot): void {

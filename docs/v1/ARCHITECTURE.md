@@ -1519,13 +1519,19 @@ change made in the app, and the website says which documents need that with ONE 
   tombstone (`deletedAt` = `updatedAt` = now, the other fields kept), never a document delete,
   so the app can remove the provider event and the attendees get the cancellation mail. A Google
   Meet request is `conference: { provider: 'google_meet', url: null, password: null }`; the push
-  creates the link (`wantsMeetLink`) and writes it back. Zoom links come from the server
-  (section 24) and are complete when written. The rules accept the flag as a boolean
-  (`isValidMeeting`); the website never clears it.
+  creates the link (`wantsMeetLink`) and writes it back. A Zoom request is
+  `conference: { provider: 'zoom', url: null, password: null }` followed by the website's call to
+  `zoomCreateMeeting` (section 24): the app keeps the push back until the server's link
+  write-back arrives (a partial update that keeps `pushPending` and bumps `updatedAt`), so the
+  attendees get ONE invitation that already carries the Zoom link (`awaitsZoomLink`, the website
+  counterpart of the app's own push hold). When Zoom creation fails for good the website rewrites
+  the meeting with another provider or a pasted link, flag set, or it is never pushed. The rules
+  accept the flag as a boolean (`isValidMeeting`); the website never clears it.
 - **App.** The read schema drops the flag (it never enters the `Meeting` model, so every app
   write of the document, the provider write-back included, leaves it out). The data engine reports
   the flagged ids on the `meetings:changed` event (`reason: 'remote'`, `pushRequested`) when it
-  accepts the document (`mergeRemoteMeeting`). The calendar engine queues those ids for Google
+  accepts the document (`mergeRemoteMeeting`), except a live Zoom meeting without a link yet
+  (`awaitsZoomLink`). The calendar engine queues those ids for Google
   and Outlook as upserts, persist-first like a local write (`onMeetingChanged`); a tombstone is
   turned into a delete by the push itself. Device calendar exports already refresh on every remote
   change.
@@ -1536,7 +1542,8 @@ change made in the app, and the website says which documents need that with ONE 
   id is deterministic (`googleEventIdForMeeting`), so the second push patches instead of
   duplicating, and an unchanged Google-visible hash is never re-sent. A document whose flag the
   write-back never cleared (push failed for good) is pushed again the next time it arrives changed.
-- **Tests.** `src/services/data/__tests__/engine.test.ts` (flag reported, never stored),
+- **Tests.** `src/services/data/__tests__/engine.test.ts` (flag reported, never stored, Zoom
+  held until the link), `src/core/__tests__/pushHold.test.ts` (`awaitsZoomLink`),
   `src/services/calendar/__tests__/engine.test.ts` and `engineOutlook.test.ts` (queued like a
   local write), `functions/test/rules/firestore.rules.test.ts` (flag accepted, non-boolean
   rejected). Device test guide: `docs/v1/TESTING.md` T26.
