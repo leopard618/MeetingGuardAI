@@ -938,3 +938,17 @@ for rows 4 and 7, Google Calendar sync on. WhatsApp or Messages installed makes 
 | 9 | On a weekly meeting, open its details and tap "Running late", pick 5 min and "Just move the meeting", then Move. | The note says only this occurrence moves. The next occurrence shows the new time with "edited"; the following week is unchanged. |
 | 10 | While a meeting is running, tap "End now" on the dashboard card (or "End meeting now" in its details) and confirm. | The meeting ends now: "Happening now" disappears, the details show the shortened length, no further alert for it fires. |
 | 11 | Switch the app to Spanish and repeat row 2. | The message is in Spanish ("Hola, voy unos 10 minutos tarde a ..."). |
+
+### T28. Setup recommendation (dashboard; ARCHITECTURE section 34)
+
+Needs a fresh account signed in with email and password (row 1) and a Google account (rows 2 to 7).
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Sign in with an email account whose address is not verified yet. Open the dashboard. | A "Recommended: Verify your email" card with "Resend email", "I verified" and "Not now". After verifying and tapping "I verified" the card changes to "Connect your calendar". |
+| 2 | Sign in with a Google account, no calendar connected, no meetings. | The "Connect your calendar" card sits ABOVE the "No upcoming meetings" card. |
+| 3 | Create a meeting for later today. | The card moves BELOW the next meeting card. |
+| 4 | Tap "Not now". | The card disappears. With no meetings, the "No upcoming meetings" card now carries a "Connect a calendar" button. Force close and reopen: still hidden. |
+| 5 | Tap "Connect a calendar" (card or empty state) and connect Google Calendar. | Settings > Calendar sync opens; after connecting, back on the dashboard the card is gone (store build) or says "Sync your tasks" with Google Tasks (test build). Connect Outlook instead: the card says "Sync your tasks" with Microsoft To Do. |
+| 6 | Turn the task sync on. | No card. Disconnect the calendar: the "Connect your calendar" card returns (unless it was snoozed). |
+| 7 | Spanish. | "Recomendado", "Conecta tu calendario", "Ahora no". |

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, type RouteProp } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
@@ -5,10 +6,11 @@ import { Alert, Linking, Text } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
-import type { RootStackParamList, ScheduledAlertInfo, UseMeetingsResult } from '../../../core/contracts';
+import type { CalendarStatus, RootStackParamList, ScheduledAlertInfo, UseMeetingsResult } from '../../../core/contracts';
 import { AppError } from '../../../core/errors';
-import type { Meeting } from '../../../core/types';
+import type { AuthUser, Meeting } from '../../../core/types';
 import { I18nProvider, i18n } from '../../../i18n';
+import { initialCalendarStatus } from '../../../services/calendar/status';
 import { makeMeeting } from '../../insights/__fixtures__/meetings';
 import { DashboardScreen } from '../DashboardScreen';
 
@@ -23,9 +25,14 @@ const mockOpenRunningLate = jest.fn();
 jest.mock('../../meetings/RunningLateSheet', () => ({ openRunningLate: (...args: unknown[]) => mockOpenRunningLate(...args) }));
 const mockUpdate = jest.fn();
 
+// Section 34: the setup card reads the sign-in method (email verification) and the calendar status.
+let mockAuthUser: AuthUser = { uid: 'u1', displayName: 'Ana López', email: 'ana@example.com', photoURL: null, emailVerified: true, providerIds: ['google.com'] };
+const mockResendVerification = jest.fn(async () => ({ success: true }));
 jest.mock('../../../services/auth', () => ({
-  useAuth: () => ({ authUser: { uid: 'u1', displayName: 'Ana López', email: 'ana@example.com' } }),
+  useAuth: () => ({ authUser: mockAuthUser, resendVerification: mockResendVerification, refreshUser: jest.fn(async () => ({ success: true })) }),
+  authService: { currentUser: null },
 }));
+let mockCalendarStatus: CalendarStatus = initialCalendarStatus();
 
 let mockMeetings: UseMeetingsResult = { meetings: [], isLoading: false, error: null, refresh: jest.fn() };
 let mockOnline = true;
@@ -49,6 +56,7 @@ jest.mock('../../../services/data', () => {
 const mockSyncNow = jest.fn();
 jest.mock('../../../services/calendar', () => ({
   calendarSyncEngine: { syncNow: (...args: unknown[]) => mockSyncNow(...args) },
+  useCalendarStatus: () => mockCalendarStatus,
 }));
 
 // §27: the WhatsApp tile follows whatsappLinkStatus.enabled (null = unknown = still disabled).
@@ -106,6 +114,7 @@ async function renderDashboard() {
             <Stack.Screen name="AlertSettings" component={TargetStub} />
             <Stack.Screen name="CreateMeeting" component={TargetStub} />
             <Stack.Screen name="WhatsAppConnect" component={TargetStub} />
+            <Stack.Screen name="CalendarSync" component={TargetStub} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
@@ -156,6 +165,10 @@ beforeEach(async () => {
   mockPermission = { notifications: 'granted', canAskAgain: true, exactAlarms: 'not_required' };
   mockSyncNow.mockReset().mockResolvedValue({ google: null, device: null, errors: [] });
   (Toast.show as jest.Mock).mockClear();
+  mockAuthUser = { uid: 'u1', displayName: 'Ana López', email: 'ana@example.com', photoURL: null, emailVerified: true, providerIds: ['google.com'] };
+  mockCalendarStatus = initialCalendarStatus();
+  mockResendVerification.mockClear();
+  await AsyncStorage.clear();
 });
 
 afterEach(() => {
@@ -329,4 +342,74 @@ it('renders in Spanish', async () => {
   expect(screen.getByTestId('quick-new-manual').props.accessibilityLabel).toBe('Nueva reunión');
   expect(screen.getByTestId('next-meeting-countdown-label').props.children).toBe('Empieza en');
   expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('20:00');
+});
+
+describe('setup recommendation (section 34)', () => {
+  /** Document order of the setup card and the next-meeting card. */
+  function cardOrder(): string[] {
+    return screen.getAllByTestId(/^(setup-card|next-meeting-card)$/).map((node) => String(node.props.testID));
+  }
+
+  it('recommends connecting a calendar below the next meeting and opens Calendar sync', async () => {
+    await renderDashboard();
+    expect((await screen.findByTestId('setup-card-title')).props.children).toBe('Connect your calendar');
+    expect(cardOrder()).toEqual(['next-meeting-card', 'setup-card']);
+    expect(screen.queryByTestId('next-empty-connect')).toBeNull();
+    fireEvent.press(screen.getByTestId('setup-card-action'));
+    expect(await screen.findByTestId('target-CalendarSync')).toBeTruthy();
+  });
+
+  it('sits above the empty meetings card; "Not now" hides it and leaves a button in the empty state', async () => {
+    mockMeetings = meetingsResult([]);
+    await renderDashboard();
+    await screen.findByTestId('setup-card');
+    expect(cardOrder()).toEqual(['setup-card', 'next-meeting-card']);
+    expect(screen.queryByTestId('next-empty-connect')).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('setup-card-dismiss'));
+    });
+    expect(screen.queryByTestId('setup-card')).toBeNull();
+    expect(screen.getByTestId('next-empty-connect')).toBeTruthy();
+    const stored = JSON.parse((await AsyncStorage.getItem('mg:u1:setup.snooze')) ?? '{}') as Record<string, { count: number; until: string }>;
+    expect(stored.connect_calendar?.count).toBe(1);
+    expect(stored.connect_calendar?.until).toBe('2026-10-07T10:00:00.000Z');
+    fireEvent.press(screen.getByTestId('next-empty-connect'));
+    expect(await screen.findByTestId('target-CalendarSync')).toBeTruthy();
+  });
+
+  it('recommends Microsoft To Do once Outlook is connected and the tasks are not syncing', async () => {
+    mockCalendarStatus = {
+      ...initialCalendarStatus(),
+      outlook: { enabled: true, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: true, accountEmail: 'ana@contoso.com' },
+      todo: { enabled: false, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: true, listId: null, listName: null },
+    };
+    await renderDashboard();
+    expect((await screen.findByTestId('setup-card-title')).props.children).toBe('Sync your tasks');
+    expect(screen.getByTestId('setup-card-body').props.children).toMatch(/Microsoft To Do/);
+  });
+
+  it('asks an unverified email account to verify first and resends from the card', async () => {
+    mockAuthUser = { ...mockAuthUser, emailVerified: false, providerIds: ['password'] };
+    await renderDashboard();
+    expect((await screen.findByTestId('setup-card-title')).props.children).toBe('Verify your email');
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('setup-card-action'));
+    });
+    expect(mockResendVerification).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows nothing when a calendar is connected and the tasks sync', async () => {
+    mockCalendarStatus = {
+      ...initialCalendarStatus(),
+      google: { enabled: true, syncing: false, lastSyncAt: null, lastError: null, connected: true, hasScope: true },
+      gtasks: { enabled: true, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: true, hasScope: true, listId: 'l1', listName: 'My Tasks' },
+    };
+    await renderDashboard();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId('setup-card')).toBeNull();
+    expect(screen.queryByTestId('next-empty-connect')).toBeNull();
+  });
 });

@@ -16,11 +16,34 @@
     "failed": "No se pudo actualizar: {{reason}}",
     "calendarFailed": "Falló la sincronización del calendario: {{reason}}"
   },
+  "setup": {
+    "eyebrow": "Recomendado",
+    "a11y": "Recomendado: {{title}}",
+    "notNow": "Ahora no",
+    "verify_email": {
+      "title": "Verifica tu correo",
+      "body": "El asistente y los enlaces de Zoom necesitan una dirección verificada. Abre el enlace del correo que te enviamos."
+    },
+    "connect_calendar": {
+      "title": "Conecta tu calendario",
+      "body": "Conecta Google Calendar u Outlook: tus reuniones reciben las alertas de Meeting Guard, y las que creas aquí llegan a tu calendario con invitaciones.",
+      "action": "Conectar un calendario"
+    },
+    "sync_tasks": {
+      "title": "Sincroniza tus tareas",
+      "body": {
+        "todo": "Elige una lista de Microsoft To Do y tus tareas se mantienen al día en los dos sitios. Completar una tarea en To Do silencia su recordatorio aquí.",
+        "gtasks": "Elige una lista de Google Tasks y tus tareas se mantienen al día en los dos sitios. Completar una tarea en Google Tasks silencia su recordatorio aquí."
+      },
+      "action": "Sincronizar tareas"
+    }
+  },
   "next": {
     "title": "Próxima reunión",
     "current": "En curso",
     "none": "No hay reuniones próximas",
     "noneHint": "Crea una reunión o conecta un calendario para verla aquí.",
+    "connect": "Conectar un calendario",
     "allDayTitle": "También se acerca",
     "startingNow": "Empieza ahora",
     "join": "Unirse",

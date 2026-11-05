@@ -40,6 +40,11 @@ export interface NextMeetingCardProps {
   onRunningLate(meeting: Meeting): void;
   /** Running meeting only: shortens it so it ends now (after a confirmation). */
   onEndNow(meeting: Meeting): void;
+  /**
+   * Empty state only: a "Connect a calendar" button, passed while no calendar is connected and
+   * the setup card is not already asking for it (section 34).
+   */
+  onConnectCalendar?: (() => void) | null;
 }
 
 export interface CountdownParts {
@@ -284,7 +289,7 @@ function AllDayBlock({ meeting, onOpen }: { meeting: Meeting; onOpen(meeting: Me
   );
 }
 
-export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin, onRunningLate, onEndNow }: NextMeetingCardProps): ReactElement {
+export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin, onRunningLate, onEndNow, onConnectCalendar = null }: NextMeetingCardProps): ReactElement {
   const t = useT();
   const { colors } = useAppTheme();
   const fmt = useFormatters();
@@ -308,6 +313,11 @@ export function NextMeetingCard({ current, next, nextAllDay, onOpen, onJoin, onR
           <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
             {t('home:next.noneHint')}
           </Text>
+          {onConnectCalendar ? (
+            <MGButton variant="outline" size="sm" icon="calendar" onPress={onConnectCalendar} style={styles.emptyAction} testID="next-empty-connect">
+              {t('home:next.connect')}
+            </MGButton>
+          ) : null}
         </View>
       </Card>
     );
@@ -445,6 +455,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  emptyAction: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
   },
   emptyIcon: {
     width: componentMetrics.avatarSize,

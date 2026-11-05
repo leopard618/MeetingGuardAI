@@ -16,11 +16,34 @@
     "failed": "Could not refresh: {{reason}}",
     "calendarFailed": "Calendar sync failed: {{reason}}"
   },
+  "setup": {
+    "eyebrow": "Recommended",
+    "a11y": "Recommended: {{title}}",
+    "notNow": "Not now",
+    "verify_email": {
+      "title": "Verify your email",
+      "body": "The assistant and Zoom links need a verified address. Open the link in the email we sent you."
+    },
+    "connect_calendar": {
+      "title": "Connect your calendar",
+      "body": "Connect Google Calendar or Outlook: your meetings get Meeting Guard alerts, and the ones you create here reach your calendar with invitations.",
+      "action": "Connect a calendar"
+    },
+    "sync_tasks": {
+      "title": "Sync your tasks",
+      "body": {
+        "todo": "Pick a Microsoft To Do list and your tasks stay in step in both places. Completing a task in To Do silences its reminder here.",
+        "gtasks": "Pick a Google Tasks list and your tasks stay in step in both places. Completing a task in Google Tasks silences its reminder here."
+      },
+      "action": "Sync tasks"
+    }
+  },
   "next": {
     "title": "Next meeting",
     "current": "Happening now",
     "none": "No upcoming meetings",
     "noneHint": "Create a meeting or connect a calendar to see it here.",
+    "connect": "Connect a calendar",
     "allDayTitle": "Also coming up",
     "startingNow": "Starting now",
     "join": "Join",

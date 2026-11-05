@@ -38,6 +38,7 @@ import { componentMetrics, radii, spacing, typography, useAppTheme } from '../..
 import { computeDashboardSummary, computePeriodInsights, weekStartForLanguage, type InsightContext, type LoadSummary } from '../insights/meetingInsights';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
+import { needsEmailVerification } from '../shared/VerifyEmailBanner';
 import { CARD_OVERLAP, DashboardHero } from './DashboardHero';
 import { DashboardTopBar } from './DashboardTopBar';
 import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay, type DisplayMeeting } from '../meetings/occurrences';
@@ -49,6 +50,7 @@ import { InsightsSummaryCard } from './InsightsSummaryCard';
 import { NextMeetingCard } from './NextMeetingCard';
 import { OfflineBanner } from './OfflineBanner';
 import { QuickActions } from './QuickActions';
+import { SetupCard, useSetupStep } from './SetupCard';
 import { TasksTodayCard } from './TasksTodayCard';
 import { TodayTimelineRow } from './TodayTimelineRow';
 import { useLiveNow } from '../shared/useLiveNow';
@@ -138,6 +140,11 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   }, [displayMeetings, context]);
   const { current, next } = useMemo(() => findNowAndNext(displayMeetings, now), [displayMeetings, now]);
   const nextAllDay = useMemo(() => findNextAllDay(displayMeetings, context, next), [displayMeetings, context, next]);
+  // Section 34: one recommended setup step. Above the empty meetings card (it explains why the
+  // list is empty), below the next meeting otherwise (the meeting is why the app was opened).
+  const setup = useSetupStep(authUser?.uid ?? null, needsEmailVerification(authUser), now);
+  const meetingsEmpty = !current && !next && !nextAllDay;
+  const openCalendarSync = useCallback(() => navigation.navigate('CalendarSync'), [navigation]);
   // Nothing could be read (first launch offline, permission denied): say so instead of showing
   // "no meetings" empty states next to the error (a failure is not an empty list).
   const loadFailed = error !== null && !isLoading && meetings.length === 0;
@@ -240,8 +247,23 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
             />
           )
         ) : null}
+        {showData && setup.step && meetingsEmpty ? (
+          <SetupCard step={setup.step} placement="above" onOpenCalendarSync={openCalendarSync} onDismiss={setup.dismiss} />
+        ) : null}
         {showData ? (
-          <NextMeetingCard current={current} next={next} nextAllDay={nextAllDay} onOpen={openMeeting} onJoin={join} onRunningLate={runningLate} onEndNow={endNow} />
+          <NextMeetingCard
+            current={current}
+            next={next}
+            nextAllDay={nextAllDay}
+            onOpen={openMeeting}
+            onJoin={join}
+            onRunningLate={runningLate}
+            onEndNow={endNow}
+            onConnectCalendar={setup.calendarStepSnoozed ? openCalendarSync : null}
+          />
+        ) : null}
+        {showData && setup.step && !meetingsEmpty ? (
+          <SetupCard step={setup.step} placement="below" onOpenCalendarSync={openCalendarSync} onDismiss={setup.dismiss} />
         ) : null}
         <View style={styles.split}>
           <TasksTodayCard

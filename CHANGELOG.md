@@ -22,6 +22,12 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 - **End meeting now** (November 4, client request): a running meeting offers "End now" on the
   dashboard card and "End meeting now" in its details; after a confirmation the meeting is
   shortened to end now, so "Happening now" clears and its alarms stop.
+- **Setup recommendation on the dashboard** (November 5): one card with the next step that
+  still applies, ranked: verify the email (email accounts only), connect a calendar (Google or
+  Outlook), sync the tasks (To Do after Outlook, Google Tasks where the build has it). Above the
+  empty meetings card, below the next meeting otherwise. "Not now" hides it for a week, twice
+  for good; the empty meetings card then offers "Connect a calendar" instead. ARCHITECTURE
+  section 34, TESTING T28.
 - **Tasks written by the website reach To Do and Google Tasks through the app** (November 5):
   the same `pushPending` flag on task documents; the app pushes a flagged create or edit to the
   task providers like its own change, and a task deleted on the website is removed from the

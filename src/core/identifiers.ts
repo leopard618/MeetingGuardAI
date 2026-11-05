@@ -104,6 +104,8 @@ export const USER_STORAGE = {
   attachments: 'attachments',
   /** Last visited onboarding step (resume marker; completion lives in Preferences). Owner: i18n-nav. */
   onboarding: 'onboarding.step',
+  /** Dashboard setup recommendation: "Not now" snoozes per step. Owner: home. */
+  setupSnooze: 'setup.snooze',
 } as const;
 export type UserStorageName = (typeof USER_STORAGE)[keyof typeof USER_STORAGE];
 

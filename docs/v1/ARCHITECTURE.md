@@ -1614,3 +1614,33 @@ sending, and the app never claims a message was delivered.
   message EN/ES, outcome, scoped writes), `RunningLateSheet.test.tsx` (compose, share,
   dismissed, Android, mail, just move, series, not live, Spanish), the dashboard and details
   screen tests (entry points, End now). Device test guide: `docs/v1/TESTING.md` T27.
+
+## 34. Setup recommendation on the dashboard
+
+One card, one step at a time, above the empty meetings card (it explains why the list is empty)
+or below the next meeting (the meeting is why the app was opened). Never a checklist of five.
+
+- **Model** (`src/screens/home/setupSteps.ts`, pure): `pendingSetupSteps` ranks the steps that
+  still apply: verify the email (`needsEmailVerification`: email/password accounts only, the
+  trusted providers are verified already), connect a calendar (`calendarConnected`: Google sync
+  on, or the Outlook account connected), sync the tasks (only once a calendar is connected;
+  Microsoft To Do when Outlook is connected and the provider is configured, else Google Tasks
+  on builds that register it, so store builds with the switch off never recommend it). "Done" is
+  read from the live `CalendarStatus`, never from a stored flag, so a step comes back when the
+  user disconnects. `nextSetupStep` returns the first step that is not snoozed.
+- **Snooze.** "Not now" hides the step for `SNOOZE_DAYS` (7); the second "Not now" hides it for
+  good on this phone (`snoozeStep`, `SNOOZE_FOREVER_AFTER`). Stored as JSON under
+  `mg:{uid}:setup.snooze` (`USER_STORAGE.setupSnooze`), inside the user prefix so sign-out wipes
+  it; read leniently (`parseSnoozes`). Settings > Calendar sync stays the place to do it later.
+- **UI** (`src/screens/home/SetupCard.tsx`): `useSetupStep(uid, emailVerificationNeeded, now)`
+  loads the snoozes once per account and combines them with `useCalendarStatus`; the card shows
+  the step's icon, "Recommended", title, body and ONE primary action: Resend email / "I verified"
+  (the same `useEmailVerification` as `VerifyEmailBanner`) for the email step, "Connect a
+  calendar" or "Sync tasks" (both open `CalendarSync`) otherwise, plus "Not now". When the
+  calendar step exists but is snoozed, the empty meetings card shows a "Connect a calendar"
+  button instead (`NextMeetingCard.onConnectCalendar`), so the day-one case is still covered
+  without the card.
+- **Tests.** `src/screens/home/__tests__/setupSteps.test.ts` (ranking, providers, snooze
+  windows, lenient parsing), `DashboardScreen.test.tsx` "setup recommendation" (placement above
+  and below, Not now and the empty-state button, To Do after Outlook, email verification resend,
+  nothing when done). Device test guide: `docs/v1/TESTING.md` T28.
