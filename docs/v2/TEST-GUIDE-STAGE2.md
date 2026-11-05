@@ -192,6 +192,15 @@ few seconds later and already contains the Zoom link.
 G3. On the website cancel the G1 meeting.
 Expect: it leaves the app and Google Calendar; the participant gets the cancellation.
 
+G4. With To Do syncing (Part C) and, on a test account, Google Tasks (Part D): on the website
+create a task "Order business cards", due Friday.
+Expect: it is in the app's Tasks within seconds and in To Do "Work" (and Google Tasks) within a
+minute, due Friday.
+
+G5. On the website rename it, mark it done, then delete it.
+Expect: each step reaches the app and the providers within a minute; after the delete nothing
+remains anywhere, and Sync now creates no duplicate.
+
 ## Part H. The Spanish pass
 
 Settings > Language > Español. Check the Calendar sync screen, the Tasks screen and a task

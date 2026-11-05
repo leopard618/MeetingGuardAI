@@ -916,6 +916,9 @@ app does the Google Calendar part.
 | 5 | Force close the app, create a meeting on the website, then open the app. | The meeting shows and reaches Google Calendar on the session start sync. |
 | 6 | Turn Google Calendar sync OFF in the app, create a Google Meet meeting on the website. | The app shows the meeting with no link (the website says the link is pending). Turn the sync on again: the meeting is pushed and the link appears (first-connection backfill). |
 | 7 | Open the same account on a second phone and repeat row 1. | One event in Google Calendar, one invitation (the second phone's push patches the same event). |
+| 8 | With To Do (and Google Tasks on a test account) syncing in the app: on the website create a task "Order business cards", due Friday. | It appears in the app's Tasks within seconds and in To Do "Work" (and Google Tasks) within a minute, due Friday. |
+| 9 | On the website rename it and mark it done. | The app shows the new title and the task done; To Do (and Google Tasks) show the same within a minute. |
+| 10 | On the website delete it (a plain document delete). | It leaves the app, To Do and Google Tasks. No duplicate remains after Sync now. |
 
 ### T27. Running late (V2 Stage 2, M9; ARCHITECTURE section 33)
 

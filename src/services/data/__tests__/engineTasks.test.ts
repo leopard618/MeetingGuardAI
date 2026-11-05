@@ -164,4 +164,47 @@ describe('task writes', () => {
     expect(await h.engine.getTask('fromTablet')).toMatchObject({ title: 'Tablet task', source: 'manual', external: { todoTaskId: null } });
     expect(h.taskEvents.at(-1)).toEqual({ uid: UID, changedIds: ['fromTablet'], reason: 'remote' });
   });
+
+  it('reports documents the website flagged pushPending so the task sync engines push them (section 32)', async () => {
+    const h = harness();
+    await h.engine.startSession(UID);
+    await settle();
+
+    h.remote.serverSet(firestorePaths.task(UID, 'fromWeb'), {
+      userId: UID,
+      title: 'Planned on the website',
+      timezone: 'Europe/Madrid',
+      status: 'open',
+      createdAt: T0,
+      updatedAt: T0,
+      pushPending: true,
+    });
+    await settle();
+
+    expect(h.taskEvents.at(-1)).toEqual({ uid: UID, changedIds: ['fromWeb'], reason: 'remote', pushRequested: ['fromWeb'] });
+    // The flag never enters the model, so the next app write of the document leaves it out.
+    const stored = (await h.engine.getTask('fromWeb')) as unknown as Record<string, unknown>;
+    expect(stored.title).toBe('Planned on the website');
+    expect('pushPending' in stored).toBe(false);
+  });
+
+  it('announces a document deleted on the server with the provider links its copy had (section 32)', async () => {
+    const h = harness();
+    await h.engine.startSession(UID);
+    await settle();
+    const task = await h.engine.createTask({ title: 'Prepare the proposal' });
+    await h.engine.updateTask(task.id, { external: { gtasksListId: 'gl-default', gtasksTaskId: 'g1' } }, { origin: 'tasks_gtasks' });
+    await settle();
+
+    h.remote.serverDelete(firestorePaths.task(UID, task.id));
+    await settle();
+
+    expect(await h.engine.getTask(task.id)).toBeNull();
+    expect(h.taskEvents.at(-1)).toEqual({
+      uid: UID,
+      changedIds: [task.id],
+      reason: 'remote',
+      removed: [{ id: task.id, external: { ...EMPTY_TASK_EXTERNAL_REFS, gtasksListId: 'gl-default', gtasksTaskId: 'g1' } }],
+    });
+  });
 });

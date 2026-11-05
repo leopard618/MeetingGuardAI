@@ -1535,6 +1535,21 @@ change made in the app, and the website says which documents need that with ONE 
   and Outlook as upserts, persist-first like a local write (`onMeetingChanged`); a tombstone is
   turned into a delete by the push itself. Device calendar exports already refresh on every remote
   change.
+- **Tasks** (November 5): the same flag on `users/{uid}/tasks/{id}`. The website writes
+  `pushPending: true` with a fresh `updatedAt` on every task it creates or updates; the rules
+  accept it as a boolean (`isValidTask`), the read schema drops it (`parseTaskDoc` is a plain
+  object schema, unknown keys are stripped), and `onTasksSnapshot` reports the flagged ids as
+  `pushRequested` on the `tasks:changed` event (`reason: 'remote'`). The calendar engine
+  (`taskPushTargets`, `onTaskChanged`) queues them for To Do and Google Tasks as upserts, exactly
+  like a user write; the provider write-back (origin `tasks_todo` / `tasks_gtasks`) rewrites the
+  document without the flag. A delete on the website is a plain document delete (tasks have no
+  tombstone): the snapshot removal carries the local copy's provider links as `removed` on the
+  same event, and the engine queues a delete of each copy. A copy that is already gone (the other
+  device, or the provider itself, deleted it first) answers 404, which the delete treats as done,
+  so the second phone's delete is harmless. Unlike Google Calendar, Google Tasks and To Do ids are
+  not deterministic: two phones that both see a flagged CREATE before either write-back lands can
+  create two copies (`resolveLink` patches once the link is on the document, so the window is the
+  push debounce). One phone with the task sync on is the supported setup.
 - **Limits.** Nothing happens until a phone with the app receives the change and has the provider
   connected (the website shows "Meet link pending" until then). A meeting written before Google or
   Outlook is connected is picked up by the first-connection backfill
@@ -1546,7 +1561,10 @@ change made in the app, and the website says which documents need that with ONE 
   held until the link), `src/core/__tests__/pushHold.test.ts` (`awaitsZoomLink`),
   `src/services/calendar/__tests__/engine.test.ts` and `engineOutlook.test.ts` (queued like a
   local write), `functions/test/rules/firestore.rules.test.ts` (flag accepted, non-boolean
-  rejected). Device test guide: `docs/v1/TESTING.md` T26.
+  rejected, meetings and tasks). Tasks: `src/services/data/__tests__/engineTasks.test.ts` (flag
+  reported, never stored; server delete carries the links), `engineTodo.test.ts` (flagged ids
+  queued for both providers, server deletes queued with each provider's link). Device test guide:
+  `docs/v1/TESTING.md` T26.
 
 ## 33. Running late (V2 Stage 2, M9)
 

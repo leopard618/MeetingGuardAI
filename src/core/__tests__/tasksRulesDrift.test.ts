@@ -33,10 +33,11 @@ describe('firestore.rules task allowlist', () => {
     expect(Object.keys(doc).filter((key) => !allowed.has(key))).toEqual([]);
   });
 
-  it('names nothing the app does not store', () => {
+  it('names nothing the app does not store, except the website push flag', () => {
     const { id: _id, ...doc } = buildTask({ title: 'Prepare the proposal' }, CTX);
     const stored = new Set(Object.keys(doc));
-    expect(hasOnlyKeys('isValidTask').filter((key) => !stored.has(key))).toEqual([]);
+    // pushPending is written by the website and dropped by the read schema (ARCHITECTURE 32).
+    expect(hasOnlyKeys('isValidTask').filter((key) => !stored.has(key))).toEqual(['pushPending']);
   });
 
   it('names every To Do and Google Tasks link field and nothing else', () => {

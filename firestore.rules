@@ -276,7 +276,8 @@ service cloud.firestore {
     function isValidTask(uid, d) {
       return d.keys().hasOnly(['userId', 'title', 'description', 'dueDate', 'dueTime', 'timezone',
                                'reminderMinutesBefore', 'status', 'meetingId', 'people',
-                               'completedAt', 'source', 'external', 'createdAt', 'updatedAt'])
+                               'completedAt', 'source', 'external', 'createdAt', 'updatedAt',
+                               'pushPending'])
         && d.keys().hasAll(['userId', 'title', 'timezone', 'status', 'createdAt', 'updatedAt'])
         && d.userId == uid
         && isNonEmptyStringMax(d.title, 200)
@@ -297,7 +298,10 @@ service cloud.firestore {
         && d.get('source', 'manual') in ['manual', 'ai_chat', 'whatsapp', 'todo', 'gtasks']
         && (!('external' in d) || isValidTaskExternal(d.external))
         && isUtcIso(d.createdAt)
-        && isUtcIso(d.updatedAt);
+        && isUtcIso(d.updatedAt)
+        // Set by a client that cannot reach To Do or Google Tasks (the website); the app pushes
+        // the task and its write-back drops the flag (docs/v1/ARCHITECTURE.md section 32).
+        && d.get('pushPending', false) is bool;
     }
 
     // ------------------------------------------------------------------ preferences

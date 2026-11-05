@@ -192,6 +192,39 @@ describe('calendarSyncEngine + microsoft to do', () => {
     expect(todo.enqueue).not.toHaveBeenCalled();
   });
 
+  it('pushes what the website flagged and removes the copies of documents deleted on the server (section 32)', async () => {
+    const { engine, todo, gtasks, events } = setup({ gtasks: true });
+    engine.start(UID);
+    await jest.runOnlyPendingTimersAsync();
+    todo.enqueue.mockClear();
+    gtasks.enqueue.mockClear();
+
+    events.emit(
+      'tasks:changed',
+      change({
+        reason: 'remote',
+        origin: undefined,
+        changedIds: ['w1', 'w2', 'w3'],
+        pushRequested: ['w1'],
+        removed: [{ id: 'w2', external: { ...EMPTY_TASK_EXTERNAL_REFS, todoListId: 'list-tasks', todoTaskId: 'AAMk2=', gtasksListId: 'gl-default', gtasksTaskId: 'g2' } }],
+      }),
+    );
+    await Promise.resolve();
+    // w3 changed on the server without the flag: shown, never pushed.
+    expect(todo.enqueue).toHaveBeenCalledWith([
+      { id: 'w1', op: 'upsert', link: null },
+      { id: 'w2', op: 'delete', link: { listId: 'list-tasks', taskId: 'AAMk2=' } },
+    ]);
+    expect(gtasks.enqueue).toHaveBeenCalledWith([
+      { id: 'w1', op: 'upsert', link: null },
+      { id: 'w2', op: 'delete', link: { listId: 'gl-default', taskId: 'g2' } },
+    ]);
+
+    await jest.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS);
+    expect(todo.flushPending).toHaveBeenCalledTimes(1);
+    expect(gtasks.flushPending).toHaveBeenCalledTimes(1);
+  });
+
   it('does nothing for tasks while the sync is off, and skips the To Do part of syncNow', async () => {
     const { engine, todo, events } = setup({ enabled: false });
     engine.start(UID);

@@ -1285,10 +1285,21 @@ export class DataEngine {
   private onTasksSnapshot(s: Session, snapshot: RemoteCollectionSnapshot): void {
     if (!this.isCurrent(s) || s.remoteSuspended) return;
     const changedIds: string[] = [];
+    const pushRequested: string[] = [];
+    const removed: { id: string; external: TaskExternalRefs }[] = [];
+    // A document deleted on the server (website, another device): the local copy goes, and its
+    // provider links travel with the event so the sync engines can remove the copies.
+    const dropTask = (id: string): void => {
+      const gone = s.tasks.get(id);
+      if (!gone) return;
+      s.tasks.delete(id);
+      changedIds.push(id);
+      removed.push({ id, external: gone.external });
+    };
     for (const change of snapshot.changes) {
       if (change.type === 'removed') {
         if (snapshot.fromCache || hasPending(s.outbox, 'task', change.id)) continue;
-        if (s.tasks.delete(change.id)) changedIds.push(change.id);
+        dropTask(change.id);
         continue;
       }
       const incoming = readRemoteTask(change.id, change.data);
@@ -1305,16 +1316,17 @@ export class DataEngine {
       if (local && deepEqual(local, incoming)) continue;
       s.tasks.set(change.id, incoming);
       changedIds.push(change.id);
+      // Written by the website, which cannot reach To Do or Google Tasks: the flag asks the app
+      // to push the task (ARCHITECTURE section 32, tasks). It never enters the model (the read
+      // schema drops it), so the next app write of the document leaves it out.
+      if (change.data !== null && change.data.pushPending === true) pushRequested.push(change.id);
     }
     if (!snapshot.fromCache) {
       if (!s.tasksBaseline) {
         s.tasksBaseline = true;
         const serverIds = new Set(snapshot.ids);
         for (const id of [...s.tasks.keys()]) {
-          if (!serverIds.has(id) && !hasPending(s.outbox, 'task', id)) {
-            s.tasks.delete(id);
-            changedIds.push(id);
-          }
+          if (!serverIds.has(id) && !hasPending(s.outbox, 'task', id)) dropTask(id);
         }
       }
       s.errors.tasks = null;
@@ -1325,7 +1337,15 @@ export class DataEngine {
       void this.persist(s, { taskIds: changedIds });
     }
     this.notify();
-    if (changedIds.length > 0) this.events.emit('tasks:changed', { uid: s.uid, changedIds, reason: 'remote' });
+    if (changedIds.length > 0) {
+      this.events.emit('tasks:changed', {
+        uid: s.uid,
+        changedIds,
+        reason: 'remote',
+        ...(pushRequested.length > 0 ? { pushRequested } : {}),
+        ...(removed.length > 0 ? { removed } : {}),
+      });
+    }
   }
 
   private markPreferencesKnown(s: Session): void {

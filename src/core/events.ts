@@ -77,8 +77,19 @@ export interface TasksChangedEvent {
   reason: TasksChangeReason;
   /** Present for local writes. */
   origin?: WriteOrigin;
-  /** For 'deleted': what the removed tasks were linked to, so a sync engine can delete the copy. */
+  /**
+   * What the removed tasks were linked to, so a sync engine can delete the provider copies: for
+   * 'deleted' (a local delete) and for 'remote' when the document was deleted on the server
+   * (by the website or another device; a copy that is already gone answers 404, treated as done).
+   */
   removed?: { id: string; external: TaskExternalRefs }[];
+  /**
+   * 'remote' only: the ids among changedIds whose document carries `pushPending: true`, written
+   * by a client that cannot reach To Do or Google Tasks (the website). The sync engines push them
+   * like local writes; the write-back rewrites the document without the flag (docs/v1/ARCHITECTURE.md
+   * section 32). Absent when no document was flagged.
+   */
+  pushRequested?: string[];
 }
 
 export interface PreferencesChangedEvent {

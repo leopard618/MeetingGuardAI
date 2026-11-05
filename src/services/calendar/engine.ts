@@ -116,7 +116,13 @@ export function isPushableChange(event: MeetingsChangedEvent): boolean {
  * nothing visible changed, so a link write-back never costs a call.
  */
 export function taskPushTargets(event: TasksChangedEvent): { todo: boolean; gtasks: boolean } {
-  if (event.reason === 'remote' || event.changedIds.length === 0) return { todo: false, gtasks: false };
+  if (event.reason === 'remote') {
+    // Server-side changes are pushed only when the website asked for it (pushPending, ARCHITECTURE
+    // section 32) or a document was deleted on the server and left provider copies behind.
+    const wanted = (event.pushRequested?.length ?? 0) > 0 || (event.removed?.length ?? 0) > 0;
+    return { todo: wanted, gtasks: wanted };
+  }
+  if (event.changedIds.length === 0) return { todo: false, gtasks: false };
   switch (event.origin) {
     case 'user':
     case 'ai':
@@ -359,10 +365,21 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     if (uid === null || event.uid !== uid) return;
     const targets = taskPushTargets(event);
     if (!targets.todo && !targets.gtasks) return;
-    const op = event.reason === 'deleted' ? 'delete' : 'upsert';
     const links = new Map((event.removed ?? []).map((item) => [item.id, item.external]));
+    // Local writes: every changed id with the event's op. Remote: the website's flagged documents
+    // as upserts, plus the documents deleted on the server as deletes of their provider copies
+    // (a delete without a known link is dropped by the flush; a copy already gone answers 404,
+    // which the delete treats as done).
+    const ops: { id: string; op: 'upsert' | 'delete' }[] =
+      event.reason === 'remote'
+        ? [
+            ...(event.pushRequested ?? []).map((id) => ({ id, op: 'upsert' as const })),
+            ...(event.removed ?? []).map((item) => ({ id: item.id, op: 'delete' as const })),
+          ]
+        : event.changedIds.map((id) => ({ id, op: event.reason === 'deleted' ? ('delete' as const) : ('upsert' as const) }));
+    if (ops.length === 0) return;
     if (targets.todo) {
-      const items: TodoQueueItem[] = event.changedIds.map((id) => {
+      const items: TodoQueueItem[] = ops.map(({ id, op }) => {
         const external = links.get(id);
         const link =
           external && external.todoListId !== null && external.todoTaskId !== null ? { listId: external.todoListId, taskId: external.todoTaskId } : null;
@@ -372,7 +389,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       persistTodoPushes(items);
     }
     if (targets.gtasks) {
-      const gtasksItems: GtasksQueueItem[] = event.changedIds.map((id) => {
+      const gtasksItems: GtasksQueueItem[] = ops.map(({ id, op }) => {
         const external = links.get(id);
         const link =
           external && external.gtasksListId !== null && external.gtasksTaskId !== null ? { listId: external.gtasksListId, taskId: external.gtasksTaskId } : null;

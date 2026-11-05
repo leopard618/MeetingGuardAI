@@ -421,6 +421,43 @@ describe('notes', () => {
   });
 });
 
+describe('tasks', () => {
+  function task(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      userId: 'alice',
+      title: 'Send the contract',
+      description: '',
+      dueDate: null,
+      dueTime: null,
+      timezone: 'Europe/Madrid',
+      reminderMinutesBefore: null,
+      status: 'open',
+      meetingId: null,
+      people: [],
+      completedAt: null,
+      source: 'manual',
+      external: { todoListId: null, todoTaskId: null, todoUpdatedAt: null, gtasksListId: null, gtasksTaskId: null, gtasksUpdatedAt: null },
+      createdAt: ISO,
+      updatedAt: ISO,
+      ...overrides,
+    };
+  }
+
+  it('validates tasks', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'users/alice/tasks/t1'), task()));
+    await assertSucceeds(deleteDoc(doc(alice(), 'users/alice/tasks/t1')));
+    await assertFails(setDoc(doc(alice(), 'users/alice/tasks/t2'), task({ status: 'archived' })));
+    await assertFails(setDoc(doc(alice(), 'users/alice/tasks/t3'), task({ secret: true })));
+    await assertFails(setDoc(doc(bob(), 'users/alice/tasks/t4'), task()));
+  });
+
+  it('accepts the website push flag (section 32) on create and on update, booleans only', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'users/alice/tasks/t1'), task({ pushPending: true })));
+    await assertSucceeds(updateDoc(doc(alice(), 'users/alice/tasks/t1'), { pushPending: true, title: 'Send the signed contract', updatedAt: ISO }));
+    await assertFails(setDoc(doc(alice(), 'users/alice/tasks/t2'), task({ pushPending: 'yes' })));
+  });
+});
+
 describe('server-owned collections', () => {
   it('lets the owner read the entitlement but nobody write it', async () => {
     await seed('entitlements/alice', { plan: 'pro', status: 'active', expiresAt: null, source: 'manual', updatedAt: null });

@@ -22,6 +22,11 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 - **End meeting now** (November 4, client request): a running meeting offers "End now" on the
   dashboard card and "End meeting now" in its details; after a confirmation the meeting is
   shortened to end now, so "Happening now" clears and its alarms stop.
+- **Tasks written by the website reach To Do and Google Tasks through the app** (November 5):
+  the same `pushPending` flag on task documents; the app pushes a flagged create or edit to the
+  task providers like its own change, and a task deleted on the website is removed from the
+  providers too. Rules accept the flag on tasks. ARCHITECTURE section 32 (tasks), TESTING T26
+  rows 8 to 10.
 - **Meetings written by the website reach Google Calendar and Outlook through the app**
   (November 3): the website cannot talk to the calendar providers (the Google token stays on the
   phone), so it flags every meeting it creates, edits or cancels with `pushPending: true`. The app
