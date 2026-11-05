@@ -22,6 +22,9 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 - **End meeting now** (November 4, client request): a running meeting offers "End now" on the
   dashboard card and "End meeting now" in its details; after a confirmation the meeting is
   shortened to end now, so "Happening now" clears and its alarms stop.
+- **Outlook in the onboarding calendars step** (November 5, client feedback): on builds with
+  Outlook registered, step 2 offers "Connect Outlook" next to Google Calendar, first and with a
+  hint after "Continue with Microsoft". TESTING T2 row 2b.
 - **Setup recommendation on the dashboard** (November 5): one card with the next step that
   still applies, ranked: verify the email (email accounts only), connect a calendar (Google or
   Outlook), sync the tasks (To Do after Outlook, Google Tasks where the build has it). Above the

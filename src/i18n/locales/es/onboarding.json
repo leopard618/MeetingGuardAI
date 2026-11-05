@@ -18,6 +18,16 @@
       "cancelled": "No se conectó Google Calendar.",
       "scopeDenied": "No se concedió acceso al calendario. Puedes conectarlo más tarde en Ajustes."
     },
+    "outlook": {
+      "title": "Calendario de Outlook",
+      "description": "Sincronización en ambos sentidos con el calendario de tu cuenta de Microsoft (Outlook, Microsoft 365). Las reuniones que crees aquí aparecen en Outlook y tus eventos de Outlook reciben alertas de Meeting Guard.",
+      "microsoftHint": "Iniciaste sesión con Microsoft. Conecta la misma cuenta para ver aquí tus reuniones de Outlook.",
+      "connect": "Conectar Outlook",
+      "connected": "Conectado",
+      "success": "El calendario de Outlook está conectado.",
+      "cancelled": "No se conectó Outlook.",
+      "failed": "No se pudo conectar Outlook. Puedes intentarlo más tarde en Ajustes."
+    },
     "device": {
       "title": "Calendarios de este dispositivo",
       "description": "Importa eventos de los calendarios de tu teléfono, como cuentas de iCloud u Outlook.",

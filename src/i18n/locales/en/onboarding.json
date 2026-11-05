@@ -18,6 +18,16 @@
       "cancelled": "Google Calendar was not connected.",
       "scopeDenied": "Calendar access was not granted. You can connect it later in Settings."
     },
+    "outlook": {
+      "title": "Outlook Calendar",
+      "description": "Two-way sync with the calendar of your Microsoft account (Outlook, Microsoft 365). Meetings you create here appear in Outlook, and your Outlook events get Meeting Guard alerts.",
+      "microsoftHint": "You signed in with Microsoft. Connect the same account to see your Outlook meetings here.",
+      "connect": "Connect Outlook",
+      "connected": "Connected",
+      "success": "Outlook Calendar is connected.",
+      "cancelled": "Outlook was not connected.",
+      "failed": "Outlook could not be connected. You can try again later in Settings."
+    },
     "device": {
       "title": "Calendars on this device",
       "description": "Import events from the calendars on your phone, such as iCloud or Outlook accounts.",

@@ -386,6 +386,7 @@ If the build fails:
 |---|---|---|
 | 1 | New account: on the Language step, pick Español. | The screen changes to Spanish at once, without a restart. |
 | 2 | Calendars step: "Connect Google Calendar", then "Allow calendar access" for the phone calendars. | The Google consent screen asks for calendar access. After you accept, the step shows "Connected" and lists the phone calendars. Google calendars on the phone are marked as already covered by Google sync. You can also skip this step. |
+| 2b | Calendars step on a build with Outlook registered: after "Continue with Microsoft" (T25). | The step opens with "Outlook Calendar" FIRST and the line "You signed in with Microsoft. Connect the same account...". "Connect Outlook" runs the Microsoft consent and shows "Outlook Calendar is connected." inline; closing the consent shows "Outlook was not connected." After a Google sign-in the Outlook section sits below Google Calendar, without the hint. |
 | 3 | Alerts step: choose an intensity, sound, vibration and alert times, then allow notifications. | Android 13+ shows the notification permission prompt. On Android 12+, the exact-alarm button opens "Alarms & reminders" for MeetingGuard, and you come back to the same step. |
 | 4 | Swipe the app away during step 3, then open it again. | Onboarding continues. The Dashboard is not shown before onboarding is finished. |
 | 5 | AI intro step, then the guided first meeting. | The first meeting is saved and the Dashboard opens with it. The chosen settings are shown in Settings -> Alerts. |
