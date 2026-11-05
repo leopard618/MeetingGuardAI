@@ -22,6 +22,10 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 - **End meeting now** (November 4, client request): a running meeting offers "End now" on the
   dashboard card and "End meeting now" in its details; after a confirmation the meeting is
   shortened to end now, so "Happening now" clears and its alarms stop.
+- **microsoftSignIn signInOnly** (November 5, for the website): an optional request flag that
+  signs in existing users only; an unknown Microsoft account answers not-found with reason
+  microsoft_user_not_found and nothing is written. The app does not send it. ARCHITECTURE 31,
+  SETUP 10.6 step 6.
 - **Teams links through Outlook, honestly** (November 5, client test on a personal account):
   the push now asks the account's calendar which online-meeting provider it allows and requests
   that one; a meeting already in Outlook gets the fields on its update (PATCH), so editing and

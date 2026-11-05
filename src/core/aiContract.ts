@@ -741,6 +741,12 @@ export const microsoftSignInRequestSchema = z.object({
   idToken: z.string().min(1).max(8192),
   /** The raw nonce the app sent in the authorize request; must equal the token's nonce claim. */
   nonce: z.string().min(16).max(128),
+  /**
+   * Website only: sign in EXISTING users and never create one. An unknown Microsoft account
+   * (no identity, no verified-email match) answers not-found / microsoft_user_not_found and
+   * nothing is written. The app omits it (first sign-in creates the account).
+   */
+  signInOnly: z.boolean().optional(),
 });
 export type MicrosoftSignInRequest = z.infer<typeof microsoftSignInRequestSchema>;
 
@@ -763,6 +769,8 @@ export const MICROSOFT_SIGN_IN_REASONS = [
   'microsoft_token_invalid',
   /** already-exists: an account with this email exists and the Microsoft email is not verified. */
   'email_in_use',
+  /** not-found: signInOnly and no Meeting Guard account for this Microsoft account yet. */
+  'microsoft_user_not_found',
 ] as const;
 export type MicrosoftSignInReason = (typeof MICROSOFT_SIGN_IN_REASONS)[number];
 

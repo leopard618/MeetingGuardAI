@@ -264,6 +264,27 @@ describe('handleMicrosoftSignIn', () => {
     expect(calls).toEqual([`touch:${OID}`, 'name:u-google=Dusko', 'token:u-google']);
   });
 
+  it('signInOnly: refuses an unknown Microsoft account with not-found and writes nothing', async () => {
+    const { ports, users, identities, calls } = fakePorts();
+    await expect(handleMicrosoftSignIn({ ...request(), signInOnly: true }, ports, OPTIONS)).rejects.toMatchObject({
+      code: 'not-found',
+      details: { reason: 'microsoft_user_not_found' },
+    });
+    expect(users.size).toBe(0);
+    expect(identities.size).toBe(0);
+    expect(calls).toEqual([]);
+  });
+
+  it('signInOnly: still signs in a known identity and still joins a verified-email match', async () => {
+    const known = fakePorts({
+      users: [{ uid: 'u-google', email: 'dusko@outlook.com', emailVerified: true, displayName: 'Dusko' }],
+      identities: { [OID]: { uid: 'u-google', tid: CONSUMER_TENANT_ID, email: 'dusko@outlook.com', createdAt: '2026-01-01T00:00:00.000Z', lastSignInAt: '2026-01-01T00:00:00.000Z' } },
+    });
+    await expect(handleMicrosoftSignIn({ ...request(), signInOnly: true }, known.ports, OPTIONS)).resolves.toMatchObject({ uid: 'u-google', created: false, linked: false });
+    const byEmail = fakePorts({ users: [{ uid: 'u-google', email: 'dusko@outlook.com', emailVerified: true, displayName: 'D.' }] });
+    await expect(handleMicrosoftSignIn({ ...request(), signInOnly: true }, byEmail.ports, OPTIONS)).resolves.toMatchObject({ uid: 'u-google', linked: true });
+  });
+
   it('links a personal Microsoft account to the existing user with the same email', async () => {
     const { ports, identities, calls } = fakePorts({ users: [{ uid: 'u-google', email: 'dusko@outlook.com', emailVerified: true, displayName: 'D.' }] });
     await expect(handleMicrosoftSignIn(request(), ports, OPTIONS)).resolves.toEqual({ customToken: 'custom-u-google', uid: 'u-google', created: false, linked: true });

@@ -11,7 +11,8 @@
  *   2. resolves the Firebase user: microsoftIdentities/{oid} when the account signed in before,
  *      else an existing user with the same email when that email is VERIFIED (a personal
  *      Microsoft account, or a work account whose tenant proved domain ownership: xms_edov),
- *      else a new user `ms_{oid}`;
+ *      else a new user `ms_{oid}` (unless the request says signInOnly: the website signs in
+ *      existing users only and an unknown account answers not-found, nothing written);
  *   3. answers with a Firebase custom token for signInWithCustomToken.
  *
  * Unauthenticated by design (it IS the sign-in): nothing is read from the request but the token,
@@ -328,7 +329,7 @@ export interface MicrosoftSignInOptions {
   now?: () => Date;
 }
 
-function reasonError(code: 'failed-precondition' | 'unauthenticated' | 'already-exists', message: string, reason: MicrosoftSignInReason): HttpsError {
+function reasonError(code: 'failed-precondition' | 'unauthenticated' | 'already-exists' | 'not-found', message: string, reason: MicrosoftSignInReason): HttpsError {
   return new HttpsError(code, message, { reason });
 }
 
@@ -401,6 +402,10 @@ export async function handleMicrosoftSignIn(data: unknown, ports: MicrosoftSignI
       if (existing !== null) {
         uid = await linkByEmail(identity, existing, ports, nowIso);
         linked = true;
+      } else if (parsed.data.signInOnly === true) {
+        // The website signs in existing app users only: no account, no creation, nothing written.
+        logger.info('microsoftSignIn.user_not_found', { consumer: identity.tid === CONSUMER_TENANT_ID });
+        throw reasonError('not-found', 'No Meeting Guard account uses this Microsoft account yet. Install the app and sign in there first.', 'microsoft_user_not_found');
       } else {
         uid = microsoftUid(identity.oid);
         try {

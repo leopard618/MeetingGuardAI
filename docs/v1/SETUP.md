@@ -822,6 +822,13 @@ and answers with a Firebase custom token; no Firebase console provider is needed
    Creator" -> Save. The grant takes a minute or two to apply.
 5. **Check**: Landing shows "Continue with Microsoft" when the app has the client id; a personal
    Microsoft account signs in and lands on the dashboard (docs/v1/TESTING.md T25).
+6. **Website** (optional): the web agenda signs users in with the SAME registration and function.
+   Azure -> the registration -> Authentication -> Add a platform -> **Single-page application**
+   (PKCE, no secret) with the website's redirect URIs (production domains, the Vercel preview and
+   `http://localhost:3000/...` for development; they can sit next to the app's mobile redirect).
+   The website sends `signInOnly: true` so an unknown Microsoft account is refused with
+   not-found (`microsoft_user_not_found`) instead of creating an account without the app. The
+   client id is public (a public client), the tenant is `MICROSOFT_TENANT` (`common`).
 
 ---
 

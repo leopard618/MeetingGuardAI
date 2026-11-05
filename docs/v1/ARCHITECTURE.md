@@ -1495,7 +1495,11 @@ Owner steps: docs/v1/SETUP.md §10.6.
   (server only; rules deny clients). Known oid -> that uid. Unknown oid with an email that already
   belongs to a Firebase user -> joined to that account (`linked`) only when the email is verified,
   else `already-exists` / `email_in_use` (the user signs in with the method they used before).
-  Otherwise a new user `ms_<oid>` (`emailVerified` from the claim, display name from `name`).
+  Otherwise a new user `ms_<oid>` (`emailVerified` from the claim, display name from `name`),
+  unless the request carries `signInOnly: true` (the website, which signs in existing app users
+  only): then `not-found` / `microsoft_user_not_found` and nothing is written. The website runs
+  the same PKCE flow as a single-page application (its own redirect URIs on the registration,
+  SETUP.md §10.6) and calls the same function; the app never sends the flag.
   The custom token carries the developer claim `signInProvider: 'microsoft.com'`. Account
   deletion removes the identity documents (`deleteMicrosoftIdentities`, before the Auth user).
 - **Session shape.** A custom-token user has no `providerData`: `signedInWithMicrosoft(user)` in
