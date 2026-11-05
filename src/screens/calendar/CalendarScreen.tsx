@@ -46,7 +46,7 @@ import { MonthGrid } from './MonthGrid';
 
 type Props = StackScreenProps<RootStackParamList, 'Calendar'>;
 
-const LEGEND: readonly SourceCategory[] = ['meetingguard', 'google', 'device'];
+const LEGEND: readonly SourceCategory[] = ['meetingguard', 'google', 'outlook', 'device'];
 
 export function CalendarScreen({ navigation }: Props): ReactElement {
   const t = useT();

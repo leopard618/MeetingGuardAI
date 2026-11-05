@@ -18,7 +18,7 @@ export function isTimeFilter(value: unknown): value is TimeFilter {
   return typeof value === 'string' && (TIME_FILTERS as readonly string[]).includes(value);
 }
 
-export const SOURCE_FILTERS = ['all', 'meetingguard', 'google', 'device'] as const;
+export const SOURCE_FILTERS = ['all', 'meetingguard', 'google', 'outlook', 'device'] as const;
 export type SourceFilter = (typeof SOURCE_FILTERS)[number];
 /** Where a meeting comes from, as the UI groups it. */
 export type SourceCategory = Exclude<SourceFilter, 'all'>;
@@ -42,6 +42,7 @@ export type DayRelation = 'today' | 'tomorrow' | 'yesterday';
 /** Meeting Guard meetings (manual, AI assistant, WhatsApp) vs. calendar imports. */
 export function sourceCategory(source: MeetingSource): SourceCategory {
   if (source === 'google') return 'google';
+  if (source === 'outlook') return 'outlook';
   if (source === 'device') return 'device';
   return 'meetingguard';
 }

@@ -76,8 +76,8 @@ export interface ConferenceCapability {
  * - Google push (google/sync.ts `pushGoogleMeeting`): never pushes source 'device' or 'outlook'
  *   meetings (recurring masters ARE pushed, so Meet + recurrence works).
  * - Outlook push (outlook/sync.ts `isOutlookPushable`): never pushes source 'google' / 'device'
- *   meetings NOR any meeting with a recurrence rule (§17; a one-off that gains a rule even has
- *   its Graph event deleted).
+ *   meetings. Series ARE pushed since M6 (§17, one Graph series per master), and the Teams link
+ *   is requested on the series insert like on a one-off.
  * For a NEW meeting (create form) use source 'manual' and the draft's repeat choice.
  */
 export interface ConferencePushTarget {
@@ -89,7 +89,7 @@ export interface ConferencePushTarget {
 /** True when the sync engines will never auto-create a link for this meeting in this mode. */
 function autoUnreachable(mode: ConferenceMode, target: ConferencePushTarget): boolean {
   if (mode === 'auto_google') return target.source === 'device' || target.source === 'outlook';
-  if (mode === 'auto_outlook') return target.source === 'google' || target.source === 'device' || target.recurring;
+  if (mode === 'auto_outlook') return target.source === 'google' || target.source === 'device';
   // auto_zoom never degrades: the link comes from our own callable (not a push filter), which
   // works for every source, and a Zoom join url is reusable so recurring meetings keep it too
   // (the server creates them as Zoom type 3, "no fixed time", whose link never expires

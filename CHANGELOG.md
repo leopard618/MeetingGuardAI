@@ -22,6 +22,10 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 - **End meeting now** (November 4, client request): a running meeting offers "End now" on the
   dashboard card and "End meeting now" in its details; after a confirmation the meeting is
   shortened to end now, so "Happening now" clears and its alarms stop.
+- **Outlook as a source filter** (November 5, client feedback): the All meetings chips and the
+  calendar legend and day dots have an Outlook category next to Google Calendar and the device
+  calendars. Also: a repeating meeting with Teams is no longer told "paste a link" in the form;
+  its Teams link is requested on the series push like on a one-off (series push since M6).
 - **Outlook in the onboarding calendars step** (November 5, client feedback): on builds with
   Outlook registered, step 2 offers "Connect Outlook" next to Google Calendar, first and with a
   hint after "Continue with Microsoft". TESTING T2 row 2b.

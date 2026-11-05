@@ -35,6 +35,7 @@ const MINUTES_PER_DAY = 1440;
 /** Dot / legend color of a source category (canonical §2 map: meetingguard = manual's hue). */
 export function sourceColor(category: SourceCategory, colors: MGColors): string {
   if (category === 'google') return colors.chart[sourceColorIndex.google];
+  if (category === 'outlook') return colors.chart[sourceColorIndex.outlook];
   if (category === 'device') return colors.chart[sourceColorIndex.device];
   return colors.chart[sourceColorIndex.manual];
 }

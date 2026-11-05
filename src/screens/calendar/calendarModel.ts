@@ -35,7 +35,7 @@ export const GRID_DAYS = 42;
 /** Safety cap for the days one meeting can mark (a bad import must not flood the index). */
 export const MAX_MEETING_DAYS = 62;
 const MINUTES_PER_DAY = 1440;
-const DOT_ORDER: readonly SourceCategory[] = ['meetingguard', 'google', 'device'];
+const DOT_ORDER: readonly SourceCategory[] = ['meetingguard', 'google', 'outlook', 'device'];
 
 const LOCALES: Readonly<Record<Language, Locale>> = { en: enUS, es };
 

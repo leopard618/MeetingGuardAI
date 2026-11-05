@@ -413,10 +413,9 @@ describe('video call (§22)', () => {
   });
 
   it('never promises an auto link the sync cannot create (push-target degrade, §17/§22)', () => {
-    // Teams + recurrence: recurring meetings are never pushed to Graph.
-    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', repeat: 'weekly' }), OUTLOOK_CONNECTED)).toBe('pasteLinkHint');
-    // ... and no "connect Outlook" CTA either: connecting would not help a recurring meeting.
-    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', repeat: 'daily' }), OUTLOOK_CONFIGURED)).toBe('pasteLinkHint');
+    // Teams + recurrence: series are pushed to Graph since M6, the link comes with the series.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', repeat: 'weekly' }), OUTLOOK_CONNECTED)).toBe('teamsWillBeCreated');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', repeat: 'daily' }), OUTLOOK_CONFIGURED)).toBe('teamsNeedsOutlook');
     // Meet + recurrence keeps its promise: Google pushes recurring masters (insert AND patch).
     expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet', repeat: 'weekly' }), GOOGLE)).toBe('meetWillBeCreated');
     // Editing an imported meeting: Outlook never pushes google/device meetings, Google never
@@ -470,7 +469,7 @@ describe('video call (§22)', () => {
     expect(conferenceLinkLabel(draft({ conferenceProvider: 'zoom' }), OUTLOOK_CONNECTED)).toBe('link');
     expect(conferenceLinkLabel(draft({ conferenceProvider: 'other' }), GOOGLE)).toBe('link');
     // Degraded auto modes are plain paste: the link is the only way to get one.
-    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams', repeat: 'weekly' }), OUTLOOK_CONNECTED)).toBe('link');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams', repeat: 'weekly' }), OUTLOOK_CONNECTED)).toBe('linkOptional');
     expect(conferenceLinkLabel(draft({ conferenceProvider: 'google_meet', repeat: 'weekly' }), GOOGLE)).toBe('linkOptional');
     expect(conferenceLinkLabel(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'device')).toBe('link');
   });
@@ -535,10 +534,10 @@ describe('video call (§22)', () => {
 
   it('details card: never promises a link the sync cannot create (push-target degrade, §17/§22)', () => {
     const weekly: RecurrenceRule = { freq: 'weekly', interval: 1, byWeekday: ['TU'], byMonthDay: null, until: null, count: null };
-    // Teams + recurrence: no promise, no CTA - the plain paste copy.
+    // Teams + recurrence: the series is pushed with its link (M6), same promise as a one-off.
     const recurringTeams = meeting({ source: 'manual', recurrence: weekly, conference: { provider: 'teams', url: null, password: null } });
-    expect(conferenceCardState(recurringTeams, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'noLink', connect: null });
-    expect(conferenceCardState(recurringTeams, OUTLOOK_CONFIGURED)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    expect(conferenceCardState(recurringTeams, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'teamsPending', connect: null });
+    expect(conferenceCardState(recurringTeams, OUTLOOK_CONFIGURED)).toEqual({ kind: 'info', key: 'teamsNeedsOutlook', connect: 'outlook' });
     // Meet + recurrence still syncs (Google pushes recurring masters).
     const recurringMeet = meeting({ source: 'manual', recurrence: weekly, conference: { provider: 'google_meet', url: null, password: null } });
     expect(conferenceCardState(recurringMeet, GOOGLE)).toEqual({ kind: 'info', key: 'meetPending', connect: null });

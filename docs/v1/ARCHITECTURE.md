@@ -827,7 +827,8 @@ set) without a url never gets one.
 - **Push-target degrade** (`ConferencePushTarget`, third argument of `conferenceCapability`):
   an auto mode the sync engines can never reach for THAT meeting falls back to `paste` (no
   promise, no connect CTA). Ground truth from the push filters: the Outlook push never pushes
-  recurring meetings (§17) nor `source: 'google' | 'device'` ones (`isOutlookPushable`), and
+  `source: 'google' | 'device'` ones (`isOutlookPushable`; series ARE pushed since M6, with the
+  Teams link requested on the series insert), and
   the Google push never pushes `source: 'device' | 'outlook'` ones (`pushGoogleMeeting`) -
   recurring masters ARE pushed to Google, so Meet + recurrence keeps its promise. The form
   passes the draft's repeat choice + the edited meeting's source ('manual' for a new one);

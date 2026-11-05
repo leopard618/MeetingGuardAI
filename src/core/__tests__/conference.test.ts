@@ -73,8 +73,8 @@ describe('conferenceCapability', () => {
   it('an auto mode the push engines cannot reach for the target meeting degrades to paste', () => {
     const both = calendar({ google: { connected: true }, outlook: { configured: true, connected: true } });
     const paste = { mode: 'paste', autoState: null };
-    // Outlook push: never for recurring meetings (§17) nor google/device imports.
-    expect(conferenceCapability('teams', both, { source: 'manual', recurring: true })).toEqual(paste);
+    // Outlook push: never for google/device imports; series are pushed since M6, link included.
+    expect(conferenceCapability('teams', both, { source: 'manual', recurring: true })).toEqual({ mode: 'auto_outlook', autoState: 'ready' });
     expect(conferenceCapability('teams', both, { source: 'google', recurring: false })).toEqual(paste);
     expect(conferenceCapability('teams', both, { source: 'device', recurring: false })).toEqual(paste);
     expect(conferenceCapability('teams', both, { source: 'manual', recurring: false })).toEqual({
