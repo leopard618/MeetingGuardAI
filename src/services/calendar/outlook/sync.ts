@@ -37,7 +37,7 @@ import {
   type OutlookMappingContext,
 } from './mapping';
 import type { OutlookSyncState, PendingOutlookPush } from './state';
-import type { GraphEvent } from './types';
+import type { GraphCalendar, GraphEvent, GraphEventWrite } from './types';
 
 const log = createLogger('calendar');
 
@@ -434,6 +434,59 @@ async function awaitTeamsLink(deps: OutlookSyncDeps, event: GraphEvent): Promise
   return current;
 }
 
+/**
+ * Graph sometimes stores the event without honouring the online-meeting fields (seen on personal
+ * accounts: the event exists, "Teams meeting" off). One PATCH of the same fields, then the same
+ * short wait. Still nothing: the event stays a plain one, the details card says the link is
+ * missing and offers paste, and the next edit of the meeting asks again.
+ */
+async function retryOnlineMeeting(deps: OutlookSyncDeps, event: GraphEvent, onlineFields: GraphEventWrite): Promise<GraphEvent> {
+  if (onlineFields.isOnlineMeeting !== true) return event;
+  try {
+    const patched = await deps.api.patchEvent(event.id, onlineFields);
+    const settled = await awaitTeamsLink(deps, patched);
+    if (extractOnlineMeetingUrl(settled) === null) log.warn('Outlook did not return a Teams join link after the retry', { eventId: event.id });
+    return settled;
+  } catch (error) {
+    log.warn('Outlook did not accept the online-meeting retry', { eventId: event.id, code: toAppError(error).code });
+    return event;
+  }
+}
+
+/** Stored in the sync state when the calendar allows no online-meeting provider. */
+export const NO_ONLINE_MEETING_PROVIDER = 'none';
+/** When the calendar names no default: Teams first, then the Skype flavours Graph still lists. */
+export const PREFERRED_ONLINE_MEETING_PROVIDERS: readonly string[] = ['teamsForBusiness', 'skypeForConsumer', 'skypeForBusiness'];
+
+/** The provider to request from a calendar's allowed list, or null when it allows none. */
+export function pickOnlineMeetingProvider(calendar: GraphCalendar): string | null {
+  const allowed = (calendar.allowedOnlineMeetingProviders ?? []).filter((provider) => typeof provider === 'string' && provider !== 'unknown');
+  if (allowed.length === 0) return null;
+  const preferred = calendar.defaultOnlineMeetingProvider;
+  if (typeof preferred === 'string' && allowed.includes(preferred)) return preferred;
+  return PREFERRED_ONLINE_MEETING_PROVIDERS.find((provider) => allowed.includes(provider)) ?? allowed[0] ?? null;
+}
+
+/**
+ * The online-meeting provider the account's default calendar allows (GET /me/calendar), read once
+ * per connection and cached in the sync state (a connect resets the state). null = the calendar
+ * allows none (some personal accounts): no link can be requested and the UI must say so. A failed
+ * lookup falls back to Teams without caching, so the next push asks again.
+ */
+export async function resolveOnlineMeetingProvider(deps: Pick<OutlookSyncDeps, 'api' | 'state'>): Promise<string | null> {
+  const cached = (await deps.state.load()).onlineMeetingProvider;
+  if (cached !== null) return cached === NO_ONLINE_MEETING_PROVIDER ? null : cached;
+  let provider: string | null;
+  try {
+    provider = pickOnlineMeetingProvider(await deps.api.getCalendar());
+  } catch (error) {
+    log.warn('Could not read the Outlook calendar providers', toAppError(error).code);
+    return 'teamsForBusiness';
+  }
+  await deps.state.update((current) => ({ ...current, onlineMeetingProvider: provider ?? NO_ONLINE_MEETING_PROVIDER }));
+  return provider;
+}
+
 /** Meetings that are pushed to Outlook at all (imports from other providers never are). */
 export function isOutlookPushable(meeting: Pick<Meeting, 'source' | 'recurrence'>): boolean {
   return meeting.source !== 'google' && meeting.source !== 'device';
@@ -553,7 +606,13 @@ export async function pushOutlookMeeting(
   if (linkedId === null && meeting.source === 'outlook') {
     throw new AppError('invalid_input', 'Imported Outlook meeting without an event id', { details: { meetingId: meeting.id } });
   }
-  const requestTeamsLink = options.requestTeamsLink === true || wantsTeamsLink(meeting);
+  // The calendar says which online-meeting provider the account allows (none on some personal
+  // accounts): without one nothing is requested, and the UI says so (status.outlook.teamsLinks).
+  const wantsLink = options.requestTeamsLink === true || wantsTeamsLink(meeting);
+  const onlineMeetingProvider = wantsLink ? await resolveOnlineMeetingProvider(deps) : null;
+  const requestTeamsLink = wantsLink && onlineMeetingProvider !== null;
+  const onlineFields: GraphEventWrite = requestTeamsLink && onlineMeetingProvider !== null ? { isOnlineMeeting: true, onlineMeetingProvider } : {};
+  const writeOptions = { requestTeamsLink, onlineMeetingProvider: onlineMeetingProvider ?? undefined };
   const defaultTimeZone = deps.defaultTimeZone();
   const wantedKind = kindOf(meeting);
   let current = meeting;
@@ -580,11 +639,23 @@ export async function pushOutlookMeeting(
   let event: GraphEvent;
   let createdWithTeams = false;
   if (linkedId !== null) {
-    // Graph cannot turn an existing event into a Teams meeting through this flow (v1 limitation):
-    // the online-meeting fields are create-only here.
+    // An existing event becomes an online meeting through a PATCH of the online-meeting fields
+    // (Graph, "Update a meeting to enable attendees to meet online"); an account that refuses
+    // them (400) still gets the plain update, and the card keeps offering paste.
     const body = meetingToOutlookEvent(current);
     try {
-      event = await deps.api.patchEvent(linkedId, body);
+      if (requestTeamsLink) {
+        try {
+          event = await deps.api.patchEvent(linkedId, { ...body, ...onlineFields });
+          createdWithTeams = true;
+        } catch (error) {
+          if (graphHttpStatus(error) !== 400) throw error;
+          log.warn('Outlook refused the online-meeting fields on an update; plain update instead', { meetingId: current.id });
+          event = await deps.api.patchEvent(linkedId, body);
+        }
+      } else {
+        event = await deps.api.patchEvent(linkedId, body);
+      }
     } catch (error) {
       const status = graphHttpStatus(error);
       if ((status === 404 || status === 410) && current.source !== 'outlook') {
@@ -592,7 +663,7 @@ export async function pushOutlookMeeting(
         // deterministic per old link, so a lost response is replayed) - reusing the original one
         // could replay the deleted event.
         const transactionId = `${outlookTransactionId(current.id)}-r${stableHash(linkedId)}`;
-        event = await deps.api.createEvent(meetingToOutlookEvent(current, { transactionId, requestTeamsLink }));
+        event = await deps.api.createEvent(meetingToOutlookEvent(current, { transactionId, ...writeOptions }));
         createdWithTeams = requestTeamsLink;
       } else {
         throw error;
@@ -600,12 +671,15 @@ export async function pushOutlookMeeting(
     }
   } else {
     event = await deps.api.createEvent(
-      meetingToOutlookEvent(current, { transactionId: recreateTransactionId ?? outlookTransactionId(current.id), requestTeamsLink }),
+      meetingToOutlookEvent(current, { transactionId: recreateTransactionId ?? outlookTransactionId(current.id), ...writeOptions }),
     );
     createdWithTeams = requestTeamsLink;
   }
 
-  if (createdWithTeams) event = await awaitTeamsLink(deps, event);
+  if (createdWithTeams) {
+    event = await awaitTeamsLink(deps, event);
+    if (extractOnlineMeetingUrl(event) === null) event = await retryOnlineMeeting(deps, event, onlineFields);
+  }
   if (wantedKind === 'series') await applyOccurrenceOverrides(deps, current, event.id);
 
   const patch: MeetingPatch = {

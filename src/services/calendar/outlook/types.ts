@@ -117,9 +117,18 @@ export interface GraphEventWrite {
   /** Client-generated idempotency key ("mgev-{meetingId}"); create only, immutable. */
   transactionId?: string;
   isOnlineMeeting?: boolean;
-  onlineMeetingProvider?: 'teamsForBusiness';
+  /** One of the calendar's allowedOnlineMeetingProviders (GraphCalendar), usually teamsForBusiness. */
+  onlineMeetingProvider?: string;
   /** Series masters: the rule (toGraphRecurrence). Never sent for one-off events. */
   recurrence?: GraphPatternedRecurrence;
+}
+
+/** GET /me/calendar (the default calendar): which online-meeting providers the account allows. */
+export interface GraphCalendar {
+  id?: string;
+  /** e.g. ["teamsForBusiness"]; empty on accounts that cannot create online meetings through Graph. */
+  allowedOnlineMeetingProviders?: string[];
+  defaultOnlineMeetingProvider?: string;
 }
 
 /** GET /me/events/{id}/instances page. */

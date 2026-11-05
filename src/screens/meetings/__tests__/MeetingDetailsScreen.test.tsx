@@ -252,11 +252,11 @@ describe('Teams conference card (§22)', () => {
     expect(await screen.findByTestId('calendar-sync-screen')).toBeTruthy();
   });
 
-  it('says it is too late for an auto link once the meeting is already in Outlook (create-only)', async () => {
+  it('says Outlook attached no link once the meeting is already in Outlook without one', async () => {
     mockOutlook = { configured: true, connected: true };
     mockMeeting = teamsMeeting({ outlookEventId: 'AAMk1', outlookCalendarId: 'cal1' });
     await renderDetails();
-    expect(screen.getByTestId('meeting-conference-teamsLinkTooLate')).toBeTruthy();
+    expect(screen.getByTestId('meeting-conference-teamsLinkMissing')).toBeTruthy();
     expect(screen.queryByTestId('meeting-conference-teamsPending')).toBeNull();
     expect(screen.queryByTestId('meeting-connect-outlook')).toBeNull();
   });

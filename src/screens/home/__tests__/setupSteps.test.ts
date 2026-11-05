@@ -28,7 +28,7 @@ describe('nextSetupStep', () => {
 
   it('treats Google sync on or an Outlook connection as a connected calendar', () => {
     expect(next({ status: status({ google: { ...idle, enabled: true, connected: true, hasScope: true } }) })).toBeNull();
-    expect(next({ status: status({ outlook: { ...idle, configured: true, connected: true, accountEmail: 'a@b.c' } }) })).toBeNull();
+    expect(next({ status: status({ outlook: { ...idle, configured: true, connected: true, accountEmail: 'a@b.c', teamsLinks: null } }) })).toBeNull();
   });
 
   it('recommends the tasks only after a calendar, To Do with Outlook, Google Tasks when the build registers it', () => {
@@ -41,7 +41,7 @@ describe('nextSetupStep', () => {
       provider: 'gtasks',
     });
     // Outlook connected: To Do comes first.
-    const outlook = { ...idle, configured: true, connected: true, accountEmail: 'a@b.c' };
+    const outlook = { ...idle, configured: true, connected: true, accountEmail: 'a@b.c', teamsLinks: null };
     const todo = { ...idle, configured: true, connected: true, listId: null, listName: null };
     expect(next({ status: status({ outlook, todo }) })).toEqual({ id: 'sync_tasks', provider: 'todo' });
     // To Do configured but Outlook not connected: the step does not apply (the card says connect Outlook first).

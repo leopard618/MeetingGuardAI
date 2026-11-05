@@ -242,8 +242,10 @@ export function outlookEventToMeetingInput(event: GraphEvent, ctx: OutlookMappin
 export interface OutlookWriteOptions {
   /** Create only ("mgev-" + meeting.id): Graph replays a POST with the same id idempotently. */
   transactionId?: string;
-  /** Create only: ask Graph for a Teams meeting (isOnlineMeeting + teamsForBusiness). */
+  /** Ask Graph for an online meeting (isOnlineMeeting + the provider below). */
   requestTeamsLink?: boolean;
+  /** The provider the calendar allows (sync.ts resolveOnlineMeetingProvider); default teamsForBusiness. */
+  onlineMeetingProvider?: string;
 }
 
 type OutlookWritableMeeting = Pick<
@@ -404,7 +406,7 @@ export function meetingToOutlookEvent(meeting: OutlookWritableMeeting, options: 
   if (options.transactionId !== undefined) body.transactionId = options.transactionId;
   if (options.requestTeamsLink === true) {
     body.isOnlineMeeting = true;
-    body.onlineMeetingProvider = 'teamsForBusiness';
+    body.onlineMeetingProvider = options.onlineMeetingProvider ?? 'teamsForBusiness';
   }
   return body;
 }

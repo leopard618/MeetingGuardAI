@@ -507,6 +507,7 @@ export type ConferenceFormHintKey =
   | 'meetNeedsCalendar'
   | 'teamsWillBeCreated'
   | 'teamsNeedsOutlook'
+  | 'teamsNotOffered'
   | 'zoomWillBeCreated';
 
 /** The §22 push target of the meeting being edited (a new meeting is a one-off 'manual' one). */
@@ -522,9 +523,10 @@ export type ConferenceExternalRefs = Pick<Meeting['external'], 'outlookEventId'>
  * selected, or a link is already typed (a pasted url always wins over the auto modes).
  * `source` is the EDITED meeting's source ('manual' for a new one): an auto mode the sync can
  * never reach (imported meeting, or Teams + recurrence, §17) falls back to the paste hint.
- * `external` is the EDITED meeting's refs: a meeting already pushed to Outlook can never get an
- * auto Teams link (create-only, §17), so `auto_outlook` degrades to the paste hint instead of
- * promising a link that will not appear.
+ * `external` (the EDITED meeting's refs) is accepted for call-site compatibility: since the
+ * Outlook push adds the online-meeting fields on update too (§17), a meeting already in Outlook
+ * gets the same promise as a new one. Only an account whose calendar offers no provider
+ * (`teamsLinks` false, autoState 'not_offered') is told to paste.
  */
 export function conferenceFormHint(
   draft: Pick<MeetingFormDraft, 'conferenceProvider' | 'conferenceUrl' | 'repeat'>,
@@ -542,7 +544,7 @@ export function conferenceFormHint(
     case 'auto_google':
       return autoState === 'ready' ? 'meetWillBeCreated' : 'meetNeedsCalendar';
     case 'auto_outlook':
-      if (external != null && teamsLinkOnCreateOnly(external)) return 'pasteLinkHint';
+      if (autoState === 'not_offered') return 'teamsNotOffered';
       return autoState === 'ready' ? 'teamsWillBeCreated' : 'teamsNeedsOutlook';
     case 'auto_zoom':
       // not_configured: paste is the real behavior; conferenceFormNote adds the muted "why".
@@ -586,7 +588,8 @@ export function conferenceLinkLabel(
   external?: ConferenceExternalRefs | null,
 ): 'link' | 'linkOptional' {
   const { mode, autoState } = conferenceCapability(draft.conferenceProvider, calendar, draftPushTarget(draft, source));
-  if (mode === 'auto_outlook' && external != null && teamsLinkOnCreateOnly(external)) return 'link';
+  // No provider on the account: pasting is the only way to get a link.
+  if (mode === 'auto_outlook' && autoState === 'not_offered') return 'link';
   // auto_zoom is only "optional" while the server will really create the link (§24).
   if (mode === 'auto_zoom') return autoState === 'ready' ? 'linkOptional' : 'link';
   return mode === 'auto_google' || mode === 'auto_outlook' ? 'linkOptional' : 'link';
@@ -609,7 +612,8 @@ export type ConferenceCardInfoKey =
   | 'meetNeedsCalendar'
   | 'teamsPending'
   | 'teamsNeedsOutlook'
-  | 'teamsLinkTooLate'
+  | 'teamsNotOffered'
+  | 'teamsLinkMissing'
   | 'zoomPending'
   | 'noLink';
 
@@ -651,10 +655,11 @@ export function conferenceCardState(
         ? { kind: 'info', key: 'meetPending', connect: null }
         : { kind: 'info', key: 'meetNeedsCalendar', connect: 'google' };
     case 'auto_outlook':
-      // Create-only comes FIRST: a meeting already pushed to Outlook never gets an auto link
-      // (§17), connected or not - a "Connect Outlook" CTA would promise a link that cannot come.
-      if (teamsLinkOnCreateOnly(meeting.external)) return { kind: 'info', key: 'teamsLinkTooLate', connect: null };
+      if (autoState === 'not_offered') return { kind: 'info', key: 'teamsNotOffered', connect: null };
       if (autoState !== 'ready') return { kind: 'info', key: 'teamsNeedsOutlook', connect: 'outlook' };
+      // Already in Outlook without a link: Graph did not attach one on the push or the retry.
+      // The next edit asks again (PATCH, §17); meanwhile the card offers paste, not a promise.
+      if (teamsLinkOnCreateOnly(meeting.external)) return { kind: 'info', key: 'teamsLinkMissing', connect: null };
       return { kind: 'info', key: 'teamsPending', connect: null };
     case 'auto_zoom':
       // ready: the link is coming (the screen swaps to details.zoomCreateFailed + Retry when

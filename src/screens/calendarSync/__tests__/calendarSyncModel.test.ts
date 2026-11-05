@@ -35,6 +35,7 @@ function outlook(overrides: Partial<NonNullable<CalendarStatus['outlook']>> = {}
     configured: true,
     connected: false,
     accountEmail: null,
+    teamsLinks: null,
     ...overrides,
   };
 }

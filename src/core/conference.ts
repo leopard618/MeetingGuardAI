@@ -34,8 +34,12 @@ import type { MeetingSource } from './types';
  */
 export interface ConferenceCalendarState {
   google: { connected: boolean };
-  /** Absent when EXPO_PUBLIC_MSAL_CLIENT_ID is not set (the whole Outlook feature is hidden). */
-  outlook?: { configured: boolean; connected: boolean };
+  /**
+   * Absent when EXPO_PUBLIC_MSAL_CLIENT_ID is not set (the whole Outlook feature is hidden).
+   * `teamsLinks` false = the connected account's calendar allows no online-meeting provider, so
+   * Graph will not create a Teams link (CalendarStatus.outlook.teamsLinks); null/absent = unknown.
+   */
+  outlook?: { configured: boolean; connected: boolean; teamsLinks?: boolean | null };
   /**
    * What the app knows about the server-side Zoom integration (zoomStatus callable, cached per
    * session; src/services/zoom). Absent = not asked yet / answer unknown: zoom then behaves as
@@ -63,7 +67,8 @@ export type ConferenceMode = 'none' | 'paste' | 'auto_google' | 'auto_outlook' |
  * said the Zoom integration is not set up - paste-only in practice, but the UI may say WHY
  * (there is no CTA: only the project owner can configure it). null for 'none' / 'paste'.
  */
-export type ConferenceAutoState = 'ready' | 'needs_connection' | 'not_configured' | null;
+/** 'not_offered': auto_outlook only, the connected account cannot get Teams links (teamsLinks false). */
+export type ConferenceAutoState = 'ready' | 'needs_connection' | 'not_configured' | 'not_offered' | null;
 
 export interface ConferenceCapability {
   mode: ConferenceMode;
@@ -141,15 +146,19 @@ function providerCapability(provider: ConferenceProvider | 'none', calendar: Con
     case 'teams': {
       const outlook = calendar.outlook;
       if (outlook === undefined || !outlook.configured) return { mode: 'paste', autoState: null };
-      return { mode: 'auto_outlook', autoState: outlook.connected ? 'ready' : 'needs_connection' };
+      if (!outlook.connected) return { mode: 'auto_outlook', autoState: 'needs_connection' };
+      // The connected account's calendar allows no online-meeting provider (some personal
+      // accounts): Graph will not create a link, so the UI must not promise one.
+      return { mode: 'auto_outlook', autoState: outlook.teamsLinks === false ? 'not_offered' : 'ready' };
     }
   }
 }
 
 /**
  * Details-card special case (auto_outlook only): a meeting already pushed to Outlook
- * (`outlookEventId` set) with no url never gets an auto link (create-only, §17). The card then
- * shows the paste fallback copy instead of "waiting for sync".
+ * (`outlookEventId` set) with no url means Graph did not attach a link on the push (nor on the
+ * retry, §17). The card then says the link is missing and offers paste instead of "waiting for
+ * sync"; the next edit asks again through a PATCH, so the FORM keeps its promise.
  */
 export function teamsLinkOnCreateOnly(external: { outlookEventId: string | null }): boolean {
   return external.outlookEventId !== null;

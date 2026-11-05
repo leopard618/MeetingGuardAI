@@ -23,6 +23,8 @@ import {
   pullOutlookChanges,
   pushOutlookMeeting,
   removeOutlookLinks,
+  NO_ONLINE_MEETING_PROVIDER,
+  resolveOnlineMeetingProvider,
   type FlushResult,
   type OutlookSyncDeps,
 } from './sync';
@@ -74,6 +76,16 @@ export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookC
     }
   }
 
+  /** What the calendar said about online meetings (null until read; sync.ts). */
+  async function readTeamsLinks(): Promise<boolean | null> {
+    try {
+      const provider = (await deps.state.load()).onlineMeetingProvider;
+      return provider === null ? null : provider !== NO_ONLINE_MEETING_PROVIDER;
+    } catch {
+      return null;
+    }
+  }
+
   async function refreshStatus(): Promise<{ configured: boolean; connected: boolean }> {
     if (!configured) return { configured: false, connected: false };
     const connected = await deps.tokens.hasRefreshToken();
@@ -82,6 +94,7 @@ export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookC
       connected,
       enabled: connected,
       accountEmail: connected ? await readAccountEmail() : null,
+      teamsLinks: connected ? await readTeamsLinks() : null,
     });
     return { configured: true, connected };
   }
@@ -185,6 +198,7 @@ export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookC
     }
 
     let accountEmail: string | null = null;
+    let teamsLinks: boolean | null = null;
     try {
       const grant = await deps.tokens.exchangeCode(prompt.code, prompt.codeVerifier, MS_REDIRECT_URI);
       if (deps.getUid() !== uid) {
@@ -202,6 +216,9 @@ export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookC
         log.warn('Could not read the Microsoft account profile', toAppError(error).code);
       }
       await deps.state.update((current) => ({ ...current, accountEmail }));
+      // Whether this account can get Teams links at all (some personal accounts cannot): read
+      // once here so the meeting form and the details card tell the truth from the start.
+      teamsLinks = (await resolveOnlineMeetingProvider({ api: deps.api, state: deps.state })) !== null;
     } catch (error) {
       const appError = toAppError(error);
       log.warn('Microsoft token exchange failed', { code: appError.code });
@@ -209,7 +226,7 @@ export function createOutlookCalendarService(deps: OutlookServiceDeps): OutlookC
       deps.status.patchOutlook({ configured: true, connected: false, enabled: false, lastError: appError.code });
       return { status: 'failed', initialSync: null };
     }
-    deps.status.patchOutlook({ configured: true, connected: true, enabled: true, accountEmail, lastError: null });
+    deps.status.patchOutlook({ configured: true, connected: true, enabled: true, accountEmail, teamsLinks, lastError: null });
 
     let initialSync: CalendarPullResult | null = null;
     try {

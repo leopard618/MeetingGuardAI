@@ -964,7 +964,12 @@ export interface CalendarStatus {
   google: ProviderStatus & { connected: boolean; hasScope: boolean };
   device: ProviderStatus & { permission: PermissionState; importCalendarIds: string[]; exportCalendarId: string | null };
   /** Absent until the Outlook provider is registered (EXPO_PUBLIC_MSAL_CLIENT_ID present). */
-  outlook?: ProviderStatus & { configured: boolean; connected: boolean; accountEmail: string | null };
+  /**
+   * `teamsLinks`: whether the connected account's calendar allows an online-meeting provider
+   * (GET /me/calendar, read on connect): false = Graph will not create Teams links for it (some
+   * personal accounts), null = not known yet.
+   */
+  outlook?: ProviderStatus & { configured: boolean; connected: boolean; accountEmail: string | null; teamsLinks: boolean | null };
   /**
    * Microsoft To Do (absent until configured). `connected` mirrors the Outlook account connection,
    * `enabled` is the per-device sync switch, the list is the default list from preferences.

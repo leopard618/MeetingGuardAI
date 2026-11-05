@@ -381,7 +381,7 @@ describe('setup recommendation (section 34)', () => {
   it('recommends Microsoft To Do once Outlook is connected and the tasks are not syncing', async () => {
     mockCalendarStatus = {
       ...initialCalendarStatus(),
-      outlook: { enabled: true, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: true, accountEmail: 'ana@contoso.com' },
+      outlook: { enabled: true, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: true, accountEmail: 'ana@contoso.com', teamsLinks: null },
       todo: { enabled: false, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: true, listId: null, listName: null },
     };
     await renderDashboard();

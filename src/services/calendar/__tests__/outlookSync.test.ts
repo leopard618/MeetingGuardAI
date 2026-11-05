@@ -70,7 +70,7 @@ function timedEvent(id: string, overrides: Partial<GraphEvent> = {}): GraphEvent
 }
 
 interface GraphCall {
-  method: 'startDelta' | 'deltaPage' | 'get' | 'create' | 'patch' | 'delete' | 'me' | 'instances';
+  method: 'startDelta' | 'deltaPage' | 'get' | 'create' | 'patch' | 'delete' | 'me' | 'instances' | 'calendar';
   id?: string;
   url?: string;
   body?: GraphEventWrite;
@@ -156,9 +156,9 @@ class FakeGraphApi implements OutlookGraphApi {
       attendees: body.attendees,
       location: body.location,
     };
-    if (body.isOnlineMeeting === true) {
+    if (body.isOnlineMeeting === true && this.onlineFieldsOnCreate === 'honour') {
       event.isOnlineMeeting = true;
-      event.onlineMeetingProvider = 'teamsForBusiness';
+      event.onlineMeetingProvider = body.onlineMeetingProvider ?? 'teamsForBusiness';
       if (this.teamsJoinUrlOnCreate) event.onlineMeeting = { joinUrl: `https://teams.microsoft.com/l/meetup-join/${id}` };
     }
     if (body.recurrence !== undefined) {
@@ -221,7 +221,27 @@ class FakeGraphApi implements OutlookGraphApi {
     this.fail('patch');
     const existing = this.events.get(eventId);
     if (!existing) throw graphError(404, 'ErrorItemNotFound');
-    return this.store({ ...existing, ...body });
+    const next: GraphEvent = { ...existing, ...body };
+    if (body.isOnlineMeeting === true) {
+      // Graph: an existing event becomes an online meeting through a PATCH (some accounts refuse).
+      if (this.onlineFieldsOnPatch === 'reject') throw graphError(400, 'ErrorInvalidRequest');
+      next.onlineMeetingProvider = body.onlineMeetingProvider ?? 'teamsForBusiness';
+      if (this.teamsJoinUrlOnCreate) next.onlineMeeting = { joinUrl: `https://teams.microsoft.com/l/meetup-join/${eventId}` };
+    }
+    return this.store(next);
+  }
+
+  /** GET /me/calendar: what the account allows (a personal account may allow nothing). */
+  allowedProviders: string[] = ['teamsForBusiness'];
+  defaultProvider: string | undefined = 'teamsForBusiness';
+  /** 'ignore': the create stores a plain event although the online fields were sent (seen on personal accounts). */
+  onlineFieldsOnCreate: 'honour' | 'ignore' = 'honour';
+  /** 'reject': a PATCH carrying the online fields answers 400. */
+  onlineFieldsOnPatch: 'honour' | 'reject' = 'honour';
+
+  async getCalendar(): Promise<{ id: string; allowedOnlineMeetingProviders: string[]; defaultOnlineMeetingProvider?: string }> {
+    this.calls.push({ method: 'calendar' });
+    return { id: 'cal-1', allowedOnlineMeetingProviders: [...this.allowedProviders], defaultOnlineMeetingProvider: this.defaultProvider };
   }
 
   async deleteEvent(eventId: string): Promise<void> {
@@ -582,7 +602,7 @@ describe('pushOutlookMeeting', () => {
   });
 
   it('creates Teams meetings and stores the join URL (polling until Graph fills it)', async () => {
-    const { api, meetings, deps, sleep } = setup();
+    const { api, meetings, deps, sleep, state } = setup();
     api.teamsJoinUrlOnCreate = false;
     const meeting = meetings.add({
       title: 'Remote sync',
@@ -604,6 +624,64 @@ describe('pushOutlookMeeting', () => {
       url: 'https://teams.microsoft.com/l/meetup-join/gen-1',
       password: null,
     });
+    // The calendar's providers were read once and cached for the connection.
+    expect(api.calls.filter((call) => call.method === 'calendar')).toHaveLength(1);
+    expect(state.value.onlineMeetingProvider).toBe('teamsForBusiness');
+  });
+
+  it('requests the provider the calendar names as default', async () => {
+    const { api, meetings, deps } = setup();
+    api.allowedProviders = ['skypeForConsumer', 'teamsForBusiness'];
+    api.defaultProvider = 'skypeForConsumer';
+    const meeting = meetings.add({ title: 'Remote', startAt: '2026-10-03T09:00:00.000Z', source: 'manual', conference: { provider: 'teams', url: null, password: null } });
+    await pushOutlookMeeting(deps, meeting);
+    const create = api.calls.find((call) => call.method === 'create');
+    expect(create?.body?.onlineMeetingProvider).toBe('skypeForConsumer');
+  });
+
+  it('asks for no link when the calendar allows no provider, and remembers that', async () => {
+    const { api, meetings, deps, state } = setup();
+    api.allowedProviders = [];
+    const meeting = meetings.add({ title: 'Remote', startAt: '2026-10-03T09:00:00.000Z', source: 'manual', conference: { provider: 'teams', url: null, password: null } });
+    const outcome = await pushOutlookMeeting(deps, meeting);
+    const create = api.calls.find((call) => call.method === 'create');
+    expect(create?.body?.isOnlineMeeting).toBeUndefined();
+    expect(outcome.meeting.conference?.url).toBeNull();
+    expect(state.value.onlineMeetingProvider).toBe('none');
+    expect(api.calls.filter((call) => call.method === 'patch')).toHaveLength(0);
+  });
+
+  it('retries the online-meeting fields with a PATCH when the create stored a plain event', async () => {
+    const { api, meetings, deps } = setup();
+    api.onlineFieldsOnCreate = 'ignore';
+    const meeting = meetings.add({ title: 'Remote', startAt: '2026-10-03T09:00:00.000Z', source: 'manual', conference: { provider: 'teams', url: null, password: null } });
+    const outcome = await pushOutlookMeeting(deps, meeting);
+    const retry = api.calls.find((call) => call.method === 'patch');
+    expect(retry?.body).toEqual({ isOnlineMeeting: true, onlineMeetingProvider: 'teamsForBusiness' });
+    expect(outcome.meeting.conference?.url).toBe('https://teams.microsoft.com/l/meetup-join/gen-1');
+  });
+
+  it('adds a Teams link to a meeting already in Outlook through a PATCH, and falls back to a plain update when refused', async () => {
+    const { api, meetings, deps } = setup();
+    const plain = meetings.add({ title: 'Plain', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' });
+    const pushed = (await pushOutlookMeeting(deps, plain)).meeting;
+    expect(pushed.external.outlookEventId).toBe('gen-1');
+    const withTeams = await meetings.update(pushed.id, { conference: { provider: 'teams', url: null, password: null } }, { origin: 'user' });
+    const outcome = await pushOutlookMeeting(deps, withTeams);
+    const patch = api.calls.filter((call) => call.method === 'patch').at(-1);
+    expect(patch?.body).toMatchObject({ isOnlineMeeting: true, onlineMeetingProvider: 'teamsForBusiness' });
+    expect(outcome.meeting.conference?.url).toBe('https://teams.microsoft.com/l/meetup-join/gen-1');
+
+    api.onlineFieldsOnPatch = 'reject';
+    const other = meetings.add({ title: 'Other', startAt: '2026-10-04T09:00:00.000Z', source: 'manual' });
+    const otherPushed = (await pushOutlookMeeting(deps, other)).meeting;
+    const otherTeams = await meetings.update(otherPushed.id, { conference: { provider: 'teams', url: null, password: null } }, { origin: 'user' });
+    const before = api.calls.length;
+    const refused = await pushOutlookMeeting(deps, otherTeams);
+    const patches = api.calls.slice(before).filter((call) => call.method === 'patch');
+    expect(patches.map((call) => call.body?.isOnlineMeeting)).toEqual([true, undefined]);
+    expect(refused.meeting.conference?.url).toBeNull();
+    expect(refused.sent).toBe(true);
   });
 });
 

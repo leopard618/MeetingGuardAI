@@ -580,9 +580,17 @@ reliably turn an existing event into a Teams meeting here).
 - **Push:** the engine queues local `user`/`ai` writes exactly like Google. Inserts use
   `POST /me/events` with `transactionId: "mgev-" + meeting.id` (idempotent across retries),
   updates `PATCH`, deletes `DELETE`. A meeting with conference `{ provider: 'teams', url: null }`
-  is created with `isOnlineMeeting: true, onlineMeetingProvider: "teamsForBusiness"` and the
-  returned `onlineMeeting.joinUrl` is stored as the conference url. Ref write-backs use origin
-  `'calendar_outlook'` (never re-pushed).
+  is created (or, when already in Outlook, patched) with `isOnlineMeeting: true` and the
+  provider the account's calendar allows (`GET /me/calendar` `allowedOnlineMeetingProviders` /
+  `defaultOnlineMeetingProvider`, read once per connection into `state.onlineMeetingProvider`,
+  `resolveOnlineMeetingProvider`; usually `teamsForBusiness`). The push waits briefly for
+  `onlineMeeting.joinUrl` (`awaitTeamsLink`), PATCHes the same fields once more when the create
+  stored a plain event (`retryOnlineMeeting`; seen on personal accounts), and stores the url as
+  the conference url. A calendar that allows NO provider (some personal accounts) gets no request
+  at all and `CalendarStatus.outlook.teamsLinks` is false, so the form and the details card say
+  "not offered" instead of promising (§22 `not_offered`). A 400 on the online fields of an update
+  falls back to the plain update. Ref write-backs use origin `'calendar_outlook'` (never
+  re-pushed).
 - **Status:** `CalendarStatus.outlook` (optional; absent when unconfigured) via
   `useCalendarStatus`; sync reports gain `report.outlook`.
 
@@ -819,7 +827,8 @@ set) without a url never gets one.
 | google_meet | google connected | `auto_google` / `ready` | `meetings:form.meetWillBeCreated` | `meetings:details.meetPending` ("waiting for sync") |
 | google_meet | not connected | `auto_google` / `needs_connection` | `meetings:form.meetNeedsCalendar` | `meetings:details.meetNeedsCalendar` + "Connect Google Calendar" CTA |
 | teams | outlook hidden/unconfigured | `paste` | `meetings:form.pasteLinkHint` | `meetings:details.noLink` |
-| teams | outlook configured + connected | `auto_outlook` / `ready` | new `meetings:form.teamsWillBeCreated` | new `meetings:details.teamsPending`; but `teamsLinkOnCreateOnly` (already pushed, no link) -> new `meetings:details.teamsLinkTooLate` (paste fallback) |
+| teams | outlook configured + connected | `auto_outlook` / `ready` | new `meetings:form.teamsWillBeCreated` (also for a meeting already in Outlook: the update asks again) | new `meetings:details.teamsPending`; but `teamsLinkOnCreateOnly` (already pushed, no link) -> `meetings:details.teamsLinkMissing` (Graph attached none; paste, or save again to ask again) |
+| teams | connected, calendar allows no provider (`teamsLinks` false) | `auto_outlook` / `not_offered` | `meetings:form.teamsNotOffered` (link label "link", not optional) | `meetings:details.teamsNotOffered`, no connect CTA |
 | teams | configured, not connected | `auto_outlook` / `needs_connection` | new `meetings:form.teamsNeedsOutlook` | new `meetings:details.teamsNeedsOutlook` + "Connect Outlook" CTA |
 
 - A PASTED url always wins: the mode only describes the empty-url behavior, and the details

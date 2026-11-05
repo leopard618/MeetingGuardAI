@@ -62,6 +62,7 @@ function setup(options: { clientId?: string | null; hasToken?: boolean; prompt?:
     patchEvent: jest.fn(),
     deleteEvent: jest.fn(async () => undefined),
     getMe: jest.fn(async () => ({ mail: 'me@outlook.com', userPrincipalName: 'me@outlook.com' })),
+    getCalendar: jest.fn(async () => ({ id: 'cal-1', allowedOnlineMeetingProviders: ['teamsForBusiness'], defaultOnlineMeetingProvider: 'teamsForBusiness' })),
   } as unknown as jest.Mocked<OutlookGraphApi>;
 
   const service = createOutlookCalendarService({
@@ -110,7 +111,9 @@ describe('outlook service', () => {
     expect(tokens.adoptGrant).toHaveBeenCalled();
     expect(api.getMe).toHaveBeenCalled();
     expect(state.value.accountEmail).toBe('me@outlook.com');
-    expect(status.get().outlook).toMatchObject({ configured: true, connected: true, accountEmail: 'me@outlook.com' });
+    expect(api.getCalendar).toHaveBeenCalledTimes(1);
+    expect(state.value.onlineMeetingProvider).toBe('teamsForBusiness');
+    expect(status.get().outlook).toMatchObject({ configured: true, connected: true, accountEmail: 'me@outlook.com', teamsLinks: true });
     expect(synced).toEqual(['outlook']);
   });
 

@@ -52,7 +52,7 @@ async function renderStep() {
   );
 }
 
-const outlookIdle = { enabled: false, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: false, accountEmail: null };
+const outlookIdle = { enabled: false, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: false, accountEmail: null, teamsLinks: null };
 
 function sectionOrder(): string[] {
   return screen.getAllByText(/^(Outlook Calendar|Google Calendar|Calendars on this device)$/).map((node) => String(node.props.children));

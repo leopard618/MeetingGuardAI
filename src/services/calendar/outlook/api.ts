@@ -5,7 +5,7 @@
  * so `getDeltaPage` accepts only URLs on the Graph origin.
  */
 import { createGraphHttp, type GraphTokenProvider } from '../../microsoft/graphHttp';
-import type { GraphDeltaPage, GraphEvent, GraphEventWrite, GraphInstancesPage, GraphUser } from './types';
+import type { GraphCalendar, GraphDeltaPage, GraphEvent, GraphEventWrite, GraphInstancesPage, GraphUser } from './types';
 
 export { GRAPH_API_BASE, graphErrorCode, graphHttpStatus, type GraphTokenProvider } from '../../microsoft/graphHttp';
 
@@ -53,6 +53,8 @@ export interface OutlookGraphApi {
   listInstances(masterId: string, startIso: string, endIso: string): Promise<GraphEvent[]>;
   /** Signed-in Microsoft account (mail / userPrincipalName). */
   getMe(): Promise<GraphUser>;
+  /** The default calendar's online-meeting providers (GET /me/calendar). */
+  getCalendar(): Promise<GraphCalendar>;
 }
 
 export function createOutlookGraphApi(options: GraphApiOptions): OutlookGraphApi {
@@ -85,6 +87,13 @@ export function createOutlookGraphApi(options: GraphApiOptions): OutlookGraphApi
     },
     async deleteEvent(eventId) {
       await http.request<void>('DELETE', `${base}/me/events/${encodeURIComponent(eventId)}`);
+    },
+    getCalendar() {
+      return http.required<GraphCalendar>(
+        'GET',
+        `${base}/me/calendar?$select=${encodeURIComponent('id,allowedOnlineMeetingProviders,defaultOnlineMeetingProvider')}`,
+        'calendar',
+      );
     },
     async listInstances(masterId, startIso, endIso) {
       const instances: GraphEvent[] = [];

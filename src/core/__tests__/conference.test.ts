@@ -26,6 +26,22 @@ describe('conferenceCapability', () => {
     });
   });
 
+  it('teams is not_offered when the connected account cannot get Teams links (teamsLinks false)', () => {
+    expect(conferenceCapability('teams', calendar({ outlook: { configured: true, connected: true, teamsLinks: false } }))).toEqual({
+      mode: 'auto_outlook',
+      autoState: 'not_offered',
+    });
+    // Unknown yet (null) or known good: ready. Disconnected: needs_connection regardless.
+    expect(conferenceCapability('teams', calendar({ outlook: { configured: true, connected: true, teamsLinks: null } }))).toEqual({
+      mode: 'auto_outlook',
+      autoState: 'ready',
+    });
+    expect(conferenceCapability('teams', calendar({ outlook: { configured: true, connected: false, teamsLinks: false } }))).toEqual({
+      mode: 'auto_outlook',
+      autoState: 'needs_connection',
+    });
+  });
+
   it('teams is paste-only while Outlook is hidden or unconfigured', () => {
     expect(conferenceCapability('teams', calendar())).toEqual({ mode: 'paste', autoState: null });
     expect(conferenceCapability('teams', calendar({ outlook: { configured: false, connected: false } }))).toEqual({

@@ -130,6 +130,7 @@ function status(
       configured: true,
       connected: false,
       accountEmail: null,
+      teamsLinks: null,
       ...overrides.outlook,
     };
   }

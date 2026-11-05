@@ -39,6 +39,7 @@ export function initialOutlookStatus(): NonNullable<CalendarStatus['outlook']> {
     configured: false,
     connected: false,
     accountEmail: null,
+    teamsLinks: null,
   };
 }
 
@@ -113,6 +114,7 @@ export interface OutlookStatusPatch {
   connected?: boolean;
   enabled?: boolean;
   accountEmail?: string | null;
+  teamsLinks?: boolean | null;
   lastSyncAt?: string | null;
   lastError?: AppErrorCode | null;
 }

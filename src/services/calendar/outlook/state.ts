@@ -39,6 +39,12 @@ export const outlookSyncStateSchema = z.object({
    * Links made before this field existed are 'single' (series were never pushed then).
    */
   kinds: z.record(z.string(), z.enum(['single', 'series'])).default({}),
+  /**
+   * The online-meeting provider the account's calendar allows (GET /me/calendar), read once per
+   * connection: null = not read yet, 'none' = the calendar allows no provider (no Teams link can be
+   * requested), else the provider id sent with isOnlineMeeting (sync.ts resolveOnlineMeetingProvider).
+   */
+  onlineMeetingProvider: z.string().nullable().default(null),
 });
 export type OutlookSyncState = z.infer<typeof outlookSyncStateSchema>;
 
@@ -53,6 +59,7 @@ export function defaultOutlookSyncState(): OutlookSyncState {
     pending: {},
     hashes: {},
     kinds: {},
+    onlineMeetingProvider: null,
   };
 }
 

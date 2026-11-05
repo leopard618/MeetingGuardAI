@@ -22,6 +22,13 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 - **End meeting now** (November 4, client request): a running meeting offers "End now" on the
   dashboard card and "End meeting now" in its details; after a confirmation the meeting is
   shortened to end now, so "Happening now" clears and its alarms stop.
+- **Teams links through Outlook, honestly** (November 5, client test on a personal account):
+  the push now asks the account's calendar which online-meeting provider it allows and requests
+  that one; a meeting already in Outlook gets the fields on its update (PATCH), so editing and
+  saving asks again; a create that came back as a plain event is retried once with a PATCH.
+  An account whose calendar allows no provider is told "does not offer Teams links" in the form
+  and on the details card instead of a promise; a meeting in Outlook without a link says Outlook
+  did not attach one and offers paste. ARCHITECTURE 17 and 22, TESTING T15 rows 4 and 4b.
 - **Outlook as a source filter** (November 5, client feedback): the All meetings chips and the
   calendar legend and day dots have an Outlook category next to Google Calendar and the device
   calendars. Also: a repeating meeting with Teams is no longer told "paste a link" in the form;
