@@ -19,6 +19,7 @@ import { HttpsError } from 'firebase-functions/https';
 import {
   AI_CONTRACT_VERSION,
   AI_LIMITS,
+  CLARIFICATIONS_PER_ACTION,
   assistantRequestSchema,
   assistantResponseSchema,
   isMutatingAction,
@@ -34,7 +35,18 @@ import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
 import { isPlainConsent, lastUserText, missingMoveQuestion } from './guards';
 import { buildPromptMessages, collectUserText, composeListAnswer, fallbackReply, listAnswerItems } from './prompt';
 import { recoverToolCallsFromText } from './recover';
-import { consumeQuota, refundQuota, type QuotaDecision, type QuotaStore } from './quota';
+import { consumeQuota, refundQuota, settleClarification, type QuotaDecision, type QuotaStore } from './quota';
+
+/**
+ * A reply that only asks the user for missing details: short and ending in a question mark (the
+ * Spanish opener counts too). Used with "no tool call, no proposal, no resolution" to decide
+ * whether the request is charged (quota.ts settleClarification).
+ */
+export function isClarification(reply: string): boolean {
+  const text = reply.trim();
+  if (text.length === 0 || text.length > 400) return false;
+  return /[?]\s*$/.test(text);
+}
 import { buildTaskContext, type TaskContext, type TaskReader } from './tasksContext';
 import { isValidTimeZone } from './time';
 import { ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL, TASK_TOOLS } from './tools';
@@ -189,6 +201,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       tasksContext,
       messages: request.messages,
       pendingActions,
+      clarificationsExhausted: quota.clarificationsUsed >= CLARIFICATIONS_PER_ACTION,
       ...(deps.nonce ? { nonce: deps.nonce() } : {}),
     });
     const llm = deps.llm();
@@ -299,11 +312,24 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     if (moveQuestion !== null) reply = reply.length > 0 ? reply + ' ' + moveQuestion : moveQuestion;
     if (reply.length > AI_LIMITS.maxReplyChars) reply = reply.slice(0, AI_LIMITS.maxReplyChars);
 
+    // A reply that only asks the user for missing details (no tool call, no proposal, no
+    // resolution, a question) is not charged, at most CLARIFICATIONS_PER_ACTION times in a row;
+    // the run resets on any real answer, so unfinished requests cannot chain for free.
+    const clarification =
+      request.mode === 'chat' && toolCalls.length === 0 && mapped.actions.length === 0 && resolution === null && isClarification(reply);
+    let usage = quota.usage;
+    try {
+      const settled = await settleClarification(deps.quota, uid, quota, clarification, now);
+      if (settled.refunded) usage = { ...usage, used: Math.max(0, usage.used - 1) };
+    } catch (settleError) {
+      logger.warn('assistant.clarification_settle_failed', { uid, ...describeError(settleError) });
+    }
+
     const response: AssistantResponse = {
       reply,
       actions: mapped.actions,
       suggestions: mapped.suggestions,
-      usage: quota.usage,
+      usage,
       ...(resolution !== null ? { resolution } : {}),
     };
     const checked = assistantResponseSchema.safeParse(response);
@@ -314,6 +340,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
 
     logger.info('assistant.completed', {
       uid,
+      clarification,
       mode: request.mode,
       messages: request.messages.length,
       meetings: context.meetings.length,
@@ -346,7 +373,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       !llmStarted || (error instanceof UpstreamError && REFUNDABLE_UPSTREAM.has(error.kind));
     if (refundable) {
       try {
-        await refundQuota(deps.quota, uid, quota.dayKey, deps.now());
+        await refundQuota(deps.quota, uid, quota, deps.now());
       } catch (refundError) {
         logger.warn('assistant.refund_failed', { uid, ...describeError(refundError) });
       }

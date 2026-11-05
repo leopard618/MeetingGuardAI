@@ -24,6 +24,7 @@ import { defineBoolean, defineSecret } from 'firebase-functions/params';
 
 import { FUNCTIONS_REGION } from '../config';
 import { adminDb } from '../firebase';
+import { withStartedAt } from '../shared/entitlement';
 import {
   billingFromEvent,
   entitlementFromEvent,
@@ -76,6 +77,8 @@ export interface EntitlementTarget {
   uid: string;
   write: EntitlementWrite;
   eventTimestampMs: number | null;
+  /** The store's purchase time (purchased_at_ms): the candidate `startedAt` of a new subscription. */
+  purchasedAtIso?: string | null;
   /** Stored as entitlements/{uid}.billing for the admin revenue view (extra key; the app's parser ignores it). */
   billing?: BillingInfo;
 }
@@ -159,7 +162,7 @@ export function decideWebhook(body: unknown, now: Date, options: { allowSandbox?
         : null;
     const billing = billingFromEvent(event);
     const writes: EntitlementTarget[] = [
-      { uid: toUid, write: { plan, status: 'active', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs, billing },
+      { uid: toUid, write: { plan, status: 'active', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs, billing, ...purchasedAtOf(event) },
     ];
     if (fromUid !== null && fromUid !== toUid) {
       writes.push({ uid: fromUid, write: { plan, status: 'expired', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs });
@@ -178,8 +181,15 @@ export function decideWebhook(body: unknown, now: Date, options: { allowSandbox?
     kind: 'apply',
     ...base,
     marker: markerOf(event, now),
-    writes: [{ uid: appUserId, write, eventTimestampMs, billing: billingFromEvent(event) }],
+    writes: [{ uid: appUserId, write, eventTimestampMs, billing: billingFromEvent(event), ...purchasedAtOf(event) }],
   };
+}
+
+/** `purchasedAtIso` for the target when the event carries purchased_at_ms (absent otherwise). */
+function purchasedAtOf(event: { purchased_at_ms?: number | null }): { purchasedAtIso?: string } {
+  return typeof event.purchased_at_ms === 'number' && Number.isFinite(event.purchased_at_ms)
+    ? { purchasedAtIso: new Date(event.purchased_at_ms).toISOString() }
+    : {};
 }
 
 /**
@@ -306,9 +316,11 @@ export function firestoreRevenueCatStore(): RevenueCatStore {
             continue;
           }
           // eventTimestampMs is persisted for the next comparison; the app's entitlement
-          // parser (z.object, non-strict) ignores the extra key.
+          // parser (z.object, non-strict) ignores the extra keys. startedAt (the subscription
+          // start the monthly AI allowance renews on) survives renewals and is reset by a new
+          // subscription (shared/entitlement.ts withStartedAt).
           tx.set(ref, {
-            ...target.write,
+            ...withStartedAt(stored[index]?.data(), target.write, target.purchasedAtIso ?? target.write.updatedAt),
             eventTimestampMs: target.eventTimestampMs,
             ...(target.billing ? { billing: target.billing } : {}),
           });

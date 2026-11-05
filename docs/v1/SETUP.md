@@ -1167,5 +1167,5 @@ Business Portfolio (business.facebook.com). Everything runs on the test number u
 
 Notes: the webhook rejects unsigned requests (App Secret HMAC over the raw body), so the URL
 being public is fine. Firestore gets five new server-only collections (whatsapp*; rules deploy
-in step 5). The bot shares the assistant's per-user daily quota, so WhatsApp traffic cannot
+in step 5). The bot shares the assistant's per-user AI allowance, so WhatsApp traffic cannot
 multiply a user's AI spend.

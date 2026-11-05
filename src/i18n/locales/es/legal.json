@@ -26,7 +26,7 @@
           "Datos de tu cuenta: al iniciar sesión con Google recibimos tu nombre, tu correo electrónico, tu foto de perfil y el identificador de tu cuenta de Google. Si tu cuenta usa correo y contraseña, la contraseña la gestiona Firebase Authentication y nosotros nunca la vemos.",
           "Las reuniones y notas que creas, importas o editas: títulos, descripciones, fechas, horas y zonas horarias, ubicaciones, enlaces y códigos de videollamada, nombres y correos de los participantes, consejos de preparación, ajustes de recordatorios y notas.",
           "Preferencias: idioma, zona horaria, formato de hora, ajustes de avisos y los calendarios que eliges sincronizar.",
-          "Uso del asistente de IA: cuántas consultas haces cada día, para aplicar el límite diario de tu plan.",
+          "Uso del asistente de IA: cuántas acciones de IA haces, cuándo empezaron tus acciones gratis y cuándo se renueva tu plan de pago, para aplicar las acciones incluidas en tu plan.",
           "Informes de fallos y errores, cuando están activados en tu versión de la app: modelo del dispositivo, sistema operativo, versión de la app y datos técnicos del error. Los diseñamos para que no incluyan tus reuniones, notas ni mensajes, y las direcciones de correo se eliminan antes del envío."
         ]
       },
@@ -50,7 +50,7 @@
         "items": [
           "Prestarte el servicio: mantener tus reuniones y notas al día en tus dispositivos, programar tus avisos y mostrar tu agenda.",
           "Sincronizar los calendarios que conectes.",
-          "Responder a tus consultas al asistente de IA y aplicar el límite diario de tu plan.",
+          "Responder a tus consultas al asistente de IA y aplicar las acciones de IA incluidas en tu plan.",
           "Mantener el servicio seguro, evitar abusos y corregir errores."
         ],
         "note": [
@@ -206,7 +206,7 @@
         ],
         "items": [
           "Las respuestas y propuestas se generan automáticamente y pueden ser incorrectas o incompletas. Revisa cada propuesta antes de confirmarla. Eres responsable de los cambios que confirmas y de los mensajes que envías a otras personas.",
-          "Cada plan tiene un límite diario de consultas al asistente (el plan Gratis incluye {{freeLimit}} al día). Los límites se reinician cada día a medianoche UTC.",
+          "Cada plan incluye un número de acciones de IA. El plan Gratis incluye {{freeLimit}} acciones durante los {{freeDays}} días posteriores a tu primera acción de IA, como máximo {{freePerDay}} al día (los días cambian a medianoche UTC); después, el asistente y la programación por WhatsApp requieren una suscripción, mientras que crear reuniones y tareas a mano, tus recordatorios programados, la consulta y la exportación siguen siendo gratis. Pro incluye {{proLimit}} y Premium {{premiumLimit}} acciones de IA al mes, que se renuevan cada mes el día en que empezó tu suscripción. Una respuesta que solo te pide datos que faltan no se cuenta, hasta dos veces seguidas.",
           "No uses el asistente con fines ilegales ni de formas que incumplan las políticas de uso de OpenAI."
         ]
       },

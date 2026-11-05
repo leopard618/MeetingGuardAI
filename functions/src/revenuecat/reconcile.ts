@@ -46,6 +46,7 @@ import { z } from 'zod';
 
 import { FUNCTIONS_REGION } from '../config';
 import { adminDb } from '../firebase';
+import { withStartedAt } from '../shared/entitlement';
 import { requireAdmin, type AdminCaller } from '../admin';
 import { entitlementSummary, firestoreAuditWriter, type AuditWriter } from '../admin/audit';
 import { planFromEvent, type EntitlementWrite } from './mapping';
@@ -436,7 +437,7 @@ export function restReconcilePorts(): ReconcilePorts {
         const snapshot = await tx.get(ref);
         const current = snapshot.exists ? snapshot.data() : null;
         const doc = decide(current);
-        if (doc !== null) tx.set(ref, doc);
+        if (doc !== null) tx.set(ref, withStartedAt(current, doc as unknown as EntitlementWrite, new Date().toISOString()));
         return current;
       });
     },

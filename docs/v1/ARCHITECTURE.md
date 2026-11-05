@@ -122,6 +122,7 @@ Reads use `mergePreferences`, which merges field by field so one bad field never
 | `users/{uid}/tasks/{id}` | Task (without id) | owner read and write; `userId == uid`; due/reminder invariants, `source` and the `external` keys validated (`isValidTask`, `isValidTaskExternal`; `src/core/__tests__/tasksRulesDrift.test.ts` keeps the allowlist in step with the Task shape) |
 | `users/{uid}/settings/preferences` | Preferences | owner read and write; only doc id `preferences` |
 | `entitlements/{uid}` | Entitlement | owner read; **no client write** |
+| `usage/{uid}` | `{ introStartedAt, introUsed, cycleKey, cycleUsed, clarifications, updatedAt }` (section 35) | owner read; **no client write** |
 | `usage/{uid}/days/{yyyy-mm-dd}` (UTC day) | `{ count, updatedAt }` | owner read; **no client write** |
 | `accountDeletions/{uid}` | `{ deletedAt }` (ISO), written by `deleteAccount`, purged after 30 days | **none** (server only; used to re-apply deletions after a backup restore) |
 | everything else | | deny |
@@ -1213,7 +1214,7 @@ then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions 
 - **Assistant bridge**: `runAssistant(uid, request, deps)` is the auth-free seam split out of
   `handleAssistant` (same file; the callable still parses + gates exactly as before), and
   `buildAssistantDeps(db)` (assistant/index.ts) is the shared dependency set - the WhatsApp path
-  therefore consumes the SAME per-user daily quota (PLAN_DAILY_AI_LIMITS), global budget and
+  therefore consumes the SAME per-user AI allowance (AI_ALLOWANCES, section 35), global budget and
   admin usage counters as the app. Request: session turns + the new message, `language` from
   `users/{uid}/settings/preferences` (fallback 'en': the inbound payload carries NO locale, so
   there is no WhatsApp-side language signal), `timezone` from preferences (fallback UTC), mode

@@ -20,7 +20,7 @@
  *   blocks every purchase here (this store cannot replace it; a purchase would bill twice)
  *   and its card names the store where it is managed instead of Manage.
  * - Prices from src/services/billing.ts stay the fallback; daily assistant quotas as enforced
- *   by the server (PLAN_DAILY_AI_LIMITS); today's usage from useAssistant().usage.
+ *   by the server (PLAN_AI_LIMITS); the current usage from useAssistant().usage.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -78,28 +78,32 @@ function UsageCard({ summary, colors }: { summary: UsageSummary; colors: AppColo
         {t('pricing:usage.title')}
       </Text>
       <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.plan', { plan })}</Text>
-      {summary.kind === 'today' ? (
+      {summary.kind === 'current' ? (
         <>
           <Text style={[styles.usageNumbers, { color: colors.onSurface }]}>
-            {t('pricing:usage.today', { used: summary.used, limit: summary.limit })}
+            {t(`pricing:usage.used.${summary.period}`, { used: summary.used, limit: summary.limit })}
           </Text>
           <ProgressBar
             progress={summary.fraction}
             color={summary.remaining === 0 ? colors.error : colors.primary}
             style={styles.progress}
-            accessibilityLabel={t('pricing:usage.today', { used: summary.used, limit: summary.limit })}
+            accessibilityLabel={t(`pricing:usage.used.${summary.period}`, { used: summary.used, limit: summary.limit })}
           />
-          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>
-            {summary.remaining === 0
-              ? t('pricing:usage.exhausted', { time: fmt.dateTime(summary.resetsAt) })
-              : t('pricing:usage.resets', { time: fmt.dateTime(summary.resetsAt) })}
+          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]} testID="pricing-usage-caption">
+            {summary.subscriptionRequired
+              ? t('pricing:usage.subscriptionRequired')
+              : summary.remaining === 0
+                ? t(`pricing:usage.exhausted.${summary.period}`, { time: fmt.dateTime(summary.resetsAt) })
+                : t(`pricing:usage.resets.${summary.period}`, { time: fmt.dateTime(summary.resetsAt) })}
           </Text>
           <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.thisDevice')}</Text>
         </>
       ) : (
         <>
-          <Text style={[styles.usageNumbers, { color: colors.onSurface }]}>{t('pricing:usage.perDay', { count: summary.limit })}</Text>
-          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.unknownToday')}</Text>
+          <Text style={[styles.usageNumbers, { color: colors.onSurface }]}>
+            {summary.period === 'window' ? t('pricing:usage.introductory') : t('pricing:usage.perMonth', { count: summary.limit })}
+          </Text>
+          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.unknownYet')}</Text>
         </>
       )}
     </View>
@@ -140,7 +144,7 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
   const monthlyEquivalent =
     card.storeMonthlyEquivalent ?? (card.monthlyEquivalentUsd !== null ? formatPriceUsd(card.monthlyEquivalentUsd, language) : null);
   const features = [
-    t('pricing:features.requests', { count: card.aiRequestsPerDay }),
+    card.aiPeriod === 'window' ? t('pricing:features.introductory') : t('pricing:features.actionsPerMonth', { count: card.aiActions }),
     ...(card.tier === 'free' ? [t('pricing:features.meetings'), t('pricing:features.calendars')] : [t('pricing:features.everythingFree')]),
   ];
 

@@ -6,7 +6,7 @@
  * The company details (LEGAL_ENTITY, legal:jurisdiction in both languages) are filled with the
  * real legal entity; have the texts reviewed by counsel before publishing material changes.
  */
-import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
+import { AI_ALLOWANCES } from '../../core/aiContract';
 
 export type LegalDocumentId = 'privacy' | 'terms';
 
@@ -91,7 +91,11 @@ export function legalVariables(jurisdiction: string): Record<string, string | nu
     address: LEGAL_ENTITY.address,
     email: LEGAL_ENTITY.email,
     jurisdiction,
-    freeLimit: PLAN_DAILY_AI_LIMITS.free,
+    freeLimit: AI_ALLOWANCES.free.total,
+    freeDays: AI_ALLOWANCES.free.windowDays,
+    freePerDay: AI_ALLOWANCES.free.perDay,
+    proLimit: AI_ALLOWANCES.pro.perMonth,
+    premiumLimit: AI_ALLOWANCES.premium.perMonth,
   };
 }
 

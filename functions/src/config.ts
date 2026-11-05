@@ -215,7 +215,7 @@ export const WHATSAPP_DISPLAY_NUMBER = defineString('WHATSAPP_DISPLAY_NUMBER', {
 
 /**
  * Per-PHONE cap on inbound WhatsApp messages processed per UTC day (counted on
- * whatsappSessions/{phone}.counts). On top of PLAN_DAILY_AI_LIMITS, which caps only paid LLM
+ * whatsappSessions/{phone}.counts). On top of AI_ALLOWANCES, which caps only paid LLM
  * calls per uid: this bounds Graph sends and Firestore work from non-assistant traffic
  * (unlinked spam, repeated buttons, code guessing), and it is keyed by phone so unlinked
  * abusers are bounded too. Over the cap: one bilingual notice, then silent drop.

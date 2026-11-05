@@ -169,8 +169,8 @@ describe('AssistantScreen', () => {
     await renderChat();
 
     expect(screen.getByText(/Tell me what you need/)).toBeTruthy();
-    expect(screen.getByText('3/5 today · Free')).toBeTruthy();
-    expect(screen.getByLabelText('3 of 5 assistant requests used today on the Free plan')).toBeTruthy();
+    expect(screen.getByText('3/10 free actions')).toBeTruthy();
+    expect(screen.getByLabelText('3 of 10 free AI actions used')).toBeTruthy();
 
     await fireEvent.press(screen.getByText('What do I have this week?'));
     await fireEvent.press(screen.getByTestId('assistant-send'));
@@ -293,7 +293,7 @@ describe('AssistantScreen', () => {
     const quota = new AppError('quota_exceeded', 'x', { details: { reason: 'quota_exceeded', usage: usage({ used: 5 }) } });
     useAssistant.mockReturnValue(assistantState({ error: quota, messages: [chatMessage('u1', 'user', 'Hi', { delivery: 'failed' })] }));
     const { unmount } = await renderChat();
-    expect(screen.getByText(/used all 5 assistant requests/)).toBeTruthy();
+    expect(screen.getByText(/used all 10 free AI actions/)).toBeTruthy();
     expect(screen.getByText('Not sent')).toBeTruthy();
     await fireEvent.press(screen.getByText('See plans'));
     expect(navigation.navigate).toHaveBeenCalledWith('Pricing');

@@ -1,4 +1,4 @@
-/** Onboarding step 4: AI assistant introduction (capabilities, examples, daily quota, privacy). */
+/** Onboarding step 4: AI assistant introduction (capabilities, examples, the AI allowance, privacy). */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import type { ReactElement } from 'react';
@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
 import { MGButton } from '../../components/ui';
-import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
+import { AI_ALLOWANCES, PLAN_AI_LIMITS } from '../../core/aiContract';
 import { useT } from '../../i18n';
 import { useEntitlement } from '../../services/data';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
@@ -28,7 +28,7 @@ export function OnboardingAssistantScreen(): ReactElement {
   const navigation = useNavigation<OnboardingNavigation>();
   const { goNext } = useOnboardingNavigation('OnboardingAssistant');
   const { plan } = useEntitlement();
-  const dailyLimit = PLAN_DAILY_AI_LIMITS[plan];
+  const allowance = PLAN_AI_LIMITS[plan];
 
   return (
     <OnboardingLayout
@@ -63,7 +63,9 @@ export function OnboardingAssistantScreen(): ReactElement {
           </View>
         ))}
         <Text variant="bodySmall" style={[styles.note, { color: colors.onSurfaceVariant }]}>
-          {t('onboarding:assistant.quota', { count: dailyLimit, plan: t(`onboarding:assistant.plans.${plan}`) })}
+          {plan === 'free'
+            ? t('onboarding:assistant.quotaIntro', { total: AI_ALLOWANCES.free.total, days: AI_ALLOWANCES.free.windowDays, perDay: AI_ALLOWANCES.free.perDay })
+            : t('onboarding:assistant.quotaMonth', { count: allowance, plan: t(`onboarding:assistant.plans.${plan}`) })}
         </Text>
       </OnboardingSection>
 

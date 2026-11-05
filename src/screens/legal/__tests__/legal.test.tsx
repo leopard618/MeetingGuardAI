@@ -80,7 +80,7 @@ describe('legal content', () => {
 
     const terms = readLegalDocument(translate, 'terms', variables);
     expect(terms.map((item) => item.id)).toEqual(LEGAL_SECTIONS.terms);
-    expect(terms.find((item) => item.id === 'ai')?.items.join(' ')).toContain('5 per day');
+    expect(terms.find((item) => item.id === 'ai')?.items.join(' ')).toContain('10 actions during the 7 days');
 
     const fake: RawTranslate = (key) => (key.endsWith('.ok') ? { title: 'OK', body: ['Text'], items: 'x' } : key);
     expect(readLegalSection(fake, 'terms', 'ok', {})).toEqual({ id: 'ok', title: 'OK', body: ['Text'], items: ['x'], note: [] });

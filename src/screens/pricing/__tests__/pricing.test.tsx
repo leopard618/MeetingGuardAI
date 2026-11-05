@@ -11,7 +11,7 @@ import Toast from 'react-native-toast-message';
 import { PLANS } from '../../../services/billing';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
 import { AppError } from '../../../core/errors';
-import { PLAN_DAILY_AI_LIMITS, type AssistantUsage } from '../../../core/aiContract';
+import { PLAN_AI_LIMITS, type AssistantUsage } from '../../../core/aiContract';
 import type { StoreOffering } from '../../../core/contracts';
 import { I18nProvider, i18n } from '../../../i18n';
 import { purchasesService } from '../../../services/purchases';
@@ -119,11 +119,8 @@ describe('pricing model', () => {
     const proYearly = yearly[1]!;
     expect(proYearly.priceUsd).toBeCloseTo(7.99 * 12 * 0.75, 2);
     expect(proYearly.discountPercent).toBe(25);
-    expect(yearly.map((card) => card.aiRequestsPerDay)).toEqual([
-      PLAN_DAILY_AI_LIMITS.free,
-      PLAN_DAILY_AI_LIMITS.pro,
-      PLAN_DAILY_AI_LIMITS.premium,
-    ]);
+    expect(yearly.map((card) => card.aiActions)).toEqual([PLAN_AI_LIMITS.free, PLAN_AI_LIMITS.pro, PLAN_AI_LIMITS.premium]);
+    expect(yearly.map((card) => card.aiPeriod)).toEqual(['window', 'month', 'month']);
   });
 
   it('marks the current plan and offers no purchase while the store is unconfigured', () => {
@@ -251,20 +248,28 @@ describe('pricing model', () => {
     expect(formatPriceUsd(7.99, 'es')).toMatch(/^7,99\sUS\$$/);
   });
 
-  it("summarizes today's usage only while it is for the current UTC day", () => {
-    const usage: AssistantUsage = { used: 7, limit: 5, plan: 'free', resetsAt: TOMORROW_UTC };
+  it('summarizes the current usage only while its period runs, and keeps a used-up free allowance', () => {
+    const usage: AssistantUsage = { used: 12, limit: 10, plan: 'free', resetsAt: TOMORROW_UTC, period: 'window' };
     expect(summarizeUsage(usage, 'free', NOW)).toEqual({
-      kind: 'today',
+      kind: 'current',
       plan: 'free',
-      used: 5,
-      limit: 5,
+      period: 'window',
+      used: 10,
+      limit: 10,
       remaining: 0,
       fraction: 1,
       resetsAt: TOMORROW_UTC,
+      subscriptionRequired: false,
     });
+    const over: AssistantUsage = { used: 10, limit: 10, plan: 'free', resetsAt: '2026-09-28T00:00:00.000Z', period: 'window', subscriptionRequired: true };
+    expect(summarizeUsage(over, 'free', NOW)).toMatchObject({ kind: 'current', period: 'window', used: 10, subscriptionRequired: true });
+    // After an upgrade the live plan wins over the cached snapshot.
+    expect(summarizeUsage(over, 'pro', NOW)).toEqual({ kind: 'plan', plan: 'pro', period: 'month', limit: PLAN_AI_LIMITS.pro });
+    const month: AssistantUsage = { used: 30, limit: 100, plan: 'pro', resetsAt: TOMORROW_UTC, period: 'month' };
+    expect(summarizeUsage(month, 'pro', NOW)).toMatchObject({ kind: 'current', period: 'month', used: 30, limit: 100, remaining: 70 });
     const stale: AssistantUsage = { used: 2, limit: 5, plan: 'free', resetsAt: '2026-09-28T00:00:00.000Z' };
-    expect(summarizeUsage(stale, 'pro', NOW)).toEqual({ kind: 'plan', plan: 'pro', limit: PLAN_DAILY_AI_LIMITS.pro });
-    expect(summarizeUsage(null, 'free', NOW)).toEqual({ kind: 'plan', plan: 'free', limit: 5 });
+    expect(summarizeUsage(stale, 'pro', NOW)).toEqual({ kind: 'plan', plan: 'pro', period: 'month', limit: PLAN_AI_LIMITS.pro });
+    expect(summarizeUsage(null, 'free', NOW)).toEqual({ kind: 'plan', plan: 'free', period: 'window', limit: 10 });
   });
 });
 
@@ -311,20 +316,29 @@ describe('PricingScreen (purchases unconfigured)', () => {
     expect(screen.getByText('Subscriptions coming soon')).toBeTruthy();
     expect(within(screen.getByTestId('pricing-plan-free')).getByText('Current plan')).toBeTruthy();
     expect(within(screen.getByTestId('pricing-plan-pro_monthly')).getByText('$7.99')).toBeTruthy();
-    expect(within(screen.getByTestId('pricing-plan-pro_monthly')).getByText('100 AI assistant requests per day')).toBeTruthy();
+    expect(within(screen.getByTestId('pricing-plan-pro_monthly')).getByText('100 AI actions per month')).toBeTruthy();
+    expect(within(screen.getByTestId('pricing-plan-free')).getByText('10 free AI actions in your first 7 days, up to 3 a day')).toBeTruthy();
     expect(screen.getByTestId('pricing-coming-soon-pro_monthly').props.accessibilityState).toEqual({ disabled: true });
     expect(screen.queryByText(/Unlimited/i)).toBeNull();
     expect(screen.queryByText('Most popular')).toBeNull();
     expect(screen.queryByTestId('pricing-buy-pro_monthly')).toBeNull();
     expect(screen.queryByTestId('pricing-restore')).toBeNull();
-    expect(screen.getByText('Today\'s count appears after you use the assistant.')).toBeTruthy();
+    expect(screen.getByText('Your count appears after you use the assistant.')).toBeTruthy();
     expect(mockPurchasesService.getOffering).not.toHaveBeenCalled();
   });
 
-  it("shows today's assistant usage when it is known", async () => {
-    mockUsage = { used: 3, limit: 5, plan: 'free', resetsAt: '2999-01-01T00:00:00.000Z' };
+  it('shows the current assistant usage when it is known', async () => {
+    mockUsage = { used: 3, limit: 10, plan: 'free', resetsAt: '2999-01-01T00:00:00.000Z', period: 'window' };
     await renderPricing();
-    expect(screen.getByText('3 of 5 requests used')).toBeTruthy();
+    expect(screen.getByText('3 of 10 free actions used')).toBeTruthy();
+    expect(screen.getByTestId('pricing-usage-caption').props.children).toMatch(/^Free allowance until /);
+  });
+
+  it('says the free allowance is used up and what stays free', async () => {
+    mockUsage = { used: 10, limit: 10, plan: 'free', resetsAt: '2020-01-01T00:00:00.000Z', period: 'window', subscriptionRequired: true };
+    await renderPricing();
+    expect(screen.getByText('10 of 10 free actions used')).toBeTruthy();
+    expect(screen.getByTestId('pricing-usage-caption').props.children).toMatch(/^Your free actions are used/);
   });
 
   it('switches to yearly prices', async () => {

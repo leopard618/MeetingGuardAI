@@ -57,10 +57,26 @@
     "e8": "¿Qué tareas están atrasadas?"
   },
   "usage": {
-    "today": "{{used}}/{{limit}} hoy · {{plan}}",
-    "perDay": "{{limit}}/día · {{plan}}",
-    "a11y": "{{used}} de {{limit}} consultas al asistente usadas hoy con el plan {{plan}}",
-    "a11yPlan": "{{limit}} consultas al asistente al día con el plan {{plan}}",
+    "current": {
+      "day": "{{used}}/{{limit}} hoy · {{plan}}",
+      "window": "{{used}}/{{limit}} acciones gratis",
+      "month": "{{used}}/{{limit}} este mes · {{plan}}"
+    },
+    "a11y": {
+      "day": "{{used}} de {{limit}} acciones de IA usadas hoy con el plan {{plan}}",
+      "window": "{{used}} de {{limit}} acciones de IA gratis usadas",
+      "month": "{{used}} de {{limit}} acciones de IA usadas este mes con el plan {{plan}}"
+    },
+    "subscriptionRequired": "Acciones gratis usadas · ver planes",
+    "a11ySubscriptionRequired": "Has usado las {{limit}} acciones de IA gratis. Para seguir hace falta una suscripción.",
+    "allowance": {
+      "introductory": "{{limit}} acciones gratis · {{plan}}",
+      "perMonth": "{{limit}}/mes · {{plan}}"
+    },
+    "a11yAllowance": {
+      "introductory": "{{limit}} acciones de IA gratis durante los primeros 7 días con el plan {{plan}}",
+      "perMonth": "{{limit}} acciones de IA al mes con el plan {{plan}}"
+    },
     "plan": {
       "free": "Gratis",
       "pro": "Pro",
@@ -68,8 +84,13 @@
     }
   },
   "errors": {
-    "quota": "Has usado las {{limit}} consultas al asistente de hoy con el plan {{plan}}. Se renuevan {{reset}}.",
-    "quotaUnknown": "Has alcanzado el límite diario del asistente para tu plan.",
+    "quota": {
+      "day": "Has usado las {{limit}} acciones de IA gratis de hoy. Más {{reset}}.",
+      "window": "Has usado las {{limit}} acciones de IA gratis. Con una suscripción tienes más.",
+      "month": "Has usado las {{limit}} acciones de IA de este mes con el plan {{plan}}. Se renuevan {{reset}}."
+    },
+    "quotaSubscription": "Has usado tus {{limit}} acciones de IA gratis. Suscríbete para seguir usando el asistente y la programación por WhatsApp. Crear reuniones y tareas a mano, tus recordatorios y la exportación siguen siendo gratis.",
+    "quotaUnknown": "Has alcanzado las acciones de IA de tu plan.",
     "upgrade": "Ver planes",
     "offline": "No tienes conexión. Revísala y vuelve a intentarlo.",
     "timeout": "El asistente tardó demasiado en responder. Vuelve a intentarlo.",

@@ -339,7 +339,7 @@ The order assumes the client chooses RevenueCat and iOS. Adjust it after the dec
    - Still open for later: any Stripe web checkout (item 3).
 2. **Tier enforcement:**
    - The AI quota is **already server-side**: the `assistant` function reads `entitlements/{uid}` in
-     its quota transaction (`PLAN_DAILY_AI_LIMITS`).
+     its allowance transaction (`AI_ALLOWANCES`, docs/v1/ARCHITECTURE.md section 35).
    - Only features beyond the AI quota need new gates, both in the rules / functions and in the UI.
 3. **Stripe web checkout** (7-day trial), only if the client wants a web app. It writes the same
    entitlement document through a webhook.

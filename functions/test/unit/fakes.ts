@@ -6,6 +6,8 @@ import type { AiMeetingContextDoc } from '../../src/shared/aiContract';
 export class FakeQuotaStore implements QuotaStore {
   readonly entitlements = new Map<string, unknown>();
   readonly usage = new Map<string, { count: number; updatedAt: string }>();
+  /** usage/{uid} root documents (merged writes, like Firestore set with merge). */
+  readonly roots = new Map<string, Record<string, unknown>>();
   transactions = 0;
   failNext: Error | null = null;
   private queue: Promise<unknown> = Promise.resolve();
@@ -25,6 +27,10 @@ export class FakeQuotaStore implements QuotaStore {
         writeUsageCount: (uid, day, count, updatedAt) => {
           writes.push(() => this.usage.set(`${uid}/${day}`, { count, updatedAt }));
         },
+        readUsageRoot: async (uid) => this.roots.get(uid),
+        writeUsageRoot: (uid, patch, updatedAt) => {
+          writes.push(() => this.roots.set(uid, { ...(this.roots.get(uid) ?? {}), ...patch, updatedAt }));
+        },
       });
       writes.forEach((write) => write());
       return result;
@@ -36,6 +42,10 @@ export class FakeQuotaStore implements QuotaStore {
 
   count(uid: string, day: string): number {
     return this.usage.get(`${uid}/${day}`)?.count ?? 0;
+  }
+
+  root(uid: string): Record<string, unknown> {
+    return this.roots.get(uid) ?? {};
   }
 }
 

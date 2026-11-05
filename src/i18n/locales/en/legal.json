@@ -26,7 +26,7 @@
           "Account information: when you sign in with Google, we receive your name, email address, profile photo and your Google account identifier. If your account uses an email address and password, the password is handled by Firebase Authentication and we never see it.",
           "Meetings and notes that you create, import or edit: titles, descriptions, dates, times and time zones, locations, video-call links and passcodes, participants' names and email addresses, preparation tips, reminder settings and notes.",
           "Preferences: language, time zone, clock format, alert settings and the calendars you choose to sync.",
-          "AI assistant usage: how many assistant requests you make each day, to apply the daily limit of your plan.",
+          "AI assistant usage: how many AI actions you make, when your free allowance started and when your paid allowance renews, to apply the allowance of your plan.",
           "Crash and error reports, when crash reporting is enabled in your version of the app: device model, operating system, app version and technical details of the error. We design these reports to leave out your meetings, notes and messages, and email addresses are removed before they are sent."
         ]
       },
@@ -50,7 +50,7 @@
         "items": [
           "Provide the app: keep your meetings and notes up to date on your devices, schedule your alerts and show your agenda.",
           "Sync the calendars you connect.",
-          "Answer your requests to the AI assistant and apply the daily limit of your plan.",
+          "Answer your requests to the AI assistant and apply the AI allowance of your plan.",
           "Keep the service secure, prevent abuse and fix errors."
         ],
         "note": [
@@ -206,7 +206,7 @@
         ],
         "items": [
           "Answers and proposals are generated automatically and can be wrong or incomplete. Review every proposal before you confirm it. You are responsible for the changes you confirm and for the messages you send to other people.",
-          "Each plan has a daily limit of assistant requests (the Free plan includes {{freeLimit}} per day). Limits reset every day at midnight UTC.",
+          "Each plan includes a number of AI actions. The Free plan includes {{freeLimit}} actions during the {{freeDays}} days after your first AI action, at most {{freePerDay}} per day (days change at midnight UTC); after that the assistant and WhatsApp scheduling need a subscription, while creating meetings and tasks by hand, your scheduled reminders, viewing and export stay free. Pro includes {{proLimit}} and Premium {{premiumLimit}} AI actions per month, renewing each month on the day your subscription started. A reply that only asks you for missing details is not counted, up to two times in a row.",
           "Do not use the assistant for illegal purposes or in ways that break OpenAI's usage policies."
         ]
       },

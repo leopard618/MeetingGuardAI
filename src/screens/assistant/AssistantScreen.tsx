@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MeetingConfirmationModal } from '../../components/MeetingConfirmationModal';
 import { useTheme } from '../../contexts/ThemeContext';
-import { AI_LIMITS, PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
+import { AI_LIMITS, PLAN_AI_LIMITS } from '../../core/aiContract';
 import type { ActionResult, RootStackParamList } from '../../core/contracts';
 import { useLanguage, useT } from '../../i18n';
 import { useAssistant } from '../../services/ai';
@@ -159,7 +159,7 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
   // Daily-limit reset times; paused while another screen is on top or the app is in the background.
   const now = useLiveNow(USAGE_CLOCK_MS);
 
-  const usage = describeUsage(fmt, assistant.usage, planLoaded ? { plan, limit: PLAN_DAILY_AI_LIMITS[plan] } : null, now);
+  const usage = describeUsage(fmt, assistant.usage, planLoaded ? { plan, limit: PLAN_AI_LIMITS[plan] } : null, now);
   // The server's verification gate reads exactly like the banner above the thread (section 25).
   const errorDescription = isVerificationGateError(assistant.error, authUser)
     ? { message: t('auth:verify.assistantBody'), recovery: 'none' as const }

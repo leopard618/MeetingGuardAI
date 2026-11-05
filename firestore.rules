@@ -390,7 +390,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Assistant quota counters: written only by the assistant callable.
+    // Assistant allowance counters: written only by the assistant callable. The root document
+    // holds the introductory window, the paid cycle and the clarification run (section 35).
+    match /usage/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
     match /usage/{uid}/days/{day} {
       allow read: if isOwner(uid);
       allow write: if false;

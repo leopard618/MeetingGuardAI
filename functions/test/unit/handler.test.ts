@@ -99,9 +99,11 @@ describe('handleAssistant', () => {
 
   it('enforces the daily quota without calling the model', async () => {
     const { deps, quota, llmFactory } = setup();
-    quota.usage.set(`u1/${DAY}`, { count: 5, updatedAt: 'x' });
+    // Free plan: at most 3 actions per UTC day inside the introductory window.
+    quota.roots.set('u1', { introStartedAt: '2026-09-27T10:00:00.000Z', introUsed: 4 });
+    quota.usage.set(`u1/${DAY}`, { count: 3, updatedAt: 'x' });
     const details = await expectAssistantError(handleAssistant(caller(), chatRequest(), deps), 'resource-exhausted', 'quota_exceeded');
-    expect(details.usage).toEqual({ used: 5, limit: 5, plan: 'free', resetsAt: '2026-09-29T00:00:00.000Z' });
+    expect(details.usage).toEqual({ used: 3, limit: 3, plan: 'free', resetsAt: '2026-09-29T00:00:00.000Z', period: 'day' });
     expect(llmFactory).not.toHaveBeenCalled();
   });
 
@@ -112,7 +114,7 @@ describe('handleAssistant', () => {
       reply: 'Done deal.',
       actions: [],
       suggestions: [],
-      usage: { used: 1, limit: 5, plan: 'free', resetsAt: '2026-09-29T00:00:00.000Z' },
+      usage: { used: 1, limit: 10, plan: 'free', resetsAt: '2026-10-05T14:15:00.000Z', period: 'window' },
     });
     const request = llm.requests[0]!;
     expect(request.toolChoice).toBe('auto');
@@ -158,6 +160,7 @@ describe('handleAssistant', () => {
       }),
     );
     withTools.quota.usage.set(`u1/${DAY}`, { count: 2, updatedAt: 'x' });
+    withTools.quota.roots.set('u1', { introStartedAt: '2026-09-27T10:00:00.000Z', introUsed: 2 });
     const response = await handleAssistant(caller(), chatRequest(), withTools.deps);
     expect(assistantResponseSchema.safeParse(response).success).toBe(true);
     expect(response.reply).toBe('I prepared the following for you. Please review and confirm.');
@@ -1001,5 +1004,31 @@ describe('debrief mode (v7)', () => {
     await expectAssistantError(handleAssistant(caller(), debriefRequest({ messages: [] }), deps), 'invalid-argument', 'invalid_request');
     await expectAssistantError(handleAssistant(caller(), debriefRequest({ followUpMeetingId: null }), deps), 'invalid-argument', 'invalid_request');
     expect(quota.transactions).toBe(0);
+  });
+});
+
+describe('clarification credits (allowances)', () => {
+  it('refunds a reply that only asks for details, twice in a row, then charges and tells the model to stop asking', async () => {
+    const asking = () => setup(result({ content: 'Who is the meeting with, and at what time?', toolCalls: [] }));
+    const first = asking();
+    const one = await handleAssistant(caller(), chatRequest(), first.deps);
+    expect(one.usage.used).toBe(0);
+    expect(first.quota.count('u1', DAY)).toBe(0);
+    expect(first.quota.root('u1')).toMatchObject({ introUsed: 0, clarifications: 1 });
+    expect(first.llm.requests[0]!.messages[0]!.content).not.toContain('Do not ask again');
+
+    // Two un-charged clarifications already: the third is charged and the prompt says so.
+    const third = asking();
+    third.quota.roots.set('u1', { introStartedAt: '2026-09-27T10:00:00.000Z', introUsed: 2, clarifications: 2 });
+    const response = await handleAssistant(caller(), chatRequest(), third.deps);
+    expect(response.usage.used).toBe(3);
+    expect(third.quota.root('u1')).toMatchObject({ introUsed: 3, clarifications: 3 });
+    expect(third.llm.requests[0]!.messages[0]!.content).toContain('Do not ask again');
+
+    // A real answer keeps its charge and resets the run.
+    const answer = setup(result({ content: 'You have one meeting today, the merger review at 10:00.', toolCalls: [] }));
+    answer.quota.roots.set('u1', { introStartedAt: '2026-09-27T10:00:00.000Z', introUsed: 1, clarifications: 2 });
+    await handleAssistant(caller(), chatRequest(), answer.deps);
+    expect(answer.quota.root('u1')).toMatchObject({ introUsed: 2, clarifications: 0 });
   });
 });

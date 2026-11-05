@@ -131,12 +131,34 @@ export type Language = (typeof LANGUAGES)[number];
 export const PLANS = ['free', 'pro', 'premium'] as const;
 export type Plan = (typeof PLANS)[number];
 
-/** Daily assistant requests per plan (server-enforced; the day boundary is UTC midnight). */
-export const PLAN_DAILY_AI_LIMITS: Readonly<Record<Plan, number>> = {
-  free: 5,
-  pro: 100,
-  premium: 500,
+/**
+ * AI allowances per plan (server-enforced; functions/src/assistant/quota.ts):
+ * - free: the introductory allowance. A window of `windowDays` days that starts with the user's
+ *   first AI action, `total` actions in all, at most `perDay` per UTC day; afterwards AI needs a
+ *   subscription. Manual creation, viewing, export and scheduled reminders stay free.
+ * - pro / premium: `perMonth` actions per subscription month, renewing on the monthly
+ *   anniversary of the subscription start (yearly subscribers included; a UTC calendar month
+ *   when the start is unknown). The WhatsApp sublimits of Stage 3 count inside these numbers.
+ */
+export const AI_ALLOWANCES = {
+  free: { kind: 'introductory', windowDays: 7, total: 10, perDay: 3 },
+  pro: { kind: 'monthly', perMonth: 100 },
+  premium: { kind: 'monthly', perMonth: 400 },
+} as const;
+
+/** The headline number of each plan (free: the window total; paid: per month). */
+export const PLAN_AI_LIMITS: Readonly<Record<Plan, number>> = {
+  free: AI_ALLOWANCES.free.total,
+  pro: AI_ALLOWANCES.pro.perMonth,
+  premium: AI_ALLOWANCES.premium.perMonth,
 };
+
+/** Replies that only ask for missing details are not charged, this many times in a row. */
+export const CLARIFICATIONS_PER_ACTION = 2;
+
+/** Which allowance an AssistantUsage describes. */
+export const USAGE_PERIODS = ['day', 'window', 'month'] as const;
+export type UsagePeriod = (typeof USAGE_PERIODS)[number];
 
 export const CONFERENCE_PROVIDERS = ['zoom', 'teams', 'google_meet', 'other'] as const;
 export type ConferenceProvider = (typeof CONFERENCE_PROVIDERS)[number];
@@ -644,12 +666,16 @@ export function isMutatingAction(action: AiAction): boolean {
 // ---------------------------------------------------------------------------------------------
 
 export const assistantUsageSchema = z.object({
-  /** Requests counted today, including this one. */
+  /** Actions counted in the period, including this one. */
   used: z.number().int().min(0),
   limit: z.number().int().min(0),
   plan: planSchema,
-  /** Next UTC midnight. */
+  /** When the period ends (next UTC midnight for 'day', the window end, the next cycle start). */
   resetsAt: isoDateTimeSchema,
+  /** The allowance described; absent on answers of older servers (then 'day'). */
+  period: z.enum(USAGE_PERIODS).optional(),
+  /** Free plan: the introductory allowance is over (window ended or total used); AI needs a subscription. */
+  subscriptionRequired: z.boolean().optional(),
 });
 export type AssistantUsage = z.infer<typeof assistantUsageSchema>;
 

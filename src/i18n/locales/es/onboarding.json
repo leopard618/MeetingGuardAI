@@ -119,8 +119,8 @@
       "share": "Envía el enlace de la reunión de marketing a john@company.com",
       "bulk": "Retrasa 30 minutos todas mis reuniones de mañana"
     },
-    "quota_one": "Tu plan {{plan}} incluye {{count}} consulta al asistente por día.",
-    "quota_other": "Tu plan {{plan}} incluye {{count}} consultas al asistente por día.",
+    "quotaIntro": "Tus primeros {{days}} días incluyen {{total}} acciones de IA gratis, hasta {{perDay}} al día. Crear reuniones y tareas a mano, tus recordatorios y la exportación son siempre gratis.",
+    "quotaMonth": "Tu plan {{plan}} incluye {{count}} acciones de IA al mes.",
     "plans": {
       "free": "Gratis",
       "pro": "Pro",

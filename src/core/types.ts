@@ -42,7 +42,7 @@ export {
   LANGUAGES,
   LOCATION_TYPES,
   PLANS,
-  PLAN_DAILY_AI_LIMITS,
+  PLAN_AI_LIMITS,
   alertTimesSchema,
   conferenceDetailsSchema,
   languageSchema,

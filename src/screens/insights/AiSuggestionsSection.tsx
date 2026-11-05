@@ -14,7 +14,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, HelperText, Text } from 'react-native-paper';
 
 import { Banner, Card, MGButton, SectionHeader } from '../../components/ui';
-import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
+import { PLAN_AI_LIMITS } from '../../core/aiContract';
 import { createLogger } from '../../core/logger';
 import { useLanguage, useT } from '../../i18n';
 import { createAssistantFormatter, describeAssistantError, describeUsage, useAssistant } from '../../services/ai';
@@ -49,7 +49,7 @@ export function AiSuggestionsSection({ period, onOpenAssistant }: AiSuggestionsS
     [language, preferences.use24HourClock, t],
   );
   const state = suggestionState(assistant.messages, request, { isSending: assistant.isSending, settled });
-  const usage = describeUsage(fmt, assistant.usage, planLoaded ? { plan, limit: PLAN_DAILY_AI_LIMITS[plan] } : null);
+  const usage = describeUsage(fmt, assistant.usage, planLoaded ? { plan, limit: PLAN_AI_LIMITS[plan] } : null);
   const busyElsewhere = assistant.isSending && state.status !== 'sending';
 
   const send = useCallback(async () => {

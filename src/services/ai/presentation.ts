@@ -639,13 +639,19 @@ export function describeAssistantError(fmt: AssistantFormatter, error: AppError 
   switch (appError.code) {
     case 'quota_exceeded': {
       const usage = quotaUsageFromError(appError);
-      const message = usage
-        ? fmt.t('ai:errors.quota', {
-            limit: usage.limit,
-            plan: planLabel(fmt, usage.plan),
-            reset: fmt.relative(usage.resetsAt, now),
-          })
-        : fmt.t('ai:errors.quotaUnknown');
+      let message: string;
+      if (!usage) {
+        message = fmt.t('ai:errors.quotaUnknown');
+      } else if (usage.subscriptionRequired === true) {
+        // The free introductory allowance is over: no reset is coming, a subscription is.
+        message = fmt.t('ai:errors.quotaSubscription', { limit: usage.limit });
+      } else {
+        message = fmt.t(`ai:errors.quota.${usage.period ?? 'day'}`, {
+          limit: usage.limit,
+          plan: planLabel(fmt, usage.plan),
+          reset: fmt.relative(usage.resetsAt, now),
+        });
+      }
       return { message, recovery: usage?.plan === 'premium' ? 'none' : 'upgrade' };
     }
     case 'offline':
@@ -672,8 +678,9 @@ export interface UsageDescription {
 }
 
 /**
- * Usage pill: "3/5 today" when today's usage is known, otherwise the plan's daily limit.
- * Usage from a previous UTC day counts as 0 used.
+ * Usage pill: "3/10 free actions", "12/100 this month" or "2/3 today" from the last server
+ * answer (its period), otherwise the plan's allowance. An answer whose period has ended counts
+ * as 0 used, except a free allowance that is over (subscriptionRequired), which stays "used up".
  */
 export function describeUsage(
   fmt: AssistantFormatter,
@@ -682,20 +689,29 @@ export function describeUsage(
   now: Date = new Date(),
 ): UsageDescription | null {
   if (usage) {
+    const plan = planLabel(fmt, usage.plan);
+    const period = usage.period ?? 'day';
+    if (usage.subscriptionRequired === true) {
+      return {
+        label: fmt.t('ai:usage.subscriptionRequired', { plan }),
+        accessibilityLabel: fmt.t('ai:usage.a11ySubscriptionRequired', { limit: usage.limit }),
+        exhausted: true,
+      };
+    }
     const fresh = new Date(usage.resetsAt).getTime() > now.getTime();
     const used = fresh ? Math.min(usage.used, usage.limit) : 0;
-    const plan = planLabel(fmt, usage.plan);
     return {
-      label: fmt.t('ai:usage.today', { used, limit: usage.limit, plan }),
-      accessibilityLabel: fmt.t('ai:usage.a11y', { used, limit: usage.limit, plan }),
+      label: fmt.t(`ai:usage.current.${period}`, { used, limit: usage.limit, plan }),
+      accessibilityLabel: fmt.t(`ai:usage.a11y.${period}`, { used, limit: usage.limit, plan }),
       exhausted: used >= usage.limit,
     };
   }
   if (!fallback) return null;
   const plan = planLabel(fmt, fallback.plan);
+  const key = fallback.plan === 'free' ? 'introductory' : 'perMonth';
   return {
-    label: fmt.t('ai:usage.perDay', { limit: fallback.limit, plan }),
-    accessibilityLabel: fmt.t('ai:usage.a11yPlan', { limit: fallback.limit, plan }),
+    label: fmt.t(`ai:usage.allowance.${key}`, { limit: fallback.limit, plan }),
+    accessibilityLabel: fmt.t(`ai:usage.a11yAllowance.${key}`, { limit: fallback.limit, plan }),
     exhausted: false,
   };
 }

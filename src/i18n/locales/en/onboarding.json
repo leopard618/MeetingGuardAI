@@ -119,8 +119,8 @@
       "share": "Send the marketing meeting link to john@company.com",
       "bulk": "Push all my meetings tomorrow 30 minutes later"
     },
-    "quota_one": "Your {{plan}} plan includes {{count}} assistant request per day.",
-    "quota_other": "Your {{plan}} plan includes {{count}} assistant requests per day.",
+    "quotaIntro": "Your first {{days}} days include {{total}} free AI actions, up to {{perDay}} a day. Creating meetings and tasks by hand, your reminders and export are always free.",
+    "quotaMonth": "Your {{plan}} plan includes {{count}} AI actions per month.",
     "plans": {
       "free": "Free",
       "pro": "Pro",
