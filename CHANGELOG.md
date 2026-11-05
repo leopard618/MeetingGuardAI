@@ -11,6 +11,15 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Added
 
+- **AI allowances replace the daily quota** (November 5, agreed with the client): the Free plan
+  is an introductory allowance of 10 AI actions during the 7 days after the first one, at most 3
+  a day; afterwards the assistant needs a subscription while creating by hand, viewing, export
+  and reminders stay free. Pro has 100 and Premium 400 AI actions per subscription month,
+  renewing on the monthly anniversary of the subscription start (yearly subscribers too), with
+  counters shared across devices. A reply that only asks for missing details is not counted, up
+  to two in a row. The server refunds its own failures as before. Plan, onboarding, usage and
+  legal texts updated in English and Spanish; store wording and console steps in
+  docs/v2/ALLOWANCES-2026-11-05.md. ARCHITECTURE section 35, TESTING T29.
 - **Running late (M9)** (November 4): "Running late" on the dashboard card, in meeting details
   and on the MAX alarm and MEDIUM banner. Pick 5, 10, 15 or 30 minutes and get a ready message
   in your language with the meeting title and the new time, edit it and send it from your phone

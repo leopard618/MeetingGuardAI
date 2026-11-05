@@ -1659,3 +1659,48 @@ or below the next meeting (the meeting is why the app was opened). Never a check
   windows, lenient parsing), `DashboardScreen.test.tsx` "setup recommendation" (placement above
   and below, Not now and the empty-state button, To Do after Outlook, email verification resend,
   nothing when done). Device test guide: `docs/v1/TESTING.md` T28.
+
+## 35. AI allowances (introductory window, monthly cycles, clarification credits)
+
+Agreed with the client on November 5, 2026 (docs/v2/ALLOWANCES-2026-11-05.md holds the wording
+for every surface). The numbers live in `AI_ALLOWANCES` / `PLAN_AI_LIMITS` in the shared
+contract; `functions/src/assistant/quota.ts` enforces them; the app only displays.
+
+- **Free: the introductory allowance.** A window of 7 days that starts with the user's FIRST AI
+  action (`usage/{uid}.introStartedAt`), 10 actions in total (`introUsed`), at most 3 per UTC
+  day (the existing `usage/{uid}/days/{day}` counter). When the window has ended or the 10 are
+  used, `evaluateQuota` denies with `usage.period: 'window'` and `subscriptionRequired: true`;
+  the daily cap denies with `period: 'day'` and the next UTC midnight as `resetsAt`. Manual
+  creation, viewing, export and the scheduled reminders never touch the quota.
+- **Pro and Premium: monthly cycles.** 100 / 400 actions per subscription month. The cycle is the
+  monthly anniversary of `entitlements/{uid}.startedAt` (`subscriptionCycle`: day of month
+  clamped to the month's length; a UTC calendar month when the start is unknown,
+  `calendarMonthCycle`), the same for yearly subscribers. The counter is `cycleKey` (the cycle
+  start) + `cycleUsed` on the root document: a new key starts at 0, so nothing is pruned.
+  `startedAt` is written by the RevenueCat webhook and the reconcile callable through
+  `withStartedAt` (shared/entitlement.ts): kept while the same plan runs on (active or grace,
+  renewals included), reset to the store's purchase time by a new subscription or a plan change,
+  untouched by expired / revoked writes. `resolveEffectivePlan` returns it with the plan.
+- **One transaction.** `consumeQuota` reads the entitlement, the day counter and the root
+  document, decides, and writes the counters it charges (`QuotaCharges`: day, intro, cycle key).
+  `refundQuota` gives back exactly those charges (upstream failures, missing follow-up meeting),
+  never below zero, never a cycle counter whose key moved on.
+- **Clarification credits.** After the model answered, a chat reply with no tool call, no
+  proposal, no resolution and a question mark at the end (`isClarification`, handler.ts) is a
+  clarification. `settleClarification` refunds it while `usage/{uid}.clarifications` is below
+  `CLARIFICATIONS_PER_ACTION` (2) and increments the run; the third in a row stays charged; any
+  other reply resets the run to 0. The prompt gets rule 12 ("do not ask again, propose or send
+  the user to the form") once the run is exhausted, so the model stops the loop itself. The
+  response `usage.used` reflects the refund.
+- **Contract.** `AssistantUsage` gained `period` ('day' | 'window' | 'month') and
+  `subscriptionRequired`, both optional: an older app reads the answer as a daily figure. The app
+  (`describeUsage`, `describeAssistantError`, `summarizeUsage`, the Plans screen, onboarding and
+  the Terms) words each period and the used-up free allowance (what stays free). The WhatsApp
+  sublimits of Stage 3 (30 / 100 completed requests per month) will count inside these numbers.
+- **Rules.** `usage/{uid}` joins `usage/{uid}/days/{day}`: owner read, no client write.
+- **Tests.** `functions/test/unit/quota.test.ts` (window, day cap, used up, cycles and clamping,
+  refunds, clarification run, lenient root), `handler.test.ts` (day cap, window usage,
+  clarification refund and the exhausted prompt), `revenuecat*.test.ts` unchanged shapes
+  (`purchasedAtIso` only when the event carries it); app: `presentation.test.ts`,
+  `pricing.test.tsx`, `legal.test.tsx`, `AssistantScreen.test.tsx`. Device test guide:
+  `docs/v1/TESTING.md` T29.

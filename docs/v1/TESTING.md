@@ -954,3 +954,17 @@ Needs a fresh account signed in with email and password (row 1) and a Google acc
 | 5 | Tap "Connect a calendar" (card or empty state) and connect Google Calendar. | Settings > Calendar sync opens; after connecting, back on the dashboard the card is gone (store build) or says "Sync your tasks" with Google Tasks (test build). Connect Outlook instead: the card says "Sync your tasks" with Microsoft To Do. |
 | 6 | Turn the task sync on. | No card. Disconnect the calendar: the "Connect your calendar" card returns (unless it was snoozed). |
 | 7 | Spanish. | "Recomendado", "Conecta tu calendario", "Ahora no". |
+
+### T29. AI allowances (ARCHITECTURE section 35; functions and rules deployed)
+
+Needs a fresh free account and, for rows 5 and 6, a sandbox Pro subscription.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Fresh account, Plans screen before any AI use. | The Free card says "10 free AI actions in your first 7 days, up to 3 a day"; the usage card says "Your count appears after you use the assistant." Pro and Premium say "100 / 400 AI actions per month". No trial badge once the store offers are removed. |
+| 2 | Send three assistant requests. | The pill reads "1/10 free actions" then 2, then 3. The Plans usage card says "3 of 10 free actions used" and "Free allowance until <date 7 days after the first request>". |
+| 3 | Send a fourth request the same UTC day. | Refused with "You've used today's 3 free AI actions. More <time>." and the See plans button. Nothing counted (the pill stays 3/10). |
+| 4 | Ask something incomplete ("book a meeting with Luis"), answer the question with another incomplete message, then a third. | The first two clarifying questions do not raise the count; the third request is counted and the assistant proposes or asks you to complete the form instead of asking again. |
+| 5 | Over the next days use the 10 (or move the clock on the server side). | The pill reads "Free actions used · see plans"; the chat says the 10 free actions are used and what stays free; creating a meeting by hand, its alarm, viewing and export still work. |
+| 6 | Subscribe to Pro (sandbox), send a request. | The pill reads "1/100 this month · Pro"; the Plans usage card says "1 of 100 actions used this month" and "Renews <subscription day next month>". Sign in on a second phone: the same count. |
+| 7 | Spanish. | "3/10 acciones gratis", "Ya usaste las acciones gratis de hoy", "1/100 este mes · Pro". |
