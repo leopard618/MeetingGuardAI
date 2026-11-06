@@ -114,7 +114,10 @@ module.exports = {
     // 1.5.0 (V2 Stage 1): expo-speech-recognition (assistant voice input) is a new native module
     // + RECORD_AUDIO / microphone + speech recognition permissions: store/APK build only, never
     // an OTA update onto 1.4.x.
-    version: '1.5.0',
+    // 1.6.0 (V2 Stage 2): the full-screen alarm native module and the Microsoft sign-in redirect
+    // (meetingguardai://auth/microsoft) are native changes: store/APK build only, never an OTA
+    // update onto 1.5.x. Frozen 2026-11-05 (docs/v2/RELEASE-1.6.0.md section 0).
+    version: '1.6.0',
     scheme: 'meetingguardai',
     platforms: ['ios', 'android'],
     orientation: 'portrait',

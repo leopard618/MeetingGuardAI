@@ -28,9 +28,9 @@ Facts this plan rests on:
 1. `TEST-GUIDE-STAGE2.md` passed on an Android phone and on an iPhone, and the Spanish part
    passed. Every failure is fixed before the build, not after. Device-visible fixes after the
    freeze are limited to failures of that guide.
-2. `version` in app.config.js is 1.6.0 (today it still reads 1.5.0; bump it in the freeze
-   commit together with the CHANGELOG date). `npm run apk:test` names test builds after it, so
-   the last test APK before the store build is a 1.6.0-test one.
+2. `version` in app.config.js is 1.6.0 (done in the freeze commit of November 5, package.json
+   too; the CHANGELOG heading stays Unreleased until the store release, section 6). `npm run
+   apk:test` names test builds after it, so every test APK from now on is a 1.6.0-test one.
 3. Clean checkout checks exactly as docs/v1/DEPLOYMENT.md section 4 lists them: typecheck, lint,
    the whole jest suite, the functions tests. All green on the freeze commit.
 4. `eas env:list --environment production` is complete and includes
