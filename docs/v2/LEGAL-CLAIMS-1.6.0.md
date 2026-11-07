@@ -138,7 +138,7 @@ section. The website copy of these texts is TERMS-UPDATE-FOR-WEBSITE-2026-11-06.
 
 ## Website wording deliberately not carried over (the code does not do it)
 
-TERMS-UPDATE-FOR-WEBSITE.md, section B13, gives Sven the same list.
+TERMS-UPDATE-FOR-WEBSITE-2026-11-06.md, section B13, gives Sven the same list.
 
 | Website text (PRIVACY-POLICY-UPDATE-2026-11-02.md) | What the code does | Evidence |
 |---|---|---|
@@ -192,14 +192,63 @@ the open questions of the hand-off.
 | L16 paywall link says "Terms of Use" | Open (pricing.json:109) | none |
 | L17 Settings row lists only Google Calendar | Open (settings.json:29) | none |
 | C2 Apple 5.1.1(i) equal-protection statement | Applied (the providers' data processing terms must be confirmed: open) | sharing note; P71a |
-| C3 November 2 website text contradicts the app | Applied in TERMS-UPDATE-FOR-WEBSITE.md (Part B replaces it, B13 lists the differences) | website document |
-| C4 deletion does not cancel the subscription | Applied in the drafts; the delete confirmation text (auth.json:39) is open | terms.plans body[2], retention item 0; T13a, P72 |
+| C3 November 2 website text contradicts the app | Applied in TERMS-UPDATE-FOR-WEBSITE-2026-11-06.md (Part B replaces it, B13 lists the differences) | website document |
+| C4 deletion does not cancel the subscription | Applied in the drafts and in the delete confirmation text (auth.json, deleteAccount.message) | terms.plans body[2], retention item 0; T13a, P72 |
 | C7 no retention period for purchase records | Partly: RevenueCat's copy disclosed; the period and its legal basis are open (counsel) | retention items 6 and 7 |
-| C8 store declarations behind the policy | Open (docs/v2/RELEASE-1.6.0.md section 3, consoles) | none |
-| C9 delete-account page incomplete | Applied for the website page (TERMS-UPDATE-FOR-WEBSITE.md Part C); public/delete-account.html is open | website document |
+| C8 store declarations behind the policy | Applied in docs/v2/RELEASE-1.6.0.md section 3; the consoles are open | none |
+| C9 delete-account page incomplete | Applied: website page (TERMS-UPDATE-FOR-WEBSITE-2026-11-06.md Part C) and public/delete-account.html (live after the next hosting deploy) | website document |
 | C10 onboarding AI disclosure and consent | Open (onboarding.json:130, product decision) | none |
-| C11 legal texts must be in the store binary | Open (release step; see the apply instructions) | none |
+| C11 legal texts must be in the store binary | Applied: commit dddd715; the store builds of November 6 (Android versionCode 27, iOS build 11) were uploaded from the work tree at dddd715 (the EAS build page shows 3308b9d, the HEAD of the .git folder on D:, which EAS reads instead of the side git dir); RELEASE-1.6.0.md section 0 item 8 | none |
 | C16 notifications section only names meeting alerts | Applied | privacy.notifications; P79a |
 | C18 when payment is charged | Applied | terms.plans body[1]; T8a |
 | C22 trials still in the consoles | Open (console check) | none |
 | C23 Apple standard EULA sentence | Not applied: the standard EULA picks California law, which conflicts with the England and Wales clause; counsel decides | none |
+
+## Open after the November 6 update (owner, counsel, or a later build)
+
+Decisions for the owner and counsel:
+
+1. Zoom meetings after an account deletion: nothing deletes them on Zoom
+   (functions/src/deleteAccount.ts only copies the ids to the deletion record, which is purged
+   after 30 days). The policy says they stay until the user asks. Better: a scheduled job that
+   deletes accountDeletions.zoomMeetingIds on Zoom before the purge; retention item 4 then says
+   "deleted from our Zoom account within 30 days".
+2. Purchase records: deleteAccount never deletes the RevenueCat subscriber and the
+   revenuecatEvents markers are never purged. The policy discloses both without a period. Choose
+   a period (and a legal-obligation basis if they are tax records), implement the purge or the
+   anonymization, then add the period to retention items 6 and 7 and the basis to rights note 1.
+3. Service providers: confirm data processing terms with OpenAI, RevenueCat, Sentry, Expo, Zoom,
+   Meta (WhatsApp Business) and Google Cloud, since the sharing note says they "must protect it
+   at least as well as this policy describes".
+4. AI consent (Apple 5.1.2(i)): onboarding.json says only "upcoming meetings". It could also
+   name tasks, the past 7 days and participants' names and emails; decide whether an explicit
+   one-time consent comes before the first AI request and before WhatsApp linking, also for
+   users who onboarded earlier.
+5. For counsel: "anonymous user ID" is really a pseudonymous id; the Apple standard EULA sentence
+   (C23); terms.liability says "the amount you paid us" while the stores collect the payment; the
+   legal-basis note.
+
+Code or text for a later build or an OTA update:
+
+6. Backup replay: add microsoftIdentities (where uid ==, holds the email) and zoomMeetings to
+   deleteAccountDocuments (functions/src/maintenance/core.ts) and to
+   scripts/replay-account-deletions.mjs. Until then, delete them by hand after any restore
+   (docs/v1/DEPLOYMENT.md section 7).
+7. Meeting descriptions sent to the assistant keep links and passcodes written in them. Option:
+   strip URLs and passcode or meeting-ID lines in toModelView
+   (functions/src/assistant/context.ts); the AI section could then say again that links and
+   passcodes are never sent.
+8. Voice: requiresOnDeviceRecognition is unset, so the phone's recognizer may send audio to
+   Apple or Google (the policy says so). Setting it to true would allow "on the device only",
+   but recognition then fails on phones without the language pack.
+9. Small leftovers: the billing.ts header still mentions the 3-day trial; pricing.json keeps the
+   trial and comingSoon strings (the trial badge only shows if a store reports a trial); the
+   paywall link says "Terms of Use" while the document is "Terms of Service"; terms.service
+   names neither Zoom nor WhatsApp (both appear in "AI assistant" and "Third-party services").
+
+Not verifiable from the repo (check in the consoles):
+
+10. RevenueCat production keys for both platforms (the EAS production environment holds both
+    variables); the free-trial offers removed on all four products; WHATSAPP_ENABLED and
+    ZOOM_ENABLED in production; the Cloud Run request logs (IP address, user agent) and the 30
+    days of the _Default log bucket; cloud recording off on the Zoom host account.
