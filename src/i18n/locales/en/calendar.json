@@ -60,6 +60,7 @@
     "description": "Two-way sync of your tasks with Microsoft To Do on the same Microsoft account as Outlook. Title, notes, due date, reminder and done state go both ways.",
     "state": {
       "on": "Syncing",
+      "needsList": "List needed",
       "off": "Off"
     },
     "connectFirst": "Connect Outlook above first. Tasks sync through the same Microsoft account.",
@@ -73,6 +74,8 @@
     "syncSwitch": "Sync tasks",
     "listLabel": "List: {{name}}",
     "changeList": "Change list",
+    "needsListHint": "Choose a list so new tasks reach Microsoft To Do.",
+    "chooseListAction": "Choose list",
     "enabledTitle": "Microsoft To Do connected",
     "firstSyncSummary": "Imported {{created}} tasks and sent {{pushed}} tasks to To Do.",
     "firstSyncFailed": "Turned on, but the first sync did not finish: {{error}} Meeting Guard will try again automatically.",
@@ -88,6 +91,7 @@
     "description": "Two-way sync of your tasks with Google Tasks on the Google account signed in on this phone. Title, notes, due date and done state go both ways.",
     "state": {
       "on": "Syncing",
+      "needsList": "List needed",
       "off": "Off"
     },
     "connectFirst": "Sign in with Google on this device first. Tasks sync through that Google account.",
@@ -101,6 +105,8 @@
     "syncSwitch": "Sync tasks",
     "listLabel": "List: {{name}}",
     "changeList": "Change list",
+    "needsListHint": "Choose a list so new tasks reach Google Tasks.",
+    "chooseListAction": "Choose list",
     "enabledTitle": "Google Tasks connected",
     "firstSyncSummary": "Imported {{created}} tasks and sent {{pushed}} tasks to Google Tasks.",
     "firstSyncFailed": "Turned on, but the first sync did not finish: {{error}} Meeting Guard will try again automatically.",

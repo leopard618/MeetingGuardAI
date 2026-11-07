@@ -832,7 +832,9 @@ export interface TodoSyncResult {
  * - Pull: /me/todo/lists/{listId}/tasks/delta per synced list with persisted delta links
  *   (USER_STORAGE.todoTasks); HTTP 410 => full listing. '@removed' deletes the local task.
  *   Tasks completed in To Do before they were ever seen here are not imported.
- * - "Enabled" is per device (like the Outlook connection); the chosen list is in preferences.
+ * - "Enabled" is per device (like the Outlook connection); the chosen list is in preferences, and
+ *   a device whose sync is on remembers it too: it puts the list back when another device erased
+ *   it there. With no list at all, new tasks wait in the queue (never dropped).
  */
 export interface TodoSyncService {
   /** EXPO_PUBLIC_MSAL_CLIENT_ID present (To Do UI hidden otherwise). */
@@ -846,7 +848,11 @@ export interface TodoSyncService {
    * list, queues every open unlinked task for push and flushes. Requires the account connection.
    */
   enable(list: Pick<TodoList, 'id' | 'name'>): Promise<TodoSyncResult | null>;
-  /** Changes the default list for NEW tasks (existing links stay where they are). */
+  /**
+   * Changes the default list for NEW tasks (existing links stay where they are). While this
+   * device's sync is on, the open tasks without a To Do copy (those that waited for a list among
+   * them) are queued and sent; a failed send shows in the status and does not throw.
+   */
   setList(list: Pick<TodoList, 'id' | 'name'>): Promise<void>;
   /**
    * Turns the sync off: forgets the queue and delta links, deletes the tasks imported from To Do
@@ -877,7 +883,9 @@ export type TaskSyncResult = TodoSyncResult;
  *   list (USER_STORAGE.gtasksTasks); a full listing on the first sync, every 7 days and whenever
  *   the marker is missing. `deleted: true` deletes the local task. Tasks completed in Google
  *   before they were ever seen here are not imported.
- * - "Enabled" is per device; the chosen list is in preferences.
+ * - "Enabled" is per device; the chosen list is in preferences, and a device whose sync is on
+ *   remembers it too: it puts the list back when another device erased it there. With no list
+ *   at all, new tasks wait in the queue (never dropped).
  * - isConfigured() is the build switch EXPO_PUBLIC_GOOGLE_TASKS_SYNC (anything but 'off' = on):
  *   store builds keep it off until Google has verified the tasks scope.
  */
@@ -895,7 +903,11 @@ export interface GoogleTasksSyncService {
    * list in preferences, pulls the list, queues every open unlinked task for push and flushes.
    */
   enable(list: Pick<TaskListInfo, 'id' | 'name'>): Promise<TaskSyncResult | null>;
-  /** Changes the default list for NEW tasks (existing links stay where they are). */
+  /**
+   * Changes the default list for NEW tasks (existing links stay where they are). While this
+   * device's sync is on, the open tasks without a Google copy (those that waited for a list among
+   * them) are queued and sent; a failed send shows in the status and does not throw.
+   */
   setList(list: Pick<TaskListInfo, 'id' | 'name'>): Promise<void>;
   /**
    * Turns the sync off: forgets the queue and markers, deletes the tasks imported from Google

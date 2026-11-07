@@ -968,3 +968,17 @@ Needs a fresh free account and, for rows 5 and 6, a sandbox Pro subscription.
 | 5 | Over the next days use the 10 (or move the clock on the server side). | The pill reads "Free actions used · see plans"; the chat says the 10 free actions are used and what stays free; creating a meeting by hand, its alarm, viewing and export still work. |
 | 6 | Subscribe to Pro (sandbox), send a request. | The pill reads "1/100 this month · Pro"; the Plans usage card says "1 of 100 actions used this month" and "Renews <subscription day next month>". Sign in on a second phone: the same count. |
 | 7 | Spanish. | "3/10 acciones gratis", "Ya usaste las acciones gratis de hoy", "1/100 este mes · Pro". |
+
+### T30. Task sync across builds and app switching (November 6 fix; ARCHITECTURE sections 28 and 30)
+
+Needs an Android test build with Google Tasks and To Do on, and an iPhone on the App Store 1.5.0
+build signed in to the same account.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | On the iPhone 1.5.0, change any setting (for example the 24-hour clock). Then open Settings > Calendar sync on the Android. | The Google Tasks and To Do cards still name the chosen list (the Android puts it back as soon as it runs). |
+| 2 | On the Android, create a task. | It appears in Google Tasks and in To Do. |
+| 3 | On the iPhone 1.5.0, tick a synced task. | Google Tasks and To Do show it completed once the Android has synced; no duplicate appears anywhere. |
+| 4 | On the Android, save a task and switch to the Google Tasks app within a second. | The task arrives without coming back to Meeting Guard. |
+| 5 | Complete a task in the Google Tasks app, then switch back to Meeting Guard. | The task shows as done within a few seconds, without pulling to refresh. |
+| 6 | On a phone whose list was already lost before this build, open the card. | It says "List needed" with "Choose list"; choosing the list sends the tasks that waited. |

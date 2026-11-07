@@ -1289,6 +1289,24 @@ absent, the To Do card is hidden and the engine skips the provider.
   id -> actual list + To Do id, this device) tells the two apart; other devices read the link
   from the task document. The assistant's confirm card and the task editor show the list name
   before anything is saved (`AiActionPreview.todoListName`, `TaskEditorTodo`).
+- **List memory and older builds** (November 6, 2026; the same in section 30). The App Store
+  1.5.0 build saves the preferences as a whole document from its own schema, so any settings
+  change on such a phone erases `todoListId` / `gtasksListId` and their names. Each device
+  therefore also remembers the list while its sync is on (`state.listId` / `state.listName`).
+  `resolveList` in the service is the one answer for the push (`defaultList`) and the status:
+  the list in preferences when there is one (a device follows a list changed elsewhere), else
+  the remembered list, which is written back to preferences (only over settings that came from
+  the server, never while signed out; a choice made meanwhile wins, `choiceEpoch`). A change
+  with no list to go to stays queued untouched (`listMissing`), the card shows "List needed"
+  with "Choose list", and `setList` queues the open tasks without a copy and flushes. A state
+  stored before the memory existed queues those tasks once when it first remembers a list.
+  The same build also saves tasks as whole documents without `source` / `external`: the data
+  engine keeps this device's values for such a document (`restoreTaskKeys`; an unlink writes
+  `external` with nulls and still clears the links), asks for the push of the change when the
+  task has a provider copy, and repairs the server copy (origin `system`, mode set, its own
+  `updatedAt`, `pushPending` kept when a push was asked; `decideTaskRepair` never creates or
+  deletes a document). Push and pull also match a document that lost its link through
+  `state.links`, so its copy is patched in place, never duplicated or moved.
 - **What syncs.** Title, notes (`body`, text), due DATE, reminder (a To Do instant: due time
   minus the offset), done state (`status: completed`), deletion. What stays in MeetingGuard only,
   and the editor says so: a due time without a reminder, people, the meeting link, the zone.
@@ -1319,7 +1337,11 @@ absent, the To Do card is hidden and the engine skips the provider.
   app is active the engine also pulls To Do on its own every `TODO_FOREGROUND_INTERVAL_MS` (60 s),
   so a task completed in To Do silences its reminder here within a minute (the task reminder
   reconciler reacts to the repository change). In the background the cadence is the OS background
-  refresh.
+  refresh. Android pauses JS timers in the background, so the engine does not rely on them there:
+  coming back to the app pulls the task providers at once when the calendar `autoSync` is
+  throttled (`TASK_RESUME_MIN_GAP_MS`, 15 s), and on leaving the app, or for a task change made
+  out of the foreground, the task queues are sent at once instead of after the 2 s debounce
+  (`flushLocalChanges('tasks')`; the meeting queues keep the debounce for the Zoom push hold).
 - **Disable.** Forgets the queue, delta links and links; deletes the tasks imported from To Do
   (their copies stay in Microsoft); clears the links of the other tasks and the list in
   preferences. Session end wipes `mg:{uid}:*` like every other sync state; the token is the
@@ -1332,7 +1354,7 @@ absent, the To Do card is hidden and the engine skips the provider.
   `TaskSyncReport` with one error entry per failing provider, the first one shown as a toast), and
   gaining focus runs the same sync quietly at most once every 15 s (`useTasksRefresh`,
   `src/screens/tasks/useTasksRefresh.ts`), so opening the screen is enough to see what changed
-  elsewhere. The one-minute pull and the debounced push keep running in the background.
+  elsewhere. The one-minute pull and the debounced push run while the app is active (see Timing).
 - **Tests.** `src/services/tasks/__tests__` (mapping, sync with a scriptable Graph fake, service),
   `src/services/calendar/__tests__/engineTodo.test.ts`, the data engine's task write options and
   event (`engineTasks.test.ts`), the rules drift test, the calendar sync screen's To Do card and

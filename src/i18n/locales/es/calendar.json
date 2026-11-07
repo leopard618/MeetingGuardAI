@@ -60,6 +60,7 @@
     "description": "Sincronización en ambos sentidos de tus tareas con Microsoft To Do, en la misma cuenta Microsoft que Outlook. Título, notas, fecha límite, recordatorio y estado van en ambos sentidos.",
     "state": {
       "on": "Sincronizando",
+      "needsList": "Falta la lista",
       "off": "Desactivado"
     },
     "connectFirst": "Primero conecta Outlook arriba. Las tareas se sincronizan con la misma cuenta Microsoft.",
@@ -73,6 +74,8 @@
     "syncSwitch": "Sincronizar tareas",
     "listLabel": "Lista: {{name}}",
     "changeList": "Cambiar lista",
+    "needsListHint": "Elige una lista para que las tareas nuevas lleguen a Microsoft To Do.",
+    "chooseListAction": "Elegir lista",
     "enabledTitle": "Microsoft To Do conectado",
     "firstSyncSummary": "Se importaron {{created}} tareas y se enviaron {{pushed}} tareas a To Do.",
     "firstSyncFailed": "Activado, pero la primera sincronización no terminó: {{error}} Meeting Guard lo intentará de nuevo automáticamente.",
@@ -88,6 +91,7 @@
     "description": "Sincronización en ambos sentidos de tus tareas con Google Tasks, en la cuenta de Google con la que iniciaste sesión en este teléfono. Título, notas, fecha límite y estado van en ambos sentidos.",
     "state": {
       "on": "Sincronizando",
+      "needsList": "Falta la lista",
       "off": "Desactivado"
     },
     "connectFirst": "Primero inicia sesión con Google en este dispositivo. Las tareas se sincronizan con esa cuenta de Google.",
@@ -101,6 +105,8 @@
     "syncSwitch": "Sincronizar tareas",
     "listLabel": "Lista: {{name}}",
     "changeList": "Cambiar lista",
+    "needsListHint": "Elige una lista para que las tareas nuevas lleguen a Google Tasks.",
+    "chooseListAction": "Elegir lista",
     "enabledTitle": "Google Tasks conectado",
     "firstSyncSummary": "Se importaron {{created}} tareas y se enviaron {{pushed}} tareas a Google Tasks.",
     "firstSyncFailed": "Activado, pero la primera sincronización no terminó: {{error}} Meeting Guard lo intentará de nuevo automáticamente.",

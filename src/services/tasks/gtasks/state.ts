@@ -41,8 +41,16 @@ export type GtasksListState = z.infer<typeof gtasksListStateSchema>;
 
 export const gtasksSyncStateSchema = z.object({
   v: z.literal(1),
-  /** The per-device switch (the chosen list is in preferences, synced across devices). */
+  /** The per-device switch (the chosen list is shared through preferences). */
   enabled: z.boolean(),
+  /**
+   * The list new tasks go to as THIS device knows it (chosen here, or followed from preferences),
+   * kept while its sync is on. An older build that saves the preferences as a whole document
+   * erases the shared choice; the service then puts this one back (service.ts resolveList).
+   * States stored before this field existed have none.
+   */
+  listId: z.string().nullable().default(null),
+  listName: z.string().nullable().default(null),
   lastSyncAt: z.string().nullable(),
   lastError: errorCodeSchema.nullable(),
   /** List id -> pull state. Lists appear when they are synced for the first time. */
@@ -61,7 +69,7 @@ export const gtasksSyncStateSchema = z.object({
 export type GtasksSyncState = z.infer<typeof gtasksSyncStateSchema>;
 
 export function defaultGtasksSyncState(): GtasksSyncState {
-  return { v: 1, enabled: false, lastSyncAt: null, lastError: null, lists: {}, pending: {}, hashes: {}, links: {} };
+  return { v: 1, enabled: false, listId: null, listName: null, lastSyncAt: null, lastError: null, lists: {}, pending: {}, hashes: {}, links: {} };
 }
 
 export const GTASKS_STATE_NAME = USER_STORAGE.gtasksTasks;

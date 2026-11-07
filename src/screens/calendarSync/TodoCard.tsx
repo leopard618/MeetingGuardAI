@@ -2,7 +2,9 @@
  * Microsoft To Do card of the calendar sync screen (only when EXPO_PUBLIC_MSAL_CLIENT_ID is set).
  * The sync rides on the Outlook connection: without it the card only says so. Turning it on asks
  * which list new tasks go to (the account's lists, loaded live); while on, the list can be
- * changed and the sync stopped. Every state comes from the shared calendar status.
+ * changed and the sync stopped. On without a list for new tasks (none could be restored), the
+ * card asks for one instead of showing an empty list. Every state comes from the shared
+ * calendar status.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useState, type ReactElement } from 'react';
@@ -60,6 +62,8 @@ export function TodoCard({
   const stateBadge = toneBadgeColors(palette, state.tone);
   const [chooser, setChooser] = useState<Chooser | null>(null);
   const disabled = locked || working !== null;
+  // On, but no list resolved for new tasks (erased on another device): they wait until one is chosen.
+  const needsList = state.labelKey === 'calendar:todo.state.needsList';
 
   const openChooser = (): void => {
     setChooser({ lists: [], loading: true, error: null, selectedId: todo.listId });
@@ -160,12 +164,18 @@ export function TodoCard({
             />
           </View>
           <View style={styles.listRow}>
-            <Text style={[partStyles.meta, styles.listName, { color: palette.muted }]} numberOfLines={2} testID="calendar-todo-list">
-              {t('calendar:todo.listLabel', { name: todo.listName ?? '' })}
-            </Text>
+            {needsList ? (
+              <Text style={[partStyles.body, styles.listName, { color: palette.warning }]} testID="calendar-todo-needs-list">
+                {t('calendar:todo.needsListHint')}
+              </Text>
+            ) : (
+              <Text style={[partStyles.meta, styles.listName, { color: palette.muted }]} numberOfLines={2} testID="calendar-todo-list">
+                {t('calendar:todo.listLabel', { name: todo.listName ?? '' })}
+              </Text>
+            )}
             {chooser === null ? (
               <Pressable onPress={openChooser} disabled={disabled} accessibilityRole="button" hitSlop={8} testID="calendar-todo-change-list">
-                <Text style={[styles.link, { color: palette.accent }]}>{t('calendar:todo.changeList')}</Text>
+                <Text style={[styles.link, { color: palette.accent }]}>{needsList ? t('calendar:todo.chooseListAction') : t('calendar:todo.changeList')}</Text>
               </Pressable>
             ) : null}
           </View>

@@ -1,3 +1,4 @@
+import { AppError } from '../../../core/errors';
 import { EMPTY_TASK_EXTERNAL_REFS } from '../../../core/types';
 import { defaultGtasksSyncState, type GtasksSyncState } from '../gtasks/state';
 import {
@@ -34,7 +35,7 @@ function setup(options: { defaultList?: string | null; state?: Partial<GtasksSyn
   const api = new FakeGoogleTasksApi(clock);
   const tasks = new FakeTasks(clock);
   const state = memoryStateStore<GtasksSyncState>({ ...defaultGtasksSyncState(), enabled: true, ...options.state });
-  const defaultList = options.defaultList === undefined ? LIST : options.defaultList;
+  let defaultList = options.defaultList === undefined ? LIST : options.defaultList;
   const deps: GtasksSyncDeps = {
     api,
     tasks,
@@ -44,7 +45,10 @@ function setup(options: { defaultList?: string | null; state?: Partial<GtasksSyn
     defaultTimeZone: () => 'UTC',
     untitledTitle: () => '(No title)',
   };
-  return { clock, api, tasks, state, deps };
+  const setDefaultList = (id: string | null): void => {
+    defaultList = id;
+  };
+  return { clock, api, tasks, state, deps, setDefaultList };
 }
 
 describe('ids and list selection', () => {
@@ -185,6 +189,34 @@ describe('pullGtasksChanges', () => {
     expect((await tasks.get(work.id))?.title).toBe('Work item renamed');
     expect(Object.keys(state.value.lists).sort()).toEqual([LIST, 'gl-work']);
   });
+
+  it('links a document that lost its link to the copy this device knows of, never imports that copy', async () => {
+    const { api, tasks, state, deps, clock } = setup();
+    const pushed = (await pushGtasksTask(deps, tasks.add({ title: 'Prepare the proposal' }))).task;
+    // An older build rewrote the document without its link and renamed it (another device's
+    // disable unlinks documents the same way).
+    tasks.tasks.set(pushed.id, { ...pushed, title: 'Prepare the final proposal', external: { ...EMPTY_TASK_EXTERNAL_REFS } });
+
+    const full = await pullGtasksChanges(deps, { full: true });
+
+    expect(full.counts).toMatchObject({ created: 0, removed: 0 });
+    expect(tasks.all().map((task) => task.id)).toEqual([pushed.id]);
+    // Linked again. The copy did not change in Google, so the edit in the document stays.
+    expect(await tasks.get(pushed.id)).toMatchObject({ title: 'Prepare the final proposal', external: { gtasksListId: LIST, gtasksTaskId: 'g1' } });
+
+    // Unlinked again, then renamed in Google: the same task gets the change and the link.
+    const relinked = await tasks.get(pushed.id);
+    tasks.tasks.set(pushed.id, { ...(relinked as NonNullable<typeof relinked>), external: { ...EMPTY_TASK_EXTERNAL_REFS } });
+    clock.advanceMinutes(10);
+    api.seed(LIST, { id: 'g1', title: 'Renamed in Google' });
+
+    const incremental = await pullGtasksChanges(deps);
+
+    expect(incremental.counts).toMatchObject({ created: 0, updated: 1 });
+    expect(tasks.all().map((task) => task.id)).toEqual([pushed.id]);
+    expect(await tasks.get(pushed.id)).toMatchObject({ title: 'Renamed in Google', external: { gtasksListId: LIST, gtasksTaskId: 'g1' } });
+    expect(state.value.links[pushed.id]).toEqual({ listId: LIST, taskId: 'g1' });
+  });
 });
 
 describe('pushGtasksTask', () => {
@@ -247,14 +279,120 @@ describe('pushGtasksTask', () => {
     expect(state.value.hashes.g1).toBeUndefined();
   });
 
-  it('sends nothing without a list and never creates a finished unsynced task', async () => {
-    const { api, tasks, deps } = setup({ defaultList: null });
+  it('keeps a change without a list queued, untouched, and sends it once a list exists', async () => {
+    const { api, tasks, state, deps, setDefaultList } = setup({ defaultList: null });
     const task = tasks.add({ title: 'No list chosen' });
-    expect((await pushGtasksTask(deps, task)).sent).toBe(false);
-    const done = await tasks.update(task.id, { status: 'done' });
-    const withList = setup();
-    expect((await pushGtasksTask(withList.deps, done)).sent).toBe(false);
+    expect(await pushGtasksTask(deps, task)).toEqual({ task, sent: false, listMissing: true });
+    await enqueueGtasksPushes(deps, [{ id: task.id, op: 'upsert' }]);
+    const queued = state.value.pending[task.id];
+
+    // No call, the entry stays exactly as it was (no attempt counted) and `pending` counts it.
+    expect(await flushGtasksPushes(deps)).toEqual({ pushed: 0, failed: 0, pending: 1, blockedBy: null });
+    expect(await flushGtasksPushes(deps)).toEqual({ pushed: 0, failed: 0, pending: 1, blockedBy: null });
     expect(api.calls).toEqual([]);
+    expect(state.value.pending[task.id]).toEqual(queued);
+
+    setDefaultList(LIST);
+    expect(await flushGtasksPushes(deps)).toEqual({ pushed: 1, failed: 0, pending: 0, blockedBy: null });
+    expect(api.calls).toEqual([expect.objectContaining({ method: 'create', listId: LIST })]);
+    expect((await tasks.get(task.id))?.external).toMatchObject({ gtasksListId: LIST, gtasksTaskId: 'g1' });
+  });
+
+  it('never creates a finished task that Google never saw', async () => {
+    const { api, tasks, deps } = setup();
+    const task = tasks.add({ title: 'Finished before any sync' });
+    const done = await tasks.update(task.id, { status: 'done' });
+    expect(await pushGtasksTask(deps, done)).toEqual({ task: done, sent: false });
+    expect(api.calls).toEqual([]);
+  });
+
+  it('patches the copy this device knows of when the document lost its link, wherever the default list is', async () => {
+    const { api, tasks, deps, setDefaultList } = setup();
+    const pushed = (await pushGtasksTask(deps, tasks.add({ title: 'Prepare the proposal' }))).task;
+    // An older build rewrote the document without its link, and the default list changed since.
+    const stripped = { ...pushed, title: 'Prepare the final proposal', external: { ...EMPTY_TASK_EXTERNAL_REFS } };
+    tasks.tasks.set(pushed.id, stripped);
+    setDefaultList('gl-work');
+    api.calls = [];
+
+    const outcome = await pushGtasksTask(deps, stripped);
+
+    expect(outcome.sent).toBe(true);
+    expect(api.calls.map((call) => [call.method, call.listId, call.taskId])).toEqual([['patch', LIST, 'g1']]);
+    expect(outcome.task.external).toMatchObject({ gtasksListId: LIST, gtasksTaskId: 'g1' });
+
+    // With no default list at all it is patched the same way, never left waiting for a list.
+    const strippedAgain = { ...outcome.task, title: 'Third title', external: { ...EMPTY_TASK_EXTERNAL_REFS } };
+    tasks.tasks.set(pushed.id, strippedAgain);
+    setDefaultList(null);
+    api.calls = [];
+    expect((await pushGtasksTask(deps, strippedAgain)).sent).toBe(true);
+    expect(api.calls.map((call) => [call.method, call.listId, call.taskId])).toEqual([['patch', LIST, 'g1']]);
+  });
+
+  it('sends a completion of a task whose document lost its link to the copy this device knows of', async () => {
+    const { api, tasks, deps } = setup();
+    const pushed = (await pushGtasksTask(deps, tasks.add({ title: 'Prepare the proposal' }))).task;
+    // Ticked here after an older build rewrote the document without its link.
+    const done = await tasks.update(pushed.id, { status: 'done' });
+    tasks.tasks.set(pushed.id, { ...done, external: { ...EMPTY_TASK_EXTERNAL_REFS } });
+    await enqueueGtasksPushes(deps, [{ id: pushed.id, op: 'upsert' }]);
+    api.calls = [];
+
+    expect(await flushGtasksPushes(deps)).toEqual({ pushed: 1, failed: 0, pending: 0, blockedBy: null });
+
+    expect(api.calls.map((call) => [call.method, call.listId, call.taskId])).toEqual([['patch', LIST, 'g1']]);
+    expect(api.calls[0]?.body).toMatchObject({ status: 'completed' });
+    expect(api.tasks.get(LIST)?.get('g1')?.status).toBe('completed');
+    expect((await tasks.get(pushed.id))?.external).toMatchObject({ gtasksListId: LIST, gtasksTaskId: 'g1' });
+  });
+
+  it('re-creates a gone copy of a document that lost its link in the default list, not in the list the copy was in', async () => {
+    const { api, tasks, state, deps, setDefaultList } = setup();
+    const pushed = (await pushGtasksTask(deps, tasks.add({ title: 'Prepare the proposal' }))).task;
+    // An older build rewrote the document without its link. The list the copy was in is gone
+    // since (deleted in Google with the copy), and another list is the default now.
+    tasks.tasks.set(pushed.id, { ...pushed, title: 'Prepare the final proposal', external: { ...EMPTY_TASK_EXTERNAL_REFS } });
+    api.tasks.delete(LIST);
+    const create = api.createTask.bind(api);
+    jest.spyOn(api, 'createTask').mockImplementation(async (listId, body) => {
+      if (listId === LIST) throw googleTasksError(404, 'notFound');
+      return create(listId, body);
+    });
+    setDefaultList('gl-work');
+    await enqueueGtasksPushes(deps, [{ id: pushed.id, op: 'upsert' }]);
+    api.calls = [];
+
+    expect(await flushGtasksPushes(deps)).toEqual({ pushed: 1, failed: 0, pending: 0, blockedBy: null });
+
+    expect(api.calls.map((call) => [call.method, call.listId])).toEqual([
+      ['patch', LIST],
+      ['create', 'gl-work'],
+    ]);
+    expect((await tasks.get(pushed.id))?.external).toMatchObject({ gtasksListId: 'gl-work', gtasksTaskId: 'g2' });
+    expect(state.value.links[pushed.id]).toEqual({ listId: 'gl-work', taskId: 'g2' });
+  });
+
+  it('keeps a document that lost its link and its copy waiting when no default list exists', async () => {
+    const { api, tasks, state, deps, setDefaultList } = setup();
+    const pushed = (await pushGtasksTask(deps, tasks.add({ title: 'Prepare the proposal' }))).task;
+    tasks.tasks.set(pushed.id, { ...pushed, title: 'Prepare the final proposal', external: { ...EMPTY_TASK_EXTERNAL_REFS } });
+    api.tasks.get(LIST)?.delete('g1');
+    setDefaultList(null);
+    await enqueueGtasksPushes(deps, [{ id: pushed.id, op: 'upsert' }]);
+    const queued = state.value.pending[pushed.id];
+    api.calls = [];
+
+    // The copy is gone and forgotten; with no list to re-create it in, the change waits.
+    expect(await flushGtasksPushes(deps)).toEqual({ pushed: 0, failed: 0, pending: 1, blockedBy: null });
+    expect(api.calls.map((call) => [call.method, call.listId])).toEqual([['patch', LIST]]);
+    expect(state.value.links[pushed.id]).toBeUndefined();
+    expect(state.value.pending[pushed.id]).toEqual(queued);
+
+    setDefaultList('gl-work');
+    api.calls = [];
+    expect(await flushGtasksPushes(deps)).toEqual({ pushed: 1, failed: 0, pending: 0, blockedBy: null });
+    expect(api.calls.map((call) => [call.method, call.listId])).toEqual([['create', 'gl-work']]);
   });
 
   it('deleteGtasksCopy treats a missing copy as deleted', async () => {
@@ -310,6 +448,49 @@ describe('queue and flush', () => {
     api.failures.push({ method: 'create', error: googleTasksError(400, 'invalid') });
     const dropped = await flushGtasksPushes(deps);
     expect(dropped).toMatchObject({ failed: 1, pending: 0 });
+  });
+
+  it('sends the other changes while one waits for a list', async () => {
+    const { api, tasks, state, deps } = setup({ defaultList: null });
+    const waiting = tasks.add({ title: 'Waits for a list' });
+    const own = tasks.add({ title: 'Has its own list', gtasksListId: 'gl-work' });
+    const linked = tasks.add({ title: 'Linked' });
+    tasks.tasks.set(linked.id, { ...linked, title: 'Linked, renamed', external: { ...EMPTY_TASK_EXTERNAL_REFS, gtasksListId: LIST, gtasksTaskId: 'x1' } });
+    api.seed(LIST, { id: 'x1', title: 'Linked' });
+    await enqueueGtasksPushes(deps, [
+      { id: waiting.id, op: 'upsert' },
+      { id: own.id, op: 'upsert' },
+      { id: linked.id, op: 'upsert' },
+    ]);
+
+    const result = await flushGtasksPushes(deps);
+
+    expect(result).toEqual({ pushed: 2, failed: 0, pending: 1, blockedBy: null });
+    expect(api.calls.map((call) => [call.method, call.listId])).toEqual([
+      ['create', 'gl-work'],
+      ['patch', LIST],
+    ]);
+    expect(Object.keys(state.value.pending)).toEqual([waiting.id]);
+  });
+
+  it('reads the list new tasks go to once per flush, and again after a failed read', async () => {
+    const { tasks, deps, setDefaultList } = setup({ defaultList: null });
+    const read = jest.spyOn(deps, 'defaultList');
+    const waiting = [tasks.add({ title: 'One' }), tasks.add({ title: 'Two' }), tasks.add({ title: 'Three' })];
+    await enqueueGtasksPushes(
+      deps,
+      waiting.map((task) => ({ id: task.id, op: 'upsert' as const })),
+    );
+
+    expect(await flushGtasksPushes(deps)).toEqual({ pushed: 0, failed: 0, pending: 3, blockedBy: null });
+    expect(read).toHaveBeenCalledTimes(1);
+
+    read.mockClear();
+    read.mockRejectedValueOnce(new AppError('upstream_error', 'Preferences unavailable', { retryable: true }));
+    setDefaultList(LIST);
+    // The first entry counts a retry; the next one reads the list again and the rest go out.
+    expect(await flushGtasksPushes(deps)).toEqual({ pushed: 2, failed: 0, pending: 1, blockedBy: null });
+    expect(read).toHaveBeenCalledTimes(2);
   });
 
   it('queues every open unlinked task on enable, never imports or finished ones', async () => {

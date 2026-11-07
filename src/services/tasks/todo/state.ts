@@ -38,8 +38,16 @@ export type TodoListState = z.infer<typeof todoListStateSchema>;
 
 export const todoSyncStateSchema = z.object({
   v: z.literal(1),
-  /** The per-device switch (the chosen list is in preferences, synced across devices). */
+  /** The per-device switch (the chosen list is shared through preferences). */
   enabled: z.boolean(),
+  /**
+   * The list new tasks go to as THIS device knows it (chosen here, or followed from preferences),
+   * kept while its sync is on. An older build that saves the preferences as a whole document
+   * erases the shared choice; the service then puts this one back (service.ts resolveList).
+   * States stored before this field existed have none.
+   */
+  listId: z.string().nullable().default(null),
+  listName: z.string().nullable().default(null),
   lastSyncAt: z.string().nullable(),
   lastError: errorCodeSchema.nullable(),
   /** List id -> delta state. Lists appear when they are synced for the first time. */
@@ -58,7 +66,7 @@ export const todoSyncStateSchema = z.object({
 export type TodoSyncState = z.infer<typeof todoSyncStateSchema>;
 
 export function defaultTodoSyncState(): TodoSyncState {
-  return { v: 1, enabled: false, lastSyncAt: null, lastError: null, lists: {}, pending: {}, hashes: {}, links: {} };
+  return { v: 1, enabled: false, listId: null, listName: null, lastSyncAt: null, lastError: null, lists: {}, pending: {}, hashes: {}, links: {} };
 }
 
 export const TODO_STATE_NAME = USER_STORAGE.todoTasks;

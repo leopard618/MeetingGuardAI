@@ -182,6 +182,16 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+- **Tasks stopped reaching Google Tasks and Microsoft To Do** (November 6, client report): an
+  iPhone on the App Store 1.5.0 build saves the settings as a whole document and erased the task
+  list chosen on the Android, which then dropped every new task without a word while the card
+  still said On. Each phone now remembers its list and puts it back, a task with no list waits
+  in the queue instead of being dropped, the card says "List needed" with a "Choose list"
+  button, and choosing a list sends the waiting tasks. A task edited on the older iPhone build
+  keeps its Google Tasks and To Do links (the server copy is repaired) and its change is pushed.
+  Coming back to the app pulls task changes at once, and a task saved just before leaving the
+  app is sent right away (Android pauses app timers in the background). ARCHITECTURE sections 28
+  and 30, TESTING T30.
 - **"View all tasks" on the dashboard** (November 4, client request): a soft primary-tinted pill
   instead of plain primary text, quieter next to the task rows.
 - **Task confirmation sheet did not name the meeting** (November 3): a task card proposed from a

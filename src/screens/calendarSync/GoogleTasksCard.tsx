@@ -3,7 +3,8 @@
  * 'off'). The sync rides on the Google sign-in of this device: without a Google session the card
  * only says so. Turning it on asks for the Google Tasks permission (incremental consent) and which
  * list new tasks go to (the account's lists, loaded live); while on, the list can be changed and
- * the sync stopped. Every state comes from the shared calendar status.
+ * the sync stopped. On without a list for new tasks (none could be restored), the card asks for
+ * one instead of showing an empty list. Every state comes from the shared calendar status.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useState, type ReactElement } from 'react';
@@ -59,6 +60,8 @@ export function GoogleTasksCard({
   const [chooser, setChooser] = useState<Chooser | null>(null);
   const disabled = locked || working !== null;
   const connected = gtasks.connected;
+  // On, but no list resolved for new tasks (erased on another device): they wait until one is chosen.
+  const needsList = state.labelKey === 'calendar:gtasks.state.needsList';
 
   const openChooser = (): void => {
     setChooser({ lists: [], loading: true, error: null, selectedId: gtasks.listId });
@@ -163,12 +166,18 @@ export function GoogleTasksCard({
             />
           </View>
           <View style={styles.listRow}>
-            <Text style={[partStyles.meta, styles.listName, { color: palette.muted }]} numberOfLines={2} testID="calendar-gtasks-list">
-              {t('calendar:gtasks.listLabel', { name: gtasks.listName ?? '' })}
-            </Text>
+            {needsList ? (
+              <Text style={[partStyles.body, styles.listName, { color: palette.warning }]} testID="calendar-gtasks-needs-list">
+                {t('calendar:gtasks.needsListHint')}
+              </Text>
+            ) : (
+              <Text style={[partStyles.meta, styles.listName, { color: palette.muted }]} numberOfLines={2} testID="calendar-gtasks-list">
+                {t('calendar:gtasks.listLabel', { name: gtasks.listName ?? '' })}
+              </Text>
+            )}
             {chooser === null ? (
               <Pressable onPress={openChooser} disabled={disabled} accessibilityRole="button" hitSlop={8} testID="calendar-gtasks-change-list">
-                <Text style={[styles.link, { color: palette.accent }]}>{t('calendar:gtasks.changeList')}</Text>
+                <Text style={[styles.link, { color: palette.accent }]}>{needsList ? t('calendar:gtasks.chooseListAction') : t('calendar:gtasks.changeList')}</Text>
               </Pressable>
             ) : null}
           </View>

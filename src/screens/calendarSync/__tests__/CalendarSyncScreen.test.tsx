@@ -528,6 +528,26 @@ describe('Google Tasks card (M8)', () => {
     expect(mockGtasks.disable).toHaveBeenCalledTimes(1);
     expect(Alert.alert).toHaveBeenLastCalledWith('Google Tasks sync is off');
   });
+
+  it('asks for a list while on without one instead of an empty list line, and saves the choice', async () => {
+    mockStatus.current = status({
+      gtasks: { configured: true, connected: true, hasScope: true, enabled: true, listId: null, listName: null, lastSyncAt: new Date().toISOString() },
+    });
+    await renderScreen();
+    expect(screen.getByTestId('calendar-gtasks-state').props.children).toBe('List needed');
+    expect(screen.getByTestId('calendar-gtasks-needs-list').props.children).toBe('Choose a list so new tasks reach Google Tasks.');
+    expect(screen.queryByTestId('calendar-gtasks-list')).toBeNull();
+    expect(screen.queryByText(/^List:/)).toBeNull();
+    expect(screen.getByText('Choose list')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-change-list'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-list-gl-default'));
+    });
+    expect(mockGtasks.setList).toHaveBeenCalledWith({ id: 'gl-default', name: 'My Tasks', isDefault: true });
+  });
 });
 
 describe('Microsoft To Do card (M7)', () => {
@@ -594,5 +614,36 @@ describe('Microsoft To Do card (M7)', () => {
     });
     expect(mockTodo.disable).toHaveBeenCalledTimes(1);
     expect(Alert.alert).toHaveBeenLastCalledWith('To Do sync is off');
+  });
+
+  const onWithoutList = {
+    outlook: { configured: true, connected: true, enabled: true, accountEmail: 'me@outlook.com' },
+    todo: { configured: true, connected: true, enabled: true, listId: null, listName: null },
+  };
+
+  it('asks for a list while on without one instead of an empty list line, and saves the choice', async () => {
+    mockStatus.current = status(onWithoutList);
+    await renderScreen();
+    expect(screen.getByTestId('calendar-todo-state').props.children).toBe('List needed');
+    expect(screen.getByTestId('calendar-todo-needs-list').props.children).toBe('Choose a list so new tasks reach Microsoft To Do.');
+    expect(screen.queryByTestId('calendar-todo-list')).toBeNull();
+    expect(screen.getByText('Choose list')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-change-list'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-list-list-tasks'));
+    });
+    expect(mockTodo.setList).toHaveBeenCalledWith({ id: 'list-tasks', name: 'Tasks', isDefault: true });
+  });
+
+  it('asks for the list in Spanish too', async () => {
+    await i18n.changeLanguage('es');
+    mockStatus.current = status(onWithoutList);
+    await renderScreen();
+    expect(screen.getByTestId('calendar-todo-state').props.children).toBe('Falta la lista');
+    expect(screen.getByText('Elige una lista para que las tareas nuevas lleguen a Microsoft To Do.')).toBeTruthy();
+    expect(screen.getByText('Elegir lista')).toBeTruthy();
   });
 });

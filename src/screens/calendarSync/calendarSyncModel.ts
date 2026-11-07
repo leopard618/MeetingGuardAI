@@ -49,24 +49,36 @@ export function outlookStateView(outlook: NonNullable<CalendarStatus['outlook']>
 }
 
 export interface TodoStateView {
-  labelKey: 'calendar:todo.state.on' | 'calendar:todo.state.off';
+  labelKey: 'calendar:todo.state.on' | 'calendar:todo.state.needsList' | 'calendar:todo.state.off';
   tone: Tone;
 }
 
-/** Syncing (on, and the Microsoft account is connected), else off. */
+/**
+ * Syncing (on, and the Microsoft account is connected); on but without a list for new tasks
+ * (they wait in the queue until one is chosen); else off.
+ */
 export function todoStateView(todo: NonNullable<CalendarStatus['todo']>, outlookConnected: boolean): TodoStateView {
-  if (todo.enabled && outlookConnected) return { labelKey: 'calendar:todo.state.on', tone: 'success' };
+  if (todo.enabled && outlookConnected) {
+    if (todo.listId === null) return { labelKey: 'calendar:todo.state.needsList', tone: 'warning' };
+    return { labelKey: 'calendar:todo.state.on', tone: 'success' };
+  }
   return { labelKey: 'calendar:todo.state.off', tone: 'muted' };
 }
 
 export interface GtasksStateView {
-  labelKey: 'calendar:gtasks.state.on' | 'calendar:gtasks.state.off';
+  labelKey: 'calendar:gtasks.state.on' | 'calendar:gtasks.state.needsList' | 'calendar:gtasks.state.off';
   tone: Tone;
 }
 
-/** Syncing (on, Google signed in and the tasks scope granted), else off. */
+/**
+ * Syncing (on, Google signed in and the tasks scope granted); on but without a list for new
+ * tasks (they wait in the queue until one is chosen); else off.
+ */
 export function gtasksStateView(gtasks: NonNullable<CalendarStatus['gtasks']>): GtasksStateView {
-  if (gtasks.enabled && gtasks.connected && gtasks.hasScope) return { labelKey: 'calendar:gtasks.state.on', tone: 'success' };
+  if (gtasks.enabled && gtasks.connected && gtasks.hasScope) {
+    if (gtasks.listId === null) return { labelKey: 'calendar:gtasks.state.needsList', tone: 'warning' };
+    return { labelKey: 'calendar:gtasks.state.on', tone: 'success' };
+  }
   return { labelKey: 'calendar:gtasks.state.off', tone: 'muted' };
 }
 

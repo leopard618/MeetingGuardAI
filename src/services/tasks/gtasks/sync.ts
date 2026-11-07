@@ -7,11 +7,15 @@
  *       every 7 days and whenever the stored watermark is missing; otherwise `updatedMin` is the
  *       previous pull time minus a skew margin. `deleted: true` deletes the local task; a linked
  *       task missing from a full listing is deleted too (deleted in Google). Tasks that are
- *       already completed when first seen are NOT imported (old history).
- * PUSH  POST to the task's list (external.gtasksListId, else the default list), PATCH, DELETE.
+ *       already completed when first seen are NOT imported (old history). A document that lost
+ *       its link is matched through the copy this device knows of (state.links) and linked again.
+ * PUSH  POST to the task's list (external.gtasksListId; else the list of the copy this device
+ *       knows of, when the document lost its link; else the default list), PATCH, DELETE. A
+ *       copy this device knows of counts as the link of such a document, also for completions.
  *       Only Google-visible changes are sent (hash of title, notes, due date, done state). A task
  *       whose list changed is deleted in the old list and re-created in the new one (the API has
- *       no cross-list move). Completed tasks that were never pushed are not pushed.
+ *       no cross-list move). Completed tasks that were never pushed are not pushed. A change with
+ *       no list to go to stays queued, untouched, until a list is chosen (never dropped).
  * ECHO  A local change waiting to be pushed wins over the pulled version; a task whose visible
  *       hash matches the stored one is unchanged; our own link write-backs use origin
  *       'tasks_gtasks', which the engine never pushes.
@@ -62,7 +66,7 @@ export interface GtasksSyncDeps {
   api: GoogleTasksApi;
   tasks: GtasksTasksPort;
   state: StateStore<GtasksSyncState>;
-  /** The default list from preferences (null = none chosen: nothing is pushed). */
+  /** The list new tasks go to (service.ts resolveList); null = none chosen: new tasks wait in the queue. */
   defaultList(): Promise<{ id: string; name: string } | null>;
   now(): Date;
   /** Device zone: imported tasks are anchored here. */
@@ -143,6 +147,15 @@ async function pullList(deps: GtasksSyncDeps, listId: string, options: { full: b
   for (const task of locals) {
     if (task.external.gtasksTaskId !== null) byGoogleId.set(task.external.gtasksTaskId, task);
   }
+  // A document rewritten without its link (an older build saves tasks as whole documents, and
+  // another device's disable unlinks them) is matched through the copy this device knows of in
+  // this list: that copy is linked again, it never comes back as a new task.
+  const localsById = new Map(locals.map((task) => [task.id, task]));
+  for (const [taskId, link] of Object.entries(state.links)) {
+    if (link.listId !== listId || byGoogleId.has(link.taskId)) continue;
+    const task = localsById.get(taskId);
+    if (task !== undefined && task.external.gtasksTaskId === null) byGoogleId.set(link.taskId, task);
+  }
   const counts = { created: 0, updated: 0, removed: 0, unchanged: 0 };
   const hashUpdates: Record<string, string | null> = {};
   // Where each linked task's copy lives, learned from the listing: a later "Change list" then
@@ -173,11 +186,17 @@ async function pullList(deps: GtasksSyncDeps, listId: string, options: { full: b
     const gtasksUpdatedAt = gtasksUpdatedIso(item);
     if (local) {
       linkUpdates[local.id] = { listId, taskId: item.id };
-      if (state.hashes[item.id] === hash) {
+      // Matched through this device's memory (above): the document gets its link back.
+      const relink = local.external.gtasksTaskId !== item.id;
+      const changed = state.hashes[item.id] !== hash;
+      if (!changed && !relink) {
         counts.unchanged += 1;
         continue;
       }
-      const patch: TaskPatch = { ...(gtasksImportToPatch(local, imported) ?? {}), external: { gtasksListId: listId, gtasksUpdatedAt } };
+      // Google's version only when it changed there: unchanged, the copy holds what this device
+      // last sent or saw, and an edit the older build made to the document stays.
+      const content = changed ? (gtasksImportToPatch(local, imported) ?? {}) : {};
+      const patch: TaskPatch = { ...content, external: { gtasksListId: listId, gtasksTaskId: item.id, gtasksUpdatedAt } };
       try {
         await deps.tasks.update(local.id, patch, { origin: 'tasks_gtasks' });
         counts.updated += 1;
@@ -292,6 +311,8 @@ export interface GtasksPushOutcome {
   task: Task;
   /** false when nothing had to be sent (unchanged / not pushable / no list). */
   sent: boolean;
+  /** true when there is no list to send the task to (none on the task, none chosen): keep it queued. */
+  listMissing?: true;
 }
 
 /** Where the task's Google copy is: this device's memory first, else the document's link. */
@@ -355,13 +376,18 @@ export async function deleteGtasksCopy(deps: GtasksSyncDeps, link: GtasksLink): 
 
 /** Insert, patch, or move (delete + insert) one task's copy in Google Tasks. */
 export async function pushGtasksTask(deps: GtasksSyncDeps, task: Task): Promise<GtasksPushOutcome> {
-  if (!isGtasksPushable(task)) return { task, sent: false };
   const state = await deps.state.load();
-  const defaultList = await deps.defaultList();
-  const targetList = task.external.gtasksListId ?? defaultList?.id ?? null;
-  if (targetList === null) return { task, sent: false };
-
   let link = resolveLink(state, task);
+  // A copy this device knows of counts as the link of a document that lost it (an older build
+  // rewrote it): its changes, a completion included, are sent to that copy.
+  const known = link !== null && task.external.gtasksTaskId === null ? { ...task, external: { ...task.external, gtasksTaskId: link.taskId } } : task;
+  if (!isGtasksPushable(known)) return { task, sent: false };
+  // The task's own list. A document without one may still have a copy this device knows of:
+  // that copy stays where it is and is patched there, never duplicated or moved. Only a task
+  // without either goes to the default list.
+  let targetList = task.external.gtasksListId ?? link?.listId ?? (await deps.defaultList())?.id ?? null;
+  if (targetList === null) return { task, sent: false, listMissing: true };
+
   const hash = taskGtasksVisibleHash(task);
   const body = taskToGtasksWrite(task);
 
@@ -386,9 +412,14 @@ export async function pushGtasksTask(deps: GtasksSyncDeps, task: Task): Promise<
       const status = googleTasksHttpStatus(error);
       if (status !== 404 && status !== 410) throw error;
       // The copy is gone (deleted in Google before the pull noticed): a task that still exists
-      // here is re-created, like any new task.
+      // here is re-created, like any new task. Without a list of its own that is the default
+      // list, not the list the copy was in (it may be gone too); with no default list it waits.
       await rememberLink(deps, task.id, null, null);
       link = null;
+      if (task.external.gtasksListId === null) {
+        targetList = (await deps.defaultList())?.id ?? null;
+        if (targetList === null) return { task, sent: false, listMissing: true };
+      }
     }
   }
 
@@ -455,6 +486,23 @@ async function settle(deps: GtasksSyncDeps, taskId: string, queuedAt: string, ne
   });
 }
 
+/** The same deps, with the list new tasks go to read once (a failed read is not kept). */
+function withListReadOnce(deps: GtasksSyncDeps): GtasksSyncDeps {
+  let read: Promise<{ id: string; name: string } | null> | null = null;
+  return {
+    ...deps,
+    defaultList() {
+      if (read !== null) return read;
+      const current = deps.defaultList();
+      read = current;
+      void current.catch(() => {
+        if (read === current) read = null;
+      });
+      return current;
+    },
+  };
+}
+
 /** Pushes every queued change (oldest first). */
 export async function flushGtasksPushes(deps: GtasksSyncDeps): Promise<GtasksFlushResult> {
   const state = await deps.state.load();
@@ -464,12 +512,17 @@ export async function flushGtasksPushes(deps: GtasksSyncDeps): Promise<GtasksFlu
 
   const locals = await deps.tasks.list();
   const byId = new Map(locals.map((task) => [task.id, task]));
+  // Read once per flush: the entries that wait for a list cost no extra reads on every flush.
+  const pushDeps = withListReadOnce(deps);
 
   for (const [taskId, entry] of entries) {
     const task = byId.get(taskId);
     try {
       if (task) {
-        const outcome = await pushGtasksTask(deps, task);
+        const outcome = await pushGtasksTask(pushDeps, task);
+        // No list to send it to yet: the entry stays as it is (counted in `pending`) and the next
+        // flush after a list is chosen sends it. The other entries go on.
+        if (outcome.listMissing === true) continue;
         if (outcome.sent) result.pushed += 1;
       } else {
         const link = entry.link ?? state.links[taskId] ?? null;
@@ -503,8 +556,11 @@ export async function flushGtasksPushes(deps: GtasksSyncDeps): Promise<GtasksFlu
   return result;
 }
 
-/** Queues every open task that has no Google copy yet (first enable / list chosen). */
-export async function enqueueUnlinkedOpenTasksForGtasks(deps: GtasksSyncDeps): Promise<number> {
+/**
+ * Queues every open task whose document has no Google copy yet (first enable, list chosen, list
+ * first remembered after an upgrade). The push patches a copy this device knows of.
+ */
+export async function enqueueUnlinkedOpenTasksForGtasks(deps: Pick<GtasksSyncDeps, 'tasks' | 'state' | 'now'>): Promise<number> {
   const tasks = await deps.tasks.list();
   const items: GtasksQueueItem[] = tasks
     .filter((task) => task.source !== 'gtasks' && task.status === 'open' && task.external.gtasksTaskId === null)

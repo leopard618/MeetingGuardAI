@@ -313,8 +313,16 @@ function todo(overrides: Partial<NonNullable<CalendarStatus['todo']>> = {}): Non
 }
 
 describe('todoStateView', () => {
+  const list = { listId: 'list-tasks', listName: 'Tasks' };
+
   it('is on only while enabled on a connected Microsoft account', () => {
-    expect(todoStateView(todo({ enabled: true, connected: true }), true)).toEqual({ labelKey: 'calendar:todo.state.on', tone: 'success' });
+    expect(todoStateView(todo({ enabled: true, connected: true, ...list }), true)).toEqual({ labelKey: 'calendar:todo.state.on', tone: 'success' });
+    expect(todoStateView(todo({ enabled: true, ...list }), false)).toEqual({ labelKey: 'calendar:todo.state.off', tone: 'muted' });
+    expect(todoStateView(todo(list), true)).toEqual({ labelKey: 'calendar:todo.state.off', tone: 'muted' });
+  });
+
+  it('asks for a list while on without one (new tasks wait for it), never while off', () => {
+    expect(todoStateView(todo({ enabled: true, connected: true }), true)).toEqual({ labelKey: 'calendar:todo.state.needsList', tone: 'warning' });
     expect(todoStateView(todo({ enabled: true }), false)).toEqual({ labelKey: 'calendar:todo.state.off', tone: 'muted' });
     expect(todoStateView(todo(), true)).toEqual({ labelKey: 'calendar:todo.state.off', tone: 'muted' });
   });
@@ -336,11 +344,19 @@ function gtasks(overrides: Partial<NonNullable<CalendarStatus['gtasks']>> = {}):
 }
 
 describe('gtasksStateView', () => {
+  const list = { listId: 'gl-default', listName: 'My Tasks' };
+
   it('is on only while enabled with a Google session and the tasks scope', () => {
-    expect(gtasksStateView(gtasks({ enabled: true, connected: true, hasScope: true }))).toEqual({ labelKey: 'calendar:gtasks.state.on', tone: 'success' });
-    expect(gtasksStateView(gtasks({ enabled: true, connected: true }))).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
-    expect(gtasksStateView(gtasks({ enabled: true, hasScope: true }))).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
+    expect(gtasksStateView(gtasks({ enabled: true, connected: true, hasScope: true, ...list }))).toEqual({ labelKey: 'calendar:gtasks.state.on', tone: 'success' });
+    expect(gtasksStateView(gtasks({ enabled: true, connected: true, ...list }))).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
+    expect(gtasksStateView(gtasks({ enabled: true, hasScope: true, ...list }))).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
     expect(gtasksStateView(gtasks())).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
+  });
+
+  it('asks for a list while on without one (new tasks wait for it), never while off', () => {
+    expect(gtasksStateView(gtasks({ enabled: true, connected: true, hasScope: true }))).toEqual({ labelKey: 'calendar:gtasks.state.needsList', tone: 'warning' });
+    expect(gtasksStateView(gtasks({ enabled: true, connected: true }))).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
+    expect(gtasksStateView(gtasks({ connected: true, hasScope: true }))).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
   });
 });
 

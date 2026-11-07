@@ -1,7 +1,9 @@
 /**
  * The engine's optional Microsoft To Do branch: task changes are queued persist-first and
  * flushed, syncNow reports the To Do result, the quick foreground pull runs every minute while
- * enabled, and nothing happens when the provider is not registered.
+ * enabled, and nothing happens when the provider is not registered. Also the task side of the
+ * app state (pull at once on return, push at once on leaving) and a task list changed on
+ * another device.
  */
 import type { CalendarPullResult, TodoSyncResult } from '../../../core/contracts';
 import { AppError } from '../../../core/errors';
@@ -12,7 +14,13 @@ import { defaultGtasksSyncState } from '../../tasks/gtasks/state';
 import type { TodoSyncServiceInternal } from '../../tasks/todo/service';
 import { defaultTodoSyncState } from '../../tasks/todo/state';
 import type { DeviceCalendarServiceInternal } from '../device/service';
-import { createCalendarSyncEngine, FOREGROUND_INTERVAL_MS, PUSH_DEBOUNCE_MS, TODO_FOREGROUND_INTERVAL_MS } from '../engine';
+import {
+  createCalendarSyncEngine,
+  FOREGROUND_INTERVAL_MS,
+  PUSH_DEBOUNCE_MS,
+  TODO_FOREGROUND_INTERVAL_MS,
+  type AppStateStatus,
+} from '../engine';
 import type { GoogleCalendarServiceInternal } from '../google/service';
 import { defaultDeviceSyncState, defaultGoogleSyncState } from '../stateStore';
 import { createCalendarStatusStore } from '../status';
@@ -103,7 +111,8 @@ function setup(options: { todo?: boolean; gtasks?: boolean; enabled?: boolean; a
   } satisfies GoogleTasksSyncServiceInternal;
 
   const events = createEventBus<AppEventMap>();
-  let appState: 'active' | 'background' = 'active';
+  let appState: AppStateStatus = 'active';
+  let appStateListener: ((state: AppStateStatus) => void) | null = null;
   const engine = createCalendarSyncEngine({
     google,
     device,
@@ -113,14 +122,40 @@ function setup(options: { todo?: boolean; gtasks?: boolean; enabled?: boolean; a
     getActiveUid: () => UID,
     status,
     events,
-    appState: options.appState === true ? { currentState: () => appState, subscribe: () => () => undefined } : undefined,
+    appState:
+      options.appState === true
+        ? {
+            currentState: () => appState,
+            subscribe: (listener) => {
+              appStateListener = listener;
+              return () => {
+                appStateListener = null;
+              };
+            },
+          }
+        : undefined,
     now: () => new Date(),
   });
-  return { engine, todo, gtasks, events, status, setAppState: (next: typeof appState) => (appState = next) };
+  /** Like AppState's change event: the app moves to `next` and the engine (while subscribed) hears it. */
+  const emitAppState = (next: AppStateStatus): void => {
+    appState = next;
+    appStateListener?.(next);
+  };
+  return { engine, todo, gtasks, device, events, status, preferences, setAppState: (next: typeof appState) => (appState = next), emitAppState };
 }
 
 function change(overrides: Partial<TasksChangedEvent> = {}): TasksChangedEvent {
   return { uid: UID, reason: 'updated', origin: 'user', changedIds: ['t1'], ...overrides };
+}
+
+/** Lets promise chains run without moving the fake clock (no timer can fire). */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 20; i += 1) await Promise.resolve();
+}
+
+/** Runs every promise chain to its end; the clock stays where it is (advancing by 0 ms). */
+async function drain(): Promise<void> {
+  await jest.advanceTimersByTimeAsync(0);
 }
 
 beforeEach(() => {
@@ -404,5 +439,231 @@ describe('syncTasksNow (Tasks screen refresh and focus)', () => {
 
     await expect(engine.syncTasksNow()).resolves.toEqual({ todo: null, gtasks: null, errors: [] });
     expect(todo.sync).not.toHaveBeenCalled();
+  });
+});
+
+describe('app state and the task providers (Android pauses JS timers in the background)', () => {
+  it('pulls both task providers as soon as the app comes back while the calendars are throttled, at most once per gap', async () => {
+    const { engine, todo, gtasks, device, emitAppState } = setup({ gtasks: true, appState: true });
+    engine.start(UID);
+    await drain();
+    // The session-start run pulled everything once.
+    expect(device.sync).toHaveBeenCalledTimes(1);
+    expect(todo.sync).toHaveBeenCalledTimes(1);
+    expect(gtasks.sync).toHaveBeenCalledTimes(1);
+    device.sync.mockClear();
+    todo.sync.mockClear();
+    gtasks.sync.mockClear();
+
+    await jest.advanceTimersByTimeAsync(30_000);
+    emitAppState('background');
+    await jest.advanceTimersByTimeAsync(40_000);
+    expect(todo.sync).not.toHaveBeenCalled();
+
+    // Back at +70 s, inside the 2 min calendar throttle: the tasks are pulled on the event itself.
+    emitAppState('active');
+    await settle();
+    expect(todo.sync).toHaveBeenCalledTimes(1);
+    expect(gtasks.sync).toHaveBeenCalledTimes(1);
+    expect(device.sync).not.toHaveBeenCalled();
+
+    // Back again 5 s later (inside TASK_RESUME_MIN_GAP_MS): no second pull.
+    emitAppState('background');
+    await jest.advanceTimersByTimeAsync(5_000);
+    emitAppState('active');
+    await drain();
+    expect(todo.sync).toHaveBeenCalledTimes(1);
+    expect(gtasks.sync).toHaveBeenCalledTimes(1);
+
+    // Back 15 s after that (+90 s: 20 s after the first pull, the calendars still throttled): due again.
+    emitAppState('background');
+    await jest.advanceTimersByTimeAsync(15_000);
+    emitAppState('active');
+    await settle();
+    expect(todo.sync).toHaveBeenCalledTimes(2);
+    expect(gtasks.sync).toHaveBeenCalledTimes(2);
+    expect(device.sync).not.toHaveBeenCalled();
+
+    // Back after 3 min: the normal foreground sync pulls the tasks with the calendars, and no
+    // task-only pull comes on top of it.
+    emitAppState('background');
+    await jest.advanceTimersByTimeAsync(3 * 60_000);
+    todo.sync.mockClear();
+    gtasks.sync.mockClear();
+    emitAppState('active');
+    await drain();
+    expect(device.sync).toHaveBeenCalledTimes(1);
+    expect(todo.sync).toHaveBeenCalledTimes(1);
+    expect(gtasks.sync).toHaveBeenCalledTimes(1);
+    engine.stop();
+  });
+
+  it('sends a task change saved just before leaving the app at once instead of after the debounce', async () => {
+    const { engine, todo, gtasks, events, emitAppState } = setup({ gtasks: true, appState: true });
+    engine.start(UID);
+    await drain();
+    todo.flushPending.mockClear();
+    gtasks.flushPending.mockClear();
+
+    events.emit('tasks:changed', change({ reason: 'created', changedIds: ['t1'] }));
+    await jest.advanceTimersByTimeAsync(500);
+    expect(todo.flushPending).not.toHaveBeenCalled();
+    emitAppState('background');
+    await settle();
+    expect(todo.flushPending).toHaveBeenCalledTimes(1);
+    expect(gtasks.flushPending).toHaveBeenCalledTimes(1);
+    expect(gtasks.enqueue).toHaveBeenLastCalledWith([{ id: 't1', op: 'upsert', link: null }]);
+
+    // Nothing goes out a second time when the debounce fires (the task queues are already empty).
+    await jest.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS);
+    expect(todo.flushPending).toHaveBeenCalledTimes(1);
+    expect(gtasks.flushPending).toHaveBeenCalledTimes(1);
+    engine.stop();
+  });
+
+  it('sends a task change made while the app is out of the foreground at once, without any timer', async () => {
+    const { engine, todo, gtasks, events, emitAppState } = setup({ gtasks: true, appState: true });
+    engine.start(UID);
+    await drain();
+    emitAppState('background');
+    await drain();
+    todo.flushPending.mockClear();
+    gtasks.flushPending.mockClear();
+    gtasks.enqueue.mockClear();
+
+    // The assistant's reply confirming two tasks lands after the user switched apps: one flush for both.
+    events.emit('tasks:changed', change({ reason: 'created', origin: 'ai', changedIds: ['t1'] }));
+    events.emit('tasks:changed', change({ reason: 'created', origin: 'ai', changedIds: ['t2'] }));
+    await settle();
+    expect(todo.flushPending).toHaveBeenCalledTimes(1);
+    expect(gtasks.flushPending).toHaveBeenCalledTimes(1);
+    expect(gtasks.enqueue).toHaveBeenLastCalledWith([
+      { id: 't1', op: 'upsert', link: null },
+      { id: 't2', op: 'upsert', link: null },
+    ]);
+
+    // A change relayed from another device (pushRequested) while still away goes out at once too.
+    events.emit('tasks:changed', change({ reason: 'remote', origin: undefined, changedIds: ['w1'], pushRequested: ['w1'] }));
+    await settle();
+    expect(todo.flushPending).toHaveBeenCalledTimes(2);
+    expect(gtasks.flushPending).toHaveBeenCalledTimes(2);
+
+    // No debounce was left behind to send them a second time.
+    await jest.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS);
+    expect(todo.flushPending).toHaveBeenCalledTimes(2);
+    expect(gtasks.flushPending).toHaveBeenCalledTimes(2);
+    engine.stop();
+  });
+
+  it('control: while the app stays in the foreground the push waits for the debounce', async () => {
+    const { engine, todo, gtasks, events } = setup({ gtasks: true, appState: true });
+    engine.start(UID);
+    await drain();
+    todo.flushPending.mockClear();
+    gtasks.flushPending.mockClear();
+
+    events.emit('tasks:changed', change({ reason: 'created', changedIds: ['t1'] }));
+    await jest.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS - 1);
+    expect(todo.flushPending).not.toHaveBeenCalled();
+    expect(gtasks.flushPending).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1);
+    expect(todo.flushPending).toHaveBeenCalledTimes(1);
+    expect(gtasks.flushPending).toHaveBeenCalledTimes(1);
+    engine.stop();
+  });
+
+  it('sends nothing on leaving the app when nothing is waiting, or after the session ended', async () => {
+    const { engine, todo, gtasks, events, emitAppState } = setup({ gtasks: true, appState: true });
+    engine.start(UID);
+    await drain();
+    todo.flushPending.mockClear();
+    gtasks.flushPending.mockClear();
+
+    emitAppState('background');
+    await drain();
+    expect(todo.flushPending).not.toHaveBeenCalled();
+    expect(gtasks.flushPending).not.toHaveBeenCalled();
+
+    // Back in the foreground, a change waits for its debounce; the session ends before it fires.
+    emitAppState('active');
+    await drain();
+    events.emit('tasks:changed', change());
+    engine.stop();
+    emitAppState('inactive');
+    await jest.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS);
+    expect(todo.flushPending).not.toHaveBeenCalled();
+    expect(gtasks.flushPending).not.toHaveBeenCalled();
+  });
+
+  it('still pulls on return after the device clock was set back', async () => {
+    const { engine, todo, gtasks, device, emitAppState } = setup({ gtasks: true, appState: true });
+    engine.start(UID);
+    await drain();
+    device.sync.mockClear();
+    todo.sync.mockClear();
+    gtasks.sync.mockClear();
+
+    await jest.advanceTimersByTimeAsync(30_000);
+    emitAppState('background');
+    await jest.advanceTimersByTimeAsync(40_000);
+    emitAppState('active');
+    await drain();
+    expect(todo.sync).toHaveBeenCalledTimes(1);
+
+    // Set back 30 s (network time correcting a clock that ran fast): the calendars are still
+    // throttled, and the last task pull now lies in the future. It must not block this one.
+    emitAppState('background');
+    jest.setSystemTime(Date.now() - 30_000);
+    emitAppState('active');
+    await drain();
+    expect(todo.sync).toHaveBeenCalledTimes(2);
+    expect(gtasks.sync).toHaveBeenCalledTimes(2);
+    expect(device.sync).not.toHaveBeenCalled();
+
+    // Set back 10 min: the automatic sync is due as well (a full run, which pulls the tasks too).
+    emitAppState('background');
+    jest.setSystemTime(Date.now() - 10 * 60_000);
+    emitAppState('active');
+    await drain();
+    expect(device.sync).toHaveBeenCalledTimes(1);
+    expect(todo.sync).toHaveBeenCalledTimes(3);
+    expect(gtasks.sync).toHaveBeenCalledTimes(3);
+    engine.stop();
+  });
+});
+
+describe('task list changed on another device', () => {
+  it('makes the provider re-read its status for a remote list change, not for one made here', async () => {
+    const { engine, todo, gtasks, events, preferences } = setup({ gtasks: true });
+    engine.start(UID);
+    await drain();
+    todo.refreshStatus.mockClear();
+    gtasks.refreshStatus.mockClear();
+
+    // An older build saved the whole preferences document without the Google Tasks list.
+    events.emit('preferences:changed', { uid: UID, preferences: { ...preferences, gtasksListId: null }, changedKeys: ['gtasksListId'], origin: 'remote' });
+    await settle();
+    expect(gtasks.refreshStatus).toHaveBeenCalledTimes(1);
+    expect(todo.refreshStatus).not.toHaveBeenCalled();
+
+    events.emit('preferences:changed', { uid: UID, preferences, changedKeys: ['todoListId'], origin: 'remote' });
+    await settle();
+    expect(todo.refreshStatus).toHaveBeenCalledTimes(1);
+    expect(gtasks.refreshStatus).toHaveBeenCalledTimes(1);
+
+    // The cached list name alone counts too.
+    events.emit('preferences:changed', { uid: UID, preferences, changedKeys: ['gtasksListName', 'todoListName'], origin: 'remote' });
+    await settle();
+    expect(gtasks.refreshStatus).toHaveBeenCalledTimes(2);
+    expect(todo.refreshStatus).toHaveBeenCalledTimes(2);
+
+    // Written on this device, loaded from the cache, or another key from another device: not re-read.
+    events.emit('preferences:changed', { uid: UID, preferences, changedKeys: ['gtasksListId', 'todoListId'], origin: 'local' });
+    events.emit('preferences:changed', { uid: UID, preferences, changedKeys: ['gtasksListId', 'todoListId'], origin: 'cache' });
+    events.emit('preferences:changed', { uid: UID, preferences, changedKeys: ['language'], origin: 'remote' });
+    await settle();
+    expect(gtasks.refreshStatus).toHaveBeenCalledTimes(2);
+    expect(todo.refreshStatus).toHaveBeenCalledTimes(2);
+    engine.stop();
   });
 });

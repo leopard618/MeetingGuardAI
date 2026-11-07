@@ -2,27 +2,44 @@
  * CalendarSyncEngine (contract in src/core/contracts.ts): per-session orchestration.
  *
  * - start(uid) (session manager, also on 'session:started'): subscribes to meetings:changed /
- *   preferences:changed, AppState (pull on foreground + every 5 min while active) and connectivity.
+ *   tasks:changed / preferences:changed, AppState and connectivity.
+ * - AppState: coming back to the app pulls (autoSync, at most once per AUTO_SYNC_THROTTLE_MS) and
+ *   starts the 5 min calendar interval and the task interval again. While the calendars are
+ *   throttled, the task providers are still pulled at once (syncTasksNow, at most once per
+ *   TASK_RESUME_MIN_GAP_MS): Android pauses JS timers in the background, so the task interval
+ *   starts over on every return. Leaving the app (any other state) stops both intervals.
  * - LOCAL writes (origin 'user' | 'ai') are queued for Google and Outlook (persisted) and for the
  *   device export calendar, then pushed after a short debounce. Remote, imported and
  *   calendar-origin writes are never pushed (loop prevention).
  * - syncNow() (UI "Sync now", background task, foreground/interval/connectivity): Google flush +
  *   pull, Outlook flush + pull (when the optional provider is registered and connected), device
- *   import + export, Microsoft To Do flush + pull (when registered and enabled). At most one run
- *   at a time; calls made while a run is in flight are coalesced into ONE follow-up run that
- *   starts when it ends (the running one read its preferences when it started, so a settings
- *   change during it must not be lost).
+ *   import + export, Microsoft To Do and Google Tasks flush + pull (when registered and enabled).
+ *   At most one run at a time; calls made while a run is in flight are coalesced into ONE
+ *   follow-up run that starts when it ends (the running one read its preferences when it
+ *   started, so a settings change during it must not be lost).
+ * - A To Do or Google Tasks list changed on another device (preferences:changed, origin remote)
+ *   makes that provider re-read its status (refreshStatus), which also puts back this device's
+ *   list when an older build erased it (it saves the preferences as a whole document without
+ *   the list keys).
  * - A meeting held by the push hold (core/pushHold.ts: its Zoom link is being created) stays in
  *   the local queues until the hold is released, so attendees get one invitation email that
  *   already has the join link. The persisted Google/Outlook queues skip held ids the same way.
+ *   The debounce also gives a hold taken a moment after the write the time to apply (the
+ *   assistant first asks the server whether Zoom is set up), so the meeting queues keep it even
+ *   when the app leaves the foreground.
  * - Tasks (tasks:changed, origin 'user' | 'ai') are queued for Microsoft To Do and Google Tasks
- *   the same way. The app is also the bridge between the two task providers: an import from
+ *   the same way, except out of the foreground: on leaving the app, and for every task change
+ *   made while it is not active, the task queues are sent at once instead of after the debounce
+ *   (Android runs no JS timer in the background, so the debounce would wait for the return; only
+ *   timers stop, the flush keeps running and its network calls complete natively).
+ *   The app is also the bridge between the two task providers: an import from
  *   Google Tasks (origin 'tasks_gtasks') is queued for To Do and an import from To Do (origin
  *   'tasks_todo') for Google Tasks, never back to the provider it came from (taskPushTargets).
  *   While the app is active, both are also pulled on their own every
  *   TODO_FOREGROUND_INTERVAL_MS so a task completed there silences its reminder here within a minute.
- * - syncTasksNow() (Tasks screen pull-to-refresh and focus): the two task providers only, both
- *   attempted, failures reported per provider; concurrent calls share one run.
+ * - syncTasksNow() (Tasks screen pull-to-refresh and focus, return to the app while the calendars
+ *   are throttled): the two task providers only, both attempted, failures reported per provider;
+ *   concurrent calls share one run.
  */
 import type {
   CalendarStatus,
@@ -54,8 +71,25 @@ export const FOREGROUND_INTERVAL_MS = 5 * 60 * 1000;
 export const TODO_FOREGROUND_INTERVAL_MS = 60 * 1000;
 /** Minimum spacing of automatic (non-manual) syncs. */
 export const AUTO_SYNC_THROTTLE_MS = 2 * 60 * 1000;
+/**
+ * Minimum spacing of the task-only pulls made on return to the app while the calendars are
+ * throttled (switching back and forth between apps must not list the tasks every time).
+ */
+export const TASK_RESUME_MIN_GAP_MS = 15 * 1000;
 
 export type AppStateStatus = 'active' | 'background' | 'inactive' | 'unknown' | 'extension';
+
+/** What a flush sends: every queue, or only the To Do / Google Tasks queues (out of the foreground). */
+type FlushScope = 'all' | 'tasks';
+
+/**
+ * Whether `last` is less than `gap` ms before `now`. A clock set back (now before last) counts as
+ * not recent: otherwise the spacing would block until the clock caught up with the old time.
+ */
+function isRecent(now: number, last: number, gap: number): boolean {
+  const elapsed = now - last;
+  return elapsed >= 0 && elapsed < gap;
+}
 
 export interface EngineDeps {
   google: GoogleCalendarServiceInternal;
@@ -170,6 +204,8 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
   let followUp: Promise<CalendarSyncReport> | null = null;
   let followUpOptions: { reason: CalendarSyncReason; headless: boolean } | null = null;
   let lastAutoSyncAt = 0;
+  /** When the last task-only pull on return to the app started (TASK_RESUME_MIN_GAP_MS). */
+  let lastTaskResumeAt = 0;
   const pendingGoogle = new Map<string, 'upsert' | 'delete'>();
   const pendingOutlook = new Map<string, 'upsert' | 'delete'>();
   const pendingDevice = new Set<string>();
@@ -222,6 +258,29 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     }, PUSH_DEBOUNCE_MS);
   }
 
+  /** Without an AppState source (tests) the app counts as in the foreground. */
+  function inForeground(): boolean {
+    return deps.appState === undefined || deps.appState.currentState() === 'active';
+  }
+
+  /**
+   * Out of the foreground the task queues are sent at once instead of after the debounce: Android
+   * runs no JS timer there (not even a 0 ms one), so the debounce would only fire on the return.
+   * The flush itself keeps running (only timers stop, its network calls complete natively). The
+   * meeting queues keep their debounce: on the assistant path a Zoom meeting's push hold is taken
+   * only after an await, and Google / Outlook pushes are persisted for the next sync anyway.
+   */
+  function pushTaskQueuesNow(): void {
+    void flushLocalChanges('tasks').catch((error: unknown) =>
+      log.warn('Pushing task changes outside the app failed', { code: toAppError(error).code }),
+    );
+  }
+
+  function hasPendingPushes(scope: FlushScope): boolean {
+    if (pendingTodo.size > 0 || pendingGtasks.size > 0) return true;
+    return scope === 'all' && (pendingGoogle.size > 0 || pendingOutlook.size > 0 || pendingDevice.size > 0);
+  }
+
   /** Held meetings (Zoom link on its way) stay queued; the hold's release flushes them. */
   function isHeld(meetingId: string): boolean {
     return deps.pushHold?.isHeld(meetingId) === true;
@@ -232,19 +291,21 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     if (pendingGoogle.has(meetingId) || pendingOutlook.has(meetingId) || pendingDevice.has(meetingId)) scheduleFlush();
   }
 
-  async function flushLocalChanges(): Promise<void> {
+  /** Scope 'tasks' sends the task queues only; the meeting queues wait for their debounce. */
+  async function flushLocalChanges(scope: FlushScope = 'all'): Promise<void> {
     if (flushing) {
       await flushing;
-      if (pendingGoogle.size === 0 && pendingOutlook.size === 0 && pendingDevice.size === 0 && pendingTodo.size === 0 && pendingGtasks.size === 0) return;
+      if (!hasPendingPushes(scope)) return;
     }
     const gen = generation;
     const run = (async () => {
       const prefs = await currentPreferences();
-      const googleBatch = [...pendingGoogle.entries()].filter(([id]) => !isHeld(id));
+      const meetings = scope === 'all';
+      const googleBatch = meetings ? [...pendingGoogle.entries()].filter(([id]) => !isHeld(id)) : [];
       for (const [id] of googleBatch) pendingGoogle.delete(id);
-      const outlookBatch = [...pendingOutlook.entries()].filter(([id]) => !isHeld(id));
+      const outlookBatch = meetings ? [...pendingOutlook.entries()].filter(([id]) => !isHeld(id)) : [];
       for (const [id] of outlookBatch) pendingOutlook.delete(id);
-      const deviceBatch = [...pendingDevice].filter((id) => !isHeld(id));
+      const deviceBatch = meetings ? [...pendingDevice].filter((id) => !isHeld(id)) : [];
       for (const id of deviceBatch) pendingDevice.delete(id);
       const todoBatch = [...pendingTodo.values()];
       pendingTodo.clear();
@@ -398,7 +459,10 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       for (const item of gtasksItems) pendingGtasks.set(item.id, item);
       persistGtasksPushes(gtasksItems);
     }
-    scheduleFlush();
+    // Saved after leaving the app (an assistant reply confirmed in the background, a relay from
+    // another device): no timer would run, so it goes out at once.
+    if (inForeground()) scheduleFlush();
+    else pushTaskQueuesNow();
   }
 
   function onMeetingChanged(event: MeetingsChangedEvent): void {
@@ -476,6 +540,21 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       void syncNow({ reason: 'preferences' }).catch((error: unknown) =>
         log.warn('Calendar sync after a settings change failed', { code: toAppError(error).code }),
       );
+    }
+    if (event.origin === 'remote') {
+      // The task list was changed on another device, or erased there by an older build (it saves
+      // the preferences as a whole document without these keys): the provider re-reads it into
+      // the status, and its refreshStatus puts back this device's list when it was erased.
+      if (keys.has('gtasksListId') || keys.has('gtasksListName')) {
+        void deps.gtasks?.refreshStatus().catch((error: unknown) =>
+          log.warn('Could not read the Google Tasks state', { code: toAppError(error).code }),
+        );
+      }
+      if (keys.has('todoListId') || keys.has('todoListName')) {
+        void deps.todo?.refreshStatus().catch((error: unknown) =>
+          log.warn('Could not read the Microsoft To Do state', { code: toAppError(error).code }),
+        );
+      }
     }
   }
 
@@ -572,13 +651,18 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     return followUp;
   }
 
-  function autoSync(reason: CalendarSyncReason): void {
+  /**
+   * A throttled syncNow (at most once per AUTO_SYNC_THROTTLE_MS). Returns whether it started a
+   * run (or queued the follow-up of the run in flight); false = throttled, nothing started.
+   */
+  function autoSync(reason: CalendarSyncReason): boolean {
     const now = deps.now().getTime();
-    if (now - lastAutoSyncAt < AUTO_SYNC_THROTTLE_MS) return;
+    if (isRecent(now, lastAutoSyncAt, AUTO_SYNC_THROTTLE_MS)) return false;
     lastAutoSyncAt = now;
     void syncNow({ reason }).catch((error: unknown) =>
       log.warn('Automatic calendar sync failed', { reason, code: toAppError(error).code }),
     );
+    return true;
   }
 
   /** The quick task pulls (not throttled with the calendars: one listing call per synced list). */
@@ -643,6 +727,43 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       timers.clearInterval(todoIntervalHandle);
       todoIntervalHandle = null;
     }
+  }
+
+  // ---- app state -----------------------------------------------------------------------------
+
+  /**
+   * Back in the app. A full run pulls the task providers too (runSync). While the calendars are
+   * throttled, the task providers are pulled on their own right away, so a task completed in
+   * Google Tasks or To Do a moment ago shows here without waiting for the task interval (it
+   * starts over on every return).
+   */
+  function onAppActive(): void {
+    startInterval();
+    void deps.device.getPermission().catch((error: unknown) =>
+      log.warn('Could not read the calendar permission', { code: toAppError(error).code }),
+    );
+    if (autoSync('foreground')) return;
+    if (!todoEnabled() && !gtasksEnabled()) return;
+    const now = deps.now().getTime();
+    if (isRecent(now, lastTaskResumeAt, TASK_RESUME_MIN_GAP_MS)) return;
+    lastTaskResumeAt = now;
+    void syncTasksNow().then(
+      (report) => {
+        if (report.errors.length > 0) log.debug('Task pull on return to the app failed', report.errors.map((e) => `${e.provider}:${e.code}`).join(','));
+      },
+      (error: unknown) => log.debug('Task pull on return to the app failed', { code: toAppError(error).code }),
+    );
+  }
+
+  /**
+   * Left the app (background, inactive). A task change still waiting for its debounce is sent now
+   * (pushTaskQueuesNow): Android pauses JS timers in the background, so it would only go out on
+   * the return. Queued meetings keep their debounce.
+   */
+  function onAppLeft(): void {
+    stopInterval();
+    if (uid === null || !hasPendingPushes('tasks')) return;
+    pushTaskQueuesNow();
   }
 
   async function initialize(gen: number): Promise<void> {
@@ -722,15 +843,8 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       if (deps.appState) {
         subscriptions.push(
           deps.appState.subscribe((state) => {
-            if (state === 'active') {
-              startInterval();
-              void deps.device.getPermission().catch((error: unknown) =>
-                log.warn('Could not read the calendar permission', { code: toAppError(error).code }),
-              );
-              autoSync('foreground');
-            } else {
-              stopInterval();
-            }
+            if (state === 'active') onAppActive();
+            else onAppLeft();
           }),
         );
         if (deps.appState.currentState() === 'active') startInterval();
@@ -777,6 +891,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       pendingGtasks.clear();
       preferences = null;
       lastAutoSyncAt = 0;
+      lastTaskResumeAt = 0;
       deps.status.reset();
     },
 
@@ -786,7 +901,7 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     onTaskChanged,
     getStatus: (): CalendarStatus => deps.status.get(),
     subscribeStatus: (listener) => deps.status.subscribe(listener),
-    flushLocalChanges,
+    flushLocalChanges: () => flushLocalChanges(),
     isStarted: () => uid !== null,
   };
   return engine;
