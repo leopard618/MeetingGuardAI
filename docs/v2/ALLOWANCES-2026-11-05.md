@@ -63,6 +63,9 @@ Connect, each subscription's description), English then Spanish:
   gratis."
 
 App Store Connect uses straight ASCII in these fields; the accented Spanish forms are fine in Play.
+App Store Connect allows 45 characters in an in-app purchase description, so it may refuse
+these texts (88 to 90 characters). Then use the short form: "100 AI actions per month" / "100
+acciones de IA al mes", and "400 AI actions per month" / "400 acciones de IA al mes".
 
 ## Console steps: remove the 3-day store trials
 

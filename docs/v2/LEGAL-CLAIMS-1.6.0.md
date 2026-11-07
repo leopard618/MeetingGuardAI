@@ -248,7 +248,8 @@ Code or text for a later build or an OTA update:
 
 Not verifiable from the repo (check in the consoles):
 
-10. RevenueCat production keys for both platforms (the EAS production environment holds both
-    variables); the free-trial offers removed on all four products; WHATSAPP_ENABLED and
-    ZOOM_ENABLED in production; the Cloud Run request logs (IP address, user agent) and the 30
-    days of the _Default log bucket; cloud recording off on the Zoom host account.
+10. The free-trial offers removed on all four products; the Cloud Run request logs (IP
+    address, user agent) and the 30 days of the _Default log bucket; cloud recording off on the
+    Zoom host account. Checked on November 7: both 1.6.0 binaries carry the RevenueCat platform
+    keys (appl_ and goog_, no test_ key), and WHATSAPP_ENABLED and ZOOM_ENABLED are true in
+    functions/.env.meetingguard-ai-app (deployed November 5).
