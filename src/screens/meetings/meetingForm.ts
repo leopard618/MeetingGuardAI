@@ -568,6 +568,38 @@ export function conferenceFormNote(
   return calendar.zoom?.configured === false ? 'zoomNotConfigured' : null;
 }
 
+/** "meetings:form.*" leaf of the hint under the participants. */
+export type InvitesHintKey =
+  | 'invitesByGoogle'
+  | 'invitesByOutlook'
+  | 'invitesByBoth'
+  | 'invitesNeedCalendar'
+  | 'invitesNeedCalendars'
+  | 'invitesSavedOnly';
+
+/**
+ * The hint under the participants: which connected calendar emails the invitations when the
+ * meeting syncs (Google Calendar, and Outlook through Graph). The pushes follow the §22 rules of
+ * ConferencePushTarget: Google never pushes 'device' or 'outlook' meetings, Outlook never pushes
+ * 'google' or 'device' ones, so an imported meeting is only promised its own calendar and a
+ * meeting from the phone's calendar sends none. `outlook` is absent when the Outlook feature is
+ * hidden (no EXPO_PUBLIC_MSAL_CLIENT_ID): the connect hint then names Google Calendar only.
+ */
+export function invitesHintKey(
+  googleConnected: boolean,
+  outlook: { configured: boolean; connected: boolean } | undefined,
+  source: MeetingSource = 'manual',
+): InvitesHintKey {
+  const byGoogle = googleConnected && source !== 'device' && source !== 'outlook';
+  const byOutlook = outlook?.connected === true && source !== 'device' && source !== 'google';
+  if (byGoogle && byOutlook) return 'invitesByBoth';
+  if (byGoogle) return 'invitesByGoogle';
+  if (byOutlook) return 'invitesByOutlook';
+  if (source === 'device') return 'invitesSavedOnly';
+  if (source === 'google' || outlook?.configured !== true) return 'invitesNeedCalendar';
+  return 'invitesNeedCalendars';
+}
+
 /** Which calendar a "connect" CTA under the hint should open (null = no CTA). */
 export function conferenceConnectTarget(hint: ConferenceFormHintKey | null): 'google' | 'outlook' | null {
   if (hint === 'meetNeedsCalendar') return 'google';

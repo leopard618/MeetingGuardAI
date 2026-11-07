@@ -180,6 +180,25 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
   "same as above". A meeting's own intensity still wins; all-day events never ring. The Default
   chip in the meeting form and the details line name the intensity that really applies.
 
+### Changed
+
+- **Privacy policy and terms of service for 1.6.0** (November 6, dated November 6, 2026): the
+  in-app texts now describe the Pro and Premium subscriptions sold in the App Store and Google
+  Play (renewal, cancellation, refunds, and that deleting the account does not cancel a
+  subscription), Continue with Microsoft, Outlook, Microsoft To Do, Google Tasks and the copies between the two task
+  services, Zoom links, the WhatsApp assistant, the tasks and meeting descriptions the AI
+  assistant receives, voice input through the phone's recognizer, RevenueCat, and what stays
+  after an account deletion (purchase records, Zoom meetings on our Zoom account). Every claim
+  was checked against the code (docs/v2/LEGAL-CLAIMS-1.6.0.md); the website gets the same text
+  (docs/v2/TERMS-UPDATE-FOR-WEBSITE-2026-11-06.md), and the Firebase-hosted delete-account page
+  says the same.
+- App texts brought in line with the policy: the delete-account warning lists tasks and says
+  that a store subscription is not cancelled; the Calendar sync row in Settings names Outlook
+  and the task lists; the Google Tasks and To Do cards say that tasks are copied to the other
+  service when both syncs are on; the hint under the participants names the calendar that
+  emails the invitations (Google Calendar, Outlook or both) and says that meetings from the
+  phone's calendar send none.
+
 ### Fixed
 
 - **Tasks stopped reaching Google Tasks and Microsoft To Do** (November 6, client report): an

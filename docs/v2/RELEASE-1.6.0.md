@@ -42,14 +42,24 @@ Facts this plan rests on:
    `EXPO_PUBLIC_MSAL_CLIENT_ID` (checked November 6; `EXPO_PUBLIC_GOOGLE_TASKS_SYNC` stays unset,
    see above).
    `eas build:version:get -p android` is at or above the versionCode Play currently serves.
-5. The privacy policy is live on the website with the Outlook / To Do / Google Tasks sentences
-   (PRIVACY-POLICY-UPDATE-2026-11-02.md in this folder). The store declarations in section 3
-   must match it, so the policy goes first.
+5. The website privacy policy and terms of service carry the in-app text of November 6, in
+   English and Spanish, and /delete-account/ answers 200: TERMS-UPDATE-FOR-WEBSITE-2026-11-06.md
+   in this folder (Part A terms, Part B privacy, Part C delete-account page). It replaces
+   PRIVACY-POLICY-UPDATE-2026-11-02.md. The store declarations in section 3 must match it, so
+   the policy goes first.
 6. The app name shown on the device is the one Francisco chose (the "name" field in
    app.config.js). Check the spelling on the home screen of the last test build.
 7. The store consoles carry the AI allowances (docs/v2/ALLOWANCES-2026-11-05.md): the free-trial
    offers are off on the four subscriptions in both stores, the subscription descriptions and
    the Play listing paragraph are updated in English and Spanish.
+8. The store builds carry the in-app privacy policy and terms of November 6
+   (`LEGAL_LAST_UPDATED` 2026-11-06 in src/screens/legal/legalContent.ts). Never submit, or hand
+   to a reviewer, a binary built from an earlier commit, test APKs included: its terms say the
+   paid plans "cannot be purchased yet", which contradicts the Plans screen.
+9. The Firebase-hosted delete-account page (public/delete-account.html, updated November 6 to
+   the same retention text) is deployed: `npx firebase deploy --only hosting` from the
+   functions folder. Google Play's "Delete account URL" points to it until
+   https://meetingguard.ai/delete-account/ answers.
 
 Status on November 6, 2026, read from the consoles and the APIs:
 
@@ -58,11 +68,12 @@ Status on November 6, 2026, read from the consoles and the APIs:
   pushPending). Nothing to deploy for this release.
 - EAS: the production environment has `EXPO_PUBLIC_MSAL_CLIENT_ID`. The remote versions are
   Android versionCode 26 and iOS build 10 (1.5.0), so the 1.6.0 store builds become 27 and 11.
-- Website: https://meetingguard.ai/privacy-policy/ and the Spanish page are still the September
-  28 version. PRIVACY-POLICY-UPDATE-2026-11-02.md, plus the sentence on tasks in the AI section
-  and the allowance wording of the in-app policy, must be live before either store submission
-  (Google also reads it for the Tasks scope). https://meetingguard.ai/delete-account/ answers
-  404; the Firebase-hosted https://meetingguard-ai-app.web.app/delete-account.html works.
+- Website: https://meetingguard.ai/privacy-policy/, https://meetingguard.ai/terms-of-service/
+  and the Spanish pages are still the September 28 version. TERMS-UPDATE-FOR-WEBSITE-2026-11-06.md
+  must be live before either store submission (Google also reads the privacy page for the Tasks
+  scope). https://meetingguard.ai/delete-account/ answers 404; the Firebase-hosted
+  https://meetingguard-ai-app.web.app/delete-account.html works and gets the November 6 text
+  with the next hosting deploy (item 9).
 
 ## 1. Android
 
@@ -103,20 +114,36 @@ Apple review can take days. The Android rollout does not wait for it.
 
 ## 3. Store declarations
 
-Google Play, App content, Data safety:
+Both consoles must match the in-app privacy policy of November 6 ("Information we collect",
+"Who we share information with", "How long we keep your information"). The claims behind it
+are listed with their code references in LEGAL-CLAIMS-1.6.0.md. Compared with 1.5.0, these
+data types are new or newly reachable in 1.6.0; all are linked to the user, used for App
+functionality, encrypted in transit, never used for tracking or advertising:
 
-- "Calendar events" (Outlook events read and written through Microsoft Graph when the user
-  connects Outlook) and "Other user-generated content" for tasks (Microsoft To Do, Google Tasks)
-  as collected, used for App functionality, not shared with third parties except the connected
-  provider the user chose, encrypted in transit, deletable by the user (disconnect removes the
-  imported copies; account deletion removes everything).
+| Data | Source in 1.6.0 | Play Data safety | App Store App Privacy |
+| --- | --- | --- | --- |
+| Microsoft name, email, account and tenant id | Continue with Microsoft | Personal info: Name, Email address, User IDs | Contact Info: Name, Email Address; Identifiers: User ID |
+| Phone number and WhatsApp profile name | WhatsApp link (optional) | Personal info: Phone number | Contact Info: Phone Number |
+| WhatsApp messages and assistant chats | WhatsApp, assistant | Messages: Other in-app messages | User Content: Other User Content |
+| Outlook and Google Calendar events | Calendar sync | Calendar: Calendar events | User Content: Other User Content |
+| Tasks (app, Google Tasks, Microsoft To Do) | Tasks, task sync | App activity: Other user-generated content | User Content: Other User Content |
+| Subscription events (plan, store, product, price, dates) | RevenueCat webhook | Financial info: Purchase history | Purchases: Purchase History |
+
+- Sharing: answer "not shared". The providers (Google Cloud, OpenAI, RevenueCat, Sentry, Expo,
+  Zoom, Meta) are service providers, and the transfers to Google Calendar, Outlook, Google
+  Tasks and Microsoft To Do happen because the user connected them; Play's definition of
+  sharing excludes both.
+- Voice: the app never stores or sends audio. The phone's own speech recognizer (Apple's, or
+  usually Google's on Android) may send it to its servers, and the policy says so. The usual
+  answer for the platform recognizer is "Audio not collected" in both consoles; if Francisco
+  prefers the cautious answer, declare Audio as collected, not stored, App functionality.
+- Deletion: users can delete in the app and by email, and the delete-account URL is the
+  Firebase-hosted page (section 0, item 9). Account deletion does NOT remove everything: the
+  purchase records (revenue records) and RevenueCat's own record stay, the Zoom meetings stay on
+  our Zoom account until the user asks, a deletion record stays 30 days, backups up to 14 days.
 - No new permission: the Microsoft sign-in is a browser flow, the share sheet is the system one.
-
-App Store Connect, App Privacy:
-
-- "Contacts" is not collected. "Other Data" / "User Content" already covers the assistant text;
-  add calendar and task content linked to the user for App Functionality if it is not declared
-  yet. Both must match the privacy policy wording.
+- "Contacts" stays not collected: participants are typed in by the user as part of a meeting
+  or a task, the app never reads the address book.
 
 ## 4. Release notes
 

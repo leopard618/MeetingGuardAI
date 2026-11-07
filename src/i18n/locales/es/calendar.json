@@ -57,7 +57,7 @@
   },
   "todo": {
     "title": "Microsoft To Do",
-    "description": "Sincronización en ambos sentidos de tus tareas con Microsoft To Do, en la misma cuenta Microsoft que Outlook. Título, notas, fecha límite, recordatorio y estado van en ambos sentidos.",
+    "description": "Sincronización en ambos sentidos de tus tareas con Microsoft To Do, en la misma cuenta Microsoft que Outlook. Título, notas, fecha límite, recordatorio y estado van en ambos sentidos. Si la sincronización con Google Tasks también está activada, las tareas de To Do también se copian en tu lista de Google Tasks.",
     "state": {
       "on": "Sincronizando",
       "needsList": "Falta la lista",
@@ -88,7 +88,7 @@
   },
   "gtasks": {
     "title": "Google Tasks",
-    "description": "Sincronización en ambos sentidos de tus tareas con Google Tasks, en la cuenta de Google con la que iniciaste sesión en este teléfono. Título, notas, fecha límite y estado van en ambos sentidos.",
+    "description": "Sincronización en ambos sentidos de tus tareas con Google Tasks, en la cuenta de Google con la que iniciaste sesión en este teléfono. Título, notas, fecha límite y estado van en ambos sentidos. Si la sincronización con Microsoft To Do también está activada, las tareas de Google Tasks también se copian en tu lista de To Do.",
     "state": {
       "on": "Sincronizando",
       "needsList": "Falta la lista",

@@ -11,7 +11,7 @@ import { AI_ALLOWANCES } from '../../core/aiContract';
 export type LegalDocumentId = 'privacy' | 'terms';
 
 /** Date shown as "Last updated" (a calendar date, formatted in the UI language). */
-export const LEGAL_LAST_UPDATED = '2026-09-28';
+export const LEGAL_LAST_UPDATED = '2026-11-06';
 
 /** Legal entity that provides the app. */
 export const LEGAL_ENTITY = {
@@ -27,7 +27,10 @@ export const LEGAL_SECTIONS: Readonly<Record<LegalDocumentId, readonly string[]>
     'device',
     'use',
     'google',
+    'microsoft',
     'deviceCalendars',
+    'zoom',
+    'whatsapp',
     'ai',
     'notifications',
     'sharing',

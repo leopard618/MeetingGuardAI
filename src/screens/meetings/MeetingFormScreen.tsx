@@ -64,6 +64,7 @@ import {
   draftFromMeeting,
   draftToCreateInput,
   draftToPatch,
+  invitesHintKey,
   isMeetingDraftDirty,
   monthlyRepeatDay,
   newMeetingDraft,
@@ -737,7 +738,7 @@ function MeetingForm({
         </MGButton>
         {draft.participants.length > 0 ? (
           <HelperText type="info" visible>
-            {googleConnected ? t('meetings:form.invitesByGoogle') : t('meetings:form.invitesNeedCalendar')}
+            {t(`meetings:form.${invitesHintKey(googleConnected, calendar.outlook, meeting?.source)}`)}
           </HelperText>
         ) : null}
       </Section>

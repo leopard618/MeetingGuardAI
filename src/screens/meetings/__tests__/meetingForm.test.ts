@@ -14,6 +14,7 @@ import {
   draftFromMeeting,
   draftToCreateInput,
   draftToPatch,
+  invitesHintKey,
   isMeetingDraftDirty,
   monthlyRepeatDay,
   newMeetingDraft,
@@ -555,5 +556,31 @@ describe('video call (§22)', () => {
     expect(conferenceCardState(outlookMeet, GOOGLE)).toEqual({ kind: 'info', key: 'noLink', connect: null });
     const deviceMeet = meeting({ source: 'device', conference: { provider: 'google_meet', url: null, password: null } });
     expect(conferenceCardState(deviceMeet, GOOGLE)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+  });
+});
+
+describe('invitation hint under the participants', () => {
+  const OUTLOOK_ON = { configured: true, connected: true };
+  const OUTLOOK_OFF = { configured: true, connected: false };
+
+  it('names the calendars that email the invitations of a new meeting', () => {
+    expect(invitesHintKey(true, undefined)).toBe('invitesByGoogle');
+    expect(invitesHintKey(true, OUTLOOK_OFF)).toBe('invitesByGoogle');
+    expect(invitesHintKey(false, OUTLOOK_ON)).toBe('invitesByOutlook');
+    expect(invitesHintKey(true, OUTLOOK_ON)).toBe('invitesByBoth');
+    expect(invitesHintKey(false, OUTLOOK_ON, 'ai_chat')).toBe('invitesByOutlook');
+  });
+
+  it('asks to connect a calendar when none sends them', () => {
+    expect(invitesHintKey(false, undefined)).toBe('invitesNeedCalendar');
+    expect(invitesHintKey(false, { configured: false, connected: false })).toBe('invitesNeedCalendar');
+    expect(invitesHintKey(false, OUTLOOK_OFF)).toBe('invitesNeedCalendars');
+  });
+
+  it('only promises the calendar an imported meeting is pushed to', () => {
+    expect(invitesHintKey(true, OUTLOOK_ON, 'google')).toBe('invitesByGoogle');
+    expect(invitesHintKey(true, OUTLOOK_ON, 'outlook')).toBe('invitesByOutlook');
+    expect(invitesHintKey(true, OUTLOOK_ON, 'device')).toBe('invitesSavedOnly');
+    expect(invitesHintKey(false, OUTLOOK_ON, 'google')).toBe('invitesNeedCalendar');
   });
 });

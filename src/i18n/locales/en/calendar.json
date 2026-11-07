@@ -57,7 +57,7 @@
   },
   "todo": {
     "title": "Microsoft To Do",
-    "description": "Two-way sync of your tasks with Microsoft To Do on the same Microsoft account as Outlook. Title, notes, due date, reminder and done state go both ways.",
+    "description": "Two-way sync of your tasks with Microsoft To Do on the same Microsoft account as Outlook. Title, notes, due date, reminder and done state go both ways. When Google Tasks sync is on too, tasks from To Do are also copied to your Google Tasks list.",
     "state": {
       "on": "Syncing",
       "needsList": "List needed",
@@ -88,7 +88,7 @@
   },
   "gtasks": {
     "title": "Google Tasks",
-    "description": "Two-way sync of your tasks with Google Tasks on the Google account signed in on this phone. Title, notes, due date and done state go both ways.",
+    "description": "Two-way sync of your tasks with Google Tasks on the Google account signed in on this phone. Title, notes, due date and done state go both ways. When Microsoft To Do sync is on too, tasks from Google Tasks are also copied to your To Do list.",
     "state": {
       "on": "Syncing",
       "needsList": "List needed",
