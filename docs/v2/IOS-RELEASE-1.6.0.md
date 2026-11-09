@@ -47,7 +47,7 @@ agreements only Francisco can accept (A1) and Sven's pages (A2). Start both firs
 |---|---|---|
 | 1 | Sandbox flag on for the review window (C1) | Yes. Without it a reviewer who buys stays on Free (guideline 2.1(b)). |
 | 2 | PRODUCT_CHANGE webhook fix (C2) | Approve now ("fix webhook"), so one deploy carries it with the flag. C4 row 12 proves it. Server only, no new build. |
-| 3 | Screenshots (A7 step 5, D2) | Required if the live set shows a Google Play badge, a Slack tile, "25 today" or the old WhatsApp number (2.3.10, 2.3.1). Otherwise recommended: the October cards show the old design and the one-word name. |
+| 3 | Screenshots (A7 step 5, D2) | Required. On November 9 all five live screenshots showed Google Play and App Store badges and the one-word name (2.3.10, 2.3.1). |
 | 4 | Group display name "Meeting Guard AI Plans" (A3.5) | Yes. It rides the same review. |
 | 5 | Spanish names on the four subscriptions (A3.7) | Optional. Today the Spanish storefronts show the English names. |
 | 6 | Audio Data in App Privacy (A5) | Not collected. Apple's recognizer handles the audio and the app sends only text. |
@@ -446,16 +446,17 @@ Version page > Build > (+) > 1.6.0 (11) > Done > Save.
 Check: the Build section shows the icon, 1.6.0 (11) and the upload date. No export compliance
 question is expected.
 
-### D2. Screenshots (required per A7 step 5, otherwise optional)
+### D2. Screenshots (required: the live set shows store badges)
 
 1. Francisco takes 4 to 6 screenshots on his iPhone with build 11 and fictional data: dashboard,
    assistant with a confirmation card, the alert screen, Running late and Plans. English, and
    Spanish if he likes.
-2. The assistant makes them App Store ready: resized to exactly 1290 x 2796 (from a 1179 x 2556
-   capture that is a stretch of 0.02 percent nobody sees) and flattened, with no alpha channel.
-   Apple takes 1320 x 2868, 1290 x 2796 or 1260 x 2736 in the large iPhone slot.
-3. You upload them in the slot the current set uses, delete the old ones and Save, for each
-   language.
+2. The assistant makes them App Store ready, flattened with no alpha channel. The slot the version
+   page shows is iPhone with Dynamic Island (medium display), which takes 1179 x 2556 or 1206 x
+   2622 (portrait). Captures from those iPhones fit as they are; a Pro Max capture (1290 x 2796 or
+   1320 x 2868) is resized to 1206 x 2622.
+3. You upload the new ones first (at least one screenshot must stay in the slot), then Remove the
+   five old ones and Save, for each language.
 
 Never a store badge or an Android frame (2.3.10). New screenshots are reviewed with 1.6.0.
 
