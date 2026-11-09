@@ -12,7 +12,7 @@ import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
 
 export interface MgFullScreenAlarmSpec {
-  /** MeetingGuard notification identifier ("mg:..."); also the tray tag of the fired alarm. */
+  /** Meeting Guard AI notification identifier ("mg:..."); also the tray tag of the fired alarm. */
   id: string;
   /** Fire time, epoch ms. */
   atMs: number;

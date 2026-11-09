@@ -1,6 +1,6 @@
 {
   "name": "meetingguard-functions",
-  "description": "MeetingGuard AI Cloud Functions (assistant + account deletion)",
+  "description": "Meeting Guard AI Cloud Functions (assistant + account deletion)",
   "private": true,
   "main": "lib/index.js",
   "engines": {

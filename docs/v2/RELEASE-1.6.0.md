@@ -129,6 +129,12 @@ service account key. With one, `eas submit --platform android --profile producti
    apart, watching Android vitals for crashes in the new native code and the `microsoftSignIn`
    function logs. Release notes EN and ES are in section 4.
 
+On November 8, 27 (1.6.0) was published straight to Production at 100 percent (the public Play
+page shows version 1.6.0), so items 1 and 2 now run against the live app: install it from Play,
+run the checks, and fill in Data safety at once. The Play listing App name read "MeetingGuard
+AI" (one word), so a search for "meeting guard ai" did not match it; it becomes "Meeting Guard
+AI", together with the plans paragraph, in one store listing change.
+
 ## 2. iOS
 
 The store build is made and audited (status of November 7). Upload exactly that build, never

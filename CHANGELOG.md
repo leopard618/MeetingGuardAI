@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to MeetingGuard AI. Versions follow `version` in `app.config.js`. That value is
+All notable changes to Meeting Guard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
@@ -152,13 +152,13 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
   v1 is switched on by setting `EXPO_PUBLIC_MSAL_CLIENT_ID` (Azure app registration, SETUP §10).
   Connect a Microsoft account on the Calendar sync screen; meetings flow both ways with the
   existing conflict rules, and alerts re-reconcile after every pull.
-- **Repeating meetings reach Outlook**: a MeetingGuard series is pushed as a Graph series master
+- **Repeating meetings reach Outlook**: a Meeting Guard AI series is pushed as a Graph series master
   (daily, weekly, monthly rules; until and count; the anchor moved to the first generated
   occurrence when the rule skips it). Cancelled occurrences delete their Outlook instance,
   modified ones (time, duration, title) patch it; the shape change one-off <-> series is handled
   by delete and re-create. Instances of our own series coming back through calendarView are
   skipped, and a full sync never tombstones a series master. Occurrence edits made in Outlook on a
-  MeetingGuard series stay in Outlook (same one-way rule as Google).
+  Meeting Guard AI series stay in Outlook (same one-way rule as Google).
 
 - **Microsoft To Do, two-way task sync** (milestone M7): on the Microsoft account the Outlook card
   connects (one consent, now with `Tasks.ReadWrite`), tasks sync both ways with a chosen To Do

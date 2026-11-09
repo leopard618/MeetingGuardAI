@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 import org.json.JSONObject
 
 /**
- * One pending full-screen alarm. `id` is the MeetingGuard notification identifier ("mg:...").
+ * One pending full-screen alarm. `id` is the Meeting Guard AI notification identifier ("mg:...").
  * `data` is the alert payload as JSON text (the same object the expo-notifications path carries
  * as `content.data`); the module never reads it, it hands it back to JS when the alarm has fired
  * so the app can show the in-app alarm screen (sound loop, voice readout, snooze). Empty for

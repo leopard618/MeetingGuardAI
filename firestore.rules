@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// MeetingGuard AI - Firestore security rules.
+// Meeting Guard AI - Firestore security rules.
 //
 // Layout (see docs/ARCHITECTURE.md §4 and src/core/identifiers.ts):
 //   users/{uid}                        profile            owner read/write, no server-owned keys

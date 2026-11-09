@@ -1,6 +1,6 @@
-# MeetingGuard AI
+# Meeting Guard AI
 
-MeetingGuard AI is a meeting assistant for iPhone and Android. It keeps your meetings in one place,
+Meeting Guard AI is a meeting assistant for iPhone and Android. It keeps your meetings in one place,
 syncs them with Google Calendar, Outlook and the calendars on your phone, and makes sure you never
 miss one: alarms that ring even when the app is closed, including full-screen alarms over the lock
 screen on Android. An AI assistant creates, moves and shares meetings from plain text or voice, and

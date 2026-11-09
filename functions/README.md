@@ -1,6 +1,6 @@
-# MeetingGuard AI - Cloud Functions
+# Meeting Guard AI - Cloud Functions
 
-Firebase backend for the MeetingGuard AI app: Cloud Functions v2 (TypeScript, Node 22), Firestore
+Firebase backend for the Meeting Guard AI app: Cloud Functions v2 (TypeScript, Node 22), Firestore
 security rules and the public account-deletion page.
 
 | Callable | What it does |
@@ -120,7 +120,7 @@ value is never logged, stored in Firestore or returned to the browser.
 | `ASSISTANT_GLOBAL_DAILY_LIMIT` | `5000` | Project-wide cap on assistant requests per UTC day that reach OpenAI (spend safeguard on top of the per-user quota). `0` disables it. Also set an OpenAI usage limit and a GCP budget alert. |
 | `OPENAI_PRICE_IN_PER_M` | `0` | Input price in USD per 1M tokens, for the admin dashboard's estimated-cost tile only (admin v2). `0` = pricing unset, the estimate is hidden. |
 | `OPENAI_PRICE_OUT_PER_M` | `0` | Output price in USD per 1M tokens; same rules as above. |
-| `MICROSOFT_CLIENT_ID` | (empty) | Azure "Application (client) ID" of the MeetingGuard registration (docs/SETUP.md §10). Empty disables Sign in with Microsoft (the callable answers failed-precondition). **Must equal `EXPO_PUBLIC_MSAL_CLIENT_ID`** in the app. |
+| `MICROSOFT_CLIENT_ID` | (empty) | Azure "Application (client) ID" of the Meeting Guard AI registration (docs/SETUP.md §10). Empty disables Sign in with Microsoft (the callable answers failed-precondition). **Must equal `EXPO_PUBLIC_MSAL_CLIENT_ID`** in the app. |
 | `MICROSOFT_TENANT` | `common` | Tenants whose tokens are accepted: `common`, `organizations`, `consumers` or a tenant GUID. **Must equal `EXPO_PUBLIC_MSAL_TENANT`** in the app (empty there = `common`). |
 
 Every param has a default, but the CLI only uses values it finds in a dotenv file. Without

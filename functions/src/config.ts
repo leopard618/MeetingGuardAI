@@ -46,7 +46,7 @@ export const ASSISTANT_GLOBAL_DAILY_LIMIT = defineInt('ASSISTANT_GLOBAL_DAILY_LI
 export const OPENAI_API_KEY = defineSecret('OPENAI_API_KEY');
 
 /**
- * Azure "Application (client) ID" of the MeetingGuard registration (docs/v1/SETUP.md §10).
+ * Azure "Application (client) ID" of the Meeting Guard AI registration (docs/v1/SETUP.md §10).
  * Empty = Sign in with Microsoft disabled (the callable answers failed-precondition).
  */
 export const MICROSOFT_CLIENT_ID = defineString('MICROSOFT_CLIENT_ID', {
