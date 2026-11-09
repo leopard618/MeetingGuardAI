@@ -137,6 +137,11 @@ AI", together with the plans paragraph, in one store listing change.
 
 ## 2. iOS
 
+Step by step, with the App Store texts checked on November 8: IOS-RELEASE-1.6.0.md. It adds what
+this list lacks: the RevenueCat In-App Purchase key (StoreKit 2 purchases do not record without
+it), multiseat purchasing off, the subtitle, the Spanish localization and the demo account's
+onboarding reset.
+
 The store build is made and audited (status of November 7). Upload exactly that build, never
 `--latest` (which takes whatever build is newest on EAS):
 
@@ -247,7 +252,9 @@ functionality, encrypted in transit, never used for tracking or advertising:
 ## 4. Release notes
 
 Google Play allows 500 characters per language; these fit (493 and 499) and serve as the App
-Store "What's New" too. The product name is "Meeting Guard AI" since November 2.
+Store "What's New" too. The product name is "Meeting Guard AI" since November 2. Play lists only
+English, so the Spanish text goes to the App Store only; its line 3 says "Resumen por voz", the
+term of the app's Spanish screens ("Resumir esta reunión").
 
 English:
 
@@ -265,20 +272,15 @@ Spanish:
 ```
 Outlook en ambos sentidos: conecta tu cuenta de Microsoft y tus reuniones quedan al día con Outlook.
 Microsoft To Do y Google Tasks: elige una lista y tus tareas quedan al día en ambos sitios.
-Debrief por voz: al terminar una reunión, di lo acordado y confirma las tareas propuestas.
+Resumen por voz: al terminar una reunión, di lo acordado y confirma las tareas propuestas.
 Voy tarde: envía un mensaje listo con la nueva hora y mueve la reunión solo si quieres.
 Continuar con Microsoft al iniciar sesión.
 Planes nuevos: 10 acciones de IA gratis en tus primeros 7 días, luego Pro o Premium.
 ```
 
-App Store Connect, App Review Information, Notes (the demo account details stay as they are):
-
-```
-New in 1.6.0: optional connections in Settings > Calendar sync for Outlook calendar, Microsoft To Do and Google Tasks, and "Continue with Microsoft" on the sign-in screen, a third-party option next to Sign in with Apple. None of them is needed to review the app; the demo account uses email sign-in. Google's verification of the Google Tasks permission is in progress, so Google may show an "unverified app" notice when someone connects it. The 3-day free trials were removed: the free plan now includes 10 AI actions during the first 7 days, at most 3 a day. Plans: open the menu (top left) > Plans. The demo account is on the Free plan with its full allowance, and a sandbox purchase of Pro or Premium unlocks the plan within seconds. Running late uses the standard iOS share sheet.
-```
-
-The sentence on the sandbox purchase is true only while `REVENUECAT_ALLOW_SANDBOX` is true
-(section 2, item 5); without it, delete that sentence before pasting.
+App Store Connect, App Review Information, Notes: T5 in IOS-RELEASE-1.6.0.md (the demo account
+details stay as they are). The note first drafted here lacked the debrief, End meeting now, the
+Teams links, the OpenAI disclosure and the tested devices (guideline 2.3.1(a)).
 
 ## 5. Stage 2 acceptance
 
