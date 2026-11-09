@@ -63,9 +63,11 @@ Connect, each subscription's description), English then Spanish:
   gratis."
 
 App Store Connect uses straight ASCII in these fields; the accented Spanish forms are fine in Play.
-App Store Connect allows 45 characters in an in-app purchase description, so it may refuse
-these texts (88 to 90 characters). Then use the short form: "100 AI actions per month" / "100
-acciones de IA al mes", and "400 AI actions per month" / "400 acciones de IA al mes".
+App Store Connect allows at most 45 characters in a subscription description (Apple, In-App
+Purchase information), so the texts above (88 to 90 characters) are for Play only. App Store:
+"100 AI actions per month" / "100 acciones de IA al mes", and "400 AI actions per month" / "400
+acciones de IA al mes". The four App Store subscriptions have only an English (U.S.)
+localization (checked November 8), so only the English form is needed there.
 
 ## Console steps: remove the 3-day store trials
 
@@ -75,9 +77,12 @@ premium_monthly, premium_yearly), under Offers deactivate the free-trial offer, 
 subscribers are unaffected.
 
 App Store Connect, the app > Subscriptions > the group (<https://appstoreconnect.apple.com>): open
-each subscription, under Subscription Prices > Introductory Offers delete the free-trial offer
-(or set an end date of today). Then edit the subscription description as above and submit the
-change with the next version.
+each subscription, Subscription Prices > View all Subscription Pricing > Introductory Offers
+tab (the subscription page itself does not list offers, and All Prices and Currencies shows only
+prices). Delete each free-trial row: the (-) button at the right end of the row, then Delete. An
+offer cannot be edited or ended early. Then edit the subscription description as above and add
+each subscription to the 1.6.0 draft submission with its Add for Review button
+(docs/v2/RELEASE-1.6.0.md section 2, item 11).
 
 RevenueCat: nothing to change; the offering stays. The app shows the store's own trial badge only
 while a store reports an introductory offer, so the badge disappears when the offers are gone.

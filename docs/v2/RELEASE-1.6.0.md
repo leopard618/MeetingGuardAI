@@ -56,8 +56,11 @@ Facts this plan rests on:
 6. The app name shown on the device is the one Francisco chose (the "name" field in
    app.config.js). Check the spelling on the home screen of the last test build.
 7. The store consoles carry the AI allowances (docs/v2/ALLOWANCES-2026-11-05.md): the free-trial
-   offers are off on the four subscriptions in both stores, the subscription descriptions and
-   the Play listing paragraph are updated in English and Spanish.
+   offers are off on the four subscriptions in both stores, and the subscription descriptions
+   and the Play listing paragraph are updated. Both stores are English only today (App Store
+   Connect: one English (U.S.) localization per subscription; Play: the release notes field
+   offers only the en-US tag), so the English texts are the ones to set. On the App Store the
+   group ranking puts Premium above Pro (section 2, item 9).
 8. The store builds carry the in-app privacy policy and terms of November 6
    (`LEGAL_LAST_UPDATED` 2026-11-06 in src/screens/legal/legalContent.ts). Never submit, or hand
    to a reviewer, a binary built from an earlier commit, test APKs included: its terms say the
@@ -165,9 +168,38 @@ Before pressing Submit for Review in App Store Connect:
    the November 5 deploy), delete it with its days subcollection, then do not use the account's
    AI before the review.
 7. The free-trial offers are deleted on the four subscriptions (section 0, item 7) before the
-   note that says so is pasted.
+   note that says so is pasted. Apple lists them only under Subscription Prices > View all
+   Subscription Pricing > Introductory Offers (current and upcoming); a row is removed with the
+   (-) button at its right end, then Delete. An offer cannot be edited or ended early.
 8. App Store Version Release: "Manually release this version", so the release can wait for the
    website pages.
+9. Group ranking (MeetingGuard Plans > Edit next to Subscriptions): Level 1 Premium Monthly and
+   Premium Yearly, Level 2 Pro Monthly and Pro Yearly. On November 8 it read Pro Monthly 1, Pro
+   Yearly 2, Premium Monthly 3, Premium Yearly 4, the reverse of APP-REVIEW-2026-10-20.md 1.2
+   step 4: Pro to Premium was a downgrade that waits for the renewal (the Plans screen's
+   activation wait ends in "Still processing"), and Premium to Pro or yearly to monthly an
+   immediate change with a prorated refund. Drop a yearly ON its monthly row to share a level;
+   if stacking fails, use four levels with each yearly above its monthly. Apple shows no review
+   step for the order; it applies to plan changes after it propagates (allow an hour).
+10. Each subscription's English (U.S.) description is the 45-character form of
+    ALLOWANCES-2026-11-05.md ("100 AI actions per month", "400 AI actions per month"). The
+    Review Information note reads "Shown on the Plans screen (menu, top left > Plans).
+    Purchases run through RevenueCat." (the 1.5.0 note said Settings > Plans), with the build 11
+    Plans screen as its screenshot where the field can be edited.
+11. Submission (App Store Connect since July 15, 2026: the version page no longer lists In-App
+    Purchases and Subscriptions): version page with build 11 > Add for Review > Create New
+    Submission; then Add for Review on each of the four edited subscriptions, choosing that same
+    draft; then App Review > Drafts > check iOS 1.6.0 plus the four subscriptions > Submit for
+    Review. Sent alone, the descriptions would be reviewed against 1.5.0. A rejected description
+    holds 1.6.0 until it is fixed (Update Review) or removed from the submission.
+12. Open, server side, not proven: for an immediate App Store change RevenueCat sends
+    PRODUCT_CHANGE and RENEWAL together, and functions/src/revenuecat/mapping.ts writes both
+    like a purchase. PRODUCT_CHANGE carries the old product's entitlement and expiry, so when it
+    is applied last (an equal or newer event_timestamp_ms, shouldApplyEntitlementWrite in
+    functions/src/revenuecat/index.ts), an upgraded user reads as the old plan or as Free.
+    RevenueCat calls PRODUCT_CHANGE informative. Proof in TestFlight with the sandbox flag on:
+    buy Pro Monthly, then Premium Monthly; the banner must end with "Your Premium plan is now
+    active." and entitlements/{uid} must still read premium a minute later.
 
 Apple review can take days. The Android rollout does not wait for it.
 
