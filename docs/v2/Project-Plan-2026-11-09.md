@@ -4,7 +4,7 @@
 
 Prepared by Dusko and Sven for Francisco Maldonado, Aeternum Tech Ltd. November 9, 2026. This answers your message of November 9 asking to finalize the entire project, including the AI component. It replaces the consolidated schedule of October 27. The AI assistant is described in full in our proposal of the same date, attached. All amounts in US dollars.
 
-**Short answer.** Milestones M1 to M8 of the agreed app scope are delivered and paid. Version 1.6.0 (Stage 2, milestone M9) is live on Google Play; the iPhone version goes to App Review once your test of build 12, the new App Store screenshots and the updated legal pages on meetingguard.ai are done. After M9, six milestones of the agreed scope remain, about 6 weeks of work. Sven's landing page and web agenda are in progress. For the AI assistant, our best price is USD 4,950 in 9 milestones, USD 1,100 less than the USD 6,050 of October 26, for the same capabilities; it is a new line and starts with a prototype on your go. In total USD 8,400 remains to pay: USD 3,450 already contracted, and USD 4,950 for the assistant, which you approve separately.
+**Short answer.** Milestones M1 to M8 of the agreed app scope are delivered and paid. Version 1.6.0 (Stage 2, milestone M9) is live on Google Play; the iPhone version goes to App Review once your test of build 12, the new App Store screenshots and the updated legal pages on meetingguard.ai are done. After M9, six milestones of the agreed scope remain, about 6 weeks of work. Sven's landing page and web agenda are in progress. For the AI assistant, our best price is USD 4,950 in 9 milestones, USD 1,100 less than the USD 6,050 of October 26, for the same capabilities, in about 9 weeks of work: 6 weeks for Sven, then 3 weeks for Dusko. It is a new line and starts with a prototype on your go. In total USD 8,400 remains to pay: USD 3,450 already contracted, and USD 4,950 for the assistant, which you approve separately.
 
 **Timing.** Timing is now given in weeks of work instead of calendar dates. The weeks count our work; the reviews by Apple, Google, Microsoft and Meta come on top. So this plan replaces the dates of the October 27 schedule, its overall deadline and its Excel and calendar files. What each milestone delivers and how it is accepted stay as described on October 27; the tables below summarize them. Stage 2 ran ahead of those dates: M6 to M8 were delivered and paid before their dates, and M9 is already live on Google Play.
 
@@ -77,9 +77,9 @@ You hand the assistant a matter, by voice or text, and it runs that matter by em
 | Part | Milestones | Price | Who | Timing |
 |---|---|---|---|---|
 | Prototype, demonstrated live | A1 to A4 | USD 2,200 | Sven | About 3 weeks after your go |
-| Production | A5 to A8 | USD 2,200 | Sven A5 to A7, Dusko A8 | About 4 weeks after your go on production |
-| Beta and public release | A9 | USD 550 | Dusko, with Sven's support included | About 3 weeks; paid at your final acceptance of the assistant |
-| Total | 9 milestones | USD 4,950 | Sven USD 3,850, Dusko USD 1,100 | About 10 weeks from your first go, plus the days you take to decide after the demonstration |
+| Production, server side | A5 to A7 | USD 1,650 | Sven | About 3 weeks after your go on production |
+| The assistant inside the app with its subscription, beta and public release | A8 and A9 | USD 1,100 | Dusko, with Sven's support included | About 3 weeks after A7; A9 paid at your final acceptance of the assistant |
+| Total | 9 milestones | USD 4,950 | Sven USD 3,850 (about 6 weeks), Dusko USD 1,100 (about 3 weeks) | About 9 weeks of work from your first go, plus the days you take to decide after the demonstration and the store reviews |
 
 Production starts only after you have seen the prototype work and said go. If you stop after the prototype, nothing more is charged.
 
@@ -94,9 +94,9 @@ The agreed scope comes first and keeps its order. The assistant is new work besi
 | Phase | Dusko | Sven |
 |---|---|---|
 | Now | The iPhone release of 1.6.0 and your Stage 2 acceptance (M9) | The legal pages on meetingguard.ai; the landing page and the web agenda |
-| Next, about 6 weeks | M10 to M15, ending with your Stage 4 and final acceptance of the agreed scope | The web agenda finished, with the guest page; on your go, the assistant prototype (A1 to A4) |
-| After your go on production | A8: the assistant inside the app, with its subscription | A5 to A7 |
-| Then | A9: beta and public release of the assistant | Support during the beta |
+| Next, about 6 weeks | M10 to M15, ending with your Stage 4 and final acceptance of the agreed scope | The web agenda finished, with the guest page; on your go, the assistant prototype (A1 to A4), about 3 weeks |
+| After your go on production | The last milestones of the agreed scope | A5 to A7, the assistant's server side, about 3 weeks |
+| Then, about 3 weeks | A8 and A9: the assistant inside the app with its subscription, beta and public release | Support during the beta |
 
 Running costs: the forwarded summaries (M10) need a service that receives email for the private address. We set it up on a free plan while the volume allows it; if a paid plan becomes necessary, we tell you the cost before it starts. If you approve the assistant, its own address (A1) uses the same account, so nothing is paid twice, and the summaries never wait for the assistant.
 

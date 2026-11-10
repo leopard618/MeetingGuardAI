@@ -11,9 +11,9 @@ Prepared by Dusko and Sven for Francisco Maldonado, Aeternum Tech Ltd. November 
 | Part | Milestones | Price | Who | Timing |
 |---|---|---|---|---|
 | Prototype: a delegated matter by email, from your words to a booked meeting, demonstrated live | A1 to A4 | USD 2,200 | Sven | Demonstrated about 3 weeks after your go |
-| Production: safety, your mailbox, briefings, the server side finished, the assistant inside the app with its subscription | A5 to A8 | USD 2,200 | Sven A5 to A7, Dusko A8 | About 4 weeks after your go on production |
-| Beta and public release | A9 | USD 550 | Dusko, with Sven's support included | About 3 weeks; paid at your final acceptance of the assistant |
-| Total | 9 milestones | USD 4,950 | Sven USD 3,850, Dusko USD 1,100 | About 10 weeks from your first go, plus the days you take to decide after the demonstration |
+| Production, server side: safety, your mailbox, briefings, notifications, the server side finished | A5 to A7 | USD 1,650 | Sven | About 3 weeks after your go on production |
+| The assistant inside the app with its subscription, beta and public release | A8 and A9 | USD 1,100 | Dusko, with Sven's support included | About 3 weeks after A7; A9 paid at your final acceptance of the assistant |
+| Total | 9 milestones | USD 4,950 | Sven USD 3,850 (about 6 weeks), Dusko USD 1,100 (about 3 weeks) | About 9 weeks of work from your first go, plus the days you take to decide after the demonstration and the store reviews |
 
 On October 26 the same assistant was 11 milestones and USD 6,050. This plan is 9 milestones and USD 4,950, USD 1,100 less, with the same capabilities. The reason is in part 4: two milestones are no longer needed because the app already has those pieces.
 
@@ -96,19 +96,21 @@ The live demonstration (the Carlos scenario) runs on a real phone, once in Engli
 
 Not in the prototype: sending from your own mailbox, watched threads, briefings and the digest, the assistant screens in the app (the demonstration shows the timeline on a simple page), and the subscription. These come in production. Then you decide on production.
 
-### Production, USD 2,200, about 4 weeks after your go on production
+### Production, server side (Sven), USD 1,650, about 3 weeks after your go on production
 
 | Milestone | Who | What it delivers |
 |---|---|---|
 | A5. Security, limits and metering | Sven | A written threat model for email as an open channel (fake senders, hidden instructions inside emails, data leaks, misuse of the sending domain), with a control for each, reviewed and signed by Dusko; hard mandate limits; financial and contractual language blocked in drafts; hostile-email tests in English and Spanish. Retention and deletion: email texts kept while a matter is open and for a set period after it closes (90 days suggested, yours to set), then deleted; a matter can be deleted at any time; deleting your account removes everything; mailbox access kept encrypted on the server, never visible in the admin, and removed when you disconnect. Every action counted on the allowance system 1.6.0 already runs; the per-user cost in the admin and a spend cap per user per day; the assistant behind an on/off switch; the Gmail application prepared. |
 | A6. Your mailbox, watched threads, briefings, notifications | Sven | Sending from your connected Microsoft mailbox when you allow it per matter, and reading the replies there; "watch this thread" with draft replies as approval cards; briefings before the meetings it arranged and on request; the morning digest; notifications sent from the server for the digest, the briefings and new approval cards (today every notification in the app is scheduled on the phone itself); the preferences listed in part 2. |
 | A7. The server side finished, and the texts | Sven | The server side finished and documented, so the app screens can be built on it; spoken answers in English and Spanish that start at once, instead of after the whole answer is ready; the privacy policy and terms updated for the assistant (what goes to OpenAI and to the email provider, how long emails are kept, that you are responsible for whom it contacts, and that it may not be used for marketing or bulk email); an assistant section on meetingguard.ai with the demonstration video; the Assistant plan's store text and screenshots in English and Spanish; the production checklist and a handover note for running it (mail domain health, bounces, cost). |
-| A8. The assistant inside the app, with its subscription | Dusko | The matters list and timeline, approval cards, delegation by voice or text, pause, resume, change and cancel on the matter page, "watch this thread" from the matter page or a list of your recent conversations; settings (assistant address, connected sending account, default limits, preferences); the usage meter; a consent screen before first use saying your emails and the replies are processed by OpenAI through our server; the app receiving the server's notifications. The Assistant subscription in both stores (monthly and yearly) with its allowances, top-ups and a soft stop at the limit, built on the plans already live; Free, Pro and Premium untouched. Device attestation (App Check) switched on for the server functions before the public release. |
 
-### Beta and public release, USD 550, about 3 weeks
+### The assistant in the app, beta and public release (Dusko), USD 1,100, about 3 weeks after A7
+
+Dusko starts when the server side (A7) is finished; the store reviews come on top of the 3 weeks.
 
 | Milestone | Who | What it delivers |
 |---|---|---|
+| A8. The assistant inside the app, with its subscription | Dusko | The matters list and timeline, approval cards, delegation by voice or text, pause, resume, change and cancel on the matter page, "watch this thread" from the matter page or a list of your recent conversations; settings (assistant address, connected sending account, default limits, preferences); the usage meter; a consent screen before first use saying your emails and the replies are processed by OpenAI through our server; the app receiving the server's notifications. The Assistant subscription in both stores (monthly and yearly) with its allowances, top-ups and a soft stop at the limit, built on the plans already live; Free, Pro and Premium untouched. Device attestation (App Check) switched on for the server functions before the public release. |
 | A9. Beta and release | Dusko, with Sven's support included | The release build goes through Apple and Google review with the assistant and its subscription visible to the reviewer and described in the review notes. The beta for you and a few users, a feedback form, daily review and corrections, the beta report. Beta exit: no data exposure, no action outside a mandate without approval, and the cost per matter within the estimate. Then your final acceptance of the assistant, and the public release to a growing share of users, watched on cost per matter, approvals, bounces and complaints, and switched off at once if something goes wrong. |
 
 ## 6. What it costs to run per subscriber
