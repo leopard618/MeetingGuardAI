@@ -4,28 +4,29 @@
 
 Prepared by Dusko and Sven for Francisco Maldonado, Aeternum Tech Ltd. November 9, 2026. This answers your messages of November 5 and November 9. All amounts in US dollars.
 
-**Short answer.** You hand the assistant a matter, by voice or text, and it runs that matter by email until it is done. It writes to the people involved, follows up, books the meeting and turns promises into tasks, always inside limits you confirm and keeping you informed. Our best price is USD 4,950: 9 milestones of USD 550, USD 1,100 less than on October 26. Part 2 lists every task it performs.
+**Short answer.** You hand the assistant a matter, by voice or text, and it runs that matter by email until it is done. It writes to the people involved, follows up, books the meeting and turns promises into tasks, always inside limits you confirm and keeping you informed. It lives in the app and, as a new addition, on the web agenda. Our best price is USD 5,500: 10 milestones of USD 550, USD 550 less than on October 26, in about 9 weeks from your go. Part 2 lists every task it performs.
 
 ## In one glance
 
 | Part | Milestones | Price | Who | Timing |
 |---|---|---|---|---|
-| Prototype: a delegated matter by email, from your words to a booked meeting, demonstrated live | A1 to A4 | USD 2,200 | Sven | Demonstrated about 3 weeks after your go |
-| Production on the web: safety, your mailbox, briefings, notifications, the server side finished, and the assistant's full screens on the web agenda | A5 to A8 | USD 2,200 | Sven | About 3 weeks after your go on production |
-| The assistant in the app with its subscription, beta and public release | A9 | USD 550 | Dusko, with Sven's support included | About 3 weeks after A8; paid at your final acceptance of the assistant |
-| Total | 9 milestones | USD 4,950 | Sven USD 4,400 (about 6 weeks), Dusko USD 550 (about 3 weeks) | About 9 weeks of work from your first go, plus the days you take to decide after the demonstration and the store reviews |
+| Prototype in the app: a delegated matter by email, from your words to a booked meeting, demonstrated live | A1 to A3 | USD 1,650 | Sven | Demonstrated about 2 weeks after your go |
+| Production in the app: safety, your mailbox, watched threads, briefings and the assistant's screens | A4 and A5 | USD 1,100 | Sven | About 2 weeks after your go on production |
+| The assistant on the web agenda | A6 and A7 | USD 1,100 | Sven | About 2 weeks, in weeks 7 and 8, once Sven has finished the web agenda (S6) in weeks 5 and 6; while Dusko prepares the release |
+| Notifications, the subscription, the security review, beta and public release | A8 to A10 | USD 1,650 | Dusko | About 3 weeks, in weeks 7 to 9, once Dusko has finished the agreed scope (M15) in week 6; A10 paid at your final acceptance of the assistant |
+| Total | 10 milestones | USD 5,500 | Sven USD 3,850, Dusko USD 1,650 | About 9 weeks from your first go: about 7 weeks of assistant work, with weeks 5 and 6 going to the agreed work (S6, M14 and M15), as in part 7; plus the days you take to decide after the demonstration and the store reviews |
 
-On October 26 the same assistant was 11 milestones and USD 6,050. This plan is 9 milestones and USD 4,950, USD 1,100 less, with the same capabilities. The reason is in part 4: two milestones are no longer needed because the app already has those pieces.
-
-One change from October 26: the assistant's full screens (your matters, their history, approvals and settings) are now on the web agenda, where long email threads are easier to read. The app keeps what the phone does best: speaking to the assistant, and approvals and briefings that reach you as notifications (A9). The price and the timing above already include this change.
+On October 26 the assistant was 11 milestones and USD 6,050, in the app only. This plan is 10 milestones and USD 5,500: USD 550 less, and the assistant also comes to the web agenda. The reason is in part 4: the app part now needs 8 milestones instead of 11, because 1.6.0 already has several of the pieces.
 
 Production starts only after you have seen the prototype work and said go. If you stop after the prototype, nothing more is charged.
 
 ## 1. What the assistant is
 
-An optional premium module of Meeting Guard AI. You use it on the web agenda, which has its full screens, and in the app, by voice and with approvals on your phone. You delegate a matter to it, by voice or by typing, in English or Spanish, and it handles that matter by email until it is done: it writes to the people involved, reads their replies, follows up, books the meeting, turns promises into tasks with reminders, and tells you what is happening. It works only inside the limits you confirm for each matter (the mandate), keeps you informed of every email it sends, and stops to ask you whenever something falls outside those limits.
+An optional premium module of Meeting Guard AI, in the app and on the web agenda. You delegate a matter to it, by voice or by typing, in English or Spanish, and it handles that matter by email until it is done: it writes to the people involved, reads their replies, follows up, books the meeting, turns promises into tasks with reminders, and tells you what is happening. It works only inside the limits you confirm for each matter (the mandate), keeps you informed of every email it sends, and stops to ask you whenever something falls outside those limits.
 
-It is sold as its own subscription, separate from Pro and Premium, so a user can hold both. Like every plan, it is bought in the app through Google Play or the App Store; the web agenda reads the same plan.
+On your phone you talk to it, answer its approval cards with a tap and get its briefings as notifications. On the web agenda you delegate by typing, answer the same approval cards, pause, change or cancel a matter, and read long email threads on a larger screen; voice stays in the app. Both show the same matters.
+
+It is sold as its own subscription, separate from Pro and Premium, so a user can hold both. It is a new module beside the AI assistant already in the app (requests by voice or text, answered with confirmation cards), which stays in Free, Pro and Premium with the AI allowances you chose on November 5. Like every plan, it is bought in the app through Google Play or the App Store; the web agenda reads the same plan.
 
 ## 2. What it will do: the specific tasks
 
@@ -53,39 +54,40 @@ Your V2 rule that every outgoing message and every new meeting or task needs you
 
 Every commitment it proposes shows the email and the sentence it came from. Briefings and spoken answers use only the matter's own records and your meetings, never anything invented.
 
-Not in this price, for a later phase: whole-inbox triage (it watches only the threads you pick); assistant workflows on WhatsApp; shopping, travel or restaurant booking; languages beyond English and Spanish; a continuous phone-call style voice conversation (the prototype measures its cost per minute, then we quote it as an optional add-on so you decide with numbers).
+Not in this price, for a later phase: whole-inbox triage (it watches only the threads you pick); sending from Gmail and watching Gmail threads (below); assistant workflows on WhatsApp; shopping, travel or restaurant booking; languages beyond English and Spanish; a continuous phone-call style voice conversation (the prototype measures its cost per minute, then we quote it as an optional add-on so you decide with numbers).
 
-Gmail: for the assistant to send from a user's Gmail and read the replies there, Google must approve a restricted permission, and the app must pass an independent security assessment by a Google-approved assessor, repeated every 12 months, with the fee paid to the assessor each year (typically a few hundred to low thousands of dollars). Watching Gmail threads follows the same approval. Google's review usually takes two to six weeks after submission. We prepare the application inside A5 and write the privacy wording it needs, confirm the assessor's fee with you before submitting, and you submit it as the owner of the Google Cloud project. Until Google approves, Gmail users use the assistant address, which works for everyone from day one.
+Gmail: sending from a user's Gmail, reading the replies there and watching Gmail threads are not in this price; they are for a later phase. They need a Gmail connection built like the Microsoft one, Google's approval of a restricted permission, which Google gives only after seeing that connection work, and an independent security assessment of the app by a Google-approved assessor, repeated every 12 months, with the fee paid to the assessor each year (typically a few hundred to low thousands of dollars). Google's review usually takes two to six weeks after submission. Inside A4 we prepare the application and write the privacy wording it needs, so that phase starts ready; you submit it as the owner of the Google Cloud project once the Gmail connection works, after we confirm the assessor's fee with you. Until then, Gmail users use the assistant address, which works for everyone from day one.
 
 ## 4. Why the price is lower than on October 26
 
-Since October 26, Apple approved 1.5.0 with its subscriptions, the AI allowances went live on November 5, and 1.6.0 added the rest. Two of those pieces replace milestones of October 26:
+Since October 26, Apple approved 1.5.0 with its subscriptions, the AI allowances went live on November 5, and 1.6.0 added the rest. The app part of the assistant now takes 8 milestones instead of 11:
 
-- Allowances and metering: the monthly AI allowances, the per-user counters, the plan checks on the server and the project-wide daily cap on AI requests that limits spend. The assistant adds its own counters (matters, emails, voice minutes) to them inside A5, so the separate metering milestone is gone.
-- The store subscription: the four plans approved in both stores, with purchases and plan status handled through RevenueCat, and allowances that follow each subscriber's own subscription month. The Assistant subscription, its allowances and top-ups are built on that base inside A9, so the separate subscription milestone is gone.
+- Allowances and metering: the monthly AI allowances, the per-user counters, the plan checks on the server and the project-wide daily cap on AI requests that limits spend. The assistant adds its own counters (matters, emails, voice minutes) to them inside A4, so the separate metering milestone is gone.
+- The store subscription: the four plans approved in both stores, with purchases and plan status handled through RevenueCat, and allowances that follow each subscriber's own subscription month. The Assistant subscription, its allowances and top-ups are built on that base inside A8, so the separate subscription milestone is gone.
+- The prototype: it reuses the app's voice in English and Spanish, its confirmation cards and the server checks behind them, and the commitment rules of the 1.6.0 debrief, so it takes 3 milestones instead of 4.
+
+The two web milestones (A6 and A7) are new: the October 26 plan had no assistant on the web.
 
 Other pieces make the plan safer, though they do not shorten it:
 
-- Microsoft: sign-in with Microsoft and the Outlook and To Do connection are in 1.6.0, with the Microsoft app registration and consent screen. Today that connection lives on the phone, with calendar and task permissions only. Sending from your mailbox (A6) adds two mail permissions, send and read, to the same registration, and you connect your Microsoft account once more, in the assistant's settings on the web agenda (A8), to grant them. Microsoft's screen says the app may read your mail; the assistant opens only the threads of your matters and the ones you pick. The access is kept encrypted on the server, so the assistant can act while your phone is off. Company accounts need Aeternum Tech to be a verified publisher at Microsoft and, where the company blocks user consent, its administrator's approval.
-- Commitments: the debrief in 1.6.0 already finds who owes what by when and turns it into tasks you confirm. The assistant uses the same rules and task format for commitments found in replies.
-- Also reused: voice in English and Spanish, the confirmation cards and the server checks behind them, your daily briefing time and the full-screen summary on Android, and your meetings on the server, which already include the events the app imports from Google Calendar, Outlook and your phone's calendar.
+- Microsoft: sign-in with Microsoft and the Outlook and To Do connection are in 1.6.0, with the Microsoft app registration and consent screen. Today that connection lives on the phone, with calendar and task permissions only. Sending from your mailbox (A4) adds two mail permissions, send and read, to the same registration, and you connect your Microsoft account once more, in the app (A4), to grant them. Microsoft's screen says the app may read your mail; the assistant opens only the threads of your matters and the ones you pick. The access is kept encrypted on the server, so the assistant can act while your phone is off. Company accounts need Aeternum Tech to be a verified publisher at Microsoft and, where the company blocks user consent, its administrator's approval.
+- Also reused: your daily briefing time and the full-screen summary on Android, and your meetings on the server, which already include the events the app imports from Google Calendar, Outlook and your phone's calendar.
 
 ## 5. The milestones
 
-Each milestone ends with a recorded demo and a code push: A1 to A8 in a browser, on the demonstration web page or the web agenda, and A9 on a real phone. The USD 550 of each of A1 to A8 is released after its demo, as in our existing agreement; A9 is paid at your final acceptance of the assistant.
+Each milestone ends with a recorded demo and a code push (A6 and A7 on the web agenda, the others on a real phone); its USD 550 is released then, as in our existing agreement. A10 is paid at your final acceptance of the assistant.
 
-### Prototype (Sven), USD 2,200, demonstrated about 3 weeks after your go
+### Prototype in the app (Sven), USD 1,650, demonstrated about 2 weeks after your go
 
-The 3 weeks count from the day the mail records and the email provider account in part 8 are in place.
+The 2 weeks count from the day the mail records and the email provider account in part 8 are in place.
 
 | Milestone | What it delivers |
 |---|---|
-| A1. The assistant's email identity | A dedicated address per user on a Meeting Guard AI mail subdomain, with a display name that says it is an AI assistant acting for you (for example, Francisco's AI assistant); you informed of every email (a copy by default, or a daily summary); replies come back and attach to the right matter; bounces handled; a daily send cap per user. SPF, DKIM and DMARC on the subdomain, so the app's other mail is never affected, and a slow start at low volume to build its sending reputation. One email provider account serves both the assistant and the forwarded meeting summaries of the agreed scope: whichever is built first sets it up, the summaries never wait for the assistant, and nothing is charged twice. |
-| A2. The delegated matter and its mandate | Your words become a matter with a mandate (who, what, which times, how often, until when); missing details asked first; read back and confirmed before anything is sent. Pause, resume, change and cancel by voice or text. |
-| A3. Replies, follow-ups and safety | Each reply read against the thread and the mandate; commitments proposed as linked tasks with reminders for your confirmation; the next step within the mandate taken; follow-ups on the cadence, stopping at the end date or when the contact asks. Every email says whom it acts for and that an AI assistant wrote it. Anything outside the mandate or unclear becomes an approval card. Tested against hostile emails, including one pretending to come from you. |
-| A4. Scheduling, voice, history and the demonstration | Availability from your meetings in Meeting Guard AI, including the events imported from your connected calendars; two or three free times offered with the time zone; the chosen one booked with linked tasks and reminders; the confirmation sent, with the guest invitation link once the Stage 4 links are live. Delegation and status questions by voice in English and Spanish on the demonstration web page, in browsers that support voice, with spoken answers you can interrupt; voice in the app comes with A9. The timeline per matter. The live demonstration below, with the measured cost per matter and per minute of the natural-voice option. |
+| A1. The assistant's email identity, and the mandate | A dedicated address per user on a Meeting Guard AI mail subdomain, with a display name that says it is an AI assistant acting for you (for example, Francisco's AI assistant); you informed of every email (a copy by default, or a daily summary); replies come back and attach to the right matter; bounces handled; a daily send cap per user. The standard email authentication records (SPF, DKIM and DMARC) on the subdomain, so mail providers trust the assistant's emails, while the separate subdomain keeps the app's other mail unaffected; and a slow start at low volume to build its sending reputation. One email provider account serves both the assistant and the forwarded meeting summaries of the agreed scope: whichever is built first sets it up, the summaries never wait for the assistant, and nothing is charged twice. Your words become a matter with a mandate (who, what, which times, how often, until when); missing details asked first; read back and confirmed before anything is sent. Pause, resume, change and cancel by voice or text. |
+| A2. Replies, follow-ups and safety | Each reply read against the thread and the mandate; commitments proposed as linked tasks with reminders for your confirmation; the next step within the mandate taken; follow-ups on the cadence, stopping at the end date or when the contact asks. Every email says whom it acts for and that an AI assistant wrote it. Anything outside the mandate or unclear becomes an approval card. Tested against hostile emails, including one pretending to come from you. |
+| A3. Scheduling, voice, history and the demonstration | Availability from your meetings in Meeting Guard AI, including the events imported from your connected calendars; two or three free times offered with the time zone; the chosen one booked with linked tasks and reminders; the confirmation sent. Delegation and status questions by voice in English and Spanish in the app, with spoken answers you can interrupt. The timeline per matter. The live demonstration below, with the measured cost per matter and per minute of the natural-voice option. |
 
-The live demonstration (the Carlos scenario) runs on the demonstration web page, in the browser of a real phone, once in English and once in Spanish, with the delegation once by voice and once by text:
+The live demonstration (the Carlos scenario) runs in a test version of the app on a real phone, in a session with you, once in English and once in Spanish, with the delegation once by voice and once by text:
 
 1. You delegate the Carlos request; the mandate is read back; you confirm.
 2. The first email reaches the contact, and your copy reaches you, within one minute.
@@ -96,26 +98,29 @@ The live demonstration (the Carlos scenario) runs on the demonstration web page,
 7. You ask by voice what is happening; it answers aloud from the history; you interrupt it, by voice or with a tap, and it listens.
 8. The measured cost of the matter (model, voice, emails) is shown.
 
-Not in the prototype: sending from your own mailbox, watched threads, briefings and the digest, the assistant's full screens on the web agenda (the demonstration runs on a simple web page, which also shows the timeline), the app part and the subscription. These come in production. Then you decide on production.
+Not in the prototype: sending from your own mailbox, watched threads, briefings and the digest, the assistant's full screens in the app (the demonstration shows the matter's timeline on a simple screen), notifications sent from the server, the subscription and the web agenda. These come in production. Then you decide on production.
 
-### Production on the web (Sven), USD 2,200, about 3 weeks after your go on production
+### Production in the app (Sven), USD 1,100, about 2 weeks after your go on production
 
-Sven builds the assistant's server functions and its full screens in the web agenda's code, and Dusko builds the app part in A9. Both run on the same Firebase project as the app, so the app and the web share one account, one set of records and one plan. Dusko reviews the security of the assistant's server side and keeps the database security rules that protect your records in the app and on the web.
+| Milestone | What it delivers |
+|---|---|
+| A4. Security, limits and metering, and your mailbox | A written threat model for email as an open channel (fake senders, hidden instructions inside emails, data leaks, misuse of the sending domain), with a control for each, reviewed and signed by Dusko; hard mandate limits; financial and contractual language blocked in drafts; hostile-email tests in English and Spanish. Retention and deletion: email texts kept while a matter is open and for a set period after it closes (90 days suggested, yours to set), then deleted; a matter can be deleted at any time; deleting your account removes everything; mailbox access kept encrypted on the server, never visible in the admin dashboard, and removed when you disconnect. Every action counted on the allowance system 1.6.0 already runs; the per-user cost in the admin dashboard and a spend cap per user per day; the assistant behind an on/off switch; the Gmail application prepared for the later phase. Your Microsoft mailbox connected to the assistant in the app, with the send and read permissions; sending from it when you allow it per matter, and reading the replies there; "watch this thread" on a conversation picked from a list of your recent conversations, with draft replies as approval cards. |
+| A5. The assistant complete in the app | The matters list and timeline, with retry or cancel for a failed send or booking, approval cards, delegation by voice or text, pause, resume, change and cancel on the matter page, "watch this thread" also from the matter page; briefings before the meetings it arranged and on request, and the morning digest; settings (assistant address, connected sending account, default limits and the preferences listed in part 2); the usage meter; a consent screen before first use saying your emails and the replies are processed by OpenAI through our server; spoken answers in English and Spanish that start at once, instead of after the whole answer is ready. The server side finished and documented, so the web agenda is built on it. |
 
-| Milestone | Who | What it delivers |
-|---|---|---|
-| A5. Security, limits and metering | Sven | A written threat model for email as an open channel (fake senders, hidden instructions inside emails, data leaks, misuse of the sending domain), with a control for each, reviewed and signed by Dusko; hard mandate limits; financial and contractual language blocked in drafts; hostile-email tests in English and Spanish. Retention and deletion: email texts kept while a matter is open and for a set period after it closes (90 days suggested, yours to set), then deleted; a matter can be deleted at any time; deleting your account removes everything; mailbox access kept encrypted on the server, never visible in the admin, and removed when you disconnect. Every action counted on the allowance system 1.6.0 already runs; a spend cap per user per day; the per-user cost and the assistant's on/off switch on an assistant page of the web agenda that only administrators can open; the Gmail application prepared. |
-| A6. Your mailbox, watched threads, briefings, notifications | Sven | Sending from your connected Microsoft mailbox when you allow it per matter, and reading the replies there; "watch this thread" with draft replies as approval cards; briefings before the meetings it arranged and on request; the morning digest; notifications sent from the server for the digest, the briefings, new approval cards and failed sends, by email and on the web agenda, and to your phone through the app part in A9 (today every notification in the app is scheduled on the phone itself); the preferences listed in part 2. |
-| A7. The server side finished, and the texts | Sven | The server side finished and documented, so the web and app screens are built on it; spoken answers in English and Spanish that start at once, instead of after the whole answer is ready; the privacy policy and terms updated for the assistant (what goes to OpenAI and to the email provider, how long emails are kept, that you are responsible for whom it contacts, and that it may not be used for marketing or bulk email); an assistant section on meetingguard.ai with the demonstration video; the Assistant plan's store text in English and Spanish; the production checklist and a handover note for running it (mail domain health, bounces, cost). |
-| A8. The assistant on the web agenda | Sven | The matters list and timeline, approval cards, delegation by typing (and by voice in browsers that support it), pause, resume, change and cancel on the matter page, "watch this thread" from the matter page or a list of your recent conversations; settings (assistant address, connected sending account, default limits, preferences); the usage meter; a consent screen before first use saying your emails and the replies are processed by OpenAI through our server. Open to users with the Assistant plan. |
+### The assistant on the web agenda (Sven), USD 1,100, about 2 weeks, in weeks 7 and 8
 
-### The assistant in the app, beta and public release (Dusko), USD 550, about 3 weeks after A8
+| Milestone | What it delivers |
+|---|---|
+| A6. Your matters on the web agenda | The matters list and timeline, approval cards, delegation by typing, pause, resume, change and cancel on the matter page, and the full email threads of each matter, easy to read on a larger screen. The same matters and records as the app, open to users with the Assistant plan. |
+| A7. Settings on the web, and the assistant page | Settings, "watch this thread" and the usage meter on the web agenda, with the same consent screen before first use; the web agenda's calls to the assistant made ready for App Check, which Dusko switches on in A9; an assistant section on meetingguard.ai with the demonstration video. |
 
-Dusko starts when the assistant works on the web agenda (A8); the store reviews come on top of the 3 weeks.
+### Notifications, the subscription, the security review, beta and public release (Dusko), USD 1,650, about 3 weeks, in weeks 7 to 9
 
-| Milestone | Who | What it delivers |
-|---|---|---|
-| A9. The assistant in the app, beta and release | Dusko, with Sven's support included | The Assistant subscription in both stores (monthly and yearly) with its allowances, top-ups and a soft stop at the limit, built on the plans already live; Free, Pro and Premium untouched. In the app: delegate a matter, pause, resume, change or cancel it, and ask how it stands or for a briefing, by voice or text, with spoken answers you can interrupt; the server's notifications on your phone for approval cards, briefings, the morning digest and failed sends, each opening the app, where you answer an approval card with a tap and read the digest in full (on Android, the full-screen morning summary opens it); the same consent screen before first use; and a link to the full matter on the web agenda. For linked users, the digest joins the WhatsApp daily agenda once Stage 3 is live. Device attestation (App Check) switched on for the server functions before the public release, for the calls from the app and, with Sven's support, from the web agenda. The Assistant plan's store screenshots, taken in the app in English and Spanish, with the review screenshot Apple asks for with the subscription. The release build goes through Apple and Google review with the assistant and its subscription visible to the reviewer and described in the review notes. The beta for you and a few users, a feedback form, daily review and corrections, the beta report. Beta exit: no data exposure, no action outside a mandate without approval, and the cost per matter within the estimate. Then your final acceptance of the assistant, and the public release to a growing share of users, watched on cost per matter, approvals, bounces and complaints, and switched off at once if something goes wrong. |
+| Milestone | What it delivers |
+|---|---|
+| A8. Notifications and the subscription | Notifications sent from the server to your phone for approval cards, briefings, the morning digest and failed sends or bookings, each opening the app (today every notification in the app is scheduled on the phone itself); the digest in the Android full-screen morning summary; for linked users, the digest in the WhatsApp daily agenda once Stage 3 is live; the guest invitation link of M15 added to the confirmation the assistant sends when it books a meeting. The Assistant subscription in both stores (monthly and yearly) with its allowances, top-ups and a soft stop at the limit, built on the plans already live; Free, Pro and Premium untouched. |
+| A9. Security review, the texts and the production setup | Dusko's review of the whole assistant against the threat model; Firebase App Check added to the app and switched on for the assistant's server functions, so they accept calls only from the real Meeting Guard AI app and web agenda; the privacy policy and terms updated for the assistant (what goes to OpenAI and to the email provider, how long emails are kept, that you are responsible for whom it contacts, and that it may not be used for marketing or bulk email); the Assistant plan's store text and screenshots in English and Spanish, with the review screenshot Apple asks for; the production setup, the checklist and a handover note for running it (mail domain health, bounces, cost). |
+| A10. Beta and public release | The release build goes through Apple and Google review with the assistant and its subscription visible to the reviewer and described in the review notes. The beta for you and a few users, a feedback form, daily review and corrections, the beta report. Beta exit: no data exposure, no action outside a mandate without approval, and the cost per matter within the estimate. Then your final acceptance of the assistant, and the public release to a growing share of users, watched on cost per matter, approvals, bounces and complaints, and switched off at once if something goes wrong. |
 
 ## 6. What it costs to run per subscriber
 
@@ -124,7 +129,7 @@ Estimates for one paying assistant subscriber per month, with the providers we p
 | Component | Typical | Heavy |
 |---|---|---|
 | AI model (the OpenAI model the app uses today) | USD 0.28 | USD 1.42 |
-| Voice in the app and on the web agenda (speech handled by the phone or the browser, no per-minute cost) | USD 0.00 | USD 0.00 |
+| Voice in the app (speech on the phone, no per-minute cost) | USD 0.00 | USD 0.00 |
 | Email (Postmark, share above its base plan) | USD 0.08 | USD 0.29 |
 | Hosting, functions, database (Firebase) | USD 0.10 | USD 0.25 |
 | Total | USD 0.46 | USD 1.96 |
@@ -135,9 +140,20 @@ Typical means 8 matters and 20 voice minutes a month, inside the suggested allow
 
 Suggested allowance for the Assistant plan: 10 matters, 30 voice minutes and 100 assistant emails a month, with top-ups in packs of 5 matters. The prices users pay are your decision. Against a monthly price like Premium's, even a heavy subscriber leaves a wide margin after the store's fee.
 
-## 7. How it fits with the agreed work
+## 7. How we work, and how it fits with the agreed work
 
-Dusko's agreed scope (the Stage 2 close, Stages 3 and 4, and the summaries) and Sven's current work keep their order and their payments, and they come first. Nothing in them depends on the assistant. The prototype is Sven's work and starts on your go. Sven works on the web agenda and its server code; Dusko joins at A9, when the assistant works on the web, for the app part and the release. At the demonstration we confirm the week Dusko joins, so it never pushes the agreed work.
+Sven builds the assistant: first in the app, then on the web agenda. He sends each part to Dusko for review; Dusko checks it, tests it and adds it to the app or the web agenda, so each stays one codebase with one standard and nothing reaches your users without his review. Until the beta in A10, the assistant stays switched off in every store release, the Stage 3 and Stage 4 releases of the agreed scope included, and it stays off if you stop after the prototype. The agreed work keeps its order, its weeks and its payments, and nothing in it depends on the assistant: Dusko's M10 to M15 run in weeks 1 to 6, and Sven's S6 in weeks 5 and 6, with the guest page that M15 needs.
+
+With your go now, and your go on production right after the demonstration, the weeks run like this:
+
+| Weeks | Sven | Dusko |
+|---|---|---|
+| 1 and 2 | The prototype in the app (A1 to A3), then the live demonstration | The iPhone release of 1.6.0 (M9); the summaries (M10, M11); the review of Sven's prototype parts |
+| 3 and 4 | Production in the app (A4, A5) | Portuguese and the Hindi verdict (M12); WhatsApp and the Stage 3 close (M13); the review of Sven's production parts |
+| 5 and 6 | The web agenda finished, with the guest page (S6) | French, German and the Mandarin verdict (M14); guest links and the final acceptance of the agreed scope (M15) |
+| 7 to 9 | The assistant on the web agenda (A6, A7), weeks 7 and 8 | Notifications, the subscription, the security review, beta and public release (A8 to A10); the review of Sven's web parts |
+
+If your decision after the demonstration takes longer, the assistant's weeks move with it; the agreed work does not.
 
 ## 8. What we need from you
 
@@ -145,14 +161,15 @@ Dusko's agreed scope (the Stage 2 close, Stages 3 and 4, and the summaries) and 
 - At the start: the DNS records for the assistant's mail subdomain (we send the exact records), and an account with the email provider in Aeternum Tech's name (about USD 16.50 a month). The provider reviews new accounts before they can write to outside addresses, so we open it in the first days.
 - Two test contacts for the demonstration.
 - For production: a Microsoft test mailbox; the mail permissions (send and read) and the server settings added to the Microsoft app registration; Microsoft publisher verification for Aeternum Tech (a free Microsoft partner ID and the meetingguard.ai domain), so company accounts can connect. We send the steps.
-- If you want Gmail sending: the Google application as project owner, and the assessor's yearly fee.
-- Before A7: your approval of the updated privacy policy and terms, and the retention period for emails.
-- Before A9: the Assistant plan prices and allowances, and the beta testers.
+- If you later want Gmail sending: the Google application as project owner, and the assessor's yearly fee.
+- Before A8: the Assistant plan prices and allowances.
+- During A9: your approval of the updated privacy policy and terms we prepare, and the retention period for emails they state (90 days suggested).
+- Before A10: the beta testers.
 
 ## 9. What we ask you to confirm
 
 1. The tasks in part 2 and the rules in part 3 are the assistant you want.
-2. The price: USD 4,950 for 9 milestones, USD 550 each, released after each demo and code push; A9 at your final acceptance of the assistant.
-3. Your go on the prototype, A1 to A4, USD 2,200. Production, A5 to A9, starts only on your go after the demonstration.
+2. The price: USD 5,500 for 10 milestones, USD 550 each, released after each demo and code push; A10 at your final acceptance of the assistant.
+3. Your go on the prototype, A1 to A3, USD 1,650. Production, A4 to A10, starts only on your go after the demonstration.
 
 Thank you for bringing it back. The assistant is the part of Meeting Guard AI that works for you while you are busy, and we are ready to start on your go.
