@@ -131,7 +131,7 @@ Suggested allowance for the Assistant plan: 10 matters, 30 voice minutes and 100
 
 ## 7. How it fits with the agreed work
 
-Dusko's agreed scope (the Stage 2 close, Stages 3 and 4, and the summaries) and Sven's current work keep their schedule and their payments, and they come first. Nothing in them depends on the assistant. The prototype is Sven's work and starts on your go. Dusko joins at A8, when the server side is ready; we confirm that week at the demonstration, so it never pushes the agreed work.
+Dusko's agreed scope (the Stage 2 close, Stages 3 and 4, and the summaries) and Sven's current work keep their order and their payments, and they come first. Nothing in them depends on the assistant. The prototype is Sven's work and starts on your go. Dusko joins at A8, when the server side is ready; we confirm that week at the demonstration, so it never pushes the agreed work.
 
 ## 8. What we need from you
 
