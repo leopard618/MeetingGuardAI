@@ -87,16 +87,29 @@ The assistant works in English and Spanish; it does not follow the app into Port
 
 The estimated running cost is about USD 0.46 a month for a typical subscriber and USD 1.96 for a heavy one, plus an email provider account of about USD 16.50 a month shared by all subscribers (part 6 of the proposal).
 
-## 5. How the work fits together
+## 5. All plans in one table
 
-The agreed scope comes first and keeps its order. The assistant is new work beside it, and nothing in the agreed scope depends on it.
+The agreed scope (lines A and B) comes first and keeps its order. The assistant (line C) is new work beside it, and nothing in the agreed scope depends on it. Weeks count from now for the agreed work and from your go for the assistant: with your go now and your go on production right after the demonstration, everything ends in about 9 weeks, plus the store reviews.
 
-| Phase | Dusko | Sven |
-|---|---|---|
-| Now | The iPhone release of 1.6.0 and your Stage 2 acceptance (M9) | The legal pages on meetingguard.ai; the landing page and the web agenda |
-| Next, about 6 weeks | M10 to M15, ending with your Stage 4 and final acceptance of the agreed scope | The web agenda finished, with the guest page; on your go, the assistant prototype (A1 to A4), about 3 weeks |
-| After your go on production | The last milestones of the agreed scope | A5 to A7, the assistant's server side, about 3 weeks |
-| Then, about 3 weeks | A8 and A9: the assistant inside the app with its subscription, beta and public release | Support during the beta |
+| Milestone | Who | Amount | Paid | To pay | When |
+|---|---|---|---|---|---|
+| M1 to M4. Voice, tasks, linked tasks, agenda out loud | Dusko | USD 2,200 | USD 2,200 | USD 0 | Done |
+| M5. Stage 1 release, version 1.5.0 | Dusko | USD 550 | USD 550 | USD 0 | Done |
+| M6. Outlook calendar sync | Dusko | USD 550 | USD 550 | USD 0 | Done |
+| M7. Microsoft To Do sync | Dusko | USD 550 | USD 550 | USD 0 | Done |
+| M8. Google Tasks sync and the spoken debrief | Dusko | USD 550 | USD 550 | USD 0 | Done |
+| M9. Running late and the Stage 2 close, version 1.6.0 | Dusko | USD 550 | USD 0 | USD 550 | Now: live on Google Play, iPhone to App Review; paid at your Stage 2 acceptance |
+| M10. Summaries arrive by themselves | Dusko | USD 550 | USD 0 | USD 550 | Week 1 |
+| M11. Summaries become commitments | Dusko | USD 550 | USD 0 | USD 550 | Week 2 |
+| M12. Portuguese, and the Hindi verdict | Dusko | Included | | | Week 3 |
+| M13. WhatsApp complete, and the Stage 3 close | Dusko | USD 550 | USD 0 | USD 550 | Week 4; paid at your Stage 3 acceptance |
+| M14. French and German, and the Mandarin verdict | Dusko | Included | | | Week 5 |
+| M15. Guest invitation links, and the Stage 4 and final acceptance | Dusko | USD 700 | USD 0 | USD 700 | Week 6; paid at your final acceptance |
+| S1 to S6. Landing page and web agenda | Sven | USD 3,300 | USD 2,750 | USD 550 | In progress; finished by week 6, with the guest page for M15 |
+| A1 to A4. Assistant prototype (new) | Sven | USD 2,200 | USD 0 | USD 2,200 | Weeks 1 to 3 after your go, then the live demonstration |
+| A5 to A7. Assistant server side (new) | Sven | USD 1,650 | USD 0 | USD 1,650 | Weeks 4 to 6, after your go on production |
+| A8 and A9. Assistant in the app, beta and public release (new) | Dusko | USD 1,100 | USD 0 | USD 1,100 | Weeks 7 to 9; A9 paid at your final acceptance of the assistant |
+| Total | | USD 15,550 | USD 7,150 | USD 8,400 | About 9 weeks |
 
 Running costs: the forwarded summaries (M10) need a service that receives email for the private address. We set it up on a free plan while the volume allows it; if a paid plan becomes necessary, we tell you the cost before it starts. If you approve the assistant, its own address (A1) uses the same account, so nothing is paid twice, and the summaries never wait for the assistant.
 
@@ -110,18 +123,7 @@ Received:
 | Sven | USD 2,750 | Five of the six landing page and web agenda payments |
 | Total | USD 7,150 | |
 
-Ahead, line by line and in milestone order within each line, each after the demo and code push of its milestone (the lines run side by side, as in part 5):
-
-| Line | Milestone | Amount |
-|---|---|---|
-| A. Dusko | M9: payment 9, at your Stage 2 acceptance | USD 550 |
-| A. Dusko | M10: summaries addition, part 1 | USD 550 |
-| A. Dusko | M11: summaries addition, part 2 | USD 550 |
-| A. Dusko | M13: payment 10, at your Stage 3 acceptance | USD 550 |
-| A. Dusko | M15: final payment, at your Stage 4 and final acceptance | USD 700 |
-| B. Sven | His last open landing page or web agenda milestone | USD 550 |
-| C. Assistant | A1 to A9, USD 550 each, only after your go | USD 4,950 |
-| Total | | USD 8,400 |
+Still to pay: USD 8,400, milestone by milestone in the "To pay" column of part 5. Each payment is released after the demo and code push of its milestone: payment 9 (M9) at your Stage 2 acceptance, payment 10 (M13) at your Stage 3 acceptance, the final USD 700 (M15) at your Stage 4 and final acceptance, Sven's last USD 550 after his last open milestone, and the assistant's nine payments of USD 550 only after your go, A9 at your final acceptance of the assistant.
 
 ## 7. What we need from you
 
@@ -144,7 +146,7 @@ For the assistant: your go on the prototype, and the items in part 8 of the prop
 ## 8. What we ask you to confirm
 
 1. The payments received: USD 4,400 to Dusko and USD 2,750 to Sven, USD 7,150 in total.
-2. Timing in weeks of work in place of the October 27 dates, and the order of the remaining agreed work in parts 2 and 3, with its payments in part 6.
+2. Timing in weeks of work in place of the October 27 dates, and the order of the remaining agreed work in parts 2 and 3, with its payments in parts 5 and 6.
 3. Your go on the assistant prototype, A1 to A4, USD 2,200. Production starts only on your go after the demonstration.
 
 Thank you. With the assistant, this plan covers the whole project: the agreed app, the website and the web agenda, and the AI component, with the later-phase items of part 4 left for after the launch.
