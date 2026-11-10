@@ -18,7 +18,7 @@ Prepared by Dusko and Sven for Francisco Maldonado, Aeternum Tech Ltd. November 
 | C. Sven and Dusko, AI executive assistant (new) | USD 4,950 | USD 0 | USD 4,950 | For your approval; prototype first |
 | Total | USD 15,550 | USD 7,150 | USD 8,400 | |
 
-Lines A and B are already contracted: USD 3,450 of what remains. Line C is new and starts only on your go. Apart from M15, whose guest page lives on Sven's web agenda (S6), no payment in one line depends on a milestone of another line. Every payment still ahead is released after the recorded demo and code push of its milestone.
+Lines A and B are already contracted: USD 3,450 of what remains. Line C is new and starts only on your go. Apart from M15, whose guest page lives on Sven's web agenda (S6), and A8, the assistant's full screens, which Sven builds into that same web agenda, no payment in one line depends on a milestone of another line. Every payment still ahead is released after the recorded demo and code push of its milestone.
 
 ## 1. Where the project stands
 
@@ -66,20 +66,20 @@ Both are in progress. Sven has received USD 2,750 of USD 3,300, five of the six 
 
 The table summarizes Sven's six milestones; their deliverables and acceptance criteria from October 27 apply in full.
 
-As answered on October 27, the web agenda and the app share one account, one set of records and one plan: a feature locked on Free in the app is locked on the web too. Every subscription, the new Assistant subscription included, is bought and managed only in the app through Google Play and the App Store; there is no web checkout. The web agenda has no voice or AI features; the assistant's screens are in the app (A8). The landing page and the web agenda run on the existing Firebase project, with no new vendor or subscription, and each has 60 days of bug fixes from its own acceptance.
+As answered on October 27, the web agenda and the app share one account, one set of records and one plan: a feature locked on Free in the app is locked on the web too. Every subscription, the new Assistant subscription included, is bought and managed only in the app through Google Play and the App Store; there is no web checkout. The web agenda itself has no AI features in its price; if you approve the assistant, its full screens are added to the web agenda (A8, inside the assistant's price), and the app gets its voice part and the subscription (A9). The landing page and the web agenda run on the existing Firebase project, with no new vendor or subscription, and each has 60 days of bug fixes from its own acceptance.
 
 Needed now: the updated privacy policy, terms and delete-account page on meetingguard.ai. The texts are ready. The Android version on Google Play links to these pages, Google reads the privacy page while it reviews the Google Tasks permission, and App Review reads them next to the iPhone app, so they go live before we submit the iPhone version.
 
 ## 4. The AI executive assistant (new)
 
-You hand the assistant a matter, by voice or text, and it runs that matter by email until it is done: it writes to the people involved, follows up, books the meeting and turns promises into tasks, always inside limits you confirm. The attached proposal lists every task it performs and the rules it follows. Our best price is USD 4,950, USD 1,100 less than on October 26, because version 1.6.0 already has the AI allowances and the store subscriptions it builds on.
+You hand the assistant a matter, by voice or text, and it runs that matter by email until it is done: it writes to the people involved, follows up, books the meeting and turns promises into tasks, always inside limits you confirm. You use it on the web agenda, which has its full screens, and in the app, by voice and with approvals on your phone. The attached proposal lists every task it performs and the rules it follows. Our best price is USD 4,950, USD 1,100 less than on October 26, because version 1.6.0 already has the AI allowances and the store subscriptions it builds on.
 
 | Part | Milestones | Price | Who | Timing |
 |---|---|---|---|---|
 | Prototype, demonstrated live | A1 to A4 | USD 2,200 | Sven | About 3 weeks after your go |
-| Production, server side | A5 to A7 | USD 1,650 | Sven | About 3 weeks after your go on production |
-| The assistant inside the app with its subscription, beta and public release | A8 and A9 | USD 1,100 | Dusko, with Sven's support included | About 3 weeks after A7; A9 paid at your final acceptance of the assistant |
-| Total | 9 milestones | USD 4,950 | Sven USD 3,850 (about 6 weeks), Dusko USD 1,100 (about 3 weeks) | About 9 weeks of work from your first go, plus the days you take to decide after the demonstration and the store reviews |
+| Production on the web: the server side and the assistant's full screens on the web agenda | A5 to A8 | USD 2,200 | Sven | About 3 weeks after your go on production |
+| The assistant in the app with its subscription, beta and public release | A9 | USD 550 | Dusko, with Sven's support included | About 3 weeks after A8; paid at your final acceptance of the assistant |
+| Total | 9 milestones | USD 4,950 | Sven USD 4,400 (about 6 weeks), Dusko USD 550 (about 3 weeks) | About 9 weeks of work from your first go, plus the days you take to decide after the demonstration and the store reviews |
 
 Production starts only after you have seen the prototype work and said go. If you stop after the prototype, nothing more is charged.
 
@@ -107,8 +107,8 @@ The agreed scope (lines A and B) comes first and keeps its order. The assistant 
 | M15. Guest invitation links, and the Stage 4 and final acceptance | Dusko | USD 700 | USD 0 | USD 700 | Week 6; paid at your final acceptance |
 | S1 to S6. Landing page and web agenda | Sven | USD 3,300 | USD 2,750 | USD 550 | In progress; finished by week 6, with the guest page for M15 |
 | A1 to A4. Assistant prototype (new) | Sven | USD 2,200 | USD 0 | USD 2,200 | Weeks 1 to 3 after your go, then the live demonstration |
-| A5 to A7. Assistant server side (new) | Sven | USD 1,650 | USD 0 | USD 1,650 | Weeks 4 to 6, after your go on production |
-| A8 and A9. Assistant in the app, beta and public release (new) | Dusko | USD 1,100 | USD 0 | USD 1,100 | Weeks 7 to 9; A9 paid at your final acceptance of the assistant |
+| A5 to A8. Assistant production on the web: server side and web screens (new) | Sven | USD 2,200 | USD 0 | USD 2,200 | Weeks 4 to 6, after your go on production |
+| A9. Assistant in the app, beta and public release (new) | Dusko | USD 550 | USD 0 | USD 550 | Weeks 7 to 9; paid at your final acceptance of the assistant |
 | Total | | USD 15,550 | USD 7,150 | USD 8,400 | About 9 weeks |
 
 Running costs: the forwarded summaries (M10) need a service that receives email for the private address. We set it up on a free plan while the volume allows it; if a paid plan becomes necessary, we tell you the cost before it starts. If you approve the assistant, its own address (A1) uses the same account, so nothing is paid twice, and the summaries never wait for the assistant.
