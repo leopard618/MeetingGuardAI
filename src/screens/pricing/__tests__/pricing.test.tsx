@@ -26,6 +26,7 @@ import {
   isUpgradePurchase,
   storeCopyKey,
   summarizeUsage,
+  zeroPriceLike,
   type StoreState,
 } from '../pricingModel';
 
@@ -139,6 +140,12 @@ describe('pricing model', () => {
     const premium = cards.find((card) => card.id === 'premium_monthly')!;
     expect(premium.hasFreeTrial).toBe(false);
     expect(cards.find((card) => card.id === 'free')!.purchasable).toBe(false);
+    // The Free card's 0 follows the store's own price format, never "0 US$" beside store prices.
+    expect(cards.find((card) => card.id === 'free')!.storePriceString).toBe('€0');
+    // A partial offering (yearly not on sale yet): the yearly paid cards fall back to USD, so Free does too.
+    const monthlyOnly: StoreState = { kind: 'ready', offering: { ...OFFERING, packages: OFFERING.packages.filter((pkg) => pkg.cycle === 'monthly') } };
+    expect(buildPlanCards('yearly', 'free', monthlyOnly, 'en').find((card) => card.id === 'free')!.storePriceString).toBeNull();
+    expect(buildPlanCards('monthly', 'free', monthlyOnly, 'en').find((card) => card.id === 'free')!.storePriceString).toBe('€0');
     // Yearly: store per-month equivalent and store-derived discount replace the catalog values.
     const proYearly = buildPlanCards('yearly', 'free', READY, 'en').find((card) => card.id === 'pro_yearly')!;
     expect(proYearly.storeMonthlyEquivalent).toBe(formatStorePrice(71_910_000 / 12, 'EUR', 'en'));
@@ -644,5 +651,20 @@ describe('PricingScreen (purchases configured)', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe('zeroPriceLike (the Free card in the store currency)', () => {
+  it('keeps the store symbol and layout and replaces the amount with 0', () => {
+    expect(zeroPriceLike('$179.00')).toBe('$0');
+    expect(zeroPriceLike('179,00 €')).toBe('0 €');
+    expect(zeroPriceLike('MX$179.00')).toBe('MX$0');
+    expect(zeroPriceLike('US$ 9.99')).toBe('US$ 0');
+    expect(zeroPriceLike('1 299,00 kr')).toBe('0 kr');
+  });
+
+  it('is null when the string has no amount', () => {
+    expect(zeroPriceLike('Free')).toBeNull();
+    expect(zeroPriceLike('')).toBeNull();
   });
 });

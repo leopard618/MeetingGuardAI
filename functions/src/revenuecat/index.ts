@@ -94,6 +94,9 @@ export type WebhookDecision =
       writes: EntitlementTarget[];
     };
 
+/** RevenueCat `store` values of Apple's stores (PRODUCT_CHANGE there is informative only). */
+const APPLE_STORES: ReadonlySet<string> = new Set(['APP_STORE', 'MAC_APP_STORE']);
+
 function firstUsableUid(ids: readonly string[] | null | undefined): string | null {
   for (const id of ids ?? []) {
     if (typeof id === 'string' && !isAnonymousAppUserId(id) && SAFE_DOC_ID.test(id)) return id;
@@ -174,6 +177,16 @@ export function decideWebhook(body: unknown, now: Date, options: { allowSandbox?
   if (appUserId === '') return { kind: 'ignored', reason: 'missing_app_user_id', ...base };
   if (isAnonymousAppUserId(appUserId)) return { kind: 'ignored', reason: 'anonymous_app_user_id', ...base };
   if (!SAFE_DOC_ID.test(appUserId)) return { kind: 'ignored', reason: 'invalid_app_user_id', ...base };
+
+  // App Store PRODUCT_CHANGE is informative: RevenueCat documents that it "does not mean that the
+  // product change has gone into effect", and on Apple a RENEWAL follows when it does, carrying
+  // the new product. The event's expiration_at_ms is the OLD product's, so writing it could put
+  // an upgraded user back on the old plan when it lands after that RENEWAL (Francisco's TestFlight
+  // switch of November 9 2026 arrived after the RENEWAL). The marker still records it for the
+  // revenue view; the entitlement is left to the RENEWAL (or an admin Reconcile).
+  if (event.type === 'PRODUCT_CHANGE' && APPLE_STORES.has((event.store ?? '').toUpperCase())) {
+    return { kind: 'apply', ...base, marker: markerOf(event, now), writes: [] };
+  }
 
   const write = entitlementFromEvent(event, now);
   if (write === null) return { kind: 'ignored', reason: 'unhandled_type_or_plan', ...base };

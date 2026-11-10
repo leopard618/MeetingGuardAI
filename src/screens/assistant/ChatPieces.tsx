@@ -251,7 +251,7 @@ export function UsagePill({ usage, palette }: { usage: UsageDescription | null; 
       testID="assistant-usage"
     >
       <MaterialCommunityIcons name="lightning-bolt-outline" size={componentMetrics.iconMeta} color={color} />
-      <Text style={[styles.usageText, { color }]} maxFontSizeMultiplier={PILL_MAX_FONT_SCALE}>
+      <Text style={[styles.usageText, { color }]} maxFontSizeMultiplier={PILL_MAX_FONT_SCALE} numberOfLines={2}>
         {usage.label}
       </Text>
     </View>
@@ -395,10 +395,14 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typography.bodyM,
   },
+  // The pill gives up width (and wraps to a second line) before the top bar's buttons do: a long
+  // label ("Acciones gratis usadas · ver planes", or large text) pushed the clear button off-screen.
   usagePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    flexShrink: 1,
+    minWidth: 0,
     borderWidth: 1,
     borderRadius: radii.full,
     paddingHorizontal: spacing.sm,
@@ -406,5 +410,6 @@ const styles = StyleSheet.create({
   },
   usageText: {
     ...typography.labelM,
+    flexShrink: 1,
   },
 });

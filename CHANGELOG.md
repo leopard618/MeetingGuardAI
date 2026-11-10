@@ -201,6 +201,19 @@ alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5
 
 ### Fixed
 
+- **TestFlight 1.6.0 (11) findings** (November 9, client test on an iPhone in dark mode):
+  the iOS time and date wheels drew white text on the app's light sheet and only the grey bar
+  showed; every picker now follows the app's theme (ThemedDateTimePicker). The dashboard's
+  "Sync tasks" button showed "?" instead of its icon. The assistant's top bar squeezed its
+  subtitle to "Ma n..."; the subtitle has its own line and the allowance pill wraps before the
+  buttons are pushed off-screen. Spanish sentences ending on a time no longer show "p.m..". The
+  Free card's $0 follows the store's own price format when the paid cards show store prices,
+  instead of "0 US$" beside peso prices.
+- **App Store plan changes** (server): a PRODUCT_CHANGE webhook from the App Store is recorded
+  but no longer writes the plan. RevenueCat documents it as informative; the RENEWAL sent when
+  the change takes effect carries the new product, and PRODUCT_CHANGE carries the old product's
+  expiry, so landing after that RENEWAL could put an upgraded subscriber back on the old plan.
+  Google Play events are unchanged.
 - **Tasks stopped reaching Google Tasks and Microsoft To Do** (November 6, client report): an
   iPhone on the App Store 1.5.0 build saves the settings as a whole document and erased the task
   list chosen on the Android, which then dropped every new task without a word while the card

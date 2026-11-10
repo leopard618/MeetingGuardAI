@@ -7,7 +7,7 @@
  * AlertDeliverySection: notification permission, Android exact alarms and the MAX channel's
  * "Override Do Not Disturb" setting, and the iOS Focus explanation.
  */
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { ThemedDateTimePicker as DateTimePicker, type DateTimePickerEvent } from '../shared/ThemedDateTimePicker';
 import { useState, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Button, Chip, HelperText, RadioButton, SegmentedButtons, Switch, Text, TouchableRipple } from 'react-native-paper';

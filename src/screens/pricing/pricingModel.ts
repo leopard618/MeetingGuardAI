@@ -79,6 +79,26 @@ function packageFor(offering: StoreOffering | null, tier: PlanTier, cycle: Billi
   return offering.packages.find((pkg) => pkg.tier === tier && pkg.cycle === cycle) ?? null;
 }
 
+/**
+ * The Free card's 0 in the store's own price format, copied from a priced package ("$179.00"
+ * gives "$0", "179,00 €" gives "0 €"), so it never reads "0 US$" beside peso prices.
+ * Null when no package is loaded or its price string has no digits.
+ */
+export function zeroPriceLike(priceString: string): string | null {
+  const zero = priceString.replace(/[0-9][0-9.,\s]*[0-9]|[0-9]/, '0');
+  return zero !== priceString ? zero : null;
+}
+
+/**
+ * Only when BOTH paid cards of the tab carry store prices: a partial offering (one cycle not yet
+ * on sale) leaves those cards on catalog USD, and the Free card then stays in USD with them.
+ */
+function freeStorePrice(offering: StoreOffering | null, cycle: BillingCycle): string | null {
+  const pro = packageFor(offering, 'pro', cycle);
+  const premium = packageFor(offering, 'premium', cycle);
+  return pro && premium ? zeroPriceLike(pro.priceString) : null;
+}
+
 /** Store discount of yearly vs 12x monthly, when both packages are priced; null when unknown. */
 export function computeStoreDiscount(monthlyMicros: number, yearlyMicros: number): number | null {
   if (!(monthlyMicros > 0) || !(yearlyMicros > 0)) return null;
@@ -152,7 +172,7 @@ export function buildPlanCards(
       // store sheet cannot change them) get no dead store-management button.
       manageable: isCurrent && catalogProductId !== null && catalogProductId === activeProductId,
       managedExternally: catalogProductId !== null && catalogProductId === otherStoreProductId,
-      storePriceString: pkg?.priceString ?? null,
+      storePriceString: pkg?.priceString ?? (plan.tier === 'free' ? freeStorePrice(offering, cycle) : null),
       storeMonthlyEquivalent:
         pkg && plan.cycle === 'yearly' ? formatStorePrice(pkg.priceAmountMicros / 12, pkg.currencyCode, language) : null,
       hasFreeTrial: pkg?.hasFreeTrial ?? false,

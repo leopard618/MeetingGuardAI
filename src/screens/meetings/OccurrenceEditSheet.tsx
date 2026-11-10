@@ -8,7 +8,7 @@
  *   occurrence keeps its old values.
  * Rendered by the screens next to MeetingActionsSheet.
  */
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { ThemedDateTimePicker as DateTimePicker, type DateTimePickerEvent } from '../shared/ThemedDateTimePicker';
 import { useState, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Chip, HelperText, Modal, Portal, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';

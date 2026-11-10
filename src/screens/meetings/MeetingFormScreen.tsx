@@ -16,7 +16,7 @@
  * - Saved through meetingRepository with origin 'user' (the calendar engine pushes the change to
  *   Google; device-calendar imports stay one-way).
  */
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { ThemedDateTimePicker as DateTimePicker, type DateTimePickerEvent } from '../shared/ThemedDateTimePicker';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';

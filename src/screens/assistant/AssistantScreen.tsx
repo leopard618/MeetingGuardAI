@@ -364,43 +364,46 @@ export function AssistantScreen({ navigation, route }: Props): ReactElement {
     >
       <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={keyboardVerticalOffset}>
         <View style={[styles.topBar, { backgroundColor: palette.surface, borderBottomColor: palette.border }]}>
-          <AssistantAvatar palette={palette} />
-          {/* The stack header already shows the screen title ("AI assistant"). */}
-          <Text style={[styles.flex, styles.topSubtitle, { color: palette.textMuted }]} numberOfLines={2}>
+          <View style={styles.topRow}>
+            <AssistantAvatar palette={palette} />
+            <UsagePill usage={usage} palette={palette} />
+            <View style={styles.flex} />
+            <Pressable
+              onPress={() => setSpokenReplies(!spokenReplies)}
+              hitSlop={ICON_HIT_SLOP}
+              style={styles.iconButton}
+              accessibilityRole="button"
+              accessibilityLabel={fmt.t(spokenReplies ? 'ai:voice.repliesOn' : 'ai:voice.repliesOff')}
+              accessibilityState={{ selected: spokenReplies }}
+              testID="assistant-spoken-replies"
+            >
+              <MaterialCommunityIcons
+                name={spokenReplies ? 'volume-high' : 'volume-off'}
+                size={componentMetrics.iconNav}
+                color={spokenReplies ? palette.primary : palette.textMuted}
+              />
+            </Pressable>
+            <Pressable
+              onPress={clearConversation}
+              disabled={!hasMessages}
+              hitSlop={ICON_HIT_SLOP}
+              style={styles.iconButton}
+              accessibilityRole="button"
+              accessibilityLabel={fmt.t('ai:chat.clear')}
+              accessibilityState={{ disabled: !hasMessages }}
+              testID="assistant-clear"
+            >
+              <MaterialCommunityIcons
+                name="delete-sweep-outline"
+                size={componentMetrics.iconNav}
+                color={hasMessages ? palette.textMuted : palette.onSurfaceDisabled}
+              />
+            </Pressable>
+          </View>
+          {/* Own full-width line: beside the pill and two buttons it had about three letters a line ("Ma n..."). The stack header already shows the title. */}
+          <Text style={[styles.topSubtitle, { color: palette.textMuted }]} numberOfLines={2}>
             {fmt.t('ai:chat.subtitle')}
           </Text>
-          <UsagePill usage={usage} palette={palette} />
-          <Pressable
-            onPress={() => setSpokenReplies(!spokenReplies)}
-            hitSlop={ICON_HIT_SLOP}
-            style={styles.iconButton}
-            accessibilityRole="button"
-            accessibilityLabel={fmt.t(spokenReplies ? 'ai:voice.repliesOn' : 'ai:voice.repliesOff')}
-            accessibilityState={{ selected: spokenReplies }}
-            testID="assistant-spoken-replies"
-          >
-            <MaterialCommunityIcons
-              name={spokenReplies ? 'volume-high' : 'volume-off'}
-              size={componentMetrics.iconNav}
-              color={spokenReplies ? palette.primary : palette.textMuted}
-            />
-          </Pressable>
-          <Pressable
-            onPress={clearConversation}
-            disabled={!hasMessages}
-            hitSlop={ICON_HIT_SLOP}
-            style={styles.iconButton}
-            accessibilityRole="button"
-            accessibilityLabel={fmt.t('ai:chat.clear')}
-            accessibilityState={{ disabled: !hasMessages }}
-            testID="assistant-clear"
-          >
-            <MaterialCommunityIcons
-              name="delete-sweep-outline"
-              size={componentMetrics.iconNav}
-              color={hasMessages ? palette.textMuted : palette.onSurfaceDisabled}
-            />
-          </Pressable>
         </View>
 
         <VerifyEmailBanner style={styles.verifyBanner} />
@@ -583,16 +586,19 @@ const styles = StyleSheet.create({
   },
   // Reads as one surface with the stack header: surface bg + a single 1px hairline below.
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    minHeight: 44,
+    gap: spacing.xs,
     paddingHorizontal: componentMetrics.screenGutter,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: 44,
+  },
   topSubtitle: {
-    ...typography.titleS,
+    ...typography.bodyS,
   },
   iconButton: {
     width: componentMetrics.touchTargetMin,

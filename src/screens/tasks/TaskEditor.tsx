@@ -5,7 +5,7 @@
  * editor shows which list the task goes to there (changeable) and what that provider does not
  * keep. Closing with unsaved changes asks first. Persistence is the caller's job (`onSubmit`).
  */
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { ThemedDateTimePicker as DateTimePicker, type DateTimePickerEvent } from '../shared/ThemedDateTimePicker';
 import { useEffect, useState, type ReactElement } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Chip, HelperText, IconButton, Text, TextInput, useTheme as usePaperTheme } from 'react-native-paper';

@@ -145,7 +145,8 @@ export function SetupCard({ step, placement, onOpenCalendarSync, onDismiss }: Se
             </MGButton>
           </>
         ) : (
-          <MGButton variant="filled" size="sm" icon={step.id === 'connect_calendar' ? 'calendar' : 'checkCircle'} onPress={onOpenCalendarSync} testID="setup-card-action">
+          // MGButton takes Material Community names ('check-circle'), not the app Icon names ('checkCircle', which drew "?").
+          <MGButton variant="filled" size="sm" icon={step.id === 'connect_calendar' ? 'calendar' : 'check-circle'} onPress={onOpenCalendarSync} testID="setup-card-action">
             {t(`home:setup.${step.id}.action`)}
           </MGButton>
         )}
