@@ -97,6 +97,14 @@ deliver folder next to Codebase):
   4de5b6cb-e211-479f-a6bf-d04dc5ecd7ca, byte-identical to the EAS artifact). Same distribution
   certificate and profile as build 10, no Info.plist key added or removed,
   ITSAppUsesNonExemptEncryption false.
+- iOS build 12 replaces build 11 for review (November 9, after Francisco's TestFlight test):
+  ipa/MeetingGuardAI-1.6.0-b12-production-20261109-2127.ipa, 1.6.0 build 12, SHA-256
+  0f41afcbcb3d693e6c0e6b8aca18dd80a683dbabd410ff1cfd4f2ca131b3635a (EAS build
+  33e7932b-20b5-4198-af67-41c6af9648c7, from the work tree of commit a628e1a: the dark-mode time
+  picker, the Sync tasks icon, the assistant top bar, the Spanish "p.m.." and the Free card
+  price). Same distribution certificate and profile, ITSAppUsesNonExemptEncryption false.
+  Uploaded with EAS submission a7504978-33d1-4e98-907d-dc806c6960d2. The webhook part of a628e1a
+  and REVENUECAT_ALLOW_SANDBOX=true are live (revenuecatwebhook revision 00025).
 - Both bundles carry the legal texts of November 6 (item 8) and the Google Tasks fix 2fba477.
   The production update branch has no update for runtime 1.6.0 (only one for 1.4.0), so users
   get the audited bundle.
