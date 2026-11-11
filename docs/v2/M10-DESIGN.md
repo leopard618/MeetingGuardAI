@@ -76,10 +76,13 @@ Weaknesses designed around:
   failure or a fresh DNS temperror (section 4).
 - Keep Postmark inbound spam blocking off on the Summaries server (setting UNVERIFIED).
 
-Cost: M10 adds nothing to the bill Francisco approved. The free Developer plan (100 emails a month,
-sent and received combined) covers development and Francisco alone if it processes inbound
-(UNVERIFIED). Once Sven's A1 sends mail, the account needs Pro anyway, which is the approved
-assistant cost. The summaries never cause a paid plan on their own without telling Francisco first.
+Cost (https://postmarkapp.com/pricing, checked 2026-11-11): the free Developer plan has no inbound
+processing and Basic (USD 15) does not list it either, so the account needs Pro from the first day:
+USD 16.50 a month for 10,000 emails, USD 1.30 per extra 1,000. A processed inbound message counts
+as one email, and so does each Cc or Bcc address. Pro allows 10 servers, 6 users and 10 domains.
+This is the approved assistant cost, shared by both projects; Francisco delegated the choice on
+Nov 11 ("decide which is the best price option and propose it so I can agree"), so the proposal goes
+to him before the plan is upgraded.
 
 Fallbacks (the handler takes a provider-neutral InboundEnvelope {provider, providerEventId,
 rawMime, envelopeRecipient, receivedAt}, so a switch is one adapter file):
@@ -90,17 +93,21 @@ rawMime, envelopeRecipient, receivedAt}, so a switch is one adapter file):
   Email Routing (needs the meetingguard.ai nameservers moved and rejects DMARC failures first).
 
 Day-0 checks, in Postmark's activity view and our logs (2 hours):
-1. The Developer plan fires the inbound webhook.
+1. Resolved 2026-11-11: the Developer plan has no inbound, so the checks run on Pro.
 2. RawEmail is present and byte-exact for an 8-bit message.
 3. OriginalRecipient is the envelope recipient after a Gmail filter forward.
 4. MailboxHash works on the default address.
 5. The payload size of a real recap.
 6. What happens at the monthly limit; whether usage alerts exist; whether inbound rules can block
    senders (quota burn, red team finding 3).
-7. Whether team members can be limited to one server (finding 4). If not, Sven stays off the
-   account and uses only the Assistant server's token, which the owner gives him.
-8. The inbound content retention of the activity log and the shortest setting (needed for the
-   privacy policy).
+7. Whether team members can be limited to one server (finding 4). The pricing page lists "User
+   Roles" without saying, and the team-roles help article answers 404, so check it when inviting
+   Sven. If not, Sven stays off the account and uses only the Assistant server's token, which the
+   owner gives him.
+8. Partly resolved 2026-11-11: activity history defaults to 45 days. The retention add-on (Pro and
+   up, from about USD 5 a month) sets 7 to 365 days for the whole account, every server included;
+   below 45 days Postmark removes expired data within 24 hours. So [N] in section 14 is 45 unless
+   Francisco approves the add-on; still check that inbound content follows the same setting.
 
 ## 3. Address
 
@@ -517,7 +524,7 @@ blocking off; webhook `https://postmark:<secret>@<region>-meetingguard-ai-app.cl
 functions/.env.meetingguard-ai-app (SUMMARIES_ENABLED, SUMMARIES_PILOT_UIDS,
 SUMMARIES_ADDRESS_TEMPLATE, SUMMARIES_SENDERS, SUMMARIES_TRUSTED_FORWARDERS empty); the dedicated
 service account; then the selective functions deploy, the webhook URL, the inbound domain after the
-MX record.
+MX record (Sven adds it in Hostinger: host summaries, MX, inbound.postmarkapp.com, priority 10).
 
 ## 11. Demo (about 12 minutes, Android test APK, laptop mail client recorded alongside)
 
@@ -679,8 +686,11 @@ attend" line.
 
 ## 16. Open questions
 
-- Sven: Postmark for A1 and the two-server split; his assistant subdomain; who manages the
-  meetingguard.ai DNS.
+- Sven, answered Nov 11 in the group: Postmark with two servers, assistant.meetingguard.ai for A1;
+  the DNS is at Hostinger and Francisco gave Sven admin access to the Hostinger account, so Sven
+  adds the summaries MX record together with his own; DMARC reports for his subdomain go to a new
+  dmarc@meetingguard.ai mailbox. Still open: Sven's OK on the proposal that Dusko opens the account
+  in Aeternum Tech's name and Sven gets the Assistant server only, and Francisco's OK on Pro.
 - Francisco: which notetaker; which mailbox (Gmail, Workspace, Microsoft 365, Outlook.com); is it his
   sign-in email; one recap as an attachment; for Microsoft 365, his administrator.
 - Postmark day-0 checks 1 to 8 (section 2).
