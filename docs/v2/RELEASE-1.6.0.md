@@ -105,6 +105,15 @@ deliver folder next to Codebase):
   price). Same distribution certificate and profile, ITSAppUsesNonExemptEncryption false.
   Uploaded with EAS submission a7504978-33d1-4e98-907d-dc806c6960d2. The webhook part of a628e1a
   and REVENUECAT_ALLOW_SANDBOX=true are live (revenuecatwebhook revision 00025).
+- iOS submitted for review on November 10, 2026 at 11:44 PM (as App Store Connect showed it),
+  by Francisco: submission 5f7c286e-3031-4b1c-b4ab-37b7c19bbf46, one item, iOS App 1.6.0 (12),
+  Waiting for Review. Francisco had tested build 12 in TestFlight; the user chose to submit
+  without a further test, with the website pages and a sandbox purchase with the flag on still
+  open. New iPhone screenshots: four marketing images at 1179 x 2556
+  (deliver/screenshots/ios-1.6.0-marketing-20261110-2334/en, Android status icons removed). The
+  four subscriptions and the group are not in this submission, so any description edit waiting
+  on them was not sent (item 11). Evidence for STAGE2-ACCEPTANCE.md line 16:
+  deliver/screenshots/evidence/ios-1.6.0-waiting-for-review-20261110.png.
 - Both bundles carry the legal texts of November 6 (item 8) and the Google Tasks fix 2fba477.
   The production update branch has no update for runtime 1.6.0 (only one for 1.4.0), so users
   get the audited bundle.
