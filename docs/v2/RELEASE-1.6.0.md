@@ -123,6 +123,12 @@ deliver folder next to Codebase):
 - November 11, 2026: Google verified the app's data access (Google Auth Platform: "Your app's
   data access has been verified"), so the Google Tasks and Calendar permissions no longer show
   the unverified-app screen and the 100-user limit is gone. Nothing to switch in the app.
+- November 11, 2026: Apple APPROVED iOS 1.6.0 (12). Apple's email: "Review of your submission
+  has been completed. It is now eligible for distribution." Submission
+  5f7c286e-3031-4b1c-b4ab-37b7c19bbf46, one item, submitted by Francisco on November 10 at
+  11:44 PM Pacific. The release is manual (IOS-RELEASE-1.6.0.md phase F), then phase G: the
+  sandbox switch off, and the four subscription descriptions submitted on their own (they are
+  Approved with the 1.5.0 text, so purchases work; only the new descriptions wait).
 - November 11, 2026: Sven published the privacy policy, terms and delete-account pages on
   meetingguard.ai, English and Spanish, "Last updated" November 9, 2026. Checked the same day:
   all six pages answer 200, the forms without the final slash redirect, and every line of
