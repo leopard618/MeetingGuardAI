@@ -19,12 +19,12 @@ Facts this plan rests on:
 - The backend for Stage 2 is deployed: the assistant with contract v7 (debrief mode),
   `microsoftSignIn` (needs `MICROSOFT_CLIENT_ID`), `zoomCreateMeeting`, and the Firestore rules
   that accept `pushPending` (website sync). Nothing in the backend is tied to the store release.
-- Google Tasks uses a sensitive scope that Google is still verifying (submitted November 6, 2026,
-  with the scope justification and Francisco's demo video; "under review"). Decision of November
+- Google Tasks uses a sensitive scope. Google verified it on November 11, 2026 (submitted
+  November 6 with the scope justification and Francisco's demo video). Decision of November
   6: the store builds ship WITH Google Tasks on, since the app has no real users yet, so
   `EXPO_PUBLIC_GOOGLE_TASKS_SYNC` stays unset in the production environment (unset means on).
-  Until Google approves, anyone who connects Google Tasks sees Google's unverified-app screen and
-  counts toward the 100-user limit of unverified apps. To hide it again: set the variable to
+  Before the approval, anyone who connected Google Tasks saw Google's unverified-app screen and
+  counted toward the 100-user limit of unverified apps. To hide it again: set the variable to
   `off` in the production environment and publish an OTA update (the switch is read in JS only,
   src/services/tasks/gtasks/index.ts).
 - Outlook, To Do and Continue with Microsoft need `EXPO_PUBLIC_MSAL_CLIENT_ID` in the production
@@ -120,6 +120,16 @@ deliver folder next to Codebase):
 - Backend switches in functions/.env.meetingguard-ai-app (deployed November 5):
   MICROSOFT_CLIENT_ID matches the app's client id; WHATSAPP_ENABLED, ZOOM_ENABLED and
   REVENUECAT_RECONCILE_ENABLED are true; REVENUECAT_ALLOW_SANDBOX is false (section 2, item 5).
+- November 11, 2026: Google verified the app's data access (Google Auth Platform: "Your app's
+  data access has been verified"), so the Google Tasks and Calendar permissions no longer show
+  the unverified-app screen and the 100-user limit is gone. Nothing to switch in the app.
+- November 11, 2026: Sven published the privacy policy, terms and delete-account pages on
+  meetingguard.ai, English and Spanish, "Last updated" November 9, 2026. Checked the same day:
+  all six pages answer 200, the forms without the final slash redirect, and every line of
+  TERMS-UPDATE-FOR-WEBSITE-2026-11-06.md Parts A to C is on the pages word for word, with no
+  em dashes, ellipses or curly quotes. This closes item 5 of the "Still open" line below. The
+  web agenda is at https://meetingguard.ai/app/ (Firebase authDomain
+  meetingguard-ai-app.firebaseapp.com).
 - Still open: the website pages are the September 28 version (item 5); the Firebase-hosted
   delete-account page still serves the text of the October 28 hosting deploy, without Microsoft,
   WhatsApp, Zoom or RevenueCat (item 9); the consoles (item 7).
@@ -314,8 +324,8 @@ is released on that message.
    dates, quoted from the consoles.
 3. The production OTA channel now serves 1.6.0 only. A fix that touches no native code can go
    out with `eas update --channel production` (docs/v1/DEPLOYMENT.md section 5).
-4. When Google verifies the Tasks scope: nothing to switch, the store builds already carry it;
-   the unverified-app screen disappears on Google's side.
+4. Google verified the Tasks scope on November 11, 2026: nothing to switch, the store builds
+   already carry it, and the unverified-app screen is gone on Google's side.
 
 ## 7. Things that can go wrong, and what to do
 
@@ -324,9 +334,9 @@ is released on that message.
   registration; no app change.
 - A Microsoft account connected before this build cannot load To Do lists (access denied): the
   consent predates the Tasks scope. The card says so; stop the Outlook sync and connect again.
-- Google shows the "unverified app" interstitial on the Tasks permission: expected for accounts
-  outside the test list until the scope is verified, on the store builds too (decision of
-  November 6).
+- Google shows the "unverified app" interstitial on the Tasks permission: no longer expected
+  after the verification of November 11, 2026. If it appears, check the Google Auth Platform
+  verification center for a change request (for example after an edit to the branding).
 - Apple rejects for the Microsoft sign-in: the reviewer could not sign in. The review notes
   must say the demo account uses email sign-in and that Microsoft is optional.
 - The share sheet on Android reports success even when the user cancelled: known platform
