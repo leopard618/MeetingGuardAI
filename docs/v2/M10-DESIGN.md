@@ -138,8 +138,12 @@ Day-0 checks, in Postmark's activity view and our logs (2 hours):
 - Mailboxes (op set_mailboxes): up to 5 addresses where the user's recaps arrive. Ownership is not
   proven: a listed mailbox only lets mail addressed to it into THIS user's account, so listing a
   stranger's address harms only the lister. A Gmail confirmation never adds a mailbox by itself.
-- Disconnect (op disconnect {deleteSummaries}): deletes both docs and optionally every summary. Built
-  in M10 because account deletion reuses it; the button can wait for M11's connect screen.
+- Disconnect (op disconnect {deleteSummaries}): deletes the index doc and replaces summaryUsers/{uid}
+  with a counters-only tombstone {rotationDay, rotationsToday, updatedAt}, so disconnect followed by
+  create still counts against the 5-a-day rotation cap (review finding, Nov 11); optionally deletes
+  every summary. deleteAddressDocs takes a REQUIRED mode: 'disconnect' or 'account_deletion' (the
+  second removes summaryUsers/{uid} entirely). Built in M10 because account deletion reuses it; the
+  button can wait for M11's connect screen.
 - Logs carry the uid, the first 8 hex characters of tokenHash, the verdict and the reason. Never an
   address, a token or a code.
 
@@ -151,10 +155,14 @@ mime.ts, authenticity.ts (runMailAuth plus a pure classify), sanitize.ts, sectio
 candidates.ts, match.ts, store.ts, callables.ts, read.ts. Plus `functions/src/shared/sealed.ts` and
 verbatim copies of `src/core/errors.ts`, `time.ts` and `recurrence.ts` under the drift check.
 
-New dependencies, pinned exact, loaded lazily inside summaryInbound only: mailauth 8.x (MIT) and
-one MIME parser (postal-mime or mailparser). The functions build is CommonJS and Jest already stubs
-the ESM-only jose (functions/jest.config.js:13-14); whichever parser loads in both without a stub
-wins (day-1 check). npm audit after install; never `npm audit fix --omit=dev`.
+New dependencies, pinned exact, loaded lazily inside summaryInbound only: mailauth 8.0.4 (MIT) and
+postal-mime 4.1.4 (MIT-0, no dependencies). Day-1 spike (2026-11-11): both ship CommonJS builds and
+types, and load under plain Node, tsc and Jest 29 without a stub; a message signed in the test with
+dkimSign verifies, a changed body fails, postal-mime parses it. Both releases were at least two weeks
+old when pinned (8.0.5, 8.0.6 and postal-mime 4.2.1 were a day old). mailauth 8.0.4 pins joi 18.3.0
+(GHSA-4528-x5fx-h6hg, high, in `string().email({ multiple: true })`, which mailauth never calls), so
+functions/package.json overrides joi to 18.3.1 for mailauth only. The remaining new audit entry is
+fast-xml-parser (low), used only by the BIMI code we never load. Never `npm audit fix --omit=dev`.
 
 Options: onRequest, FUNCTIONS_REGION, invoker "public" set explicitly
 (functions/src/revenuecat/index.ts:352), secrets SUMMARIES_WEBHOOK_AUTH and SUMMARIES_DATA_KEY,
@@ -383,7 +391,8 @@ Deletion:
 - One summary: summaryAction delete, a hard delete; the markers stay so a Postmark retry cannot
   recreate it.
 - All: summaryAction disconnect {deleteSummaries: true}.
-- Account: AccountDeletionPorts gains deleteSummaryData(uid), called right after revokeRefreshTokens
+- Account: AccountDeletionPorts gains deleteSummaryData(uid) (deleteAddressDocs with mode
+  'account_deletion', so no tombstone survives), called right after revokeRefreshTokens
   and before the first recursiveDelete, so new mail stops resolving at once; the commit
   transaction's re-read and the second recursive pass close the race. Also in the deletion replay
   (maintenance/core.ts:117-139) and functions/scripts/replay-account-deletions.mjs. Deployed after

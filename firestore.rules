@@ -8,11 +8,17 @@ rules_version = '2';
 //   users/{uid}/notes/{noteId}         Note (without id)  owner read/write, validated
 //   users/{uid}/tasks/{taskId}         Task (without id)  owner read/write, validated
 //   users/{uid}/settings/preferences   Preferences        owner read/write, validated
+//   users/{uid}/meetingSummaries/**    M10 summaries      server only, read through callables
 //   entitlements/{uid}                 Entitlement        owner read, server write only
 //   usage/{uid}/days/{day}             AI quota counter   owner read, server write only
 //   adminStats/ai/days/{day}/**        admin aggregates   server only (no client access at all)
+//   adminAudit/{entryId}               admin audit log    server only (no client access at all)
 //   zoomMeetings/{zoomMeetingId}       Zoom owner registry server only (no client access at all)
 //   whatsapp*/** (5 collections)       WhatsApp bot state server only (no client access at all)
+//   microsoftIdentities/{oid}          Microsoft sign-in  server only (no client access at all)
+//   summaryAddresses/{tokenHash}       M10 address index  server only (no client access at all)
+//   summaryUsers/{uid}                 M10 address state  server only (no client access at all)
+//   summaryEvents/{eventId}            M10 dedupe markers server only (no client access at all)
 //   everything else                                       denied
 //
 // The Admin SDK (Cloud Functions) bypasses these rules. Instants are UTC ISO strings
@@ -382,6 +388,17 @@ service cloud.firestore {
           && isValidPreferences(request.resource.data);
         allow delete: if false;
       }
+
+      // Meeting summaries (M10, docs/v2/M10-DESIGN.md section 7): plaintext structure plus one
+      // sealed (AES-256-GCM) content field per row. Written ONLY by the summaryInbound pipeline
+      // and the summary callables (Admin SDK); the app reads them only through those callables,
+      // which open the sealed field on the server. No client access at all, the owner included.
+      // The recursive wildcard covers any subcollection below a summary. Kept under users/{uid}
+      // so both recursiveDelete passes of deleteAccount remove it. Explicit so the catch-all
+      // below is not load-bearing.
+      match /meetingSummaries/{document=**} {
+        allow read, write: if false;
+      }
     }
 
     // Plan / subscription state: written only by server or admin tooling.
@@ -450,6 +467,24 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /whatsappEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    // Summary forwarding state (M10, docs/v2/M10-DESIGN.md sections 3, 4 and 7): the address
+    // index summaryAddresses/{tokenHash} = { uid, createdAt } (sha256 of the address token, never
+    // the token itself), the per-uid summaryUsers/{uid} (plain token, address, mailboxes, rate
+    // counters) and the summaryEvents/{sha256} dedupe markers { expiresAt } (no uid, no content).
+    // Written and read ONLY by the summary functions (Admin SDK) - a client that could read
+    // summaryUsers would learn another user's forwarding address and could mail into that
+    // account, and one that could write summaryAddresses could route an address to any uid.
+    // No client access at all; explicit so the catch-all below is not load-bearing.
+    match /summaryAddresses/{tokenHash} {
+      allow read, write: if false;
+    }
+    match /summaryUsers/{uid} {
+      allow read, write: if false;
+    }
+    match /summaryEvents/{eventId} {
       allow read, write: if false;
     }
 

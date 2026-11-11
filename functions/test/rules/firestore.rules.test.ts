@@ -12,7 +12,17 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { deleteDoc, doc, getDoc, getDocs, collection, setDoc, updateDoc, type Firestore } from 'firebase/firestore';
+import {
+  collection,
+  collectionGroup,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  type Firestore,
+} from 'firebase/firestore';
 
 const PROJECT_ID = 'demo-meetingguard';
 const ISO = '2026-10-05T14:00:00.000Z';
@@ -494,5 +504,125 @@ describe('server-owned collections', () => {
     await assertFails(setDoc(doc(alice(), 'admin/config'), { open: true }));
     await assertFails(getDoc(doc(alice(), 'users/alice/tokens/google')));
     await assertFails(setDoc(doc(alice(), 'users/alice/tokens/google'), { accessToken: 'x' }));
+  });
+});
+
+// ------------------------------------------------------------------ server-only paths, every client
+
+/** A client identity: alice owns the uid named in the paths and documents below. */
+type Actor = [label: string, db: () => Firestore];
+const ACTORS: Actor[] = [
+  ['the owner', alice],
+  ['another signed-in user', bob],
+  ['a signed-out client', anonymous],
+];
+
+/** A server-only document: its name, its path and synthetic data seeded there. */
+type ServerOnlyCase = [name: string, path: string, data: Record<string, unknown>];
+
+/**
+ * Seeds `path` with rules disabled, then checks that `db` can neither read nor write there: get,
+ * list of the parent collection, create of a sibling, full replacement, field update and delete.
+ */
+async function expectNoClientAccess(db: Firestore, path: string, data: Record<string, unknown>): Promise<void> {
+  await seed(path, data);
+  const ref = doc(db, path);
+  await assertFails(getDoc(ref));
+  await assertFails(getDocs(ref.parent));
+  await assertFails(setDoc(doc(ref.parent, 'created-by-client'), data));
+  await assertFails(setDoc(ref, data));
+  await assertFails(updateDoc(ref, { updatedAt: ISO }));
+  await assertFails(deleteDoc(ref));
+}
+
+describe('meeting summaries (M10, docs/v2/M10-DESIGN.md section 7)', () => {
+  // Written by the summaryInbound pipeline and the summary callables (Admin SDK) and read by the
+  // app only through callables, which open the sealed content field on the server. Synthetic
+  // plaintext structure only; the sealed blob is a placeholder.
+  const SUMMARY: Record<string, unknown> = {
+    schemaVersion: 1,
+    parserVersion: 1,
+    status: 'inbox',
+    inboxReason: 'no_candidate',
+    senderDomain: 'example.com',
+    receivedAt: ISO,
+    language: 'en',
+    sealed: 'sealed-placeholder',
+    createdAt: ISO,
+    updatedAt: ISO,
+    expiresAt: '2026-12-04T14:00:00.000Z',
+  };
+  const PATHS: ServerOnlyCase[] = [
+    ['a summary row', 'users/alice/meetingSummaries/s1', SUMMARY],
+    ['a document nested below a summary', 'users/alice/meetingSummaries/s1/parts/p1', { index: 0, createdAt: ISO, updatedAt: ISO }],
+  ];
+
+  describe.each(ACTORS)('%s', (_label, db) => {
+    it.each(PATHS)('cannot read or write %s', async (_name, path, data) => {
+      await expectNoClientAccess(db(), path, data);
+    });
+  });
+
+  it('denies collection group queries on meetingSummaries to every client', async () => {
+    await seed('users/alice/meetingSummaries/s1', SUMMARY);
+    for (const [, db] of ACTORS) {
+      await assertFails(getDocs(collectionGroup(db(), 'meetingSummaries')));
+    }
+  });
+
+  it('leaves the owner the rest of users/{uid} (the deny is scoped to meetingSummaries)', async () => {
+    await seed('users/alice/meetingSummaries/s1', SUMMARY);
+    await assertSucceeds(setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting()));
+    await assertSucceeds(getDoc(doc(alice(), 'users/alice/meetings/m1')));
+    await assertFails(getDoc(doc(alice(), 'users/alice/meetingSummaries/s1')));
+  });
+});
+
+describe('summary forwarding state (M10, docs/v2/M10-DESIGN.md sections 3 and 7)', () => {
+  // Synthetic sha256-shaped hex ids; the plain address token is never part of a document id.
+  const TOKEN_HASH = 'ab'.repeat(32);
+  const CASES: ServerOnlyCase[] = [
+    ['summaryAddresses', `summaryAddresses/${TOKEN_HASH}`, { uid: 'alice', createdAt: ISO }],
+    ['summaryUsers', 'summaryUsers/alice', { tokenHash: TOKEN_HASH, mailboxes: [], createdAt: ISO, updatedAt: ISO }],
+    ['summaryEvents', `summaryEvents/${'cd'.repeat(32)}`, { expiresAt: ISO }],
+  ];
+
+  describe.each(ACTORS)('%s', (_label, db) => {
+    it.each(CASES)('cannot read or write %s', async (_name, path, data) => {
+      await expectNoClientAccess(db(), path, data);
+    });
+  });
+});
+
+describe('WhatsApp bot and Microsoft sign-in state (docs/v1/ARCHITECTURE.md 27 and 31)', () => {
+  // 555-01xx numbers are reserved for fiction; ids below are synthetic.
+  const PHONE = '+15550100001';
+  const CASES: ServerOnlyCase[] = [
+    ['whatsappLinks', `whatsappLinks/${PHONE}`, { uid: 'alice', linkedAt: ISO, profileName: null }],
+    ['whatsappUsers', 'whatsappUsers/alice', { phoneE164: PHONE, linkedAt: ISO, codeHash: null, codeExpiresAt: null }],
+    ['whatsappLinkCodes', `whatsappLinkCodes/${'ef'.repeat(32)}`, { uid: 'alice', expiresAt: ISO }],
+    ['whatsappSessions', `whatsappSessions/${PHONE}`, { updatedAt: ISO }],
+    ['whatsappEvents', `whatsappEvents/${'01'.repeat(32)}`, { receivedAt: ISO, expiresAt: ISO }],
+    ['microsoftIdentities', 'microsoftIdentities/00000000-0000-0000-0000-000000000001', { uid: 'alice', createdAt: ISO }],
+  ];
+
+  describe.each(ACTORS)('%s', (_label, db) => {
+    it.each(CASES)('cannot read or write %s', async (_name, path, data) => {
+      await expectNoClientAccess(db(), path, data);
+    });
+  });
+});
+
+describe('admin dashboard state (server only, read through admin callables)', () => {
+  const CASES: ServerOnlyCase[] = [
+    ['an adminStats day', 'adminStats/ai/days/2026-10-05', { requests: 3, updatedAt: ISO }],
+    ['an adminStats write shard', 'adminStats/ai/days/2026-10-05/shards/0', { requests: 1, updatedAt: ISO }],
+    ['an adminAudit entry', 'adminAudit/entry1', { action: 'set_plan', outcome: 'ok', createdAt: ISO }],
+  ];
+
+  describe.each(ACTORS)('%s', (_label, db) => {
+    it.each(CASES)('cannot read or write %s', async (_name, path, data) => {
+      await expectNoClientAccess(db(), path, data);
+    });
   });
 });

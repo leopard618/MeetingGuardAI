@@ -1938,6 +1938,9 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   whatsappLinkStart: { request: 'whatsappLinkStartRequestSchema', response: 'whatsappLinkStartResponseSchema' },
   whatsappLinkStatus: { request: 'whatsappLinkStatusRequestSchema', response: 'whatsappLinkStatusResponseSchema' },
   whatsappUnlink: { request: 'whatsappUnlinkRequestSchema', response: 'whatsappUnlinkResponseSchema' },
+  summaryStatus: { request: 'summaryStatusRequestSchema', response: 'summaryStatusResponseSchema' },
+  summaryAction: { request: 'summaryActionRequestSchema', response: 'summaryActionResponseSchema' },
+  summaryRead: { request: 'summaryReadRequestSchema', response: 'summaryReadResponseSchema' },
 };
 
 // =============================================================================================
