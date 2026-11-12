@@ -615,6 +615,20 @@ MeetingGuardAI-1.6.0-m10-test-YYYYMMDD-HHMM.apk installed after uninstalling the
 Close: no server push until A8, so a summary appears when the app is opened; nothing becomes a task
 until M11.
 
+Test posts before Postmark exists (functions/scripts/send-test-inbound.mjs, November 12): from
+functions/, after `npm run build`, run `node scripts/send-test-inbound.mjs --url <summaryInbound
+URL> --to <private address> --eml <file.eml> [--from-envelope <addr>] [--dry-run]`. It posts the
+exact bytes of the .eml as RawEmail, the private address as OriginalRecipient and To (MailboxHash
+is the part after "+"), a random MessageID, and From, Subject and Date read from the headers. The
+Basic auth pair comes only from the shell variable SUMMARIES_TEST_WEBHOOK_AUTH, set for that
+session to `postmark:<the SUMMARIES_WEBHOOK_AUTH value>` (Git Bash: `read -rs S && export
+SUMMARIES_TEST_WEBHOOK_AUTH="postmark:$S"; unset S`), never in a file or an argument; --dry-run
+needs none and sends nothing. Save the message with Gmail's "Download message" so its bytes are
+untouched (a file that is not valid UTF-8 cannot stay byte-exact in RawEmail, and the script warns).
+It prints the HTTP status and a hint only, never the message: the webhook answers 200 for every
+deliberate outcome, so the verdict and reason are in the summaries.inbound log line
+(https://console.cloud.google.com/logs/query?project=meetingguard-ai-app).
+
 ## 12. Tests
 
 Functions (ts-jest, fakes, logger mocked):
