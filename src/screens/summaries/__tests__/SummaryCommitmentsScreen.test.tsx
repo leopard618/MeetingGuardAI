@@ -28,7 +28,7 @@ import { AppError } from '../../../core/errors';
 import { addDaysToLocalDate, todayInZone } from '../../../core/time';
 import { I18nProvider, i18n } from '../../../i18n';
 import { commitmentAppError } from '../../../services/summaries/commitmentsCore';
-import { COMMITMENTS_AI_NOTICE_KEY, resetCommitmentsAiNoticeForTests } from '../../../services/summaries/commitmentsNotice';
+import { commitmentsAiNoticeKey, resetCommitmentsAiNoticeForTests } from '../../../services/summaries/commitmentsNotice';
 import { SUMMARIES_DISABLED_STATUS } from '../../../services/summaries/summaryCore';
 import type { DecideCommitmentsResult, SummaryCommitmentsHookState } from '../../../services/summaries/useSummaryCommitments';
 import { SummaryCommitmentsScreen } from '../SummaryCommitmentsScreen';
@@ -38,6 +38,14 @@ jest.mock('expo-localization', () => ({
   getCalendars: jest.fn(() => [{ timeZone: 'UTC', uses24hourClock: false }]),
 }));
 jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { show: jest.fn() } }));
+
+// The signed-in account: the AI notice flag is per account (decision 17).
+let mockUid = 'uid-screen-a';
+const NOTICE_KEY = (): string => commitmentsAiNoticeKey(mockUid);
+jest.mock('../../../services/auth', () => ({
+  useAuth: () => ({ authUser: { uid: mockUid } }),
+  authService: { currentUser: null },
+}));
 
 let mockOnline = true;
 jest.mock('../../../services/data', () => {
@@ -295,6 +303,7 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
   await AsyncStorage.clear();
   resetCommitmentsAiNoticeForTests();
+  mockUid = 'uid-screen-a';
   jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   mockOnline = true;
   mockStatus = STATUS;
@@ -551,17 +560,26 @@ describe('Suggest with AI', () => {
 
     // The only thing on the phone: the boolean notice flag, no content.
     const keys = await AsyncStorage.getAllKeys();
-    expect(keys).toEqual([COMMITMENTS_AI_NOTICE_KEY]);
-    expect(await AsyncStorage.getItem(COMMITMENTS_AI_NOTICE_KEY)).toBe('1');
+    expect(keys).toEqual([NOTICE_KEY()]);
+    expect(await AsyncStorage.getItem(NOTICE_KEY())).toBe('1');
   });
 
-  it('skips the notice once it was seen on this phone', async () => {
-    await AsyncStorage.setItem(COMMITMENTS_AI_NOTICE_KEY, '1');
+  it('skips the notice once this account saw it', async () => {
+    await AsyncStorage.setItem(NOTICE_KEY(), '1');
     mockPrepare.mockResolvedValue({ op: 'prepare', state: 'ready', commitments: commitments({ mode: 'ai' }) });
     await renderScreen();
     await press('commitments-switch-mode');
     expect(screen.queryByTestId('commitments-notice')).toBeNull();
     expect(mockPrepare).toHaveBeenCalledWith('ai');
+  });
+
+  it('shows the notice to a second account on the same phone', async () => {
+    await AsyncStorage.setItem(NOTICE_KEY(), '1');
+    mockUid = 'uid-screen-b';
+    await renderScreen();
+    await press('commitments-switch-mode');
+    expect(screen.getByTestId('commitments-notice')).toBeTruthy();
+    expect(mockPrepare).not.toHaveBeenCalled();
   });
 
   it('offers the as-written list instead of the notice', async () => {
@@ -627,7 +645,7 @@ it('offers Try again on the "being prepared" card after any failed poll (the pol
 });
 
 it('shows the start card with both buttons, never an endless spinner, when nothing is prepared after another preparation failed', async () => {
-  await AsyncStorage.setItem(COMMITMENTS_AI_NOTICE_KEY, '1');
+  await AsyncStorage.setItem(NOTICE_KEY(), '1');
   mockHook = { state: 'none', data: null, error: null, busy: null };
   mockPrepare.mockImplementationOnce(async () => {
     setHook({ error: new AppError('offline', 'Device is offline') });
@@ -659,7 +677,7 @@ it('shows the start card with both buttons, never an endless spinner, when nothi
 
 describe('stale with no list after an AI list', () => {
   async function renderStaleAfterAi(): Promise<void> {
-    await AsyncStorage.setItem(COMMITMENTS_AI_NOTICE_KEY, '1');
+    await AsyncStorage.setItem(NOTICE_KEY(), '1');
     mockHook = { state: 'ready', data: commitments({ mode: 'ai' }), error: null, busy: null };
     await renderScreen();
     await act(async () => {

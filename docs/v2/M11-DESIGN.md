@@ -130,10 +130,13 @@ built yet. M11's screens hang off day 4.
 16. Connect and disconnect: M11 adds the Disconnect button (the server op exists, M10 section 3) and
     the retention rules to M10's connect screen; no per-user retention choice. Deleting a summary or
     disconnecting never deletes the user's tasks.
-17. Before the first AI preparation on a phone, a notice says the summary text goes to OpenAI
+17. Before an account's first AI preparation, a notice says the summary text goes to OpenAI
     through our server, with "Show the action items as written" as the no-AI alternative. The
-    one thing the phone stores is a boolean "notice seen" in AsyncStorage (no content). WhatsApp
-    has no phone flag, so it carries the notice in the message itself (4.1).
+    one thing the phone stores is a boolean "notice seen" per account in AsyncStorage
+    (mg:{uid}:summaries.commitments.aiNotice, no content, wiped on sign-out), so a second account
+    on the same phone sees it too (Apple 5.1.2(i) asks each person). Changed from "once per
+    phone" on Nov 12 2026 (review finding C1, section 17). WhatsApp has no phone flag, so it
+    carries the notice in the message itself (4.1).
 
 ## 2. Extraction on the server
 
@@ -536,7 +539,7 @@ Top to bottom:
    something was added, "Delete the summary, keep my tasks" (summaryAction delete).
 
 States: loading ("Reading your notetaker's summary. This uses 1 AI action, the first time only."),
-the AI notice (decision 17, once per phone), preparing (on another device), quota (the as-written
+the AI notice (decision 17, once per account), preparing (on another device), quota (the as-written
 button and the Plans screen), error (Try again, or as written), empty ("No commitments found." plus
 as written when the summary has action items), stale ("This summary changed. Prepare the
 suggestions again." free).
@@ -1161,7 +1164,8 @@ Francisco:
 7. The Spanish word for a notetaker summary. Default: "minuta" (common in Mexico), used by M10 day 4
    too.
 8. A one-time AI notice before the first summary goes to OpenAI (Apple 5.1.2(i);
-   LEGAL-CLAIMS-1.6.0.md:223-226). Default: the notice of decision 17, once per phone.
+   LEGAL-CLAIMS-1.6.0.md:223-226). Default: the notice of decision 17, once per account
+   (was once per phone until review finding C1, section 17).
 9. Which plans get summaries. Default: every plan during the pilot; decided before Stage 3.
 10. App Store and Play data categories for forwarded email content (M10-DESIGN.md:765-766).
     Default: add the email categories when the pilot opens to everyone (UNVERIFIED which ones).
@@ -1522,8 +1526,8 @@ What was built:
   session:ended); commitmentsCore.ts (every COMMITMENT_ERROR_CODES value onto an existing AppError
   code, a missing function as not_enabled; message keys; row facts); useSummaryCommitments.ts
   (polls get while 'preparing', every 4 s, at most 30 times, only while focused and in the
-  foreground); commitmentsNotice.ts (the one AsyncStorage key,
-  mg:device:summaries.commitments.aiNotice = '1'); summariesService.applyCommitments, so "Review
+  foreground); commitmentsNotice.ts (the one AsyncStorage key, per account since C1,
+  mg:{uid}:summaries.commitments.aiNotice = '1'); summariesService.applyCommitments, so "Review
   commitments (5)" follows every answer without a re-list. Logs carry the op and AppError codes
   only; the AppErrors made here carry no cause.
 - Route SummaryCommitments {summaryId} (routes, MainStackParamList, screens.tsx, RootNavigator, the
@@ -1558,8 +1562,8 @@ connect, view, MeetingSummarySection, model and functions suites. The four act()
 SummaryCommitmentsScreen run come from an Animated timer and were there before the fixes.
 
 Review: one reviewer pass, 16 findings (B1 to B5, T1 to T10, C1). 15 were confirmed against the
-code and fixed with a regression test (T10 is the test itself); none rejected; C1 deferred as an
-owner decision. What changed:
+code and fixed with a regression test (T10 is the test itself); none rejected; C1 was deferred as an
+owner decision and then fixed by the lead (below). What changed:
 - B1: after "Disconnect and delete" run from the review screen's own retention link, the screen
   below spun forever. The screen now reads a summary whose summaryRead copy was dropped after
   summaryRead answered as gone (as SummaryView does) and goes back with "This summary is no
@@ -1632,14 +1636,11 @@ Where the build differs from sections 3, 5 and 7 (the code's facts):
   itself; the screen tells a deleted summary from summaryRead.
 
 Open:
-- C1, Francisco or lead: the AI notice flag is per phone (decision 17 and question 8, "once per
-  phone"), stored under a device key that survives sign-out, and the notice counts as seen for the
-  rest of the app run. A second account on the same phone therefore sends its first summary to
-  OpenAI without seeing the notice, and demo step 9 ("chosen at the notice on a second account")
-  cannot happen on the demo phone once step 2 accepted it. Options: key the flag per user
-  (mg:{uid}:..., wiped on sign-out) and reset the in-memory flag on session:ended; or keep "once
-  per phone", record it in decision 17, and run step 9 on a phone where the notice was never
-  accepted.
+- C1, done by the lead (Nov 12 2026): the AI notice flag is per account, not per phone. Key
+  mg:{uid}:summaries.commitments.aiNotice (USER_STORAGE.summariesAiNotice), wiped with the other
+  mg:{uid}:* keys on sign-out; the in-run mark is per uid; the screen passes useAuth's uid. A second
+  account on the same phone now sees the notice, so demo step 9 works on the demo phone. Tests:
+  3 new hook cases (second account, account switch, signed out) and 1 screen case.
 - Lead or Francisco: Select all skips owner guesses (WhatsApp S1 spirit); the server's
   selectAllTargets includes them.
 - SummaryViewScreen: a delete from the review screen opened from SummaryView lets SummaryView,

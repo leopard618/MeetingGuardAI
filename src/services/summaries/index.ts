@@ -65,7 +65,7 @@ export {
   type UseSummaryCommitmentsResult,
 } from './useSummaryCommitments';
 export {
-  COMMITMENTS_AI_NOTICE_KEY,
+  commitmentsAiNoticeKey,
   hasSeenCommitmentsAiNotice,
   markCommitmentsAiNoticeSeen,
   useCommitmentsAiNotice,

@@ -106,6 +106,8 @@ export const USER_STORAGE = {
   onboarding: 'onboarding.step',
   /** Dashboard setup recommendation: "Not now" snoozes per step. Owner: home. */
   setupSnooze: 'setup.snooze',
+  /** M11: the one-time AI notice of summary commitments was seen ('1', no content). Owner: summaries-app. */
+  summariesAiNotice: 'summaries.commitments.aiNotice',
 } as const;
 export type UserStorageName = (typeof USER_STORAGE)[keyof typeof USER_STORAGE];
 

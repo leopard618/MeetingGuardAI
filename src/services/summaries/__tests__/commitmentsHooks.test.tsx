@@ -17,7 +17,7 @@ import { createEventBus, type AppEventMap } from '../../../core/events';
 import { createCommitmentsService, type CommitmentsTransport } from '../commitments';
 import { isCommitmentsUnavailableError } from '../commitmentsCore';
 import {
-  COMMITMENTS_AI_NOTICE_KEY,
+  commitmentsAiNoticeKey,
   hasSeenCommitmentsAiNotice,
   markCommitmentsAiNoticeSeen,
   resetCommitmentsAiNoticeForTests,
@@ -471,23 +471,57 @@ describe('useSummaryCommitments', () => {
 
 // ---- the AI notice flag ------------------------------------------------------------------------------
 
-describe('the AI notice flag (decision 17)', () => {
-  it('absent means not seen; marking it stores exactly one boolean key and nothing else', async () => {
-    expect(await hasSeenCommitmentsAiNotice()).toBe(false);
-    const { result } = await renderHook(() => useCommitmentsAiNotice());
+describe('the AI notice flag (decision 17, per account)', () => {
+  const NOTICE_UID = 'uid-notice-a';
+  const OTHER_UID = 'uid-notice-b';
+
+  it('absent means not seen; marking it stores exactly one boolean key under the account prefix', async () => {
+    expect(commitmentsAiNoticeKey(NOTICE_UID)).toBe('mg:uid-notice-a:summaries.commitments.aiNotice');
+    expect(await hasSeenCommitmentsAiNotice(NOTICE_UID)).toBe(false);
+    const { result } = await renderHook(() => useCommitmentsAiNotice(NOTICE_UID));
     await waitFor(() => expect(result.current.seen).toBe(false));
     await act(async () => {
       await result.current.markSeen();
     });
     expect(result.current.seen).toBe(true);
-    expect(await AsyncStorage.getAllKeys()).toEqual([COMMITMENTS_AI_NOTICE_KEY]);
-    expect(await AsyncStorage.getItem(COMMITMENTS_AI_NOTICE_KEY)).toBe('1');
+    expect(await AsyncStorage.getAllKeys()).toEqual([commitmentsAiNoticeKey(NOTICE_UID)]);
+    expect(await AsyncStorage.getItem(commitmentsAiNoticeKey(NOTICE_UID))).toBe('1');
 
     // A new run reads it back from storage.
     resetCommitmentsAiNoticeForTests();
-    expect(await hasSeenCommitmentsAiNotice()).toBe(true);
-    const next = await renderHook(() => useCommitmentsAiNotice());
+    expect(await hasSeenCommitmentsAiNotice(NOTICE_UID)).toBe(true);
+    const next = await renderHook(() => useCommitmentsAiNotice(NOTICE_UID));
     await waitFor(() => expect(next.result.current.seen).toBe(true));
+  });
+
+  it('a second account on the same phone still sees the notice, in this run and the next', async () => {
+    await markCommitmentsAiNoticeSeen(NOTICE_UID);
+    expect(await hasSeenCommitmentsAiNotice(OTHER_UID)).toBe(false);
+    const other = await renderHook(() => useCommitmentsAiNotice(OTHER_UID));
+    await waitFor(() => expect(other.result.current.seen).toBe(false));
+    resetCommitmentsAiNoticeForTests();
+    expect(await hasSeenCommitmentsAiNotice(OTHER_UID)).toBe(false);
+    expect(await hasSeenCommitmentsAiNotice(NOTICE_UID)).toBe(true);
+  });
+
+  it('switching accounts under a mounted screen never carries the first answer over', async () => {
+    await markCommitmentsAiNoticeSeen(NOTICE_UID);
+    const { result, rerender } = await renderHook(({ uid }: { uid: string | null }) => useCommitmentsAiNotice(uid), {
+      initialProps: { uid: NOTICE_UID as string | null },
+    });
+    await waitFor(() => expect(result.current.seen).toBe(true));
+    await rerender({ uid: OTHER_UID });
+    await waitFor(() => expect(result.current.seen).toBe(false));
+  });
+
+  it('signed out: reads as null and markSeen stores nothing', async () => {
+    const { result } = await renderHook(() => useCommitmentsAiNotice(null));
+    expect(result.current.seen).toBeNull();
+    await act(async () => {
+      await result.current.markSeen();
+    });
+    expect(result.current.seen).toBeNull();
+    expect(await AsyncStorage.getAllKeys()).toEqual([]);
   });
 
   it('an unreadable flag reads as not seen, and a failed write never throws (seen for the rest of the run)', async () => {
@@ -495,11 +529,11 @@ describe('the AI notice flag (decision 17)', () => {
       getItem: () => Promise.reject(new Error('storage broken')),
       setItem: () => Promise.reject(new Error('storage broken')),
     };
-    expect(await hasSeenCommitmentsAiNotice(broken)).toBe(false);
-    await expect(markCommitmentsAiNoticeSeen(broken)).resolves.toBeUndefined();
-    expect(await hasSeenCommitmentsAiNotice(broken)).toBe(true);
+    expect(await hasSeenCommitmentsAiNotice(NOTICE_UID, broken)).toBe(false);
+    await expect(markCommitmentsAiNoticeSeen(NOTICE_UID, broken)).resolves.toBeUndefined();
+    expect(await hasSeenCommitmentsAiNotice(NOTICE_UID, broken)).toBe(true);
     const odd: CommitmentsNoticeStorage = { getItem: async () => 'yes please', setItem: async () => undefined };
     resetCommitmentsAiNoticeForTests();
-    expect(await hasSeenCommitmentsAiNotice(odd)).toBe(false);
+    expect(await hasSeenCommitmentsAiNotice(NOTICE_UID, odd)).toBe(false);
   });
 });

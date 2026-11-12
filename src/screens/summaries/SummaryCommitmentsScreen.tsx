@@ -56,6 +56,7 @@ import type { RootStackParamList, TranslateFn } from '../../core/contracts';
 import { toAppError, type AppError } from '../../core/errors';
 import { getDeviceTimeZone } from '../../core/time';
 import { useT } from '../../i18n';
+import { useAuth } from '../../services/auth';
 import { useSyncState } from '../../services/data';
 import { summariesService, useCommitmentsAiNotice, useSummary, useSummaryCommitments, useSummaryStatus } from '../../services/summaries';
 import { commitmentErrorMessageKey, commitmentErrorReason } from '../../services/summaries/commitmentsCore';
@@ -127,7 +128,9 @@ export function SummaryCommitmentsScreen({ navigation, route }: Props): ReactEle
   const { status, available, error: statusError, refresh: refreshStatus } = useSummaryStatus();
   const { summary, error: summaryError, loading: summaryLoading, refresh: refreshSummary } = useSummary(summaryId, { enabled: available });
   const { state: hookState, data, error, busy, prepare, decide, refresh } = useSummaryCommitments(summaryId, { enabled: available });
-  const notice = useCommitmentsAiNotice();
+  // The AI notice is per account (decision 17, Apple 5.1.2(i)): a second account on this phone sees it too.
+  const { authUser } = useAuth();
+  const notice = useCommitmentsAiNotice(authUser?.uid ?? null);
 
   const [reminderDefault, setReminderDefault] = useState<ReminderDefault>(DEFAULT_REMINDER);
   const [selections, setSelections] = useState<SelectionByKey>({});
@@ -250,7 +253,7 @@ export function SummaryCommitmentsScreen({ navigation, route }: Props): ReactEle
     [prepare],
   );
 
-  /** Mode 'ai' only after the one-time AI notice was seen on this phone (decision 17). */
+  /** Mode 'ai' only after this account saw the one-time AI notice (decision 17). */
   const requestMode = useCallback(
     (mode: CommitmentMode): void => {
       if (mode === 'ai' && notice.seen !== true) {
