@@ -44,6 +44,7 @@ import { ScreenBody } from '../shared/Section';
 import { needsEmailVerification } from '../shared/VerifyEmailBanner';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
+import { MeetingSummarySection } from '../summaries/MeetingSummarySection';
 import { canDebrief } from './debrief';
 import { conferenceCardState } from './meetingForm';
 import { endNowWrite, isRunningNow, resolveRunningLateMeeting } from './runningLate';
@@ -485,6 +486,9 @@ function MeetingDetails({
         </>
       ) : null}
 
+      {/* M10: the notetaker summaries filed under this meeting (hidden unless the pilot is on). */}
+      <MeetingSummarySection meetingId={meeting.id} />
+
       <MeetingAttachmentsSection meetingId={meeting.id} />
 
       {isDevice ? (
@@ -511,6 +515,11 @@ function MeetingDetails({
           ) : null}
         </View>
       ) : null}
+      {/*
+        M11 SLOT (M11-DESIGN.md section 3.1): "Review commitments" goes beside Debrief, in one
+        wrapping row with it, when MeetingSummarySection lists a filed summary ("Review
+        commitments (5)" with the open count). Not built in M10.
+      */}
       {canDebrief(meeting, now) ? (
         <MGButton icon="text-box-check-outline" onPress={onDebrief} style={styles.debriefButton} disabled={deleting} testID="meeting-debrief">
           {t('meetings:details.debrief')}

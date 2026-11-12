@@ -25,7 +25,10 @@
     "AIInsights": "Resumen",
     "CalendarSync": "Sincronización de calendarios",
     "Pricing": "Planes",
-    "WhatsAppConnect": "WhatsApp"
+    "WhatsAppConnect": "WhatsApp",
+    "SummaryConnect": "Minutas de reuniones",
+    "SummaryInbox": "Bandeja de minutas",
+    "SummaryView": "Minuta"
   },
   "meeting": {
     "loading": "Cargando reunión...",

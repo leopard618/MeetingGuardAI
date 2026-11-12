@@ -1,0 +1,346 @@
+{
+  "row": {
+    "title": "Meeting summaries",
+    "subtitle": "Your notetaker's summaries, filed under your meetings",
+    "waiting_one": "{{count}} waiting for a meeting",
+    "waiting_other": "{{count}} waiting for a meeting"
+  },
+  "common": {
+    "productLine": "Meeting Guard AI does not join, record or listen to your meetings.",
+    "productLineMore": "It files the summary your own notetaker already emails you under the right meeting.",
+    "notAttended": "Meeting Guard AI did not attend this meeting. This text comes from your notetaker.",
+    "otherRecorder": "A notetaker summary can come from a meeting someone else recorded.",
+    "unknownSender": "an unknown sender",
+    "untitled": "Summary without a title",
+    "received": "Received {{time}}",
+    "summaryDate": "Date in the summary: {{date}}",
+    "noSummaryDate": "No date in the summary",
+    "loading": "Loading summaries...",
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "close": "Close",
+    "copyFailed": "Could not copy. Press and hold the text to copy it instead.",
+    "origin": {
+      "vendor": "Written by your notetaker ({{domain}}), received {{time}}. Signature checked.",
+      "vendorNoDomain": "Written by your notetaker, received {{time}}. Signature checked.",
+      "forwarded": "Forwarded from {{address}}. The notetaker's own signature could not be checked.",
+      "forwardedNoAddress": "Forwarded from one of your mailboxes. The notetaker's own signature could not be checked."
+    },
+    "chip": {
+      "vendor_verified": "From your notetaker",
+      "user_forwarded": "Forwarded"
+    },
+    "status": {
+      "matched": "Filed under a meeting",
+      "inbox": "Waiting for a meeting",
+      "kept": "Kept without a meeting",
+      "refused": "Refused"
+    },
+    "method": {
+      "auto": "Filed automatically by title and time",
+      "user": "Filed by you"
+    },
+    "inboxReason": {
+      "old_summary": "It arrived long after it was written, or its sending time could not be checked, so it was not filed automatically.",
+      "not_addressed_to_you": "It was not addressed to one of your mailboxes, for example because it was sent straight to your private address. Check that it is yours before you file it.",
+      "user_forwarded": "You forwarded it by hand. Choose the meeting it belongs to.",
+      "needs_confirmation": "One meeting looks right. Confirm it before the summary is filed.",
+      "ambiguous": "Two meetings look alike. Choose the right one.",
+      "no_candidate": "No meeting found around that time. The meeting may be on a calendar that is not connected.",
+      "weak": "No meeting matched its title and time closely enough.",
+      "no_date": "The summary has no date, so its meeting could not be looked up."
+    },
+    "refusedReason": {
+      "too_large": {
+        "title": "Too large",
+        "body": "The email was over the size limit.",
+        "action": "Ask your notetaker for a shorter summary email, without attachments."
+      },
+      "malformed": {
+        "title": "Broken email",
+        "body": "Its headers were broken or repeated, so it could not be checked.",
+        "action": "Send the summary again. If this keeps happening, the email may not be a real summary."
+      },
+      "could_not_verify_after_forwarding": {
+        "title": "Signature lost on the way",
+        "body": "Your mail service changed the email when it passed it on, so the notetaker's signature no longer matched.",
+        "action": "Use a Redirect rule instead of Forward (in Outlook: Redirect to). See the setup steps."
+      },
+      "changed_after_sending": {
+        "title": "Changed after sending",
+        "body": "The notetaker's signature is there but no longer matches: the text was changed after it was sent.",
+        "action": "If you did not expect this email, there is nothing to do. If it was your summary, check your forwarding rule and send it again."
+      },
+      "sender_not_verified": {
+        "title": "Sender not verified",
+        "body": "It claims to come from your notetaker or from one of your mailboxes, but no valid signature backs that up.",
+        "action": "If it was yours, your mail service may not sign the mail it sends. Set up a Redirect rule so the notetaker's own email arrives instead."
+      },
+      "not_from_your_notetaker": {
+        "title": "Not from your notetaker",
+        "body": "It does not come from a notetaker we accept, or someone else forwarded it.",
+        "action": "If you keep getting these, get a new address."
+      },
+      "unreadable": {
+        "title": "No readable text",
+        "body": "The email was genuine, but no readable text was left in it.",
+        "action": "Forward it again with the summary in the body of the email, not as an attachment."
+      }
+    },
+    "refusedFrom": "From {{domain}}",
+    "refusedFromUnknown": "From an unknown sender",
+    "refusedNotStored": "Refused emails are not stored by Meeting Guard AI. Only the reason, the day, a count and a verified sender domain are kept, for 30 days.",
+    "delete": {
+      "action": "Delete",
+      "title": "Delete this summary?",
+      "body": "It leaves our live database at once and our backups within 21 days. The copy at our email provider expires after {{providerDays}} days. The original email stays in your own mailbox.",
+      "confirm": "Delete",
+      "done": "Summary deleted"
+    },
+    "privacy": {
+      "title": "Privacy",
+      "encrypted": "Encrypted in transit and at rest by Google Cloud. In addition, Meeting Guard AI encrypts each summary's text, subject and the email addresses in it with its own key, kept in Google Secret Manager. Your private address, the mailboxes you list, and details such as the date, the sender's domain and the meeting it is filed under do not get this extra layer. This is not end-to-end encryption: people with administrative access to our systems could technically decrypt it. Our email provider, Postmark, receives each email first and keeps it for {{providerDays}} days.",
+      "yoursOnly": "Only you can see your summaries in the app; other Meeting Guard AI users cannot reach them.",
+      "deletable": "You can delete any summary, or all of them, at any time. They leave our live database at once and our backups within 21 days. The copy at our email provider expires after {{providerDays}} days. The original email stays in your own mailbox.",
+      "refused": "A summary that your notetaker did not sign, that was changed after it was sent, or that was not sent to one of your own mailboxes is refused, and its content is not kept by Meeting Guard AI. A real summary sent straight to your private address waits in your inbox for your OK."
+    },
+    "unavailable": {
+      "title": "Not available yet",
+      "body": "Meeting summaries are not available for your account yet."
+    }
+  },
+  "errors": {
+    "unauthenticated": "Sign in again with a verified email address to use meeting summaries.",
+    "not_enabled": "Meeting summaries are not available yet.",
+    "not_allowed": "Meeting summaries are not available for your account yet.",
+    "not_ready": "Your private address is not ready yet. Try again later.",
+    "invalid_request": "That did not work. Check what you entered and try again.",
+    "not_found": "This summary is no longer here. It may have been deleted.",
+    "invalid_meeting": "That meeting is no longer available. Choose another one.",
+    "rate_limited": "You asked for too many new addresses today. Try again tomorrow.",
+    "upstream_error": "Something went wrong on our side. Try again later.",
+    "generic": "Something went wrong. Try again."
+  },
+  "connect": {
+    "intro": "Send the summary your notetaker already writes to your private address. Meeting Guard AI files it under the meeting it belongs to.",
+    "notReady": "Summaries by email are still being set up. Check back soon.",
+    "create": "Create my private address",
+    "createHint": "You get an address only you know. Your notetaker's summaries go there through a mail rule.",
+    "created": "Your private address is ready",
+    "openInbox": "Open the summary inbox",
+    "address": {
+      "title": "Your private address",
+      "hint": "Keep this address to yourself. Never add it as a meeting guest or to a share list.",
+      "copy": "Copy",
+      "copied": "Address copied",
+      "share": "Share",
+      "shareMessage": "My Meeting Guard AI address for meeting summaries: {{address}}",
+      "regenerate": "Get a new address",
+      "regenerateTitle": "Get a new address?",
+      "regenerateBody": "Your current address stops working at once, and Meeting Guard AI no longer stores mail sent to it. Update your forwarding rule afterwards; Gmail will ask you to confirm the new address again.",
+      "regenerateConfirm": "Get a new address",
+      "regenerated": "Your new address is ready. Update your forwarding rule.",
+      "capped": "Your address received a lot of junk today, so more junk is no longer counted. Get a new address to stop it."
+    },
+    "mailboxes": {
+      "title": "Where your summaries arrive",
+      "hint": "The mailboxes your notetaker sends its summaries to. A summary is filed by itself only when it was sent to one of these.",
+      "empty": "No mailboxes yet. Add the one your notetaker sends its summaries to.",
+      "add": "Add a mailbox",
+      "label": "Email address",
+      "placeholder": "name@company.com",
+      "remove": "Remove {{address}}",
+      "save": "Save",
+      "saved": "Mailboxes saved",
+      "invalid": "Enter one email address, like name@company.com.",
+      "duplicate": "This mailbox is already on the list.",
+      "maxReached": "You can list up to {{max}} mailboxes.",
+      "reserved": "Your private address cannot be one of your mailboxes. Enter the mailbox your notetaker sends its summaries to.",
+      "unsaved": "Not saved yet. Press Save to keep your changes."
+    },
+    "gmail": {
+      "title": "Gmail confirmation code",
+      "body": "Gmail asked to confirm forwarding from {{address}}. Paste this code on the Gmail forwarding settings page, then press Verify.",
+      "code": "Code: {{code}}",
+      "copy": "Copy code",
+      "copied": "Code copied",
+      "open": "Open Gmail settings",
+      "dismiss": "Dismiss",
+      "received": "Received {{time}}",
+      "otherTitle": "Someone else asked to forward here",
+      "otherBody": "{{address}} is not one of your mailboxes. Someone else asked; ignore it.",
+      "ignore": "Ignore"
+    },
+    "setup": {
+      "title": "Set up forwarding",
+      "tabs": {
+        "gmail": "Gmail",
+        "outlook": "Outlook and Microsoft 365",
+        "other": "Other"
+      },
+      "browserHint": "Do this in a web browser. The phone apps cannot set up forwarding.",
+      "gmail": {
+        "steps": {
+          "step1": "Open Gmail settings, Forwarding and POP/IMAP, and press Add a forwarding address. Paste your private address, then press Next and Proceed.",
+          "step2": "Gmail sends a confirmation code to your private address. It shows up on this screen within a minute. Paste it on the same Gmail page and press Verify.",
+          "step3": "Leave forwarding of all your mail off.",
+          "step4": "Open Filters and Blocked Addresses and press Create a new filter. In From, enter your notetaker's sender address and press Create filter.",
+          "step5": "Choose Forward it to, pick your private address and press Create filter."
+        },
+        "openForwarding": "Open forwarding settings",
+        "openFilters": "Open filter settings",
+        "workspace": "Google Workspace: if forwarding is greyed out, your administrator has to allow automatic forwarding first."
+      },
+      "outlook": {
+        "steps": {
+          "step1": "Open Outlook on the web, Settings, Mail, Rules, and press Add new rule.",
+          "step2": "Condition: From, your notetaker's sender address. Action: Redirect to, your private address. Save the rule.",
+          "step3": "Use Redirect, not Forward. Redirect keeps the notetaker as the sender, so its signature can be checked. Forward is not supported."
+        },
+        "openRules": "Open Outlook rules",
+        "company": "Company mailbox: Microsoft 365 blocks automatic forwarding to outside addresses by default. If nothing arrives, share the steps with your administrator."
+      },
+      "other": {
+        "steps": {
+          "step1": "In your mail service, create a rule for mail from your notetaker's sender address that sends it on to your private address.",
+          "step2": "Choose Redirect (or Bounce) if your mail service offers it. It keeps the notetaker's signature intact.",
+          "step3": "You can also forward one summary by hand from one of your mailboxes. It waits in your summary inbox for one tap."
+        }
+      },
+      "admin": {
+        "title": "Steps for your administrator",
+        "hint": "Share these steps with whoever manages your company email.",
+        "share": "Share the steps",
+        "mailboxFallback": "my mailbox",
+        "microsoft": "I use Meeting Guard AI to receive my meeting summaries. A mail rule on {{mailbox}} redirects only my notetaker's summary emails to {{address}}. Microsoft 365 blocks automatic forwarding to outside addresses by default. To allow it for this one mailbox:\n1. In the Microsoft Defender portal (https://security.microsoft.com/antispam), create an outbound anti-spam policy that applies only to {{mailbox}}, with Automatic forwarding rules set to On - Forwarding is enabled.\n2. In the Exchange admin center (https://admin.exchange.microsoft.com/#/remotedomains), check that the Default remote domain allows automatic forwarding.\nNo other mail is forwarded.",
+        "google": "I use Meeting Guard AI to receive my meeting summaries. A Gmail filter on {{mailbox}} forwards only my notetaker's summary emails to {{address}}. Forwarding is greyed out in my Gmail settings. Please allow automatic forwarding for my account in the Google Admin console (https://admin.google.com), under Apps, Google Workspace, Gmail, End User Access.\nNo other mail is forwarded."
+      }
+    },
+    "activity": {
+      "title": "Activity",
+      "lastReceived": "Last summary received {{time}}",
+      "nothingYet": "Nothing received yet.",
+      "waiting": "Waiting for your first summary. This screen checks every few seconds while it is open.",
+      "lastRefused": "Last refused {{time}}: {{reason}}",
+      "refusedToday_one": "{{count}} email refused today",
+      "refusedToday_other": "{{count}} emails refused today"
+    },
+    "microsoftHint": {
+      "title": "Nothing has arrived yet",
+      "body": "No summary has arrived in 24 hours. If you use a Microsoft 365 company mailbox, Microsoft may be blocking the redirect. Share the steps with your administrator.",
+      "action": "Steps for your administrator"
+    },
+    "checks": {
+      "title": "What we check",
+      "signature": "The summary carries your notetaker's own digital signature, and nothing in it changed after it was sent.",
+      "sender": "It comes from a notetaker sender we accept.",
+      "mailbox": "It was sent to one of the mailboxes you listed above.",
+      "fresh": "It is recent: written in the last two weeks.",
+      "match": "It is filed by itself only when its title and its time both match one of your meetings. Otherwise it waits in your summary inbox.",
+      "refused": "A summary that passes the first two checks but not the others, or one you forward by hand from a listed mailbox, waits in your summary inbox for your OK. Anything else is refused, and its content is not stored by Meeting Guard AI."
+    }
+  },
+  "inbox": {
+    "waiting": {
+      "title": "Waiting for a meeting",
+      "empty": "Nothing is waiting. A summary that cannot be filed by itself shows up here."
+    },
+    "recent": {
+      "title": "Filed recently",
+      "empty": "No summaries filed yet.",
+      "filedUnder": "Filed under {{title}}",
+      "kept": "Kept without a meeting"
+    },
+    "refused": {
+      "title": "Refused",
+      "show": "Show refused",
+      "hide": "Hide refused",
+      "row_one": "{{count}} refused on {{day}}",
+      "row_other": "{{count}} refused on {{day}}",
+      "empty": "Nothing refused in the last 30 days."
+    },
+    "fileUnder": "File under {{title}}",
+    "fileUnderA11y": "File under {{title}}, {{time}}",
+    "choose": "Choose a meeting",
+    "keep": "Keep without a meeting",
+    "kept": "Kept without a meeting",
+    "filed": "Filed under {{title}}",
+    "noSuggestions": "No suggestions, because this summary was not addressed to you. If it is yours, choose its meeting yourself.",
+    "pullToRefresh": "Pull down to look for matching meetings again.",
+    "more": "Only the latest {{count}} are shown.",
+    "openSetup": "Address and setup",
+    "empty": {
+      "title": "No summaries yet",
+      "body": "When your notetaker's summary arrives at your private address, it is filed under its meeting or waits here.",
+      "action": "Set up forwarding"
+    }
+  },
+  "attach": {
+    "title": "Choose a meeting",
+    "moveTitle": "Move to another meeting",
+    "previousDay": "Previous day",
+    "nextDay": "Next day",
+    "summaryDay": "Day of the summary",
+    "noMeetings": "No meetings that day. Try another day.",
+    "loading": "Loading meetings...",
+    "allDay": "All day",
+    "cancelled": "Cancelled",
+    "occurrence": "One meeting of a series",
+    "file": "File here",
+    "filed": "Filed under {{title}}",
+    "moved": "Moved to {{title}}",
+    "current": "Filed here now",
+    "cancel": "Cancel"
+  },
+  "view": {
+    "loading": "Loading summary...",
+    "notFound": "This summary is no longer here.",
+    "match": {
+      "auto": "Filed under {{title}}, {{time}}. Matched automatically by title and time.",
+      "user": "Filed under {{title}}, {{time}}. Filed by you.",
+      "inbox": "Not filed yet: waiting for a meeting.",
+      "kept": "Kept without a meeting."
+    },
+    "tldrHeading": "Your notetaker's own summary",
+    "tldrNote": "The notetaker wrote this overview itself. Check it against the details below.",
+    "textHeading": "Text",
+    "owner": "Owner: {{owner}}",
+    "due": "Due: {{due}}",
+    "checkbox": {
+      "done": "Done",
+      "open": "Open"
+    },
+    "flag": {
+      "possible_instruction": "Reads like an instruction. It is shown as plain text only.",
+      "has_link": "Contains a link, shown as plain text.",
+      "truncated": "Cut short because it was too long."
+    },
+    "truncated": "This summary was cut short because it was very long.",
+    "linksPlain": "Links are shown as plain text. Copy one to open it in your browser.",
+    "subject": "Subject: {{subject}}",
+    "from": "From: {{address}}",
+    "copyText": "Copy text",
+    "copied": "Text copied",
+    "notThisMeeting": "Not this meeting",
+    "notThisMeetingTitle": "Not this meeting?",
+    "notThisMeetingBody": "The summary goes back to your summary inbox, and this meeting is not suggested for it again.",
+    "notThisMeetingConfirm": "Back to the inbox",
+    "detached": "Moved back to your summary inbox",
+    "move": "Move",
+    "choose": "Choose a meeting",
+    "keep": "Keep without a meeting",
+    "notFoundBody": "It may have been deleted, here or on another device. The original email stays in your own mailbox.",
+    "emailHeading": "Email details",
+    "trust": {
+      "notBound": "It was not addressed to one of the mailboxes you listed. Check that it belongs to you.",
+      "notFresh": "It arrived long after it was written, or its sending time could not be checked."
+    }
+  },
+  "meeting": {
+    "title_one": "Notetaker summary",
+    "title_other": "Notetaker summaries",
+    "received": "Received {{time}}",
+    "occurrence": "For the meeting on {{date}}",
+    "open": "Open the summary {{title}}"
+  }
+}

@@ -930,3 +930,73 @@ Open:
   scheme set in one @media block can drop its text; an HTML-only recap that links a remote style
   sheet is refused. Check all of it on Francisco's real recap if it arrives HTML-only.
 - The rules tests (npm run test:rules) still need Java and have not run here.
+
+## 20. Day 4 status (November 12, 2026)
+
+Built on dev_dusko (the app side; not committed yet, nothing deployed; JavaScript only, so it can
+ride the next store build or an EAS Update to runtime 1.6.0): the service src/services/summaries/
+(injected transport, zod on both sides, the section 4 error mapping with a missing function read
+as not_enabled, a memory-only session cache; no AsyncStorage, no listener, no outbox) with the
+hooks useSummaryStatus, useSummaryList and useSummary; the routes SummaryConnect, SummaryInbox and
+SummaryView with EN and ES titles; the Settings > Integrations row "Meeting summaries" with "N
+waiting for a meeting"; SummaryConnectScreen, SummaryInboxScreen, AttachMeetingSheet and
+SummaryViewScreen, each over a pure model; MeetingSummarySection on Meeting details between Notes
+and Attachments; the summaries namespace in EN and ES. Every surface shows only when summaryStatus
+says enabled and allowed. App lint, typecheck and 185 suites with 2382 tests pass (the shared tree,
+other builders' work included).
+
+Review: 15 findings. 14 were confirmed against the code and fixed, each with a regression test;
+one (B8) is deferred as a contract decision; none rejected. What changed:
+- Service: an ask in flight when a summaryAction answers never undoes it. A status ask keeps the
+  action's status (a poll no longer puts back the old address after "Get a new address", or the
+  old mailbox list after Save), and a list or get answer gets the action's patches before it is
+  cached (a filed, kept or deleted card no longer comes back; a get of a summary deleted meanwhile
+  answers not_found); the inbox count is then left to the action.
+- useSummaryStatus refreshOnFocus (getStatus takes an optional maxAgeMs): on focus or return to
+  the foreground it asks again when the answer is older than 60 s, or 30 minutes while the feature
+  is off for the user. Settings uses it, so the waiting count and the row itself follow during a
+  session. A failed ask's error shows only while the status it failed next to is still the cached
+  one, so a successful poll clears the connect screen's error banner.
+- Move on a filed series summary passes currentOccurrenceDate: the sheet marks and disables that
+  occurrence. MeetingSummarySection shows the day the occurrence took place (the snapshot start),
+  not the original series date. The sheet offers cancelled meetings with a "Cancelled" badge
+  (section 6 suggests them and attach accepts them); cancelled occurrences and tombstones still
+  drop out.
+- Section 14 wording: "What we check" no longer says that anything else is refused; it says an
+  unbound or old vendor summary and a hand forward from a listed mailbox wait in the inbox for an
+  OK, and the privacy card now shows the approved "refused" text too. The delete confirmation uses
+  the "Deletable" text with {{providerDays}}. "Get a new address" says Meeting Guard AI no longer
+  stores mail sent to the old address (not "dropped", ES not "se descarta"). Three Spanish strings
+  corrected.
+
+Deviations from section 9:
+- Microsoft 365 hint: summaryStatus has no address creation time, so the hint dates the address
+  by the last refusal or a Gmail code and stays hidden when nothing at all reached the address,
+  which is its main case. The Outlook tab always shows the company note and the administrator
+  steps.
+- The Settings row opens SummaryConnect while there is no address, SummaryInbox after.
+- MeetingSummarySection lives in src/screens/summaries/ and asks summaryRead 350 ms after Meeting
+  details opens.
+- The sheet files on pick then "File here", and opens on the local day of receivedAt when the
+  summary has no date. Setup tabs are chips. Notices are Cards (Banner animates); confirmations use
+  Alert.alert as elsewhere in the app.
+- A Gmail code card is prominent only when the requesting Gmail is a listed mailbox (the verified
+  sign-in email is not added on the phone).
+- The view's "cut short" notice is guessed from the caps (the contract has no truncated flag).
+
+Open:
+- B8, lead decision: an additive nullable addressCreatedAt in summaryStatusResponseSchema (default
+  null, like refusedToday), read first by addressInUseSince. Also an optional summary-level
+  truncated in summaryDetailSchema.
+- SUMMARY_PROVIDER_RETENTION_DAYS stays 45 until the retention add-on decision.
+- The Google Workspace admin menu path is UNVERIFIED; the Microsoft share text quotes the English
+  console label in ES too.
+- not_ready from regenerate_address or set_mailboxes after a disconnect on another device reads
+  "being set up", then the screen asks again and shows the create view.
+- One-tap suggestions on needs_confirmation cards are neither highlighted nor confirmed.
+- The sheet lists only meetings the local engine holds; far back it may show "No meetings that
+  day". MEETING_SUMMARIES_DEFER_MS (350) to tune on a device.
+- M11 hooks: the SummaryConnectScreen footer prop (Disconnect, the retention card), marked spots in
+  MeetingSummarySection rows, at the top of SummaryView and beside Debrief; strings go under
+  summaries.commitments.
+- The commit still needs to go on dev_dusko.

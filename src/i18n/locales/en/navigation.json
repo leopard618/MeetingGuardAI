@@ -25,7 +25,10 @@
     "AIInsights": "Insights",
     "CalendarSync": "Calendar sync",
     "Pricing": "Plans",
-    "WhatsAppConnect": "WhatsApp"
+    "WhatsAppConnect": "WhatsApp",
+    "SummaryConnect": "Meeting summaries",
+    "SummaryInbox": "Summary inbox",
+    "SummaryView": "Summary"
   },
   "meeting": {
     "loading": "Loading meeting...",

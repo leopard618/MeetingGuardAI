@@ -75,6 +75,11 @@ jest.mock('../../screens/notes/NotesScreen', () => ({ NotesScreen: mockScreen('N
 jest.mock('../../screens/attachments/MeetingAttachmentsSection', () => ({ MeetingAttachmentsSection: () => null }));
 jest.mock('../../screens/settings/SettingsScreen', () => ({ SettingsScreen: mockScreen('Settings').default }));
 jest.mock('../../screens/settings/WhatsAppConnectScreen', () => ({ WhatsAppConnectScreen: mockScreen('WhatsAppConnect').default }));
+// M10: the summary screens, and the section the real MeetingDetails screen renders.
+jest.mock('../../screens/summaries/SummaryConnectScreen', () => ({ SummaryConnectScreen: mockScreen('SummaryConnect').default }));
+jest.mock('../../screens/summaries/SummaryInboxScreen', () => ({ SummaryInboxScreen: mockScreen('SummaryInbox').default }));
+jest.mock('../../screens/summaries/SummaryViewScreen', () => ({ SummaryViewScreen: mockScreen('SummaryView').default }));
+jest.mock('../../screens/summaries/MeetingSummarySection', () => ({ MeetingSummarySection: () => null }));
 jest.mock('../../screens/alerts/AlertSettingsScreen', () => ({ AlertSettingsScreen: mockScreen('AlertSettings').default }));
 jest.mock('../../screens/assistant/AssistantScreen', () => ({ AssistantScreen: mockScreen('AIChat').default }));
 jest.mock('../../screens/insights/AIInsightsScreen', () => ({ AIInsightsScreen: mockScreen('AIInsights').default }));

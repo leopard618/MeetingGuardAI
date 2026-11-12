@@ -28,6 +28,7 @@ import enSettings from './locales/en/settings.json';
 import enShell from './locales/en/shell.json';
 import enWhatsapp from './locales/en/whatsapp.json';
 import enWidget from './locales/en/widget.json';
+import enSummaries from './locales/en/summaries.json';
 import esAi from './locales/es/ai.json';
 import esAlerts from './locales/es/alerts.json';
 import esAttachments from './locales/es/attachments.json';
@@ -51,6 +52,7 @@ import esSettings from './locales/es/settings.json';
 import esShell from './locales/es/shell.json';
 import esWhatsapp from './locales/es/whatsapp.json';
 import esWidget from './locales/es/widget.json';
+import esSummaries from './locales/es/summaries.json';
 
 /** A namespace's JSON tree (nested objects, strings and string arrays). */
 export type TranslationTree = { readonly [key: string]: unknown };
@@ -80,6 +82,7 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     pricing: enPricing,
     widget: enWidget,
     whatsapp: enWhatsapp,
+    summaries: enSummaries,
   },
   es: {
     common: esCommon,
@@ -105,5 +108,6 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     pricing: esPricing,
     widget: esWidget,
     whatsapp: esWhatsapp,
+    summaries: esSummaries,
   },
 };

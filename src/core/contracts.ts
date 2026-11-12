@@ -1412,6 +1412,8 @@ export const I18N_NAMESPACE_LIST = [
   'pricing',
   'widget',
   'whatsapp',
+  // M10: meeting summaries by email (src/services/summaries, src/screens/summaries).
+  'summaries',
 ] as const;
 export type I18nNamespace = (typeof I18N_NAMESPACE_LIST)[number];
 
@@ -1513,6 +1515,13 @@ export type MainStackParamList = {
   Pricing: undefined;
   /** Settings > WhatsApp: link this account to the WhatsApp bot (§27). */
   WhatsAppConnect: undefined;
+  // ---- M10: meeting summaries by email (docs/v2/M10-DESIGN.md section 9) ----
+  /** Settings > Meeting summaries: the private address, mailboxes, Gmail code, setup steps. */
+  SummaryConnect: undefined;
+  /** Waiting for a meeting, Filed recently, Refused. */
+  SummaryInbox: undefined;
+  /** The full view of one summary (summaryRead get). */
+  SummaryView: { summaryId: string };
 };
 
 export type RootStackParamList = AuthStackParamList & OnboardingStackParamList & MainStackParamList;

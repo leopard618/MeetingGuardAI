@@ -29,6 +29,10 @@ export const ROUTES = {
   CalendarSync: 'CalendarSync',
   Pricing: 'Pricing',
   WhatsAppConnect: 'WhatsAppConnect',
+  // M10: meeting summaries by email.
+  SummaryConnect: 'SummaryConnect',
+  SummaryInbox: 'SummaryInbox',
+  SummaryView: 'SummaryView',
 } as const satisfies { [K in RouteName]: K };
 
 export const AUTH_ROUTES = ['Landing', 'EmailAuth', 'Privacy', 'Terms'] as const satisfies readonly (keyof AuthStackParamList)[];
