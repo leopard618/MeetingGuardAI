@@ -28,7 +28,8 @@
     "WhatsAppConnect": "WhatsApp",
     "SummaryConnect": "Meeting summaries",
     "SummaryInbox": "Summary inbox",
-    "SummaryView": "Summary"
+    "SummaryView": "Summary",
+    "SummaryCommitments": "Commitments"
   },
   "meeting": {
     "loading": "Loading meeting...",

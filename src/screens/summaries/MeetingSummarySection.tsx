@@ -11,8 +11,10 @@
  *   (MEETING_SUMMARIES_DEFER_MS after mount), and a failure renders nothing (no toast, no retry,
  *   no spinner here; the service logs codes only).
  * - Plain Text only; nothing from a summary is logged.
- * M11 (M11-DESIGN.md section 3.1) adds "Review commitments" (with the open count) to these rows,
- * at the marked spot below, and beside Debrief on Meeting details. Not built in M10.
+ * M11 (M11-DESIGN.md section 3.1): under each row, "Review commitments" (with the open count of a
+ * ready list, and "2 added to your tasks" once anything was accepted) opens SummaryCommitments
+ * { summaryId }; a separate button under the row, not inside it, so screen readers reach both.
+ * Meeting details also shows one beside Debrief for the newest summary (MeetingCommitmentsButton).
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
@@ -27,6 +29,8 @@ import { useT } from '../../i18n';
 import { useSummaryList, useSummaryStatus } from '../../services/summaries';
 import { componentMetrics, pressedOpacity, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../../theme';
 import { useFormatters } from '../shared/useFormatters';
+import { commitmentsEntryFor, type CommitmentsEntry } from './commitmentsEntryModel';
+import { ReviewCommitmentsButton } from './ReviewCommitmentsButton';
 import { meetingSummaryRows, originChip, summaryTitle } from './summaryViewModel';
 
 /**
@@ -67,7 +71,9 @@ export function MeetingSummarySection({ meetingId }: MeetingSummarySectionProps)
           <SummaryRow
             key={item.summaryId}
             item={item}
+            entry={commitmentsEntryFor(item, available)}
             onOpen={() => navigation.navigate('SummaryView', { summaryId: item.summaryId })}
+            onReview={(summaryId) => navigation.navigate('SummaryCommitments', { summaryId })}
           />
         ))}
       </ListGroup>
@@ -75,8 +81,21 @@ export function MeetingSummarySection({ meetingId }: MeetingSummarySectionProps)
   );
 }
 
-/** One summary: the ListRow layout with a meta line (origin chip, received time, occurrence date). */
-function SummaryRow({ item, onOpen }: { item: SummaryListItem; onOpen(): void }): ReactElement {
+/**
+ * One summary: the ListRow layout with a meta line (origin chip, received time, occurrence date),
+ * and M11's "Review commitments" under it.
+ */
+function SummaryRow({
+  item,
+  entry,
+  onOpen,
+  onReview,
+}: {
+  item: SummaryListItem;
+  entry: CommitmentsEntry | null;
+  onOpen(): void;
+  onReview(summaryId: string): void;
+}): ReactElement {
   const t = useT();
   const fmt = useFormatters();
   const { colors } = useAppTheme();
@@ -87,37 +106,45 @@ function SummaryRow({ item, onOpen }: { item: SummaryListItem; onOpen(): void })
   const occurrenceStart = item.match !== null && item.match.occurrenceDate !== null ? item.match.meetingSnapshot.startAt : null;
   const supporting = { color: colors.onSurfaceVariant };
   return (
-    <Pressable
-      onPress={onOpen}
-      android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnRow) }}
-      style={({ pressed }) => [styles.row, pressed && Platform.OS !== 'android' ? styles.pressed : null]}
-      accessibilityRole="button"
-      accessibilityLabel={t('summaries:meeting.open', { title })}
-      testID={`meeting-summary-${item.summaryId}`}
-    >
-      <MaterialCommunityIcons name="email-outline" size={componentMetrics.iconNav} color={colors.onSurfaceVariant} />
-      <View style={styles.texts}>
-        <Text style={[styles.title, { color: colors.onSurface }]} numberOfLines={2}>
-          {title}
-        </Text>
-        <View style={styles.meta}>
-          {chip !== null ? <Badge label={t(chip.key)} tone={chip.tone} testID={`meeting-summary-${item.summaryId}-chip`} /> : null}
-          <Text style={[styles.supporting, supporting]} testID={`meeting-summary-${item.summaryId}-received`}>
-            {t('summaries:meeting.received', { time: fmt.dateTime(item.receivedAt) })}
+    <View>
+      <Pressable
+        onPress={onOpen}
+        android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnRow) }}
+        style={({ pressed }) => [styles.row, pressed && Platform.OS !== 'android' ? styles.pressed : null]}
+        accessibilityRole="button"
+        accessibilityLabel={t('summaries:meeting.open', { title })}
+        testID={`meeting-summary-${item.summaryId}`}
+      >
+        <MaterialCommunityIcons name="email-outline" size={componentMetrics.iconNav} color={colors.onSurfaceVariant} />
+        <View style={styles.texts}>
+          <Text style={[styles.title, { color: colors.onSurface }]} numberOfLines={2}>
+            {title}
           </Text>
+          <View style={styles.meta}>
+            {chip !== null ? <Badge label={t(chip.key)} tone={chip.tone} testID={`meeting-summary-${item.summaryId}-chip`} /> : null}
+            <Text style={[styles.supporting, supporting]} testID={`meeting-summary-${item.summaryId}-received`}>
+              {t('summaries:meeting.received', { time: fmt.dateTime(item.receivedAt) })}
+            </Text>
+          </View>
+          {occurrenceStart !== null ? (
+            <Text style={[styles.supporting, supporting]} testID={`meeting-summary-${item.summaryId}-occurrence`}>
+              {t('summaries:meeting.occurrence', { date: fmt.date(occurrenceStart, 'medium') })}
+            </Text>
+          ) : null}
         </View>
-        {occurrenceStart !== null ? (
-          <Text style={[styles.supporting, supporting]} testID={`meeting-summary-${item.summaryId}-occurrence`}>
-            {t('summaries:meeting.occurrence', { date: fmt.date(occurrenceStart, 'medium') })}
-          </Text>
-        ) : null}
-        {/*
-          M11 SLOT (M11-DESIGN.md section 3.1): "Review commitments" for this summary, with the
-          open count when known ("Review commitments (5)"), goes here. Not built in M10.
-        */}
-      </View>
-      <MaterialCommunityIcons name="chevron-right" size={componentMetrics.iconNav} color={colors.onSurfaceVariant} />
-    </Pressable>
+        <MaterialCommunityIcons name="chevron-right" size={componentMetrics.iconNav} color={colors.onSurfaceVariant} />
+      </Pressable>
+      {/* M11 (M11-DESIGN.md section 3.1): "Review commitments" for this summary. */}
+      {entry !== null ? (
+        <ReviewCommitmentsButton
+          entry={entry}
+          onPress={onReview}
+          size="sm"
+          style={styles.review}
+          testID={`meeting-summary-${item.summaryId}-review`}
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -148,5 +175,11 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: pressedOpacity,
+  },
+  // M11: under the row's texts (past the 24 dp icon and the row gap).
+  review: {
+    paddingLeft: componentMetrics.listRowPaddingH + componentMetrics.iconNav + spacing.lg,
+    paddingRight: componentMetrics.listRowPaddingH,
+    paddingBottom: componentMetrics.listRowPaddingV,
   },
 });

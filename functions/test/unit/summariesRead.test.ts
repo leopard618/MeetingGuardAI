@@ -776,6 +776,20 @@ describe('summaryRead get', () => {
     expect(summary.suggestions.map((s) => s.meetingId)).toEqual([MEETING_ID]);
   });
 
+  it('M11: says whether the text was cut at receipt (flags.truncated), so the view can say so', async () => {
+    const h = harness();
+    seed(h, SUM_A, filedDoc(SUM_A));
+    expect((await get(h, SUM_A)).summary.truncated).toBe(false);
+    const cut = filedDoc(SUM_B);
+    seed(h, SUM_B, { ...cut, flags: { ...cut.flags, truncated: true, textCutForSize: true } });
+    const { summary } = await get(h, SUM_B);
+    expect(summary.truncated).toBe(true);
+    // The list rows stay as they were (the flag belongs to the full view).
+    const { items } = await list(h, 'recent');
+    expect(items).toHaveLength(2);
+    for (const row of items) expect(Object.keys(row)).not.toContain('truncated');
+  });
+
   it('answers not_found WITH details.reason for a missing, refused, foreign, reserved or unreadable summary', async () => {
     const h = harness();
     seed(h, 'refused-2026-11-12', refusedRow('2026-11-12', 2));

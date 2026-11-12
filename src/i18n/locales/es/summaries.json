@@ -238,6 +238,34 @@
       "fresh": "Es reciente: se escribió en las últimas dos semanas.",
       "match": "Solo se archiva sola cuando su título y su hora coinciden con una de tus reuniones. Si no, espera en tu bandeja de minutas.",
       "refused": "Una minuta que pasa las dos primeras comprobaciones pero no las demás, o una que reenvías tú a mano desde uno de tus buzones, espera en tu bandeja de minutas hasta que des tu visto bueno. Todo lo demás se rechaza, y Meeting Guard AI no guarda su contenido."
+    },
+    "disconnect": {
+      "action": "Desconectar",
+      "title": "Dejar de recibir minutas",
+      "body": "Tu dirección privada deja de funcionar en el acto. Las minutas que ya están aquí:",
+      "keep": "Conservarlas",
+      "delete": "Eliminarlas",
+      "tasksStay": "Las tareas que añadiste desde minutas se quedan en tus tareas.",
+      "cancel": "Cancelar",
+      "deleteTitle": "¿Eliminar todas tus minutas?",
+      "deleteBody": "Salen de nuestra base de datos activa en el acto y de nuestras copias de seguridad en un plazo de 21 días. La copia de nuestro proveedor de correo caduca a los {{providerDays}} días. Los correos originales se quedan en tu propio buzón. Las tareas que añadiste desde minutas se quedan en tus tareas.",
+      "deleteConfirm": "Desconectar y eliminar",
+      "doneKept": "Desconectado. Tus minutas se conservan.",
+      "doneDeleted": "Desconectado. Tus minutas se eliminaron.",
+      "disconnected": "No tienes ninguna dirección conectada. Meeting Guard AI ya no guarda el correo que llegue a tu dirección anterior, pero nuestro proveedor de correo conserva su copia durante {{providerDays}} días. Quita la regla de correo que reenvía a esa dirección.",
+      "reconnect": "Volver a crear mi dirección privada",
+      "reconnectHint": "Una dirección nueva cuenta para el límite de direcciones nuevas que puedes pedir en un día."
+    },
+    "retention": {
+      "title": "Cuánto tiempo guardamos las minutas",
+      "filed": "Minutas archivadas en una reunión o guardadas sin reunión: 12 meses desde que llegan; después se eliminan.",
+      "inbox": "Minutas que esperan en la bandeja: 60 días desde que llegan, o 60 días desde que devuelves una a la bandeja, lo que ocurra más tarde.",
+      "refused": "Correos rechazados: solo un recuento diario, el motivo y el dominio del remitente cuando está verificado, durante 30 días; nunca su contenido.",
+      "suggestions": "Las tareas sugeridas forman parte de su minuta y se eliminan con ella.",
+      "tasks": "Las tareas que añades son tuyas: se quedan hasta que las eliminas, también después de eliminar la minuta o de desconectar. Su título y las personas de la tarea se copian de la sugerencia y no tienen el cifrado adicional de la minuta.",
+      "deleting": "Al eliminar: sale en el acto de nuestra base de datos activa y de las copias de seguridad en un plazo de 21 días; la copia de nuestro proveedor de correo, a los {{providerDays}} días; el original se queda en tu buzón.",
+      "openai": "Cuando pides sugerencias, el texto de la minuta se envía a OpenAI a través de nuestro servidor.",
+      "copies": "Copias fuera de nuestra base de datos: el recordatorio de una tarea muestra su título en la pantalla de bloqueo, como cualquier tarea; en WhatsApp, la lista y las frases que cita se quedan en tu chat, en las vistas previas de las notificaciones y en tus copias de seguridad de WhatsApp hasta que las elimines allí; una sincronización con To Do o Google Tasks copia la tarea. Eliminar la minuta o desconectar no llega a esas copias."
     }
   },
   "inbox": {
@@ -334,7 +362,12 @@
     "trust": {
       "notBound": "No iba dirigida a ninguno de los buzones que indicaste. Comprueba que es tuya.",
       "notFresh": "Llegó mucho después de escribirse, o no se pudo comprobar cuándo se envió."
-    }
+    },
+    "review": "Revisar compromisos",
+    "reviewCount": "Revisar compromisos ({{count}})",
+    "retentionLink": "Cuánto tiempo guardamos las minutas",
+    "keptUntil": "Esta minuta se guarda hasta el {{date}}.",
+    "truncatedHint": "Al llegar solo se guardó la primera parte. El correo original se queda en tu propio buzón."
   },
   "meeting": {
     "title_one": "Minuta de tu asistente de notas",
@@ -342,5 +375,292 @@
     "received": "Recibida {{time}}",
     "occurrence": "Para la reunión del {{date}}",
     "open": "Abrir la minuta {{title}}"
+  },
+  "commitments": {
+    "title": "Tareas sugeridas",
+    "entry": {
+      "review": "Revisar compromisos",
+      "reviewCount": "Revisar compromisos ({{count}})",
+      "reviewA11y": "Revisar los compromisos de esta minuta",
+      "added_one": "{{count}} añadida a tus tareas",
+      "added_other": "{{count}} añadidas a tus tareas",
+      "empty": "No se encontraron compromisos",
+      "stale": "La minuta cambió: vuelve a preparar las sugerencias (gratis)",
+      "preparing": "En preparación"
+    },
+    "header": {
+      "count_one": "{{count}} sugerencia",
+      "count_other": "{{count}} sugerencias",
+      "open_one": "{{count}} por revisar",
+      "open_other": "{{count}} por revisar",
+      "added_one": "{{count}} en tus tareas",
+      "added_other": "{{count}} en tus tareas"
+    },
+    "mode": {
+      "ai": "Sugeridas por IA",
+      "as_written": "Tal como están escritas",
+      "switchToAi": "Sugerir tareas con IA",
+      "switchToAsWritten": "Ver las tareas tal como están escritas",
+      "aiCost": "Usa 1 acción de IA, solo la primera vez.",
+      "asWrittenFree": "Gratis. No se usa IA."
+    },
+    "notice": {
+      "title": "Antes de que Meeting Guard AI lea esta minuta",
+      "body": "Para sugerir tareas, Meeting Guard AI envía el texto de esta minuta a OpenAI a través de nuestro servidor. Por defecto, OpenAI no lo usa para entrenar sus modelos y puede conservarlo durante un tiempo limitado para detectar abusos. Nada se convierte en tarea hasta que lo aceptas.",
+      "continue": "Continuar",
+      "asWritten": "Ver las tareas tal como están escritas"
+    },
+    "start": {
+      "title": "Convierte esta minuta en tareas",
+      "body": "Meeting Guard AI puede leer la minuta de tu asistente de notas y sugerirte las tareas que menciona, cada una con la frase de la que sale. Nada se convierte en tarea hasta que lo aceptas.",
+      "ai": "Sugerir tareas con IA",
+      "asWritten": "Ver las tareas tal como están escritas",
+      "costs": "Las tareas tal como están escritas: gratis, sin IA. Con IA: 1 acción de IA, solo la primera vez."
+    },
+    "loading": {
+      "get": "Cargando las tareas sugeridas...",
+      "ai": "Leyendo la minuta de tu asistente de notas. Esto usa 1 acción de IA, solo la primera vez.",
+      "asWritten": "Leyendo las tareas de la minuta..."
+    },
+    "preparing": {
+      "title": "En preparación",
+      "body": "Las tareas sugeridas de esta minuta se están preparando. Puede tardar uno o dos minutos; aparecerán aquí cuando estén listas.",
+      "slow": "Está tardando más de lo normal. Inténtalo de nuevo en un momento."
+    },
+    "empty": {
+      "title": "No se encontraron compromisos.",
+      "ai": "Meeting Guard AI no encontró compromisos en esta minuta.",
+      "asWritten": "Esta minuta no tiene tareas que mostrar.",
+      "tryAsWritten": "Ver las tareas tal como están escritas",
+      "tryAi": "Sugerir tareas con IA"
+    },
+    "stale": {
+      "title": "Esta minuta cambió",
+      "body": "Esta minuta cambió. Vuelve a preparar las sugerencias.",
+      "free": "Volver a prepararlas es gratis.",
+      "action": "Volver a preparar",
+      "readOnly": "Esta es la lista de antes del cambio. Vuelve a prepararla para añadir o cambiar tareas."
+    },
+    "quota": {
+      "title": "Acciones de IA agotadas",
+      "body": "Ya usaste todas tus acciones de IA. Las tareas tal como están escritas siguen siendo gratis.",
+      "resets": "Tus acciones se renuevan: {{time}}.",
+      "plans": "Ver planes",
+      "asWritten": "Ver las tareas tal como están escritas"
+    },
+    "origin": {
+      "suggested": {
+        "meeting": "Sugeridas a partir de la minuta que tu asistente de notas escribió sobre {{meeting}}, {{date}}.",
+        "meetingNoDate": "Sugeridas a partir de la minuta que tu asistente de notas escribió sobre {{meeting}}.",
+        "kept": "Sugeridas a partir de la minuta de tu asistente de notas del {{date}} (no archivada en una reunión).",
+        "keptNoDate": "Sugeridas a partir de la minuta de tu asistente de notas (no archivada en una reunión).",
+        "forwarded": "Sugeridas a partir de una minuta reenviada desde {{address}}.",
+        "forwardedNoAddress": "Sugeridas a partir de una minuta reenviada desde uno de tus buzones.",
+        "notAddressed": "Sugeridas a partir de una minuta que no se envió a ninguno de tus buzones."
+      },
+      "asWritten": {
+        "meeting": "De la minuta que tu asistente de notas escribió sobre {{meeting}}, {{date}}.",
+        "meetingNoDate": "De la minuta que tu asistente de notas escribió sobre {{meeting}}.",
+        "kept": "De la minuta de tu asistente de notas del {{date}} (no archivada en una reunión).",
+        "keptNoDate": "De la minuta de tu asistente de notas (no archivada en una reunión).",
+        "forwarded": "De una minuta reenviada desde {{address}}.",
+        "forwardedNoAddress": "De una minuta reenviada desde uno de tus buzones.",
+        "notAddressed": "De una minuta que no se envió a ninguno de tus buzones."
+      },
+      "notAttended": "Meeting Guard AI no asistió a esta reunión.",
+      "aiWritten": "Sugerencias redactadas por IA a partir del texto de tu asistente de notas. Revisa los nombres, las fechas y el sentido antes de añadirlas.",
+      "asWrittenLine": "Las tareas exactamente como las escribió tu asistente de notas."
+    },
+    "banner": {
+      "old_summary": "No pudimos confirmar cuándo se envió esta minuta, así que no hay nada seleccionado.",
+      "not_addressed_to_you": "Esta minuta no se envió a ninguno de tus buzones. Puede ser de la reunión de otra persona, así que elige tú cada elemento.",
+      "forwarded": "Esta minuta se reenvió desde {{address}} y no se pudo comprobar la firma del asistente de notas, así que no hay nada seleccionado.",
+      "forwardedNoAddress": "Esta minuta se reenvió desde uno de tus buzones y no se pudo comprobar la firma del asistente de notas, así que no hay nada seleccionado.",
+      "possible_instruction": "Una parte de esta minuta parece contener instrucciones para un programa. No hay nada seleccionado; lee cada elemento.",
+      "truncated": "Solo se leyó la primera parte de una minuta larga.",
+      "meetingChanged": "Se archivó en otra reunión después de preparar estas sugerencias. Las tareas que ya añadiste siguen vinculadas a la reunión en la que las añadiste."
+    },
+    "reminder": {
+      "title": "Recordatorio para los elementos sin fecha",
+      "choice": {
+        "tomorrow": "Mañana a las {{time}}",
+        "dayAfter": "Pasado mañana a las {{time}}",
+        "nextMonday": "El próximo lunes a las {{time}}",
+        "pick": "Elegir fecha y hora",
+        "picked": "{{date}} a las {{time}}",
+        "none": "Sin recordatorio"
+      },
+      "yourChoice": "Lo eliges tú. La minuta no da ninguna fecha.",
+      "pastPick": "Esa hora ya pasó. Elige una más tarde.",
+      "group": {
+        "tomorrow_one": "{{count}} recordatorio mañana a las {{time}}",
+        "tomorrow_other": "{{count}} recordatorios mañana a las {{time}}",
+        "dayAfter_one": "{{count}} recordatorio pasado mañana a las {{time}}",
+        "dayAfter_other": "{{count}} recordatorios pasado mañana a las {{time}}",
+        "nextMonday_one": "{{count}} recordatorio el próximo lunes a las {{time}}",
+        "nextMonday_other": "{{count}} recordatorios el próximo lunes a las {{time}}",
+        "picked_one": "{{count}} recordatorio el {{date}} a las {{time}}",
+        "picked_other": "{{count}} recordatorios el {{date}} a las {{time}}",
+        "none_one": "{{count}} elemento sin recordatorio",
+        "none_other": "{{count}} elementos sin recordatorio"
+      },
+      "groupHint": "Los recordatorios a la misma hora llegan juntos."
+    },
+    "card": {
+      "selectA11y": "Seleccionar: {{title}}",
+      "fromSummary": "De la minuta:",
+      "section": "Sección: {{heading}}",
+      "edit": "Editar",
+      "drop": "Descartar",
+      "dropped": "Descartada",
+      "restore": "Recuperar",
+      "inTasks": "En tus tareas",
+      "openTask": "Abrir la tarea",
+      "undo": "Deshacer",
+      "removedFromTasks": "Quitada de tus tareas",
+      "addAgain": "Añadir de nuevo",
+      "alreadyAdded": "Ya añadida",
+      "via": {
+        "app": "Añadida en la aplicación",
+        "whatsapp": "Añadida en WhatsApp"
+      },
+      "edited": "Editada por ti",
+      "readOnly": "Vuelve a preparar las sugerencias para cambiar esta."
+    },
+    "dropped": {
+      "title_one": "{{count}} descartada",
+      "title_other": "{{count}} descartadas",
+      "show": "Mostrar las descartadas",
+      "hide": "Ocultar las descartadas"
+    },
+    "owner": {
+      "you": "Tú",
+      "guess": "¿Tú? (la minuta dice: {{name}})",
+      "named": "Responsable en la minuta: {{name}}",
+      "none": "Sin responsable",
+      "title": "{{name}}: {{what}}",
+      "followUp": "Un seguimiento para ti: el título de la tarea empieza por {{name}}."
+    },
+    "due": {
+      "date": "Vence el {{date}}",
+      "dateTime": "Vence el {{date}} a las {{time}}",
+      "says": "La minuta dice: {{quote}}",
+      "withQuote": "Vence el {{date}} (la minuta dice: {{quote}})",
+      "overdue": "Vencida: la minuta dice {{date}}",
+      "overdueQuote": "Vencida (la minuta dice: {{quote}}). Sin recordatorio hasta que elijas uno.",
+      "noReminderUntilPick": "Sin recordatorio hasta que elijas uno.",
+      "meetingTime": "{{time}}, hora de la reunión ({{zone}})",
+      "noDate": "Lo eliges tú. La minuta no da ninguna fecha.",
+      "noDateReminder": "La minuta no da ninguna fecha. Recordatorio: {{when}}, elegido por ti.",
+      "reminderChip": "Recordatorio {{when}}, elegido por ti",
+      "noReminder": "Sin recordatorio"
+    },
+    "chip": {
+      "overdue": "Vencida",
+      "payment_like": "Pago o código",
+      "possible_instruction": "Parece una instrucción",
+      "suggested": "Idea del asistente de notas",
+      "checklist": "Lista de verificación",
+      "similar_added": "Quizá ya añadida",
+      "owner_guess": "Revisa el responsable",
+      "has_link": "Tiene un enlace",
+      "truncated": "Recortado",
+      "lowConfidence": "Revisa esta"
+    },
+    "reason": {
+      "suggested": "La sugiere tu asistente de notas; no se dijo en la reunión.",
+      "checklist": "Forma parte de una lista de verificación.",
+      "payment_like": "Revisa esta: menciona un pago o un código.",
+      "similar_added": "Se parece a una tarea que ya añadiste.",
+      "possible_instruction": "Parece una instrucción para un programa. Léela antes de añadirla.",
+      "owner_guess": "Solo tu nombre de pila coincide con el del responsable. Comprueba que eres tú.",
+      "lowConfidence": "Meeting Guard AI no está seguro de que esto sea un compromiso.",
+      "has_link": "Su enlace se queda como texto en la minuta y no se añade al título de la tarea.",
+      "truncated": "Este elemento se recortó porque era demasiado largo."
+    },
+    "footer": {
+      "acceptAll": "Aceptar todas ({{count}})",
+      "acceptSelected_one": "Añadir {{count}} seleccionada",
+      "acceptSelected_other": "Añadir {{count}} seleccionadas",
+      "selectAll": "Seleccionar todas",
+      "clearSelection": "Quitar la selección",
+      "nothingSelected": "Selecciona las tareas que quieres añadir.",
+      "offline": "Conéctate a internet para añadir estas tareas.",
+      "adding": "Añadiendo tareas..."
+    },
+    "result": {
+      "added_one": "Se añadió {{count}} tarea. Su recordatorio queda programado en este teléfono.",
+      "added_other": "Se añadieron {{count}} tareas. Sus recordatorios quedan programados en este teléfono.",
+      "addedNoReminder_one": "Se añadió {{count}} tarea.",
+      "addedNoReminder_other": "Se añadieron {{count}} tareas.",
+      "addedSomeReminders_one": "Se añadió {{count}} tarea. Su recordatorio queda programado en este teléfono.",
+      "addedSomeReminders_other": "Se añadieron {{count}} tareas. Las que tienen recordatorio lo tienen programado en este teléfono.",
+      "alreadyAdded_one": "{{count}} ya estaba en tus tareas.",
+      "alreadyAdded_other": "{{count}} ya estaban en tus tareas.",
+      "notOpen_one": "{{count}} ya se había gestionado, aquí o en otro dispositivo.",
+      "notOpen_other": "{{count}} ya se habían gestionado, aquí o en otro dispositivo.",
+      "dropped": "Descartada",
+      "restored": "Recuperada",
+      "removed": "Quitada de tus tareas",
+      "changed": "Esta tarea se cambió después de añadirla, así que no se quitó. Ábrela para cambiarla o eliminarla.",
+      "stale": "Estas sugerencias cambiaron en otro dispositivo. Revísalas y vuelve a intentarlo."
+    },
+    "edit": {
+      "title": "Editar la tarea",
+      "titleLabel": "Título",
+      "titleRequired": "Escribe un título.",
+      "titleTooLong": "Usa como máximo {{max}} caracteres.",
+      "owner": "¿De quién es la tarea?",
+      "ownerYou": "Mía",
+      "ownerNamed": "{{name}}, como dice la minuta",
+      "ownerOther": "De otra persona",
+      "ownerOtherLabel": "Su nombre",
+      "ownerOtherRequired": "Escribe su nombre.",
+      "ownerNobody": "De nadie en particular",
+      "ownerHint": "Una tarea de otra persona es un seguimiento para ti: su título empieza por su nombre.",
+      "due": "Fecha límite",
+      "dueTime": "Hora",
+      "pickDate": "Elegir una fecha",
+      "pickTime": "Elegir una hora",
+      "clearDate": "Sin fecha límite",
+      "clearTime": "Sin hora",
+      "reminder": "Recordatorio",
+      "timeNeedsDate": "Elige una fecha antes de elegir una hora.",
+      "reminderNeedsTime": "Un recordatorio necesita una hora límite.",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "discardTitle": "¿Descartar los cambios?",
+      "discardBody": "Se perderán los cambios de esta tarea.",
+      "discard": "Descartar",
+      "keepEditing": "Seguir editando"
+    },
+    "leave": {
+      "title": "¿Salir sin añadir?",
+      "body": "Tus cambios solo están en esta pantalla y se perderán.",
+      "leave": "Salir",
+      "stay": "Quedarme"
+    },
+    "keep": {
+      "until": "Esta minuta se guarda hasta el {{date}}. Las tareas que añadas se quedan hasta que las elimines.",
+      "rules": "Cuánto tiempo guardamos las minutas",
+      "deleteKeepTasks": "Eliminar la minuta y conservar mis tareas",
+      "deleteTitle": "¿Eliminar la minuta y conservar tus tareas?",
+      "deleteBody": "La minuta y sus sugerencias salen de nuestra base de datos activa en el acto y de nuestras copias de seguridad en un plazo de 21 días. La copia de nuestro proveedor de correo caduca a los {{providerDays}} días. Las tareas que añadiste se quedan en tus tareas.",
+      "deleteConfirm": "Eliminar la minuta",
+      "deleted": "Minuta eliminada. Tus tareas se conservan."
+    },
+    "errors": {
+      "quota_exceeded": "Ya usaste todas tus acciones de IA. Las tareas tal como están escritas siguen siendo gratis.",
+      "stale": "Estas sugerencias cambiaron en otro dispositivo. Revísalas y vuelve a intentarlo.",
+      "upstream_error": "Las tareas sugeridas no están disponibles ahora. Inténtalo de nuevo o mira las tareas tal como están escritas.",
+      "not_found": "Esta minuta ya no está aquí. Puede que se haya eliminado o que haya vuelto a la bandeja.",
+      "invalid_request": "No funcionó. Revisa la tarea e inténtalo de nuevo.",
+      "offline": "No tienes conexión. Conéctate a internet e inténtalo de nuevo.",
+      "timeout": "Tardó demasiado. Inténtalo de nuevo.",
+      "decideUnconfirmed": "Meeting Guard AI no pudo confirmar este cambio y puede que se haya guardado. Revisa la lista antes de volver a intentarlo; volver a intentarlo nunca añade la misma tarea dos veces.",
+      "notFiled": "Esta minuta espera una reunión. Archívala o guárdala sin reunión primero y después revisa sus compromisos.",
+      "generic": "Algo salió mal. Inténtalo de nuevo.",
+      "retry": "Reintentar"
+    }
   }
 }

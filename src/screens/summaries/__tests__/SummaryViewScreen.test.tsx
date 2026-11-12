@@ -3,6 +3,8 @@
  * fixed "did not attend" line, the match line, the sections as plain text, Not this meeting,
  * Move / Choose (AttachMeetingSheet), Keep, Copy text, and Delete with the in-app confirmation,
  * then back. Links stay plain text (no onPress anywhere on the summary's text).
+ * M11: "Review commitments" (filed or kept only, with the row's counts), the truncated hint, and
+ * "This summary is kept until" with the "How long we keep summaries" lines.
  */
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -171,6 +173,10 @@ function PreviousScreen() {
   return <Text testID="previous-screen">meeting</Text>;
 }
 
+function CommitmentsStub({ route }: { route: { params?: { summaryId?: string } } }) {
+  return <Text testID="commitments-screen">{route.params?.summaryId}</Text>;
+}
+
 async function renderScreen() {
   await render(
     <I18nProvider>
@@ -179,6 +185,7 @@ async function renderScreen() {
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="MeetingDetails" component={PreviousScreen} initialParams={{ meetingId: 'm1' }} />
             <Stack.Screen name="SummaryView" component={SummaryViewScreen} />
+            <Stack.Screen name="SummaryCommitments" component={CommitmentsStub} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
@@ -414,6 +421,84 @@ it('goes back when the summary was deleted on another device', async () => {
   await renderScreen();
   expect(navigationRef.getCurrentRoute()?.name).toBe('MeetingDetails');
   expect(toastTexts()).toContain('This summary is no longer here.');
+});
+
+describe('M11', () => {
+  it('offers "Review commitments" under the title of a filed summary, with its counts, and opens it', async () => {
+    mockSummary = { ...FILED, commitments: { state: 'ready', open: 3, accepted: 2 } };
+    await renderScreen();
+    expect(screen.getByTestId('summary-view-review-button')).toBeTruthy();
+    expect(screen.getByText('Review commitments (3)')).toBeTruthy();
+    expect(screen.getByTestId('summary-view-review-facts').props.children).toBe('2 added to your tasks');
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('summary-view-review-button'));
+    });
+    expect(navigationRef.getCurrentRoute()).toMatchObject({ name: 'SummaryCommitments', params: { summaryId: ID } });
+  });
+
+  it('says plainly "Review commitments" before anything was prepared, also for a kept summary', async () => {
+    mockSummary = { ...FILED, status: 'kept', match: null };
+    await renderScreen();
+    expect(screen.getByText('Review commitments')).toBeTruthy();
+    expect(screen.queryByTestId('summary-view-review-facts')).toBeNull();
+  });
+
+  it('offers nothing for a summary waiting in the inbox', async () => {
+    mockSummary = INBOX_FORWARD;
+    await renderScreen();
+    expect(screen.queryByTestId('summary-view-review')).toBeNull();
+  });
+
+  it('says what was kept when summaryRead reports the summary was cut short', async () => {
+    mockSummary = { ...FILED, truncated: true };
+    await renderScreen();
+    expect(screen.getByTestId('summary-view-truncated').props.children).toBe('This summary was cut short because it was very long.');
+    expect(screen.getByTestId('summary-view-truncated-hint').props.children).toBe(
+      'Only the first part was kept when it arrived. The original email stays in your own mailbox.',
+    );
+
+    // The server says it was not cut: no notice, whatever the caps would guess.
+    mockSummary = { ...FILED, truncated: false };
+    await renderScreen();
+    expect(screen.queryByTestId('summary-view-truncated')).toBeNull();
+    expect(screen.queryByTestId('summary-view-truncated-hint')).toBeNull();
+  });
+
+  it('says until when a filed summary is kept, and shows the rules behind the link', async () => {
+    await renderScreen();
+    // Received Oct 16, 2026: kept 365 days.
+    expect(screen.getByTestId('summary-view-kept-until').props.children).toBe('This summary is kept until October 16th, 2027.');
+    expect(screen.queryByTestId('summary-view-retention-list')).toBeNull();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('summary-view-retention-link'));
+    });
+    expect(screen.getByTestId('summary-view-retention-list')).toBeTruthy();
+    expect(screen.getByText('Summaries filed under a meeting or kept: 12 months after they arrive, then deleted.')).toBeTruthy();
+    expect(screen.getByText(/our email provider's copy after 45 days/)).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('summary-view-retention-link'));
+    });
+    expect(screen.queryByTestId('summary-view-retention-list')).toBeNull();
+  });
+
+  it('gives no date for an inbox summary, only the rules', async () => {
+    mockSummary = INBOX_FORWARD;
+    await renderScreen();
+    expect(screen.queryByTestId('summary-view-kept-until')).toBeNull();
+    expect(screen.getByText('How long we keep summaries')).toBeTruthy();
+  });
+
+  it('is translated to Spanish', async () => {
+    await i18n.changeLanguage('es');
+    mockSummary = { ...FILED, commitments: { state: 'empty', open: 0, accepted: 0 }, truncated: true };
+    await renderScreen();
+    expect(screen.getByText('Revisar compromisos')).toBeTruthy();
+    expect(screen.getByTestId('summary-view-review-facts').props.children).toBe('No se encontraron compromisos');
+    expect(screen.getByTestId('summary-view-truncated-hint').props.children).toBe(
+      'Al llegar solo se guardó la primera parte. El correo original se queda en tu propio buzón.',
+    );
+    expect(screen.getByText('Cuánto tiempo guardamos las minutas')).toBeTruthy();
+  });
 });
 
 it('is translated to Spanish', async () => {

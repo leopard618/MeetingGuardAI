@@ -832,6 +832,23 @@ export async function readSummaryUser(uid: string, deps: Pick<AddressDeps, 'db'>
 }
 
 /**
+ * M11 (summaryStatus addressCreatedAt): when the user's CURRENT address was created, read from its
+ * summaryAddresses/{tokenHash} document ({uid, createdAt}; create and regenerate write a new one,
+ * so a new address has its own time). null when the user has no usable token, the index document
+ * is missing or names another uid, or its createdAt is not a timestamp. One document read; a
+ * Firestore error propagates (the caller decides).
+ */
+export async function readAddressCreatedAt(uid: string, user: SummaryUserDoc, deps: Pick<AddressDeps, 'db'>): Promise<string | null> {
+  assertUid(uid);
+  const usable = usableToken(user);
+  if (usable === null) return null;
+  const snapshot = await indexRef(deps.db, usable.tokenHash).get();
+  if (indexOwner(snapshot) !== uid) return null;
+  const createdAt = (snapshot.data() ?? {}).createdAt;
+  return typeof createdAt === 'string' && Number.isFinite(Date.parse(createdAt)) ? createdAt : null;
+}
+
+/**
  * Required on every call, so the account deletion port can never get a tombstone by default:
  * - 'disconnect' (op disconnect): summaryUsers/{uid} is replaced by a tombstone
  *   {rotationDay, rotationsToday, updatedAt}, so a create later the same UTC day still counts

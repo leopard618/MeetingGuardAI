@@ -3,6 +3,9 @@
  * up", Create my private address, Copy / Share / Get a new address (after the confirmation), the
  * mailbox list, the Gmail code cards, the setup tabs and administrator steps, activity, the
  * Microsoft 365 hint, polling only while waiting, and the error messages.
+ * M11: "How long we keep summaries", Disconnect with its "Stop receiving summaries" sheet (Keep
+ * them, Delete them after a second confirmation), what the screen offers afterwards, and the
+ * Microsoft 365 hint dated by addressCreatedAt.
  */
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Alert, Linking, Share, Text, type AlertButton } from 'react-native';
@@ -50,6 +53,11 @@ const mockCreateAddress = jest.fn<Promise<SummaryActionResponse>, []>();
 const mockRegenerateAddress = jest.fn<Promise<SummaryActionResponse>, []>();
 const mockSetMailboxes = jest.fn<Promise<SummaryActionResponse>, [readonly string[]]>();
 const mockDismissGmail = jest.fn<Promise<SummaryActionResponse>, [string]>();
+// M11: Disconnect, the lists asked again after it, and the suggested-task cache.
+const mockDisconnect = jest.fn<Promise<SummaryActionResponse>, [boolean]>();
+const mockListSummaries = jest.fn(async (_view: string) => ({ view: _view, meetingId: null, items: [], hasMore: false }));
+let mockCachedViews: string[] = [];
+const mockClearCommitments = jest.fn();
 jest.mock('../../../services/summaries', () => ({
   SUMMARY_STATUS_POLL_MS: 8_000,
   useSummaryStatus: (options?: { pollMs?: number | null }) => mockUseSummaryStatus(options),
@@ -58,7 +66,11 @@ jest.mock('../../../services/summaries', () => ({
     regenerateAddress: () => mockRegenerateAddress(),
     setMailboxes: (mailboxes: readonly string[]) => mockSetMailboxes(mailboxes),
     dismissGmail: (gmailAddress: string) => mockDismissGmail(gmailAddress),
+    disconnect: (deleteSummaries: boolean) => mockDisconnect(deleteSummaries),
+    listSummaries: (view: string) => mockListSummaries(view),
+    getKnownList: (view: string) => (mockCachedViews.includes(view) ? { view, meetingId: null, items: [], hasMore: false } : null),
   },
+  commitmentsService: { clearSessionCache: () => mockClearCommitments() },
 }));
 
 const mockCopyText: jest.Mock<boolean, [string]> = jest.fn((_text: string) => true);
@@ -110,6 +122,10 @@ beforeEach(async () => {
   mockRegenerateAddress.mockReset();
   mockSetMailboxes.mockReset();
   mockDismissGmail.mockReset();
+  mockDisconnect.mockReset();
+  mockListSummaries.mockClear();
+  mockCachedViews = [];
+  mockClearCommitments.mockClear();
   mockCopyText.mockClear();
   (Toast.show as jest.Mock).mockClear();
 });
@@ -474,8 +490,12 @@ describe('what we check and privacy', () => {
   });
 });
 
-describe('M11 slot', () => {
-  it('renders nothing by default and the footer when given', async () => {
+describe('M11 footer spot', () => {
+  it('renders the retention card and Disconnect by default; a footer prop replaces both', async () => {
+    await renderScreen();
+    expect(screen.getByTestId('summary-connect-retention')).toBeTruthy();
+    expect(screen.getByTestId('summary-connect-disconnect')).toBeTruthy();
+
     await render(
       <I18nProvider>
         <PaperProvider>
@@ -483,7 +503,8 @@ describe('M11 slot', () => {
         </PaperProvider>
       </I18nProvider>,
     );
-    expect(screen.queryByTestId('m11-footer')).toBeNull();
+    expect(screen.queryByTestId('summary-connect-retention')).toBeNull();
+    expect(screen.queryByTestId('summary-connect-disconnect')).toBeNull();
     await render(
       <I18nProvider>
         <PaperProvider>
@@ -492,5 +513,205 @@ describe('M11 slot', () => {
       </I18nProvider>,
     );
     expect(screen.getByTestId('m11-footer')).toBeTruthy();
+    expect(screen.queryByTestId('summary-connect-disconnect')).toBeNull();
+  });
+});
+
+describe('how long we keep summaries (M11)', () => {
+  it('lists every rule, with our email provider keeping its copy 45 days', async () => {
+    await renderScreen();
+    expect(screen.getByText('How long we keep summaries')).toBeTruthy();
+    expect(screen.getByText('Summaries filed under a meeting or kept: 12 months after they arrive, then deleted.')).toBeTruthy();
+    expect(screen.getByText(/Summaries waiting in the inbox: 60 days after they arrive/)).toBeTruthy();
+    expect(screen.getByText(/Refused emails: only a daily count/)).toBeTruthy();
+    expect(screen.getByText('Suggested tasks are part of their summary and are deleted with it.')).toBeTruthy();
+    expect(screen.getByText(/Tasks you add are yours: they stay until you delete them/)).toBeTruthy();
+    expect(screen.getByText(/our email provider's copy after 45 days; the original stays in your mailbox/)).toBeTruthy();
+    expect(screen.getByText(/the summary text is sent to OpenAI through our server/)).toBeTruthy();
+    expect(screen.getByText(/Copies outside our database/)).toBeTruthy();
+  });
+
+  it('shows the rules before an address exists too, but no Disconnect', async () => {
+    mockStatus = AVAILABLE;
+    await renderScreen();
+    expect(screen.getByTestId('summary-connect-retention')).toBeTruthy();
+    expect(screen.queryByTestId('summary-connect-disconnect')).toBeNull();
+
+    mockStatus = { ...AVAILABLE, ready: false };
+    await renderScreen();
+    expect(screen.getByTestId('summary-connect-retention')).toBeTruthy();
+    expect(screen.queryByTestId('summary-connect-disconnect')).toBeNull();
+  });
+
+  it('never shows the card while the feature is off for the account', async () => {
+    mockStatus = { ...CONNECTED, allowed: false };
+    await renderScreen();
+    expect(screen.queryByTestId('summary-connect-retention')).toBeNull();
+    expect(screen.queryByTestId('summary-connect-disconnect')).toBeNull();
+  });
+});
+
+describe('disconnect (M11)', () => {
+  /** The status after a disconnect: no address; kept summaries still count in the inbox. */
+  const NOT_CONNECTED: SummaryStatusResponse = { ...AVAILABLE, inboxCount: 2 };
+
+  async function openSheet() {
+    await press('summary-connect-disconnect');
+    expect(screen.getByTestId('summary-disconnect-sheet')).toBeTruthy();
+  }
+
+  it('asks first: the address stops at once, keep or delete, and tasks stay', async () => {
+    await renderScreen();
+    await openSheet();
+    expect(screen.getByText('Stop receiving summaries')).toBeTruthy();
+    expect(screen.getByTestId('summary-disconnect-body').props.children).toBe(
+      'Your private address stops working at once. The summaries already here:',
+    );
+    expect(screen.getByText('Keep them')).toBeTruthy();
+    expect(screen.getByText('Delete them')).toBeTruthy();
+    expect(screen.getByTestId('summary-disconnect-tasks-stay').props.children).toBe('Tasks you added from summaries stay in your tasks.');
+    expect(mockDisconnect).not.toHaveBeenCalled();
+
+    await press('summary-disconnect-cancel');
+    expect(screen.queryByTestId('summary-disconnect-sheet')).toBeNull();
+    expect(mockDisconnect).not.toHaveBeenCalled();
+  });
+
+  it('keeps the summaries: disconnects, asks the inbox again and offers the address again', async () => {
+    mockDisconnect.mockImplementation(async () => {
+      mockStatus = NOT_CONNECTED;
+      return answer(NOT_CONNECTED);
+    });
+    mockCachedViews = ['inbox', 'recent'];
+    await renderScreen();
+    await openSheet();
+    await press('summary-disconnect-keep');
+
+    expect(mockDisconnect).toHaveBeenCalledWith(false);
+    expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'success', text1: 'Disconnected. Your summaries are kept.' }));
+    expect(mockListSummaries.mock.calls.map(([view]) => view)).toEqual(['inbox']);
+    expect(mockClearCommitments).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('summary-disconnect-sheet')).toBeNull();
+
+    // The answer's status has no address: the create view, worded for after a disconnect.
+    expect(screen.queryByTestId('summary-connect-address-value')).toBeNull();
+    // Honest about the provider's copy and the user's own mail rule (sections 5 and 11).
+    expect(screen.getByTestId('summary-connect-disconnected').props.children).toBe(
+      'Not connected. Meeting Guard AI no longer stores mail sent to your old address, but our email provider keeps its copy for 45 days. Remove the mail rule that forwards to that address.',
+    );
+    expect(screen.getByText('Create my private address again')).toBeTruthy();
+    expect(screen.getByText('A new address counts toward the new addresses you can get in one day.')).toBeTruthy();
+    // The kept summaries stay reachable.
+    expect(screen.getByTestId('summary-connect-kept-count').props.children).toBe('2 waiting for a meeting');
+    await press('summary-connect-kept-open-inbox');
+    expect(mockNavigate).toHaveBeenCalledWith('SummaryInbox');
+  });
+
+  it('creates the address again, without the sheet coming back', async () => {
+    mockDisconnect.mockImplementation(async () => {
+      mockStatus = NOT_CONNECTED;
+      return answer(NOT_CONNECTED);
+    });
+    mockCreateAddress.mockImplementation(async () => {
+      mockStatus = CONNECTED;
+      return answer(CONNECTED);
+    });
+    await renderScreen();
+    await openSheet();
+    await press('summary-disconnect-keep');
+    await press('summary-connect-create-button');
+    expect(mockCreateAddress).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('summary-connect-address-value')).toBeTruthy();
+    // The sheet does not come back with the new address.
+    expect(screen.queryByTestId('summary-disconnect-sheet')).toBeNull();
+  });
+
+  it('deletes the summaries only after a second confirmation', async () => {
+    const empty: SummaryStatusResponse = { ...AVAILABLE, inboxCount: 0 };
+    mockDisconnect.mockImplementation(async () => {
+      mockStatus = empty;
+      return answer(empty);
+    });
+    mockCachedViews = ['inbox', 'recent', 'refused'];
+    await renderScreen();
+    await openSheet();
+    await press('summary-disconnect-delete');
+    expect(mockDisconnect).not.toHaveBeenCalled();
+    expect(screen.getByTestId('summary-disconnect-delete-title').props.children).toBe('Delete all your summaries?');
+    const body = screen.getByTestId('summary-disconnect-delete-body').props.children as string;
+    expect(body).toContain('The copy at our email provider expires after 45 days.');
+    expect(body).toContain('Tasks you added from summaries stay in your tasks.');
+
+    await press('summary-disconnect-delete-confirm');
+    expect(mockDisconnect).toHaveBeenCalledWith(true);
+    expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'success', text1: 'Disconnected. Your summaries are deleted.' }));
+    // Every list a screen below showed is asked again; the suggested tasks went with the summaries.
+    expect(mockListSummaries.mock.calls.map(([view]) => view)).toEqual(['inbox', 'recent', 'refused']);
+    expect(mockClearCommitments).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Create my private address again')).toBeTruthy();
+    expect(screen.queryByTestId('summary-connect-kept')).toBeNull();
+  });
+
+  it('cancels from the delete confirmation without disconnecting', async () => {
+    await renderScreen();
+    await openSheet();
+    await press('summary-disconnect-delete');
+    await press('summary-disconnect-delete-cancel');
+    expect(screen.queryByTestId('summary-disconnect-sheet')).toBeNull();
+    expect(mockDisconnect).not.toHaveBeenCalled();
+  });
+
+  it('explains a failure, keeps the sheet and asks for the status again', async () => {
+    mockDisconnect.mockRejectedValue(summaryAppError('upstream_error'));
+    await renderScreen();
+    mockRefresh.mockClear();
+    await openSheet();
+    await press('summary-disconnect-delete');
+    await press('summary-disconnect-delete-confirm');
+    expect(Toast.show).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error', text1: 'Something went wrong on our side. Try again later.' }),
+    );
+    // A partial delete has already removed the address: the screen reads the truth.
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockListSummaries.mock.calls.map(([view]) => view)).toEqual(['inbox']);
+    expect(mockClearCommitments).not.toHaveBeenCalled();
+    expect(screen.getByTestId('summary-disconnect-delete-confirm')).toBeTruthy();
+    expect(screen.queryByTestId('summary-connect-disconnected')).toBeNull();
+  });
+
+  it('is translated to Spanish', async () => {
+    await i18n.changeLanguage('es');
+    await renderScreen();
+    expect(screen.getByText('Cuánto tiempo guardamos las minutas')).toBeTruthy();
+    await openSheet();
+    expect(screen.getByText('Dejar de recibir minutas')).toBeTruthy();
+    expect(screen.getByText('Conservarlas')).toBeTruthy();
+    expect(screen.getByText('Eliminarlas')).toBeTruthy();
+    expect(screen.getByText('Las tareas que añadiste desde minutas se quedan en tus tareas.')).toBeTruthy();
+  });
+});
+
+describe('Microsoft 365 hint dated by the address (M11)', () => {
+  it('shows 24 hours after the address was created with nothing received, with no mail at all', async () => {
+    mockStatus = { ...CONNECTED, mailboxes: ['ana@company.com'], addressCreatedAt: '2026-11-11T11:00:00.000Z' };
+    await renderScreen();
+    expect(screen.getByTestId('summary-connect-microsoft-hint')).toBeTruthy();
+  });
+
+  it('waits the 24 hours from creation, even when older mail reached an earlier address', async () => {
+    mockStatus = {
+      ...CONNECTED,
+      addressCreatedAt: '2026-11-12T08:00:00.000Z',
+      lastRefused: { reason: 'not_from_your_notetaker', at: '2026-11-10T08:00:00.000Z', senderDomain: null },
+    };
+    await renderScreen();
+    expect(screen.queryByTestId('summary-connect-microsoft-hint')).toBeNull();
+  });
+
+  it('falls back to the earliest known mail when the server sends no creation time', async () => {
+    mockStatus = { ...CONNECTED, addressCreatedAt: null };
+    await renderScreen();
+    // Nothing ever reached the address: its age is unknown, so no hint (the M10 behaviour).
+    expect(screen.queryByTestId('summary-connect-microsoft-hint')).toBeNull();
   });
 });

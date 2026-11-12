@@ -472,7 +472,56 @@ describe('summaryStatus', () => {
       lastReceivedAt: '2026-11-12T08:00:00.000Z',
       lastRefused: { reason: 'sender_not_verified', at: '2026-11-12T07:00:00.000Z', senderDomain: null },
       refusedToday: null,
+      addressCreatedAt: NOW.toISOString(),
     });
+  });
+
+  it('M11: addressCreatedAt is the current address document\'s creation time (B8)', async () => {
+    const h = harness();
+    // No address yet: null, and no index read.
+    expect((await handleSummaryStatus(verifiedAuth(), {}, h.deps)).addressCreatedAt).toBeNull();
+    await createAddressFor(h);
+    expect((await handleSummaryStatus(verifiedAuth(), {}, h.deps)).addressCreatedAt).toBe(NOW.toISOString());
+
+    // "Get a new address" a day later: the new address has its own time.
+    const later = new Date('2026-11-13T09:30:00.000Z');
+    h.setNow(later);
+    await act(h, { op: 'regenerate_address' });
+    const rotated = await handleSummaryStatus(verifiedAuth(), {}, h.deps);
+    expect(rotated.addressCreatedAt).toBe(later.toISOString());
+    expect(summaryStatusResponseSchema.parse(rotated)).toEqual(rotated);
+    // summaryAction answers carry the same status.
+    expect((await act(h, { op: 'set_mailboxes', mailboxes: [MAILBOX] })).status.addressCreatedAt).toBe(later.toISOString());
+
+    // An index document that is missing, names another uid or holds no timestamp: null.
+    const hash = userDoc(h).tokenHash as string;
+    const indexPath = `${SUMMARY_ADDRESSES_COLLECTION}/${hash}`;
+    h.fake.seed(indexPath, { uid: UID, createdAt: 'yesterday' });
+    expect((await handleSummaryStatus(verifiedAuth(), {}, h.deps)).addressCreatedAt).toBeNull();
+    h.fake.seed(indexPath, { uid: OUTSIDER, createdAt: later.toISOString() });
+    expect((await handleSummaryStatus(verifiedAuth(), {}, h.deps)).addressCreatedAt).toBeNull();
+
+    // Not ready (no template): no address shown, so no time either.
+    h.fake.seed(indexPath, { uid: UID, createdAt: later.toISOString() });
+    h.deps.config.template = '';
+    expect((await handleSummaryStatus(verifiedAuth(), {}, h.deps)).addressCreatedAt).toBeNull();
+  });
+
+  it('M11: an unreadable address document never fails the status (addressCreatedAt null, error name logged)', async () => {
+    const h = harness();
+    await createAddressFor(h);
+    const indexPath = `${SUMMARY_ADDRESSES_COLLECTION}/${userDoc(h).tokenHash as string}`;
+    const original = h.fake.doc.bind(h.fake);
+    jest.spyOn(h.fake, 'doc').mockImplementation((path: string) => {
+      const ref = original(path);
+      if (path === indexPath) ref.get = () => Promise.reject(new Error('index read failed: zebra'));
+      return ref;
+    });
+    const status = await handleSummaryStatus(verifiedAuth(), {}, h.deps);
+    expect(status.address).not.toBeNull();
+    expect(status.addressCreatedAt).toBeNull();
+    expect(functionsLogger.warn).toHaveBeenCalledWith('summaries.status.address_age_unread', { uid: UID, errorName: 'Error' });
+    expect(allLogText()).not.toContain('zebra');
   });
 
   it('reports today\'s refusal counter, and capped once the daily cap is reached (design step 9)', async () => {

@@ -109,6 +109,8 @@ export const CALLABLES = {
   summaryStatus: 'summaryStatus',
   summaryAction: 'summaryAction',
   summaryRead: 'summaryRead',
+  /** M11: equals SUMMARY_COMMITMENTS_CALLABLE (a test keeps them equal); FUNCTIONS_CONTRACT has its row. */
+  summaryCommitments: 'summaryCommitments',
 } as const;
 export type CallableName = (typeof CALLABLES)[keyof typeof CALLABLES];
 
@@ -131,10 +133,10 @@ export const SUMMARIES_CALL_TIMEOUT_MS = 15_000;
 export const SUMMARIES_READ_TIMEOUT_MS = 35_000;
 
 /**
- * M11: the summaryCommitments callable (suggested tasks from a filed or kept summary). Its name is
- * kept here, outside CALLABLES, until the app's service lands: a CALLABLES entry needs its
- * FUNCTIONS_CONTRACT row in src/core/contracts.ts in the same change (a missing row is a compile
- * error), and both then use this value.
+ * M11: the summaryCommitments callable (suggested tasks from a filed or kept summary). Kept as its
+ * own name for the server code that already uses it; since the app's service landed (M11 day 4)
+ * CALLABLES.summaryCommitments holds the same value, with its FUNCTIONS_CONTRACT row in
+ * src/core/contracts.ts (a missing row is a compile error).
  */
 export const SUMMARY_COMMITMENTS_CALLABLE = 'summaryCommitments' as const;
 
@@ -1261,6 +1263,13 @@ export const summaryStatusResponseSchema = z.object({
    * build: a status without it parses as null.
    */
   refusedToday: summaryRefusedTodaySchema.nullable().default(null),
+  /**
+   * M11, optional: when the current private address was created (its summaryAddresses document;
+   * a new address after "Get a new address" or a disconnect has its own time), for the "nothing
+   * arrived in 24 hours" Microsoft 365 hint. null without an address or when unknown; absent on
+   * every answer of an M10 server.
+   */
+  addressCreatedAt: isoDateTimeSchema.nullable().optional(),
 });
 export type SummaryStatusResponse = z.infer<typeof summaryStatusResponseSchema>;
 
@@ -1501,6 +1510,12 @@ export const summaryDetailSchema = summaryListItemSchema
     /** The sanitized plain text; links stay plain text. */
     text: z.string().min(1).max(SUMMARY_LIMITS.maxTextChars),
     sections: z.array(summarySectionSchema).max(SUMMARY_LIMITS.maxSections),
+    /**
+     * M11, optional: the stored text was cut at receipt (the text, section or item caps, or the
+     * size fallback), so the view says only the first part was kept. Absent on every answer of an
+     * M10 server (the app then guesses from the caps).
+     */
+    truncated: z.boolean().optional(),
   })
   .refine(summarySpansAreValid, {
     message: 'section and item offsets must lie inside the text, and items are capped in total',

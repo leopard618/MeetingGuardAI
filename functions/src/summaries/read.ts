@@ -823,6 +823,8 @@ async function getSummary(ctx: ReadContext, summaryId: string): Promise<SummaryR
     forwardedBy: body.forwardedBy,
     text: body.text,
     sections: body.sections.map(contractSectionOf),
+    // M11: any cut at receipt (the sanitizer's text cap, the section or item caps, the size fallback).
+    truncated: doc.flags.truncated,
   };
   return summaryReadGetResponseSchema.parse({ op: 'get', summary: detail });
 }

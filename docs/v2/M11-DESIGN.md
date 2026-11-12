@@ -787,7 +787,8 @@ M10's SummaryConnectScreen (M10 section 9) gains:
     disconnect. Their title and the people on them are copied from the suggestion and do not have
     the summary's extra encryption.
   - Deleting: at once from our live database, from backups within 21 days; our email provider's copy
-    after [N] days (M10 section 14); the original stays in your mailbox.
+    after 45 days (M10 section 14; Francisco, Nov 12 2026: the default, no add-on); the original
+    stays in your mailbox.
   - When you ask for suggestions, the summary text is sent to OpenAI through our server (the
     existing OpenAI paragraph, src/i18n/locales/en/legal.json, "ai" block).
   - Copies outside our database: a task's reminder shows its title on your lock screen like any
@@ -1118,8 +1119,7 @@ user's OK, and the as-written list is always one tap away.
 
 ## 12. Open questions (each with the default that keeps work moving)
 
-Decided by Francisco on Nov 12 2026 (questions 1, 2, 3, 4 and 6 below; the others keep their
-defaults):
+Decided by Francisco on Nov 12 2026 (questions 1 to 6 below; the others keep their defaults):
 - 1: one AI action per summary for the suggested tasks; the as-written list stays free.
 - 2: other people's commitments become follow-up tasks that keep the person's name visible
   ("<name>: <what>").
@@ -1127,6 +1127,7 @@ defaults):
   the user can change it on the review screen before accepting.
 - 4: the retention periods as proposed; accepted tasks stay when the summary is deleted (already
   so: deleteSummary in summaries/actions.ts removes only the summary document and its markers).
+- 5: our email provider keeps its copy 45 days (the default, no add-on; section 5 says 45).
 - 6: the user-started "commitments" / "compromisos" command now; the message the bot starts by
   itself when a summary is filed comes with M13, once Meta approves the templates.
 - New (M13): users can opt in to WhatsApp reminders at the scheduled time of accepted tasks,
@@ -1151,7 +1152,8 @@ Francisco:
    Delete the summary text automatically once its commitments are added (his Oct 16 memo, question
    4)? Default: the periods as proposed, no automatic delete, a "Delete the summary, keep my tasks"
    button.
-5. The Postmark retention add-on, or the 45-day default ([N]). Default: 45 days, no add-on.
+5. The Postmark retention add-on, or the 45-day default (section 5). Default: 45 days, no add-on.
+   Decided Nov 12 2026: 45 days.
 6. WhatsApp: is a user-started "commitments" acceptable for the M11 acceptance, with the
    bot-initiated message in M13? Was such a template in the M10 batch (UNVERIFIED)? Default: yes,
    and the template goes into M13. On WhatsApp the first list is the as-written one unless the app
@@ -1493,3 +1495,170 @@ Open:
   decide answers carry the updated list; prepare can answer preparing (poll get). The loading text
   "This uses 1 AI action, the first time only" cannot know when AI is already free.
 - The commit still needs to go on dev_dusko.
+
+## 17. Build status, app (November 12, 2026)
+
+Built on dev_dusko (not committed, nothing deployed, no OpenAI call made; everything runs against
+fakes): the app side of day 4 of section 10, in three steps (a lead step for the shared pieces,
+then the review screen and the entry points in parallel), then one review pass and its fixes.
+JavaScript only: no new native module, permission, plugin, sound, npm package or WebView, so it
+can ride an EAS Update to runtime 1.6.0. Everything shows only when summaryStatus says enabled and
+allowed.
+
+What was built:
+- Contract, additive, both aiContract.ts copies byte-identical: CALLABLES.summaryCommitments (a
+  literal 'summaryCommitments': SUMMARY_COMMITMENTS_CALLABLE is declared after CALLABLES, so a
+  reference would fail at load; a test checks the two are equal, and the constant stays) with its
+  FUNCTIONS_CONTRACT row in src/core/contracts.ts; an optional nullable summaryStatus
+  addressCreatedAt (the createdAt of the current address's summaryAddresses/{tokenHash} document,
+  read only while an address is shown, null on a failed read; M10 B8, read first by
+  addressInUseSince); an optional summaryDetail truncated (flags.truncated, read first by
+  looksTruncated). The server side of the two fields is in functions/src/summaries/address.ts,
+  callables.ts and read.ts. Old apps and an M10 server keep working (optional fields).
+- Service and hooks (src/services/summaries/): commitments.ts (get, prepare, decide; injected
+  transport, offline probe, zod on both sides, SUMMARY_COMMITMENTS_TIMEOUT_MS; a stale decide, and
+  one that timed out or failed upstream, reloads the list with get first; an older get never
+  replaces a newer prepare or decide answer; not_found drops the entry; memory only, cleared on
+  session:ended); commitmentsCore.ts (every COMMITMENT_ERROR_CODES value onto an existing AppError
+  code, a missing function as not_enabled; message keys; row facts); useSummaryCommitments.ts
+  (polls get while 'preparing', every 4 s, at most 30 times, only while focused and in the
+  foreground); commitmentsNotice.ts (the one AsyncStorage key,
+  mg:device:summaries.commitments.aiNotice = '1'); summariesService.applyCommitments, so "Review
+  commitments (5)" follows every answer without a re-list. Logs carry the op and AppError codes
+  only; the AppErrors made here carry no cause.
+- Route SummaryCommitments {summaryId} (routes, MainStackParamList, screens.tsx, RootNavigator, the
+  jest.mock list of its test; titles "Commitments" / "Compromisos").
+- Review screen: SummaryCommitmentsScreen.tsx over the pure summaryCommitmentsModel.ts, and the
+  generic components in src/components/commitments/ (CommitmentCard, CommitmentEditSheet,
+  ReminderDefaultPicker, OriginBlock, the pure commitmentEditModel.ts). Origin block first, the
+  mode row, banners, "Reminder for items without a date", one card per suggestion with the quote
+  as plain Text, the sticky footer, the retention lines and "Delete the summary, keep my tasks".
+- Entry points: ReviewCommitmentsButton over commitmentsEntryModel.ts ("Review commitments (N)"
+  on a ready list, with "Being prepared", "No commitments found", the stale line and "2 added to
+  your tasks" under it), under each MeetingSummarySection row, under the SummaryView title, and
+  MeetingCommitmentsButton on Meeting details for the newest filed summary (it reads the 'meeting'
+  list MeetingSummarySection already asked for and makes no call of its own).
+- Connect, disconnect and retention: DisconnectSheet ("Stop receiving summaries", Keep them or
+  Delete them, a second confirmation inside the sheet before "Disconnect and delete") through the
+  existing summariesService.disconnect; the retention card (SummaryRetention.tsx,
+  summaryRetentionModel.ts: the eight rules of section 5, 45 days for the provider's copy) on the
+  connect views; on SummaryView the truncated hint (only when summaryRead says truncated), "This
+  summary is kept until <date>" and the "How long we keep summaries" link.
+- i18n: EN and ES by hand in the existing summaries namespace (summaries.commitments,
+  summaries.connect.disconnect, summaries.connect.retention, new summaries.view keys); same keys and
+  placeholders in both languages; no banned characters and no escapes in any changed file.
+
+Checks (after the fixes): repo root lint (0 warnings), typecheck, and jest 194 suites and 2574
+tests (keysUsed, resources, noTypographicChars, routeTitles and RootNavigator included);
+functions check:contract (4 pairs), lint, typecheck, and jest 68 suites, 2212 tests and 2
+snapshots. The M11 app suites: commitmentsService 35, commitmentsHooks 18, summaryCommitmentsModel
+45, SummaryCommitmentsScreen 31, commitmentEditModel 17, ReminderDefaultPicker 3, plus
+commitmentsEntryModel, summaryRetentionModel, MeetingCommitmentsButton and new cases in the
+connect, view, MeetingSummarySection, model and functions suites. The four act() warnings in the
+SummaryCommitmentsScreen run come from an Animated timer and were there before the fixes.
+
+Review: one reviewer pass, 16 findings (B1 to B5, T1 to T10, C1). 15 were confirmed against the
+code and fixed with a regression test (T10 is the test itself); none rejected; C1 deferred as an
+owner decision. What changed:
+- B1: after "Disconnect and delete" run from the review screen's own retention link, the screen
+  below spun forever. The screen now reads a summary whose summaryRead copy was dropped after
+  summaryRead answered as gone (as SummaryView does) and goes back with "This summary is no
+  longer here.". The hook does not ask again by itself after a cache clear: that would refill the
+  cache after a session end.
+- B2: a 'none' answer after another preparation failed showed a spinner with no button. The
+  spinner now shows only while a preparation runs or before the one automatic as-written
+  preparation; otherwise the start card with both buttons.
+- B3: polls that ended on failures left the "being prepared" card without Try again. The last
+  poll failing on the way (offline, timeout, upstream) now also gives the "taking longer" timeout,
+  and the card shows the error and Try again for any failure.
+- B4: the stale card with no list offered only the last mode. After an AI list it now offers the
+  free "Show the action items as written" beside Prepare again, and shows the quota card when the
+  AI allowance is used up.
+- B5: a summary moved back to the inbox could read as deleted. A commitments not_found now asks
+  summaryRead again first: an inbox summary says "file it first", anything else goes back.
+- T1: a decide that timed out or failed upstream said "Try again" although the tasks may have been
+  added. It now says "Meeting Guard AI could not confirm this change, and it may have been saved.
+  Check the list before you try again; trying again never adds the same task twice." (new key
+  errors.decideUnconfirmed). Offline and refusals keep their own messages.
+- T2: a stated due today whose time (or 9:00) has passed gets no reminder by default; its card
+  now says "No reminder until you pick one."
+- T3: Spanish used "acciones" for both AI actions and action items. The as-written list now says
+  "tareas", the word the WhatsApp messages use, in the mode, notice, start, empty, quota, error,
+  loading and origin texts; "acciones" is left for AI actions only.
+- T4: the start card joined two cost notes into one line that contradicted itself. It now has one
+  key: "As written: free, no AI is used. With AI: 1 AI action, the first time only."
+- T5: "Your allowance renews: {{time}}." with a colon in EN and ES, as the pricing strings do.
+- T6: "being prepared" no longer names another device or promises seconds: "This can take a
+  minute or two; they appear here when they are ready."
+- T7: the Spanish entry line says "(gratis)", not the Spain-only "sin coste".
+- T8: after a disconnect the notice says the provider still keeps its copy {{providerDays}} (45)
+  days and asks the user to remove the mail rule that forwards to the old address.
+- T9: "Their reminders are set on this phone" only when every added task has a reminder; a mix says
+  "The ones with a reminder have it set on this phone." (new keys result.addedSomeReminders).
+- T10: the service test now checks that a refusal, a missing function, a status-0 failure and a
+  known offline device never reload after decide.
+
+Where the build differs from sections 3, 5 and 7 (the code's facts):
+- 3.1: the Meeting details button is its own full-width block above Debrief, not in Debrief's
+  wrapping row (no re-indenting of a shared file), for the newest filed summary only; each
+  MeetingSummarySection row gets its button under the row, not inside it (VoiceOver).
+- 3.2: when nothing is prepared, the screen prepares the action items as written by itself (free,
+  no AI) and shows them first; the start card appears only when that fails or after another
+  preparation failed. The AI notice is an inline card, shown before every prepare('ai') until the
+  flag is set. The app never ticks an owner guess (the server's itemPreselect does not block it),
+  and Select all skips instruction-like items and owner guesses (the server's selectAllTargets
+  includes owner guesses). The meetingChanged banner reads "Filed under another meeting since
+  these suggestions were prepared". "Kept until" is computed on the phone as receivedAt plus 365
+  days; inbox summaries show no date. "Open task" opens the Tasks screen (there is no per-task
+  route). No Banner component: it animates.
+- 3.4: the defaults are recomputed when Accept is tapped, in the device zone, and decide always
+  gets that zone. Beyond the stated defaults (as the server does): a stated time less than 60
+  minutes ahead reminds at the time, a stated due today whose time has passed keeps the date with
+  no reminder (and the card says so), a picked default time that has passed blocks Accept. An
+  owner changed without a title edit sends the re-prefixed title the card shows ("Cristina: ..."),
+  the same result as the server's acceptedTitleOf.
+- 3.5: a commitments not_found asks summaryRead again before the screen goes back (B5). An
+  accepted card shows the suggestion's title, not a title edited before accepting (the answer
+  carries no task title).
+- 5: [N] is 45 (decision 5). After a disconnect the create view says "Not connected", with the
+  provider's copy and the mail rule (T8), offers "Create my private address again" with the daily
+  cap hint, and also "Open the summary inbox" when summaries were kept (Settings opens the connect
+  screen when there is no address, so they were otherwise unreachable). A failed disconnect
+  refreshes the status and the lists (a partial delete has already removed the address) and keeps
+  the sheet open.
+- 7: the decide reload after a timeout or upstream failure, and the polling bounds, are as above.
+  MeetingDetailsScreen.test.tsx and RootNavigator.test.tsx mock MeetingCommitmentsButton and the
+  screen, not the service. The hook reads 'loading' after a cache clear and never refetches by
+  itself; the screen tells a deleted summary from summaryRead.
+
+Open:
+- C1, Francisco or lead: the AI notice flag is per phone (decision 17 and question 8, "once per
+  phone"), stored under a device key that survives sign-out, and the notice counts as seen for the
+  rest of the app run. A second account on the same phone therefore sends its first summary to
+  OpenAI without seeing the notice, and demo step 9 ("chosen at the notice on a second account")
+  cannot happen on the demo phone once step 2 accepted it. Options: key the flag per user
+  (mg:{uid}:..., wiped on sign-out) and reset the in-memory flag on session:ended; or keep "once
+  per phone", record it in decision 17, and run step 9 on a phone where the notice was never
+  accepted.
+- Lead or Francisco: Select all skips owner guesses (WhatsApp S1 spirit); the server's
+  selectAllTargets includes them.
+- SummaryViewScreen: a delete from the review screen opened from SummaryView lets SummaryView,
+  still mounted below, show its own "This summary is no longer here." toast, which can replace
+  "Summary deleted. Your tasks are kept.".
+- Two 365-day "kept until" helpers (summaryCommitmentsModel.ts and summaryRetentionModel.ts) copy
+  the server's SUMMARY_RETENTION_DAYS.filedOrKept; an additive expiresAt on summaryDetail would be
+  exact and remove both.
+- rate_limited maps to summaries:errors.rate_limited, whose text is about new addresses; the
+  handler never throws it today.
+- The lead's summaries.view review and reviewCount keys are unused (the entry points use
+  summaries.commitments.entry.*).
+- New copy for Francisco: the entry lines ("2 added to your tasks", the stale line), the
+  decideUnconfirmed, addedSomeReminders, start.costs, preparing and after-disconnect texts, and the
+  "Open the summary inbox" link after a disconnect (slightly beyond this spec).
+- The entry buttons hide on summaryStatus only: with summaryRead deployed and summaryCommitments
+  not, the button shows and the screen says "not available".
+- From section 16, still open: the loading line "This uses 1 AI action, the first time only" when
+  AI is already free; whether a rate limit or an OpenAI outage should use up the 3 model calls of a
+  summary (uncountCall in commitmentsHandler.ts prepareWithAi).
+- Not yet run: the section 9 demo on a time-stamped Android test APK; nothing is published as an
+  EAS Update. The commit still needs to go on dev_dusko.

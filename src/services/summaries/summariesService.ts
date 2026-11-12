@@ -45,6 +45,7 @@ import {
   type SummaryActionRequest,
   type SummaryActionResponse,
   type SummaryDetail,
+  type SummaryListCommitments,
   type SummaryListItem,
   type SummaryListView,
   type SummaryReadGetResponse,
@@ -155,6 +156,13 @@ export interface SummariesService {
   getKnownList(view: SummaryListView, meetingId?: string | null): SummaryListSnapshot | null;
   getKnownSummary(summaryId: string): SummaryDetail | null;
 
+  /**
+   * M11: a summary's suggested-task facts after a summaryCommitments answer (the commitments
+   * service calls it), patched into the cached list rows and full view, so "Review commitments
+   * (5)" follows without a re-list. Content-free (a state and two counts).
+   */
+  applyCommitments(summaryId: string, facts: SummaryListCommitments): void;
+
   /** Notifies whenever anything getKnown* returns may have changed. */
   subscribe(listener: () => void): Unsubscribe;
   /** Session end: forget everything (also bound to appEvents 'session:ended'). */
@@ -213,7 +221,18 @@ function listItemOf(item: SummaryListItem | SummaryDetail): SummaryListItem {
     count: item.count,
     match: item.match,
     suggestions: item.suggestions,
+    // M11: the suggested-task facts travel with the row ("Review commitments (5)").
+    ...(item.commitments !== undefined ? { commitments: item.commitments } : {}),
   };
+}
+
+/** M11: a row or full view with new suggested-task facts; the same object when nothing changed. */
+function withCommitments<T extends SummaryListItem>(item: T, facts: SummaryListCommitments): T {
+  const current = item.commitments;
+  if (current !== undefined && current.state === facts.state && current.open === facts.open && current.accepted === facts.accepted) {
+    return item;
+  }
+  return { ...item, commitments: { ...facts } };
 }
 
 /** A row after an attach, detach or keep answer (suggestions exist only on inbox rows). */
@@ -452,6 +471,7 @@ export function createSummariesService(deps: SummariesServiceDeps): SummariesSer
         inboxReason: item.inboxReason,
         match: item.match,
         suggestions: item.suggestions,
+        ...(item.commitments !== undefined ? { commitments: item.commitments } : {}),
       });
     }
   }
@@ -572,6 +592,33 @@ export function createSummariesService(deps: SummariesServiceDeps): SummariesSer
     return promise;
   }
 
+  /** M11: patch the suggested-task facts of one summary wherever it is cached. */
+  function applyCommitments(summaryId: string, facts: SummaryListCommitments): void {
+    let changed = false;
+    for (const [key, snapshot] of lists) {
+      let touched = false;
+      const items = snapshot.items.map((item) => {
+        if (item.summaryId !== summaryId) return item;
+        const next = withCommitments(item, facts);
+        if (next !== item) touched = true;
+        return next;
+      });
+      if (touched) {
+        lists.set(key, { ...snapshot, items });
+        changed = true;
+      }
+    }
+    const detail = details.get(summaryId);
+    if (detail) {
+      const next = withCommitments(detail, facts);
+      if (next !== detail) {
+        details.set(summaryId, next);
+        changed = true;
+      }
+    }
+    if (changed) notify();
+  }
+
   function clearSessionCache(): void {
     sessionEpoch += 1;
     status = null;
@@ -605,6 +652,7 @@ export function createSummariesService(deps: SummariesServiceDeps): SummariesSer
     getSummary,
     getKnownList: (view, meetingId) => lists.get(listKey(view, meetingId ?? null)) ?? null,
     getKnownSummary: (summaryId) => details.get(summaryId) ?? null,
+    applyCommitments,
     subscribe(listener: () => void): Unsubscribe {
       listeners.add(listener);
       return () => {

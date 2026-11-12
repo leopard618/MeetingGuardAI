@@ -405,6 +405,11 @@ describe('items, links and length', () => {
     expect(looksTruncated(DETAIL)).toBe(false);
     expect(looksTruncated({ text: 'x'.repeat(SUMMARY_LIMITS.maxTextChars), sections: [] })).toBe(true);
   });
+
+  it('M11: takes the server truncated flag over the guess from the caps', () => {
+    expect(looksTruncated({ ...DETAIL, truncated: true })).toBe(true);
+    expect(looksTruncated({ text: 'x'.repeat(SUMMARY_LIMITS.maxTextChars), sections: [], truncated: false })).toBe(false);
+  });
 });
 
 describe('meetingSummaryRows', () => {

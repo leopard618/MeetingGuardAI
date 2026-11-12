@@ -16,8 +16,19 @@
  * JavaScript only (core Clipboard through copyText, Share, Linking, plain Text), so it can ride an
  * update to runtime 1.6.0. Privacy: nothing from the status (address, mailboxes, codes) is ever
  * logged; failures reach the user as mapped messages only.
- * M11 (M11-DESIGN.md section 5): the Disconnect button and the "How long we keep summaries" card
- * go in the `footer` slot at the bottom (hidden by default; not built in M10).
+ * M11 (M11-DESIGN.md section 5), in the `footer` spot at the bottom:
+ * - "How long we keep summaries" (SummaryRetentionSection) on every view of the pilot;
+ * - with an address, Disconnect (destructive, last), opening the "Stop receiving summaries" sheet
+ *   (DisconnectSheet: Keep them, or Delete them after a second confirmation; tasks added from
+ *   summaries stay). It runs summaryAction disconnect {deleteSummaries} through the M10 service,
+ *   whose answer carries the new status (no address, the new inbox count), so this screen and the
+ *   Settings row follow at once; the inbox lists are asked again, and after "Delete them" the
+ *   suggested-task cache is dropped too. A failed disconnect asks for the status again (a partial
+ *   delete has already removed the address). The create view then says the address is gone and
+ *   offers "Create my private address again" (the daily rotation cap still counts), and "Open the
+ *   summary inbox" while summaries are kept.
+ * The Microsoft 365 hint dates the address by summaryStatus addressCreatedAt (M11), and falls back
+ * to the earliest mail known to have reached it when an M10 server sends no creation time.
  */
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -31,12 +42,22 @@ import { SUMMARY_LIMITS } from '../../core/aiContract';
 import type { RootStackParamList } from '../../core/contracts';
 import { toAppError } from '../../core/errors';
 import { useT } from '../../i18n';
-import { SUMMARY_STATUS_POLL_MS, summariesService, useSummaryStatus } from '../../services/summaries';
+import { SUMMARY_STATUS_POLL_MS, commitmentsService, summariesService, useSummaryStatus } from '../../services/summaries';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { copyText } from '../settings/whatsappConnectModel';
 import { ScreenBody, Section } from '../shared/Section';
 import { useFormatters } from '../shared/useFormatters';
 import { useLiveNow } from '../shared/useLiveNow';
+import { DisconnectSheet } from './DisconnectSheet';
+import { SummaryRetentionSection } from './SummaryRetention';
+import {
+  CACHED_SUMMARY_LIST_VIEWS,
+  createViewCopy,
+  disconnectDoneKey,
+  listsToRefreshAfterDisconnect,
+  type CachedSummaryListView,
+  type DisconnectChoice,
+} from './summaryRetentionModel';
 import {
   SUMMARY_MICROSOFT_ADMIN_KEY,
   SUMMARY_SETUP_EXTRAS,
@@ -84,9 +105,9 @@ type Busy = 'create' | 'regenerate' | 'mailboxes' | `dismiss:${string}`;
 
 export interface SummaryConnectScreenProps {
   /**
-   * M11 (M11-DESIGN.md section 5) fills this spot, last on the screen: the Disconnect button
-   * (summariesService.disconnect, "Stop receiving summaries" sheet) and the "How long we keep
-   * summaries" card. Not built in M10: undefined (the default) renders nothing.
+   * The spot last on the screen. undefined (the default, as the route renders it): M11's "How
+   * long we keep summaries" card and, with an address, Disconnect (M11-DESIGN.md section 5).
+   * Anything else replaces both; null renders nothing there.
    */
   footer?: ReactNode;
 }
@@ -142,11 +163,17 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
   const [draft, setDraft] = useState<readonly string[] | null>(null);
   const [input, setInput] = useState('');
   const [problem, setProblem] = useState<MailboxProblem | null>(null);
+  // M11: the "Stop receiving summaries" sheet, the choice in flight, and what this screen did
+  // (the create view then offers the address again). Screen state only.
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const [disconnecting, setDisconnecting] = useState<DisconnectChoice | null>(null);
+  const [disconnected, setDisconnected] = useState<DisconnectChoice | null>(null);
 
   // The cached status can be minutes old (Settings asked first): ask again on open.
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
 
   useEffect(() => {
     if (copied === null) return undefined;
@@ -180,8 +207,47 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
   const createAddress = (): Promise<void> =>
     run('create', async () => {
       await summariesService.createAddress();
+      setDisconnected(null);
+      // A sheet left open when the old address went away (another device) never comes back.
+      setDisconnectOpen(false);
       Toast.show({ type: 'success', text1: t('summaries:connect.created') });
     });
+
+  // ---- M11: Disconnect (M11-DESIGN.md section 5) ----
+
+  /** Best effort: the service caches each answer and logs a failure by code only. */
+  function askListsAgain(views: readonly CachedSummaryListView[]): void {
+    for (const listView of views) void summariesService.listSummaries(listView).catch(() => undefined);
+  }
+
+  async function disconnect(choice: DisconnectChoice): Promise<void> {
+    if (disconnecting !== null) return;
+    // "Delete them" drops every cached list: note which ones a screen below this one shows.
+    const cachedBefore = CACHED_SUMMARY_LIST_VIEWS.filter((listView) => summariesService.getKnownList(listView) !== null);
+    setDisconnecting(choice);
+    try {
+      await summariesService.disconnect(choice === 'delete');
+    } catch (caught: unknown) {
+      setDisconnecting(null);
+      Toast.show({ type: 'error', text1: t(connectErrorKey(toAppError(caught))) });
+      // A partial delete answers upstream_error after the address and some summaries are already
+      // gone: read the truth.
+      void refresh();
+      askListsAgain(listsToRefreshAfterDisconnect(cachedBefore, choice));
+      return;
+    }
+    setDisconnecting(null);
+    // The answer's status (no address, the new inbox count) is cached already: this screen and the
+    // Settings row follow. The suggested tasks of deleted summaries are gone with them.
+    if (choice === 'delete') commitmentsService.clearSessionCache();
+    askListsAgain(listsToRefreshAfterDisconnect(cachedBefore, choice));
+    setDisconnectOpen(false);
+    setDisconnected(choice);
+    setGmailWait(null);
+    setCopied(null);
+    resetMailboxes();
+    Toast.show({ type: 'success', text1: t(disconnectDoneKey(choice)) });
+  }
 
   const regenerateNow = (): Promise<void> =>
     run('regenerate', async () => {
@@ -339,8 +405,9 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
       />
     ) : null;
 
-  // M11 (M11-DESIGN.md section 5): Disconnect and "How long we keep summaries" render here, last.
-  const m11Footer = footer ?? null;
+  // M11 (M11-DESIGN.md section 5): "How long we keep summaries" renders here, last; with an
+  // address, Disconnect follows it (the connected view below). A `footer` prop replaces both.
+  const m11Footer = footer !== undefined ? footer : <SummaryRetentionSection />;
 
   if (view === 'not_ready') {
     return (
@@ -356,11 +423,20 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
   }
 
   if (view === 'create' || address === null) {
+    // M11: right after a disconnect here, say so and offer the address again.
+    const copy = createViewCopy(disconnected);
+    // M11: summaries kept after a disconnect stay reachable (Settings opens this screen without an address).
+    const keptSummaries = disconnected === 'keep' || status.inboxCount > 0;
     return (
       <ScreenBody>
         {productLine}
         {staleNotice}
         <Section testID="summary-connect-create">
+          {copy.noticeKey !== null ? (
+            <Text variant="bodyMedium" style={styles.disconnectedNotice} testID="summary-connect-disconnected">
+              {t(copy.noticeKey, { providerDays: SUMMARY_PROVIDER_RETENTION_DAYS })}
+            </Text>
+          ) : null}
           <Text variant="bodyMedium">{t('summaries:connect.intro')}</Text>
           <MGButton
             style={styles.action}
@@ -372,12 +448,32 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
             disabled={busy !== null}
             testID="summary-connect-create-button"
           >
-            {t('summaries:connect.create')}
+            {t(copy.buttonKey)}
           </MGButton>
-          <Text variant="bodySmall" style={[styles.paragraph, muted]}>
-            {t('summaries:connect.createHint')}
-          </Text>
+          {copy.hintKeys.map((key) => (
+            <Text key={key} variant="bodySmall" style={[styles.paragraph, muted]}>
+              {t(key)}
+            </Text>
+          ))}
         </Section>
+        {keptSummaries ? (
+          <Section testID="summary-connect-kept">
+            {status.inboxCount > 0 ? (
+              <Text variant="bodyMedium" testID="summary-connect-kept-count">
+                {t('summaries:row.waiting', { count: status.inboxCount })}
+              </Text>
+            ) : null}
+            <MGButton
+              variant="tonal"
+              icon="inbox-arrow-down"
+              style={status.inboxCount > 0 ? styles.action : undefined}
+              onPress={() => navigation.navigate('SummaryInbox')}
+              testID="summary-connect-kept-open-inbox"
+            >
+              {t('summaries:connect.openInbox')}
+            </MGButton>
+          </Section>
+        ) : null}
         <ChecksSection />
         <PrivacySection />
         {m11Footer}
@@ -762,11 +858,41 @@ export function SummaryConnectScreen({ footer }: SummaryConnectScreenProps): Rea
       <ChecksSection />
       <PrivacySection />
       {m11Footer}
+      {footer === undefined ? (
+        <>
+          <MGButton
+            variant="destructive"
+            icon="link-variant-off"
+            onPress={() => setDisconnectOpen(true)}
+            disabled={busy !== null || disconnecting !== null}
+            style={styles.disconnect}
+            testID="summary-connect-disconnect"
+          >
+            {t('summaries:connect.disconnect.action')}
+          </MGButton>
+          {/* Rendered only with an address: the sheet goes away with it (here, or on another device). */}
+          <DisconnectSheet
+            visible={disconnectOpen}
+            busy={disconnecting}
+            onChoose={(choice) => {
+              void disconnect(choice);
+            }}
+            onDismiss={() => setDisconnectOpen(false)}
+          />
+        </>
+      ) : null}
     </ScreenBody>
   );
 }
 
 const styles = StyleSheet.create({
+  // M11: the notice after a disconnect, and Disconnect itself (last on the screen).
+  disconnectedNotice: {
+    marginBottom: spacing.md,
+  },
+  disconnect: {
+    marginBottom: spacing.lg,
+  },
   intro: {
     marginBottom: spacing.lg,
     gap: spacing.xs,

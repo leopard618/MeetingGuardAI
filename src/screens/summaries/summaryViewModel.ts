@@ -376,8 +376,13 @@ export function hasPlainLinks(summary: Pick<SummaryDetail, 'text' | 'sections'>)
   );
 }
 
-/** The server cut a very long summary (text, section or item caps reached). */
-export function looksTruncated(summary: Pick<SummaryDetail, 'text' | 'sections'>): boolean {
+/**
+ * The server cut a very long summary (text, section or item caps reached). M11: summaryRead says
+ * so itself (truncated, recorded at receipt); an M10 server does not, and then it is guessed from
+ * the caps.
+ */
+export function looksTruncated(summary: Pick<SummaryDetail, 'text' | 'sections' | 'truncated'>): boolean {
+  if (typeof summary.truncated === 'boolean') return summary.truncated;
   if (summary.text.length >= SUMMARY_LIMITS.maxTextChars) return true;
   if (summary.sections.length >= SUMMARY_LIMITS.maxSections) return true;
   const items = summary.sections.reduce((total, section) => total + section.items.length, 0);

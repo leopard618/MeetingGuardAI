@@ -238,6 +238,34 @@
       "fresh": "It is recent: written in the last two weeks.",
       "match": "It is filed by itself only when its title and its time both match one of your meetings. Otherwise it waits in your summary inbox.",
       "refused": "A summary that passes the first two checks but not the others, or one you forward by hand from a listed mailbox, waits in your summary inbox for your OK. Anything else is refused, and its content is not stored by Meeting Guard AI."
+    },
+    "disconnect": {
+      "action": "Disconnect",
+      "title": "Stop receiving summaries",
+      "body": "Your private address stops working at once. The summaries already here:",
+      "keep": "Keep them",
+      "delete": "Delete them",
+      "tasksStay": "Tasks you added from summaries stay in your tasks.",
+      "cancel": "Cancel",
+      "deleteTitle": "Delete all your summaries?",
+      "deleteBody": "They leave our live database at once and our backups within 21 days. The copy at our email provider expires after {{providerDays}} days. The original emails stay in your own mailbox. Tasks you added from summaries stay in your tasks.",
+      "deleteConfirm": "Disconnect and delete",
+      "doneKept": "Disconnected. Your summaries are kept.",
+      "doneDeleted": "Disconnected. Your summaries are deleted.",
+      "disconnected": "Not connected. Meeting Guard AI no longer stores mail sent to your old address, but our email provider keeps its copy for {{providerDays}} days. Remove the mail rule that forwards to that address.",
+      "reconnect": "Create my private address again",
+      "reconnectHint": "A new address counts toward the new addresses you can get in one day."
+    },
+    "retention": {
+      "title": "How long we keep summaries",
+      "filed": "Summaries filed under a meeting or kept: 12 months after they arrive, then deleted.",
+      "inbox": "Summaries waiting in the inbox: 60 days after they arrive, or 60 days after you move one back to the inbox, whichever is later.",
+      "refused": "Refused emails: only a daily count, the reason and a verified sender domain, for 30 days; never their content.",
+      "suggestions": "Suggested tasks are part of their summary and are deleted with it.",
+      "tasks": "Tasks you add are yours: they stay until you delete them, also after you delete the summary or disconnect. Their title and the people on them are copied from the suggestion and do not have the summary's extra encryption.",
+      "deleting": "Deleting: at once from our live database, from backups within 21 days; our email provider's copy after {{providerDays}} days; the original stays in your mailbox.",
+      "openai": "When you ask for suggestions, the summary text is sent to OpenAI through our server.",
+      "copies": "Copies outside our database: a task's reminder shows its title on your lock screen like any task; on WhatsApp the list and the sentences it quotes stay in your chat, its notification previews and your WhatsApp backups until you delete them there; a To Do or Google Tasks sync copies the task. Deleting the summary or disconnecting does not reach those copies."
     }
   },
   "inbox": {
@@ -334,7 +362,12 @@
     "trust": {
       "notBound": "It was not addressed to one of the mailboxes you listed. Check that it belongs to you.",
       "notFresh": "It arrived long after it was written, or its sending time could not be checked."
-    }
+    },
+    "review": "Review commitments",
+    "reviewCount": "Review commitments ({{count}})",
+    "retentionLink": "How long we keep summaries",
+    "keptUntil": "This summary is kept until {{date}}.",
+    "truncatedHint": "Only the first part was kept when it arrived. The original email stays in your own mailbox."
   },
   "meeting": {
     "title_one": "Notetaker summary",
@@ -342,5 +375,292 @@
     "received": "Received {{time}}",
     "occurrence": "For the meeting on {{date}}",
     "open": "Open the summary {{title}}"
+  },
+  "commitments": {
+    "title": "Suggested tasks",
+    "entry": {
+      "review": "Review commitments",
+      "reviewCount": "Review commitments ({{count}})",
+      "reviewA11y": "Review the commitments in this summary",
+      "added_one": "{{count}} added to your tasks",
+      "added_other": "{{count}} added to your tasks",
+      "empty": "No commitments found",
+      "stale": "The summary changed: prepare the suggestions again (free)",
+      "preparing": "Being prepared"
+    },
+    "header": {
+      "count_one": "{{count}} suggestion",
+      "count_other": "{{count}} suggestions",
+      "open_one": "{{count}} still to review",
+      "open_other": "{{count}} still to review",
+      "added_one": "{{count}} in your tasks",
+      "added_other": "{{count}} in your tasks"
+    },
+    "mode": {
+      "ai": "Suggested by AI",
+      "as_written": "As written",
+      "switchToAi": "Suggest tasks with AI",
+      "switchToAsWritten": "Show the action items as written",
+      "aiCost": "Uses 1 AI action, the first time only.",
+      "asWrittenFree": "Free. No AI is used."
+    },
+    "notice": {
+      "title": "Before Meeting Guard AI reads this summary",
+      "body": "To suggest tasks, Meeting Guard AI sends the text of this summary to OpenAI through our server. OpenAI does not use it to train its models by default and may keep it for a limited time to check for abuse. Nothing becomes a task until you accept it.",
+      "continue": "Continue",
+      "asWritten": "Show the action items as written"
+    },
+    "start": {
+      "title": "Turn this summary into tasks",
+      "body": "Meeting Guard AI can read your notetaker's summary and suggest the tasks it mentions, each with the sentence it came from. Nothing becomes a task until you accept it.",
+      "ai": "Suggest tasks with AI",
+      "asWritten": "Show the action items as written",
+      "costs": "As written: free, no AI is used. With AI: 1 AI action, the first time only."
+    },
+    "loading": {
+      "get": "Loading the suggested tasks...",
+      "ai": "Reading your notetaker's summary. This uses 1 AI action, the first time only.",
+      "asWritten": "Reading the action items..."
+    },
+    "preparing": {
+      "title": "Being prepared",
+      "body": "The suggested tasks for this summary are being prepared. This can take a minute or two; they appear here when they are ready.",
+      "slow": "This is taking longer than usual. Try again in a moment."
+    },
+    "empty": {
+      "title": "No commitments found.",
+      "ai": "Meeting Guard AI found no commitments in this summary.",
+      "asWritten": "This summary has no action items to list.",
+      "tryAsWritten": "Show the action items as written",
+      "tryAi": "Suggest tasks with AI"
+    },
+    "stale": {
+      "title": "This summary changed",
+      "body": "This summary changed. Prepare the suggestions again.",
+      "free": "Preparing them again is free.",
+      "action": "Prepare again",
+      "readOnly": "This is the list from before the change. Prepare it again to add or change tasks."
+    },
+    "quota": {
+      "title": "AI allowance used up",
+      "body": "Your AI allowance is used up. The action items as written are still free.",
+      "resets": "Your allowance renews: {{time}}.",
+      "plans": "See plans",
+      "asWritten": "Show the action items as written"
+    },
+    "origin": {
+      "suggested": {
+        "meeting": "Suggested from your notetaker's summary of {{meeting}}, {{date}}.",
+        "meetingNoDate": "Suggested from your notetaker's summary of {{meeting}}.",
+        "kept": "Suggested from your notetaker's summary of {{date}} (not filed under a meeting).",
+        "keptNoDate": "Suggested from your notetaker's summary (not filed under a meeting).",
+        "forwarded": "Suggested from a summary forwarded from {{address}}.",
+        "forwardedNoAddress": "Suggested from a summary forwarded from one of your mailboxes.",
+        "notAddressed": "Suggested from a notetaker summary that was not sent to one of your mailboxes."
+      },
+      "asWritten": {
+        "meeting": "From your notetaker's summary of {{meeting}}, {{date}}.",
+        "meetingNoDate": "From your notetaker's summary of {{meeting}}.",
+        "kept": "From your notetaker's summary of {{date}} (not filed under a meeting).",
+        "keptNoDate": "From your notetaker's summary (not filed under a meeting).",
+        "forwarded": "From a summary forwarded from {{address}}.",
+        "forwardedNoAddress": "From a summary forwarded from one of your mailboxes.",
+        "notAddressed": "From a notetaker summary that was not sent to one of your mailboxes."
+      },
+      "notAttended": "Meeting Guard AI did not attend this meeting.",
+      "aiWritten": "Written by AI from your notetaker's text. Check names, dates and meaning before you add them.",
+      "asWrittenLine": "The action items exactly as your notetaker wrote them."
+    },
+    "banner": {
+      "old_summary": "We could not confirm when this summary was sent, so nothing is selected for you.",
+      "not_addressed_to_you": "This summary was not sent to one of your mailboxes. It may be about someone else's meeting, so choose each item yourself.",
+      "forwarded": "This summary was forwarded from {{address}} and the notetaker's signature could not be checked, so nothing is selected for you.",
+      "forwardedNoAddress": "This summary was forwarded from one of your mailboxes and the notetaker's signature could not be checked, so nothing is selected for you.",
+      "possible_instruction": "Part of this summary reads like instructions to software. Nothing is selected for you; read each item.",
+      "truncated": "Only the first part of a long summary was read.",
+      "meetingChanged": "Filed under another meeting since these suggestions were prepared. Tasks you already added stay linked to the meeting they were added under."
+    },
+    "reminder": {
+      "title": "Reminder for items without a date",
+      "choice": {
+        "tomorrow": "Tomorrow at {{time}}",
+        "dayAfter": "The day after tomorrow at {{time}}",
+        "nextMonday": "Next Monday at {{time}}",
+        "pick": "Pick a date and time",
+        "picked": "{{date}} at {{time}}",
+        "none": "No reminder"
+      },
+      "yourChoice": "Your choice. The summary gives no date.",
+      "pastPick": "That time has already passed. Pick a later one.",
+      "group": {
+        "tomorrow_one": "{{count}} reminder tomorrow at {{time}}",
+        "tomorrow_other": "{{count}} reminders tomorrow at {{time}}",
+        "dayAfter_one": "{{count}} reminder the day after tomorrow at {{time}}",
+        "dayAfter_other": "{{count}} reminders the day after tomorrow at {{time}}",
+        "nextMonday_one": "{{count}} reminder next Monday at {{time}}",
+        "nextMonday_other": "{{count}} reminders next Monday at {{time}}",
+        "picked_one": "{{count}} reminder on {{date}} at {{time}}",
+        "picked_other": "{{count}} reminders on {{date}} at {{time}}",
+        "none_one": "{{count}} item without a reminder",
+        "none_other": "{{count}} items without a reminder"
+      },
+      "groupHint": "Reminders set for the same time arrive together."
+    },
+    "card": {
+      "selectA11y": "Select: {{title}}",
+      "fromSummary": "From the summary:",
+      "section": "Section: {{heading}}",
+      "edit": "Edit",
+      "drop": "Drop",
+      "dropped": "Dropped",
+      "restore": "Restore",
+      "inTasks": "In your tasks",
+      "openTask": "Open task",
+      "undo": "Undo",
+      "removedFromTasks": "Removed from your tasks",
+      "addAgain": "Add again",
+      "alreadyAdded": "Already added",
+      "via": {
+        "app": "Added in the app",
+        "whatsapp": "Added on WhatsApp"
+      },
+      "edited": "Edited by you",
+      "readOnly": "Prepare the suggestions again to change this one."
+    },
+    "dropped": {
+      "title_one": "{{count}} dropped",
+      "title_other": "{{count}} dropped",
+      "show": "Show dropped",
+      "hide": "Hide dropped"
+    },
+    "owner": {
+      "you": "You",
+      "guess": "You? (the summary says: {{name}})",
+      "named": "Owner in the summary: {{name}}",
+      "none": "No owner named",
+      "title": "{{name}}: {{what}}",
+      "followUp": "A follow-up for you: the task title starts with {{name}}."
+    },
+    "due": {
+      "date": "Due {{date}}",
+      "dateTime": "Due {{date}} at {{time}}",
+      "says": "The summary says: {{quote}}",
+      "withQuote": "Due {{date}} (the summary says: {{quote}})",
+      "overdue": "Overdue: the summary says {{date}}",
+      "overdueQuote": "Overdue (the summary says: {{quote}}). No reminder until you pick one.",
+      "noReminderUntilPick": "No reminder until you pick one.",
+      "meetingTime": "{{time}} meeting time ({{zone}})",
+      "noDate": "Your choice. The summary gives no date.",
+      "noDateReminder": "No date in the summary. Reminder: {{when}}, your choice.",
+      "reminderChip": "Reminder {{when}}, your choice",
+      "noReminder": "No reminder"
+    },
+    "chip": {
+      "overdue": "Overdue",
+      "payment_like": "Payment or code",
+      "possible_instruction": "Reads like an instruction",
+      "suggested": "Notetaker's suggestion",
+      "checklist": "Checklist",
+      "similar_added": "Maybe added already",
+      "owner_guess": "Check the owner",
+      "has_link": "Has a link",
+      "truncated": "Cut short",
+      "lowConfidence": "Check this one"
+    },
+    "reason": {
+      "suggested": "Suggested by your notetaker, not said in the meeting.",
+      "checklist": "Part of a checklist.",
+      "payment_like": "Check this one: it mentions a payment or a code.",
+      "similar_added": "Looks like a task you already added.",
+      "possible_instruction": "It reads like an instruction to software. Read it before you add it.",
+      "owner_guess": "Only your first name matches the owner. Check that it is you.",
+      "lowConfidence": "Meeting Guard AI is not sure this is a commitment.",
+      "has_link": "Its link stays plain text in the summary and is not added to the task title.",
+      "truncated": "This item was cut short because it was too long."
+    },
+    "footer": {
+      "acceptAll": "Accept all ({{count}})",
+      "acceptSelected_one": "Add {{count}} selected",
+      "acceptSelected_other": "Add {{count}} selected",
+      "selectAll": "Select all",
+      "clearSelection": "Clear selection",
+      "nothingSelected": "Select the tasks you want to add.",
+      "offline": "Connect to the internet to add these tasks.",
+      "adding": "Adding tasks..."
+    },
+    "result": {
+      "added_one": "Added {{count}} task. Its reminder is set on this phone.",
+      "added_other": "Added {{count}} tasks. Their reminders are set on this phone.",
+      "addedNoReminder_one": "Added {{count}} task.",
+      "addedNoReminder_other": "Added {{count}} tasks.",
+      "addedSomeReminders_one": "Added {{count}} task. Its reminder is set on this phone.",
+      "addedSomeReminders_other": "Added {{count}} tasks. The ones with a reminder have it set on this phone.",
+      "alreadyAdded_one": "{{count}} was already in your tasks.",
+      "alreadyAdded_other": "{{count}} were already in your tasks.",
+      "notOpen_one": "{{count}} was already handled, here or on another device.",
+      "notOpen_other": "{{count}} were already handled, here or on another device.",
+      "dropped": "Dropped",
+      "restored": "Restored",
+      "removed": "Removed from your tasks",
+      "changed": "This task was changed after it was added, so it was not removed. Open it to change or delete it.",
+      "stale": "These suggestions changed on another device. Check them and try again."
+    },
+    "edit": {
+      "title": "Edit task",
+      "titleLabel": "Title",
+      "titleRequired": "Enter a title.",
+      "titleTooLong": "Use at most {{max}} characters.",
+      "owner": "Whose task is it?",
+      "ownerYou": "Mine",
+      "ownerNamed": "{{name}}, as in the summary",
+      "ownerOther": "Someone else",
+      "ownerOtherLabel": "Their name",
+      "ownerOtherRequired": "Enter their name.",
+      "ownerNobody": "Nobody in particular",
+      "ownerHint": "A task for someone else is a follow-up for you: its title starts with their name.",
+      "due": "Due date",
+      "dueTime": "Time",
+      "pickDate": "Pick a date",
+      "pickTime": "Pick a time",
+      "clearDate": "No due date",
+      "clearTime": "No time",
+      "reminder": "Reminder",
+      "timeNeedsDate": "Pick a date before you pick a time.",
+      "reminderNeedsTime": "A reminder needs a due time.",
+      "save": "Save",
+      "cancel": "Cancel",
+      "discardTitle": "Discard your changes?",
+      "discardBody": "Your changes to this task will be lost.",
+      "discard": "Discard",
+      "keepEditing": "Keep editing"
+    },
+    "leave": {
+      "title": "Leave without adding?",
+      "body": "Your edits are only on this screen and will be lost.",
+      "leave": "Leave",
+      "stay": "Stay"
+    },
+    "keep": {
+      "until": "This summary is kept until {{date}}. Tasks you add stay until you delete them.",
+      "rules": "How long we keep summaries",
+      "deleteKeepTasks": "Delete the summary, keep my tasks",
+      "deleteTitle": "Delete the summary and keep your tasks?",
+      "deleteBody": "The summary and its suggestions leave our live database at once and our backups within 21 days. The copy at our email provider expires after {{providerDays}} days. The tasks you added stay in your tasks.",
+      "deleteConfirm": "Delete the summary",
+      "deleted": "Summary deleted. Your tasks are kept."
+    },
+    "errors": {
+      "quota_exceeded": "Your AI allowance is used up. The action items as written are still free.",
+      "stale": "These suggestions changed on another device. Check them and try again.",
+      "upstream_error": "Suggested tasks are not available right now. Try again, or show the action items as written.",
+      "not_found": "This summary is no longer here. It may have been deleted or moved back to the inbox.",
+      "invalid_request": "That did not work. Check the task and try again.",
+      "offline": "You are offline. Connect to the internet and try again.",
+      "timeout": "This took too long. Try again.",
+      "decideUnconfirmed": "Meeting Guard AI could not confirm this change, and it may have been saved. Check the list before you try again; trying again never adds the same task twice.",
+      "notFiled": "This summary is waiting for a meeting. File it or keep it first, then review its commitments.",
+      "generic": "Something went wrong. Try again.",
+      "retry": "Try again"
+    }
   }
 }

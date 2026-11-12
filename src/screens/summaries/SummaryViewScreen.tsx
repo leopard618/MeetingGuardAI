@@ -20,6 +20,11 @@
  * Plain Text only: no WebView, no HTML renderer; links, email addresses and phone numbers are
  * never tappable, and nothing from the summary is logged (failures reach the user as i18n
  * messages only). Strings: summaries:view.*, summaries:common.*.
+ * M11 (M11-DESIGN.md sections 3.1 and 5): "Review commitments" under the title of a filed or kept
+ * summary (route SummaryCommitments { summaryId }, with the row's open count and facts); "Only the
+ * first part was kept" under the cut-short notice when summaryRead says truncated; and "This
+ * summary is kept until <date>" with the "How long we keep summaries" link, which shows the same
+ * retention lines as the connect screen.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -38,6 +43,10 @@ import { copyText } from '../settings/whatsappConnectModel';
 import { ScreenBody } from '../shared/Section';
 import { useFormatters } from '../shared/useFormatters';
 import { AttachMeetingSheet, type AttachMeetingTarget } from './AttachMeetingSheet';
+import { commitmentsEntryFor } from './commitmentsEntryModel';
+import { ReviewCommitmentsButton } from './ReviewCommitmentsButton';
+import { SummaryRetentionList } from './SummaryRetention';
+import { summaryKeptUntil } from './summaryRetentionModel';
 import { SUMMARY_PROVIDER_RETENTION_DAYS, summaryErrorMessageKey } from './summaryText';
 import {
   attachTargetFor,
@@ -72,6 +81,8 @@ export function SummaryViewScreen({ navigation, route }: Props): ReactElement {
   const { summary, error, loading, refresh } = useSummary(summaryId, { enabled: available });
   const [busy, setBusy] = useState<Busy>(null);
   const [attachTarget, setAttachTarget] = useState<AttachMeetingTarget | null>(null);
+  /** M11: the "How long we keep summaries" lines are shown (screen state only). */
+  const [retentionOpen, setRetentionOpen] = useState(false);
   /** The screen already went back (a delete here, or the summary vanished). */
   const leftRef = useRef(false);
   /** A delete from this screen is in flight: its own toast says so, not "no longer here". */
@@ -167,6 +178,13 @@ export function SummaryViewScreen({ navigation, route }: Props): ReactElement {
 
   const closeSheet = useCallback((): void => setAttachTarget(null), []);
 
+  const openCommitments = useCallback(
+    (id: string): void => {
+      navigation.navigate('SummaryCommitments', { summaryId: id });
+    },
+    [navigation],
+  );
+
   if (state === 'loading') {
     return (
       <ScreenBody>
@@ -225,21 +243,23 @@ export function SummaryViewScreen({ navigation, route }: Props): ReactElement {
   const actions = summaryViewActions(summary);
   const disabled = busy !== null;
   const muted = { color: colors.onSurfaceVariant };
+  // M11: filed or kept only (an inbox summary is filed or kept first).
+  const reviewEntry = commitmentsEntryFor(summary, available);
+  const keptUntil = summaryKeptUntil(summary);
 
   return (
     <ScreenBody>
-      {/*
-        M11 SLOT (M11-DESIGN.md section 3.1): the "Review commitments" button goes here, at the top
-        of the screen, for a filed or kept summary (route SummaryCommitments { summaryId }, with the
-        open count when known). Not built in M10: nothing renders here.
-      */}
-
       <View style={styles.header}>
         <Text variant="headlineSmall" accessibilityRole="header" selectable testID="summary-view-title">
           {title}
         </Text>
         {chip !== null ? <Badge label={t(chip.key)} tone={chip.tone} style={styles.chip} testID="summary-view-chip" /> : null}
       </View>
+
+      {/* M11 (M11-DESIGN.md section 3.1): "Review commitments" at the top, under the title. */}
+      {reviewEntry !== null ? (
+        <ReviewCommitmentsButton entry={reviewEntry} onPress={openCommitments} fullWidth disabled={disabled} testID="summary-view-review" />
+      ) : null}
 
       <Card style={styles.card} testID="summary-view-origin">
         {origin.map((line, index) => (
@@ -345,7 +365,15 @@ export function SummaryViewScreen({ navigation, route }: Props): ReactElement {
       </Card>
 
       {looksTruncated(summary) ? (
-        <IconLine icon="content-cut" iconColor={colors.warning} text={t('summaries:view.truncated')} testID="summary-view-truncated" />
+        <View>
+          <IconLine icon="content-cut" iconColor={colors.warning} text={t('summaries:view.truncated')} testID="summary-view-truncated" />
+          {/* M11: summaryRead says so itself (recorded at receipt), so the hint can say what was kept. */}
+          {summary.truncated === true ? (
+            <Text variant="bodySmall" style={[styles.iconLineHint, muted]} testID="summary-view-truncated-hint">
+              {t('summaries:view.truncatedHint')}
+            </Text>
+          ) : null}
+        </View>
       ) : null}
 
       {sections.map((section) => {
@@ -388,6 +416,26 @@ export function SummaryViewScreen({ navigation, route }: Props): ReactElement {
           </Card>
         </>
       ) : null}
+
+      {/* M11 (M11-DESIGN.md section 5): how long this summary is kept, and the rules behind it. */}
+      <Card style={styles.card} testID="summary-view-retention">
+        {keptUntil !== null ? (
+          <Text variant="bodyMedium" testID="summary-view-kept-until">
+            {t('summaries:view.keptUntil', { date: fmt.date(keptUntil, 'long') })}
+          </Text>
+        ) : null}
+        <MGButton
+          variant="ghost"
+          size="sm"
+          icon={retentionOpen ? 'chevron-up' : 'chevron-down'}
+          onPress={() => setRetentionOpen((open) => !open)}
+          style={keptUntil !== null ? styles.retentionLink : styles.retentionLinkFirst}
+          testID="summary-view-retention-link"
+        >
+          {t('summaries:view.retentionLink')}
+        </MGButton>
+        {retentionOpen ? <SummaryRetentionList testID="summary-view-retention-list" /> : null}
+      </Card>
 
       <View style={styles.actions}>
         <MGButton variant="tonal" icon="content-copy" onPress={copyAll} disabled={disabled} style={styles.rowButton} testID="summary-view-copy">
@@ -555,5 +603,17 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginTop: spacing.lg,
     marginBottom: spacing.lg,
+  },
+  // M11: under an IconLine's text (past the meta icon and the gap).
+  iconLineHint: {
+    marginTop: spacing.xs,
+    marginLeft: componentMetrics.iconMeta + spacing.sm,
+  },
+  retentionLink: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+  },
+  retentionLinkFirst: {
+    alignSelf: 'flex-start',
   },
 });

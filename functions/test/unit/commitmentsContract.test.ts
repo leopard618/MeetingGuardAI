@@ -23,6 +23,7 @@ import {
   summaryDetailSchema,
   summaryErrorDetailsSchema,
   summaryListItemSchema,
+  summaryStatusResponseSchema,
 } from '../../src/shared/aiContract';
 
 const SUMMARY_ID = 'a'.repeat(64);
@@ -78,12 +79,16 @@ const USAGE = { used: 3, limit: 10, plan: 'free', resetsAt: '2026-11-13T00:00:00
 const DRAFT = { title: 'Bish: Provide APK access', dueDate: '2026-10-16', dueTime: '09:00', reminderMinutesBefore: 0, owner: { name: 'Bish', isUser: false } };
 
 describe('summaryCommitments: names, limits, enums', () => {
-  it('names the callable and its client timeout; AI_CONTRACT_VERSION and CALLABLES are unchanged (additive)', () => {
+  it('names the callable and its client timeout; AI_CONTRACT_VERSION is unchanged (additive)', () => {
     expect(SUMMARY_COMMITMENTS_CALLABLE).toBe('summaryCommitments');
     expect(SUMMARY_COMMITMENTS_TIMEOUT_MS).toBe(100_000);
     expect(AI_CONTRACT_VERSION).toBe(7);
-    // Joins CALLABLES with its FUNCTIONS_CONTRACT row in src/core/contracts.ts (the app side).
-    expect(Object.values(CALLABLES)).not.toContain('summaryCommitments');
+    // M11 day 4 (the app's service): CALLABLES holds the same name, with its FUNCTIONS_CONTRACT row
+    // in src/core/contracts.ts; the M10 entries are unchanged.
+    expect(CALLABLES.summaryCommitments).toBe(SUMMARY_COMMITMENTS_CALLABLE);
+    expect(CALLABLES.summaryStatus).toBe('summaryStatus');
+    expect(CALLABLES.summaryAction).toBe('summaryAction');
+    expect(CALLABLES.summaryRead).toBe('summaryRead');
   });
 
   it('keeps the design limits and enums', () => {
@@ -240,5 +245,37 @@ describe('summaryRead rows gain optional counts (additive)', () => {
     expect(summaryListItemSchema.safeParse({ ...row, commitments: { state: 'ready', open: 31, accepted: 0 } }).success).toBe(false);
     const detail = { ...counted, subject: null, titleLine: null, fromAddress: null, forwardedBy: null, text: 'x', sections: [] };
     expect(summaryDetailSchema.safeParse(detail).success).toBe(true);
+  });
+
+  it('M11: the full view gains an optional truncated flag (an M10 server sends none)', () => {
+    const detail = { ...row, subject: null, titleLine: null, fromAddress: null, forwardedBy: null, text: 'x', sections: [] };
+    expect(summaryDetailSchema.parse(detail)).toEqual(detail);
+    expect(summaryDetailSchema.parse(detail).truncated).toBeUndefined();
+    expect(summaryDetailSchema.parse({ ...detail, truncated: true }).truncated).toBe(true);
+    expect(summaryDetailSchema.parse({ ...detail, truncated: false }).truncated).toBe(false);
+    expect(summaryDetailSchema.safeParse({ ...detail, truncated: 'yes' }).success).toBe(false);
+  });
+});
+
+describe('summaryStatus gains an optional addressCreatedAt (additive)', () => {
+  const status = {
+    enabled: true,
+    allowed: true,
+    ready: true,
+    address: 'abcdefghijklmnop@summaries.example',
+    mailboxes: [],
+    gmailRequests: [],
+    inboxCount: 0,
+    lastReceivedAt: null,
+    lastRefused: null,
+    refusedToday: null,
+  };
+
+  it('parses a status with a time, null, or without it (an M10 server)', () => {
+    expect(summaryStatusResponseSchema.parse(status)).toEqual(status);
+    expect(summaryStatusResponseSchema.parse(status).addressCreatedAt).toBeUndefined();
+    expect(summaryStatusResponseSchema.parse({ ...status, addressCreatedAt: null }).addressCreatedAt).toBeNull();
+    expect(summaryStatusResponseSchema.parse({ ...status, addressCreatedAt: '2026-11-12T10:00:00.000Z' }).addressCreatedAt).toBe('2026-11-12T10:00:00.000Z');
+    expect(summaryStatusResponseSchema.safeParse({ ...status, addressCreatedAt: 'yesterday' }).success).toBe(false);
   });
 });

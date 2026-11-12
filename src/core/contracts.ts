@@ -1522,6 +1522,9 @@ export type MainStackParamList = {
   SummaryInbox: undefined;
   /** The full view of one summary (summaryRead get). */
   SummaryView: { summaryId: string };
+  // ---- M11: summaries become commitments (docs/v2/M11-DESIGN.md section 3) ----
+  /** Review the suggested tasks of one filed or kept summary (summaryCommitments). */
+  SummaryCommitments: { summaryId: string };
 };
 
 export type RootStackParamList = AuthStackParamList & OnboardingStackParamList & MainStackParamList;
@@ -1950,6 +1953,8 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   summaryStatus: { request: 'summaryStatusRequestSchema', response: 'summaryStatusResponseSchema' },
   summaryAction: { request: 'summaryActionRequestSchema', response: 'summaryActionResponseSchema' },
   summaryRead: { request: 'summaryReadRequestSchema', response: 'summaryReadResponseSchema' },
+  // M11: suggested tasks from a filed or kept summary (docs/v2/M11-DESIGN.md sections 3 and 6).
+  summaryCommitments: { request: 'summaryCommitmentsRequestSchema', response: 'summaryCommitmentsResponseSchema' },
 };
 
 // =============================================================================================

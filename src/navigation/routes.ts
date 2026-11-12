@@ -33,6 +33,8 @@ export const ROUTES = {
   SummaryConnect: 'SummaryConnect',
   SummaryInbox: 'SummaryInbox',
   SummaryView: 'SummaryView',
+  // M11: summaries become commitments.
+  SummaryCommitments: 'SummaryCommitments',
 } as const satisfies { [K in RouteName]: K };
 
 export const AUTH_ROUTES = ['Landing', 'EmailAuth', 'Privacy', 'Terms'] as const satisfies readonly (keyof AuthStackParamList)[];

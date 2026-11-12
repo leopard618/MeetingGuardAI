@@ -47,6 +47,7 @@ import {
   createAddress,
   deleteAddressDocs,
   parseAddressTemplate,
+  readAddressCreatedAt,
   readSummaryUser,
   regenerateAddress,
   setMailboxes,
@@ -267,19 +268,35 @@ export async function allowedSummaryStatus(uid: string, deps: SummaryCallableDep
   const now = deps.now();
   const [user, inboxCount] = await Promise.all([readSummaryUser(uid, { db: deps.db }), countInbox(deps.db, uid)]);
   if (user !== null && prunedGmailRequests(user, now) !== null) await pruneExpiredGmailCodes(uid, deps, now);
+  const address = user !== null && ready ? addressFor(user, template) : null;
   const status: SummaryStatusResponse = {
     enabled: true,
     allowed: true,
     ready,
-    address: user !== null && ready ? addressFor(user, template) : null,
+    address,
     mailboxes: user !== null ? [...user.mailboxes] : [],
     gmailRequests: user !== null ? activeGmailRequests(user, now) : [],
     inboxCount,
     lastReceivedAt: user !== null ? isoOrNull(user.lastReceivedAt) : null,
     lastRefused: user !== null ? lastRefusedOrNull(user.lastRefused) : null,
     refusedToday: user !== null ? refusedTodayOf(user, now) : null,
+    addressCreatedAt: user !== null && address !== null ? await addressCreatedAtOrNull(uid, user, deps) : null,
   };
   return summaryStatusResponseSchema.parse(status);
+}
+
+/**
+ * M11: the current address's creation time for the status (the app's Microsoft 365 hint), read
+ * only while an address is shown. A failure is logged by error name and gives null: the field is
+ * a hint, it never fails the status.
+ */
+async function addressCreatedAtOrNull(uid: string, user: SummaryUserDoc, deps: SummaryCallableDeps): Promise<string | null> {
+  try {
+    return isoOrNull(await readAddressCreatedAt(uid, user, { db: deps.db }));
+  } catch (error) {
+    logOf(deps).warn('summaries.status.address_age_unread', { uid, errorName: errorName(error) });
+    return null;
+  }
 }
 
 function isAllowed(caller: SummaryCaller, config: SummaryCallableConfig): boolean {

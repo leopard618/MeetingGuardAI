@@ -3,10 +3,12 @@
  * enabled and allowed, while nothing is known, without summaryRead (not_enabled) and when nothing
  * is filed; the list is asked only after the screen settled; rows show the title, the received
  * time, the origin chip and the occurrence date, and open SummaryView.
+ * M11: each row offers "Review commitments" (open count, added count) under it, opening
+ * SummaryCommitments.
  */
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { Text } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 
@@ -94,6 +96,10 @@ function SummaryViewStub({ route }: { route: { params?: { summaryId?: string } }
   return <Text testID="summary-view-screen">{route.params?.summaryId}</Text>;
 }
 
+function CommitmentsStub({ route }: { route: { params?: { summaryId?: string } } }) {
+  return <Text testID="commitments-screen">{route.params?.summaryId}</Text>;
+}
+
 async function renderSection() {
   await render(
     <I18nProvider>
@@ -102,6 +108,7 @@ async function renderSection() {
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="MeetingDetails" component={DetailsStub} initialParams={{ meetingId: 'm1' }} />
             <Stack.Screen name="SummaryView" component={SummaryViewStub} />
+            <Stack.Screen name="SummaryCommitments" component={CommitmentsStub} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
@@ -181,4 +188,46 @@ it('is translated to Spanish', async () => {
   await renderSection();
   await waitFor(() => expect(screen.getByText('Minuta de tu asistente de notas')).toBeTruthy());
   expect(screen.getByText('De tu asistente de notas')).toBeTruthy();
+  expect(screen.getByText('Revisar compromisos')).toBeTruthy();
+});
+
+describe('Review commitments (M11)', () => {
+  it('sits under each row with its counts, and opens the review of that summary', async () => {
+    mockItems = [{ ...ROW, commitments: { state: 'ready', open: 5, accepted: 2 } }, SERIES_ROW];
+    await renderSection();
+    await waitFor(() => expect(screen.getByTestId('meeting-summaries-m1')).toBeTruthy());
+    expect(screen.getByText('Review commitments (5)')).toBeTruthy();
+    expect(screen.getByTestId(`meeting-summary-${ID_A}-review-facts`).props.children).toBe('2 added to your tasks');
+    // Nothing prepared yet for the other summary: the plain label, no facts.
+    expect(screen.getByTestId(`meeting-summary-${ID_B}-review-button`)).toBeTruthy();
+    expect(screen.queryByTestId(`meeting-summary-${ID_B}-review-facts`)).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId(`meeting-summary-${ID_B}-review-button`));
+    });
+    expect(navigationRef.getCurrentRoute()).toMatchObject({ name: 'SummaryCommitments', params: { summaryId: ID_B } });
+  });
+
+  it('is a button of its own, outside the row that opens the summary', async () => {
+    mockItems = [ROW];
+    await renderSection();
+    await waitFor(() => expect(screen.getByTestId('meeting-summaries-m1')).toBeTruthy());
+    const row = screen.getByTestId(`meeting-summary-${ID_A}`);
+    expect(within(row).queryByTestId(`meeting-summary-${ID_A}-review-button`)).toBeNull();
+    expect(screen.getByTestId(`meeting-summary-${ID_A}-review-button`)).toBeTruthy();
+  });
+
+  it('says when the summary changed or nothing was found', async () => {
+    mockItems = [
+      { ...ROW, commitments: { state: 'stale', open: 2, accepted: 1 } },
+      { ...SERIES_ROW, commitments: { state: 'empty', open: 0, accepted: 0 } },
+    ];
+    await renderSection();
+    await waitFor(() => expect(screen.getByTestId('meeting-summaries-m1')).toBeTruthy());
+    expect(screen.getByTestId(`meeting-summary-${ID_A}-review-facts`).props.children).toBe(
+      'The summary changed: prepare the suggestions again (free) · 1 added to your tasks',
+    );
+    expect(screen.getByTestId(`meeting-summary-${ID_B}-review-facts`).props.children).toBe('No commitments found');
+    expect(screen.queryByText('Review commitments (2)')).toBeNull();
+  });
 });

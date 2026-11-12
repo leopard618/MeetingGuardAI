@@ -33,3 +33,42 @@ export {
 } from './useSummaryStatus';
 export { useSummaryList, type UseSummaryListOptions, type UseSummaryListResult } from './useSummaryList';
 export { useSummary, type UseSummaryOptions, type UseSummaryResult } from './useSummary';
+// M11: summaries become commitments (docs/v2/M11-DESIGN.md sections 3 and 7).
+export {
+  commitmentAppError,
+  commitmentCounts,
+  commitmentErrorMessageKey,
+  commitmentErrorReason,
+  commitmentErrorUsage,
+  commitmentListFacts,
+  isCommitmentsUnavailableError,
+  mapCommitmentError,
+} from './commitmentsCore';
+export {
+  commitmentsService,
+  createCommitmentsService,
+  type CommitmentsServiceDeps,
+  type CommitmentsSnapshot,
+  type CommitmentsTransport,
+  type DecideCommitmentsOptions,
+  type SummaryCommitmentsCallableName,
+  type SummaryCommitmentsService,
+} from './commitments';
+export {
+  COMMITMENTS_MAX_POLLS,
+  COMMITMENTS_POLL_MS,
+  useSummaryCommitments,
+  type CommitmentsBusy,
+  type DecideCommitmentsResult,
+  type SummaryCommitmentsHookState,
+  type UseSummaryCommitmentsOptions,
+  type UseSummaryCommitmentsResult,
+} from './useSummaryCommitments';
+export {
+  COMMITMENTS_AI_NOTICE_KEY,
+  hasSeenCommitmentsAiNotice,
+  markCommitmentsAiNoticeSeen,
+  useCommitmentsAiNotice,
+  type CommitmentsNoticeStorage,
+  type UseCommitmentsAiNoticeResult,
+} from './commitmentsNotice';

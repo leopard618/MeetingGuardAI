@@ -251,6 +251,19 @@ describe('the Microsoft 365 hint', () => {
     expect(showMicrosoftHint(status, NOW)).toBe(true);
     expect(addressInUseSince(CONNECTED)).toBeNull();
   });
+
+  it('M11: dates the address by addressCreatedAt first, also with no mail at all (B8)', () => {
+    const created = new Date(NOW - SUMMARY_MICROSOFT_HINT_AFTER_MS).toISOString();
+    expect(addressInUseSince({ ...CONNECTED, addressCreatedAt: created })).toBe(Date.parse(created));
+    expect(showMicrosoftHint({ ...CONNECTED, addressCreatedAt: created }, NOW)).toBe(true);
+    expect(showMicrosoftHint({ ...CONNECTED, addressCreatedAt: new Date(NOW - 23 * HOUR).toISOString() }, NOW)).toBe(false);
+    // A new address after "Get a new address": an older refusal of the old address does not count.
+    const fresh = { ...refusedAt('2026-11-01T08:00:00.000Z'), addressCreatedAt: new Date(NOW - HOUR).toISOString() };
+    expect(showMicrosoftHint(fresh, NOW)).toBe(false);
+    // null (unknown) or an unreadable value: the M10 fallback.
+    expect(addressInUseSince({ ...refusedAt('2026-11-12T08:00:00.000Z'), addressCreatedAt: null })).toBe(Date.parse('2026-11-12T08:00:00.000Z'));
+    expect(addressInUseSince({ ...CONNECTED, addressCreatedAt: 'not a date' })).toBeNull();
+  });
 });
 
 describe('activity and setup texts', () => {

@@ -28,7 +28,8 @@
     "WhatsAppConnect": "WhatsApp",
     "SummaryConnect": "Minutas de reuniones",
     "SummaryInbox": "Bandeja de minutas",
-    "SummaryView": "Minuta"
+    "SummaryView": "Minuta",
+    "SummaryCommitments": "Compromisos"
   },
   "meeting": {
     "loading": "Cargando reunión...",

@@ -207,11 +207,14 @@ function timeOf(iso: string): number | null {
 }
 
 /**
- * The earliest time the address is known to have been in use: the last refusal or a Gmail
- * confirmation mail (mail reached it then). summaryStatus does not say when the address was
- * created, so with no such mail the age is unknown and the hint stays hidden.
+ * Since when the current address is in use: its creation time when summaryStatus sends it (M11,
+ * addressCreatedAt; a new address after "Get a new address" has its own). An M10 server does not
+ * send it: then the earliest mail known to have reached the address (the last refusal or a Gmail
+ * confirmation mail), and with no such mail the age is unknown and the hint stays hidden.
  */
-export function addressInUseSince(status: Pick<SummaryStatusResponse, 'lastRefused' | 'gmailRequests'>): number | null {
+export function addressInUseSince(status: Pick<SummaryStatusResponse, 'lastRefused' | 'gmailRequests' | 'addressCreatedAt'>): number | null {
+  const created = typeof status.addressCreatedAt === 'string' ? timeOf(status.addressCreatedAt) : null;
+  if (created !== null) return created;
   const times = [status.lastRefused?.at, ...status.gmailRequests.map((request) => request.receivedAt)]
     .filter((value): value is string => typeof value === 'string')
     .map(timeOf)
