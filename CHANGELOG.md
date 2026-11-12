@@ -20,7 +20,8 @@ to users: the assistant stays switched off in every release until its beta (A10)
   check in code that allows only the contacts of the mandate and your own copy. Replies are
   attached to their matter by the reply address or the thread headers. Postmark for sending
   and receiving. Functions matterDraft, matterRevise, matterConfirm, matterCancel and
-  assistantInboundEmail, all deployed only while MATTERS_ENABLED is true and usable only by
+  assistantInboundEmail, all deployed only while MATTERS_ENABLED is true (their params and
+  secrets are not even declared otherwise, so no other deploy asks for them) and usable only by
   MATTERS_ALLOWED_UIDS; data under users/{uid}/matters (owner read, server write), lookups
   server only, removed with the account. App: Settings > AI executive assistant (route
   Matters), only with EXPO_PUBLIC_MATTERS_ENABLED. ARCHITECTURE section 36, SETUP section 15.

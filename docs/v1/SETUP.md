@@ -1210,12 +1210,14 @@ nothing below is needed for a deploy.
 
 ### 15.4 Secrets, params and deploy
 
+From `functions/`, without typing the values at a prompt (no newline is stored):
+
 ```bash
-firebase functions:secrets:set POSTMARK_SERVER_TOKEN      # server assistant > API Tokens
-firebase functions:secrets:set MATTERS_INBOUND_PASSWORD   # a long random string, also in the webhook URL
+printf '%s' "<the API token of server assistant>" | npx firebase functions:secrets:set POSTMARK_SERVER_TOKEN
+printf '%s' "$(openssl rand -hex 24)" | npx firebase functions:secrets:set MATTERS_INBOUND_PASSWORD   # also in the webhook URL
 ```
 
-Then in `functions/.env.<projectId>`:
+Then in your own `functions/.env.<projectId>`:
 
 ```
 MATTERS_ENABLED=true
@@ -1224,10 +1226,20 @@ MATTERS_MAIL_DOMAIN=assistant.meetingguard.ai
 MATTERS_USER_DAILY_LIMIT=30
 ```
 
-and `firebase deploy --only functions`. Before a Postmark account exists, the secret
-POSTMARK_SERVER_TOKEN can hold Postmark's public test token `POSTMARK_API_TEST`: sends are
-accepted and nothing is delivered. Turning the assistant off again: MATTERS_ENABLED=false and
-deploy, accepting the deletion of the five functions.
+and deploy only these five functions by name (CONTRIBUTING, "Deploying"):
+
+```bash
+npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail
+```
+
+Before a Postmark account exists, the secret POSTMARK_SERVER_TOKEN can hold Postmark's public
+test token `POSTMARK_API_TEST`: sends are accepted and nothing is delivered.
+
+While MATTERS_ENABLED is not `true` in a deployer's `.env.<projectId>`, the five functions and
+their params and secrets are not even declared (functions/src/config.ts `mattersParams`), so
+that deploy never asks for them. A full deploy from `v2` without the line offers to delete the
+five functions if they are deployed: answer No. Turning the assistant off for good:
+`npx firebase functions:delete matterDraft matterRevise matterConfirm matterCancel assistantInboundEmail`.
 
 ### 15.5 Test build of the app
 

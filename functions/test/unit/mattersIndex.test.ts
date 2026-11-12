@@ -3,7 +3,7 @@
  * (functions/src/matters/index.ts).
  */
 import type * as MattersModuleNs from '../../src/matters';
-import { isMatterUserAllowed } from '../../src/config';
+import { MATTERS_PARAM_NAMES, isMatterUserAllowed } from '../../src/config';
 import { isInboundAuthorized } from '../../src/matters';
 
 jest.mock('firebase-functions/logger', () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }));
@@ -26,6 +26,15 @@ function loadModule(enabled: string | undefined): MattersModule {
   return jest.requireActual<MattersModule>('../../src/matters');
 }
 
+/** The names firebase-functions would put in the deploy manifest after loading the module. */
+function declaredNamesAfterLoading(enabled: string | undefined): string[] {
+  jest.resetModules();
+  const params = jest.requireActual<{ declaredParams: { name: string }[] }>('firebase-functions/params');
+  params.declaredParams.length = 0; // the registry lives on globalThis and outlives resetModules
+  loadModule(enabled);
+  return params.declaredParams.map((param) => param.name);
+}
+
 describe('matters functions: deploy gate', () => {
   const original = process.env.MATTERS_ENABLED;
   afterEach(() => {
@@ -43,6 +52,19 @@ describe('matters functions: deploy gate', () => {
       expect(mod.matterCancel).toBeUndefined();
       expect(mod.assistantInboundEmail).toBeUndefined();
     }
+  });
+
+  it('declares no matter param or secret while it is off, so no deploy asks for them', () => {
+    for (const value of [undefined, 'false']) {
+      const names = declaredNamesAfterLoading(value);
+      expect(names).toContain('OPENAI_API_KEY'); // the rest of config.ts still loads
+      for (const name of MATTERS_PARAM_NAMES) expect(names).not.toContain(name);
+    }
+  });
+
+  it('declares all of them while it is on', () => {
+    const names = declaredNamesAfterLoading('true');
+    for (const name of MATTERS_PARAM_NAMES) expect(names).toContain(name);
   });
 
   it('exports the four callables and the webhook while it is true, each with only the secrets it needs', () => {

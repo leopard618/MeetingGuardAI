@@ -282,51 +282,80 @@ export const WHATSAPP_TUNING = {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Master switch of the executive assistant. It gates the DEPLOYMENT of every matter function
- * (functions/src/matters/index.ts reads the matching process.env value at load time), exactly
- * like WHATSAPP_ENABLED: with the default `false`, `firebase deploy --only functions` never
- * references POSTMARK_SERVER_TOKEN or MATTERS_INBOUND_PASSWORD and cannot fail on them. Owner
- * order: set the two secrets FIRST, then MATTERS_ENABLED=true in functions/.env.<projectId>,
- * then deploy. Until the beta (A10) it stays false in production.
+ * The executive assistant's params and secrets, DECLARED ONLY WHEN THIS IS CALLED.
+ *
+ * firebase-functions registers every defineX/defineSecret in the deploy manifest the moment it
+ * runs, whether a deployed function uses it or not, and the CLI then asks for every declared
+ * secret that does not exist yet (and for every param missing from functions/.env.<projectId>).
+ * So nothing here may be declared at module level: functions/src/matters/index.ts calls this
+ * only while MATTERS_ENABLED is true at load time (the deploy-time gate, read from process.env
+ * like WHATSAPP_ENABLED). With the assistant off, a deploy declares no matter param and no
+ * matter secret, and nobody else's deploy can stop on them.
+ *
+ * Owner order: set the two secrets FIRST, then MATTERS_ENABLED=true (plus the lines below) in
+ * functions/.env.<projectId>, then deploy the five functions by name. Until the beta (A10) it
+ * stays false in production.
  */
-export const MATTERS_ENABLED = defineBoolean('MATTERS_ENABLED', {
-  default: false,
-  description: 'Enables the executive assistant (matters). Set POSTMARK_SERVER_TOKEN and MATTERS_INBOUND_PASSWORD BEFORE setting this to true.',
-});
+export function mattersParams() {
+  mattersParamsCache ??= {
+    /** Master switch, re-checked at run time by every handler. */
+    MATTERS_ENABLED: defineBoolean('MATTERS_ENABLED', {
+      default: false,
+      description: 'Enables the executive assistant (matters). Set POSTMARK_SERVER_TOKEN and MATTERS_INBOUND_PASSWORD BEFORE setting this to true.',
+    }),
+    /**
+     * Who may use it while it is a prototype: comma-separated Firebase uids. Empty = nobody,
+     * even with MATTERS_ENABLED true; "*" = every verified user (only from the beta on).
+     */
+    MATTERS_ALLOWED_UIDS: defineString('MATTERS_ALLOWED_UIDS', {
+      default: '',
+      description: 'Comma-separated uids allowed to use the assistant (empty = nobody, * = everyone).',
+    }),
+    /** The assistant's mail subdomain (DNS: DKIM, Return-Path, MX and DMARC at the email provider). */
+    MATTERS_MAIL_DOMAIN: defineString('MATTERS_MAIL_DOMAIN', {
+      default: 'assistant.meetingguard.ai',
+      description: 'Mail subdomain the assistant sends from and receives replies on.',
+    }),
+    /** Per-user cap on drafts and revisions per UTC day (each is one model call). */
+    MATTERS_USER_DAILY_LIMIT: defineInt('MATTERS_USER_DAILY_LIMIT', {
+      default: 30,
+      description: 'Maximum matter drafts and revisions one user may request per UTC day.',
+    }),
+    /**
+     * Postmark server API token of the assistant server (Secret Manager). For development
+     * without an account, Postmark's public test token POSTMARK_API_TEST accepts sends and
+     * delivers nothing.
+     */
+    POSTMARK_SERVER_TOKEN: defineSecret('POSTMARK_SERVER_TOKEN'),
+    /**
+     * Password of the inbound webhook: Postmark calls
+     * https://postmark:<password>@<region>-<project>.cloudfunctions.net/assistantInboundEmail
+     * (HTTP basic auth). Anything without it is answered 401 before the body is read.
+     */
+    MATTERS_INBOUND_PASSWORD: defineSecret('MATTERS_INBOUND_PASSWORD'),
+  };
+  return mattersParamsCache;
+}
 
-/**
- * Who may use it while it is a prototype: comma-separated Firebase uids. Empty = nobody, even
- * with MATTERS_ENABLED true; "*" = every verified user (only from the beta on).
- */
-export const MATTERS_ALLOWED_UIDS = defineString('MATTERS_ALLOWED_UIDS', {
-  default: '',
-  description: 'Comma-separated uids allowed to use the assistant (empty = nobody, * = everyone).',
-});
+/** The param and secret names mattersParams() declares (tests and docs). */
+export const MATTERS_PARAM_NAMES = [
+  'MATTERS_ENABLED',
+  'MATTERS_ALLOWED_UIDS',
+  'MATTERS_MAIL_DOMAIN',
+  'MATTERS_USER_DAILY_LIMIT',
+  'POSTMARK_SERVER_TOKEN',
+  'MATTERS_INBOUND_PASSWORD',
+] as const;
 
-/** The assistant's mail subdomain (DNS: DKIM, Return-Path, MX and DMARC at the email provider). */
-export const MATTERS_MAIL_DOMAIN = defineString('MATTERS_MAIL_DOMAIN', {
-  default: 'assistant.meetingguard.ai',
-  description: 'Mail subdomain the assistant sends from and receives replies on.',
-});
-
-/** Per-user cap on drafts and revisions per UTC day (each is one model call). */
-export const MATTERS_USER_DAILY_LIMIT = defineInt('MATTERS_USER_DAILY_LIMIT', {
-  default: 30,
-  description: 'Maximum matter drafts and revisions one user may request per UTC day.',
-});
-
-/**
- * Postmark server API token of the assistant server (Secret Manager). For development without
- * an account, Postmark's public test token POSTMARK_API_TEST accepts sends and delivers nothing.
- */
-export const POSTMARK_SERVER_TOKEN = defineSecret('POSTMARK_SERVER_TOKEN');
-
-/**
- * Password of the inbound webhook: Postmark calls
- * https://postmark:<password>@<region>-<project>.cloudfunctions.net/assistantInboundEmail
- * (HTTP basic auth). Anything without it is answered 401 before the body is read.
- */
-export const MATTERS_INBOUND_PASSWORD = defineSecret('MATTERS_INBOUND_PASSWORD');
+type MattersParams = {
+  MATTERS_ENABLED: ReturnType<typeof defineBoolean>;
+  MATTERS_ALLOWED_UIDS: ReturnType<typeof defineString>;
+  MATTERS_MAIL_DOMAIN: ReturnType<typeof defineString>;
+  MATTERS_USER_DAILY_LIMIT: ReturnType<typeof defineInt>;
+  POSTMARK_SERVER_TOKEN: ReturnType<typeof defineSecret>;
+  MATTERS_INBOUND_PASSWORD: ReturnType<typeof defineSecret>;
+};
+let mattersParamsCache: MattersParams | undefined;
 
 export const MATTERS_TUNING = {
   /** The app's client-side timeout is MATTER_CALL_TIMEOUT_MS = 70 s (shared/aiContract.ts). */

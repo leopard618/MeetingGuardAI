@@ -1807,8 +1807,11 @@ A3 (scheduling, voice, history) build on it.
   `deleteMatterLookups` step removes the two lookup collections by uid. Purging expired
   `inboundEmails` markers and the retention rules for emails come with A4.
 - **Switches.** Functions: `MATTERS_ENABLED` (default false) gates the DEPLOYMENT of all five
-  functions, like WHATSAPP_ENABLED, so a deploy never references `POSTMARK_SERVER_TOKEN` or
-  `MATTERS_INBOUND_PASSWORD` while it is false; `MATTERS_ALLOWED_UIDS` (comma-separated uids,
+  functions, like WHATSAPP_ENABLED, read from process.env at load. The matter params and secrets
+  are declared only then (config.ts `mattersParams`): firebase-functions puts every declared
+  param and secret in the deploy manifest even when no deployed function uses it, so while it
+  is false a deploy never asks for `POSTMARK_SERVER_TOKEN`, `MATTERS_INBOUND_PASSWORD` or a
+  `MATTERS_*` line (a test checks the declared names); `MATTERS_ALLOWED_UIDS` (comma-separated uids,
   empty = nobody, `*` = everyone) limits the prototype to its testers; `MATTERS_MAIL_DOMAIN`
   (default assistant.meetingguard.ai). Each callable binds only the secret it needs (draft and
   revise OPENAI_API_KEY, confirm POSTMARK_SERVER_TOKEN, the webhook MATTERS_INBOUND_PASSWORD).

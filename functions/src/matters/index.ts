@@ -2,10 +2,13 @@
  * Executive assistant functions (A1; docs/v1/ARCHITECTURE.md section 36). Firebase shell only:
  * auth, secrets and wiring; the logic is in ./handlers.ts.
  *
- * Deployability (same pattern as functions/src/whatsapp/index.ts): EVERY export here is
- * `undefined` unless MATTERS_ENABLED is true while this module is loaded at deploy time, so the
- * default deploy never references POSTMARK_SERVER_TOKEN or MATTERS_INBOUND_PASSWORD and cannot
- * fail on them. Handlers re-check MATTERS_ENABLED.value() and MATTERS_ALLOWED_UIDS at run time.
+ * Deployability (same gate as functions/src/whatsapp/index.ts): EVERY export here is
+ * `undefined` unless MATTERS_ENABLED is true while this module is loaded at deploy time, and the
+ * matter params and secrets (config.ts mattersParams) are DECLARED only then. firebase-functions
+ * puts every declared param and secret in the deploy manifest whether a function uses it or not,
+ * so with the assistant off a deploy never asks for POSTMARK_SERVER_TOKEN,
+ * MATTERS_INBOUND_PASSWORD or a MATTERS_* line. Handlers re-check MATTERS_ENABLED and
+ * MATTERS_ALLOWED_UIDS at run time.
  *
  * - matterDraft / matterRevise: one model call each (OPENAI_API_KEY).
  * - matterConfirm: the first email (POSTMARK_SERVER_TOKEN).
@@ -21,17 +24,12 @@ import { onCall, onRequest, type CallableOptions } from 'firebase-functions/http
 
 import {
   FUNCTIONS_REGION,
-  MATTERS_ALLOWED_UIDS,
-  MATTERS_ENABLED,
-  MATTERS_INBOUND_PASSWORD,
-  MATTERS_MAIL_DOMAIN,
   MATTERS_TUNING,
-  MATTERS_USER_DAILY_LIMIT,
   OPENAI_API_KEY,
   OPENAI_MODEL,
   OPENAI_REASONING_EFFORT,
-  POSTMARK_SERVER_TOKEN,
   isMatterUserAllowed,
+  mattersParams,
   parseReasoningEffort,
 } from '../config';
 import { adminDb } from '../firebase';
@@ -69,6 +67,7 @@ function callerOf(auth: { uid: string; token: Record<string, unknown> } | undefi
 }
 
 function deps(): MatterDeps {
+  const params = mattersParams();
   return {
     store: firestoreMatterStore(adminDb()),
     llm: () => {
@@ -79,7 +78,7 @@ function deps(): MatterDeps {
     sender: () => {
       try {
         return createPostmarkSender({
-          token: POSTMARK_SERVER_TOKEN.value(),
+          token: params.POSTMARK_SERVER_TOKEN.value(),
           messageStream: MATTERS_TUNING.messageStream,
           timeoutMs: MATTERS_TUNING.postmarkTimeoutMs,
         });
@@ -88,11 +87,11 @@ function deps(): MatterDeps {
       }
     },
     now: () => new Date(),
-    enabled: MATTERS_ENABLED.value() === true,
-    allowed: (uid) => isMatterUserAllowed(MATTERS_ALLOWED_UIDS.value(), uid),
-    domain: MATTERS_MAIL_DOMAIN.value(),
+    enabled: params.MATTERS_ENABLED.value() === true,
+    allowed: (uid) => isMatterUserAllowed(params.MATTERS_ALLOWED_UIDS.value(), uid),
+    domain: params.MATTERS_MAIL_DOMAIN.value(),
     fromLocalPart: MATTERS_TUNING.fromLocalPart,
-    dailyLimit: MATTERS_USER_DAILY_LIMIT.value(),
+    dailyLimit: params.MATTERS_USER_DAILY_LIMIT.value(),
   };
 }
 
@@ -107,6 +106,7 @@ const CALLABLE_BASE: CallableOptions = {
 };
 
 function makeCallables() {
+  const { POSTMARK_SERVER_TOKEN } = mattersParams();
   return {
     matterDraft: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterDraftResponse> =>
       handleMatterDraft(callerOf(request.auth), request.data, deps()),
@@ -130,6 +130,7 @@ export function isInboundAuthorized(header: unknown, password: string): boolean 
 }
 
 function makeInboundWebhook() {
+  const { MATTERS_ENABLED, MATTERS_INBOUND_PASSWORD, MATTERS_MAIL_DOMAIN } = mattersParams();
   return onRequest(
     {
       region: FUNCTIONS_REGION,
