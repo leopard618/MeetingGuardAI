@@ -3,6 +3,21 @@
 All notable changes to Meeting Guard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
+## [Unreleased] - Executive assistant prototype (A1 to A3, switched off)
+
+The AI executive assistant of the November 10, 2026 plan, built in steps. Nothing here is visible
+to users: the assistant stays switched off in every release until its beta (A10).
+
+### Added
+
+- **Matters and the mandate: data model and rules (A1, step 1)** (November 12): the matter
+  (one job handed to the assistant), its mandate (whom it may email, what it may ask, which
+  times it may offer, follow-ups, end date, how the owner is copied), its timeline and its
+  emails, under `users/{uid}/matters`; owner read, written only by the server. Lookup
+  collections for reply addresses and Message-IDs, server only. A mandate is confirmed by the
+  hash of the exact version shown. Account deletion removes matters and their lookups.
+  ARCHITECTURE section 36.
+
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 
 Stage 2 of the V2 agreement: the calendar and task integrations (Outlook, Microsoft To Do, Google

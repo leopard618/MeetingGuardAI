@@ -8,11 +8,13 @@ rules_version = '2';
 //   users/{uid}/notes/{noteId}         Note (without id)  owner read/write, validated
 //   users/{uid}/tasks/{taskId}         Task (without id)  owner read/write, validated
 //   users/{uid}/settings/preferences   Preferences        owner read/write, validated
+//   users/{uid}/matters/{matterId}/**  assistant matters  owner read, server write only
 //   entitlements/{uid}                 Entitlement        owner read, server write only
 //   usage/{uid}/days/{day}             AI quota counter   owner read, server write only
 //   adminStats/ai/days/{day}/**        admin aggregates   server only (no client access at all)
 //   zoomMeetings/{zoomMeetingId}       Zoom owner registry server only (no client access at all)
 //   whatsapp*/** (5 collections)       WhatsApp bot state server only (no client access at all)
+//   matterAddresses, matterMessageIds, inboundEmails     server only (no client access at all)
 //   everything else                                       denied
 //
 // The Admin SDK (Cloud Functions) bypasses these rules. Instants are UTC ISO strings
@@ -382,6 +384,25 @@ service cloud.firestore {
           && isValidPreferences(request.resource.data);
         allow delete: if false;
       }
+
+      // Executive assistant matters (ARCHITECTURE section 36): the mandate, its timeline and
+      // its emails. Written ONLY by the matter functions (Admin SDK), which check every change
+      // and every send against the mandate the user confirmed; the owner reads them. A client
+      // that could write here could confirm a mandate it never showed, or fake an email.
+      match /matters/{matterId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+
+        match /events/{eventId} {
+          allow read: if isOwner(uid);
+          allow write: if false;
+        }
+
+        match /messages/{messageId} {
+          allow read: if isOwner(uid);
+          allow write: if false;
+        }
+      }
     }
 
     // Plan / subscription state: written only by server or admin tooling.
@@ -450,6 +471,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /whatsappEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    // Executive assistant lookups (ARCHITECTURE section 36): a matter's reply address token ->
+    // its matter, an email's Message-ID -> its matter (threading), and inbound dedupe markers.
+    // Admin SDK only: a client that could read matterAddresses could reply into another user's
+    // matter. Explicit so the catch-all below is not load-bearing.
+    match /matterAddresses/{token} {
+      allow read, write: if false;
+    }
+    match /matterMessageIds/{messageIdKey} {
+      allow read, write: if false;
+    }
+    match /inboundEmails/{providerId} {
       allow read, write: if false;
     }
 

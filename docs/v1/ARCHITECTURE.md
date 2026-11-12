@@ -1726,3 +1726,58 @@ contract; `functions/src/assistant/quota.ts` enforces them; the app only display
   (`purchasedAtIso` only when the event carries it); app: `presentation.test.ts`,
   `pricing.test.tsx`, `legal.test.tsx`, `AssistantScreen.test.tsx`. Device test guide:
   `docs/v1/TESTING.md` T29.
+
+## 36. Executive assistant: matters and the mandate (A1, switched off)
+
+The assistant of the November 10, 2026 plan (docs/v2/Complete-Plan-2026-11-10.md, part 1). The
+user hands it a MATTER by voice or text ("contact Carlos, ask for the updated proposal, set up a
+meeting, follow up until Friday, keep me copied") and it runs that matter by email from its own
+address until it is done. It is a new module beside the existing assistant (section 8), which is
+unchanged. Built in pull requests A1 to A3 (the prototype); until the beta (A10) it stays
+switched off in every release.
+
+- **The mandate.** What the user allows for one matter (`mandateSchema`,
+  functions/src/matters/model.ts): the contacts it may email (1 to 5), the goal, what it may ask
+  for, the meeting it may set up (length and the time windows it may offer, or none), the
+  follow-ups (every N days, at most M), the end date, how the owner is copied (every email in
+  copy, or a daily summary), the language of the emails and the user's zone. The schema is
+  strict: nothing outside it can be granted.
+- **What it never does** is not in the mandate and cannot be granted: pay, accept a price or
+  negotiate money, agree to anything contractual, promise beyond the mandate, contact anyone
+  not in the mandate, send from the user's own mailbox unless allowed for that matter. A2
+  enforces this in code and turns anything outside the mandate into an approval card.
+- **Confirmation by hash.** A draft mandate is read back in plain words (`readBack`) with any
+  missing details as questions. The app confirms by sending back `mandateHash` of the exact
+  version it showed (sha256 over canonical JSON); a new draft gives a new hash, so a stale
+  screen cannot confirm what the user did not read. The matter becomes `active` and stores
+  `confirmedHash`; nothing is sent before.
+- **The send check** (A1 step 2) is plain code, not the model: a send is allowed only for an
+  active matter whose mandate still hashes to `confirmedHash`, before `endsAt`, to addresses in
+  the mandate's contacts (plus the owner's copy), with the assistant switched on. Follow-ups
+  (A2) and meeting confirmations (A3) go through the same check.
+- **Statuses.** `draft` (being worked out, nothing sent), `active`, `paused`, `done`,
+  `cancelled` (by the user, or the end date passed). `endedAt` marks the last two.
+- **Data.** All written ONLY by the matter functions through the Admin SDK; the owner reads:
+
+  | Path | Content |
+  |---|---|
+  | `users/{uid}/matters/{matterId}` | `MatterDoc`: status, request, title, mandate, questions, read-back, version, confirmed hash, reply token |
+  | `.../matters/{matterId}/events/{id}` | the timeline: created, drafted, confirmed, email sent / failed / received, status changes (A2 and A3 add their own types) |
+  | `.../matters/{matterId}/messages/{id}` | every email in and out: Message-ID, In-Reply-To, References, from, to, cc, subject, plain text (cut at 20,000 characters), provider id, and for inbound the SPF, DKIM and DMARC verdicts |
+  | `matterAddresses/{token}` | reply token -> `{ uid, matterId }`, server only |
+  | `matterMessageIds/{sha256(Message-ID)}` | every Message-ID we sent or received -> `{ uid, matterId }`, server only |
+  | `inboundEmails/{providerId}` | inbound dedupe marker `{ receivedAt, expiresAt }`, no personal data, server only |
+
+  Under `users/{uid}`, so deleteAccount's recursive pass removes matters with the account; its
+  `deleteMatterLookups` step removes the two lookup collections by uid.
+- **Replies attached to the right matter.** Each matter sends with a reply address
+  `m-<token>@<mail domain>`; the token is 96 random bits in lowercase hex (some mail systems
+  change the case of the local part). An inbound email is matched by that token in To or Cc,
+  else by In-Reply-To / References in `matterMessageIds`, else it is kept as unmatched and never
+  guessed. The sender checks are computed by our code from the raw email.
+- **Rules.** `users/{uid}/matters/{matterId}` and its `events` and `messages`: owner read, no
+  client write (a client that could write could confirm a mandate it never showed, or fake an
+  email). `matterAddresses`, `matterMessageIds`, `inboundEmails`: no client access at all.
+- **Tests.** `functions/test/unit/mattersModel.test.ts` (schemas, hash, reply addresses,
+  Message-ID keys), `deleteAccount.test.ts` (lookup cleanup in the order), and the rules in
+  `functions/test/rules/firestore.rules.test.ts` ("executive assistant matters").
