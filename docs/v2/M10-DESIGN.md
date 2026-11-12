@@ -183,12 +183,24 @@ Steps, in order:
 6. Header sanity on the raw header block: exactly one From with one mailbox; at most one To, Cc,
    Date, Subject, Message-ID and Sender. From is parsed ONCE with one strict parser and must be a
    plain addr-spec: no comments, groups, route syntax, encoded words in the address or second "@"
-   (finding 8). Failure: refused malformed.
-7. mailauth over the raw bytes with a node:dns resolver (4 s timeout, 2 tries, cached per call).
-   Alignment is computed by classify itself against the step-6 From domain, not taken from
-   mailauth's status. A DNS temperror counts as deciding only for a signature whose d= is an
-   allowlisted sender domain or a listed mailbox's domain; then 500 while the Date header is under
-   5 hours old, after that a failure.
+   (finding 8). At most 5 DKIM-Signature fields, checked before any DNS work. Every domain (From,
+   To, Cc, d=, ARC sealer) must be plain ASCII LDH; a non-ASCII d= gives no domain (it is never
+   mapped, because mailauth would fetch the key at a different name). Failure: refused malformed.
+7. mailauth over the raw bytes with a node:dns resolver (cached per call). Alignment is computed by
+   classify itself against the step-6 From domain, not taken from mailauth's status. DNS budgets
+   per message (as built on day 1, functions/src/summaries/authenticity.ts):
+   - Only when From is exactly a SUMMARIES_SENDERS address or a listed mailbox (or the Gmail
+     confirmation sender) do any lookups get priority. Priority (16 s): key-record domains that
+     EXACTLY equal a deciding domain (a sender or mailbox domain aligned with From; google.com for
+     the Gmail sender) and the trusted ARC sealers' key names. Aligned (8 s): domains that align
+     with the From domain without being equal (a vendor signing as mg.<vendor>). Shared (8 s):
+     everything else. Each lookup is cut at 8 s; the bound is 32 s of DNS per message.
+   - A lookup refused because its budget is spent fails as EBUDGET and counts as no signature,
+     never as a temperror, so an attacker's slow DNS cannot turn a forgery into a retry.
+   - A temperror is deciding only when its d= EXACTLY equals a sender or listed mailbox domain that
+     aligns with From, the From is exactly listed, the Date is 0 to 5 hours before receipt (no
+     future skew), and a pass of that signature could change the outcome. Then 500 (retry);
+     otherwise the message is classified without it.
 8. classify (pure; section 5) returns {outcome, tier, reason, anchor, trust facts}.
 9. Refused: one row per uid and UTC day with a count (section 7). The refused counter is the only
    daily cap: 40 refusals a day, deduped by Postmark MessageID so a redelivery never counts twice;
@@ -256,7 +268,7 @@ Decision table, evaluated in order; every email gets exactly one result:
 | 2 | Oversize body, unparsable JSON, no RawEmail | 200 | ignored |
 | 3 | Unknown or regenerated token, user missing, disabled or not in pilot | 200 | dropped |
 | 4 | Raw too large, too many parts, header sanity or strict From fails | 200 | refused too_large / malformed |
-| 5 | Deciding DNS temperror, Date under 5 h old | 500 | retry |
+| 5 | Deciding DNS temperror (step 7), Date 0 to 5 h before receipt | 500 | retry |
 | 6 | G | 200 | Gmail code request stored |
 | 7 | V and B and Fresh | 200 | ACCEPT vendor_verified; auto-filed only on match rule A, else inbox |
 | 8 | V and B, not Fresh | 200 | INBOX old_summary |
@@ -713,3 +725,47 @@ attend" line.
 - The App Store privacy category and Play Data safety type for forwarded email content, before the
   pilot opens to everyone.
 - Retention periods (12 months, 60 days, 30 days) for Francisco's confirmation in M11.
+
+## 17. Day 1 status (November 11, 2026) and the calibration list
+
+Built on branch m10-summaries (0b4a68c, a5f558a, 63f636c), provider-independent, nothing deployed:
+the contract and the four shared copies under the drift check; sealed.ts; address.ts; match.ts;
+headers.ts and authenticity.ts (rows 4 to 14); sanitize.ts and sections.ts; the rules deny blocks
+and the meetingSummaries.expiresAt index entry (tests written; the rules tests need Java and have
+not run here). Functions 38 suites and 1194 tests, the app 173 suites and 2173 tests, typecheck and
+lint clean. Each module went through an independent review and adversarial re-checks: two security
+holes were closed (an attacker's slow DNS turning a forgery into a retry; a Unicode d= that aligns
+with the vendor while the key is fetched elsewhere), and the section parser went through six rounds,
+ending with no strict failure on a 6.2 million case heading matrix and 448 vendor-style layouts.
+
+Day 2 wiring notes (from the builders):
+- inbound.ts calls assessAuthenticity(raw, {receivedAt, now: attempt time, senders, mailboxes});
+  labels and the stored fromAddress come from the strict header.from, never from postal-mime;
+  messageKey from header.messageId, else the deciding signatureValue; the auth block from
+  storedAuth(). index.ts loads the summaries modules lazily (mailauth only in summaryInbound).
+- Order: sanitizeText, stripForwardWrapper, parseSections and extractSummaryMeta on the inner text;
+  empty sections refuse as unreadable; HTML-only mail refuses as unreadable until an HTML-to-text
+  converter is chosen (never strip tags with regexes).
+- A forward wrapper's Date is wall-clock text: turn it into an unsigned anchor with the
+  preferences zone. Keep one conference-link parser (extractSummaryMeta or match.ts, not both).
+- Check the sealed blob size before the commit transaction (the 1 MiB document limit) and degrade
+  by dropping item text in favour of offsets, never by failing the transaction.
+- Callables validate their output with the contract response schemas; summaryAction never returns
+  decrypted fields; createAddress may now return rate_limited (tombstone); SealedError maps to a
+  contract code and logs only its reason. The app maps functions/not-found on summaryRead to
+  not_enabled.
+- contentDigest uses the first key, so a key rotation lets one redelivery pass the digest marker
+  for up to 35 days (the Message-ID marker still catches it); say so in the rotation runbook.
+
+Calibration list (decide on Francisco's real recap, day 2 and day 5, not on guessed layouts):
+- Authenticity: how many DKIM-Signature fields the real path carries (cap 5); whether the vendor
+  signs with its own domain, an aligned subdomain (no row 5 retry then) or only its email service
+  (unaligned, so V cannot pass: then the (sender, signing domain) pair decision); whether From is a
+  subdomain with a parent d=; the Gmail confirmation sender and its google.com signature (a google
+  temperror there is refused, not retried).
+- Sections: lowercase indented known headings under a derived item join it; a custom label at a
+  derived item's text column joins; a double-spaced custom label after a wrapped open derived tail
+  stays derived; a list heading indented two spaces after an item ending in a lowercase noun joins;
+  one-word team labels count as names inside list sections; first names ending in -cion count as
+  topics; 'Attendees' followed by 'Name, Role' lines gives custom sections without items. Any
+  change that moves kinds, offsets or ids bumps SECTIONS_PARSER_VERSION.
