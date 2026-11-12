@@ -568,9 +568,10 @@ description, and Update on an iPhone installs it.
 1. You: set `REVENUECAT_ALLOW_SANDBOX=false` and run the C1 deploy again. Check: the Cloud Run
    variable reads false. Every later review needs it on again.
 2. You: each subscription description reads Approved with the new text.
-3. Assistant, when you say so: tag `v1.6.0` on commit dddd715 on branch v2 in the side git dir. The
-   binary audit of November 7 showed build 11 matches that commit; later commits (docs, the spelling
-   fix 5029cf1) are not in the build. The tag is pushed only when you ask.
+3. Assistant, when you say so, in the side git dir on branch v2: tag `v1.6.0-android` on commit
+   dddd715 (Play vc27; the binary audit of November 7 matched it) and `v1.6.0-ios` on commit
+   a628e1a (build 12 was built from that work tree; build 11 is not the released binary). The tags
+   are pushed only when you ask.
 4. Assistant: the CHANGELOG.md 1.6.0 date, docs/v1/HANDOFF.md "Status update", docs/v2/PLAN.md and
    docs/v2/RELEASE-1.6.0.md with the live versions and dates, quoted from the consoles.
 5. You: a screenshot of 1.6.0 Ready for Distribution for line 16 of STAGE2-ACCEPTANCE.md.

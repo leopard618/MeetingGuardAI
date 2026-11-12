@@ -1,9 +1,23 @@
 name: CI
 
+# Private repo on GitHub Free: 2,000 Actions minutes a month, so CI runs only where it protects
+# something:
+# - pull requests into v2 (staging) and main (production), but NOT while the PR is a draft: open a
+#   PR as a draft while still pushing to it, then click "Ready for review" to run CI once;
+# - pushes to main (the release merge). Merges into v2 are already checked on their PR, and the
+#   v2 -> main release PR checks the combined code; to check v2 by hand use Actions > CI >
+#   "Run workflow";
+# - never on work branches (dev_dusko, dev_sven) or docs-only changes.
+# The Android bundle step runs only for main (release PRs, pushes and manual runs).
 on:
   push:
-    branches: ['**']
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
   pull_request:
+    branches: [main, v2]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,12 +29,15 @@ concurrency:
 jobs:
   app:
     name: App (Node ${{ matrix.node }})
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A healthy run takes about 7 minutes; the cap stops a hang from burning the monthly minutes.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 24]
+        # Node 22 only (the Cloud Functions runtime); a second version doubled the cost.
+        node: [22]
     env:
       CI: 'true'
       EXPO_NO_TELEMETRY: '1'
@@ -42,9 +59,12 @@ jobs:
         run: npm run typecheck
 
       - name: Unit tests
-        run: npm test -- --ci
+        # --forceExit: since Oct 27 every suite passes in about 2 minutes but Jest never exits
+        # (a handle left open after the run), so the job sat idle until the timeout cancelled it.
+        run: npm test -- --ci --forceExit
 
       - name: Bundle (Android)
+        if: github.event_name != 'pull_request' || github.base_ref == 'main'
         # Dummy PUBLIC values so the bundle builds with a complete config. They are not real
         # credentials; real values come from EAS environment variables at build time. They are
         # scoped to this step so the unit tests run without any EXPO_PUBLIC_* values.
@@ -60,6 +80,7 @@ jobs:
         run: npx expo export --platform android --no-bytecode --output-dir dist/ci-export
 
       - name: Check the bundle for secrets
+        if: github.event_name != 'pull_request' || github.base_ref == 'main'
         shell: bash
         run: |
           set -euo pipefail
@@ -88,6 +109,7 @@ jobs:
 
   functions:
     name: Cloud Functions
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -123,6 +145,7 @@ jobs:
 
   firestore-rules:
     name: Firestore rules (emulator)
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:

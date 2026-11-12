@@ -28,7 +28,7 @@ the Spanish lines. Full step detail: `TEST-GUIDE-STAGE2.md`; the runbook and the
 | 13 | M9: sent from your phone through the share sheet | Share message > WhatsApp; back in the app the sheet reports what the phone reported (handed over on Android, confirmed on iPhone), never "delivered". | |
 | 14 | M9: the meeting moves only if you confirm | After sending, nothing has moved; tap Move; the dashboard and Google Calendar show the new time; Keep the time on a second meeting leaves it unchanged. | |
 | 15 | M9: End meeting now (client request) | On the running meeting tap End now and confirm; "Happening now" clears. | |
-| 16 | Stage 2 release | Play Console shows 1.6.0 in production (staged rollout); App Store Connect shows 1.6.0 submitted, or live if Apple has finished. | |
+| 16 | Stage 2 release | Play Console shows 1.6.0 in production (staged rollout); App Store Connect shows 1.6.0 submitted, or live if Apple has finished. | iPhone part: 1.6.0 (12) submitted November 10, 2026, 11:44 PM (submission 5f7c286e; screenshot deliver/screenshots/evidence/ios-1.6.0-waiting-for-review-20261110.png), approved by Apple November 11, 2026 ("eligible for distribution"); add the Ready for Distribution screenshot after the release. Play part: add the Play Console screenshot. |
 
 Spanish pass: repeat lines 4, 9 and 12 in Spanish.
 
