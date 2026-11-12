@@ -108,6 +108,11 @@ Day-0 checks, in Postmark's activity view and our logs (2 hours):
    Francisco adds the card), creates both servers and invites Dusko to the Summaries server. As
    the admin he can read the Summaries server's inbound mail for the retention period, so
    Francisco is told so in the proposal and may ask for another setup.
+   Changed 2026-11-12: Postmark accepts sign-ups only with a company email (no Gmail), so
+   Francisco opens the account himself with his Aeternum Tech email, chooses Pro, adds the card,
+   turns on two-factor login and invites Sven and Dusko as Admins (Sven's request in the group).
+   Sven then creates both servers, the domains and the approval request. Both admins can read the
+   Summaries server's mail for the retention period.
 8. Partly resolved 2026-11-11: activity history defaults to 45 days. The retention add-on (Pro and
    up, from about USD 5 a month) sets 7 to 365 days for the whole account, every server included;
    below 45 days Postmark removes expired data within 24 hours. So [N] in section 14 is 45 unless
@@ -723,7 +728,7 @@ attend" line.
 | 1 | high | Recipient binding met through an unsigned Cc or a display name | B counts a mailbox only from a signed header, addr-spec only (section 5) |
 | 2 | high | An Outlook "Forward to" rule re-sends forged mail as the user | U never auto-files; "Forward to" unsupported, Redirect only; label "Forwarded from" (decision 5) |
 | 3 | high | Mail to random local parts burns the shared Postmark allowance | Day-0 check 6; usage alerts; Pro arrives with A1 anyway; claim removed |
-| 4 | high | Everyone on the shared Postmark account can read M10 mail | Decided Nov 11: Sven administers the account (day-0 check 7), Francisco told in the proposal; Dusko sets the webhook himself so its secret never passes through chat; shortest retention; Postmark named in the policy |
+| 4 | high | Everyone on the shared Postmark account can read M10 mail | Decided Nov 11, changed Nov 12: Francisco owns the account, Sven and Dusko are Admins (day-0 check 7), Francisco told in the proposal; Dusko sets the webhook himself so its secret never passes through chat; shortest retention; Postmark named in the policy |
 | 5 | medium | Junk counted before authentication silently drops real recaps | Only refusals count, deduped by Postmark MessageID; banner suggests a new address (step 9) |
 | 6 | medium | A genuine recap of an attacker's meeting files automatically | Exact sender addresses; auto-file on rule A only; reader line (sections 5, 6) |
 | 7 | medium | Trust facts lost after filing from the inbox | Immutable trust facts; M11 never pre-selects such items; no one-tap on not_addressed_to_you |
@@ -744,7 +749,9 @@ attend" line.
   the DNS is at Hostinger and Francisco gave Sven admin access to the Hostinger account, so Sven
   adds the summaries MX record together with his own; DMARC reports for his subdomain go to a new
   dmarc@meetingguard.ai mailbox. Decided Nov 11 by Dusko: Sven opens and runs the account in
-  Aeternum Tech's name (day-0 check 7). Still open: Sven's OK, and Francisco's OK on Pro.
+  Aeternum Tech's name (day-0 check 7). Nov 12: Sven agreed; Postmark refused a Gmail sign-up, so
+  Francisco opens the account with his company email and invites Sven and Dusko as Admins. Still
+  open: Francisco's sign-up and his OK on Pro.
 - Francisco: which notetaker; which mailbox (Gmail, Workspace, Microsoft 365, Outlook.com); is it his
   sign-in email; one recap as an attachment; for Microsoft 365, his administrator.
 - Postmark day-0 checks 1 to 8 (section 2).
