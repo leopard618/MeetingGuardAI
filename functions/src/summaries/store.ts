@@ -299,6 +299,34 @@ export function activeGmailRequests(user: Pick<SummaryUserDoc, 'gmailRequests'>,
 }
 
 /**
+ * The stored list without its expired, unreadable and repeated entries (newest first, one per Gmail
+ * address), or null when there is nothing to remove. Pure; pruneGmailRequests writes it.
+ */
+export function prunedGmailRequests(user: Pick<SummaryUserDoc, 'gmailRequests'>, now: Date): SummaryGmailRequest[] | null {
+  const kept = unexpiredGmailRequests(user, now).sort(newestFirst);
+  return kept.length === user.gmailRequests.length ? null : kept;
+}
+
+/**
+ * Removes expired Gmail confirmation requests from summaryUsers/{uid} in ONE transaction that
+ * re-reads the document (the privacy promise is 2 days, and the codes otherwise stay until the
+ * field is next written). Writes only gmailRequests, and only when something is removed; never
+ * creates summaryUsers and leaves a disconnect tombstone alone. Returns how many entries went.
+ */
+export async function pruneGmailRequests(db: Firestore, uid: string, now: Date): Promise<number> {
+  assertUid(uid);
+  return db.runTransaction(async (tx: Transaction): Promise<number> => {
+    const ref = summaryUserRef(db, uid);
+    const user = addressHolder(await tx.get(ref));
+    if (user === null) return 0;
+    const pruned = prunedGmailRequests(user, now);
+    if (pruned === null) return 0;
+    tx.update(ref, { gmailRequests: pruned });
+    return user.gmailRequests.length - pruned.length;
+  });
+}
+
+/**
  * Which requests to keep (finding 14): those from a listed mailbox or the verified account email
  * first, then newest first. `listed` holds normalized, lowercased addresses.
  */

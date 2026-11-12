@@ -63,3 +63,11 @@ export { whatsappLinkStart, whatsappLinkStatus, whatsappUnlink, whatsappWebhook 
 // false at deploy time, so a deploy without the SUMMARIES_* secrets always succeeds; the callables
 // bind none.
 export { summaryAction, summaryInbound, summaryRead, summaryStatus } from './summaries';
+// M11: summaryCommitments is `undefined` unless SUMMARIES_ENABLED is true AND the
+// SUMMARIES_SERVICE_ACCOUNT line is set at deploy time (binds SUMMARIES_DATA_KEY and OPENAI_API_KEY;
+// src/summaries/commitmentsFunction.ts, docs/v2/M11-DESIGN.md section 2.1).
+export { summaryCommitments } from './summaries';
+// M11: summaryWhatsApp (the WhatsApp worker) is `undefined` unless SUMMARIES_ENABLED and
+// WHATSAPP_ENABLED are true AND the summaries service account and SUMMARIES_WHATSAPP_INVOKER are set
+// and differ at deploy time (src/summaries/whatsappFunction.ts, docs/v2/M11-DESIGN.md section 4.3).
+export { summaryWhatsApp } from './summaries';

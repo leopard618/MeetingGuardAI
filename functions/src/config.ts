@@ -367,3 +367,88 @@ export function parseReasoningEffort(value: string): ReasoningEffortSetting | nu
   const normalized = value.trim().toLowerCase();
   return (REASONING_EFFORTS as readonly string[]).includes(normalized) ? (normalized as ReasoningEffortSetting) : null;
 }
+
+// ---------------------------------------------------------------------------------------------
+// M11: summaries become commitments (summaryCommitments; docs/v2/M11-DESIGN.md sections 2.1 and
+// 2.8). Constants only: no new secret and no new declared param (decision 13). The model and its
+// reasoning effort are the assistant's OPENAI_MODEL and OPENAI_REASONING_EFFORT; the data key and
+// the OpenAI key are the existing SUMMARIES_DATA_KEY and OPENAI_API_KEY secrets.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * summaryCommitments function options: one OpenAI call of at most 70 s plus the reads, the checks
+ * and the transactions (the app's SUMMARY_COMMITMENTS_TIMEOUT_MS is 100 s). It mostly waits on
+ * OpenAI, so one instance serves many calls (1 vCPU is needed for concurrency above 1).
+ */
+export const COMMITMENTS_FUNCTION_TUNING = {
+  memory: '512MiB',
+  cpu: 1,
+  concurrency: 20,
+  timeoutSeconds: 90,
+  maxInstances: 10,
+} as const;
+
+/** The extraction's own caps (the assistant's ASSISTANT_TUNING stays as it is). */
+export const COMMITMENTS_TUNING = {
+  /** Per-attempt OpenAI HTTP timeout. */
+  openAiRequestTimeoutMs: 65_000,
+  /** Hard stop for the whole OpenAI call including the retry, below the 90 s function timeout. */
+  openAiDeadlineMs: 70_000,
+  openAiMaxRetries: 1,
+  /** Reasoning plus visible output tokens; a call cut at this bound is a failure (finish_reason 'length'). */
+  maxCompletionTokens: 6_000,
+  /** ONE budget for the item texts, headings and prose sent to the model. */
+  maxModelTextChars: 60_000,
+  maxModelItems: 150,
+  /** One preparation at a time per summary; longer than the deadline, shorter than the app's wait. */
+  leaseSeconds: 100,
+  /** Pre-selection on a fully trusted recap needs at least this confidence. */
+  preselectMinConfidence: 60,
+  /** Model calls per summary for one content digest and extractor version (the first one charged). */
+  maxModelCalls: 3,
+  /** One global-budget unit per started block of this many payload characters. */
+  globalBudgetCharsPerUnit: 10_000,
+} as const;
+
+// ---------------------------------------------------------------------------------------------
+// M11: suggested tasks on WhatsApp (the summaryWhatsApp worker and the webhook's port;
+// docs/v2/M11-DESIGN.md section 4). Constants only: no new secret and no new declared param
+// (decision 13). SUMMARIES_WHATSAPP_INVOKER and SUMMARIES_WHATSAPP_URL are plain keys in
+// functions/.env.<projectId>, read at load like SUMMARIES_SERVICE_ACCOUNT (summaries/gate.ts).
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * summaryWhatsApp function options: at most one OpenAI call (70 s, COMMITMENTS_TUNING) plus the
+ * reads and the transactions. It mostly waits, so one instance serves several calls.
+ */
+export const SUMMARY_WHATSAPP_FUNCTION_TUNING = {
+  memory: '512MiB',
+  cpu: 1,
+  concurrency: 20,
+  timeoutSeconds: 90,
+  maxInstances: 5,
+} as const;
+
+/** The WhatsApp leg's own caps (the webhook's WHATSAPP_TUNING stays as it is). */
+export const SUMMARY_WHATSAPP_TUNING = {
+  /** The port never waits longer than this for the worker (the worker's timeout is 90 s). */
+  maxPortTimeoutMs: 95_000,
+  /** Kept free of the webhook's inline budget for the sends after the worker answered. */
+  sendsReserveMs: 15_000,
+  /** The shortest wait a port call gets late in a batch (past it: "Still preparing"). */
+  minPortTimeoutMs: 5_000,
+  /** The metadata server's ID token request. */
+  idTokenTimeoutMs: 3_000,
+  /** A list offer lives this long; the replies name its numbers. */
+  offerTtlMinutes: 15,
+  /** Lists answered per summary per UTC day (extraction.offers): stops a bug or a loop. */
+  maxOffersPerSummaryPerDay: 20,
+  /** The offer picks the newest filed or kept summary received within this many days. */
+  offerWindowDays: 14,
+  /** Filed or kept summaries scanned for the offer, newest first. */
+  offerScanLimit: 10,
+  /** Longest title or quote line in a list message (a cut ends with three ASCII periods). */
+  maxLineChars: 140,
+  /** The worker's answer is read up to this many bytes. */
+  maxResponseBytes: 64 * 1024,
+} as const;

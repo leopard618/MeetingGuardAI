@@ -84,3 +84,91 @@ export function isPilotUid(uid: string, raw: string): boolean {
   if (typeof uid !== 'string' || !PILOT_UID_PATTERN.test(uid)) return false;
   return parsePilotUids(raw).has(uid);
 }
+
+// ---------------------------------------------------------------------------------------------
+// M11: the WhatsApp worker's plain keys (docs/v2/M11-DESIGN.md section 4.3, section 15 finding 2)
+// ---------------------------------------------------------------------------------------------
+
+/** A service account address ("name@project.iam.gserviceaccount.com", "123-compute@developer...") or the "name@" shorthand. */
+const SERVICE_ACCOUNT_RE = /^[a-z0-9][a-z0-9._-]{0,99}@(?:(?:[a-z0-9-]+\.)+gserviceaccount\.com)?$/i;
+
+/**
+ * Whether `value` names ONE service account. Anything else is refused: firebase-tools turns an
+ * invoker list holding "public" into allUsers (anyone on the internet) and "private" into nobody,
+ * and a user, a group or a domain is no runtime identity.
+ */
+export function isServiceAccountAddress(value: string | null): boolean {
+  return typeof value === 'string' && SERVICE_ACCOUNT_RE.test(value.trim());
+}
+
+/**
+ * The default compute account ("<number>-compute@developer.gserviceaccount.com") or the App Engine
+ * default ("<project>@appspot.gserviceaccount.com"): the identities every function without its own
+ * account runs as, the WhatsApp webhook included.
+ */
+export function isDefaultServiceAccount(value: string | null): boolean {
+  if (typeof value !== 'string') return false;
+  const address = value.trim().toLowerCase();
+  return /^\d+-compute@developer\.gserviceaccount\.com$/.test(address) || address.endsWith('@appspot.gserviceaccount.com');
+}
+
+/**
+ * SUMMARIES_WHATSAPP_INVOKER while the module is LOADED: the webhook's runtime service account, the
+ * only identity allowed to invoke summaryWhatsApp (today the default compute account). A plain key
+ * in functions/.env.<projectId>, read at deploy and load time like SUMMARIES_SERVICE_ACCOUNT, for
+ * the same reason (a declared param would be resolved after discovery). The "name@" shorthand is
+ * expanded the same way. Null when unset or blank, and when it is not one service account address
+ * (isServiceAccountAddress: never "public", "private", allUsers, a user or a group): summaryWhatsApp
+ * is then not exported. Never logged.
+ */
+export function summariesWhatsAppInvokerAtLoad(): string | null {
+  const raw = process.env.SUMMARIES_WHATSAPP_INVOKER;
+  if (typeof raw !== 'string') return null;
+  const value = raw.trim();
+  if (value.length === 0) return null;
+  const project = process.env.GCLOUD_PROJECT?.trim() ?? '';
+  const shorthand = value.length > 1 && value.indexOf('@') === value.length - 1;
+  const expanded = shorthand && project.length > 0 ? `${value}${project}.iam.gserviceaccount.com` : value;
+  return isServiceAccountAddress(expanded) ? expanded : null;
+}
+
+/** Whether two service account values name the same account (trimmed, case-insensitive). */
+export function sameServiceAccount(a: string | null, b: string | null): boolean {
+  if (a === null || b === null) return false;
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/**
+ * The summaries service account of the two M11 functions (summaryCommitments, summaryWhatsApp), or
+ * null: they are not exported without a DEDICATED account (section 15 finding 2). Null also when
+ * the value is not one service account address, names a default account (isDefaultServiceAccount)
+ * or names the webhook's invoker account: the CLI grants the bound data key to the runtime account,
+ * so each of those would put the key in the webhook's hands. M10's two functions keep
+ * summariesServiceAccountAtLoad and its documented fallback. Never logged.
+ */
+export function dedicatedSummariesServiceAccountAtLoad(): string | null {
+  const value = summariesServiceAccountAtLoad();
+  if (value === null || !isServiceAccountAddress(value) || isDefaultServiceAccount(value)) return null;
+  if (sameServiceAccount(value, summariesWhatsAppInvokerAtLoad())) return null;
+  return value;
+}
+
+/**
+ * SUMMARIES_WHATSAPP_URL while the module is LOADED: the worker's URL the webhook calls and asks its
+ * ID token for, when the default cloudfunctions.net URL is refused as an ID token audience (the
+ * run.app URL, section 4.3, UNVERIFIED until deploy day). Only an https URL without credentials,
+ * query or fragment is accepted; anything else reads as unset. Never logged.
+ */
+export function summariesWhatsAppUrlAtLoad(): string | null {
+  const raw = process.env.SUMMARIES_WHATSAPP_URL;
+  if (typeof raw !== 'string' || raw.trim().length === 0) return null;
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' || url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') return null;
+  // The audience is the service URL as Cloud Run knows it: no trailing slash for the root path.
+  return url.pathname === '/' ? url.origin : `${url.origin}${url.pathname}`;
+}

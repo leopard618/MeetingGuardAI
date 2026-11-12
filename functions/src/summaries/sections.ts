@@ -408,10 +408,12 @@ function matchItem(raw: string): ItemMatch | null {
   return { indent: indent.length, contentOffset, textColumn, numbered: number !== undefined, checked };
 }
 
-const OWNER_RE = /\((?:owners?|responsables?)[ \t]*:[ \t]*([^()\n]+?)[ \t]*\)/iu;
-const DUE_PAREN_RE =
+// The owner and due markers are exported for M11 (functions/src/commitments), which removes them
+// from titles exactly as this parser reads them.
+export const OWNER_RE = /\((?:owners?|responsables?)[ \t]*:[ \t]*([^()\n]+?)[ \t]*\)/iu;
+export const DUE_PAREN_RE =
   /\((?:due(?:[ \t]+date)?|deadline|fecha[ \t]+l[i\u00ED]mite|vencimiento|vence|plazo|entrega)(?!\p{L})(?![ \t]+to\b)[ \t]*:?[ \t]*([^()\n]+?)[ \t]*\)/iu;
-const DUE_INLINE_RE =
+export const DUE_INLINE_RE =
   /(?:^|[\s,;(|-])(?:due(?:[ \t]+date)?[ \t]*:|due[ \t]+(?:by|on)\b|deadline[ \t]*:|fecha[ \t]+l[i\u00ED]mite[ \t]*:|vence(?:[ \t]+el)?[ \t]*:|vence[ \t]+el\b|plazo[ \t]*:)[ \t]*([^()\n;|]+)/iu;
 
 function ownerOf(text: string): string | null {
@@ -428,7 +430,8 @@ function dueTextOf(text: string): string | null {
   return due.length > 0 ? due : null;
 }
 
-const LINK_RE = /\b(?:https?:\/\/|www\.)\S|\bmailto:\S|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\/\S/i;
+/** A link (has_link); exported for M11's title cleaning, which also removes bare host names. */
+export const LINK_RE = /\b(?:https?:\/\/|www\.)\S|\bmailto:\S|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\/\S/i;
 
 // ---------------------------------------------------------------------------------------------
 // Prompt-injection scan (whole text)
@@ -1528,7 +1531,8 @@ export interface SummaryMeta {
   conferenceLinks: string[];
 }
 
-const MONTHS: Readonly<Record<string, number>> = {
+/** English and Spanish month names and abbreviations (lowercase, no accents); M11's resolveDue reads them too. */
+export const MONTHS: Readonly<Record<string, number>> = {
   january: 1, jan: 1, enero: 1, ene: 1,
   february: 2, feb: 2, febrero: 2,
   march: 3, mar: 3, marzo: 3,

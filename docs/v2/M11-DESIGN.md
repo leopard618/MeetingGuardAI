@@ -33,7 +33,9 @@ Not M11:
   (decision 15). Server push (A8), App Check (A9).
 - New languages (M12): every M11 string, the server texts and the prompt are keyed by language
   with an EN fallback; summary headings stay EN and ES (M10 section 8).
-- WhatsApp templates, opt-in, STOP, voice notes, and any message the bot starts by itself (M13).
+- WhatsApp templates, opt-in, STOP, voice notes, and any message the bot starts by itself (M13),
+  including the opt-in WhatsApp reminders for accepted tasks that Francisco asked for on Nov 12
+  2026 (section 12).
 - A direct vendor connection (Fathom or Circleback webhooks, named in the Oct 16 memo and the Oct 19
   addendum): the Oct 27 text and M10 chose the private address only.
 - A per-user retention choice, a "View in summary" link on task details, full-screen alarms for
@@ -627,9 +629,10 @@ through pushPending (engine.ts:1379-1386) on any phone with a sync turned on.
 
 What is honest now: the bot answers inside Meta's 24-hour window only and has no template code
 (send.ts:4-8). So M11's WhatsApp leg starts when the user writes. A message the bot sends by itself
-when a summary is filed needs an approved template and an opt-in, which is M13. Whether a
-"commitments ready" template was in the batch submitted during M10 is UNVERIFIED; M13 adds it if
-not, and it leads into this same flow.
+when a summary is filed needs an approved template and an opt-in, which is M13. The M13 batch is
+not submitted yet (Nov 12 2026), so the "commitments ready" template and the task reminder
+template go into it; the first leads into this same flow. Francisco confirmed this order on Nov 12
+2026 (section 12).
 
 ### 4.1 Flow
 
@@ -1115,6 +1118,28 @@ user's OK, and the as-written list is always one tap away.
 
 ## 12. Open questions (each with the default that keeps work moving)
 
+Decided by Francisco on Nov 12 2026 (questions 1, 2, 3, 4 and 6 below; the others keep their
+defaults):
+- 1: one AI action per summary for the suggested tasks; the as-written list stays free.
+- 2: other people's commitments become follow-up tasks that keep the person's name visible
+  ("<name>: <what>").
+- 3: no date in the summary: the reminder defaults to tomorrow 9:00 in the user's local time, and
+  the user can change it on the review screen before accepting.
+- 4: the retention periods as proposed; accepted tasks stay when the summary is deleted (already
+  so: deleteSummary in summaries/actions.ts removes only the summary document and its markers).
+- 6: the user-started "commitments" / "compromisos" command now; the message the bot starts by
+  itself when a summary is filed comes with M13, once Meta approves the templates.
+- New (M13): users can opt in to WhatsApp reminders at the scheduled time of accepted tasks,
+  follow-ups on other people's commitments included. Needs: a reminder template in EN and ES
+  (utility category) in the batch submitted to Meta during M10, with the "commitments ready"
+  template; its own opt-in switch next to M13's opt-in and STOP; a server-side schedule, because
+  today only the phone schedules reminders (taskReminders.ts); the reminder time kept outside the
+  task document (a new task key drops the task on 1.6.0, hazard 3); Meta charges per template
+  message sent outside the 24-hour window, by country. Included in M13 at no extra charge (Dusko,
+  Nov 12 2026); the templates are drafted in WhatsApp-Templates-2026-11-12.md.
+- He sends the next recap as an original .eml attachment, with the full headers, for the
+  calibration.
+
 Francisco:
 1. Does preparing suggestions count as an AI action? Default: yes, one action per summary the first
    time, like a debrief (ALLOWANCES-2026-11-05.md:23); the as-written list is free.
@@ -1297,3 +1322,174 @@ audience (section 14 step 6), the summaries account's Auth role (step 1), the ba
 and task reminders (4.2), the production preferences zones (owner question 9), whether the To Do
 write-back moves updatedAt (3.4), and the production model's reasoning effort against the 6,000
 output tokens (2.8).
+
+## 16. Build status, server (November 12, 2026)
+
+Built on dev_dusko (not committed yet, nothing deployed, the OpenAI key never used; everything runs
+against fakes): the server side of days 1 to 3 of section 10.
+- Day 1: the contract additions in both aiContract.ts copies (byte-identical); the read.ts loader
+  fields (contentDigest, extraction, forwardedBy) and the list counts; functions/src/commitments/
+  (payload.ts, verify.ts, due.ts with resolveDue, asWritten.ts, preselect.ts, ids.ts, taskDoc.ts,
+  extraction.ts, text.ts); shared/sealed.ts contentDigests(); and an M10 leftover: expired Gmail
+  codes are removed whenever the status is read (store.ts pruneGmailRequests).
+- Day 2: the prompt and the one strict tool (commitments/prompt.ts, tool.ts); per-client tuning in
+  llm.ts; commitmentsModel.ts (the stored shape and its pure steps), commitmentsStore.ts (lease,
+  charge, call cap, global-budget units, stale and carry-over, size budget, decide),
+  commitmentsHandler.ts (get, prepare, decide), commitmentsRuntime.ts and the lazy shell
+  commitmentsFunction.ts; scripts/eval-commitments.mjs with ten synthetic EN and ES recaps, run with
+  --offline only.
+- Day 3: decide with the task document and its rules test; the private worker summaryWhatsApp
+  (whatsappProtocol.ts, whatsappRender.ts, whatsappCommitments.ts, whatsappRuntime.ts,
+  whatsappFunction.ts); on the webhook side summaryPort.ts, summaryRoute.ts, session.summaryOffer
+  with its clears, two own blocks in webhook.ts and one in whatsapp/index.ts, and the allowance
+  wording of the messages.ts quota line.
+Also in the working tree, for M10 section 11: functions/scripts/send-test-inbound.mjs and its pure
+module summaries/provider/postmarkTestPayload.ts.
+
+Checks: functions 68 suites and 2207 tests (18 new M11 suites; 15 of the tests come from the review
+fixes), 2 snapshots, typecheck, lint (0 warnings) and the four-pair contract check clean; the
+repo-root typecheck clean; noTypographicChars (it also scans functions/src) passes. The rules test
+of the server task document (the "tasks from summary commitments (M11)" block of
+test/rules/firestore.rules.test.ts) is written and typechecks but has not run: Java is not
+installed here, so it first runs in CI on the draft PR.
+
+Review: one reviewer pass, 10 findings (S1 to S6, P1 to P4; S5 and P4 are one defect). All 10 were
+confirmed against the code and fixed, each with a regression test (one fix covers S5 and P4); none
+rejected, none deferred. What changed:
+- S1, section 4.2: a suggestion whose owner matched only the user's first name (owner_guess, "You?"
+  in the app) is never marked on WhatsApp, and its line reads "(you? the summary says: Francisco)",
+  so ALL never adds a colleague's job as the user's own task. A number the user picks after reading
+  that line still adds it as the user's task.
+- S2, section 2.4 check 3: a title is never grounded when it or its anchor says "not" (text.ts
+  NEGATIONS: not, no, never, without, nor, the "n't" contractions; sin, ni, nunca, jamas, tampoco,
+  nada, ningun and its forms). Negations are stopwords or shorter than 3 letters, so a model title
+  could add one or drop one ("Share the deck" from "Do not share the deck") and pass; such a title
+  now falls back to the anchor's own words.
+- S3, section 4.2: on WhatsApp every link form in text taken from the summary (quotes, titles,
+  section headings, owner names, the meeting title) is defanged: "hxxps://pay[.]example[.]com/x",
+  "name[at]acme[.]io" (verify.ts defangLinks, the patterns cleanTitle removes). WhatsApp makes
+  links tappable even with preview_url false, and the app never shows a summary link as a tap
+  (3.2). Quotes are otherwise verbatim, as 4.2 says.
+- S4, section 2.7: the anchor key's occurrence number is counted on the normalized text the key
+  hashes, so two lines that differ only in case or spacing get 1 and 2 and never share a key.
+  decide also treats a task it created earlier in the same call as existing, so a shared key can
+  no longer create a second task and orphan the first.
+- S5 and P4, section 2.8: every model call counts toward the cap of 3, also one whose action is
+  refunded (configuration, connection, rate_limited, server), as 2.8 says. The code took refunded
+  calls off the cap, so failing calls during an OpenAI incident were unbounded per summary (only
+  the global budget stopped them), and a connection reset after a finished completion was billed
+  but never counted. A refund still gives the action back and clears the charge.
+- S6, sections 2.1 and 4.3: SUMMARIES_WHATSAPP_INVOKER must be one service account address
+  (gate.ts isServiceAccountAddress); "public" (firebase-tools turns it into allUsers), "private",
+  users, groups and domains read as unset. Both M11 functions read the summaries account through
+  dedicatedSummariesServiceAccountAtLoad, which is null for a default account
+  (<number>-compute@developer.gserviceaccount.com, <project>@appspot.gserviceaccount.com), for the
+  invoker's account and for anything that is not a service account, so neither function is
+  exported then and the CLI never grants the data key to the webhook's identity.
+- P1, section 4.1 step 3: an AI list that found nothing no longer hides a summary on WhatsApp.
+  After ai_empty the worker puts the items as written back in use (free, the kept view) and
+  refreshes the offer without the reply AI. The pick also reads views.ai.state and the
+  as_written view's key and state: a summary whose view in use is empty stays eligible while the
+  other view is not empty, and "Reply AI to see the tasks Meeting Guard AI already suggested"
+  appears only when that AI list has lines.
+- P2, section 3.4 step 5: Undo compares the stored fd with the digest under every key of the ring
+  (ids.ts taskFieldsDigestCandidates), so a task accepted before a SUMMARIES_DATA_KEY rotation can
+  still be undone.
+- P3, section 3.4: a well-formed device zone that this server's Intl does not know reads as no
+  request zone (then the preferences zone, then the meeting's zone) instead of refusing the whole
+  decide; drop, restore and remove never needed a zone. A value that is not zone-shaped is still
+  invalid_request.
+
+What changed against the text above (the code's facts):
+- 2.1: the function tuning is its own block, COMMITMENTS_FUNCTION_TUNING (not
+  SUMMARIES_FUNCTION_TUNING.commitments), and COMMITMENTS_TUNING adds maxModelCalls 3 and
+  globalBudgetCharsPerUnit 10,000. The shells read dedicatedSummariesServiceAccountAtLoad (S6).
+  The OpenAI client tuning (llm.ts OpenAiClientTuning) also carries maxRetries; four lines inside
+  createOpenAiClient read it, with ASSISTANT_TUNING as the default (tested).
+- 2.2: the prompt and the tool live in functions/src/commitments/prompt.ts and tool.ts, not in
+  summaries/commitmentsPrompt.ts.
+- 2.3 and 2.9: a refusal or no tool call is state empty (2.3); a call cut by finish_reason
+  'length', or arguments that do not parse, is upstream_error with the charge kept (2.9).
+- 2.4: an item quote is the whole item, up to 1,000 characters (SUMMARY_LIMITS.maxItemChars); the
+  300 cap applies to sentence and due quotes; COMMITMENT_LIMITS.maxOwnerChars is 100. The parser's
+  item.owner always wins (another name from the model counts as ownerReplaced). 'me' needs a match
+  of two or more words; a one-word match of the first name is the owner_guess; "Cristina Reyes
+  Sierra" against "Cristina" is someone else. LINK_RE, OWNER_RE, DUE_PAREN_RE, DUE_INLINE_RE and
+  MONTHS are now exported from sections.ts (LINK_RE was not); sealed.ts gains contentDigests().
+  Check 3 gains the negation rule (S2).
+- 2.7: item statuses are not stored in items[]. A decisions[] list keyed by anchorKey {k, t, s,
+  taskId, gen, at, fd, via, qs, qe} sits beside views {ai, as_written}, so an AI result survives a
+  switch to the items as written and a stale extraction hands its decisions to the new one; the
+  top-level state, key, mode, preparedAt and counts mirror the view in use. The occurrence number
+  is counted on normalized text (S4). The stored shape is a loose object, so extraction.offers
+  {day, n} of 4.3 survives every write.
+- 2.7 Validity: when the text changed, get answers stale with commitments null (the old offsets
+  would quote text that no longer exists); when only the parser or the extractor changed, the old
+  list comes back read-only with nothing pre-selected.
+- 2.8: the stats shard write is repeated in commitmentsRuntime.ts instead of moving out of
+  assistant/index.ts, so M11 does not change assistant/index.ts (section 14 step 4 and owner
+  question 2 name it); of the assistant folder only llm.ts changes.
+- 3.4: decide accepts the key of either current view, not only the view in use (another device
+  may have switched). A whitespace-only draft title fails the call as invalid_request. When the
+  user changes the owner but keeps the suggested title, decide rebuilds the "<owner>: " prefix
+  (acceptedTitleOf). The user's names for the owner check are the ID token's name claim and
+  users/{uid}.displayName (no Auth getUser in the callable). Beyond the stated defaults: a reminder
+  that would already be past is dropped, a stated time less than 60 minutes ahead reminds at the
+  time, a date-only due today after 9:00 keeps the date with no time, and with no usable zone the
+  task is stored with timezone 'UTC' and no time or reminder.
+- 4.1 to 4.3: the app and WhatsApp share one code path (commitmentsHandler.ts runCommitmentsOp,
+  which checks the switch and the pilot list again). The worker request carries no timezone; the
+  worker reads the preferences zone itself. The offer also holds marked, open, ai ('none',
+  'offered', 'prepared') and expiresAt, and every answer tells the webhook what to do with the
+  stored offer (set, refresh, clear, keep). The list shows no " - Bish" suffix, because titles
+  already start with "Bish: " (decision 10). The reply words add TODAS, NINGUNA and CANCELA; ranges
+  are not read. The extra files are whatsappProtocol.ts, whatsappRender.ts and whatsappRuntime.ts
+  (worker side) and summaryPort.ts and summaryRoute.ts (webhook side). Text from the summary is
+  defanged (S3) and owner guesses are not marked (S1).
+- 6: the callable name is SUMMARY_COMMITMENTS_CALLABLE, outside CALLABLES: a CALLABLES entry
+  without its FUNCTIONS_CONTRACT row in src/core/contracts.ts fails the app's compile.
+  quota_exceeded and stale are in a separate COMMITMENT_ERROR_CODES (SUMMARY_ERROR_CODES plus the
+  two, with COMMITMENT_ERROR_HTTPS_CODES and commitmentErrorDetailsSchema {reason, usage?});
+  SUMMARY_ERROR_CODES is unchanged, because the app's summaryCore.ts maps every one of its values.
+  The list mask also reads extraction.v, contentDigest, parserVersion and extractorVersion and the
+  top-level parserVersion, so a row can say stale.
+- 14 step 4: the whatsappWebhook bundle now also holds functions/src/summaries/gate.ts and
+  functions/src/summaries/whatsappProtocol.ts; add both to the git diff list before a webhook
+  redeploy.
+
+Open:
+- Lead: add CALLABLES.summaryCommitments and its FUNCTIONS_CONTRACT row in src/core/contracts.ts in
+  the same change as the app service (day 4); keep SUMMARY_COMMITMENTS_CALLABLE.
+- Lead: with S5 and P4 the code follows 2.8, so rate limits and OpenAI outages use up the 3 calls
+  of a summary (the action is refunded each time and the items as written stay free). If a rate
+  limit must not lock a summary out of AI, the one switch is the uncountCall argument of the
+  settle call in commitmentsHandler.ts prepareWithAi.
+- The rules test: CI on the draft PR, or a machine with Java 21.
+- Owner, day 5: the eval with the key in the shell only (npm run build, then node
+  scripts/eval-commitments.mjs --effort <production effort>); its title-fallback share now includes
+  the negation rule (S2).
+- Owner, deploy: SUMMARIES_WHATSAPP_INVOKER is the webhook's runtime account as one service
+  account address (today the default compute account); SUMMARIES_WHATSAPP_URL only if the
+  cloudfunctions.net audience is refused; SUMMARIES_SERVICE_ACCOUNT must name the dedicated
+  summaries account, or the M11 functions are not exported. M10's summaryInbound and summaryRead
+  keep their fallback: a line that names the default compute account still binds the data key to
+  that account through them, so the S6 guard on the M11 functions does not keep the key from it.
+- UNVERIFIED until deploy day: the ID token audience; whether the summaries account may call Auth
+  getUser; whether GCLOUD_PROJECT is set in the webhook runtime (without it the port is absent and
+  the bot behaves as before); openaiKey.ts reading the key over Secret Manager REST as the summaries
+  account.
+- Francisco: the " - Bish" suffix of 4.2 instead of the "Bish: " prefix (only renderOffer would
+  change); the reply words TODAS and NINGUNA.
+- Lead: the 20-a-day bound counts lists only, not replies, so a holder of the invoker account can
+  still run decide on a user's own lines uncounted (finding 12).
+- WhatsApp still makes phone numbers inside a quote tappable: S3 defangs links and email
+  addresses only.
+- Gmail codes of a user who never opens the app outlive the 2-day promise until the next status
+  read or Gmail write; a dailyMaintenance step would close it.
+- Known false positives that leave items unticked, never dropped: bare-host removal strips
+  "Node.js"-style words from titles; "clave" flags "puntos clave" as payment_like; a phone number of
+  12 or more digits reads as payment_like.
+- App, day 4: stale with commitments null means the text changed (offer Prepare again, free);
+  decide answers carry the updated list; prepare can answer preparing (poll get). The loading text
+  "This uses 1 AI action, the first time only" cannot know when AI is already free.
+- The commit still needs to go on dev_dusko.

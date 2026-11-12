@@ -69,7 +69,7 @@ import {
 } from './actions';
 import { isPilotUid } from './gate';
 import { utcDayOf } from './model';
-import { activeGmailRequests, countInbox } from './store';
+import { activeGmailRequests, countInbox, prunedGmailRequests, pruneGmailRequests } from './store';
 
 // ---------------------------------------------------------------------------------------------
 // Errors
@@ -241,15 +241,32 @@ export function refusedTodayOf(user: Pick<SummaryUserDoc, 'refusedDay' | 'refuse
 }
 
 /**
+ * Expired Gmail confirmation codes leave summaryUsers/{uid} when the status is next read (M11 day
+ * 1, the 2-day promise): summaryStatus, and every summaryAction, which answers with the status. A
+ * failure is logged by error name and never fails the status (the answer hides expired codes
+ * anyway).
+ */
+async function pruneExpiredGmailCodes(uid: string, deps: SummaryCallableDeps, now: Date): Promise<void> {
+  try {
+    const removed = await pruneGmailRequests(deps.db, uid, now);
+    if (removed > 0) logOf(deps).info('summaries.status.gmail_pruned', { uid, removed });
+  } catch (error) {
+    logOf(deps).warn('summaries.status.gmail_prune_failed', { uid, errorName: errorName(error) });
+  }
+}
+
+/**
  * The full status of an allowed caller: summaryUsers/{uid} (a disconnect tombstone shows as no
  * address) and the inbox count, which still counts summaries kept after a disconnect without
- * deleteSummaries. Validated with summaryStatusResponseSchema.
+ * deleteSummaries. Expired Gmail codes are pruned from the document on the way (pruneExpiredGmailCodes).
+ * Validated with summaryStatusResponseSchema.
  */
 export async function allowedSummaryStatus(uid: string, deps: SummaryCallableDeps): Promise<SummaryStatusResponse> {
   const template = deps.config.template;
   const ready = parseAddressTemplate(template) !== null;
   const now = deps.now();
   const [user, inboxCount] = await Promise.all([readSummaryUser(uid, { db: deps.db }), countInbox(deps.db, uid)]);
+  if (user !== null && prunedGmailRequests(user, now) !== null) await pruneExpiredGmailCodes(uid, deps, now);
   const status: SummaryStatusResponse = {
     enabled: true,
     allowed: true,

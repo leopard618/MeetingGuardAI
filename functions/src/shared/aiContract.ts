@@ -130,6 +130,20 @@ export const SUMMARIES_CALL_TIMEOUT_MS = 15_000;
 /** Client-side timeout for summaryRead (the function itself times out at 30 s: decrypt plus re-match). */
 export const SUMMARIES_READ_TIMEOUT_MS = 35_000;
 
+/**
+ * M11: the summaryCommitments callable (suggested tasks from a filed or kept summary). Its name is
+ * kept here, outside CALLABLES, until the app's service lands: a CALLABLES entry needs its
+ * FUNCTIONS_CONTRACT row in src/core/contracts.ts in the same change (a missing row is a compile
+ * error), and both then use this value.
+ */
+export const SUMMARY_COMMITMENTS_CALLABLE = 'summaryCommitments' as const;
+
+/**
+ * Client-side timeout for summaryCommitments (the function times out at 90 s: one OpenAI call of
+ * at most 70 s plus the reads, the checks and the transaction).
+ */
+export const SUMMARY_COMMITMENTS_TIMEOUT_MS = 100_000;
+
 // ---------------------------------------------------------------------------------------------
 // Shared enums (types.ts re-uses these so there is a single definition)
 // ---------------------------------------------------------------------------------------------
@@ -1250,6 +1264,120 @@ export const summaryStatusResponseSchema = z.object({
 });
 export type SummaryStatusResponse = z.infer<typeof summaryStatusResponseSchema>;
 
+// ---- summaryCommitments enums and limits (M11, docs/v2/M11-DESIGN.md sections 2, 3 and 6) ----
+//
+// M11 turns a filed or kept summary into suggested tasks ("commitments"): the model proposes, code
+// checks every proposal against the stored text, and nothing becomes a task until the user accepts
+// it (the server writes the task). ADDITIVE: no 1.6.0 client calls summaryCommitments,
+// AI_CONTRACT_VERSION is unchanged, and the M10 shapes only gain optional fields.
+
+export const COMMITMENT_LIMITS = {
+  /** Suggestions in one extraction (AI proposals that survived the checks, or the items as written). */
+  maxProposals: 30,
+  /** Decisions in one decide call. */
+  maxDecisionsPerCall: 30,
+  /** A sentence quote (a commitment from a section without items) is a whole sentence of at most this. */
+  maxQuoteChars: 300,
+  /** A sentence quote shorter than this is dropped. Item quotes are always the whole item (maxItemChars). */
+  minSentenceQuoteChars: 20,
+  /** Suggested and accepted task titles (TASK_LIMITS.maxTitleChars). */
+  maxTitleChars: 200,
+  /** The person a suggestion names (the task's people entry). */
+  maxOwnerChars: 100,
+} as const;
+
+/** How the suggestions were made: AI over the whole text, or the action items exactly as written (no AI, free). */
+export const COMMITMENT_MODES = ['ai', 'as_written'] as const;
+export type CommitmentMode = (typeof COMMITMENT_MODES)[number];
+
+/** Where a summary's suggestions stand. */
+export const COMMITMENT_STATES = [
+  /** Nothing prepared yet (get never calls the model). */
+  'none',
+  /** Another device or WhatsApp is preparing them right now; ask again in a few seconds. */
+  'preparing',
+  'ready',
+  /** Prepared, and nothing survived the checks (or there were no action items). */
+  'empty',
+  /** The summary changed since (content, parser or extractor): the old decisions are read-only; prepare again, free. */
+  'stale',
+] as const;
+export type CommitmentState = (typeof COMMITMENT_STATES)[number];
+
+/** What a suggestion quotes: one whole item of a list, or one whole sentence of a section without items. */
+export const COMMITMENT_ANCHOR_KINDS = ['item', 'sentence'] as const;
+export type CommitmentAnchorKind = (typeof COMMITMENT_ANCHOR_KINDS)[number];
+
+/**
+ * Flags on a suggestion, computed by code, never by the model. The first three are the summary
+ * item flags. payment_like: amounts, account-like numbers, pay, wire, passwords. suggested: under a
+ * "Suggested next steps" heading (the notetaker's idea, not a promise). checklist: a checkbox of a
+ * custom section. owner_guess: "You?" because only the first name matched. similar_added: looks
+ * like a task already added from another summary of the meeting. A later server may add values:
+ * commitmentFlagsSchema drops unknown ones instead of failing the whole answer.
+ */
+export const COMMITMENT_FLAGS = [
+  'possible_instruction',
+  'has_link',
+  'truncated',
+  'payment_like',
+  'suggested',
+  'checklist',
+  'owner_guess',
+  'similar_added',
+] as const;
+export type CommitmentFlag = (typeof COMMITMENT_FLAGS)[number];
+
+/** A suggestion's state (shared by the app, other devices and WhatsApp). */
+export const COMMITMENT_STATUSES = ['open', 'accepted', 'dropped'] as const;
+export type CommitmentStatus = (typeof COMMITMENT_STATUSES)[number];
+
+/** Where an accepted suggestion was accepted. */
+export const COMMITMENT_CHANNELS = ['app', 'whatsapp'] as const;
+export type CommitmentChannel = (typeof COMMITMENT_CHANNELS)[number];
+
+/**
+ * Why nothing is pre-selected (the banner). old_summary: vendor signed and addressed to the user,
+ * but not fresh. not_addressed_to_you: no "Select all" either. forwarded: a hand forward, the
+ * notetaker's signature could not be checked. possible_instruction: part of the text reads like
+ * instructions to software ("Select all" never ticks a flagged item).
+ */
+export const COMMITMENT_PRESELECT_REASONS = ['old_summary', 'not_addressed_to_you', 'forwarded', 'possible_instruction'] as const;
+export type CommitmentPreselectReason = (typeof COMMITMENT_PRESELECT_REASONS)[number];
+
+/** decide: accept (create the task), drop, restore (a dropped one), remove (Undo of an accept). */
+export const COMMITMENT_DECISIONS = ['accept', 'drop', 'restore', 'remove'] as const;
+export type CommitmentDecisionKind = (typeof COMMITMENT_DECISIONS)[number];
+
+/** What one decision did. "Added" is said only from this answer. */
+export const COMMITMENT_OUTCOMES = [
+  /** The task was created now. */
+  'added',
+  /** Its task already exists (a second tap, device or WhatsApp reply): nothing created. */
+  'already_added',
+  'dropped',
+  'restored',
+  /** Undo: the task was deleted and the suggestion is open again. */
+  'removed',
+  /** Undo refused: the task was changed since it was added; the app opens the task instead. */
+  'changed',
+  /** The suggestion is not in a state this decision applies to. */
+  'not_open',
+] as const;
+export type CommitmentOutcome = (typeof COMMITMENT_OUTCOMES)[number];
+
+/**
+ * A filed or kept summary's suggestions on a summaryRead row ("Review commitments (5)"). Absent
+ * when nothing was prepared, and on every answer of an M10 server.
+ */
+export const summaryListCommitmentsSchema = z.object({
+  state: z.enum(COMMITMENT_STATES),
+  /** Suggestions still open (neither accepted nor dropped). */
+  open: z.number().int().min(0).max(COMMITMENT_LIMITS.maxProposals),
+  accepted: z.number().int().min(0).max(COMMITMENT_LIMITS.maxProposals),
+});
+export type SummaryListCommitments = z.infer<typeof summaryListCommitmentsSchema>;
+
 // ---- Shared row shapes -----------------------------------------------------------------------
 
 /** The meeting as it was when the summary was filed (plain text: the user's own calendar data). */
@@ -1310,6 +1438,8 @@ export const summaryListItemSchema = z.object({
   match: summaryMatchSchema.nullable(),
   /** Inbox items: up to 3 meetings to file under with one tap, best first. Empty otherwise. */
   suggestions: z.array(summarySuggestionSchema).max(SUMMARY_LIMITS.maxSuggestions),
+  /** M11, optional: the suggested tasks' state and counts, once prepared (filed or kept summaries only). */
+  commitments: summaryListCommitmentsSchema.optional(),
 });
 export type SummaryListItem = z.infer<typeof summaryListItemSchema>;
 
@@ -1525,6 +1655,220 @@ export const SUMMARY_ERROR_HTTPS_CODES = {
 /** `HttpsError.details` payload the summary* callables attach to every error. */
 export const summaryErrorDetailsSchema = z.object({ reason: z.enum(SUMMARY_ERROR_CODES) });
 export type SummaryErrorDetails = z.infer<typeof summaryErrorDetailsSchema>;
+
+// ---- summaryCommitments (M11, docs/v2/M11-DESIGN.md sections 2 to 4 and 6) -------------------
+//
+// One gated callable (SUMMARY_COMMITMENTS_CALLABLE), deployed like summaryRead, with three ops:
+// - get {summaryId}: the current suggestions; never calls the model, never charges.
+// - prepare {summaryId, mode}: builds them when none are valid. Mode 'ai' sends the text to OpenAI
+//   through the server (one AI action per summary, the first time only); 'as_written' lists the
+//   action items exactly as written (free, no AI).
+// - decide {summaryId, key, timezone, language, decisions}: accept (the server creates the task in
+//   one transaction, with a deterministic id, so a second tap, device or WhatsApp reply never
+//   duplicates it), drop, restore, remove (Undo).
+// The summary is only ever filed (matched) or kept; anything else answers not_found. Every quote is
+// the summary's own text (a whole item or a whole sentence); titles, owners and dates are checked
+// against it by code.
+
+/** An extraction's key ("x_" + 16 hex): decide must name the key it was shown. */
+export const commitmentKeySchema = z.string().regex(/^x_[0-9a-f]{16}$/);
+
+/** A suggestion's anchor: the summary item id ("i_" + 12 hex) or a sentence id ("q_" + 12 hex). */
+export const commitmentAnchorIdSchema = z.string().regex(/^[iq]_[0-9a-f]{12}$/);
+
+/** COMMITMENT_FLAGS, leniently: an unknown value a later server adds is dropped, never a failed parse. */
+export const commitmentFlagsSchema = z
+  .array(z.enum(COMMITMENT_FLAGS).nullable().catch(null))
+  .max(32)
+  .transform((flags) => [...new Set(flags.filter((flag): flag is CommitmentFlag => flag !== null))]);
+
+/** The person a suggestion names, as written in the summary. isUser: it is the user ("You"); guess: only the first name matched ("You?"). */
+export const commitmentOwnerSchema = z.object({
+  name: z.string().min(1).max(COMMITMENT_LIMITS.maxOwnerChars),
+  isUser: z.boolean(),
+  guess: z.boolean(),
+});
+export type CommitmentOwner = z.infer<typeof commitmentOwnerSchema>;
+
+/** A deadline the summary states (read by code from its own words); null on the item when none. */
+export const commitmentDueSchema = z.object({
+  /** Local date YYYY-MM-DD. */
+  date: localDateKeySchema,
+  /** HH:MM, only when the summary writes a clock time. */
+  time: localTimeKeySchema.nullable(),
+  /** The zone a stated time is in (the meeting's); null for a date only. */
+  zone: timeZoneSchema.nullable(),
+  /** The summary's own words for it ("by Friday"), or null. */
+  quote: z.string().min(1).max(COMMITMENT_LIMITS.maxQuoteChars).nullable(),
+  /** The date has passed: shown as overdue, with no reminder until the user picks one. */
+  overdue: z.boolean(),
+});
+export type CommitmentDue = z.infer<typeof commitmentDueSchema>;
+
+/** One suggestion. */
+export const commitmentItemSchema = z.object({
+  anchorId: commitmentAnchorIdSchema,
+  /** Stable 1-based number within this extraction, never reused (WhatsApp replies name it). */
+  number: z.number().int().min(1).max(999),
+  anchorKind: z.enum(COMMITMENT_ANCHOR_KINDS),
+  sectionKind: z.enum(SUMMARY_SECTION_KINDS),
+  /** The section heading as written; null for a body section. */
+  sectionHeading: z.string().max(SUMMARY_LIMITS.maxHeadingChars).nullable(),
+  /** "From the summary:" the whole item or the whole sentence, verbatim, plain text. */
+  quote: z.string().min(1).max(SUMMARY_LIMITS.maxItemChars),
+  /** The proposed task title (cleaned; "<owner>: ..." for someone else's commitment). */
+  title: z.string().min(1).max(COMMITMENT_LIMITS.maxTitleChars),
+  owner: commitmentOwnerSchema.nullable(),
+  due: commitmentDueSchema.nullable(),
+  /** The model's confidence 0 to 100; null for the items as written. */
+  confidence: z.number().int().min(0).max(100).nullable(),
+  flags: commitmentFlagsSchema,
+  /** Ticked when the screen opens (computed when answered, from the current trust facts). */
+  preselected: z.boolean(),
+  status: z.enum(COMMITMENT_STATUSES),
+  /** Accepted: the task's id; null otherwise. */
+  taskId: meetingIdSchema.nullable(),
+  /** Accepted: whether that task still exists ("Removed from your tasks" with Add again); null otherwise. */
+  taskExists: z.boolean().nullable(),
+  /** Accepted: where; null otherwise. */
+  via: z.enum(COMMITMENT_CHANNELS).nullable(),
+});
+export type CommitmentItem = z.infer<typeof commitmentItemSchema>;
+
+/** Summary-level pre-selection (docs/v2/M11-DESIGN.md section 2.6). */
+export const commitmentPreselectSchema = z.object({
+  /** Clean action-list items may be ticked (a fully trusted recap only). */
+  allowed: z.boolean(),
+  /** "Select all" is offered (never for a summary not addressed to the user). */
+  selectAll: z.boolean(),
+  /** The banner; null when pre-selection is allowed. */
+  reason: z.enum(COMMITMENT_PRESELECT_REASONS).nullable().catch(null),
+});
+export type CommitmentPreselect = z.infer<typeof commitmentPreselectSchema>;
+
+/** Where the suggestions come from (the origin block, always shown first). */
+export const commitmentOriginSchema = z.object({
+  /** The meeting it is filed under (the master id for a series); null for a kept summary. */
+  meetingId: meetingIdSchema.nullable(),
+  /** The user's own calendar title of that meeting; null for a kept summary. */
+  meetingTitle: z.string().max(SUMMARY_LIMITS.maxTitleChars).nullable(),
+  /** For a series: the ORIGINAL local date of the occurrence; else null. */
+  occurrenceDate: localDateKeySchema.nullable(),
+  /** The meeting's local date (else the summary's date), or null. */
+  localDate: localDateKeySchema.nullable(),
+  tier: z.enum(SUMMARY_TIERS),
+  /** The d= of a passing signature only, or null. */
+  senderDomain: summaryDomainSchema.nullable(),
+  /** user_forwarded: the mailbox it was forwarded from; else null. */
+  forwardedBy: summaryAddrSpecSchema.nullable(),
+});
+export type CommitmentOrigin = z.infer<typeof commitmentOriginSchema>;
+
+/** A summary's suggestions (prepared or stale). */
+export const summaryCommitmentsSchema = z.object({
+  key: commitmentKeySchema,
+  mode: z.enum(COMMITMENT_MODES),
+  preparedAt: isoDateTimeSchema,
+  preselect: commitmentPreselectSchema,
+  origin: commitmentOriginSchema,
+  /** Only the first part of a long summary was read. */
+  truncated: z.boolean(),
+  /** Filed under another meeting since the suggestions were prepared. */
+  meetingChanged: z.boolean(),
+  /** In document order. */
+  items: z.array(commitmentItemSchema).max(COMMITMENT_LIMITS.maxProposals),
+});
+export type SummaryCommitments = z.infer<typeof summaryCommitmentsSchema>;
+
+/** The task as the user accepts it (the app checked the task invariants first, as the server does). */
+export const commitmentDraftSchema = z
+  .object({
+    title: z.string().min(1).max(COMMITMENT_LIMITS.maxTitleChars),
+    dueDate: localDateKeySchema.nullable(),
+    dueTime: localTimeKeySchema.nullable(),
+    reminderMinutesBefore: z.number().int().min(0).max(AI_TASK_LIMITS.maxReminderMinutes).nullable(),
+    /** null: nobody; isUser true: the user (no people entry); else that person on the task. */
+    owner: z.object({ name: z.string().min(1).max(COMMITMENT_LIMITS.maxOwnerChars), isUser: z.boolean() }).nullable(),
+  })
+  .refine((d) => d.dueTime === null || d.dueDate !== null, { message: 'dueTime needs a dueDate', path: ['dueTime'] })
+  .refine((d) => d.reminderMinutesBefore === null || d.dueTime !== null, {
+    message: 'a reminder needs a due time',
+    path: ['reminderMinutesBefore'],
+  });
+export type CommitmentDraft = z.infer<typeof commitmentDraftSchema>;
+
+export const commitmentDecisionSchema = z.discriminatedUnion('decision', [
+  z.object({ anchorId: commitmentAnchorIdSchema, decision: z.literal('accept'), draft: commitmentDraftSchema }),
+  z.object({ anchorId: commitmentAnchorIdSchema, decision: z.literal('drop') }),
+  z.object({ anchorId: commitmentAnchorIdSchema, decision: z.literal('restore') }),
+  z.object({ anchorId: commitmentAnchorIdSchema, decision: z.literal('remove') }),
+]);
+export type CommitmentDecision = z.infer<typeof commitmentDecisionSchema>;
+
+export const summaryCommitmentsRequestSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('get'), summaryId: summaryIdSchema }),
+  z.object({ op: z.literal('prepare'), summaryId: summaryIdSchema, mode: z.enum(COMMITMENT_MODES) }),
+  z
+    .object({
+      op: z.literal('decide'),
+      summaryId: summaryIdSchema,
+      /** The extraction key the screen shows (stale when it is no longer current). */
+      key: commitmentKeySchema,
+      /** The device zone, for the tasks' zone and the reminders. */
+      timezone: timeZoneSchema,
+      /** The language of the task's origin line (EN fallback). */
+      language: z.string().min(1).max(35),
+      decisions: z.array(commitmentDecisionSchema).min(1).max(COMMITMENT_LIMITS.maxDecisionsPerCall),
+    })
+    .refine((request) => new Set(request.decisions.map((d) => d.anchorId)).size === request.decisions.length, {
+      message: 'one decision per anchorId',
+      path: ['decisions'],
+    }),
+]);
+export type SummaryCommitmentsRequest = z.infer<typeof summaryCommitmentsRequestSchema>;
+
+/** What one decision did. */
+export const commitmentDecisionResultSchema = z.object({
+  anchorId: commitmentAnchorIdSchema,
+  outcome: z.enum(COMMITMENT_OUTCOMES),
+  /** The task concerned (added, already added, removed or changed); else null. */
+  taskId: meetingIdSchema.nullable(),
+});
+export type CommitmentDecisionResult = z.infer<typeof commitmentDecisionResultSchema>;
+
+export const summaryCommitmentsResponseSchema = z.object({
+  op: z.enum(['get', 'prepare', 'decide']),
+  state: z.enum(COMMITMENT_STATES),
+  /** ready, empty and stale: the suggestions (stale: the old decisions, read-only); none and preparing: null. */
+  commitments: summaryCommitmentsSchema.nullable(),
+  /** decide only, one per decision. */
+  results: z.array(commitmentDecisionResultSchema).max(COMMITMENT_LIMITS.maxDecisionsPerCall).optional(),
+  /** prepare in mode 'ai' when it was charged: the allowance after it. */
+  usage: assistantUsageSchema.optional(),
+});
+export type SummaryCommitmentsResponse = z.infer<typeof summaryCommitmentsResponseSchema>;
+
+/**
+ * summaryCommitments error taxonomy: every SUMMARY_ERROR_CODES value plus quota_exceeded
+ * (resource-exhausted; details.usage set, the app offers the items as written) and stale
+ * (failed-precondition; decide named an old key, the app reloads). A separate list, so the
+ * exhaustive M10 maps of SUMMARY_ERROR_CODES stay as they are.
+ */
+export const COMMITMENT_ERROR_CODES = [...SUMMARY_ERROR_CODES, 'quota_exceeded', 'stale'] as const;
+export type CommitmentErrorCode = (typeof COMMITMENT_ERROR_CODES)[number];
+
+export const COMMITMENT_ERROR_HTTPS_CODES = {
+  ...SUMMARY_ERROR_HTTPS_CODES,
+  quota_exceeded: 'resource-exhausted',
+  stale: 'failed-precondition',
+} as const satisfies Record<CommitmentErrorCode, string>;
+
+/** `HttpsError.details` of every summaryCommitments error; usage only for quota_exceeded. */
+export const commitmentErrorDetailsSchema = z.object({
+  reason: z.enum(COMMITMENT_ERROR_CODES),
+  usage: assistantUsageSchema.optional(),
+});
+export type CommitmentErrorDetails = z.infer<typeof commitmentErrorDetailsSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Server helpers (pure)

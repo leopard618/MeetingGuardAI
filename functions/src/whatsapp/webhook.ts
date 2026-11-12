@@ -33,6 +33,9 @@ import { bilingual, botStrings, formatConfirmPrompt } from './messages';
 import { eventDocId, hashLinkCode, phoneLogId } from './signature';
 import { emptySession, pushTurn, sessionPatch, withFreshContext, type WhatsappSession, type WhatsappStore } from './session';
 import type { WhatsappSender } from './send';
+// M11 (docs/v2/M11-DESIGN.md section 4.1): suggested tasks from summaries, pilot users only.
+import type { SummaryRouteDeps } from './summaryPort';
+import { routeSummaryButton, routeSummaryText } from './summaryRoute';
 
 export const CONFIRM_BUTTON_PREFIX = 'wa_confirm:';
 export const CANCEL_BUTTON_PREFIX = 'wa_cancel:';
@@ -111,6 +114,11 @@ export interface WebhookDeps {
   now: () => Date;
   /** Test seam for the confirm-button nonce. */
   newNonce?: () => string;
+  /**
+   * M11: the summaryWhatsApp port and the offer store; absent while SUMMARIES_ENABLED is false at
+   * load (whatsapp/summaryPort.ts summaryRouteDepsAtLoad), and then nothing below changes.
+   */
+  summaries?: SummaryRouteDeps;
 }
 
 function defaultNonce(): string {
@@ -402,8 +410,11 @@ export function isStaleMessage(message: InboundMessage, now: Date): boolean {
   return now.getTime() - sentMs > WHATSAPP_TUNING.eventTtlDays * 86_400_000;
 }
 
-/** One inbound message, end to end. Never throws (errors are logged; Meta always gets its 200). */
-export async function processInboundMessage(message: InboundMessage, deps: WebhookDeps): Promise<void> {
+/**
+ * One inbound message, end to end. Never throws (errors are logged; Meta always gets its 200).
+ * `batch.startedMs` (M11) is when processWebhookPayload started, for the summary port's timeout.
+ */
+export async function processInboundMessage(message: InboundMessage, deps: WebhookDeps, batch?: { startedMs: number }): Promise<void> {
   const phone = message.from;
   if (!WHATSAPP_PHONE_PATTERN.test(phone)) return;
   if (deps.displayNumber.length > 0 && phone === deps.displayNumber) return; // our own echo
@@ -451,6 +462,11 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
       await handleCancel(phone, message.wamid, message.buttonReplyId.slice(CANCEL_BUTTON_PREFIX.length), language, deps);
       return;
     }
+    // M11: the suggested-tasks buttons (wa_sum_all / wa_sum_none), pilot users only.
+    if (deps.summaries !== undefined) {
+      const routed = { message, session, uid, language, batchStartedMs: batch?.startedMs ?? null };
+      if (await routeSummaryButton(routed, { summaries: deps.summaries, sender: deps.sender, now: deps.now })) return;
+    }
     return; // unknown button id: ignore
   }
 
@@ -478,6 +494,13 @@ export async function processInboundMessage(message: InboundMessage, deps: Webho
     return;
   }
 
+  // M11: "commitments" and the replies to a live suggested-tasks offer, pilot users only. It runs
+  // before the bridge and never touches session.turns (docs/v2/M11-DESIGN.md section 4.1 step 7).
+  if (deps.summaries !== undefined) {
+    const routed = { message, session, uid, language, batchStartedMs: batch?.startedMs ?? null };
+    if (await routeSummaryText(routed, { summaries: deps.summaries, sender: deps.sender, now: deps.now })) return;
+  }
+
   await handleBridge(message, session, uid, language, timezone, deps);
 }
 
@@ -497,7 +520,7 @@ export async function processWebhookPayload(payload: unknown, deps: WebhookDeps)
       return false;
     }
     try {
-      await processInboundMessage(message, deps);
+      await processInboundMessage(message, deps, { startedMs });
     } catch (error) {
       logger.error('whatsapp.message_failed', {
         wamid: message.wamid,

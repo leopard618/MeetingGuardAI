@@ -332,3 +332,19 @@ export function contentDigest(keyring: Keyring, text: string): string {
   const { key } = primarySubkey(keyring, SUMMARY_DIGEST_PURPOSE);
   return createHmac('sha256', key).update(text, 'utf8').digest('hex');
 }
+
+/**
+ * contentDigest under EVERY key of the ring, in ring order (the primary first, so element 0 equals
+ * contentDigest). For comparing a stored digest written before a rotation (M11 carries decisions
+ * over by anchor key and tries each key, as open() does for blobs).
+ */
+export function contentDigests(keyring: Keyring, text: string): string[] {
+  if (typeof text !== 'string') {
+    throw new SealedError('bad_plaintext', 'text must be a string');
+  }
+  return keyring.keyIds.map((keyId) => {
+    const key = subkey(keyring, keyId, SUMMARY_DIGEST_PURPOSE);
+    if (!key) throw keyringError('keyring_malformed', null, 'listed key missing');
+    return createHmac('sha256', key).update(text, 'utf8').digest('hex');
+  });
+}

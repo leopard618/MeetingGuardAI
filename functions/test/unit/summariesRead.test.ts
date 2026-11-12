@@ -55,7 +55,8 @@ import {
   type SummaryReadConfig,
   type SummaryReadDeps,
 } from '../../src/summaries/read';
-import { parseSections } from '../../src/summaries/sections';
+import { SECTIONS_PARSER_VERSION, parseSections } from '../../src/summaries/sections';
+import { EXTRACTOR_VERSION } from '../../src/commitments/extraction';
 import { FakeFirestore, type FakeTransaction } from './summariesFakeFirestore';
 
 // ---------------------------------------------------------------------------------------------
@@ -1218,7 +1219,32 @@ describe('loadSummaryForExtraction', () => {
     });
     // The head (subject, title line) is not part of the hand-off.
     expect(JSON.stringify(result)).not.toContain(SUBJECT);
-    expect(Object.keys(result).sort()).toEqual(['context', 'sections', 'status', 'summaryId', 'text']);
+    // M11 day 1 added the stamp, the stored extraction and the forwarding mailbox (additive).
+    expect(Object.keys(result).sort()).toEqual(['contentDigest', 'context', 'extraction', 'forwardedBy', 'sections', 'status', 'summaryId', 'text']);
+    expect(result.contentDigest).toBe(filedDoc(SUM_A).contentDigest);
+    expect(result.extraction).toBeNull();
+    expect(result.forwardedBy).toBeNull();
+  });
+
+  it('M11: carries the stored extraction as it is and the mailbox a user forward came from', async () => {
+    const h = harness();
+    const extraction = { v: 1, state: 'ready', counts: { open: 2, accepted: 1, dropped: 0 } };
+    seed(
+      h,
+      SUM_A,
+      filedDoc(
+        SUM_A,
+        {
+          extraction,
+          trust: { tier: 'user_forwarded', recipientBound: false, fresh: false, anchorSource: 'forward_wrapper', originalInboxReason: 'user_forwarded' },
+        },
+        { forwardedBy: MAILBOX, fromAddress: MAILBOX },
+      ),
+    );
+    const result = await loadSummaryForExtraction(UID, SUM_A, extractionDeps(h));
+    expect(result?.extraction).toEqual(extraction);
+    expect(result?.forwardedBy).toBe(MAILBOX);
+    expect(result?.context.tier).toBe('user_forwarded');
   });
 
   it('returns a kept summary without a match', async () => {
@@ -1277,6 +1303,69 @@ describe('loadSummaryForExtraction', () => {
     await expect(loadSummaryForExtraction(UID, SUM_A, extractionDeps(h, OTHER_KEYRING))).rejects.toBeInstanceOf(SealedError);
     seed(h, SUM_B, filedDoc(SUM_B, { sealedBody: summaryDoc(SUM_A).sealedBody }));
     await expect(loadSummaryForExtraction(UID, SUM_B, extractionDeps(h))).rejects.toBeInstanceOf(SealedError);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// M11: suggested-task counts on list rows
+// ---------------------------------------------------------------------------------------------
+
+describe('summaryRead rows: M11 suggested-task counts', () => {
+  function extractionFor(doc: StoredSummaryDoc, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      v: 1,
+      key: 'x_0123456789abcdef',
+      state: 'ready',
+      contentDigest: doc.contentDigest,
+      parserVersion: SECTIONS_PARSER_VERSION,
+      extractorVersion: EXTRACTOR_VERSION,
+      counts: { open: 2, accepted: 1, dropped: 0 },
+      sealed: 'v1.k1.sealed-titles-never-listed',
+      ...overrides,
+    };
+  }
+
+  it('shows {state, open, accepted} on filed and kept rows, stale when the content or the extractor changed', async () => {
+    const h = harness();
+    const a = filedDoc(SUM_A);
+    seed(h, SUM_A, { ...a, extraction: extractionFor(a) });
+    const b = filedDoc(SUM_B, { receivedAt: '2026-11-09T10:00:00.000Z' });
+    seed(h, SUM_B, { ...b, extraction: extractionFor(b, { contentDigest: 'f'.repeat(64) }) });
+    const c = summaryDoc(SUM_C, { status: 'kept', inboxReason: null, userAction: { kind: 'keep', at: RECEIVED_AT }, receivedAt: '2026-11-08T10:00:00.000Z' });
+    seed(h, SUM_C, { ...c, extraction: extractionFor(c, { extractorVersion: EXTRACTOR_VERSION + 1, state: 'empty' }) });
+    seed(h, SUM_D, filedDoc(SUM_D, { receivedAt: '2026-11-07T10:00:00.000Z' }));
+
+    const response = await list(h, 'recent');
+    const byId = new Map(response.items.map((item) => [item.summaryId, item]));
+    expect(byId.get(SUM_A)?.commitments).toEqual({ state: 'ready', open: 2, accepted: 1 });
+    expect(byId.get(SUM_B)?.commitments).toEqual({ state: 'stale', open: 2, accepted: 1 });
+    expect(byId.get(SUM_C)?.commitments).toEqual({ state: 'stale', open: 2, accepted: 1 });
+    expect(byId.get(SUM_D)).toBeDefined();
+    expect(byId.get(SUM_D) !== undefined && 'commitments' in (byId.get(SUM_D) as object)).toBe(false);
+    // The list never reads the sealed titles.
+    expect(JSON.stringify(response)).not.toContain('sealed-titles-never-listed');
+    expect(SUMMARY_LIST_FIELDS).not.toContain('extraction');
+    expect(SUMMARY_LIST_FIELDS.filter((field) => field.startsWith('extraction.'))).not.toContain('extraction.sealed');
+  });
+
+  it('never shows counts on an inbox row (it cannot be reviewed) or for an extraction this version cannot read', async () => {
+    const h = harness();
+    const a = summaryDoc(SUM_A);
+    seed(h, SUM_A, { ...a, extraction: extractionFor(a) });
+    const b = filedDoc(SUM_B);
+    seed(h, SUM_B, { ...b, extraction: { v: 2, state: 'ready' } });
+    const inbox = await list(h, 'inbox');
+    expect(inbox.items.map((item) => item.commitments)).toEqual([undefined]);
+    const recent = await list(h, 'recent');
+    expect(recent.items.map((item) => item.commitments)).toEqual([undefined]);
+  });
+
+  it('get carries the same counts', async () => {
+    const h = harness();
+    const a = filedDoc(SUM_A);
+    seed(h, SUM_A, { ...a, extraction: extractionFor(a, { counts: { open: 0, accepted: 3, dropped: 1 } }) });
+    const response = await get(h, SUM_A);
+    expect(response.summary.commitments).toEqual({ state: 'ready', open: 0, accepted: 3 });
   });
 });
 

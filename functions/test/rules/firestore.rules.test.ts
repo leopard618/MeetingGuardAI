@@ -24,6 +24,9 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 
+import { commitmentTaskId } from '../../src/commitments/ids';
+import { buildCommitmentTaskDoc, type CommitmentTaskInput } from '../../src/commitments/taskDoc';
+
 const PROJECT_ID = 'demo-meetingguard';
 const ISO = '2026-10-05T14:00:00.000Z';
 
@@ -465,6 +468,74 @@ describe('tasks', () => {
     await assertSucceeds(setDoc(doc(alice(), 'users/alice/tasks/t1'), task({ pushPending: true })));
     await assertSucceeds(updateDoc(doc(alice(), 'users/alice/tasks/t1'), { pushPending: true, title: 'Send the signed contract', updatedAt: ISO }));
     await assertFails(setDoc(doc(alice(), 'users/alice/tasks/t2'), task({ pushPending: 'yes' })));
+  });
+});
+
+describe('tasks from summary commitments (M11, docs/v2/M11-DESIGN.md sections 3.4 and 6)', () => {
+  // The exact document the server writes for an accepted suggestion, written here as the owner:
+  // a later full set write of it by the app must pass the same rules.
+  function commitmentTask(overrides: Partial<CommitmentTaskInput> = {}): Record<string, unknown> {
+    const built = buildCommitmentTaskDoc({
+      uid: 'alice',
+      title: 'Bish: Provide APK access/files to Urpayroll',
+      description: "From your notetaker's summary of Urpayroll weekly sync (Oct 16, 2026). Suggested by Meeting Guard AI, added by you.",
+      dueDate: '2026-10-16',
+      dueTime: '09:00',
+      timezone: 'America/Mexico_City',
+      reminderMinutesBefore: 0,
+      meetingId: 'mtgUrpayrollSync01',
+      owner: { name: 'Bish', isUser: false },
+      now: new Date(ISO),
+      ...overrides,
+    });
+    if (!built.ok) throw new Error(`fixture task is invalid: ${built.reason}`);
+    return { ...built.doc };
+  }
+  const TASK_ID = commitmentTaskId('ab'.repeat(32), '0123456789abcdef01234567', 0);
+
+  it('the server task document passes isValidTask as the owner, with and without a date or a person', async () => {
+    await assertSucceeds(setDoc(doc(alice(), `users/alice/tasks/${TASK_ID}`), commitmentTask()));
+    await assertSucceeds(setDoc(doc(alice(), 'users/alice/tasks/sm2'), commitmentTask({ dueDate: null, dueTime: null, reminderMinutesBefore: null, owner: null, meetingId: null })));
+    await assertFails(setDoc(doc(bob(), `users/alice/tasks/${TASK_ID}`), commitmentTask()));
+  });
+
+  it('the app can write it back with its external refs, and the push flag cleared', async () => {
+    await assertSucceeds(setDoc(doc(alice(), `users/alice/tasks/${TASK_ID}`), commitmentTask()));
+    await assertSucceeds(
+      setDoc(doc(alice(), `users/alice/tasks/${TASK_ID}`), {
+        ...commitmentTask(),
+        pushPending: false,
+        external: { todoListId: 'L1', todoTaskId: 'T1', todoUpdatedAt: ISO, gtasksListId: null, gtasksTaskId: null, gtasksUpdatedAt: null },
+      }),
+    );
+  });
+
+  // M11 day 2-3 (decide): the server writes the task with the Admin SDK; the app's later edit is a
+  // full set write of the whole document (engine.ts), so that shape must pass the rules too.
+  it('a later app edit (full replacement: renamed, rescheduled, done) passes, and the document carries no new key', async () => {
+    const written = commitmentTask({ meetingId: 'mtgUrpayrollSync01' });
+    expect(Object.keys(written).sort()).toEqual(
+      ['completedAt', 'createdAt', 'description', 'dueDate', 'dueTime', 'meetingId', 'people', 'pushPending', 'reminderMinutesBefore', 'source', 'status', 'timezone', 'title', 'updatedAt', 'userId'].sort(),
+    );
+    await seed(`users/alice/tasks/${TASK_ID}`, written);
+    const later = '2026-10-06T09:00:00.000Z';
+    await assertSucceeds(
+      setDoc(doc(alice(), `users/alice/tasks/${TASK_ID}`), {
+        ...written,
+        title: 'Follow up with Bish on the APK',
+        dueDate: '2026-10-07',
+        dueTime: '10:30',
+        reminderMinutesBefore: 15,
+        status: 'done',
+        completedAt: later,
+        pushPending: false,
+        updatedAt: later,
+      }),
+    );
+    // A key outside the hasOnly list is refused, so a server document with one could never be edited.
+    await assertFails(setDoc(doc(alice(), `users/alice/tasks/${TASK_ID}`), { ...written, summaryId: 'ab'.repeat(32), updatedAt: later }));
+    // The server's createdAt and userId stay as written.
+    await assertFails(setDoc(doc(alice(), `users/alice/tasks/${TASK_ID}`), { ...written, createdAt: later, updatedAt: later }));
   });
 });
 

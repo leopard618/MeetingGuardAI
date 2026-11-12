@@ -58,7 +58,7 @@
 import { HttpsError } from 'firebase-functions/https';
 import * as logger from 'firebase-functions/logger';
 import type { DocumentReference, Firestore, Query, QuerySnapshot, Transaction } from 'firebase-admin/firestore';
-import type { z } from 'zod';
+import { z } from 'zod';
 
 import {
   SUMMARY_LIMITS,
@@ -69,6 +69,7 @@ import {
   summarySuggestionSchema,
   type SummaryDetail,
   type SummaryInboxReason,
+  type SummaryListCommitments,
   type SummaryListItem,
   type SummaryListView,
   type SummaryReadGetResponse,
@@ -78,6 +79,7 @@ import {
   type SummarySuggestion,
   type SummaryTier,
 } from '../shared/aiContract';
+import { EXTRACTION_LIST_FIELDS, extractionListFactsOf } from '../commitments/extraction';
 import { SealedError, parseKeyring, type Keyring } from '../shared/sealed';
 import { contractMatchOf } from './actions';
 import { requireActionCaller, summaryError, type SummaryCallableAuth } from './callables';
@@ -142,30 +144,39 @@ const MATCH_BASIS_FIELDS = ['status', 'userAction', 'rejectedMeetingIds', 'trust
 /** The plain fields a re-match reads back in its transaction (no sealed field). */
 export const SUMMARY_REMATCH_FIELDS = [...MATCH_BASIS_FIELDS, 'schemaVersion', 'inboxReason', 'senderDomain', 'match', 'candidates'] as const;
 
-/** A list row's field mask: the plain fields plus sealedHead. sealedBody never leaves Firestore. */
-export const SUMMARY_LIST_FIELDS = [...SUMMARY_REMATCH_FIELDS, 'sealedHead'] as const;
+/**
+ * A list row's field mask: the plain fields plus sealedHead, and (M11) the parser version and the
+ * extraction's plain stamp and counts for "Review commitments (5)". sealedBody and the
+ * extraction's sealed blob never leave Firestore.
+ */
+export const SUMMARY_LIST_FIELDS = [...SUMMARY_REMATCH_FIELDS, 'sealedHead', 'parserVersion', ...EXTRACTION_LIST_FIELDS] as const;
 
 /** A refused row's field mask (it holds no content). */
 export const SUMMARY_REFUSED_FIELDS = ['status', 'refusedReason', 'senderDomain', 'firstAt', 'lastAt', 'count', 'expiresAt', 'schemaVersion'] as const;
 
-const listDocSchema = storedSummarySchema.pick({
-  schemaVersion: true,
-  status: true,
-  inboxReason: true,
-  trust: true,
-  senderDomain: true,
-  receivedAt: true,
-  anchorAt: true,
-  summaryDate: true,
-  match: true,
-  candidates: true,
-  rejectedMeetingIds: true,
-  userAction: true,
-  contentDigest: true,
-  updatedAt: true,
-  sealedHead: true,
-});
-const rematchDocSchema = listDocSchema.omit({ sealedHead: true });
+const listDocSchema = storedSummarySchema
+  .pick({
+    schemaVersion: true,
+    status: true,
+    inboxReason: true,
+    trust: true,
+    senderDomain: true,
+    receivedAt: true,
+    anchorAt: true,
+    summaryDate: true,
+    match: true,
+    candidates: true,
+    rejectedMeetingIds: true,
+    userAction: true,
+    contentDigest: true,
+    updatedAt: true,
+    sealedHead: true,
+    parserVersion: true,
+  })
+  // M11: only the extraction's masked stamp and counts (EXTRACTION_LIST_FIELDS); absent when the
+  // field is null, as a nested field mask returns nothing for it.
+  .extend({ extraction: z.unknown().optional() });
+const rematchDocSchema = listDocSchema.omit({ sealedHead: true, parserVersion: true, extraction: true });
 const storedCandidatesSchema = storedCandidateSchema.array().max(SUMMARY_LIMITS.maxSuggestions);
 
 /** A summary as a list reads it (SUMMARY_LIST_FIELDS). */
@@ -375,11 +386,23 @@ export function summarySuggestionsOf(doc: Pick<SummaryListDoc, 'status' | 'trust
 type RowDoc = Pick<
   SummaryListDoc,
   'status' | 'inboxReason' | 'trust' | 'senderDomain' | 'receivedAt' | 'summaryDate' | 'match' | 'candidates' | 'rejectedMeetingIds'
->;
+> &
+  Partial<Pick<SummaryListDoc, 'contentDigest' | 'parserVersion' | 'extraction'>>;
+
+/**
+ * M11: a filed or kept summary's suggested-task facts ({state, open, accepted}) from the
+ * extraction's plain stamp and counts; null for inbox items (they cannot be reviewed), summaries
+ * without an extraction, or a row read without the stamp fields.
+ */
+export function summaryCommitmentsFactsOf(doc: RowDoc): SummaryListCommitments | null {
+  if (doc.status !== 'matched' && doc.status !== 'kept') return null;
+  if (doc.extraction === undefined || doc.extraction === null || doc.contentDigest === undefined || doc.parserVersion === undefined) return null;
+  return extractionListFactsOf(doc.extraction, { contentDigest: doc.contentDigest, parserVersion: doc.parserVersion });
+}
 
 /** A summary's list row (no content but the title). */
 export function summaryListItemOf(summaryId: string, doc: RowDoc, title: string | null): SummaryListItem {
-  return {
+  const item: SummaryListItem = {
     summaryId,
     status: doc.status,
     title,
@@ -395,6 +418,9 @@ export function summaryListItemOf(summaryId: string, doc: RowDoc, title: string 
     match: doc.status === 'matched' ? contractMatchOf(doc.match) : null,
     suggestions: summarySuggestionsOf(doc),
   };
+  const commitments = summaryCommitmentsFactsOf(doc);
+  if (commitments !== null) item.commitments = commitments;
+  return item;
 }
 
 /** A refused row as a list row: the day's count, the latest reason and sender domain, no content. */
@@ -888,6 +914,18 @@ export interface SummaryForExtraction {
   /** Verbatim sections; every item satisfies text.slice(item.start, item.end) === item.text. */
   sections: SummarySection[];
   context: SummaryExtractionContext;
+  /**
+   * M11 day 1: the stored contentDigest (an HMAC of the text, not the text), the stamp an
+   * extraction must carry to be current (commitments/extraction.ts isCurrentStamp).
+   */
+  contentDigest: string;
+  /** M11 day 1: the stored extraction field as it is (null before the first preparation); parsed by the caller. */
+  extraction: unknown;
+  /**
+   * M11 day 1: user_forwarded only, the user's own mailbox that forwarded it (the "forwarded from"
+   * origin line); else null. Content: never logged.
+   */
+  forwardedBy: string | null;
 }
 
 export interface SummaryExtractionDeps {
@@ -898,7 +936,8 @@ export interface SummaryExtractionDeps {
 
 /**
  * A filed (matched) or kept summary of `uid` for M11's extraction, with its decrypted text and
- * sections (sealedBody only; the head is not opened) and the plain context; null for anything
+ * sections (sealedBody only; the head is not opened), the plain context, the contentDigest stamp,
+ * the stored extraction field and the forwarding mailbox; null for anything
  * else: an inbox item, a refused row, a missing document, one this version cannot read, or ids
  * that are not usable. Throws SealedError when the body does not open (a key or blob problem; the
  * caller maps it to upstream_error) and lets a Firestore error propagate. Logs nothing.
@@ -917,6 +956,9 @@ export async function loadSummaryForExtraction(uid: string, summaryId: string, d
     status: doc.status,
     text: body.text,
     sections: body.sections,
+    contentDigest: doc.contentDigest,
+    extraction: doc.extraction ?? null,
+    forwardedBy: body.forwardedBy,
     context: {
       tier: doc.trust.tier,
       recipientBound: doc.trust.recipientBound,
