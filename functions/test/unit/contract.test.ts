@@ -209,6 +209,31 @@ describe('M10 summaries contract', () => {
       expect(summaryStatusResponseSchema.safeParse(disabled).success).toBe(true);
     });
 
+    it('refusedToday: a UTC day counter or null; a status without it parses as null (additive)', () => {
+      expect(SUMMARY_LIMITS.maxRefusalsPerDay).toBe(40);
+      const today = { day: '2026-10-16', count: SUMMARY_LIMITS.maxRefusalsPerDay, capped: true };
+      expect(summaryStatusResponseSchema.parse({ ...status, refusedToday: today }).refusedToday).toEqual(today);
+      expect(summaryStatusResponseSchema.parse({ ...status, refusedToday: null }).refusedToday).toBeNull();
+      expect(summaryStatusResponseSchema.parse(status).refusedToday).toBeNull();
+      for (const bad of [
+        { ...today, day: '2026-10-16T00:00:00Z' },
+        { ...today, count: 0 },
+        { ...today, count: 1.5 },
+        { day: today.day, count: 1 },
+      ]) {
+        expect(summaryStatusResponseSchema.safeParse({ ...status, refusedToday: bad }).success).toBe(false);
+      }
+    });
+
+    it('could_not_verify_after_forwarding offers only a Redirect rule (an attached recap is not verified yet)', () => {
+      const source = normalize(readFileSync(appPath('aiContract'), 'utf8')).split('\n');
+      const at = source.findIndex((line) => line.trim() === "'could_not_verify_after_forwarding',");
+      expect(at).toBeGreaterThan(0);
+      const note = source[at - 1] ?? '';
+      expect(note).toContain('Redirect');
+      expect(note).not.toMatch(/forward as an attachment|or forward/i);
+    });
+
     it('accepts the development address with a plus part', () => {
       const dev = { ...status, address: 'serverhash+abcdefghijklmnopqrstuvwxyz@inbound.example.test' };
       expect(summaryStatusResponseSchema.safeParse(dev).success).toBe(true);

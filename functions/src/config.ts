@@ -277,6 +277,88 @@ export const WHATSAPP_TUNING = {
   sessionPurgeDays: 30,
 } as const;
 
+// ---------------------------------------------------------------------------------------------
+// Meeting summaries (summaryInbound + summary* callables; docs/v2/M10-DESIGN.md)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Master switch of meeting summaries (M10). NON-SECRET on purpose, exactly like WHATSAPP_ENABLED:
+ * summaryStatus and summaryAction answer from this param alone, so they deploy and run while the
+ * SUMMARIES_* secrets do not exist yet. It also gates the DEPLOYMENT of summaryInbound and
+ * summaryRead, the only functions that bind the secrets (functions/src/summaries/gate.ts
+ * summariesEnabledAtLoad reads the matching process.env value at load time): with the default
+ * `false`, `firebase deploy --only functions` never touches the secrets and cannot fail on them.
+ * Owner order: set SUMMARIES_WEBHOOK_AUTH and SUMMARIES_DATA_KEY FIRST, then put
+ * SUMMARIES_ENABLED=true in functions/.env.<projectId>, then deploy.
+ */
+export const SUMMARIES_ENABLED = defineBoolean('SUMMARIES_ENABLED', {
+  default: false,
+  description: 'Enables meeting summaries. Set SUMMARIES_WEBHOOK_AUTH and SUMMARIES_DATA_KEY BEFORE setting this to true.',
+});
+
+/**
+ * Ship dark: comma-separated Firebase uids allowed to use summaries while the feature is in its
+ * pilot (functions/src/summaries/gate.ts parsePilotUids). Empty = nobody, even with
+ * SUMMARIES_ENABLED true. Entries that are not a plain uid ([A-Za-z0-9_-], 1 to 128 characters)
+ * are ignored.
+ */
+export const SUMMARIES_PILOT_UIDS = defineString('SUMMARIES_PILOT_UIDS', {
+  default: '',
+  description: 'Comma-separated Firebase uids allowed to use meeting summaries (empty = nobody).',
+});
+
+/**
+ * The private summary address with exactly one {token}: production
+ * `{token}@summaries.meetingguard.ai`, development `<serverhash>+{token}@inbound.postmarkapp.com`
+ * (functions/src/summaries/address.ts parseAddressTemplate). Empty = "being set up": no address is
+ * shown and no mail routes. Never logged (the development form holds the Postmark server hash).
+ */
+export const SUMMARIES_ADDRESS_TEMPLATE = defineString('SUMMARIES_ADDRESS_TEMPLATE', {
+  default: '',
+  description: 'Private summary address containing {token}, e.g. {token}@summaries.meetingguard.ai (empty = being set up).',
+});
+
+/**
+ * Exact notetaker sender addresses (comma list, never bare domains) whose aligned, signed recaps
+ * count as vendor_verified (design section 5, V). Ships EMPTY: filled from the calibration of a
+ * real recap. Empty = no mail is ever vendor_verified, so nothing files automatically.
+ */
+export const SUMMARIES_SENDERS = defineString('SUMMARIES_SENDERS', {
+  default: '',
+  description: 'Comma-separated exact notetaker sender addresses whose signed recaps can file automatically (empty = none).',
+});
+
+/**
+ * Secret Manager. SUMMARIES_WEBHOOK_AUTH is the password of the Postmark webhook URL
+ * `https://postmark:<secret>@<host>/summaryInbound` (Basic auth; an empty value rejects every
+ * request). SUMMARIES_DATA_KEY is the sealing keyring `k1:<base64 of 32 bytes>`
+ * (functions/src/shared/sealed.ts). Bound ONLY on summaryInbound (both) and summaryRead (the data
+ * key): no other function may reference them, or a deploy without them breaks the whole project.
+ */
+export const SUMMARIES_WEBHOOK_AUTH = defineSecret('SUMMARIES_WEBHOOK_AUTH');
+export const SUMMARIES_DATA_KEY = defineSecret('SUMMARIES_DATA_KEY');
+
+// SUMMARIES_SERVICE_ACCOUNT is deliberately NOT declared here: it is a plain key in
+// functions/.env.<projectId>, read at deploy and load time only (functions/src/summaries/gate.ts
+// summariesServiceAccountAtLoad explains why a declared param would break it).
+
+/**
+ * Function options per summary function (design section 4 Options, finding 11). Named apart from
+ * SUMMARIES_TUNING (functions/src/summaries/match.ts), which holds the matching thresholds.
+ */
+export const SUMMARIES_FUNCTION_TUNING = {
+  /**
+   * summaryInbound: one raw message (5 MiB at most) is parsed, DKIM-checked and sealed in memory,
+   * so few requests share an instance (memory exhaustion before the token check, finding 11). The
+   * timeout covers the 32 s DNS bound of one message (summaries/authenticity.ts) with headroom.
+   */
+  inbound: { memory: '1GiB', cpu: 1, concurrency: 2, maxInstances: 3, timeoutSeconds: 60 },
+  /** summaryRead: decrypts and re-matches a page of summaries. */
+  read: { memory: '512MiB', timeoutSeconds: 30, maxInstances: 10 },
+  /** summaryStatus and summaryAction: small Firestore reads and transactions, no secret. */
+  callables: { memory: '256MiB', timeoutSeconds: 10, maxInstances: 10 },
+} as const;
+
 export const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high'] as const;
 export type ReasoningEffortSetting = (typeof REASONING_EFFORTS)[number];
 

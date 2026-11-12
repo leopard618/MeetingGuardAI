@@ -2696,6 +2696,89 @@ describe('stripForwardWrapper', () => {
     expect(result.text.startsWith('Acme weekly sync')).toBe(true);
   });
 
+  describe('with the notetaker senders', () => {
+    // A recap whose Summary reads out a thread: the quoted block has From, Date and Subject, so
+    // without the senders it is taken for one more (Outlook style) wrapper.
+    const QUOTING_RECAP = [
+      'Acme weekly sync',
+      `Meeting notes ${MIDDLE_DOT} 2026-10-16`,
+      '',
+      'Summary',
+      'Ana read out the partner thread:',
+      'From: Partner Ops <ops@partner.example>',
+      'Date: Thu, Oct 15, 2026 at 9:00 AM',
+      'Subject: Export timeline',
+      '',
+      'Action items',
+      '[ ] Provide APK access to Acme (owner: Bish)',
+    ];
+    const NOTETAKER_WRAPPER = [
+      '---------- Forwarded message ---------',
+      'From: Recap Bot <recaps@notes.example.com>',
+      'Date: Fri, Oct 16, 2026 at 3:20 PM',
+      'Subject: Meeting notes: Acme weekly sync',
+      'To: <dusko@example.org>',
+      '',
+    ];
+    const COLLEAGUE_WRAPPER = [
+      '---------- Forwarded message ---------',
+      'From: Ana <ana@example.org>',
+      'Date: Sat, Oct 17, 2026 at 9:00 AM',
+      'Subject: Fwd: Meeting notes: Acme weekly sync',
+      'To: <dusko@example.org>',
+      '',
+      'See below.',
+      '',
+    ];
+
+    function stripWith(lines: string[], senders?: ReadonlySet<string> | readonly string[]) {
+      const sanitized = sanitizeText(lines.join('\n')).text;
+      const result = stripForwardWrapper(sanitized, senders);
+      expect(sanitized.slice(result.contentStart)).toBe(result.text);
+      return result;
+    }
+
+    it('without the senders a quoted From/Date/Subject block inside the recap is unwrapped too (unchanged behavior)', () => {
+      for (const senders of [undefined, [], new Set<string>(), ['someone@else.example']]) {
+        const result = stripWith(['FYI', '', ...NOTETAKER_WRAPPER, ...QUOTING_RECAP], senders);
+        expect([senders, result.depth, result.wrapper?.fromAddress]).toEqual([senders, 2, 'ops@partner.example']);
+        expect(result.text.startsWith('Action items')).toBe(true);
+      }
+    });
+
+    it('stops at the wrapper whose From is a notetaker sender: the recap text, its quoted block included, is kept whole', () => {
+      const expected = QUOTING_RECAP.join('\n');
+      for (const senders of [['recaps@notes.example.com'], ['other@notes.example.com', ' Recaps@Notes.Example.com '], new Set(['recaps@notes.example.com'])]) {
+        const result = stripWith(['FYI', '', ...NOTETAKER_WRAPPER, ...QUOTING_RECAP], senders);
+        expect([senders, result.depth]).toEqual([senders, 1]);
+        expect(result.wrapper).toEqual({
+          style: 'gmail',
+          fromAddress: 'recaps@notes.example.com',
+          dateText: 'Fri, Oct 16, 2026 at 3:20 PM',
+          subjectText: 'Meeting notes: Acme weekly sync',
+        });
+        expect(result.text).toBe(expected);
+        expect(parse(result.text).sections.map((s) => s.kind)).toContain('summary');
+      }
+    });
+
+    it('still unwraps the levels above the notetaker wrapper (a colleague forward of the recap)', () => {
+      const result = stripWith([...COLLEAGUE_WRAPPER, ...NOTETAKER_WRAPPER, ...QUOTING_RECAP], ['recaps@notes.example.com']);
+      expect(result.depth).toBe(2);
+      expect(result.wrapper?.fromAddress).toBe('recaps@notes.example.com');
+      expect(result.text).toBe(QUOTING_RECAP.join('\n'));
+      // Without the senders the same mail is cut at the quote.
+      expect(stripWith([...COLLEAGUE_WRAPPER, ...NOTETAKER_WRAPPER, ...QUOTING_RECAP]).depth).toBe(3);
+    });
+
+    it('a colleague wrapper alone never stops the descent', () => {
+      const result = stripWith([...COLLEAGUE_WRAPPER, ...RECAP], ['recaps@notes.example.com']);
+      expect(result.depth).toBe(1);
+      expect(result.wrapper?.fromAddress).toBe('ana@example.org');
+      expect(result.text.startsWith('See below.\n\nAcme weekly sync')).toBe(true);
+    });
+  });
+
   it('leaves text without a wrapper unchanged, including prose that starts with "From:"', () => {
     const plain = SPECIMEN;
     expect(stripForwardWrapper(plain)).toEqual({ text: plain, contentStart: 0, wrapper: null, depth: 0 });

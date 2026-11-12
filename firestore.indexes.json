@@ -81,6 +81,16 @@
           "queryScope": "COLLECTION_GROUP"
         }
       ]
+    },
+    {
+      "collectionGroup": "meetingSummaries",
+      "fieldPath": "sealedHead",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "meetingSummaries",
+      "fieldPath": "sealedBody",
+      "indexes": []
     }
   ]
 }

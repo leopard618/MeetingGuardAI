@@ -982,8 +982,9 @@ export type WhatsappErrorDetails = z.infer<typeof whatsappErrorDetailsSchema>;
 // changes them ONLY through these three callables:
 // - summaryStatus (always deployed, no secret): whether the feature is on for the caller, the
 //   private address, the mailboxes, pending Gmail confirmation codes, the inbox count, the last
-//   refusal. It answers enabled / allowed false instead of throwing not_enabled / not_allowed, so
-//   the Settings row can hide itself; a signed-out caller still gets unauthenticated.
+//   refusal and today's refusal count. It answers enabled / allowed false instead of throwing
+//   not_enabled / not_allowed, so the Settings row can hide itself; a signed-out caller still
+//   gets unauthenticated.
 // - summaryAction (always deployed, no secret): address, mailbox and filing changes. It cannot
 //   decrypt, so it never returns summary content (titles included).
 // - summaryRead (deployed only with SUMMARIES_ENABLED, binds the data key): the lists and the full
@@ -1002,6 +1003,12 @@ export const SUMMARY_LIMITS = {
    * does create_address after a disconnect (that create counts as a rotation).
    */
   maxRotationsPerDay: 5,
+  /**
+   * Refusals counted per UTC day (the only daily cap, deduped by the provider's delivery id).
+   * Past it, further junk that day is dropped uncounted; summaryStatus refusedToday.capped tells
+   * the app to suggest a new address. Accepted and inbox mail is never capped.
+   */
+  maxRefusalsPerDay: 40,
   /** Sanitized plain text of one summary. */
   maxTextChars: 100_000,
   maxSections: 40,
@@ -1075,7 +1082,7 @@ export const SUMMARY_REFUSED_REASONS = [
   'too_large',
   /** Broken structure or headers: a repeated From, To, Cc, Date, Subject, Message-ID or Sender, or a From that is not one plain address. */
   'malformed',
-  /** The notetaker's signature broke on the way, behind a valid Google or Microsoft forwarding seal (use Redirect, or forward as an attachment). */
+  /** The notetaker's signature broke on the way, behind a valid Google or Microsoft forwarding seal (the fix is a Redirect rule; an attached recap is not verified yet). */
   'could_not_verify_after_forwarding',
   /** The notetaker's signature is present but no longer matches: changed after it was sent. */
   'changed_after_sending',
@@ -1205,6 +1212,17 @@ export const summaryLastRefusedSchema = z.object({
 });
 export type SummaryLastRefused = z.infer<typeof summaryLastRefusedSchema>;
 
+/** Today's refusal counter (UTC day). capped: SUMMARY_LIMITS.maxRefusalsPerDay was reached. */
+export const summaryRefusedTodaySchema = z.object({
+  /** The UTC day, YYYY-MM-DD. */
+  day: localDateKeySchema,
+  /** Refusals counted that day (redeliveries count once). */
+  count: z.number().int().min(1),
+  /** Over the cap: later junk that day is dropped uncounted; the app suggests a new address. */
+  capped: z.boolean(),
+});
+export type SummaryRefusedToday = z.infer<typeof summaryRefusedTodaySchema>;
+
 export const summaryStatusRequestSchema = z.object({});
 export type SummaryStatusRequest = z.infer<typeof summaryStatusRequestSchema>;
 export const summaryStatusResponseSchema = z.object({
@@ -1224,6 +1242,11 @@ export const summaryStatusResponseSchema = z.object({
   inboxCount: z.number().int().min(0),
   lastReceivedAt: isoDateTimeSchema.nullable(),
   lastRefused: summaryLastRefusedSchema.nullable(),
+  /**
+   * Today's refusals (UTC), or null when none were counted today. Added after the first day-2
+   * build: a status without it parses as null.
+   */
+  refusedToday: summaryRefusedTodaySchema.nullable().default(null),
 });
 export type SummaryStatusResponse = z.infer<typeof summaryStatusResponseSchema>;
 

@@ -4,7 +4,8 @@
  *
  * Order of use in the inbound pipeline:
  *   1. sanitizeText(plain text part)                 -> { text, truncated }
- *   2. stripForwardWrapper(sanitized.text)           -> inner text + the wrapper's From and Date
+ *   2. stripForwardWrapper(sanitized.text, senders)  -> inner text + the wrapper's From and Date
+ *      (user forwards only; descending stops at a wrapper whose From is a notetaker sender)
  *   3. parseSections(inner.text) and extractSummaryMeta(inner.text, subject) in sections.ts
  * The string handed to step 3 is the string that is stored as `text`: every section and item offset
  * is an absolute offset into exactly that string.
@@ -366,6 +367,18 @@ function findWrapper(text: string, from: number): FoundWrapper | null {
   return null;
 }
 
+/** The notetaker sender addresses as a lowercased set (entries trimmed, empty ones dropped). */
+function senderSet(senders: ReadonlySet<string> | readonly string[] | undefined): ReadonlySet<string> | null {
+  if (senders === undefined) return null;
+  const set = new Set<string>();
+  for (const entry of senders) {
+    if (typeof entry !== 'string') continue;
+    const address = entry.trim().toLowerCase();
+    if (address.length > 0) set.add(address);
+  }
+  return set;
+}
+
 /**
  * Recognizes forward wrappers near the top of a sanitized text and returns the content after the
  * innermost one, so sections start at the notetaker's own content. English and Spanish:
@@ -378,8 +391,16 @@ function findWrapper(text: string, from: number): FoundWrapper | null {
  * - Apple Mail: "Begin forwarded message:" / "Inicio del mensaje reenviado:".
  * Nested forwards are stripped up to 5 levels; the innermost wrapper's From and Date are returned.
  * Text above a wrapper (the forwarder's own note) is dropped from `text`.
+ *
+ * `notetakerSenders` (the exact notetaker sender addresses, SUMMARIES_SENDERS normalized): once a
+ * wrapper's From is one of them, descending stops there. The text below that wrapper is the
+ * notetaker's own recap, so a From/Date/Subject block quoted inside it (a Summary that reads out a
+ * thread) is its content and is never taken for a further wrapper; that keeps the stored text, and
+ * with it the content digest, equal to the notetaker's own copy (design section 4 step 13).
+ * Compared lowercased. Without the argument (or with an empty list) every level is unwrapped.
  */
-export function stripForwardWrapper(input: string): ForwardStripResult {
+export function stripForwardWrapper(input: string, notetakerSenders?: ReadonlySet<string> | readonly string[]): ForwardStripResult {
+  const senders = senderSet(notetakerSenders);
   let contentStart = 0;
   let wrapper: ForwardWrapper | null = null;
   let depth = 0;
@@ -390,6 +411,8 @@ export function stripForwardWrapper(input: string): ForwardStripResult {
     contentStart = found.contentStart;
     depth += 1;
     if (contentStart >= input.length) break;
+    // The notetaker's own text starts here: it is never unwrapped further.
+    if (senders !== null && wrapper.fromAddress !== null && senders.has(wrapper.fromAddress)) break;
   }
   return { text: input.slice(contentStart), contentStart, wrapper, depth };
 }
