@@ -484,7 +484,8 @@ function compareCandidates(a: MatchCandidate, b: MatchCandidate): number {
 /**
  * The candidates for one summary (see the module comment). `window` null (no date, no anchor)
  * reads no meetings. `now` is the time the summary is known to exist by: the receipt or attempt
- * time in summaryInbound, the current time on a re-match.
+ * time in summaryInbound, and the stored receipt time on summaryRead's re-match (read.ts), so a
+ * later re-match never admits a meeting that began after the recap arrived.
  */
 export async function loadCandidates(
   db: Firestore,

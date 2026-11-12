@@ -486,6 +486,12 @@ export const storedSummarySchema = z.looseObject({
     itemTextFromOffsets: z.boolean(),
     /** The whole-text scan found instruction-like phrasing (M11 never pre-selects such items). */
     possibleInstruction: z.boolean(),
+    /**
+     * The text was converted from the message's HTML part (htmlText.ts: an HTML-only message, or a
+     * plain part that was blank). Written only when true, so a summary from a text/plain part keeps
+     * the four flags above; an upgrade replaces the flags with the better copy's.
+     */
+    textFromHtml: z.literal(true).optional(),
   }),
   /** HMAC-SHA256 hex of the text under the digest subkey (sealed.ts contentDigest). */
   contentDigest: z.string().regex(HEX64),
@@ -904,6 +910,8 @@ export interface BuildSummaryDocInput {
   text: string;
   /** sanitizeText(...).truncated. */
   textTruncated: boolean;
+  /** The text came from the HTML part (htmlText.ts); stored as flags.textFromHtml. */
+  textFromHtml?: boolean;
   /** The sanitized Subject (sanitizeLine), or null. */
   subject: string | null;
   /** The strict header.from addr-spec (never postal-mime's). */
@@ -962,7 +970,8 @@ function domainOrNull(value: string | null | undefined): string | null {
   return typeof value === 'string' && summaryDomainSchema.safeParse(value).success ? value : null;
 }
 
-function storedMatchOf(match: StoredSummaryMatch | null): StoredMatch | null {
+/** decide()'s match in the stored shape, lists sliced to the stored bounds (summaryRead's re-match reuses it). */
+export function storedMatchOf(match: StoredSummaryMatch | null): StoredMatch | null {
   if (match === null) return null;
   return {
     meetingId: match.meetingId,
@@ -979,7 +988,8 @@ function storedMatchOf(match: StoredSummaryMatch | null): StoredMatch | null {
   };
 }
 
-function storedCandidateOf(candidate: SummaryMatchCandidate): StoredCandidate {
+/** A decide() suggestion in the stored shape (summaryRead's re-match reuses it). */
+export function storedCandidateOf(candidate: SummaryMatchCandidate): StoredCandidate {
   return {
     meetingId: candidate.meetingId,
     occurrenceDate: candidate.occurrenceDate,
@@ -1078,7 +1088,13 @@ export function buildSummaryDoc(input: BuildSummaryDocInput): BuiltSummary {
     candidates,
     rejectedMeetingIds: input.match.rejectedMeetingIds.slice(-MAX_REJECTED_MEETING_IDS),
     counts: { sections: 0, items: 0, textChars: 0 },
-    flags: { truncated: false, textCutForSize: false, itemTextFromOffsets: false, possibleInstruction: input.sections.possibleInstruction },
+    flags: {
+      truncated: false,
+      textCutForSize: false,
+      itemTextFromOffsets: false,
+      possibleInstruction: input.sections.possibleInstruction,
+      ...(input.textFromHtml === true ? { textFromHtml: true as const } : {}),
+    },
     contentDigest: contentDigest(input.keyring, input.text),
     userAction: null,
     extraction: null,
@@ -1105,6 +1121,7 @@ export function buildSummaryDoc(input: BuildSummaryDocInput): BuiltSummary {
       textCutForSize: cutForSize,
       itemTextFromOffsets: fitted.body.itemTextFromOffsets,
       possibleInstruction: input.sections.possibleInstruction,
+      ...(input.textFromHtml === true ? { textFromHtml: true as const } : {}),
     },
     sealedBody,
   };

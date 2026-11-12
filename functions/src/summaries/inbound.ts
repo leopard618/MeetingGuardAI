@@ -3,7 +3,8 @@
  * rows 0 to 16, section 6 inputs and anchors, red-team findings 1 to 17). A pure handler over
  * injected ports, in the handleRevenueCatWebhook shape: the HTTPS shell (./inboundFunction.ts)
  * only maps the request and wires the ports. This module is loaded LAZILY by that shell on the
- * first request, because it pulls in mailauth (./authenticity) and postal-mime (./mime).
+ * first request, because it pulls in mailauth (./authenticity), postal-mime (./mime) and parse5
+ * (./htmlText).
  *
  * Steps, in this order (security critical; never reorder):
  *   0. Switched off: 404. Not POST: 405.
@@ -23,8 +24,16 @@
  *      mail, signed by google.com; refusing it would only show a confusing row).
  *   Rows 4 and 11 to 14: recordRefusal, senderDomain ONLY from classification.senderDomain (the d=
  *      of a passing signature, finding 17).
- *   7 to 10. The text/plain part only (HTML-only mail is unreadable until an HTML-to-text converter
- *      that drops hidden elements exists; tags are never stripped with regexes, finding 16);
+ *   7 to 10. The own text/plain part first. Only when there is none (or it is blank after
+ *      sanitizeText) is the own text/html part converted by ./htmlText.ts, which drops script,
+ *      style, head, comments and every element hidden by an inline style or a style rule, decided
+ *      before the style blocks are removed (finding 16; tags are never stripped with regexes); a
+ *      document over its limits refuses as unreadable (detail html_too_large or
+ *      html_too_complex), one that links or imports a style sheet it would have to fetch as
+ *      unreadable (detail html_external_css; data: sheets are read, web-font hosts skipped), an
+ *      HTML part with no visible text or no sections as unreadable (detail
+ *      html_only), a message with neither part as unreadable (detail no_text). A summary from the
+ *      HTML part is stored with flags.textFromHtml. Then the same path as text/plain:
  *      sanitizeText, then stripForwardWrapper for row 10 ONLY (a vendor recap, rows 7 to 9, is
  *      used as signed: a quoted From/Date/Subject block inside it never cuts it; in a user
  *      forward the stripping stops at the wrapper whose From is a SUMMARIES_SENDERS address, so
@@ -47,7 +56,8 @@
  * postal-mime; the display name is never read, so fromName is always null.
  *
  * Logs: exactly one `summaries.inbound` line per authorized request, carrying only fixed codes and
- * counts: uid, tok8, verdict, reason, detail, row, tier, outcome, matched, ms, and errorName on a
+ * counts: uid, tok8, verdict, reason, detail, row, tier, outcome, matched, ms, htmlHidden (the
+ * count of hidden HTML elements dropped, only for a text converted from HTML), and errorName on a
  * failure. Never the subject, a title, any address, the body, header text, the token, a code, the
  * provider event id or key material. Setup alarms go to `summaries.setup_alarm` {reason, detail}.
  */
@@ -65,11 +75,20 @@ import { candidateWindow, readPreferencesTimeZone, type CandidateWindow, type Lo
 import { isPilotUid, parsePilotList } from './gate';
 import { parseGmailConfirmation } from './gmail';
 import { parseMailDate, type HeaderFacts } from './headers';
+import { htmlToText } from './htmlText';
 import { decide, type MatchAnchor, type MatchCandidate } from './match';
 import { parseMime, type ParsedMime } from './mime';
 import { buildSummaryDoc, digestMarkerKey, messageKeyFor, messageMarkerKey, refusedReasonOrNull, summaryIdFor } from './model';
 import { SUMMARIES_MAX_BODY_BYTES, checkBasicAuth, parsePostmarkInbound, type InboundEnvelope } from './provider/postmark';
-import { sanitizeLine, sanitizeText, stripForwardWrapper, type ForwardWrapper } from './sanitize';
+import {
+  sanitizeLine,
+  sanitizeText,
+  stripForwardWrapper,
+  type ForwardWrapper,
+  type HtmlTextRefusal,
+  type HtmlToTextPort,
+  type SanitizedText,
+} from './sanitize';
 import { extractSummaryMeta, parseLocalDateTime, parseSections } from './sections';
 import { commitSummary, readFirstSeen, recordFirstSeen, recordRefusal, storeGmailRequest } from './store';
 
@@ -138,6 +157,8 @@ export interface InboundDeps {
   candidates: CandidatesLoader;
   /** DNS seam for mailauth (tests); production builds one resolver per message. */
   resolver?: DNSResolver;
+  /** HTML-to-text seam (tests); production uses ./htmlText.ts htmlToText. */
+  htmlToText?: HtmlToTextPort;
   /** The attempt time. */
   now(): Date;
 }
@@ -237,6 +258,8 @@ class InboundRun {
    * came before routing (a resolveToken or Auth read error).
    */
   seen: { envelope: InboundEnvelope; attemptAt: Date } | null = null;
+  /** Hidden HTML elements dropped, set only when the text was converted from the HTML part. */
+  htmlHidden: number | null = null;
 
   constructor(private readonly startedMs: number) {}
 
@@ -260,6 +283,7 @@ class InboundRun {
       ms: Date.now() - this.startedMs,
     };
     if (extra.pilotInvalid !== undefined && extra.pilotInvalid > 0) fields.pilotInvalid = extra.pilotInvalid;
+    if (this.htmlHidden !== null) fields.htmlHidden = this.htmlHidden;
     if (extra.errorName !== undefined) fields.errorName = extra.errorName;
     if (verdict === 'error') logger.error('summaries.inbound', fields);
     else if (verdict === 'retry') logger.warn('summaries.inbound', fields);
@@ -469,6 +493,39 @@ function decidingSignatureValue(classification: Classification, header: HeaderFa
   return deciding?.signatureValue ?? null;
 }
 
+/** Why a message has no usable body text (row 15 details; codes only). */
+type BodyRefusal = 'no_text' | `html_${HtmlTextRefusal}`;
+
+interface SummaryBody {
+  sanitized: SanitizedText;
+  /** The text was converted from the HTML part. */
+  fromHtml: boolean;
+  /** htmlText's hiddenElementsRemoved (0 for a text/plain part). */
+  hiddenRemoved: number;
+}
+
+/**
+ * Row 15: the own text/plain part first (the vendor's plain part is preferred, design section 8).
+ * The own text/html part is converted only when there is no plain part or the plain part is blank
+ * after sanitizeText (a sender that ships an empty stub). The converted text then goes through
+ * sanitizeText exactly as a plain part; its truncation joins the sanitizer's.
+ */
+function summaryBody(mime: ParsedMime, convert: HtmlToTextPort): SummaryBody | { refused: BodyRefusal } {
+  if (mime.text !== null) {
+    const sanitized = sanitizeText(mime.text);
+    if (sanitized.text.length > 0 || mime.html === null) return { sanitized, fromHtml: false, hiddenRemoved: 0 };
+  }
+  if (mime.html === null) return { refused: 'no_text' };
+  const converted = convert(mime.html);
+  if (converted.refused !== null) return { refused: `html_${converted.refused}` };
+  const sanitized = sanitizeText(converted.text);
+  return {
+    sanitized: { text: sanitized.text, truncated: sanitized.truncated || converted.truncated },
+    fromHtml: true,
+    hiddenRemoved: converted.hiddenElementsRemoved,
+  };
+}
+
 /**
  * The forward wrapper's Date (wall clock, no zone) as an instant in the user's preferences zone.
  * Null without a written time or without a usable zone: an unsigned anchor is never guessed.
@@ -499,8 +556,8 @@ async function storeSummary(
   const storingRow: StoringRow = row;
   const tier: ContractSummaryTier = storingRow === 10 ? 'user_forwarded' : 'vendor_verified';
 
-  // Row 15: the own text/plain part only. HTML-only mail waits for a converter that drops hidden
-  // elements (finding 16); its tags are never stripped with regexes.
+  // Row 15: the own text/plain part, else the own text/html part through htmlText.ts, which drops
+  // hidden elements (finding 16); tags are never stripped with regexes.
   run.stage = 'text';
   // A user forward that carries an attached message (message/rfc822 and the other kinds mime.ts
   // counts; never parsed inline) may have its recap only in that attachment. Its inline text is
@@ -513,11 +570,14 @@ async function storeSummary(
   // along). With SUMMARIES_SENDERS empty (it ships empty) every such mail is refused. Checked
   // before anything is sealed or any marker is claimed.
   const hasAttachedMessage = storingRow === 10 && mime.attachedMessageCount > 0;
-  if (mime.text === null) {
-    const detail = hasAttachedMessage ? 'attached_message' : mime.html !== null ? 'html_only' : 'no_text';
-    return refuse(ctx, 'unreadable', classification.senderDomain, detail);
+  const body = summaryBody(mime, deps.htmlToText ?? htmlToText);
+  if ('refused' in body) {
+    // A converter that no longer matches its pinned parser, or one that failed, is a setup alarm.
+    if (body.refused === 'html_parser_shape' || body.refused === 'html_failed') setupAlarm('html_converter', body.refused);
+    return refuse(ctx, 'unreadable', classification.senderDomain, hasAttachedMessage ? 'attached_message' : body.refused);
   }
-  const sanitized = sanitizeText(mime.text);
+  if (body.fromHtml) run.htmlHidden = body.hiddenRemoved;
+  const sanitized = body.sanitized;
   // The forward wrapper is a user-forward shape (row 10) only. A vendor recap (rows 7 to 9) is
   // used as signed: a From/Date/Subject block quoted inside it must never cut the signed text or
   // become the matching title. In a user forward the stripping stops at the notetaker's own
@@ -528,9 +588,10 @@ async function storeSummary(
     return refuse(ctx, 'unreadable', classification.senderDomain, 'attached_message');
   }
   const text = inner?.text ?? sanitized.text;
-  if (text.trim().length === 0) return refuse(ctx, 'unreadable', classification.senderDomain, 'empty_text');
+  // An HTML part with nothing visible (or no sections) keeps the html_only detail.
+  if (text.trim().length === 0) return refuse(ctx, 'unreadable', classification.senderDomain, body.fromHtml ? 'html_only' : 'empty_text');
   const sections = parseSections(text);
-  if (sections.sections.length === 0) return refuse(ctx, 'unreadable', classification.senderDomain, 'no_sections');
+  if (sections.sections.length === 0) return refuse(ctx, 'unreadable', classification.senderDomain, body.fromHtml ? 'html_only' : 'no_sections');
   const meta = extractSummaryMeta(text, mime.subject);
   const subjectLine = sanitizeLine(mime.subject, SUMMARY_LIMITS.maxSubjectChars);
   const subject = subjectLine.length > 0 ? subjectLine : null;
@@ -598,6 +659,7 @@ async function storeSummary(
     meta,
     text,
     textTruncated: sanitized.truncated,
+    textFromHtml: body.fromHtml,
     subject,
     fromAddress: header.from,
     // The strict parser never returns display names, and postal-mime's are never used for labels.

@@ -4,7 +4,9 @@
 // usage/{uid} of every account deleted after that time. deleteAccount records each deletion in
 // accountDeletions/{uid} (kept 30 days, never restored over because newer records are not in the
 // backup); this script deletes those accounts' documents again. The Auth users stay deleted
-// (Firebase Auth is not part of a Firestore restore).
+// (Firebase Auth is not part of a Firestore restore). It also deletes the restored WhatsApp link
+// state and the meeting summaries address (M10: summaryUsers/{uid} and every summaryAddresses doc
+// naming the uid; users/{uid}/meetingSummaries goes with users/{uid}).
 //
 // Usage (from functions/, after `npm run build`, with Application Default Credentials of an
 // account that may write the project's Firestore: `gcloud auth application-default login`):
@@ -18,6 +20,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { ACCOUNT_DELETIONS_COLLECTION, replayAccountDeletions } = require('../lib/maintenance/core.js');
 const { deleteWhatsAppDataForUid, firestoreLinkStore } = require('../lib/whatsapp/link.js');
+const { deleteSummaryDataForUid } = require('../lib/summaries/accountDeletion.js');
 
 const { values } = parseArgs({
   options: {
@@ -47,6 +50,9 @@ const uids = await replayAccountDeletions(
     },
     async deleteWhatsAppData(uid) {
       await deleteWhatsAppDataForUid(uid, firestoreLinkStore(db));
+    },
+    async deleteSummaryData(uid) {
+      await deleteSummaryDataForUid(uid, { db });
     },
     async deleteDocument(path) {
       await db.doc(path).delete();

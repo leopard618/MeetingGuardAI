@@ -22,6 +22,11 @@
  *   updatedAt}, so disconnect plus create cannot reset the per-UTC-day rotation cap: a create on a
  *   tombstone counts as a rotation. A tombstone is "no address" everywhere (status, resolve,
  *   set_mailboxes, regenerate). Account deletion removes the document completely.
+ * - create_address refuses (account_deleted, nothing written) once accountDeletions/{uid} exists:
+ *   deleteAccount writes that record before anything else, and onCall accepts the caller's ID
+ *   token for up to an hour after the Auth user is gone, so a second device could otherwise
+ *   recreate summaryUsers/{uid} (with the sign-in email) after the deletion finished (review S5).
+ *   regenerate and set_mailboxes need an existing address, so they cannot recreate one.
  * - Every mailbox and every rendered address parses with the contract's summaryAddrSpecSchema
  *   (functions/src/shared/aiContract.ts), so summaryStatus and summaryAction responses always parse
  *   in the app.
@@ -34,6 +39,7 @@ import { domainToASCII } from 'node:url';
 import * as logger from 'firebase-functions/logger';
 import type { DocumentReference, DocumentSnapshot, Firestore, Transaction } from 'firebase-admin/firestore';
 
+import { ACCOUNT_DELETIONS_COLLECTION } from '../maintenance/core';
 import { summaryAddrSpecSchema } from '../shared/aiContract';
 
 export const SUMMARY_ADDRESSES_COLLECTION = 'summaryAddresses';
@@ -530,6 +536,8 @@ export type CreateAddressResult =
   | { status: 'created' | 'existing'; address: string; mailboxes: string[] }
   /** A create after a disconnect counts as a rotation; this is the sixth in one UTC day. */
   | { status: 'rate_limited' }
+  /** accountDeletions/{uid} exists: the account is being or was deleted; nothing is written. */
+  | { status: 'account_deleted' }
   | { status: 'not_ready' };
 
 export type RegenerateAddressResult =
@@ -578,7 +586,10 @@ function logWith(deps: { logger?: AddressLogger }): AddressLogger {
  * as a rotation (rotationDecision, at most rotationsPerUtcDay a UTC day, else rate_limited with
  * nothing written) and is replaced by a whole new document. An inconsistent leftover (index
  * missing or owned elsewhere) is never revived: it gets a fresh token, keeping its mailboxes and
- * counters. Returns not_ready, writing nothing, while the template is empty or malformed.
+ * counters. Returns not_ready, writing nothing, while the template is empty or malformed, and
+ * account_deleted, writing nothing, once accountDeletions/{uid} exists (read in the same
+ * transaction, so a create either commits before deleteAccount's record, and deleteSummaryData
+ * then removes it, or sees the record).
  */
 export async function createAddress(
   uid: string,
@@ -596,6 +607,8 @@ export async function createAddress(
   const db = deps.db;
 
   const outcome = await db.runTransaction(async (tx: Transaction) => {
+    // An account deletion has started (review S5): never recreate the address documents.
+    if ((await tx.get(db.doc(`${ACCOUNT_DELETIONS_COLLECTION}/${uid}`))).exists) return { status: 'account_deleted' as const };
     const uRef = userRef(db, uid);
     const userSnap = await tx.get(uRef);
     const raw = userSnap.exists ? userSnap.data() : undefined;
@@ -653,6 +666,10 @@ export async function createAddress(
   });
 
   const log = logWith(deps);
+  if (outcome.status === 'account_deleted') {
+    log.info('summaries.address.refused', { uid, reason: 'account_deleted' });
+    return { status: 'account_deleted' };
+  }
   if (outcome.status === 'rate_limited') {
     log.info('summaries.address.rotation_limited', { uid, afterDisconnect: true });
     return { status: 'rate_limited' };

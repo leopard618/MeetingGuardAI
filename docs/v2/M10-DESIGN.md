@@ -858,3 +858,75 @@ Open, to check on the first deploy or the first real mail:
   whole series being suggested for that summary (Choose a meeting still works).
 - An .eml sent as text/plain without a disposition is read as inline text by postal-mime.
 - Log-based alerts for summaries.setup_alarm, summaries.mime_parser_shape and inbound errors.
+
+## 19. Day 3 status (November 12, 2026)
+
+Built on dev_dusko (not committed yet, nothing deployed, no Postmark credentials; everything runs
+against fakes): summaryRead (read.ts) with its lazy onCall shell (readFunction.ts, data key only,
+the summaries service account, exported only while SUMMARIES_ENABLED is true): list views inbox,
+recent, refused (one row per UTC day, no content) and meeting (also as a duplicateMeetingIds
+member), newest first, at most 100 rows with hasMore, lists open sealedHead only; get opens both
+blobs. Before the inbox answers, up to 10 of the newest eligible inbox items are matched again
+(candidates.ts with the receipt time as the bound, decide(), rule A on a row 7 copy only), each
+write in a transaction that re-reads the document. loadSummaryForExtraction(uid, summaryId,
+{db, keyring}) is M11's way in. Account deletion: summaries/accountDeletion.ts
+deleteSummaryDataForUid (address docs with no tombstone, plus any summaryAddresses doc still
+naming the uid), wired into deleteAccount, the deletion replay and
+scripts/replay-account-deletions.mjs. dailyMaintenance purges users/{uid}/meetingSummaries and
+summaryEvents by their own expiresAt. The HTML-to-text converter (htmlText.ts, CSS in
+htmlStyle.ts) on parse5 7.3.0, pinned exact (CommonJS build; it loads only with the inbound
+pipeline), wired into row 15. Functions 49 suites and 1877 tests, the app 185 suites and 2366
+tests (the shared tree, other builders' app work included; one app suite, AppleSignInButton,
+failed once under full parallel load and passed alone and on the rerun), typecheck, lint and the
+four-pair contract check clean.
+
+Review: two independent reviewers, 13 findings. All 13 were confirmed against the code (the HTML
+ones reproduced on a compiled build) and fixed, each with a regression test; none rejected, none
+deferred. What changed against the text above:
+- Section 8, HTML-only mail. Text is dropped when it is invisible in ANY light rendering. A rule
+  matched with certainty sets colors as before. A rule that only possibly applies (a relaxed
+  selector, an attribute test, a class matching only by case, a list a browser may drop for one
+  invalid entry, a digit-leading identifier, anything inside @media other than plain all or
+  screen, @supports, @layer and the like) is tried both ways, in every combination, so neither a
+  guessed match, a decoy rule nor a mobile-only rescue keeps hidden text. Dark-mode blocks are only
+  @media whose every query requires prefers-color-scheme: dark. Attribute selectors are evaluated,
+  so the Gmail iOS fix ([class="gmail-fix"]) no longer wipes out a recap. Rules on ::before,
+  ::after, ::marker and :empty are ignored; ::first-line and ::first-letter colors count but never
+  hide. Escaped at-rule names are decoded and unknown at-rules are read as conditional. The hiding
+  list gains washed-out filters, masks, any clip-path but the whole box, mix-blend-mode, skew,
+  matrix3d and perspective transforms, the rotate property, large positive offsets (right and
+  bottom from 500px, left, top and text-indent from 2000px or 100%), nested opacities under 0.1,
+  popovers, meter and progress fallback text and declarative shadow hosts. Background images
+  paint behind the text: a gradient shows its stops and their midpoints, an image is unknown, so
+  white text over a header image is now dropped. Linked and @imported style sheets: a data: URL is
+  read like a style block, a web-font host (fonts.googleapis.com, fonts.bunny.net,
+  use.typekit.net) is skipped, and any other refuses the part as unreadable with the new detail
+  html_external_css. New limits: 32 data: sheets and 2 MiB of their CSS, 5,000,000 look
+  combinations per document.
+- Section 8, hand-off: the plain context also carries originalInboxReason and textFromHtml.
+- Sections 4 and 9, summaryRead: inbox and recent are ordered by receivedAt descending in Firestore
+  on a new composite index (meetingSummaries, status ascending, receivedAt descending) in
+  firestore.indexes.json, so a flood of inbox mail can no longer hide the newest items or empty
+  the recent view; recent reads status matched or kept only (101 rows).
+- Section 7, retention: each purge delete re-reads expiresAt in its own transaction, so a summary
+  filed or kept (or a marker claimed again) after the listing survives. Both M10 purges are
+  non-fatal: a failure is kept as purgeErrors {purge: errorName}, logged as
+  dailyMaintenance.purge_failed, and the run still completes (complete false). 12 months is coded
+  as 365 days.
+- Section 7, deletion: create_address answers not_allowed and writes nothing once
+  accountDeletions/{uid} exists (an ID token outlives the Auth user by up to an hour), and
+  deleteAccount also calls deleteSummaryData after the second recursive pass.
+
+Open:
+- Deploy order: firestore.indexes.json (the meetingSummaries expiresAt fieldOverride and the new
+  status plus receivedAt composite index) goes out with the rules BEFORE summaryRead, and before
+  the first dailyMaintenance deploy that carries the M10 purges. Until it is deployed the
+  meetingSummaries purge logs dailyMaintenance.purge_failed every day (FAILED_PRECONDITION) and
+  the rest of the run is unaffected.
+- A log-based alert for dailyMaintenance.purge_failed and summaryRead upstream errors.
+- Converter gaps, all fail closed or backed by the text/plain preference and the instruction scan:
+  dark-mode renderings are not modeled; a custom font with blank glyphs, an ancestor perspective
+  and layout overlays are not modeled; possible rules combine per element, so a responsive color
+  scheme set in one @media block can drop its text; an HTML-only recap that links a remote style
+  sheet is refused. Check all of it on Francisco's real recap if it arrives HTML-only.
+- The rules tests (npm run test:rules) still need Java and have not run here.

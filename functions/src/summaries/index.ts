@@ -12,11 +12,14 @@
  *   it is exported ONLY while SUMMARIES_ENABLED is true at deploy time (summariesEnabledAtLoad
  *   reads the param's env value during CLI discovery). While the param is false (the default) a
  *   full `firebase deploy --only functions` never validates the secrets and cannot fail on them.
- *   summaryRead (day 3) will follow the same gate.
+ * - summaryRead (the lists and the full view) binds SUMMARIES_DATA_KEY only, never the webhook
+ *   secret, and follows the same gate. Both gated functions run as SUMMARIES_SERVICE_ACCOUNT when
+ *   it is set at deploy time (gate.ts summariesServiceAccountAtLoad).
  *
  * Module loading: this file and everything it imports at load time must not load mailauth,
- * postal-mime, ./authenticity, ./mime or ./inbound (functions/test/unit/summariesIndex.test.ts
- * checks it). ./inboundFunction builds the HTTPS shell and loads the pipeline on its first request.
+ * postal-mime, ./authenticity, ./mime, ./inbound or ./read (functions/test/unit/summariesIndex.test.ts
+ * checks it). ./inboundFunction builds the HTTPS shell and loads the pipeline on its first request;
+ * ./readFunction builds the summaryRead shell and loads ./read on its first call.
  */
 import { onCall, type CallableOptions } from 'firebase-functions/https';
 
@@ -32,6 +35,7 @@ import type { SummaryActionResponse, SummaryStatusResponse } from '../shared/aiC
 import { handleSummaryAction, handleSummaryStatus, type SummaryCallableDeps } from './callables';
 import { summariesEnabledAtLoad } from './gate';
 import { makeSummaryInbound } from './inboundFunction';
+import { makeSummaryRead } from './readFunction';
 
 export { summaryError } from './callables';
 export { summariesEnabledAtLoad } from './gate';
@@ -88,3 +92,14 @@ export const summaryAction = onCall(CALLABLE_OPTIONS, (request): Promise<Summary
  * param to false again makes the next deploy OFFER to delete the function - accept it.
  */
 export const summaryInbound = summariesEnabledAtLoad() ? makeSummaryInbound() : undefined;
+
+// ---------------------------------------------------------------------------------------------
+// Reader (binds the data key only; exported only while SUMMARIES_ENABLED at deploy time)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * summaryRead {op: 'list', view, meetingId?} | {op: 'get', summaryId} -> the lists (titles only,
+ * after the inbox re-match) or the full view. Same gate as summaryInbound: while it is undefined
+ * the app gets functions/not-found without details and shows the feature as not enabled.
+ */
+export const summaryRead = summariesEnabledAtLoad() ? makeSummaryRead() : undefined;

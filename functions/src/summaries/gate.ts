@@ -11,8 +11,8 @@
  *   (auto ids are 28 alphanumerics, Microsoft sign-in uids are "ms_" plus a lowercase GUID) are
  *   dropped, so a typo can never widen the pilot. Matching is exact and case-sensitive.
  * - summariesServiceAccountAtLoad: the dedicated runtime service account of the functions that
- *   bind SUMMARIES_DATA_KEY (design section 7, finding 13): summaryInbound now, summaryRead on
- *   day 3 (both import it from here).
+ *   bind SUMMARIES_DATA_KEY (design section 7, finding 13): summaryInbound (inboundFunction.ts)
+ *   and summaryRead (readFunction.ts) both import it from here.
  *
  * SUMMARIES_SERVICE_ACCOUNT is a PLAIN KEY in functions/.env.<projectId>, read only at deploy time
  * (CLI discovery loads the code with that file in process.env) and at load time (the runtime

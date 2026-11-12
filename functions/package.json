@@ -26,6 +26,7 @@
     "google-auth-library": "11.1.0",
     "mailauth": "8.0.4",
     "openai": "7.23.0",
+    "parse5": "7.3.0",
     "postal-mime": "4.1.4",
     "zod": "^4.6.5"
   },

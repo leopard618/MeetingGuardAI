@@ -34,16 +34,37 @@ export interface SanitizedText {
 }
 
 /**
- * PLACEHOLDER, NOT BUILT (open decision): HTML-only mail. Design section 8 requires dropping
- * script, style, head and comments, and every element hidden by inline style or by a class or id
- * that a <style> rule hides (display:none, visibility:hidden, opacity:0, font-size under 2px,
- * max-height:0, off-screen positioning, text colored like its background), decided BEFORE the
- * style blocks are removed (red team finding 16). That needs an HTML parser decision (none is
- * installed). Until a converter implementing this port exists, HTML-only mail must be treated as
- * unreadable by the pipeline; it must NOT be converted with a regex tag stripper, because hidden
- * prompt-injection text would survive. The converter's output then goes through sanitizeText.
+ * Why an HTML part was not converted at all (fail closed). external_css: it links or imports a
+ * style sheet that is neither a data: URL nor a web-font host's, so a client could hide text by
+ * CSS this converter never sees (review S3).
  */
-export type HtmlToTextPort = (html: string) => { text: string; hiddenElementsRemoved: number };
+export type HtmlTextRefusal = 'too_large' | 'too_complex' | 'external_css' | 'parser_shape' | 'failed';
+
+/** What an HTML-to-text converter returns (htmlText.ts htmlToText). */
+export interface HtmlToTextResult {
+  /** The visible text, NOT yet sanitized: the caller passes it through sanitizeText like a text/plain part. '' when refused. */
+  text: string;
+  /** Elements dropped because a style, a style rule or an attribute hid them, or their own text was invisible. */
+  hiddenElementsRemoved: number;
+  /** The output was cut at the converter's own cap. */
+  truncated: boolean;
+  /**
+   * Non-null when nothing was converted: too_large or too_complex (over a limit), external_css
+   * (a style sheet it cannot read), parser_shape (the pinned parser's internals changed) or
+   * failed (any other error). The text is then ''.
+   */
+  refused: HtmlTextRefusal | null;
+}
+
+/**
+ * HTML-only mail (design section 8, red team finding 16): script, style, head and comments are
+ * dropped, and so is every element hidden by inline style or by a <style> rule (display:none,
+ * visibility:hidden, opacity:0, font-size under 2px, max-height:0, off-screen positioning, text
+ * colored like its background), decided BEFORE the style blocks are removed. Implemented by
+ * htmlText.ts on a real HTML parser (parse5); never with a regex tag stripper, which would let
+ * hidden prompt-injection text survive. The output then goes through sanitizeText.
+ */
+export type HtmlToTextPort = (html: string) => HtmlToTextResult;
 
 // Line separators other than LF become LF: CRLF, lone CR, vertical tab, form feed, NEL (U+0085),
 // LINE SEPARATOR (U+2028) and PARAGRAPH SEPARATOR (U+2029).

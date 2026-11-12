@@ -616,6 +616,15 @@ describe('summaryAction create_address and regenerate_address', () => {
     expect(writesOf(h)).toEqual([]);
   });
 
+  it('answers not_allowed and writes nothing once the account deletion has started (review S5)', async () => {
+    const h = harness();
+    // deleteAccount wrote its record; the caller's ID token is still accepted for up to an hour.
+    h.fake.seed(`accountDeletions/${UID}`, { deletedAt: NOW.toISOString() });
+    await expectReason(createAddressFor(h), 'not_allowed');
+    expect(writesOf(h)).toEqual([]);
+    expect(h.fake.paths(`${SUMMARY_ADDRESSES_COLLECTION}/`)).toEqual([]);
+  });
+
   it('regenerates the address in place and drops the old index document', async () => {
     const h = harness();
     const created = await createAddressFor(h);

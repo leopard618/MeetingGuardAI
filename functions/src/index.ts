@@ -19,6 +19,8 @@
  * - summaryStatus / summaryAction (always deployed, no secrets; summaryAction never decrypts):
  *   meeting summaries status, private address, mailboxes and filing (src/summaries,
  *   docs/v2/M10-DESIGN.md section 4; SUMMARIES_ENABLED plus the SUMMARIES_PILOT_UIDS pilot list).
+ * - summaryRead: meeting summary lists and the full view (deployed only while
+ *   SUMMARIES_ENABLED=true; binds SUMMARIES_DATA_KEY only; src/summaries/read.ts).
  * - adminReconcileEntitlement (deployed only while REVENUECAT_RECONCILE_ENABLED=true; the ONLY
  *   function binding REVENUECAT_SECRET_KEY): heals entitlements/{uid} against the RevenueCat
  *   REST API (src/revenuecat/reconcile.ts, docs/v1/ARCHITECTURE.md §20).
@@ -57,6 +59,7 @@ export { zoomCreateMeeting, zoomDeleteMeeting, zoomStatus, zoomSyncMeeting } fro
 // Same gating pattern: whatsappWebhook is `undefined` while WHATSAPP_ENABLED is false at deploy
 // time, so a deploy without the WHATSAPP_* secrets always succeeds; the callables bind none.
 export { whatsappLinkStart, whatsappLinkStatus, whatsappUnlink, whatsappWebhook } from './whatsapp';
-// Same gating pattern: summaryInbound is `undefined` while SUMMARIES_ENABLED is false at deploy
-// time, so a deploy without the SUMMARIES_* secrets always succeeds; the callables bind none.
-export { summaryAction, summaryInbound, summaryStatus } from './summaries';
+// Same gating pattern: summaryInbound and summaryRead are `undefined` while SUMMARIES_ENABLED is
+// false at deploy time, so a deploy without the SUMMARIES_* secrets always succeeds; the callables
+// bind none.
+export { summaryAction, summaryInbound, summaryRead, summaryStatus } from './summaries';

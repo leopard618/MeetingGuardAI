@@ -318,6 +318,8 @@ async function runOp(caller: SummaryCaller, request: SummaryActionRequest, deps:
       const result = await createAddress(uid, verifiedEmailOf(caller), addressDeps(deps));
       if (result.status === 'not_ready') throw summaryError('not_ready', MESSAGES.beingSetUp);
       if (result.status === 'rate_limited') throw summaryError('rate_limited', MESSAGES.rateLimited);
+      // A deleted account (its ID token outlives the Auth user by up to an hour): nothing was written.
+      if (result.status === 'account_deleted') throw summaryError('not_allowed', MESSAGES.notAllowed);
       return { changed: result.status === 'created', summary: null };
     }
     case 'regenerate_address': {
@@ -373,8 +375,11 @@ async function runOp(caller: SummaryCaller, request: SummaryActionRequest, deps:
   }
 }
 
-/** The caller after the summaryAction gates: verified, switch on, in the pilot. */
-function requireActionCaller(auth: SummaryCallableAuth, config: SummaryCallableConfig): SummaryCaller {
+/**
+ * The caller after the summaryAction gates: verified, switch on, in the pilot (summaryRead uses
+ * the same gates, ./read.ts).
+ */
+export function requireActionCaller(auth: SummaryCallableAuth, config: Pick<SummaryCallableConfig, 'enabled' | 'pilotUids'>): SummaryCaller {
   const caller = summaryCallerOf(auth);
   if (caller === null) throw summaryError('unauthenticated', MESSAGES.signedOut);
   if (!isVerifiedCaller(caller)) throw summaryError('unauthenticated', MESSAGES.unverified);

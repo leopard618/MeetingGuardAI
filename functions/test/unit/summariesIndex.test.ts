@@ -4,6 +4,8 @@
  * - summaryStatus and summaryAction always export and never bind a secret;
  * - summaryInbound exports ONLY while SUMMARIES_ENABLED is true when the module loads, and then binds
  *   exactly SUMMARIES_WEBHOOK_AUTH and SUMMARIES_DATA_KEY;
+ * - summaryRead follows the same gate and binds SUMMARIES_DATA_KEY only (never the webhook secret),
+ *   runs under the same service account option, and loads ./read on its first call only;
  * - summaryInbound runs as SUMMARIES_SERVICE_ACCOUNT when that is set at load (design section 7,
  *   finding 13), and as the default account otherwise; the callables never carry it; it is a
  *   plain dotenv key read by gate.ts summariesServiceAccountAtLoad, never a declared param;
@@ -40,6 +42,10 @@ jest.mock('../../src/summaries/mime', () => {
 jest.mock('../../src/summaries/inbound', () => {
   mockLoaded.push('inbound');
   return jest.requireActual('../../src/summaries/inbound');
+});
+jest.mock('../../src/summaries/read', () => {
+  mockLoaded.push('read');
+  return jest.requireActual('../../src/summaries/read');
 });
 
 import { readFileSync } from 'node:fs';
@@ -116,6 +122,7 @@ describe('summaries module exports (deploy gating)', () => {
     expect(mod.summaryStatus).toBeDefined();
     expect(mod.summaryAction).toBeDefined();
     expect(mod.summaryInbound).toBeUndefined();
+    expect(mod.summaryRead).toBeUndefined();
     expect(secretKeys(mod.summaryStatus)).toEqual([]);
     expect(secretKeys(mod.summaryAction)).toEqual([]);
   });
@@ -234,12 +241,58 @@ describe('summaries module exports (deploy gating)', () => {
   it('still loads none of them at module load while SUMMARIES_ENABLED=true (the pipeline loads on the first request)', () => {
     loadModule('true');
     expect(mockLoaded.filter((name) => PIPELINE_MODULES.includes(name))).toEqual([]);
+    // Nor the reader: summaryRead loads ./read on its first call.
+    expect(mockLoaded).not.toContain('read');
   });
 
   it('the load detectors do see a module that loads mailauth (control)', () => {
     loadModule(undefined);
     jest.requireActual('../../src/summaries/authenticity');
     expect(mockLoaded).toContain('mailauth');
+  });
+
+  it('exports summaryRead only while SUMMARIES_ENABLED is true, binding the data key only', () => {
+    for (const value of [undefined, 'false', '']) {
+      const mod = loadModule(value);
+      expect([value, mod.summaryRead]).toEqual([value, undefined]);
+    }
+    const mod = loadModule('true');
+    expect(mod.summaryRead).toBeDefined();
+    expect(secretKeys(mod.summaryRead)).toEqual(['SUMMARIES_DATA_KEY']);
+    const endpoint = endpointOf(mod.summaryRead);
+    expect(endpoint.callableTrigger).toBeDefined();
+    expect(endpoint.httpsTrigger).toBeUndefined();
+    expect(endpoint.availableMemoryMb).toBe(512);
+    expect(endpoint.timeoutSeconds).toBe(30);
+    expect(endpoint.maxInstances).toBe(10);
+  });
+
+  it('runs summaryRead as SUMMARIES_SERVICE_ACCOUNT when it is set at deploy time, and as the default account otherwise', () => {
+    const dedicated = loadModule('true', RUNTIME_ACCOUNT);
+    expect(wireServiceAccount(dedicated.summaryRead)).toBe(RUNTIME_ACCOUNT);
+    expect(wireServiceAccount(dedicated.summaryInbound)).toBe(RUNTIME_ACCOUNT);
+    expect(secretKeys(dedicated.summaryRead)).toEqual(['SUMMARIES_DATA_KEY']);
+    for (const value of [undefined, '', '  ']) {
+      const shared = loadModule('true', value);
+      expect([value, wireServiceAccount(shared.summaryRead)]).toEqual([value, null]);
+    }
+  });
+
+  it('loads ./read on the first summaryRead call only, and never the pipeline modules', async () => {
+    const mod = loadModule('true');
+    expect(mockLoaded).not.toContain('read');
+    const fn = mod.summaryRead as unknown as { run(request: unknown): Promise<unknown> };
+    let caught: unknown;
+    try {
+      await fn.run({ auth: undefined, data: { op: 'list', view: 'inbox' }, rawRequest: {} });
+    } catch (error) {
+      caught = error;
+    }
+    // A signed-out call is refused by the handler before the Admin SDK or the data key is touched.
+    expect((caught as { code?: unknown }).code).toBe('unauthenticated');
+    expect((caught as { details?: unknown }).details).toEqual({ reason: 'unauthenticated' });
+    expect(mockLoaded).toContain('read');
+    expect(mockLoaded.filter((name) => PIPELINE_MODULES.includes(name))).toEqual([]);
   });
 
   it('summariesEnabledAtLoad accepts only a true-ish env value', () => {
