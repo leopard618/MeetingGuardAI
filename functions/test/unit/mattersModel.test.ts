@@ -1,7 +1,7 @@
 import {
   MATTER_LIMITS,
   canonicalJson,
-  mandateHash,
+  draftHash,
   mandateSchema,
   matterDocSchema,
   matterMessageSchema,
@@ -66,21 +66,24 @@ describe('matters model: the mandate', () => {
   });
 });
 
-describe('matters model: the mandate hash', () => {
-  it('is the same for the same mandate whatever the key order', () => {
+describe('matters model: the draft hash', () => {
+  const email = { subject: 'Updated proposal', text: 'Hello Carlos, could you send the updated proposal?' };
+
+  it('is the same for the same draft whatever the key order', () => {
     const a = mandate();
     // the same fields, inserted in reverse order
     const b = Object.fromEntries(Object.entries(a).reverse()) as Mandate;
     expect(Object.keys(b)[0]).toBe('timeZone');
-    expect(mandateHash(a)).toBe(mandateHash(b));
-    expect(mandateHash(a)).toMatch(/^[a-f0-9]{64}$/);
+    expect(draftHash(a, email)).toBe(draftHash(b, { text: email.text, subject: email.subject }));
+    expect(draftHash(a, email)).toMatch(/^[a-f0-9]{64}$/);
   });
 
-  it('changes with any change the user would see', () => {
-    const base = mandateHash(mandate());
-    expect(mandateHash(mandate({ endsAt: '2026-11-15T23:00:00.000Z' }))).not.toBe(base);
-    expect(mandateHash(mandate({ contacts: [{ name: 'Carlos Ruiz', email: 'carlos2@example.com' }] }))).not.toBe(base);
-    expect(mandateHash(mandate({ mayAsk: ['the updated proposal'] }))).not.toBe(base);
+  it('changes with any change the user would see, in the mandate or in the email', () => {
+    const base = draftHash(mandate(), email);
+    expect(draftHash(mandate({ endsAt: '2026-11-15T23:00:00.000Z' }), email)).not.toBe(base);
+    expect(draftHash(mandate({ contacts: [{ name: 'Carlos Ruiz', email: 'carlos2@example.com' }] }), email)).not.toBe(base);
+    expect(draftHash(mandate({ mayAsk: ['the updated proposal'] }), email)).not.toBe(base);
+    expect(draftHash(mandate(), { ...email, text: `${email.text} Thanks.` })).not.toBe(base);
   });
 
   it('keeps array order (the order of contacts is part of what was shown)', () => {
@@ -93,15 +96,20 @@ describe('matters model: the matter and its emails', () => {
   const matter = {
     status: 'draft',
     language: 'es',
+    timeZone: 'Europe/Madrid',
     title: 'Propuesta de Carlos',
     request: 'Contacta a Carlos y pide la propuesta actualizada.',
     source: 'voice',
+    ownerName: 'Ana Lopez',
+    ownerEmail: 'ana@example.com',
     mandate: mandate(),
+    firstEmail: { subject: 'Propuesta', text: 'Hola Carlos.' },
     questions: [],
     readBack: 'Voy a escribir a Carlos Ruiz.',
     mandateVersion: 1,
     confirmedHash: null,
     confirmedAt: null,
+    firstSentAt: null,
     replyToken: '0123456789abcdef01234567',
     createdAt: ISO,
     updatedAt: ISO,

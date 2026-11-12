@@ -25,7 +25,8 @@
     "AIInsights": "Insights",
     "CalendarSync": "Calendar sync",
     "Pricing": "Plans",
-    "WhatsAppConnect": "WhatsApp"
+    "WhatsAppConnect": "WhatsApp",
+    "Matters": "AI executive assistant"
   },
   "meeting": {
     "loading": "Loading meeting...",

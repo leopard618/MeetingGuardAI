@@ -4,8 +4,9 @@
  * A matter is one job the user hands the assistant ("contact Carlos, ask for the proposal, set up
  * a meeting, follow up until Friday"). Its MANDATE says what the assistant may do: whom it may
  * email, what it may ask for, which times it may offer, how often it follows up and until when.
- * Nothing is sent before the user confirms one exact mandate (confirmedHash); every send is
- * checked against that confirmed mandate in code, never by the model.
+ * Nothing is sent before the user confirms one exact draft, the mandate together with the first
+ * email (confirmedHash); every send is checked against that confirmed mandate in code, never by
+ * the model.
  *
  * Layout (Firestore; all written ONLY by the matter functions through the Admin SDK):
  *   users/{uid}/matters/{matterId}                   MatterDoc      owner read, server write
@@ -23,7 +24,14 @@ import { createHash, randomBytes } from 'node:crypto';
 
 import { z } from 'zod';
 
-import { emailSchema, isoDateTimeSchema, languageSchema, timeZoneSchema } from '../shared/aiContract';
+import {
+  DRAFT_HASH_PATTERN,
+  MATTER_SOURCES,
+  emailSchema,
+  isoDateTimeSchema,
+  languageSchema,
+  timeZoneSchema,
+} from '../shared/aiContract';
 
 // ---------------------------------------------------------------------------------------------
 // Paths
@@ -47,8 +55,8 @@ export const matterMessagePath = (uid: string, matterId: string, messageId: stri
 // ---------------------------------------------------------------------------------------------
 
 export const MATTER_LIMITS = {
-  /** The user's own words (typed or transcribed). */
-  requestChars: 2000,
+  /** The user's own words (typed or transcribed), with their answers to the questions appended. */
+  requestChars: 4000,
   titleChars: 120,
   goalChars: 600,
   itemChars: 200,
@@ -65,6 +73,8 @@ export const MATTER_LIMITS = {
   /** A mandate never runs longer than this from its confirmation. */
   maxMandateDays: 90,
   eventDetailChars: 500,
+  /** The first email as drafted (subject and plain text, before the code adds the footer). */
+  firstEmailChars: 3000,
   subjectChars: 200,
   /** Plain-text body kept per email (longer bodies are cut, never rejected). */
   bodyChars: 20_000,
@@ -159,16 +169,24 @@ export function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/**
- * Fingerprint of one exact mandate. The app confirms a mandate by sending back the hash of the
- * version it showed; any later change gives another hash, so a stale screen can never confirm
- * something the user did not read.
- */
-export function mandateHash(mandate: Mandate): string {
-  return createHash('sha256').update(canonicalJson(mandate)).digest('hex');
-}
+/** The first email as drafted: what the user reads before confirming, and what is sent. */
+export const firstEmailSchema = z
+  .object({
+    subject: shortText(MATTER_LIMITS.subjectChars),
+    text: shortText(MATTER_LIMITS.firstEmailChars),
+  })
+  .strict();
 
-export const MANDATE_HASH_PATTERN = /^[a-f0-9]{64}$/;
+export type FirstEmail = z.infer<typeof firstEmailSchema>;
+
+/**
+ * Fingerprint of one exact draft: the mandate and the first email. The app confirms by sending
+ * back the hash of the version it showed; any later change gives another hash, so a stale screen
+ * can never confirm something the user did not read.
+ */
+export function draftHash(mandate: Mandate, firstEmail: FirstEmail): string {
+  return createHash('sha256').update(canonicalJson({ firstEmail, mandate })).digest('hex');
+}
 
 // ---------------------------------------------------------------------------------------------
 // The matter
@@ -182,9 +200,6 @@ export const MANDATE_HASH_PATTERN = /^[a-f0-9]{64}$/;
 export const MATTER_STATUSES = ['draft', 'active', 'paused', 'done', 'cancelled'] as const;
 export type MatterStatus = (typeof MATTER_STATUSES)[number];
 
-/** How the user handed the matter over. */
-export const MATTER_SOURCES = ['text', 'voice'] as const;
-
 /** The secret part of a matter's reply address: 96 random bits, lowercase hex (case-safe in email). */
 export const REPLY_TOKEN_PATTERN = /^[a-f0-9]{24}$/;
 
@@ -193,20 +208,30 @@ export const matterDocSchema = z
     status: z.enum(MATTER_STATUSES),
     /** The user's interface language when the matter was created (read-back, questions). */
     language: languageSchema,
+    /** The user's zone when the matter was created (dates in the drafts are resolved in it). */
+    timeZone: timeZoneSchema,
     title: shortText(MATTER_LIMITS.titleChars),
     request: shortText(MATTER_LIMITS.requestChars),
     source: z.enum(MATTER_SOURCES),
-    /** The current draft or confirmed mandate; null until the first draft exists. */
+    /** The user's name as shown to the contacts ("Ana Lopez's AI assistant"); may be empty. */
+    ownerName: z.string().max(MATTER_LIMITS.nameChars),
+    /** The user's verified email, for the copies; null when the account has none. */
+    ownerEmail: emailSchema.nullable(),
+    /** The current draft or confirmed mandate; null while details are missing. */
     mandate: mandateSchema.nullable(),
+    /** The first email as drafted; null while details are missing. */
+    firstEmail: firstEmailSchema.nullable(),
     /** Missing details the assistant asks about before the mandate can be confirmed. */
     questions: z.array(shortText(MATTER_LIMITS.itemChars)).max(MATTER_LIMITS.maxQuestions),
     /** The mandate in plain words, as shown to the user before confirming. */
     readBack: z.string().max(MATTER_LIMITS.readBackChars),
     /** Increases with every new draft. */
     mandateVersion: z.number().int().min(0),
-    /** Hash of the mandate the user confirmed (null while a draft); sends are checked against it. */
-    confirmedHash: z.string().regex(MANDATE_HASH_PATTERN).nullable(),
+    /** Hash of the draft the user confirmed (null while a draft); sends are checked against it. */
+    confirmedHash: z.string().regex(DRAFT_HASH_PATTERN).nullable(),
     confirmedAt: isoDateTimeSchema.nullable(),
+    /** When the first email went out; null until then (a repeated confirm never sends twice). */
+    firstSentAt: isoDateTimeSchema.nullable(),
     replyToken: z.string().regex(REPLY_TOKEN_PATTERN),
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,

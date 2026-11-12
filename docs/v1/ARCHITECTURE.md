@@ -1733,51 +1733,104 @@ The assistant of the November 10, 2026 plan (docs/v2/Complete-Plan-2026-11-10.md
 user hands it a MATTER by voice or text ("contact Carlos, ask for the updated proposal, set up a
 meeting, follow up until Friday, keep me copied") and it runs that matter by email from its own
 address until it is done. It is a new module beside the existing assistant (section 8), which is
-unchanged. Built in pull requests A1 to A3 (the prototype); until the beta (A10) it stays
-switched off in every release.
+unchanged. Built in A1 to A3 (the prototype); until the beta (A10) it stays switched off in every
+release. A1 is this section; A2 (reading replies, follow-ups, approval cards, sender checks) and
+A3 (scheduling, voice, history) build on it.
 
+- **The flow.** `matterDraft` (the user's words) -> a draft: the model proposes, code completes
+  it or asks for what is missing -> `matterRevise` (answers) -> `matterConfirm` (the hash of the
+  draft the user saw) -> the matter is `active` and the first email goes out through the send
+  check -> replies arrive through `assistantInboundEmail` and are attached to the matter.
+  `matterCancel` stops it. Nothing is sent before the confirmation.
 - **The mandate.** What the user allows for one matter (`mandateSchema`,
   functions/src/matters/model.ts): the contacts it may email (1 to 5), the goal, what it may ask
   for, the meeting it may set up (length and the time windows it may offer, or none), the
-  follow-ups (every N days, at most M), the end date, how the owner is copied (every email in
-  copy, or a daily summary), the language of the emails and the user's zone. The schema is
-  strict: nothing outside it can be granted.
+  follow-ups (every N days, at most M), the end date (at most 90 days away), how the owner is
+  copied (every email in copy, or a daily summary), the language of the emails and the user's
+  zone. The schema is strict: nothing outside it can be granted.
 - **What it never does** is not in the mandate and cannot be granted: pay, accept a price or
   negotiate money, agree to anything contractual, promise beyond the mandate, contact anyone
-  not in the mandate, send from the user's own mailbox unless allowed for that matter. A2
-  enforces this in code and turns anything outside the mandate into an approval card.
-- **Confirmation by hash.** A draft mandate is read back in plain words (`readBack`) with any
-  missing details as questions. The app confirms by sending back `mandateHash` of the exact
-  version it showed (sha256 over canonical JSON); a new draft gives a new hash, so a stale
-  screen cannot confirm what the user did not read. The matter becomes `active` and stores
-  `confirmedHash`; nothing is sent before.
-- **The send check** (A1 step 2) is plain code, not the model: a send is allowed only for an
-  active matter whose mandate still hashes to `confirmedHash`, before `endsAt`, to addresses in
-  the mandate's contacts (plus the owner's copy), with the assistant switched on. Follow-ups
-  (A2) and meeting confirmations (A3) go through the same check.
+  not in the mandate, send from the user's own mailbox unless allowed for that matter. The draft
+  prompt forbids it, the send check enforces the recipients, and A2 turns anything outside the
+  mandate into an approval card.
+- **Drafting (draft.ts).** One model call with one strict function tool (`propose_matter`), the
+  user's words fenced in `<request>` tags. The model only proposes; code decides: an email
+  address the user did not write is never used (it becomes a question), a missing, past or too
+  distant end date becomes a question, meeting windows are clipped to [now, end date],
+  follow-ups are clamped, a copy in cc needs the owner's verified email (else one summary a
+  day), fancy punctuation is replaced, and the result must pass the strict schemas. Only a
+  complete draft has a mandate and a first email.
+- **Read-back by code (text.ts).** The mandate in plain words, EN or ES, is written by code from
+  the mandate itself, never by the model, so what the user reads is exactly what is enforced.
+  The draft response also shows the first email exactly as it will be sent (From, To, Cc,
+  subject, body with the footer).
+- **Confirmation by hash.** `draftHash` is sha256 over the canonical JSON of the mandate AND the
+  first email. The app confirms by sending back the hash of the exact version it showed; a new
+  draft gives a new hash, so a stale screen cannot confirm what the user did not read
+  (`stale_draft`). Confirm is idempotent: `firstSentAt` makes a repeated confirm answer
+  `sent: true` without a second email, and a failed send is retried by the same call.
+- **The send check (sendCheck.ts)** is plain code, not the model: a send is allowed only while
+  the assistant is switched on, for an active matter whose mandate and first email still hash
+  to `confirmedHash`, before the end date, with at least one recipient, every To a contact of
+  the mandate and every Cc a contact or the owner's own verified email. Follow-ups (A2) and
+  meeting confirmations (A3) go through the same check.
+- **The emails (email.ts).** From `"<Name>'s AI assistant" <assistant@<mail domain>>` (ES:
+  "Asistente de IA de <Name>"), so the name always says it is an AI; Reply-To the matter's own
+  address `m-<token>@<mail domain>`; our own Message-ID `<matterId.random@<mail domain>>`;
+  plain text; a footer added by code that says the email was written by AI on the user's
+  behalf; no open or link tracking. Sent with Postmark's REST API (`X-Postmark-Server-Token`);
+  errors become categories with Postmark's numeric code, never its message text. Development:
+  Postmark's public token `POSTMARK_API_TEST` accepts the request and delivers nothing.
+- **Replies attached to the right matter (inbound.ts).** Postmark's inbound webhook posts the
+  parsed email to `assistantInboundEmail` (HTTP basic auth `postmark:<MATTERS_INBOUND_PASSWORD>`,
+  401 before anything else). Dedupe marker `inboundEmails/{MessageID}` (create-once, released
+  again when storing fails so Postmark's retry is processed). Matching, never guessed: the reply
+  token in any recipient (To, Cc, Bcc, OriginalRecipient), else In-Reply-To, then References
+  (newest first) in `matterMessageIds`, else unmatched (dropped, only the provider id is
+  logged). The stored text is Postmark's StrippedTextReply when present. The sender checks
+  (SPF, DKIM, DMARC from the raw email) and what to do with a reply are A2: `auth` stays null.
 - **Statuses.** `draft` (being worked out, nothing sent), `active`, `paused`, `done`,
   `cancelled` (by the user, or the end date passed). `endedAt` marks the last two.
 - **Data.** All written ONLY by the matter functions through the Admin SDK; the owner reads:
 
   | Path | Content |
   |---|---|
-  | `users/{uid}/matters/{matterId}` | `MatterDoc`: status, request, title, mandate, questions, read-back, version, confirmed hash, reply token |
+  | `users/{uid}/matters/{matterId}` | `MatterDoc`: status, language, zone, request (with the answers), title, owner name and verified email, mandate, first email, questions, read-back, version, confirmed hash and time, first-sent time, reply token |
   | `.../matters/{matterId}/events/{id}` | the timeline: created, drafted, confirmed, email sent / failed / received, status changes (A2 and A3 add their own types) |
-  | `.../matters/{matterId}/messages/{id}` | every email in and out: Message-ID, In-Reply-To, References, from, to, cc, subject, plain text (cut at 20,000 characters), provider id, and for inbound the SPF, DKIM and DMARC verdicts |
+  | `.../matters/{matterId}/messages/{id}` | every email in and out: Message-ID, In-Reply-To, References, from, to, cc, subject, plain text (cut at 20,000 characters), provider id, and for inbound the SPF, DKIM and DMARC verdicts (A2) |
   | `matterAddresses/{token}` | reply token -> `{ uid, matterId }`, server only |
   | `matterMessageIds/{sha256(Message-ID)}` | every Message-ID we sent or received -> `{ uid, matterId }`, server only |
   | `inboundEmails/{providerId}` | inbound dedupe marker `{ receivedAt, expiresAt }`, no personal data, server only |
+  | `usage/{uid}/days/{day}.matterDrafts` | drafts and revisions per UTC day (MATTERS_USER_DAILY_LIMIT, default 30) |
 
   Under `users/{uid}`, so deleteAccount's recursive pass removes matters with the account; its
-  `deleteMatterLookups` step removes the two lookup collections by uid.
-- **Replies attached to the right matter.** Each matter sends with a reply address
-  `m-<token>@<mail domain>`; the token is 96 random bits in lowercase hex (some mail systems
-  change the case of the local part). An inbound email is matched by that token in To or Cc,
-  else by In-Reply-To / References in `matterMessageIds`, else it is kept as unmatched and never
-  guessed. The sender checks are computed by our code from the raw email.
+  `deleteMatterLookups` step removes the two lookup collections by uid. Purging expired
+  `inboundEmails` markers and the retention rules for emails come with A4.
+- **Switches.** Functions: `MATTERS_ENABLED` (default false) gates the DEPLOYMENT of all five
+  functions, like WHATSAPP_ENABLED, so a deploy never references `POSTMARK_SERVER_TOKEN` or
+  `MATTERS_INBOUND_PASSWORD` while it is false; `MATTERS_ALLOWED_UIDS` (comma-separated uids,
+  empty = nobody, `*` = everyone) limits the prototype to its testers; `MATTERS_MAIL_DOMAIN`
+  (default assistant.meetingguard.ai). Each callable binds only the secret it needs (draft and
+  revise OPENAI_API_KEY, confirm POSTMARK_SERVER_TOKEN, the webhook MATTERS_INBOUND_PASSWORD).
+  Callers need a verified account (email_verified or a trusted provider). App:
+  `EXPO_PUBLIC_MATTERS_ENABLED` shows Settings > AI executive assistant (route `Matters`); off
+  in every store build. Owner setup: docs/v1/SETUP.md section 15.
+- **The app (A1).** `src/services/matters` (the four callables, validated with the shared
+  schemas, server reasons kept in AppError details) and `src/screens/matters/MattersScreen.tsx`:
+  type the matter, answer the questions, read the mandate and the first email, confirm and
+  send, change, cancel, retry a send that failed. Strings in the `matters` namespace (EN + ES).
+  The matters list, the timeline, approval cards and voice come with A3 and A5.
+- **Contract.** `CALLABLES.matterDraft / matterRevise / matterConfirm / matterCancel`, their
+  request and response schemas, `MATTER_ERROR_CODES` (not_configured, unauthenticated,
+  invalid_request, not_found, stale_draft, not_allowed, rate_limited, upstream_error) and
+  `MATTER_CALL_TIMEOUT_MS` in the shared contract (no version bump: new callables only).
 - **Rules.** `users/{uid}/matters/{matterId}` and its `events` and `messages`: owner read, no
   client write (a client that could write could confirm a mandate it never showed, or fake an
   email). `matterAddresses`, `matterMessageIds`, `inboundEmails`: no client access at all.
-- **Tests.** `functions/test/unit/mattersModel.test.ts` (schemas, hash, reply addresses,
-  Message-ID keys), `deleteAccount.test.ts` (lookup cleanup in the order), and the rules in
-  `functions/test/rules/firestore.rules.test.ts` ("executive assistant matters").
+- **Tests.** functions: `mattersModel.test.ts` (schemas, hash, reply addresses, Message-ID
+  keys), `mattersParts.test.ts` (drafting rules, read-back EN/ES, send check, email composing,
+  Postmark payload and errors, inbound parsing and matching), `mattersHandlers.test.ts` (draft,
+  revise, confirm once, stale hash, failed send and retry, cancel, inbound stored once,
+  unmatched, retry after a failed store, gating), `mattersIndex.test.ts` (deploy gate, secret
+  bindings, basic auth), `deleteAccount.test.ts`, and the rules ("executive assistant
+  matters"). App: `matterService.test.ts`, `MattersScreen.test.tsx`.

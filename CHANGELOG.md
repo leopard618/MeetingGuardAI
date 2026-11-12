@@ -10,13 +10,20 @@ to users: the assistant stays switched off in every release until its beta (A10)
 
 ### Added
 
-- **Matters and the mandate: data model and rules (A1, step 1)** (November 12): the matter
-  (one job handed to the assistant), its mandate (whom it may email, what it may ask, which
-  times it may offer, follow-ups, end date, how the owner is copied), its timeline and its
-  emails, under `users/{uid}/matters`; owner read, written only by the server. Lookup
-  collections for reply addresses and Message-IDs, server only. A mandate is confirmed by the
-  hash of the exact version shown. Account deletion removes matters and their lookups.
-  ARCHITECTURE section 36.
+- **A1: the email identity and the mandate** (November 12): hand the assistant a matter in your
+  own words; it drafts the mandate (whom it may email, what it may ask, which times it may
+  offer, follow-ups, end date, how you are copied) and the first email, asks for anything
+  missing (never guesses an email address), and reads the mandate back in EN or ES, written by
+  code. Nothing is sent before you confirm the exact draft you saw (its hash); then the first
+  email goes out from the assistant's own address (assistant@assistant.meetingguard.ai, named
+  "<you>'s AI assistant", with an AI footer and a per-matter reply address) through a send
+  check in code that allows only the contacts of the mandate and your own copy. Replies are
+  attached to their matter by the reply address or the thread headers. Postmark for sending
+  and receiving. Functions matterDraft, matterRevise, matterConfirm, matterCancel and
+  assistantInboundEmail, all deployed only while MATTERS_ENABLED is true and usable only by
+  MATTERS_ALLOWED_UIDS; data under users/{uid}/matters (owner read, server write), lookups
+  server only, removed with the account. App: Settings > AI executive assistant (route
+  Matters), only with EXPO_PUBLIC_MATTERS_ENABLED. ARCHITECTURE section 36, SETUP section 15.
 
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 

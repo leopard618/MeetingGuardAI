@@ -31,6 +31,7 @@ import { TasksScreen as TasksView } from '../screens/tasks/TasksScreen';
 import { PricingScreen as Pricing } from '../screens/pricing/PricingScreen';
 import { SettingsScreen as Settings } from '../screens/settings/SettingsScreen';
 import { WhatsAppConnectScreen as WhatsAppConnect } from '../screens/settings/WhatsAppConnectScreen';
+import { MattersScreen as Matters } from '../screens/matters/MattersScreen';
 
 // ---- Main group --------------------------------------------------------------------------------
 
@@ -52,6 +53,7 @@ export const TermsScreen = Terms;
 export const CalendarSyncScreen = CalendarSync;
 export const PricingScreen = Pricing;
 export const WhatsAppConnectScreen = WhatsAppConnect;
+export const MattersScreen = Matters;
 
 // ---- Meetings: live meeting from `meetingId` -----------------------------------------------------
 

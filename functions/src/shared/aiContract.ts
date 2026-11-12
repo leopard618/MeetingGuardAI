@@ -106,6 +106,10 @@ export const CALLABLES = {
   whatsappLinkStart: 'whatsappLinkStart',
   whatsappLinkStatus: 'whatsappLinkStatus',
   whatsappUnlink: 'whatsappUnlink',
+  matterDraft: 'matterDraft',
+  matterRevise: 'matterRevise',
+  matterConfirm: 'matterConfirm',
+  matterCancel: 'matterCancel',
 } as const;
 export type CallableName = (typeof CALLABLES)[keyof typeof CALLABLES];
 
@@ -120,6 +124,9 @@ export const ZOOM_CALL_TIMEOUT_MS = 20_000;
 
 /** Client-side timeout for the whatsapp* callables (Firestore work only, no external calls). */
 export const WHATSAPP_CALL_TIMEOUT_MS = 15_000;
+
+/** Client-side timeout for the matter* callables (one model call, plus one email for confirm). */
+export const MATTER_CALL_TIMEOUT_MS = 70_000;
 
 // ---------------------------------------------------------------------------------------------
 // Shared enums (types.ts re-uses these so there is a single definition)
@@ -960,6 +967,114 @@ export const WHATSAPP_ERROR_HTTPS_CODES = {
 /** `HttpsError.details` payload the whatsapp* callables attach to every error. */
 export const whatsappErrorDetailsSchema = z.object({ reason: z.enum(WHATSAPP_ERROR_CODES) });
 export type WhatsappErrorDetails = z.infer<typeof whatsappErrorDetailsSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// Executive assistant matters (matter* callables; docs/v1/ARCHITECTURE.md section 36)
+// ---------------------------------------------------------------------------------------------
+//
+// The user hands the assistant a matter in their own words (matterDraft); the server answers
+// with a draft: the mandate in plain words (readBack), the first email it would send, and any
+// missing details as questions. Answers go through matterRevise. Only a complete draft carries a
+// draftHash; matterConfirm sends that exact hash back, so only the version the user saw can be
+// confirmed, and only then is the first email sent. The matter documents themselves are read
+// from Firestore (users/{uid}/matters, owner read). Deployed only while MATTERS_ENABLED is true.
+
+export const MATTER_SOURCES = ['text', 'voice'] as const;
+export const MATTER_LIMITS_CONTRACT = {
+  requestChars: 2000,
+  answerChars: 1000,
+} as const;
+export const MATTER_ID_PATTERN = /^[A-Za-z0-9]{1,64}$/;
+export const DRAFT_HASH_PATTERN = /^[a-f0-9]{64}$/;
+export const matterIdSchema = z.string().regex(MATTER_ID_PATTERN);
+
+export const matterDraftRequestSchema = z
+  .object({
+    text: z.string().trim().min(1).max(MATTER_LIMITS_CONTRACT.requestChars),
+    source: z.enum(MATTER_SOURCES),
+    language: languageSchema,
+    timeZone: timeZoneSchema,
+  })
+  .strict();
+export type MatterDraftRequest = z.infer<typeof matterDraftRequestSchema>;
+
+export const matterReviseRequestSchema = z
+  .object({
+    matterId: matterIdSchema,
+    answer: z.string().trim().min(1).max(MATTER_LIMITS_CONTRACT.answerChars),
+  })
+  .strict();
+export type MatterReviseRequest = z.infer<typeof matterReviseRequestSchema>;
+
+/** The draft as the user sees it (matterDraft and matterRevise answer with it). */
+export const matterDraftResponseSchema = z.object({
+  matterId: matterIdSchema,
+  status: z.enum(['draft', 'active', 'paused', 'done', 'cancelled']),
+  title: z.string(),
+  /** The mandate in plain words, in the user's language. */
+  readBack: z.string(),
+  /** Missing details; while any remain there is no draftHash and nothing can be confirmed. */
+  questions: z.array(z.string()),
+  /** The first email exactly as it would be sent; null until the draft is complete. */
+  firstEmail: z
+    .object({
+      from: z.string(),
+      to: z.array(z.string()),
+      cc: z.array(z.string()),
+      subject: z.string(),
+      text: z.string(),
+    })
+    .nullable(),
+  /** Present only when the draft is complete; matterConfirm sends it back. */
+  draftHash: z.string().regex(DRAFT_HASH_PATTERN).nullable(),
+});
+export type MatterDraftResponse = z.infer<typeof matterDraftResponseSchema>;
+
+export const matterConfirmRequestSchema = z
+  .object({ matterId: matterIdSchema, draftHash: z.string().regex(DRAFT_HASH_PATTERN) })
+  .strict();
+export type MatterConfirmRequest = z.infer<typeof matterConfirmRequestSchema>;
+export const matterConfirmResponseSchema = z.object({
+  matterId: matterIdSchema,
+  status: z.literal('active'),
+  /** The first email went out (false: it failed and the matter shows the failure; it can be retried). */
+  sent: z.boolean(),
+});
+export type MatterConfirmResponse = z.infer<typeof matterConfirmResponseSchema>;
+
+export const matterCancelRequestSchema = z.object({ matterId: matterIdSchema }).strict();
+export type MatterCancelRequest = z.infer<typeof matterCancelRequestSchema>;
+export const matterCancelResponseSchema = z.object({ matterId: matterIdSchema, status: z.literal('cancelled') });
+export type MatterCancelResponse = z.infer<typeof matterCancelResponseSchema>;
+
+/** Error taxonomy of the matter* callables (details.reason). */
+export const MATTER_ERROR_CODES = [
+  'not_configured',
+  'unauthenticated',
+  'invalid_request',
+  'not_found',
+  /** matterConfirm: the hash is not the current complete draft (the screen is out of date). */
+  'stale_draft',
+  /** The send check refused (not active, past the end date, a recipient outside the mandate). */
+  'not_allowed',
+  'rate_limited',
+  'upstream_error',
+] as const;
+export type MatterErrorCode = (typeof MATTER_ERROR_CODES)[number];
+
+export const MATTER_ERROR_HTTPS_CODES = {
+  not_configured: 'failed-precondition',
+  unauthenticated: 'unauthenticated',
+  invalid_request: 'invalid-argument',
+  not_found: 'not-found',
+  stale_draft: 'failed-precondition',
+  not_allowed: 'permission-denied',
+  rate_limited: 'resource-exhausted',
+  upstream_error: 'unavailable',
+} as const satisfies Record<MatterErrorCode, string>;
+
+export const matterErrorDetailsSchema = z.object({ reason: z.enum(MATTER_ERROR_CODES) });
+export type MatterErrorDetails = z.infer<typeof matterErrorDetailsSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Server helpers (pure)

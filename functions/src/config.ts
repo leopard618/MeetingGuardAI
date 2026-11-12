@@ -277,6 +277,82 @@ export const WHATSAPP_TUNING = {
   sessionPurgeDays: 30,
 } as const;
 
+// ---------------------------------------------------------------------------------------------
+// Executive assistant matters (matter* callables + assistantInboundEmail; ARCHITECTURE section 36)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Master switch of the executive assistant. It gates the DEPLOYMENT of every matter function
+ * (functions/src/matters/index.ts reads the matching process.env value at load time), exactly
+ * like WHATSAPP_ENABLED: with the default `false`, `firebase deploy --only functions` never
+ * references POSTMARK_SERVER_TOKEN or MATTERS_INBOUND_PASSWORD and cannot fail on them. Owner
+ * order: set the two secrets FIRST, then MATTERS_ENABLED=true in functions/.env.<projectId>,
+ * then deploy. Until the beta (A10) it stays false in production.
+ */
+export const MATTERS_ENABLED = defineBoolean('MATTERS_ENABLED', {
+  default: false,
+  description: 'Enables the executive assistant (matters). Set POSTMARK_SERVER_TOKEN and MATTERS_INBOUND_PASSWORD BEFORE setting this to true.',
+});
+
+/**
+ * Who may use it while it is a prototype: comma-separated Firebase uids. Empty = nobody, even
+ * with MATTERS_ENABLED true; "*" = every verified user (only from the beta on).
+ */
+export const MATTERS_ALLOWED_UIDS = defineString('MATTERS_ALLOWED_UIDS', {
+  default: '',
+  description: 'Comma-separated uids allowed to use the assistant (empty = nobody, * = everyone).',
+});
+
+/** The assistant's mail subdomain (DNS: DKIM, Return-Path, MX and DMARC at the email provider). */
+export const MATTERS_MAIL_DOMAIN = defineString('MATTERS_MAIL_DOMAIN', {
+  default: 'assistant.meetingguard.ai',
+  description: 'Mail subdomain the assistant sends from and receives replies on.',
+});
+
+/** Per-user cap on drafts and revisions per UTC day (each is one model call). */
+export const MATTERS_USER_DAILY_LIMIT = defineInt('MATTERS_USER_DAILY_LIMIT', {
+  default: 30,
+  description: 'Maximum matter drafts and revisions one user may request per UTC day.',
+});
+
+/**
+ * Postmark server API token of the assistant server (Secret Manager). For development without
+ * an account, Postmark's public test token POSTMARK_API_TEST accepts sends and delivers nothing.
+ */
+export const POSTMARK_SERVER_TOKEN = defineSecret('POSTMARK_SERVER_TOKEN');
+
+/**
+ * Password of the inbound webhook: Postmark calls
+ * https://postmark:<password>@<region>-<project>.cloudfunctions.net/assistantInboundEmail
+ * (HTTP basic auth). Anything without it is answered 401 before the body is read.
+ */
+export const MATTERS_INBOUND_PASSWORD = defineSecret('MATTERS_INBOUND_PASSWORD');
+
+export const MATTERS_TUNING = {
+  /** The app's client-side timeout is MATTER_CALL_TIMEOUT_MS = 70 s (shared/aiContract.ts). */
+  functionTimeoutSeconds: 60,
+  /** Per-request timeout against api.postmarkapp.com. */
+  postmarkTimeoutMs: 10_000,
+  /** The local part of the sending address: assistant@<mail domain>. */
+  fromLocalPart: 'assistant',
+  /** Postmark message stream for the assistant's emails. */
+  messageStream: 'outbound',
+  /** Inbound webhook body cap (Postmark's own limit is 35 MB with attachments; text is enough). */
+  maxInboundBytes: 5 * 1024 * 1024,
+  /** Inbound dedupe markers expire after this many days. */
+  inboundMarkerTtlDays: 7,
+  memory: '512MiB',
+  cpu: 1,
+  concurrency: 10,
+  maxInstances: 5,
+} as const;
+
+/** Parses MATTERS_ALLOWED_UIDS; '*' allows everyone. */
+export function isMatterUserAllowed(setting: string, uid: string): boolean {
+  const list = setting.split(',').map((value) => value.trim()).filter(Boolean);
+  return list.includes('*') || list.includes(uid);
+}
+
 export const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high'] as const;
 export type ReasoningEffortSetting = (typeof REASONING_EFFORTS)[number];
 
