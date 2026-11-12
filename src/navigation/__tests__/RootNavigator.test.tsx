@@ -94,6 +94,14 @@ jest.mock('../../components/CustomHeader', () => {
   return { __esModule: true, CustomHeader: MockHeader, default: MockHeader };
 });
 jest.mock('../../components/MobileSidebar', () => ({ __esModule: true, MobileSidebar: () => null, default: () => null }));
+// The real bar needs the ThemeProvider; this stand-in only reports the route it was given.
+jest.mock('../../components/AssistantFab', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  const MockFab = ({ hidden }: { hidden?: boolean }) =>
+    React.createElement(Text, { testID: 'assistant-fab' }, `fab:${hidden ? 'hidden' : 'shown'}`);
+  return { __esModule: true, AssistantFab: MockFab, default: MockFab };
+});
 jest.mock('../../screens/onboarding', () => {
   const stepScreen = (name: string) => () => mockScreen(name).default({});
   return {
@@ -246,10 +254,23 @@ describe('RootNavigator gate', () => {
     expect(screen.getByTestId('app-splash')).toBeTruthy();
   });
 
-  it('shows the Main group with the header when onboarding is completed', async () => {
+  it('shows the Main group: no stack header on the dashboard (the hero has its own), the header elsewhere, the assistant button hidden on the chat', async () => {
     await renderNavigator();
     expect(screen.getByTestId('screen-Dashboard').props.children).toBe('Dashboard|-');
-    expect(screen.getByTestId('header').props.children).toBe('header:Dashboard');
+    expect(screen.queryByTestId('header')).toBeNull();
+    expect(screen.getByTestId('assistant-fab').props.children).toBe('fab:shown');
+
+    await act(async () => {
+      navigate('AIChat');
+    });
+    expect(screen.getByTestId('header').props.children).toBe('header:AIChat');
+    expect(screen.getByTestId('assistant-fab').props.children).toBe('fab:hidden');
+  });
+
+  it('has no assistant button outside the Main group', async () => {
+    mockUseAuth.mockReturnValue(authState('signed_out'));
+    await renderNavigator();
+    expect(screen.queryByTestId('assistant-fab')).toBeNull();
   });
 });
 

@@ -144,6 +144,7 @@ describe('bodies and decisions', () => {
           updatedAt: '2026-09-30T11:59:00.000Z',
         },
         eventTimestampMs: Date.parse('2026-09-30T11:59:00.000Z'),
+        billing: { store: 'PLAY_STORE', productId: 'pro_monthly', periodType: null, priceUsd: null, currency: null },
       },
     ]);
   });
@@ -194,6 +195,7 @@ describe('bodies and decisions', () => {
         uid: 'uid-new',
         write: { plan: 'premium', status: 'active', expiresAt: '2026-10-30T12:00:00.000Z', source: 'revenuecat', updatedAt: NOW.toISOString() },
         eventTimestampMs: Date.parse('2026-09-30T11:59:00.000Z'),
+        billing: { store: 'PLAY_STORE', productId: 'premium_yearly', periodType: null, priceUsd: null, currency: null },
       },
       {
         uid: 'uid-old',
@@ -243,6 +245,41 @@ describe('decideWebhook details', () => {
     // The T17 test-phase toggle applies them like production events.
     expect(decideWebhook(body({ environment: 'SANDBOX' }), NOW, { allowSandbox: true }).kind).toBe('apply');
     expect(decideWebhook(body(), NOW).kind).toBe('apply');
+  });
+
+  it('App Store PRODUCT_CHANGE is recorded without touching the entitlement (the RENEWAL carries the change)', () => {
+    const upgrade = { type: 'PRODUCT_CHANGE', store: 'APP_STORE', product_id: 'pro_monthly', new_product_id: 'premium_monthly' };
+    const decision = decideWebhook(body(upgrade), NOW);
+    expect(decision.kind).toBe('apply');
+    if (decision.kind === 'apply') {
+      expect(decision.writes).toEqual([]);
+      expect(decision.marker).toMatchObject({ type: 'PRODUCT_CHANGE' });
+    }
+    expect(decideWebhook(body({ ...upgrade, store: 'mac_app_store' }), NOW)).toMatchObject({ kind: 'apply', writes: [] });
+    // Still subject to the sandbox switch like every other event.
+    expect(decideWebhook(body({ ...upgrade, environment: 'SANDBOX' }), NOW)).toMatchObject({ kind: 'ignored', reason: 'sandbox_environment' });
+  });
+
+  it('Play PRODUCT_CHANGE keeps writing the plan (unchanged)', () => {
+    const decision = decideWebhook(body({ type: 'PRODUCT_CHANGE', store: 'PLAY_STORE', entitlement_ids: [], product_id: 'pro_monthly', new_product_id: 'premium_monthly' }), NOW);
+    expect(decision.kind).toBe('apply');
+    if (decision.kind === 'apply') {
+      expect(decision.writes).toHaveLength(1);
+      expect(decision.writes[0]!.write).toMatchObject({ plan: 'premium', status: 'active' });
+    }
+  });
+
+  it('the handler records an App Store PRODUCT_CHANGE marker with no entitlement write', async () => {
+    const { store, calls } = fakeStore();
+    const { res, record } = fakeRes();
+    await handleRevenueCatWebhook(request(body({ type: 'PRODUCT_CHANGE', store: 'APP_STORE', new_product_id: 'premium_monthly' })), res, {
+      store: () => store,
+      secret: () => SECRET,
+      now: () => NOW,
+    });
+    expect(record.code).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.writes).toEqual([]);
   });
 
   it('the handler passes the sandbox toggle through', async () => {

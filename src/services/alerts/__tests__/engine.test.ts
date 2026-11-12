@@ -356,7 +356,7 @@ describe('alert engine reconcile (mocked expo-notifications)', () => {
     expect(scheduledIds()).toEqual([]);
   });
 
-  it('cancels every MeetingGuard notification when alerts are disabled', async () => {
+  it('cancels every Meeting Guard notification when alerts are disabled', async () => {
     const { engine, data } = setup({ meetings: [weekly()] });
     await engine.startSession('user-1');
     data.prefs = makePrefs({ alertEnabled: false });
@@ -430,7 +430,7 @@ describe('alert engine reconcile (mocked expo-notifications)', () => {
     expect(dataPort.listMeetings).not.toHaveBeenCalled();
   });
 
-  it('endSession cancels and dismisses every MeetingGuard notification and stops feedback', async () => {
+  it('endSession cancels and dismisses every Meeting Guard notification and stops feedback', async () => {
     const { engine, feedback } = setup({ meetings: [weekly()] });
     await engine.startSession('user-1');
     os.scheduled.set('other-app', { identifier: 'other-app', content: {}, trigger: null });

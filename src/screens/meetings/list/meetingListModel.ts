@@ -5,7 +5,7 @@
  *   day of its start, an all-day meeting to its own `date` (never shifted through UTC). "Today" is
  *   `todayInZone(zone, now)`, so it is right in every zone (the old list compared UTC dates).
  * - Filters: time (upcoming = not ended yet, so a meeting in progress stays visible; past = ended;
- *   all), source category (MeetingGuard / Google Calendar / device calendar) and a free-text
+ *   all), source category (Meeting Guard / Google Calendar / device calendar) and a free-text
  *   search that ignores case and accents ("reunion" finds "Reunión").
  */
 import { addDaysToLocalDate, isLocalDate, toLocalDateTime } from '../../../core/time';
@@ -18,7 +18,7 @@ export function isTimeFilter(value: unknown): value is TimeFilter {
   return typeof value === 'string' && (TIME_FILTERS as readonly string[]).includes(value);
 }
 
-export const SOURCE_FILTERS = ['all', 'meetingguard', 'google', 'device'] as const;
+export const SOURCE_FILTERS = ['all', 'meetingguard', 'google', 'outlook', 'device'] as const;
 export type SourceFilter = (typeof SOURCE_FILTERS)[number];
 /** Where a meeting comes from, as the UI groups it. */
 export type SourceCategory = Exclude<SourceFilter, 'all'>;
@@ -39,9 +39,10 @@ export interface MeetingSection {
 
 export type DayRelation = 'today' | 'tomorrow' | 'yesterday';
 
-/** MeetingGuard meetings (manual, AI assistant, WhatsApp) vs. calendar imports. */
+/** Meeting Guard meetings (manual, AI assistant, WhatsApp) vs. calendar imports. */
 export function sourceCategory(source: MeetingSource): SourceCategory {
   if (source === 'google') return 'google';
+  if (source === 'outlook') return 'outlook';
   if (source === 'device') return 'device';
   return 'meetingguard';
 }

@@ -84,9 +84,11 @@ function assistantState(overrides: Partial<AssistantHookResult> = {}): Assistant
     canRetry: false,
     pendingActionIds: [],
     followUpInFlight: null,
+    debriefInFlight: null,
     followUpsRequested: [],
     send: jest.fn(async () => undefined),
     startFollowUp: jest.fn(async () => undefined),
+    startDebrief: jest.fn(async () => undefined),
     confirm: jest.fn(
       async (actionId: string): Promise<ActionResult> => ({
         status: 'done',
@@ -97,6 +99,7 @@ function assistantState(overrides: Partial<AssistantHookResult> = {}): Assistant
       }),
     ),
     confirmAll: jest.fn(async () => []),
+    confirmLatest: jest.fn(async () => []),
     reject: jest.fn(),
     retry: jest.fn(async () => undefined),
     reset: jest.fn(async () => undefined),
@@ -116,7 +119,7 @@ const navigation = { navigate: jest.fn(), goBack: jest.fn(), canGoBack: jest.fn(
 
 type ScreenProps = Parameters<typeof AssistantScreen>[0];
 
-function renderChat(params: { followup?: string; prefill?: string; autoStart?: boolean } | undefined = {}) {
+function renderChat(params: { followup?: string; prefill?: string; autoStart?: boolean; debrief?: string } | undefined = {}) {
   const props = { navigation, route: { key: 'AIChat-1', name: 'AIChat', params } } as unknown as ScreenProps;
   return render(<AssistantScreen {...props} />);
 }
@@ -166,8 +169,8 @@ describe('AssistantScreen', () => {
     await renderChat();
 
     expect(screen.getByText(/Tell me what you need/)).toBeTruthy();
-    expect(screen.getByText('3/5 today · Free')).toBeTruthy();
-    expect(screen.getByLabelText('3 of 5 assistant requests used today on the Free plan')).toBeTruthy();
+    expect(screen.getByText('3/10 free actions')).toBeTruthy();
+    expect(screen.getByLabelText('3 of 10 free AI actions used')).toBeTruthy();
 
     await fireEvent.press(screen.getByText('What do I have this week?'));
     await fireEvent.press(screen.getByTestId('assistant-send'));
@@ -202,6 +205,50 @@ describe('AssistantScreen', () => {
     expect(useAssistant).toHaveBeenCalledWith({ followUpMeetingId: 'meeting_7', autoStartFollowUp: true });
     expect(screen.getByText('Meeting follow-up')).toBeTruthy();
     expect(screen.queryByTestId('assistant-start-followup')).toBeNull();
+  });
+
+  it('opens the debrief panel for a debrief param and sends the typed debrief (v7)', async () => {
+    const state = assistantState();
+    useAssistant.mockReturnValue(state);
+    useMeeting.mockReturnValue({ meeting: makeMeeting('meeting_7', { title: 'Budget review' }), isLoading: false, error: null });
+    await renderChat({ debrief: 'meeting_7' });
+    expect(useMeeting).toHaveBeenCalledWith('meeting_7');
+    expect(screen.getByTestId('assistant-debrief')).toBeTruthy();
+    expect(screen.getByText('Debrief: Budget review')).toBeTruthy();
+    // Nothing to send yet.
+    expect(screen.getByTestId('assistant-debrief-send').props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+
+    await fireEvent.changeText(screen.getByTestId('assistant-debrief-input'), '  Ana sends the budget by Friday  ');
+    await fireEvent.press(screen.getByTestId('assistant-debrief-send'));
+    expect(state.startDebrief).toHaveBeenCalledWith('meeting_7', 'Ana sends the budget by Friday');
+    // The panel closes once the debrief is sent; the proposals arrive as cards.
+    expect(screen.queryByTestId('assistant-debrief')).toBeNull();
+  });
+
+  it('the follow-up banner offers a Debrief button that opens the panel, and the panel can be closed', async () => {
+    const state = assistantState();
+    useAssistant.mockReturnValue(state);
+    await renderChat({ followup: 'meeting_7', autoStart: true });
+    expect(screen.queryByTestId('assistant-debrief')).toBeNull();
+    await fireEvent.press(screen.getByTestId('assistant-open-debrief'));
+    expect(screen.getByTestId('assistant-debrief')).toBeTruthy();
+    expect(screen.getByText('Meeting debrief')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('assistant-debrief-close'));
+    expect(screen.queryByTestId('assistant-debrief')).toBeNull();
+    expect(state.startDebrief).not.toHaveBeenCalled();
+  });
+
+  it('labels the debrief transcript and its reply with the meeting, and shows the debrief loading text', async () => {
+    const state = assistantState({
+      isSending: true,
+      debriefInFlight: 'meeting_7',
+      messages: [chatMessage('u1', 'user', 'Ana sends the budget by Friday', { debriefMeetingId: 'meeting_7', delivery: 'sending' })],
+    });
+    useAssistant.mockReturnValue(state);
+    useMeeting.mockReturnValue({ meeting: makeMeeting('meeting_7', { title: 'Budget review' }), isLoading: false, error: null });
+    await renderChat({ debrief: 'meeting_7' });
+    expect(screen.getAllByText('Debrief: Budget review').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Turning your debrief into tasks...')).toBeTruthy();
   });
 
   it('shows an update proposal, reviews it as a diff and confirms it', async () => {
@@ -246,7 +293,7 @@ describe('AssistantScreen', () => {
     const quota = new AppError('quota_exceeded', 'x', { details: { reason: 'quota_exceeded', usage: usage({ used: 5 }) } });
     useAssistant.mockReturnValue(assistantState({ error: quota, messages: [chatMessage('u1', 'user', 'Hi', { delivery: 'failed' })] }));
     const { unmount } = await renderChat();
-    expect(screen.getByText(/used all 5 assistant requests/)).toBeTruthy();
+    expect(screen.getByText(/used all 10 free AI actions/)).toBeTruthy();
     expect(screen.getByText('Not sent')).toBeTruthy();
     await fireEvent.press(screen.getByText('See plans'));
     expect(navigation.navigate).toHaveBeenCalledWith('Pricing');

@@ -11,14 +11,25 @@
  */
 import type { AppErrorCode } from './errors';
 import { createLogger } from './logger';
-import type { AlertIntensity, Language, Preferences, PreferenceKey } from './types';
+import type { AlertIntensity, Language, Preferences, PreferenceKey, TaskExternalRefs } from './types';
 
 // ---------------------------------------------------------------------------------------------
 // Payloads
 // ---------------------------------------------------------------------------------------------
 
 /** Who caused a data write. Calendar sync only pushes changes whose origin is 'user' or 'ai'. */
-export type WriteOrigin = 'user' | 'ai' | 'calendar_google' | 'calendar_device' | 'calendar_outlook' | 'migration' | 'system';
+export type WriteOrigin =
+  | 'user'
+  | 'ai'
+  | 'calendar_google'
+  | 'calendar_device'
+  | 'calendar_outlook'
+  /** Microsoft To Do sync (imports and link write-backs): pushed on to Google Tasks, never back to To Do. */
+  | 'tasks_todo'
+  /** Google Tasks sync (imports and link write-backs): pushed on to Microsoft To Do, never back to Google. */
+  | 'tasks_gtasks'
+  | 'migration'
+  | 'system';
 
 export type MeetingsChangeReason =
   /** Local create/update/delete through MeetingRepository (see `origin`). */
@@ -43,6 +54,42 @@ export interface MeetingsChangedEvent {
   reason: MeetingsChangeReason;
   /** Present for local writes ('created' | 'updated' | 'deleted' | 'imported'). */
   origin?: WriteOrigin;
+  /**
+   * 'remote' only: the ids among changedIds whose document carries `pushPending: true`, written
+   * by a client that cannot reach the calendar providers (the website). The calendar engine
+   * pushes them like local writes; the provider write-back rewrites the document without the
+   * flag (docs/v1/ARCHITECTURE.md section 32). Absent when no document was flagged.
+   */
+  pushRequested?: string[];
+}
+
+export type TasksChangeReason =
+  /** Local create/update/delete through TasksRepository (see `origin`). */
+  | 'created'
+  | 'updated'
+  | 'deleted'
+  /** Firestore snapshot brought changes made on another device / by the server. */
+  | 'remote';
+
+export interface TasksChangedEvent {
+  uid: string;
+  changedIds: string[];
+  reason: TasksChangeReason;
+  /** Present for local writes. */
+  origin?: WriteOrigin;
+  /**
+   * What the removed tasks were linked to, so a sync engine can delete the provider copies: for
+   * 'deleted' (a local delete) and for 'remote' when the document was deleted on the server
+   * (by the website or another device; a copy that is already gone answers 404, treated as done).
+   */
+  removed?: { id: string; external: TaskExternalRefs }[];
+  /**
+   * 'remote' only: the ids among changedIds whose document carries `pushPending: true`, written
+   * by a client that cannot reach To Do or Google Tasks (the website). The sync engines push them
+   * like local writes; the write-back rewrites the document without the flag (docs/v1/ARCHITECTURE.md
+   * section 32). Absent when no document was flagged.
+   */
+  pushRequested?: string[];
 }
 
 export interface PreferencesChangedEvent {
@@ -94,6 +141,7 @@ export interface LanguageChangedEvent {
 
 export interface AppEventMap {
   'meetings:changed': MeetingsChangedEvent;
+  'tasks:changed': TasksChangedEvent;
   'preferences:changed': PreferencesChangedEvent;
   'session:started': SessionStartedEvent;
   'session:ended': SessionEndedEvent;

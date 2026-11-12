@@ -12,11 +12,11 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useMemo, type ReactElement } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SheetHandle } from './ui';
 import type { AiAction } from '../core/aiContract';
 import type { ProposedActionState } from '../core/contracts';
+import { useWindowInsets } from '../hooks/useWindowInsets';
 import { useLanguage, useT } from '../i18n';
 import { createAssistantFormatter } from '../services/ai/formatter';
 import {
@@ -310,7 +310,18 @@ function ActionBody({
     case 'bulk_update':
       return <BulkBody action={action} preview={preview} fmt={fmt} colors={colors} />;
     case 'create_task':
-      return <DetailRows rows={describeTaskDraft(fmt, action.task)} colors={colors} />;
+      return (
+        <DetailRows
+          rows={describeTaskDraft(
+            fmt,
+            action.task,
+            preview?.todoListName ?? null,
+            preview?.gtasksListName ?? null,
+            action.task.meetingId !== null ? (meeting?.title ?? null) : null,
+          )}
+          colors={colors}
+        />
+      );
     case 'update_task': {
       const task = preview?.tasks?.[0] ?? null;
       return (
@@ -415,7 +426,7 @@ export function MeetingConfirmationModal({
   const t = useT();
   const { language } = useLanguage();
   const { colors } = useAppTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useWindowInsets();
   const fmt = useMemo(() => createAssistantFormatter({ t, language, use24Hour }), [t, language, use24Hour]);
 
   const destructive = actions.some((state) => isDestructiveAction(state.action));

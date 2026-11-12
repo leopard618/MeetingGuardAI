@@ -32,13 +32,19 @@ and basic usage metrics. It is an internal tool, so the UI is English only.
    `firestore.indexes.json`; until the index has finished building, `adminGetMetrics` fails with
    a Firestore precondition error — just retry later.
 
-2. **Grant the admin claim** (from `functions/`, with Application Default Credentials that may
+2. **Grant a role** (from `functions/`, with Application Default Credentials that may
    manage the project's users — `gcloud auth application-default login`):
 
    ```sh
-   node scripts/set-admin-claim.mjs you@example.com --project <project-id>
-   node scripts/set-admin-claim.mjs <uid-or-email> --remove --project <project-id>   # revoke
+   node scripts/set-admin-claim.mjs you@example.com --project <project-id>                 # admin: read and write
+   node scripts/set-admin-claim.mjs owner@example.com --role viewer --project <project-id>  # viewer: read-only
+   node scripts/set-admin-claim.mjs <uid-or-email> --remove --project <project-id>          # revoke both
    ```
+
+   Two roles: `admin: true` may use every callable; `adminRole: 'viewer'` may open every view
+   (Overview, Users, Revenue, AI usage, Settings) but has no write action: the plan editor, the
+   disable button, the key rotation and the billed assistant ping are hidden or disabled, and
+   the server refuses them regardless of the page. The owner and a marketing person get viewer.
 
    Claims travel inside the ID token. The dashboard force-refreshes the token once after
    sign-in, so a freshly granted claim works after a sign-out/sign-in on the page; open mobile
@@ -114,6 +120,37 @@ its own Refresh. All dates and day buckets are UTC.
   until then the button reports "not deployed yet". Every run leaves a `revenuecat.reconciled`
   function-log line with actor, uid and outcome, never the API key.
 
+### Roles and the audit log
+
+- **Roles**: see "One-time setup". A read-only session shows a "Read-only" badge next to the
+  email; the server enforces the split (`requireAdmin` on every write, `requireViewer` on reads).
+- **Audit log**: every administrative write records one document in `adminAudit/{autoId}`:
+  `at`, `actorUid`, `action` (`setUserDisabled`, `setUserPlan`, `rotateOpenAiKey`,
+  `reconcileEntitlement`), `targetUid`, `before`, `after` (display fields only: plan, status,
+  expiry, source; a rotation records the new secret version number, never the key), `outcome`
+  (`ok` or a short reason such as `rejected:invalid_key`). The collection is server-only
+  (default-deny rules); the Audit tab that reads it is planned for milestone 9.
+
+### Revenue
+
+- **Range switch** 7 / 30 / 90 UTC days (including today). Counted from the store webhook events
+  the billing webhook stores (`revenuecatEvents/{eventId}`); sandbox events are never counted.
+- **Paying now** and **Paying users by plan** come from `entitlements/{uid}` (source
+  `revenuecat`, plan pro or premium, status active or grace period, not past expiry), with the
+  store split (Google Play / App Store) from the `billing` block the webhook stores next to the
+  entitlement. Admin-granted plans (comps) are shown apart and never counted as revenue.
+- **Est. MRR (USD)**: each paying user's last known monthly price (yearly products divided by
+  12). Entitlements written before October 26, 2026 have no stored price and use the list price
+  (Pro 7.99 / 69.99, Premium 14.99 / 134.99); the tile says how many of each.
+- **Trials started / New paid / Cancellations / Expirations**: one event, one bucket.
+  `INITIAL_PURCHASE` with period TRIAL is a trial start (legacy events without a period type
+  count as trial starts too, since every real purchase begins with the 3-day trial); a
+  `RENEWAL` flagged as trial conversion is a new paid subscription; `CANCELLATION` with reason
+  CUSTOMER_SUPPORT is a refund, any other cancellation is auto-renew switched off. Details:
+  `functions/src/admin/revenue.ts`.
+- **Charts**: new paid and trials per day; cancellations and expirations per day; the donut of
+  paying users by plan.
+
 ### AI usage
 
 - **Range switch** 7 / 30 / 90 UTC days (including today). Totals row: requests, input/output
@@ -160,8 +197,9 @@ future changes). The usage guide for each tab is in "Operations" above.
 | `adminGetStats` | `{ days: 7\|14\|30\|90 }` | zero-filled per-UTC-day series `days[{date,requests,inputTokens,outputTokens}]` + `signups[{date,count}]` + `totals` + `estCostUsd` (null when pricing unset) + `pricing {inPerM,outPerM,source:'param'}` |
 | `adminGetHealth` | `{ ping?: boolean }` | `model`, `reasoningEffort`, `globalDailyLimit`, `secretRuntime {mode:'rest'\|'env-fallback', version, lastRotatedAt, iamReady}`, `assistantPing {ok,latencyMs,error?}` only when `ping:true` (a REAL minimal OpenAI call — costs money; only the Settings "Test assistant" button sends it) |
 | `adminRotateOpenAiKey` | `{ newKey }` (trimmed, 20–512 chars) | `{ ok:true, version, modelAvailable }` — never echoes the key |
+| `adminGetRevenue` (viewer may call) | `{ days: 7\|30\|90 }` | `since`, zero-filled `days[{date,trialsStarted,newPaid,cancellations,expirations}]`, `totals` (trialsStarted, trialConversions, newPaid, renewals, uncancellations, productChanges, cancellations, refunds, billingIssues, expirations, eventsCounted, sandboxIgnored), `active` (paying, gracePeriod, byPlan, byStore, comps), `mrr` (estimateUsd, measuredPriceCount, defaultPriceCount) |
 
-The four v1 callables are unchanged. All seven require the `admin: true` claim.
+The four v1 callables are unchanged. Writes (`adminSetUserDisabled`, `adminSetUserPlan`, `adminRotateOpenAiKey`, `adminReconcileEntitlement`, and `adminGetHealth` with `ping: true`) require `admin: true`; reads accept `admin: true` or `adminRole: 'viewer'`.
 
 ### Stats pipeline
 

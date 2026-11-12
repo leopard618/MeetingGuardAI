@@ -1,14 +1,16 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, type RouteProp } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
-import { Linking, Text } from 'react-native';
+import { Alert, Linking, Text } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
-import type { RootStackParamList, ScheduledAlertInfo, UseMeetingsResult } from '../../../core/contracts';
+import type { CalendarStatus, RootStackParamList, ScheduledAlertInfo, UseMeetingsResult } from '../../../core/contracts';
 import { AppError } from '../../../core/errors';
-import type { Meeting } from '../../../core/types';
+import type { AuthUser, Meeting } from '../../../core/types';
 import { I18nProvider, i18n } from '../../../i18n';
+import { initialCalendarStatus } from '../../../services/calendar/status';
 import { makeMeeting } from '../../insights/__fixtures__/meetings';
 import { DashboardScreen } from '../DashboardScreen';
 
@@ -18,9 +20,19 @@ jest.mock('expo-localization', () => ({
 }));
 jest.mock('react-native-toast-message', () => ({ __esModule: true, default: { show: jest.fn() } }));
 
+// M9: the running-late sheet is a global host; the card only opens it with the row's start.
+const mockOpenRunningLate = jest.fn();
+jest.mock('../../meetings/RunningLateSheet', () => ({ openRunningLate: (...args: unknown[]) => mockOpenRunningLate(...args) }));
+const mockUpdate = jest.fn();
+
+// Section 34: the setup card reads the sign-in method (email verification) and the calendar status.
+let mockAuthUser: AuthUser = { uid: 'u1', displayName: 'Ana López', email: 'ana@example.com', photoURL: null, emailVerified: true, providerIds: ['google.com'] };
+const mockResendVerification = jest.fn(async () => ({ success: true }));
 jest.mock('../../../services/auth', () => ({
-  useAuth: () => ({ authUser: { uid: 'u1', displayName: 'Ana López', email: 'ana@example.com' } }),
+  useAuth: () => ({ authUser: mockAuthUser, resendVerification: mockResendVerification, refreshUser: jest.fn(async () => ({ success: true })) }),
+  authService: { currentUser: null },
 }));
+let mockCalendarStatus: CalendarStatus = initialCalendarStatus();
 
 let mockMeetings: UseMeetingsResult = { meetings: [], isLoading: false, error: null, refresh: jest.fn() };
 let mockOnline = true;
@@ -37,12 +49,14 @@ jest.mock('../../../services/data', () => {
     }),
     useSyncState: () => ({ online: mockOnline, pendingWrites: mockPendingWrites, lastSyncedAt: null }),
     useTasks: () => ({ tasks: [], isLoading: false, error: null, create: jest.fn(), update: jest.fn(), remove: jest.fn() }),
+    meetingRepository: { update: (...args: unknown[]) => mockUpdate(...args) },
   };
 });
 
 const mockSyncNow = jest.fn();
 jest.mock('../../../services/calendar', () => ({
   calendarSyncEngine: { syncNow: (...args: unknown[]) => mockSyncNow(...args) },
+  useCalendarStatus: () => mockCalendarStatus,
 }));
 
 // §27: the WhatsApp tile follows whatsappLinkStatus.enabled (null = unknown = still disabled).
@@ -100,6 +114,7 @@ async function renderDashboard() {
             <Stack.Screen name="AlertSettings" component={TargetStub} />
             <Stack.Screen name="CreateMeeting" component={TargetStub} />
             <Stack.Screen name="WhatsAppConnect" component={TargetStub} />
+            <Stack.Screen name="CalendarSync" component={TargetStub} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
@@ -150,6 +165,10 @@ beforeEach(async () => {
   mockPermission = { notifications: 'granted', canAskAgain: true, exactAlarms: 'not_required' };
   mockSyncNow.mockReset().mockResolvedValue({ google: null, device: null, errors: [] });
   (Toast.show as jest.Mock).mockClear();
+  mockAuthUser = { uid: 'u1', displayName: 'Ana López', email: 'ana@example.com', photoURL: null, emailVerified: true, providerIds: ['google.com'] };
+  mockCalendarStatus = initialCalendarStatus();
+  mockResendVerification.mockClear();
+  await AsyncStorage.clear();
 });
 
 afterEach(() => {
@@ -159,11 +178,14 @@ afterEach(() => {
 
 it('shows the greeting, the meeting in progress and the next one with a live countdown', async () => {
   await renderDashboard();
-  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Good morning, Ana');
+  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('GOOD MORNING');
+  expect(screen.getByTestId('dashboard-greeting-name').props.children).toBe('Ana');
   expect(screen.getByTestId('current-meeting-title').props.children).toBe('Design review');
-  expect(screen.getByTestId('current-meeting-countdown').props.children).toBe('Ends in 30:00');
+  expect(screen.getByTestId('current-meeting-countdown-label').props.children).toBe('Ends in');
+  expect(screen.getByTestId('current-meeting-countdown').props.children).toBe('30:00');
   expect(screen.getByTestId('next-meeting-title').props.children).toBe('Vendor call');
-  expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('Starts in 20:00');
+  expect(screen.getByTestId('next-meeting-countdown-label').props.children).toBe('Starts in');
+  expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('20:00');
   // Join only for the meeting with a real link.
   expect(screen.getByTestId('current-meeting-join')).toBeTruthy();
   expect(screen.queryByTestId('next-meeting-join')).toBeNull();
@@ -181,6 +203,30 @@ it('opens the real meeting link and the meeting details', async () => {
     fireEvent.press(screen.getByTestId('next-meeting-details'));
   });
   expect(JSON.parse(String((await screen.findByTestId('target-MeetingDetails')).props.children))).toEqual({ meetingId: 'overlap' });
+});
+
+it('offers "Running late" on both meetings and "End now" on the running one (M9)', async () => {
+  mockOpenRunningLate.mockReset();
+  mockUpdate.mockReset().mockResolvedValue(undefined);
+  jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  await renderDashboard();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('next-meeting-running-late'));
+  });
+  expect(mockOpenRunningLate).toHaveBeenCalledWith({ meetingId: 'overlap', startAt: OVERLAPPING.startAt });
+  expect(screen.getByTestId('current-meeting-running-late')).toBeTruthy();
+  expect(screen.queryByTestId('next-meeting-end-now')).toBeNull();
+
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('current-meeting-end-now'));
+  });
+  expect(Alert.alert).toHaveBeenCalledWith('End "Design review" now?', 'The meeting is shortened so it ends now and its alerts stop.', expect.any(Array), expect.anything());
+  const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+  await act(async () => {
+    buttons.find((button) => button.text === 'End now')?.onPress?.();
+  });
+  // Started 10 minutes ago: it now lasts those 10 minutes.
+  expect(mockUpdate).toHaveBeenCalledWith('current', { durationMinutes: 10 }, { origin: 'user' });
 });
 
 it("lists today's meetings and highlights overlaps", async () => {
@@ -224,48 +270,28 @@ it('shows the loading state until the meetings are known', async () => {
   expect(screen.queryByTestId('next-meeting-card')).toBeNull();
 });
 
-it('shows the alert status and links to the alert settings', async () => {
-  mockPending = [
-    { identifier: 'mg:overlap:15', meetingId: 'overlap', kind: 'alert', offsetMinutes: 15, fireAt: minutesFromNow(5), intensity: 'max' },
-  ];
-  await renderDashboard();
-  expect(screen.getByTestId('alert-status').props.children).toBe('Alerts are on');
-  expect(screen.getByTestId('next-alert').props.children).toBe('Next alert: in 5 minutes (10:05 AM) · Vendor call');
-  await act(async () => {
-    fireEvent.press(screen.getByTestId('alert-settings-link'));
-  });
-  expect(await screen.findByTestId('target-AlertSettings')).toBeTruthy();
-});
-
-it('offers to allow notifications when they are not granted', async () => {
-  mockPermission = { notifications: 'undetermined', canAskAgain: true, exactAlarms: 'not_required' };
-  await renderDashboard();
-  await act(async () => {
-    fireEvent.press(screen.getByText('Allow notifications'));
-  });
-  expect(mockRequestPermissions).toHaveBeenCalled();
-});
-
-it('says when alerts are off', async () => {
+it('has no alerts card: alert settings live in the menu and Settings', async () => {
   mockAlertEnabled = false;
   await renderDashboard();
-  expect(screen.getByTestId('alert-status').props.children).toBe('Alerts are off');
+  expect(screen.queryByTestId('alert-status')).toBeNull();
   expect(screen.queryByText('Allow notifications')).toBeNull();
+  expect(screen.getByTestId('quick-actions')).toBeTruthy();
+  expect(screen.getByTestId('dashboard-tasks')).toBeTruthy();
 });
 
-it('opens the assistant with a prefilled question and the insights screen', async () => {
+it('shows the week against last week and opens the insights screen from the week card', async () => {
   await renderDashboard();
+  expect(screen.getByTestId('week-meetings').props.children).toBe('3 meetings');
   await act(async () => {
-    fireEvent.press(screen.getByTestId('insights-ask-assistant'));
+    fireEvent.press(screen.getByTestId('insights-see-all'));
   });
-  const params = JSON.parse(String((await screen.findByTestId('target-AIChat')).props.children)) as { prefill: string };
-  expect(params.prefill).toContain('rest of this week');
+  expect(await screen.findByTestId('target-AIInsights')).toBeTruthy();
 });
 
 it('offers manual and AI creation; WhatsApp is disabled ("coming soon")', async () => {
   await renderDashboard();
   expect(screen.getByTestId('quick-whatsapp').props.accessibilityState).toMatchObject({ disabled: true });
-  expect(screen.getByText('Coming soon')).toBeTruthy();
+  expect(screen.getByTestId('quick-whatsapp').props.accessibilityLabel).toBe('WhatsApp: coming soon, not available yet');
   await act(async () => {
     fireEvent.press(screen.getByTestId('quick-new-manual'));
   });
@@ -275,7 +301,7 @@ it('offers manual and AI creation; WhatsApp is disabled ("coming soon")', async 
 it('the WhatsApp tile opens the WhatsApp setup once the server-side bot is enabled', async () => {
   mockWhatsAppStatus = { enabled: true, linked: false, displayNumber: null, deepLink: null, linkedLast4: null };
   await renderDashboard();
-  expect(screen.getByText('Create by message')).toBeTruthy();
+  expect(screen.getByTestId('quick-whatsapp').props.accessibilityLabel).toBe('WhatsApp: create meetings by message. Opens the WhatsApp setup');
   await act(async () => {
     fireEvent.press(screen.getByTestId('quick-whatsapp'));
   });
@@ -312,7 +338,78 @@ it('shows the offline banner with the number of changes waiting to sync', async 
 it('renders in Spanish', async () => {
   await i18n.changeLanguage('es');
   await renderDashboard();
-  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('Buenos días, Ana');
-  expect(screen.getByText('Acciones rápidas')).toBeTruthy();
-  expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('Empieza en 20:00');
+  expect(screen.getByTestId('dashboard-greeting').props.children).toBe('BUENOS DÍAS');
+  expect(screen.getByTestId('quick-new-manual').props.accessibilityLabel).toBe('Nueva reunión');
+  expect(screen.getByTestId('next-meeting-countdown-label').props.children).toBe('Empieza en');
+  expect(screen.getByTestId('next-meeting-countdown').props.children).toBe('20:00');
+});
+
+describe('setup recommendation (section 34)', () => {
+  /** Document order of the setup card and the next-meeting card. */
+  function cardOrder(): string[] {
+    return screen.getAllByTestId(/^(setup-card|next-meeting-card)$/).map((node) => String(node.props.testID));
+  }
+
+  it('recommends connecting a calendar below the next meeting and opens Calendar sync', async () => {
+    await renderDashboard();
+    expect((await screen.findByTestId('setup-card-title')).props.children).toBe('Connect your calendar');
+    expect(cardOrder()).toEqual(['next-meeting-card', 'setup-card']);
+    expect(screen.queryByTestId('next-empty-connect')).toBeNull();
+    fireEvent.press(screen.getByTestId('setup-card-action'));
+    expect(await screen.findByTestId('target-CalendarSync')).toBeTruthy();
+  });
+
+  it('sits above the empty meetings card; "Not now" hides it and leaves a button in the empty state', async () => {
+    mockMeetings = meetingsResult([]);
+    await renderDashboard();
+    await screen.findByTestId('setup-card');
+    expect(cardOrder()).toEqual(['setup-card', 'next-meeting-card']);
+    expect(screen.queryByTestId('next-empty-connect')).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('setup-card-dismiss'));
+    });
+    expect(screen.queryByTestId('setup-card')).toBeNull();
+    expect(screen.getByTestId('next-empty-connect')).toBeTruthy();
+    const stored = JSON.parse((await AsyncStorage.getItem('mg:u1:setup.snooze')) ?? '{}') as Record<string, { count: number; until: string }>;
+    expect(stored.connect_calendar?.count).toBe(1);
+    expect(stored.connect_calendar?.until).toBe('2026-10-07T10:00:00.000Z');
+    fireEvent.press(screen.getByTestId('next-empty-connect'));
+    expect(await screen.findByTestId('target-CalendarSync')).toBeTruthy();
+  });
+
+  it('recommends Microsoft To Do once Outlook is connected and the tasks are not syncing', async () => {
+    mockCalendarStatus = {
+      ...initialCalendarStatus(),
+      outlook: { enabled: true, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: true, accountEmail: 'ana@contoso.com', teamsLinks: null },
+      todo: { enabled: false, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: true, listId: null, listName: null },
+    };
+    await renderDashboard();
+    expect((await screen.findByTestId('setup-card-title')).props.children).toBe('Sync your tasks');
+    expect(screen.getByTestId('setup-card-body').props.children).toMatch(/Microsoft To Do/);
+  });
+
+  it('asks an unverified email account to verify first and resends from the card', async () => {
+    mockAuthUser = { ...mockAuthUser, emailVerified: false, providerIds: ['password'] };
+    await renderDashboard();
+    expect((await screen.findByTestId('setup-card-title')).props.children).toBe('Verify your email');
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('setup-card-action'));
+    });
+    expect(mockResendVerification).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows nothing when a calendar is connected and the tasks sync', async () => {
+    mockCalendarStatus = {
+      ...initialCalendarStatus(),
+      google: { enabled: true, syncing: false, lastSyncAt: null, lastError: null, connected: true, hasScope: true },
+      gtasks: { enabled: true, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: true, hasScope: true, listId: 'l1', listName: 'My Tasks' },
+    };
+    await renderDashboard();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId('setup-card')).toBeNull();
+    expect(screen.queryByTestId('next-empty-connect')).toBeNull();
+  });
 });

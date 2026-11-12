@@ -31,22 +31,35 @@
     }
   },
   "features": {
-    "requests_one": "{{count}} consulta al asistente de IA al día",
-    "requests_other": "{{count}} consultas al asistente de IA al día",
+    "introductory": "10 acciones de IA gratis en tus primeros 7 días, hasta 3 al día",
+    "actionsPerMonth": "{{count}} acciones de IA al mes",
     "meetings": "Reuniones, notas y avisos",
     "calendars": "Sincronización con Google Calendar y los calendarios del teléfono",
     "everythingFree": "Todo lo del plan Gratis"
   },
   "usage": {
-    "title": "Asistente de IA hoy",
+    "title": "Asistente de IA",
     "plan": "Tu plan: {{plan}}",
-    "today": "{{used}} de {{limit}} consultas usadas",
-    "resets": "Se reinicia: {{time}}",
-    "exhausted": "Ya usaste todas las consultas de hoy. Se reinician: {{time}}.",
+    "used": {
+      "day": "{{used}} de {{limit}} acciones usadas hoy",
+      "window": "{{used}} de {{limit}} acciones gratis usadas",
+      "month": "{{used}} de {{limit}} acciones usadas este mes"
+    },
+    "resets": {
+      "day": "Se reinicia: {{time}}",
+      "window": "Acciones gratis hasta: {{time}}",
+      "month": "Se renueva: {{time}}"
+    },
+    "exhausted": {
+      "day": "Ya usaste las acciones gratis de hoy. Más: {{time}}.",
+      "window": "Ya usaste todas las acciones gratis.",
+      "month": "Ya usaste todas las acciones de este mes. Se renuevan: {{time}}."
+    },
+    "subscriptionRequired": "Ya usaste tus acciones gratis. Con una suscripción tienes el asistente y la programación por WhatsApp; crear a mano, los recordatorios y la exportación siguen siendo gratis.",
     "thisDevice": "Se actualiza con cada consulta al asistente desde este dispositivo.",
-    "perDay_one": "{{count}} consulta al día",
-    "perDay_other": "{{count}} consultas al día",
-    "unknownToday": "El recuento de hoy aparece cuando uses el asistente."
+    "introductory": "10 acciones de IA gratis en tus primeros 7 días, hasta 3 al día",
+    "perMonth": "{{count}} acciones de IA al mes",
+    "unknownYet": "Tu recuento aparece cuando uses el asistente."
   },
   "store": {
     "loading": "Cargando los precios de Google Play...",
@@ -89,6 +102,12 @@
   },
   "footer": "Los precios están en dólares estadounidenses. Antes de cualquier compra, Google Play te mostrará el precio final en tu moneda, con impuestos incluidos.",
   "footerIos": "Los precios están en dólares estadounidenses. Antes de cualquier compra, App Store te mostrará el precio final en tu moneda, con impuestos incluidos.",
+  "renewal": "Las suscripciones son mensuales o anuales y se renuevan automáticamente al mismo precio hasta que las canceles en Google Play, al menos 24 horas antes de que termine el periodo.",
+  "renewalIos": "Las suscripciones son mensuales o anuales y se renuevan automáticamente al mismo precio hasta que las canceles en los ajustes de App Store, al menos 24 horas antes de que termine el periodo.",
+  "legal": {
+    "privacy": "Política de privacidad",
+    "terms": "Términos de uso"
+  },
   "planChanged": {
     "title": "Plan actualizado",
     "body": "Tu plan ahora es {{plan}}"

@@ -67,6 +67,7 @@ export const taskReminders: TaskReminders = createTaskReminders({
  */
 export const briefingScheduler: BriefingScheduler = createBriefingScheduler({
   notifications: createExpoNotificationsPort(),
+  fsi: fullScreenAlarm,
   getPreferences: () => preferencesRepository.get(),
   listMeetings: (range) => meetingRepository.list(range),
   listTasks: () => tasksRepository.list(),

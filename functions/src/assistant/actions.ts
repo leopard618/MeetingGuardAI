@@ -350,7 +350,7 @@ function mapCreate(raw: string, ctx: MappingContext, provenance: Provenance): Ai
     conference,
     // A new meeting may only invite typed addresses, plus (follow-up mode) the participants of the
     // meeting that just ended ("schedule the next one with the same people").
-    participants: acceptParticipants(args.participants, provenance, emailsOf(ctx.mode === 'followup' ? ctx.context.followUp : null)),
+    participants: acceptParticipants(args.participants, provenance, emailsOf(ctx.mode !== 'chat' ? ctx.context.followUp : null)),
     preparationTips: acceptTips(args.preparation_tips),
     customAlertTimes: args.alert_minutes_before === null ? null : acceptAlertTimes(args.alert_minutes_before),
     language: ctx.language,
@@ -559,7 +559,7 @@ function mapUpdate(raw: string, ctx: MappingContext, provenance: Provenance): Ai
 
 function mapDelete(raw: string, ctx: MappingContext): AiAction {
   const args = parseArgs(deleteMeetingArgsSchema, raw);
-  if (ctx.mode === 'followup') drop('not_allowed');
+  if (ctx.mode !== 'chat') drop('not_allowed');
   const meeting = resolveRef(args.meeting_ref, ctx);
   if ((args.scope === 'occurrence' || args.scope === 'following') && meeting.doc.recurrence !== null) {
     // "Delete only tomorrow's standup": cancel one occurrence, keep the series. With scope
@@ -797,6 +797,19 @@ function actionKey(action: AiAction): string {
 }
 
 /** Maps the model's tool calls to validated proposals + quick-reply suggestions. */
+/**
+ * v7 debrief mode proposes new tasks (and, when the user explicitly asked for one, a follow-up
+ * meeting) and answers read-only questions; it never changes or deletes anything. A model that
+ * calls another tool in that mode is dropped as not_allowed.
+ */
+const DEBRIEF_TOOLS: ReadonlySet<string> = new Set<string>([
+  TOOL_NAMES.create,
+  TOOL_NAMES.createTask,
+  TOOL_NAMES.list,
+  TOOL_NAMES.listTasks,
+  TOOL_NAMES.suggest,
+]);
+
 export function mapToolCalls(toolCalls: readonly ToolCall[], ctx: MappingContext): MappingResult {
   const provenance = buildProvenance(ctx);
   const actions: AiAction[] = [];
@@ -823,6 +836,10 @@ export function mapToolCalls(toolCalls: readonly ToolCall[], ctx: MappingContext
             suggestions.push(text);
           }
         }
+        continue;
+      }
+      if (ctx.mode === 'debrief' && !DEBRIEF_TOOLS.has(call.name)) {
+        count('not_allowed');
         continue;
       }
       let action: AiAction;
@@ -884,5 +901,9 @@ export function mapToolCalls(toolCalls: readonly ToolCall[], ctx: MappingContext
     }
   }
   linkPendingMeetings(actions);
+  // A task linked to a meeting created in the same reply runs after that meeting exists; the
+  // model's tool-call order is not guaranteed. Stable sort: everything else keeps its order.
+  const rank = (action: AiAction): number => (action.type === 'create_task' && action.task.meetingActionId !== undefined ? 1 : 0);
+  actions.sort((a, b) => rank(a) - rank(b));
   return { actions, suggestions, resolution, dropped };
 }

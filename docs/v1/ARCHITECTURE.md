@@ -43,12 +43,13 @@ These rules prevent import cycles:
 | data | `src/services/data` (`dataService`, `meetingRepository`, `preferencesRepository`, `notesRepository`, `userRepository`, `migrationService`, `DataProvider`, `useMeetings`, `useMeeting`, `usePreferences`, `useNotes`, `useEntitlement`, `useSyncState`); `src/config/firebase.ts` | data |
 | auth | `src/services/auth/authService.ts` (`authService`); `src/services/auth` (`authService`, `sessionManager`, `AuthProvider`, `useAuth`) | auth |
 | calendar | `src/services/calendar` (`googleCalendarService`, `deviceCalendarService`, `calendarSyncEngine`, `useCalendarStatus`); `src/services/calendar/outlook` (`outlookCalendarService`, §17) | calendar |
+| tasks | `src/services/tasks/todo` (`todoSyncService`, §28, re-exported by the calendar barrel); `src/services/microsoft/graphHttp.ts` (the Graph HTTP core both Microsoft syncs use) | tasks |
 | alerts | `src/services/alerts` (`alertEngine`, `computeAlertPlan`, `usePendingAlerts`); `src/services/alerts/fsi.ts` (`fullScreenAlarm`, §18); `src/services/alerts/tasks.ts` (`registerBackgroundTasks`, `unregisterBackgroundTasks`, plus the module-scope task definitions); `src/components/alerts` (`AlertHost`) | alerts |
 | i18n + navigation | `src/i18n` (`i18n`, `initI18n`, `t`, `getLanguage`, `setLanguage`, `SUPPORTED_LANGUAGES`, `I18N_NAMESPACES`, `I18nProvider`, `useT`, `useLanguage`); `src/utils/format.ts`; `src/navigation` (`navigationRef`, `navigate`, `openDeepLink`, `isNavigationReady`, `linking`, `RootNavigator`, `ROUTES`); `src/screens/onboarding` | i18n-nav |
 | ai | `src/services/ai` (`assistantClient`, `actionExecutor`, `useAssistant`) | ai |
 | zoom | `src/services/zoom` (`zoomService`, `useZoomStatus`); `functions/src/zoom` (zoom* callables, §24) | zoom-app / zoom-server |
 | attachments | `src/services/attachments` (`attachmentService`, `useMeetingAttachments`); metadata in the data layer's `attachmentStore` | notes |
-| shell | `src/contexts/ThemeContext.tsx` (`ThemeProvider`, `useTheme`, `useAppThemes`), `src/components/{CustomHeader,MobileSidebar,ThemeToggle,ErrorBoundary,AppToast}.tsx`, `src/hooks/useResponsive.ts` | shell |
+| shell | `src/contexts/ThemeContext.tsx` (`ThemeProvider`, `useTheme`, `useAppThemes`), `src/components/{CustomHeader,MobileSidebar,BottomNavBar,ThemeToggle,ErrorBoundary,AppToast}.tsx`, `src/hooks/useWindowInsets.tsx`, `src/hooks/useResponsive.ts` | shell |
 | screens | `src/screens/<area>` (one folder per screen group, §13); `src/screens/shared` (`useFormatters`, `Section` / `ScreenBody`, `MeetingStatus`, `useLiveNow`, `useKeyboardAvoidance`, `useDiscardChangesGuard`, `text`) | screen groups |
 | release | `src/services/updates.ts` (OTA state), `app.config.js` (`updates`, `runtimeVersion`), `eas.json` channels, `docs/v1/DEPLOYMENT.md` | release |
 | widget | `modules/mg-next-meeting-widget` (local Expo module), `src/services/widget` (`registerWidgetFeeder`, `refreshWidget`, `widgetStringsOf`, `computeNextWidgetEntry`), i18n namespace `widget` (§19) | widget |
@@ -95,10 +96,11 @@ Storage rules:
 **Preferences** has one document per user. Fields:
 
 - `language`, `timezone`
-- `alertEnabled` (master switch), `alertIntensity` (`max|medium|light`), `alertSoundType` (`voice_and_sound|voice_only|sound_only`), `alertVolume` (0-1), `vibrationEnabled`
+- `alertEnabled` (master switch), `alertIntensity` (`max|medium|light`), `importedAlertIntensity` (the same values or null = same as `alertIntensity`; applies to meetings from a phone, Google or Outlook calendar without an override of their own), `alertSoundType` (`voice_and_sound|voice_only|sound_only`), `alertVolume` (0-1), `vibrationEnabled`
 - `defaultAlertTimes` (default `[15,5,0]`), `snoozeMinutes`, `followUpEnabled`
 - `use24HourClock` (null means the locale default), `onboardingCompleted`
 - `googleCalendarSyncEnabled`, `deviceCalendarImportIds[]`, `deviceCalendarExportId`
+- `todoListId`, `todoListName` (the Microsoft To Do list new tasks go to, §28; null = not chosen)
 - `updatedAt`
 
 Reads use `mergePreferences`, which merges field by field so one bad field never resets the rest (the old bug #19). Google tokens are **never** stored.
@@ -108,6 +110,7 @@ Reads use `mergePreferences`, which merges field by field so one bad field never
 - **UserProfile**: `uid`, `email`, `displayName`, `photoURL`, timestamps, `legacyMigratedAt`. It has **no** plan, role or subscription fields (`SERVER_OWNED_PROFILE_KEYS`).
 - **Entitlement**: `{ plan free|pro|premium, status, expiresAt, source, updatedAt }`. It is server-owned and read-only on the client. A missing document means free. `effectivePlan()` downgrades expired plans.
 - **Note**: `title`, `content`, `category` (`general|work|ideas|personal`), `meetingId`, `pinned`. Notes are hard-deleted.
+- **Task** (V2 Stage 1): `title`, `description`, `dueDate` + `dueTime` + `timezone` (a time needs a date), `reminderMinutesBefore` (needs a time), `status` (`open|done`) with `completedAt` set exactly while done, `meetingId`, `people[]`, `source` (`manual|ai_chat|whatsapp|todo`), `external` (`{ todoListId, todoTaskId, todoUpdatedAt }`, the Microsoft To Do link, §28). Tasks are hard-deleted. Every write goes through `buildTask` / `applyTaskPatch`; reads through `parseTaskDoc` (older documents get `source: 'manual'` and an empty link).
 
 ## 4. Firestore layout and rules intent
 
@@ -116,8 +119,10 @@ Reads use `mergePreferences`, which merges field by field so one bad field never
 | `users/{uid}` | UserProfile | owner read and write; writes that contain any `SERVER_OWNED_PROFILE_KEYS` key are rejected |
 | `users/{uid}/meetings/{id}` | MeetingDoc | owner read and write; `userId == uid`; type and size checks on `title`, `startAt`, `durationMinutes`, `source`; every alert-time element an int in [0, 10080]; string lists (`preparationTips`) join-checked for type and total size (participant maps cannot be iterated in rules: the assistant bounds what it loads) |
 | `users/{uid}/notes/{id}` | Note (without id) | owner read and write |
+| `users/{uid}/tasks/{id}` | Task (without id) | owner read and write; `userId == uid`; due/reminder invariants, `source` and the `external` keys validated (`isValidTask`, `isValidTaskExternal`; `src/core/__tests__/tasksRulesDrift.test.ts` keeps the allowlist in step with the Task shape) |
 | `users/{uid}/settings/preferences` | Preferences | owner read and write; only doc id `preferences` |
 | `entitlements/{uid}` | Entitlement | owner read; **no client write** |
+| `usage/{uid}` | `{ introStartedAt, introUsed, cycleKey, cycleUsed, clarifications, updatedAt }` (section 35) | owner read; **no client write** |
 | `usage/{uid}/days/{yyyy-mm-dd}` (UTC day) | `{ count, updatedAt }` | owner read; **no client write** |
 | `accountDeletions/{uid}` | `{ deletedAt }` (ISO), written by `deleteAccount`, purged after 30 days | **none** (server only; used to re-apply deletions after a backup restore) |
 | everything else | | deny |
@@ -206,8 +211,9 @@ setting applies. The v1 channels are deleted at start and their notifications re
 
 MAX and MEDIUM notifications are sticky (Android `ongoing`: "minimizable, not dismissible"); the
 tap, Open and Snooze actions and the tray sweep remove them. The OS notification always plays the
-channel sound, also with `alertSoundType: 'voice_only'` (the voice readout needs the app in the
-foreground); the alert settings screen says so.
+channel sound, also with `alertSoundType: 'voice_only'` (the voice readout runs in the in-app
+alert; on Android the full-screen alarm opens the app and the fired alarm is re-shown in-app, §18;
+on iOS the user opens the alert); the alert settings screen says so.
 
 Create the channels **before** requesting permission.
 
@@ -236,7 +242,9 @@ Alerts that have already fired or been acknowledged are recorded in `mg:{uid}:al
 
 **Platform limits and background refresh:**
 
-- iOS keeps 64 pending notifications and Android allows about 500 alarms, so the budget is 60 in total.
+- iOS keeps 64 pending notifications and Android allows about 500 alarms, so the budget is 60 in total,
+  MINUS what the task reminders (`mgtask:`) and the morning briefing (`mgbrief:`) hold at reconcile
+  time: they share the same per-app cap (audit 2026-10-30).
 - `SCHEDULE_EXACT_ALARM` is declared. `openExactAlarmSettings()` opens the setting through expo-intent-launcher. There is no JS API to check it, so reconcile again after the user returns (AppState active).
 - There is no full-screen intent.
 - expo-background-task (`mg-background-refresh`, every 60 minutes or more) restores the persisted language (`initI18n`), calls `withHeadlessSession`, then `calendarSyncEngine.syncNow({ headless: true })`, then `alertEngine.reconcile('background')`. Without an alert session the notification text follows `prefs.language`. It only refreshes the rolling window. Delivery itself never depends on it.
@@ -248,7 +256,7 @@ Alerts that have already fired or been acknowledged are recorded in `mg:{uid}:al
 
 - **Tokens.** `authService.getGoogleAccessToken({ requireCalendar: true })` wraps `GoogleSignin.getTokens()`; the native SDK refreshes the token. There is no client secret and tokens are never persisted. A 401 triggers `invalidateGoogleAccessToken` and one retry.
 - **Scope.** `https://www.googleapis.com/auth/calendar.events`, requested incrementally with `addScopes`.
-- **Push.** The engine listens to `meetings:changed` and pushes only local writes with origin `user` or `ai`.
+- **Push.** The engine listens to `meetings:changed` and pushes only local writes with origin `user` or `ai`, plus remote changes the website flagged (`pushRequested`, section 32).
   - Inserts use the deterministic id `googleEventIdForMeeting(id)`, which is `mgev` + base32hex. A 409 response triggers get + patch.
   - Updates use patch and deletes use delete.
   - `sendUpdates: 'all'` is set when the meeting has participants.
@@ -403,13 +411,13 @@ Shared screen pieces (`src/screens/shared`):
 | `calendarSync/CalendarSyncScreen` | `CalendarSync` | `calendar` | Google connect / reconnect / stop (optionally revoke), phone calendars (permission, import switches, export target), "Sync now" with the real per-provider result. Title and back arrow come from the stack header. |
 | `settings/SettingsScreen` | `Settings`, `Profile` | `settings` | Account (in-app deletion with a fresh sign-in), alerts, theme, language, time format (automatic / 12 h / 24 h, `timeFormat.ts`, saved at once), calendars, legal, version and the running OTA update. |
 | `alerts/AlertSettingsScreen` | `AlertSettings` | `alerts`, `onboarding` | Every alert preference after onboarding (form shared with onboarding step 3); Save applies, Back with changes asks first. |
-| `auth/LandingScreen` | `Landing` | `landing` | Value props that match the app, the free quota from `PLAN_DAILY_AI_LIMITS`, Google sign-in (cancel is not an error), secondary "Continue with email" button (§25), language switch, Terms / Privacy links. |
+| `auth/LandingScreen` | `Landing` | `landing` | Brand image (mark, name and tagline baked in), no panel or copy, Google sign-in (cancel is not an error), secondary "Continue with email" button (§25), language switch, Terms / Privacy links. |
 | `auth/EmailAuthScreen` | `EmailAuth` | `auth` | Email/password sign-in and account creation with inline password reset (§25); reached from Landing only. |
 | `legal` (`legalContent.ts`, `LegalDocumentScreen`) | `Privacy`, `Terms` (standalone variants outside Main) | `legal` | Complete EN / ES texts. `LEGAL_ENTITY` and `legal:jurisdiction` are marked placeholders to fill before release. |
 | `pricing/PricingScreen` (`pricingModel.ts`) | `Pricing` | `pricing` | Catalog from `src/services/billing.ts` ($7.99 / $14.99, 25% off yearly); current plan from the entitlement; "subscriptions coming soon", no purchase or external links. |
 | `onboarding/*` | `Onboarding*` | `onboarding` | Stage 2 (§5). |
 
-**App shell (owner: shell).** `ThemeContext.tsx`: the saved choice (`system` / `light` / `dark`; the old `theme` key is migrated once); `useTheme()` returns `{ themeMode, setThemeMode, colorScheme, isDarkMode, toggleTheme, isLoaded, colors }`, and `useAppThemes()` gives `AppRoot` the matching Paper theme, React Navigation theme and status-bar style. `CustomHeader` shows a back arrow when the stack can go back, the live EN/ES switch, the theme toggle and the menu. `MobileSidebar` items are typed Main routes. `ErrorBoundary.tsx` reports through the logger (Sentry) and renders a localized, theme-aware fallback; it wraps the whole app (scope `app`) and, as the root stack's `screenLayout`, every screen (scope `screen`: only the failed screen is replaced and the header keeps working). The crash reporter is registered when `AppRoot` loads. Toasts use the `AppToast` layouts (`toastConfig`): themed, and they wrap instead of cutting the text to one line.
+**App shell (owner: shell).** `ThemeContext.tsx`: the saved choice (`system` / `light` / `dark`; the old `theme` key is migrated once); `useTheme()` returns `{ themeMode, setThemeMode, colorScheme, isDarkMode, toggleTheme, isLoaded, colors }`, and `useAppThemes()` gives `AppRoot` the matching Paper theme, React Navigation theme and status-bar style. `CustomHeader` shows a back arrow when the stack can go back, the live EN/ES switch, the theme toggle and the menu. `MobileSidebar` items are typed Main routes. `BottomNavBar` (one instance under the Main stack, like the sidebar) shows five typed Main routes (Dashboard, TotalMeetings, AIChat as the raised assistant orb, Calendar, Tasks; `BOTTOM_BAR_ITEMS`) with the current route selected and navigates through `navigateToTopLevel`; it stays on every main screen, the chat included (the composer sits above it), and replaces the former floating assistant button. `CustomHeader` lost the theme toggle (menu and Settings keep it) and shows the account avatar as the menu button. Gradients come from `expo-linear-gradient` (native module: ships with store/APK builds) through the kit's `GradientSurface`; icons are Feather through the kit's `Icon`; the typeface is Plus Jakarta Sans (`@expo-google-fonts/plus-jakarta-sans`, loaded with `useFonts` in `AppRoot` before the first frame, system font on a load failure); `docs/v1/DESIGN_SYSTEM.md` §2.1 has the gradient, depth and motion rules. The bar owns the bottom safe-area inset: the Main group hands its screens a bottom inset of 0 (`SafeAreaInsetsContext` override in `RootNavigator`), so list paddings and FABs land right above the bar, and the RN Modal sheets and editors opened from a screen read the window insets through `useWindowInsets()` instead. `ErrorBoundary.tsx` reports through the logger (Sentry) and renders a localized, theme-aware fallback; it wraps the whole app (scope `app`) and, as the root stack's `screenLayout`, every screen (scope `screen`: only the failed screen is replaced and the header keeps working). The crash reporter is registered when `AppRoot` loads. Toasts use the `AppToast` layouts (`toastConfig`): themed, and they wrap instead of cutting the text to one line.
 
 **Navigation params.** `MeetingDetails` and `EditMeeting` take `{ meetingId }` (required); `CreateMeeting` takes an optional `{ date }` ("YYYY-MM-DD", device zone). Screens pass ids, never meeting objects.
 
@@ -487,7 +495,7 @@ and `types.ts`. One stored document per series (the **master**); occurrences are
     result: the original series ends the day before the split, a new independent series starts
     at it; EXDATEs follow the override partition. A Google-side edit of either event keeps
     syncing to its own local meeting. Outlook: unchanged - recurring meetings are never pushed
-    to Graph (§17), so neither side of the split appears in Outlook.
+    to Graph before Stage 2; since M6 the split is two ordinary series pushes to Graph as well (§17).
   - **UI:** the occurrence/series choice dialogs (`src/screens/meetings/list/meetingActions.tsx`)
     gain the third option `meetings:actions.scopeFollowing`; a "following" EDIT uses the
     occurrence sheet surface (title/date/time/duration -> `editFollowing` patch), the full form
@@ -535,17 +543,31 @@ Contract: `OutlookCalendarService` + `MICROSOFT_OAUTH` in `src/core/contracts.ts
 in `src/services/calendar/outlook/` (api/mapping/sync/service mirror the Google provider; without
 `EXPO_PUBLIC_MSAL_CLIENT_ID`, `isConfigured()` is false, the whole UI is hidden and the engine
 does not register the provider). The Microsoft account is independent of the app's
-Google/Firebase identity. v1 limitations (documented): MeetingGuard recurrence rules and meetings
-imported from Google/device calendars are never pushed to Graph, and a Teams link is only created
-with the event (Graph cannot reliably turn an existing event into a Teams meeting here). When a
-one-off that was already pushed to Outlook gains a recurrence rule, the push DELETES the Graph
-event and clears the `external.outlook*` refs - a stale single event must not linger in Outlook,
-and an Outlook-side edit of it must not rewrite the local series anchor. Removing the rule again
-re-pushes the meeting as a one-off.
+Google/Firebase identity. Limitations (documented): meetings imported from Google/device
+calendars are never pushed to Graph, and a Teams link is only created with the event (Graph cannot
+reliably turn an existing event into a Teams meeting here).
+- **Series (Stage 2, M6):** a recurring master is pushed as a Graph series master.
+  `toGraphRecurrence` (mapping.ts) maps daily / weekly (`daysOfWeek`, Monday weeks) / monthly
+  (`dayOfMonth`) rules with `interval`; `until` becomes the local date of the LAST generated
+  occurrence (`endDate`), `count` a `numbered` range; `recurrenceTimeZone` is the meeting zone. An
+  off-pattern anchor moves the master start (same wall-clock time) to the first generated
+  occurrence, which is what `expandOccurrences` renders locally. After every series create / patch,
+  `applyOccurrenceOverrides` (sync.ts) lists the instances around each override
+  (`GET /me/events/{id}/instances`, matched by `originalStart`) and DELETEs cancelled ones /
+  PATCHes modified ones (start, end, subject); Graph regenerates the occurrences when the master
+  recurrence is patched, so the pass is idempotent. The visible hash of a series includes the rule
+  and every override. `state.kinds` (event id -> single | series) remembers what we created: a
+  shape change (one-off <-> series) deletes the old event and creates a new one with a fresh
+  deterministic transactionId (`-k<hash of the old link>`), never a cross-shape PATCH; links made
+  before the field existed count as single. Import skips instances whose `seriesMasterId` is one of
+  our masters and the full-sync sweep never tombstones a master (masters are not in calendarView),
+  so Outlook-side occurrence edits or a series deletion in Outlook do not flow back (same one-way
+  rule as the Google provider, §16).
 
 - **Auth:** expo-auth-session PKCE against
   `https://login.microsoftonline.com/{EXPO_PUBLIC_MSAL_TENANT||'common'}/v2.0`, scopes `openid
-  profile offline_access User.Read Calendars.ReadWrite`, redirect
+  profile offline_access User.Read Calendars.ReadWrite Tasks.ReadWrite` (one consent for the
+  calendar and the To Do sync, §28), redirect
   `meetingguardai://auth/microsoft` (`MS_AUTH_REDIRECT_PATH`; navigation ignores it). Client id:
   optional `EXPO_PUBLIC_MSAL_CLIENT_ID` (absent => Outlook hidden). ONLY the refresh token is
   persisted, in expo-secure-store under `SECURE_STORE_KEYS.microsoftRefreshToken(uid)`
@@ -559,9 +581,17 @@ re-pushes the meeting as a one-off.
 - **Push:** the engine queues local `user`/`ai` writes exactly like Google. Inserts use
   `POST /me/events` with `transactionId: "mgev-" + meeting.id` (idempotent across retries),
   updates `PATCH`, deletes `DELETE`. A meeting with conference `{ provider: 'teams', url: null }`
-  is created with `isOnlineMeeting: true, onlineMeetingProvider: "teamsForBusiness"` and the
-  returned `onlineMeeting.joinUrl` is stored as the conference url. Ref write-backs use origin
-  `'calendar_outlook'` (never re-pushed).
+  is created (or, when already in Outlook, patched) with `isOnlineMeeting: true` and the
+  provider the account's calendar allows (`GET /me/calendar` `allowedOnlineMeetingProviders` /
+  `defaultOnlineMeetingProvider`, read once per connection into `state.onlineMeetingProvider`,
+  `resolveOnlineMeetingProvider`; usually `teamsForBusiness`). The push waits briefly for
+  `onlineMeeting.joinUrl` (`awaitTeamsLink`), PATCHes the same fields once more when the create
+  stored a plain event (`retryOnlineMeeting`; seen on personal accounts), and stores the url as
+  the conference url. A calendar that allows NO provider (some personal accounts) gets no request
+  at all and `CalendarStatus.outlook.teamsLinks` is false, so the form and the details card say
+  "not offered" instead of promising (§22 `not_offered`). A 400 on the online fields of an update
+  falls back to the plain update. Ref write-backs use origin `'calendar_outlook'` (never
+  re-pushed).
 - **Status:** `CalendarStatus.outlook` (optional; absent when unconfigured) via
   `useCalendarStatus`; sync reports gain `report.outlook`.
 
@@ -575,7 +605,8 @@ receivers; a store build - never an OTA update - ships it, hence version 1.2.0).
 
 - **Native contract:** `setAlarms(alarms)` is DECLARATIVE (replaces the whole pending set);
   `clearAlarms(ids?)`; `getStatus() -> { exactAllowed, fullScreenAllowed, notificationsAllowed }`
-  (finally a real exact-alarm read); `openFullScreenIntentSettings()`. Each alarm:
+  (finally a real exact-alarm read); `openFullScreenIntentSettings()`; `getFired(scope?)` /
+  `clearFired(ids?)` (below). Each alarm:
   AlarmManager `setExactAndAllowWhileIdle` -> BroadcastReceiver -> NotificationCompat notification
   with `fullScreenIntent` (PendingIntent to MainActivity carrying the deepLink) on the meeting's
   EXISTING alert channel. Pending alarms persist in SharedPreferences; a `BOOT_COMPLETED`
@@ -584,6 +615,17 @@ receivers; a store build - never an OTA update - ships it, hence version 1.2.0).
   `mg-alert` category does). A MAX alert delivered through the module in the background is
   snoozed from the in-app full-screen alarm after tapping it; MEDIUM alerts keep the buttons.
   Adding native snooze actions is future work (TESTING T14 tells testers it is not a bug).
+- **Fired alarms reach the in-app alarm (1.5.0 fix):** the fired native notification is not an
+  expo-notifications one, so `getPresentedNotificationsAsync` never lists it and the tray sweep
+  could not re-show it: opening the app from the alarm only navigated to the meeting, without
+  the sound loop, the voice readout or snooze. Now each spec carries `data` (the StoredAlertData
+  as JSON); the receiver records the fired alarm (SharedPreferences `FiredStore`, pruned after 2
+  hours) before posting; the engine's tray sweep (session start, foreground, host attach) reads
+  `getFired('mg:')`, runs each record through the same rules as a tray entry (stale / acknowledged
+  => dismissed; within `PRESENTED_RESHOW_WINDOW_MS` => `presentIncoming` in-app) and then
+  `clearFired(ids)`. Records are untouched while no `AlertHost` is attached. `clearAlarms` also
+  forgets fired records; the tray copy (tag = id, notify id 0, the pair expo's dismiss cancels) is
+  removed when the alert is handled, as for expo deliveries.
 - **Engine integration** (spelled out in fsi.ts): during reconcile, when android + available +
   `fullScreenAllowed && notificationsAllowed`, desired entries with kind `alert` and intensity
   `max` are routed to `setAlarms` (id = the notification identifier, so the diff extends to the
@@ -737,7 +779,7 @@ short guide docs/v1/ADMIN.md (EN).
 
 - **Auth:** every callable requires `request.auth.token.admin === true` (custom claim), else
   `permission-denied` (`unauthenticated` without auth). The claim is set offline with
-  `functions/scripts/set-admin-claim.mjs <uid-or-email> [--remove]` (Admin SDK, ADC creds).
+  `functions/scripts/set-admin-claim.mjs <uid-or-email> [--role admin|viewer] [--remove]` (Admin SDK, ADC creds); `adminRole: 'viewer'` reads every view and writes nothing; every admin write lands in `adminAudit` (functions/src/admin/audit.ts).
   Custom claims travel INSIDE the ID token: after setting the claim, an already-signed-in admin
   must refresh (`getIdToken(true)`); the page does that once automatically after sign-in before
   deciding whether to show the UI, and shows a "not an admin" block state otherwise.
@@ -786,7 +828,8 @@ set) without a url never gets one.
 | google_meet | google connected | `auto_google` / `ready` | `meetings:form.meetWillBeCreated` | `meetings:details.meetPending` ("waiting for sync") |
 | google_meet | not connected | `auto_google` / `needs_connection` | `meetings:form.meetNeedsCalendar` | `meetings:details.meetNeedsCalendar` + "Connect Google Calendar" CTA |
 | teams | outlook hidden/unconfigured | `paste` | `meetings:form.pasteLinkHint` | `meetings:details.noLink` |
-| teams | outlook configured + connected | `auto_outlook` / `ready` | new `meetings:form.teamsWillBeCreated` | new `meetings:details.teamsPending`; but `teamsLinkOnCreateOnly` (already pushed, no link) -> new `meetings:details.teamsLinkTooLate` (paste fallback) |
+| teams | outlook configured + connected | `auto_outlook` / `ready` | new `meetings:form.teamsWillBeCreated` (also for a meeting already in Outlook: the update asks again) | new `meetings:details.teamsPending`; but `teamsLinkOnCreateOnly` (already pushed, no link) -> `meetings:details.teamsLinkMissing` (Graph attached none; paste, or save again to ask again) |
+| teams | connected, calendar allows no provider (`teamsLinks` false) | `auto_outlook` / `not_offered` | `meetings:form.teamsNotOffered` (link label "link", not optional) | `meetings:details.teamsNotOffered`, no connect CTA |
 | teams | configured, not connected | `auto_outlook` / `needs_connection` | new `meetings:form.teamsNeedsOutlook` | new `meetings:details.teamsNeedsOutlook` + "Connect Outlook" CTA |
 
 - A PASTED url always wins: the mode only describes the empty-url behavior, and the details
@@ -794,7 +837,8 @@ set) without a url never gets one.
 - **Push-target degrade** (`ConferencePushTarget`, third argument of `conferenceCapability`):
   an auto mode the sync engines can never reach for THAT meeting falls back to `paste` (no
   promise, no connect CTA). Ground truth from the push filters: the Outlook push never pushes
-  recurring meetings (§17) nor `source: 'google' | 'device'` ones (`isOutlookPushable`), and
+  `source: 'google' | 'device'` ones (`isOutlookPushable`; series ARE pushed since M6, with the
+  Teams link requested on the series insert), and
   the Google push never pushes `source: 'device' | 'outlook'` ones (`pushGoogleMeeting`) -
   recurring masters ARE pushed to Google, so Meet + recurrence keeps its promise. The form
   passes the draft's repeat choice + the edited meeting's source ('manual' for a new one);
@@ -915,6 +959,18 @@ their own Zoom accounts and the app never sees Zoom credentials.
   `onMeetingDeleted(meeting)`. The AI executor treats provider-zoom create/update the same way
   after executing the confirmed action. A pasted link always wins; `ensureLink` is never called
   when a url exists.
+- **One invitation email** (push hold, `src/core/pushHold.ts`): the link is written server-side
+  seconds after the meeting is saved, and the calendar engine had already pushed the meeting on
+  Save, so attendees got an invitation without the link followed by an "updated invitation"
+  with it (user report, 2026-10-30). `ensureLink` now HOLDS the meeting id on
+  `calendarPushHold` for the whole call: the engine's debounced flush keeps held ids in its
+  local queues and the persisted Google and Outlook queues skip them (`holdPush` dep), the
+  device export too. When the call settles, link or failure, the service re-announces the
+  meeting as a local change (`meetings:changed`, origin user) and releases the hold; the engine
+  flushes on the release, so ONE insert goes out carrying the join link (or none, after a
+  failure). Holds nest and expire on their own after `PUSH_HOLD_MAX_MS` (30 s, longer than
+  the callable timeout), so a lost release can never block a push. Edits made during the hold
+  ride along in the same push.
 - **"This and following" semantics** (§16 split of a zoom series): the server-created Zoom
   meeting ATTACHES TO THE ORIGINAL MASTER. The tail is built with `conference.url`/`password`
   nulled whenever the master has provider zoom AND an `external.zoomMeetingId`
@@ -1158,7 +1214,7 @@ then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions 
 - **Assistant bridge**: `runAssistant(uid, request, deps)` is the auth-free seam split out of
   `handleAssistant` (same file; the callable still parses + gates exactly as before), and
   `buildAssistantDeps(db)` (assistant/index.ts) is the shared dependency set - the WhatsApp path
-  therefore consumes the SAME per-user daily quota (PLAN_DAILY_AI_LIMITS), global budget and
+  therefore consumes the SAME per-user AI allowance (AI_ALLOWANCES, section 35), global budget and
   admin usage counters as the app. Request: session turns + the new message, `language` from
   `users/{uid}/settings/preferences` (fallback 'en': the inbound payload carries NO locale, so
   there is no WhatsApp-side language signal), `timezone` from preferences (fallback UTC), mode
@@ -1208,3 +1264,465 @@ then reuses the ASSISTANT PIPELINE over WhatsApp and executes confirmed actions 
   linked phone (`linkedLast4`). Known gap (accepted for now): there is no owner push/email on a
   successful link - the server has no push pipeline yet; the masked number plus the 8 s poll is
   the visibility story until one exists.
+
+## 28. Microsoft To Do (Graph; V2 Stage 2, M7)
+
+Contract: `TodoSyncService` in `src/core/contracts.ts`; implementation in
+`src/services/tasks/todo/` (api / mapping / state / sync / service mirror the Outlook provider,
+§17) on the shared Graph HTTP core `src/services/microsoft/graphHttp.ts` (Bearer token,
+401 refresh-once, 429/5xx backoff, AppError mapping; the Outlook client uses the same core).
+Without `EXPO_PUBLIC_MSAL_CLIENT_ID` the service is unconfigured, `CalendarStatus.todo` stays
+absent, the To Do card is hidden and the engine skips the provider.
+
+- **Account.** The Microsoft account the Outlook card connects: the same refresh token
+  (`microsoftTokenManager`, exported by `src/services/calendar/outlook`) and one consent that
+  includes `Tasks.ReadWrite`. A consent granted before M7 (no Tasks scope) makes Graph answer 403
+  on `/me/todo`; the service records `permission_denied` and the card asks to reconnect Outlook.
+  "Connected" (`status.todo.connected`) mirrors the Outlook connection; "enabled" is this
+  device's switch (`mg:{uid}:tasks.todo`, like the Outlook connection it does not sync between
+  devices). The chosen DEFAULT LIST is in Preferences (`todoListId`, `todoListName`), synced.
+- **List choice.** `enable(list)` stores the list, pulls it, queues every open unlinked task and
+  flushes; `setList` changes the default for NEW tasks only. A task can name its own list
+  (`external.todoListId`, set at creation through `TaskInput.todoListId` or later through
+  `TaskPatch.todoListId`); the push engine deletes the old copy and creates a new one when the
+  desired list differs from the actual one (Graph cannot move tasks). `state.links` (local task
+  id -> actual list + To Do id, this device) tells the two apart; other devices read the link
+  from the task document. The assistant's confirm card and the task editor show the list name
+  before anything is saved (`AiActionPreview.todoListName`, `TaskEditorTodo`).
+- **List memory and older builds** (November 6, 2026; the same in section 30). The App Store
+  1.5.0 build saves the preferences as a whole document from its own schema, so any settings
+  change on such a phone erases `todoListId` / `gtasksListId` and their names. Each device
+  therefore also remembers the list while its sync is on (`state.listId` / `state.listName`).
+  `resolveList` in the service is the one answer for the push (`defaultList`) and the status:
+  the list in preferences when there is one (a device follows a list changed elsewhere), else
+  the remembered list, which is written back to preferences (only over settings that came from
+  the server, never while signed out; a choice made meanwhile wins, `choiceEpoch`). A change
+  with no list to go to stays queued untouched (`listMissing`), the card shows "List needed"
+  with "Choose list", and `setList` queues the open tasks without a copy and flushes. A state
+  stored before the memory existed queues those tasks once when it first remembers a list.
+  The same build also saves tasks as whole documents without `source` / `external`: the data
+  engine keeps this device's values for such a document (`restoreTaskKeys`; an unlink writes
+  `external` with nulls and still clears the links), asks for the push of the change when the
+  task has a provider copy, and repairs the server copy (origin `system`, mode set, its own
+  `updatedAt`, `pushPending` kept when a push was asked; `decideTaskRepair` never creates or
+  deletes a document). Push and pull also match a document that lost its link through
+  `state.links`, so its copy is patched in place, never duplicated or moved.
+- **What syncs.** Title, notes (`body`, text), due DATE, reminder (a To Do instant: due time
+  minus the offset), done state (`status: completed`), deletion. What stays in MeetingGuard only,
+  and the editor says so: a due time without a reminder, people, the meeting link, the zone.
+  Due dates are pushed as local midnight of the task's zone (UTC with the Prefer header) and read
+  back as the local date NEAREST to the instant in the device zone, so UTC-midnight dates from
+  other clients land on the right day too (`nearestLocalDate`). A To Do reminder coming back
+  becomes due time + whole-day offset when the days differ by at most a week, else a reminder at
+  the due time. A task completed in To Do before MeetingGuard ever saw it is history and is not
+  imported.
+- **Pull.** `/me/todo/lists/{listId}/tasks/delta` for the default list plus every list a linked
+  task lives in; delta links persisted per list; a full listing on the first sync of a list,
+  every 7 days and on HTTP 410. `@removed` deletes the local task; a linked task missing from a
+  full listing is deleted too. Imports use `tasksRepository.create` with the deterministic id
+  `td_<To Do id or hash>`, origin `tasks_todo`, source `todo`; link write-backs use origin
+  `tasks_todo`. The engine pushes that origin on to Google Tasks only (the app bridges the two
+  providers, `taskPushTargets`), never back to To Do; the push-side hash check keeps a link
+  write-back from costing a call. Conflict rule: a local change waiting in
+  the queue wins over the pulled version; otherwise To Do's `lastModifiedDateTime` wins when it is
+  newer than the stored `todoUpdatedAt`; an unchanged visible hash is skipped (echo suppression).
+- **Push.** `tasks:changed` events with origin `user` / `ai` (the data engine emits them for local
+  task writes and remote snapshots, carrying the removed tasks' links on delete) are queued
+  persist-first in `state.pending` and flushed after the engine's 2 s debounce; POST / PATCH /
+  DELETE `/me/todo/lists/{listId}/tasks`; a 404 on PATCH re-creates; blocking codes (offline,
+  token, 403) keep the queue, retryable ones count attempts up to 8, the rest are dropped and
+  counted as failed. A finished task that was never pushed is not created in To Do.
+- **Timing.** `syncNow` (session start, foreground, 5-minute interval, connectivity, "Sync now",
+  pull-to-refresh, background refresh) runs the To Do flush + pull after the calendars. While the
+  app is active the engine also pulls To Do on its own every `TODO_FOREGROUND_INTERVAL_MS` (60 s),
+  so a task completed in To Do silences its reminder here within a minute (the task reminder
+  reconciler reacts to the repository change). In the background the cadence is the OS background
+  refresh. Android pauses JS timers in the background, so the engine does not rely on them there:
+  coming back to the app pulls the task providers at once when the calendar `autoSync` is
+  throttled (`TASK_RESUME_MIN_GAP_MS`, 15 s), and on leaving the app, or for a task change made
+  out of the foreground, the task queues are sent at once instead of after the 2 s debounce
+  (`flushLocalChanges('tasks')`; the meeting queues keep the debounce for the Zoom push hold).
+- **Disable.** Forgets the queue, delta links and links; deletes the tasks imported from To Do
+  (their copies stay in Microsoft); clears the links of the other tasks and the list in
+  preferences. Session end wipes `mg:{uid}:*` like every other sync state; the token is the
+  Outlook cleanup hook's job.
+- **Status.** `CalendarStatus.todo` (`configured`, `connected`, `enabled`, `listId`, `listName`,
+  syncing / lastSyncAt / lastError) through `useCalendarStatus`; sync reports gain
+  `report.todo` (`TodoSyncResult`) and errors use provider `'todo'`.
+- **Tasks screen triggers.** Pull-to-refresh on the Tasks screen runs
+  `calendarSyncEngine.syncTasksNow()` (To Do and Google Tasks flush + pull only, no calendars;
+  `TaskSyncReport` with one error entry per failing provider, the first one shown as a toast), and
+  gaining focus runs the same sync quietly at most once every 15 s (`useTasksRefresh`,
+  `src/screens/tasks/useTasksRefresh.ts`), so opening the screen is enough to see what changed
+  elsewhere. The one-minute pull and the debounced push run while the app is active (see Timing).
+- **Tests.** `src/services/tasks/__tests__` (mapping, sync with a scriptable Graph fake, service),
+  `src/services/calendar/__tests__/engineTodo.test.ts`, the data engine's task write options and
+  event (`engineTasks.test.ts`), the rules drift test, the calendar sync screen's To Do card and
+  the executor preview. Device test guide: `docs/v1/TESTING.md` T22.
+
+## 29. Spoken debrief (V2 Stage 2, M8)
+
+After a meeting the user says what was agreed, and the assistant turns that into task proposals
+linked to the meeting. Nothing is saved until each card is confirmed. Contract v7
+(`src/core/aiContract.ts` = `functions/src/shared/aiContract.ts`): a third assistant mode,
+`debrief`, carrying `followUpMeetingId` (the meeting that ended) and exactly one trailing user
+message, the transcript.
+
+- **Entry points.** Meeting details shows **Debrief this meeting** once the meeting has ended
+  (`canDebrief` in `src/screens/meetings/debrief.ts`: start + duration in the past; a series once
+  its first occurrence started; never a cancelled meeting). It opens the chat with
+  `AIChat { debrief: meetingId }` (deep link `meetingguardai://assistant?debrief=<id>`). The
+  follow-up banner (post-meeting notification, `followup` param) offers a **Debrief** button that
+  opens the same panel, so the notification flow and the details screen meet in one place.
+- **Capture.** `DebriefPanel` (`src/screens/assistant/DebriefPanel.tsx`) shows the meeting, a hint,
+  an editable transcript box and a microphone. The microphone is the chat screen's ONE voice
+  session (`useVoiceInput`, expo-speech-recognition, up to `VOICE_MAX_SESSION_MS` = 60 s, silence
+  timers as in the composer) routed by target: while the panel captures, interim text goes into
+  the panel instead of the composer and the final text never auto-sends. The user reads the
+  transcript, fixes it if needed and taps **Create tasks**; typing instead of speaking works too.
+  `sendableDebrief` caps the text at 4000 characters (the contract's message limit).
+- **Request.** `AssistantController.startDebrief(meetingId, transcript)` adds the transcript as a
+  user message carrying `debriefMeetingId` (the bubble is labelled "Debrief: <title>") and runs
+  the request with `mode: 'debrief'`, `followUpMeetingId: meetingId` and ONLY that one message:
+  earlier chat turns never steer a debrief. The reply is labelled the same way. A debrief does not
+  mark the meeting in `followUpsRequested` (a meeting can be debriefed again), and a failed one is
+  retried with the same transcript (`FailedRequest { mode: 'debrief', meetingId, userMessageId }`,
+  also detected for a thread restored from storage). `debriefInFlight` drives the loading text.
+- **Server.** `functions/src/assistant`: debrief mode always carries the task context and task
+  tools (a v7 client by definition), uses `toolChoice: 'required'` and a `# Debrief mode` prompt
+  block: the transcript is speech-to-text (expect misheard words), one `create_task` per
+  commitment, every task with `meeting_ref` = the ended meeting, the owner in `people` by name
+  (only names the user said or participants of that meeting; the user is never a person entry;
+  emails only when spelled out, like every other task person), relative deadlines resolved from
+  the date table, no date when none was said, titles that start with a verb in the transcript's
+  language, a 1-2 sentence reply. `mapToolCalls` enforces the rule the prompt states: in debrief
+  mode only `create_task`, `create_meeting` (an explicitly requested follow-up meeting), the two
+  list tools and `suggest_replies` are accepted; anything else is dropped as `not_allowed`.
+  Fallback replies: `debrief` (tasks proposed, empty model text) and `debrief_empty` (nothing to
+  turn into a task). A v6 server rejects the mode as `invalid_request`; deploy the functions with
+  the app (`npm run deploy` in `functions/`).
+- **Confirmation.** The proposals are the usual `create_task` cards (title, due, people, the
+  linked meeting, the To Do / Google Tasks list when a sync is on): Review and Confirm, Reject,
+  the pending bar's "Review all", and the spoken "yes, confirm" of the voice confirmation flow.
+  Confirmed tasks are created through the task executor with the meeting link and reach the
+  connected task providers through the normal push path (§28, §30).
+- **Tests.** Contract (`aiContract.test.ts` both sides), controller and conversation (debrief
+  request shape, labels, retry), chat model (params, `sendableDebrief`), the assistant screen
+  (panel open / send / close, loading text), meeting details (button and navigation),
+  `canDebrief`; server: prompt block, tool guard (`actions.test.ts`), handler end to end
+  (`handler.test.ts` "debrief mode (v7)"). Device test guide: `docs/v1/TESTING.md` T23.
+
+## 30. Google Tasks (Tasks API v1; V2 Stage 2, M8)
+
+Contract: `GoogleTasksSyncService` in `src/core/contracts.ts`; implementation in
+`src/services/tasks/gtasks/` (types / api / mapping / state / sync / service / index), a one-to-one
+mirror of the Microsoft To Do engine (§28) over the Google Tasks REST API
+(`https://tasks.googleapis.com/tasks/v1`). Everything said in §28 about queueing, echo
+suppression, conflict rule, timing, disable and status holds here with the `gtasks` names; this
+section lists what differs.
+
+- **Build switch.** `isConfigured()` is `EXPO_PUBLIC_GOOGLE_TASKS_SYNC !== 'off'` (default ON;
+  store builds set `off` until Google verifies the scope, `docs/v1/SETUP.md` §4.6). Off: no
+  `CalendarStatus.gtasks`, the card is hidden, the engine skips the provider.
+- **Account and scope.** The Google account signed in natively on the device (GoogleSignin), the
+  same one Google Calendar uses. The sensitive scope `https://www.googleapis.com/auth/tasks`
+  (`GOOGLE_TASKS_SCOPES`) is requested incrementally when the user taps "Sync tasks with Google
+  Tasks": `listLists` asks for it before loading the lists, since the chooser comes before "Start
+  sync" (`enable` asks too when it was skipped; `authService.requestTasksScope`,
+  `GoogleSignin.addScopes`; an email/password user is signed in to Google first). A decline shows
+  the card's "access was not granted" text and nothing is queued. `getGoogleAccessToken({ requireTasks: true })` throws
+  `tasks_scope_missing` (new `AppErrorCode`, EN/ES text) when the scope is missing; the card then
+  says access was not granted. A Google Calendar disconnect with revoke disables the Google Tasks
+  sync first (`googleCalendarService.disconnect`), since the revoke takes the tasks grant too.
+- **Lists.** `tasks/v1/users/@me/lists`; the API has no default flag, so the first list (Google's
+  built-in "My Tasks") is marked `isDefault`. The chosen default list lives in Preferences
+  (`gtasksListId`, `gtasksListName`), a task's own list in `external.gtasksListId`
+  (`TaskInput.gtasksListId` / `TaskPatch.gtasksListId`). The API cannot move a task between
+  lists: delete + create, like To Do.
+- **What syncs.** Title, notes, due DATE and done state (`status: needsAction | completed`;
+  reopening clears `completed` explicitly). Google Tasks has no reminders and ignores the time
+  part of `due` (stored as `<date>T00:00:00.000Z`), so the due time, the reminder, people, the
+  meeting link and the zone stay in Meeting Guard; an import keeps the existing local due time and
+  reminder when the date did not change. The visible hash is title + notes + due date + done.
+  Subtasks are flattened (the parent is ignored). A task already completed when first seen is not
+  imported.
+- **Pull.** `tasks.list` with `showCompleted`, `showHidden` and `showDeleted` for the default
+  list plus every list a linked task lives in, paged (100 per page). No delta links: the state
+  keeps an `updatedMin` watermark per list (the previous pull time minus a 2-minute skew margin;
+  items inside the margin re-list as unchanged); a full listing runs on the first sync of a list,
+  every 7 days and whenever the watermark is missing. `deleted: true` deletes the local task; a
+  linked task missing from a full listing is deleted too. Imports use the deterministic id
+  `gt_<Google id or hash>`, origin `tasks_gtasks`, source `gtasks`; link write-backs use origin
+  `tasks_gtasks` (pushed on to Microsoft To Do only, never back to Google; §28).
+- **Push.** Same queue as To Do (`state.pending`, persist-first, the engine's debounce; POST /
+  PATCH / DELETE; a 404 on PATCH re-creates). Blocking codes additionally include
+  `google_not_signed_in` and `tasks_scope_missing` (everything stays queued); a 403 on one task is
+  that task's failure. HTTP mapping in `gtasks/api.ts`: 401 invalidates the token and retries
+  once, 429 / 5xx / rate-limit 403 back off with jitter and honour Retry-After, scope 403 becomes
+  `tasks_scope_missing`.
+- **Storage and rules.** State in `mg:{uid}:tasks.gtasks` (`USER_STORAGE.gtasksTasks`).
+  Firestore: `external` accepts `gtasksListId / gtasksTaskId / gtasksUpdatedAt`, `source` accepts
+  `gtasks`, preferences accept `gtasksListId / gtasksListName` (`firestore.rules`; deploy with the
+  build). The task READ schema (`taskDocReadSchema`) fills every external key an older build did
+  not write (`fillTaskExternalRefs`), like the meeting reader: a reader that requires a new key
+  silently hides every older document in the app while the server-side assistant still lists
+  them (the November 2, 2026 "WhatsApp still shows deleted tasks" report).
+- **UI.** The "Google Tasks" card on the Calendar sync screen (`GoogleTasksCard`, states via
+  `gtasksStateView`; needs the Google session, else "Sign in with Google on this device first");
+  the task editor's second list box (`TaskEditor` `gtasks` prop, the box component is shared with
+  To Do as `ListSyncBox`); the assistant's confirm card shows "Google Tasks list: <name>" next to
+  the To Do list (`AiActionPreview.gtasksListName`, `describeTaskDraft`). Sync reports gain
+  `report.gtasks` and provider `'gtasks'`.
+- **Tests.** `src/services/tasks/__tests__/gtasks{Mapping,Sync,Service}.test.ts` with
+  `__testUtils__/gtasksFakes.ts`, the engine (`engineTodo.test.ts` gtasks cases), the auth
+  service scope cases, the calendar sync model and screen, the executor preview, the rules drift
+  test and the rules fixture. Device test guide: `docs/v1/TESTING.md` T24.
+
+## 31. Sign in with Microsoft (custom token through the microsoftSignIn callable)
+
+Contract: `AuthService.signInWithMicrosoft`, the custom-token branch of `reauthenticate` and
+`AuthContextValue.signInWithMicrosoft / canSignInWithMicrosoft` in `src/core/contracts.ts`;
+request / response schemas and `MICROSOFT_SIGN_IN_REASONS` in `src/core/aiContract.ts` (=
+`functions/src/shared/aiContract.ts`). Client flow in `src/services/microsoft/signIn.ts` over the
+shared PKCE prompt `src/services/microsoft/authPrompt.ts` (the Outlook connection's
+`outlook/authAdapter.ts` is now a thin port over it); server in `functions/src/microsoftSignIn.ts`.
+Owner steps: docs/v1/SETUP.md §10.6.
+
+- **Why a callable.** The Firebase JS SDK cannot exchange a Microsoft token itself
+  (`signInWithCredential` is not supported for Microsoft, and the popup/redirect flow is web
+  only). The app therefore runs the Microsoft PKCE sign-in it already has for Outlook, with the
+  identity scopes only (`MICROSOFT_OAUTH.signInScopes` = openid profile email: no offline_access,
+  so no refresh token exists and nothing is stored), sends the id_token to `microsoftSignIn`
+  and signs in with the Firebase custom token it answers. One Azure registration serves both
+  flows; the Outlook connection remains its own consent with its own refresh token.
+- **Client.** `signInWithMicrosoft`: `EXPO_PUBLIC_MSAL_CLIENT_ID` required (else
+  `not_configured` / `microsoft_not_configured`; the Landing button is hidden through
+  `canSignInWithMicrosoft`), raw nonce (same generator as Apple's) in the authorize request,
+  `requestMicrosoftIdToken` (prompt with `prompt=select_account`, code exchange at
+  `/oauth2/v2.0/token` with a plain fetch, 30 s timeout) -> callable `{ idToken, nonce }` ->
+  `signInWithCustomToken`. A closed browser resolves `cancelled`; a second tap joins the running
+  flow. Server reasons map to auth reasons: `microsoft_not_configured`, `email_in_use`
+  (`conflict`), `microsoft_token_invalid` -> `microsoft_sign_in_rejected` (retryable); a failed
+  browser flow is `microsoft_sign_in_failed`. EN/ES texts in `auth:errors.*`.
+- **Server** (`handleMicrosoftSignIn`, unauthenticated by design, 30 s, maxInstances 10).
+  `verifyMicrosoftIdToken`: RS256 with Node crypto against Microsoft's published keys
+  (`login.microsoftonline.com/common/discovery/v2.0/keys`, cached 24 h, one refetch per minute on
+  an unknown kid); `aud` = `MICROSOFT_CLIENT_ID`, `iss` = `https://login.microsoftonline.com/{tid}/v2.0`
+  with `tid` under the `MICROSOFT_TENANT` policy (common: any; consumers: only the personal
+  tenant; organizations: anything but it; a GUID: that tenant), `exp` / `nbf` with 60 s skew,
+  `nonce` = the request nonce, `oid` and `sub` present. Email = the `email` claim, else
+  `preferred_username` when it is an address; `emailVerified` only for personal accounts (the
+  consumer tenant) or a work account carrying `xms_edov: true` (Microsoft does not vouch for
+  other work-account emails, which is what would otherwise allow an account takeover by email).
+- **User resolution.** `microsoftIdentities/{oid}` = `{ uid, tid, email, createdAt, lastSignInAt }`
+  (server only; rules deny clients). Known oid -> that uid. Unknown oid with an email that already
+  belongs to a Firebase user -> joined to that account (`linked`) only when the email is verified,
+  else `already-exists` / `email_in_use` (the user signs in with the method they used before).
+  Otherwise a new user `ms_<oid>` (`emailVerified` from the claim, display name from `name`),
+  unless the request carries `signInOnly: true` (the website, which signs in existing app users
+  only): then `not-found` / `microsoft_user_not_found` and nothing is written. The website runs
+  the same PKCE flow as a single-page application (its own redirect URIs on the registration,
+  SETUP.md §10.6) and calls the same function; the app never sends the flag.
+  The custom token carries the developer claim `signInProvider: 'microsoft.com'`. Account
+  deletion removes the identity documents (`deleteMicrosoftIdentities`, before the Auth user).
+- **Session shape.** A custom-token user has no `providerData`: `signedInWithMicrosoft(user)` in
+  `src/services/auth/authResults.ts` is `providerIds.length === 0`. The verification banner
+  follows `emailVerified` as for password accounts (a work account without the verified-domain
+  claim is asked to verify; the email is sent the usual way). `reauthenticate` for such a session
+  runs the Microsoft flow again and signs in with a fresh custom token for the SAME uid (a new
+  `auth_time` for the account deletion); another Microsoft account is `user_mismatch`, never a
+  switch. A Microsoft identity joined to a Google account keeps reauthenticating through Google.
+- **UI.** Landing: "Continue with Microsoft" between Google and email, the glass style of the
+  email button with the Microsoft mark (`testID landing-microsoft`), hidden without a client id.
+  The delete-account flow treats a custom-token session like a provider account (reauthenticate,
+  then the server call).
+- **Tests.** `src/services/microsoft/__tests__/signIn.test.ts`,
+  `src/services/auth/__tests__/authService.microsoft.test.ts`, the Landing and Settings screens;
+  server `functions/test/unit/microsoftSignIn.test.ts` (a key pair generated in the test covers
+  every verification failure, the tenant policy and the linking rules) and the deleteAccount
+  ordering. Device test guide: `docs/v1/TESTING.md` T25.
+
+## 32. Website writes (pushPending; V2 Stage 2)
+
+The website (Sven's, a separate codebase) creates, edits and cancels meetings by writing the
+same `users/{uid}/meetings/{id}` documents the app writes. It cannot reach Google Calendar or
+Outlook: the Google token stays on the phone (privacy policy), and the website has no Google
+sign-in of its own. So a website write reaches the providers through the app, exactly like a
+change made in the app, and the website says which documents need that with ONE field.
+
+- **Contract.** The website writes `pushPending: true` on every meeting document it creates,
+  updates or cancels, together with a fresh `updatedAt` (the snapshot merge is last-writer-wins
+  on `updatedAt`, and an unchanged `updatedAt` is never applied). A cancel is the app's
+  tombstone (`deletedAt` = `updatedAt` = now, the other fields kept), never a document delete,
+  so the app can remove the provider event and the attendees get the cancellation mail. A Google
+  Meet request is `conference: { provider: 'google_meet', url: null, password: null }`; the push
+  creates the link (`wantsMeetLink`) and writes it back. A Zoom request is
+  `conference: { provider: 'zoom', url: null, password: null }` followed by the website's call to
+  `zoomCreateMeeting` (section 24): the app keeps the push back until the server's link
+  write-back arrives (a partial update that keeps `pushPending` and bumps `updatedAt`), so the
+  attendees get ONE invitation that already carries the Zoom link (`awaitsZoomLink`, the website
+  counterpart of the app's own push hold). When Zoom creation fails for good the website rewrites
+  the meeting with another provider or a pasted link, flag set, or it is never pushed. The rules
+  accept the flag as a boolean (`isValidMeeting`); the website never clears it.
+- **App.** The read schema drops the flag (it never enters the `Meeting` model, so every app
+  write of the document, the provider write-back included, leaves it out). The data engine reports
+  the flagged ids on the `meetings:changed` event (`reason: 'remote'`, `pushRequested`) when it
+  accepts the document (`mergeRemoteMeeting`), except a live Zoom meeting without a link yet
+  (`awaitsZoomLink`). The calendar engine queues those ids for Google
+  and Outlook as upserts, persist-first like a local write (`onMeetingChanged`); a tombstone is
+  turned into a delete by the push itself. Device calendar exports already refresh on every remote
+  change.
+- **Tasks** (November 5): the same flag on `users/{uid}/tasks/{id}`. The website writes
+  `pushPending: true` with a fresh `updatedAt` on every task it creates or updates; the rules
+  accept it as a boolean (`isValidTask`), the read schema drops it (`parseTaskDoc` is a plain
+  object schema, unknown keys are stripped), and `onTasksSnapshot` reports the flagged ids as
+  `pushRequested` on the `tasks:changed` event (`reason: 'remote'`). The calendar engine
+  (`taskPushTargets`, `onTaskChanged`) queues them for To Do and Google Tasks as upserts, exactly
+  like a user write; the provider write-back (origin `tasks_todo` / `tasks_gtasks`) rewrites the
+  document without the flag. A delete on the website is a plain document delete (tasks have no
+  tombstone): the snapshot removal carries the local copy's provider links as `removed` on the
+  same event, and the engine queues a delete of each copy. A copy that is already gone (the other
+  device, or the provider itself, deleted it first) answers 404, which the delete treats as done,
+  so the second phone's delete is harmless. Unlike Google Calendar, Google Tasks and To Do ids are
+  not deterministic: two phones that both see a flagged CREATE before either write-back lands can
+  create two copies (`resolveLink` patches once the link is on the document, so the window is the
+  push debounce). One phone with the task sync on is the supported setup.
+- **Limits.** Nothing happens until a phone with the app receives the change and has the provider
+  connected (the website shows "Meet link pending" until then). A meeting written before Google or
+  Outlook is connected is picked up by the first-connection backfill
+  (`enqueueUpcomingOwnMeetings`). Two phones that both see the flag both push: the Google event
+  id is deterministic (`googleEventIdForMeeting`), so the second push patches instead of
+  duplicating, and an unchanged Google-visible hash is never re-sent. A document whose flag the
+  write-back never cleared (push failed for good) is pushed again the next time it arrives changed.
+- **Tests.** `src/services/data/__tests__/engine.test.ts` (flag reported, never stored, Zoom
+  held until the link), `src/core/__tests__/pushHold.test.ts` (`awaitsZoomLink`),
+  `src/services/calendar/__tests__/engine.test.ts` and `engineOutlook.test.ts` (queued like a
+  local write), `functions/test/rules/firestore.rules.test.ts` (flag accepted, non-boolean
+  rejected, meetings and tasks). Tasks: `src/services/data/__tests__/engineTasks.test.ts` (flag
+  reported, never stored; server delete carries the links), `engineTodo.test.ts` (flagged ids
+  queued for both providers, server deletes queued with each provider's link). Device test guide:
+  `docs/v1/TESTING.md` T26.
+
+## 33. Running late (V2 Stage 2, M9)
+
+The user picks how late they are, gets a ready message in the UI language with the meeting title
+and the new time, edits it and sends it FROM THE PHONE through the share sheet or the mail
+composer. Moving the meeting is a separate decision taken afterwards, never a side effect of
+sending, and the app never claims a message was delivered.
+
+- **Entry points.** The dashboard card (`NextMeetingCard`: "Running late" under the buttons of
+  the running and the next meeting), meeting details ("Running late" while the meeting, or the
+  next live occurrence of a series, has not ended), the MAX alarm modal and the MEDIUM banner
+  ("Running late" next to Snooze; the alert is resolved as `open` first, like Details, so the
+  alarm stops and the full-screen modal unmounts before the sheet shows). Every entry point calls
+  `openRunningLate({ meetingId, startAt })` (`src/screens/meetings/RunningLateSheet.tsx`): a
+  module store read by `RunningLateHost`, rendered once in `AppRoot` next to `AlertHost`.
+  The host loads the live meeting (`useMeeting`) and resolves the ROW the user meant
+  (`resolveRunningLateMeeting`, `src/screens/meetings/runningLate.ts`): a one-off meeting as it
+  is, or one occurrence of a series (the one starting at `startAt` when the alert or the
+  dashboard row knows it, else the next live one; the details screen passes null). Nothing live
+  (deleted, cancelled, all-day, over) closes the sheet with a notice.
+- **Compose.** Chips for 5, 10, 15 and 30 minutes (`RUNNING_LATE_DELAYS`). The new start is
+  the delay after the scheduled start, or after now (next whole minute) once the meeting has
+  started, so the message never names a time in the past (`runningLateNewStart`). The message
+  (`buildRunningLateMessage`, `meetings:runningLate.message`) carries the title and the new
+  time (clock only on the same day, date too otherwise) and is an editable text box; a new delay
+  rewrites it. The participants are listed as a hint (the share sheet cannot pre-address) and
+  "Email participants" opens the mail composer with them as recipients (`buildMailtoUrl`).
+- **What the phone reports.** `shareOutcome`: iOS reports completion (`sharedAction`, the
+  chosen app finished its activity) or dismissal; Android reports `sharedAction` as soon as the
+  sheet opens. So the sheet says "your phone confirms the message was handed to the app you
+  chose" on iOS, "the message went to the app you chose; Meeting Guard cannot see whether it
+  was sent" on Android and after the mail composer, and "nothing was sent" (staying on the
+  message) when iOS reports a dismissal. The word "delivered" never appears.
+- **Move.** A second step, after the message or through "Just move the meeting" (people already
+  told): "Move the meeting to <time>?" with the scope spelled out (one occurrence of a series
+  only; Google / Outlook push when sync is on; a device-calendar import stays in the app) and
+  Move / Keep the time. Move is `runningLateMove` + `applyScopedWrite`
+  (`src/screens/meetings/scopedWrite.ts`): `meetingRepository.update` for a one-off meeting,
+  `updateOccurrence` (a 'modified' override, section 16) for a series, origin 'user' in both
+  cases, so the calendar engine pushes it and the alert engine re-plans the alarms like any
+  other edit. The length is kept: the meeting ends later.
+- **End meeting now** (client request, November 3; same module). The running meeting offers
+  "End now" on the dashboard card and "End meeting now" on details: after a confirmation
+  `endNowWrite` shortens it to the elapsed whole minutes (at least one; one occurrence only for a
+  series), so "Happening now" clears and the alarms stop.
+- **Tests.** `src/screens/meetings/__tests__/runningLate.test.ts` (resolution, new start,
+  message EN/ES, outcome, scoped writes), `RunningLateSheet.test.tsx` (compose, share,
+  dismissed, Android, mail, just move, series, not live, Spanish), the dashboard and details
+  screen tests (entry points, End now). Device test guide: `docs/v1/TESTING.md` T27.
+
+## 34. Setup recommendation on the dashboard
+
+One card, one step at a time, above the empty meetings card (it explains why the list is empty)
+or below the next meeting (the meeting is why the app was opened). Never a checklist of five.
+
+- **Model** (`src/screens/home/setupSteps.ts`, pure): `pendingSetupSteps` ranks the steps that
+  still apply: verify the email (`needsEmailVerification`: email/password accounts only, the
+  trusted providers are verified already), connect a calendar (`calendarConnected`: Google sync
+  on, or the Outlook account connected), sync the tasks (only once a calendar is connected;
+  Microsoft To Do when Outlook is connected and the provider is configured, else Google Tasks
+  on builds that register it, so store builds with the switch off never recommend it). "Done" is
+  read from the live `CalendarStatus`, never from a stored flag, so a step comes back when the
+  user disconnects. `nextSetupStep` returns the first step that is not snoozed.
+- **Snooze.** "Not now" hides the step for `SNOOZE_DAYS` (7); the second "Not now" hides it for
+  good on this phone (`snoozeStep`, `SNOOZE_FOREVER_AFTER`). Stored as JSON under
+  `mg:{uid}:setup.snooze` (`USER_STORAGE.setupSnooze`), inside the user prefix so sign-out wipes
+  it; read leniently (`parseSnoozes`). Settings > Calendar sync stays the place to do it later.
+- **UI** (`src/screens/home/SetupCard.tsx`): `useSetupStep(uid, emailVerificationNeeded, now)`
+  loads the snoozes once per account and combines them with `useCalendarStatus`; the card shows
+  the step's icon, "Recommended", title, body and ONE primary action: Resend email / "I verified"
+  (the same `useEmailVerification` as `VerifyEmailBanner`) for the email step, "Connect a
+  calendar" or "Sync tasks" (both open `CalendarSync`) otherwise, plus "Not now". When the
+  calendar step exists but is snoozed, the empty meetings card shows a "Connect a calendar"
+  button instead (`NextMeetingCard.onConnectCalendar`), so the day-one case is still covered
+  without the card.
+- **Tests.** `src/screens/home/__tests__/setupSteps.test.ts` (ranking, providers, snooze
+  windows, lenient parsing), `DashboardScreen.test.tsx` "setup recommendation" (placement above
+  and below, Not now and the empty-state button, To Do after Outlook, email verification resend,
+  nothing when done). Device test guide: `docs/v1/TESTING.md` T28.
+
+## 35. AI allowances (introductory window, monthly cycles, clarification credits)
+
+Agreed with the client on November 5, 2026 (docs/v2/ALLOWANCES-2026-11-05.md holds the wording
+for every surface). The numbers live in `AI_ALLOWANCES` / `PLAN_AI_LIMITS` in the shared
+contract; `functions/src/assistant/quota.ts` enforces them; the app only displays.
+
+- **Free: the introductory allowance.** A window of 7 days that starts with the user's FIRST AI
+  action (`usage/{uid}.introStartedAt`), 10 actions in total (`introUsed`), at most 3 per UTC
+  day (the existing `usage/{uid}/days/{day}` counter). When the window has ended or the 10 are
+  used, `evaluateQuota` denies with `usage.period: 'window'` and `subscriptionRequired: true`;
+  the daily cap denies with `period: 'day'` and the next UTC midnight as `resetsAt`. Manual
+  creation, viewing, export and the scheduled reminders never touch the quota.
+- **Pro and Premium: monthly cycles.** 100 / 400 actions per subscription month. The cycle is the
+  monthly anniversary of `entitlements/{uid}.startedAt` (`subscriptionCycle`: day of month
+  clamped to the month's length; a UTC calendar month when the start is unknown,
+  `calendarMonthCycle`), the same for yearly subscribers. The counter is `cycleKey` (the cycle
+  start) + `cycleUsed` on the root document: a new key starts at 0, so nothing is pruned.
+  `startedAt` is written by the RevenueCat webhook and the reconcile callable through
+  `withStartedAt` (shared/entitlement.ts): kept while the same plan runs on (active or grace,
+  renewals included), reset to the store's purchase time by a new subscription or a plan change,
+  untouched by expired / revoked writes. `resolveEffectivePlan` returns it with the plan.
+- **One transaction.** `consumeQuota` reads the entitlement, the day counter and the root
+  document, decides, and writes the counters it charges (`QuotaCharges`: day, intro, cycle key).
+  `refundQuota` gives back exactly those charges (upstream failures, missing follow-up meeting),
+  never below zero, never a cycle counter whose key moved on.
+- **Clarification credits.** After the model answered, a chat reply with no tool call, no
+  proposal, no resolution and a question mark at the end (`isClarification`, handler.ts) is a
+  clarification. `settleClarification` refunds it while `usage/{uid}.clarifications` is below
+  `CLARIFICATIONS_PER_ACTION` (2) and increments the run; the third in a row stays charged; any
+  other reply resets the run to 0. The prompt gets rule 12 ("do not ask again, propose or send
+  the user to the form") once the run is exhausted, so the model stops the loop itself. The
+  response `usage.used` reflects the refund.
+- **Contract.** `AssistantUsage` gained `period` ('day' | 'window' | 'month') and
+  `subscriptionRequired`, both optional: an older app reads the answer as a daily figure. The app
+  (`describeUsage`, `describeAssistantError`, `summarizeUsage`, the Plans screen, onboarding and
+  the Terms) words each period and the used-up free allowance (what stays free). The WhatsApp
+  sublimits of Stage 3 (30 / 100 completed requests per month) will count inside these numbers.
+- **Rules.** `usage/{uid}` joins `usage/{uid}/days/{day}`: owner read, no client write.
+- **Tests.** `functions/test/unit/quota.test.ts` (window, day cap, used up, cycles and clamping,
+  refunds, clarification run, lenient root), `handler.test.ts` (day cap, window usage,
+  clarification refund and the exhausted prompt), `revenuecat*.test.ts` unchanged shapes
+  (`purchasedAtIso` only when the event carries it); app: `presentation.test.ts`,
+  `pricing.test.tsx`, `legal.test.tsx`, `AssistantScreen.test.tsx`. Device test guide:
+  `docs/v1/TESTING.md` T29.

@@ -1,5 +1,5 @@
 /**
- * All meetings (route "TotalMeetings"): every active meeting from the data layer (MeetingGuard,
+ * All meetings (route "TotalMeetings"): every active meeting from the data layer (Meeting Guard,
  * AI assistant, Google Calendar and device-calendar imports), grouped by day in the user's time
  * zone (Today / Tomorrow / Yesterday / dates), with search, time and source filters,
  * pull-to-refresh (data layer + calendar sync), and open / edit / delete actions (tap, long-press,
@@ -10,13 +10,13 @@
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useMemo, useState, type ReactElement } from 'react';
 import { Animated, RefreshControl, ScrollView, SectionList, StyleSheet, View, type SectionListData } from 'react-native';
-import { ActivityIndicator, Chip, FAB, Searchbar, SegmentedButtons, Text } from 'react-native-paper';
+import { ActivityIndicator, Chip, Searchbar, SegmentedButtons, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Banner, EmptyState, ErrorState, MGButton } from '../../../components/ui';
+import { Banner, EmptyState, ErrorState, GradientFab, MGButton } from '../../../components/ui';
 import type { RootStackParamList } from '../../../core/contracts';
 import { errorMessageKey } from '../../../core/errors';
-import { getDeviceTimeZone, todayInZone } from '../../../core/time';
+import { addDaysToLocalDate, getDeviceTimeZone, todayInZone } from '../../../core/time';
 import type { Meeting } from '../../../core/types';
 import { useT } from '../../../i18n';
 import { useMeetings } from '../../../services/data';
@@ -28,7 +28,7 @@ import {
   LIST_FUTURE_DAYS,
   LIST_PAST_DAYS,
   displayKeyOf,
-  displayWindowAround,
+  displayWindowForDays,
   expandMeetingsForDisplay,
   type DisplayMeeting,
 } from '../occurrences';
@@ -42,6 +42,7 @@ import {
   buildMeetingSections,
   dayRelation,
   hasActiveFilters,
+  isInProgress,
   isTimeFilter,
   type MeetingFilters,
   type MeetingSection,
@@ -76,11 +77,13 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
   const fab = useHideOnScroll();
 
   const todayKey = todayInZone(timeZone, now);
-  // Recurring meetings render one row per occurrence (bounded window; occurrences.ts).
-  const displayMeetings = useMemo(
-    () => expandMeetingsForDisplay(meetings, displayWindowAround(now, timeZone, LIST_PAST_DAYS, LIST_FUTURE_DAYS)),
-    [meetings, timeZone, now],
+  // Recurring meetings render one row per occurrence (bounded window; occurrences.ts). The window
+  // only moves with the local day, so the expansion is keyed on it, not on the minute clock.
+  const displayWindow = useMemo(
+    () => displayWindowForDays(addDaysToLocalDate(todayKey, -LIST_PAST_DAYS + 1), addDaysToLocalDate(todayKey, LIST_FUTURE_DAYS - 1), timeZone),
+    [todayKey, timeZone],
   );
+  const displayMeetings = useMemo(() => expandMeetingsForDisplay(meetings, displayWindow), [meetings, displayWindow]);
   const sections = useMemo(
     () => buildMeetingSections(displayMeetings, filters, { timeZone, now }),
     [displayMeetings, filters, timeZone, now],
@@ -120,7 +123,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
   const renderItem = ({ item }: { item: Meeting }): ReactElement => (
     <MeetingListItem
       meeting={item}
-      now={now}
+      inProgress={isInProgress(item, now)}
       timeZone={timeZone}
       fmt={fmt}
       deleting={actions.deletingId === item.id}
@@ -279,7 +282,7 @@ export function MeetingsListScreen({ navigation }: Props): ReactElement {
           },
         ]}
       >
-        <FAB
+        <GradientFab
           icon="plus"
           label={t('meetings:list.newMeeting')}
           onPress={createMeeting}

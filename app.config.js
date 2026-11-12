@@ -20,12 +20,12 @@
 // config.
 
 const CALENDAR_USAGE =
-  'MeetingGuard AI uses your calendar to show, create and update your meetings and to schedule meeting alerts.';
-const PHOTOS_USAGE = 'MeetingGuard AI lets you attach photos from your library to a meeting.';
-const CAMERA_USAGE = 'MeetingGuard AI lets you take a photo and attach it to a meeting.';
-const MICROPHONE_USAGE = 'MeetingGuard AI uses the microphone so you can speak to the assistant instead of typing.';
+  'Meeting Guard AI uses your calendar to show, create and update your meetings and to schedule meeting alerts.';
+const PHOTOS_USAGE = 'Meeting Guard AI lets you attach photos from your library to a meeting.';
+const CAMERA_USAGE = 'Meeting Guard AI lets you take a photo and attach it to a meeting.';
+const MICROPHONE_USAGE = 'Meeting Guard AI uses the microphone so you can speak to the assistant instead of typing.';
 const SPEECH_RECOGNITION_USAGE =
-  'MeetingGuard AI uses speech recognition to turn what you say into text for the assistant. You always see the text before anything happens.';
+  'Meeting Guard AI uses speech recognition to turn what you say into text for the assistant. You always see the text before anything happens.';
 
 const trim = (value) => (typeof value === 'string' ? value.trim() : '');
 
@@ -103,7 +103,7 @@ function sentryPlugin() {
 
 module.exports = {
   expo: {
-    name: 'MeetingGuard AI',
+    name: 'Meeting Guard AI',
     slug: 'meeting-guard-ai',
     // 1.2.0: the mg-fullscreen-alarm native module changed the native runtime (new module +
     // USE_FULL_SCREEN_INTENT). Builds of 1.1.0 must never receive 1.2.0 JS via OTA.
@@ -114,7 +114,10 @@ module.exports = {
     // 1.5.0 (V2 Stage 1): expo-speech-recognition (assistant voice input) is a new native module
     // + RECORD_AUDIO / microphone + speech recognition permissions: store/APK build only, never
     // an OTA update onto 1.4.x.
-    version: '1.5.0',
+    // 1.6.0 (V2 Stage 2): the full-screen alarm native module and the Microsoft sign-in redirect
+    // (meetingguardai://auth/microsoft) are native changes: store/APK build only, never an OTA
+    // update onto 1.5.x. Frozen 2026-11-05 (docs/v2/RELEASE-1.6.0.md section 0).
+    version: '1.6.0',
     scheme: 'meetingguardai',
     platforms: ['ios', 'android'],
     orientation: 'portrait',
@@ -281,6 +284,8 @@ module.exports = {
       './modules/mg-fullscreen-alarm/app.plugin.js',
       'expo-dev-client',
       './plugins/withNoDeviceTransfer',
+      // AsyncStorage database limit on Android (default 6 MB; plugins/withAsyncStorageDbSize.js).
+      './plugins/withAsyncStorageDbSize',
       // Signs local release builds with the test key outside the repository. Always listed because it
       // does nothing unless MG_LOCAL_SIGNING=1 at prebuild time (and never on an EAS build server), so
       // EAS builds get the same native project as before, and `MG_LOCAL_SIGNING=1 npx expo prebuild`

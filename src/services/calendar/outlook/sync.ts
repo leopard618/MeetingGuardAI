@@ -7,8 +7,11 @@
  * PUSH  create with a client transactionId ("mgev-" + meeting.id; Graph replays the POST
  *       idempotently), patch, delete. Only Outlook-visible changes are sent (hash of the visible
  *       fields), so editing alert times never emails attendees. Meetings imported from Google or
- *       a device calendar are NEVER pushed to Outlook (no cross-provider duplicates), and
- *       recurring MeetingGuard series are not pushed in v1 (documented limitation, §17).
+ *       a device calendar are NEVER pushed to Outlook (no cross-provider duplicates). Recurring
+ *       Meeting Guard series are pushed as Graph series masters; cancelled / modified occurrences
+ *       are applied to the generated instances (applyOccurrenceOverrides). A meeting whose shape
+ *       changes (one-off <-> series) is deleted and re-created (state.kinds remembers the shape).
+ *       Instances of our own masters coming back through calendarView are skipped on import.
  * ECHO  A local change waiting to be pushed wins over the pulled version; an event whose changeKey
  *       matches the stored one is unchanged; our own ref write-backs use origin
  *       'calendar_outlook', which the engine never pushes.
@@ -16,7 +19,7 @@
 import type { CalendarPullResult, ExternalMeetingUpsert, MeetingRepository, UpsertExternalResult } from '../../../core/contracts';
 import { AppError, toAppError, type AppErrorCode } from '../../../core/errors';
 import { createLogger } from '../../../core/logger';
-import { addMinutesIso, toUtcIso } from '../../../core/time';
+import { addMinutesIso, isLocalDate, toUtcIso } from '../../../core/time';
 import type { ExternalRefs, Meeting, MeetingPatch } from '../../../core/types';
 import { chunk, isOwnMeeting, overlapsWindow, stableHash, syncWindow, type SyncWindow } from '../shared';
 import type { StateStore } from '../stateStore';
@@ -25,14 +28,16 @@ import {
   extractOnlineMeetingUrl,
   isImportableGraphEvent,
   meetingToOutlookEvent,
+  occurrenceOriginalStart,
   OUTLOOK_DEFAULT_CALENDAR,
   outlookEventToMeetingInput,
   outlookVisibleHash,
+  overrideToInstancePatch,
   wantsTeamsLink,
   type OutlookMappingContext,
 } from './mapping';
 import type { OutlookSyncState, PendingOutlookPush } from './state';
-import type { GraphEvent } from './types';
+import type { GraphCalendar, GraphEvent, GraphEventWrite } from './types';
 
 const log = createLogger('calendar');
 
@@ -41,11 +46,16 @@ export const MAX_DELTA_PAGES = 200;
 export const UPSERT_CHUNK_SIZE = 100;
 export const MAX_PUSH_ATTEMPTS = 8;
 export const TEAMS_POLL_DELAYS_MS: readonly number[] = [1000, 2000, 4000];
+/** Instance listings for overrides are chunked into spans of at most this many days. */
+export const INSTANCE_SPAN_DAYS = 180;
 
-/** The Graph idempotency key of a MeetingGuard-created event. */
+/** The Graph idempotency key of a Meeting Guard-created event. */
 export function outlookTransactionId(meetingId: string): string {
-  return `mgev-${meetingId}`;
+  return `${OWN_TRANSACTION_PREFIX}${meetingId}`;
 }
+
+/** Every event Meeting Guard creates carries a transactionId with this prefix (re-creates too). */
+export const OWN_TRANSACTION_PREFIX = 'mgev-';
 
 /** Errors that are not about one meeting: stop flushing and keep everything queued. */
 const BLOCKING_CODES: ReadonlySet<AppErrorCode> = new Set<AppErrorCode>([
@@ -75,6 +85,8 @@ export interface OutlookSyncDeps {
   /** Localized "(No title)". */
   untitledTitle(): string;
   sleep(ms: number): Promise<void>;
+  /** true while the meeting waits for its Zoom link: its queued push is skipped, not dropped. */
+  holdPush?(meetingId: string): boolean;
 }
 
 function updatedIso(event: GraphEvent): string | null {
@@ -151,6 +163,28 @@ export function planOutlookPull(input: OutlookPullPlanInput): OutlookPullPlan {
     if (!existing || (existing.deletedAt !== null && meeting.deletedAt === null)) byOutlookId.set(outlookId, meeting);
   }
 
+  // Graph series masters WE created (state.kinds is not available here; a recurring local master
+  // linked to Outlook is by construction one of ours).
+  const ownMasterIds = new Set<string>();
+  for (const meeting of input.locals) {
+    if (meeting.recurrence !== null && meeting.external.outlookEventId !== null && meeting.deletedAt === null) {
+      ownMasterIds.add(meeting.external.outlookEventId);
+    }
+  }
+
+  // Events WE created (transactionId "mgev-...") that this device does not know yet: a fresh
+  // install whose Firestore baseline has not landed, or a meeting another device just pushed.
+  // Importing them as foreign meetings would duplicate the real one the moment it arrives (and
+  // deleting that duplicate would delete the real event). Their series masters are remembered so
+  // their instances are skipped as well.
+  const ownUnknownIds = new Set<string>();
+  for (const event of input.events) {
+    if (!event.id || typeof event.transactionId !== 'string' || !event.transactionId.startsWith(OWN_TRANSACTION_PREFIX)) continue;
+    if (byOutlookId.has(event.id)) continue;
+    ownUnknownIds.add(event.id);
+    if (event.type === 'seriesMaster') ownMasterIds.add(event.id);
+  }
+
   const plan: OutlookPullPlan = { upserts: [], unchanged: 0, hashUpdates: {}, seen: new Set() };
   const upsert = (event: GraphEvent, deleted: boolean, meeting: ExternalMeetingUpsert['meeting']): void => {
     plan.upserts.push({
@@ -167,6 +201,12 @@ export function planOutlookPull(input: OutlookPullPlanInput): OutlookPullPlan {
   for (const event of input.events) {
     if (!event.id) continue;
     plan.seen.add(event.id);
+    // Instances of OUR OWN pushed series: the local master already expands these occurrences,
+    // so importing them would duplicate the series one meeting per instance. They are skipped
+    // entirely, including per-instance edits made in Outlook (occurrence edits flow
+    // Meeting Guard -> Outlook only, like the Google provider; docs/v1/ARCHITECTURE.md §17).
+    if (typeof event.seriesMasterId === 'string' && ownMasterIds.has(event.seriesMasterId)) continue;
+    if (ownUnknownIds.has(event.id)) continue;
     const local = byOutlookId.get(event.id);
     const linked = local !== undefined && local.external.outlookEventId === event.id;
 
@@ -201,7 +241,7 @@ export function planOutlookPull(input: OutlookPullPlanInput): OutlookPullPlan {
       continue;
     }
     if (local && local.deletedAt !== null) {
-      // Deleted in MeetingGuard: the delete was (or will be) pushed; do not resurrect it.
+      // Deleted in Meeting Guard: the delete was (or will be) pushed; do not resurrect it.
       plan.unchanged += 1;
       continue;
     }
@@ -223,6 +263,10 @@ export function planOutlookPull(input: OutlookPullPlanInput): OutlookPullPlan {
       const outlookId = meeting.external.outlookEventId;
       if (outlookId === null || plan.seen.has(outlookId)) continue;
       if (meeting.deletedAt !== null || pending[meeting.id]) continue;
+      // Series masters never appear in calendarView (only their instances do), so their absence
+      // proves nothing: never sweep them. Deleting the whole series in Outlook therefore does not
+      // delete the local master (delete it in Meeting Guard), like the Google provider (§16).
+      if (meeting.recurrence !== null) continue;
       if (meeting.source !== 'outlook' && meeting.status !== 'scheduled') continue;
       if (!overlapsWindow(meeting, input.window)) continue;
       plan.upserts.push({
@@ -302,7 +346,7 @@ export async function pullOutlookChanges(deps: OutlookSyncDeps, options: { full?
   }
 
   // Remember what the repository actually stored (it may keep a newer local version), so a later
-  // MeetingGuard-only edit never pushes a stale copy over Outlook's.
+  // Meeting Guard-only edit never pushes a stale copy over Outlook's.
   const storedHashes: Record<string, string | null> = { ...plan.hashUpdates };
   const appliedIds = Object.entries(plan.hashUpdates)
     .filter(([, hash]) => hash !== null)
@@ -376,6 +420,7 @@ export async function deleteOutlookEvent(deps: OutlookSyncDeps, meeting: Meeting
     if (status !== 404 && status !== 410) throw error;
   }
   await setHash(deps, eventId, null);
+  await setKind(deps, eventId, null);
   return true;
 }
 
@@ -389,18 +434,156 @@ async function awaitTeamsLink(deps: OutlookSyncDeps, event: GraphEvent): Promise
   return current;
 }
 
+/**
+ * Graph sometimes stores the event without honouring the online-meeting fields (seen on personal
+ * accounts: the event exists, "Teams meeting" off). One PATCH of the same fields, then the same
+ * short wait. Still nothing: the event stays a plain one, the details card says the link is
+ * missing and offers paste, and the next edit of the meeting asks again.
+ */
+async function retryOnlineMeeting(deps: OutlookSyncDeps, event: GraphEvent, onlineFields: GraphEventWrite): Promise<GraphEvent> {
+  if (onlineFields.isOnlineMeeting !== true) return event;
+  try {
+    const patched = await deps.api.patchEvent(event.id, onlineFields);
+    const settled = await awaitTeamsLink(deps, patched);
+    if (extractOnlineMeetingUrl(settled) === null) log.warn('Outlook did not return a Teams join link after the retry', { eventId: event.id });
+    return settled;
+  } catch (error) {
+    log.warn('Outlook did not accept the online-meeting retry', { eventId: event.id, code: toAppError(error).code });
+    return event;
+  }
+}
+
+/** Stored in the sync state when the calendar allows no online-meeting provider. */
+export const NO_ONLINE_MEETING_PROVIDER = 'none';
+/** When the calendar names no default: Teams first, then the Skype flavours Graph still lists. */
+export const PREFERRED_ONLINE_MEETING_PROVIDERS: readonly string[] = ['teamsForBusiness', 'skypeForConsumer', 'skypeForBusiness'];
+
+/** The provider to request from a calendar's allowed list, or null when it allows none. */
+export function pickOnlineMeetingProvider(calendar: GraphCalendar): string | null {
+  const allowed = (calendar.allowedOnlineMeetingProviders ?? []).filter((provider) => typeof provider === 'string' && provider !== 'unknown');
+  if (allowed.length === 0) return null;
+  const preferred = calendar.defaultOnlineMeetingProvider;
+  if (typeof preferred === 'string' && allowed.includes(preferred)) return preferred;
+  return PREFERRED_ONLINE_MEETING_PROVIDERS.find((provider) => allowed.includes(provider)) ?? allowed[0] ?? null;
+}
+
+/**
+ * The online-meeting provider the account's default calendar allows (GET /me/calendar), read once
+ * per connection and cached in the sync state (a connect resets the state). null = the calendar
+ * allows none (some personal accounts): no link can be requested and the UI must say so. A failed
+ * lookup falls back to Teams without caching, so the next push asks again.
+ */
+export async function resolveOnlineMeetingProvider(deps: Pick<OutlookSyncDeps, 'api' | 'state'>): Promise<string | null> {
+  const cached = (await deps.state.load()).onlineMeetingProvider;
+  if (cached !== null) return cached === NO_ONLINE_MEETING_PROVIDER ? null : cached;
+  let provider: string | null;
+  try {
+    provider = pickOnlineMeetingProvider(await deps.api.getCalendar());
+  } catch (error) {
+    log.warn('Could not read the Outlook calendar providers', toAppError(error).code);
+    return 'teamsForBusiness';
+  }
+  await deps.state.update((current) => ({ ...current, onlineMeetingProvider: provider ?? NO_ONLINE_MEETING_PROVIDER }));
+  return provider;
+}
+
 /** Meetings that are pushed to Outlook at all (imports from other providers never are). */
 export function isOutlookPushable(meeting: Pick<Meeting, 'source' | 'recurrence'>): boolean {
-  if (meeting.source === 'google' || meeting.source === 'device') return false;
-  // v1: recurrence rules are not pushed to Graph (docs/v1/ARCHITECTURE.md §17); the local master
-  // stays local-only for Outlook while its Google push carries the RRULE.
-  return meeting.recurrence === null;
+  return meeting.source !== 'google' && meeting.source !== 'device';
+}
+
+type OutlookEventKind = 'single' | 'series';
+
+function kindOf(meeting: Pick<Meeting, 'recurrence'>): OutlookEventKind {
+  return meeting.recurrence !== null ? 'series' : 'single';
+}
+
+async function setKind(deps: OutlookSyncDeps, eventId: string, kind: OutlookEventKind | null): Promise<void> {
+  await deps.state.update((current) => {
+    const kinds = { ...current.kinds };
+    if (kind === null) delete kinds[eventId];
+    else kinds[eventId] = kind;
+    return { ...current, kinds };
+  });
+}
+
+function graphInstantMs(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const ms = Date.parse(value.replace(/\.(\d{3})\d+/, '.$1').replace(/(\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/, '$1Z'));
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** The instance the series generated for an original start (exceptions keep originalStart). */
+function findInstance(instances: readonly GraphEvent[], originalStartMs: number): GraphEvent | undefined {
+  return instances.find((instance) => {
+    const original = graphInstantMs(instance.originalStart ?? undefined);
+    if (original !== null) return original === originalStartMs;
+    const start = instance.start?.dateTime;
+    const startMs = start !== undefined ? graphInstantMs(instance.start?.timeZone === 'UTC' || !instance.start?.timeZone ? start : null) : null;
+    return startMs === originalStartMs;
+  });
+}
+
+/** Instances of a master around the given instants, one listing per span of INSTANCE_SPAN_DAYS. */
+async function listInstancesAround(deps: OutlookSyncDeps, masterId: string, instantsMs: readonly number[]): Promise<GraphEvent[]> {
+  const sorted = [...instantsMs].sort((a, b) => a - b);
+  const spanMs = INSTANCE_SPAN_DAYS * 86_400_000;
+  const dayMs = 86_400_000;
+  const out: GraphEvent[] = [];
+  let index = 0;
+  while (index < sorted.length) {
+    const spanStart = sorted[index] as number;
+    let spanEnd = spanStart;
+    while (index < sorted.length && (sorted[index] as number) - spanStart <= spanMs) {
+      spanEnd = sorted[index] as number;
+      index += 1;
+    }
+    out.push(...(await deps.api.listInstances(masterId, new Date(spanStart - dayMs).toISOString(), new Date(spanEnd + dayMs).toISOString())));
+  }
+  return out;
+}
+
+/**
+ * Applies the master's occurrence overrides to the Graph series: a cancelled occurrence deletes
+ * its instance, a modified one patches start / end / subject on it. Graph regenerates the
+ * occurrences when the master's recurrence is patched, so this runs after EVERY series push and
+ * is idempotent (a missing instance counts as already cancelled; a patch of an identical
+ * exception is a no-op for Graph). Occurrences the rule does not generate (an override key from
+ * a previous rule) are ignored.
+ */
+export async function applyOccurrenceOverrides(deps: OutlookSyncDeps, meeting: Meeting, masterId: string): Promise<{ deleted: number; patched: number }> {
+  const entries = Object.entries(meeting.recurrenceOverrides ?? {}).filter(([key]) => isLocalDate(key));
+  const result = { deleted: 0, patched: 0 };
+  if (entries.length === 0) return result;
+  const targets = entries.map(([key, override]) => ({ key, override, originalStartMs: Date.parse(occurrenceOriginalStart(meeting, key)) }));
+  const instances = await listInstancesAround(deps, masterId, targets.map((target) => target.originalStartMs));
+  for (const target of targets) {
+    const instance = findInstance(instances, target.originalStartMs);
+    if (!instance) {
+      log.info('Outlook series has no instance for an override; skipped', { meetingId: meeting.id, date: target.key });
+      continue;
+    }
+    if (target.override.status === 'cancelled') {
+      try {
+        await deps.api.deleteEvent(instance.id);
+        result.deleted += 1;
+      } catch (error) {
+        const status = graphHttpStatus(error);
+        if (status !== 404 && status !== 410) throw error;
+      }
+    } else {
+      await deps.api.patchEvent(instance.id, overrideToInstancePatch(meeting, target.key, target.override));
+      result.patched += 1;
+    }
+  }
+  return result;
 }
 
 /**
  * Sends one meeting to Outlook (create / patch / delete as its state requires) and stores the
  * external refs (and a created Teams link) with origin 'calendar_outlook'. Non-pushable meetings
- * resolve with sent:false (the flush queue routes every local write here).
+ * resolve with sent:false (the flush queue routes every local write here). A recurring master is
+ * created / patched as a Graph series and its overrides are applied to the instances afterwards.
  */
 export async function pushOutlookMeeting(
   deps: OutlookSyncDeps,
@@ -417,26 +600,38 @@ export async function pushOutlookMeeting(
     await deleteOutlookEvent(deps, meeting);
     return { meeting: await writeBack(deps, meeting, { external: { ...CLEARED_OUTLOOK_REFS } }), sent: true };
   }
-  if (meeting.recurrence !== null && meeting.external.outlookEventId !== null && meeting.source !== 'outlook') {
-    // A one-off already pushed to Outlook became a recurring series. Series are never pushed in
-    // v1 (§17), so the old single event would otherwise sit in Outlook forever - stale, never
-    // updated, and an Outlook-side edit of it would rewrite the local series anchor. Remove it
-    // and unlink the master (a Graph edit can then no longer patch this meeting).
-    await deleteOutlookEvent(deps, meeting);
-    return { meeting: await writeBack(deps, meeting, { external: { ...CLEARED_OUTLOOK_REFS } }), sent: true };
-  }
   if (!isOutlookPushable(meeting)) return { meeting, sent: false };
 
-  const linkedId = meeting.external.outlookEventId;
+  let linkedId = meeting.external.outlookEventId;
   if (linkedId === null && meeting.source === 'outlook') {
     throw new AppError('invalid_input', 'Imported Outlook meeting without an event id', { details: { meetingId: meeting.id } });
   }
-  const requestTeamsLink = options.requestTeamsLink === true || wantsTeamsLink(meeting);
+  // The calendar says which online-meeting provider the account allows (none on some personal
+  // accounts): without one nothing is requested, and the UI says so (status.outlook.teamsLinks).
+  const wantsLink = options.requestTeamsLink === true || wantsTeamsLink(meeting);
+  const onlineMeetingProvider = wantsLink ? await resolveOnlineMeetingProvider(deps) : null;
+  const requestTeamsLink = wantsLink && onlineMeetingProvider !== null;
+  const onlineFields: GraphEventWrite = requestTeamsLink && onlineMeetingProvider !== null ? { isOnlineMeeting: true, onlineMeetingProvider } : {};
+  const writeOptions = { requestTeamsLink, onlineMeetingProvider: onlineMeetingProvider ?? undefined };
   const defaultTimeZone = deps.defaultTimeZone();
+  const wantedKind = kindOf(meeting);
+  let current = meeting;
+  let recreateTransactionId: string | null = null;
 
-  if (linkedId !== null && !requestTeamsLink) {
+  if (linkedId !== null) {
     const state = await deps.state.load();
-    if (state.hashes[linkedId] === outlookVisibleHash(meeting, defaultTimeZone)) {
+    const linkedKind: OutlookEventKind = state.kinds[linkedId] ?? 'single';
+    if (linkedKind !== wantedKind && meeting.source !== 'outlook') {
+      // The shape changed (a one-off became a series or the repeat was removed). Graph cannot
+      // turn one into the other through a PATCH, so the old event is deleted and a fresh one is
+      // created; a deterministic transactionId keyed by the old link keeps the re-create
+      // replay-safe without ever replaying the deleted event.
+      await deleteOutlookEvent(deps, meeting);
+      await setKind(deps, linkedId, null);
+      recreateTransactionId = `${outlookTransactionId(meeting.id)}-k${stableHash(linkedId)}`;
+      current = await writeBack(deps, meeting, { external: { ...CLEARED_OUTLOOK_REFS } });
+      linkedId = null;
+    } else if (!requestTeamsLink && state.hashes[linkedId] === outlookVisibleHash(meeting, defaultTimeZone)) {
       return { meeting, sent: false };
     }
   }
@@ -444,19 +639,31 @@ export async function pushOutlookMeeting(
   let event: GraphEvent;
   let createdWithTeams = false;
   if (linkedId !== null) {
-    // Graph cannot turn an existing event into a Teams meeting through this flow (v1 limitation):
-    // the online-meeting fields are create-only here.
-    const body = meetingToOutlookEvent(meeting);
+    // An existing event becomes an online meeting through a PATCH of the online-meeting fields
+    // (Graph, "Update a meeting to enable attendees to meet online"); an account that refuses
+    // them (400) still gets the plain update, and the card keeps offering paste.
+    const body = meetingToOutlookEvent(current);
     try {
-      event = await deps.api.patchEvent(linkedId, body);
+      if (requestTeamsLink) {
+        try {
+          event = await deps.api.patchEvent(linkedId, { ...body, ...onlineFields });
+          createdWithTeams = true;
+        } catch (error) {
+          if (graphHttpStatus(error) !== 400) throw error;
+          log.warn('Outlook refused the online-meeting fields on an update; plain update instead', { meetingId: current.id });
+          event = await deps.api.patchEvent(linkedId, body);
+        }
+      } else {
+        event = await deps.api.patchEvent(linkedId, body);
+      }
     } catch (error) {
       const status = graphHttpStatus(error);
-      if ((status === 404 || status === 410) && meeting.source !== 'outlook') {
+      if ((status === 404 || status === 410) && current.source !== 'outlook') {
         // Deliberate re-create after the event vanished at Graph: a FRESH transactionId (still
         // deterministic per old link, so a lost response is replayed) - reusing the original one
         // could replay the deleted event.
-        const transactionId = `${outlookTransactionId(meeting.id)}-r${stableHash(linkedId)}`;
-        event = await deps.api.createEvent(meetingToOutlookEvent(meeting, { transactionId, requestTeamsLink }));
+        const transactionId = `${outlookTransactionId(current.id)}-r${stableHash(linkedId)}`;
+        event = await deps.api.createEvent(meetingToOutlookEvent(current, { transactionId, ...writeOptions }));
         createdWithTeams = requestTeamsLink;
       } else {
         throw error;
@@ -464,12 +671,16 @@ export async function pushOutlookMeeting(
     }
   } else {
     event = await deps.api.createEvent(
-      meetingToOutlookEvent(meeting, { transactionId: outlookTransactionId(meeting.id), requestTeamsLink }),
+      meetingToOutlookEvent(current, { transactionId: recreateTransactionId ?? outlookTransactionId(current.id), ...writeOptions }),
     );
     createdWithTeams = requestTeamsLink;
   }
 
-  if (createdWithTeams) event = await awaitTeamsLink(deps, event);
+  if (createdWithTeams) {
+    event = await awaitTeamsLink(deps, event);
+    if (extractOnlineMeetingUrl(event) === null) event = await retryOnlineMeeting(deps, event, onlineFields);
+  }
+  if (wantedKind === 'series') await applyOccurrenceOverrides(deps, current, event.id);
 
   const patch: MeetingPatch = {
     external: {
@@ -482,18 +693,19 @@ export async function pushOutlookMeeting(
   if (createdWithTeams) {
     const joinUrl = extractOnlineMeetingUrl(event);
     if (joinUrl !== null) {
-      if (meeting.conference?.url !== joinUrl) {
+      if (current.conference?.url !== joinUrl) {
         patch.conference = {
           provider: 'teams',
           url: joinUrl,
-          password: meeting.conference?.provider === 'teams' ? meeting.conference.password : null,
+          password: current.conference?.provider === 'teams' ? current.conference.password : null,
         };
       }
     } else {
-      log.warn('Outlook did not return a Teams join link', { meetingId: meeting.id });
+      log.warn('Outlook did not return a Teams join link', { meetingId: current.id });
     }
   }
-  const updated = await writeBack(deps, meeting, patch);
+  const updated = await writeBack(deps, current, patch);
+  await setKind(deps, event.id, wantedKind);
   await setHash(deps, event.id, outlookVisibleHash(updated, defaultTimeZone));
   return { meeting: updated, sent: true };
 }
@@ -554,6 +766,8 @@ export async function flushOutlookPushes(deps: OutlookSyncDeps): Promise<FlushRe
   const byId = new Map(locals.map((meeting) => [meeting.id, meeting]));
 
   for (const [meetingId, entry] of entries) {
+    // Waiting for its Zoom link (core/pushHold.ts): stays queued for the flush after the release.
+    if (deps.holdPush?.(meetingId) === true) continue;
     const meeting = byId.get(meetingId);
     try {
       if (meeting) {
@@ -583,7 +797,7 @@ export async function flushOutlookPushes(deps: OutlookSyncDeps): Promise<FlushRe
   return result;
 }
 
-/** Queues upcoming MeetingGuard meetings that were never pushed to Outlook (first connection). */
+/** Queues upcoming Meeting Guard meetings that were never pushed to Outlook (first connection). */
 export async function enqueueUpcomingOwnMeetings(deps: OutlookSyncDeps): Promise<number> {
   const now = deps.now();
   const window = syncWindow(now);

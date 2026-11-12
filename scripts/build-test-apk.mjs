@@ -310,7 +310,7 @@ async function main() {
     return;
   }
   const started = Date.now();
-  out(args.sha1Only ? 'MeetingGuard AI: test signing key (SHA-1 only)' : 'MeetingGuard AI: local test APK (release build)');
+  out(args.sha1Only ? 'Meeting Guard AI: test signing key (SHA-1 only)' : 'Meeting Guard AI: local test APK (release build)');
 
   step('Checking the tools');
   const problems = [];

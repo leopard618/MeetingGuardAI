@@ -29,6 +29,11 @@ export function useSidebar(): SidebarContextValue {
   return value;
 }
 
+/** Same, but null outside the provider (the dashboard hero renders in bare test trees). */
+export function useOptionalSidebar(): SidebarContextValue | null {
+  return useContext(SidebarContext);
+}
+
 /** The single sidebar of the Main group. */
 export function MainSidebar(): ReactElement {
   const { isOpen, close } = useSidebar();

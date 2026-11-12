@@ -50,6 +50,11 @@ function defined(keys: Set<string>, key: string): boolean {
 
 /** Values the dynamic `ai:<prefix>.${x}` keys can take. */
 const DYNAMIC: Record<string, readonly string[]> = {
+  'errors.quota': ['day', 'window', 'month'],
+  'usage.current': ['day', 'window', 'month'],
+  'usage.a11y': ['day', 'window', 'month'],
+  'usage.allowance': ['introductory', 'perMonth'],
+  'usage.a11yAllowance': ['introductory', 'perMonth'],
   'actions.type': AI_ACTION_TYPES,
   'actions.status': ['proposed', 'executing', 'done', 'failed', 'rejected'],
   'confirm.title': AI_ACTION_TYPES,

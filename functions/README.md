@@ -1,12 +1,13 @@
-# MeetingGuard AI - Cloud Functions
+# Meeting Guard AI - Cloud Functions
 
-Firebase backend for the MeetingGuard AI app: Cloud Functions v2 (TypeScript, Node 22), Firestore
+Firebase backend for the Meeting Guard AI app: Cloud Functions v2 (TypeScript, Node 22), Firestore
 security rules and the public account-deletion page.
 
 | Callable | What it does |
 |---|---|
 | `assistant` | AI assistant. Validates the request, counts the daily quota, loads the user's meetings server-side, calls OpenAI with tool calling and returns a reply plus **proposed** actions. It never changes data: the app shows a confirmation card and executes confirmed actions itself. |
-| `deleteAccount` | Records the deletion in `accountDeletions/{uid}` (anonymous id + time, kept 30 days for the restore runbook), then deletes `users/{uid}` (recursively), `entitlements/{uid}`, `usage/{uid}` (recursively) and the Firebase Auth user. Idempotent. |
+| `deleteAccount` | Records the deletion in `accountDeletions/{uid}` (anonymous id + time, kept 30 days for the restore runbook), then deletes `users/{uid}` (recursively), `entitlements/{uid}`, `usage/{uid}` (recursively), the user's `microsoftIdentities` and the Firebase Auth user. Idempotent. |
+| `microsoftSignIn` | Sign in with Microsoft (unauthenticated by design: it IS the sign-in). The app runs the Microsoft PKCE sign-in and sends the id_token plus its nonce; the function verifies the token against Microsoft's published keys (audience = `MICROSOFT_CLIENT_ID`, issuer = the token's tenant, `MICROSOFT_TENANT` policy, lifetime, nonce), resolves the Firebase user (`microsoftIdentities/{oid}`, else an existing user with the same VERIFIED email, else a new `ms_{oid}` user) and answers with a custom token (docs/ARCHITECTURE.md §31, docs/SETUP.md §10.6). Empty `MICROSOFT_CLIENT_ID` = disabled. |
 | `adminListUsers` / `adminSetUserDisabled` / `adminSetUserPlan` / `adminGetMetrics` | Admin dashboard v1 (custom claim `admin: true` required; `src/admin`, docs/ADMIN.md). |
 | `adminGetStats` / `adminGetHealth` / `adminRotateOpenAiKey` | Admin dashboard v2: per-UTC-day usage/signup series with a cost estimate, runtime health (secret mode + optional real OpenAI ping), and OpenAI key rotation via Secret Manager (docs/ADMIN.md §v2). |
 | `zoomStatus` | Whether the Zoom integration is configured (the non-secret `ZOOM_ENABLED` param; no secrets, always deployed). |
@@ -29,6 +30,7 @@ functions/
   src/openaiKey.ts             runtime OpenAI key: Secret Manager REST + cache + env fallback + rotation edge
   src/zoom/                    zoom* callables (docs/ARCHITECTURE.md §24): index.ts = shell + conditional export, handler.ts = logic on ports, token.ts = S2S token cache, api.ts = Zoom REST client
   src/deleteAccount.ts
+  src/microsoftSignIn.ts       Sign in with Microsoft: id_token verification (RS256, JWKS cache), identity resolution, custom token
   src/maintenance/             retention: tombstone purge, deletion log (core.ts pure, index.ts schedule)
   src/shared/aiContract.ts     verbatim copy of src/core/aiContract.ts
   scripts/replay-account-deletions.mjs   re-applies account deletions after a Firestore restore
@@ -118,6 +120,8 @@ value is never logged, stored in Firestore or returned to the browser.
 | `ASSISTANT_GLOBAL_DAILY_LIMIT` | `5000` | Project-wide cap on assistant requests per UTC day that reach OpenAI (spend safeguard on top of the per-user quota). `0` disables it. Also set an OpenAI usage limit and a GCP budget alert. |
 | `OPENAI_PRICE_IN_PER_M` | `0` | Input price in USD per 1M tokens, for the admin dashboard's estimated-cost tile only (admin v2). `0` = pricing unset, the estimate is hidden. |
 | `OPENAI_PRICE_OUT_PER_M` | `0` | Output price in USD per 1M tokens; same rules as above. |
+| `MICROSOFT_CLIENT_ID` | (empty) | Azure "Application (client) ID" of the Meeting Guard AI registration (docs/SETUP.md §10). Empty disables Sign in with Microsoft (the callable answers failed-precondition). **Must equal `EXPO_PUBLIC_MSAL_CLIENT_ID`** in the app. |
+| `MICROSOFT_TENANT` | `common` | Tenants whose tokens are accepted: `common`, `organizations`, `consumers` or a tenant GUID. **Must equal `EXPO_PUBLIC_MSAL_TENANT`** in the app (empty there = `common`). |
 
 Every param has a default, but the CLI only uses values it finds in a dotenv file. Without
 `functions/.env.<projectId>`, an interactive `firebase deploy` asks for each param (press Enter to take
@@ -128,6 +132,8 @@ OPENAI_MODEL=gpt-5.4-mini
 OPENAI_REASONING_EFFORT=low
 FUNCTIONS_REGION=us-central1
 ASSISTANT_GLOBAL_DAILY_LIMIT=5000
+MICROSOFT_CLIENT_ID=00000000-0000-0000-0000-000000000000
+MICROSOFT_TENANT=common
 ```
 
 The repository's `.gitignore` ignores `.env.*`, so these files stay on the machine that deploys.

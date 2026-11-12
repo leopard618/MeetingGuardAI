@@ -12,6 +12,8 @@ import type {
   DeviceCalendarService,
   GoogleConnectResult,
   OutlookConnectResult,
+  TaskSyncResult,
+  TodoSyncResult,
   TranslateFn,
 } from '../../core/contracts';
 import { errorMessageKey, toAppError, type AppErrorCode } from '../../core/errors';
@@ -46,9 +48,65 @@ export function outlookStateView(outlook: NonNullable<CalendarStatus['outlook']>
   return { labelKey: 'calendar:outlook.state.notConnected', tone: 'muted' };
 }
 
+export interface TodoStateView {
+  labelKey: 'calendar:todo.state.on' | 'calendar:todo.state.needsList' | 'calendar:todo.state.off';
+  tone: Tone;
+}
+
+/**
+ * Syncing (on, and the Microsoft account is connected); on but without a list for new tasks
+ * (they wait in the queue until one is chosen); else off.
+ */
+export function todoStateView(todo: NonNullable<CalendarStatus['todo']>, outlookConnected: boolean): TodoStateView {
+  if (todo.enabled && outlookConnected) {
+    if (todo.listId === null) return { labelKey: 'calendar:todo.state.needsList', tone: 'warning' };
+    return { labelKey: 'calendar:todo.state.on', tone: 'success' };
+  }
+  return { labelKey: 'calendar:todo.state.off', tone: 'muted' };
+}
+
+export interface GtasksStateView {
+  labelKey: 'calendar:gtasks.state.on' | 'calendar:gtasks.state.needsList' | 'calendar:gtasks.state.off';
+  tone: Tone;
+}
+
+/**
+ * Syncing (on, Google signed in and the tasks scope granted); on but without a list for new
+ * tasks (they wait in the queue until one is chosen); else off.
+ */
+export function gtasksStateView(gtasks: NonNullable<CalendarStatus['gtasks']>): GtasksStateView {
+  if (gtasks.enabled && gtasks.connected && gtasks.hasScope) {
+    if (gtasks.listId === null) return { labelKey: 'calendar:gtasks.state.needsList', tone: 'warning' };
+    return { labelKey: 'calendar:gtasks.state.on', tone: 'success' };
+  }
+  return { labelKey: 'calendar:gtasks.state.off', tone: 'muted' };
+}
+
 export interface AlertMessage {
   title: string;
   message: string;
+}
+
+/**
+ * What to tell the user after googleTasksSyncService.enable(): the first sync's real counts, or
+ * that it did not finish (with the service's last error).
+ */
+export function gtasksEnableOutcome(t: TranslateFn, result: TaskSyncResult | null, lastError: AppErrorCode | null): AlertMessage {
+  const message = result
+    ? t('calendar:gtasks.firstSyncSummary', { created: result.counts.created, pushed: result.counts.pushed })
+    : t('calendar:gtasks.firstSyncFailed', { error: lastError ? errorText(t, lastError) : '' });
+  return { title: t('calendar:gtasks.enabledTitle'), message };
+}
+
+/**
+ * What to tell the user after todoSyncService.enable(): the first sync's real counts, or that it
+ * did not finish (with the service's last error).
+ */
+export function todoEnableOutcome(t: TranslateFn, result: TodoSyncResult | null, lastError: AppErrorCode | null): AlertMessage {
+  const message = result
+    ? t('calendar:todo.firstSyncSummary', { created: result.counts.created, pushed: result.counts.pushed })
+    : t('calendar:todo.firstSyncFailed', { error: lastError ? errorText(t, lastError) : '' });
+  return { title: t('calendar:todo.enabledTitle'), message };
 }
 
 /**
@@ -101,9 +159,11 @@ export function outlookConnectOutcome(
   return null;
 }
 
-function providerLabel(t: TranslateFn, provider: CalendarProvider): string {
+function providerLabel(t: TranslateFn, provider: CalendarProvider | 'todo' | 'gtasks'): string {
   if (provider === 'google') return t('calendar:sync.providers.google');
   if (provider === 'outlook') return t('calendar:sync.providers.outlook');
+  if (provider === 'todo') return t('calendar:sync.providers.todo');
+  if (provider === 'gtasks') return t('calendar:sync.providers.gtasks');
   return t('calendar:sync.providers.device');
 }
 
@@ -121,6 +181,14 @@ export function syncReportSummary(t: TranslateFn, report: CalendarSyncReport): A
   if (report.device) {
     lines.push(t('calendar:sync.deviceResult', { ...report.device.counts }));
     if (report.device.counts.failed > 0) lines.push(t('calendar:sync.failedDevice', { count: report.device.counts.failed }));
+  }
+  if (report.todo) {
+    lines.push(t('calendar:sync.todoResult', { ...report.todo.counts }));
+    if (report.todo.counts.failed > 0) lines.push(t('calendar:sync.failedTodo', { count: report.todo.counts.failed }));
+  }
+  if (report.gtasks) {
+    lines.push(t('calendar:sync.gtasksResult', { ...report.gtasks.counts }));
+    if (report.gtasks.counts.failed > 0) lines.push(t('calendar:sync.failedGtasks', { count: report.gtasks.counts.failed }));
   }
   for (const failure of report.errors) {
     lines.push(

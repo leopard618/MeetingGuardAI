@@ -386,6 +386,7 @@ If the build fails:
 |---|---|---|
 | 1 | New account: on the Language step, pick Español. | The screen changes to Spanish at once, without a restart. |
 | 2 | Calendars step: "Connect Google Calendar", then "Allow calendar access" for the phone calendars. | The Google consent screen asks for calendar access. After you accept, the step shows "Connected" and lists the phone calendars. Google calendars on the phone are marked as already covered by Google sync. You can also skip this step. |
+| 2b | Calendars step on a build with Outlook registered: after "Continue with Microsoft" (T25). | The step opens with "Outlook Calendar" FIRST and the line "You signed in with Microsoft. Connect the same account...". "Connect Outlook" runs the Microsoft consent and shows "Outlook Calendar is connected." inline; closing the consent shows "Outlook was not connected." After a Google sign-in the Outlook section sits below Google Calendar, without the hint. |
 | 3 | Alerts step: choose an intensity, sound, vibration and alert times, then allow notifications. | Android 13+ shows the notification permission prompt. On Android 12+, the exact-alarm button opens "Alarms & reminders" for MeetingGuard, and you come back to the same step. |
 | 4 | Swipe the app away during step 3, then open it again. | Onboarding continues. The Dashboard is not shown before onboarding is finished. |
 | 5 | AI intro step, then the guided first meeting. | The first meeting is saved and the Dashboard opens with it. The chosen settings are shown in Settings -> Alerts. |
@@ -457,6 +458,7 @@ meeting is rolled back (a fresh recurring create disappears).
 | 10 | Turn alerts off (master switch), wait for a planned alert, then turn them on again. | Nothing fires while they are off. After you turn them on, `dumpsys alarm` shows alarms again. |
 | 11 | Vibration off. | No vibration anywhere (the app uses the "no vibration" channels). |
 | 12 | Sound type "voice only", app in the background. | The notification still plays the channel sound. The voice only speaks while the app is open. The alert settings screen says this. |
+| 13 | Alert settings -> "Events from other calendars" -> Light. Import a phone-calendar event with a time (T4) and create a MeetingGuard meeting, both a few minutes ahead. | The imported event rings LIGHT, the MeetingGuard meeting rings at the intensity above. The meeting form shows "Default (Light)" for the imported one. A per-meeting intensity on the imported event still wins. Birthdays and other all-day events never ring. |
 
 On iOS, a Focus mode replaces DND: MAX and MEDIUM are time-sensitive and break through when the
 Focus allows it. There is no exact-alarm setting on iOS.
@@ -488,6 +490,7 @@ Focus allows it. There is no exact-alarm setting on iOS.
 | 2 | In the app, create a meeting with Google Meet (no link), with participant B. | Within a few seconds the event is in account A's Google Calendar, with a real `meet.google.com` link. B gets an invitation email. The app's details show the Meet link. |
 | 3 | In the app, move the meeting 1 hour later. | The Google event moves, and B gets an update. |
 | 4 | In Google Calendar (web), change the title. In the app, pull down to refresh on the Dashboard (or tap "Sync now"). | The app shows the new title, and the alerts move with it. |
+| 4b | Add an all-day event for tomorrow in Google Calendar (a birthday) while the next timed meeting is the day after. Sync. | The Dashboard's Next meeting card shows the timed meeting with its countdown, and below it "Also coming up" with the birthday and "All day". Details opens it. The "Tasks today" card sits right under that card, before Quick actions. |
 | 5 | Create an event in Google Calendar (web). Sync. | It appears in the app with alerts. |
 | 6 | Delete that event in Google. Sync. | It disappears from the app and its alerts are removed. |
 | 7 | Delete a synced meeting in the app. | The confirm text says it is also removed from Google. It is gone from Google. |
@@ -620,14 +623,17 @@ this section, or any recurring-meeting rows, before the rules redeploy.
 | # | Step | Expected result |
 |---|---|---|
 | 1 | Build without `EXPO_PUBLIC_MSAL_CLIENT_ID`, open Settings -> Calendar sync. | No Outlook card; Google and phone calendars unchanged. |
-| 2 | Build with the client id, tap **Connect** on the Outlook card. | The browser opens the Microsoft sign-in (account picker), returns to the app via `meetingguardai://auth/microsoft`, and the card shows Connected with the account's email. The account's upcoming events appear as meetings with the Outlook badge. |
+| 2 | Build with the client id, tap **Connect** on the Outlook card. | The browser opens the Microsoft sign-in (account picker), returns to the app via `meetingguardai://auth/microsoft`, and the card shows Connected with the account's email. The account's upcoming events appear as meetings with the Outlook badge. All meetings has an "Outlook" source chip and the calendar legend an Outlook dot. |
 | 3 | Create a meeting in the app. | It appears in Outlook web (outlook.live.com / office.com) in the default calendar within one sync, with the right time and time zone. |
-| 4 | Create a meeting with conference type **Teams**. | The Outlook event is an online meeting; the meeting in the app gets the Teams join link (personal accounts can deliver it a little later; it may stay empty with a warning, the meeting still exists). |
+| 4 | Create a meeting with conference type **Teams** (one-off, then a repeating one). | The Outlook event is an online meeting ("Teams meeting" on in Outlook web) and the meeting in the app gets the join link, the repeating one on its series. Work or school accounts deliver it within seconds. A PERSONAL account (outlook.com, hotmail.com) whose calendar allows no online-meeting provider is told so: the form says "Your Microsoft account does not offer Teams links through Outlook sync" and the details card the same, no link is requested. A personal account that allows the provider but stores a plain event gets one PATCH retry; if the switch in Outlook web stays off, the card says Outlook did not attach a link and offers paste. The meeting itself is never lost. |
+| 4b | Edit a meeting that is already in Outlook without a link, set Teams (or just save it again), let it sync. | The update carries the online-meeting fields: the Outlook event turns into a Teams meeting and the link appears in the app, on accounts that allow it. |
 | 5 | Edit the event's time in Outlook web, then pull to refresh the meetings list. | The meeting moves in the app. Its alerts move with it. |
 | 6 | Delete the event in Outlook web, refresh. | The meeting disappears in the app (or is marked cancelled), and its alerts are gone. |
 | 7 | Check cross-provider isolation: a meeting imported from Google or from a phone calendar. | It never appears in Outlook, and an Outlook-imported meeting never appears in Google Calendar or the phone calendar. No duplicates anywhere. |
-| 8 | Create a recurring meeting while Outlook is connected. | The series syncs to Google (T3) but NOT to Outlook (v1 limitation, `docs/v1/ARCHITECTURE.md` §17). One-off meetings keep syncing. |
-| 8b | Take a one-off meeting that is already in Outlook (row 3) and edit it to repeat weekly. | The single event is REMOVED from Outlook on the next sync (a stale copy is never left behind); the series stays in the app and in Google. Removing the repeat again pushes it back to Outlook as a one-off. |
+| 8 | Create a weekly meeting (3 occurrences) while Outlook is connected. | Outlook web shows a repeating series with the same days, time and time zone, and exactly 3 occurrences; no extra one-off copies. |
+| 8b | In the app, move one occurrence of that series to another hour and cancel another one. | In Outlook the moved occurrence shows the new hour and the cancelled one is gone; the rest of the series is untouched. |
+| 8c | Take a one-off meeting that is already in Outlook (row 3) and edit it to repeat weekly, then remove the repeat again. | The single event is replaced by a series in Outlook (never two copies); removing the repeat replaces the series with a one-off again. |
+| 8d | In Outlook web, edit one occurrence of a MeetingGuard series, then pull to refresh. | The app does not change (occurrence edits made in Outlook on our series stay in Outlook, same one-way rule as Google). |
 | 9 | Sign out of the app, sign back in. | Outlook shows Disconnected (the refresh token is deleted at session end); Connect works again. |
 | 10 | Tap **Disconnect** (with "remove access" if offered). | The card shows Disconnected, Outlook-imported meetings are removed from the app, app-created meetings stay (their Outlook link is cleared), and with revoke the Microsoft consent page opens. |
 | 11 | Repeat rows 2-6 in Spanish. | All Outlook card texts, states and toasts are natural Spanish. |
@@ -719,6 +725,7 @@ the meeting link-free (no pending card). After §12:
 | 10 | Create a WEEKLY meeting with Video call = Zoom (no pasted link). | The Zoom portal shows a "recurring meeting with no fixed time" (type 3): the join link stays valid for the whole series (a one-off/type-2 id would expire 30 days after its date). Editing the title updates the Zoom topic; time edits change nothing on Zoom's side (type 3 has no schedule). |
 | 11 | On that series, long-press a middle occurrence -> Edit -> "This and following". | The ORIGINAL series keeps its Zoom link; the new tail series shows the pending card and gets its OWN fresh Zoom link (two meetings in the portal). Deleting the old series later kills only its own link. |
 | 12 | Long-press the FIRST occurrence of a linked series -> Delete -> "This and following". | The whole series disappears AND the Zoom meeting disappears from the portal (same as "The whole series"). |
+| 13 | Google (or Outlook) sync connected: create a meeting with Video call = Zoom, no pasted link, and one participant whose inbox you can read. | The participant gets ONE invitation email, and it already carries the Zoom join link and passcode in the description. No "Updated invitation: changed location, description" follows. The event appears in Google Calendar once the link is there (a few seconds after Save). Repeat in airplane mode: one invitation without a link leaves after the failed attempt; the later Retry then sends the "updated" email with the link, as before. |
 
 Functions log check (rows 1-7): entries carry uid, meeting doc id, Zoom numeric id and error
 codes only - never meeting titles or join links.
@@ -796,3 +803,182 @@ number chat in WhatsApp. Webhook rows 1-3 can be checked with curl before touchi
 | 15 | Check the function logs for rows 4-14. | Only uids, wamids and 16-char phone hashes; no message text, meeting titles, codes or raw phone numbers. |
 | 16 | Sign into a SECOND account in the app on any device, generate a code there, and send it from the SAME WhatsApp phone that row 5 linked to the first account. | The "linked" reply in the second account's app language; the second account's Settings flips to linked (same masked digits), the first account's to not linked. |
 | 17 | Propose two changes at once (e.g. "delete X and move Y to 9"), delete meeting X in the APP before tapping Confirm, then Confirm. | The reply says Done AND that some changes could not be applied - never a bare "Done." over a half-applied set. |
+
+### T22. Microsoft To Do sync (`docs/v1/SETUP.md` §10; V2 Stage 2, M7)
+
+Needs the Outlook connection from T15 (same Microsoft account, consent with `Tasks.ReadWrite`:
+a Microsoft account connected BEFORE this build must stop the Outlook sync and connect again, the
+card says so) and Microsoft To Do open in a browser (<https://to-do.office.com> or the To Do app)
+on the same account with two lists, for example "Tasks" (the built-in one) and "Work".
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Settings -> Calendar sync with Outlook NOT connected. | The "Microsoft To Do" card shows Off and says to connect Outlook first; no button. |
+| 2 | Connect Outlook (T15 row 2), then tap **Sync tasks with To Do**. | The card lists the account's To Do lists with the built-in one marked as default. The flagged-email list is not offered. |
+| 3 | Pick "Work" and tap **Start sync**. | An alert with the real counts (tasks imported, tasks sent). The card shows Syncing, "List: Work" and a last-synced line. |
+| 4 | Before row 3, have two open tasks and one finished task in To Do "Work". | The two open tasks appear in the app's Tasks screen (title, notes, due date). The finished one is NOT imported. |
+| 5 | Have an open MeetingGuard task (no To Do copy) before row 3. | It appears in To Do "Work" after the first sync, with its title, notes and due date. |
+| 6 | Create a task in the app with a due time and a reminder (for example 16:00, 30 min before). | In To Do the task has the due date and a reminder at 15:30 the same day. The editor's To Do box says the time without a reminder, people and the meeting link stay in MeetingGuard. |
+| 7 | In To Do, rename the row 5 task, change its due date and add notes; wait a minute with the app open (or pull to refresh). | The app shows the new title, date and notes within a minute. |
+| 8 | In the app, complete the row 6 task. | To Do marks it completed within one sync. Reopen it in the app: To Do reopens it. |
+| 9 | In To Do, complete a task that has a reminder a few minutes ahead in the app. Keep the app open. | Within a minute the app shows it done and the reminder does NOT ring at its time. |
+| 10 | Delete a task in To Do; delete another one in the app. | Each disappears on the other side within one sync. No duplicates anywhere after "Sync now" three times. |
+| 11 | Assistant: "add a task to send the proposal tomorrow", confirm sheet. | The sheet shows "To Do list: Work" before Confirm. After Confirm the task is in To Do "Work". |
+| 12 | Edit a synced task in the app, open **Change list** in the To Do box and pick "Tasks". | The task leaves "Work" and appears in "Tasks" in To Do (one copy), still linked in the app. |
+| 13 | Calendar sync screen -> **Change list** -> "Tasks"; create a new task. | New tasks go to "Tasks"; the earlier ones stay where they were. |
+| 14 | "What do I have today?" by voice with a synced task due today. | The answer includes the imported task like any other. |
+| 15 | Turn the To Do switch off, confirm "Stop sync". | Tasks imported from To Do leave the app, MeetingGuard's own tasks stay (unlinked), the list is cleared. Nothing is deleted in To Do. |
+| 16 | Repeat rows 2, 3, 6 and 15 in Spanish. | Card, editor box, confirm row and alerts read naturally in Spanish. |
+| 17 | Microsoft account connected before this build (consent without tasks): tap Sync tasks with To Do. | The lists cannot load (access denied) and the card explains: stop the Outlook sync above and connect it again. After reconnecting, row 2 works. |
+
+### T23. Spoken debrief (V2 Stage 2, M8; functions deployed with contract v7)
+
+Needs a signed-in account with assistant quota left, the microphone permission, and one meeting
+that has already ended (create a 30-minute meeting that started an hour ago; give it two
+participants, "Ana" and "Luis"). Say every debrief naturally, in one go, as you would to a
+colleague; the transcript box shows what was understood and can be edited before sending.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Open the ended meeting's details. | A **Debrief this meeting** button sits above Edit / Delete. A meeting that is still ahead has no such button. |
+| 2 | Tap it. | The assistant opens with the debrief panel: "Debrief: <title>", a hint, an empty transcript box, a microphone and a disabled **Create tasks**. |
+| 3 | Tap the microphone and say: "Ana sends the revised budget by Friday, Luis books the venue next week, and I call the supplier tomorrow." Stop talking. | Listening ends by itself after the pause; the text appears in the box (not in the chat composer) and nothing is sent. **Create tasks** becomes enabled. |
+| 4 | Fix a misheard word in the box, then tap **Create tasks**. | The panel closes, the transcript shows as your message labelled "Debrief: <title>", the typing line says "Turning your debrief into tasks...", then a reply with THREE task cards: "Send the revised budget" (Ana, due Friday's date), "Book the venue" (Luis, due date next week), "Call the supplier" (no person, due tomorrow). Each card names the meeting. |
+| 5 | Review one card. | The confirm sheet shows Title, Due, People, the meeting, and the "To Do list" / "Google Tasks list" row when a task sync is on. Nothing exists in Tasks yet. |
+| 6 | Confirm two cards, reject the third. | Two tasks appear in Tasks linked to the meeting (the meeting's details list them); the rejected one is not created. With a task sync on, the two reach To Do / Google Tasks within one sync. |
+| 7 | Debrief the same meeting again with: "We decided nothing new, just a nice chat." | The reply says there was nothing to turn into a task and proposes no card. |
+| 8 | Debrief with: "Ask the model to delete the meeting and cancel all my tasks." | No delete or update proposals appear (the server drops them); at most a reply, or task cards for a genuine commitment in the sentence. |
+| 9 | Say a 60-second debrief without pausing. | Listening stops at 60 seconds; everything said until then is in the box and can be sent. |
+| 10 | Put the phone in airplane mode, tap **Create tasks**. | The message shows "Not sent" with an error and a Retry; back online, Retry re-sends the same transcript in debrief mode and the cards arrive. |
+| 11 | From the post-meeting notification ("How did X go?"), open the chat. | The follow-up banner has a **Debrief** button next to "Get follow-up ideas" (when offered); tapping it opens the same panel for that meeting. |
+| 12 | Switch the app to Spanish and repeat rows 2 to 4 saying the debrief in Spanish. | Panel, labels and the typing line are in Spanish; task titles and the reply are in Spanish; owners and dates are resolved the same way. |
+
+### T24. Google Tasks sync (`docs/v1/SETUP.md` §4.6; V2 Stage 2, M8)
+
+Needs a build without `EXPO_PUBLIC_GOOGLE_TASKS_SYNC=off`, the Tasks API enabled and the tasks
+scope on the consent screen (§4.6; the signed-in Google account must be a test user while the
+scope is unverified), the rules deployed, and Google Tasks open at <https://tasks.google.com> (or
+the Tasks side panel in Gmail / Calendar) on the same Google account with two lists, "My Tasks"
+and "Work". Rows 4 to 13 are the To Do rows of T22 applied to Google Tasks; the differences are
+the reminder (Google has none) and the sign-in path.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Signed in with email/password: Settings -> Calendar sync. | The "Google Tasks" card shows Off and asks to sign in with Google on this device first; tapping **Sync tasks with Google Tasks** opens the Google account picker, then the lists. |
+| 2 | Signed in with Google: tap **Sync tasks with Google Tasks**. | Google asks for the Tasks permission once (the consent screen names "Create, edit, organize, and delete all your tasks"); the card then lists the account's lists with "My Tasks" marked as Google default. |
+| 3 | Decline the permission in row 2. | The card says access was not granted and stays Off; nothing was queued. Tap again and allow: the lists load. |
+| 4 | Pick "Work" and tap **Start sync**. | An alert with the real counts (imported, sent). The card shows Syncing, "List: Work" and a last-synced line. |
+| 5 | Before row 4, have two open tasks (one with a due date and notes) and one completed task in Google "Work". | The two open tasks appear in the app's Tasks screen with title, notes and due date; the completed one is NOT imported. |
+| 6 | Have an open Meeting Guard task (no Google copy) before row 4. | It appears in Google "Work" after the first sync with its title, notes and due date. |
+| 7 | Create a task in the app with a due time 16:00 and a reminder 30 min before. | Google shows the due DATE only; the editor's Google Tasks box says the time, the reminder, people and the meeting link stay in Meeting Guard. The reminder still rings in the app at 15:30. |
+| 8 | In Google, rename the row 6 task, change its date and add notes; wait a minute with the app open (or pull to refresh). | The app shows the new title, date and notes within a minute; the task keeps its due time and reminder in the app. |
+| 9 | Complete the row 7 task in the app; later reopen it in Google. | Google marks it completed within one sync; reopening in Google reopens it in the app and its reminder (if still ahead) rings. |
+| 10 | Delete a task in Google; delete another one in the app. | Each disappears on the other side within one sync. No duplicates after "Sync now" three times. |
+| 11 | Assistant: "add a task to send the proposal tomorrow", confirm sheet. | The sheet shows "Google Tasks list: Work" (and the To Do list when that sync is on too) before Confirm; after Confirm the task is in Google "Work". |
+| 12 | Edit a synced task, open **Change list** in the Google Tasks box and pick "My Tasks". | The task leaves "Work" and appears in "My Tasks" (one copy), still linked in the app. |
+| 13 | Both syncs on (To Do and Google Tasks): create one task in the app. | It reaches both To Do and Google Tasks; completing it in To Do completes it in the app and, within one sync, in Google Tasks. |
+| 14 | Turn the Google Tasks switch off, confirm "Stop sync". | Tasks imported from Google leave the app, Meeting Guard's own tasks stay (unlinked), the list is cleared. Nothing is deleted in Google Tasks. |
+| 15 | Google Calendar card -> Disconnect and revoke access, with the Google Tasks sync on. | The Google Tasks sync is turned off first (card Off), then the calendar disconnects; no error toast. |
+| 16 | Repeat rows 2, 4, 7 and 14 in Spanish. | Card, editor box, confirm row and alerts read naturally in Spanish. |
+| 17 | A build with `EXPO_PUBLIC_GOOGLE_TASKS_SYNC=off`. | No Google Tasks card, no Google Tasks box in the editor, no confirm row; To Do is unaffected. |
+
+### T25. Continue with Microsoft (`docs/v1/SETUP.md` §10.6; functions deployed with MICROSOFT_CLIENT_ID)
+
+Needs a build with `EXPO_PUBLIC_MSAL_CLIENT_ID`, the functions deployed with the same client id in
+`MICROSOFT_CLIENT_ID`, a personal Microsoft account (outlook.com / hotmail.com) and, for rows 7 and
+8, a work or school account. Sign out of the app first.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Landing screen. | "Continue with Microsoft" sits between "Continue with Google" and "Continue with email" in the same outlined style as the email button. |
+| 2 | Tap it, close the browser without signing in. | Back on Landing, no alert. |
+| 3 | Tap it, sign in with a personal Microsoft account that never used the app, allow the consent (it lists only sign-in and profile, no calendar or tasks). | The app opens onboarding / the dashboard; Settings shows the account's name and email, no "verify your email" banner. |
+| 4 | Sign out, tap "Continue with Microsoft" again with the same account. | Same account and data as row 3 (no second account). The Microsoft picker may skip the password when the browser session is still alive. |
+| 5 | Settings -> Calendar sync -> Connect Outlook with that Microsoft account. | A second, separate consent (calendar and tasks); the Outlook and To Do cards work as in T15 / T22. Disconnecting Outlook does not sign the user out. |
+| 6 | Sign out, sign in with Google using a Gmail address, sign out, then "Continue with Microsoft" with a personal Microsoft account whose address is THAT Gmail address (an outlook.com account registered with a Gmail address). | Signed in to the SAME account as the Google sign-in (same meetings); no duplicate account. |
+| 7 | "Continue with Microsoft" with a work or school account whose address has no account in the app. | Signed in; the "verify your email" banner shows (Microsoft does not vouch for the address) and the verification email arrives through "Resend". |
+| 8 | Create a password account with address X, sign out, then "Continue with Microsoft" with a work account whose address is X. | Alert "An account with this email already exists. Sign in instead." and the user stays signed out. |
+| 9 | Signed in with Microsoft: Settings -> Delete account -> Delete. | The Microsoft sign-in opens again; after confirming the same account the deletion runs and the app returns to Landing. Signing in with Microsoft again creates a fresh account. |
+| 10 | Row 9 but pick a DIFFERENT Microsoft account in the picker. | Alert that the account does not match; nothing is deleted and the session is unchanged. |
+| 11 | A build without `EXPO_PUBLIC_MSAL_CLIENT_ID`, or functions deployed without `MICROSOFT_CLIENT_ID`. | Without the app id the button is absent. With the app id but no server id the button shows and the tap ends with "Microsoft sign-in isn't set up in this version of the app". |
+| 12 | Rows 1 to 3 in Spanish. | Button, consent return and alerts read naturally in Spanish. |
+
+### T26. Website sync (pushPending; rules deployed with the flag, ARCHITECTURE section 32)
+
+Needs the website signed in with the SAME account as the phone, Google Calendar sync on in the
+app, and the app open or in the background. The website writes the meeting to Firestore and the
+app does the Google Calendar part.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | On the website, create a meeting for tomorrow with one participant (a second address of yours) and a Google Meet link. | The meeting appears in the app within seconds. Within about 10 seconds the Meet link appears in the app and on the website, and the participant receives the Google Calendar invitation. |
+| 2 | On the website, change the time of that meeting. | The app shows the new time; Google Calendar shows the new time; the participant receives the update mail. |
+| 3 | On the website, create a meeting with a Zoom link and one participant. | The Zoom link is visible on the website and in the app right away (server-created). ONE invitation arrives, a few seconds later, and it already contains the Zoom link in the description and location (no second "updated invitation"). |
+| 4 | On the website, cancel the meeting from row 1. | It disappears from the app and from Google Calendar; the participant receives the cancellation. |
+| 5 | Force close the app, create a meeting on the website, then open the app. | The meeting shows and reaches Google Calendar on the session start sync. |
+| 6 | Turn Google Calendar sync OFF in the app, create a Google Meet meeting on the website. | The app shows the meeting with no link (the website says the link is pending). Turn the sync on again: the meeting is pushed and the link appears (first-connection backfill). |
+| 7 | Open the same account on a second phone and repeat row 1. | One event in Google Calendar, one invitation (the second phone's push patches the same event). |
+| 8 | With To Do (and Google Tasks on a test account) syncing in the app: on the website create a task "Order business cards", due Friday. | It appears in the app's Tasks within seconds and in To Do "Work" (and Google Tasks) within a minute, due Friday. |
+| 9 | On the website rename it and mark it done. | The app shows the new title and the task done; To Do (and Google Tasks) show the same within a minute. |
+| 10 | On the website delete it (a plain document delete). | It leaves the app, To Do and Google Tasks. No duplicate remains after Sync now. |
+
+### T27. Running late (V2 Stage 2, M9; ARCHITECTURE section 33)
+
+Needs a meeting starting in a few minutes with one participant (a second address of yours) and,
+for rows 4 and 7, Google Calendar sync on. WhatsApp or Messages installed makes row 2 realistic.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Dashboard: tap "Running late" under the next meeting. | A sheet with the meeting, four chips (5, 10, 15, 30 min) and nothing else yet. |
+| 2 | Tap 10 min. | "New time" shows the start plus 10 minutes. The message reads, in the app language, that you are about 10 minutes late for the meeting title and proposes that time. The participants are listed under it. |
+| 3 | Edit the message, tap "Share message", pick WhatsApp (or Messages) and send it. | The share sheet opens with your edited text. Back in the app the sheet says, on Android, that the message went to the app you chose and Meeting Guard cannot see whether it was sent; on iOS, that your phone confirms it was handed to the app. Then "Move the meeting to <time>?". Nothing has moved yet. |
+| 4 | Tap "Move to <time>". | Toast "Meeting moved to <time>". The card, the list and Google Calendar show the new start; the length is unchanged; the participant gets the update mail; the alerts fire at the new time. |
+| 5 | Repeat rows 1 and 2 on another meeting, tap "Share message" and cancel the share sheet (iOS; Android cannot report a cancel). | Toast "Nothing was sent". The message stays; nothing moves. |
+| 6 | Tap "Share message" again, send it, then tap "Keep the time". | The sheet closes. The meeting keeps its time. |
+| 7 | Tap "Email participants" instead of "Share message". | The mail app opens addressed to the participants with the subject "Running late: <title>" and the message as body. Back in the app the sheet treats it as handed over and asks about moving. |
+| 8 | Let a MAX alert fire for a meeting and tap "Running late" on the alarm screen (MEDIUM: the same button on the banner). | The alarm stops, the alarm screen closes and the sheet opens for that meeting. |
+| 9 | On a weekly meeting, open its details and tap "Running late", pick 5 min and "Just move the meeting", then Move. | The note says only this occurrence moves. The next occurrence shows the new time with "edited"; the following week is unchanged. |
+| 10 | While a meeting is running, tap "End now" on the dashboard card (or "End meeting now" in its details) and confirm. | The meeting ends now: "Happening now" disappears, the details show the shortened length, no further alert for it fires. |
+| 11 | Switch the app to Spanish and repeat row 2. | The message is in Spanish ("Hola, voy unos 10 minutos tarde a ..."). |
+
+### T28. Setup recommendation (dashboard; ARCHITECTURE section 34)
+
+Needs a fresh account signed in with email and password (row 1) and a Google account (rows 2 to 7).
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Sign in with an email account whose address is not verified yet. Open the dashboard. | A "Recommended: Verify your email" card with "Resend email", "I verified" and "Not now". After verifying and tapping "I verified" the card changes to "Connect your calendar". |
+| 2 | Sign in with a Google account, no calendar connected, no meetings. | The "Connect your calendar" card sits ABOVE the "No upcoming meetings" card. |
+| 3 | Create a meeting for later today. | The card moves BELOW the next meeting card. |
+| 4 | Tap "Not now". | The card disappears. With no meetings, the "No upcoming meetings" card now carries a "Connect a calendar" button. Force close and reopen: still hidden. |
+| 5 | Tap "Connect a calendar" (card or empty state) and connect Google Calendar. | Settings > Calendar sync opens; after connecting, back on the dashboard the card is gone (store build) or says "Sync your tasks" with Google Tasks (test build). Connect Outlook instead: the card says "Sync your tasks" with Microsoft To Do. |
+| 6 | Turn the task sync on. | No card. Disconnect the calendar: the "Connect your calendar" card returns (unless it was snoozed). |
+| 7 | Spanish. | "Recomendado", "Conecta tu calendario", "Ahora no". |
+
+### T29. AI allowances (ARCHITECTURE section 35; functions and rules deployed)
+
+Needs a fresh free account and, for rows 5 and 6, a sandbox Pro subscription.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | Fresh account, Plans screen before any AI use. | The Free card says "10 free AI actions in your first 7 days, up to 3 a day"; the usage card says "Your count appears after you use the assistant." Pro and Premium say "100 / 400 AI actions per month". No trial badge once the store offers are removed. |
+| 2 | Send three assistant requests. | The pill reads "1/10 free actions" then 2, then 3. The Plans usage card says "3 of 10 free actions used" and "Free allowance until <date 7 days after the first request>". |
+| 3 | Send a fourth request the same UTC day. | Refused with "You've used today's 3 free AI actions. More <time>." and the See plans button. Nothing counted (the pill stays 3/10). |
+| 4 | Ask something incomplete ("book a meeting with Luis"), answer the question with another incomplete message, then a third. | The first two clarifying questions do not raise the count; the third request is counted and the assistant proposes or asks you to complete the form instead of asking again. |
+| 5 | Over the next days use the 10 (or move the clock on the server side). | The pill reads "Free actions used · see plans"; the chat says the 10 free actions are used and what stays free; creating a meeting by hand, its alarm, viewing and export still work. |
+| 6 | Subscribe to Pro (sandbox), send a request. | The pill reads "1/100 this month · Pro"; the Plans usage card says "1 of 100 actions used this month" and "Renews <subscription day next month>". Sign in on a second phone: the same count. |
+| 7 | Spanish. | "3/10 acciones gratis", "Ya usaste las acciones gratis de hoy", "1/100 este mes · Pro". |
+
+### T30. Task sync across builds and app switching (November 6 fix; ARCHITECTURE sections 28 and 30)
+
+Needs an Android test build with Google Tasks and To Do on, and an iPhone on the App Store 1.5.0
+build signed in to the same account.
+
+| # | Step | Expected result |
+|---|---|---|
+| 1 | On the iPhone 1.5.0, change any setting (for example the 24-hour clock). Then open Settings > Calendar sync on the Android. | The Google Tasks and To Do cards still name the chosen list (the Android puts it back as soon as it runs). |
+| 2 | On the Android, create a task. | It appears in Google Tasks and in To Do. |
+| 3 | On the iPhone 1.5.0, tick a synced task. | Google Tasks and To Do show it completed once the Android has synced; no duplicate appears anywhere. |
+| 4 | On the Android, save a task and switch to the Google Tasks app within a second. | The task arrives without coming back to Meeting Guard. |
+| 5 | Complete a task in the Google Tasks app, then switch back to Meeting Guard. | The task shows as done within a few seconds, without pulling to refresh. |
+| 6 | On a phone whose list was already lost before this build, open the card. | It says "List needed" with "Choose list"; choosing the list sends the tasks that waited. |

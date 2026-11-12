@@ -239,8 +239,9 @@ These are true in v1.3.0. Some are platform limits, some are not built yet.
   "Override Do Not Disturb" for the MAX channel (the button is in Alert settings). On iOS, MAX / MEDIUM
   are time-sensitive and break through a Focus only if the Focus allows it. There are no iOS critical
   alerts.
-- **Voice readout and the looping alarm** play only while the app is open. A notification always plays
-  the channel sound.
+- **Voice readout and the looping alarm** play in the in-app alert. On Android the full-screen alarm
+  opens the app and the fired alarm is shown in-app (since 1.5.0; before, only the meeting page
+  opened); on iOS the user opens the alert. A notification always plays the channel sound first.
 - **Alert window.**
   - Alerts are scheduled up to 14 days ahead, with at most 60 pending (an iOS limit).
   - When more are needed, a "refill" reminder asks the user to open the app.
@@ -338,7 +339,7 @@ The order assumes the client chooses RevenueCat and iOS. Adjust it after the dec
    - Still open for later: any Stripe web checkout (item 3).
 2. **Tier enforcement:**
    - The AI quota is **already server-side**: the `assistant` function reads `entitlements/{uid}` in
-     its quota transaction (`PLAN_DAILY_AI_LIMITS`).
+     its allowance transaction (`AI_ALLOWANCES`, docs/v1/ARCHITECTURE.md section 35).
    - Only features beyond the AI quota need new gates, both in the rules / functions and in the UI.
 3. **Stripe web checkout** (7-day trial), only if the client wants a web app. It writes the same
    entitlement document through a webhook.

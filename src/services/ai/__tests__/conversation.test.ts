@@ -10,6 +10,7 @@ import {
   createEmptyThread,
   detectFailedRequest,
   reviveThread,
+  selectLatestPendingActionIds,
   selectPendingActionIds,
   threadReducer,
   trimThread,
@@ -144,6 +145,16 @@ describe('threadReducer', () => {
     expect(detectFailedRequest(thread)).toBeNull();
   });
 
+  it('a failed debrief transcript is retried as a debrief of its meeting (v7)', () => {
+    let thread = threadReducer(createEmptyThread(), {
+      type: 'user_message',
+      message: message('u9', 'user', 'Ana sends the budget by Friday', { debriefMeetingId: 'meeting_7' }),
+    });
+    thread = threadReducer(thread, { type: 'request_started', userMessageId: 'u9' });
+    thread = threadReducer(thread, { type: 'request_failed', userMessageId: 'u9', usage: null });
+    expect(detectFailedRequest(thread)).toEqual({ mode: 'debrief', meetingId: 'meeting_7', userMessageId: 'u9' });
+  });
+
   it('remembers follow-ups and keeps them (and usage) on reset', () => {
     let thread = threadReducer(createEmptyThread(), {
       type: 'request_succeeded',
@@ -194,6 +205,24 @@ describe('threadReducer', () => {
       messages: [message('a1', 'assistant', 'x', { actionIds: [a.id, b.id] }), message('a2', 'assistant', 'y', { actionIds: [c.id] })],
       actions: { [c.id]: proposed(c), [a.id]: proposed(a), [b.id]: proposed(b) },
     };
+    expect(selectPendingActionIds(thread)).toEqual(['a1-1', 'a2-1']);
+  });
+
+  it('scopes a plain "yes" to the newest reply that proposed something', () => {
+    const a = createAction('a1-1');
+    const c = deleteAction('a2-1', 'm1');
+    const thread: ThreadState = {
+      ...createEmptyThread(),
+      messages: [
+        message('a1', 'assistant', 'x', { actionIds: [a.id] }),
+        message('u2', 'user', 'and what about Ana?'),
+        message('a2', 'assistant', 'y', { actionIds: [c.id] }),
+        message('a3', 'assistant', 'anything else?'),
+      ],
+      actions: { [a.id]: proposed(a), [c.id]: proposed(c) },
+    };
+    // The delete proposed five turns ago must not run on a yes to the newest question.
+    expect(selectLatestPendingActionIds(thread)).toEqual(['a2-1']);
     expect(selectPendingActionIds(thread)).toEqual(['a1-1', 'a2-1']);
   });
 

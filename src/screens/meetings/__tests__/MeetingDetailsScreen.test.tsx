@@ -51,7 +51,12 @@ jest.mock('../../../services/auth', () => ({
   useAuth: () => ({ authUser: mockAuthUser }),
 }));
 
+// M9: the running-late sheet is a global host; the screen only opens it.
+const mockOpenRunningLate = jest.fn();
+jest.mock('../RunningLateSheet', () => ({ openRunningLate: (...args: unknown[]) => mockOpenRunningLate(...args) }));
+
 const mockRemove = jest.fn();
+const mockUpdate = jest.fn();
 let mockMeeting: Meeting | null = null;
 let mockUse24Hour: boolean | null = null;
 jest.mock('../../../services/data', () => {
@@ -63,7 +68,7 @@ jest.mock('../../../services/data', () => {
       isLoaded: true,
       error: null,
     }),
-    meetingRepository: { remove: (...args: unknown[]) => mockRemove(...args) },
+    meetingRepository: { remove: (...args: unknown[]) => mockRemove(...args), update: (...args: unknown[]) => mockUpdate(...args) },
   };
 });
 
@@ -95,6 +100,10 @@ function CalendarSyncStub() {
   return <Text testID="calendar-sync-screen">calendar sync</Text>;
 }
 
+function ChatStub({ route }: { route: { params?: Record<string, unknown> } }) {
+  return <Text testID="chat-screen">{JSON.stringify(route.params)}</Text>;
+}
+
 async function renderDetails() {
   await render(
     <I18nProvider>
@@ -104,6 +113,7 @@ async function renderDetails() {
             <Stack.Screen name="MeetingDetails" component={MeetingDetailsScreen} initialParams={{ meetingId: 'm1' }} />
             <Stack.Screen name="EditMeeting" component={EditStub} />
             <Stack.Screen name="CalendarSync" component={CalendarSyncStub} />
+            <Stack.Screen name="AIChat" component={ChatStub} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
@@ -242,11 +252,11 @@ describe('Teams conference card (§22)', () => {
     expect(await screen.findByTestId('calendar-sync-screen')).toBeTruthy();
   });
 
-  it('says it is too late for an auto link once the meeting is already in Outlook (create-only)', async () => {
+  it('says Outlook attached no link once the meeting is already in Outlook without one', async () => {
     mockOutlook = { configured: true, connected: true };
     mockMeeting = teamsMeeting({ outlookEventId: 'AAMk1', outlookCalendarId: 'cal1' });
     await renderDetails();
-    expect(screen.getByTestId('meeting-conference-teamsLinkTooLate')).toBeTruthy();
+    expect(screen.getByTestId('meeting-conference-teamsLinkMissing')).toBeTruthy();
     expect(screen.queryByTestId('meeting-conference-teamsPending')).toBeNull();
     expect(screen.queryByTestId('meeting-connect-outlook')).toBeNull();
   });
@@ -368,4 +378,77 @@ it('warns that deleting a recurring meeting removes the whole series', async () 
     pressDestructive();
   });
   expect(mockRemove).toHaveBeenCalledWith('m1', { origin: 'user' });
+});
+
+describe('running late and end now (M9)', () => {
+  // A fixed clock: "End now" shortens the meeting to the elapsed whole minutes.
+  const NOW_MS = Date.parse('2026-10-06T15:00:00.000Z');
+  const minutesFromNow = (minutes: number) => new Date(NOW_MS + minutes * 60_000).toISOString();
+  beforeEach(() => {
+    jest.useFakeTimers({
+      now: NOW_MS,
+      doNotFake: ['hrtime', 'nextTick', 'performance', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'],
+    });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('hides both on a meeting that is over', async () => {
+    mockMeeting = meeting({ startAt: minutesFromNow(-120), durationMinutes: 60 });
+    await renderDetails();
+    expect(screen.queryByTestId('meeting-running-late')).toBeNull();
+    expect(screen.queryByTestId('meeting-end-now')).toBeNull();
+  });
+
+  it('opens the running-late sheet for an upcoming meeting; End now appears only while it runs', async () => {
+    mockOpenRunningLate.mockReset();
+    mockMeeting = meeting({ startAt: minutesFromNow(30), durationMinutes: 60 });
+    await renderDetails();
+    expect(screen.queryByTestId('meeting-end-now')).toBeNull();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-running-late'));
+    });
+    expect(mockOpenRunningLate).toHaveBeenCalledWith({ meetingId: 'm1', startAt: null });
+  });
+
+  it('ends a running meeting now after a confirmation (origin user)', async () => {
+    mockUpdate.mockReset().mockResolvedValue(undefined);
+    mockMeeting = meeting({ startAt: minutesFromNow(-25), durationMinutes: 60 });
+    await renderDetails();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('meeting-end-now'));
+    });
+    expect(Alert.alert).toHaveBeenCalledWith('End "Budget review" now?', expect.stringContaining('ends now'), expect.any(Array), expect.anything());
+    const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+    await act(async () => {
+      buttons.find((button) => button.text === 'End now')?.onPress?.();
+    });
+    expect(mockUpdate).toHaveBeenCalledWith('m1', { durationMinutes: 25 }, { origin: 'user' });
+  });
+});
+
+describe('debrief (M8)', () => {
+  it('offers a debrief for a meeting that has ended and opens the assistant in debrief mode', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-06T17:00:00.000Z'));
+    try {
+      await renderDetails();
+      await act(async () => {
+        fireEvent.press(screen.getByTestId('meeting-debrief'));
+      });
+      expect(screen.getByTestId('chat-screen').props.children).toBe(JSON.stringify({ debrief: 'm1' }));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('hides the debrief button while the meeting is still ahead', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-01T00:00:00.000Z'));
+    try {
+      await renderDetails();
+      expect(screen.queryByTestId('meeting-debrief')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });

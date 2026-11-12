@@ -1,6 +1,6 @@
 /**
- * Header + sidebar of the Main group: live language and theme, navigation to existing routes only,
- * sign-out through the shared flow (which handles unsynced changes).
+ * Header and sidebar of the Main group: live language (with the flag), the menu button, the back
+ * arrow, navigation to existing routes only, sign-out through the shared flow.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -9,7 +9,7 @@ import type { ReactElement } from 'react';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import { I18nProvider, i18n } from '../../i18n';
 import { ROUTES } from '../../navigation/routes';
-import { CustomHeader, nextLanguage } from '../CustomHeader';
+import { avatarInitial, CustomHeader, LANGUAGE_FLAGS, nextLanguage } from '../CustomHeader';
 import { MobileSidebar, SIDEBAR_ITEMS } from '../MobileSidebar';
 
 jest.mock('expo-localization', () => ({
@@ -36,7 +36,7 @@ jest.mock('../../services/auth', () => ({
 async function renderWithProviders(element: ReactElement) {
   await render(
     <I18nProvider>
-      <ThemeProvider>{element}</ThemeProvider>
+      <ThemeProvider initialMode="light">{element}</ThemeProvider>
     </I18nProvider>,
   );
   await act(async () => undefined);
@@ -68,34 +68,34 @@ describe('CustomHeader', () => {
     expect(onMenuPress).toHaveBeenCalledTimes(1);
   });
 
-  it('toggles the theme and persists the choice', async () => {
-    await renderWithProviders(<CustomHeader title="Dashboard" onMenuPress={jest.fn()} />);
-    expect(screen.getByLabelText('Switch to dark mode')).toBeTruthy();
+  it('opens the menu from the menu button and shows the flag of the current language', async () => {
+    const onMenuPress = jest.fn();
+    await renderWithProviders(<CustomHeader title="Dashboard" onMenuPress={onMenuPress} />);
+    expect(screen.queryByTestId('header-theme')).toBeNull();
+    expect(screen.getByTestId('header-language-flag').props.children).toBe(LANGUAGE_FLAGS.en);
+    expect(avatarInitial(null, 'zoe@example.com')).toBe('Z');
+    expect(avatarInitial('  ', '')).toBeNull();
     await act(async () => {
-      fireEvent.press(screen.getByTestId('header-theme'));
+      fireEvent.press(screen.getByTestId('header-menu'));
     });
-    expect(screen.getByLabelText('Switch to light mode')).toBeTruthy();
-    await expect(AsyncStorage.getItem('mg:theme')).resolves.toBe('dark');
+    expect(onMenuPress).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a back button instead of the logo when the stack can go back', async () => {
+  it('shows a back button instead of the menu button when the stack can go back', async () => {
     const onBackPress = jest.fn();
     await renderWithProviders(<CustomHeader title="MeetingDetails" onBackPress={onBackPress} />);
-    expect(screen.queryByTestId('header-home')).toBeNull();
+    expect(screen.queryByTestId('header-menu')).toBeNull();
     await act(async () => {
       fireEvent.press(screen.getByLabelText('Go back'));
     });
     expect(onBackPress).toHaveBeenCalledTimes(1);
   });
 
-  it('goes to the dashboard from the logo and falls back to the app name', async () => {
-    await renderWithProviders(<CustomHeader title="NotARoute" />);
-    expect(screen.getByText('MeetingGuard AI')).toBeTruthy();
+  it('falls back to the app name for an unknown route and shows no menu button without a handler', async () => {
+    await renderWithProviders(<CustomHeader title="Nowhere" />);
+    expect(screen.getByText('Meeting Guard AI')).toBeTruthy();
     expect(screen.queryByTestId('header-menu')).toBeNull();
-    await act(async () => {
-      fireEvent.press(screen.getByTestId('header-home'));
-    });
-    expect(mockNavigateToTopLevel).toHaveBeenCalledWith('Dashboard');
+    expect(screen.queryByTestId('header-back')).toBeNull();
   });
 
   it('cycles through the supported languages', () => {

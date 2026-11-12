@@ -1,7 +1,7 @@
 /**
  * DeviceCalendarService (contract in src/core/contracts.ts): Apple / Android calendars through
- * expo-calendar. Import is one-way (device -> MeetingGuard, source 'device'); export copies
- * MeetingGuard's own meetings (never imported ones) to ONE calendar chosen on this device.
+ * expo-calendar. Import is one-way (device -> Meeting Guard, source 'device'); export copies
+ * Meeting Guard's own meetings (never imported ones) to ONE calendar chosen on this device.
  * All stored device ids are device-scoped (see ./mapping.ts).
  *
  * Export links: each device can export the same meeting to its own calendar, so where THIS
@@ -273,7 +273,7 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
       if (!input) continue;
       const hash = deviceImportHash(input, calendarId);
       hashes[externalId] = hash;
-      // Unchanged since the last import (a meeting deleted in MeetingGuard stays deleted until the
+      // Unchanged since the last import (a meeting deleted in Meeting Guard stays deleted until the
       // device event itself changes).
       if (local && state.importHashes[externalId] === hash) {
         unchanged += 1;
@@ -396,7 +396,7 @@ export function createDeviceCalendarService(deps: DeviceServiceDeps): DeviceCale
 
   async function exportCopy(meeting: Meeting, rawCalendarId: string, key: string): Promise<{ meeting: Meeting; changed: boolean }> {
     if (!isOwnMeeting(meeting)) {
-      throw new AppError('unsupported', 'Only MeetingGuard meetings are exported to device calendars');
+      throw new AppError('unsupported', 'Only Meeting Guard meetings are exported to device calendars');
     }
     if (meeting.deletedAt !== null || meeting.status === 'cancelled') {
       return { meeting, changed: await removeCopy(meeting, key) };

@@ -31,6 +31,17 @@ function sectionsOf(language: 'en' | 'es', document: LegalDocumentId): Record<st
   return legal[document]!.sections;
 }
 
+/** Title, body, items and notes of one section as one string (raw JSON values). */
+function sectionText(language: 'en' | 'es', document: LegalDocumentId, id: string): string {
+  const section = sectionsOf(language, document)[id]!;
+  const parts: unknown[] = [section.title];
+  for (const field of ['body', 'items', 'note'] as const) {
+    const value = section[field];
+    if (Array.isArray(value)) parts.push(...(value as unknown[]));
+  }
+  return parts.filter((part): part is string => typeof part === 'string').join(' ');
+}
+
 const translate: RawTranslate = (key, options) => (i18n as unknown as { t: RawTranslate }).t(key, options);
 
 describe('legal content', () => {
@@ -62,6 +73,26 @@ describe('legal content', () => {
     expect(privacyEs).toContain('Limited Use');
   });
 
+  it('names the Google scopes, the Microsoft permissions, voice input and the subscription services (1.6.0)', () => {
+    for (const language of ['en', 'es'] as const) {
+      const google = sectionText(language, 'privacy', 'google');
+      expect(google).toContain('"calendar.events"');
+      expect(google).toContain('"tasks"');
+      expect(google).toContain('Limited Use');
+      expect(sectionText(language, 'privacy', 'microsoft')).toContain('"Tasks.ReadWrite"');
+      expect(sectionText(language, 'privacy', 'whatsapp')).toContain('Meta');
+      expect(sectionText(language, 'privacy', 'ai')).toContain(language === 'en' ? 'microphone' : 'micrófono');
+      const sharing = sectionText(language, 'privacy', 'sharing');
+      for (const service of ['Microsoft', 'Apple', 'Zoom', 'Meta', 'RevenueCat', 'Expo', 'Google Tasks', 'Microsoft To Do']) {
+        expect(sharing).toContain(service);
+      }
+      expect(sectionText(language, 'terms', 'plans')).toContain('24');
+      expect(sectionText(language, 'terms', 'plans')).toContain('Google Play');
+    }
+    expect(sectionText('en', 'terms', 'plans')).not.toContain('cannot be purchased');
+    expect(sectionText('es', 'terms', 'plans')).not.toContain('no se pueden comprar');
+  });
+
   it('keeps the company details as clearly marked placeholders until they are filled in', () => {
     expect(isPlaceholder('[COMPANY LEGAL NAME]')).toBe(true);
     expect(isPlaceholder('Acme S.L.')).toBe(false);
@@ -80,7 +111,7 @@ describe('legal content', () => {
 
     const terms = readLegalDocument(translate, 'terms', variables);
     expect(terms.map((item) => item.id)).toEqual(LEGAL_SECTIONS.terms);
-    expect(terms.find((item) => item.id === 'ai')?.items.join(' ')).toContain('5 per day');
+    expect(terms.find((item) => item.id === 'ai')?.items.join(' ')).toContain('10 actions during the 7 days');
 
     const fake: RawTranslate = (key) => (key.endsWith('.ok') ? { title: 'OK', body: ['Text'], items: 'x' } : key);
     expect(readLegalSection(fake, 'terms', 'ok', {})).toEqual({ id: 'ok', title: 'OK', body: ['Text'], items: ['x'], note: [] });
@@ -101,7 +132,7 @@ function Home({ navigation }: { navigation: { navigate(name: string): void } }) 
 async function renderWith(name: 'Privacy' | 'Terms', component: () => React.ReactElement, withHome = false) {
   await render(
     <I18nProvider>
-      <ThemeProvider>
+      <ThemeProvider initialMode="light">
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             {withHome ? <Stack.Screen name="Home" component={Home} /> : null}
@@ -121,7 +152,7 @@ describe('legal screens', () => {
 
   it('renders the privacy policy with the localized date', async () => {
     await renderWith('Privacy', PrivacyScreen);
-    expect(screen.getByText('Last updated: September 28th, 2026')).toBeTruthy();
+    expect(screen.getByText('Last updated: November 6th, 2026')).toBeTruthy();
     expect(screen.getByText('Who is responsible for your data')).toBeTruthy();
     expect(screen.getByTestId('legal-privacy')).toBeTruthy();
   });

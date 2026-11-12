@@ -161,7 +161,7 @@ export function listAction(id: string, meetingIds: string[]): ListAction {
 }
 
 export function usage(overrides: Partial<AssistantUsage> = {}): AssistantUsage {
-  return { used: 1, limit: 5, plan: 'free', resetsAt: '2030-03-11T00:00:00.000Z', ...overrides };
+  return { used: 1, limit: 10, plan: 'free', resetsAt: '2030-03-11T00:00:00.000Z', period: 'window', ...overrides };
 }
 
 export function response(overrides: Partial<AssistantResponse> = {}, actions: AiAction[] = []): AssistantResponse {

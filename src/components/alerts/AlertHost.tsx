@@ -10,6 +10,8 @@
  *   LIGHT   toast, dismissible after 3 s; post-meeting follow-ups use the same toast with
  *           "Open assistant".
  * Join opens the real conference URL; details / assistant go through the navigation deep links.
+ * "Running late" (M9) resolves the alert like Details and opens the running-late sheet for the
+ * alert's occurrence (RunningLateHost, mounted next to this host).
  */
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Alert, Linking, StyleSheet, View } from 'react-native';
@@ -20,6 +22,7 @@ import { assistantDeepLink, meetingDeepLink } from '../../core/identifiers';
 import { createLogger } from '../../core/logger';
 import { useLanguage, useT } from '../../i18n';
 import { openDeepLink } from '../../navigation';
+import { openRunningLate } from '../../screens/meetings/RunningLateSheet';
 import {
   LIGHT_AUTO_HIDE_MS,
   LIGHT_DISMISS_AFTER_MS,
@@ -65,6 +68,7 @@ interface AlertActions {
   join(alert: ActiveAlertView): void;
   details(alert: ActiveAlertView): void;
   assistant(alert: ActiveAlertView): void;
+  runningLate(alert: ActiveAlertView): void;
 }
 
 function useAlertActions(t: TranslateFn): AlertActions {
@@ -98,6 +102,12 @@ function useAlertActions(t: TranslateFn): AlertActions {
         if (!openLink(assistantDeepLink({ followUpMeetingId: alert.meetingId }))) {
           log.warn('assistant deep link was not handled');
         }
+      },
+      runningLate(alert) {
+        // The alarm stops (the user is acting on it) and the full-screen modal unmounts, so the
+        // sheet, a Portal below it, becomes visible. The alert's startAt names the occurrence.
+        resolve(alert, 'open');
+        openRunningLate({ meetingId: alert.meetingId, startAt: alert.startAt });
       },
     };
   }, [t]);
@@ -145,6 +155,7 @@ function ActiveAlerts({ alerts }: { alerts: ActiveAlertView[] }): ReactElement {
           onSnooze={(minutes) => actions.resolve(medium, 'snooze', minutes)}
           onJoin={medium.joinUrl ? () => actions.join(medium) : null}
           onDetails={() => actions.details(medium)}
+          onRunningLate={medium.meeting ? () => actions.runningLate(medium) : null}
         />
       ) : null}
       {light && lightDisplay ? (
@@ -170,6 +181,7 @@ function ActiveAlerts({ alerts }: { alerts: ActiveAlertView[] }): ReactElement {
           onSnooze={(minutes) => actions.resolve(max, 'snooze', minutes)}
           onJoin={max.joinUrl ? () => actions.join(max) : null}
           onDetails={() => actions.details(max)}
+          onRunningLate={max.meeting ? () => actions.runningLate(max) : null}
         />
       ) : null}
     </View>

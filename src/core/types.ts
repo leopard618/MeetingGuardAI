@@ -42,7 +42,7 @@ export {
   LANGUAGES,
   LOCATION_TYPES,
   PLANS,
-  PLAN_DAILY_AI_LIMITS,
+  PLAN_AI_LIMITS,
   alertTimesSchema,
   conferenceDetailsSchema,
   languageSchema,
@@ -673,6 +673,12 @@ export interface Preferences {
   timezone: string;
   alertEnabled: boolean;
   alertIntensity: AlertIntensity;
+  /**
+   * Intensity for meetings imported from a phone, Google or Outlook calendar (birthdays,
+   * holidays, invitations) when the meeting has no override of its own; null = the same as
+   * alertIntensity. All-day events never ring regardless. Client feedback, Oct 28 2026.
+   */
+  importedAlertIntensity: AlertIntensity | null;
   alertSoundType: AlertSoundType;
   /** 0..1 */
   alertVolume: number;
@@ -688,14 +694,29 @@ export interface Preferences {
   briefingTime: string;
   /** Permanent silent notification showing that alerts are armed and the next meeting. */
   statusNotificationEnabled: boolean;
+  /**
+   * When the daily briefing fires, take over the screen like a meeting alarm instead of a quiet
+   * notification (V2 week 5). Android only: iOS and devices without the full-screen alarm module,
+   * or without the full-screen permission, always get the notification. Off until the user asks.
+   */
+  briefingFullScreen: boolean;
   /** null = locale default (expo-localization uses24hourClock). */
   use24HourClock: boolean | null;
   onboardingCompleted: boolean;
   googleCalendarSyncEnabled: boolean;
   /** Device calendar ids to import from (device-specific; unknown ids are ignored). */
   deviceCalendarImportIds: string[];
-  /** Device calendar that receives exported MeetingGuard meetings (null = no export). */
+  /** Device calendar that receives exported Meeting Guard meetings (null = no export). */
   deviceCalendarExportId: string | null;
+  /**
+   * Microsoft To Do list that receives new tasks (M7). The name is cached so the task confirm
+   * card can show "List: Work" without a network call; null = not chosen (To Do sync stays off).
+   */
+  todoListId: string | null;
+  todoListName: string | null;
+  /** Google Tasks list that receives new tasks (M8); same convention as the To Do pair. */
+  gtasksListId: string | null;
+  gtasksListName: string | null;
   updatedAt: string | null;
 }
 
@@ -704,6 +725,7 @@ export const preferencesSchema = z.object({
   timezone: timeZoneSchema,
   alertEnabled: z.boolean(),
   alertIntensity: alertIntensitySchema,
+  importedAlertIntensity: alertIntensitySchema.nullable(),
   alertSoundType: alertSoundTypeSchema,
   alertVolume: z.number().min(0).max(1),
   vibrationEnabled: z.boolean(),
@@ -713,11 +735,16 @@ export const preferencesSchema = z.object({
   briefingEnabled: z.boolean(),
   briefingTime: localTimeSchema,
   statusNotificationEnabled: z.boolean(),
+  briefingFullScreen: z.boolean(),
   use24HourClock: z.boolean().nullable(),
   onboardingCompleted: z.boolean(),
   googleCalendarSyncEnabled: z.boolean(),
   deviceCalendarImportIds: z.array(z.string().min(1).max(512)).max(50),
   deviceCalendarExportId: z.string().min(1).max(512).nullable(),
+  todoListId: z.string().min(1).max(512).nullable(),
+  todoListName: z.string().min(1).max(256).nullable(),
+  gtasksListId: z.string().min(1).max(512).nullable(),
+  gtasksListName: z.string().min(1).max(256).nullable(),
   updatedAt: utcIsoSchema.nullable(),
 });
 
@@ -730,6 +757,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   timezone: 'UTC',
   alertEnabled: true,
   alertIntensity: 'max',
+  importedAlertIntensity: null,
   alertSoundType: 'voice_and_sound',
   alertVolume: 0.8,
   vibrationEnabled: true,
@@ -739,11 +767,16 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   briefingEnabled: false,
   briefingTime: DEFAULT_BRIEFING_TIME,
   statusNotificationEnabled: false,
+  briefingFullScreen: false,
   use24HourClock: null,
   onboardingCompleted: false,
   googleCalendarSyncEnabled: false,
   deviceCalendarImportIds: [],
   deviceCalendarExportId: null,
+  todoListId: null,
+  todoListName: null,
+  gtasksListId: null,
+  gtasksListName: null,
   updatedAt: null,
 } satisfies Preferences);
 
@@ -978,12 +1011,64 @@ export function parseNoteDoc(id: string, raw: unknown): Note | null {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Tasks (users/{uid}/tasks/{id}) - hard delete (V2 Stage 1)
+// Tasks (users/{uid}/tasks/{id}) - hard delete (V2 Stage 1; Microsoft To Do sync in Stage 2, M7)
 // ---------------------------------------------------------------------------------------------
 
 export const TASK_STATUSES = ['open', 'done'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export const taskStatusSchema = z.enum(TASK_STATUSES);
+
+/**
+ * Where a task came from. 'todo' = imported from Microsoft To Do, 'gtasks' = imported from Google
+ * Tasks (neither is ever created here).
+ */
+export const TASK_SOURCES = ['manual', 'ai_chat', 'whatsapp', 'todo', 'gtasks'] as const;
+export type TaskSource = (typeof TASK_SOURCES)[number];
+export const taskSourceSchema = z.enum(TASK_SOURCES);
+
+/**
+ * Links to the copies of a task in Microsoft To Do (M7) and Google Tasks (M8). `todoListId` /
+ * `gtasksListId` are set as soon as the user (or the default list) chose where the task goes;
+ * `todoTaskId` / `gtasksTaskId` only once the task exists there. `todoUpdatedAt` is Graph's
+ * lastModifiedDateTime and `gtasksUpdatedAt` the Google Tasks `updated` time of the copy we last
+ * saw (conflict resolution).
+ */
+export interface TaskExternalRefs {
+  todoListId: string | null;
+  todoTaskId: string | null;
+  todoUpdatedAt: string | null;
+  gtasksListId: string | null;
+  gtasksTaskId: string | null;
+  gtasksUpdatedAt: string | null;
+}
+
+export const taskExternalRefsSchema = z.object({
+  todoListId: z.string().min(1).max(512).nullable(),
+  todoTaskId: z.string().min(1).max(512).nullable(),
+  todoUpdatedAt: utcIsoSchema.nullable(),
+  gtasksListId: z.string().min(1).max(512).nullable(),
+  gtasksTaskId: z.string().min(1).max(512).nullable(),
+  gtasksUpdatedAt: utcIsoSchema.nullable(),
+});
+
+export const EMPTY_TASK_EXTERNAL_REFS: Readonly<TaskExternalRefs> = Object.freeze({
+  todoListId: null,
+  todoTaskId: null,
+  todoUpdatedAt: null,
+  gtasksListId: null,
+  gtasksTaskId: null,
+  gtasksUpdatedAt: null,
+});
+
+/** True once the task has a copy in Microsoft To Do. */
+export function isTodoLinked(task: Pick<Task, 'external'>): boolean {
+  return task.external.todoTaskId !== null;
+}
+
+/** True once the task has a copy in Google Tasks. */
+export function isGtasksLinked(task: Pick<Task, 'external'>): boolean {
+  return task.external.gtasksTaskId !== null;
+}
 
 export const TASK_LIMITS = {
   maxTitleChars: 200,
@@ -1023,6 +1108,8 @@ export interface Task {
   people: TaskPerson[];
   /** Set exactly while status is 'done'. */
   completedAt: string | null;
+  source: TaskSource;
+  external: TaskExternalRefs;
   createdAt: string;
   updatedAt: string;
 }
@@ -1040,6 +1127,8 @@ const taskShapeSchema = z.object({
   meetingId: meetingIdSchema.nullable(),
   people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople),
   completedAt: utcIsoSchema.nullable(),
+  source: taskSourceSchema,
+  external: taskExternalRefsSchema,
   createdAt: utcIsoSchema,
   updatedAt: utcIsoSchema,
 });
@@ -1065,6 +1154,10 @@ export interface TaskInput {
   reminderMinutesBefore?: number | null;
   meetingId?: string | null;
   people?: TaskPerson[];
+  /** Microsoft To Do list the task should go to (null = the default list, or none when To Do is off). */
+  todoListId?: string | null;
+  /** Google Tasks list the task should go to (null = the default list, or none when the sync is off). */
+  gtasksListId?: string | null;
 }
 
 export const taskInputSchema = z.object({
@@ -1076,11 +1169,19 @@ export const taskInputSchema = z.object({
   reminderMinutesBefore: z.number().int().min(0).max(TASK_LIMITS.maxReminderMinutes).nullable().optional(),
   meetingId: meetingIdSchema.nullable().optional(),
   people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople).optional(),
+  todoListId: z.string().min(1).max(512).nullable().optional(),
+  gtasksListId: z.string().min(1).max(512).nullable().optional(),
 });
 
-/** Patch semantics: undefined = keep, null = clear. Completing goes through `status`. */
-export type TaskPatch = Partial<TaskInput> & { status?: TaskStatus };
-export const taskPatchSchema = taskInputSchema.partial().extend({ status: taskStatusSchema.optional() });
+/**
+ * Patch semantics: undefined = keep, null = clear. Completing goes through `status`. `external`
+ * is for the task sync engines only (link write-backs); `todoListId` / `gtasksListId` move the
+ * task to another list (the engine re-creates it there; neither API moves tasks between lists).
+ */
+export type TaskPatch = Partial<TaskInput> & { status?: TaskStatus; external?: Partial<TaskExternalRefs> };
+export const taskPatchSchema = taskInputSchema
+  .partial()
+  .extend({ status: taskStatusSchema.optional(), external: taskExternalRefsSchema.partial().optional() });
 
 /**
  * Due fields are normalized instead of rejected (clearing the date also clears the time and the
@@ -1094,7 +1195,10 @@ function normalizeDue(task: Pick<Task, 'dueDate' | 'dueTime' | 'reminderMinutesB
   return { dueDate, dueTime, reminderMinutesBefore };
 }
 
-export function buildTask(input: TaskInput, ctx: { id: string; userId: string; timezone: string; now: DateInput }): Task {
+export function buildTask(
+  input: TaskInput,
+  ctx: { id: string; userId: string; timezone: string; now: DateInput; source?: TaskSource },
+): Task {
   const parsed = taskInputSchema.safeParse(input);
   if (!parsed.success) throw zodToAppError(parsed.error, 'task input');
   const v = parsed.data;
@@ -1116,6 +1220,8 @@ export function buildTask(input: TaskInput, ctx: { id: string; userId: string; t
     meetingId: v.meetingId ?? null,
     people: v.people ?? [],
     completedAt: null,
+    source: ctx.source ?? 'manual',
+    external: { ...EMPTY_TASK_EXTERNAL_REFS, todoListId: v.todoListId ?? null, gtasksListId: v.gtasksListId ?? null },
     createdAt: nowIso,
     updatedAt: nowIso,
   };
@@ -1146,6 +1252,12 @@ export function applyTaskPatch(task: Task, patch: TaskPatch, now: DateInput): Ta
     meetingId: v.meetingId !== undefined ? v.meetingId : task.meetingId,
     people: v.people ?? task.people,
     completedAt: status === 'done' ? (task.status === 'done' ? task.completedAt : nowIso) : null,
+    external: {
+      ...task.external,
+      ...(v.external ?? {}),
+      ...(v.todoListId !== undefined ? { todoListId: v.todoListId } : {}),
+      ...(v.gtasksListId !== undefined ? { gtasksListId: v.gtasksListId } : {}),
+    },
     updatedAt: nowIso,
   };
   const checked = taskSchema.safeParse(next);
@@ -1163,7 +1275,26 @@ const taskDocReadSchema = taskShapeSchema.omit({ id: true }).extend({
   meetingId: meetingIdSchema.nullable().default(null),
   people: z.array(taskPersonSchema).max(TASK_LIMITS.maxPeople).default([]),
   completedAt: utcIsoSchema.nullable().default(null),
+  source: taskSourceSchema.default('manual'),
+  // Every key a later build adds to the external refs MUST be optional here: the M7 build wrote
+  // the three To Do keys only, and a reader that required the Google Tasks keys hid every one of
+  // those tasks while the server kept counting them (November 2, 2026). Same pattern as the
+  // meeting reader above.
+  external: taskExternalRefsSchema
+    .partial()
+    .default({})
+    .transform((refs): TaskExternalRefs => fillTaskExternalRefs(refs)),
 });
+
+/** Missing or undefined external keys become null (older documents never wrote them). */
+export function fillTaskExternalRefs(refs: Partial<TaskExternalRefs>): TaskExternalRefs {
+  const filled: TaskExternalRefs = { ...EMPTY_TASK_EXTERNAL_REFS };
+  for (const key of Object.keys(EMPTY_TASK_EXTERNAL_REFS) as (keyof TaskExternalRefs)[]) {
+    const value = refs[key];
+    if (value !== undefined) filled[key] = value;
+  }
+  return filled;
+}
 
 /** Reads leniently and repairs cross-field drift (rules enforce the invariants on write). */
 export function parseTaskDoc(id: string, raw: unknown): Task | null {
@@ -1192,4 +1323,24 @@ export interface AuthUser {
   emailVerified: boolean;
   /** Firebase providerData ids, e.g. ["google.com"]. */
   providerIds: string[];
+}
+
+/** Sources whose meetings come from another calendar (never created in Meeting Guard). */
+export const IMPORTED_MEETING_SOURCES: ReadonlySet<MeetingSource> = new Set<MeetingSource>(['google', 'device', 'outlook']);
+
+export function isImportedMeeting(meeting: Pick<Meeting, 'source'>): boolean {
+  return IMPORTED_MEETING_SOURCES.has(meeting.source);
+}
+
+/**
+ * The intensity a meeting rings at: its own override, else the imported-events default for a
+ * meeting from another calendar, else the general preference.
+ */
+export function effectiveAlertIntensity(
+  meeting: Pick<Meeting, 'source' | 'alertIntensity'>,
+  preferences: Pick<Preferences, 'alertIntensity' | 'importedAlertIntensity'>,
+): AlertIntensity {
+  if (meeting.alertIntensity !== null) return meeting.alertIntensity;
+  if (isImportedMeeting(meeting) && preferences.importedAlertIntensity !== null) return preferences.importedAlertIntensity;
+  return preferences.alertIntensity;
 }

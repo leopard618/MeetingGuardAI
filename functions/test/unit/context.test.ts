@@ -123,6 +123,26 @@ describe('toModelView', () => {
     expect(json).not.toContain('Secret agenda');
   });
 
+  it('flags a one-off meeting that is already over, never a series', () => {
+    const past = buildMeetingContext([record('p1', '2026-10-05T14:00:00.000Z', { durationMinutes: 30 })], NOW, { followUpMeetingId: null }).meetings[0]!;
+    const now = new Date('2026-10-05T14:30:00.000Z');
+    expect(toModelView(past, 'UTC', false, { now }).ended).toBe(true);
+    expect(toModelView(past, 'UTC', false, { now: new Date('2026-10-05T14:29:00.000Z') }).ended).toBeUndefined();
+    expect(toModelView(past, 'UTC', false).ended).toBeUndefined();
+
+    const allDay = buildMeetingContext([record('p2', '2026-10-05T00:00:00.000Z', { allDay: true, durationMinutes: 0 })], NOW, { followUpMeetingId: null })
+      .meetings[0]!;
+    expect(toModelView(allDay, 'UTC', false, { now: new Date('2026-10-05T23:00:00.000Z') }).ended).toBeUndefined();
+    expect(toModelView(allDay, 'UTC', false, { now: new Date('2026-10-06T00:00:00.000Z') }).ended).toBe(true);
+
+    const series = buildMeetingContext(
+      [record('p3', '2026-09-01T14:00:00.000Z', { recurrence: { freq: 'daily', interval: 1, byWeekday: null, byMonthDay: null, until: null, count: null } })],
+      NOW,
+      { followUpMeetingId: null },
+    ).meetings[0]!;
+    expect(toModelView(series, 'UTC', false, { now: new Date('2026-10-05T14:30:00.000Z') }).ended).toBeUndefined();
+  });
+
   it('sends participant names so "the meeting with Alejandro" can be resolved', () => {
     const [meeting] = buildMeetingContext(
       [

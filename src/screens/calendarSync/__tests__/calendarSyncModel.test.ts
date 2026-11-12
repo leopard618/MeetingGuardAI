@@ -12,7 +12,11 @@ import {
   nextImportIds,
   outlookConnectOutcome,
   outlookStateView,
+  gtasksEnableOutcome,
+  gtasksStateView,
   syncReportSummary,
+  todoEnableOutcome,
+  todoStateView,
 } from '../calendarSyncModel';
 
 /** Echoes the key and its options, so assertions do not depend on the English wording. */
@@ -31,6 +35,7 @@ function outlook(overrides: Partial<NonNullable<CalendarStatus['outlook']>> = {}
     configured: true,
     connected: false,
     accountEmail: null,
+    teamsLinks: null,
     ...overrides,
   };
 }
@@ -158,6 +163,23 @@ describe('syncReportSummary', () => {
     expect(lines[2]).toBe('calendar:sync.providerError {"provider":"calendar:sync.providers.outlook","error":"common:errors.upstream_error"}');
   });
 
+  it('reports the task providers too', () => {
+    const taskResult = { fullSync: false, counts: { created: 1, updated: 0, removed: 0, unchanged: 0, pushed: 2, failed: 1 }, syncedAt: '2030-01-01T00:00:00.000Z' };
+    const summary = syncReportSummary(t, {
+      google: null,
+      device: null,
+      todo: taskResult,
+      gtasks: taskResult,
+      errors: [{ provider: 'gtasks', code: 'tasks_scope_missing' }],
+    });
+    const lines = summary.message.split('\n\n');
+    expect(lines[0]).toContain('calendar:sync.todoResult');
+    expect(lines[1]).toBe('calendar:sync.failedTodo {"count":1}');
+    expect(lines[2]).toContain('calendar:sync.gtasksResult');
+    expect(lines[3]).toBe('calendar:sync.failedGtasks {"count":1}');
+    expect(lines[4]).toBe('calendar:sync.providerError {"provider":"calendar:sync.providers.gtasks","error":"common:errors.tasks_scope_missing"}');
+  });
+
   it('says when there is nothing to sync', () => {
     expect(syncReportSummary(t, { google: null, device: null, errors: [] })).toEqual({
       title: 'calendar:sync.doneTitle',
@@ -283,5 +305,79 @@ describe('calendar namespace', () => {
       }
     }
     expect(missing).toEqual([]);
+  });
+});
+
+function todo(overrides: Partial<NonNullable<CalendarStatus['todo']>> = {}): NonNullable<CalendarStatus['todo']> {
+  return { enabled: false, syncing: false, lastSyncAt: null, lastError: null, configured: true, connected: false, listId: null, listName: null, ...overrides };
+}
+
+describe('todoStateView', () => {
+  const list = { listId: 'list-tasks', listName: 'Tasks' };
+
+  it('is on only while enabled on a connected Microsoft account', () => {
+    expect(todoStateView(todo({ enabled: true, connected: true, ...list }), true)).toEqual({ labelKey: 'calendar:todo.state.on', tone: 'success' });
+    expect(todoStateView(todo({ enabled: true, ...list }), false)).toEqual({ labelKey: 'calendar:todo.state.off', tone: 'muted' });
+    expect(todoStateView(todo(list), true)).toEqual({ labelKey: 'calendar:todo.state.off', tone: 'muted' });
+  });
+
+  it('asks for a list while on without one (new tasks wait for it), never while off', () => {
+    expect(todoStateView(todo({ enabled: true, connected: true }), true)).toEqual({ labelKey: 'calendar:todo.state.needsList', tone: 'warning' });
+    expect(todoStateView(todo({ enabled: true }), false)).toEqual({ labelKey: 'calendar:todo.state.off', tone: 'muted' });
+    expect(todoStateView(todo(), true)).toEqual({ labelKey: 'calendar:todo.state.off', tone: 'muted' });
+  });
+});
+
+function gtasks(overrides: Partial<NonNullable<CalendarStatus['gtasks']>> = {}): NonNullable<CalendarStatus['gtasks']> {
+  return {
+    enabled: false,
+    syncing: false,
+    lastSyncAt: null,
+    lastError: null,
+    configured: true,
+    connected: false,
+    hasScope: false,
+    listId: null,
+    listName: null,
+    ...overrides,
+  };
+}
+
+describe('gtasksStateView', () => {
+  const list = { listId: 'gl-default', listName: 'My Tasks' };
+
+  it('is on only while enabled with a Google session and the tasks scope', () => {
+    expect(gtasksStateView(gtasks({ enabled: true, connected: true, hasScope: true, ...list }))).toEqual({ labelKey: 'calendar:gtasks.state.on', tone: 'success' });
+    expect(gtasksStateView(gtasks({ enabled: true, connected: true, ...list }))).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
+    expect(gtasksStateView(gtasks({ enabled: true, hasScope: true, ...list }))).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
+    expect(gtasksStateView(gtasks())).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
+  });
+
+  it('asks for a list while on without one (new tasks wait for it), never while off', () => {
+    expect(gtasksStateView(gtasks({ enabled: true, connected: true, hasScope: true }))).toEqual({ labelKey: 'calendar:gtasks.state.needsList', tone: 'warning' });
+    expect(gtasksStateView(gtasks({ enabled: true, connected: true }))).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
+    expect(gtasksStateView(gtasks({ connected: true, hasScope: true }))).toEqual({ labelKey: 'calendar:gtasks.state.off', tone: 'muted' });
+  });
+});
+
+describe('gtasksEnableOutcome', () => {
+  it('reports the first sync counts, or why it did not finish', () => {
+    const result = { fullSync: true, counts: { created: 2, updated: 0, removed: 0, unchanged: 0, pushed: 3, failed: 0 }, syncedAt: '2026-10-01T08:00:00.000Z' };
+    expect(gtasksEnableOutcome(t, result, null)).toEqual({
+      title: 'calendar:gtasks.enabledTitle',
+      message: 'calendar:gtasks.firstSyncSummary {"created":2,"pushed":3}',
+    });
+    expect(gtasksEnableOutcome(t, null, 'tasks_scope_missing').message).toBe('calendar:gtasks.firstSyncFailed {"error":"common:errors.tasks_scope_missing"}');
+  });
+});
+
+describe('todoEnableOutcome', () => {
+  it('reports the first sync counts, or why it did not finish', () => {
+    const result = { fullSync: true, counts: { created: 2, updated: 0, removed: 0, unchanged: 0, pushed: 3, failed: 0 }, syncedAt: '2026-10-01T08:00:00.000Z' };
+    expect(todoEnableOutcome(t, result, null)).toEqual({
+      title: 'calendar:todo.enabledTitle',
+      message: 'calendar:todo.firstSyncSummary {"created":2,"pushed":3}',
+    });
+    expect(todoEnableOutcome(t, null, 'permission_denied').message).toBe('calendar:todo.firstSyncFailed {"error":"common:errors.permission_denied"}');
   });
 });

@@ -12,6 +12,9 @@
  * - ensureLink flushes the outbox first (the server loads the meeting document from Firestore,
  *   so an unsent create would 404), dedupes concurrent calls per meeting and remembers the last
  *   failure for linkFailure() until a later success. Offline => AppError('offline').
+ * - While ensureLink runs, the meeting is HELD from the calendar pushes (core/pushHold.ts) and
+ *   re-announced as a local change when the call settles, link or no link: attendees get one
+ *   invitation email that already carries the join link instead of an invitation plus an update.
  * - NO meeting content in logs: meeting ids and error codes only.
  */
 import NetInfo from '@react-native-community/netinfo';
@@ -32,6 +35,7 @@ import type { ZoomLinkResult, ZoomService } from '../../core/contracts';
 import { AppError, isAppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { appEvents, type AppEventMap, type EventBus, type Unsubscribe } from '../../core/events';
 import { createLogger } from '../../core/logger';
+import { calendarPushHold, type PushHold } from '../../core/pushHold';
 import type { Meeting, MeetingPatch } from '../../core/types';
 import { functions } from '../../config/firebase';
 import { meetingRepository } from '../data';
@@ -59,6 +63,8 @@ export interface ZoomServiceDeps {
   connectivity?: { isOffline(): Promise<boolean> };
   /** When given, the session cache is cleared on its 'session:ended' event (appEvents). */
   events?: Pick<EventBus<AppEventMap>, 'on'>;
+  /** Keeps the meeting out of the calendar pushes while its link is created (default: app-wide). */
+  pushHold?: Pick<PushHold, 'hold'>;
   timeoutMs?: number;
 }
 
@@ -137,6 +143,7 @@ export interface ZoomServiceInternal extends ZoomService {
 
 export function createZoomService(deps: ZoomServiceDeps): ZoomServiceInternal {
   const timeoutMs = deps.timeoutMs ?? ZOOM_CALL_TIMEOUT_MS;
+  const pushHold: Pick<PushHold, 'hold'> = deps.pushHold ?? calendarPushHold;
   /** zoomStatus answer this session; null = not known (unanswered or failed). */
   let known: boolean | null = null;
   let statusPromise: Promise<boolean> | null = null;
@@ -232,22 +239,28 @@ export function createZoomService(deps: ZoomServiceDeps): ZoomServiceInternal {
     // epoch is unchanged - mirroring askStatus. Without this, user A's late failure would leak
     // A's meeting id + failure code into user B's session on the same device.
     const epoch = sessionEpoch;
+    // Held from Google/Outlook/device pushes until the call settles (one invitation email, with
+    // the link). The hold expires on its own should the release ever be lost.
+    const releaseHold = pushHold.hold(meetingId);
+    const announce = (): void => {
+      // The link/passcode are written SERVER-side (Admin SDK), so the snapshot arrives as a
+      // remote change, which the calendar engine never pushes (origin filter). Re-announce the
+      // meeting as a local update so Google/Outlook/device events go out with the join info -
+      // and after a failure too, so the held invitation still leaves (without a link).
+      if (currentUid !== null) {
+        appEvents.emit('meetings:changed', {
+          uid: currentUid,
+          changedIds: [meetingId],
+          reason: 'updated',
+          origin: 'user',
+        });
+      }
+    };
     const promise = doEnsureLink(meetingId)
       .then((result) => {
         if (epoch === sessionEpoch) {
           failures.delete(meetingId);
-          // The link/passcode were written SERVER-side (Admin SDK), so the snapshot arrives as a
-          // remote change, which the calendar engine never pushes (origin filter). Re-announce it
-          // as a local update so Google/Outlook/device events are re-sent with the join info -
-          // otherwise attendee invitation emails never contain the Zoom link.
-          if (currentUid !== null) {
-            appEvents.emit('meetings:changed', {
-              uid: currentUid,
-              changedIds: [meetingId],
-              reason: 'updated',
-              origin: 'user',
-            });
-          }
+          announce();
         }
         return result;
       })
@@ -256,10 +269,12 @@ export function createZoomService(deps: ZoomServiceDeps): ZoomServiceInternal {
         if (epoch === sessionEpoch) {
           failures.set(meetingId, error.code);
           log.warn('zoom link creation failed', { meetingId, code: error.code });
+          announce();
         }
         throw error;
       })
       .finally(() => {
+        releaseHold();
         if (linkCalls.get(meetingId) === promise) linkCalls.delete(meetingId);
       });
     linkCalls.set(meetingId, promise);

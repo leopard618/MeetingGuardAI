@@ -62,6 +62,11 @@ function preferences(overrides: Record<string, unknown> = {}): Record<string, un
     timezone: 'America/Bogota',
     alertEnabled: true,
     alertIntensity: 'max',
+    importedAlertIntensity: null,
+    todoListId: null,
+    todoListName: null,
+    gtasksListId: null,
+    gtasksListName: null,
     alertSoundType: 'voice_and_sound',
     alertVolume: 0.8,
     vibrationEnabled: true,
@@ -168,8 +173,14 @@ describe('meetings', () => {
     ['a string list element that is not a string', { preparationTips: ['ok', { big: 'x'.repeat(10) }] }],
     ['oversized preparation tips', { preparationTips: ['x'.repeat(4000), 'y'.repeat(4000)] }],
     ['an unknown language', { language: 'fr' }],
+    ['a non-boolean pushPending flag', { pushPending: 'yes' }],
   ])('rejects a meeting with %s', async (_label, overrides) => {
     await assertFails(setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting(overrides)));
+  });
+
+  it('accepts the website push flag (section 32) on create and on update', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'users/alice/meetings/m1'), meeting({ pushPending: true })));
+    await assertSucceeds(updateDoc(doc(alice(), 'users/alice/meetings/m1'), { pushPending: false, updatedAt: ISO }));
   });
 
   it('accepts valid alert times and tips', async () => {
@@ -384,6 +395,7 @@ describe('preferences', () => {
   it.each([
     ['a volume above 1', { alertVolume: 1.5 }],
     ['an unknown intensity', { alertIntensity: 'maximum' }],
+    ['an unknown imported intensity', { importedAlertIntensity: 'loud' }],
     ['a Google access token', { google_access_token: 'ya29.token' }],
     ['a Google refresh token', { google_refresh_token: '1//token' }],
     ['a bad snooze', { snoozeMinutes: 0 }],
@@ -406,6 +418,43 @@ describe('notes', () => {
     await assertFails(setDoc(doc(alice(), 'users/alice/notes/n2'), note({ category: 'secret' })));
     await assertFails(setDoc(doc(alice(), 'users/alice/notes/n3'), note({ content: 'x'.repeat(20_001) })));
     await assertFails(setDoc(doc(bob(), 'users/alice/notes/n4'), note()));
+  });
+});
+
+describe('tasks', () => {
+  function task(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      userId: 'alice',
+      title: 'Send the contract',
+      description: '',
+      dueDate: null,
+      dueTime: null,
+      timezone: 'Europe/Madrid',
+      reminderMinutesBefore: null,
+      status: 'open',
+      meetingId: null,
+      people: [],
+      completedAt: null,
+      source: 'manual',
+      external: { todoListId: null, todoTaskId: null, todoUpdatedAt: null, gtasksListId: null, gtasksTaskId: null, gtasksUpdatedAt: null },
+      createdAt: ISO,
+      updatedAt: ISO,
+      ...overrides,
+    };
+  }
+
+  it('validates tasks', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'users/alice/tasks/t1'), task()));
+    await assertSucceeds(deleteDoc(doc(alice(), 'users/alice/tasks/t1')));
+    await assertFails(setDoc(doc(alice(), 'users/alice/tasks/t2'), task({ status: 'archived' })));
+    await assertFails(setDoc(doc(alice(), 'users/alice/tasks/t3'), task({ secret: true })));
+    await assertFails(setDoc(doc(bob(), 'users/alice/tasks/t4'), task()));
+  });
+
+  it('accepts the website push flag (section 32) on create and on update, booleans only', async () => {
+    await assertSucceeds(setDoc(doc(alice(), 'users/alice/tasks/t1'), task({ pushPending: true })));
+    await assertSucceeds(updateDoc(doc(alice(), 'users/alice/tasks/t1'), { pushPending: true, title: 'Send the signed contract', updatedAt: ISO }));
+    await assertFails(setDoc(doc(alice(), 'users/alice/tasks/t2'), task({ pushPending: 'yes' })));
   });
 });
 

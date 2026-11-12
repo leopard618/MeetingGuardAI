@@ -12,7 +12,7 @@
  * Today's assistant usage summary is unchanged.
  */
 import { formatUsd, getPlans, type BillingCycle, type PlanId, type PlanTier } from '../../services/billing';
-import { PLAN_DAILY_AI_LIMITS, type AssistantUsage, type Plan as EntitlementPlan } from '../../core/aiContract';
+import { PLAN_AI_LIMITS, type AssistantUsage, type Plan as EntitlementPlan, type UsagePeriod } from '../../core/aiContract';
 import type { AppErrorCode } from '../../core/errors';
 import { PLAY_PRODUCT_IDS, type StoreOffering, type StorePackage } from '../../core/contracts';
 import type { Language } from '../../core/types';
@@ -43,7 +43,9 @@ export interface PlanCard {
   monthlyEquivalentUsd: number | null;
   /** Yearly plans: discount against 12 monthly payments (catalog, or the store's when ready). */
   discountPercent: number | null;
-  aiRequestsPerDay: number;
+  /** AI actions: the free window total, or per month (aiPeriod). */
+  aiActions: number;
+  aiPeriod: 'window' | 'month';
   popular: boolean;
   isCurrent: boolean;
   /** true when a purchase button is shown for this card (store ready + package + not current). */
@@ -75,6 +77,26 @@ export interface PlanCard {
 function packageFor(offering: StoreOffering | null, tier: PlanTier, cycle: BillingCycle | null): StorePackage | null {
   if (!offering || tier === 'free' || cycle === null) return null;
   return offering.packages.find((pkg) => pkg.tier === tier && pkg.cycle === cycle) ?? null;
+}
+
+/**
+ * The Free card's 0 in the store's own price format, copied from a priced package ("$179.00"
+ * gives "$0", "179,00 €" gives "0 €"), so it never reads "0 US$" beside peso prices.
+ * Null when no package is loaded or its price string has no digits.
+ */
+export function zeroPriceLike(priceString: string): string | null {
+  const zero = priceString.replace(/[0-9][0-9.,\s]*[0-9]|[0-9]/, '0');
+  return zero !== priceString ? zero : null;
+}
+
+/**
+ * Only when BOTH paid cards of the tab carry store prices: a partial offering (one cycle not yet
+ * on sale) leaves those cards on catalog USD, and the Free card then stays in USD with them.
+ */
+function freeStorePrice(offering: StoreOffering | null, cycle: BillingCycle): string | null {
+  const pro = packageFor(offering, 'pro', cycle);
+  const premium = packageFor(offering, 'premium', cycle);
+  return pro && premium ? zeroPriceLike(pro.priceString) : null;
 }
 
 /** Store discount of yearly vs 12x monthly, when both packages are priced; null when unknown. */
@@ -138,7 +160,8 @@ export function buildPlanCards(
       priceUsd: plan.priceUsd,
       monthlyEquivalentUsd: pkg ? null : (plan.monthlyEquivalentUsd ?? null),
       discountPercent: pkg ? storeDiscount : (plan.discountPercent ?? null),
-      aiRequestsPerDay: plan.aiRequestsPerDay,
+      aiActions: plan.aiActions,
+      aiPeriod: plan.aiPeriod,
       // No "Most popular" claim on a plan nobody can buy.
       popular: plan.popular && purchasable,
       isCurrent,
@@ -149,7 +172,7 @@ export function buildPlanCards(
       // store sheet cannot change them) get no dead store-management button.
       manageable: isCurrent && catalogProductId !== null && catalogProductId === activeProductId,
       managedExternally: catalogProductId !== null && catalogProductId === otherStoreProductId,
-      storePriceString: pkg?.priceString ?? null,
+      storePriceString: pkg?.priceString ?? (plan.tier === 'free' ? freeStorePrice(offering, cycle) : null),
       storeMonthlyEquivalent:
         pkg && plan.cycle === 'yearly' ? formatStorePrice(pkg.priceAmountMicros / 12, pkg.currencyCode, language) : null,
       hasFreeTrial: pkg?.hasFreeTrial ?? false,
@@ -259,41 +282,54 @@ export function storeCopyKey(key: PlatformStoreCopy, ios: boolean): string {
 
 export type UsageSummary =
   | {
-      kind: 'today';
+      kind: 'current';
       plan: EntitlementPlan;
+      /** Which allowance the numbers describe (the free window, the paid month, or a day cap). */
+      period: UsagePeriod;
       used: number;
       limit: number;
       remaining: number;
       /** 0..1 */
       fraction: number;
       resetsAt: string;
+      /** Free plan: the introductory allowance is over; AI needs a subscription. */
+      subscriptionRequired: boolean;
     }
-  | { kind: 'plan'; plan: EntitlementPlan; limit: number };
+  | { kind: 'plan'; plan: EntitlementPlan; period: 'window' | 'month'; limit: number };
+
+/** The allowance period a plan is described with when no usage is known. */
+export function planPeriod(plan: EntitlementPlan): 'window' | 'month' {
+  return plan === 'free' ? 'window' : 'month';
+}
 
 /**
- * Today's usage when the last server answer is still for the current UTC day; otherwise only the
- * plan's daily limit is known (usage from another day, or no request on this device yet).
+ * The current usage when the last server answer still describes a running period (or says the
+ * free allowance is over); otherwise only the plan's allowance is known (an old answer, or no
+ * request on this device yet).
  */
 export function summarizeUsage(usage: AssistantUsage | null, plan: EntitlementPlan, now: Date): UsageSummary {
   if (usage) {
     const resetsAt = new Date(usage.resetsAt).getTime();
-    if (Number.isFinite(resetsAt) && resetsAt > now.getTime()) {
-      // The cached snapshot knows how many requests were USED today, but its plan/limit are from
-      // the moment of the last request. The live entitlement wins: after an upgrade the card must
-      // show "5 of 100", not yesterday's "5 of 5" (and after a downgrade, used is clamped).
+    const over = usage.subscriptionRequired === true && plan === 'free';
+    if (over || (Number.isFinite(resetsAt) && resetsAt > now.getTime())) {
+      // The cached snapshot knows how many actions were USED, but its plan/limit are from the
+      // moment of the last request. The live entitlement wins: after an upgrade the card must
+      // show "5 of 100", not "5 of 10" (and after a downgrade, used is clamped).
       const planChanged = usage.plan !== plan;
-      const limit = planChanged ? PLAN_DAILY_AI_LIMITS[plan] : Math.max(0, usage.limit);
+      const limit = planChanged ? PLAN_AI_LIMITS[plan] : Math.max(0, usage.limit);
       const used = Math.min(Math.max(0, usage.used), limit);
       return {
-        kind: 'today',
+        kind: 'current',
         plan,
+        period: planChanged ? planPeriod(plan) : (usage.period ?? 'day'),
         used,
         limit,
         remaining: limit - used,
         fraction: limit > 0 ? used / limit : 1,
         resetsAt: usage.resetsAt,
+        subscriptionRequired: over && !planChanged,
       };
     }
   }
-  return { kind: 'plan', plan, limit: PLAN_DAILY_AI_LIMITS[plan] };
+  return { kind: 'plan', plan, period: planPeriod(plan), limit: PLAN_AI_LIMITS[plan] };
 }

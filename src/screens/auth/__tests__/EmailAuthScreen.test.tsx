@@ -30,7 +30,7 @@ const Stack = createStackNavigator();
 async function renderEmailAuth() {
   await render(
     <I18nProvider>
-      <ThemeProvider>
+      <ThemeProvider initialMode="light">
         <PaperProvider>
           <NavigationContainer>
             <Stack.Navigator screenOptions={{ headerShown: false }}>

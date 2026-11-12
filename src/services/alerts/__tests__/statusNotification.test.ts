@@ -62,7 +62,7 @@ describe('renderStatusSpec', () => {
   it('names the next meeting and its local time', () => {
     const spec = render({ nextTitle: 'Kickoff', nextStartAt: '2026-10-05T09:00:00.000Z' });
     expect(spec.identifier).toBe(STATUS_NOTIFICATION_ID);
-    expect(spec.title).toBe('MeetingGuard is on');
+    expect(spec.title).toBe('Meeting Guard is on');
     expect(spec.body).toBe('Next: Kickoff at 11:00');
     expect(spec.channelId).toBe('mg-status-v1');
   });
@@ -72,7 +72,7 @@ describe('renderStatusSpec', () => {
   });
 
   it('renders in Spanish', () => {
-    expect(render({ nextTitle: null, nextStartAt: null }, 'es').title).toBe('MeetingGuard está activo');
+    expect(render({ nextTitle: null, nextStartAt: null }, 'es').title).toBe('Meeting Guard está activo');
   });
 
   it('carries no payload key the engine would cancel on sight', () => {

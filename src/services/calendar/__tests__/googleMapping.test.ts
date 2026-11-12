@@ -143,7 +143,7 @@ describe('googleEventToMeetingInput', () => {
 });
 
 describe('meetingToGoogleEvent', () => {
-  it('writes timed events with the meeting zone, attendees and MeetingGuard properties', () => {
+  it('writes timed events with the meeting zone, attendees and Meeting Guard properties', () => {
     const body = meetingToGoogleEvent(
       meeting({
         durationMinutes: 30,
@@ -233,7 +233,7 @@ describe('googleVisibleHash', () => {
     expect(googleVisibleHash(built, 'UTC')).toBe(googleVisibleHash(input!, 'UTC'));
   });
 
-  it('ignores MeetingGuard-only fields and changes with visible ones', () => {
+  it('ignores Meeting Guard-only fields and changes with visible ones', () => {
     const base = meeting();
     const alertsOnly = { ...base, customAlertTimes: [30], alertIntensity: 'light' as const, notes: 'private' };
     expect(googleVisibleHash(alertsOnly, 'UTC')).toBe(googleVisibleHash(base, 'UTC'));

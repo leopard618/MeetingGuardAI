@@ -50,7 +50,12 @@ export function toUpstreamError(error: unknown): UpstreamError {
   if (error instanceof OpenAI.AuthenticationError || error instanceof OpenAI.PermissionDeniedError || error instanceof OpenAI.NotFoundError) {
     return new UpstreamError('configuration', error.status, { cause: error });
   }
-  if (error instanceof OpenAI.RateLimitError) return new UpstreamError('rate_limited', error.status, { cause: error });
+  if (error instanceof OpenAI.RateLimitError) {
+    // A 429 with code insufficient_quota is the account's billing, not traffic: it needs an
+    // operator, so it is a configuration error (error-level log), never a "try again".
+    const code = (error as { code?: string | null }).code;
+    return new UpstreamError(code === 'insufficient_quota' ? 'configuration' : 'rate_limited', error.status, { cause: error });
+  }
   if (error instanceof OpenAI.BadRequestError || error instanceof OpenAI.UnprocessableEntityError) {
     return new UpstreamError('bad_request', error.status, { cause: error });
   }

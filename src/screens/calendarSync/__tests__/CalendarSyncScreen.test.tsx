@@ -37,6 +37,30 @@ const mockOutlook = {
   connect: jest.fn(),
   disconnect: jest.fn(async () => undefined),
 };
+const mockTodo = {
+  isConfigured: jest.fn(() => false),
+  isAccountConnected: jest.fn(async () => false),
+  listLists: jest.fn(async () => [
+    { id: 'list-tasks', name: 'Tasks', isDefault: true },
+    { id: 'list-work', name: 'Work', isDefault: false },
+  ]),
+  enable: jest.fn(),
+  setList: jest.fn(async () => undefined),
+  disable: jest.fn(async () => undefined),
+  sync: jest.fn(),
+};
+const mockGtasks = {
+  isConfigured: jest.fn(() => true),
+  isAccountConnected: jest.fn(async () => true),
+  listLists: jest.fn(async () => [
+    { id: 'gl-default', name: 'My Tasks', isDefault: true },
+    { id: 'gl-work', name: 'Work', isDefault: false },
+  ]),
+  enable: jest.fn(),
+  setList: jest.fn(async () => undefined),
+  disable: jest.fn(async () => undefined),
+  sync: jest.fn(),
+};
 const mockEngine = {
   syncNow: jest.fn(),
   getStatus: jest.fn(() => mockStatus.current),
@@ -57,6 +81,12 @@ jest.mock('../../../services/calendar', () => ({
   get outlookCalendarService() {
     return mockOutlook;
   },
+  get todoSyncService() {
+    return mockTodo;
+  },
+  get googleTasksSyncService() {
+    return mockGtasks;
+  },
   get calendarSyncEngine() {
     return mockEngine;
   },
@@ -74,6 +104,8 @@ function status(
     google?: Partial<CalendarStatus['google']>;
     device?: Partial<CalendarStatus['device']>;
     outlook?: Partial<NonNullable<CalendarStatus['outlook']>>;
+    todo?: Partial<NonNullable<CalendarStatus['todo']>>;
+    gtasks?: Partial<NonNullable<CalendarStatus['gtasks']>>;
   } = {},
 ): CalendarStatus {
   const base: CalendarStatus = {
@@ -98,7 +130,35 @@ function status(
       configured: true,
       connected: false,
       accountEmail: null,
+      teamsLinks: null,
       ...overrides.outlook,
+    };
+  }
+  if (overrides.todo) {
+    base.todo = {
+      enabled: false,
+      syncing: false,
+      lastSyncAt: null,
+      lastError: null,
+      configured: true,
+      connected: false,
+      listId: null,
+      listName: null,
+      ...overrides.todo,
+    };
+  }
+  if (overrides.gtasks) {
+    base.gtasks = {
+      enabled: false,
+      syncing: false,
+      lastSyncAt: null,
+      lastError: null,
+      configured: true,
+      connected: false,
+      hasScope: false,
+      listId: null,
+      listName: null,
+      ...overrides.gtasks,
     };
   }
   return base;
@@ -256,7 +316,7 @@ it('asks for the calendar permission and points to the settings when it is refus
     fireEvent.press(screen.getByTestId('calendar-device-permission'));
   });
   expect(mockDevice.requestPermission).toHaveBeenCalled();
-  expect(Alert.alert).toHaveBeenCalledWith('Calendars on this phone', 'Calendar access is turned off for MeetingGuard.', expect.any(Array));
+  expect(Alert.alert).toHaveBeenCalledWith('Calendars on this phone', 'Calendar access is turned off for Meeting Guard.', expect.any(Array));
   const settings = lastAlertButtons().find((button) => button.text === 'Open settings');
   settings?.onPress?.();
   expect(openSettings).toHaveBeenCalled();
@@ -299,14 +359,14 @@ it('leaves the back arrow and the title to the stack header', async () => {
   await renderScreen();
   expect(screen.queryByTestId('calendar-back')).toBeNull();
   expect(screen.queryByText('Calendar sync')).toBeNull();
-  expect(screen.getByText('Keep MeetingGuard in step with your connected calendars and the calendars on this phone.')).toBeTruthy();
+  expect(screen.getByText('Keep Meeting Guard in step with your connected calendars and the calendars on this phone.')).toBeTruthy();
 });
 
 it('renders in Spanish and in dark mode', async () => {
   mockDarkMode = true;
   await i18n.changeLanguage('es');
   await renderScreen();
-  expect(screen.getByText('Mantén MeetingGuard al día con tus calendarios conectados y con los calendarios de este teléfono.')).toBeTruthy();
+  expect(screen.getByText('Mantén Meeting Guard al día con tus calendarios conectados y con los calendarios de este teléfono.')).toBeTruthy();
   expect(screen.getByText('Conectar Google Calendar')).toBeTruthy();
 });
 
@@ -392,4 +452,198 @@ it('includes the Outlook line in the sync summary', async () => {
     fireEvent.press(screen.getByTestId('calendar-sync-now'));
   });
   expect(Alert.alert).toHaveBeenCalledWith('Sync complete', 'Outlook: 2 new, 1 updated, 0 removed, 3 sent to Outlook.');
+});
+
+describe('Google Tasks card (M8)', () => {
+  it('asks to sign in with Google first while there is no Google session', async () => {
+    mockStatus.current = status({ gtasks: { configured: true, connected: false } });
+    await renderScreen();
+    expect(screen.getByTestId('calendar-gtasks-card')).toBeTruthy();
+    expect(screen.getByTestId('calendar-gtasks-state').props.children).toBe('Off');
+    expect(screen.getByTestId('calendar-gtasks-connect-first')).toBeTruthy();
+    expect(screen.queryByTestId('calendar-gtasks-enable')).toBeNull();
+  });
+
+  it('turns the sync on with a chosen list and reports the first sync', async () => {
+    mockStatus.current = status({ gtasks: { configured: true, connected: true } });
+    mockGtasks.enable.mockResolvedValue({
+      fullSync: true,
+      counts: { created: 2, updated: 0, removed: 0, unchanged: 0, pushed: 3, failed: 0 },
+      syncedAt: '2030-01-01T00:00:00.000Z',
+    });
+    await renderScreen();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-enable'));
+    });
+    expect(mockGtasks.listLists).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('calendar-gtasks-chooser')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-list-gl-work'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-start'));
+    });
+    expect(mockGtasks.enable).toHaveBeenCalledWith({ id: 'gl-work', name: 'Work', isDefault: false });
+    expect(Alert.alert).toHaveBeenCalledWith('Google Tasks connected', 'Imported 2 tasks and sent 3 tasks to Google Tasks.');
+  });
+
+  it('explains a declined Google Tasks permission in plain words', async () => {
+    mockStatus.current = status({ gtasks: { configured: true, connected: true } });
+    mockGtasks.enable.mockRejectedValue(new AppError('tasks_scope_missing', 'declined'));
+    await renderScreen();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-enable'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-start'));
+    });
+    expect(Alert.alert).toHaveBeenLastCalledWith('Google Tasks', 'Google Tasks access was not granted. The sync stays off until you allow it.');
+  });
+
+  it('shows the list while on, changes it, and asks before stopping the sync', async () => {
+    mockStatus.current = status({
+      gtasks: { configured: true, connected: true, hasScope: true, enabled: true, listId: 'gl-default', listName: 'My Tasks', lastSyncAt: new Date().toISOString() },
+    });
+    await renderScreen();
+    expect(screen.getByTestId('calendar-gtasks-state').props.children).toBe('Syncing');
+    expect(screen.getByText('List: My Tasks')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-change-list'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-list-gl-work'));
+    });
+    expect(mockGtasks.setList).toHaveBeenCalledWith({ id: 'gl-work', name: 'Work', isDefault: false });
+
+    await act(async () => {
+      fireEvent(screen.getByTestId('calendar-gtasks-switch'), 'valueChange', false);
+    });
+    expect(Alert.alert).toHaveBeenCalledWith('Stop Google Tasks sync?', expect.any(String), expect.any(Array));
+    const stop = lastAlertButtons().find((button) => button.style === 'destructive');
+    await act(async () => {
+      stop?.onPress?.();
+    });
+    expect(mockGtasks.disable).toHaveBeenCalledTimes(1);
+    expect(Alert.alert).toHaveBeenLastCalledWith('Google Tasks sync is off');
+  });
+
+  it('asks for a list while on without one instead of an empty list line, and saves the choice', async () => {
+    mockStatus.current = status({
+      gtasks: { configured: true, connected: true, hasScope: true, enabled: true, listId: null, listName: null, lastSyncAt: new Date().toISOString() },
+    });
+    await renderScreen();
+    expect(screen.getByTestId('calendar-gtasks-state').props.children).toBe('List needed');
+    expect(screen.getByTestId('calendar-gtasks-needs-list').props.children).toBe('Choose a list so new tasks reach Google Tasks.');
+    expect(screen.queryByTestId('calendar-gtasks-list')).toBeNull();
+    expect(screen.queryByText(/^List:/)).toBeNull();
+    expect(screen.getByText('Choose list')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-change-list'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-gtasks-list-gl-default'));
+    });
+    expect(mockGtasks.setList).toHaveBeenCalledWith({ id: 'gl-default', name: 'My Tasks', isDefault: true });
+  });
+});
+
+describe('Microsoft To Do card (M7)', () => {
+  it('asks to connect Outlook first while the Microsoft account is not connected', async () => {
+    mockStatus.current = status({ outlook: { configured: true, connected: false }, todo: { configured: true, connected: false } });
+    await renderScreen();
+    expect(screen.getByTestId('calendar-todo-card')).toBeTruthy();
+    expect(screen.getByTestId('calendar-todo-state').props.children).toBe('Off');
+    expect(screen.getByTestId('calendar-todo-connect-first')).toBeTruthy();
+    expect(screen.queryByTestId('calendar-todo-enable')).toBeNull();
+  });
+
+  it('turns the sync on with a chosen list and reports the first sync', async () => {
+    mockStatus.current = status({
+      outlook: { configured: true, connected: true, enabled: true, accountEmail: 'me@outlook.com' },
+      todo: { configured: true, connected: true },
+    });
+    mockTodo.enable.mockResolvedValue({
+      fullSync: true,
+      counts: { created: 2, updated: 0, removed: 0, unchanged: 0, pushed: 3, failed: 0 },
+      syncedAt: '2030-01-01T00:00:00.000Z',
+    });
+    await renderScreen();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-enable'));
+    });
+    expect(mockTodo.listLists).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('calendar-todo-chooser')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-list-list-work'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-start'));
+    });
+    expect(mockTodo.enable).toHaveBeenCalledWith({ id: 'list-work', name: 'Work', isDefault: false });
+    expect(Alert.alert).toHaveBeenCalledWith('Microsoft To Do connected', 'Imported 2 tasks and sent 3 tasks to To Do.');
+  });
+
+  it('shows the list while on, changes it, and asks before stopping the sync', async () => {
+    mockStatus.current = status({
+      outlook: { configured: true, connected: true, enabled: true, accountEmail: 'me@outlook.com' },
+      todo: { configured: true, connected: true, enabled: true, listId: 'list-tasks', listName: 'Tasks', lastSyncAt: new Date().toISOString() },
+    });
+    await renderScreen();
+    expect(screen.getByTestId('calendar-todo-state').props.children).toBe('Syncing');
+    expect(screen.getByText('List: Tasks')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-change-list'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-list-list-work'));
+    });
+    expect(mockTodo.setList).toHaveBeenCalledWith({ id: 'list-work', name: 'Work', isDefault: false });
+
+    await act(async () => {
+      fireEvent(screen.getByTestId('calendar-todo-switch'), 'valueChange', false);
+    });
+    expect(Alert.alert).toHaveBeenCalledWith('Stop To Do sync?', expect.any(String), expect.any(Array));
+    const stop = lastAlertButtons().find((button) => button.style === 'destructive');
+    await act(async () => {
+      stop?.onPress?.();
+    });
+    expect(mockTodo.disable).toHaveBeenCalledTimes(1);
+    expect(Alert.alert).toHaveBeenLastCalledWith('To Do sync is off');
+  });
+
+  const onWithoutList = {
+    outlook: { configured: true, connected: true, enabled: true, accountEmail: 'me@outlook.com' },
+    todo: { configured: true, connected: true, enabled: true, listId: null, listName: null },
+  };
+
+  it('asks for a list while on without one instead of an empty list line, and saves the choice', async () => {
+    mockStatus.current = status(onWithoutList);
+    await renderScreen();
+    expect(screen.getByTestId('calendar-todo-state').props.children).toBe('List needed');
+    expect(screen.getByTestId('calendar-todo-needs-list').props.children).toBe('Choose a list so new tasks reach Microsoft To Do.');
+    expect(screen.queryByTestId('calendar-todo-list')).toBeNull();
+    expect(screen.getByText('Choose list')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-change-list'));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('calendar-todo-list-list-tasks'));
+    });
+    expect(mockTodo.setList).toHaveBeenCalledWith({ id: 'list-tasks', name: 'Tasks', isDefault: true });
+  });
+
+  it('asks for the list in Spanish too', async () => {
+    await i18n.changeLanguage('es');
+    mockStatus.current = status(onWithoutList);
+    await renderScreen();
+    expect(screen.getByTestId('calendar-todo-state').props.children).toBe('Falta la lista');
+    expect(screen.getByText('Elige una lista para que las tareas nuevas lleguen a Microsoft To Do.')).toBeTruthy();
+    expect(screen.getByText('Elegir lista')).toBeTruthy();
+  });
 });

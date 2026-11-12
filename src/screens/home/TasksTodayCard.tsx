@@ -1,22 +1,26 @@
 /**
- * Dashboard tasks card (client request): the day's tasks next to the day's meetings. Shows up to
- * MAX_ROWS open tasks that are due today or overdue (overdue in error color), a one-tap complete
- * toggle, the number of open tasks, and direct access to the Tasks screen. Hidden only while
- * nothing is known yet (the dashboard skeleton covers loading).
+ * Dashboard tasks card (the client's mockup): the left half of the row it shares with the quick
+ * actions. A plain block (no card, per the client) with a check icon and "Tasks" as the title, the open count as a pill,
+ * up to MAX_ROWS open tasks due today or overdue (rounded-square checkbox that completes the task
+ * on tap, one-line title, "Overdue" / due time / "Today" under it, overdue in the error color) or
+ * the empty line, "View all tasks" as a soft primary-tinted pill with an arrow at the bottom
+ * (the client asked for a quieter link than plain primary text), and the mockup's checklist
+ * picture (DASHBOARD_ART.tasks) in the corner when it exists. Hidden only while nothing is known yet (the dashboard skeleton covers loading).
  */
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { memo, type ReactElement } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { IconButton, Text, TouchableRipple } from 'react-native-paper';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from 'react-native-paper';
 
-import { Card, SectionHeader } from '../../components/ui';
+import { Icon, PressableScale } from '../../components/ui';
 import type { Task } from '../../core/types';
 import { useT } from '../../i18n';
-import { componentMetrics, spacing, useAppTheme } from '../../theme';
-import { isDueToday, isOverdue } from '../tasks/tasksModel';
+import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme, withAlpha } from '../../theme';
+import { isDueToday, isOverdue, taskDueInstant } from '../tasks/tasksModel';
 import type { Formatters } from '../shared/useFormatters';
+import { DASHBOARD_ART } from './dashboardArt';
 
 const MAX_ROWS = 3;
+const CHECK = 20;
 
 export interface TasksTodayCardProps {
   tasks: readonly Task[];
@@ -25,9 +29,10 @@ export interface TasksTodayCardProps {
   fmt: Formatters;
   onToggle(task: Task): void;
   onOpenTasks(): void;
+  style?: object;
 }
 
-function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks }: TasksTodayCardProps): ReactElement {
+function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks, style }: TasksTodayCardProps): ReactElement {
   const t = useT();
   const { colors } = useAppTheme();
   const openCount = tasks.reduce((count, task) => (task.status === 'open' ? count + 1 : count), 0);
@@ -35,18 +40,25 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
   const dueNow = tasks.filter((task) => isDueToday(task, now, deviceZone)).slice(0, MAX_ROWS);
 
   return (
-    <View testID="dashboard-tasks">
-      <SectionHeader
-        title={t('home:tasks.title')}
-        trailing={
-          <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }} testID="dashboard-tasks-count">
+    <View style={[styles.card, style]} testID="dashboard-tasks">
+      {DASHBOARD_ART.tasks ? (
+        <Image source={DASHBOARD_ART.tasks} style={styles.decoration} resizeMode="contain" accessibilityIgnoresInvertColors />
+      ) : null}
+      <View style={styles.header}>
+        <Icon name="tasks" size={componentMetrics.iconInline} color={colors.onSurface} />
+        <Text style={[styles.headerTitle, { color: colors.onSurface }]} accessibilityRole="header">
+          {t('home:tasks.title')}
+        </Text>
+        <View style={styles.flex} />
+        <View style={[styles.countPill, { backgroundColor: colors.surfaceVariant }]}>
+          <Text style={[styles.count, { color: colors.onSurfaceVariant }]} testID="dashboard-tasks-count">
             {t('home:tasks.openCount', { count: openCount })}
           </Text>
-        }
-      />
-      <Card style={styles.card} testID="dashboard-tasks-card">
+        </View>
+      </View>
+      <View style={styles.body} testID="dashboard-tasks-card">
         {dueNow.length === 0 ? (
-          <Text variant="bodyMedium" style={[styles.emptyText, { color: colors.onSurfaceVariant }]} testID="dashboard-tasks-empty">
+          <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }} testID="dashboard-tasks-empty">
             {openCount > 0 ? t('home:tasks.nothingDueToday') : t('home:tasks.empty')}
           </Text>
         ) : (
@@ -54,53 +66,45 @@ function TasksTodayCardView({ tasks, now, deviceZone, fmt, onToggle, onOpenTasks
             const overdue = isOverdue(task, now, deviceZone);
             return (
               <View key={task.id} style={styles.row}>
-                <IconButton
-                  icon="circle-outline"
-                  size={22}
-                  iconColor={overdue ? colors.error : colors.onSurfaceVariant}
+                <Pressable
                   onPress={() => onToggle(task)}
+                  hitSlop={10}
+                  style={({ pressed }) => [styles.toggle, pressed && styles.pressed]}
+                  accessibilityRole="button"
                   accessibilityLabel={t('tasks:card.complete', { title: task.title })}
-                  style={styles.toggle}
                   testID={`dashboard-task-toggle-${task.id}`}
-                />
-                <TouchableRipple
+                >
+                  <View style={[styles.check, { borderColor: overdue ? colors.error : colors.outline }]} />
+                </Pressable>
+                <PressableScale
                   onPress={onOpenTasks}
-                  style={styles.body}
+                  style={styles.texts}
                   accessibilityRole="button"
                   accessibilityLabel={t('tasks:card.open', { title: task.title })}
                   testID={`dashboard-task-${task.id}`}
                 >
-                  <View style={styles.textRow}>
-                    <Text variant="bodyMedium" numberOfLines={1} style={styles.flex}>
-                      {task.title}
-                    </Text>
-                    <Text variant="labelMedium" style={{ color: overdue ? colors.error : colors.onSurfaceVariant }}>
-                      {overdue
-                        ? t('home:tasks.overdue')
-                        : task.dueTime
-                          ? fmt.time(`${task.dueDate}T${task.dueTime}:00`)
-                          : t('home:tasks.today')}
-                    </Text>
-                  </View>
-                </TouchableRipple>
+                  <Text variant="bodyMedium" numberOfLines={1}>
+                    {task.title}
+                  </Text>
+                  <Text variant="labelSmall" style={{ color: overdue ? colors.error : colors.onSurfaceVariant }}>
+                    {overdue ? t('home:tasks.overdue') : task.dueTime ? fmt.time(taskDueInstant(task)) : t('home:tasks.today')}
+                  </Text>
+                </PressableScale>
               </View>
             );
           })
         )}
-        <TouchableRipple
-          onPress={onOpenTasks}
-          style={[styles.viewAll, { borderTopColor: colors.outlineVariant }]}
-          accessibilityRole="button"
-          testID="dashboard-tasks-all"
-        >
-          <View style={styles.viewAllRow}>
-            <Text variant="labelLarge" style={{ color: colors.primary }}>
-              {t('home:tasks.viewAll')}
-            </Text>
-            <MaterialCommunityIcons name="chevron-right" size={componentMetrics.iconMeta} color={colors.primary} />
-          </View>
-        </TouchableRipple>
-      </Card>
+      </View>
+      <Pressable
+        onPress={onOpenTasks}
+        hitSlop={8}
+        style={({ pressed }) => [styles.viewAll, { backgroundColor: withAlpha(colors.primary, 0.1) }, pressed && styles.pressed]}
+        accessibilityRole="button"
+        testID="dashboard-tasks-all"
+      >
+        <Text style={[styles.viewAllText, { color: colors.onPrimaryContainer }]}>{t('home:tasks.viewAll')}</Text>
+        <Icon name="forward" size={componentMetrics.iconMeta} color={colors.onPrimaryContainer} />
+      </Pressable>
     </View>
   );
 }
@@ -111,44 +115,74 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  // The shared Card surface (same as the meetings and alerts cards); only local tweaks here.
   card: {
-    paddingTop: spacing.xs,
-    paddingBottom: 0,
-    paddingHorizontal: 0,
+    paddingVertical: spacing.xs,
+    paddingRight: spacing.sm,
     overflow: 'hidden',
   },
-  emptyText: {
-    paddingHorizontal: componentMetrics.cardPadding,
-    paddingVertical: spacing.md,
+  decoration: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    width: 96,
+    height: 96,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  headerTitle: {
+    ...typography.titleM,
+    marginLeft: spacing.xs,
+  },
+  countPill: {
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  count: {
+    ...typography.labelS,
+  },
+  body: {
+    flex: 1,
+    marginTop: spacing.sm,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 40,
   },
   toggle: {
-    margin: 0,
-    marginLeft: spacing.xs,
+    width: 32,
+    height: 40,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
-  body: {
+  check: {
+    width: CHECK,
+    height: CHECK,
+    borderRadius: radii.xs,
+    borderWidth: 2,
+  },
+  texts: {
     flex: 1,
-    paddingVertical: spacing.sm,
-    paddingRight: componentMetrics.cardPadding,
+    paddingVertical: spacing.xs,
   },
-  textRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
+  pressed: {
+    opacity: pressedDimOpacity,
   },
   viewAll: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    marginTop: spacing.xs,
-  },
-  viewAllRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: componentMetrics.touchTargetMin,
+    alignSelf: 'flex-start',
     gap: spacing.xs,
+    marginTop: spacing.md,
+    minHeight: 32,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.full,
+  },
+  viewAllText: {
+    ...typography.labelM,
   },
 });

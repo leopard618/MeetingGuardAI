@@ -43,6 +43,8 @@ const WRITE_ORIGIN_SET: Record<WriteOrigin, true> = {
   calendar_google: true,
   calendar_device: true,
   calendar_outlook: true,
+  tasks_todo: true,
+  tasks_gtasks: true,
   migration: true,
   system: true,
 };

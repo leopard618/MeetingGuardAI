@@ -24,11 +24,14 @@ import { defineBoolean, defineSecret } from 'firebase-functions/params';
 
 import { FUNCTIONS_REGION } from '../config';
 import { adminDb } from '../firebase';
+import { withStartedAt } from '../shared/entitlement';
 import {
+  billingFromEvent,
   entitlementFromEvent,
   isAnonymousAppUserId,
   planFromEvent,
   revenueCatWebhookBodySchema,
+  type BillingInfo,
   type EntitlementWrite,
   type RevenueCatEvent,
 } from './mapping';
@@ -74,6 +77,10 @@ export interface EntitlementTarget {
   uid: string;
   write: EntitlementWrite;
   eventTimestampMs: number | null;
+  /** The store's purchase time (purchased_at_ms): the candidate `startedAt` of a new subscription. */
+  purchasedAtIso?: string | null;
+  /** Stored as entitlements/{uid}.billing for the admin revenue view (extra key; the app's parser ignores it). */
+  billing?: BillingInfo;
 }
 
 export type WebhookDecision =
@@ -87,6 +94,9 @@ export type WebhookDecision =
       writes: EntitlementTarget[];
     };
 
+/** RevenueCat `store` values of Apple's stores (PRODUCT_CHANGE there is informative only). */
+const APPLE_STORES: ReadonlySet<string> = new Set(['APP_STORE', 'MAC_APP_STORE']);
+
 function firstUsableUid(ids: readonly string[] | null | undefined): string | null {
   for (const id of ids ?? []) {
     if (typeof id === 'string' && !isAnonymousAppUserId(id) && SAFE_DOC_ID.test(id)) return id;
@@ -95,6 +105,9 @@ function firstUsableUid(ids: readonly string[] | null | undefined): string | nul
 }
 
 function markerOf(event: RevenueCatEvent, now: Date): Record<string, unknown> {
+  // The billing fields feed the admin revenue view (functions/src/admin/revenue.ts); they are
+  // facts about the event, never inputs to the entitlement decision.
+  const billing = billingFromEvent(event);
   return {
     type: event.type,
     appUserId: event.app_user_id ?? null,
@@ -102,6 +115,14 @@ function markerOf(event: RevenueCatEvent, now: Date): Record<string, unknown> {
     store: event.store ?? null,
     eventTimestampMs: event.event_timestamp_ms ?? null,
     receivedAt: now.toISOString(),
+    plan: planFromEvent(event),
+    productId: billing.productId,
+    periodType: billing.periodType,
+    cancelReason: event.cancel_reason ?? null,
+    expirationReason: event.expiration_reason ?? null,
+    isTrialConversion: event.is_trial_conversion ?? null,
+    priceUsd: billing.priceUsd,
+    currency: billing.currency,
   };
 }
 
@@ -142,8 +163,9 @@ export function decideWebhook(body: unknown, now: Date, options: { allowSandbox?
       typeof event.expiration_at_ms === 'number' && Number.isFinite(event.expiration_at_ms)
         ? new Date(event.expiration_at_ms).toISOString()
         : null;
+    const billing = billingFromEvent(event);
     const writes: EntitlementTarget[] = [
-      { uid: toUid, write: { plan, status: 'active', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs },
+      { uid: toUid, write: { plan, status: 'active', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs, billing, ...purchasedAtOf(event) },
     ];
     if (fromUid !== null && fromUid !== toUid) {
       writes.push({ uid: fromUid, write: { plan, status: 'expired', expiresAt, source: 'revenuecat', updatedAt }, eventTimestampMs });
@@ -156,9 +178,31 @@ export function decideWebhook(body: unknown, now: Date, options: { allowSandbox?
   if (isAnonymousAppUserId(appUserId)) return { kind: 'ignored', reason: 'anonymous_app_user_id', ...base };
   if (!SAFE_DOC_ID.test(appUserId)) return { kind: 'ignored', reason: 'invalid_app_user_id', ...base };
 
+  // App Store PRODUCT_CHANGE is informative: RevenueCat documents that it "does not mean that the
+  // product change has gone into effect", and on Apple a RENEWAL follows when it does, carrying
+  // the new product. The event's expiration_at_ms is the OLD product's, so writing it could put
+  // an upgraded user back on the old plan when it lands after that RENEWAL (Francisco's TestFlight
+  // switch of November 9 2026 arrived after the RENEWAL). The marker still records it for the
+  // revenue view; the entitlement is left to the RENEWAL (or an admin Reconcile).
+  if (event.type === 'PRODUCT_CHANGE' && APPLE_STORES.has((event.store ?? '').toUpperCase())) {
+    return { kind: 'apply', ...base, marker: markerOf(event, now), writes: [] };
+  }
+
   const write = entitlementFromEvent(event, now);
   if (write === null) return { kind: 'ignored', reason: 'unhandled_type_or_plan', ...base };
-  return { kind: 'apply', ...base, marker: markerOf(event, now), writes: [{ uid: appUserId, write, eventTimestampMs }] };
+  return {
+    kind: 'apply',
+    ...base,
+    marker: markerOf(event, now),
+    writes: [{ uid: appUserId, write, eventTimestampMs, billing: billingFromEvent(event), ...purchasedAtOf(event) }],
+  };
+}
+
+/** `purchasedAtIso` for the target when the event carries purchased_at_ms (absent otherwise). */
+function purchasedAtOf(event: { purchased_at_ms?: number | null }): { purchasedAtIso?: string } {
+  return typeof event.purchased_at_ms === 'number' && Number.isFinite(event.purchased_at_ms)
+    ? { purchasedAtIso: new Date(event.purchased_at_ms).toISOString() }
+    : {};
 }
 
 /**
@@ -285,8 +329,14 @@ export function firestoreRevenueCatStore(): RevenueCatStore {
             continue;
           }
           // eventTimestampMs is persisted for the next comparison; the app's entitlement
-          // parser (z.object, non-strict) ignores the extra key.
-          tx.set(ref, { ...target.write, eventTimestampMs: target.eventTimestampMs });
+          // parser (z.object, non-strict) ignores the extra keys. startedAt (the subscription
+          // start the monthly AI allowance renews on) survives renewals and is reset by a new
+          // subscription (shared/entitlement.ts withStartedAt).
+          tx.set(ref, {
+            ...withStartedAt(stored[index]?.data(), target.write, target.purchasedAtIso ?? target.write.updatedAt),
+            eventTimestampMs: target.eventTimestampMs,
+            ...(target.billing ? { billing: target.billing } : {}),
+          });
         }
         return 'applied' as const;
       });

@@ -1,47 +1,56 @@
 /**
- * Dashboard (route "Dashboard", the Main group's first screen):
- * - greeting in the UI language, offline banner (data-layer connectivity, NetInfo-based);
- * - next meeting (and the one happening now) with a live countdown, Join (real links only) and
- *   Details;
- * - quick actions (new meeting, new with AI, WhatsApp "coming soon");
- * - today's timeline with overlaps and back-to-back meetings highlighted;
- * - alert status (switch, intensity, next alert, permission, exact alarms, Do Not Disturb) linking
- *   to Settings > Alerts;
- * - insights computed on the device, "Ask the assistant" and the full insights screen.
- * Pull to refresh flushes the outbox, re-reads the meetings and runs a calendar sync.
- *
- * MG Indigo hierarchy: greeting headlineL, ONE focal card (NextMeetingCard, primaryContainer),
- * everything else neutral Cards under sentence-case SectionHeaders. A load failure with nothing
- * cached shows ErrorState; cached content + failure shows an error Banner (ARCHITECTURE §13).
+ * Dashboard (route "Dashboard", the Main group's first screen), laid out after the client's mockup
+ * of November 1, 2026:
+ * - a FIXED top bar over the list (DashboardTopBar: menu, logo and wordmark, language pill),
+ *   transparent over the hero and solid once the list has scrolled past it; the stack header is
+ *   hidden on this screen;
+ * - the hero (DashboardHero): the scheme's artwork with the greeting (day part, first name, date);
+ * - the next-meeting card pulled up over the hero: the meeting happening now (if any) and the
+ *   next one with a live countdown, Join (real links only), Details, "Running late" (M9 sheet)
+ *   and, on the running meeting, "End now";
+ * - one row: the tasks card (left) beside the 2 x 2 quick actions (right);
+ * - "Today": the timeline with overlaps and back-to-back meetings highlighted, or one empty card
+ *   with a New meeting button;
+ * - "Your week": the weekly summary (bars, this week vs. last week, what deserves a look).
+ * The assistant is the floating button (AssistantFab), so the dashboard carries no banner.
+ * Pull to refresh flushes the outbox, re-reads the meetings and runs a calendar sync. A load
+ * failure with nothing cached shows ErrorState; cached content + failure shows an error Banner
+ * (ARCHITECTURE §13). No decoration beyond the mockup, no motion.
  */
 import type { StackScreenProps } from '@react-navigation/stack';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { FlatList, Linking, StyleSheet, View, type ListRenderItem } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { Alert, FlatList, Linking, StyleSheet, View, type ListRenderItem, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { Banner, EmptyState, ErrorState, SectionHeader, Skeleton } from '../../components/ui';
+import { Banner, Card, ErrorState, Icon, MGButton, Skeleton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
-import { getDeviceTimeZone, getZonedParts } from '../../core/time';
+import { addDaysToLocalDate, getDeviceTimeZone, getZonedParts, todayInZone } from '../../core/time';
 import type { Meeting, Task } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import { calendarSyncEngine } from '../../services/calendar';
-import { useMeetings, usePreferences, useTasks } from '../../services/data';
-import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
-import { computeDashboardSummary, weekStartForLanguage, type InsightContext } from '../insights/meetingInsights';
+import { useMeetings, useTasks } from '../../services/data';
+import { componentMetrics, radii, spacing, typography, useAppTheme } from '../../theme';
+import { computeDashboardSummary, computePeriodInsights, weekStartForLanguage, type InsightContext, type LoadSummary } from '../insights/meetingInsights';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters } from '../shared/useFormatters';
-import { AlertStatusCard } from './AlertStatusCard';
-import { displayKeyOf, displayWindowAround, expandMeetingsForDisplay } from '../meetings/occurrences';
-import { buildTodayTimeline, dayPeriodOf, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
+import { needsEmailVerification } from '../shared/VerifyEmailBanner';
+import { CARD_OVERLAP, DashboardHero } from './DashboardHero';
+import { DashboardTopBar } from './DashboardTopBar';
+import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay, type DisplayMeeting } from '../meetings/occurrences';
+import { endNowWrite } from '../meetings/runningLate';
+import { openRunningLate } from '../meetings/RunningLateSheet';
+import { applyScopedWrite } from '../meetings/scopedWrite';
+import { buildTodayTimeline, dayPeriodOf, findNextAllDay, findNowAndNext, firstNameOf, type TimelineItem } from './homeModel';
 import { InsightsSummaryCard } from './InsightsSummaryCard';
 import { NextMeetingCard } from './NextMeetingCard';
 import { OfflineBanner } from './OfflineBanner';
 import { QuickActions } from './QuickActions';
+import { SetupCard, useSetupStep } from './SetupCard';
 import { TasksTodayCard } from './TasksTodayCard';
 import { TodayTimelineRow } from './TodayTimelineRow';
 import { useLiveNow } from '../shared/useLiveNow';
@@ -51,33 +60,35 @@ const log = createLogger('home');
 type Props = StackScreenProps<RootStackParamList, 'Dashboard'>;
 
 /**
- * How far the dashboard expands recurring meetings: the summary's "this week" needs the whole
- * calendar week (up to 6 days back), today's timeline needs today, and "next" up to a year ahead.
+ * How far the dashboard expands recurring meetings: the week card compares this calendar week
+ * with the previous one (up to 13 days back), today's timeline needs today, and "next" up to a
+ * year ahead.
  */
-const DASHBOARD_PAST_DAYS = 7;
+const DASHBOARD_PAST_DAYS = 14;
 const DASHBOARD_FUTURE_DAYS = 370;
+const DAY_MS = 86_400_000;
+/** Scroll offset (dp) past which the fixed top bar turns solid (the greeting has left the screen). */
+const TOP_BAR_SOLID_OFFSET = 160;
 
-function Greeting({ now, timeZone }: { now: Date; timeZone: string }): ReactElement {
-  const t = useT();
-  const { colors } = useAppTheme();
-  const fmt = useFormatters();
-  const { authUser } = useAuth();
-  const name = firstNameOf(authUser?.displayName);
+/** "Good morning" (day part in the UI language) and the first name for the hero. */
+export function greetingParts(now: Date, timeZone: string, displayName: string | null | undefined, t: ReturnType<typeof useT>): { salute: string; name: string | null } {
   let hour = now.getHours();
   try {
     hour = getZonedParts(now, timeZone).hour;
   } catch {
     // Keep the runtime's hour.
   }
-  const period = dayPeriodOf(hour);
+  return { salute: t(`home:greeting.${dayPeriodOf(hour)}NoName`), name: firstNameOf(displayName) };
+}
+
+function SectionTitle({ title, trailing }: { title: string; trailing?: ReactNode }): ReactElement {
+  const { colors } = useAppTheme();
   return (
-    <View style={styles.greeting}>
-      <Text variant="headlineLarge" accessibilityRole="header" testID="dashboard-greeting">
-        {name ? t(`home:greeting.${period}`, { name }) : t(`home:greeting.${period}NoName`)}
+    <View style={styles.sectionTitle}>
+      <Text style={[styles.sectionTitleText, { color: colors.onSurface }]} accessibilityRole="header">
+        {title}
       </Text>
-      <Text variant="bodyMedium" style={[styles.greetingDate, { color: colors.onSurfaceVariant }]}>
-        {capitalizeFirst(fmt.date(now, 'full'))}
-      </Text>
+      {trailing ?? null}
     </View>
   );
 }
@@ -89,12 +100,17 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   const { language } = useLanguage();
   const { meetings, isLoading, error, refresh } = useMeetings();
   const { tasks, update: updateTask } = useTasks();
-  const { preferences } = usePreferences();
+  const { authUser } = useAuth();
   const fmt = useFormatters();
   const now = useLiveNow(30_000);
   const timeZone = getDeviceTimeZone();
   const [refreshing, setRefreshing] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const mounted = useRef(true);
+  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const past = event.nativeEvent.contentOffset.y > TOP_BAR_SOLID_OFFSET;
+    setScrolled((current) => (current === past ? current : past));
+  }, []);
 
   useEffect(() => {
     mounted.current = true;
@@ -105,21 +121,66 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
 
   const context = useMemo<InsightContext>(() => ({ now, timeZone, weekStartsOn: weekStartForLanguage(language) }), [now, timeZone, language]);
   // Recurring meetings appear as their occurrences (today's timeline, next meeting; occurrences.ts).
-  const displayMeetings = useMemo(
-    () => expandMeetingsForDisplay(meetings, displayWindowAround(now, timeZone, DASHBOARD_PAST_DAYS, DASHBOARD_FUTURE_DAYS)),
-    [meetings, timeZone, now],
+  // The window only moves with the local DAY, so the expansion is keyed on it, not on the 30 s clock.
+  const todayKey = todayInZone(timeZone, now);
+  const displayWindow = useMemo(
+    () => displayWindowForDays(addDaysToLocalDate(todayKey, -DASHBOARD_PAST_DAYS + 1), addDaysToLocalDate(todayKey, DASHBOARD_FUTURE_DAYS - 1), timeZone),
+    [todayKey, timeZone],
   );
+  const displayMeetings = useMemo(() => expandMeetingsForDisplay(meetings, displayWindow), [meetings, displayWindow]);
   const timeline = useMemo(() => buildTodayTimeline(displayMeetings, context), [displayMeetings, context]);
   // The summary counts the same occurrence rows the timeline shows (a weekly series counts every
   // occurrence of this week, not just its stored master).
   const summary = useMemo(() => computeDashboardSummary(displayMeetings, context), [displayMeetings, context]);
+  // Per-day load of the current week for the week card's chart, and last week for the comparison.
+  const week = useMemo(() => computePeriodInsights(displayMeetings, 'week', context), [displayMeetings, context]);
+  const lastWeek = useMemo<LoadSummary>(() => {
+    const previous = computePeriodInsights(displayMeetings, 'week', { ...context, now: new Date(context.now.getTime() - 7 * DAY_MS) });
+    return { count: previous.count, minutes: previous.totalMinutes };
+  }, [displayMeetings, context]);
   const { current, next } = useMemo(() => findNowAndNext(displayMeetings, now), [displayMeetings, now]);
+  const nextAllDay = useMemo(() => findNextAllDay(displayMeetings, context, next), [displayMeetings, context, next]);
+  // Section 34: one recommended setup step. Above the empty meetings card (it explains why the
+  // list is empty), below the next meeting otherwise (the meeting is why the app was opened).
+  const setup = useSetupStep(authUser?.uid ?? null, needsEmailVerification(authUser), now);
+  const meetingsEmpty = !current && !next && !nextAllDay;
+  const openCalendarSync = useCallback(() => navigation.navigate('CalendarSync'), [navigation]);
   // Nothing could be read (first launch offline, permission denied): say so instead of showing
   // "no meetings" empty states next to the error (a failure is not an empty list).
   const loadFailed = error !== null && !isLoading && meetings.length === 0;
   const showData = !isLoading && !loadFailed;
 
   const openMeeting = useCallback((meeting: Meeting) => navigation.navigate('MeetingDetails', { meetingId: meeting.id }), [navigation]);
+  // M9: the card's rows are display rows (one occurrence of a series); the sheet gets the row's start.
+  const runningLate = useCallback((meeting: Meeting) => openRunningLate({ meetingId: meeting.id, startAt: meeting.startAt }), []);
+  const endNow = useCallback(
+    (meeting: Meeting) => {
+      const row = meeting as DisplayMeeting;
+      Alert.alert(
+        t('meetings:endNow.title', { title: meeting.title }),
+        row.occurrence !== undefined && row.recurrence !== null ? t('meetings:endNow.messageSeries') : t('meetings:endNow.message'),
+        [
+          { text: t('common:actions.cancel'), style: 'cancel' },
+          {
+            text: t('meetings:endNow.confirm'),
+            onPress: () => {
+              const write = endNowWrite(row, new Date());
+              if (write === null) return;
+              applyScopedWrite(write)
+                .then(() => Toast.show({ type: 'success', text1: t('meetings:endNow.ended') }))
+                .catch((caught: unknown) => {
+                  const error = toAppError(caught);
+                  log.warn('could not end the running meeting', error.code);
+                  Toast.show({ type: 'error', text1: t(errorMessageKey(error.code)) });
+                });
+            },
+          },
+        ],
+        { cancelable: true },
+      );
+    },
+    [t],
+  );
 
   const completeTask = useCallback(
     (task: Task): void => {
@@ -163,45 +224,78 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
   }, [refresh, t]);
 
   const renderItem = useCallback<ListRenderItem<TimelineItem>>(
-    ({ item, index }) => <TodayTimelineRow item={item} isLast={index === timeline.length - 1} onOpen={openMeeting} />,
+    ({ item, index }) => <TodayTimelineRow item={item} isFirst={index === 0} isLast={index === timeline.length - 1} onOpen={openMeeting} />,
     [openMeeting, timeline.length],
   );
 
+  const greeting = greetingParts(now, timeZone, authUser?.displayName, t);
   const header = (
     <View>
-      <Greeting now={now} timeZone={timeZone} />
-      <OfflineBanner />
-      {error ? (
-        loadFailed ? (
-          <ErrorState body={t('home:loadError', { reason: t(errorMessageKey(error.code)) })} onRetry={() => void onRefresh()} testID="dashboard-error" />
-        ) : (
-          <Banner
-            tone="error"
-            text={t('home:loadError', { reason: t(errorMessageKey(error.code)) })}
-            action={{ label: t('common:actions.retry'), onPress: () => void onRefresh() }}
-            style={styles.errorBanner}
-            testID="dashboard-error"
+      <DashboardHero salute={greeting.salute} name={greeting.name} dateText={capitalizeFirst(fmt.date(now, 'full'))} />
+      <View style={styles.overlap}>
+        <OfflineBanner />
+        {error ? (
+          loadFailed ? (
+            <ErrorState body={t('home:loadError', { reason: t(errorMessageKey(error.code)) })} onRetry={() => void onRefresh()} testID="dashboard-error" />
+          ) : (
+            <Banner
+              tone="error"
+              text={t('home:loadError', { reason: t(errorMessageKey(error.code)) })}
+              action={{ label: t('common:actions.retry'), onPress: () => void onRefresh() }}
+              style={styles.errorBanner}
+              testID="dashboard-error"
+            />
+          )
+        ) : null}
+        {showData && setup.step && meetingsEmpty ? (
+          <SetupCard step={setup.step} placement="above" onOpenCalendarSync={openCalendarSync} onDismiss={setup.dismiss} />
+        ) : null}
+        {showData ? (
+          <NextMeetingCard
+            current={current}
+            next={next}
+            nextAllDay={nextAllDay}
+            onOpen={openMeeting}
+            onJoin={join}
+            onRunningLate={runningLate}
+            onEndNow={endNow}
+            onConnectCalendar={setup.calendarStepSnoozed ? openCalendarSync : null}
           />
-        )
-      ) : null}
-      {showData ? <NextMeetingCard current={current} next={next} onOpen={openMeeting} onJoin={join} /> : null}
-      <QuickActions
-        onNewManual={() => navigation.navigate('CreateMeeting')}
-        onNewWithAi={() => navigation.navigate('AIChat')}
-        onWhatsApp={() => navigation.navigate('WhatsAppConnect')}
-      />
-      {loadFailed ? null : (
-        <SectionHeader
-          title={t('home:today.title')}
-          trailing={
-            showData ? (
-              <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }} testID="today-count">
-                {t('home:today.count', { count: summary.today.count })}
-              </Text>
-            ) : null
-          }
-        />
-      )}
+        ) : null}
+        {showData && setup.step && !meetingsEmpty ? (
+          <SetupCard step={setup.step} placement="below" onOpenCalendarSync={openCalendarSync} onDismiss={setup.dismiss} />
+        ) : null}
+        <View style={styles.split}>
+          <TasksTodayCard
+            tasks={tasks}
+            now={now}
+            deviceZone={timeZone}
+            fmt={fmt}
+            onToggle={completeTask}
+            onOpenTasks={() => navigation.navigate('Tasks')}
+            style={styles.tasksHalf}
+          />
+          <QuickActions
+            onNewManual={() => navigation.navigate('CreateMeeting')}
+            onNewWithAi={() => navigation.navigate('AIChat')}
+            onWhatsApp={() => navigation.navigate('WhatsAppConnect')}
+            onNotes={() => navigation.navigate('Notes')}
+            style={styles.actionsHalf}
+          />
+        </View>
+        {loadFailed ? null : (
+          <SectionTitle
+            title={t('home:today.title')}
+            trailing={
+              showData ? (
+                <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }} testID="today-count">
+                  {t('home:today.count', { count: summary.today.count })}
+                </Text>
+              ) : null
+            }
+          />
+        )}
+      </View>
     </View>
   );
 
@@ -213,70 +307,125 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
       <Skeleton width="100%" height={72} radius={radii.md} style={styles.skeletonRow} />
     </View>
   ) : loadFailed ? null : (
-    <EmptyState
-      icon="calendar-blank-outline"
-      title={t('home:today.empty')}
-      body={t('home:today.emptyHint')}
-      action={{ label: t('home:today.create'), onPress: () => navigation.navigate('CreateMeeting') }}
-      testID="today-empty"
-    />
+    <Card style={styles.todayEmpty} testID="today-empty">
+      <View style={[styles.todayEmptyIcon, { backgroundColor: colors.primaryContainer }]}>
+        <Icon name="calendar" size={componentMetrics.iconNav} color={colors.primary} />
+      </View>
+      <View style={styles.todayEmptyTexts}>
+        <Text variant="titleMedium" numberOfLines={1}>
+          {t('home:today.empty')}
+        </Text>
+        <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }} numberOfLines={2}>
+          {t('home:today.emptyHint')}
+        </Text>
+      </View>
+      <MGButton variant="outline" size="sm" icon="plus" onPress={() => navigation.navigate('CreateMeeting')} testID="today-empty-action">
+        {t('home:today.create')}
+      </MGButton>
+    </Card>
   );
 
   const footer = isLoading ? null : (
     <View>
       {loadFailed ? null : (
-        <TasksTodayCard
-          tasks={tasks}
-          now={now}
-          deviceZone={timeZone}
-          fmt={fmt}
-          onToggle={completeTask}
-          onOpenTasks={() => navigation.navigate('Tasks')}
-        />
-      )}
-      <AlertStatusCard preferences={preferences} meetings={meetings} now={now} onOpenSettings={() => navigation.navigate('AlertSettings')} />
-      {loadFailed ? null : (
-        <InsightsSummaryCard
-          summary={summary}
-          onAskAssistant={() => navigation.navigate('AIChat', { prefill: t('home:insights.askPrompt') })}
-          onSeeAll={() => navigation.navigate('AIInsights')}
-        />
+        <>
+          <SectionTitle
+            title={t('home:insights.title')}
+            trailing={
+              <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }} testID="week-meta">
+                {`${t('home:insights.meetings', { count: summary.week.count })} · ${t('home:insights.total', { duration: fmt.duration(summary.week.minutes) })}`}
+              </Text>
+            }
+          />
+          <InsightsSummaryCard
+            summary={summary}
+            lastWeek={lastWeek}
+            days={week.days}
+            todayDate={todayKey}
+            locale={language === 'es' ? 'es-ES' : 'en-US'}
+            onSeeAll={() => navigation.navigate('AIInsights')}
+          />
+        </>
       )}
     </View>
   );
 
   return (
-    <FlatList
-      data={showData ? timeline : []}
-      keyExtractor={(item) => displayKeyOf(item.meeting)}
-      renderItem={renderItem}
-      ListHeaderComponent={header}
-      ListEmptyComponent={empty}
-      ListFooterComponent={footer}
-      refreshing={refreshing}
-      onRefresh={() => void onRefresh()}
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
-      testID="dashboard-list"
-    />
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <FlatList
+        data={showData ? timeline : []}
+        keyExtractor={(item) => displayKeyOf(item.meeting)}
+        renderItem={renderItem}
+        ListHeaderComponent={header}
+        ListEmptyComponent={empty}
+        ListFooterComponent={footer}
+        refreshing={refreshing}
+        onRefresh={() => void onRefresh()}
+        onScroll={onScroll}
+        scrollEventThrottle={32}
+        progressViewOffset={insets.top + componentMetrics.headerMinHeight}
+        style={styles.screen}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
+        testID="dashboard-list"
+      />
+      <DashboardTopBar scrolled={scrolled} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
   content: {
     paddingHorizontal: componentMetrics.screenGutter,
-    paddingTop: spacing.md,
   },
-  greeting: {
-    marginBottom: spacing.md,
+  overlap: {
+    marginTop: -CARD_OVERLAP,
   },
-  greetingDate: {
+  split: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xl,
+    marginTop: spacing.xl,
+  },
+  tasksHalf: {
+    flex: 1,
+  },
+  actionsHalf: {
     marginTop: spacing.xs,
+  },
+  sectionTitle: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginTop: spacing.xxxl,
+    marginBottom: spacing.lg,
+  },
+  sectionTitleText: {
+    ...typography.headlineS,
+    flexShrink: 1,
   },
   errorBanner: {
     marginBottom: spacing.md,
   },
   skeletonRow: {
     marginBottom: spacing.sm,
+  },
+  todayEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  todayEmptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  todayEmptyTexts: {
+    flex: 1,
   },
 });

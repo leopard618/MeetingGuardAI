@@ -283,6 +283,47 @@ APIs & Services -> Library -> "Google Calendar API" -> **Enable**. The gcloud co
 gcloud services enable calendar-json.googleapis.com --project <project-id>
 ```
 
+### 4.6 Google Tasks API and scope (V2 Stage 2, M8)
+
+Google Tasks two-way sync (docs/v1/ARCHITECTURE.md §30) uses the Google account the user signed in
+with and one more sensitive scope, requested incrementally when the user turns the sync on.
+
+1. **Enable the API**: APIs & Services -> Library -> "Google Tasks API" -> **Enable**
+   (<https://console.cloud.google.com/apis/library/tasks.googleapis.com>), or:
+
+   ```bash
+   gcloud services enable tasks.googleapis.com --project <project-id>
+   ```
+
+2. **Add the scope to the consent screen**: Google Auth Platform -> Data access
+   (<https://console.cloud.google.com/auth/scopes>) -> Add or remove scopes -> tick
+   `https://www.googleapis.com/auth/tasks` ("Create, edit, organize, and delete all your tasks") ->
+   Update -> Save. It is a **sensitive** scope: the app works right away for the test users listed
+   under Audience (and for everyone while the app is in Testing with at most 100 users), and shows
+   Google's "unverified app" interstitial to other users until the scope is verified.
+
+3. **Verification** (same procedure as `calendar.events` in §4.4): submit the new scope for
+   review with a short justification ("the user chooses to sync the tasks they create in the app
+   with a Google Tasks list of their own account; the app reads and writes only that list") and a
+   screencast showing the Google Tasks card in Settings -> Calendar sync, the consent screen with
+   the Tasks scope, a task created in the app appearing in Google Tasks and the other way round.
+   Google answers in days to weeks.
+
+4. **Feature switch**: the Google Tasks card is visible unless the build sets
+
+   ```bash
+   EXPO_PUBLIC_GOOGLE_TASKS_SYNC=off
+   ```
+
+   Keep it unset (on) for development and test APKs; set it to `off` in the EAS production
+   environment (§5.2) until Google approves the scope, then remove it and ship a new build. No
+   Firebase or functions change is needed for the switch.
+
+5. **Firestore rules**: the task documents and preferences gained Google Tasks fields
+   (`external.gtasksListId/gtasksTaskId/gtasksUpdatedAt`, `preferences.gtasksListId/gtasksListName`).
+   Deploy the rules with the build (`npm run deploy:rules` in `functions/`, §6.4); older rules
+   reject the first task write with a Google Tasks link as `permission_denied`.
+
 ---
 
 ## 5. EAS (Expo)
@@ -436,6 +477,9 @@ FUNCTIONS_REGION=us-central1
 OPENAI_MODEL=gpt-5.4-mini
 OPENAI_REASONING_EFFORT=low
 ASSISTANT_GLOBAL_DAILY_LIMIT=5000
+# Sign in with Microsoft (§10.6); empty = disabled
+MICROSOFT_CLIENT_ID=
+MICROSOFT_TENANT=common
 ```
 
 | Param | Meaning |
@@ -689,8 +733,10 @@ client secret are needed (the app is a public client using PKCE).
 ### 10.2 Permissions
 
 Open **API permissions**. `User.Read` is present by default; add **Microsoft Graph -> Delegated
-permissions -> `Calendars.ReadWrite`**, plus `offline_access`, `openid` and `profile` if they are
-not already listed. These are all delegated permissions that the user consents to at sign-in;
+permissions -> `Calendars.ReadWrite`** and **`Tasks.ReadWrite`** (Microsoft To Do, Stage 2 M7: the
+app requests both at sign-in; a consent granted without `Tasks.ReadWrite` must be redone by
+stopping the Outlook sync and connecting again), plus `offline_access`, `openid` and
+`profile` if they are not already listed. These are all delegated permissions that the user consents to at sign-in;
 **Grant admin consent** is NOT required for personal accounts or the `common` audience.
 
 Under **Authentication**, confirm the redirect URI is listed under "Mobile and desktop
@@ -715,12 +761,13 @@ Both values are public identifiers (like the Google client IDs): they may appear
 
 - Sign-in: expo-auth-session PKCE against
   `https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize`, scopes `openid profile
-  offline_access User.Read Calendars.ReadWrite`. The Microsoft account is independent of the
-  app's Google/Firebase sign-in.
+  offline_access User.Read Calendars.ReadWrite Tasks.ReadWrite`. The Microsoft account is
+  independent of the app's Google/Firebase sign-in.
 - Only the refresh token is stored, in expo-secure-store (`mg.ms.refresh.{uid}`); it is deleted on
   disconnect and at sign-out. Access tokens stay in memory.
 - Sync: `/me/calendarView/delta` pull + create/patch/delete push on the account's default
-  calendar. "Stop sync and review access" opens <https://account.live.com/consent/Manage>
+  calendar; tasks: `/me/todo/lists/{id}/tasks/delta` pull + create/patch/delete push on the
+  chosen To Do list (ARCHITECTURE §28). "Stop sync and review access" opens <https://account.live.com/consent/Manage>
   (work/school accounts use <https://myapps.microsoft.com>), because Graph offers no programmatic
   consent revoke.
 
@@ -732,6 +779,56 @@ Both values are public identifiers (like the Google client IDs): they may appear
       account and "Connected".
 - [ ] "Sync now" reports an Outlook line; an event created in Outlook on the web appears in
       MeetingGuard within one sync, and a meeting created in MeetingGuard appears in Outlook.
+- [ ] The "Microsoft To Do" card appears under the Outlook card; "Sync tasks with To Do" lists the
+      account's lists and, once started, a task created in the app appears in the chosen list.
+
+### 10.6 Continue with Microsoft (sign-in; docs/v1/ARCHITECTURE.md §31)
+
+The same registration also signs users IN to the app ("Continue with Microsoft" on the Landing
+screen). The app sends the Microsoft id_token to the `microsoftSignIn` function, which verifies it
+and answers with a Firebase custom token; no Firebase console provider is needed and no secret.
+
+1. **Azure**: nothing new when §10.1 and §10.2 are done. The sign-in asks only for `openid profile
+   email` (the `email` permission is in the registration's defaults; add **Microsoft Graph ->
+   Delegated -> email** if it is missing). Optional, recommended for work and school accounts:
+   **Token configuration -> Add optional claim -> ID -> xms_edov** ("email domain owner verified"),
+   which lets such a sign-in join an existing account with the same address instead of asking the
+   user to verify the email.
+2. **Functions**: add the client id to `functions/.env.<project-id>` (§6.3) and deploy:
+
+   ```dotenv
+   MICROSOFT_CLIENT_ID=00000000-0000-0000-0000-000000000000
+   MICROSOFT_TENANT=common
+   ```
+
+   Both must equal `EXPO_PUBLIC_MSAL_CLIENT_ID` / `EXPO_PUBLIC_MSAL_TENANT` of the app build. An
+   empty `MICROSOFT_CLIENT_ID` keeps the function deployed but disabled (the app shows "Microsoft
+   sign-in isn't set up").
+3. **Firestore rules**: the `microsoftIdentities` collection is server-only; deploy the rules with
+   the build (`npm run deploy:rules`).
+4. **IAM, once per project**: minting the Firebase custom token needs the
+   `iam.serviceAccounts.signBlob` permission, which the functions' runtime service account
+   (`<project-number>-compute@developer.gserviceaccount.com`, shown under Cloud Functions ->
+   microsoftSignIn -> Details) does not have by default. Without it every sign-in fails with
+   "The service isn't responding right now" and the function log says "Permission
+   iam.serviceAccounts.signBlob denied". Grant the account the **Service Account Token Creator**
+   role on itself:
+
+   ```bash
+   gcloud iam service-accounts add-iam-policy-binding <project-number>-compute@developer.gserviceaccount.com \n     --member="serviceAccount:<project-number>-compute@developer.gserviceaccount.com" \n     --role="roles/iam.serviceAccountTokenCreator" --project <project-id>
+   ```
+
+   or in the console: IAM & Admin -> IAM -> edit that principal -> add role "Service Account Token
+   Creator" -> Save. The grant takes a minute or two to apply.
+5. **Check**: Landing shows "Continue with Microsoft" when the app has the client id; a personal
+   Microsoft account signs in and lands on the dashboard (docs/v1/TESTING.md T25).
+6. **Website** (optional): the web agenda signs users in with the SAME registration and function.
+   Azure -> the registration -> Authentication -> Add a platform -> **Single-page application**
+   (PKCE, no secret) with the website's redirect URIs (production domains, the Vercel preview and
+   `http://localhost:3000/...` for development; they can sit next to the app's mobile redirect).
+   The website sends `signInOnly: true` so an unknown Microsoft account is refused with
+   not-found (`microsoft_user_not_found`) instead of creating an account without the app. The
+   client id is public (a public client), the tenant is `MICROSOFT_TENANT` (`common`).
 
 ---
 
@@ -1057,8 +1154,18 @@ Business Portfolio (business.facebook.com). Everything runs on the test number u
      user token ONLY if the app changed (normally the step-3 token keeps working). Redeploy
      functions. The allow-list stops applying; any WhatsApp user can message the bot.
    - [ ] Repeat the step-7 checks from a NON-allow-listed phone.
+   - If the Meta app was created fresh (for example after a blocked business account) and the
+     WhatsApp product tile does NOT appear on its dashboard, the Webhooks product works instead
+     (object "Whatsapp Business Account", subscribe to messages), but two Graph calls are then
+     still required, both with the system-user token: POST /{phone_number_id}/register with
+     {messaging_product:"whatsapp", pin:"NNNNNN"} (WhatsApp otherwise reports the number
+     "isn't on WhatsApp"), and POST /{waba_id}/subscribed_apps (without it the account sends
+     its messages nowhere; GET the same path lists what is subscribed). The dashboard "Test"
+     button sends Meta's sample payload (wamid ABGGFlA5Fpa, years-old timestamp), which the
+     webhook logs as whatsapp.stale_dropped; that is not a real message. Done this way on
+     2026-10-22 for +44 7403 693109 (phone number id 1427445667111962, WABA 1116238597569973).
 
 Notes: the webhook rejects unsigned requests (App Secret HMAC over the raw body), so the URL
 being public is fine. Firestore gets five new server-only collections (whatsapp*; rules deploy
-in step 5). The bot shares the assistant's per-user daily quota, so WhatsApp traffic cannot
+in step 5). The bot shares the assistant's per-user AI allowance, so WhatsApp traffic cannot
 multiply a user's AI spend.

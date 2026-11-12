@@ -68,6 +68,24 @@ export function tokensSeries(days) {
   ];
 }
 
+/** adminGetRevenue days[] -> grouped bars: New paid (--chart-2) and Trials started (--chart-5). */
+export function revenueFlowSeries(days) {
+  const source = days ?? [];
+  return [
+    { label: 'New paid', colorVar: '--chart-2', points: source.map((d) => ({ x: d.date, y: d.newPaid })) },
+    { label: 'Trials started', colorVar: '--chart-5', points: source.map((d) => ({ x: d.date, y: d.trialsStarted })) },
+  ];
+}
+
+/** adminGetRevenue days[] -> grouped bars: Cancellations (--chart-3) and Expirations (--chart-4). */
+export function revenueChurnSeries(days) {
+  const source = days ?? [];
+  return [
+    { label: 'Cancellations', colorVar: '--chart-3', points: source.map((d) => ({ x: d.date, y: d.cancellations })) },
+    { label: 'Expirations', colorVar: '--chart-4', points: source.map((d) => ({ x: d.date, y: d.expirations })) },
+  ];
+}
+
 // ---- Visual pure helpers (v3 redesign: avatars, smooth chart paths, donut geometry) ----------
 
 /** Stable 0..7 hue bucket for avatar classes (.av-0 ... .av-7): sum of char codes mod 8. */

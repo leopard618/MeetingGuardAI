@@ -1,7 +1,7 @@
 /**
- * Empty state (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5/§8): 96dp surfaceVariant
- * circle with a 48dp MCI icon, headlineS title, bodyM body, optional tonal action. Centered,
- * pv 40 - replaces the per-screen dashed boxes and plain-text empties.
+ * Empty state (owner: shell / Foundation; docs/v1/DESIGN_SYSTEM.md §5/§8): 96dp primaryContainer
+ * circle with a 48dp MCI icon in primary, headlineS title, bodyM body, optional tonal action.
+ * Centered, pv 40, static.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
@@ -35,11 +35,11 @@ export function EmptyState({ icon, title, body, tone = 'neutral', action, style,
   const error = tone === 'error';
   return (
     <View style={[styles.container, style]} testID={testID}>
-      <View style={[styles.circle, { backgroundColor: error ? colors.errorContainer : colors.surfaceVariant }]}>
+      <View style={[styles.circle, { backgroundColor: error ? colors.errorContainer : colors.primaryContainer }]}>
         <MaterialCommunityIcons
           name={icon}
           size={componentMetrics.emptyStateIcon}
-          color={error ? colors.onErrorContainer : colors.onSurfaceVariant}
+          color={error ? colors.onErrorContainer : colors.primary}
           accessibilityElementsHidden
           importantForAccessibility="no"
         />
@@ -49,9 +49,11 @@ export function EmptyState({ icon, title, body, tone = 'neutral', action, style,
       </Text>
       <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>{body}</Text>
       {action ? (
-        <MGButton variant="tonal" onPress={action.onPress} style={styles.action} testID={testID ? `${testID}-action` : undefined}>
-          {action.label}
-        </MGButton>
+        <View style={styles.action}>
+          <MGButton variant="tonal" onPress={action.onPress} testID={testID ? `${testID}-action` : undefined}>
+            {action.label}
+          </MGButton>
+        </View>
       ) : null}
     </View>
   );

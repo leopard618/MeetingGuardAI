@@ -1,17 +1,17 @@
 /**
  * Calendar (route "Calendar"): a month grid with one dot per meeting source on each day (every
- * meeting from the data layer: MeetingGuard, AI assistant, Google Calendar and device-calendar
+ * meeting from the data layer: Meeting Guard, AI assistant, Google Calendar and device-calendar
  * imports; no direct Google API call here), the agenda of the selected day, and a FAB that
  * creates a meeting preset to the selected day. Days are local days in the user's zone.
  */
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { Animated, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Divider, FAB, IconButton, Text, TouchableRipple } from 'react-native-paper';
+import { ActivityIndicator, Divider, IconButton, Text, TouchableRipple } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { Banner, ErrorState, MGButton } from '../../components/ui';
+import { Banner, ErrorState, GradientFab, MGButton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { getDeviceTimeZone, todayInZone } from '../../core/time';
@@ -21,10 +21,11 @@ import { useMeetings, useTasks } from '../../services/data';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { MeetingActionsSheet, useMeetingActions } from '../meetings/list/meetingActions';
 import { MeetingListItem, sourceColor } from '../meetings/list/MeetingListItem';
-import { dayRelation, type SourceCategory } from '../meetings/list/meetingListModel';
+import { dayRelation, isInProgress, type SourceCategory } from '../meetings/list/meetingListModel';
 import { useMeetingsRefresh } from '../meetings/list/useMeetingsRefresh';
 import { FAB_SLIDE_DP, useHideOnScroll } from '../meetings/list/useHideOnScroll';
 import { displayKeyOf, displayWindowForDays, expandMeetingsForDisplay, type DisplayMeeting } from '../meetings/occurrences';
+import { taskDueInstant } from '../tasks/tasksModel';
 import { OccurrenceEditSheet } from '../meetings/OccurrenceEditSheet';
 import { useFormatters } from '../shared/useFormatters';
 import { capitalizeFirst } from '../shared/text';
@@ -45,7 +46,7 @@ import { MonthGrid } from './MonthGrid';
 
 type Props = StackScreenProps<RootStackParamList, 'Calendar'>;
 
-const LEGEND: readonly SourceCategory[] = ['meetingguard', 'google', 'device'];
+const LEGEND: readonly SourceCategory[] = ['meetingguard', 'google', 'outlook', 'device'];
 
 export function CalendarScreen({ navigation }: Props): ReactElement {
   const t = useT();
@@ -136,40 +137,43 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
 
   const header = (
     <View style={[styles.header, { paddingLeft: insets.left + componentMetrics.screenGutter, paddingRight: insets.right + componentMetrics.screenGutter }]}>
+      {/* Month title on the left, the month arrows grouped on the right, "Today" between them
+          only while another day or month is showing. One row, no centred title that jumps. */}
       <View style={styles.monthRow}>
-        <IconButton
-          icon="chevron-left"
-          onPress={() => changeMonth(-1)}
-          accessibilityLabel={t('calendarView:previousMonth')}
-          style={styles.navButton}
-          hitSlop={4}
-          testID="calendar-prev"
-        />
         <Text variant="titleLarge" style={styles.monthTitle} accessibilityRole="header" accessibilityLiveRegion="polite" testID="calendar-month-title">
           {title}
         </Text>
-        <IconButton
-          icon="chevron-right"
-          onPress={() => changeMonth(1)}
-          accessibilityLabel={t('calendarView:nextMonth')}
-          style={styles.navButton}
-          hitSlop={4}
-          testID="calendar-next"
-        />
+        {!showingToday ? (
+          <MGButton
+            variant="ghost"
+            size="sm"
+            icon="calendar-today"
+            onPress={goToToday}
+            accessibilityLabel={t('calendarView:goToToday')}
+            testID="calendar-today"
+          >
+            {t('calendarView:today')}
+          </MGButton>
+        ) : null}
+        <View style={[styles.navGroup, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
+          <IconButton
+            icon="chevron-left"
+            onPress={() => changeMonth(-1)}
+            accessibilityLabel={t('calendarView:previousMonth')}
+            style={styles.navButton}
+            hitSlop={4}
+            testID="calendar-prev"
+          />
+          <IconButton
+            icon="chevron-right"
+            onPress={() => changeMonth(1)}
+            accessibilityLabel={t('calendarView:nextMonth')}
+            style={styles.navButton}
+            hitSlop={4}
+            testID="calendar-next"
+          />
+        </View>
       </View>
-      {!showingToday ? (
-        <MGButton
-          variant="ghost"
-          size="sm"
-          icon="calendar-today"
-          onPress={goToToday}
-          style={styles.todayButton}
-          accessibilityLabel={t('calendarView:goToToday')}
-          testID="calendar-today"
-        >
-          {t('calendarView:today')}
-        </MGButton>
-      ) : null}
       <View style={styles.gridWrap}>
         <MonthGrid grid={grid} weekdays={weekdays} index={index} taskDays={taskDays} selectedKey={selectedKey} todayKey={todayKey} onSelect={selectDay} />
       </View>
@@ -239,7 +243,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
                     </Text>
                     {task.dueTime ? (
                       <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
-                        {fmt.time(`${task.dueDate}T${task.dueTime}:00`)}
+                        {fmt.time(taskDueInstant(task))}
                       </Text>
                     ) : null}
                   </View>
@@ -298,7 +302,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
         renderItem={({ item }) => (
           <MeetingListItem
             meeting={item}
-            now={now}
+            inProgress={isInProgress(item, now)}
             timeZone={timeZone}
             fmt={fmt}
             deleting={actions.deletingId === item.id}
@@ -335,7 +339,7 @@ export function CalendarScreen({ navigation }: Props): ReactElement {
           },
         ]}
       >
-        <FAB
+        <GradientFab
           icon="plus"
           label={t('meetings:list.newMeeting')}
           onPress={createOnDay}
@@ -363,19 +367,23 @@ const styles = StyleSheet.create({
   monthRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    minHeight: componentMetrics.touchTargetMin,
   },
   monthTitle: {
     flex: 1,
-    textAlign: 'center',
+    fontWeight: '700',
+  },
+  navGroup: {
+    flexDirection: 'row',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.full,
   },
   navButton: {
-    width: componentMetrics.touchTargetMin,
-    height: componentMetrics.touchTargetMin,
+    width: componentMetrics.touchTargetMin - 4,
+    height: componentMetrics.touchTargetMin - 4,
     margin: 0,
-  },
-  todayButton: {
-    alignSelf: 'center',
   },
   gridWrap: {
     width: '100%',
@@ -386,13 +394,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
+    gap: spacing.xs,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: spacing.sm,
-    marginVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   legendDot: {
     width: componentMetrics.sourceDotSize,

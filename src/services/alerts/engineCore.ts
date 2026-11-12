@@ -25,6 +25,7 @@ import type {
   AlertEngineStatus,
   AlertPermissionStatus,
   AlertPlan,
+  FiredFullScreenAlarm,
   FullScreenAlarmModule,
   FullScreenAlarmSpec,
   FullScreenAlarmStatus,
@@ -38,10 +39,12 @@ import type { AppEventMap, EventBus } from '../../core/events';
 import {
   ALERT_HORIZON_DAYS,
   ALERT_NOTIFICATION_BUDGET,
+  BRIEFING_NOTIFICATION_ID_PREFIX,
   NOTIFICATION_ACTIONS,
   NOTIFICATION_CATEGORIES,
   REFILL_NOTIFICATION_ID,
   SUPERSEDED_ANDROID_CHANNELS,
+  TASK_NOTIFICATION_ID_PREFIX,
   USER_STORAGE,
   channelFor,
   parseNotificationId,
@@ -50,7 +53,7 @@ import {
   type ParsedNotificationId,
 } from '../../core/identifiers';
 import type { Logger } from '../../core/logger';
-import { DEFAULT_PREFERENCES, DEFAULT_SNOOZE_MINUTES, type PreferenceKey } from '../../core/types';
+import { DEFAULT_PREFERENCES, DEFAULT_SNOOZE_MINUTES, effectiveAlertIntensity, type PreferenceKey } from '../../core/types';
 import {
   CHANNEL_VIBRATION,
   FOREGROUND_SWEEP_DELAY_MS,
@@ -111,6 +114,7 @@ import type {
   ChannelSpec,
   FeedbackPort,
   IncomingNotification,
+  PresentedNotificationRecord,
   IncomingResponse,
   KeyValueStorage,
   Meeting,
@@ -150,6 +154,7 @@ const IMMEDIATE_REASONS: ReadonlySet<ReconcileReason> = new Set<ReconcileReason>
 const ALERT_PREFERENCE_KEYS: ReadonlySet<PreferenceKey> = new Set<PreferenceKey>([
   'alertEnabled',
   'alertIntensity',
+  'importedAlertIntensity',
   'defaultAlertTimes',
   'followUpEnabled',
   'snoozeMinutes',
@@ -238,6 +243,9 @@ function occurrenceKeyOf(identifier: string, payload: StoredAlertData | null): s
 }
 
 /** Native alarm of a rendered MAX alert (the id IS the notification identifier). */
+/** The engine owns every "mg:" full-screen alarm; the briefing owns "mgbrief:" (briefing.ts). */
+const ENGINE_ALARM_SCOPE = 'mg:';
+
 function toFullScreenAlarmSpec(spec: AlertNotificationSpec): FullScreenAlarmSpec {
   return {
     id: spec.identifier,
@@ -246,6 +254,8 @@ function toFullScreenAlarmSpec(spec: AlertNotificationSpec): FullScreenAlarmSpec
     body: spec.body,
     deepLink: spec.data.url,
     channelId: spec.channelId,
+    // Handed back by fsi.getFired() so a fired alarm can be presented in-app like a tray entry.
+    data: JSON.stringify(spec.data),
   };
 }
 
@@ -484,7 +494,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
 
   async function removeLegacyArtifacts(): Promise<void> {
     try {
-      // Pre-rebuild channels + earlier MeetingGuard channel versions (their pending notifications
+      // Pre-rebuild channels + earlier Meeting Guard channel versions (their pending notifications
       // carry a different channel in their hash and are rescheduled by the next reconcile).
       await notifications.deleteChannels([...LEGACY_CHANNEL_IDS, ...SUPERSEDED_ANDROID_CHANNELS]);
       const presented = await notifications.getPresented();
@@ -554,7 +564,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     const occurrence = meeting && occurrenceKey !== undefined ? occurrenceEffective(meeting, occurrenceKey) : null;
     if (meeting && meeting.recurrence !== null && occurrenceKey !== undefined && occurrence === null) return null;
     const prefs = prefsOrDefault();
-    const intensity = item.intensity ?? meeting?.alertIntensity ?? prefs.alertIntensity;
+    const intensity = item.intensity ?? (meeting ? effectiveAlertIntensity(meeting, prefs) : prefs.alertIntensity);
     const base: ActiveAlert = {
       key: item.identifier,
       meetingId: item.meetingId,
@@ -759,18 +769,58 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
   /**
    * Delivered notifications still in the tray: removes stale ones (meeting gone / ended, legacy),
    * and re-shows unhandled MAX/MEDIUM alerts in-app (the user opened the app without tapping).
+   * Then the alarms the native full-screen module fired while the app was closed (same rules).
    */
   async function sweepPresented(): Promise<void> {
     if (!sessionUid) return;
     const presented = await notifications.getPresented();
-    const nowMs = nowDate().getTime();
     for (const record of presented) {
+      await sweepRecord(record);
+    }
+    await sweepFiredAlarms();
+  }
+
+  /**
+   * MAX alerts fired by the native full-screen alarm module (Android) while the app was in the
+   * background or closed. Their notification is not an expo-notifications one, so getPresented()
+   * never lists it and, before this, opening the app from the alarm only navigated to the
+   * meeting: no sound loop, no voice readout, no snooze. The module keeps a fired record instead;
+   * each record goes through the tray rules (stale => dismissed, acknowledged => dismissed,
+   * within the re-show window => presented in-app) and is then forgotten. Records are left alone
+   * while no host is attached (a cold start can sweep before AlertHost mounts; the host attach
+   * schedules another sweep), so an alarm is never consumed unseen.
+   */
+  async function sweepFiredAlarms(): Promise<void> {
+    const fsi = deps.fsi;
+    if (!fsi || notifications.platform !== 'android' || !fsi.isAvailable() || !hostAttached()) return;
+    let fired: FiredFullScreenAlarm[];
+    try {
+      fired = await fsi.getFired(ENGINE_ALARM_SCOPE);
+    } catch (error) {
+      log.warn('could not read the fired full-screen alarms', error);
+      return;
+    }
+    if (fired.length === 0) return;
+    for (const alarm of fired) {
+      await sweepRecord({ identifier: alarm.id, data: alarm.data, date: alarm.firedAtMs });
+    }
+    try {
+      await fsi.clearFired(fired.map((alarm) => alarm.id));
+    } catch (error) {
+      log.warn('could not clear the fired full-screen alarms', error);
+    }
+  }
+
+  /** One delivered record (tray entry or fired native alarm): dismiss when stale, re-show when unhandled. */
+  async function sweepRecord(record: PresentedNotificationRecord): Promise<void> {
+    const nowMs = nowDate().getTime();
+    {
       if (isLegacyNotification(record.identifier, record.data)) {
         await dismissQuietly(record.identifier);
-        continue;
+        return;
       }
       const parsed = parseNotificationId(record.identifier);
-      if (!parsed) continue;
+      if (!parsed) return;
       const payload = parseAlertData(record.data);
       const meeting = meetingCache.get(parsed.meetingId);
       // Occurrence notifications end when the OCCURRENCE ends (the master's own start can be far
@@ -791,16 +841,16 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       const gone = (meeting !== undefined && !isAlertEligibleMeeting(meeting)) || occurrenceGone;
       if (gone || (endMs !== null && nowMs - endMs > PRESENTED_CLEANUP_AFTER_END_MS)) {
         await dismissQuietly(record.identifier);
-        continue;
+        return;
       }
-      if (parsed.kind === 'followup' || !payload || payload.intensity === 'light') continue;
+      if (parsed.kind === 'followup' || !payload || payload.intensity === 'light') return;
       const key = registryKey(record.identifier, payload.fireAt);
       if (isAcknowledged(registry, key)) {
         await dismissQuietly(record.identifier);
-        continue;
+        return;
       }
-      if (nowMs - record.date > PRESENTED_RESHOW_WINDOW_MS) continue;
-      if (active.some((alert) => alert.key === record.identifier)) continue;
+      if (nowMs - record.date > PRESENTED_RESHOW_WINDOW_MS) return;
+      if (active.some((alert) => alert.key === record.identifier)) return;
       await presentIncoming(record, 'notification_received', { force: true });
     }
   }
@@ -877,9 +927,16 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       const legacyIds = records.filter((r) => isLegacyNotification(r.identifier, r.data)).map((r) => r.identifier);
 
       const validSnoozes = prefs.alertEnabled ? snoozeEntries(existing).filter((entry) => isValidSnooze(entry, nowMs)) : [];
+      // iOS keeps at most 64 pending requests per app and silently drops the rest. The task
+      // reminders and the morning briefing share that cap, so the meeting budget shrinks by what
+      // they hold (the refill reminder then covers what no longer fits).
+      const sharedPending = records.filter(
+        (record) =>
+          record.identifier.startsWith(`${TASK_NOTIFICATION_ID_PREFIX}:`) || record.identifier.startsWith(`${BRIEFING_NOTIFICATION_ID_PREFIX}:`),
+      ).length;
       const plan = prefs.alertEnabled
         ? computeAlertPlan(meetings, prefs, now, {
-            budget: ALERT_NOTIFICATION_BUDGET - validSnoozes.length,
+            budget: Math.max(0, ALERT_NOTIFICATION_BUDGET - validSnoozes.length - sharedPending),
             suppress: validSnoozes.map((entry) => ({ meetingId: entry.data!.meetingId, fireAt: entry.fireAt! })),
             suppressWindowMs: SNOOZE_DEDUPE_WINDOW_MS,
           })
@@ -941,7 +998,9 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
       if (fsi && fsiAvailable && gen === generation) {
         if (fsiActive) {
           try {
-            await fsi.setAlarms(fsiRendered.map(toFullScreenAlarmSpec));
+            // Scoped to the engine's own id prefix: the daily briefing's "mgbrief:" full-screen
+            // alarms live in the same native store and must survive an engine reconcile.
+            await fsi.setAlarms(fsiRendered.map(toFullScreenAlarmSpec), ENGINE_ALARM_SCOPE);
             fsiScheduled = fsiRendered.map(toFsiScheduledInfo);
           } catch (error) {
             log.warn('full-screen alarms could not be set; falling back to notifications', error);
@@ -951,7 +1010,8 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
         if (!fsiActive) {
           fsiScheduled = [];
           try {
-            await fsi.clearAlarms();
+            // Clear only the engine's alarms (an empty scoped replace-all), never the briefing's.
+            await fsi.setAlarms([], ENGINE_ALARM_SCOPE);
           } catch (error) {
             log.warn('full-screen alarms could not be cleared', error);
           }
@@ -1097,10 +1157,21 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
   // ---- permissions -------------------------------------------------------------------------------
   async function getPermissionStatus(): Promise<AlertPermissionStatus> {
     const raw = await notifications.getPermission();
+    let exactAlarms: AlertPermissionStatus['exactAlarms'] = settings.exactAlarmSettingsAvailable ? 'unknown' : 'not_required';
+    if (settings.exactAlarmSettingsAvailable && deps.fsi && notifications.platform === 'android' && deps.fsi.isAvailable()) {
+      // The native module reads canScheduleExactAlarms(): the home card then stops asking once
+      // the permission is granted instead of nagging forever.
+      try {
+        const fsiStatus = await deps.fsi.getStatus();
+        if (typeof fsiStatus.exactAllowed === 'boolean') exactAlarms = fsiStatus.exactAllowed ? 'granted' : 'denied';
+      } catch {
+        // Stays 'unknown'.
+      }
+    }
     const status: AlertPermissionStatus = {
       notifications: raw.provisional ? 'provisional' : raw.status,
       canAskAgain: raw.canAskAgain,
-      exactAlarms: settings.exactAlarmSettingsAvailable ? 'unknown' : 'not_required',
+      exactAlarms,
     };
     return status;
   }
@@ -1353,7 +1424,7 @@ export function createAlertEngine(deps: AlertEngineDeps): AlertEngineImpl {
     attachListeners();
     await setupChannelsAndCategories();
     await removeLegacyArtifacts();
-    // The response that launched the app (cold start). Every MeetingGuard response is handled
+    // The response that launched the app (cold start). Every Meeting Guard response is handled
     // here, not only snoozes: the Android response task that also sees "Open" / "Assistant" taps
     // may run in a separate headless runtime, so this runtime acknowledges the delivery and
     // removes the (sticky) tray copy itself. Snoozes stay de-duplicated by claimResponse.

@@ -75,10 +75,11 @@ describe('filters', () => {
     expect(isInProgress(later, now)).toBe(false);
   });
 
-  it('filters by source category (AI and manual meetings are MeetingGuard meetings)', () => {
+  it('filters by source category (AI and manual meetings are Meeting Guard meetings)', () => {
     expect(sourceCategory('ai_chat')).toBe('meetingguard');
     expect(sourceCategory('whatsapp')).toBe('meetingguard');
-    const only = (source: 'meetingguard' | 'google' | 'device') =>
+    expect(sourceCategory('outlook')).toBe('outlook');
+    const only = (source: 'meetingguard' | 'google' | 'outlook' | 'device') =>
       filterMeetings(all, { time: 'all', source, query: '' }, now).map((m) => m.id);
     expect(only('meetingguard')).toEqual(['running', 'ai']);
     expect(only('google')).toEqual(['past']);

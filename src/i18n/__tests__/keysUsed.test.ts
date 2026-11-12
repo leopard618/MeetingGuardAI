@@ -23,6 +23,7 @@ const SRC = path.join(REPO, 'src');
 /** Event names look like namespaced keys ('meetings:changed'); they are not translations. */
 const EVENT_NAMES = {
   'meetings:changed': true,
+  'tasks:changed': true,
   'preferences:changed': true,
   'session:started': true,
   'session:ended': true,

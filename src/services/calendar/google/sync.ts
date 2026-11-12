@@ -3,7 +3,7 @@
  *
  * PULL  events.list(singleEvents=true) with the stored syncToken; a full listing bounded by
  *       CALENDAR_SYNC_WINDOW on first sync, every 7 days (the window slides) and on 410 GONE.
- *       Cancelled events tombstone their meeting. Events MeetingGuard created (deterministic
+ *       Cancelled events tombstone their meeting. Events Meeting Guard created (deterministic
  *       "mgev..." ids) update their own meeting instead of creating a copy.
  * PUSH  insert with the deterministic id (409 => patch + status confirmed), patch with If-Match,
  *       delete. Only Google-visible changes are sent (hash of the visible fields), so editing
@@ -78,6 +78,8 @@ export interface GoogleSyncDeps {
   /** Localized "(No title)". */
   untitledTitle(): string;
   sleep(ms: number): Promise<void>;
+  /** true while the meeting waits for its Zoom link: its queued push is skipped, not dropped. */
+  holdPush?(meetingId: string): boolean;
 }
 
 function updatedIso(event: GoogleEvent): string | null {
@@ -122,6 +124,15 @@ async function listAll(
     return { events, nextSyncToken: response.nextSyncToken ?? null, timeZone };
   }
   throw new AppError('upstream_error', 'Google Calendar returned too many result pages', { details: { pages: MAX_LIST_PAGES } });
+}
+
+/**
+ * Google derives new ids from ours: "<id>_R20261005T090000Z" for the tail master of a "this and
+ * following" edit, "<id>_20261005T090000Z" for an instance. Stripped before decoding, so those
+ * stay recognised as our own series (otherwise every future occurrence came back as a duplicate).
+ */
+export function baseGoogleEventId(eventId: string): string {
+  return eventId.replace(/_R?\d{8}T\d{6}Z?$/, '');
 }
 
 export function isFullSyncDue(lastFullSyncAt: string | null, now: Date): boolean {
@@ -184,11 +195,11 @@ export function planGooglePull(input: PullPlanInput): PullPlan {
     // "mgev..." id. The local master already expands these occurrences, so importing them would
     // duplicate the series one meeting per occurrence. They are skipped entirely - including
     // per-instance cancellations/edits made in Google, a documented v1 limitation
-    // (docs/v1/ARCHITECTURE.md §16: occurrence edits flow MeetingGuard -> Google only).
-    if (event.recurringEventId !== undefined && meetingIdFromGoogleEventId(event.recurringEventId) !== null) {
+    // (docs/v1/ARCHITECTURE.md §16: occurrence edits flow Meeting Guard -> Google only).
+    if (event.recurringEventId !== undefined && meetingIdFromGoogleEventId(baseGoogleEventId(event.recurringEventId)) !== null) {
       continue;
     }
-    const decodedId = meetingIdFromGoogleEventId(event.id);
+    const decodedId = meetingIdFromGoogleEventId(baseGoogleEventId(event.id));
     const local = byGoogleId.get(event.id) ?? (decodedId !== null ? byId.get(decodedId) : undefined);
     const linked = local !== undefined && local.external.googleEventId === event.id;
 
@@ -223,12 +234,12 @@ export function planGooglePull(input: PullPlanInput): PullPlan {
       continue;
     }
     if (local && local.deletedAt !== null) {
-      // Deleted in MeetingGuard: the delete was (or will be) pushed; do not resurrect it.
+      // Deleted in Meeting Guard: the delete was (or will be) pushed; do not resurrect it.
       plan.unchanged += 1;
       continue;
     }
     if (!local && decodedId !== null) {
-      // Created by MeetingGuard (maybe on another device) and not in this device's data yet.
+      // Created by Meeting Guard (maybe on another device) and not in this device's data yet.
       continue;
     }
     const mapped = googleEventToMeetingInput(event, ctx);
@@ -252,7 +263,7 @@ export function planGooglePull(input: PullPlanInput): PullPlan {
       if (meeting.deletedAt !== null || pending[meeting.id] || meeting.source === 'device') continue;
       // Recurring masters never appear in singleEvents listings (only their instances do), so
       // their absence proves nothing: never sweep them. Deleting the whole series in Google
-      // therefore does not delete the local master (delete it in MeetingGuard) - documented §16.
+      // therefore does not delete the local master (delete it in Meeting Guard) - documented §16.
       if (meeting.recurrence !== null) continue;
       if (meeting.external.googleCalendarId !== null && meeting.external.googleCalendarId !== calendarId) continue;
       if (meeting.source !== 'google' && meeting.status !== 'scheduled') continue;
@@ -336,7 +347,7 @@ export async function pullGoogleChanges(deps: GoogleSyncDeps, options: { full?: 
   }
 
   // Remember what the repository actually stored (it may keep a newer local version), so a later
-  // MeetingGuard-only edit never pushes a stale copy over Google's.
+  // Meeting Guard-only edit never pushes a stale copy over Google's.
   const storedHashes: Record<string, string | null> = { ...plan.hashUpdates };
   const appliedIds = Object.entries(plan.hashUpdates)
     .filter(([, hash]) => hash !== null)
@@ -512,10 +523,21 @@ export async function pushGoogleMeeting(deps: GoogleSyncDeps, meeting: Meeting, 
     } catch (error) {
       const status = googleHttpStatus(error);
       if (status === 412) {
-        // Changed in Google since our last sync: last writer wins.
+        // Changed in Google since our last sync. When nothing WE show changed there (an attendee
+        // RSVP, a colour: etag and updated move, the visible hash does not), this edit still
+        // wins and is retried without the stale etag. When Google holds a newer visible version,
+        // last writer wins and the pull brings it here.
         const current = await deps.api.getEvent(calendarId, linkedId);
         const remoteUpdated = updatedIso(current);
-        if (remoteUpdated !== null && toDate(remoteUpdated).getTime() > toDate(meeting.updatedAt).getTime()) {
+        const state = await deps.state.load();
+        const remoteInput = googleEventToMeetingInput(current, {
+          calendarTimeZone: state.calendarTimeZone,
+          defaultTimeZone,
+          untitledTitle: deps.untitledTitle(),
+        });
+        const remoteHash = remoteInput ? googleVisibleHash(remoteInput, defaultTimeZone) : null;
+        const visiblyChanged = remoteHash === null || remoteHash !== state.hashes[linkedId];
+        if (visiblyChanged && remoteUpdated !== null && toDate(remoteUpdated).getTime() > toDate(meeting.updatedAt).getTime()) {
           log.info('Google has a newer version; keeping it', { meetingId: meeting.id });
           return { meeting, sent: false };
         }
@@ -615,6 +637,8 @@ export async function flushGooglePushes(deps: GoogleSyncDeps): Promise<FlushResu
   const byId = new Map(locals.map((meeting) => [meeting.id, meeting]));
 
   for (const [meetingId, entry] of entries) {
+    // Waiting for its Zoom link (core/pushHold.ts): stays queued for the flush after the release.
+    if (deps.holdPush?.(meetingId) === true) continue;
     const meeting = byId.get(meetingId);
     try {
       if (meeting) {
@@ -644,7 +668,7 @@ export async function flushGooglePushes(deps: GoogleSyncDeps): Promise<FlushResu
   return result;
 }
 
-/** Queues upcoming MeetingGuard meetings that were never pushed (first connection). */
+/** Queues upcoming Meeting Guard meetings that were never pushed (first connection). */
 export async function enqueueUpcomingOwnMeetings(deps: GoogleSyncDeps): Promise<number> {
   const now = deps.now();
   const window = syncWindow(now);

@@ -25,12 +25,14 @@ import type {
   PreferencesRepository,
   SyncState,
   TasksRepository,
+  TaskWriteOptions,
   UserRepository,
 } from '../../core/contracts';
 import { AppError, toAppError, type AppErrorCode } from '../../core/errors';
 import { appEvents, type AppEventMap, type EventBus, type Unsubscribe, type WriteOrigin } from '../../core/events';
 import { ALERT_HORIZON_DAYS, firestorePaths, LEGACY_DATA_KEY, PREFERENCES_DOC_ID } from '../../core/identifiers';
 import { createLogger } from '../../core/logger';
+import { awaitsZoomLink } from '../../core/pushHold';
 import { addMinutesIso, getDeviceTimeZone, toDate } from '../../core/time';
 import {
   applyMeetingPatch,
@@ -42,6 +44,8 @@ import {
   buildTask,
   createDefaultPreferences,
   DEFAULT_ENTITLEMENT,
+  isGtasksLinked,
+  isTodoLinked,
   LANGUAGES,
   CANCELLED_OVERRIDE,
   mergePreferences,
@@ -68,6 +72,7 @@ import {
   type Task,
   type TaskInput,
   type TaskPatch,
+  type TaskExternalRefs,
   type UserProfile,
 } from '../../core/types';
 import { relinkLegacyAttachments } from './attachments';
@@ -106,7 +111,7 @@ import {
   type OutboxWrite,
 } from './outbox';
 import type { ForegroundMonitor, NetworkMonitor } from './platform';
-import type { CommitResult, RemoteCollectionSnapshot, RemoteData, RemoteDocSnapshot, RemoteStore } from './remote';
+import type { CommitDecision, CommitResult, RemoteCollectionSnapshot, RemoteData, RemoteDocSnapshot, RemoteStore } from './remote';
 import { compareByStart, deepEqual, Mutex, nextTimestamp, withTimeout } from './util';
 
 const log = createLogger('data');
@@ -376,6 +381,9 @@ function isPermanentFailure(error: AppError): boolean {
  * back to the server copy - a rollback would DELETE a freshly created recurring meeting locally.
  */
 function isRulesSkewEntry(entry: OutboxEntry): boolean {
+  // A preferences write carries every key the build knows (new keys included), so against older
+  // deployed rules it is denied as a whole: it waits for the rules deploy like the meeting cases.
+  if (entry.kind === 'preferences') return true;
   if (entry.kind !== 'meeting' || entry.data === null) return false;
   const doc = entry.data;
   if (doc.recurrence !== undefined || doc.recurrenceOverrides !== undefined || doc.seriesId !== undefined) return true;
@@ -389,6 +397,61 @@ function isRulesSkewEntry(entry: OutboxEntry): boolean {
 
 function isNetworkFailure(error: AppError): boolean {
   return NETWORK_FAILURES.has(error.code);
+}
+
+/**
+ * A task document rewritten by an older build. Build 1.5.0 has no `source` / `external` in its
+ * task model and saves a task as a full document, so each of its edits drops both keys from the
+ * server copy: the links to the To Do and Google Tasks copies, and where the task came from.
+ * Returns `incoming` with the missing keys taken from this device's copy, or null when the
+ * document carries both keys: the current build always writes them (taskToDoc), and an unlink
+ * writes `external` with nulls, which still clears the links.
+ */
+function restoreTaskKeys(incoming: Task, data: RemoteData, local: Task): Task | null {
+  const noSource = data.source === undefined;
+  const noExternal = data.external === undefined;
+  if (!noSource && !noExternal) return null;
+  return {
+    ...incoming,
+    ...(noSource ? { source: local.source } : {}),
+    ...(noExternal ? { external: local.external } : {}),
+  };
+}
+
+/**
+ * The task has a copy in To Do or Google Tasks, so a push of it updates that copy (a PATCH, the
+ * same on every phone) instead of creating one (each phone that syncs would create its own).
+ */
+function hasProviderCopy(task: Task): boolean {
+  return isTodoLinked(task) || isGtasksLinked(task);
+}
+
+/** A version to write back (DataEngine.enqueueTaskRepairs); `pushPending` keeps its push request on the document. */
+interface TaskRepair {
+  task: Task;
+  pushPending: boolean;
+}
+
+/** The outbox entry of a task repair (DataEngine.enqueueTaskRepairs, the only task write with origin system). */
+function isTaskRepair(entry: OutboxEntry): boolean {
+  return entry.kind === 'task' && entry.origin === 'system';
+}
+
+/**
+ * Send decision for a task repair: it only ever rewrites, in place, a document this build can
+ * read. Never a create (the task was deleted after the repair was queued), and never the legacy
+ * replacement decideCommit takes for a copy this build cannot read (delete, then the same entry
+ * as a create), which would delete the task it was made for. A newer server copy wins as usual.
+ */
+function decideTaskRepair(entry: OutboxEntry, current: RemoteData | null, defaults: Preferences): CommitDecision {
+  if (current === null) return { type: 'skip', reason: 'absent' };
+  const decision = decideCommit(entry, current, { defaults });
+  return decision.type === 'write' ? decision : { type: 'skip', reason: 'stale' };
+}
+
+/** A queued write that keeps the task alive; a repair does not, it never re-creates a deleted task. */
+function hasPendingTaskWrite(outbox: OutboxState, id: string): boolean {
+  return pendingEntries(outbox, 'task', id).some((entry) => !isTaskRepair(entry));
 }
 
 function randomEntryId(): string {
@@ -484,6 +547,24 @@ export class DataEngine {
 
   private assertCurrent(s: Session): void {
     if (!this.isCurrent(s)) throw new AppError('unauthenticated', 'The data session ended');
+  }
+
+  /**
+   * Resolves true once the active session received its first server snapshot of meetings, false
+   * after `timeoutMs`, offline, or without a session. The calendar engine waits for it before its
+   * first pull: on a fresh install a provider listing matched against an empty cache would import
+   * this user's own pushed events as foreign meetings.
+   */
+  async waitForMeetingsBaseline(timeoutMs: number): Promise<boolean> {
+    const s = this.session;
+    if (!s) return false;
+    const deadline = Date.now() + timeoutMs;
+    while (this.session === s) {
+      if (s.meetingsBaseline) return true;
+      if (Date.now() >= deadline) return false;
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+    }
+    return false;
   }
 
   /** The active session once its cache is loaded; AppError('unauthenticated') when there is none. */
@@ -1115,7 +1196,7 @@ export class DataEngine {
     id: string,
     data: RemoteData | null,
     ctx: ReadContext,
-    acc: { changedIds: string[]; migrations: Meeting[] },
+    acc: { changedIds: string[]; pushRequested: string[]; migrations: Meeting[] },
   ): void {
     const read = readRemoteMeeting(id, data, ctx);
     if (read.kind === 'invalid') {
@@ -1132,12 +1213,18 @@ export class DataEngine {
     if (local && deepEqual(local, incoming)) return;
     s.meetings.set(id, incoming);
     acc.changedIds.push(id);
+    // The website cannot reach the calendar providers, so it flags what it writes; the flag never
+    // enters the model (the read schema drops it) and the next app write of the document, the
+    // provider write-back included, leaves it out (ARCHITECTURE section 32). A Zoom meeting whose
+    // link the server is still creating waits: the link write-back keeps the flag and is pushed,
+    // so the invitation carries the link (same reason as the app's own push hold).
+    if (data !== null && data.pushPending === true && !awaitsZoomLink(incoming)) acc.pushRequested.push(id);
   }
 
   private onMeetingsSnapshot(s: Session, snapshot: RemoteCollectionSnapshot): void {
     if (!this.isCurrent(s) || s.remoteSuspended) return;
     const ctx = this.readContext(s);
-    const acc = { changedIds: [] as string[], migrations: [] as Meeting[] };
+    const acc = { changedIds: [] as string[], pushRequested: [] as string[], migrations: [] as Meeting[] };
     for (const change of snapshot.changes) {
       if (change.type === 'removed') {
         if (snapshot.fromCache || hasPending(s.outbox, 'meeting', change.id)) continue;
@@ -1165,7 +1252,12 @@ export class DataEngine {
     if (acc.changedIds.length > 0) {
       this.bumpMeetings();
       void this.persist(s, { meetingIds: acc.changedIds });
-      this.events.emit('meetings:changed', { uid: s.uid, changedIds: acc.changedIds, reason: 'remote' });
+      this.events.emit('meetings:changed', {
+        uid: s.uid,
+        changedIds: acc.changedIds,
+        reason: 'remote',
+        ...(acc.pushRequested.length > 0 ? { pushRequested: acc.pushRequested } : {}),
+      });
     }
     this.notify();
     if (acc.migrations.length > 0) void this.enqueueMeetingMigrations(s, acc.migrations);
@@ -1250,36 +1342,65 @@ export class DataEngine {
   private onTasksSnapshot(s: Session, snapshot: RemoteCollectionSnapshot): void {
     if (!this.isCurrent(s) || s.remoteSuspended) return;
     const changedIds: string[] = [];
+    const pushRequested: string[] = [];
+    const repairs: TaskRepair[] = [];
+    const removed: { id: string; external: TaskExternalRefs }[] = [];
+    // A document deleted on the server (website, another device): the local copy goes, and its
+    // provider links travel with the event so the sync engines can remove the copies.
+    const dropTask = (id: string): void => {
+      const gone = s.tasks.get(id);
+      if (!gone) return;
+      s.tasks.delete(id);
+      changedIds.push(id);
+      removed.push({ id, external: gone.external });
+    };
     for (const change of snapshot.changes) {
       if (change.type === 'removed') {
-        if (snapshot.fromCache || hasPending(s.outbox, 'task', change.id)) continue;
-        if (s.tasks.delete(change.id)) changedIds.push(change.id);
+        if (snapshot.fromCache || hasPendingTaskWrite(s.outbox, change.id)) continue;
+        dropTask(change.id);
         continue;
       }
-      const incoming = readRemoteTask(change.id, change.data);
-      if (!incoming) {
+      const read = readRemoteTask(change.id, change.data);
+      if (!read) {
         log.warn(`skipping invalid task document ${change.id}`);
         continue;
       }
       const local = s.tasks.get(change.id);
+      // Rewritten by an older build (restoreTaskKeys): the task keeps the links and the origin this
+      // device knows, so the next push updates the provider copies instead of duplicating them.
+      const restored = local !== undefined && change.data !== null ? restoreTaskKeys(read, change.data, local) : null;
+      const incoming = restored ?? read;
       // Tasks are hard-deleted like notes: a snapshot that still carries a task whose delete is
       // waiting in the outbox must not resurrect it.
       if (!local && pendingEntries(s.outbox, 'task', change.id).some((entry) => entry.mode === 'delete')) continue;
       const forced = s.forceServer.delete(`task:${change.id}`);
       if (!forced && !shouldAcceptRemote(local, incoming)) continue;
-      if (local && deepEqual(local, incoming)) continue;
+      const changed = local === undefined || !deepEqual(local, incoming);
+      // Written by the website, which cannot reach To Do or Google Tasks: the flag asks the app
+      // to push the task (ARCHITECTURE section 32, tasks). It never enters the model (the read
+      // schema drops it), so the next app write of the document leaves it out. A change an older
+      // build made (ticked, renamed) is pushed the same way, since that build has no task sync,
+      // but only for a task with a provider copy (hasProviderCopy). A task without one is sent by
+      // the backfill when the sync is turned on or a list is chosen, as before.
+      const flagged = change.data !== null && change.data.pushPending === true;
+      const push = changed && (flagged || (restored !== null && hasProviderCopy(restored)));
+      // The server copy gets the keys back for the other devices, also when nothing else changed,
+      // and keeps the push request (enqueueTaskRepairs). A write already queued for the task
+      // rewrites the whole document anyway.
+      if (restored !== null && !snapshot.fromCache && !deepEqual(restored, read) && !hasPending(s.outbox, 'task', change.id)) {
+        repairs.push({ task: restored, pushPending: flagged || push });
+      }
+      if (!changed) continue;
       s.tasks.set(change.id, incoming);
       changedIds.push(change.id);
+      if (push) pushRequested.push(change.id);
     }
     if (!snapshot.fromCache) {
       if (!s.tasksBaseline) {
         s.tasksBaseline = true;
         const serverIds = new Set(snapshot.ids);
         for (const id of [...s.tasks.keys()]) {
-          if (!serverIds.has(id) && !hasPending(s.outbox, 'task', id)) {
-            s.tasks.delete(id);
-            changedIds.push(id);
-          }
+          if (!serverIds.has(id) && !hasPendingTaskWrite(s.outbox, id)) dropTask(id);
         }
       }
       s.errors.tasks = null;
@@ -1290,6 +1411,57 @@ export class DataEngine {
       void this.persist(s, { taskIds: changedIds });
     }
     this.notify();
+    if (changedIds.length > 0) {
+      this.events.emit('tasks:changed', {
+        uid: s.uid,
+        changedIds,
+        reason: 'remote',
+        ...(pushRequested.length > 0 ? { pushRequested } : {}),
+        ...(removed.length > 0 ? { removed } : {}),
+      });
+    }
+    if (repairs.length > 0) void this.enqueueTaskRepairs(s, repairs);
+  }
+
+  /**
+   * Writes back the task documents an older build rewrote without `source` / `external`
+   * (restoreTaskKeys), so the server copy carries the links again for the other devices. Mode set
+   * with the document's own updatedAt, since nothing changed for the user: a newer server version
+   * still wins, and the echo of this write carries both keys, so it is not repaired again. Origin
+   * system: nothing is announced or pushed for it here, and it only ever rewrites a readable copy
+   * in place (decideTaskRepair). A version whose push was requested keeps `pushPending` on the
+   * document (the website's flag, or a change the older build made to a linked task): this phone
+   * may have no task sync, and the phone that has it may never see the version without the keys.
+   * The read schema drops the flag, so the echo here equals this device's copy and nothing is
+   * pushed twice; the provider write-back clears it. Only the version this device still holds is
+   * written; a write queued meanwhile rewrites the whole document anyway.
+   */
+  private async enqueueTaskRepairs(s: Session, repairs: readonly TaskRepair[]): Promise<void> {
+    try {
+      await this.localWrite(s, () => {
+        const due = repairs.filter(({ task }) => !hasPending(s.outbox, 'task', task.id) && deepEqual(s.tasks.get(task.id), task));
+        if (due.length === 0) return { result: undefined, change: null };
+        return {
+          result: undefined,
+          change: {
+            writes: due.map(({ task, pushPending }) => {
+              const doc = taskToDoc(task) as unknown as RemoteData;
+              return {
+                kind: 'task' as const,
+                docId: task.id,
+                mode: 'set' as const,
+                data: pushPending ? { ...doc, pushPending: true } : doc,
+                updatedAt: task.updatedAt,
+                origin: 'system' as const,
+              };
+            }),
+          },
+          after: () => this.scheduleFlush(s),
+        };
+      });
+    } catch (error) {
+      log.warn(`could not queue the repair of task documents (${toAppError(error).code})`);
+    }
   }
 
   private markPreferencesKnown(s: Session): void {
@@ -1460,7 +1632,7 @@ export class DataEngine {
 
   private applyFetchedMeetings(s: Session, docs: readonly { id: string; data: RemoteData }[], options: { removeMissing: boolean }): void {
     const ctx = this.readContext(s);
-    const acc = { changedIds: [] as string[], migrations: [] as Meeting[] };
+    const acc = { changedIds: [] as string[], pushRequested: [] as string[], migrations: [] as Meeting[] };
     for (const item of docs) this.mergeRemoteMeeting(s, item.id, item.data, ctx, acc);
     if (options.removeMissing) {
       const serverIds = new Set(docs.map((item) => item.id));
@@ -1475,7 +1647,12 @@ export class DataEngine {
     if (acc.changedIds.length > 0) {
       this.bumpMeetings();
       void this.persist(s, { meetingIds: acc.changedIds });
-      this.events.emit('meetings:changed', { uid: s.uid, changedIds: acc.changedIds, reason: 'remote' });
+      this.events.emit('meetings:changed', {
+        uid: s.uid,
+        changedIds: acc.changedIds,
+        reason: 'remote',
+        ...(acc.pushRequested.length > 0 ? { pushRequested: acc.pushRequested } : {}),
+      });
     }
     this.notify();
     if (acc.migrations.length > 0) void this.enqueueMeetingMigrations(s, acc.migrations);
@@ -1556,15 +1733,21 @@ export class DataEngine {
     if (!this.remote.isAvailable || this.online === false) {
       return { flushed, pending: pendingCount(), rejected };
     }
+    // Documents whose send failed in this run for a non-network reason: the entry stays queued
+    // with its backoff, the OTHER documents go through now (order only matters per document).
+    const deferred = new Set<string>();
+    let retryAttempts = 0;
     for (;;) {
       if (!this.isCurrent(s) || s.remoteSuspended) break;
-      const entry = orderedEntries(s.outbox)[0];
+      const entry = orderedEntries(s.outbox).find((candidate) => !deferred.has(`${candidate.kind}:${candidate.docId}`));
       if (!entry) break;
       let result: CommitResult;
       try {
         const defaults = this.defaultPreferences();
         result = await withTimeout(
-          this.remote.commit(this.docPath(s.uid, entry), (current) => decideCommit(entry, current, { defaults })),
+          this.remote.commit(this.docPath(s.uid, entry), (current) =>
+            isTaskRepair(entry) ? decideTaskRepair(entry, current, defaults) : decideCommit(entry, current, { defaults }),
+          ),
           this.timeouts.commitMs,
           'outbox send',
         );
@@ -1583,12 +1766,18 @@ export class DataEngine {
         }
         log.warn(`outbox send failed (${appError.code}); will retry`);
         await this.mutateOutbox(s, (state) => recordFailure(state, entry.id, appError.code)).catch(() => undefined);
-        this.scheduleRetry(s, entry.attempts + 1);
-        break;
+        if (isNetworkFailure(appError)) {
+          this.scheduleRetry(s, entry.attempts + 1);
+          break;
+        }
+        deferred.add(`${entry.kind}:${entry.docId}`);
+        retryAttempts = Math.max(retryAttempts, entry.attempts + 1);
+        continue;
       }
       if (!this.isCurrent(s)) break;
       if (await this.afterCommit(s, entry, result, { synced, remoteMeetingIds })) flushed += 1;
     }
+    if (retryAttempts > 0 && this.isCurrent(s)) this.scheduleRetry(s, retryAttempts);
 
     if (this.isCurrent(s)) {
       if (flushed > 0) s.lastSyncedAt = this.nowIso();
@@ -1648,7 +1837,33 @@ export class DataEngine {
       case 'task': {
         if (decision.type === 'skip' && current && !hasPending(s.outbox, 'task', entry.docId)) {
           const task = readRemoteTask(entry.docId, current);
-          if (task && !deepEqual(s.tasks.get(entry.docId), task)) {
+          const local = s.tasks.get(entry.docId);
+          const restored = task && local ? restoreTaskKeys(task, current, local) : null;
+          if (task && local && restored !== null && !deepEqual(restored, task)) {
+            // Rewritten by an older build: adopting it as it is would drop the links.
+            const flagged = current.pushPending === true;
+            if (deepEqual(local, restored)) {
+              // The listener took this version while a write was queued, so it queued no repair.
+              // It asked for the push of the change when the task has a provider copy
+              // (onTasksSnapshot), and the repair keeps that request.
+              await this.enqueueTaskRepairs(s, [{ task: restored, pushPending: flagged || hasProviderCopy(restored) }]);
+            } else if (decision.reason === 'exists' && local.updatedAt === entry.updatedAt) {
+              // A create found the document: the server version is kept (outbox mode create), and
+              // here, since the listener turns down a version older than this device's create. It
+              // keeps the links this device knows, its change is pushed and the server copy is
+              // repaired, as onTasksSnapshot does for a version it accepts.
+              const push = flagged || hasProviderCopy(restored);
+              s.tasks.set(entry.docId, restored);
+              this.bumpTasks();
+              void this.persist(s, { taskIds: [entry.docId] });
+              this.events.emit('tasks:changed', { uid: s.uid, changedIds: [entry.docId], reason: 'remote', ...(push ? { pushRequested: [entry.docId] } : {}) });
+              await this.enqueueTaskRepairs(s, [{ task: restored, pushPending: push }]);
+            }
+            // Otherwise the listener holds or brings a newer version: the server copy is newer than
+            // this device's write ('stale'), or a snapshot changed the local copy meanwhile.
+          } else if (task && !isTaskRepair(entry) && !deepEqual(local, task)) {
+            // Never for a repair, which only loses to a newer version: the listener brings that
+            // version, with its push request when it has one.
             s.tasks.set(entry.docId, task);
             this.bumpTasks();
             void this.persist(s, { taskIds: [entry.docId] });
@@ -1696,7 +1911,11 @@ export class DataEngine {
         void this.persist(s, { meetingIds: [entry.docId] });
       } else if (entry.kind === 'task') {
         const task = snapshot.exists ? readRemoteTask(entry.docId, snapshot.data) : null;
-        if (task) s.tasks.set(entry.docId, task);
+        const local = s.tasks.get(entry.docId);
+        // A copy rewritten by an older build keeps the links this device knows (restoreTaskKeys).
+        // No repair is queued from here: it could be rejected the same way.
+        const restored = task && local && snapshot.data ? restoreTaskKeys(task, snapshot.data, local) : null;
+        if (task) s.tasks.set(entry.docId, restored ?? task);
         else s.tasks.delete(entry.docId);
         this.bumpTasks();
         void this.persist(s, { taskIds: [entry.docId] });
@@ -2380,26 +2599,37 @@ export class DataEngine {
     return s.tasks.get(id) ?? null;
   }
 
-  async createTask(input: TaskInput): Promise<Task> {
+  async createTask(input: TaskInput, options: TaskWriteOptions = {}): Promise<Task> {
     const s = await this.readySession();
+    const origin = options.origin ?? 'user';
+    const source = options.source ?? (origin === 'ai' ? 'ai_chat' : 'manual');
+    if (options.id !== undefined && !isValidDocumentId(options.id)) {
+      throw new AppError('invalid_input', 'Invalid task id');
+    }
+    let created = false;
     const task = await this.localWrite(s, () => {
-      const id = this.remote.newId(firestorePaths.tasks(s.uid));
-      const built = buildTask(input, { id, userId: s.uid, timezone: this.timeZone(), now: this.now() });
+      if (options.id !== undefined) {
+        const existing = s.tasks.get(options.id);
+        if (existing) return { result: existing, change: null };
+      }
+      const id = options.id ?? this.remote.newId(firestorePaths.tasks(s.uid));
+      const built = buildTask(input, { id, userId: s.uid, timezone: this.timeZone(), now: this.now(), source });
+      created = true;
       return {
         result: built,
         change: {
           tasks: [built],
-          writes: [{ kind: 'task', docId: id, mode: 'create', data: taskToDoc(built) as unknown as RemoteData, updatedAt: built.updatedAt, origin: 'user' }],
+          writes: [{ kind: 'task', docId: id, mode: 'create', data: taskToDoc(built) as unknown as RemoteData, updatedAt: built.updatedAt, origin }],
         },
       };
     });
-    this.notify();
-    this.scheduleFlush(s);
+    if (created) this.afterTaskWrite(s, [task.id], 'created', origin);
     return task;
   }
 
-  async updateTask(id: string, patch: TaskPatch): Promise<Task> {
+  async updateTask(id: string, patch: TaskPatch, options: TaskWriteOptions = {}): Promise<Task> {
     const s = await this.readySession();
+    const origin = options.origin ?? 'user';
     let changed = false;
     const task = await this.localWrite(s, () => {
       const current = s.tasks.get(id);
@@ -2412,30 +2642,41 @@ export class DataEngine {
       changed = true;
       return {
         result: next,
-        change: { tasks: [next], writes: [{ kind: 'task', docId: id, mode: 'set', data: doc as unknown as RemoteData, updatedAt: next.updatedAt, origin: 'user' }] },
+        change: { tasks: [next], writes: [{ kind: 'task', docId: id, mode: 'set', data: doc as unknown as RemoteData, updatedAt: next.updatedAt, origin }] },
       };
     });
-    if (changed) {
-      this.notify();
-      this.scheduleFlush(s);
-    }
+    if (changed) this.afterTaskWrite(s, [id], 'updated', origin);
     return task;
   }
 
-  async removeTask(id: string): Promise<void> {
+  async removeTask(id: string, options: TaskWriteOptions = {}): Promise<void> {
     const s = await this.readySession();
+    const origin = options.origin ?? 'user';
+    const removed: { id: string; external: TaskExternalRefs }[] = [];
     await this.localWrite(s, () => {
       const current = s.tasks.get(id);
       if (!current) throw new AppError('not_found', 'Task not found');
+      removed.push({ id, external: current.external });
       return {
         result: undefined,
         change: {
           removeTasks: [id],
-          writes: [{ kind: 'task', docId: id, mode: 'delete', data: null, updatedAt: nextTimestamp(this.now(), current.updatedAt), origin: 'user' }],
+          writes: [{ kind: 'task', docId: id, mode: 'delete', data: null, updatedAt: nextTimestamp(this.now(), current.updatedAt), origin }],
         },
       };
     });
+    this.afterTaskWrite(s, [id], 'deleted', origin, removed);
+  }
+
+  private afterTaskWrite(
+    s: Session,
+    ids: string[],
+    reason: 'created' | 'updated' | 'deleted',
+    origin: WriteOrigin,
+    removed?: { id: string; external: TaskExternalRefs }[],
+  ): void {
     this.notify();
+    this.events.emit('tasks:changed', { uid: s.uid, changedIds: ids, reason, origin, ...(removed ? { removed } : {}) });
     this.scheduleFlush(s);
   }
 
@@ -2801,9 +3042,9 @@ export class DataEngine {
       tasksRepository: {
         list: () => this.listTasks(),
         get: (id) => this.getTask(id),
-        create: (input) => this.createTask(input),
-        update: (id, patch) => this.updateTask(id, patch),
-        remove: (id) => this.removeTask(id),
+        create: (input, options) => this.createTask(input, options),
+        update: (id, patch, options) => this.updateTask(id, patch, options),
+        remove: (id, options) => this.removeTask(id, options),
         subscribe: (listener) => this.subscribeTasks(listener),
       },
       userRepository: {

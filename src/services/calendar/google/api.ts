@@ -11,7 +11,7 @@ import type { GoogleEvent, GoogleEventList, GoogleEventWrite, SendUpdates } from
 
 export const GOOGLE_CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3';
 
-/** Response fields MeetingGuard reads from events.list (smaller payloads). */
+/** Response fields Meeting Guard reads from events.list (smaller payloads). */
 export const LIST_FIELDS =
   'nextPageToken,nextSyncToken,timeZone,items(id,etag,status,summary,description,location,start,end,updated,' +
   'attendees(email,displayName,responseStatus,self,resource),conferenceData,hangoutLink,recurringEventId,' +

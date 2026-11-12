@@ -385,6 +385,74 @@ describe('real-time snapshots', () => {
     expect(await h.engine.listMeetings()).toEqual([]);
   });
 
+  it('reports documents the website flagged pushPending so the calendar engine pushes them (section 32)', async () => {
+    const h = harness();
+    await h.engine.startSession(UID);
+    await settle();
+
+    const fromWeb = storedMeeting('fromWeb', 'Planned on the website', '2026-10-08T09:00:00.000Z');
+    h.remote.serverSet(firestorePaths.meeting(UID, fromWeb.id), {
+      ...(toMeetingDoc(fromWeb) as unknown as Record<string, unknown>),
+      pushPending: true,
+    });
+    await settle();
+    expect(h.meetingEvents.at(-1)).toEqual({ uid: UID, changedIds: ['fromWeb'], reason: 'remote', pushRequested: ['fromWeb'] });
+    // The flag never enters the model, so the next app write of the document leaves it out.
+    const stored = (await h.engine.listMeetings())[0] as unknown as Record<string, unknown>;
+    expect(stored.id).toBe('fromWeb');
+    expect('pushPending' in stored).toBe(false);
+  });
+
+  it('keeps a website Zoom meeting out of pushRequested until the server has written the link (section 32)', async () => {
+    const h = harness();
+    await h.engine.startSession(UID);
+    await settle();
+
+    const pending = {
+      ...storedMeeting('webZoom', 'Zoom from the website', '2026-10-08T10:00:00.000Z'),
+      conference: { provider: 'zoom' as const, url: null, password: null },
+    };
+    h.remote.serverSet(firestorePaths.meeting(UID, pending.id), {
+      ...(toMeetingDoc(pending) as unknown as Record<string, unknown>),
+      pushPending: true,
+    });
+    await settle();
+    expect((await h.engine.listMeetings()).map((m) => m.id)).toEqual(['webZoom']);
+    expect(h.meetingEvents.at(-1)).toEqual({ uid: UID, changedIds: ['webZoom'], reason: 'remote' });
+
+    // zoomCreateMeeting's write-back: a partial update that keeps the flag and bumps updatedAt.
+    const linked = {
+      ...pending,
+      conference: { provider: 'zoom' as const, url: 'https://zoom.us/j/123456789', password: 'abc' },
+      updatedAt: '2026-10-05T10:00:05.000Z',
+    };
+    h.remote.serverSet(firestorePaths.meeting(UID, linked.id), {
+      ...(toMeetingDoc(linked) as unknown as Record<string, unknown>),
+      pushPending: true,
+    });
+    await settle();
+    expect(h.meetingEvents.at(-1)).toEqual({ uid: UID, changedIds: ['webZoom'], reason: 'remote', pushRequested: ['webZoom'] });
+  });
+
+  it('a document rejected for a non-network reason does not block the other queued writes', async () => {
+    const h = harness();
+    await h.engine.startSession(UID);
+    await settle();
+    h.remote.online = false;
+    const a = await h.engine.createMeeting({ title: 'A', startAt: '2026-10-06T08:00:00.000Z', source: 'manual' });
+    const b = await h.engine.createMeeting({ title: 'B', startAt: '2026-10-06T09:00:00.000Z', source: 'manual' });
+    // The first send (A, oldest) fails with a retryable server error: A waits for its backoff, B
+    // must not sit behind it.
+    h.remote.commitFailures.push(new FakeProviderError('internal'));
+
+    h.setOnline(true);
+    await settle();
+
+    expect(h.remote.docs.has(firestorePaths.meeting(UID, b.id))).toBe(true);
+    expect(h.remote.docs.has(firestorePaths.meeting(UID, a.id))).toBe(false);
+    expect(await h.engine.getPendingWriteCount()).toBe(1);
+  });
+
   it('drops cached meetings that were deleted on the server while offline, but keeps pending local ones', async () => {
     const gone = storedMeeting('gone', 'Deleted elsewhere', '2026-10-05T08:00:00.000Z');
     await AsyncStorage.setItem(cacheKeys.meeting(UID, 'gone'), JSON.stringify(toMeetingDoc(gone)));

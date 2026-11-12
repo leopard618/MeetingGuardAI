@@ -2,8 +2,8 @@
 <!-- Spanish fallback (system locale); mirrors src/i18n/locales/es/widget.json. -->
 <resources>
   <string name="mg_widget_label">Próxima reunión</string>
-  <string name="mg_widget_description">Muestra tu próxima reunión de MeetingGuard</string>
+  <string name="mg_widget_description">Muestra tu próxima reunión de Meeting Guard AI</string>
   <string name="mg_widget_empty_title">No hay reuniones próximas</string>
-  <string name="mg_widget_empty_body">Abre MeetingGuard para planificar una</string>
+  <string name="mg_widget_empty_body">Abre Meeting Guard para planificar una</string>
   <string name="mg_widget_now">En curso</string>
 </resources>

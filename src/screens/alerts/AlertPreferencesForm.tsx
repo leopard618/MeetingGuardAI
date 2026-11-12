@@ -7,7 +7,7 @@
  * AlertDeliverySection: notification permission, Android exact alarms and the MAX channel's
  * "Override Do Not Disturb" setting, and the iOS Focus explanation.
  */
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { ThemedDateTimePicker as DateTimePicker, type DateTimePickerEvent } from '../shared/ThemedDateTimePicker';
 import { useState, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Button, Chip, HelperText, RadioButton, SegmentedButtons, Switch, Text, TouchableRipple } from 'react-native-paper';
@@ -189,6 +189,21 @@ export function AlertExtraSettings({
 
   return (
     <View>
+      <Section title={t('alerts:settings.imported.label')}>
+        <Text variant="bodyMedium" style={{ color: colors.onSurfaceVariant }}>
+          {t('alerts:settings.imported.description')}
+        </Text>
+        <SegmentedButtons
+          style={styles.subheading}
+          value={draft.importedAlertIntensity ?? 'default'}
+          onValueChange={(value) => onChange({ importedAlertIntensity: value === 'default' ? null : (value as AlertIntensity) })}
+          buttons={[
+            { value: 'default', label: t('alerts:settings.imported.default') },
+            ...ALERT_INTENSITIES.map((intensity) => ({ value: intensity, label: t(`onboarding:alerts.intensity.${intensity}.title`) })),
+          ]}
+        />
+      </Section>
+
       <Section title={t('alerts:settings.snooze.label')}>
         <SegmentedButtons
           value={String(draft.snoozeMinutes)}
@@ -243,6 +258,26 @@ export function AlertExtraSettings({
               <Button mode="text" onPress={() => setPickingTime(false)} testID="alerts-briefing-picker-done">
                 {t('alerts:settings.briefing.done')}
               </Button>
+            ) : null}
+            {Platform.OS === 'android' && fullScreenAlarm.isAvailable() ? (
+              <View>
+                <View style={styles.switchRow}>
+                  <Text variant="bodyMedium" style={[styles.flex, { color: colors.onSurfaceVariant }]}>
+                    {t('alerts:settings.briefing.fullScreen')}
+                  </Text>
+                  <Switch
+                    value={draft.briefingFullScreen}
+                    onValueChange={(value) => onChange({ briefingFullScreen: value })}
+                    accessibilityLabel={t('alerts:settings.briefing.fullScreen')}
+                    testID="alerts-briefing-fullscreen"
+                  />
+                </View>
+                {draft.briefingFullScreen ? (
+                  <HelperText type="info" visible>
+                    {t('alerts:settings.briefing.fullScreenHint')}
+                  </HelperText>
+                ) : null}
+              </View>
             ) : null}
           </View>
         ) : null}
@@ -330,7 +365,7 @@ export function AlertDeliverySection({
         ) : null}
       </Section>
 
-      {status?.exactAlarms === 'unknown' ? (
+      {status?.exactAlarms === 'unknown' || status?.exactAlarms === 'denied' ? (
         <Section title={t('onboarding:alerts.exactAlarms.title')}>
           {exactAllowed === true ? (
             <Badge tone="success" label={t('alerts:settings.exactAlarms.granted')} testID="alerts-exact-granted" />

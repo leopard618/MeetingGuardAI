@@ -13,7 +13,7 @@ import type { TranslateFn } from '../../../core/contracts';
 import { endIso, toLocalDateTime } from '../../../core/time';
 import type { Meeting, MeetingSource } from '../../../core/types';
 import { useT } from '../../../i18n';
-import { Badge } from '../../../components/ui';
+import { Badge, Icon } from '../../../components/ui';
 import {
   componentMetrics,
   pressedOpacity,
@@ -28,13 +28,14 @@ import {
 } from '../../../theme';
 import type { Formatters } from '../../shared/useFormatters';
 import type { DisplayMeeting } from '../occurrences';
-import { isInProgress, type SourceCategory } from './meetingListModel';
+import { type SourceCategory } from './meetingListModel';
 
 const MINUTES_PER_DAY = 1440;
 
 /** Dot / legend color of a source category (canonical §2 map: meetingguard = manual's hue). */
 export function sourceColor(category: SourceCategory, colors: MGColors): string {
   if (category === 'google') return colors.chart[sourceColorIndex.google];
+  if (category === 'outlook') return colors.chart[sourceColorIndex.outlook];
   if (category === 'device') return colors.chart[sourceColorIndex.device];
   return colors.chart[sourceColorIndex.manual];
 }
@@ -61,17 +62,18 @@ export function meetingTimeText(meeting: Meeting, fmt: Formatters, timeZone: str
   return `${fmt.time(meeting.startAt, timeZone)} - ${fmt.time(end, timeZone)}`;
 }
 
-function placeText(meeting: Meeting, t: TranslateFn): { icon: 'map-marker-outline' | 'video-outline'; text: string } | null {
-  if (meeting.location?.address) return { icon: 'map-marker-outline', text: meeting.location.address };
-  if (meeting.conference) return { icon: 'video-outline', text: t(`alerts:provider.${meeting.conference.provider}`) };
-  if (meeting.location?.virtualUrl) return { icon: 'video-outline', text: t('meetings:list.online') };
+function placeText(meeting: Meeting, t: TranslateFn): { icon: 'place' | 'video'; text: string } | null {
+  if (meeting.location?.address) return { icon: 'place', text: meeting.location.address };
+  if (meeting.conference) return { icon: 'video', text: t(`alerts:provider.${meeting.conference.provider}`) };
+  if (meeting.location?.virtualUrl) return { icon: 'video', text: t('meetings:list.online') };
   return null;
 }
 
 export interface MeetingListItemProps {
   /** A meeting, or one materialized occurrence of a recurring meeting (occurrences.ts). */
   meeting: DisplayMeeting;
-  now: Date;
+  /** Computed by the screen from its clock, so a tick re-renders only rows whose state changed. */
+  inProgress: boolean;
   timeZone: string;
   /** The screen's formatters (UI language + clock preference). */
   fmt: Formatters;
@@ -84,7 +86,7 @@ export interface MeetingListItemProps {
 
 function MeetingListItemComponent({
   meeting,
-  now,
+  inProgress,
   timeZone,
   fmt,
   deleting = false,
@@ -94,12 +96,12 @@ function MeetingListItemComponent({
   onDelete,
 }: MeetingListItemProps): ReactElement {
   const t = useT();
-  const { colors } = useAppTheme();
+  const { colors, elevated } = useAppTheme();
   const accent = meetingSourceColor(meeting.source, colors);
   const when = meetingTimeText(meeting, fmt, timeZone, t);
   const place = placeText(meeting, t);
   const cancelled = meeting.status === 'cancelled';
-  const live = !cancelled && isInProgress(meeting, now);
+  const live = !cancelled && inProgress;
   const source = t(`meetings:source.${meeting.source}`);
   const muted = colors.onSurfaceVariant;
   const repeats = meeting.recurrence !== null;
@@ -134,10 +136,11 @@ function MeetingListItemComponent({
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.surface, borderColor: colors.outlineVariant },
+        elevated,
         deleting && styles.deleting,
       ]}
     >
+      <View style={styles.inner}>
       <Pressable
         style={({ pressed }) => [styles.pressable, pressed && Platform.OS !== 'android' && styles.pressed]}
         android_ripple={{ color: withAlpha(colors.onSurface, stateAlpha.rippleOnRow) }}
@@ -174,7 +177,7 @@ function MeetingListItemComponent({
           </Text>
           {place ? (
             <View style={styles.metaRow}>
-              <MaterialCommunityIcons name={place.icon} size={componentMetrics.iconMeta} color={muted} style={styles.metaIcon} />
+              <Icon name={place.icon} size={componentMetrics.iconMeta} color={muted} style={styles.metaIcon} />
               <Text variant="bodySmall" numberOfLines={1} style={[styles.flex, { color: muted }]}>
                 {place.text}
               </Text>
@@ -206,6 +209,7 @@ function MeetingListItemComponent({
         style={styles.more}
         testID={`meeting-row-more-${meeting.id}`}
       />
+      </View>
     </View>
   );
 }
@@ -214,12 +218,16 @@ export const MeetingListItem = memo(MeetingListItemComponent);
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: radii.lg,
+    borderRadius: radii.xxl,
     borderWidth: 1,
     marginHorizontal: componentMetrics.screenGutter,
     marginBottom: componentMetrics.cardGap,
+  },
+  inner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: radii.xxl,
+    // Keeps the accent bar and the Android ripple inside the corners; the outer card casts the shadow.
     overflow: 'hidden',
   },
   deleting: {

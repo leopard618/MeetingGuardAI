@@ -19,6 +19,7 @@ import type { OutlookCalendarService } from '../../../core/contracts';
 import { toAppError } from '../../../core/errors';
 import { appEvents } from '../../../core/events';
 import { createLogger } from '../../../core/logger';
+import { calendarPushHold } from '../../../core/pushHold';
 import { getDeviceTimeZone } from '../../../core/time';
 import { t } from '../../../i18n';
 import { clearMicrosoftToken, getMicrosoftRefreshToken, saveMicrosoftRefreshToken } from '../../auth/microsoftTokens';
@@ -38,7 +39,12 @@ const getUid = (): string | null => dataService.getActiveUid();
 const now = (): Date => new Date();
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const tokenManager = createMicrosoftTokenManager({
+/**
+ * The one Microsoft token manager of the app (refresh token in secure store, access token in
+ * memory). Shared with the Microsoft To Do sync (src/services/tasks/todo), which runs on the
+ * same account and consent.
+ */
+export const microsoftTokenManager = createMicrosoftTokenManager({
   clientId: env.msal.clientId ?? '',
   tenant: env.msal.tenant,
   store: {
@@ -50,8 +56,10 @@ const tokenManager = createMicrosoftTokenManager({
   onDisconnected: () => {
     // The stored consent is gone (invalid_grant): show "not connected" until the user reconnects.
     calendarStatusStore.patchOutlook({ connected: false, enabled: false, accountEmail: null, lastError: 'calendar_not_connected' });
+    calendarStatusStore.patchTodo({ connected: false, lastError: 'calendar_not_connected' });
   },
 });
+const tokenManager = microsoftTokenManager;
 
 /** Internal service with the engine hooks (the barrel registers it with the sync engine). */
 export const outlookInternal: OutlookCalendarServiceInternal = createOutlookCalendarService({
@@ -78,6 +86,7 @@ export const outlookInternal: OutlookCalendarServiceInternal = createOutlookCale
   sleep,
   defaultTimeZone: getDeviceTimeZone,
   untitledTitle: () => t('calendar:outlook.untitledEvent'),
+  holdPush: calendarPushHold.isHeld,
   config: { clientId: env.msal.clientId, tenant: env.msal.tenant },
 });
 

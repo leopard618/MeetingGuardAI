@@ -26,6 +26,8 @@ export interface MediumAlertBannerProps {
   onSnooze(minutes: number): void;
   onJoin: (() => void) | null;
   onDetails: (() => void) | null;
+  /** M9: the running-late sheet (the alert is resolved first; null for alerts without a meeting). */
+  onRunningLate: (() => void) | null;
 }
 
 /** Soft dot/card pulse; stays still when the system asks for reduced motion. */
@@ -50,7 +52,7 @@ function usePulse(): Animated.Value {
 }
 
 export function MediumAlertBanner(props: MediumAlertBannerProps): ReactElement {
-  const { display, snoozeMinutes, feedback, onAcknowledge, onSnooze, onJoin, onDetails } = props;
+  const { display, snoozeMinutes, feedback, onAcknowledge, onSnooze, onJoin, onDetails, onRunningLate } = props;
   const t = useT();
   const insets = useSafeAreaInsets();
   const pulse = usePulse();
@@ -140,6 +142,16 @@ export function MediumAlertBanner(props: MediumAlertBannerProps): ReactElement {
           >
             <Text style={styles.secondaryText}>{t('alerts:buttons.snooze', { count: snoozeMinutes })}</Text>
           </Pressable>
+          {onRunningLate ? (
+            <Pressable
+              style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
+              onPress={once(onRunningLate)}
+              accessibilityRole="button"
+              testID="alert-running-late"
+            >
+              <Text style={styles.secondaryText}>{t('alerts:buttons.runningLate')}</Text>
+            </Pressable>
+          ) : null}
         </View>
       </Animated.View>
     </View>

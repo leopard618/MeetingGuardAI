@@ -72,6 +72,7 @@ function setup(options: { outlook?: boolean; connected?: boolean } = {}) {
     sync: jest.fn(async () => pullResult('outlook')),
     loadState: jest.fn(async () => ({ ...defaultOutlookSyncState(), lastSyncAt: '2026-09-30T08:00:00.000Z' })),
     resetLocalState: jest.fn(async () => undefined),
+    setDisconnectHook: jest.fn(),
     refreshStatus: jest.fn(async () => {
       status.patchOutlook({ configured: true, connected, enabled: connected });
       return { configured: true, connected };
@@ -141,6 +142,30 @@ describe('calendarSyncEngine + outlook', () => {
     const report = await engine.syncNow({ reason: 'manual' });
     expect('outlook' in report).toBe(false);
     expect(outlook.refreshStatus).not.toHaveBeenCalled();
+    engine.stop();
+  });
+
+  it('queues a change pulled from Google for Outlook (the other provider holds a copy of the same meeting)', async () => {
+    const { engine, google, outlook, events } = setup();
+    engine.start(UID);
+    await jest.runAllTimersAsync();
+    events.emit('meetings:changed', change({ reason: 'imported', origin: 'calendar_google', changedIds: ['m1'] }));
+    await jest.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS);
+    await settle();
+    expect(outlook.enqueue).toHaveBeenCalledWith(['m1'], 'upsert');
+    expect(outlook.flushPending).toHaveBeenCalled();
+    // Never back to the provider the change came from.
+    expect(google.enqueue).not.toHaveBeenCalled();
+    engine.stop();
+  });
+
+  it('queues a remote change the website flagged (pushRequested) for Outlook too (section 32)', async () => {
+    const { engine, outlook, events } = setup();
+    engine.start(UID);
+    await jest.runAllTimersAsync();
+    events.emit('meetings:changed', change({ reason: 'remote', origin: undefined, changedIds: ['web1'], pushRequested: ['web1'] }));
+    await settle();
+    expect(outlook.enqueue).toHaveBeenCalledWith(['web1'], 'upsert');
     engine.stop();
   });
 

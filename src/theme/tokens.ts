@@ -180,10 +180,10 @@ export const chartPalette: Readonly<Record<MGSchemeName, MGChartPalette>> = {
 };
 
 export const lightColors: MGColors = {
-  primary: '#4646D3',
+  primary: '#1D5BD6',
   onPrimary: '#FFFFFF',
-  primaryContainer: '#E3E6FC',
-  onPrimaryContainer: '#26268F',
+  primaryContainer: '#DCE7FB',
+  onPrimaryContainer: '#0B2F7A',
   secondary: '#44566E',
   onSecondary: '#FFFFFF',
   secondaryContainer: '#E3E9F1',
@@ -192,7 +192,7 @@ export const lightColors: MGColors = {
   onTertiary: '#FFFFFF',
   tertiaryContainer: '#D3F2F7',
   onTertiaryContainer: '#0F4E5A',
-  background: '#F6F8FB',
+  background: '#EEF3FA',
   onBackground: '#0F172A',
   surface: '#FFFFFF',
   onSurface: '#0F172A',
@@ -204,7 +204,7 @@ export const lightColors: MGColors = {
   outlineVariant: '#E1E7EE',
   inverseSurface: '#2A3446',
   inverseOnSurface: '#EEF2F7',
-  inversePrimary: '#AFB4FF',
+  inversePrimary: '#8FB4FF',
   error: '#C62B2B',
   onError: '#FFFFFF',
   errorContainer: '#FBE1E1',
@@ -242,31 +242,31 @@ export const lightColors: MGColors = {
 };
 
 export const darkColors: MGColors = {
-  primary: '#AFB4FF',
-  onPrimary: '#101273',
-  primaryContainer: '#34349E',
-  onPrimaryContainer: '#E3E6FC',
-  secondary: '#AEBED4',
-  onSecondary: '#1C2B3E',
-  secondaryContainer: '#32415A',
-  onSecondaryContainer: '#DDE5EF',
+  primary: '#8FB4FF',
+  onPrimary: '#06255F',
+  primaryContainer: '#1D3F8A',
+  onPrimaryContainer: '#DCE7FB',
+  secondary: '#AEB7C7',
+  onSecondary: '#1F2633',
+  secondaryContainer: '#2A3040',
+  onSecondaryContainer: '#DDE3EE',
   tertiary: '#3ECFBE',
   onTertiary: '#0A3A34',
   tertiaryContainer: '#0F515F',
   onTertiaryContainer: '#C6EEF6',
-  background: '#0C1320',
-  onBackground: '#E7EDF6',
-  surface: '#131C2B',
-  onSurface: '#E7EDF6',
-  surfaceVariant: '#26334A',
-  onSurfaceVariant: '#9AA8BE',
-  surfaceContainerLow: '#18202F',
-  surfaceContainerHigh: '#202B40',
-  outline: '#5E6F8D',
-  outlineVariant: '#27324A',
-  inverseSurface: '#E7EDF6',
-  inverseOnSurface: '#1B2433',
-  inversePrimary: '#4646D3',
+  background: '#0A0C11',
+  onBackground: '#E8EAF0',
+  surface: '#12151D',
+  onSurface: '#E8EAF0',
+  surfaceVariant: '#232833',
+  onSurfaceVariant: '#9CA3B2',
+  surfaceContainerLow: '#161A23',
+  surfaceContainerHigh: '#1E222C',
+  outline: '#606979',
+  outlineVariant: '#262B36',
+  inverseSurface: '#E8EAF0',
+  inverseOnSurface: '#1B1F29',
+  inversePrimary: '#1D5BD6',
   error: '#FF9F9F',
   onError: '#4C0F0F',
   errorContainer: '#7C2222',
@@ -283,19 +283,19 @@ export const darkColors: MGColors = {
   onInfo: '#0A2A42',
   infoContainer: '#0D4A75',
   onInfoContainer: '#D3EAFB',
-  disabledText: '#5F6E84',
-  surfaceDisabled: 'rgba(231,237,246,0.12)',
-  onSurfaceDisabled: '#5F6E84',
+  disabledText: '#646B7A',
+  surfaceDisabled: 'rgba(232,234,240,0.12)',
+  onSurfaceDisabled: '#646B7A',
   shadow: '#000000',
   scrim: 'rgba(0,0,0,0.60)',
   backdrop: 'rgba(0,0,0,0.52)',
   elevation: {
     level0: 'transparent',
-    level1: '#1B2333',
-    level2: '#1F2737',
-    level3: '#232C3E',
-    level4: '#252E41',
-    level5: '#293246',
+    level1: '#171B24',
+    level2: '#1B1F29',
+    level3: '#20242F',
+    level4: '#232835',
+    level5: '#272C3A',
   },
   chart: chartPalette.dark,
   alertMax,
@@ -307,6 +307,78 @@ export const mgColors: Readonly<Record<MGSchemeName, MGColors>> = {
   light: lightColors,
   dark: darkColors,
 };
+
+/**
+ * Gradients (audit 2026-10-30 visual refresh). Two stops, drawn diagonally (top-left to
+ * bottom-right) unless a component says otherwise. Every stop was checked against its on-color:
+ * every ramp carries white text at >= 4.5:1 on BOTH stops (the lightest stop of the ai ramp is
+ * 4.3:1, icons only). Dark mode uses the same vivid indigo-to-violet ramps, never the pale
+ * tonal primary, so buttons and the focal card glow instead of washing out.
+ * - primary: filled buttons, FABs, the active tab pill, the header hairline.
+ * - hero: the dashboard hero card and other one-per-screen banners (white text).
+ * - ai: the assistant orb in the bottom bar and the assistant tiles (white icon).
+ */
+export type MGGradientStops = readonly [string, string];
+
+export interface MGGradients {
+  primary: MGGradientStops;
+  hero: MGGradientStops;
+  ai: MGGradientStops;
+}
+
+export const gradients: Readonly<Record<MGSchemeName, MGGradients>> = {
+  light: {
+    primary: ['#1D5BD6', '#2F7BF0'],
+    hero: ['#E3EBFA', '#CFDDF7'],
+    ai: ['#1D5BD6', '#2F7BF0'],
+  },
+  dark: {
+    primary: ['#2F6BE6', '#4A8CF5'],
+    hero: ['#0A1458', '#1F3FB5'],
+    ai: ['#2F6BE6', '#4A8CF5'],
+  },
+};
+
+/** Text and icon color on each gradient. */
+export const onGradient: Readonly<Record<MGSchemeName, Readonly<Record<keyof MGGradients, string>>>> = {
+  light: { primary: '#FFFFFF', hero: '#FFFFFF', ai: '#FFFFFF' },
+  dark: { primary: '#FFFFFF', hero: '#FFFFFF', ai: '#FFFFFF' },
+};
+
+/**
+ * Soft elevation for resting cards (light scheme only; dark surfaces use a tonal step plus the
+ * outlineVariant hairline because shadows vanish on dark backgrounds). Indigo-tinted so the
+ * shadow reads as depth, not dirt.
+ */
+export const softShadow = {
+  shadowColor: '#101273',
+  shadowOpacity: 0.08,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 2,
+} as const;
+
+/** Stronger, colored shadow for floating controls (FAB, assistant orb). */
+export const floatingShadow = {
+  shadowColor: '#4646D3',
+  shadowOpacity: 0.32,
+  shadowRadius: 14,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 8,
+} as const;
+
+/** Motion (ms) and the one press spring. Every animation skips itself under "reduce motion". */
+export const motion = {
+  fast: 120,
+  base: 220,
+  slow: 320,
+  reveal: 360,
+  /** Staggered list reveals: per-row delay and the largest row index that still waits. */
+  staggerMs: 40,
+  staggerMaxIndex: 8,
+  pressScale: 0.97,
+  spring: { damping: 18, stiffness: 320, mass: 0.7 },
+} as const;
 
 /**
  * Canonical chart-palette index per meeting source (accent bars, calendar dots, timeline dots,
@@ -414,15 +486,35 @@ export const paperColorOverrides: Readonly<Record<MGSchemeName, MGPaperColorOver
   dark: toPaperColors(darkColors),
 };
 
-/** Assignable to react-native TextStyle.fontWeight. */
-export type MGFontWeight = '400' | '500' | '600' | '700';
+/** Semantic weights of the type scale. */
+export type MGFontWeight = '400' | '500' | '600' | '700' | '800';
+
+/**
+ * Plus Jakarta Sans (visual refresh, October 30, 2026): one family name per weight, as expo-font
+ * registers them (@expo-google-fonts/plus-jakarta-sans, loaded in AppRoot). A style sets the
+ * family of its weight and keeps `fontWeight: '400'`, because Android would otherwise stack a
+ * synthetic bold on an already-bold file. Until the fonts are loaded the system font shows.
+ */
+export const fontFamilies: Readonly<Record<MGFontWeight, string>> = {
+  '400': 'PlusJakartaSans_400Regular',
+  '500': 'PlusJakartaSans_500Medium',
+  '600': 'PlusJakartaSans_600SemiBold',
+  '700': 'PlusJakartaSans_700Bold',
+  '800': 'PlusJakartaSans_800ExtraBold',
+};
 
 /** Spread directly into a StyleSheet text style. */
 export interface MGTypeStyle {
+  fontFamily: string;
   fontSize: number;
   lineHeight: number;
-  fontWeight: MGFontWeight;
+  /** Always '400': the weight lives in the family (see fontFamilies). */
+  fontWeight: '400';
   letterSpacing: number;
+}
+
+function type(weight: MGFontWeight, fontSize: number, lineHeight: number, letterSpacing: number): MGTypeStyle {
+  return { fontFamily: fontFamilies[weight], fontSize, lineHeight, fontWeight: '400', letterSpacing };
 }
 
 export type MGTypographyVariant =
@@ -442,20 +534,21 @@ export type MGTypographyVariant =
 
 export type MGTypography = Readonly<Record<MGTypographyVariant, MGTypeStyle>>;
 
+/** Headlines tight and heavy, body relaxed: the editorial contrast of current planner apps. */
 export const typography: MGTypography = {
-  displayS: { fontSize: 36, lineHeight: 44, fontWeight: '700', letterSpacing: 0 },
-  headlineL: { fontSize: 28, lineHeight: 36, fontWeight: '700', letterSpacing: 0 },
-  headlineM: { fontSize: 24, lineHeight: 32, fontWeight: '700', letterSpacing: 0 },
-  headlineS: { fontSize: 20, lineHeight: 28, fontWeight: '600', letterSpacing: 0 },
-  titleL: { fontSize: 20, lineHeight: 28, fontWeight: '600', letterSpacing: 0 },
-  titleM: { fontSize: 16, lineHeight: 24, fontWeight: '600', letterSpacing: 0.1 },
-  titleS: { fontSize: 14, lineHeight: 20, fontWeight: '600', letterSpacing: 0.1 },
-  bodyL: { fontSize: 16, lineHeight: 24, fontWeight: '400', letterSpacing: 0.15 },
-  bodyM: { fontSize: 14, lineHeight: 20, fontWeight: '400', letterSpacing: 0.25 },
-  bodyS: { fontSize: 12, lineHeight: 16, fontWeight: '400', letterSpacing: 0.4 },
-  labelL: { fontSize: 14, lineHeight: 20, fontWeight: '600', letterSpacing: 0.1 },
-  labelM: { fontSize: 12, lineHeight: 16, fontWeight: '500', letterSpacing: 0.3 },
-  labelS: { fontSize: 11, lineHeight: 16, fontWeight: '500', letterSpacing: 0.4 },
+  displayS: type('800', 40, 48, -0.8),
+  headlineL: type('800', 32, 40, -0.6),
+  headlineM: type('700', 26, 34, -0.4),
+  headlineS: type('700', 22, 30, -0.2),
+  titleL: type('700', 20, 28, -0.2),
+  titleM: type('600', 16, 24, 0),
+  titleS: type('600', 14, 20, 0),
+  bodyL: type('400', 16, 24, 0.1),
+  bodyM: type('400', 14, 20, 0.15),
+  bodyS: type('400', 12, 16, 0.2),
+  labelL: type('600', 14, 20, 0.1),
+  labelM: type('500', 12, 16, 0.2),
+  labelS: type('500', 11, 16, 0.3),
 };
 
 /** 4pt grid - the only spacing values allowed in StyleSheets. */
@@ -473,8 +566,8 @@ export const spacing = {
 export type MGSpacing = typeof spacing;
 
 /**
- * Radius scale: xs badge, sm chip/small button, md input/list group/banner, lg card/toast,
- * xl FAB/modal, sheet = bottom-sheet top corners, full = pill/avatar.
+ * Radius scale: xs badge, sm chip/small button, md input/list group/banner, lg toast,
+ * xl FAB/modal, xxl card / floating tab bar, sheet = bottom-sheet top corners, full = pill/avatar.
  */
 export const radii = {
   xs: 6,
@@ -482,6 +575,8 @@ export const radii = {
   md: 12,
   lg: 16,
   xl: 20,
+  /** Resting cards and the floating tab bar. */
+  xxl: 24,
   sheet: 28,
   full: 999,
 } as const;
@@ -547,6 +642,10 @@ export const componentMetrics = {
   fabSize: 56,
   headerMinHeight: 56,
   headerRippleRadius: 22,
+  /** Bottom navigation bar of the Main group: row height above the safe-area inset; active pill behind the icon. */
+  bottomBarHeight: 64,
+  bottomBarPillWidth: 56,
+  bottomBarPillHeight: 32,
   emptyStateCircle: 96,
   emptyStateIcon: 48,
   sheetHandleWidth: 32,

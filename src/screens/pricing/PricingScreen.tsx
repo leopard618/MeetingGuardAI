@@ -20,10 +20,11 @@
  *   blocks every purchase here (this store cannot replace it; a purchase would bill twice)
  *   and its card names the store where it is managed instead of Manage.
  * - Prices from src/services/billing.ts stay the fallback; daily assistant quotas as enforced
- *   by the server (PLAN_DAILY_AI_LIMITS); today's usage from useAssistant().usage.
+ *   by the server (PLAN_AI_LIMITS); the current usage from useAssistant().usage.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { ActivityIndicator, FlatList, Linking, Platform, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 import { ProgressBar, SegmentedButtons } from 'react-native-paper';
@@ -37,7 +38,7 @@ import { createLogger } from '../../core/logger';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useLanguage, useT } from '../../i18n';
-import type { TranslateFn } from '../../core/contracts';
+import type { RootStackParamList, TranslateFn } from '../../core/contracts';
 import { useAssistant } from '../../services/ai';
 import { useAuth } from '../../services/auth';
 import { effectivePlan } from '../../core/types';
@@ -77,28 +78,32 @@ function UsageCard({ summary, colors }: { summary: UsageSummary; colors: AppColo
         {t('pricing:usage.title')}
       </Text>
       <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.plan', { plan })}</Text>
-      {summary.kind === 'today' ? (
+      {summary.kind === 'current' ? (
         <>
           <Text style={[styles.usageNumbers, { color: colors.onSurface }]}>
-            {t('pricing:usage.today', { used: summary.used, limit: summary.limit })}
+            {t(`pricing:usage.used.${summary.period}`, { used: summary.used, limit: summary.limit })}
           </Text>
           <ProgressBar
             progress={summary.fraction}
             color={summary.remaining === 0 ? colors.error : colors.primary}
             style={styles.progress}
-            accessibilityLabel={t('pricing:usage.today', { used: summary.used, limit: summary.limit })}
+            accessibilityLabel={t(`pricing:usage.used.${summary.period}`, { used: summary.used, limit: summary.limit })}
           />
-          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>
-            {summary.remaining === 0
-              ? t('pricing:usage.exhausted', { time: fmt.dateTime(summary.resetsAt) })
-              : t('pricing:usage.resets', { time: fmt.dateTime(summary.resetsAt) })}
+          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]} testID="pricing-usage-caption">
+            {summary.subscriptionRequired
+              ? t('pricing:usage.subscriptionRequired')
+              : summary.remaining === 0
+                ? t(`pricing:usage.exhausted.${summary.period}`, { time: fmt.dateTime(summary.resetsAt) })
+                : t(`pricing:usage.resets.${summary.period}`, { time: fmt.dateTime(summary.resetsAt) })}
           </Text>
           <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.thisDevice')}</Text>
         </>
       ) : (
         <>
-          <Text style={[styles.usageNumbers, { color: colors.onSurface }]}>{t('pricing:usage.perDay', { count: summary.limit })}</Text>
-          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.unknownToday')}</Text>
+          <Text style={[styles.usageNumbers, { color: colors.onSurface }]}>
+            {summary.period === 'window' ? t('pricing:usage.introductory') : t('pricing:usage.perMonth', { count: summary.limit })}
+          </Text>
+          <Text style={[styles.caption, { color: colors.onSurfaceVariant }]}>{t('pricing:usage.unknownYet')}</Text>
         </>
       )}
     </View>
@@ -139,7 +144,7 @@ function PlanCardView({ card, colors, language, configured, busy, purchasingThis
   const monthlyEquivalent =
     card.storeMonthlyEquivalent ?? (card.monthlyEquivalentUsd !== null ? formatPriceUsd(card.monthlyEquivalentUsd, language) : null);
   const features = [
-    t('pricing:features.requests', { count: card.aiRequestsPerDay }),
+    card.aiPeriod === 'window' ? t('pricing:features.introductory') : t('pricing:features.actionsPerMonth', { count: card.aiActions }),
     ...(card.tier === 'free' ? [t('pricing:features.meetings'), t('pricing:features.calendars')] : [t('pricing:features.everythingFree')]),
   ];
 
@@ -315,6 +320,7 @@ export function PricingScreen(): ReactElement {
   const { language } = useLanguage();
   const insets = useSafeAreaInsets();
   const layout = useResponsive();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { plan, isLoaded } = useEntitlement();
   const { usage } = useAssistant();
   const { authUser } = useAuth();
@@ -594,6 +600,20 @@ export function PricingScreen(): ReactElement {
       <Text style={[styles.footer, { color: colors.onSurfaceVariant }]}>
         {t(Platform.OS === 'ios' ? 'pricing:footerIos' : 'pricing:footer')}
       </Text>
+      {/* App Store rule 3.1.2: a subscription screen states the renewal terms and links to the
+          privacy policy and the terms of use from the screen itself (Settings does not count). */}
+      <Text style={[styles.footer, { color: colors.onSurfaceVariant }]} testID="pricing-renewal">
+        {t(Platform.OS === 'ios' ? 'pricing:renewalIos' : 'pricing:renewal')}
+      </Text>
+      <View style={styles.legalRow}>
+        <Pressable onPress={() => navigation.navigate('Privacy')} accessibilityRole="link" hitSlop={8} testID="pricing-privacy">
+          <Text style={[styles.legalLink, { color: colors.primary }]}>{t('pricing:legal.privacy')}</Text>
+        </Pressable>
+        <Text style={[styles.footer, styles.legalDot, { color: colors.onSurfaceVariant }]}>{'·'}</Text>
+        <Pressable onPress={() => navigation.navigate('Terms')} accessibilityRole="link" hitSlop={8} testID="pricing-terms">
+          <Text style={[styles.legalLink, { color: colors.primary }]}>{t('pricing:legal.terms')}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -753,6 +773,20 @@ const styles = StyleSheet.create({
     ...typography.bodyS,
     textAlign: 'center',
     marginTop: spacing.md,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  legalLink: {
+    ...typography.bodyS,
+    textDecorationLine: 'underline',
+  },
+  legalDot: {
+    marginTop: 0,
   },
 });
 

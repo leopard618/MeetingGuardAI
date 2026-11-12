@@ -58,6 +58,7 @@ jest.mock('../../../config/env', () => ({
 }));
 
 const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+const TASKS_SCOPE = 'https://www.googleapis.com/auth/tasks';
 
 type MockFn = jest.Mock;
 interface GoogleMock {
@@ -411,6 +412,48 @@ describe('getGoogleAccessToken', () => {
 
     await authService.invalidateGoogleAccessToken('stale-token');
     expect(google.clearCachedAccessToken).toHaveBeenCalledWith('stale-token');
+  });
+});
+
+describe('tasks scope (M8)', () => {
+  it('requires the tasks scope only when asked, independent of the Calendar scope', async () => {
+    const { authService, google } = load();
+    google.getCurrentUser.mockReturnValue(googleUser(['email', CALENDAR_SCOPE]));
+    google.signInSilently.mockResolvedValue({ type: 'success', data: googleUser(['email', CALENDAR_SCOPE]) });
+    google.getTokens.mockResolvedValue({ idToken: 'id', accessToken: 'access-1' });
+
+    await expect(authService.getGoogleAccessToken({ requireCalendar: false, requireTasks: true })).rejects.toMatchObject({
+      code: 'tasks_scope_missing',
+    });
+    await expect(authService.getGoogleAccessToken({ requireCalendar: true })).resolves.toBe('access-1');
+    await expect(authService.hasTasksScope()).resolves.toBe(false);
+    await expect(authService.hasGoogleSession()).resolves.toBe(true);
+
+    google.getCurrentUser.mockReturnValue(googleUser(['email', TASKS_SCOPE]));
+    await expect(authService.getGoogleAccessToken({ requireCalendar: false, requireTasks: true })).resolves.toBe('access-1');
+    await expect(authService.hasTasksScope()).resolves.toBe(true);
+  });
+
+  it('has no Google session without a native user', async () => {
+    const { authService } = load();
+    await expect(authService.hasGoogleSession()).resolves.toBe(false);
+    await expect(authService.hasTasksScope()).resolves.toBe(false);
+  });
+
+  it('requests the tasks scope incrementally and reports declines', async () => {
+    const { authService, google } = load();
+    google.getCurrentUser.mockReturnValue(googleUser(['email']));
+
+    google.addScopes.mockResolvedValueOnce({ type: 'success', data: googleUser(['email', TASKS_SCOPE]) });
+    await expect(authService.requestTasksScope()).resolves.toBe(true);
+    expect(google.addScopes).toHaveBeenCalledWith({ scopes: [TASKS_SCOPE] });
+
+    google.addScopes.mockResolvedValueOnce({ type: 'cancelled', data: null });
+    await expect(authService.requestTasksScope()).resolves.toBe(false);
+
+    // Consent screen shown but the Tasks box unticked.
+    google.addScopes.mockResolvedValueOnce({ type: 'success', data: googleUser(['email']) });
+    await expect(authService.requestTasksScope()).resolves.toBe(false);
   });
 });
 

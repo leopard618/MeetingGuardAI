@@ -1,15 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
+
 import { createStackNavigator } from '@react-navigation/stack';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
-import { Linking, Platform } from 'react-native';
+import { Linking, Platform, Text } from 'react-native';
+import type { ReactElement } from 'react';
 import { PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { PLANS } from '../../../services/billing';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
 import { AppError } from '../../../core/errors';
-import { PLAN_DAILY_AI_LIMITS, type AssistantUsage } from '../../../core/aiContract';
+import { PLAN_AI_LIMITS, type AssistantUsage } from '../../../core/aiContract';
 import type { StoreOffering } from '../../../core/contracts';
 import { I18nProvider, i18n } from '../../../i18n';
 import { purchasesService } from '../../../services/purchases';
@@ -24,6 +26,7 @@ import {
   isUpgradePurchase,
   storeCopyKey,
   summarizeUsage,
+  zeroPriceLike,
   type StoreState,
 } from '../pricingModel';
 
@@ -117,11 +120,8 @@ describe('pricing model', () => {
     const proYearly = yearly[1]!;
     expect(proYearly.priceUsd).toBeCloseTo(7.99 * 12 * 0.75, 2);
     expect(proYearly.discountPercent).toBe(25);
-    expect(yearly.map((card) => card.aiRequestsPerDay)).toEqual([
-      PLAN_DAILY_AI_LIMITS.free,
-      PLAN_DAILY_AI_LIMITS.pro,
-      PLAN_DAILY_AI_LIMITS.premium,
-    ]);
+    expect(yearly.map((card) => card.aiActions)).toEqual([PLAN_AI_LIMITS.free, PLAN_AI_LIMITS.pro, PLAN_AI_LIMITS.premium]);
+    expect(yearly.map((card) => card.aiPeriod)).toEqual(['window', 'month', 'month']);
   });
 
   it('marks the current plan and offers no purchase while the store is unconfigured', () => {
@@ -140,6 +140,12 @@ describe('pricing model', () => {
     const premium = cards.find((card) => card.id === 'premium_monthly')!;
     expect(premium.hasFreeTrial).toBe(false);
     expect(cards.find((card) => card.id === 'free')!.purchasable).toBe(false);
+    // The Free card's 0 follows the store's own price format, never "0 US$" beside store prices.
+    expect(cards.find((card) => card.id === 'free')!.storePriceString).toBe('€0');
+    // A partial offering (yearly not on sale yet): the yearly paid cards fall back to USD, so Free does too.
+    const monthlyOnly: StoreState = { kind: 'ready', offering: { ...OFFERING, packages: OFFERING.packages.filter((pkg) => pkg.cycle === 'monthly') } };
+    expect(buildPlanCards('yearly', 'free', monthlyOnly, 'en').find((card) => card.id === 'free')!.storePriceString).toBeNull();
+    expect(buildPlanCards('monthly', 'free', monthlyOnly, 'en').find((card) => card.id === 'free')!.storePriceString).toBe('€0');
     // Yearly: store per-month equivalent and store-derived discount replace the catalog values.
     const proYearly = buildPlanCards('yearly', 'free', READY, 'en').find((card) => card.id === 'pro_yearly')!;
     expect(proYearly.storeMonthlyEquivalent).toBe(formatStorePrice(71_910_000 / 12, 'EUR', 'en'));
@@ -249,33 +255,48 @@ describe('pricing model', () => {
     expect(formatPriceUsd(7.99, 'es')).toMatch(/^7,99\sUS\$$/);
   });
 
-  it("summarizes today's usage only while it is for the current UTC day", () => {
-    const usage: AssistantUsage = { used: 7, limit: 5, plan: 'free', resetsAt: TOMORROW_UTC };
+  it('summarizes the current usage only while its period runs, and keeps a used-up free allowance', () => {
+    const usage: AssistantUsage = { used: 12, limit: 10, plan: 'free', resetsAt: TOMORROW_UTC, period: 'window' };
     expect(summarizeUsage(usage, 'free', NOW)).toEqual({
-      kind: 'today',
+      kind: 'current',
       plan: 'free',
-      used: 5,
-      limit: 5,
+      period: 'window',
+      used: 10,
+      limit: 10,
       remaining: 0,
       fraction: 1,
       resetsAt: TOMORROW_UTC,
+      subscriptionRequired: false,
     });
+    const over: AssistantUsage = { used: 10, limit: 10, plan: 'free', resetsAt: '2026-09-28T00:00:00.000Z', period: 'window', subscriptionRequired: true };
+    expect(summarizeUsage(over, 'free', NOW)).toMatchObject({ kind: 'current', period: 'window', used: 10, subscriptionRequired: true });
+    // After an upgrade the live plan wins over the cached snapshot.
+    expect(summarizeUsage(over, 'pro', NOW)).toEqual({ kind: 'plan', plan: 'pro', period: 'month', limit: PLAN_AI_LIMITS.pro });
+    const month: AssistantUsage = { used: 30, limit: 100, plan: 'pro', resetsAt: TOMORROW_UTC, period: 'month' };
+    expect(summarizeUsage(month, 'pro', NOW)).toMatchObject({ kind: 'current', period: 'month', used: 30, limit: 100, remaining: 70 });
     const stale: AssistantUsage = { used: 2, limit: 5, plan: 'free', resetsAt: '2026-09-28T00:00:00.000Z' };
-    expect(summarizeUsage(stale, 'pro', NOW)).toEqual({ kind: 'plan', plan: 'pro', limit: PLAN_DAILY_AI_LIMITS.pro });
-    expect(summarizeUsage(null, 'free', NOW)).toEqual({ kind: 'plan', plan: 'free', limit: 5 });
+    expect(summarizeUsage(stale, 'pro', NOW)).toEqual({ kind: 'plan', plan: 'pro', period: 'month', limit: PLAN_AI_LIMITS.pro });
+    expect(summarizeUsage(null, 'free', NOW)).toEqual({ kind: 'plan', plan: 'free', period: 'window', limit: 10 });
   });
 });
 
 const Stack = createStackNavigator();
+// App Store rule 3.1.2: the Plans screen links to the legal pages. The stubs stand in for the
+// real legal screens so the link press is proven by what ends up on screen.
+function LegalStub(): ReactElement {
+  return <Text testID="legal-stub">legal</Text>;
+}
 
 async function renderPricing() {
   await render(
     <I18nProvider>
-      <ThemeProvider>
+      <ThemeProvider initialMode="light">
         <PaperProvider>
           <NavigationContainer>
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
               <Stack.Screen name="Pricing" component={PricingScreen} />
+              <Stack.Screen name="Privacy" component={LegalStub} />
+              <Stack.Screen name="Terms" component={LegalStub} />
             </Stack.Navigator>
           </NavigationContainer>
         </PaperProvider>
@@ -302,20 +323,29 @@ describe('PricingScreen (purchases unconfigured)', () => {
     expect(screen.getByText('Subscriptions coming soon')).toBeTruthy();
     expect(within(screen.getByTestId('pricing-plan-free')).getByText('Current plan')).toBeTruthy();
     expect(within(screen.getByTestId('pricing-plan-pro_monthly')).getByText('$7.99')).toBeTruthy();
-    expect(within(screen.getByTestId('pricing-plan-pro_monthly')).getByText('100 AI assistant requests per day')).toBeTruthy();
+    expect(within(screen.getByTestId('pricing-plan-pro_monthly')).getByText('100 AI actions per month')).toBeTruthy();
+    expect(within(screen.getByTestId('pricing-plan-free')).getByText('10 free AI actions in your first 7 days, up to 3 a day')).toBeTruthy();
     expect(screen.getByTestId('pricing-coming-soon-pro_monthly').props.accessibilityState).toEqual({ disabled: true });
     expect(screen.queryByText(/Unlimited/i)).toBeNull();
     expect(screen.queryByText('Most popular')).toBeNull();
     expect(screen.queryByTestId('pricing-buy-pro_monthly')).toBeNull();
     expect(screen.queryByTestId('pricing-restore')).toBeNull();
-    expect(screen.getByText('Today\'s count appears after you use the assistant.')).toBeTruthy();
+    expect(screen.getByText('Your count appears after you use the assistant.')).toBeTruthy();
     expect(mockPurchasesService.getOffering).not.toHaveBeenCalled();
   });
 
-  it("shows today's assistant usage when it is known", async () => {
-    mockUsage = { used: 3, limit: 5, plan: 'free', resetsAt: '2999-01-01T00:00:00.000Z' };
+  it('shows the current assistant usage when it is known', async () => {
+    mockUsage = { used: 3, limit: 10, plan: 'free', resetsAt: '2999-01-01T00:00:00.000Z', period: 'window' };
     await renderPricing();
-    expect(screen.getByText('3 of 5 requests used')).toBeTruthy();
+    expect(screen.getByText('3 of 10 free actions used')).toBeTruthy();
+    expect(screen.getByTestId('pricing-usage-caption').props.children).toMatch(/^Free allowance until /);
+  });
+
+  it('says the free allowance is used up and what stays free', async () => {
+    mockUsage = { used: 10, limit: 10, plan: 'free', resetsAt: '2020-01-01T00:00:00.000Z', period: 'window', subscriptionRequired: true };
+    await renderPricing();
+    expect(screen.getByText('10 of 10 free actions used')).toBeTruthy();
+    expect(screen.getByTestId('pricing-usage-caption').props.children).toMatch(/^Your free actions are used/);
   });
 
   it('switches to yearly prices', async () => {
@@ -370,6 +400,18 @@ describe('PricingScreen (purchases configured)', () => {
     expect(screen.getByText('Most popular')).toBeTruthy();
     expect(screen.getByTestId('pricing-restore')).toBeTruthy();
     expect(screen.queryByTestId('pricing-coming-soon-pro_monthly')).toBeNull();
+  });
+
+  it('states the renewal terms and links to the privacy policy and terms of use (App Store 3.1.2)', async () => {
+    await renderPricing();
+    expect(screen.getByTestId('pricing-renewal').props.children).toContain('renew automatically');
+    expect(screen.getByTestId('pricing-privacy')).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('pricing-terms'));
+    });
+    // The transition (animation 'none') still settles on a timer; let it finish in the test.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    expect(screen.getByTestId('legal-stub')).toBeTruthy();
   });
 
   it('shows catalog prices, an error banner with Retry and NO buy buttons when the offering fails', async () => {
@@ -609,5 +651,20 @@ describe('PricingScreen (purchases configured)', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe('zeroPriceLike (the Free card in the store currency)', () => {
+  it('keeps the store symbol and layout and replaces the amount with 0', () => {
+    expect(zeroPriceLike('$179.00')).toBe('$0');
+    expect(zeroPriceLike('179,00 €')).toBe('0 €');
+    expect(zeroPriceLike('MX$179.00')).toBe('MX$0');
+    expect(zeroPriceLike('US$ 9.99')).toBe('US$ 0');
+    expect(zeroPriceLike('1 299,00 kr')).toBe('0 kr');
+  });
+
+  it('is null when the string has no amount', () => {
+    expect(zeroPriceLike('Free')).toBeNull();
+    expect(zeroPriceLike('')).toBeNull();
   });
 });

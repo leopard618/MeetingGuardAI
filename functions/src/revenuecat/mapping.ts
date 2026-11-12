@@ -50,6 +50,11 @@ export const revenueCatEventSchema = z.object({
   /** TRANSFER only: RevenueCat ids that gained / lost the purchases. */
   transferred_to: z.array(z.string()).optional().nullable(),
   transferred_from: z.array(z.string()).optional().nullable(),
+  /** Billing facts kept for the admin revenue view (never used for entitlement decisions). */
+  price: z.number().optional().nullable(),
+  currency: z.string().optional().nullable(),
+  is_trial_conversion: z.boolean().optional().nullable(),
+  expiration_reason: z.string().optional().nullable(),
 });
 export type RevenueCatEvent = z.infer<typeof revenueCatEventSchema>;
 
@@ -132,4 +137,30 @@ export function entitlementFromEvent(event: RevenueCatEvent, now: Date): Entitle
     default:
       return null;
   }
+}
+
+/**
+ * Billing facts the revenue view needs, stored on the webhook marker and next to the entitlement
+ * (entitlements/{uid}.billing). Pure data: the entitlement decision above never reads them.
+ * `price` is RevenueCat's USD amount for purchase/renewal events (null on cancellations etc.).
+ */
+export interface BillingInfo {
+  store: string | null;
+  productId: string | null;
+  periodType: string | null;
+  priceUsd: number | null;
+  currency: string | null;
+}
+
+export function billingFromEvent(
+  event: Pick<RevenueCatEvent, 'store' | 'product_id' | 'new_product_id' | 'period_type' | 'price' | 'currency'>,
+): BillingInfo {
+  const price = event.price;
+  return {
+    store: event.store ?? null,
+    productId: event.new_product_id ?? event.product_id ?? null,
+    periodType: event.period_type ?? null,
+    priceUsd: typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null,
+    currency: event.currency ?? null,
+  };
 }

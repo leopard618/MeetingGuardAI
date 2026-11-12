@@ -28,16 +28,19 @@ import { toAppError } from '../../core/errors';
 import { appEvents, type Unsubscribe } from '../../core/events';
 import { GLOBAL_STORAGE_KEYS } from '../../core/identifiers';
 import { createLogger } from '../../core/logger';
+import { calendarPushHold } from '../../core/pushHold';
 import { getDeviceTimeZone } from '../../core/time';
 import { t } from '../../i18n';
 import { authService } from '../auth/authService';
-import { dataService, meetingRepository, preferencesRepository } from '../data';
+import { dataEngine, dataService, meetingRepository, preferencesRepository } from '../data';
 import { createExpoCalendarPort } from './device/adapter';
 import { generateDeviceKey, isValidDeviceKey } from './device/mapping';
 import { createDeviceCalendarService } from './device/service';
 import { createCalendarSyncEngine, type AppStateStatus } from './engine';
 import { createGoogleCalendarApi } from './google/api';
 import { createGoogleCalendarService } from './google/service';
+import { googleTasksSyncService, gtasksInternal } from '../tasks/gtasks';
+import { todoInternal, todoSyncService } from '../tasks/todo';
 import { outlookCalendarService, outlookInternal } from './outlook';
 import {
   createUserStateStore,
@@ -110,6 +113,7 @@ const googleInternal = createGoogleCalendarService({
   sleep,
   defaultTimeZone: getDeviceTimeZone,
   untitledTitle,
+  holdPush: calendarPushHold.isHeld,
 });
 
 const deviceInternal = createDeviceCalendarService({
@@ -140,12 +144,20 @@ function googleAccessHook(): ((listener: () => void) => Unsubscribe) | undefined
   return (listener) => (candidate as (listener: () => void) => Unsubscribe).call(authService, listener);
 }
 
+/** How long the session-start pull waits for the server's meetings before going ahead. */
+const BASELINE_WAIT_MS = 10_000;
+
 const engine = createCalendarSyncEngine({
   google: googleInternal,
   device: deviceInternal,
-  // The Outlook provider only exists for the engine when the build is configured for it.
+  awaitMeetingsBaseline: () => dataEngine.waitForMeetingsBaseline(BASELINE_WAIT_MS),
+  // The Outlook and To Do providers only exist for the engine when the build is configured for them.
   outlook: outlookInternal.isConfigured() ? outlookInternal : undefined,
+  todo: todoInternal.isConfigured() ? todoInternal : undefined,
+  // Google Tasks rides on the Google sign-in; the build switch hides it until the scope is verified.
+  gtasks: gtasksInternal.isConfigured() ? gtasksInternal : undefined,
   preferences: preferencesRepository,
+  pushHold: calendarPushHold,
   getActiveUid: getUid,
   status,
   events: appEvents,
@@ -167,7 +179,18 @@ const engine = createCalendarSyncEngine({
 export const googleCalendarService: GoogleCalendarService = {
   isConnected: googleInternal.isConnected,
   connect: googleInternal.connect,
-  disconnect: googleInternal.disconnect,
+  // Revoking Google access takes the tasks scope with it: the Google Tasks sync ends first (no
+  // network needed), so it never keeps running against an account that is gone.
+  disconnect: async (options) => {
+    if (options?.revoke && gtasksInternal.isConfigured()) {
+      try {
+        if (await gtasksInternal.isEnabled()) await gtasksInternal.disable();
+      } catch (error) {
+        log.warn('Could not stop the Google Tasks sync before revoking access', toAppError(error).code);
+      }
+    }
+    return googleInternal.disconnect(options);
+  },
   pushMeeting: googleInternal.pushMeeting,
   removeMeeting: googleInternal.removeMeeting,
   pullChanges: googleInternal.pullChanges,
@@ -176,6 +199,12 @@ export const googleCalendarService: GoogleCalendarService = {
 
 /** Contract object (OutlookCalendarService; ./outlook owns the wiring). */
 export { outlookCalendarService };
+
+/** Contract object (TodoSyncService; ../tasks/todo owns the wiring, same Microsoft account). */
+export { todoSyncService };
+
+/** Contract object (GoogleTasksSyncService; ../tasks/gtasks owns the wiring, same Google sign-in). */
+export { googleTasksSyncService };
 
 export const deviceCalendarService: DeviceCalendarService = {
   getPermission: deviceInternal.getPermission,
@@ -190,6 +219,7 @@ export const calendarSyncEngine: CalendarSyncEngine = {
   start: engine.start,
   stop: engine.stop,
   syncNow: engine.syncNow,
+  syncTasksNow: engine.syncTasksNow,
   onMeetingChanged: engine.onMeetingChanged,
   getStatus: engine.getStatus,
   subscribeStatus: engine.subscribeStatus,
@@ -198,6 +228,12 @@ export const calendarSyncEngine: CalendarSyncEngine = {
 /** Live calendar status (connected, syncing, last sync, last error, permission, selection). */
 export function useCalendarStatus(): CalendarStatus {
   return useSyncExternalStore(engine.subscribeStatus, engine.getStatus, engine.getStatus);
+}
+
+// Disconnecting Outlook ends the To Do sync too: both use the same Microsoft account, and a
+// later connect with a different account must not resume against the old list ids.
+if (outlookInternal.isConfigured() && todoInternal.isConfigured()) {
+  outlookInternal.setDisconnectHook(() => todoInternal.disable());
 }
 
 // Safety net next to the session manager's explicit calls (both are idempotent).

@@ -1,7 +1,11 @@
 {
+  "todo": {
+    "untitledTask": "(No title)"
+  },
   "add": "New task",
   "addA11y": "Create a new task",
   "list": {
+    "refreshFailed": "Your tasks could not be synced",
     "loading": "Loading your tasks...",
     "count_one": "{{count}} task",
     "count_other": "{{count}} tasks"
@@ -84,6 +88,22 @@
     "changeMeeting": "Change meeting",
     "unlinkMeeting": "Unlink",
     "unlinkA11y": "Remove the meeting link",
+    "todoSection": "Microsoft To Do",
+    "todoListDefault": "{{name}} (default list)",
+    "todoNoList": "No list chosen",
+    "todoOtherList": "Another list",
+    "todoLoading": "Loading lists...",
+    "todoListsFailed": "The lists could not be loaded.",
+    "todoChangeList": "Change list",
+    "todoHint": "Synced with To Do: title, notes, due date, reminder, done. Stays in Meeting Guard only: a due time without a reminder, people and the linked meeting.",
+    "gtasksSection": "Google Tasks",
+    "gtasksListDefault": "{{name}} (default list)",
+    "gtasksNoList": "No list chosen",
+    "gtasksOtherList": "Another list",
+    "gtasksLoading": "Loading lists...",
+    "gtasksListsFailed": "The lists could not be loaded.",
+    "gtasksChangeList": "Change list",
+    "gtasksHint": "Synced with Google Tasks: title, notes, due date, done. Stays in Meeting Guard only: the due time, the reminder, people and the linked meeting.",
     "delete": "Delete task",
     "discardTitle": "Discard changes?",
     "discardMessage": "Your edits have not been saved.",

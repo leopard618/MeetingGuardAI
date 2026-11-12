@@ -31,22 +31,35 @@
     }
   },
   "features": {
-    "requests_one": "{{count}} AI assistant request per day",
-    "requests_other": "{{count}} AI assistant requests per day",
+    "introductory": "10 free AI actions in your first 7 days, up to 3 a day",
+    "actionsPerMonth": "{{count}} AI actions per month",
     "meetings": "Meetings, notes and alerts",
     "calendars": "Google Calendar and phone calendar sync",
     "everythingFree": "Everything in Free"
   },
   "usage": {
-    "title": "AI assistant today",
+    "title": "AI assistant",
     "plan": "Your plan: {{plan}}",
-    "today": "{{used}} of {{limit}} requests used",
-    "resets": "Resets {{time}}",
-    "exhausted": "You've used all of today's requests. They reset {{time}}.",
+    "used": {
+      "day": "{{used}} of {{limit}} actions used today",
+      "window": "{{used}} of {{limit}} free actions used",
+      "month": "{{used}} of {{limit}} actions used this month"
+    },
+    "resets": {
+      "day": "Resets {{time}}",
+      "window": "Free allowance until {{time}}",
+      "month": "Renews {{time}}"
+    },
+    "exhausted": {
+      "day": "You've used today's free actions. More {{time}}.",
+      "window": "You've used all free actions.",
+      "month": "You've used all actions of this month. They renew {{time}}."
+    },
+    "subscriptionRequired": "Your free actions are used. A subscription unlocks the assistant and WhatsApp scheduling; creating by hand, reminders and export stay free.",
     "thisDevice": "Updated with each assistant request from this device.",
-    "perDay_one": "{{count}} request per day",
-    "perDay_other": "{{count}} requests per day",
-    "unknownToday": "Today's count appears after you use the assistant."
+    "introductory": "10 free AI actions in your first 7 days, up to 3 a day",
+    "perMonth": "{{count}} AI actions per month",
+    "unknownYet": "Your count appears after you use the assistant."
   },
   "store": {
     "loading": "Loading prices from Google Play...",
@@ -89,6 +102,12 @@
   },
   "footer": "Prices are in US dollars. Before any purchase, Google Play will show the final price in your currency, including taxes.",
   "footerIos": "Prices are in US dollars. Before any purchase, the App Store will show the final price in your currency, including taxes.",
+  "renewal": "Subscriptions are monthly or yearly and renew automatically at the same price until you cancel in Google Play, at least 24 hours before the period ends.",
+  "renewalIos": "Subscriptions are monthly or yearly and renew automatically at the same price until you cancel in your App Store settings, at least 24 hours before the period ends.",
+  "legal": {
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Use"
+  },
   "planChanged": {
     "title": "Plan updated",
     "body": "Your plan is now {{plan}}"

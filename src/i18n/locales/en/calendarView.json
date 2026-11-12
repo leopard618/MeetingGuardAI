@@ -14,8 +14,9 @@
   "noMeetings": "No meetings",
   "legend": {
     "label": "Dot colors: {{sources}}",
-    "meetingguard": "MeetingGuard",
+    "meetingguard": "Meeting Guard",
     "google": "Google Calendar",
+    "outlook": "Outlook",
     "device": "Device calendar",
     "tasks": "Tasks"
   },

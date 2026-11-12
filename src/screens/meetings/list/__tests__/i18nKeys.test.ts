@@ -34,7 +34,7 @@ const DYNAMIC: Record<string, readonly string[]> = {
   'meetings:list.refreshFailed.': ['meetings', 'calendars', 'google', 'device'],
   'meetings:source.': MEETING_SOURCES,
   'calendarView:relation.': ['today', 'tomorrow', 'yesterday'],
-  'calendarView:legend.': ['meetingguard', 'google', 'device'],
+  'calendarView:legend.': ['meetingguard', 'google', 'outlook', 'device'],
   'create:methods.': CREATION_METHODS,
   'alerts:provider.': CONFERENCE_PROVIDERS,
 };

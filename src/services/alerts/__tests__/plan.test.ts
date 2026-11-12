@@ -49,6 +49,22 @@ describe('computeAlertPlan', () => {
     expect(planMedium.items[0]?.channelId).toBe('mg-alert-medium-v2');
   });
 
+  it('rings imported calendar events at the imported-events intensity unless the meeting overrides it', () => {
+    const prefs = makePrefs({ alertIntensity: 'max', importedAlertIntensity: 'light', followUpEnabled: false });
+    const imported = makeMeeting('m1', minutesFrom(NOW, 60), { source: 'device' });
+    const own = makeMeeting('m2', minutesFrom(NOW, 60), { source: 'manual' });
+    const overridden = makeMeeting('m3', minutesFrom(NOW, 60), { source: 'google', alertIntensity: 'medium' });
+    const plan = computeAlertPlan([imported, own, overridden], prefs, NOW);
+    const intensityOf = (id: string): Set<string> =>
+      new Set(plan.items.filter((item) => item.meetingId === id).map((item) => item.intensity));
+    expect(intensityOf('m1')).toEqual(new Set(['light']));
+    expect(intensityOf('m2')).toEqual(new Set(['max']));
+    expect(intensityOf('m3')).toEqual(new Set(['medium']));
+
+    const same = computeAlertPlan([imported], makePrefs({ alertIntensity: 'medium', followUpEnabled: false }), NOW);
+    expect(new Set(same.items.map((item) => item.intensity))).toEqual(new Set(['medium']));
+  });
+
   it('skips notifications in the past and meetings already over', () => {
     const soon = makeMeeting('soon', minutesFrom(NOW, 10)); // 15-min alert already past
     const over = makeMeeting('over', minutesFrom(NOW, -120), { durationMinutes: 30 });

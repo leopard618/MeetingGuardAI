@@ -88,6 +88,10 @@ export const USER_STORAGE = {
   googleCalendar: 'calendar.google',
   /** Device calendar sync state. Owner: calendar. */
   deviceCalendar: 'calendar.device',
+  /** Microsoft To Do sync state: per-list delta links, pending pushes, hashes (never tokens). Owner: tasks. */
+  todoTasks: 'tasks.todo',
+  /** Google Tasks sync state: per-list updatedMin, hashes, links, pending pushes (never tokens). Owner: tasks. */
+  gtasksTasks: 'tasks.gtasks',
   /** Outlook sync state: deltaLink, lastSyncAt, pending pushes (never tokens). Owner: calendar. */
   outlookCalendar: 'calendar.outlook',
   /** Fired/acknowledged alerts, snoozes, last reconcile. Owner: alerts. */
@@ -100,6 +104,8 @@ export const USER_STORAGE = {
   attachments: 'attachments',
   /** Last visited onboarding step (resume marker; completion lives in Preferences). Owner: i18n-nav. */
   onboarding: 'onboarding.step',
+  /** Dashboard setup recommendation: "Not now" snoozes per step. Owner: home. */
+  setupSnooze: 'setup.snooze',
 } as const;
 export type UserStorageName = (typeof USER_STORAGE)[keyof typeof USER_STORAGE];
 
@@ -387,13 +393,13 @@ export const NOTIFICATION_ACTIONS = {
 } as const;
 
 /**
- * "Open MeetingGuard to keep your alerts up to date": scheduled when the budget cut real alerts,
+ * "Open Meeting Guard to keep your alerts up to date": scheduled when the budget cut real alerts,
  * so the user refreshes the window before it runs out. Not tied to a meeting (never parsed by
  * parseNotificationId); the alert engine manages it explicitly.
  */
 export const REFILL_NOTIFICATION_ID = `${NOTIFICATION_ID_PREFIX}:refill`;
 
-/** Budget of pending MeetingGuard notifications (iOS keeps 64; stay well below). */
+/** Budget of pending Meeting Guard notifications (iOS keeps 64; stay well below). */
 export const ALERT_NOTIFICATION_BUDGET = 60;
 /** How far ahead alerts are scheduled. */
 export const ALERT_HORIZON_DAYS = 14;
@@ -493,7 +499,7 @@ function safeDecode(value: string): string | null {
 
 /**
  * Google accepts client-chosen event ids made of base32hex characters [a-v0-9], length 5-1024.
- * MeetingGuard meetings pushed to Google use `mgev` + base32hex(meetingId) (>= 6 chars): inserts are idempotent
+ * Meeting Guard meetings pushed to Google use `mgev` + base32hex(meetingId) (>= 6 chars): inserts are idempotent
  * across retries and devices (a second insert returns 409 instead of creating a duplicate), and a
  * pulled event can be matched back to its meeting even before the id was stored.
  */
@@ -518,7 +524,7 @@ export function googleEventIdForMeeting(meetingId: string): string {
   return `${GOOGLE_EVENT_ID_PREFIX}${out}`;
 }
 
-/** Inverse of googleEventIdForMeeting; null for events not created by MeetingGuard. */
+/** Inverse of googleEventIdForMeeting; null for events not created by Meeting Guard. */
 export function meetingIdFromGoogleEventId(eventId: string): string | null {
   if (!eventId.startsWith(GOOGLE_EVENT_ID_PREFIX)) return null;
   const body = eventId.slice(GOOGLE_EVENT_ID_PREFIX.length);

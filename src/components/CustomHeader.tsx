@@ -1,39 +1,39 @@
 /**
  * Header of the Main group screens (owner: shell), rendered through the stack's `header` option
- * (src/navigation/RootNavigator.tsx).
- *
- * - Title: navigation:screens.<routeName> in the live language, else the app name.
- * - Left: back arrow when the stack can go back, otherwise the logo (goes to the dashboard).
- * - Right: language switch (EN <-> ES, instant, saved as the user's choice), light/dark switch,
- *   menu. Account actions (settings, sign-out) live in the sidebar.
- * - MG Indigo shell chrome (docs/v1/DESIGN_SYSTEM.md §6): surface bg, 1px outlineVariant bottom
- *   hairline, titleL, 44dp icon targets with onSurface@12% borderless ripples, labelM language
- *   pill. Top inset from the safe area (edge-to-edge).
+ * (src/navigation/RootNavigator.tsx). Flat, on the screen background, no hairline:
+ * - Left: the back arrow when the stack can go back, otherwise the menu button (opens the
+ *   sidebar).
+ * - Title: navigation:screens.<routeName> in the live language (titleL), else the app name.
+ * - Right: the language pill with the country flag of the CURRENT language and its code
+ *   (EN with the US flag, ES with the Spanish flag); a tap switches to the next language and saves
+ *   it as the user's choice. The theme switch and the account live in the menu and in Settings.
+ * 44dp targets, Feather icons, onSurface@12% borderless ripples. No animation.
  */
-import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ReactElement } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '../contexts/ThemeContext';
 import type { Language } from '../core/types';
 import { useLanguage, useT } from '../i18n';
-import { navigateToTopLevel } from '../navigation/navigationService';
 import { ROUTES } from '../navigation/routes';
-import { componentMetrics, radii, spacing, stateAlpha, typography, withAlpha } from '../theme';
-import { ThemeToggle } from './ThemeToggle';
-
-const APP_LOGO = require('../../assets/icon.png') as number;
+import { componentMetrics, radii, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../theme';
+import { Icon } from './ui';
 
 /** Header text never grows past this multiple of its size (it must stay on one row). */
 const HEADER_MAX_FONT_SCALE = 1.4;
+
+/** Country flag shown in the language pill (regional indicator pairs; render on iOS and Android). */
+export const LANGUAGE_FLAGS: Readonly<Record<Language, string>> = {
+  en: '\u{1F1FA}\u{1F1F8}',
+  es: '\u{1F1EA}\u{1F1F8}',
+};
 
 export interface CustomHeaderProps {
   /** Route name (title from navigation:screens.<name>); unknown names show the app name. */
   title?: string;
   onMenuPress?: () => void;
   showMenu?: boolean;
-  /** Shows a back arrow instead of the logo. */
+  /** Shows a back arrow instead of the menu button. */
   onBackPress?: () => void;
 }
 
@@ -42,8 +42,15 @@ export function nextLanguage(language: Language, supported: readonly Language[])
   return supported[(index + 1) % supported.length] ?? language;
 }
 
+/** First letter of the display name, else of the email, else null (icon fallback). Used by the sidebar. */
+export function avatarInitial(displayName: string | null | undefined, email: string | null | undefined): string | null {
+  const source = displayName?.trim() || email?.trim() || '';
+  const first = source.charAt(0);
+  return first ? first.toUpperCase() : null;
+}
+
 export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress }: CustomHeaderProps): ReactElement {
-  const { colors } = useTheme();
+  const { colors } = useAppTheme();
   const t = useT();
   const { language, setLanguage, supportedLanguages } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -59,7 +66,7 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
 
   return (
     <View
-      style={[styles.header, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: colors.surface, borderBottomColor: colors.outlineVariant }]}
+      style={[styles.header, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: colors.background }]}
       testID="main-header"
     >
       <View style={styles.row}>
@@ -73,20 +80,22 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
             hitSlop={4}
             testID="header-back"
           >
-            <Ionicons name="arrow-back" size={componentMetrics.iconNav} color={colors.onSurface} />
+            <Icon name="back" color={colors.onSurface} />
           </Pressable>
-        ) : (
+        ) : showMenu && onMenuPress ? (
           <Pressable
-            onPress={() => navigateToTopLevel('Dashboard')}
+            onPress={onMenuPress}
             android_ripple={iconRipple}
             style={({ pressed }) => [styles.iconButton, pressed && Platform.OS !== 'android' && styles.pressed]}
             accessibilityRole="button"
-            accessibilityLabel={t('shell:header.home')}
+            accessibilityLabel={t('shell:header.openMenu')}
             hitSlop={4}
-            testID="header-home"
+            testID="header-menu"
           >
-            <Image source={APP_LOGO} style={styles.logo} accessibilityIgnoresInvertColors />
+            <Icon name="menu" color={colors.onSurface} />
           </Pressable>
+        ) : (
+          <View style={styles.iconButton} />
         )}
 
         <Text
@@ -108,35 +117,20 @@ export function CustomHeader({ title, onMenuPress, showMenu = true, onBackPress 
           hitSlop={4}
           testID="header-language"
         >
+          <Text style={styles.flag} maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE} testID="header-language-flag">
+            {LANGUAGE_FLAGS[language]}
+          </Text>
           <Text style={[styles.languageText, { color: colors.onSurface }]} maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE}>
             {language.toUpperCase()}
           </Text>
         </Pressable>
-
-        <ThemeToggle style={styles.spaced} testID="header-theme" />
-
-        {showMenu && onMenuPress ? (
-          <Pressable
-            onPress={onMenuPress}
-            android_ripple={iconRipple}
-            style={({ pressed }) => [styles.iconButton, styles.spaced, pressed && Platform.OS !== 'android' && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t('shell:header.openMenu')}
-            hitSlop={4}
-            testID="header-menu"
-          >
-            <Ionicons name="menu" size={componentMetrics.iconNav} color={colors.onSurface} />
-          </Pressable>
-        ) : null}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    borderBottomWidth: 1,
-  },
+  header: {},
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -150,29 +144,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logo: {
-    width: 32,
-    height: 32,
-    borderRadius: radii.sm,
-  },
   title: {
     ...typography.titleL,
     flex: 1,
     marginHorizontal: spacing.sm,
   },
   languageButton: {
-    minWidth: componentMetrics.touchTargetMin,
-    minHeight: componentMetrics.buttonHeightSmall,
-    borderRadius: radii.full,
-    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    minHeight: componentMetrics.buttonHeightSmall - 4,
+    borderRadius: radii.full,
+    paddingLeft: spacing.sm,
+    paddingRight: spacing.md,
+    gap: spacing.xs,
+  },
+  flag: {
+    fontSize: 18,
+    lineHeight: 22,
   },
   languageText: {
     ...typography.labelM,
-  },
-  spaced: {
-    marginLeft: spacing.xs,
   },
   pressed: {
     opacity: 0.6,

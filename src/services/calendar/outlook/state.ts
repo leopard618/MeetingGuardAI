@@ -33,6 +33,18 @@ export const outlookSyncStateSchema = z.object({
   pending: z.record(z.string(), pendingOutlookPushSchema),
   /** Graph event id -> hash of the Outlook-visible fields last pushed/pulled (echo suppression). */
   hashes: z.record(z.string(), z.string()),
+  /**
+   * Graph event id -> what WE created there: a single event or a series master. A meeting whose
+   * shape changed (one-off <-> series) is deleted and re-created, never patched across shapes.
+   * Links made before this field existed are 'single' (series were never pushed then).
+   */
+  kinds: z.record(z.string(), z.enum(['single', 'series'])).default({}),
+  /**
+   * The online-meeting provider the account's calendar allows (GET /me/calendar), read once per
+   * connection: null = not read yet, 'none' = the calendar allows no provider (no Teams link can be
+   * requested), else the provider id sent with isOnlineMeeting (sync.ts resolveOnlineMeetingProvider).
+   */
+  onlineMeetingProvider: z.string().nullable().default(null),
 });
 export type OutlookSyncState = z.infer<typeof outlookSyncStateSchema>;
 
@@ -46,6 +58,8 @@ export function defaultOutlookSyncState(): OutlookSyncState {
     lastError: null,
     pending: {},
     hashes: {},
+    kinds: {},
+    onlineMeetingProvider: null,
   };
 }
 

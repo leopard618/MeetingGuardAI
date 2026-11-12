@@ -18,6 +18,11 @@
  *   authorizationCode is stashed in-process for revokeAppleTokens() (account deletion) only
  *   AFTER the Firebase exchange validated the credential, so the stash can never hold a
  *   wrong-identity code (e.g. after auth/user-mismatch).
+ * - Sign in with Microsoft (docs/v1/ARCHITECTURE.md section 31): the Microsoft PKCE sign-in with
+ *   the identity scopes (src/services/microsoft/signIn.ts) -> id_token -> the microsoftSignIn
+ *   callable (verifies the token, resolves or creates the user) -> custom token ->
+ *   signInWithCustomToken. Such a session has no providerData; reauthenticate() runs the same
+ *   flow again for the same uid.
  * - No session orchestration here: sessionManager (./sessionManager.ts) owns start/end.
  * - Never logs tokens or emails.
  */
@@ -37,6 +42,7 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithCredential,
+  signInWithCustomToken,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
@@ -52,17 +58,21 @@ import { env } from '../../config/env';
 import { auth as firebaseAuth, functions as firebaseFunctions } from '../../config/firebase';
 import {
   CALLABLES,
+  MICROSOFT_SIGN_IN_CALL_TIMEOUT_MS,
   deleteAccountResponseSchema,
+  microsoftSignInResponseSchema,
   type DeleteAccountRequest,
   type DeleteAccountResponse,
+  type MicrosoftSignInRequest,
 } from '../../core/aiContract';
-import { GOOGLE_CALENDAR_SCOPES, type AuthService, type SignInResult } from '../../core/contracts';
+import { GOOGLE_CALENDAR_SCOPES, GOOGLE_TASKS_SCOPES, type AuthService, type SignInResult } from '../../core/contracts';
 import { AppError, isAppError } from '../../core/errors';
 import type { Unsubscribe } from '../../core/events';
 import { createLogger } from '../../core/logger';
 import type { AuthUser } from '../../core/types';
+import { requestMicrosoftIdToken } from '../microsoft/signIn';
 
-import { authError, mapAppleSignInError, mapFirebaseAuthError, mapGoogleSignInError, type GoogleStatusCodes } from './authErrors';
+import { authError, getAuthErrorReason, mapAppleSignInError, mapFirebaseAuthError, mapGoogleSignInError, type GoogleStatusCodes } from './authErrors';
 import { createSerialQueue } from './serialQueue';
 
 export { registerSessionCleanup } from './sessionCleanup';
@@ -104,6 +114,12 @@ export function toAuthUser(user: FirebaseUser): AuthUser {
 export function hasCalendarScopes(granted: readonly string[] | null | undefined): boolean {
   if (!granted) return false;
   return GOOGLE_CALENDAR_SCOPES.every((scope) => granted.includes(scope));
+}
+
+/** True when every Google Tasks scope is in `granted` (M8). */
+export function hasTasksScopes(granted: readonly string[] | null | undefined): boolean {
+  if (!granted) return false;
+  return GOOGLE_TASKS_SCOPES.every((scope) => granted.includes(scope));
 }
 
 function requireAuth(): Auth {
@@ -160,6 +176,7 @@ const googleAccessListeners = new Set<() => void>();
 let googleConfigured = false;
 let googleSignInInFlight: Promise<SignInResult> | null = null;
 let appleSignInInFlight: Promise<SignInResult> | null = null;
+let microsoftSignInInFlight: Promise<SignInResult> | null = null;
 /** One silent refresh per process when the cached Google user lacks the Calendar scope. */
 let scopeRefreshAttempted = false;
 
@@ -454,7 +471,25 @@ async function firebaseAppleSignIn(): Promise<SignInResult> {
   try {
     result = await signInWithCredential(authInstance, requested.firebaseCredential);
   } catch (error) {
-    throw mapFirebaseAuthError(error);
+    const mapped = mapFirebaseAuthError(error);
+    // Firebase answers auth/invalid-credential when it refuses the Apple token (the iOS app not
+    // registered in the project, a nonce mismatch, an expired token). The generic mapping words
+    // that as a wrong email or password, which is what App Review saw on 2026-10-20 and what no
+    // Apple user can act on. Name the real situation instead.
+    if (getAuthErrorReason(mapped) === 'invalid_credentials') {
+      const raw = error as { code?: unknown; message?: unknown; customData?: { _serverResponse?: unknown } } | null;
+      const rejected = authError('upstream_error', 'apple_sign_in_rejected', 'Firebase refused the Apple credential', {
+        cause: error,
+        providerCode: typeof raw?.code === 'string' ? raw.code : undefined,
+        retryable: true,
+      });
+      // Reported, not only shown: the Identity Toolkit detail ("audience mismatch", "nonce
+      // mismatch", ...) is the only thing that says WHY, and it is visible nowhere on the device.
+      const detail = typeof raw?.customData?._serverResponse === 'string' ? raw.customData._serverResponse : typeof raw?.message === 'string' ? raw.message : 'no detail';
+      log.error(`Apple credential refused by Firebase: ${detail}`, rejected);
+      throw rejected;
+    }
+    throw mapped;
   }
   // Only now is the code known to belong to the signed-in user (see appleAuthorizationCode).
   stashAppleAuthorizationCode(requested.apple.authorizationCode);
@@ -470,6 +505,74 @@ async function firebaseAppleSignIn(): Promise<SignInResult> {
     } catch (error) {
       log.error('Signed in but the display name could not be saved', mapFirebaseAuthError(error));
     }
+  }
+  return { status: 'success', user: toAuthUser(result.user) };
+}
+
+// ---- Sign in with Microsoft (section 31) ------------------------------------------------------
+
+/** Maps a failed microsoftSignIn call to an auth error with a user-facing reason. */
+function mapMicrosoftSignInError(error: unknown): AppError {
+  const reason = serverReason(error);
+  if (reason === 'microsoft_not_configured') {
+    return authError('not_configured', 'microsoft_not_configured', 'Sign in with Microsoft is not enabled on the server', { cause: error });
+  }
+  if (reason === 'email_in_use') {
+    return authError('conflict', 'email_in_use', 'An account with this email already exists', { cause: error });
+  }
+  if (reason === 'microsoft_token_invalid') {
+    return authError('upstream_error', 'microsoft_sign_in_rejected', 'The server refused the Microsoft token', {
+      cause: error,
+      retryable: true,
+    });
+  }
+  return mapFirebaseAuthError(error);
+}
+
+/**
+ * Microsoft sign-in -> id_token -> microsoftSignIn callable -> custom token. Shared by the sign-in
+ * and the reauthentication branch (which checks the uid before using the token).
+ */
+async function microsoftCustomToken(): Promise<{ status: 'cancelled' } | { status: 'ok'; customToken: string; uid: string }> {
+  if (!env.msal.clientId) {
+    throw authError('not_configured', 'microsoft_not_configured', 'EXPO_PUBLIC_MSAL_CLIENT_ID is not set');
+  }
+  if (!firebaseFunctions) {
+    throw authError('not_configured', 'firebase_not_configured', 'Firebase Functions is not configured');
+  }
+  const nonce = createRawNonce();
+  const prompt = await requestMicrosoftIdToken({ clientId: env.msal.clientId, tenant: env.msal.tenant, nonce });
+  if (prompt.type === 'cancelled') return { status: 'cancelled' };
+  if (prompt.type === 'failed') {
+    throw authError('upstream_error', 'microsoft_sign_in_failed', `Microsoft sign-in failed (${prompt.message ?? 'unknown'})`, {
+      retryable: true,
+    });
+  }
+  const callable = httpsCallable<MicrosoftSignInRequest, unknown>(firebaseFunctions, CALLABLES.microsoftSignIn, {
+    timeout: MICROSOFT_SIGN_IN_CALL_TIMEOUT_MS,
+  });
+  let data: unknown;
+  try {
+    data = (await callable({ idToken: prompt.idToken, nonce })).data;
+  } catch (error) {
+    throw mapMicrosoftSignInError(error);
+  }
+  const parsed = microsoftSignInResponseSchema.safeParse(data);
+  if (!parsed.success) {
+    throw authError('upstream_error', 'invalid_server_response', 'Unexpected microsoftSignIn response');
+  }
+  return { status: 'ok', customToken: parsed.data.customToken, uid: parsed.data.uid };
+}
+
+async function firebaseMicrosoftSignIn(): Promise<SignInResult> {
+  const authInstance = requireAuth();
+  const exchange = await microsoftCustomToken();
+  if (exchange.status === 'cancelled') return { status: 'cancelled' };
+  let result: UserCredential;
+  try {
+    result = await signInWithCustomToken(authInstance, exchange.customToken);
+  } catch (error) {
+    throw mapFirebaseAuthError(error);
   }
   return { status: 'success', user: toAuthUser(result.user) };
 }
@@ -582,6 +685,16 @@ export const authService: AuthServiceImpl = {
       googleSignInInFlight = null;
     });
     googleSignInInFlight = flow;
+    return flow;
+  },
+
+  signInWithMicrosoft(): Promise<SignInResult> {
+    // A second tap while the browser is opening joins the running flow (same pattern as Apple).
+    if (microsoftSignInInFlight) return microsoftSignInInFlight;
+    const flow = firebaseMicrosoftSignIn().finally(() => {
+      microsoftSignInInFlight = null;
+    });
+    microsoftSignInInFlight = flow;
     return flow;
   },
 
@@ -702,19 +815,24 @@ export const authService: AuthServiceImpl = {
     }
   },
 
-  getGoogleAccessToken({ requireCalendar }: { requireCalendar: boolean }): Promise<string> {
+  getGoogleAccessToken({ requireCalendar, requireTasks = false }: { requireCalendar: boolean; requireTasks?: boolean }): Promise<string> {
     return googleQueue.run(async () => {
       configureGoogle();
       let user = await restoreGoogleUser();
       if (!user) {
         throw new AppError('google_not_signed_in', 'No Google account is signed in on this device');
       }
-      if (requireCalendar && !hasCalendarScopes(user.scopes)) {
+      const scopesOk = (scopes: readonly string[] | null | undefined): boolean =>
+        (!requireCalendar || hasCalendarScopes(scopes)) && (!requireTasks || hasTasksScopes(scopes));
+      if (!scopesOk(user.scopes)) {
         // The cached user object can be stale (scopes added on another run): refresh it once.
         const refreshed = await silentGoogleSignIn();
         if (refreshed) user = refreshed;
-        if (!hasCalendarScopes(user.scopes)) {
+        if (requireCalendar && !hasCalendarScopes(user.scopes)) {
           throw new AppError('calendar_scope_missing', 'The Google Calendar scope has not been granted');
+        }
+        if (requireTasks && !hasTasksScopes(user.scopes)) {
+          throw new AppError('tasks_scope_missing', 'The Google Tasks scope has not been granted');
         }
       }
       let accessToken: string;
@@ -786,6 +904,67 @@ export const authService: AuthServiceImpl = {
       if (response.type === 'cancelled') return false;
       // With granular consent the user can untick the Calendar box: that is a decline.
       const granted = hasCalendarScopes(response.data.scopes);
+      notifyGoogleAccessChanged();
+      return granted;
+    });
+  },
+
+  hasGoogleSession(): Promise<boolean> {
+    return googleQueue.run(async () => {
+      configureGoogle();
+      try {
+        return (await restoreGoogleUser()) !== null;
+      } catch (error) {
+        log.warn('Could not restore the Google session', mapGoogle(error).code);
+        return false;
+      }
+    });
+  },
+
+  hasTasksScope(): Promise<boolean> {
+    return googleQueue.run(async () => {
+      configureGoogle();
+      const user = await restoreGoogleUser();
+      if (!user) return false;
+      if (hasTasksScopes(user.scopes)) return true;
+      if (scopeRefreshAttempted) return false;
+      scopeRefreshAttempted = true;
+      try {
+        const refreshed = await silentGoogleSignIn();
+        return refreshed !== null && hasTasksScopes(refreshed.scopes);
+      } catch (error) {
+        log.warn('Could not refresh the Google scopes', mapGoogle(error).code);
+        return false;
+      }
+    });
+  },
+
+  requestTasksScope(): Promise<boolean> {
+    return googleQueue.run(async () => {
+      configureGoogle();
+      let user = await restoreGoogleUser();
+      if (!user) {
+        // Email/password users (or a lost native session): sign in to Google for Tasks only.
+        user = await interactiveGoogleSignIn();
+        if (!user) return false;
+        notifyGoogleAccessChanged();
+      }
+      if (hasTasksScopes(user.scopes)) return true;
+
+      let response: SignInResponse | null;
+      try {
+        response = await gs().addScopes({ scopes: [...GOOGLE_TASKS_SCOPES] });
+      } catch (error) {
+        const mapped = mapGoogle(error);
+        if (mapped.code === 'cancelled') return false;
+        throw mapped;
+      }
+      if (response === null) {
+        throw new AppError('google_not_signed_in', 'No Google account is signed in on this device');
+      }
+      if (response.type === 'cancelled') return false;
+      // With granular consent the user can untick the Tasks box: that is a decline.
+      const granted = hasTasksScopes(response.data.scopes);
       notifyGoogleAccessChanged();
       return granted;
     });
@@ -901,6 +1080,21 @@ export const authService: AuthServiceImpl = {
     const user = authInstance.currentUser;
     if (!user) throw new AppError('unauthenticated', 'Nobody is signed in');
     const providers = user.providerData.map((profile) => profile.providerId);
+    if (providers.length === 0) {
+      // A custom-token session (Sign in with Microsoft, section 31): a fresh custom token for the
+      // SAME uid renews auth_time. Another Microsoft account is a mismatch, never a switch.
+      const exchange = await microsoftCustomToken();
+      if (exchange.status === 'cancelled') return 'cancelled';
+      if (exchange.uid !== user.uid) {
+        throw authError('permission_denied', 'user_mismatch', 'A different Microsoft account confirmed the sign-in');
+      }
+      try {
+        await signInWithCustomToken(authInstance, exchange.customToken);
+      } catch (error) {
+        throw mapFirebaseAuthError(error);
+      }
+      return 'done';
+    }
     // Apple FIRST on iOS when the module is usable (§26): the sheet also refreshes the
     // authorizationCode that revokeAppleTokens() needs. Otherwise Google, then password.
     if (providers.includes('apple.com') && Platform.OS === 'ios') {

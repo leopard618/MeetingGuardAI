@@ -126,7 +126,7 @@ describe('Google event ids', () => {
     }
   });
 
-  it('returns null for events not created by MeetingGuard', () => {
+  it('returns null for events not created by Meeting Guard', () => {
     expect(meetingIdFromGoogleEventId('7kq3n0v9s8d1')).toBeNull();
     expect(meetingIdFromGoogleEventId('mgevzz')).toBeNull();
     expect(meetingIdFromGoogleEventId('mgev')).toBeNull();

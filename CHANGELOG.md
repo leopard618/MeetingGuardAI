@@ -1,7 +1,313 @@
 # Changelog
 
-All notable changes to MeetingGuard AI. Versions follow `version` in `app.config.js`. That value is
+All notable changes to Meeting Guard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
+
+## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
+
+Stage 2 of the V2 agreement: the calendar and task integrations (Outlook, Microsoft To Do, Google
+Tasks), the spoken debrief and the running-late message. Includes a native change (full-screen
+alarm module), so it ships as a store/APK build, never as an OTA update onto 1.5.x.
+
+### Added
+
+- **AI allowances replace the daily quota** (November 5, agreed with the client): the Free plan
+  is an introductory allowance of 10 AI actions during the 7 days after the first one, at most 3
+  a day; afterwards the assistant needs a subscription while creating by hand, viewing, export
+  and reminders stay free. Pro has 100 and Premium 400 AI actions per subscription month,
+  renewing on the monthly anniversary of the subscription start (yearly subscribers too), with
+  counters shared across devices. A reply that only asks for missing details is not counted, up
+  to two in a row. The server refunds its own failures as before. Plan, onboarding, usage and
+  legal texts updated in English and Spanish; store wording and console steps in
+  docs/v2/ALLOWANCES-2026-11-05.md. ARCHITECTURE section 35, TESTING T29.
+- **Running late (M9)** (November 4): "Running late" on the dashboard card, in meeting details
+  and on the MAX alarm and MEDIUM banner. Pick 5, 10, 15 or 30 minutes and get a ready message
+  in your language with the meeting title and the new time, edit it and send it from your phone
+  through the share sheet, or email the participants. The app reports only what the phone
+  reports: confirmed on iOS when the chosen app finished, handed over on Android and after the
+  mail composer, nothing sent when the sheet was dismissed. Moving the meeting to the new time is
+  a separate question afterwards (one occurrence only for a repeating meeting; Google and
+  Outlook get the change when sync is on). ARCHITECTURE section 33, TESTING T27.
+- **End meeting now** (November 4, client request): a running meeting offers "End now" on the
+  dashboard card and "End meeting now" in its details; after a confirmation the meeting is
+  shortened to end now, so "Happening now" clears and its alarms stop.
+- **microsoftSignIn signInOnly** (November 5, for the website): an optional request flag that
+  signs in existing users only; an unknown Microsoft account answers not-found with reason
+  microsoft_user_not_found and nothing is written. The app does not send it. ARCHITECTURE 31,
+  SETUP 10.6 step 6.
+- **Teams links through Outlook, honestly** (November 5, client test on a personal account):
+  the push now asks the account's calendar which online-meeting provider it allows and requests
+  that one; a meeting already in Outlook gets the fields on its update (PATCH), so editing and
+  saving asks again; a create that came back as a plain event is retried once with a PATCH.
+  An account whose calendar allows no provider is told "does not offer Teams links" in the form
+  and on the details card instead of a promise; a meeting in Outlook without a link says Outlook
+  did not attach one and offers paste. ARCHITECTURE 17 and 22, TESTING T15 rows 4 and 4b.
+- **Outlook as a source filter** (November 5, client feedback): the All meetings chips and the
+  calendar legend and day dots have an Outlook category next to Google Calendar and the device
+  calendars. Also: a repeating meeting with Teams is no longer told "paste a link" in the form;
+  its Teams link is requested on the series push like on a one-off (series push since M6).
+- **Outlook in the onboarding calendars step** (November 5, client feedback): on builds with
+  Outlook registered, step 2 offers "Connect Outlook" next to Google Calendar, first and with a
+  hint after "Continue with Microsoft". TESTING T2 row 2b.
+- **Setup recommendation on the dashboard** (November 5): one card with the next step that
+  still applies, ranked: verify the email (email accounts only), connect a calendar (Google or
+  Outlook), sync the tasks (To Do after Outlook, Google Tasks where the build has it). Above the
+  empty meetings card, below the next meeting otherwise. "Not now" hides it for a week, twice
+  for good; the empty meetings card then offers "Connect a calendar" instead. ARCHITECTURE
+  section 34, TESTING T28.
+- **Tasks written by the website reach To Do and Google Tasks through the app** (November 5):
+  the same `pushPending` flag on task documents; the app pushes a flagged create or edit to the
+  task providers like its own change, and a task deleted on the website is removed from the
+  providers too. Rules accept the flag on tasks. ARCHITECTURE section 32 (tasks), TESTING T26
+  rows 8 to 10.
+- **Meetings written by the website reach Google Calendar and Outlook through the app**
+  (November 3): the website cannot talk to the calendar providers (the Google token stays on the
+  phone), so it flags every meeting it creates, edits or cancels with `pushPending: true`. The app
+  treats such a document like a change made in the app: it pushes it, creates the Google Meet
+  link when one was requested, sends the invitations and its write-back drops the flag. A Zoom
+  meeting from the website is pushed only once the server has written its link, so the single
+  invitation carries the link (same hold as the app's own Zoom meetings). Firestore rules accept
+  the flag (deploy with `npm run deploy:rules` in `functions`).
+  ARCHITECTURE section 32, TESTING T26.
+- **The app bridges Microsoft To Do and Google Tasks** (November 2): with both syncs on, a task
+  created, edited, completed or deleted in To Do now reaches Google Tasks through the app, and the
+  other way round. Before, only tasks created in the app went to both.
+- **Tasks screen sync triggers** (November 2): pull down on the Tasks screen to sync Microsoft To Do
+  and Google Tasks right away (the dashboard already had this), and opening the Tasks screen runs
+  the same sync quietly. The automatic one-minute pull and the immediate push of local edits are
+  unchanged.
+- **Continue with Microsoft** (November 2): a third sign-in button on the Landing screen, between
+  Google and email, for personal and work Microsoft accounts. The app runs the Microsoft sign-in it
+  already has for Outlook with the identity scopes only, and the new `microsoftSignIn` function
+  verifies the token and signs the user in to Firebase. A Microsoft account with the same verified
+  email as an existing Google account joins that account; the Outlook calendar connection stays a
+  separate step in Settings. Account deletion and the email verification banner cover the new
+  sign-in. Needs `MICROSOFT_CLIENT_ID` on the functions (SETUP §10.6).
+- **Google Tasks two-way sync (M8)**: a "Google Tasks" card on the Calendar sync screen for the
+  Google account signed in on the phone (the Tasks permission is asked once, when the sync is
+  turned on). Pick a list; title, notes, due date and done state go both ways, deletions too; a
+  task can be moved to another list from the editor; the assistant's confirm card names the list.
+  The due time, the reminder, people and the linked meeting stay in Meeting Guard (Google Tasks
+  has no reminders). Build switch `EXPO_PUBLIC_GOOGLE_TASKS_SYNC=off` hides it until Google
+  verifies the scope. Firestore rules accept the new task and preference fields.
+- **Spoken debrief (M8)**: an ended meeting's details offer "Debrief this meeting", and the
+  post-meeting follow-up banner a "Debrief" button. The user says (up to 60 seconds) or types what
+  was agreed; the transcript stays editable, and "Create tasks" sends it in the assistant's new
+  debrief mode (contract v7). The reply proposes one task per commitment, linked to the meeting,
+  with the owner as a task person and the deadline resolved from the words ("by Friday"); each
+  task is an ordinary confirmation card and nothing is saved until confirmed. The server accepts
+  only new tasks (and an explicitly requested follow-up meeting) in that mode. English and Spanish.
+- **Dashboard after the client's mockup** (November 1): a deep-blue hero with the screen's own
+  header (menu, wordmark, language pill with the flag) and the greeting in display size; a white
+  next-meeting card pulled over the hero with a countdown column and one button; the tasks card
+  beside the 2 x 2 quick actions (no captions); a one-row empty card for Today; a "Weekly summary"
+  card comparing this week with last week (meetings and time, with change pills). The hero carries
+  a picture slot (a subtle glass-panel overlay ships until the client's building picture
+  arrives), the meeting and tasks cards have picture slots for the mockup's illustrations, and the
+  quick actions use rounded Ionicons. The palette moves to the mockup's blue; light is the default
+  appearance again.
+- **Flat dark UI** (client decision): the app opens in dark mode on a fresh install (a saved
+  choice still wins) with charcoal neutrals; no gradients, no light or spark effects and no
+  decorative motion anywhere; the accent is a solid indigo. The header is a menu button, the
+  title and a language pill with the country flag. The bottom bar is gone: the AI assistant is a
+  floating button that opens the chat with a tap and can be long-pressed and dragged anywhere
+  (the spot is remembered). The dashboard is, in order: a short greeting, the next-meeting card
+  (clock line, countdown in accent, Details and Join), the tasks card beside a 2 x 2 grid of
+  quick actions (new meeting, new with AI, WhatsApp, notes), today's schedule, and a "Your week"
+  card with a static seven-day meeting-time chart. The overview tiles, the ask bar and the
+  alerts card are gone (alert settings stay in the menu and in Settings).
+- **New welcome image**: the sign-in screen opens on the brand image (the mark, the app name and
+  "Never Miss What Matters." over a night office) with only the sign-in buttons and the Terms and
+  Privacy links below it; the old photo, logo, headline, feature list, quota note and white card
+  are gone.
+- **Bottom navigation bar with the AI assistant in the middle**: Home, Meetings, AI, Calendar and
+  Tasks are one tap away from every main screen; the assistant is a raised gradient orb that
+  breathes until the chat is open (it replaces the floating assistant button). The menu keeps the
+  remaining destinations (new meeting, notes, plans, settings). The bar owns the bottom safe-area
+  inset, so list paddings and the floating buttons sit right above it; modal sheets and editors
+  keep their window insets.
+- **Light and spark**: an ambient aurora (three drifting color blooms) behind the dashboard
+  greeting and glass stat tiles, a soft glow and twinkling sparks around the assistant orb, a
+  light sweep across the next-meeting card and the sign-in button, a glass tab bar, fade-and-rise
+  screen transitions, and vivid indigo-to-violet gradients in dark mode instead of the pale ones.
+  Cards now cast their shadow on Android (they no longer clip their own box). All effects are
+  decorative, ignore touches and stay still under "reduce motion".
+- **New typeface and icons**: the whole app is set in Plus Jakarta Sans (heavy, tight headlines,
+  relaxed body text) and the shell, dashboard, menu and meeting rows use one thin line-icon family
+  (Feather) through the kit's Icon component. The header is no longer an app bar: it sits on the
+  screen background with the title, the EN/ES pill and a gradient avatar with your initial that
+  opens the menu (the theme switch lives in the menu and in Settings). The bottom bar is a floating
+  pill. The dashboard opens with a big greeting, three stat tiles (today, tasks due, this week) and
+  the next meeting on a gradient card with a white Join button.
+- **Visual refresh**: indigo gradients on the primary buttons, the floating "new" buttons, the
+  header hairline and the active tab; a gradient hero card on the dashboard with the greeting and
+  today's numbers (meetings today, tasks due); the next-meeting card and every resting card are
+  lifted with a soft indigo shadow (tonal step in dark mode) and rounder corners; the landing
+  photo sits under an indigo-to-night gradient and the sign-in button is a gradient pill; empty
+  states get a gradient icon circle. Motion: cards, tiles, tabs and buttons spring to 97 percent
+  while pressed, dashboard blocks and today's rows fade in with a short stagger, the active tab
+  pill springs in. Everything is static under the system "reduce motion" setting. Needs
+  `expo-linear-gradient` (native module), so it ships with the next APK and store build.
+- **Outlook calendar sync, activated** (milestone M6): the Microsoft Graph two-way sync built in
+  v1 is switched on by setting `EXPO_PUBLIC_MSAL_CLIENT_ID` (Azure app registration, SETUP §10).
+  Connect a Microsoft account on the Calendar sync screen; meetings flow both ways with the
+  existing conflict rules, and alerts re-reconcile after every pull.
+- **Repeating meetings reach Outlook**: a Meeting Guard AI series is pushed as a Graph series master
+  (daily, weekly, monthly rules; until and count; the anchor moved to the first generated
+  occurrence when the rule skips it). Cancelled occurrences delete their Outlook instance,
+  modified ones (time, duration, title) patch it; the shape change one-off <-> series is handled
+  by delete and re-create. Instances of our own series coming back through calendarView are
+  skipped, and a full sync never tombstones a series master. Occurrence edits made in Outlook on a
+  Meeting Guard AI series stay in Outlook (same one-way rule as Google).
+
+- **Microsoft To Do, two-way task sync** (milestone M7): on the Microsoft account the Outlook card
+  connects (one consent, now with `Tasks.ReadWrite`), tasks sync both ways with a chosen To Do
+  list: title, notes, due date, reminder, done state and deletion. The list is chosen when the
+  sync is turned on (Calendar sync screen, Microsoft To Do card), can be changed for new tasks,
+  and a task can be moved to another list from its editor; the editor and the assistant's confirm
+  sheet name the list before anything is saved, and the editor says what To Do does not keep (a
+  due time without a reminder, people, the meeting link). Tasks completed in To Do silence their
+  reminder here within a minute while the app is open (a one-minute To Do pull on top of the
+  calendar sync). Tasks finished in To Do before the sync never saw them are not imported.
+  Task documents gain `source` and the To Do link (`external`), preferences the default list;
+  Firestore rules updated.
+- **Home screen, client feedback (Oct 28)**: the Next meeting card also shows the next all-day item
+  (a birthday or holiday from a phone calendar) when it comes no later than the next timed meeting,
+  with its own Details button; the "Tasks today" card moved up, right under that card, so it is seen
+  without scrolling. All-day items were already in today's timeline and in the lists.
+- **Alert intensity for events from other calendars** (Settings > Alerts > "Events from other
+  calendars"): one intensity for meetings imported from a phone, Google or Outlook calendar, or
+  "same as above". A meeting's own intensity still wins; all-day events never ring. The Default
+  chip in the meeting form and the details line name the intensity that really applies.
+
+### Changed
+
+- **Privacy policy and terms of service for 1.6.0** (November 6, dated November 6, 2026): the
+  in-app texts now describe the Pro and Premium subscriptions sold in the App Store and Google
+  Play (renewal, cancellation, refunds, and that deleting the account does not cancel a
+  subscription), Continue with Microsoft, Outlook, Microsoft To Do, Google Tasks and the copies between the two task
+  services, Zoom links, the WhatsApp assistant, the tasks and meeting descriptions the AI
+  assistant receives, voice input through the phone's recognizer, RevenueCat, and what stays
+  after an account deletion (purchase records, Zoom meetings on our Zoom account). Every claim
+  was checked against the code (docs/v2/LEGAL-CLAIMS-1.6.0.md); the website gets the same text
+  (docs/v2/TERMS-UPDATE-FOR-WEBSITE-2026-11-06.md), and the Firebase-hosted delete-account page
+  says the same.
+- App texts brought in line with the policy: the delete-account warning lists tasks and says
+  that a store subscription is not cancelled; the Calendar sync row in Settings names Outlook
+  and the task lists; the Google Tasks and To Do cards say that tasks are copied to the other
+  service when both syncs are on; the hint under the participants names the calendar that
+  emails the invitations (Google Calendar, Outlook or both) and says that meetings from the
+  phone's calendar send none.
+
+### Fixed
+
+- **TestFlight 1.6.0 (11) findings** (November 9, client test on an iPhone in dark mode):
+  the iOS time and date wheels drew white text on the app's light sheet and only the grey bar
+  showed; every picker now follows the app's theme (ThemedDateTimePicker). The dashboard's
+  "Sync tasks" button showed "?" instead of its icon. The assistant's top bar squeezed its
+  subtitle to "Ma n..."; the subtitle has its own line and the allowance pill wraps before the
+  buttons are pushed off-screen. Spanish sentences ending on a time no longer show "p.m..". The
+  Free card's $0 follows the store's own price format when the paid cards show store prices,
+  instead of "0 US$" beside peso prices.
+- **App Store plan changes** (server): a PRODUCT_CHANGE webhook from the App Store is recorded
+  but no longer writes the plan. RevenueCat documents it as informative; the RENEWAL sent when
+  the change takes effect carries the new product, and PRODUCT_CHANGE carries the old product's
+  expiry, so landing after that RENEWAL could put an upgraded subscriber back on the old plan.
+  Google Play events are unchanged.
+- **Tasks stopped reaching Google Tasks and Microsoft To Do** (November 6, client report): an
+  iPhone on the App Store 1.5.0 build saves the settings as a whole document and erased the task
+  list chosen on the Android, which then dropped every new task without a word while the card
+  still said On. Each phone now remembers its list and puts it back, a task with no list waits
+  in the queue instead of being dropped, the card says "List needed" with a "Choose list"
+  button, and choosing a list sends the waiting tasks. A task edited on the older iPhone build
+  keeps its Google Tasks and To Do links (the server copy is repaired) and its change is pushed.
+  Coming back to the app pulls task changes at once, and a task saved just before leaving the
+  app is sent right away (Android pauses app timers in the background). ARCHITECTURE sections 28
+  and 30, TESTING T30.
+- **"View all tasks" on the dashboard** (November 4, client request): a soft primary-tinted pill
+  instead of plain primary text, quieter next to the task rows.
+- **Task confirmation sheet did not name the meeting** (November 3): a task card proposed from a
+  debrief (or any task the assistant links to a meeting) now shows a "Meeting" row with the
+  meeting's title on the confirmation sheet. The preview already loaded the meeting; the sheet
+  never rendered it.
+- **Alert intensity preview went blank** (November 2): on Alert settings and onboarding, choosing
+  Medium or Light and then Maximum again left the Maximum preview as an empty dark red card. The
+  three mockups now each get their own native view instead of restyling one shared view.
+- **Tasks from before the Google Tasks build vanished from the app but not from the assistant**
+  (November 2): the M8 reader required the three Google Tasks keys inside a task's `external`
+  map, so every task last written by the previous build (To Do keys only) was skipped as invalid
+  and disappeared from the Tasks screen, while WhatsApp and the in-app assistant, which read the
+  server copy, kept listing them. The reader now fills missing external keys with null, as the
+  meeting reader already did; the tasks come back and can be deleted normally.
+- **Assistant called a finished meeting "tonight"** (November 2): on WhatsApp the assistant
+  announced Sunday night's meetings as today's and insisted they had not happened yet. One-off
+  meetings that are already over now carry an explicit `ended` flag in the assistant data, with
+  a rule that such a meeting is never today's, tonight's or upcoming.
+- **Microsoft To Do first sync failed with "Some of the information isn't valid"** (November 2):
+  personal Microsoft accounts answer HTTP 400 to the `$select` parameter on the To Do task
+  endpoints, so the first pull never finished. The app no longer sends it; Microsoft Graph's own
+  error text is now kept in the logs for the next report.
+- **Google Tasks could not be turned on** (November 2): the list chooser demanded the Tasks
+  permission before anything had asked for it, so a fresh account always saw "Meeting Guard needs
+  permission to access your Google Tasks". Loading the lists now asks for the permission; declining
+  shows the card's "access was not granted" text.
+
+Code audit of October 30, 2026 (docs/v2/AUDIT-2026-10-30.md has the full list and the
+countermeasures that need a device run):
+
+- **Dashboard and list jank with daily series**: recurring meetings were re-expanded over a year
+  on every 30 s clock tick, and every time-zone check built a new Intl formatter. Expansions are
+  now keyed on the local day, the zone validity and the device zone are cached, and daily/weekly
+  rules start iterating near the window instead of at the anchor.
+- **Outlook, fresh install or second device**: the first pull could import this user's own pushed
+  events as foreign meetings (duplicates whose deletion deleted the real event). Own events are
+  recognised by their transactionId and the session-start pull waits for the server's meetings.
+- **Outlook all-day events east of UTC** arrived one day early (Graph converts all-day midnights
+  to UTC); the calendar date is now taken correctly.
+- **Outlook invitations for hybrid meetings** (address plus video link) carried no join link; the
+  link now travels in the body like it does for Google, and is stripped again on import.
+- **Google and Outlook connect** wiped the queued pushes, so edits and deletes made while the
+  connection was lost never reached the calendar; the queue now survives a reconnect.
+- **Edits pulled from one calendar reach the other** for meetings linked to both (a meeting moved
+  in Google Calendar is moved in Outlook too).
+- **Google 412 on an attendee RSVP** dropped the local edit; an invisible remote change now
+  retries the write, and "this and following" masters Google derives from ours are recognised.
+- **Microsoft To Do**: the public tasks repository dropped the write options, so imports lost
+  their deterministic id and source (Stop sync left them behind, duplicates on restart); links are
+  learned on import so Change list leaves one copy; a reminder after the due date keeps its instant;
+  date-only values at UTC+13 no longer shift; a 403 on one task no longer blocks the whole sync;
+  disconnecting Outlook turns the To Do sync off.
+- **Microsoft sign-in**: a token refresh still in flight at sign-out could re-store the token or
+  hand it to the next user; a keystore write failure while rotating the token no longer counts as
+  a revoked consent.
+- **Assistant**: a typed "si" (no accent) never executed while the reply said it was confirming;
+  a plain "yes" now resolves the newest proposal only, not every card in the thread; a bulk move
+  that fails on one meeting reports the rest as done; assistant tasks get a deterministic id (no
+  twins on retry); an exhausted OpenAI quota is logged as configuration, not as traffic; a task
+  linked to a meeting created in the same reply runs after the meeting.
+- **Data layer**: preferences written by an older build no longer reset keys it does not know;
+  transaction contention is retried instead of dropped; one stuck document no longer blocks every
+  other write for up to an hour; an unreadable outbox row no longer blocks the session; the
+  Android AsyncStorage limit is raised to 50 MB (plugins/withAsyncStorageDbSize.js).
+- **Alerts**: the iOS pending budget now accounts for task reminders and briefings (64 cap); the
+  native alarm no longer re-fires when a reconcile races the fire instant (native change); the
+  exact-alarm card stops asking once the permission is granted.
+- **Meeting details**: no "Meeting not found" flash while deleting; next occurrences follow the
+  clock; task due times show in the device zone like their reminders.
+- **Server**: WhatsApp sessions of unlinked phones are purged on schedule; a message that fails
+  after its dedupe claim gets an error reply instead of silence; account deletion removes the
+  Zoom ownership registry and the restore replay removes WhatsApp links; google-auth-library is
+  a declared dependency.
+- **One invitation email for Zoom meetings**: a meeting saved with an automatic Zoom link was
+  pushed to Google/Outlook at once and again seconds later when the link landed, so attendees got
+  an invitation without the link followed by an "updated invitation" with it. The calendar pushes
+  now wait for the link (held at most 30 s, released on success or failure), so one invitation goes
+  out with the join link in it.
+- **Alarm voice readout on Android**: a MAX alert fired by the native full-screen alarm while the
+  app was closed opened the app on the meeting page only, without the in-app alarm (sound loop,
+  spoken readout, snooze). The native module now records fired alarms with their payload and the
+  alert engine re-shows them in-app when the app opens (within 20 minutes), through the same rules
+  as a tray notification. Native change: ships with the next store/APK build.
 
 ## [1.5.0] - Unreleased (V2 Stage 1, branch `v2`)
 
@@ -27,7 +333,40 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
   linked to the meeting that does not exist yet (`meetingActionId`, resolved on the device once
   the meeting is created). A missing link never costs the user the task.
 - **Meeting-move prompts**: moving a meeting that has linked tasks asks once, by name, whether
-  the task should move too, and keeps the gap the user set up.
+  the task should move too, and keeps the gap the user set up. The question is guaranteed by the
+  server: when the model moves a meeting and says nothing about a linked, dated, open task, the
+  question is appended to the reply.
+- **Server-side consent guard**: a spoken or typed answer to a confirmation card is honoured as
+  confirm or cancel only when it is short and carries no qualifier ("yes but make it earlier"
+  leaves the cards on screen), whatever the model decided. Logged as resolutionBlocked so it can
+  be checked without a device.
+- **Full-screen morning summary** (week 5, Android; Francisco request): the daily briefing can
+  take over the screen like a meeting alarm at the time you set, instead of a quiet notification.
+  Settings > Alerts > Daily briefing > Show full screen (Android only, off by default, needs the
+  full-screen permission). It reuses the meeting-alarm module; a new scoped setAlarms keeps the
+  briefing and meeting alarms from cancelling each other. On iPhone and where the permission is
+  off it stays a notification.
+- **"Alerts are on" status notification** (week 5): an optional, silent, ongoing notification
+  that says alerts are armed and names the next meeting, kept current while the app is closed.
+- **Admin: read-only role and audit log** (milestone M2): a `viewer` claim (granted with
+  `set-admin-claim.mjs --role viewer`) opens every dashboard view without any write action,
+  enforced server-side; every administrative write (plan change, disable, key rotation,
+  reconcile) records who, what, before, after and outcome in `adminAudit`.
+- **Admin: Revenue tab** (milestone M1): paying users by plan and store, estimated MRR, trials
+  started, new paid, cancellations, refunds and expirations per day from the store webhook
+  events (`adminGetRevenue`). The billing webhook now keeps the billing facts (store, product,
+  period, price) on each event marker and next to the entitlement; it never uses them for
+  entitlement decisions.
+  Settings > Alerts > Status notification, off by default. Its own low-importance channel on
+  Android.
+- **Apple sign-in errors tell the truth**: a refused Apple credential is reported as such (EN/ES)
+  instead of "the email or password is incorrect", and the refusal reason reaches the crash
+  reporter.
+- **Plans screen subscription terms** (App Store rule 3.1.2): the renewal terms in one line and
+  links to the privacy policy and the terms of use on the Plans screen itself, in English and
+  Spanish. Apple rejected 1.4.0 on 2026-10-20 partly for their absence.
+- **Composed agenda answers** skip cancelled meetings and read a repeating meeting as a time of
+  day, since its stored start is the first occurrence of the series.
 - **Daily briefing** (week 4): an optional once-a-day notification summarizing that day, at a
   time the user controls (Settings > Alerts). Its own `mgbrief:*` scheduler and Android channel,
   so it can never collide with meeting alerts or task reminders, and its own switch.
@@ -40,6 +379,18 @@ ships only as a store/APK build, never as an OTA update onto 1.4.x.
 
 ### Fixed
 
+
+- **The assistant sometimes printed raw JSON instead of a confirmation card**: for some
+  phrasings (seen with "rename the call ... and add the Zoom link later") the model wrote a
+  tool's arguments into its reply text and made no tool call, so the user saw a JSON blob and
+  no card. The server now recovers such a tool call, validates it like any other, and never
+  shows raw JSON in a reply. Prompt rule 15 tells the model not to do it, and rule 14 now also
+  treats "remind me ..." as a linked task.
+- **Calendar showed six columns** on some phones: the seventh weekday and every Saturday wrapped
+  onto the next line because seven cells of exactly one seventh of the width overflowed by a
+  fraction of a pixel. The grid is now rows of seven flexible cells, which cannot wrap. The
+  calendar header also moved to a left-aligned month title with grouped arrows, the grid sits on
+  a rounded surface, today is a ring and the selected day a filled circle.
 - A read-only answer is no longer captioned "review and confirm", which asked the user to
   confirm something that did not exist.
 - A repeating meeting in an agenda list showed the series master's date (often months past)

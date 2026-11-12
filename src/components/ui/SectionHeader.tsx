@@ -27,7 +27,7 @@ export function SectionHeader({ title, action, trailing, style, testID }: Sectio
   const { colors } = useAppTheme();
   return (
     <View style={[styles.row, style]} testID={testID}>
-      <Text style={[styles.title, { color: colors.onSurfaceVariant }]} accessibilityRole="header">
+      <Text style={[styles.title, { color: colors.onSurface }]} accessibilityRole="header">
         {title}
       </Text>
       {trailing ?? null}
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   title: {
-    ...typography.titleS,
+    ...typography.titleM,
     flexShrink: 1,
   },
   actionLabel: {

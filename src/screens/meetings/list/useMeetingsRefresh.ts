@@ -35,7 +35,7 @@ export function useMeetingsRefresh(refreshMeetings: () => Promise<void>): Meetin
     setRefreshing(true);
     void (async () => {
       const [local, calendars] = await Promise.allSettled([refreshMeetings(), calendarSyncEngine.syncNow({ reason: 'manual' })]);
-      const problems: { provider: 'meetings' | 'calendars' | 'google' | 'device' | 'outlook'; code: AppErrorCode }[] = [];
+      const problems: { provider: 'meetings' | 'calendars' | 'google' | 'device' | 'outlook' | 'todo' | 'gtasks'; code: AppErrorCode }[] = [];
       if (local.status === 'rejected') problems.push({ provider: 'meetings', code: toAppError(local.reason).code });
       if (calendars.status === 'rejected') {
         const code = toAppError(calendars.reason).code;

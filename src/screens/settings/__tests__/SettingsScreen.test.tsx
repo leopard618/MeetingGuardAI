@@ -26,8 +26,10 @@ let mockProviders = ['google.com'];
 let mockEmailVerified = true;
 jest.mock('../../../services/auth', () => {
   const actual = jest.requireActual('../../../services/auth/authErrors');
+  const results = jest.requireActual('../../../services/auth/authResults');
   return {
     authErrorMessageKey: actual.authErrorMessageKey,
+    signedInWithMicrosoft: results.signedInWithMicrosoft,
     // Late-bound: the factory runs while the consts above are still initializing.
     authService: {
       revokeAppleTokens: (): Promise<void> => mockRevokeAppleTokens() as Promise<void>,
@@ -130,6 +132,22 @@ it('stops when the Google confirmation is cancelled and explains server failures
     confirmLastAlert();
   });
   expect(Alert.alert).toHaveBeenLastCalledWith("Couldn't delete your account", "You're offline. Check your connection and try again.");
+});
+
+it('confirms a Microsoft (custom-token) session through the Microsoft sign-in before deleting (section 31)', async () => {
+  mockProviders = [];
+  mockReauthenticate.mockResolvedValue('done');
+  mockDeleteAccount.mockResolvedValue(undefined);
+  await renderSettings();
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('settings-delete-account'));
+  });
+  await act(async () => {
+    confirmLastAlert();
+  });
+  expect(mockReauthenticate).toHaveBeenCalledWith();
+  expect(mockRevokeAppleTokens).not.toHaveBeenCalled();
+  expect(mockDeleteAccount).toHaveBeenCalledTimes(1);
 });
 
 it('deletes an Apple account in order: Apple reauth, token revocation, server delete (5.1.1(v))', async () => {

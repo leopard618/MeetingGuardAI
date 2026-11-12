@@ -1,6 +1,6 @@
 /**
  * Route registrations and their titles stay consistent: every route has a header title in EN and
- * ES, and no title or sidebar label is left behind for a route that no longer exists.
+ * ES, and no title, sidebar label or bottom-bar label is left behind for a route that no longer exists.
  */
 import type { Language } from '../../core/types';
 import { RESOURCES } from '../../i18n/resources';

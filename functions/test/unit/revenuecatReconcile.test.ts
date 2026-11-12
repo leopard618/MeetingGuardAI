@@ -349,6 +349,7 @@ describe('handleAdminReconcileEntitlement', () => {
       },
       allowSandbox: () => options.allowSandbox ?? false,
       now: () => NOW,
+      audit: { writeAudit: jest.fn(async () => undefined) },
     };
     return { ports, writes };
   }

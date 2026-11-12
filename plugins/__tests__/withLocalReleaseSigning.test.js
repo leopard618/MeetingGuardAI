@@ -53,7 +53,7 @@ describe('withLocalReleaseSigning', () => {
     it('leaves the config untouched without MG_LOCAL_SIGNING=1', () => {
       delete process.env.MG_LOCAL_SIGNING;
       delete process.env.EAS_BUILD;
-      const config = { name: 'MeetingGuard AI', slug: 'meeting-guard-ai' };
+      const config = { name: 'Meeting Guard AI', slug: 'meeting-guard-ai' };
       expect(withLocalReleaseSigning(config)).toBe(config);
       expect(config.mods).toBeUndefined();
     });
@@ -61,7 +61,7 @@ describe('withLocalReleaseSigning', () => {
     it('registers an app/build.gradle mod with MG_LOCAL_SIGNING=1', () => {
       process.env.MG_LOCAL_SIGNING = '1';
       delete process.env.EAS_BUILD;
-      const config = withLocalReleaseSigning({ name: 'MeetingGuard AI', slug: 'meeting-guard-ai' });
+      const config = withLocalReleaseSigning({ name: 'Meeting Guard AI', slug: 'meeting-guard-ai' });
       expect(typeof config.mods?.android?.appBuildGradle).toBe('function');
     });
   });

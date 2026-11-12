@@ -26,7 +26,7 @@
   "calendar": {
     "title": "Calendars",
     "sync": "Calendar sync",
-    "syncDescription": "Google Calendar and the calendars on this device"
+    "syncDescription": "Google Calendar, Outlook, your task lists and the calendars on this device"
   },
   "legal": {
     "title": "Legal",
@@ -34,7 +34,7 @@
     "terms": "Terms of Service"
   },
   "about": {
-    "version": "MeetingGuard AI {{version}}",
+    "version": "Meeting Guard AI {{version}}",
     "update": "Update {{id}} · {{channel}}"
   },
   "timeFormat": {

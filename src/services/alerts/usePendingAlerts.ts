@@ -1,5 +1,5 @@
 /**
- * usePendingAlerts (owner: alerts): pending MeetingGuard notifications + permission status for the
+ * usePendingAlerts (owner: alerts): pending Meeting Guard notifications + permission status for the
  * Settings / onboarding UI. Refreshes after every reconcile and permission change.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

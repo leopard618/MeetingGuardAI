@@ -12,7 +12,7 @@
  */
 import { configureFonts, MD3DarkTheme, MD3LightTheme, type MD3Theme } from 'react-native-paper';
 
-import { darkColors, lightColors, paperColorOverrides, typography, type MGColors, type MGSchemeName } from '../theme/tokens';
+import { darkColors, lightColors, paperColorOverrides, typography, type MGColors, type MGSchemeName, type MGTypeStyle } from '../theme/tokens';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ColorScheme = MGSchemeName;
@@ -62,19 +62,30 @@ export const APP_COLORS: Readonly<Record<ColorScheme, AppColors>> = {
 };
 
 /**
- * Weight bumps so Paper `<Text variant>` matches the token type scale (docs/v1/DESIGN_SYSTEM.md §3);
- * MD3 default sizes stay as they are.
+ * Paper `<Text variant>` on the token type scale (docs/v1/DESIGN_SYSTEM.md §3): Plus Jakarta Sans,
+ * the family of each variant's weight, token sizes and tracking. `default` (buttons, inputs,
+ * chips, menus) takes the regular family.
  */
+function paperVariant(style: MGTypeStyle) {
+  return { fontFamily: style.fontFamily, fontWeight: style.fontWeight, fontSize: style.fontSize, lineHeight: style.lineHeight, letterSpacing: style.letterSpacing };
+}
+
 const MG_FONTS = configureFonts({
   config: {
-    displaySmall: { fontWeight: typography.displayS.fontWeight },
-    headlineLarge: { fontWeight: typography.headlineL.fontWeight },
-    headlineMedium: { fontWeight: typography.headlineM.fontWeight },
-    headlineSmall: { fontWeight: typography.headlineM.fontWeight },
-    titleLarge: { fontWeight: typography.titleL.fontWeight },
-    titleMedium: { fontWeight: typography.titleM.fontWeight },
-    titleSmall: { fontWeight: typography.titleS.fontWeight },
-    labelLarge: { fontWeight: typography.labelL.fontWeight },
+    default: paperVariant(typography.bodyM),
+    displaySmall: paperVariant(typography.displayS),
+    headlineLarge: paperVariant(typography.headlineL),
+    headlineMedium: paperVariant(typography.headlineM),
+    headlineSmall: paperVariant(typography.headlineS),
+    titleLarge: paperVariant(typography.titleL),
+    titleMedium: paperVariant(typography.titleM),
+    titleSmall: paperVariant(typography.titleS),
+    bodyLarge: paperVariant(typography.bodyL),
+    bodyMedium: paperVariant(typography.bodyM),
+    bodySmall: paperVariant(typography.bodyS),
+    labelLarge: paperVariant(typography.labelL),
+    labelMedium: paperVariant(typography.labelM),
+    labelSmall: paperVariant(typography.labelS),
   },
 });
 

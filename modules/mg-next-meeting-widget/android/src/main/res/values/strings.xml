@@ -3,8 +3,8 @@
      of these (the 'widget' i18n namespace) that follow the APP language. Keep them in sync. -->
 <resources>
   <string name="mg_widget_label">Next meeting</string>
-  <string name="mg_widget_description">Shows your next MeetingGuard meeting</string>
+  <string name="mg_widget_description">Shows your next meeting in Meeting Guard AI</string>
   <string name="mg_widget_empty_title">No upcoming meetings</string>
-  <string name="mg_widget_empty_body">Open MeetingGuard to plan one</string>
+  <string name="mg_widget_empty_body">Open Meeting Guard to plan one</string>
   <string name="mg_widget_now">Happening now</string>
 </resources>

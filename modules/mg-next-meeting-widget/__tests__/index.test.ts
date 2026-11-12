@@ -45,7 +45,7 @@ const DATA = {
   deepLink: 'meetingguardai://meeting/m1',
 };
 
-const STRINGS = { emptyTitle: 'No upcoming meetings', emptyBody: 'Open MeetingGuard to plan one', nowLabel: 'Happening now' };
+const STRINGS = { emptyTitle: 'No upcoming meetings', emptyBody: 'Open Meeting Guard to plan one', nowLabel: 'Happening now' };
 
 afterEach(() => {
   jest.resetModules();

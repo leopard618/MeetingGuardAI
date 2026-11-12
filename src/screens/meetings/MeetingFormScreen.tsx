@@ -16,7 +16,7 @@
  * - Saved through meetingRepository with origin 'user' (the calendar engine pushes the change to
  *   Google; device-calendar imports stay one-way).
  */
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { ThemedDateTimePicker as DateTimePicker, type DateTimePickerEvent } from '../shared/ThemedDateTimePicker';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -32,7 +32,7 @@ import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
-import type { Meeting, MeetingPatch } from '../../core/types';
+import { effectiveAlertIntensity, type Meeting, type MeetingPatch } from '../../core/types';
 import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { attachmentService } from '../../services/attachments';
@@ -64,6 +64,7 @@ import {
   draftFromMeeting,
   draftToCreateInput,
   draftToPatch,
+  invitesHintKey,
   isMeetingDraftDirty,
   monthlyRepeatDay,
   newMeetingDraft,
@@ -737,7 +738,7 @@ function MeetingForm({
         </MGButton>
         {draft.participants.length > 0 ? (
           <HelperText type="info" visible>
-            {googleConnected ? t('meetings:form.invitesByGoogle') : t('meetings:form.invitesNeedCalendar')}
+            {t(`meetings:form.${invitesHintKey(googleConnected, calendar.outlook, meeting?.source)}`)}
           </HelperText>
         ) : null}
       </Section>
@@ -803,7 +804,11 @@ function MeetingForm({
               onPress={() => change({ alertIntensity: choice })}
             >
               {choice === 'default'
-                ? t('meetings:form.intensityDefault', { intensity: t(`onboarding:alerts.intensity.${preferences.alertIntensity}.title`) })
+                ? t('meetings:form.intensityDefault', {
+                    intensity: t(
+                      `onboarding:alerts.intensity.${effectiveAlertIntensity({ source: meeting?.source ?? 'manual', alertIntensity: null }, preferences)}.title`,
+                    ),
+                  })
                 : t(`onboarding:alerts.intensity.${choice}.title`)}
             </Chip>
           ))}

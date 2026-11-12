@@ -1,5 +1,5 @@
 /**
- * Subset of the Microsoft Graph event resource used by MeetingGuard.
+ * Subset of the Microsoft Graph event resource used by Meeting Guard.
  * https://learn.microsoft.com/graph/api/resources/event
  *
  * Requests are sent with `Prefer: outlook.timezone="UTC"` and
@@ -41,6 +41,36 @@ export interface GraphOnlineMeetingInfo {
 
 export type GraphEventType = 'singleInstance' | 'occurrence' | 'exception' | 'seriesMaster';
 
+export type GraphDayOfWeek = 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday';
+
+/** https://learn.microsoft.com/graph/api/resources/recurrencepattern (the subset Meeting Guard writes). */
+export interface GraphRecurrencePattern {
+  type: 'daily' | 'weekly' | 'absoluteMonthly' | 'relativeMonthly' | 'absoluteYearly' | 'relativeYearly';
+  interval: number;
+  /** weekly */
+  daysOfWeek?: GraphDayOfWeek[];
+  firstDayOfWeek?: GraphDayOfWeek;
+  /** absoluteMonthly / absoluteYearly */
+  dayOfMonth?: number;
+  month?: number;
+  index?: 'first' | 'second' | 'third' | 'fourth' | 'last';
+}
+
+/** https://learn.microsoft.com/graph/api/resources/recurrencerange */
+export interface GraphRecurrenceRange {
+  type: 'endDate' | 'noEnd' | 'numbered';
+  /** "YYYY-MM-DD" in recurrenceTimeZone. */
+  startDate: string;
+  endDate?: string;
+  numberOfOccurrences?: number;
+  recurrenceTimeZone?: string;
+}
+
+export interface GraphPatternedRecurrence {
+  pattern: GraphRecurrencePattern;
+  range: GraphRecurrenceRange;
+}
+
 export interface GraphEvent {
   id: string;
   /** Concurrency/echo token; changes on every modification. */
@@ -48,7 +78,12 @@ export interface GraphEvent {
   /** UTC ISO ("2026-10-05T09:00:00Z" style). */
   lastModifiedDateTime?: string;
   type?: GraphEventType;
+  /** Our own create marker ("mgev-<meeting id>"); selected so own events are recognised on pull. */
+  transactionId?: string;
   seriesMasterId?: string | null;
+  /** Occurrences / exceptions: the start the series generated for them (UTC ISO), before any edit. */
+  originalStart?: string | null;
+  recurrence?: GraphPatternedRecurrence | null;
   subject?: string | null;
   body?: GraphItemBody;
   bodyPreview?: string;
@@ -82,7 +117,24 @@ export interface GraphEventWrite {
   /** Client-generated idempotency key ("mgev-{meetingId}"); create only, immutable. */
   transactionId?: string;
   isOnlineMeeting?: boolean;
-  onlineMeetingProvider?: 'teamsForBusiness';
+  /** One of the calendar's allowedOnlineMeetingProviders (GraphCalendar), usually teamsForBusiness. */
+  onlineMeetingProvider?: string;
+  /** Series masters: the rule (toGraphRecurrence). Never sent for one-off events. */
+  recurrence?: GraphPatternedRecurrence;
+}
+
+/** GET /me/calendar (the default calendar): which online-meeting providers the account allows. */
+export interface GraphCalendar {
+  id?: string;
+  /** e.g. ["teamsForBusiness"]; empty on accounts that cannot create online meetings through Graph. */
+  allowedOnlineMeetingProviders?: string[];
+  defaultOnlineMeetingProvider?: string;
+}
+
+/** GET /me/events/{id}/instances page. */
+export interface GraphInstancesPage {
+  value?: GraphEvent[];
+  '@odata.nextLink'?: string;
 }
 
 export interface GraphDeltaPage {

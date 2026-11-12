@@ -4,7 +4,7 @@
  * before the diff, with an expo fallback in the same reconcile when the module is unavailable,
  * denied or failing. Pure fakes (no expo mocks): the engine only sees the ports.
  */
-import type { FullScreenAlarmModule, FullScreenAlarmSpec, FullScreenAlarmStatus } from '../../../core/contracts';
+import type { FiredFullScreenAlarm, FullScreenAlarmModule, FullScreenAlarmSpec, FullScreenAlarmStatus } from '../../../core/contracts';
 import { ANDROID_CHANNELS, meetingDeepLink } from '../../../core/identifiers';
 import { createEventBus, type AppEventMap } from '../../../core/events';
 import type { Logger } from '../../../core/logger';
@@ -62,11 +62,14 @@ interface FakeFsi {
     available: boolean;
     status: FullScreenAlarmStatus;
     alarms: Map<string, FullScreenAlarmSpec>;
+    fired: Map<string, FiredFullScreenAlarm>;
     setError: Error | null;
   };
   setAlarms: jest.Mock;
   clearAlarms: jest.Mock;
   getStatus: jest.Mock;
+  getFired: jest.Mock;
+  clearFired: jest.Mock;
 }
 
 function fakeFsi(overrides: Partial<{ available: boolean; status: FullScreenAlarmStatus }> = {}): FakeFsi {
@@ -74,25 +77,49 @@ function fakeFsi(overrides: Partial<{ available: boolean; status: FullScreenAlar
     available: overrides.available ?? true,
     status: overrides.status ?? { exactAllowed: true, fullScreenAllowed: true, notificationsAllowed: true },
     alarms: new Map<string, FullScreenAlarmSpec>(),
+    fired: new Map<string, FiredFullScreenAlarm>(),
     setError: null,
   };
-  const setAlarms = jest.fn(async (alarms: readonly FullScreenAlarmSpec[]) => {
+  const setAlarms = jest.fn(async (alarms: readonly FullScreenAlarmSpec[], scope?: string) => {
     if (state.setError) throw state.setError;
-    state.alarms = new Map(alarms.map((alarm) => [alarm.id, alarm]));
+    // Faithful to the native module: a scope restricts the replace-all to ids starting with it.
+    const next = new Map(alarms.map((alarm) => [alarm.id, alarm]));
+    for (const id of [...state.alarms.keys()]) {
+      const inScope = scope === undefined || scope === '' || id.startsWith(scope);
+      if (inScope && !next.has(id)) state.alarms.delete(id);
+    }
+    for (const [id, alarm] of next) state.alarms.set(id, alarm);
   });
   const clearAlarms = jest.fn(async (ids?: readonly string[]) => {
-    if (ids === undefined) state.alarms.clear();
-    else for (const id of ids) state.alarms.delete(id);
+    // Faithful to the native module: clearing an alarm also forgets its fired record.
+    if (ids === undefined) {
+      state.alarms.clear();
+      state.fired.clear();
+    } else {
+      for (const id of ids) {
+        state.alarms.delete(id);
+        state.fired.delete(id);
+      }
+    }
   });
   const getStatus = jest.fn(async () => ({ ...state.status }));
+  const getFired = jest.fn(async (scope?: string) =>
+    [...state.fired.values()].filter((alarm) => scope === undefined || alarm.id.startsWith(scope)).sort((a, b) => a.firedAtMs - b.firedAtMs),
+  );
+  const clearFired = jest.fn(async (ids?: readonly string[]) => {
+    if (ids === undefined) state.fired.clear();
+    else for (const id of ids) state.fired.delete(id);
+  });
   const fsi: FullScreenAlarmModule = {
     isAvailable: () => state.available,
     setAlarms,
     clearAlarms,
     getStatus,
     openFullScreenIntentSettings: jest.fn(async () => undefined),
+    getFired,
+    clearFired,
   };
-  return { fsi, state, setAlarms, clearAlarms, getStatus };
+  return { fsi, state, setAlarms, clearAlarms, getStatus, getFired, clearFired };
 }
 
 interface SetupOptions {
@@ -153,6 +180,21 @@ async function startSession(engine: AlertEngineImpl): Promise<void> {
 }
 
 describe('full-screen alarm routing (MAX path)', () => {
+  it('scopes its reconcile to the engine prefix so briefing alarms survive', async () => {
+    const fsi = fakeFsi();
+    // A briefing full-screen alarm already in the native store (owned by briefing.ts).
+    fsi.state.alarms.set('mgbrief:2026-10-22', {
+      id: 'mgbrief:2026-10-22', atMs: Date.parse(minutesFrom(NOW, 600)), title: 'Briefing', body: '3 meetings', deepLink: '', channelId: 'mg-alert-max-v2',
+    });
+    const { engine } = setup({ meetings: [maxMeeting()], fsi });
+    await startSession(engine);
+
+    expect(fsi.setAlarms).toHaveBeenCalledWith(expect.any(Array), 'mg:');
+    // The engine added its own alarm and left the briefing's alone.
+    expect(fsi.state.alarms.has('mg:m-max:5')).toBe(true);
+    expect(fsi.state.alarms.has('mgbrief:2026-10-22')).toBe(true);
+  });
+
   it('routes MAX alerts to fsi.setAlarms and keeps them OFF the expo schedule', async () => {
     const { engine, notifications, fsi } = setup({ meetings: [maxMeeting(), mediumMeeting()] });
     await startSession(engine);
@@ -225,8 +267,10 @@ describe('full-screen alarm routing (MAX path)', () => {
     const { engine, notifications } = setup({ meetings: [maxMeeting()], fsi });
     await startSession(engine);
 
-    expect(fsi.setAlarms).not.toHaveBeenCalled();
-    expect(fsi.clearAlarms).toHaveBeenCalledWith(); // deactivated => native set wiped
+    // Deactivated: the engine clears only its own scope (an empty scoped replace-all), never
+    // the briefing's alarms, and does not touch the global clearAlarms.
+    expect(fsi.setAlarms).toHaveBeenCalledWith([], 'mg:');
+    expect(fsi.clearAlarms).not.toHaveBeenCalled();
     expect([...notifications.scheduled.keys()]).toEqual(['mg:m-max:5']);
   });
 
@@ -295,5 +339,105 @@ describe('full-screen alarm routing (MAX path)', () => {
     data.prefs = makePrefs({ alertEnabled: false, followUpEnabled: false, defaultAlertTimes: [10] });
     await engine.reconcile('manual');
     expect(fsi.state.alarms.size).toBe(0);
+  });
+});
+
+/** The engine's tray sweep runs on a real 800 ms timer in this file's setup. */
+const SWEEP_MS = 800;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** The fired record the native receiver would keep for the engine's own alarm of m-max. */
+function firedRecordOf(fsi: FakeFsi, id: string, firedAtMs: number): FiredFullScreenAlarm {
+  const spec = fsi.state.alarms.get(id);
+  if (!spec) throw new Error('alarm ' + id + ' was not routed to the module');
+  return { id, firedAtMs, title: spec.title, body: spec.body, deepLink: spec.deepLink, data: spec.data ?? '' };
+}
+
+describe('fired native alarms are re-shown in-app (voice readout, sound loop, snooze)', () => {
+  it('stores the alert payload with every routed alarm', async () => {
+    const { engine, fsi } = setup({ meetings: [maxMeeting()] });
+    await startSession(engine);
+    const spec = fsi.state.alarms.get('mg:m-max:5')!;
+    expect(JSON.parse(spec.data ?? '')).toMatchObject({ v: 1, kind: 'alert', meetingId: 'm-max', intensity: 'max', offsetMinutes: 5 });
+  });
+
+  it('presents a fired alarm as an active MAX alert and forgets the record', async () => {
+    const { engine, fsi } = setup({ meetings: [maxMeeting()] });
+    const seen: string[][] = [];
+    engine.subscribeActiveAlerts((alerts) => seen.push(alerts.map((alert) => alert.key)));
+    await startSession(engine);
+    await sleep(SWEEP_MS + 100); // the session-start sweep finds nothing
+
+    fsi.state.fired.set('mg:m-max:5', firedRecordOf(fsi, 'mg:m-max:5', NOW.getTime() - 60_000));
+    engine.subscribeActiveAlerts(() => undefined); // a host attach schedules another sweep
+    await sleep(SWEEP_MS + 100);
+
+    const active = engine.getActiveAlerts();
+    expect(active.map((alert) => [alert.key, alert.intensity, alert.meetingId])).toEqual([['mg:m-max:5', 'max', 'm-max']]);
+    expect(fsi.getFired).toHaveBeenCalledWith('mg:');
+    expect(fsi.clearFired).toHaveBeenCalledWith(['mg:m-max:5']);
+    expect(fsi.state.fired.size).toBe(0);
+    expect(seen.some((keys) => keys.includes('mg:m-max:5'))).toBe(true);
+  });
+
+  it('forgets a record older than the re-show window without presenting it', async () => {
+    const { engine, fsi } = setup({ meetings: [maxMeeting()] });
+    engine.subscribeActiveAlerts(() => undefined);
+    await startSession(engine);
+    await sleep(SWEEP_MS + 100);
+
+    fsi.state.fired.set('mg:m-max:5', firedRecordOf(fsi, 'mg:m-max:5', NOW.getTime() - 25 * 60_000));
+    engine.subscribeActiveAlerts(() => undefined);
+    await sleep(SWEEP_MS + 100);
+
+    expect(engine.getActiveAlerts()).toEqual([]);
+    expect(fsi.clearFired).toHaveBeenCalledWith(['mg:m-max:5']);
+  });
+
+  it('never re-shows an alarm the user already handled (dismisses its tray copy instead)', async () => {
+    const { engine, fsi, notifications } = setup({ meetings: [maxMeeting()] });
+    engine.subscribeActiveAlerts(() => undefined);
+    await startSession(engine);
+    await sleep(SWEEP_MS + 100);
+
+    const record = firedRecordOf(fsi, 'mg:m-max:5', NOW.getTime() - 60_000);
+    fsi.state.fired.set('mg:m-max:5', record);
+    engine.subscribeActiveAlerts(() => undefined);
+    await sleep(SWEEP_MS + 100);
+    expect(engine.getActiveAlerts().map((alert) => alert.key)).toEqual(['mg:m-max:5']);
+    await engine.resolveActiveAlert('mg:m-max:5', 'acknowledge');
+    expect(engine.getActiveAlerts()).toEqual([]);
+
+    // The same fired record again (for example the module and the sweep raced).
+    fsi.state.fired.set('mg:m-max:5', record);
+    engine.subscribeActiveAlerts(() => undefined);
+    await sleep(SWEEP_MS + 100);
+    expect(engine.getActiveAlerts()).toEqual([]);
+    expect(notifications.port.dismiss).toHaveBeenCalledWith('mg:m-max:5');
+    expect(fsi.state.fired.size).toBe(0);
+  });
+
+  it('leaves the records alone while no host is attached (a cold start before AlertHost mounts)', async () => {
+    const { engine, fsi } = setup({ meetings: [maxMeeting()] });
+    await startSession(engine);
+    fsi.state.fired.set('mg:m-max:5', firedRecordOf(fsi, 'mg:m-max:5', NOW.getTime() - 60_000));
+    await sleep(SWEEP_MS + 100);
+
+    expect(fsi.getFired).not.toHaveBeenCalled();
+    expect(fsi.state.fired.size).toBe(1);
+
+    // The host attaches later: the alarm is presented then.
+    engine.subscribeActiveAlerts(() => undefined);
+    await sleep(SWEEP_MS + 100);
+    expect(engine.getActiveAlerts().map((alert) => alert.key)).toEqual(['mg:m-max:5']);
+  });
+
+  it('does nothing on iOS or without the module', async () => {
+    const fsi = fakeFsi({ available: false });
+    const { engine } = setup({ meetings: [maxMeeting()], platform: 'ios', fsi });
+    engine.subscribeActiveAlerts(() => undefined);
+    await startSession(engine);
+    await sleep(SWEEP_MS + 100);
+    expect(fsi.getFired).not.toHaveBeenCalled();
   });
 });

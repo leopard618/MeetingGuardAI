@@ -17,6 +17,14 @@ export type TaskFilter = (typeof TASK_FILTERS)[number];
 export const REMINDER_CHOICES: readonly (number | null)[] = [null, 0, 5, 15, 30, 60, 1440];
 
 /** The task's due instant (UTC ms), or null without a due date / with broken zone data. */
+/**
+ * The due instant as a UTC ISO string, for display in the device zone: a task due 17:00 in Madrid
+ * shows 11:00 in New York, the same instant its reminder and the overdue rule use.
+ */
+export function taskDueInstant(task: Pick<Task, 'dueDate' | 'dueTime' | 'timezone'>): string {
+  return zonedDateTimeToUtcIso(task.dueDate ?? '1970-01-01', task.dueTime ?? '23:59', task.timezone);
+}
+
 export function dueInstantMs(task: Pick<Task, 'dueDate' | 'dueTime' | 'timezone'>): number | null {
   if (task.dueDate === null) return null;
   try {
@@ -109,10 +117,23 @@ export interface TaskDraft {
   dueTime: string | null;
   reminderMinutesBefore: number | null;
   meetingId: string | null;
+  /** Microsoft To Do list the task goes to (null = the default list while the sync is on). */
+  todoListId: string | null;
+  /** Google Tasks list the task goes to (same convention). */
+  gtasksListId: string | null;
 }
 
 export function newTaskDraft(options: { meetingId?: string | null } = {}): TaskDraft {
-  return { title: '', description: '', dueDate: null, dueTime: null, reminderMinutesBefore: null, meetingId: options.meetingId ?? null };
+  return {
+    title: '',
+    description: '',
+    dueDate: null,
+    dueTime: null,
+    reminderMinutesBefore: null,
+    meetingId: options.meetingId ?? null,
+    todoListId: null,
+    gtasksListId: null,
+  };
 }
 
 export function draftFromTask(task: Task): TaskDraft {
@@ -123,6 +144,8 @@ export function draftFromTask(task: Task): TaskDraft {
     dueTime: task.dueTime,
     reminderMinutesBefore: task.reminderMinutesBefore,
     meetingId: task.meetingId,
+    todoListId: task.external.todoListId,
+    gtasksListId: task.external.gtasksListId,
   };
 }
 
@@ -160,6 +183,8 @@ export function draftToInput(draft: TaskDraft): TaskInput {
     dueTime: clean.dueTime,
     reminderMinutesBefore: clean.reminderMinutesBefore,
     meetingId: clean.meetingId,
+    todoListId: clean.todoListId,
+    gtasksListId: clean.gtasksListId,
   };
 }
 
@@ -175,6 +200,8 @@ export function draftToPatch(task: Task, draft: TaskDraft): TaskPatch | null {
     patch.reminderMinutesBefore = next.reminderMinutesBefore ?? null;
   }
   if ((next.meetingId ?? null) !== task.meetingId) patch.meetingId = next.meetingId ?? null;
+  if ((next.todoListId ?? null) !== task.external.todoListId) patch.todoListId = next.todoListId ?? null;
+  if ((next.gtasksListId ?? null) !== task.external.gtasksListId) patch.gtasksListId = next.gtasksListId ?? null;
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -187,7 +214,9 @@ export function isDraftDirty(draft: TaskDraft, original: TaskDraft): boolean {
     (a.dueDate ?? null) !== (b.dueDate ?? null) ||
     (a.dueTime ?? null) !== (b.dueTime ?? null) ||
     (a.reminderMinutesBefore ?? null) !== (b.reminderMinutesBefore ?? null) ||
-    (a.meetingId ?? null) !== (b.meetingId ?? null)
+    (a.meetingId ?? null) !== (b.meetingId ?? null) ||
+    (a.todoListId ?? null) !== (b.todoListId ?? null) ||
+    (a.gtasksListId ?? null) !== (b.gtasksListId ?? null)
   );
 }
 

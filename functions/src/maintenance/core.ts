@@ -121,13 +121,21 @@ export interface DeletionReplayPorts {
   recursiveDelete(path: string): Promise<void>;
   /** Deletes one document (no-op when missing). */
   deleteDocument(path: string): Promise<void>;
+  /** Removes the WhatsApp link, session and user documents of the uid (restored by the backup). */
+  deleteWhatsAppData?(uid: string): Promise<void>;
 }
 
 /** The server data of one deleted account (the Auth user is already gone: Auth is not restored). */
-export async function deleteAccountDocuments(uid: string, ports: Pick<DeletionReplayPorts, 'recursiveDelete' | 'deleteDocument'>): Promise<void> {
+export async function deleteAccountDocuments(
+  uid: string,
+  ports: Pick<DeletionReplayPorts, 'recursiveDelete' | 'deleteDocument' | 'deleteWhatsAppData'>,
+): Promise<void> {
   await ports.recursiveDelete(`users/${uid}`);
   await ports.deleteDocument(`entitlements/${uid}`);
   await ports.recursiveDelete(`usage/${uid}`);
+  // Without this the restored whatsappLinks/{phone} still names the dead uid and the next message
+  // from that phone runs the assistant for an account that no longer exists.
+  if (ports.deleteWhatsAppData) await ports.deleteWhatsAppData(uid);
 }
 
 /**

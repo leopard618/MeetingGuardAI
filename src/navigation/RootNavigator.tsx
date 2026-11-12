@@ -1,6 +1,8 @@
 /**
  * Root stack (single navigator) whose screen group follows the app gate:
  *   splash -> Auth (Landing, Privacy, Terms) -> Onboarding (5 resumable steps) -> Main.
+ * The Main group: the stack, the floating assistant button over it (AssistantFab, one instance,
+ * draggable, hidden on the chat) and the sidebar next to them.
  * Every screen component is module-level (./screens, src/screens/onboarding). The navigator is
  * keyed by the gate so each group starts from a clean stack; queued navigation intents (deep
  * links, notification taps, the onboarding's "first meeting" choice) are flushed once the target
@@ -8,6 +10,7 @@
  */
 import { createStackNavigator, type StackHeaderProps, type StackNavigationOptions } from '@react-navigation/stack';
 import { useEffect, type ReactElement, type ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { AssistantFab } from '../components/AssistantFab';
 import { CustomHeader } from '../components/CustomHeader';
@@ -24,7 +27,7 @@ import {
 import { useAuth } from '../services/auth';
 import { usePreferences } from '../services/data';
 import { computeGate, type AppGate } from './gate';
-import { flushPendingNavigation } from './navigationService';
+import { flushPendingNavigation, useCurrentRouteName } from './navigationService';
 import { MAIN_INITIAL_ROUTE, ONBOARDING_STEPS } from './routes';
 import {
   AIChatScreen,
@@ -71,16 +74,6 @@ function renderScreenLayout({ children }: { children: ReactElement }): ReactElem
   return <ErrorBoundary scope="screen">{children}</ErrorBoundary>;
 }
 
-/** Main screens additionally get the floating assistant button (hidden on the chat itself). */
-function renderMainScreenLayout({ children }: { children: ReactElement }): ReactElement {
-  return (
-    <ErrorBoundary scope="screen">
-      {children}
-      <AssistantFab />
-    </ErrorBoundary>
-  );
-}
-
 const HEADERLESS_OPTIONS: StackNavigationOptions = { headerShown: false };
 const MAIN_OPTIONS: StackNavigationOptions = { header: renderMainHeader };
 
@@ -95,6 +88,40 @@ export function useAppGate(): AppGate {
     preferencesFailed: error !== null,
     onboardingCompleted: preferences.onboardingCompleted,
   });
+}
+
+/** The Main group: the stack with the floating assistant button over it, the sidebar next to them. */
+function MainGroup(): ReactElement {
+  const currentRouteName = useCurrentRouteName();
+  return (
+    <SidebarProvider>
+      <View style={styles.main}>
+            <Stack.Navigator key="main" initialRouteName={MAIN_INITIAL_ROUTE} screenOptions={MAIN_OPTIONS} screenLayout={renderScreenLayout}>
+              <Stack.Screen name="Dashboard" component={DashboardScreen} options={HEADERLESS_OPTIONS} />
+              <Stack.Screen name="ChooseCreationMethod" component={ChooseCreationMethodScreen} />
+              <Stack.Screen name="CreateMeeting" component={CreateMeetingScreen} />
+              <Stack.Screen name="TotalMeetings" component={TotalMeetingsScreen} />
+              <Stack.Screen name="MeetingDetails" component={MeetingDetailsScreen} />
+              <Stack.Screen name="EditMeeting" component={EditMeetingScreen} />
+              <Stack.Screen name="Calendar" component={CalendarScreen} />
+              <Stack.Screen name="Notes" component={NotesScreen} />
+              <Stack.Screen name="Tasks" component={TasksScreen} />
+              <Stack.Screen name="Settings" component={SettingsScreen} />
+              <Stack.Screen name="AlertSettings" component={AlertSettingsScreen} />
+              <Stack.Screen name="Profile" component={ProfileScreen} />
+              <Stack.Screen name="AIChat" component={AIChatScreen} />
+              <Stack.Screen name="AIInsights" component={AIInsightsScreen} />
+              <Stack.Screen name="Privacy" component={PrivacyScreen} />
+              <Stack.Screen name="Terms" component={TermsScreen} />
+              <Stack.Screen name="CalendarSync" component={CalendarSyncScreen} />
+              <Stack.Screen name="Pricing" component={PricingScreen} />
+              <Stack.Screen name="WhatsAppConnect" component={WhatsAppConnectScreen} />
+            </Stack.Navigator>
+        <AssistantFab hidden={currentRouteName === 'AIChat'} />
+      </View>
+      <MainSidebar />
+    </SidebarProvider>
+  );
 }
 
 export function RootNavigator(): ReactElement {
@@ -145,30 +172,11 @@ export function RootNavigator(): ReactElement {
     );
   }
 
-  return (
-    <SidebarProvider>
-      <Stack.Navigator key="main" initialRouteName={MAIN_INITIAL_ROUTE} screenOptions={MAIN_OPTIONS} screenLayout={renderMainScreenLayout}>
-        <Stack.Screen name="Dashboard" component={DashboardScreen} />
-        <Stack.Screen name="ChooseCreationMethod" component={ChooseCreationMethodScreen} />
-        <Stack.Screen name="CreateMeeting" component={CreateMeetingScreen} />
-        <Stack.Screen name="TotalMeetings" component={TotalMeetingsScreen} />
-        <Stack.Screen name="MeetingDetails" component={MeetingDetailsScreen} />
-        <Stack.Screen name="EditMeeting" component={EditMeetingScreen} />
-        <Stack.Screen name="Calendar" component={CalendarScreen} />
-        <Stack.Screen name="Notes" component={NotesScreen} />
-        <Stack.Screen name="Tasks" component={TasksScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-        <Stack.Screen name="AlertSettings" component={AlertSettingsScreen} />
-        <Stack.Screen name="Profile" component={ProfileScreen} />
-        <Stack.Screen name="AIChat" component={AIChatScreen} />
-        <Stack.Screen name="AIInsights" component={AIInsightsScreen} />
-        <Stack.Screen name="Privacy" component={PrivacyScreen} />
-        <Stack.Screen name="Terms" component={TermsScreen} />
-        <Stack.Screen name="CalendarSync" component={CalendarSyncScreen} />
-        <Stack.Screen name="Pricing" component={PricingScreen} />
-        <Stack.Screen name="WhatsAppConnect" component={WhatsAppConnectScreen} />
-      </Stack.Navigator>
-      <MainSidebar />
-    </SidebarProvider>
-  );
+  return <MainGroup />;
 }
+
+const styles = StyleSheet.create({
+  main: {
+    flex: 1,
+  },
+});

@@ -305,7 +305,7 @@ export const TASK_TOOLS: readonly ToolDefinition[] = [
     type: 'function',
     function: {
       name: TOOL_NAMES.createTask,
-      description: 'Propose creating a new task. Only a title is required. The user confirms it in the app before anything is saved.',
+      description: 'Propose creating a new task. Only a title is required. The user confirms it in the app before anything is saved. When the same message also creates the meeting this task belongs to, call create_meeting and create_task in the SAME response and set link_to_new_meeting true; never leave the task for a later turn.',
       strict: true,
       parameters: object({
         title: string('Task title (max 200 characters).'),

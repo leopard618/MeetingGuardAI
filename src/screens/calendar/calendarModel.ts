@@ -7,7 +7,7 @@
  * - Day index: every local day a meeting touches in the user's zone (a timed meeting that runs
  *   past midnight, or a multi-day all-day event, marks each of its days). All-day meetings use
  *   their own dates, never shifted through UTC.
- * - Dots: one per source category present on the day (MeetingGuard, Google Calendar, device).
+ * - Dots: one per source category present on the day (Meeting Guard, Google Calendar, device).
  */
 import { format, type Locale } from 'date-fns';
 import { enUS, es } from 'date-fns/locale';
@@ -35,7 +35,7 @@ export const GRID_DAYS = 42;
 /** Safety cap for the days one meeting can mark (a bad import must not flood the index). */
 export const MAX_MEETING_DAYS = 62;
 const MINUTES_PER_DAY = 1440;
-const DOT_ORDER: readonly SourceCategory[] = ['meetingguard', 'google', 'device'];
+const DOT_ORDER: readonly SourceCategory[] = ['meetingguard', 'google', 'outlook', 'device'];
 
 const LOCALES: Readonly<Record<Language, Locale>> = { en: enUS, es };
 

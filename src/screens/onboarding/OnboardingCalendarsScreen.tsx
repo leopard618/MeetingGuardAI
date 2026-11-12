@@ -1,5 +1,8 @@
 /**
  * Onboarding step 2: calendars (skippable).
+ * - Outlook Calendar (when the provider is registered, EXPO_PUBLIC_MSAL_CLIENT_ID):
+ *   outlookCalendarService.connect() (Microsoft consent + first two-way sync). Shown FIRST when
+ *   the user signed in with Microsoft (section 31): that is the account they just used.
  * - Google Calendar: googleCalendarService.connect() (incremental calendar scope + first sync).
  * - Device calendars: permission, then the user picks calendars to import
  *   (Preferences.deviceCalendarImportIds). Google-account device calendars are marked and
@@ -15,7 +18,8 @@ import type { DeviceCalendarInfo, PermissionState } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useT } from '../../i18n';
-import { calendarSyncEngine, deviceCalendarService, googleCalendarService, useCalendarStatus } from '../../services/calendar';
+import { signedInWithMicrosoft, useAuth } from '../../services/auth';
+import { calendarSyncEngine, deviceCalendarService, googleCalendarService, outlookCalendarService, useCalendarStatus } from '../../services/calendar';
 import { usePreferences } from '../../services/data';
 import { spacing, useAppTheme } from '../../theme';
 import { OnboardingLayout, OnboardingSection, useOnboardingNavigation } from './OnboardingLayout';
@@ -33,9 +37,17 @@ export function OnboardingCalendarsScreen(): ReactElement {
   const { preferences, update } = usePreferences();
   const calendarStatus = useCalendarStatus();
   const googleConnected = calendarStatus.google.connected;
+  const { authUser } = useAuth();
+  // The Outlook section exists only when the provider is registered; it leads when the user
+  // signed in with Microsoft (the account they just used), otherwise Google leads.
+  const outlookAvailable = calendarStatus.outlook !== undefined;
+  const outlookConnected = calendarStatus.outlook?.connected === true;
+  const microsoftFirst = outlookAvailable && signedInWithMicrosoft(authUser);
 
   const [googleBusy, setGoogleBusy] = useState(false);
   const [googleMessage, setGoogleMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [outlookBusy, setOutlookBusy] = useState(false);
+  const [outlookMessage, setOutlookMessage] = useState<{ text: string; isError: boolean } | null>(null);
 
   const [permission, setPermission] = useState<PermissionState | null>(null);
   const [calendars, setCalendars] = useState<DeviceCalendarInfo[] | null>(null);
@@ -96,6 +108,29 @@ export function OnboardingCalendarsScreen(): ReactElement {
     }
   };
 
+  const connectOutlook = async (): Promise<void> => {
+    setOutlookBusy(true);
+    setOutlookMessage(null);
+    try {
+      const result = await outlookCalendarService.connect();
+      if (result.status === 'connected') {
+        setOutlookMessage({ text: t('onboarding:calendars.outlook.success'), isError: false });
+      } else if (result.status === 'cancelled') {
+        setOutlookMessage({ text: t('onboarding:calendars.outlook.cancelled'), isError: false });
+      } else {
+        setOutlookMessage({ text: t('onboarding:calendars.outlook.failed'), isError: true });
+      }
+    } catch (caught) {
+      const error = toAppError(caught);
+      if (error.code !== 'cancelled') {
+        log.warn('outlook calendar connect failed', error.code);
+        setOutlookMessage({ text: t(errorMessageKey(error.code)), isError: true });
+      }
+    } finally {
+      setOutlookBusy(false);
+    }
+  };
+
   const requestDeviceAccess = async (): Promise<void> => {
     try {
       const state = await deviceCalendarService.requestPermission();
@@ -133,6 +168,41 @@ export function OnboardingCalendarsScreen(): ReactElement {
     }
   };
 
+  const outlookSection = (
+    <View testID="onboarding-outlook-section">
+      <OnboardingSection title={t('onboarding:calendars.outlook.title')}>
+        <Text variant="bodyMedium">{t('onboarding:calendars.outlook.description')}</Text>
+        {microsoftFirst && !outlookConnected ? (
+          <Text variant="bodySmall" style={[styles.hint, { color: colors.onSurfaceVariant }]} testID="onboarding-outlook-hint">
+            {t('onboarding:calendars.outlook.microsoftHint')}
+          </Text>
+        ) : null}
+        {outlookConnected ? (
+          <Badge tone="success" label={t('onboarding:calendars.outlook.connected')} style={styles.status} />
+        ) : (
+          <MGButton
+            variant="tonal"
+            icon="microsoft"
+            style={styles.action}
+            loading={outlookBusy}
+            disabled={outlookBusy}
+            onPress={() => {
+              void connectOutlook();
+            }}
+            testID="onboarding-outlook-connect"
+          >
+            {t('onboarding:calendars.outlook.connect')}
+          </MGButton>
+        )}
+        {outlookMessage ? (
+          <HelperText type={outlookMessage.isError ? 'error' : 'info'} visible testID="onboarding-outlook-message">
+            {outlookMessage.text}
+          </HelperText>
+        ) : null}
+      </OnboardingSection>
+    </View>
+  );
+
   return (
     <OnboardingLayout
       step="OnboardingCalendars"
@@ -146,6 +216,8 @@ export function OnboardingCalendarsScreen(): ReactElement {
       secondaryLabel={t('common:actions.skipForNow')}
       onSecondary={goNext}
     >
+      {microsoftFirst ? outlookSection : null}
+
       <OnboardingSection title={t('onboarding:calendars.google.title')}>
         <Text variant="bodyMedium">{t('onboarding:calendars.google.description')}</Text>
         {googleConnected ? (
@@ -170,6 +242,8 @@ export function OnboardingCalendarsScreen(): ReactElement {
           </HelperText>
         ) : null}
       </OnboardingSection>
+
+      {outlookAvailable && !microsoftFirst ? outlookSection : null}
 
       <OnboardingSection title={t('onboarding:calendars.device.title')}>
         <Text variant="bodyMedium">{t('onboarding:calendars.device.description')}</Text>
@@ -248,6 +322,9 @@ export function OnboardingCalendarsScreen(): ReactElement {
 }
 
 const styles = StyleSheet.create({
+  hint: {
+    marginTop: spacing.xs,
+  },
   action: {
     marginTop: spacing.md,
     alignSelf: 'flex-start',

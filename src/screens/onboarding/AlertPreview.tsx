@@ -5,6 +5,12 @@
  * The mockups are built from the mode-invariant `alertMax` / `alertMedium` / `alertLight` token
  * groups, so the preview matches the real overlays at card scale in both color schemes; the
  * device frame around the MEDIUM / LIGHT mockups is `surfaceVariant` + 1px `outlineVariant`.
+ *
+ * Each mockup's root carries `key={intensity}`: the three variants share one position in the
+ * tree, and when React restyled the same native View from the MEDIUM / LIGHT frame back to MAX
+ * (border and padding removed, overflow hidden) the new architecture on Android left the MAX
+ * content invisible, a dark red card with nothing in it (November 2, 2026). A fresh native view
+ * per variant renders exactly like the first render, which was always correct.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState, type ReactElement } from 'react';
@@ -37,7 +43,7 @@ export function AlertPreview({ intensity }: { intensity: AlertIntensity }): Reac
 
   if (intensity === 'max') {
     return (
-      <View style={[styles.frame, styles.max]} accessibilityLabel={t('onboarding:alerts.preview.label')}>
+      <View key="max" style={[styles.frame, styles.max]} accessibilityLabel={t('onboarding:alerts.preview.label')} testID="alert-preview-max">
         {/* Same alarm-clock silhouette as MaxAlertModal's Ionicons "alarm". */}
         <MaterialCommunityIcons name="alarm" size={36} color={alertMax.title} />
         <Text variant="titleMedium" style={styles.maxTitle}>
@@ -60,7 +66,7 @@ export function AlertPreview({ intensity }: { intensity: AlertIntensity }): Reac
 
   if (intensity === 'medium') {
     return (
-      <View style={[styles.frame, styles.deviceFrame, frameStyle]} accessibilityLabel={t('onboarding:alerts.preview.label')}>
+      <View key="medium" style={[styles.frame, styles.deviceFrame, frameStyle]} accessibilityLabel={t('onboarding:alerts.preview.label')} testID="alert-preview-medium">
         <View style={styles.banner}>
           <View style={styles.bannerAccent} />
           <PulseDot />
@@ -79,7 +85,12 @@ export function AlertPreview({ intensity }: { intensity: AlertIntensity }): Reac
   }
 
   return (
-    <View style={[styles.frame, styles.deviceFrame, styles.lightFrame, frameStyle]} accessibilityLabel={t('onboarding:alerts.preview.label')}>
+    <View
+      key="light"
+      style={[styles.frame, styles.deviceFrame, styles.lightFrame, frameStyle]}
+      accessibilityLabel={t('onboarding:alerts.preview.label')}
+      testID="alert-preview-light"
+    >
       <View style={styles.toast}>
         <MaterialCommunityIcons name="bell-outline" size={18} color={alertLight.icon} />
         <Text variant="bodySmall" style={styles.toastText}>

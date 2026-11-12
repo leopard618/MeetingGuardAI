@@ -122,19 +122,31 @@ export function createFirestoreRemote(database: Firestore | null): RemoteStore {
     async commit(docPath, decide) {
       const firestore = requireDb();
       const ref = doc(firestore, docPath);
-      return runTransaction(
-        firestore,
-        async (transaction) => {
-          const snapshot = await transaction.get(ref);
-          const current = snapshot.exists() ? normalizeDoc(snapshot.data()) : null;
-          const decision: CommitDecision = decide(current);
-          if (decision.type === 'write') transaction.set(ref, decision.data);
-          else if (decision.type === 'merge') transaction.set(ref, decision.data, { merge: true });
-          else if (decision.type === 'delete') transaction.delete(ref);
-          return { current, decision };
-        },
-        { maxAttempts: TRANSACTION_ATTEMPTS },
-      );
+      try {
+        return await runTransaction(
+          firestore,
+          async (transaction) => {
+            const snapshot = await transaction.get(ref);
+            const current = snapshot.exists() ? normalizeDoc(snapshot.data()) : null;
+            const decision: CommitDecision = decide(current);
+            if (decision.type === 'write') transaction.set(ref, decision.data);
+            else if (decision.type === 'merge') transaction.set(ref, decision.data, { merge: true });
+            else if (decision.type === 'delete') transaction.delete(ref);
+            return { current, decision };
+          },
+          { maxAttempts: TRANSACTION_ATTEMPTS },
+        );
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        // The SDK gives up after TRANSACTION_ATTEMPTS contended attempts with the last precondition
+        // failure: that is contention (another writer on the same document), retryable later,
+        // never a bad write to drop and roll back.
+        const code = (error as { code?: unknown }).code;
+        if (code === 'failed-precondition' || code === 'aborted') {
+          throw new AppError('conflict', 'The document changed while it was being written', { cause: error });
+        }
+        throw error;
+      }
     },
   };
 }

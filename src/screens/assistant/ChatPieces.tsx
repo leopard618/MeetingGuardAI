@@ -87,10 +87,17 @@ export function MessageBubble({
 }): ReactElement {
   const time = messageTime(fmt, message.createdAt);
   const hasText = message.content.trim().length > 0;
+  // M8: the transcript and its reply are labelled with the meeting they debrief.
+  const debriefTag = message.debriefMeetingId
+    ? followUpTitle
+      ? fmt.t('ai:chat.debriefFor', { title: followUpTitle })
+      : fmt.t('ai:chat.debriefGeneric')
+    : null;
 
   if (message.role === 'user') {
     return (
       <View style={styles.userRow} testID={`message-${message.id}`}>
+        {debriefTag ? <Text style={[styles.followUpTag, styles.userTag, { color: palette.primary }]}>{debriefTag}</Text> : null}
         <View
           style={[styles.bubble, styles.userBubble, { backgroundColor: palette.userBubble }]}
           accessible
@@ -120,6 +127,7 @@ export function MessageBubble({
             {followUpTitle ? fmt.t('ai:chat.followUpFor', { title: followUpTitle }) : fmt.t('ai:chat.followUpGeneric')}
           </Text>
         ) : null}
+        {debriefTag ? <Text style={[styles.followUpTag, { color: palette.primary }]}>{debriefTag}</Text> : null}
         {hasText ? (
           <>
             <View
@@ -243,7 +251,7 @@ export function UsagePill({ usage, palette }: { usage: UsageDescription | null; 
       testID="assistant-usage"
     >
       <MaterialCommunityIcons name="lightning-bolt-outline" size={componentMetrics.iconMeta} color={color} />
-      <Text style={[styles.usageText, { color }]} maxFontSizeMultiplier={PILL_MAX_FONT_SCALE}>
+      <Text style={[styles.usageText, { color }]} maxFontSizeMultiplier={PILL_MAX_FONT_SCALE} numberOfLines={2}>
         {usage.label}
       </Text>
     </View>
@@ -338,6 +346,10 @@ const styles = StyleSheet.create({
   followUpTag: {
     ...typography.labelM,
   },
+  userTag: {
+    alignSelf: 'flex-end',
+    marginBottom: spacing.xs,
+  },
   failedLine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -383,10 +395,14 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typography.bodyM,
   },
+  // The pill gives up width (and wraps to a second line) before the top bar's buttons do: a long
+  // label ("Acciones gratis usadas · ver planes", or large text) pushed the clear button off-screen.
   usagePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    flexShrink: 1,
+    minWidth: 0,
     borderWidth: 1,
     borderRadius: radii.full,
     paddingHorizontal: spacing.sm,
@@ -394,5 +410,6 @@ const styles = StyleSheet.create({
   },
   usageText: {
     ...typography.labelM,
+    flexShrink: 1,
   },
 });

@@ -1,6 +1,7 @@
 /**
- * The parked-feature switch itself: with it off, nothing is presented and the stored preference is
- * left alone. This is the test that proves "disabled" really means disabled.
+ * The feature switch itself. It is ON for the 1.5.0 release (week 5); the second test proves that
+ * the preference, not the switch, is what keeps the notification away when the user has not
+ * turned it on, and the third that the switch still works as an off switch for the scheduler.
  */
 import { createEventBus, type AppEventMap } from '../../../core/events';
 import { FEATURES } from '../../../core/features';
@@ -10,13 +11,13 @@ import { fakeFormatTime, makePrefs, translator } from '../__fixtures__/alertFixt
 import type { StatusNotificationSpec } from '../types';
 
 describe('status notification feature switch', () => {
-  it('is off, so the feature is not shown to users yet', () => {
-    expect(FEATURES.statusNotification).toBe(false);
+  it('is on for the 1.5.0 release (week 5)', () => {
+    expect(FEATURES.statusNotification).toBe(true);
   });
 
-  it('presents nothing while the switch is off, even with the preference on', async () => {
+  it('presents nothing while the user preference is off, even with the switch on', async () => {
     const presented: StatusNotificationSpec[] = [];
-    const preferences: Preferences = makePrefs({ statusNotificationEnabled: true });
+    const preferences: Preferences = makePrefs({ statusNotificationEnabled: false });
     const status = createStatusNotification({
       notifications: {
         getScheduled: async () => [],

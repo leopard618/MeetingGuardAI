@@ -25,6 +25,7 @@ import {
   describeResult,
   describeScopeRow,
   describeShare,
+  describeTaskDraft,
   describeUsage,
   describeWarnings,
   formatShift,
@@ -36,6 +37,26 @@ const fmt = createTestFormatter();
 const fmtEs = createTestFormatter({ language: 'es' });
 
 describe('confirmation cards', () => {
+  it('names the To Do and Google Tasks lists on a task card only while each sync is on (M7/M8)', () => {
+    const task = { title: 'Prepare the proposal', description: '', dueDate: null, dueTime: null, reminderMinutesBefore: null, meetingId: null, people: [] };
+    const fields = (rows: { field: string }[]): string[] => rows.map((row) => row.field);
+    expect(fields(describeTaskDraft(fmt, task))).toEqual(['title', 'due']);
+    expect(fields(describeTaskDraft(fmt, task, 'Work'))).toEqual(['title', 'due', 'list']);
+    const both = describeTaskDraft(fmt, task, 'Work', 'My Tasks');
+    expect(fields(both)).toEqual(['title', 'due', 'list', 'gtasksList']);
+    expect(both[3]).toMatchObject({ label: 'Google Tasks list', value: 'My Tasks' });
+    expect(fields(describeTaskDraft(fmt, task, null, 'My Tasks'))).toEqual(['title', 'due', 'gtasksList']);
+  });
+
+  it('names the linked meeting on a task card once the preview has resolved it (debrief, T23 row 5)', () => {
+    const task = { title: 'Send the revised budget', description: '', dueDate: '2026-11-06', dueTime: null, reminderMinutesBefore: null, meetingId: 'm1', people: [] };
+    const rows = describeTaskDraft(fmt, task, null, null, 'Budget review');
+    expect(rows.map((row) => row.field)).toEqual(['title', 'due', 'meeting']);
+    expect(rows[2]).toMatchObject({ label: 'Meeting', value: 'Budget review' });
+    expect(describeTaskDraft(fmtEs, task, 'Trabajo', null, 'Budget review')[2]).toMatchObject({ label: 'Reunión' });
+    expect(describeTaskDraft(fmt, task).map((row) => row.field)).toEqual(['title', 'due']);
+  });
+
   it('describes a new meeting with its fields', () => {
     const rows = describeDraft(
       fmt,
@@ -138,15 +159,28 @@ describe('results and errors', () => {
     ).toEqual({ tone: 'error', message: "Couldn't complete this: common:errors.offline" });
   });
 
-  it('explains the quota with the limit, the plan and the reset time and offers an upgrade', () => {
-    const error = new AppError('quota_exceeded', 'x', { details: { reason: 'quota_exceeded', usage: usage({ used: 5, limit: 5 }) } });
-    const description = describeAssistantError(fmt, error, NOW);
-    expect(description.recovery).toBe('upgrade');
-    expect(description.message).toBe(
-      "You've used all 5 assistant requests for today on the Free plan. They reset at 2030-03-11T00:00:00.000Z.",
-    );
+  it('explains the allowance per period and offers an upgrade', () => {
+    const day = new AppError('quota_exceeded', 'x', { details: { reason: 'quota_exceeded', usage: usage({ used: 3, limit: 3, period: 'day' }) } });
+    expect(describeAssistantError(fmt, day, NOW)).toEqual({
+      message: "You've used today's 3 free AI actions. More at 2030-03-11T00:00:00.000Z.",
+      recovery: 'upgrade',
+    });
+    const over = new AppError('quota_exceeded', 'x', {
+      details: { reason: 'quota_exceeded', usage: usage({ used: 10, limit: 10, period: 'window', subscriptionRequired: true }) },
+    });
+    expect(describeAssistantError(fmt, over, NOW).message).toContain('Your 10 free AI actions are used. Subscribe');
+    const month = new AppError('quota_exceeded', 'x', {
+      details: { reason: 'quota_exceeded', usage: usage({ used: 100, limit: 100, plan: 'pro', period: 'month' }) },
+    });
+    expect(describeAssistantError(fmt, month, NOW)).toEqual({
+      message: "You've used all 100 AI actions of this month on the Pro plan. They renew at 2030-03-11T00:00:00.000Z.",
+      recovery: 'upgrade',
+    });
+    // An older server without a period reads as a daily limit.
+    const legacy = new AppError('quota_exceeded', 'x', { details: { reason: 'quota_exceeded', usage: { used: 5, limit: 5, plan: 'free', resetsAt: '2030-03-11T00:00:00.000Z' } } });
+    expect(describeAssistantError(fmt, legacy, NOW).message).toBe("You've used today's 5 free AI actions. More at 2030-03-11T00:00:00.000Z.");
     expect(describeAssistantError(fmt, new AppError('quota_exceeded'), NOW)).toEqual({
-      message: "You've reached today's assistant limit for your plan.",
+      message: "You've reached the AI allowance of your plan.",
       recovery: 'upgrade',
     });
   });
@@ -161,15 +195,23 @@ describe('results and errors', () => {
 });
 
 describe('usage pill', () => {
-  it('shows today\'s usage, and 0 once the UTC day has rolled over', () => {
-    expect(describeUsage(fmt, usage({ used: 3 }), null, NOW)).toMatchObject({ label: '3/5 today · Free', exhausted: false });
-    expect(describeUsage(fmt, usage({ used: 5 }), null, NOW)?.exhausted).toBe(true);
-    const stale = describeUsage(fmt, usage({ used: 5, resetsAt: '2030-03-10T00:00:00.000Z' }), null, NOW);
-    expect(stale).toMatchObject({ label: '0/5 today · Free', exhausted: false });
+  it('shows the usage of the period the server described, and 0 once that period has ended', () => {
+    expect(describeUsage(fmt, usage({ used: 3 }), null, NOW)).toMatchObject({ label: '3/10 free actions', exhausted: false });
+    expect(describeUsage(fmt, usage({ used: 10 }), null, NOW)?.exhausted).toBe(true);
+    expect(describeUsage(fmt, usage({ used: 12, limit: 100, plan: 'pro', period: 'month' }), null, NOW)?.label).toBe('12/100 this month · Pro');
+    expect(describeUsage(fmt, usage({ used: 2, limit: 3, period: 'day' }), null, NOW)?.label).toBe('2/3 today · Free');
+    // An older server without a period reads as a day.
+    expect(describeUsage(fmt, { used: 2, limit: 5, plan: 'free', resetsAt: '2030-03-11T00:00:00.000Z' }, null, NOW)?.label).toBe('2/5 today · Free');
+    const stale = describeUsage(fmt, usage({ used: 10, resetsAt: '2030-03-10T00:00:00.000Z' }), null, NOW);
+    expect(stale).toMatchObject({ label: '0/10 free actions', exhausted: false });
+    // A free allowance that is over stays "used", whatever the date.
+    const over = describeUsage(fmt, usage({ used: 10, resetsAt: '2030-03-10T00:00:00.000Z', subscriptionRequired: true }), null, NOW);
+    expect(over).toMatchObject({ label: 'Free actions used · see plans', exhausted: true });
   });
 
-  it('falls back to the plan limit when today\'s usage is unknown', () => {
-    expect(describeUsage(fmt, null, { plan: 'pro', limit: 100 }, NOW)?.label).toBe('100/day · Pro');
+  it('falls back to the plan allowance when no usage is known', () => {
+    expect(describeUsage(fmt, null, { plan: 'pro', limit: 100 }, NOW)?.label).toBe('100/month · Pro');
+    expect(describeUsage(fmt, null, { plan: 'free', limit: 10 }, NOW)?.label).toBe('10 free actions · Free');
     expect(describeUsage(fmt, null, null, NOW)).toBeNull();
   });
 });
@@ -196,7 +238,7 @@ describe('share text', () => {
       'Agenda:',
       '1. Budget',
       '',
-      'Compartido con MeetingGuard AI',
+      'Compartido con Meeting Guard AI',
     ]);
 
     const url = buildMailtoUrl(['john@company.com', 'o+x@y.io'], content);
@@ -219,8 +261,16 @@ describe('translator coverage', () => {
     for (const t of [en, es]) {
       const f = createTestFormatter({ t });
       describeDraft(f, makeDraft({ location: { type: 'virtual', address: null, virtualUrl: null } }));
-      describeUsage(f, usage(), { plan: 'premium', limit: 500 }, NOW);
-      describeUsage(f, null, { plan: 'premium', limit: 500 }, NOW);
+      describeUsage(f, usage(), { plan: 'premium', limit: 400 }, NOW);
+      describeUsage(f, usage({ plan: 'pro', period: 'month' }), null, NOW);
+      describeUsage(f, usage({ period: 'day' }), null, NOW);
+      describeUsage(f, usage({ subscriptionRequired: true }), null, NOW);
+      describeUsage(f, null, { plan: 'premium', limit: 400 }, NOW);
+      describeUsage(f, null, { plan: 'free', limit: 10 }, NOW);
+      describeAssistantError(f, new AppError('quota_exceeded', 'x', { details: { reason: 'quota_exceeded', usage: usage({ period: 'day' }) } }), NOW);
+      describeAssistantError(f, new AppError('quota_exceeded', 'x', { details: { reason: 'quota_exceeded', usage: usage({ period: 'window' }) } }), NOW);
+      describeAssistantError(f, new AppError('quota_exceeded', 'x', { details: { reason: 'quota_exceeded', usage: usage({ period: 'month' }) } }), NOW);
+      describeAssistantError(f, new AppError('quota_exceeded', 'x', { details: { reason: 'quota_exceeded', usage: usage({ subscriptionRequired: true }) } }), NOW);
       describeAssistantError(f, new AppError('not_configured'));
     }
     expect(en.missing).toEqual([]);

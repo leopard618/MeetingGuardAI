@@ -13,7 +13,7 @@ export interface DevicePermission {
   canAskAgain: boolean;
 }
 
-/** The device calendar operations MeetingGuard needs (faked in tests). */
+/** The device calendar operations Meeting Guard needs (faked in tests). */
 export interface DeviceCalendarPort {
   getPermission(): Promise<DevicePermission>;
   requestPermission(): Promise<DevicePermission>;

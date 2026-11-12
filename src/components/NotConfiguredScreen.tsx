@@ -21,7 +21,7 @@ export default function NotConfiguredScreen({ missingKeys, invalidKeys }: Props)
           App not configured
         </Text>
         <Text style={styles.body}>
-          This build of MeetingGuard AI is missing its configuration, so it cannot start. Please
+          This build of Meeting Guard AI is missing its configuration, so it cannot start. Please
           install the latest version from the store or contact support.
         </Text>
 
@@ -31,7 +31,7 @@ export default function NotConfiguredScreen({ missingKeys, invalidKeys }: Props)
           Aplicación no configurada
         </Text>
         <Text style={styles.body}>
-          A esta versión de MeetingGuard AI le falta su configuración y no puede iniciarse. Instala
+          A esta versión de Meeting Guard AI le falta su configuración y no puede iniciarse. Instala
           la última versión desde la tienda o contacta con soporte.
         </Text>
 

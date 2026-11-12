@@ -1,8 +1,5 @@
 {
   "greeting": {
-    "morning": "Good morning, {{name}}",
-    "afternoon": "Good afternoon, {{name}}",
-    "evening": "Good evening, {{name}}",
     "morningNoName": "Good morning",
     "afternoonNoName": "Good afternoon",
     "eveningNoName": "Good evening"
@@ -19,20 +16,52 @@
     "failed": "Could not refresh: {{reason}}",
     "calendarFailed": "Calendar sync failed: {{reason}}"
   },
+  "setup": {
+    "eyebrow": "Recommended",
+    "a11y": "Recommended: {{title}}",
+    "notNow": "Not now",
+    "verify_email": {
+      "title": "Verify your email",
+      "body": "The assistant and Zoom links need a verified address. Open the link in the email we sent you."
+    },
+    "connect_calendar": {
+      "title": "Connect your calendar",
+      "body": "Connect Google Calendar or Outlook: your meetings get Meeting Guard alerts, and the ones you create here reach your calendar with invitations.",
+      "action": "Connect a calendar"
+    },
+    "sync_tasks": {
+      "title": "Sync your tasks",
+      "body": {
+        "todo": "Pick a Microsoft To Do list and your tasks stay in step in both places. Completing a task in To Do silences its reminder here.",
+        "gtasks": "Pick a Google Tasks list and your tasks stay in step in both places. Completing a task in Google Tasks silences its reminder here."
+      },
+      "action": "Sync tasks"
+    }
+  },
   "next": {
     "title": "Next meeting",
     "current": "Happening now",
     "none": "No upcoming meetings",
     "noneHint": "Create a meeting or connect a calendar to see it here.",
-    "startsIn": "Starts in {{time}}",
-    "startsWhen": "Starts {{when}}",
+    "connect": "Connect a calendar",
+    "allDayTitle": "Also coming up",
     "startingNow": "Starting now",
-    "endsIn": "Ends in {{time}}",
     "join": "Join",
     "joinA11y": "Join {{title}}",
     "details": "Details",
     "detailsA11y": "Details of {{title}}",
-    "openLinkFailed": "The meeting link could not be opened."
+    "openLinkFailed": "The meeting link could not be opened.",
+    "startsInLabel": "Starts in",
+    "startsLabel": "Starts",
+    "endsInLabel": "Ends in",
+    "online": "Online",
+    "participants_one": "{{count}} participant",
+    "participants_other": "{{count}} participants",
+    "noPlace": "No link or place yet",
+    "runningLate": "Running late",
+    "runningLateA11y": "Running late for {{title}}",
+    "endNow": "End now",
+    "endNowA11y": "End {{title}} now"
   },
   "today": {
     "title": "Today",
@@ -51,53 +80,11 @@
     "rightAfter": "Starts right after {{title}}",
     "itemA11y": "{{time}}, {{title}}. {{state}}"
   },
-  "alerts": {
-    "title": "Alerts",
-    "on": "Alerts are on",
-    "off": "Alerts are off",
-    "badgeOn": "Active",
-    "badgeOff": "Off",
-    "offHint": "You won't be reminded about your meetings. Turn alerts on in the alert settings.",
-    "intensity": "Intensity: {{intensity}}",
-    "intensityName": {
-      "max": "Maximum",
-      "medium": "Medium",
-      "light": "Light"
-    },
-    "nextAlert": "Next alert: {{time}} · {{title}}",
-    "nextAlertNoTitle": "Next alert: {{time}}",
-    "noneScheduled": "No alerts are scheduled right now.",
-    "scheduled_one": "{{count}} alert scheduled",
-    "scheduled_other": "{{count}} alerts scheduled",
-    "permission": {
-      "checking": "Checking the notification permission...",
-      "granted": "Notifications are allowed.",
-      "provisional": "Notifications are delivered quietly. Allow them fully so alerts can interrupt you.",
-      "undetermined": "Allow notifications so alerts reach you when the app is closed.",
-      "denied": "Notifications are blocked. Alerts can't reach you when the app is closed.",
-      "allow": "Allow notifications",
-      "openSettings": "Open settings"
-    },
-    "exactAlarms": {
-      "hint": "Android can delay alerts unless MeetingGuard is allowed to set exact alarms (\"Alarms & reminders\").",
-      "open": "Check exact alarms"
-    },
-    "dnd": {
-      "android": "Maximum alerts ring during Do Not Disturb only if you allow it.",
-      "ios": "To get alerts during a Focus, add MeetingGuard to the Focus's allowed apps in Settings.",
-      "open": "Allow override"
-    },
-    "settings": "Alert settings"
-  },
   "insights": {
-    "title": "Insights",
-    "subtitle": "Calculated on this device from your meetings.",
-    "today": "Today",
+    "title": "Your week",
     "thisWeek": "This week",
     "meetings_one": "{{count}} meeting",
     "meetings_other": "{{count}} meetings",
-    "time": "{{duration}} in meetings",
-    "restOfWeek": "Rest of this week",
     "overlaps_one": "{{count}} overlap between meetings",
     "overlaps_other": "{{count}} overlaps between meetings",
     "backToBack_one": "{{count}} meeting starts right after another",
@@ -107,21 +94,20 @@
     "withTips_one": "{{count}} meeting has preparation tips",
     "withTips_other": "{{count}} meetings have preparation tips",
     "allClear": "No overlaps, back-to-back meetings or missing links for the rest of the week.",
-    "ask": "Ask the assistant",
-    "askPrompt": "Look at my meetings for the rest of this week. How should I handle overlaps and back-to-back meetings, and what should I prepare?",
-    "seeAll": "See all insights"
+    "seeAll": "See all insights",
+    "chartA11y": "Meeting time per day this week",
+    "weeklySummary": "Weekly summary",
+    "vsLastWeek": "vs. {{value}} last week",
+    "total": "{{duration}} total"
   },
   "actions": {
     "title": "Quick actions",
     "manual": "New meeting",
-    "manualHint": "Fill in a form",
     "ai": "New with AI",
-    "aiHint": "Describe it in your words",
     "whatsapp": "WhatsApp",
-    "whatsappHint": "Coming soon",
     "whatsappA11y": "WhatsApp: coming soon, not available yet",
-    "whatsappReadyHint": "Create by message",
-    "whatsappReadyA11y": "WhatsApp: create meetings by message. Opens the WhatsApp setup"
+    "whatsappReadyA11y": "WhatsApp: create meetings by message. Opens the WhatsApp setup",
+    "notes": "Notes"
   },
   "tasks": {
     "title": "Tasks",

@@ -3,6 +3,7 @@
  * unchanged reconcile keeps it, that a changed day reschedules it, and that signing out cancels
  * it. The planner and the text are covered by briefing.test.ts.
  */
+import type { FullScreenAlarmModule, FullScreenAlarmSpec, FullScreenAlarmStatus } from '../../../core/contracts';
 import { createEventBus, type AppEventMap } from '../../../core/events';
 import { AppError } from '../../../core/errors';
 import type { Meeting, Preferences, Task } from '../../../core/types';
@@ -185,5 +186,123 @@ describe('createBriefingScheduler', () => {
     expect(h.scheduled.size).toBe(1);
 
     h.scheduler.stop();
+  });
+});
+
+// --- Full-screen morning summary (Android; preferences.briefingFullScreen) --------------------
+
+interface FsHarness {
+  scheduler: BriefingScheduler;
+  scheduled: Map<string, ScheduledSpec>;
+  cancelled: string[];
+  alarms: Map<string, FullScreenAlarmSpec>;
+  setAlarmsCalls: { scope?: string; ids: string[] }[];
+}
+
+function setupFs(options: { available?: boolean; status?: Partial<FullScreenAlarmStatus>; fullScreen?: boolean } = {}): FsHarness {
+  const scheduled = new Map<string, ScheduledSpec>();
+  const cancelled: string[] = [];
+  const alarms = new Map<string, FullScreenAlarmSpec>();
+  const setAlarmsCalls: { scope?: string; ids: string[] }[] = [];
+  const status: FullScreenAlarmStatus = {
+    exactAllowed: true,
+    fullScreenAllowed: options.status?.fullScreenAllowed ?? true,
+    notificationsAllowed: options.status?.notificationsAllowed ?? true,
+  };
+  const fsi: FullScreenAlarmModule = {
+    isAvailable: () => options.available ?? true,
+    async setAlarms(next, scope) {
+      setAlarmsCalls.push({ scope, ids: next.map((alarm) => alarm.id) });
+      const nextMap = new Map(next.map((alarm) => [alarm.id, alarm]));
+      for (const id of [...alarms.keys()]) {
+        if ((scope === undefined || id.startsWith(scope)) && !nextMap.has(id)) alarms.delete(id);
+      }
+      for (const [id, alarm] of nextMap) alarms.set(id, alarm);
+    },
+    async clearAlarms(ids) {
+      if (ids === undefined) alarms.clear();
+      else for (const id of ids) alarms.delete(id);
+    },
+    async getFired() {
+      return [];
+    },
+    async clearFired() {
+      return undefined;
+    },
+    async getStatus() {
+      return { ...status };
+    },
+    async openFullScreenIntentSettings() {},
+  };
+  const scheduler = createBriefingScheduler({
+    notifications: {
+      async getScheduled() {
+        return [...scheduled.values()].map((spec) => ({ identifier: spec.identifier, data: spec.data, triggerDate: null }));
+      },
+      async schedule(spec) {
+        scheduled.set(spec.identifier, spec);
+      },
+      async cancel(identifier) {
+        cancelled.push(identifier);
+        scheduled.delete(identifier);
+      },
+    },
+    fsi,
+    getPreferences: async () => makePrefs({ timezone: ZONE, briefingEnabled: true, briefingTime: '08:00', briefingFullScreen: options.fullScreen ?? true }),
+    listMeetings: async () => [makeMeeting('m1', '2026-10-06T07:30:00.000Z')],
+    listTasks: async () => [],
+    subscribeTasks: () => () => undefined,
+    i18n: { t: translator('en'), getLanguage: () => 'en', formatTime: fakeFormatTime },
+    deviceTimeZone: () => ZONE,
+    now: () => NOW,
+  });
+  return { scheduler, scheduled, cancelled, alarms, setAlarmsCalls };
+}
+
+describe('createBriefingScheduler full-screen summary', () => {
+  it('fires the briefing full-screen and schedules no notification when the user opted in', async () => {
+    const h = setupFs();
+    await h.scheduler.reconcile();
+
+    expect([...h.alarms.keys()]).toEqual(['mgbrief:2026-10-06']);
+    expect(h.alarms.get('mgbrief:2026-10-06')).toMatchObject({ channelId: 'mg-alert-max-v2', deepLink: '' });
+    expect(h.scheduled.size).toBe(0);
+    // Scoped to the briefing prefix so it never clears the meeting engine's alarms.
+    expect(h.setAlarmsCalls.every((call) => call.scope === 'mgbrief:')).toBe(true);
+  });
+
+  it('falls back to a notification and clears the full-screen alarm when the permission is denied', async () => {
+    const h = setupFs({ status: { fullScreenAllowed: false } });
+    await h.scheduler.reconcile();
+
+    expect([...h.scheduled.keys()]).toEqual(['mgbrief:2026-10-06']);
+    expect(h.alarms.size).toBe(0);
+    expect(h.setAlarmsCalls).toContainEqual({ scope: 'mgbrief:', ids: [] });
+  });
+
+  it('switches a scheduled notification to full-screen, cancelling the notification', async () => {
+    const notify = setupFs({ fullScreen: false });
+    await notify.scheduler.reconcile();
+    expect(notify.scheduled.size).toBe(1);
+    expect(notify.alarms.size).toBe(0);
+
+    const full = setupFs({ fullScreen: true });
+    // Pretend a notification from the previous mode is still scheduled.
+    full.scheduled.set('mgbrief:2026-10-06', { identifier: 'mgbrief:2026-10-06', data: {} } as unknown as ScheduledSpec);
+    await full.scheduler.reconcile();
+
+    expect(full.cancelled).toContain('mgbrief:2026-10-06');
+    expect(full.scheduled.size).toBe(0);
+    expect(full.alarms.has('mgbrief:2026-10-06')).toBe(true);
+  });
+
+  it('stays a notification when the module is unavailable (iOS)', async () => {
+    const h = setupFs({ available: false });
+    await h.scheduler.reconcile();
+
+    expect([...h.scheduled.keys()]).toEqual(['mgbrief:2026-10-06']);
+    expect(h.alarms.size).toBe(0);
+    // Never calls the native module when it is not available.
+    expect(h.setAlarmsCalls).toEqual([]);
   });
 });

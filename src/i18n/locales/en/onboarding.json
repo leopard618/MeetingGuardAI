@@ -1,22 +1,32 @@
 {
   "progress": "Step {{current}} of {{total}}",
   "language": {
-    "title": "Welcome to MeetingGuard AI",
+    "title": "Welcome to Meeting Guard AI",
     "subtitle": "Let's set things up so you never miss a meeting again. First, choose your language.",
     "hint": "You can change it any time from the menu."
   },
   "calendars": {
     "title": "Connect your calendars",
-    "subtitle": "MeetingGuard alerts you about the meetings in your calendars and keeps everything in sync.",
+    "subtitle": "Meeting Guard alerts you about the meetings in your calendars and keeps everything in sync.",
     "later": "You can change this later in Settings.",
     "google": {
       "title": "Google Calendar",
-      "description": "Two-way sync: meetings you create here appear in Google Calendar, and your Google events get MeetingGuard alerts.",
+      "description": "Two-way sync: meetings you create here appear in Google Calendar, and your Google events get Meeting Guard alerts.",
       "connect": "Connect Google Calendar",
       "connected": "Connected",
       "success": "Google Calendar is connected.",
       "cancelled": "Google Calendar was not connected.",
       "scopeDenied": "Calendar access was not granted. You can connect it later in Settings."
+    },
+    "outlook": {
+      "title": "Outlook Calendar",
+      "description": "Two-way sync with the calendar of your Microsoft account (Outlook, Microsoft 365). Meetings you create here appear in Outlook, and your Outlook events get Meeting Guard alerts.",
+      "microsoftHint": "You signed in with Microsoft. Connect the same account to see your Outlook meetings here.",
+      "connect": "Connect Outlook",
+      "connected": "Connected",
+      "success": "Outlook Calendar is connected.",
+      "cancelled": "Outlook was not connected.",
+      "failed": "Outlook could not be connected. You can try again later in Settings."
     },
     "device": {
       "title": "Calendars on this device",
@@ -29,7 +39,7 @@
   },
   "alerts": {
     "title": "How should we alert you?",
-    "subtitle": "Choose how hard MeetingGuard tries to get your attention before a meeting.",
+    "subtitle": "Choose how hard Meeting Guard tries to get your attention before a meeting.",
     "enabled": "Meeting alerts",
     "intensity": {
       "label": "Alert intensity",
@@ -74,7 +84,7 @@
     },
     "permission": {
       "title": "Notifications",
-      "description": "MeetingGuard needs notifications to alert you, even when the app is closed.",
+      "description": "Meeting Guard needs notifications to alert you, even when the app is closed.",
       "allow": "Allow notifications",
       "granted": "Notifications are on.",
       "denied": "Notifications are off. Turn them on in your device settings so alerts can reach you.",
@@ -82,12 +92,12 @@
     },
     "exactAlarms": {
       "title": "Exact alarms (Android)",
-      "description": "Android can delay alerts unless MeetingGuard is allowed to use exact alarms. Turn on \"Alarms & reminders\" for MeetingGuard so alerts ring right on time.",
+      "description": "Android can delay alerts unless Meeting Guard is allowed to use exact alarms. Turn on \"Alarms & reminders\" for Meeting Guard so alerts ring right on time.",
       "open": "Open alarm settings"
     },
     "timeSensitive": {
       "title": "Time Sensitive alerts (iPhone)",
-      "description": "Meeting alerts are marked as Time Sensitive so they can break through Focus. If you use Focus, allow Time Sensitive notifications for MeetingGuard."
+      "description": "Meeting alerts are marked as Time Sensitive so they can break through Focus. If you use Focus, allow Time Sensitive notifications for Meeting Guard."
     }
   },
   "assistant": {
@@ -109,8 +119,8 @@
       "share": "Send the marketing meeting link to john@company.com",
       "bulk": "Push all my meetings tomorrow 30 minutes later"
     },
-    "quota_one": "Your {{plan}} plan includes {{count}} assistant request per day.",
-    "quota_other": "Your {{plan}} plan includes {{count}} assistant requests per day.",
+    "quotaIntro": "Your first {{days}} days include {{total}} free AI actions, up to {{perDay}} a day. Creating meetings and tasks by hand, your reminders and export are always free.",
+    "quotaMonth": "Your {{plan}} plan includes {{count}} AI actions per month.",
     "plans": {
       "free": "Free",
       "pro": "Pro",

@@ -51,6 +51,7 @@ import type {
   Task,
   TaskInput,
   TaskPatch,
+  TaskSource,
   UserProfile,
 } from './types';
 
@@ -332,14 +333,23 @@ export interface NotesRepository {
   subscribe(listener: (notes: Note[]) => void): Unsubscribe;
 }
 
+export interface TaskWriteOptions {
+  /** Default 'user'. The task syncs push only 'user' and 'ai' writes; their own writes are 'tasks_todo' / 'tasks_gtasks'. */
+  origin?: WriteOrigin;
+  /** Caller-chosen id for idempotent creates (imports); an existing task with this id is returned unchanged. */
+  id?: string;
+  /** Default 'manual', or 'ai_chat' for origin 'ai'. Imports pass 'todo' / 'gtasks'. */
+  source?: TaskSource;
+}
+
 export interface TasksRepository {
   /** Sorted: open before done; open by due (earliest first, no due date last), done by completedAt desc. */
   list(): Promise<Task[]>;
   get(id: string): Promise<Task | null>;
-  create(input: TaskInput): Promise<Task>;
-  update(id: string, patch: TaskPatch): Promise<Task>;
+  create(input: TaskInput, options?: TaskWriteOptions): Promise<Task>;
+  update(id: string, patch: TaskPatch, options?: TaskWriteOptions): Promise<Task>;
   /** Hard delete. */
-  remove(id: string): Promise<void>;
+  remove(id: string, options?: TaskWriteOptions): Promise<void>;
   subscribe(listener: (tasks: Task[]) => void): Unsubscribe;
 }
 
@@ -491,6 +501,19 @@ export interface AuthService {
    * AppError('unsupported', details.reason 'apple_sign_in_unavailable').
    */
   signInWithApple(): Promise<SignInResult>;
+  /**
+   * Sign in with Microsoft (docs/v1/ARCHITECTURE.md §31): the Microsoft PKCE sign-in with the
+   * identity scopes (MICROSOFT_OAUTH.signInScopes, a raw nonce in the request) -> id_token ->
+   * the `microsoftSignIn` callable verifies it (keys, audience, issuer, nonce, lifetime) and
+   * mints a Firebase custom token -> signInWithCustomToken. Needs EXPO_PUBLIC_MSAL_CLIENT_ID
+   * (else AppError('not_configured', details.reason 'microsoft_not_configured')) and the same
+   * client id on the functions (MICROSOFT_CLIENT_ID). A closed browser resolves
+   * { status: 'cancelled' }; a second call while the browser is open joins the running flow.
+   * An existing account with the same email is joined only when Microsoft vouches for the email
+   * (personal accounts, or a work account with the verified-domain claim); otherwise
+   * AppError('conflict', reason 'email_in_use').
+   */
+  signInWithMicrosoft(): Promise<SignInResult>;
   /** Email/password sign-in (EmailAuthScreen, §25). Errors map via authErrors.ts. */
   signInWithEmail(email: string, password: string): Promise<AuthUser>;
   /**
@@ -511,14 +534,21 @@ export interface AuthService {
   signOutProviders(): Promise<void>;
   /**
    * Fresh Google access token via GoogleSignin.getTokens() (native SDK refreshes; never stored).
-   * Throws AppError('google_not_signed_in') / AppError('calendar_scope_missing') when requireCalendar.
+   * Throws AppError('google_not_signed_in'), AppError('calendar_scope_missing') when requireCalendar
+   * and AppError('tasks_scope_missing') when requireTasks.
    */
-  getGoogleAccessToken(options: { requireCalendar: boolean }): Promise<string>;
+  getGoogleAccessToken(options: { requireCalendar: boolean; requireTasks?: boolean }): Promise<string>;
   /** After a 401 from a Google API: clearCachedAccessToken(token) so the next getTokens() refreshes. */
   invalidateGoogleAccessToken(token: string): Promise<void>;
   hasCalendarScope(): Promise<boolean>;
   /** Incremental consent via GoogleSignin.addScopes (GOOGLE_CALENDAR_SCOPES). false = declined. */
   requestCalendarScope(): Promise<boolean>;
+  /** A Google account is signed in natively on this device (restored silently when needed); no UI. */
+  hasGoogleSession(): Promise<boolean>;
+  /** The Google Tasks scope (GOOGLE_TASKS_SCOPES) is granted on this device (M8). */
+  hasTasksScope(): Promise<boolean>;
+  /** Incremental consent via GoogleSignin.addScopes (GOOGLE_TASKS_SCOPES). false = declined. */
+  requestTasksScope(): Promise<boolean>;
   /** GoogleSignin.revokeAccess() (disconnect calendar / account deletion). */
   revokeGoogleAccess(): Promise<void>;
   /**
@@ -543,6 +573,9 @@ export interface AuthService {
   deleteAccountOnServer(): Promise<void>;
   /**
    * Confirms the signed-in user again (fresh auth_time for sensitive operations). Provider order:
+   * a custom-token session (no providerData: Sign in with Microsoft, §31) runs the Microsoft
+   * sign-in again and signs in with a fresh custom token for the SAME uid (another Microsoft
+   * account is 'user_mismatch', never a switch); then
    * apple.com FIRST on iOS when the native module is usable (the Apple sheet; it also refreshes
    * the authorizationCode that revokeAppleTokens() needs - §26), then google.com (the account
    * picker, reauthenticateWithCredential), then password accounts with `password`. 'cancelled'
@@ -554,6 +587,8 @@ export interface AuthService {
 
 /** Scopes requested incrementally for calendar sync. */
 export const GOOGLE_CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.events'] as const;
+/** Scopes requested incrementally for the Google Tasks sync (M8). */
+export const GOOGLE_TASKS_SCOPES = ['https://www.googleapis.com/auth/tasks'] as const;
 
 export type SessionStatus = 'initializing' | 'signed_out' | 'starting' | 'active' | 'ending';
 
@@ -622,6 +657,10 @@ export interface AuthContextValue {
   signInWithGoogle(): Promise<SignInActionResult>;
   /** iOS only (§26): authService.signInWithApple() wrapped like signInWithGoogle (cancel is not an error). */
   signInWithApple(): Promise<SignInActionResult>;
+  /** "Continue with Microsoft" is offered: EXPO_PUBLIC_MSAL_CLIENT_ID is set (§31). */
+  canSignInWithMicrosoft: boolean;
+  /** authService.signInWithMicrosoft() wrapped like signInWithGoogle (cancel is not an error; §31). */
+  signInWithMicrosoft(): Promise<SignInActionResult>;
   signInWithEmail(email: string, password: string): Promise<SignInActionResult>;
   signUpWithEmail(email: string, password: string, name: string): Promise<SignInActionResult>;
   /** Throws AppError('pending_writes') when unsynced writes exist and !force (see useSignOutFlow). */
@@ -709,7 +748,10 @@ export interface GoogleCalendarService {
  */
 export const MICROSOFT_OAUTH = {
   defaultTenant: 'common',
-  scopes: ['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.ReadWrite'],
+  /** Calendars for the Outlook sync (M6), Tasks for the Microsoft To Do sync (M7): one consent. */
+  scopes: ['openid', 'profile', 'offline_access', 'User.Read', 'Calendars.ReadWrite', 'Tasks.ReadWrite'],
+  /** "Continue with Microsoft" (§31): identity only, no refresh token, a separate consent from the Outlook sync. */
+  signInScopes: ['openid', 'profile', 'email'],
   authority: (tenant: string): string => `https://login.microsoftonline.com/${tenant}/v2.0`,
 } as const;
 
@@ -753,6 +795,129 @@ export interface OutlookCalendarService {
   pullChanges(options?: { full?: boolean }): Promise<CalendarPullResult>;
 }
 
+// ---- Microsoft To Do (Graph) -----------------------------------------------------------------
+
+/** A To Do list of the connected Microsoft account (GET /me/todo/lists). */
+export interface TodoList {
+  id: string;
+  name: string;
+  /** The account's built-in "Tasks" list (wellknownListName 'defaultList'). */
+  isDefault: boolean;
+}
+
+export interface TodoSyncCounts {
+  created: number;
+  updated: number;
+  removed: number;
+  unchanged: number;
+  pushed: number;
+  failed: number;
+}
+
+export interface TodoSyncResult {
+  /** true when a full listing ran (first sync, list change, or an expired delta link). */
+  fullSync: boolean;
+  counts: TodoSyncCounts;
+  syncedAt: string;
+}
+
+/**
+ * Microsoft To Do two-way task sync (M7) on the Microsoft account the Outlook sync connects
+ * (same refresh token, scope Tasks.ReadWrite). Tasks go to ONE chosen list by default
+ * (Preferences.todoListId / todoListName, shown before every task confirm); a task may name
+ * another list (external.todoListId). Title, notes, due date, reminder, done state and deletion
+ * sync both ways; due time without a reminder, people and the meeting link stay in Meeting Guard.
+ * - Push: POST / PATCH / DELETE /me/todo/lists/{listId}/tasks; link write-backs use origin
+ *   'tasks_todo' (never pushed back). Moving a task to another list deletes and re-creates it.
+ * - Pull: /me/todo/lists/{listId}/tasks/delta per synced list with persisted delta links
+ *   (USER_STORAGE.todoTasks); HTTP 410 => full listing. '@removed' deletes the local task.
+ *   Tasks completed in To Do before they were ever seen here are not imported.
+ * - "Enabled" is per device (like the Outlook connection); the chosen list is in preferences, and
+ *   a device whose sync is on remembers it too: it puts the list back when another device erased
+ *   it there. With no list at all, new tasks wait in the queue (never dropped).
+ */
+export interface TodoSyncService {
+  /** EXPO_PUBLIC_MSAL_CLIENT_ID present (To Do UI hidden otherwise). */
+  isConfigured(): boolean;
+  /** A Microsoft refresh token is stored for the active user (Outlook card: Connected). */
+  isAccountConnected(): Promise<boolean>;
+  /** Requires the account connection. */
+  listLists(): Promise<TodoList[]>;
+  /**
+   * Turns the sync on with this list as the default: stores the list in preferences, pulls the
+   * list, queues every open unlinked task for push and flushes. Requires the account connection.
+   */
+  enable(list: Pick<TodoList, 'id' | 'name'>): Promise<TodoSyncResult | null>;
+  /**
+   * Changes the default list for NEW tasks (existing links stay where they are). While this
+   * device's sync is on, the open tasks without a To Do copy (those that waited for a list among
+   * them) are queued and sent; a failed send shows in the status and does not throw.
+   */
+  setList(list: Pick<TodoList, 'id' | 'name'>): Promise<void>;
+  /**
+   * Turns the sync off: forgets the queue and delta links, deletes the tasks imported from To Do
+   * (source 'todo') and clears the links of the others. The To Do copies stay in Microsoft.
+   */
+  disable(): Promise<void>;
+  /** Flush queued pushes, then pull every synced list. Throws calendar_not_connected when off. */
+  sync(): Promise<TodoSyncResult>;
+}
+
+// ---- Google Tasks ----------------------------------------------------------------------------
+
+/** A task list of the signed-in Google account (GET tasks/v1/users/@me/lists); same shape as TodoList. */
+export type TaskListInfo = TodoList;
+/** Result of a task sync run; same shape for both task providers. */
+export type TaskSyncResult = TodoSyncResult;
+
+/**
+ * Google Tasks two-way task sync (M8) on the Google account signed in on this device (incremental
+ * scope GOOGLE_TASKS_SCOPES, requested on enable). Same engine as Microsoft To Do: tasks go to
+ * ONE chosen list by default (Preferences.gtasksListId / gtasksListName, shown before every task
+ * confirm); a task may name another list (external.gtasksListId). Google Tasks keeps title, notes,
+ * due DATE and done state only: a due time, the reminder, people and the meeting link stay in
+ * Meeting Guard (the UI says so).
+ * - Push: POST / PATCH / DELETE tasks/v1/lists/{listId}/tasks; link write-backs use origin
+ *   'tasks_gtasks' (never pushed back). Moving a task to another list deletes and re-creates it.
+ * - Pull: tasks.list per synced list with showDeleted/showHidden and a persisted updatedMin per
+ *   list (USER_STORAGE.gtasksTasks); a full listing on the first sync, every 7 days and whenever
+ *   the marker is missing. `deleted: true` deletes the local task. Tasks completed in Google
+ *   before they were ever seen here are not imported.
+ * - "Enabled" is per device; the chosen list is in preferences, and a device whose sync is on
+ *   remembers it too: it puts the list back when another device erased it there. With no list
+ *   at all, new tasks wait in the queue (never dropped).
+ * - isConfigured() is the build switch EXPO_PUBLIC_GOOGLE_TASKS_SYNC (anything but 'off' = on):
+ *   store builds keep it off until Google has verified the tasks scope.
+ */
+export interface GoogleTasksSyncService {
+  isConfigured(): boolean;
+  /** A Google account is signed in natively on this device (the tasks scope may still be missing). */
+  isAccountConnected(): Promise<boolean>;
+  /**
+   * Requires the account; asks for the tasks scope when missing (the list chooser is the first
+   * step of turning the sync on) and throws tasks_scope_missing when declined.
+   */
+  listLists(): Promise<TaskListInfo[]>;
+  /**
+   * Asks for the tasks scope when missing (throws tasks_scope_missing when declined), stores the
+   * list in preferences, pulls the list, queues every open unlinked task for push and flushes.
+   */
+  enable(list: Pick<TaskListInfo, 'id' | 'name'>): Promise<TaskSyncResult | null>;
+  /**
+   * Changes the default list for NEW tasks (existing links stay where they are). While this
+   * device's sync is on, the open tasks without a Google copy (those that waited for a list among
+   * them) are queued and sent; a failed send shows in the status and does not throw.
+   */
+  setList(list: Pick<TaskListInfo, 'id' | 'name'>): Promise<void>;
+  /**
+   * Turns the sync off: forgets the queue and markers, deletes the tasks imported from Google
+   * (source 'gtasks') and clears the links of the others. The Google copies stay.
+   */
+  disable(): Promise<void>;
+  /** Flush queued pushes, then pull every synced list. Throws calendar_not_connected when off. */
+  sync(): Promise<TaskSyncResult>;
+}
+
 export interface DeviceCalendarInfo {
   id: string;
   title: string;
@@ -786,7 +951,18 @@ export interface CalendarSyncReport {
   device: CalendarPullResult | null;
   /** Absent/null when Outlook is not configured or not connected. */
   outlook?: CalendarPullResult | null;
-  errors: { provider: CalendarProvider; code: AppErrorCode }[];
+  /** Absent/null when the Microsoft To Do sync is not configured or not enabled. */
+  todo?: TodoSyncResult | null;
+  /** Absent/null when the Google Tasks sync is not configured or not enabled. */
+  gtasks?: TaskSyncResult | null;
+  errors: { provider: CalendarProvider | 'todo' | 'gtasks'; code: AppErrorCode }[];
+}
+
+/** Result of CalendarSyncEngine.syncTasksNow (the task providers only; a provider failure is an entry in errors). */
+export interface TaskSyncReport {
+  todo: TodoSyncResult | null;
+  gtasks: TaskSyncResult | null;
+  errors: { provider: 'todo' | 'gtasks'; code: AppErrorCode }[];
 }
 
 export interface ProviderStatus {
@@ -800,7 +976,23 @@ export interface CalendarStatus {
   google: ProviderStatus & { connected: boolean; hasScope: boolean };
   device: ProviderStatus & { permission: PermissionState; importCalendarIds: string[]; exportCalendarId: string | null };
   /** Absent until the Outlook provider is registered (EXPO_PUBLIC_MSAL_CLIENT_ID present). */
-  outlook?: ProviderStatus & { configured: boolean; connected: boolean; accountEmail: string | null };
+  /**
+   * `teamsLinks`: whether the connected account's calendar allows an online-meeting provider
+   * (GET /me/calendar, read on connect): false = Graph will not create Teams links for it (some
+   * personal accounts), null = not known yet.
+   */
+  outlook?: ProviderStatus & { configured: boolean; connected: boolean; accountEmail: string | null; teamsLinks: boolean | null };
+  /**
+   * Microsoft To Do (absent until configured). `connected` mirrors the Outlook account connection,
+   * `enabled` is the per-device sync switch, the list is the default list from preferences.
+   */
+  todo?: ProviderStatus & { configured: boolean; connected: boolean; listId: string | null; listName: string | null };
+  /**
+   * Google Tasks (absent until configured). `connected` = a Google account is signed in on this
+   * device, `hasScope` = the tasks scope is granted, `enabled` is the per-device sync switch, the
+   * list is the default list from preferences.
+   */
+  gtasks?: ProviderStatus & { configured: boolean; connected: boolean; hasScope: boolean; listId: string | null; listName: string | null };
 }
 
 /**
@@ -814,6 +1006,13 @@ export interface CalendarSyncEngine {
   start(uid: string): void;
   stop(): void;
   syncNow(options?: { reason?: CalendarSyncReason; headless?: boolean }): Promise<CalendarSyncReport>;
+  /**
+   * Microsoft To Do and Google Tasks flush + pull only (no calendars): the Tasks screen's
+   * pull-to-refresh and focus sync. Both enabled providers are attempted; a provider failure is
+   * reported in the result, never thrown. Concurrent calls share one run; a calendar run in
+   * flight is awaited first (it pushes the same queues).
+   */
+  syncTasksNow(): Promise<TaskSyncReport>;
   /** Handler attached to 'meetings:changed' while started (exposed for tests / explicit calls). */
   onMeetingChanged(event: MeetingsChangedEvent): void;
   getStatus(): CalendarStatus;
@@ -824,7 +1023,7 @@ export interface CalendarSyncEngine {
 // ALERTS  (src/services/alerts, src/components/alerts, src/services/alerts/tasks.ts)
 // =============================================================================================
 
-/** JSON stored in notification content.data (all MeetingGuard notifications). */
+/** JSON stored in notification content.data (all Meeting Guard notifications). */
 export interface AlertNotificationData {
   v: 1;
   kind: NotificationKind;
@@ -875,7 +1074,7 @@ export interface AlertPlan {
   refillBefore: string | null;
   /**
    * Set when the budget cut real ALERTS (not just follow-ups or the horizon): one budget slot is
-   * reserved for the "open MeetingGuard to keep your alerts up to date" notification, which fires
+   * reserved for the "open Meeting Guard to keep your alerts up to date" notification, which fires
    * at this instant (before the scheduled window runs out). null otherwise.
    */
   refillReminderAt: string | null;
@@ -914,7 +1113,8 @@ export interface AlertPermissionStatus {
    * Android 12+: exact alarms are user-granted and there is no JS API to read the state, so this is
    * 'unknown' there (offer openExactAlarmSettings). 'not_required' on iOS / Android < 12.
    */
-  exactAlarms: 'not_required' | 'unknown';
+  /** Android 12+: 'granted' / 'denied' from the native module when available, else 'unknown'. */
+  exactAlarms: 'not_required' | 'unknown' | 'granted' | 'denied';
 }
 
 export type ReconcileReason =
@@ -1037,6 +1237,24 @@ export interface FullScreenAlarmSpec {
   deepLink: string;
   /** Existing alert channel id (channelForIntensity); the native notification posts on it. */
   channelId: string;
+  /**
+   * The alert payload (StoredAlertData) as JSON text. The module stores it and hands it back
+   * through getFired(), so the engine can present a fired alarm in-app exactly like a tray entry.
+   * Absent for alarms without an in-app presentation (the daily briefing).
+   */
+  data?: string;
+}
+
+/** An alarm the native module fired (notification posted) that the engine has not consumed yet. */
+export interface FiredFullScreenAlarm {
+  id: string;
+  /** When the native receiver posted it, epoch ms. */
+  firedAtMs: number;
+  title: string;
+  body: string;
+  deepLink: string;
+  /** The spec's data as given ('' when none). */
+  data: string;
 }
 
 export interface FullScreenAlarmStatus {
@@ -1060,13 +1278,27 @@ export interface FullScreenAlarmStatus {
 export interface FullScreenAlarmModule {
   /** Native module present and platform android. Synchronous so reconcile can branch cheaply. */
   isAvailable(): boolean;
-  /** DECLARATIVE: replaces the whole pending set (alarms not in `alarms` are cancelled natively). */
-  setAlarms(alarms: readonly FullScreenAlarmSpec[]): Promise<void>;
+  /**
+   * DECLARATIVE: replaces the pending set. With `scope` (an id prefix such as "mg:" or "mgbrief:")
+   * the replace-all is restricted to alarms whose id starts with it, so independent schedulers
+   * (the meeting engine and the daily briefing) never cancel each other's alarms. Without `scope`
+   * it replaces every pending alarm, as before.
+   */
+  setAlarms(alarms: readonly FullScreenAlarmSpec[], scope?: string): Promise<void>;
   /** Cancels the given ids, or every pending alarm when omitted (session end). */
   clearAlarms(ids?: readonly string[]): Promise<void>;
   getStatus(): Promise<FullScreenAlarmStatus>;
   /** Android 14+: ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT settings screen; no-op elsewhere. */
   openFullScreenIntentSettings(): Promise<void>;
+  /**
+   * Alarms that fired and were not cleared yet, oldest first, restricted to ids starting with
+   * `scope` when given. The fired notification is NOT an expo-notifications one (the tray sweep
+   * never lists it), so this is how the engine learns that a MAX alert fired while the app was
+   * closed and shows the in-app alarm (sound loop, voice readout, snooze). Empty when unavailable.
+   */
+  getFired(scope?: string): Promise<FiredFullScreenAlarm[]>;
+  /** Forgets fired records (all when omitted). The tray copy stays until the alert is handled. */
+  clearFired(ids?: readonly string[]): Promise<void>;
 }
 
 /** src/services/alerts/tasks.ts */
@@ -1102,7 +1334,7 @@ export interface WidgetMeetingData {
 export interface WidgetStrings {
   /** Card title of the empty state ("No upcoming meetings"). */
   emptyTitle: string;
-  /** Second line of the empty state ("Open MeetingGuard to plan one"). */
+  /** Second line of the empty state ("Open Meeting Guard to plan one"). */
   emptyBody: string;
   /** Shown once `startAtMs` has passed ("Happening now"). */
   nowLabel: string;
@@ -1272,7 +1504,8 @@ export type MainStackParamList = {
    * notification (never parsed from a URL): an external link opens the chat and offers a button,
    * so no paid request is sent without a user action.
    */
-  AIChat: { followup?: string; prefill?: string; autoStart?: boolean } | undefined;
+  /** `debrief`: open the chat with the spoken-debrief panel for that (ended) meeting (M8). */
+  AIChat: { followup?: string; prefill?: string; autoStart?: boolean; debrief?: string } | undefined;
   AIInsights: undefined;
   Privacy: undefined;
   Terms: undefined;
@@ -1415,6 +1648,8 @@ export interface UseAssistantResult {
   send(text: string, options?: { origin?: 'typed' | 'suggestion' }): Promise<void>;
   /** Requests the post-meeting follow-up for a meeting (once per meeting). */
   startFollowUp(meetingId: string): Promise<void>;
+  /** M8: sends a spoken/typed debrief of an ended meeting; the reply proposes its tasks. */
+  startDebrief(meetingId: string, transcript: string): Promise<void>;
   confirm(actionId: string): Promise<ActionResult>;
   reject(actionId: string): void;
   /** Re-sends the last failed request. */
@@ -1695,6 +1930,7 @@ export interface PurchasesService {
 export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string; response: string }>> = {
   assistant: { request: 'assistantRequestSchema', response: 'assistantResponseSchema' },
   deleteAccount: { request: 'deleteAccountRequestSchema', response: 'deleteAccountResponseSchema' },
+  microsoftSignIn: { request: 'microsoftSignInRequestSchema', response: 'microsoftSignInResponseSchema' },
   zoomStatus: { request: 'zoomStatusRequestSchema', response: 'zoomStatusResponseSchema' },
   zoomCreateMeeting: { request: 'zoomCreateMeetingRequestSchema', response: 'zoomCreateMeetingResponseSchema' },
   zoomSyncMeeting: { request: 'zoomSyncMeetingRequestSchema', response: 'zoomSyncMeetingResponseSchema' },

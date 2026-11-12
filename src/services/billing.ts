@@ -19,9 +19,9 @@
  * Product ids: PLAY_PRODUCT_IDS / APP_STORE_PRODUCT_IDS in src/core/contracts.ts (the SAME four
  * logical ids on both stores: pro_monthly, pro_yearly, premium_monthly, premium_yearly - each
  * with a 3-day free trial configured in the store console).
- * Daily AI quotas are the server-enforced ones (core/aiContract PLAN_DAILY_AI_LIMITS).
+ * AI allowances are the server-enforced ones (core/aiContract AI_ALLOWANCES / PLAN_AI_LIMITS).
  */
-import { PLAN_DAILY_AI_LIMITS } from '../core/aiContract';
+import { AI_ALLOWANCES, PLAN_AI_LIMITS, type UsagePeriod } from '../core/aiContract';
 import { purchasesService } from './purchases';
 
 export type PlanTier = 'free' | 'pro' | 'premium';
@@ -39,8 +39,10 @@ export interface Plan {
   monthlyEquivalentUsd?: number;
   /** For yearly plans: discount vs. paying monthly for 12 months. */
   discountPercent?: number;
-  /** Daily AI request quota (server-enforced, see PLAN_DAILY_AI_LIMITS). */
-  aiRequestsPerDay: number;
+  /** AI actions of the plan (server-enforced, see PLAN_AI_LIMITS): the free window total, or per month. */
+  aiActions: number;
+  /** 'window' for the free introductory allowance, 'month' for the paid plans. */
+  aiPeriod: Extract<UsagePeriod, 'window' | 'month'>;
   popular: boolean;
 }
 
@@ -53,13 +55,14 @@ export interface Plan {
  */
 export const PURCHASES_AVAILABLE: boolean = purchasesService.isConfigured();
 
-export const FREE_AI_REQUESTS_PER_DAY = PLAN_DAILY_AI_LIMITS.free;
+/** The free introductory allowance (window days, total, per day). */
+export const FREE_AI_ALLOWANCE = AI_ALLOWANCES.free;
 export const ANNUAL_DISCOUNT_PERCENT = 25;
 
 // 12 x $7.99 = $95.88 -> -25% = $71.91 ; 12 x $14.99 = $179.88 -> -25% = $134.91
 export const PLANS: readonly Plan[] = [
-  { id: 'free', tier: 'free', cycle: null, priceUsd: 0, aiRequestsPerDay: FREE_AI_REQUESTS_PER_DAY, popular: false },
-  { id: 'pro_monthly', tier: 'pro', cycle: 'monthly', priceUsd: 7.99, aiRequestsPerDay: PLAN_DAILY_AI_LIMITS.pro, popular: true },
+  { id: 'free', tier: 'free', cycle: null, priceUsd: 0, aiActions: PLAN_AI_LIMITS.free, aiPeriod: 'window', popular: false },
+  { id: 'pro_monthly', tier: 'pro', cycle: 'monthly', priceUsd: 7.99, aiActions: PLAN_AI_LIMITS.pro, aiPeriod: 'month', popular: true },
   {
     id: 'pro_yearly',
     tier: 'pro',
@@ -67,10 +70,11 @@ export const PLANS: readonly Plan[] = [
     priceUsd: 71.91,
     monthlyEquivalentUsd: 5.99,
     discountPercent: ANNUAL_DISCOUNT_PERCENT,
-    aiRequestsPerDay: PLAN_DAILY_AI_LIMITS.pro,
+    aiActions: PLAN_AI_LIMITS.pro,
+    aiPeriod: 'month',
     popular: true,
   },
-  { id: 'premium_monthly', tier: 'premium', cycle: 'monthly', priceUsd: 14.99, aiRequestsPerDay: PLAN_DAILY_AI_LIMITS.premium, popular: false },
+  { id: 'premium_monthly', tier: 'premium', cycle: 'monthly', priceUsd: 14.99, aiActions: PLAN_AI_LIMITS.premium, aiPeriod: 'month', popular: false },
   {
     id: 'premium_yearly',
     tier: 'premium',
@@ -78,7 +82,8 @@ export const PLANS: readonly Plan[] = [
     priceUsd: 134.91,
     monthlyEquivalentUsd: 11.24,
     discountPercent: ANNUAL_DISCOUNT_PERCENT,
-    aiRequestsPerDay: PLAN_DAILY_AI_LIMITS.premium,
+    aiActions: PLAN_AI_LIMITS.premium,
+    aiPeriod: 'month',
     popular: false,
   },
 ];

@@ -1,116 +1,125 @@
 /**
- * Quick actions: new meeting (form), new meeting with the AI assistant, and the WhatsApp bot.
- * The WhatsApp tile follows whatsappLinkStatus.enabled (docs/v1/ARCHITECTURE.md §27): a disabled
- * "Coming soon" tile until the server-side bot is configured, then it opens the WhatsApp setup.
- * Three Card tiles across, each with a 40dp primaryContainer icon circle; labels wrap instead
- * of clipping at large font scales.
+ * Quick actions (the client's mockup, icon-only): a 2 x 2 grid of rounded tiles in the right half
+ * of the row shared with the tasks card, each showing ONE large glyph and nothing else. New
+ * meeting is the filled primary tile (calendar with a plus), the others are surface tiles with a
+ * primary icon: new with the AI assistant (magic sparkle), the WhatsApp bot (the WhatsApp glyph),
+ * notes (note with a pen). Each tile's name is its accessibility label. WhatsApp is disabled
+ * (dimmed) until whatsappLinkStatus.enabled (docs/v1/ARCHITECTURE.md §27). No motion.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
 
-import { Card, SectionHeader } from '../../components/ui';
+import { PressableScale } from '../../components/ui';
 import { useT } from '../../i18n';
 import { useWhatsAppStatus } from '../../services/whatsapp';
-import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
+import { radii, spacing, useAppTheme } from '../../theme';
 
-type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+type McIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 export interface QuickActionsProps {
   onNewManual(): void;
   onNewWithAi(): void;
   onWhatsApp(): void;
+  onNotes(): void;
+  style?: object;
 }
+
+const ICON_SIZE = 34;
+/** Square tiles (client: a regular quadrilateral, a little smaller, same icon size). */
+export const TILE_SIZE = 72;
+/** Gap between the tiles. */
+export const TILE_GAP = spacing.lg;
+/** Width of the 2 x 2 grid. */
+export const GRID_WIDTH = TILE_SIZE * 2 + TILE_GAP;
+
+/** The four glyphs (client, November 2, 2026: "use the other icons"). */
+export const QUICK_ACTION_ICONS: Readonly<Record<'manual' | 'ai' | 'whatsapp' | 'notes', McIconName>> = {
+  manual: 'calendar-plus',
+  ai: 'creation',
+  whatsapp: 'whatsapp',
+  notes: 'note-edit-outline',
+};
 
 function Tile({
   icon,
   label,
-  hint,
+  primary = false,
   onPress,
   disabled = false,
   accessibilityLabel,
   testID,
 }: {
-  icon: IconName;
+  icon: McIconName;
+  /** Spoken name of the tile (no visible text). */
   label: string;
-  hint: string;
+  /** The one filled tile (new meeting). */
+  primary?: boolean;
   onPress?: () => void;
   disabled?: boolean;
   accessibilityLabel?: string;
   testID: string;
 }): ReactElement {
-  const { colors } = useAppTheme();
+  const { colors, elevated } = useAppTheme();
+  const iconColor = primary ? colors.onPrimary : disabled ? colors.onSurfaceDisabled : colors.primary;
   return (
-    <Card
+    <PressableScale
       onPress={() => onPress?.()}
       disabled={disabled}
-      accessibilityLabel={accessibilityLabel ?? `${label}. ${hint}`}
-      style={styles.tile}
+      style={[styles.tile, primary ? { backgroundColor: colors.primary } : elevated, disabled && !primary && styles.disabled]}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ disabled }}
       testID={testID}
     >
-      <View style={[styles.circle, { backgroundColor: disabled ? colors.surfaceDisabled : colors.primaryContainer }]}>
-        <MaterialCommunityIcons
-          name={icon}
-          size={componentMetrics.iconNav}
-          color={disabled ? colors.onSurfaceDisabled : colors.onPrimaryContainer}
-        />
-      </View>
-      <Text variant="labelLarge" style={[styles.label, disabled && { color: colors.disabledText }]}>
-        {label}
-      </Text>
-      <Text variant="bodySmall" style={[styles.hint, { color: disabled ? colors.disabledText : colors.onSurfaceVariant }]}>
-        {hint}
-      </Text>
-    </Card>
+      <MaterialCommunityIcons name={icon} size={ICON_SIZE} color={iconColor} accessibilityElementsHidden importantForAccessibility="no" />
+    </PressableScale>
   );
 }
 
-export function QuickActions({ onNewManual, onNewWithAi, onWhatsApp }: QuickActionsProps): ReactElement {
+export function QuickActions({ onNewManual, onNewWithAi, onWhatsApp, onNotes, style }: QuickActionsProps): ReactElement {
   const t = useT();
   // §27: a null status means unknown, which stays disabled so nothing pretends a bot exists.
   const whatsappReady = useWhatsAppStatus().status?.enabled === true;
   return (
-    <View>
-      <SectionHeader title={t('home:actions.title')} />
+    <View style={[styles.grid, style]} accessibilityLabel={t('home:actions.title')} testID="quick-actions">
       <View style={styles.row}>
-        <Tile icon="calendar-plus" label={t('home:actions.manual')} hint={t('home:actions.manualHint')} onPress={onNewManual} testID="quick-new-manual" />
-        <Tile icon="robot-outline" label={t('home:actions.ai')} hint={t('home:actions.aiHint')} onPress={onNewWithAi} testID="quick-new-ai" />
+        <Tile icon={QUICK_ACTION_ICONS.manual} primary label={t('home:actions.manual')} onPress={onNewManual} testID="quick-new-manual" />
+        <Tile icon={QUICK_ACTION_ICONS.ai} label={t('home:actions.ai')} onPress={onNewWithAi} testID="quick-new-ai" />
+      </View>
+      <View style={styles.row}>
         <Tile
-          icon="whatsapp"
+          icon={QUICK_ACTION_ICONS.whatsapp}
           label={t('home:actions.whatsapp')}
-          hint={t(whatsappReady ? 'home:actions.whatsappReadyHint' : 'home:actions.whatsappHint')}
           disabled={!whatsappReady}
           onPress={whatsappReady ? onWhatsApp : undefined}
           accessibilityLabel={t(whatsappReady ? 'home:actions.whatsappReadyA11y' : 'home:actions.whatsappA11y')}
           testID="quick-whatsapp"
         />
+        <Tile icon={QUICK_ACTION_ICONS.notes} label={t('home:actions.notes')} onPress={onNotes} testID="quick-notes" />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  grid: {
+    width: GRID_WIDTH,
+    gap: TILE_GAP,
+    alignSelf: 'flex-start',
+  },
   row: {
     flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: spacing.sm,
+    gap: TILE_GAP,
   },
   tile: {
-    flex: 1,
-    padding: spacing.md,
-  },
-  circle: {
-    width: componentMetrics.avatarSize,
-    height: componentMetrics.avatarSize,
-    borderRadius: radii.full,
+    width: TILE_SIZE,
+    height: TILE_SIZE,
+    borderRadius: radii.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: {
-    marginTop: spacing.sm,
-  },
-  hint: {
-    marginTop: spacing.xs,
+  disabled: {
+    opacity: 0.55,
   },
 });

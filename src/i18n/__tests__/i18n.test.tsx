@@ -17,7 +17,7 @@ import {
   useLanguage,
   useT,
 } from '..';
-import { resetI18nStateForTests } from '../i18n';
+import { collapseMeridiemPeriod, resetI18nStateForTests } from '../i18n';
 
 jest.mock('expo-localization', () => ({
   getLocales: jest.fn(() => [{ languageCode: 'es', languageTag: 'es-MX' }]),
@@ -163,5 +163,24 @@ describe('React bindings', () => {
       await setLanguage('en');
     });
     expect(screen.getByTestId('new').props.children).toBe('en:Continue');
+  });
+});
+
+describe('a.m. / p.m. at the end of a sentence', () => {
+  it('collapses the doubled period and leaves everything else alone', () => {
+    expect(collapseMeridiemPeriod('Más: 10 nov 2026, 6:00 p.m..')).toBe('Más: 10 nov 2026, 6:00 p.m.');
+    expect(collapseMeridiemPeriod('la primera a las 9:00 a.\u00a0m..')).toBe('la primera a las 9:00 a.\u00a0m.');
+    expect(collapseMeridiemPeriod('More Nov 10, 6:00 PM.')).toBe('More Nov 10, 6:00 PM.');
+    expect(collapseMeridiemPeriod('Activating your plan...')).toBe('Activating your plan...');
+    expect(collapseMeridiemPeriod('¿Empezamos a las 8:05 a.m.?')).toBe('¿Empezamos a las 8:05 a.m.?');
+  });
+
+  it('runs on every translation after interpolation', () => {
+    expect(t('pricing:usage.exhausted.day', { lng: 'es', time: '10 nov 2026, 6:00 p.m.' })).toBe(
+      'Ya usaste las acciones gratis de hoy. Más: 10 nov 2026, 6:00 p.m.',
+    );
+    expect(t('pricing:usage.exhausted.day', { lng: 'en', time: 'Nov 10, 2026, 6:00 PM' })).toBe(
+      "You've used today's free actions. More Nov 10, 2026, 6:00 PM.",
+    );
   });
 });

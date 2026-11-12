@@ -19,6 +19,7 @@ import { HttpsError } from 'firebase-functions/https';
 import {
   AI_CONTRACT_VERSION,
   AI_LIMITS,
+  CLARIFICATIONS_PER_ACTION,
   assistantRequestSchema,
   assistantResponseSchema,
   isMutatingAction,
@@ -31,8 +32,21 @@ import { FollowUpMeetingNotFoundError, loadMeetingContext, type MeetingReader } 
 import { UpstreamError, assistantError } from './errors';
 import type { GlobalBudget } from './globalBudget';
 import { safetyIdentifierFor, type LlmClient, type LlmResult } from './llm';
-import { buildPromptMessages, collectUserText, composeListAnswer, fallbackReply } from './prompt';
-import { consumeQuota, refundQuota, type QuotaDecision, type QuotaStore } from './quota';
+import { isPlainConsent, lastUserText, missingMoveQuestion } from './guards';
+import { buildPromptMessages, collectUserText, composeListAnswer, fallbackReply, listAnswerItems } from './prompt';
+import { recoverToolCallsFromText } from './recover';
+import { consumeQuota, refundQuota, settleClarification, type QuotaDecision, type QuotaStore } from './quota';
+
+/**
+ * A reply that only asks the user for missing details: short and ending in a question mark (the
+ * Spanish opener counts too). Used with "no tool call, no proposal, no resolution" to decide
+ * whether the request is charged (quota.ts settleClarification).
+ */
+export function isClarification(reply: string): boolean {
+  const text = reply.trim();
+  if (text.length === 0 || text.length > 400) return false;
+  return /[?]\s*$/.test(text);
+}
 import { buildTaskContext, type TaskContext, type TaskReader } from './tasksContext';
 import { isValidTimeZone } from './time';
 import { ASSISTANT_TOOLS, RESOLVE_PENDING_TOOL, TASK_TOOLS } from './tools';
@@ -170,7 +184,9 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
     const pendingActions = request.mode === 'chat' ? (request.pendingActions ?? []) : [];
     // v5: tasks exist for the model ONLY when the client said it can parse the task action
     // types (an older client's response schema would reject the whole response otherwise).
-    const wantsTasks = request.mode === 'chat' && (request.contractVersion ?? 0) >= 5 && deps.tasks !== undefined;
+    // v7: a debrief is nothing but tasks, so it always carries them (a v7 client by definition).
+    const wantsTasks =
+      (request.mode === 'chat' || request.mode === 'debrief') && (request.contractVersion ?? 0) >= 5 && deps.tasks !== undefined;
     let tasksContext: TaskContext | null = null;
     if (wantsTasks && deps.tasks) {
       const taskRecords = await deps.tasks.listRecent(uid, AI_LIMITS.maxActions * 20);
@@ -185,18 +201,20 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       tasksContext,
       messages: request.messages,
       pendingActions,
+      clarificationsExhausted: quota.clarificationsUsed >= CLARIFICATIONS_PER_ACTION,
       ...(deps.nonce ? { nonce: deps.nonce() } : {}),
     });
     const llm = deps.llm();
     llmStarted = true;
+    const tools = [
+      ...ASSISTANT_TOOLS,
+      ...(tasksContext !== null ? TASK_TOOLS : []),
+      ...(pendingActions.length > 0 ? [RESOLVE_PENDING_TOOL] : []),
+    ];
     const completion: LlmResult = await llm.complete({
       messages,
-      tools: [
-        ...ASSISTANT_TOOLS,
-        ...(tasksContext !== null ? TASK_TOOLS : []),
-        ...(pendingActions.length > 0 ? [RESOLVE_PENDING_TOOL] : []),
-      ],
-      toolChoice: request.mode === 'followup' ? 'required' : 'auto',
+      tools,
+      toolChoice: request.mode === 'followup' || request.mode === 'debrief' ? 'required' : 'auto',
       safetyIdentifier: safetyIdentifierFor(uid),
     });
 
@@ -214,7 +232,12 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       }
     }
 
-    const mapped = mapToolCalls(completion.toolCalls, {
+    // The model sometimes writes a tool's arguments as JSON text instead of calling it (seen on a
+    // device, 2026-10-21). Such objects become tool calls, validated like any other, and no raw
+    // JSON ever reaches the reply. Real tool calls win when both are present.
+    const recovered = recoverToolCallsFromText(completion.content ?? '', new Set(tools.map((tool) => tool.function.name)));
+    const toolCalls = completion.toolCalls.length > 0 ? completion.toolCalls : recovered.toolCalls;
+    const mapped = mapToolCalls(toolCalls, {
       language: request.language,
       mode: request.mode,
       userTimeZone: request.timezone,
@@ -227,23 +250,39 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
 
     // A resolution only counts when something was pending AND the model proposed nothing new:
     // "yes but change X" style answers come back as proposals and must never auto-confirm.
-    const resolution = pendingActions.length > 0 && mapped.actions.length === 0 ? mapped.resolution : null;
+    // ... and, as a deterministic backstop, only when the user's own words were plain consent or
+    // refusal. "Yes but make it earlier" must never execute, whatever the model decided.
+    const plainConsent = isPlainConsent(lastUserText(request.messages));
+    const resolutionBlocked = pendingActions.length > 0 && mapped.actions.length === 0 && mapped.resolution !== null && !plainConsent;
+    const resolution =
+      pendingActions.length > 0 && mapped.actions.length === 0 && plainConsent ? mapped.resolution : null;
 
-    let reply = (completion.content ?? '').trim();
+    let reply = recovered.text.trim();
     if (reply.length === 0 && completion.refusal) reply = completion.refusal.trim();
+    // A read-only answer is never captioned "review and confirm": there is nothing to confirm.
+    // It is composed from the rows themselves, because the reply is what gets read aloud and a
+    // voice-only user must hear the actual items (and hear "nothing" when the answer is nothing).
+    const reads = mapped.actions.filter((action) => !isMutatingAction(action));
+    const onlyLists = mapped.actions.length > 0 && reads.length === mapped.actions.length;
+    const listAnswer = onlyLists ? composeListAnswer(reads, context, tasksContext, request.language, request.timezone) : null;
+    if (reply.length > 0 && listAnswer !== null) {
+      // The model wrote a caption ("Here is your day.") and left the items to the card. Append
+      // the composed items unless the reply already names at least one of them.
+      const items = listAnswerItems(reads, context, tasksContext, request.timezone);
+      const lower = reply.toLowerCase();
+      const namesOne = items.some((item) => item.title.trim().length > 0 && lower.includes(item.title.trim().toLowerCase()));
+      if (items.length > 0 && !namesOne) reply = reply + " " + listAnswer;
+    }
+    if (resolutionBlocked) {
+      // The model took a qualified answer for consent and nothing was applied: its own
+      // "confirming it now" sentence would be a lie. Say what to do instead.
+      reply = fallbackReply(request.language, 'resolve_tap');
+    }
     if (reply.length === 0) {
-      // A read-only answer is never captioned "review and confirm": there is nothing to
-      // confirm. It is composed from the rows themselves, so a voice-only user hears the
-      // actual answer (and hears "nothing" when the answer is nothing).
-      const reads = mapped.actions.filter((action) => !isMutatingAction(action));
-      const onlyLists = mapped.actions.length > 0 && reads.length === mapped.actions.length;
-      // A read-only answer with no reply text is composed from the rows themselves, so the
-      // user hears the actual answer rather than "here are the meetings I found".
-      const listAnswer = onlyLists ? composeListAnswer(reads, context, tasksContext, request.language, request.timezone) : null;
       // Every proposal the model made was dropped (e.g. a timed meeting without a time): tell
       // the user WHAT is missing instead of a useless "couldn't generate a response" loop.
       const allDropped =
-        mapped.actions.length === 0 && completion.toolCalls.length > 0 && Object.keys(mapped.dropped).length > 0;
+        mapped.actions.length === 0 && toolCalls.length > 0 && Object.keys(mapped.dropped).length > 0;
       if (listAnswer !== null) {
         reply = listAnswer;
       } else {
@@ -251,7 +290,11 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
           request.language,
           request.mode === 'followup'
             ? 'followup'
-            : resolution !== null
+            : request.mode === 'debrief'
+              ? mapped.actions.length > 0
+                ? 'debrief'
+                : 'debrief_empty'
+              : resolution !== null
               ? resolution === 'confirm'
                 ? 'resolve_confirm'
                 : 'resolve_reject'
@@ -263,13 +306,30 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
         );
       }
     }
+    // A meeting move with linked, dated tasks must ask about them; append the question when the
+    // model left it out, so the promise does not depend on the model remembering.
+    const moveQuestion = missingMoveQuestion(mapped.actions, tasksContext, request.language, reply);
+    if (moveQuestion !== null) reply = reply.length > 0 ? reply + ' ' + moveQuestion : moveQuestion;
     if (reply.length > AI_LIMITS.maxReplyChars) reply = reply.slice(0, AI_LIMITS.maxReplyChars);
+
+    // A reply that only asks the user for missing details (no tool call, no proposal, no
+    // resolution, a question) is not charged, at most CLARIFICATIONS_PER_ACTION times in a row;
+    // the run resets on any real answer, so unfinished requests cannot chain for free.
+    const clarification =
+      request.mode === 'chat' && toolCalls.length === 0 && mapped.actions.length === 0 && resolution === null && isClarification(reply);
+    let usage = quota.usage;
+    try {
+      const settled = await settleClarification(deps.quota, uid, quota, clarification, now);
+      if (settled.refunded) usage = { ...usage, used: Math.max(0, usage.used - 1) };
+    } catch (settleError) {
+      logger.warn('assistant.clarification_settle_failed', { uid, ...describeError(settleError) });
+    }
 
     const response: AssistantResponse = {
       reply,
       actions: mapped.actions,
       suggestions: mapped.suggestions,
-      usage: quota.usage,
+      usage,
       ...(resolution !== null ? { resolution } : {}),
     };
     const checked = assistantResponseSchema.safeParse(response);
@@ -280,11 +340,13 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
 
     logger.info('assistant.completed', {
       uid,
+      clarification,
       mode: request.mode,
       messages: request.messages.length,
       meetings: context.meetings.length,
       skippedMeetings: context.skippedInvalid,
       toolCalls: completion.toolCalls.length,
+      recoveredToolCalls: completion.toolCalls.length > 0 ? 0 : recovered.toolCalls.length,
       actions: mapped.actions.length,
       pendingActions: pendingActions.length,
       tasks: tasksContext?.tasks.length ?? null,
@@ -292,6 +354,11 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       resolution,
       suggestions: mapped.suggestions.length,
       dropped: mapped.dropped,
+      // Field evidence without a device: how many tasks arrived linked to a same-response meeting,
+      // whether the consent backstop vetoed a resolution, and whether a move question was added.
+      linkedTasks: mapped.actions.filter((action) => action.type === 'create_task' && action.task.meetingActionId !== null && action.task.meetingActionId !== undefined).length,
+      resolutionBlocked,
+      moveQuestion: moveQuestion !== null,
       finishReason: completion.finishReason,
       promptTokens: completion.usage?.promptTokens ?? null,
       completionTokens: completion.usage?.completionTokens ?? null,
@@ -306,7 +373,7 @@ export async function runAssistant(uid: string, request: AssistantRequest, deps:
       !llmStarted || (error instanceof UpstreamError && REFUNDABLE_UPSTREAM.has(error.kind));
     if (refundable) {
       try {
-        await refundQuota(deps.quota, uid, quota.dayKey, deps.now());
+        await refundQuota(deps.quota, uid, quota, deps.now());
       } catch (refundError) {
         logger.warn('assistant.refund_failed', { uid, ...describeError(refundError) });
       }

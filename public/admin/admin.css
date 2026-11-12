@@ -1,4 +1,4 @@
-/* MeetingGuard AI admin dashboard v3 - dark-only premium pass (ops tool; docs/ADMIN.md).
+/* Meeting Guard AI admin dashboard v3 - dark-only premium pass (ops tool; docs/ADMIN.md).
  *
  * BRAND PROVENANCE: the palette derives from src/theme/tokens.ts (indigo primary ramp +
  * chartPalette.dark), deepened for a layered dark shell. The brand gradient
@@ -699,6 +699,9 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
 .swatch-chart-1 { background: var(--chart-1); }
 .swatch-chart-2 { background: var(--chart-2); }
+.swatch-chart-3 { background: var(--chart-3); }
+.swatch-chart-4 { background: var(--chart-4); }
+.swatch-chart-5 { background: var(--chart-5); }
 .swatch-chart-5 { background: var(--chart-5); }
 .swatch-grad { background: var(--grad-brand); }
 

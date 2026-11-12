@@ -1,12 +1,12 @@
 {
-  "assistantFab": "Abrir el asistente de IA",
   "header": {
     "back": "Volver",
-    "home": "Ir al panel principal",
     "openMenu": "Abrir menú",
     "darkMode": "Cambiar a modo oscuro",
     "lightMode": "Cambiar a modo claro",
-    "switchLanguage": "Cambiar el idioma a {{language}}"
+    "switchLanguage": "Cambiar el idioma a {{language}}",
+    "assistant": "Abrir el asistente de IA",
+    "assistantHint": "Mantén pulsado y arrastra para moverlo"
   },
   "sidebar": {
     "close": "Cerrar menú",
@@ -31,8 +31,8 @@
   },
   "errorBoundary": {
     "title": "Algo salió mal",
-    "message": "MeetingGuard tuvo un problema inesperado. Inténtalo de nuevo. Si vuelve a ocurrir, cierra la app y ábrela otra vez.",
-    "retryHint": "Vuelve a cargar MeetingGuard",
+    "message": "Meeting Guard tuvo un problema inesperado. Inténtalo de nuevo. Si vuelve a ocurrir, cierra la app y ábrela otra vez.",
+    "retryHint": "Vuelve a cargar Meeting Guard",
     "screenMessage": "Esta pantalla tuvo un problema inesperado. Inténtalo de nuevo o vuelve atrás. Si vuelve a ocurrir, cierra la app y ábrela otra vez.",
     "screenRetryHint": "Vuelve a cargar la pantalla"
   }

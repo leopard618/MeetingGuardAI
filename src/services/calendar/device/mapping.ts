@@ -36,7 +36,7 @@ import {
 
 export type DevicePlatform = 'ios' | 'android';
 
-/** The expo-calendar event fields MeetingGuard reads. */
+/** The expo-calendar event fields Meeting Guard reads. */
 export interface DeviceEventLike {
   id: string;
   calendarId: string | null;
@@ -59,7 +59,7 @@ export interface DeviceEventLike {
   url?: string | null;
 }
 
-/** The expo-calendar calendar fields MeetingGuard reads. */
+/** The expo-calendar calendar fields Meeting Guard reads. */
 export interface DeviceCalendarLike {
   id: string;
   title: string;
@@ -70,7 +70,7 @@ export interface DeviceCalendarLike {
   ownerAccount?: string | null;
 }
 
-/** What MeetingGuard writes to an exported device event. */
+/** What Meeting Guard writes to an exported device event. */
 export interface DeviceEventDetails {
   title: string;
   notes: string;
@@ -81,7 +81,7 @@ export interface DeviceEventDetails {
   timeZone: string;
   /** iOS only (ignored on Android). */
   url?: string;
-  /** MeetingGuard is the alarm: no duplicate OS calendar reminders. */
+  /** Meeting Guard is the alarm: no duplicate OS calendar reminders. */
   alarms: [];
 }
 

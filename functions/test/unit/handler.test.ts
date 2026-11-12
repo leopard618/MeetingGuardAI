@@ -99,9 +99,11 @@ describe('handleAssistant', () => {
 
   it('enforces the daily quota without calling the model', async () => {
     const { deps, quota, llmFactory } = setup();
-    quota.usage.set(`u1/${DAY}`, { count: 5, updatedAt: 'x' });
+    // Free plan: at most 3 actions per UTC day inside the introductory window.
+    quota.roots.set('u1', { introStartedAt: '2026-09-27T10:00:00.000Z', introUsed: 4 });
+    quota.usage.set(`u1/${DAY}`, { count: 3, updatedAt: 'x' });
     const details = await expectAssistantError(handleAssistant(caller(), chatRequest(), deps), 'resource-exhausted', 'quota_exceeded');
-    expect(details.usage).toEqual({ used: 5, limit: 5, plan: 'free', resetsAt: '2026-09-29T00:00:00.000Z' });
+    expect(details.usage).toEqual({ used: 3, limit: 3, plan: 'free', resetsAt: '2026-09-29T00:00:00.000Z', period: 'day' });
     expect(llmFactory).not.toHaveBeenCalled();
   });
 
@@ -112,7 +114,7 @@ describe('handleAssistant', () => {
       reply: 'Done deal.',
       actions: [],
       suggestions: [],
-      usage: { used: 1, limit: 5, plan: 'free', resetsAt: '2026-09-29T00:00:00.000Z' },
+      usage: { used: 1, limit: 10, plan: 'free', resetsAt: '2026-10-05T14:15:00.000Z', period: 'window' },
     });
     const request = llm.requests[0]!;
     expect(request.toolChoice).toBe('auto');
@@ -158,6 +160,7 @@ describe('handleAssistant', () => {
       }),
     );
     withTools.quota.usage.set(`u1/${DAY}`, { count: 2, updatedAt: 'x' });
+    withTools.quota.roots.set('u1', { introStartedAt: '2026-09-27T10:00:00.000Z', introUsed: 2 });
     const response = await handleAssistant(caller(), chatRequest(), withTools.deps);
     expect(assistantResponseSchema.safeParse(response).success).toBe(true);
     expect(response.reply).toBe('I prepared the following for you. Please review and confirm.');
@@ -320,7 +323,7 @@ describe('pending-proposal resolution (v4)', () => {
     const { deps } = setup(
       result({ content: '', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"confirm"}' }] }),
     );
-    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
+    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING, messages: [{ role: 'user', content: 'Yes, I confirm.' }] }), deps);
     expect(response.resolution).toBe('confirm');
     expect(response.actions).toEqual([]);
     expect(response.reply).toBe('Got it, confirming it now.');
@@ -331,7 +334,7 @@ describe('pending-proposal resolution (v4)', () => {
     const { deps } = setup(
       result({ content: '', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"reject"}' }] }),
     );
-    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
+    const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING, messages: [{ role: 'user', content: 'no' }] }), deps);
     expect(response.resolution).toBe('reject');
     expect(response.reply).toBe('Okay, I dismissed it. Nothing was changed.');
   });
@@ -357,6 +360,20 @@ describe('pending-proposal resolution (v4)', () => {
     const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING }), deps);
     expect(response.resolution).toBeUndefined();
     expect(response.actions).toHaveLength(1);
+  });
+
+  // "An unclear reply never executes anything": the model may still answer "yes but make it
+  // earlier" with resolve_pending(confirm). The server honours a resolution only for plain words.
+  it('blocks the resolution when the user qualified the answer, keeping the cards on screen', async () => {
+    for (const content of ['yes but make it earlier', 'Move my meeting to 11:00', 'sí pero más tarde']) {
+      const { deps } = setup(
+        result({ content: 'Confirming.', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"confirm"}' }] }),
+      );
+      const response = await handleAssistant(caller(), chatRequest({ pendingActions: PENDING, messages: [{ role: 'user', content }] }), deps);
+      expect(response.resolution).toBeUndefined();
+      expect(response.actions).toEqual([]);
+      expect(logger.info).toHaveBeenCalledWith('assistant.completed', expect.objectContaining({ resolutionBlocked: true }));
+    }
   });
 
   it('never returns a resolution to a request without pending proposals', async () => {
@@ -451,6 +468,32 @@ describe('dropped-proposal fallback', () => {
       expect(response.reply).not.toContain('confirm');
     });
 
+    // What the composer reads aloud must match the calendar: a cancelled meeting is not part of
+    // the day, and a repeating meeting's stored start is its FIRST occurrence, so only its time
+    // of day is said.
+    it('drops a cancelled meeting and says a repeating meeting as a time of day', async () => {
+      function withExtras(llmResult = result({ content: '', toolCalls: [] })) {
+        const built = setup(llmResult);
+        built.meetings
+          .add('gone', { title: 'Cancelled sync', startAt: '2026-09-29T09:00:00.000Z', status: 'cancelled' })
+          .add('standup', {
+            title: 'Standup', startAt: '2026-09-01T07:00:00.000Z',
+            recurrence: { freq: 'weekly', interval: 1, byWeekday: ['MO', 'TU', 'WE', 'TH', 'FR'], byMonthDay: null, until: null, count: null },
+          });
+        return built;
+      }
+      const probe = withExtras();
+      await handleAssistant(caller(), chatRequest(), probe.deps);
+      const refs = [PRIVATE_TEXT, 'Cancelled sync', 'Standup'].map((title) => refOf(probe.llm, title));
+
+      const second = withExtras(result({ content: '', toolCalls: [listCall(refs)] }));
+      const response = await handleAssistant(caller(), chatRequest(), second.deps);
+      expect(response.reply).not.toContain('Cancelled sync');
+      expect(response.reply).not.toContain('2026-09-01');
+      // Madrid is UTC+2 in September: 07:00Z is 09:00 local.
+      expect(response.reply).toContain('Standup (09:00)');
+      expect(response.reply).toContain(PRIVATE_TEXT);
+    });
     it('says plainly that there is nothing when the list is empty', async () => {
       const { deps } = setup(result({ content: '', toolCalls: [listCall([])] }));
       const response = await handleAssistant(caller(), chatRequest(), deps);
@@ -571,6 +614,93 @@ describe('task tools (v5)', () => {
         meetingId: null,
         people: [{ name: 'Ana', email: null }],
       },
+    });
+  });
+
+  // "When a meeting moves, the assistant asks whether related task dates should move too": the
+  // question is appended by the server when the model moved the meeting and said nothing about
+  // the linked task, and left alone when the model handled it.
+  describe('a meeting move asks about its linked dated tasks', () => {
+    function moveCall(ref: string) {
+      return {
+        name: 'update_meeting',
+        arguments: JSON.stringify({
+          meeting_ref: ref,
+          changes: {
+            title: null, description: null, date: '2026-10-01', time: '11:00', all_day: null, timezone: null,
+            duration_minutes: null, location: null, clear_location: false, conference: null, clear_conference: false,
+            participants: null, preparation_tips: null, alert_minutes_before: null, reset_alert_times: false,
+          },
+          summary: 'Move the merger meeting to Oct 1 at 11:00.', confidence: 90,
+        }),
+      };
+    }
+    async function refForMerger() {
+      const probe = setup();
+      probe.deps.tasks = taskReader;
+      await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), probe.deps);
+      return refOf(probe.llm, PRIVATE_TEXT);
+    }
+
+    it('appends the question when the model forgot it', async () => {
+      const ref = await refForMerger();
+      const { deps } = setup(result({ content: 'Moving it to October 1 at 11:00.', toolCalls: [moveCall(ref)] }));
+      deps.tasks = taskReader;
+      const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+      expect(response.actions).toHaveLength(1);
+      expect(response.reply).toBe('Moving it to October 1 at 11:00. Should I move "Prepare the proposal" as well?');
+      expect(logger.info).toHaveBeenCalledWith('assistant.completed', expect.objectContaining({ moveQuestion: true }));
+    });
+
+    it('asks in Spanish for a Spanish request', async () => {
+      const ref = await refForMerger();
+      const { deps } = setup(result({ content: 'La muevo al 1 de octubre.', toolCalls: [moveCall(ref)] }));
+      deps.tasks = taskReader;
+      const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6, language: 'es' }), deps);
+      expect(response.reply).toBe('La muevo al 1 de octubre. ¿Muevo también "Prepare the proposal"?');
+    });
+
+    it('leaves the reply alone when the model already asked', async () => {
+      const ref = await refForMerger();
+      const { deps } = setup(result({ content: 'Moving it. Should I move Prepare the proposal too?', toolCalls: [moveCall(ref)] }));
+      deps.tasks = taskReader;
+      const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+      expect(response.reply).toBe('Moving it. Should I move Prepare the proposal too?');
+      expect(logger.info).toHaveBeenCalledWith('assistant.completed', expect.objectContaining({ moveQuestion: false }));
+    });
+  });
+
+  // 2026-10-21 device case: the model wrote update_meeting's arguments as JSON text and made no
+  // tool call. The server recovers the call and the user sees a card and a clean sentence.
+  describe('tool calls written as JSON text are recovered', () => {
+    it('maps the JSON object into the action and strips it from the reply', async () => {
+      const probe = setup();
+      probe.deps.tasks = taskReader;
+      await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), probe.deps);
+      const ref = refOf(probe.llm, PRIVATE_TEXT);
+      const json = JSON.stringify({
+        meeting_ref: ref,
+        changes: {
+          title: 'Nexa proposal call', description: null, date: null, time: null, all_day: null, timezone: null,
+          duration_minutes: null, location: null, clear_location: false, conference: null, clear_conference: false,
+          participants: null, preparation_tips: null, alert_minutes_before: null, reset_alert_times: false,
+        },
+        summary: 'Rename the call to Nexa proposal call.', confidence: 97,
+      });
+      const { deps } = setup(result({ content: `${json}\nI prepared the rename for you.`, toolCalls: [] }));
+      deps.tasks = taskReader;
+      const response = await handleAssistant(caller(), chatRequest({ contractVersion: 6 }), deps);
+      expect(response.actions).toHaveLength(1);
+      expect(response.actions[0]).toMatchObject({ type: 'update_meeting', changes: { title: 'Nexa proposal call' } });
+      expect(response.reply).toBe('I prepared the rename for you.');
+      expect(logger.info).toHaveBeenCalledWith('assistant.completed', expect.objectContaining({ recoveredToolCalls: 1, toolCalls: 0 }));
+    });
+
+    it('never shows raw JSON even when nothing can be recovered', async () => {
+      const { deps } = setup(result({ content: '{"hello":"world"} All set.', toolCalls: [] }));
+      const response = await handleAssistant(caller(), chatRequest(), deps);
+      expect(response.actions).toEqual([]);
+      expect(response.reply).toBe('All set.');
     });
   });
 
@@ -752,5 +882,153 @@ describe('admin stats hook (recordAiUsage)', () => {
     const recordAiUsage = jest.fn(async () => undefined);
     await expectAssistantError(handleAssistant(caller(), chatRequest(), { ...deps, recordAiUsage }), 'resource-exhausted', 'quota_exceeded');
     expect(recordAiUsage).not.toHaveBeenCalled();
+  });
+});
+
+describe('a list answer always carries the items, because the reply is what is read aloud', () => {
+  async function learnFirstMeeting() {
+    const probe = setup(result({ content: '', toolCalls: [] }));
+    await handleAssistant(caller(), chatRequest(), probe.deps);
+    const block = probe.llm.requests[0]!.messages[1]!.content;
+    const payload = JSON.parse(block.split('\n')[1]!) as { meetings: { ref: string; title: string }[] };
+    const first = payload.meetings[0];
+    if (!first) throw new Error('no meeting in the data block');
+    return first;
+  }
+
+  function listCall(refs: string[]) {
+    return { name: 'list_meetings', arguments: JSON.stringify({ meeting_refs: refs, summary: 'Your meetings.', confidence: 90 }) };
+  }
+
+  it('appends the items when the model only wrote a caption', async () => {
+    const meeting = await learnFirstMeeting();
+    const { deps } = setup(result({ content: 'Here is your day.', toolCalls: [listCall([meeting.ref])] }));
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.reply.startsWith('Here is your day. ')).toBe(true);
+    expect(response.reply).toContain(meeting.title);
+    expect(response.reply).toMatch(/\(\d{2}:\d{2}\)\.$/);
+  });
+
+  it('leaves the reply alone when the model already named an item', async () => {
+    const meeting = await learnFirstMeeting();
+    const content = 'You have ' + meeting.title + ' this afternoon.';
+    const { deps } = setup(result({ content, toolCalls: [listCall([meeting.ref])] }));
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.reply).toBe(content);
+  });
+
+  it('leaves the reply alone when the list is empty and the model said so', async () => {
+    const { deps } = setup(result({ content: 'Nothing on that day.', toolCalls: [listCall([])] }));
+    const response = await handleAssistant(caller(), chatRequest(), deps);
+    expect(response.reply).toBe('Nothing on that day.');
+  });
+});
+
+describe('debrief mode (v7)', () => {
+  const noTasks = { listRecent: async () => [] };
+  const transcript = [{ role: 'user' as const, content: 'Ana sends the revised budget by Friday and I call the supplier tomorrow' }];
+
+  function debriefRequest(overrides: Partial<AssistantRequest> = {}): AssistantRequest {
+    return chatRequest({ mode: 'debrief', followUpMeetingId: 'ended', contractVersion: 7, messages: transcript, ...overrides });
+  }
+
+  it('requires the task tools, sends the debrief rules and the transcript, and links every task to the meeting', async () => {
+    // First pass learns the ref of the ended meeting (refs are assigned per request).
+    const probe = setup();
+    probe.deps.tasks = noTasks;
+    await handleAssistant(caller(), debriefRequest(), probe.deps);
+    const ref = refOf(probe.llm, 'Retro');
+    const probeRequest = probe.llm.requests[0]!;
+    expect(probeRequest.toolChoice).toBe('required');
+    expect(probeRequest.tools.map((tool) => tool.function.name)).toEqual(expect.arrayContaining(['create_task']));
+    expect(probeRequest.messages[0]!.content).toContain('# Debrief mode');
+    expect(probeRequest.messages[0]!.content).toContain(`set meeting_ref to "${ref}"`);
+    expect(probeRequest.messages[2]).toEqual({ role: 'user', content: transcript[0]!.content });
+
+    const { deps } = setup(
+      result({
+        content: '',
+        toolCalls: [
+          {
+            name: 'create_task',
+            arguments: JSON.stringify({
+              title: 'Send the revised budget',
+              description: 'Agreed in the retro',
+              due_date: '2026-10-02',
+              due_time: null,
+              reminder_minutes_before: null,
+              meeting_ref: ref,
+              people: [{ name: 'Ana', email: null }],
+              summary: 'Ana sends the revised budget by Friday.',
+              confidence: 85,
+            }),
+          },
+          {
+            name: 'create_task',
+            arguments: JSON.stringify({
+              title: 'Call the supplier',
+              description: '',
+              due_date: '2026-09-29',
+              due_time: null,
+              reminder_minutes_before: null,
+              meeting_ref: ref,
+              people: [],
+              summary: 'Call the supplier tomorrow.',
+              confidence: 85,
+            }),
+          },
+          // Not allowed in a debrief: dropped, never a proposal.
+          { name: 'delete_meeting', arguments: JSON.stringify({ meeting_ref: ref, scope: 'series', summary: 'Delete', confidence: 90 }) },
+        ],
+      }),
+    );
+    deps.tasks = noTasks;
+    const response = await handleAssistant(caller(), debriefRequest(), deps);
+    expect(assistantResponseSchema.safeParse(response).success).toBe(true);
+    expect(response.actions.map((action) => action.type)).toEqual(['create_task', 'create_task']);
+    expect(response.actions[0]).toMatchObject({ type: 'create_task', task: { meetingId: 'ended', dueDate: '2026-10-02', people: [{ name: 'Ana', email: null }] } });
+    expect(response.actions[1]).toMatchObject({ type: 'create_task', task: { meetingId: 'ended', people: [] } });
+    expect(response.reply).toBe('I turned your debrief into the tasks below. Review them and confirm the ones you want to keep.');
+  });
+
+  it('says so when the transcript held nothing to do, in the reply language', async () => {
+    const { deps } = setup(result({ content: '', toolCalls: [] }));
+    deps.tasks = noTasks;
+    const response = await handleAssistant(caller(), debriefRequest({ language: 'es' }), deps);
+    expect(response.actions).toEqual([]);
+    expect(response.reply).toBe('No encontré nada que convertir en tarea en ese resumen. Dime quién se comprometió a qué y para cuándo.');
+  });
+
+  it('rejects a debrief without a transcript or without the meeting before counting quota', async () => {
+    const { deps, quota } = setup();
+    await expectAssistantError(handleAssistant(caller(), debriefRequest({ messages: [] }), deps), 'invalid-argument', 'invalid_request');
+    await expectAssistantError(handleAssistant(caller(), debriefRequest({ followUpMeetingId: null }), deps), 'invalid-argument', 'invalid_request');
+    expect(quota.transactions).toBe(0);
+  });
+});
+
+describe('clarification credits (allowances)', () => {
+  it('refunds a reply that only asks for details, twice in a row, then charges and tells the model to stop asking', async () => {
+    const asking = () => setup(result({ content: 'Who is the meeting with, and at what time?', toolCalls: [] }));
+    const first = asking();
+    const one = await handleAssistant(caller(), chatRequest(), first.deps);
+    expect(one.usage.used).toBe(0);
+    expect(first.quota.count('u1', DAY)).toBe(0);
+    expect(first.quota.root('u1')).toMatchObject({ introUsed: 0, clarifications: 1 });
+    expect(first.llm.requests[0]!.messages[0]!.content).not.toContain('Do not ask again');
+
+    // Two un-charged clarifications already: the third is charged and the prompt says so.
+    const third = asking();
+    third.quota.roots.set('u1', { introStartedAt: '2026-09-27T10:00:00.000Z', introUsed: 2, clarifications: 2 });
+    const response = await handleAssistant(caller(), chatRequest(), third.deps);
+    expect(response.usage.used).toBe(3);
+    expect(third.quota.root('u1')).toMatchObject({ introUsed: 3, clarifications: 3 });
+    expect(third.llm.requests[0]!.messages[0]!.content).toContain('Do not ask again');
+
+    // A real answer keeps its charge and resets the run.
+    const answer = setup(result({ content: 'You have one meeting today, the merger review at 10:00.', toolCalls: [] }));
+    answer.quota.roots.set('u1', { introStartedAt: '2026-09-27T10:00:00.000Z', introUsed: 1, clarifications: 2 });
+    await handleAssistant(caller(), chatRequest(), answer.deps);
+    expect(answer.quota.root('u1')).toMatchObject({ introUsed: 2, clarifications: 0 });
   });
 });

@@ -1,5 +1,5 @@
 /**
- * Subset of the Google Calendar API v3 Event resource used by MeetingGuard.
+ * Subset of the Google Calendar API v3 Event resource used by Meeting Guard.
  * https://developers.google.com/calendar/api/v3/reference/events
  */
 

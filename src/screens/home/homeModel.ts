@@ -1,10 +1,13 @@
 /**
  * PURE dashboard model (no React, no i18n): greeting period, the meeting happening now and the
- * next one, the live countdown, and today's timeline with conflicts. Conflict rules are shared
- * with the insights screen (../insights/meetingInsights).
+ * next one, the live countdown, today's timeline with conflicts, the elapsed share of a running
+ * meeting, participant initials and the week chart's bars. Conflict rules are shared with the
+ * insights screen (../insights/meetingInsights).
  */
-import type { Meeting } from '../../core/types';
+import type { MiniBar } from '../../components/ui/MiniBars';
+import type { Meeting, Participant } from '../../core/types';
 import {
+  barFraction,
   endMs,
   findBackToBack,
   findOverlaps,
@@ -13,6 +16,7 @@ import {
   meetingsOnDays,
   startMs,
   todayOf,
+  type DayLoad,
   type InsightContext,
 } from '../insights/meetingInsights';
 
@@ -62,6 +66,29 @@ export function findNowAndNext(meetings: readonly Meeting[], now: Date): NowAndN
     }
   }
   return { current, next };
+}
+
+/**
+ * The first all-day meeting after today (device zone) that comes no later than the next timed
+ * meeting: a birthday or holiday the timed "next" skips. Today's all-day items are already in the
+ * timeline. Client feedback, Oct 28 2026.
+ */
+export function findNextAllDay(meetings: readonly Meeting[], context: InsightContext, next: Meeting | null): Meeting | null {
+  const today = todayOf(context);
+  const limit = next ? (meetingDates(next, context.timeZone)[0] ?? null) : null;
+  let best: Meeting | null = null;
+  let bestDate = '';
+  for (const meeting of meetings) {
+    if (!meeting.allDay || !isCountable(meeting)) continue;
+    const first = meetingDates(meeting, context.timeZone)[0];
+    if (first === undefined || first <= today) continue;
+    if (limit !== null && first > limit) continue;
+    if (best === null || first < bestDate || (first === bestDate && meeting.title.localeCompare(best.title) < 0)) {
+      best = meeting;
+      bestDate = first;
+    }
+  }
+  return best;
 }
 
 export interface CountdownParts {
@@ -162,4 +189,49 @@ export function buildTodayTimeline(meetings: readonly Meeting[], context: Insigh
     if (a.meeting.allDay !== b.meeting.allDay) return a.meeting.allDay ? -1 : 1;
     return startMs(a.meeting) - startMs(b.meeting) || a.meeting.title.localeCompare(b.meeting.title);
   });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Next-meeting card and week card helpers
+// ---------------------------------------------------------------------------------------------
+
+/** Elapsed share of a meeting (0..1) at `now`; null outside its window or without a duration. */
+export function elapsedFraction(meeting: Pick<Meeting, 'startAt' | 'durationMinutes'>, now: Date): number | null {
+  const start = startMs(meeting);
+  const end = endMs(meeting);
+  if (!(end > start)) return null;
+  const nowMs = now.getTime();
+  if (nowMs < start || nowMs > end) return null;
+  return (nowMs - start) / (end - start);
+}
+
+/** Initial for a participant face: name first, then the email; "?" when both are blank. */
+export function participantInitial(participant: Pick<Participant, 'name' | 'email'>): string {
+  const source = participant.name?.trim() || participant.email.trim();
+  return source.charAt(0).toUpperCase() || '?';
+}
+
+/** One-letter weekday for a local date, in `locale` ("M", "T" / "L", "M"); falls back to the day of month. */
+export function weekdayInitial(date: string, locale: string): string {
+  try {
+    return new Intl.DateTimeFormat(locale, { weekday: 'narrow', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`)).toUpperCase();
+  } catch {
+    return date.slice(8);
+  }
+}
+
+/** Chart bars for the week: fraction of the busiest day, weekday initial, today highlighted. */
+export function weekBars(days: readonly DayLoad[], todayDate: string, locale: string): MiniBar[] {
+  return days.map((day) => ({
+    key: day.key,
+    fraction: barFraction(day, days),
+    label: weekdayInitial(day.date ?? day.key, locale),
+    highlighted: day.date === todayDate,
+  }));
+}
+
+/** Change of a weekly figure against last week in whole percent; null when last week had none. */
+export function weekDelta(current: number, last: number): number | null {
+  if (!(last > 0)) return null;
+  return Math.round(((current - last) / last) * 100);
 }

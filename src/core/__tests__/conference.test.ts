@@ -26,6 +26,22 @@ describe('conferenceCapability', () => {
     });
   });
 
+  it('teams is not_offered when the connected account cannot get Teams links (teamsLinks false)', () => {
+    expect(conferenceCapability('teams', calendar({ outlook: { configured: true, connected: true, teamsLinks: false } }))).toEqual({
+      mode: 'auto_outlook',
+      autoState: 'not_offered',
+    });
+    // Unknown yet (null) or known good: ready. Disconnected: needs_connection regardless.
+    expect(conferenceCapability('teams', calendar({ outlook: { configured: true, connected: true, teamsLinks: null } }))).toEqual({
+      mode: 'auto_outlook',
+      autoState: 'ready',
+    });
+    expect(conferenceCapability('teams', calendar({ outlook: { configured: true, connected: false, teamsLinks: false } }))).toEqual({
+      mode: 'auto_outlook',
+      autoState: 'needs_connection',
+    });
+  });
+
   it('teams is paste-only while Outlook is hidden or unconfigured', () => {
     expect(conferenceCapability('teams', calendar())).toEqual({ mode: 'paste', autoState: null });
     expect(conferenceCapability('teams', calendar({ outlook: { configured: false, connected: false } }))).toEqual({
@@ -73,8 +89,8 @@ describe('conferenceCapability', () => {
   it('an auto mode the push engines cannot reach for the target meeting degrades to paste', () => {
     const both = calendar({ google: { connected: true }, outlook: { configured: true, connected: true } });
     const paste = { mode: 'paste', autoState: null };
-    // Outlook push: never for recurring meetings (§17) nor google/device imports.
-    expect(conferenceCapability('teams', both, { source: 'manual', recurring: true })).toEqual(paste);
+    // Outlook push: never for google/device imports; series are pushed since M6, link included.
+    expect(conferenceCapability('teams', both, { source: 'manual', recurring: true })).toEqual({ mode: 'auto_outlook', autoState: 'ready' });
     expect(conferenceCapability('teams', both, { source: 'google', recurring: false })).toEqual(paste);
     expect(conferenceCapability('teams', both, { source: 'device', recurring: false })).toEqual(paste);
     expect(conferenceCapability('teams', both, { source: 'manual', recurring: false })).toEqual({

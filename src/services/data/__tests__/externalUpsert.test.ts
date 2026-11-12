@@ -43,7 +43,7 @@ describe('planExternalUpserts', () => {
     expect(second.result).toMatchObject({ created: 0, unchanged: 1 });
   });
 
-  it('applies provider changes but keeps MeetingGuard-only fields', () => {
+  it('applies provider changes but keeps Meeting Guard-only fields', () => {
     const base = planExternalUpserts([googleItem()], new Map(), ctx).writes[0]!.meeting;
     const enriched: Meeting = { ...base, customAlertTimes: [30, 10], preparationTips: ['Bring numbers'], confidence: 90 };
     const plan = planExternalUpserts(
@@ -62,7 +62,7 @@ describe('planExternalUpserts', () => {
     });
   });
 
-  it('applies a Google change even when the local copy was touched later (MeetingGuard-only edit)', () => {
+  it('applies a Google change even when the local copy was touched later (Meeting Guard-only edit)', () => {
     const base = planExternalUpserts([googleItem()], new Map(), ctx).writes[0]!.meeting;
     // Local updatedAt moved after the Google edit (e.g. alert times changed in the app).
     const touched: Meeting = { ...base, customAlertTimes: [30], updatedAt: '2026-10-01T12:00:00.000Z' };
@@ -117,7 +117,7 @@ describe('planExternalUpserts', () => {
     expect(newer.writes[0]?.meeting.deletedAt).toBeNull();
   });
 
-  it('matches MeetingGuard-created Google events back to their meeting (no duplicate)', () => {
+  it('matches Meeting Guard-created Google events back to their meeting (no duplicate)', () => {
     const own = buildMeeting(
       { title: 'Planning', startAt: '2026-10-06T09:00:00.000Z', source: 'manual' },
       { id: 'meet1', userId: 'u1', now, defaultTimezone: 'Europe/Madrid', defaultLanguage: 'en' },

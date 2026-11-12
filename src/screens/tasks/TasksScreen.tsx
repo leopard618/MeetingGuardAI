@@ -12,24 +12,26 @@
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import { Alert, Animated, FlatList, ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Chip, FAB, Searchbar, Text, useTheme as usePaperTheme } from 'react-native-paper';
+import { ActivityIndicator, Chip, Searchbar, Text, useTheme as usePaperTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { Banner, EmptyState, MGButton } from '../../components/ui';
+import { Banner, EmptyState, GradientFab, MGButton } from '../../components/ui';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { getDeviceTimeZone } from '../../core/time';
 import type { Meeting, Task } from '../../core/types';
 import { useT } from '../../i18n';
+import { googleTasksSyncService, todoSyncService, useCalendarStatus } from '../../services/calendar';
 import { useMeetings, useSyncState, useTasks } from '../../services/data';
 import { componentMetrics, spacing } from '../../theme';
 import { FAB_SLIDE_DP, useHideOnScroll } from '../meetings/list/useHideOnScroll';
 import { useFormatters } from '../shared/useFormatters';
 import { useLiveNow } from '../shared/useLiveNow';
 import { TaskCard } from './TaskCard';
-import { TaskEditor } from './TaskEditor';
+import { TaskEditor, type TaskEditorListSync } from './TaskEditor';
+import { useTasksRefresh } from './useTasksRefresh';
 import {
   TASK_FILTERS,
   countByFilter,
@@ -68,6 +70,7 @@ export function TasksScreen({ navigation }: Props): ReactElement {
   const { tasks, isLoading, error, create, update, remove } = useTasks();
   const { meetings, isLoading: meetingsLoading } = useMeetings();
   const sync = useSyncState();
+  const { refreshing, onRefresh } = useTasksRefresh();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<TaskFilter>('open');
   const [editor, setEditor] = useState<EditorState>(null);
@@ -151,6 +154,31 @@ export function TasksScreen({ navigation }: Props): ReactElement {
       }
     },
     [update, showError, t],
+  );
+
+  // Microsoft To Do (M7) and Google Tasks (M8): the editor shows the target list while a sync is on.
+  const calendarStatus = useCalendarStatus();
+  const todoStatus = calendarStatus.todo;
+  const todoEnabled = todoStatus?.enabled === true;
+  const todoListId = todoStatus?.listId ?? null;
+  const todoListName = todoStatus?.listName ?? '';
+  const todo = useMemo<TaskEditorListSync | null>(
+    () =>
+      todoEnabled
+        ? { defaultList: todoListId !== null ? { id: todoListId, name: todoListName } : null, listLists: () => todoSyncService.listLists() }
+        : null,
+    [todoEnabled, todoListId, todoListName],
+  );
+  const gtasksStatus = calendarStatus.gtasks;
+  const gtasksEnabled = gtasksStatus?.enabled === true;
+  const gtasksListId = gtasksStatus?.listId ?? null;
+  const gtasksListName = gtasksStatus?.listName ?? '';
+  const gtasks = useMemo<TaskEditorListSync | null>(
+    () =>
+      gtasksEnabled
+        ? { defaultList: gtasksListId !== null ? { id: gtasksListId, name: gtasksListName } : null, listLists: () => googleTasksSyncService.listLists() }
+        : null,
+    [gtasksEnabled, gtasksListId, gtasksListName],
   );
 
   const openTask = useCallback((task: Task) => openEditor({ mode: 'edit', task }), [openEditor]);
@@ -318,6 +346,8 @@ export function TasksScreen({ navigation }: Props): ReactElement {
         keyboardDismissMode="on-drag"
         onScroll={fab.onScroll}
         scrollEventThrottle={16}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         testID="tasks-list"
       />
 
@@ -334,12 +364,14 @@ export function TasksScreen({ navigation }: Props): ReactElement {
           },
         ]}
       >
-        <FAB icon="plus" label={t('tasks:add')} accessibilityLabel={t('tasks:addA11y')} onPress={() => openEditor({ mode: 'create' })} testID="tasks-add" />
+        <GradientFab icon="plus" label={t('tasks:add')} accessibilityLabel={t('tasks:addA11y')} onPress={() => openEditor({ mode: 'create' })} testID="tasks-add" />
       </Animated.View>
 
       {editor ? (
         <TaskEditor
           task={editor.mode === 'edit' ? editor.task : null}
+          todo={todo}
+          gtasks={gtasks}
           meetings={meetings}
           meetingsById={meetingsById}
           fmt={fmt}

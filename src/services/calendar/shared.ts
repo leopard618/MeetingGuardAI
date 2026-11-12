@@ -22,7 +22,7 @@ export const PARTICIPANT_NAME_MAX = 200;
 export const DURATION_MAX_MINUTES = 20_160;
 export const MINUTES_PER_DAY = 1440;
 
-/** Sources that MeetingGuard owns (pushed to Google, exported to the device calendar). */
+/** Sources that Meeting Guard owns (pushed to Google, exported to the device calendar). */
 export const OWN_MEETING_SOURCES: readonly MeetingSource[] = ['manual', 'ai_chat', 'whatsapp'];
 
 export function isOwnMeeting(meeting: Pick<Meeting, 'source'>): boolean {
@@ -180,7 +180,7 @@ export function stableHash(value: unknown): string {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-/** The meeting fields that external calendars show (MeetingGuard-only fields excluded). */
+/** The meeting fields that external calendars show (Meeting Guard-only fields excluded). */
 export interface ExternalVisibleFields {
   title: string;
   description?: string;

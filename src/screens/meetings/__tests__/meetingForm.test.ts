@@ -14,6 +14,7 @@ import {
   draftFromMeeting,
   draftToCreateInput,
   draftToPatch,
+  invitesHintKey,
   isMeetingDraftDirty,
   monthlyRepeatDay,
   newMeetingDraft,
@@ -413,10 +414,9 @@ describe('video call (§22)', () => {
   });
 
   it('never promises an auto link the sync cannot create (push-target degrade, §17/§22)', () => {
-    // Teams + recurrence: recurring meetings are never pushed to Graph.
-    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', repeat: 'weekly' }), OUTLOOK_CONNECTED)).toBe('pasteLinkHint');
-    // ... and no "connect Outlook" CTA either: connecting would not help a recurring meeting.
-    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', repeat: 'daily' }), OUTLOOK_CONFIGURED)).toBe('pasteLinkHint');
+    // Teams + recurrence: series are pushed to Graph since M6, the link comes with the series.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', repeat: 'weekly' }), OUTLOOK_CONNECTED)).toBe('teamsWillBeCreated');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams', repeat: 'daily' }), OUTLOOK_CONFIGURED)).toBe('teamsNeedsOutlook');
     // Meet + recurrence keeps its promise: Google pushes recurring masters (insert AND patch).
     expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet', repeat: 'weekly' }), GOOGLE)).toBe('meetWillBeCreated');
     // Editing an imported meeting: Outlook never pushes google/device meetings, Google never
@@ -429,21 +429,21 @@ describe('video call (§22)', () => {
     expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'google')).toBe('meetWillBeCreated');
   });
 
-  it('form hint and link label degrade for a meeting already pushed to Outlook (create-only, §17)', () => {
+  it('keeps the Teams promise for a meeting already in Outlook (the update asks again, §17) and drops it when the account offers none', () => {
     const pushed = { outlookEventId: 'AAMk1' };
     const fresh = { outlookEventId: null };
-    // Connected: the "will be created" promise would be false the moment it is shown.
-    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', pushed)).toBe('pasteLinkHint');
-    // Configured but disconnected: connecting would not produce a link either - no CTA.
-    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONFIGURED, 'manual', pushed)).toBe('pasteLinkHint');
-    // Not pushed yet (or no refs passed): unchanged.
+    const NOT_OFFERED: ConferenceCalendarState = { google: { connected: false }, outlook: { configured: true, connected: true, teamsLinks: false } };
+    // Already pushed: the PATCH carries the online-meeting fields, same promise as a new meeting.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', pushed)).toBe('teamsWillBeCreated');
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONFIGURED, 'manual', pushed)).toBe('teamsNeedsOutlook');
     expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', fresh)).toBe('teamsWillBeCreated');
     expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', null)).toBe('teamsWillBeCreated');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', pushed)).toBe('linkOptional');
+    // The account's calendar allows no online-meeting provider: no promise, paste is the way.
+    expect(conferenceFormHint(draft({ conferenceProvider: 'teams' }), NOT_OFFERED, 'manual', fresh)).toBe('teamsNotOffered');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams' }), NOT_OFFERED, 'manual', fresh)).toBe('link');
     // Google Meet ignores the Outlook refs (insert AND patch both create the link).
     expect(conferenceFormHint(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'manual', pushed)).toBe('meetWillBeCreated');
-    // The link is not "optional" when pasting is the only way to get one.
-    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', pushed)).toBe('link');
-    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams' }), OUTLOOK_CONNECTED, 'manual', fresh)).toBe('linkOptional');
     expect(conferenceLinkLabel(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'manual', pushed)).toBe('linkOptional');
   });
 
@@ -470,7 +470,7 @@ describe('video call (§22)', () => {
     expect(conferenceLinkLabel(draft({ conferenceProvider: 'zoom' }), OUTLOOK_CONNECTED)).toBe('link');
     expect(conferenceLinkLabel(draft({ conferenceProvider: 'other' }), GOOGLE)).toBe('link');
     // Degraded auto modes are plain paste: the link is the only way to get one.
-    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams', repeat: 'weekly' }), OUTLOOK_CONNECTED)).toBe('link');
+    expect(conferenceLinkLabel(draft({ conferenceProvider: 'teams', repeat: 'weekly' }), OUTLOOK_CONNECTED)).toBe('linkOptional');
     expect(conferenceLinkLabel(draft({ conferenceProvider: 'google_meet', repeat: 'weekly' }), GOOGLE)).toBe('linkOptional');
     expect(conferenceLinkLabel(draft({ conferenceProvider: 'google_meet' }), GOOGLE, 'device')).toBe('link');
   });
@@ -507,17 +507,24 @@ describe('video call (§22)', () => {
     expect(conferenceCardState(withProvider('teams'), OUTLOOK_OFF)).toEqual({ kind: 'info', key: 'noLink', connect: null });
     expect(conferenceCardState(withProvider('teams'), OUTLOOK_CONFIGURED)).toEqual({ kind: 'info', key: 'teamsNeedsOutlook', connect: 'outlook' });
     expect(conferenceCardState(withProvider('teams'), OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'teamsPending', connect: null });
+    // Already in Outlook without a link: Graph attached none; the card offers paste, no promise.
+    const pushedTeams = { ...withProvider('teams'), external: { ...withProvider('teams').external, outlookEventId: 'AAMk1' } };
+    expect(conferenceCardState(pushedTeams, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'teamsLinkMissing', connect: null });
+    // The account cannot get Teams links at all: said plainly, pushed or not, no connect CTA.
+    const NOT_OFFERED: ConferenceCalendarState = { google: { connected: false }, outlook: { configured: true, connected: true, teamsLinks: false } };
+    expect(conferenceCardState(withProvider('teams'), NOT_OFFERED)).toEqual({ kind: 'info', key: 'teamsNotOffered', connect: null });
+    expect(conferenceCardState(pushedTeams, NOT_OFFERED)).toEqual({ kind: 'info', key: 'teamsNotOffered', connect: null });
   });
 
-  it('details card: a meeting already pushed to Outlook without a link never gets one (create-only, §17)', () => {
+  it('details card: a meeting already in Outlook without a link says Outlook attached none (the update asks again, §17)', () => {
     const pushed = meeting({
       source: 'manual',
       conference: { provider: 'teams', url: null, password: null },
       external: { outlookEventId: 'AAMk1', outlookCalendarId: 'cal1' },
     });
-    expect(conferenceCardState(pushed, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'teamsLinkTooLate', connect: null });
-    // Disconnected too: a "Connect Outlook" CTA could not produce a link for this meeting.
-    expect(conferenceCardState(pushed, OUTLOOK_CONFIGURED)).toEqual({ kind: 'info', key: 'teamsLinkTooLate', connect: null });
+    expect(conferenceCardState(pushed, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'teamsLinkMissing', connect: null });
+    // Disconnected: connecting again lets the next update ask for the link, so the CTA stays.
+    expect(conferenceCardState(pushed, OUTLOOK_CONFIGURED)).toEqual({ kind: 'info', key: 'teamsNeedsOutlook', connect: 'outlook' });
     // Once Outlook writes the Teams link back, the card joins like any other.
     const linked = meeting({
       source: 'manual',
@@ -535,10 +542,10 @@ describe('video call (§22)', () => {
 
   it('details card: never promises a link the sync cannot create (push-target degrade, §17/§22)', () => {
     const weekly: RecurrenceRule = { freq: 'weekly', interval: 1, byWeekday: ['TU'], byMonthDay: null, until: null, count: null };
-    // Teams + recurrence: no promise, no CTA - the plain paste copy.
+    // Teams + recurrence: the series is pushed with its link (M6), same promise as a one-off.
     const recurringTeams = meeting({ source: 'manual', recurrence: weekly, conference: { provider: 'teams', url: null, password: null } });
-    expect(conferenceCardState(recurringTeams, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'noLink', connect: null });
-    expect(conferenceCardState(recurringTeams, OUTLOOK_CONFIGURED)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+    expect(conferenceCardState(recurringTeams, OUTLOOK_CONNECTED)).toEqual({ kind: 'info', key: 'teamsPending', connect: null });
+    expect(conferenceCardState(recurringTeams, OUTLOOK_CONFIGURED)).toEqual({ kind: 'info', key: 'teamsNeedsOutlook', connect: 'outlook' });
     // Meet + recurrence still syncs (Google pushes recurring masters).
     const recurringMeet = meeting({ source: 'manual', recurrence: weekly, conference: { provider: 'google_meet', url: null, password: null } });
     expect(conferenceCardState(recurringMeet, GOOGLE)).toEqual({ kind: 'info', key: 'meetPending', connect: null });
@@ -549,5 +556,31 @@ describe('video call (§22)', () => {
     expect(conferenceCardState(outlookMeet, GOOGLE)).toEqual({ kind: 'info', key: 'noLink', connect: null });
     const deviceMeet = meeting({ source: 'device', conference: { provider: 'google_meet', url: null, password: null } });
     expect(conferenceCardState(deviceMeet, GOOGLE)).toEqual({ kind: 'info', key: 'noLink', connect: null });
+  });
+});
+
+describe('invitation hint under the participants', () => {
+  const OUTLOOK_ON = { configured: true, connected: true };
+  const OUTLOOK_OFF = { configured: true, connected: false };
+
+  it('names the calendars that email the invitations of a new meeting', () => {
+    expect(invitesHintKey(true, undefined)).toBe('invitesByGoogle');
+    expect(invitesHintKey(true, OUTLOOK_OFF)).toBe('invitesByGoogle');
+    expect(invitesHintKey(false, OUTLOOK_ON)).toBe('invitesByOutlook');
+    expect(invitesHintKey(true, OUTLOOK_ON)).toBe('invitesByBoth');
+    expect(invitesHintKey(false, OUTLOOK_ON, 'ai_chat')).toBe('invitesByOutlook');
+  });
+
+  it('asks to connect a calendar when none sends them', () => {
+    expect(invitesHintKey(false, undefined)).toBe('invitesNeedCalendar');
+    expect(invitesHintKey(false, { configured: false, connected: false })).toBe('invitesNeedCalendar');
+    expect(invitesHintKey(false, OUTLOOK_OFF)).toBe('invitesNeedCalendars');
+  });
+
+  it('only promises the calendar an imported meeting is pushed to', () => {
+    expect(invitesHintKey(true, OUTLOOK_ON, 'google')).toBe('invitesByGoogle');
+    expect(invitesHintKey(true, OUTLOOK_ON, 'outlook')).toBe('invitesByOutlook');
+    expect(invitesHintKey(true, OUTLOOK_ON, 'device')).toBe('invitesSavedOnly');
+    expect(invitesHintKey(false, OUTLOOK_ON, 'google')).toBe('invitesNeedCalendar');
   });
 });

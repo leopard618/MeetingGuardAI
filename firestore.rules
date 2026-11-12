@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// MeetingGuard AI - Firestore security rules.
+// Meeting Guard AI - Firestore security rules.
 //
 // Layout (see docs/ARCHITECTURE.md §4 and src/core/identifiers.ts):
 //   users/{uid}                        profile            owner read/write, no server-owned keys
@@ -203,7 +203,7 @@ service cloud.firestore {
                                'source', 'confidence', 'language', 'preparationTips',
                                'customAlertTimes', 'alertIntensity', 'notes', 'status', 'external',
                                'recurrence', 'recurrenceOverrides', 'seriesId',
-                               'createdAt', 'updatedAt', 'deletedAt'])
+                               'createdAt', 'updatedAt', 'deletedAt', 'pushPending'])
         && d.keys().hasAll(['userId', 'title', 'startAt', 'durationMinutes', 'timezone', 'source',
                             'status', 'createdAt', 'updatedAt'])
         && d.userId == uid
@@ -238,7 +238,10 @@ service cloud.firestore {
         && (d.get('seriesId', null) == null || isDocId(d.seriesId))
         && isUtcIso(d.createdAt)
         && isUtcIso(d.updatedAt)
-        && isNullableUtcIso(d.get('deletedAt', null));
+        && isNullableUtcIso(d.get('deletedAt', null))
+        // Set by a client that cannot reach the calendar providers (the website); the app pushes
+        // the meeting and its write-back drops the flag (docs/v1/ARCHITECTURE.md section 32).
+        && d.get('pushPending', false) is bool;
     }
 
     // ------------------------------------------------------------------ notes
@@ -259,10 +262,22 @@ service cloud.firestore {
 
     // ------------------------------------------------------------------ tasks
 
+    // Links to the task's copies in Microsoft To Do (M7) and Google Tasks (M8); all null until synced.
+    function isValidTaskExternal(e) {
+      return e.keys().hasOnly(['todoListId', 'todoTaskId', 'todoUpdatedAt', 'gtasksListId', 'gtasksTaskId', 'gtasksUpdatedAt'])
+        && isNullableStringMax(e.get('todoListId', null), 512)
+        && isNullableStringMax(e.get('todoTaskId', null), 512)
+        && isNullableUtcIso(e.get('todoUpdatedAt', null))
+        && isNullableStringMax(e.get('gtasksListId', null), 512)
+        && isNullableStringMax(e.get('gtasksTaskId', null), 512)
+        && isNullableUtcIso(e.get('gtasksUpdatedAt', null));
+    }
+
     function isValidTask(uid, d) {
       return d.keys().hasOnly(['userId', 'title', 'description', 'dueDate', 'dueTime', 'timezone',
                                'reminderMinutesBefore', 'status', 'meetingId', 'people',
-                               'completedAt', 'createdAt', 'updatedAt'])
+                               'completedAt', 'source', 'external', 'createdAt', 'updatedAt',
+                               'pushPending'])
         && d.keys().hasAll(['userId', 'title', 'timezone', 'status', 'createdAt', 'updatedAt'])
         && d.userId == uid
         && isNonEmptyStringMax(d.title, 200)
@@ -280,24 +295,31 @@ service cloud.firestore {
         && isListMax(d.get('people', []), 20)
         && ((d.status == 'done') == (d.get('completedAt', null) != null))
         && isNullableUtcIso(d.get('completedAt', null))
+        && d.get('source', 'manual') in ['manual', 'ai_chat', 'whatsapp', 'todo', 'gtasks']
+        && (!('external' in d) || isValidTaskExternal(d.external))
         && isUtcIso(d.createdAt)
-        && isUtcIso(d.updatedAt);
+        && isUtcIso(d.updatedAt)
+        // Set by a client that cannot reach To Do or Google Tasks (the website); the app pushes
+        // the task and its write-back drops the flag (docs/v1/ARCHITECTURE.md section 32).
+        && d.get('pushPending', false) is bool;
     }
 
     // ------------------------------------------------------------------ preferences
 
     function isValidPreferences(d) {
-      return d.keys().hasOnly(['language', 'timezone', 'alertEnabled', 'alertIntensity', 'alertSoundType',
+      return d.keys().hasOnly(['language', 'timezone', 'alertEnabled', 'alertIntensity', 'importedAlertIntensity', 'alertSoundType',
                                'alertVolume', 'vibrationEnabled', 'defaultAlertTimes', 'snoozeMinutes',
                                'followUpEnabled', 'briefingEnabled', 'briefingTime',
-                               'statusNotificationEnabled',
+                               'statusNotificationEnabled', 'briefingFullScreen',
                                'use24HourClock', 'onboardingCompleted',
                                'googleCalendarSyncEnabled', 'deviceCalendarImportIds',
-                               'deviceCalendarExportId', 'updatedAt'])
+                               'deviceCalendarExportId', 'todoListId', 'todoListName',
+                               'gtasksListId', 'gtasksListName', 'updatedAt'])
         && isLanguage(d.get('language', 'en'))
         && (d.get('timezone', null) == null || isTimeZone(d.timezone))
         && d.get('alertEnabled', true) is bool
         && d.get('alertIntensity', 'max') in ['max', 'medium', 'light']
+        && (d.get('importedAlertIntensity', null) == null || d.importedAlertIntensity in ['max', 'medium', 'light'])
         && d.get('alertSoundType', 'voice_and_sound') in ['voice_and_sound', 'voice_only', 'sound_only']
         && (d.get('alertVolume', null) == null
             || (d.alertVolume is number && d.alertVolume >= 0 && d.alertVolume <= 1))
@@ -307,6 +329,7 @@ service cloud.firestore {
         && d.get('followUpEnabled', true) is bool
         && d.get('briefingEnabled', false) is bool
         && d.get('statusNotificationEnabled', false) is bool
+        && d.get('briefingFullScreen', false) is bool
         && (d.get('briefingTime', null) == null
             || (d.briefingTime is string && d.briefingTime.matches('([01][0-9]|2[0-3]):[0-5][0-9]')))
         && (d.get('use24HourClock', null) == null || d.use24HourClock is bool)
@@ -314,6 +337,10 @@ service cloud.firestore {
         && d.get('googleCalendarSyncEnabled', false) is bool
         && isStringListMax(d.get('deviceCalendarImportIds', []), 50, 25600)
         && isNullableStringMax(d.get('deviceCalendarExportId', null), 512)
+        && isNullableStringMax(d.get('todoListId', null), 512)
+        && isNullableStringMax(d.get('todoListName', null), 256)
+        && isNullableStringMax(d.get('gtasksListId', null), 512)
+        && isNullableStringMax(d.get('gtasksListName', null), 256)
         && isNullableUtcIso(d.get('updatedAt', null));
     }
 
@@ -363,7 +390,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Assistant quota counters: written only by the assistant callable.
+    // Assistant allowance counters: written only by the assistant callable. The root document
+    // holds the introductory window, the paid cycle and the clarification run (section 35).
+    match /usage/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
     match /usage/{uid}/days/{day} {
       allow read: if isOwner(uid);
       allow write: if false;
@@ -376,6 +408,13 @@ service cloud.firestore {
     // goes through adminGetStats). The recursive wildcard covers the shard subcollection.
     // Explicit so the catch-all below is not load-bearing.
     match /adminStats/{document=**} {
+      allow read, write: if false;
+    }
+
+    // adminAudit/{autoId}: one document per administrative write (who, what, before, after,
+    // outcome; functions/src/admin/audit.ts). Written by the admin callables with the Admin SDK
+    // and read only through a callable: clients get NOTHING here, admins included.
+    match /adminAudit/{entryId} {
       allow read, write: if false;
     }
 
@@ -398,6 +437,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /whatsappUsers/{uid} {
+      allow read, write: if false;
+    }
+    // Sign in with Microsoft identities (microsoftSignIn callable, ARCHITECTURE section 31): server only.
+    match /microsoftIdentities/{oid} {
       allow read, write: if false;
     }
     match /whatsappLinkCodes/{codeHash} {

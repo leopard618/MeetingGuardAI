@@ -36,6 +36,9 @@ import {
 } from '../openaiKey';
 import { planSchema, usageDayKey, type Plan } from '../shared/aiContract';
 import { resolveEffectivePlan } from '../shared/entitlement';
+import { ENTITLEMENTS_COLLECTION, REVENUECAT_EVENTS_COLLECTION } from '../revenuecat';
+import { entitlementSummary, firestoreAuditWriter, type AuditWriter } from './audit';
+import { computeRevenue } from './revenue';
 import {
   adminStatsAiDayPath,
   adminStatsDayDocSchema,
@@ -43,6 +46,8 @@ import {
   getHealthResponseSchema,
   getMetricsRequestSchema,
   getMetricsResponseSchema,
+  getRevenueRequestSchema,
+  getRevenueResponseSchema,
   getStatsRequestSchema,
   getStatsResponseSchema,
   listUsersRequestSchema,
@@ -52,6 +57,7 @@ import {
   setUserDisabledRequestSchema,
   setUserPlanRequestSchema,
   type GetHealthResponse,
+  type GetRevenueResponse,
   type GetStatsResponse,
   type ListUsersResponse,
   type GetMetricsResponse,
@@ -66,14 +72,27 @@ import {
 
 export interface AdminCaller {
   uid: string;
-  /** request.auth.token.admin === true (custom claim inside the ID token). */
+  /** request.auth.token.admin === true (custom claim inside the ID token): may read AND write. */
   isAdmin: boolean;
+  /**
+   * request.auth.token.adminRole === 'viewer' (custom claim): may READ every dashboard view,
+   * never write. Admins are viewers too. Granted with set-admin-claim.mjs --role viewer.
+   */
+  isViewer?: boolean;
 }
 
-/** unauthenticated without auth; permission-denied without the admin claim. */
+/** unauthenticated without auth; permission-denied without the admin claim. Every WRITE uses this. */
 export function requireAdmin(caller: AdminCaller | null): asserts caller is AdminCaller {
   if (!caller) throw new HttpsError('unauthenticated', 'Sign in to use the admin API.');
   if (!caller.isAdmin) throw new HttpsError('permission-denied', 'This account is not an administrator.');
+}
+
+/** unauthenticated without auth; permission-denied without the admin OR viewer claim. READS use this. */
+export function requireViewer(caller: AdminCaller | null): asserts caller is AdminCaller {
+  if (!caller) throw new HttpsError('unauthenticated', 'Sign in to use the admin API.');
+  if (!caller.isAdmin && caller.isViewer !== true) {
+    throw new HttpsError('permission-denied', 'This account has no admin access.');
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -119,6 +138,8 @@ export interface AdminPorts {
   listAllEntitlements(): Promise<unknown[]>;
   /** Sum of usage day counters (collection group 'days') with updatedAt >= sinceIso. */
   sumUsageCountsSince(sinceIso: string): Promise<number>;
+  /** adminAudit writer (functions/src/admin/audit.ts); every write handler records one entry. */
+  audit: AuditWriter;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -188,7 +209,7 @@ export async function handleListUsers(
   ports: AdminPorts,
   now: Date = new Date(),
 ): Promise<ListUsersResponse> {
-  requireAdmin(caller);
+  requireViewer(caller);
   const parsed = listUsersRequestSchema.safeParse(data ?? {});
   if (!parsed.success) throw invalidArgument('adminListUsers');
   const pageSize = parsed.data.pageSize ?? DEFAULT_LIST_PAGE_SIZE;
@@ -235,6 +256,15 @@ export async function handleSetUserDisabled(
     // tokens caps every open session at that hour.
     if (disabled) await ports.revokeRefreshTokens(uid);
     logger.info('adminSetUserDisabled.completed', { adminUid: caller.uid, uid, disabled });
+    await ports.audit.writeAudit({
+      at: new Date().toISOString(),
+      actorUid: caller.uid,
+      action: 'setUserDisabled',
+      targetUid: uid,
+      before: { disabled: !disabled },
+      after: { disabled },
+      outcome: 'ok',
+    });
     return { uid, disabled };
   } catch (error) {
     wrapUnexpected('adminSetUserDisabled', caller.uid, error);
@@ -253,15 +283,26 @@ export async function handleSetUserPlan(
   const { uid, plan, expiresAt } = parsed.data;
   try {
     if (!(await ports.userExists(uid))) throw new HttpsError('not-found', 'No user with this uid exists.');
+    const before = entitlementSummary((await ports.getEntitlements([uid])).get(uid));
     // Written for 'free' too: an explicit downgrade must override a stale paid document.
-    await ports.writeEntitlement(uid, {
+    const write = {
       plan: planSchema.parse(plan),
-      status: 'active',
+      status: 'active' as const,
       expiresAt,
-      source: 'admin',
+      source: 'admin' as const,
       updatedAt: now.toISOString(),
-    });
+    };
+    await ports.writeEntitlement(uid, write);
     logger.info('adminSetUserPlan.completed', { adminUid: caller.uid, uid, plan });
+    await ports.audit.writeAudit({
+      at: now.toISOString(),
+      actorUid: caller.uid,
+      action: 'setUserPlan',
+      targetUid: uid,
+      before,
+      after: entitlementSummary(write),
+      outcome: 'ok',
+    });
     return { uid, plan };
   } catch (error) {
     wrapUnexpected('adminSetUserPlan', caller.uid, error);
@@ -274,7 +315,7 @@ export async function handleGetMetrics(
   ports: AdminPorts,
   now: Date = new Date(),
 ): Promise<GetMetricsResponse> {
-  requireAdmin(caller);
+  requireViewer(caller);
   if (!getMetricsRequestSchema.safeParse(data).success) throw invalidArgument('adminGetMetrics');
   try {
     const todayStart = utcDayStartIso(now);
@@ -317,6 +358,7 @@ export function firebaseAdminPorts(): AdminPorts {
   const db = adminDb();
   const auth = adminAuth();
   return {
+    audit: firestoreAuditWriter(db),
     async listAuthUsers(pageSize, pageToken) {
       const result = await auth.listUsers(pageSize, pageToken ?? undefined);
       return {
@@ -414,7 +456,8 @@ export function firebaseAdminPorts(): AdminPorts {
 
 function callerOf(auth: { uid: string; token: Record<string, unknown> } | undefined): AdminCaller | null {
   if (!auth) return null;
-  return { uid: auth.uid, isAdmin: auth.token.admin === true };
+  const isAdmin = auth.token.admin === true;
+  return { uid: auth.uid, isAdmin, isViewer: isAdmin || auth.token.adminRole === 'viewer' };
 }
 
 /** App Check stays off, like the other callables (see assistant/index.ts). */
@@ -486,6 +529,8 @@ export interface AdminRotatePorts {
   disableSecretVersion(version: string): Promise<void>;
   /** Busts this instance's key cache (others refresh within the TTL or on 401-retry). */
   invalidateKeyCache(): void;
+  /** adminAudit writer: one entry per attempt (version numbers and reasons only, never the key). */
+  audit: AuditWriter;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -519,6 +564,11 @@ export function sumAdminStatsDayDocs(rawDocs: unknown[]): { requests: number; in
   return total;
 }
 
+/** Audit entry for a key rotation attempt: never the key, only version numbers and a reason. */
+function rotationAudit(actorUid: string, after: Record<string, unknown> | null, outcome: string) {
+  return { at: new Date().toISOString(), actorUid, action: 'rotateOpenAiKey' as const, targetUid: null, before: null, after, outcome };
+}
+
 // ---------------------------------------------------------------------------------------------
 // v2 handlers (exported for unit tests)
 // ---------------------------------------------------------------------------------------------
@@ -529,7 +579,7 @@ export async function handleGetStats(
   ports: AdminStatsPorts,
   now: Date = new Date(),
 ): Promise<GetStatsResponse> {
-  requireAdmin(caller);
+  requireViewer(caller);
   const parsed = getStatsRequestSchema.safeParse(data);
   if (!parsed.success) throw invalidArgument('adminGetStats');
   try {
@@ -576,9 +626,10 @@ export async function handleGetHealth(
   data: unknown,
   ports: AdminHealthPorts,
 ): Promise<GetHealthResponse> {
-  requireAdmin(caller);
+  requireViewer(caller);
   const parsed = getHealthRequestSchema.safeParse(data);
   if (!parsed.success) throw invalidArgument('adminGetHealth');
+  if (parsed.data?.ping === true) requireAdmin(caller); // the ping is a real, billed OpenAI call: admins only
   // ping:true makes ONE real (billed) OpenAI call; the dashboard sends it only from the
   // Settings "Test assistant" button, never on page load.
   const ping = parsed.data?.ping === true;
@@ -625,6 +676,7 @@ export async function handleRotateOpenAiKey(
     }
     if (models.status === 401) {
       logger.warn('adminRotateOpenAiKey.rejected', { adminUid: caller.uid, reason: 'invalid_key', status: 401 });
+      await ports.audit.writeAudit(rotationAudit(caller.uid, null, 'rejected:invalid_key'));
       throw new HttpsError('failed-precondition', 'OpenAI rejected this key (HTTP 401). Nothing was changed.', {
         reason: 'invalid_key',
       });
@@ -702,6 +754,7 @@ export async function handleRotateOpenAiKey(
       modelAvailable,
       disabledVersions,
     });
+    await ports.audit.writeAudit(rotationAudit(caller.uid, { version, modelAvailable, disabledVersions }, 'ok'));
     return rotateOpenAiKeyResponseSchema.parse({ ok: true, version, modelAvailable });
   } catch (error) {
     wrapUnexpected('adminRotateOpenAiKey', caller.uid, error);
@@ -812,6 +865,7 @@ function adminRotatePorts(): AdminRotatePorts {
   const provider = instanceOpenAiKeyProvider();
   const rotator = googleAuthSecretRotator();
   return {
+    audit: firestoreAuditWriter(adminDb()),
     async fetchOpenAiModels(candidateKey) {
       const response = await fetch('https://api.openai.com/v1/models', {
         headers: { Authorization: `Bearer ${candidateKey}` },
@@ -849,4 +903,54 @@ export const adminGetHealth = onCall(
 
 export const adminRotateOpenAiKey = onCall(ADMIN_CALLABLE_OPTIONS, (request): Promise<RotateOpenAiKeyResponse> =>
   handleRotateOpenAiKey(callerOf(request.auth), request.data, adminRotatePorts()),
+);
+
+// =============================================================================================
+// Revenue view: adminGetRevenue (docs/v1/ADMIN.md "Revenue"). Additive, like the v2 block.
+// =============================================================================================
+
+export interface AdminRevenuePorts {
+  /** Raw revenuecatEvents marker documents with receivedAt >= sinceIso (ISO string compare). */
+  listRevenueMarkers(sinceIso: string): Promise<unknown[]>;
+  /** Raw entitlements/{uid} documents (every user with a stored entitlement). */
+  listEntitlements(): Promise<unknown[]>;
+}
+
+export async function handleGetRevenue(
+  caller: AdminCaller | null,
+  data: unknown,
+  ports: AdminRevenuePorts,
+  now: Date = new Date(),
+): Promise<GetRevenueResponse> {
+  requireViewer(caller);
+  const parsed = getRevenueRequestSchema.safeParse(data);
+  if (!parsed.success) throw invalidArgument('adminGetRevenue');
+  try {
+    const dayKeys = statsDayKeys(now, parsed.data.days);
+    const since = `${dayKeys[0]}T00:00:00.000Z`;
+    const [markers, entitlements] = await Promise.all([ports.listRevenueMarkers(since), ports.listEntitlements()]);
+    return getRevenueResponseSchema.parse(computeRevenue(markers, entitlements, dayKeys, now, since));
+  } catch (error) {
+    wrapUnexpected('adminGetRevenue', caller.uid, error);
+  }
+}
+
+function firebaseRevenuePorts(): AdminRevenuePorts {
+  const db = adminDb();
+  return {
+    async listRevenueMarkers(sinceIso) {
+      // Single-field range query: no composite index needed. The collection holds one small
+      // document per delivered webhook event, so a 90-day read stays in the hundreds.
+      const snapshot = await db.collection(REVENUECAT_EVENTS_COLLECTION).where('receivedAt', '>=', sinceIso).get();
+      return snapshot.docs.map((doc) => doc.data());
+    },
+    async listEntitlements() {
+      const snapshot = await db.collection(ENTITLEMENTS_COLLECTION).get();
+      return snapshot.docs.map((doc) => doc.data());
+    },
+  };
+}
+
+export const adminGetRevenue = onCall(ADMIN_CALLABLE_OPTIONS, (request): Promise<GetRevenueResponse> =>
+  handleGetRevenue(callerOf(request.auth), request.data, firebaseRevenuePorts()),
 );

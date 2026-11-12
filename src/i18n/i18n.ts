@@ -13,7 +13,7 @@
  * - Registers expo-localization as the device time-zone provider of core/time.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import i18next, { type i18n as I18nInstance, type Resource } from 'i18next';
+import i18next, { type i18n as I18nInstance, type PostProcessorModule, type Resource } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 import { I18N_NAMESPACE_LIST, type TranslateFn } from '../core/contracts';
@@ -46,12 +46,28 @@ let hasExplicitChoice = false;
 let changeCounter = 0;
 let restorePromise: Promise<void> | null = null;
 
+/**
+ * Spanish clock times end in a period ("6:00 p.m."), so a sentence that ends on {{time}} showed
+ * two ("Más: 10 nov 2026, 6:00 p.m.." on Plans, the morning briefing, the time-format example).
+ * Collapses the doubled period after a.m. / p.m. (with or without the space Intl puts inside).
+ */
+export function collapseMeridiemPeriod(text: string): string {
+  return text.replace(/([ap]\.\s?m\.)\./gi, '$1');
+}
+
+/** Runs after interpolation on every translation (React and headless alike). */
+export const MERIDIEM_PERIOD_POST_PROCESSOR: PostProcessorModule = {
+  type: 'postProcessor',
+  name: 'meridiemPeriod',
+  process: (value) => collapseMeridiemPeriod(value),
+};
+
 function initializeSync(): void {
   if (i18n.isInitialized) return;
   setDeviceTimeZoneProvider(detectDeviceTimeZone);
   const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
   // initAsync: false + inline resources => initialization completes synchronously.
-  void i18n.use(initReactI18next).init({
+  void i18n.use(initReactI18next).use(MERIDIEM_PERIOD_POST_PROCESSOR).init({
     resources: RESOURCES as unknown as Resource,
     lng: detectDeviceLanguage(),
     fallbackLng: FALLBACK_LANGUAGE,
@@ -61,6 +77,7 @@ function initializeSync(): void {
     defaultNS: DEFAULT_NAMESPACE,
     fallbackNS: false,
     interpolation: { escapeValue: false },
+    postProcess: ['meridiemPeriod'],
     returnNull: false,
     returnEmptyString: false,
     appendNamespaceToMissingKey: true,

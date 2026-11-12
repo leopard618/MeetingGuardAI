@@ -6,10 +6,12 @@
  * provider and calendar connection - conferenceCardState, §22; a pending server-created Zoom
  * link shows "being created" and, after a failure this session, "could not be created" + Retry,
  * §24), participants, description,
- * preparation tips, alert settings, notes. Every meeting can be edited and deleted:
- * - MeetingGuard meetings and Google events: edits / deletes are also sent to Google Calendar by
+ * preparation tips, alert settings, notes. A live meeting offers "Running late" (M9 sheet, the
+ * next live occurrence of a series) and, while it runs, "End meeting now". Every meeting can be
+ * edited and deleted:
+ * - Meeting Guard meetings and Google events: edits / deletes are also sent to Google Calendar by
  *   the calendar engine (origin 'user');
- * - device-calendar imports (one-way): the change stays in MeetingGuard and the user is told the
+ * - device-calendar imports (one-way): the change stays in Meeting Guard and the user is told the
  *   device calendar keeps its event.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -26,7 +28,8 @@ import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { expandOccurrences, type MeetingOccurrence } from '../../core/recurrence';
 import { getDeviceTimeZone } from '../../core/time';
-import type { Meeting } from '../../core/types';
+import { useLiveNow } from '../shared/useLiveNow';
+import { effectiveAlertIntensity, type Meeting } from '../../core/types';
 import { useT } from '../../i18n';
 import { recurrenceSummary } from '../../services/ai/recurrenceText';
 import { useAuth } from '../../services/auth';
@@ -41,7 +44,11 @@ import { ScreenBody } from '../shared/Section';
 import { needsEmailVerification } from '../shared/VerifyEmailBanner';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
+import { canDebrief } from './debrief';
 import { conferenceCardState } from './meetingForm';
+import { endNowWrite, isRunningNow, resolveRunningLateMeeting } from './runningLate';
+import { openRunningLate } from './RunningLateSheet';
+import { applyScopedWrite } from './scopedWrite';
 
 const log = createLogger('meetings');
 
@@ -79,12 +86,18 @@ function whenText(meeting: Meeting, fmt: Formatters): { local: string; meetingZo
 
 export function MeetingDetailsScreen({ navigation, route }: Props): ReactElement {
   const id = route.params?.meetingId ?? null;
-  const { meeting, isLoading } = useMeeting(id);
+  const { meeting: current, isLoading } = useMeeting(id);
+  // A delete tombstones the meeting before the screen pops: keep showing the last version during
+  // the back animation instead of flashing "Meeting not found".
+  const [leaving, setLeaving] = useState<Meeting | null>(null);
+  const meeting = current ?? leaving;
   if (!meeting) return <MeetingStatus loading={id !== null && isLoading} />;
   return (
     <MeetingDetails
       meeting={meeting}
       onEdit={() => navigation.navigate('EditMeeting', { meetingId: meeting.id })}
+      onDebrief={() => navigation.navigate('AIChat', { debrief: meeting.id })}
+      onDeleting={() => setLeaving(meeting)}
       onDeleted={() => navigation.goBack()}
       onOpenCalendarSync={() => navigation.navigate('CalendarSync')}
     />
@@ -94,11 +107,17 @@ export function MeetingDetailsScreen({ navigation, route }: Props): ReactElement
 function MeetingDetails({
   meeting,
   onEdit,
+  onDebrief,
+  onDeleting,
   onDeleted,
   onOpenCalendarSync,
 }: {
   meeting: Meeting;
   onEdit(): void;
+  /** M8: opens the assistant with the spoken-debrief panel for this (ended) meeting. */
+  onDebrief(): void;
+  /** Fired right before the delete is sent (the parent keeps the last version on screen). */
+  onDeleting(): void;
   onDeleted(): void;
   onOpenCalendarSync(): void;
 }): ReactElement {
@@ -112,18 +131,50 @@ function MeetingDetails({
   const isDevice = meeting.source === 'device';
   const isGoogle = meeting.source === 'google' || meeting.external.googleEventId !== null;
   const isRecurring = meeting.recurrence !== null;
-  // The next few occurrences of a series (details show the master; §16 expands on demand).
+  // The next few occurrences of a series (details show the master; §16 expands on demand). Keyed
+  // on a live clock so an occurrence that just passed drops off while the screen stays open.
+  const now = useLiveNow(60_000);
   const nextOccurrences = useMemo<MeetingOccurrence[]>(() => {
     if (meeting.recurrence === null) return [];
     try {
-      const from = new Date();
-      const to = new Date(from.getTime() + NEXT_OCCURRENCES_WINDOW_MS);
-      return expandOccurrences(meeting, from.toISOString(), to.toISOString(), { max: NEXT_OCCURRENCES_SHOWN });
+      const to = new Date(now.getTime() + NEXT_OCCURRENCES_WINDOW_MS);
+      return expandOccurrences(meeting, now.toISOString(), to.toISOString(), { max: NEXT_OCCURRENCES_SHOWN });
     } catch (caught) {
       log.warn('could not expand the meeting occurrences', toAppError(caught).code);
       return [];
     }
-  }, [meeting]);
+  }, [meeting, now]);
+  // M9: the live row (the meeting, or the next live occurrence of a series) for Running late / End now.
+  const liveRow = useMemo(() => resolveRunningLateMeeting(meeting, null, now), [meeting, now]);
+  const running = liveRow !== null && isRunningNow(liveRow, now);
+  const [ending, setEnding] = useState(false);
+  const endNow = (): void => {
+    if (liveRow === null) return;
+    Alert.alert(
+      t('meetings:endNow.title', { title: liveRow.title }),
+      liveRow.occurrence !== undefined ? t('meetings:endNow.messageSeries') : t('meetings:endNow.message'),
+      [
+        { text: t('common:actions.cancel'), style: 'cancel' },
+        {
+          text: t('meetings:endNow.confirm'),
+          onPress: () => {
+            const write = endNowWrite(liveRow, new Date());
+            if (write === null) return;
+            setEnding(true);
+            applyScopedWrite(write)
+              .then(() => Toast.show({ type: 'success', text1: t('meetings:endNow.ended') }))
+              .catch((caught: unknown) => {
+                const error = toAppError(caught);
+                log.warn('could not end the running meeting', error.code);
+                Toast.show({ type: 'error', text1: t(errorMessageKey(error.code)) });
+              })
+              .finally(() => setEnding(false));
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  };
   const alertTimes = meeting.customAlertTimes ?? preferences.defaultAlertTimes;
   const alertTimesText = alertTimes
     .map((minutes) => {
@@ -134,6 +185,7 @@ function MeetingDetails({
 
   const remove = async (): Promise<void> => {
     setDeleting(true);
+    onDeleting();
     try {
       await meetingRepository.remove(meeting.id, { origin: 'user' });
       // §24: best effort, never blocks the UI - deletes the server-created Zoom meeting (no-op
@@ -411,7 +463,7 @@ function MeetingDetails({
         </Text>
         <Text variant="bodyMedium" style={styles.listItem}>
           {t('meetings:details.intensity', {
-            intensity: t(`onboarding:alerts.intensity.${meeting.alertIntensity ?? preferences.alertIntensity}.title`),
+            intensity: t(`onboarding:alerts.intensity.${effectiveAlertIntensity(meeting, preferences)}.title`),
           })}
           {meeting.alertIntensity === null ? ` ${t('meetings:details.intensityDefault')}` : ''}
         </Text>
@@ -439,6 +491,30 @@ function MeetingDetails({
         <HelperText type="info" visible style={styles.deviceNote}>
           {t('meetings:details.deviceNote')}
         </HelperText>
+      ) : null}
+      {liveRow !== null ? (
+        <View style={styles.liveActions}>
+          <MGButton
+            variant="tonal"
+            icon="clock-alert-outline"
+            onPress={() => openRunningLate({ meetingId: meeting.id, startAt: null })}
+            style={styles.actionButton}
+            disabled={deleting || ending}
+            testID="meeting-running-late"
+          >
+            {t('meetings:runningLate.title')}
+          </MGButton>
+          {running ? (
+            <MGButton variant="outline" icon="stop-circle-outline" onPress={endNow} style={styles.actionButton} loading={ending} disabled={deleting || ending} testID="meeting-end-now">
+              {t('meetings:endNow.button')}
+            </MGButton>
+          ) : null}
+        </View>
+      ) : null}
+      {canDebrief(meeting, now) ? (
+        <MGButton icon="text-box-check-outline" onPress={onDebrief} style={styles.debriefButton} disabled={deleting} testID="meeting-debrief">
+          {t('meetings:details.debrief')}
+        </MGButton>
       ) : null}
       <View style={styles.actions}>
         <MGButton variant="tonal" icon="pencil" onPress={onEdit} style={styles.actionButton} disabled={deleting} testID="meeting-edit">
@@ -516,6 +592,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginTop: spacing.lg,
     marginBottom: spacing.lg,
+  },
+  debriefButton: {
+    marginTop: spacing.lg,
+  },
+  liveActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: spacing.lg,
   },
   actionButton: {
     marginRight: spacing.md,

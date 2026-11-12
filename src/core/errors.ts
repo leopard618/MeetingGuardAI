@@ -27,6 +27,7 @@ export const APP_ERROR_CODES = [
   'pending_writes',
   'google_not_signed_in',
   'calendar_scope_missing',
+  'tasks_scope_missing',
   'calendar_not_connected',
   'calendar_permission_denied',
   'notification_permission_denied',

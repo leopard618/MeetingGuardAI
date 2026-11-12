@@ -6,7 +6,7 @@
  * - Eligible meeting: deletedAt null, status 'scheduled', allDay false, valid id and startAt.
  * - Alert offsets: meeting.customAlertTimes ?? prefs.defaultAlertTimes (deduped, integers >= 0).
  * - Each notification: fireAt > now and fireAt <= now + horizon.
- * - Intensity: meeting.alertIntensity ?? prefs.alertIntensity; channel = channelForIntensity
+ * - Intensity: effectiveAlertIntensity (meeting override, else the imported-events default, else prefs); channel = channelForIntensity
  *   (no-vibration variant when prefs.vibrationEnabled is false).
  * - Follow-up (prefs.followUpEnabled): end + FOLLOW_UP_DELAY_MINUTES on the follow-up channel.
  * - Budget: ALERTS FIRST (earliest first). Follow-ups are low value and only use the space the
@@ -38,7 +38,7 @@ import {
 } from '../../core/identifiers';
 import { expandOccurrences, recurrenceEndsAt, type MeetingOccurrence } from '../../core/recurrence';
 import { zonedDateTimeToUtcIso } from '../../core/time';
-import type { Meeting, Preferences } from '../../core/types';
+import { effectiveAlertIntensity, type Meeting, type Preferences } from '../../core/types';
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -130,7 +130,7 @@ export function computeAlertPlan(
     if (seen.has(meeting.id) || !isAlertEligibleMeeting(meeting)) continue;
     seen.add(meeting.id);
 
-    const intensity = meeting.alertIntensity ?? preferences.alertIntensity;
+    const intensity = effectiveAlertIntensity(meeting, preferences);
     const offsets = effectiveAlertOffsets(meeting, preferences);
 
     const pushAlert = (identifier: string, offset: number, fireMs: number, localDateKey?: string): void => {

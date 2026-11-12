@@ -11,18 +11,21 @@
  * this barrel imports ThemeContext, so importing it from the contexts layer would be a cycle.
  */
 import { useMemo } from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, type ViewStyle } from 'react-native';
 
 import { resolveColorScheme, useOptionalTheme, type ColorScheme } from '../contexts/ThemeContext';
 import {
   componentMetrics,
   darkColors,
+  gradients,
   lightColors,
   radii,
+  softShadow,
   spacing,
   typography,
   type MGColors,
   type MGComponentMetrics,
+  type MGGradients,
   type MGRadii,
   type MGSpacing,
   type MGTypography,
@@ -40,6 +43,19 @@ export interface AppTheme {
   spacing: MGSpacing;
   radii: MGRadii;
   metrics: MGComponentMetrics;
+  gradients: MGGradients;
+  /** Text / icon color on each gradient. */
+  onGradient: Readonly<Record<keyof MGGradients, string>>;
+  /** Resting card surface: soft indigo shadow in light, tonal step + hairline in dark. */
+  elevated: ViewStyle;
+}
+
+/** Style of a resting elevated surface (Card default, meeting rows, timeline cards). */
+export function elevatedSurface(scheme: ColorScheme): ViewStyle {
+  if (scheme === 'dark') {
+    return { backgroundColor: darkColors.elevation.level1, borderWidth: 1, borderColor: darkColors.outlineVariant };
+  }
+  return { backgroundColor: lightColors.surface, borderWidth: 0, ...softShadow };
 }
 
 /**
@@ -61,6 +77,14 @@ export function useAppTheme(): AppTheme {
       spacing,
       radii,
       metrics: componentMetrics,
+      gradients: gradients[colorScheme],
+      // The accent surface is solid primary since November 1, 2026: text on it is onPrimary.
+      onGradient: {
+        primary: (colorScheme === 'dark' ? darkColors : lightColors).onPrimary,
+        hero: (colorScheme === 'dark' ? darkColors : lightColors).onPrimary,
+        ai: (colorScheme === 'dark' ? darkColors : lightColors).onPrimary,
+      },
+      elevated: elevatedSurface(colorScheme),
     }),
     [colorScheme],
   );

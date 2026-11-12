@@ -90,10 +90,29 @@ export function selectPendingActionIds(thread: ThreadState): string[] {
   return ids;
 }
 
+/**
+ * Proposed, mutating actions of the NEWEST assistant reply only: what a plain "yes" refers to.
+ * Older proposals stay on their cards for an explicit tap or "Review all"; a yes to the latest
+ * question must never run a delete proposed five turns ago.
+ */
+export function selectLatestPendingActionIds(thread: ThreadState): string[] {
+  for (let index = thread.messages.length - 1; index >= 0; index -= 1) {
+    const message = thread.messages[index];
+    if (!message || message.role !== 'assistant' || message.actionIds.length === 0) continue;
+    return message.actionIds.filter((id) => {
+      const state = thread.actions[id];
+      return state !== undefined && state.status === 'proposed' && isMutatingAction(state.action);
+    });
+  }
+  return [];
+}
+
 /** What retry() would re-send for a thread loaded from storage. */
 export function detectFailedRequest(thread: ThreadState): FailedRequest | null {
   const last = thread.messages[thread.messages.length - 1];
-  return last && last.role === 'user' && last.delivery === 'failed' ? { mode: 'chat' } : null;
+  if (!last || last.role !== 'user' || last.delivery !== 'failed') return null;
+  if (last.debriefMeetingId) return { mode: 'debrief', meetingId: last.debriefMeetingId, userMessageId: last.id };
+  return { mode: 'chat' };
 }
 
 /** Normalizes a thread loaded from storage (interrupted requests/executions become retryable). */

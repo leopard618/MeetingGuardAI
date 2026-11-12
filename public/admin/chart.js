@@ -1,5 +1,5 @@
 /**
- * MeetingGuard AI admin - hand-rolled SVG chart renderer (admin v3 visual pass; docs/ADMIN.md).
+ * Meeting Guard AI admin - hand-rolled SVG chart renderer (admin v3 visual pass; docs/ADMIN.md).
  *
  * CONSTRAINTS (CSP in firebase.json /admin/**): no chart libraries, no extra CDNs, and style-src
  * is 'self', so NO style="" attributes anywhere - everything visual is SVG presentation

@@ -9,12 +9,12 @@
   },
   "privacy": {
     "title": "Política de privacidad",
-    "intro": "Esta política explica qué información recoge la app MeetingGuard AI, cómo la usamos, con quién la compartimos y qué opciones tienes. MeetingGuard AI es un servicio de {{company}} (\"nosotros\").",
+    "intro": "Esta política explica qué información recoge la app Meeting Guard AI, cómo la usamos, con quién la compartimos y qué opciones tienes. Meeting Guard AI es un servicio de {{company}} (\"nosotros\").",
     "sections": {
       "controller": {
         "title": "Responsable de tus datos",
         "body": [
-          "{{company}} (número de sociedad 14085985), con domicilio en {{address}}, es responsable de los datos personales que se tratan a través de MeetingGuard AI. Puedes escribirnos a {{email}}."
+          "{{company}} (número de sociedad 14085985), con domicilio en {{address}}, es responsable de los datos personales que se tratan a través de Meeting Guard AI. Puedes escribirnos a {{email}}."
         ]
       },
       "collect": {
@@ -23,11 +23,14 @@
           "Solo recogemos lo que la app necesita para funcionar:"
         ],
         "items": [
-          "Datos de tu cuenta: al iniciar sesión con Google recibimos tu nombre, tu correo electrónico, tu foto de perfil y el identificador de tu cuenta de Google. Si tu cuenta usa correo y contraseña, la contraseña la gestiona Firebase Authentication y nosotros nunca la vemos.",
+          "Datos de tu cuenta: al iniciar sesión con Google, Apple o Microsoft recibimos el nombre y el correo electrónico que el proveedor comparte con nosotros y, si la facilita, tu foto de perfil, junto con el identificador de tu cuenta en ese proveedor. Si tu cuenta usa correo y contraseña, la contraseña la gestiona Firebase Authentication y nosotros nunca la vemos.",
           "Las reuniones y notas que creas, importas o editas: títulos, descripciones, fechas, horas y zonas horarias, ubicaciones, enlaces y códigos de videollamada, nombres y correos de los participantes, consejos de preparación, ajustes de recordatorios y notas.",
-          "Preferencias: idioma, zona horaria, formato de hora, ajustes de avisos y los calendarios que eliges sincronizar.",
-          "Uso del asistente de IA: cuántas consultas haces cada día, para aplicar el límite diario de tu plan.",
-          "Informes de fallos y errores, cuando están activados en tu versión de la app: modelo del dispositivo, sistema operativo, versión de la app y datos técnicos del error. Los diseñamos para que no incluyan tus reuniones, notas ni mensajes, y las direcciones de correo se eliminan antes del envío."
+          "Las tareas que creas, importas o editas: título, descripción (notas), fecha y hora límite, recordatorio, las personas de la tarea (un nombre y, si lo añades, un correo) y la reunión a la que pertenece.",
+          "Preferencias: idioma, zona horaria, formato de hora, ajustes de avisos y los calendarios y las listas de tareas que eliges sincronizar.",
+          "Uso del asistente de IA: cuántas acciones de IA haces, cuándo empezaron tus acciones gratis y cuándo se renueva tu plan de pago, para aplicar las acciones incluidas en tu plan.",
+          "Suscripciones: si compras Pro o Premium, App Store o Google Play gestionan el pago y nunca recibimos los datos de tu tarjeta ni de tu banco. RevenueCat, que gestiona las suscripciones en nuestro nombre, envía a nuestro servidor un registro de cada evento de la suscripción, como una compra, una renovación, un cambio de plan, un problema de cobro, una cancelación o un vencimiento (el plan, la tienda, el producto, el precio y la moneda, las fechas y, en una cancelación o un vencimiento, su motivo), para que sepamos qué plan tienes y cuándo se renueva o termina.",
+          "Informes de fallos y errores, y mediciones de rendimiento de una parte de las sesiones de la app, cuando están activados en tu versión de la app: modelo del dispositivo, sistema operativo, versión de la app, datos técnicos del error y cuánto tardan las pantallas y las peticiones de red. Los diseñamos para que no incluyan tus reuniones, notas ni mensajes, y las direcciones de correo se eliminan de los informes de errores antes del envío.",
+          "WhatsApp: si vinculas tu número de WhatsApp, guardamos ese número de teléfono, tu nombre de perfil de WhatsApp, la fecha en que lo vinculaste y el estado de la conversación: los últimos 10 mensajes del chat, tuyos y del asistente, y cualquier propuesta pendiente de tu confirmación (consulta \"Asistente de WhatsApp\")."
         ]
       },
       "device": {
@@ -38,7 +41,7 @@
         "items": [
           "Los archivos que adjuntas a las reuniones. No se suben a nuestros servidores y no están disponibles en tus otros dispositivos.",
           "Tu conversación con el asistente de IA, para que puedas continuarla más tarde. Los mensajes recientes se envían con cada nueva consulta (consulta \"Asistente de IA\").",
-          "Una copia de tus reuniones, notas y preferencias, para que la app funcione sin conexión. Se borra al cerrar sesión.",
+          "Una copia de tus reuniones, tareas, notas y preferencias, para que la app funcione sin conexión. Se borra al cerrar sesión.",
           "Tus recordatorios, que programa el sistema operativo de tu teléfono."
         ]
       },
@@ -48,9 +51,10 @@
           "Usamos tu información para:"
         ],
         "items": [
-          "Prestarte el servicio: mantener tus reuniones y notas al día en tus dispositivos, programar tus avisos y mostrar tu agenda.",
-          "Sincronizar los calendarios que conectes.",
-          "Responder a tus consultas al asistente de IA y aplicar el límite diario de tu plan.",
+          "Prestarte el servicio: mantener tus reuniones, tareas y notas al día en tus dispositivos, programar tus avisos y recordatorios y mostrar tu agenda.",
+          "Sincronizar los calendarios y las listas de tareas que conectes.",
+          "Responder a tus consultas al asistente de IA, en la app o por WhatsApp, y aplicar las acciones de IA incluidas en tu plan.",
+          "Gestionar tu suscripción, si compras una.",
           "Mantener el servicio seguro, evitar abusos y corregir errores."
         ],
         "note": [
@@ -58,38 +62,64 @@
         ]
       },
       "google": {
-        "title": "Google Calendar",
+        "title": "Google Calendar y Google Tasks",
         "body": [
-          "Si conectas Google Calendar, permites que MeetingGuard AI vea y edite los eventos de tus calendarios de Google (el permiso \"calendar.events\"). La app usa este permiso para traer los eventos de tu calendario principal a MeetingGuard AI, para que recibas avisos de ellos, y para añadir, cambiar o borrar los eventos que gestionas en MeetingGuard AI, incluida la creación de enlaces de Google Meet y el envío de invitaciones a los participantes cuando lo pides.",
-          "Los eventos de Google Calendar se guardan en tu cuenta de MeetingGuard AI (Google Firebase) para que estén disponibles en tus dispositivos, para que recibas avisos de ellos y para que el asistente de IA pueda responder preguntas sobre tu agenda cuando lo usas.",
-          "El token de acceso que permite a la app comunicarse con Google Calendar se queda en tu dispositivo, lo gestiona el inicio de sesión de Google y nunca se guarda en nuestros servidores. Puedes desconectar Google Calendar en la app cuando quieras, o quitar el acceso de MeetingGuard AI desde tu cuenta de Google (myaccount.google.com/permissions).",
-          "El uso y la transferencia a cualquier otra app, por parte de MeetingGuard AI, de la información recibida de las API de Google cumplirán la Política de datos de usuario de los servicios de API de Google (Google API Services User Data Policy), incluidos los requisitos de uso limitado (Limited Use)."
+          "Si conectas Google Calendar, permites que Meeting Guard AI vea y edite los eventos de tus calendarios de Google (el permiso \"calendar.events\"). La app usa este permiso para traer los eventos de tu calendario principal a Meeting Guard AI, para que recibas avisos de ellos, y para añadir, cambiar o borrar los eventos que gestionas en Meeting Guard AI, incluida la creación de enlaces de Google Meet y el envío de invitaciones a los participantes cuando lo pides.",
+          "Si activas la sincronización con Google Tasks, permites que Meeting Guard AI cree, edite, organice y elimine todas tus tareas (el permiso \"tasks\"). La app solo trabaja con las listas de tareas que eliges: trae sus tareas a Meeting Guard AI y escribe en ellas las tareas que creas, completas, cambias o eliminas en la app, para que ambos lados estén al día. Se sincronizan el título, las notas, la fecha límite y si la tarea está completada; la hora límite, el recordatorio, las personas y la reunión vinculada se quedan en Meeting Guard AI. Si además tienes activada la sincronización con Microsoft To Do, las tareas que llegan de Google Tasks también se escriben en tu lista de To Do (consulta \"Microsoft: inicio de sesión, Outlook y To Do\").",
+          "Los eventos de Google Calendar y las tareas de Google Tasks se guardan en tu cuenta de Meeting Guard AI (Google Firebase) para que estén disponibles en tus dispositivos, para que recibas avisos y recordatorios de ellos y para que el asistente de IA pueda responder preguntas sobre tu agenda y tus tareas cuando lo usas.",
+          "El token de acceso que permite a la app comunicarse con Google Calendar y Google Tasks se queda en tu dispositivo, lo gestiona el inicio de sesión de Google y nunca se guarda en nuestros servidores. Puedes desconectar Google Calendar o Google Tasks en la app cuando quieras, en la pantalla Sincronización de calendarios de Ajustes, o quitar el acceso de Meeting Guard AI desde tu cuenta de Google (myaccount.google.com/permissions). Cuando detienes una sincronización, los eventos o las tareas importados de ese servicio de Google se eliminan de Meeting Guard AI; no se borra nada en Google.",
+          "El uso y la transferencia a cualquier otra app, por parte de Meeting Guard AI, de la información recibida de las API de Google cumplirán la Política de datos de usuario de los servicios de API de Google (Google API Services User Data Policy), incluidos los requisitos de uso limitado (Limited Use)."
         ],
         "items": [
           "Solo usamos los datos de usuario de Google para ofrecer y mejorar las funciones descritas en esta política.",
-          "Solo los transferimos a terceros cuando es necesario para esas funciones (por ejemplo, a OpenAI cuando preguntas al asistente de IA por tu agenda), por seguridad, para cumplir la ley o en caso de fusión o adquisición, avisándote antes.",
+          "Solo los transferimos a terceros cuando es necesario para esas funciones (por ejemplo, a OpenAI cuando preguntas al asistente de IA por tus reuniones o tareas, a Meta cuando el asistente de WhatsApp te responde sobre ellas, a Zoom cuando añades un enlace de Zoom a un evento de Google Calendar, o a Outlook y Microsoft To Do cuando también los conectas), por seguridad, para cumplir la ley o en caso de fusión o adquisición, avisándote antes.",
           "No los usamos para publicidad, no los vendemos y no los usamos para entrenar modelos generales de IA o de aprendizaje automático.",
           "Ninguna persona los lee salvo que nos des permiso (por ejemplo, para darte soporte), sea necesario por seguridad o lo exija la ley."
+        ]
+      },
+      "microsoft": {
+        "title": "Microsoft: inicio de sesión, Outlook y To Do",
+        "body": [
+          "Continuar con Microsoft: la app abre la página de inicio de sesión de Microsoft y envía a nuestro servidor la prueba firmada de tu identidad que emite Microsoft (nombre, correo electrónico e identificador de cuenta). Nuestro servidor la comprueba y te da acceso a tu cuenta de Meeting Guard AI: la crea en tu primer inicio de sesión o vincula una cuenta existente con el mismo correo cuando Microsoft confirma que esa dirección es tuya. Guardamos el identificador de la cuenta de Microsoft, el directorio (tenant) al que pertenece, el correo y las fechas de tu primer y último inicio de sesión para que puedas volver a entrar.",
+          "Outlook: si conectas Outlook, permites que Meeting Guard AI lea y escriba los eventos de tu calendario de Outlook y tus tareas de Microsoft To Do a través de Microsoft Graph (los permisos \"Calendars.ReadWrite\" y \"Tasks.ReadWrite\", que se piden juntos, además de \"User.Read\" para tu perfil básico y \"offline_access\" para que la conexión siga funcionando entre sesiones). La app trae a Meeting Guard AI los eventos de tu calendario principal de Outlook, para que recibas avisos de ellos. Cuando creas, cambias o borras una reunión en Meeting Guard AI, la app hace el mismo cambio en Outlook (salvo en los eventos que vienen de Google Calendar o del calendario de tu teléfono), y Outlook envía las invitaciones a los participantes. Cuando pides un enlace de Microsoft Teams, la reunión se crea en Outlook como reunión en línea y Microsoft genera el enlace.",
+          "Microsoft To Do: si además activas la sincronización con To Do, la app solo trabaja con las listas de To Do que eliges: trae sus tareas a Meeting Guard AI y escribe en ellas las tareas que creas, completas, cambias o eliminas en la app. Se sincronizan el título, las notas, la fecha límite, el recordatorio y si la tarea está completada; una hora límite sin recordatorio, las personas y la reunión vinculada se quedan en Meeting Guard AI. Si también tienes activada la sincronización con Google Tasks, las tareas que llegan de To Do también se escriben en tu lista de Google Tasks, y las que llegan de Google Tasks, en tu lista de To Do.",
+          "Los eventos y las tareas de Microsoft se guardan en tu cuenta de Meeting Guard AI (Google Firebase) para que estén disponibles en tus dispositivos, para que recibas avisos y recordatorios de ellos y para que el asistente de IA pueda responder preguntas sobre ellos cuando lo usas. Los tokens de Microsoft que permiten a la app comunicarse con Outlook y To Do se quedan en tu dispositivo y nunca se envían a nuestros servidores; el token que la app conserva entre sesiones se guarda en el almacenamiento seguro del sistema operativo y se borra al cerrar sesión o al detener la sincronización con Outlook. Puedes detener la sincronización con Outlook o To Do cuando quieras en la pantalla Sincronización de calendarios de Ajustes, o quitar el acceso de Meeting Guard AI desde tu cuenta de Microsoft (account.live.com/consent/Manage, si es una cuenta personal). Cuando detienes una sincronización, los eventos o las tareas que llegaron de ella se eliminan de Meeting Guard AI; no se borra nada en Outlook ni en To Do."
         ]
       },
       "deviceCalendars": {
         "title": "Calendarios de tu teléfono",
         "body": [
-          "Si permites el acceso al calendario, MeetingGuard AI lee los eventos de los calendarios del teléfono que elijas y los guarda en tu cuenta para que recibas avisos de ellos. Si además eliges un calendario de exportación, la app escribe en él tus reuniones de MeetingGuard AI. Puedes cambiar estas opciones en la app o desactivar el acceso al calendario en los ajustes del teléfono."
+          "Si permites el acceso al calendario, Meeting Guard AI lee los eventos de los calendarios del teléfono que elijas y los guarda en tu cuenta para que recibas avisos de ellos. Si además eliges un calendario de exportación, la app escribe en él tus reuniones de Meeting Guard AI. Puedes cambiar estas opciones en la app o desactivar el acceso al calendario en los ajustes del teléfono."
+        ]
+      },
+      "zoom": {
+        "title": "Enlaces de Zoom",
+        "body": [
+          "Si eliges Zoom como videollamada de una reunión, nuestro servidor crea la reunión de Zoom en la propia cuenta de Zoom de Meeting Guard AI y guarda con tu reunión el enlace para unirse y, si lo hay, el código de acceso. Nuestro servidor solo envía a Zoom el título de la reunión, la hora de inicio, la duración y la zona horaria (en una reunión que se repite, solo el título). Cuando cambias o borras la reunión en la app, nuestro servidor la actualiza o la elimina en Zoom. No necesitas una cuenta de Zoom, y tu propia cuenta de Zoom nunca se conecta.",
+          "La reunión se aloja en nuestra cuenta de Zoom, así que cuando alguien se une a ella, Zoom gestiona la llamada según sus propios términos y su política de privacidad y puede poner a nuestra disposición, como anfitriones, sus informes habituales de la reunión (por ejemplo, quién se unió y cuándo)."
+        ]
+      },
+      "whatsapp": {
+        "title": "Asistente de WhatsApp",
+        "body": [
+          "El asistente de WhatsApp es opcional. Para usarlo, vinculas tu número de WhatsApp con un código de un solo uso que obtienes en la app, en la pantalla Asistente de WhatsApp de Ajustes. A partir de ese momento, los mensajes que envías al número de WhatsApp de Meeting Guard AI llegan a nuestro servidor a través de Meta (WhatsApp Business Platform). Nuestro servidor los trata como consultas al asistente de IA de la app: envía a OpenAI los mensajes recientes del chat y la misma vista limitada de tus reuniones y tareas que se describe en \"Asistente de IA (OpenAI)\". No se crea, cambia ni borra nada hasta que lo confirmas en el chat. Las respuestas, incluidas las reuniones y tareas por las que preguntas (con su título, fecha, hora y enlace de videollamada o dirección), también te llegan a través de Meta. El uso de WhatsApp en sí se rige por los términos y la política de privacidad de WhatsApp.",
+          "Para seguir la conversación, nuestro servidor guarda los últimos 10 mensajes del chat, tuyos y del asistente, y cualquier propuesta pendiente de tu confirmación. Tras 15 minutos sin mensajes dejan de usarse y tu siguiente mensaje empieza una conversación nueva; el estado de la conversación se borra cuando pasan 30 días sin mensajes. Los registros de nuestro servidor nunca contienen el texto de tus mensajes ni tu número de teléfono. Puedes desvincular tu número cuando quieras desde esa misma pantalla, lo que borra el vínculo y el estado de la conversación."
         ]
       },
       "ai": {
         "title": "Asistente de IA (OpenAI)",
         "body": [
-          "El asistente de IA es opcional. Cuando le haces una consulta, nuestro servidor (Google Cloud Functions) envía a OpenAI los mensajes recientes de tu conversación y una vista limitada de tus reuniones desde 7 días atrás hasta 60 días adelante: títulos, fechas y horas, ubicaciones y hasta 10 nombres y correos de participantes por reunión. La descripción de una reunión solo se incluye cuando pides ideas de seguimiento sobre esa reunión. Nunca se envían las notas, los enlaces de videollamada ni los códigos de acceso.",
-          "OpenAI procesa esta información para redactar la respuesta, que nuestro servidor devuelve a la app. Según las políticas de datos de la API de OpenAI, OpenAI no usa por defecto los datos enviados a través de su API para entrenar sus modelos y puede conservarlos durante un tiempo limitado para detectar abusos. La app nunca contiene una clave de OpenAI y nunca se comunica directamente con OpenAI.",
+          "El asistente de IA es opcional. Cuando le haces una consulta, nuestro servidor (Google Cloud Functions) envía a OpenAI los mensajes recientes de tu conversación y una vista limitada de tus reuniones desde 7 días atrás hasta 60 días adelante y de tus reuniones que se repiten: títulos, fechas y horas, ubicaciones y hasta 10 nombres y correos de participantes por reunión. La descripción de una reunión solo se incluye, acortada, en las reuniones de los últimos 7 días y de los próximos 2 días y en las reuniones que se repiten y ya han empezado, para que el asistente pueda decirte qué preparar, y en la reunión sobre la que pides ideas de seguimiento o que resumes. Nunca se envían las notas, ni el enlace y el código de acceso guardados con la reunión; pero la descripción se envía tal como está escrita, así que un enlace o un código que aparezca en ella (muchas invitaciones los incluyen) se envía con ella.",
+          "En los chats y los resúmenes de reuniones, el asistente también recibe tus tareas pendientes y las que completaste en los últimos 7 días, hasta 100: su título, estado, fecha y hora límite, recordatorio, los nombres de las personas de la tarea y la reunión a la que pertenece. Nunca se envían las descripciones (notas) de las tareas.",
+          "OpenAI procesa esta información para redactar la respuesta, que nuestro servidor devuelve a la app. Con cada consulta, nuestro servidor también envía a OpenAI un identificador codificado derivado de tu cuenta (no tu nombre ni tu correo), para que OpenAI pueda detectar abusos. Según las políticas de datos de la API de OpenAI, OpenAI no usa por defecto los datos enviados a través de su API para entrenar sus modelos y puede conservarlos durante un tiempo limitado para detectar abusos. La app nunca contiene una clave de OpenAI y nunca se comunica directamente con OpenAI.",
+          "La entrada por voz es opcional. El micrófono solo se usa después de que tocas el botón del micrófono, en el asistente o en un resumen, y solo hasta que termina la escucha. El reconocimiento de voz de tu teléfono (el de Apple en un iPhone y, normalmente, el de Google en Android) convierte lo que dices en texto y puede enviar el audio a sus propios servidores para hacerlo. La app no guarda el audio y nunca lo envía a nuestros servidores: solo se envía el texto reconocido, como un mensaje escrito.",
           "El asistente solo propone cambios: no se crea, cambia, borra ni comparte nada hasta que lo confirmas. Las respuestas pueden contener errores, así que revísalas antes de confirmar. Te pedimos que no envíes información sensible, como datos de salud, al asistente."
         ]
       },
       "notifications": {
         "title": "Notificaciones",
         "body": [
-          "El sistema operativo programa los avisos de reuniones en tu dispositivo, según tus reuniones y tus ajustes de avisos. Muestran el título y la hora de la reunión, también en la pantalla de bloqueo según los ajustes de notificaciones de tu teléfono. No enviamos notificaciones push desde un servidor ni usamos las notificaciones con fines comerciales."
+          "El sistema operativo programa en tu dispositivo los avisos de reuniones, los recordatorios de tareas, el aviso de seguimiento cuando termina una reunión y, si lo activas, el resumen diario, según tus reuniones, tus tareas y tus ajustes de avisos. Muestran datos como el título y la hora de la reunión o de la tarea, también en la pantalla de bloqueo según los ajustes de notificaciones de tu teléfono. No enviamos notificaciones push desde un servidor ni usamos las notificaciones con fines comerciales."
         ]
       },
       "sharing": {
@@ -100,10 +130,20 @@
         "items": [
           "Google (Firebase Authentication, Cloud Firestore y Cloud Functions), que aloja tu cuenta y tus datos y ejecuta el código de nuestro servidor.",
           "OpenAI, que procesa tus consultas al asistente de IA.",
-          "Sentry (Functional Software, Inc.), que recibe los informes de fallos y errores cuando están activados.",
-          "Google Calendar y los calendarios de tu teléfono, solo cuando los conectas.",
+          "Microsoft, cuando inicias sesión con Microsoft o conectas Outlook o To Do.",
+          "Apple, cuando inicias sesión con Apple.",
+          "El servicio de reconocimiento de voz de tu teléfono (Apple en un iPhone y, normalmente, Google en Android), cuando usas la entrada por voz: puede recibir el audio para convertirlo en texto.",
+          "Zoom, cuando pides un enlace de Zoom: nuestro servidor solo le envía el título, la hora, la duración y la zona horaria de la reunión.",
+          "Meta (WhatsApp Business Platform), cuando vinculas tu número de WhatsApp: Meta transporta los mensajes entre tú y nuestro número de WhatsApp.",
+          "RevenueCat, que gestiona las suscripciones en nuestro nombre: cuando inicias sesión, la app te identifica ante RevenueCat con tu identificador de usuario anónimo (junto con los datos técnicos que envía su software, como la versión de la app y el sistema operativo) para poder vincular una compra a tu cuenta; si compras una suscripción en App Store o Google Play, RevenueCat también recibe los registros de tus compras en la tienda.",
+          "Sentry (Functional Software, Inc.), que recibe los informes de fallos y errores y las mediciones de rendimiento cuando están activados.",
+          "Expo (650 Industries, Inc.), que distribuye las actualizaciones de la app: al abrirse, la app pregunta a Expo si hay una versión nueva, lo que comparte la dirección IP del dispositivo, la versión de la app y un identificador aleatorio de la instalación.",
+          "Google Calendar, Google Tasks, Outlook, Microsoft To Do y los calendarios de tu teléfono, solo cuando los conectas.",
           "Las personas que invitas: cuando pides a la app que envíe invitaciones o comparta una reunión, los destinatarios reciben los datos de la reunión.",
           "Las autoridades, cuando la ley lo exige, o una empresa que se haga cargo del servicio, que deberá respetar esta política."
+        ],
+        "note": [
+          "Nuestros proveedores de servicios (Google Cloud y Firebase, OpenAI, RevenueCat, Sentry, Expo, Zoom y, para los mensajes de WhatsApp, Meta) solo pueden usar tu información para prestarnos su servicio y deben protegerla al menos como describe esta política. Cuando inicias sesión con Google, Apple o Microsoft, conectas uno de sus servicios o usas el reconocimiento de voz de tu teléfono, esa empresa aplica además sus propios términos y su política de privacidad."
         ]
       },
       "transfers": {
@@ -118,13 +158,17 @@
           "Guardamos tu información mientras tu cuenta exista."
         ],
         "items": [
-          "Puedes eliminar tu cuenta en cualquier momento desde la app: Ajustes → Cuenta → Eliminar cuenta. Así se borran para siempre de nuestros servidores tu cuenta, reuniones, notas, preferencias, registros de uso del asistente y estado de suscripción, se cierra tu sesión y se retira el acceso de la app a tu cuenta de Google.",
+          "Puedes eliminar tu cuenta en cualquier momento desde la app: Ajustes → Cuenta → Eliminar cuenta. Así se borran para siempre de nuestros servidores tu cuenta, reuniones, tareas, notas, preferencias, registros de uso del asistente, estado de suscripción, vínculo de WhatsApp y registro de inicio de sesión con Microsoft, se cierra tu sesión y se retira el acceso de la app a tu cuenta de Google o a tu cuenta de Apple. Eliminar tu cuenta no cancela una suscripción comprada en App Store o Google Play: cancélala allí.",
           "Si ya no puedes iniciar sesión, escribe a {{email}} desde el correo de tu cuenta y pídenos que la eliminemos.",
           "Cuando borras una reunión, se conserva hasta 60 días un registro mínimo sin su contenido (identificadores y hora) para que el borrado llegue a tus otros dispositivos y calendarios; después nuestro servidor lo elimina automáticamente.",
-          "Los eventos que la app añadió a Google Calendar o al calendario de tu teléfono siguen allí hasta que los borres.",
-          "Los registros del servidor solo contienen tu identificador de usuario anónimo y se conservan hasta 30 días.",
+          "Los eventos que la app añadió a Google Calendar, a Outlook o al calendario de tu teléfono, y las tareas que añadió a Google Tasks o a Microsoft To Do, siguen allí hasta que los borres.",
+          "Las reuniones de Zoom que la app creó para ti (con su título, su hora y su enlace) no se borran automáticamente cuando eliminas tu cuenta: se quedan en nuestra cuenta de Zoom hasta que nos pidas que las borremos en {{email}}.",
+          "El vínculo de WhatsApp (tu número de teléfono y tu nombre de perfil de WhatsApp) se conserva hasta que lo desvincules o elimines tu cuenta. El estado de la conversación deja de usarse tras 15 minutos sin mensajes y se borra cuando pasan 30 días sin mensajes.",
+          "Si compraste una suscripción, los registros de sus eventos en la tienda (compras, renovaciones, cambios de plan, cancelaciones y vencimiento, con tu identificador de usuario anónimo, el plan, la tienda, el producto, el precio y la moneda y las fechas) se conservan en nuestros servidores después de que elimines tu cuenta, como parte de nuestros registros de ingresos.",
+          "RevenueCat conserva su propio registro de tu identificador de usuario anónimo, y de tus compras si las hiciste, después de que elimines tu cuenta.",
+          "Los registros del servidor contienen tu identificador de usuario anónimo, identificadores técnicos (como los de las reuniones y los mensajes), los datos de cada petición que Google Cloud registra automáticamente (como la dirección IP y el tipo de app) y, en WhatsApp, un código derivado de tu número de teléfono en lugar del número. Se conservan hasta 30 días.",
           "Las copias de seguridad de nuestra base de datos, que la protegen contra la pérdida de información, siguen conteniendo la información borrada hasta que caducan: las copias diarias se conservan hasta 14 días y la recuperación a un momento anterior cubre los últimos 7 días. Las copias no se usan para nada más.",
-          "Cuando eliminas tu cuenta, conservamos durante 30 días un registro que solo contiene tu identificador de usuario anónimo y la fecha. Si alguna vez tenemos que restaurar una copia de seguridad, lo usamos para volver a borrar tus datos, de modo que una cuenta eliminada siga eliminada.",
+          "Cuando eliminas tu cuenta, conservamos durante 30 días un registro que solo contiene tu identificador de usuario anónimo, la fecha y, si se crearon reuniones de Zoom para ti, sus números de reunión de Zoom. Si alguna vez tenemos que restaurar una copia de seguridad, usamos ese registro para volver a borrar tus datos, de modo que una cuenta eliminada siga eliminada.",
           "La copia guardada en tu dispositivo se borra al cerrar sesión o al eliminar tu cuenta."
         ]
       },
@@ -141,21 +185,21 @@
         ],
         "items": [
           "Acceder a tus datos personales y obtener una copia.",
-          "Corregir datos inexactos. Puedes editar tus reuniones, notas y ajustes en la app.",
+          "Corregir datos inexactos. Puedes editar tus reuniones, tareas, notas y ajustes en la app.",
           "Borrar tus datos (consulta el apartado anterior).",
-          "Oponerte a algunos tratamientos o limitarlos, y retirar tu consentimiento en cualquier momento, por ejemplo desconectando Google Calendar, desactivando el acceso al calendario o dejando de usar el asistente de IA.",
+          "Oponerte a algunos tratamientos o limitarlos, y retirar tu consentimiento en cualquier momento, por ejemplo desconectando Google Calendar, Google Tasks, Outlook o Microsoft To Do, desvinculando WhatsApp, desactivando el acceso al calendario o dejando de usar el asistente de IA.",
           "Recibir tus datos en un formato portable.",
           "Presentar una reclamación ante la autoridad de protección de datos de tu país."
         ],
         "note": [
           "Para ejercer estos derechos, escribe a {{email}}. Te responderemos en el plazo que marca la ley.",
-          "Tratamos tus datos para prestarte el servicio que pediste (ejecución de un contrato), con tu consentimiento (conexión de calendarios y asistente de IA) y por nuestro interés legítimo (seguridad y corrección de errores)."
+          "Tratamos tus datos para prestarte el servicio que pediste (ejecución de un contrato), con tu consentimiento (conexión de calendarios y tareas, WhatsApp y asistente de IA) y por nuestro interés legítimo (seguridad y corrección de errores)."
         ]
       },
       "children": {
         "title": "Menores",
         "body": [
-          "MeetingGuard AI no está dirigida a menores de 16 años y no recogemos a sabiendas información personal de menores. Si crees que un menor nos ha dado información personal, escríbenos a {{email}} y la borraremos."
+          "Meeting Guard AI no está dirigida a menores de 16 años y no recogemos a sabiendas información personal de menores. Si crees que un menor nos ha dado información personal, escríbenos a {{email}} y la borraremos."
         ]
       },
       "changes": {
@@ -168,28 +212,28 @@
   },
   "terms": {
     "title": "Términos del servicio",
-    "intro": "Lee estos términos con atención. Explican las reglas para usar MeetingGuard AI y lo que puedes esperar de nosotros.",
+    "intro": "Lee estos términos con atención. Explican las reglas para usar Meeting Guard AI y lo que puedes esperar de nosotros.",
     "sections": {
       "agreement": {
         "title": "Acuerdo",
         "body": [
-          "Estos Términos del servicio son un acuerdo entre tú y {{company}} (\"nosotros\"), sociedad registrada en Inglaterra y Gales con el número 14085985 y domicilio social en {{address}}, para el uso de la app MeetingGuard AI. Al crear una cuenta o usar la app, aceptas estos términos y nuestra Política de privacidad. Si no estás de acuerdo, no uses la app."
+          "Estos Términos del servicio son un acuerdo entre tú y {{company}} (\"nosotros\"), sociedad registrada en Inglaterra y Gales con el número 14085985 y domicilio social en {{address}}, para el uso de la app Meeting Guard AI. Al crear una cuenta o usar la app, aceptas estos términos y nuestra Política de privacidad. Si no estás de acuerdo, no uses la app."
         ]
       },
       "service": {
         "title": "El servicio",
         "body": [
-          "MeetingGuard AI te ayuda a gestionar tus reuniones: guarda tus reuniones y notas, programa recordatorios en tu dispositivo, se sincroniza con Google Calendar y con los calendarios de tu teléfono si los conectas, y ofrece un asistente de IA que te propone cambios para que los confirmes. Con el tiempo podemos añadir, cambiar o retirar funciones. Las funciones que aún no están disponibles aparecen marcadas como tales en la app."
+          "Meeting Guard AI te ayuda a gestionar tus reuniones y tareas. Guarda tus reuniones, tareas y notas y programa recordatorios en tu dispositivo. Si conectas Google Calendar, Outlook, los calendarios de tu teléfono, Google Tasks o Microsoft To Do, la app se sincroniza con ellos. Su asistente de IA te propone cambios para que los confirmes, por ejemplo las tareas de un resumen que dictas o escribes después de una reunión. Cuando vas tarde, la app prepara un mensaje con la nueva hora para que lo envíes desde tu teléfono, y solo mueve la reunión si tú lo decides. Con el tiempo podemos añadir, cambiar o retirar funciones. Las funciones que aún no están disponibles aparecen marcadas como tales en la app."
         ]
       },
       "account": {
         "title": "Tu cuenta",
         "body": [
-          "Para usar MeetingGuard AI:"
+          "Para usar Meeting Guard AI:"
         ],
         "items": [
           "Debes tener al menos 16 años, o más si tu país lo exige para usar servicios en línea sin el consentimiento de tus padres.",
-          "Da información correcta y mantén segura tu cuenta de Google o tu contraseña.",
+          "Da información correcta y mantén segura tu cuenta de Google, Apple o Microsoft o tu contraseña.",
           "Eres responsable de la actividad de tu cuenta. Avísanos en {{email}} si crees que otra persona la está usando."
         ]
       },
@@ -206,14 +250,16 @@
         ],
         "items": [
           "Las respuestas y propuestas se generan automáticamente y pueden ser incorrectas o incompletas. Revisa cada propuesta antes de confirmarla. Eres responsable de los cambios que confirmas y de los mensajes que envías a otras personas.",
-          "Cada plan tiene un límite diario de consultas al asistente (el plan Gratis incluye {{freeLimit}} al día). Los límites se reinician cada día a medianoche UTC.",
+          "Cada plan incluye un número de acciones de IA. El plan Gratis incluye {{freeLimit}} acciones durante los {{freeDays}} días posteriores a tu primera acción de IA, como máximo {{freePerDay}} al día (los días cambian a medianoche UTC); después, el asistente y la programación por WhatsApp requieren una suscripción, mientras que crear reuniones y tareas a mano, tus recordatorios programados, la consulta y la exportación siguen siendo gratis. Pro incluye {{proLimit}} y Premium {{premiumLimit}} acciones de IA al mes, que se renuevan cada mes el día en que empezó tu suscripción. Una respuesta que solo te pide datos que faltan no se cuenta, hasta dos veces seguidas.",
           "No uses el asistente con fines ilegales ni de formas que incumplan las políticas de uso de OpenAI."
         ]
       },
       "plans": {
         "title": "Planes y pagos",
         "body": [
-          "Por ahora MeetingGuard AI es gratuita. Los planes de pago (Pro y Premium) se muestran solo a título informativo y todavía no se pueden comprar. Si en el futuro ofrecemos planes de pago, se venderán a través de App Store o Google Play, y verás el precio, el periodo de facturación y las condiciones de renovación y cancelación antes de comprar."
+          "El plan Gratis no requiere ningún pago. Pro y Premium son suscripciones que compras en la app a través de App Store o Google Play; las acciones de IA que incluye cada plan se describen en el apartado \"Asistente de IA\" de estos términos.",
+          "Las suscripciones son mensuales o anuales y se renuevan automáticamente al mismo precio hasta que las canceles en Google Play o en los ajustes de App Store, al menos 24 horas antes de que termine el periodo. Antes de comprar, la tienda te muestra el precio final en tu moneda, con impuestos incluidos. El pago se carga a tu cuenta de Google Play o de App Store al confirmar la compra y de nuevo en cada renovación.",
+          "La tienda gestiona la facturación, las cancelaciones y los reembolsos según sus propias reglas. Si cancelas, tu plan sigue activo hasta el final del periodo que pagaste y después vuelve al plan Gratis; si la tienda reembolsa una suscripción, el plan termina. Los cambios de plan o de periodo de facturación también los realiza la tienda, y algunos empiezan en tu próxima renovación. Eliminar la app o tu cuenta de Meeting Guard AI no cancela la suscripción: cancélala antes en la tienda; si no, se seguirá renovando."
         ]
       },
       "content": {
@@ -225,7 +271,7 @@
       "thirdParty": {
         "title": "Servicios de terceros",
         "body": [
-          "La app funciona con servicios de otras empresas, como Google (inicio de sesión, Calendar y Firebase) y OpenAI. Cuando los usas se aplican sus propios términos y políticas de privacidad, y no somos responsables de esos servicios."
+          "La app funciona con servicios de otras empresas, como Google (inicio de sesión, Calendar, Tasks, Firebase y Google Play), Apple (inicio de sesión con Apple y App Store), Microsoft (inicio de sesión, Outlook y To Do), Zoom, Meta (WhatsApp), OpenAI y RevenueCat (suscripciones). Cuando los usas se aplican sus propios términos y políticas de privacidad, y no somos responsables de esos servicios."
         ]
       },
       "acceptableUse": {

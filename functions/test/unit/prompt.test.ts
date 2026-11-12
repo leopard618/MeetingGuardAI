@@ -42,6 +42,13 @@ describe('system prompt', () => {
     expect(prompt).not.toContain('Follow-up mode');
   });
 
+  it('forbids tool arguments in the reply text and counts reminders as tasks (device findings 2026-10-21)', () => {
+    const text = buildSystemPrompt({ language: 'en', timeZone: 'Europe/Madrid', now: NOW, mode: 'chat', followUpRef: null, nonce: 'n0nce' });
+    expect(text).toContain('15. Tool arguments go ONLY into tool calls');
+    expect(text).toContain('Never write JSON, field names or braces in the reply');
+    expect(text).toContain('"Remind me two days before to send the slides"');
+  });
+
   it('explains recurring meetings: the rule shape, the repeats field and the scope question', () => {
     const prompt = buildSystemPrompt({
       language: 'en',
@@ -72,6 +79,26 @@ describe('system prompt', () => {
     });
     expect(prompt).toContain('# Follow-up mode');
     expect(prompt).toContain('"mabcdefg" has just ended');
+    expect(prompt).not.toContain('# Debrief mode');
+  });
+
+  it('adds debrief instructions (v7) that pin every task to the ended meeting', () => {
+    const prompt = buildSystemPrompt({
+      language: 'es',
+      timeZone: 'UTC',
+      now: NOW,
+      mode: 'debrief',
+      followUpRef: 'mabcdefg',
+      hasTasks: true,
+      nonce: 'n',
+    });
+    expect(prompt).toContain('# Debrief mode');
+    expect(prompt).toContain('set meeting_ref to "mabcdefg"');
+    expect(prompt).toContain('SPEECH-TO-TEXT transcript');
+    expect(prompt).toContain('never guess a date');
+    expect(prompt).not.toContain('# Follow-up mode');
+    expect(fallbackReply('en', 'debrief')).toMatch(/tasks below/);
+    expect(fallbackReply('es', 'debrief_empty')).toMatch(/tarea/);
   });
 
   it('builds a date table from yesterday to two weeks ahead', () => {
@@ -299,5 +326,37 @@ describe('agenda questions (Stage 1 acceptance: today, overdue, tomorrow)', () =
     expect(prompt(false)).not.toContain('What counts as overdue');
     // The meeting half is always relevant.
     expect(prompt(false)).toContain('# Agenda questions');
+  });
+});
+
+describe('combined requests produce every tool call in one response (week 3 field defect)', () => {
+  // Seen in production on 2026-10-19: "book the call with Ana and add a task the day before"
+  // produced one tool call and no reply text; the task was never proposed.
+  it('is a first-class rule, not only a line in the optional tasks block', () => {
+    const withoutTasks = buildSystemPrompt({
+      language: 'en',
+      timeZone: 'Europe/Madrid',
+      now: NOW,
+      mode: 'chat',
+      followUpRef: null,
+      hasTasks: false,
+      nonce: 'n',
+    });
+    expect(withoutTasks).toContain('call EVERY tool they need in this same response, never only the first');
+    expect(withoutTasks).toContain('leaving the task for after confirmation is wrong');
+  });
+
+  it('names the exact pairing and keeps the reply text in the same response', () => {
+    const prompt = buildSystemPrompt({
+      language: 'en',
+      timeZone: 'Europe/Madrid',
+      now: NOW,
+      mode: 'chat',
+      followUpRef: null,
+      hasTasks: true,
+      nonce: 'n',
+    });
+    expect(prompt).toContain('create_meeting AND create_task (with link_to_new_meeting true) together');
+    expect(prompt).toContain('The short reply of rule 2 is part of that same response');
   });
 });

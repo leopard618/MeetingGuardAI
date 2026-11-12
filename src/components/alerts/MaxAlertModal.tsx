@@ -29,6 +29,8 @@ export interface MaxAlertModalProps {
   onSnooze(minutes: number): void;
   onJoin: (() => void) | null;
   onDetails: (() => void) | null;
+  /** M9: the running-late sheet (the alert is resolved first; null for alerts without a meeting). */
+  onRunningLate: (() => void) | null;
 }
 
 /** Alarm-ring pulse (scale 1 -> 1.15); stays still when the system asks for reduced motion. */
@@ -53,7 +55,7 @@ function usePulse(): Animated.Value {
 }
 
 export function MaxAlertModal(props: MaxAlertModalProps): ReactElement {
-  const { display, snoozeOptions, autoSnoozeSeconds, feedback, onAcknowledge, onSnooze, onJoin, onDetails } = props;
+  const { display, snoozeOptions, autoSnoozeSeconds, feedback, onAcknowledge, onSnooze, onJoin, onDetails, onRunningLate } = props;
   const t = useT();
   const insets = useSafeAreaInsets();
   const pulse = usePulse();
@@ -165,6 +167,18 @@ export function MaxAlertModal(props: MaxAlertModalProps): ReactElement {
                 </Pressable>
               ))}
             </View>
+
+            {onRunningLate ? (
+              <Pressable
+                style={({ pressed }) => [styles.snoozeButton, pressed && styles.pressed]}
+                onPress={once(onRunningLate)}
+                accessibilityRole="button"
+                testID="alert-running-late"
+              >
+                <Ionicons name="time-outline" size={18} color={alertMax.snoozeText} />
+                <Text style={styles.snoozeText}>{t('alerts:buttons.runningLate')}</Text>
+              </Pressable>
+            ) : null}
 
             {onDetails ? (
               <Pressable

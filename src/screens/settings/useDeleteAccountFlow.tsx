@@ -20,7 +20,7 @@ import Toast from 'react-native-toast-message';
 import { toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { useT } from '../../i18n';
-import { authErrorMessageKey, authService, useAuth } from '../../services/auth';
+import { authErrorMessageKey, authService, signedInWithMicrosoft, useAuth } from '../../services/auth';
 import { radii, spacing, useAppTheme } from '../../theme';
 
 const log = createLogger('settings');
@@ -69,6 +69,12 @@ export function useDeleteAccountFlow(): DeleteAccountFlow {
 
   const confirmIdentity = useCallback(() => {
     const providers = authUser?.providerIds ?? [];
+    if (signedInWithMicrosoft(authUser)) {
+      // Custom-token session (Sign in with Microsoft, section 31): the Microsoft sign-in runs
+      // again for the same account and renews auth_time.
+      void run(() => reauthenticate());
+      return;
+    }
     // Apple FIRST (section 26): the Apple reauthentication refreshes the authorizationCode that
     // the token revocation needs, and revocation must run while the user is still signed in.
     if (providers.includes('apple.com')) {

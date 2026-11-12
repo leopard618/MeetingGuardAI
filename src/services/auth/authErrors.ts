@@ -38,6 +38,10 @@ export const AUTH_ERROR_REASONS = [
   'user_mismatch',
   'apple_sign_in_unavailable',
   'apple_sign_in_failed',
+  'apple_sign_in_rejected',
+  'microsoft_not_configured',
+  'microsoft_sign_in_failed',
+  'microsoft_sign_in_rejected',
 ] as const;
 export type AuthErrorReason = (typeof AUTH_ERROR_REASONS)[number];
 
@@ -291,6 +295,10 @@ const REASON_MESSAGE_KEYS: Readonly<Record<AuthErrorReason, string>> = {
   user_mismatch: 'auth:errors.userMismatch',
   apple_sign_in_unavailable: 'auth:errors.appleSignInUnavailable',
   apple_sign_in_failed: 'auth:errors.appleSignInFailed',
+  apple_sign_in_rejected: 'auth:errors.appleSignInRejected',
+  microsoft_not_configured: 'auth:errors.microsoftNotConfigured',
+  microsoft_sign_in_failed: 'auth:errors.microsoftSignInFailed',
+  microsoft_sign_in_rejected: 'auth:errors.microsoftSignInRejected',
 };
 
 const CODE_MESSAGE_KEYS: Partial<Readonly<Record<AppErrorCode, string>>> = {
@@ -301,6 +309,7 @@ const CODE_MESSAGE_KEYS: Partial<Readonly<Record<AppErrorCode, string>>> = {
   unauthenticated: 'auth:errors.sessionExpired',
   google_not_signed_in: 'auth:errors.googleNotSignedIn',
   calendar_scope_missing: 'auth:errors.calendarScopeMissing',
+  tasks_scope_missing: 'auth:errors.tasksScopeMissing',
   pending_writes: 'auth:errors.pendingWrites',
   quota_exceeded: 'auth:errors.tooManyRequests',
   unsupported: 'auth:errors.unsupported',

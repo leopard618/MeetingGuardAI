@@ -135,7 +135,7 @@ describe('pullGoogleChanges', () => {
     expect(meetings.all()[0]?.title).toBe('Edited here');
   });
 
-  it("links MeetingGuard's own events to their meeting instead of importing a copy", async () => {
+  it("links Meeting Guard's own events to their meeting instead of importing a copy", async () => {
     const { api, meetings, deps } = setup();
     const own = meetings.add({ title: 'Mine', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' }, 'ownMeeting');
     const ownEventId = googleEventIdForMeeting(own.id);
@@ -187,7 +187,7 @@ describe('pushGoogleMeeting', () => {
     expect(meetings.writes.at(-1)).toMatchObject({ id: meeting.id, origin: 'calendar_google', kind: 'update' });
   });
 
-  it('does not re-send (or email attendees) when only MeetingGuard fields changed', async () => {
+  it('does not re-send (or email attendees) when only Meeting Guard fields changed', async () => {
     const { api, meetings, deps } = setup();
     const meeting = meetings.add({
       title: 'Kickoff',
@@ -297,6 +297,22 @@ describe('flushGooglePushes', () => {
     const flushed = await flushGooglePushes(deps);
     expect(flushed).toMatchObject({ pushed: 2, failed: 0, pending: 0, blockedBy: null });
     expect(Object.keys(state.value.pending)).toHaveLength(0);
+  });
+
+  it('skips a held meeting (Zoom link on its way) and keeps it queued', async () => {
+    const { api, meetings, state, deps } = setup();
+    const a = meetings.add({ title: 'A', startAt: '2026-10-03T09:00:00.000Z', source: 'manual' });
+    const b = meetings.add({ title: 'B', startAt: '2026-10-03T11:00:00.000Z', source: 'manual' });
+    await enqueueGooglePushes(deps, [a.id, b.id], 'upsert');
+
+    deps.holdPush = (meetingId) => meetingId === a.id;
+    expect(await flushGooglePushes(deps)).toMatchObject({ pushed: 1, failed: 0, pending: 1, blockedBy: null });
+    expect(Object.keys(state.value.pending)).toEqual([a.id]);
+    expect(api.calls.filter((call) => call.method === 'insert')).toHaveLength(1);
+
+    deps.holdPush = () => false;
+    expect(await flushGooglePushes(deps)).toMatchObject({ pushed: 1, pending: 0 });
+    expect(api.calls.filter((call) => call.method === 'insert')).toHaveLength(2);
   });
 
   it('retries transient failures and drops permanent ones', async () => {

@@ -32,6 +32,11 @@ export interface ChatMessage extends AssistantChatMessage {
   delivery?: 'sending' | 'failed';
   /** Assistant replies produced in follow-up mode carry the meeting they follow up on. */
   followUpMeetingId?: string | null;
+  /**
+   * v7 debrief: the user's transcript message and the reply it produced carry the meeting the
+   * debrief is about (the bubble is labelled "Debrief: <title>").
+   */
+  debriefMeetingId?: string | null;
 }
 
 export interface ThreadState {
@@ -45,8 +50,11 @@ export interface ThreadState {
   followUpsRequested: string[];
 }
 
-/** What to re-send on retry(). */
-export type FailedRequest = { mode: 'chat' } | { mode: 'followup'; meetingId: string };
+/** What to re-send on retry(). A debrief re-sends the transcript message it was started with. */
+export type FailedRequest =
+  | { mode: 'chat' }
+  | { mode: 'followup'; meetingId: string }
+  | { mode: 'debrief'; meetingId: string; userMessageId: string };
 
 // ---------------------------------------------------------------------------------------------
 // Execution
@@ -62,6 +70,10 @@ export interface AiActionPreview extends ActionPreview {
    * The confirmation card lists them so a proposal can never quietly add or mail someone new.
    */
   newPeople?: string[];
+  /** create_task: the Microsoft To Do list the task will go to (null when the sync is off). */
+  todoListName?: string | null;
+  /** create_task: the Google Tasks list the task will go to (null when the sync is off). */
+  gtasksListName?: string | null;
 }
 
 type DoneResult = Extract<ActionResult, { status: 'done' }>;
@@ -143,6 +155,8 @@ export interface AssistantSnapshot {
   failedRequest: FailedRequest | null;
   /** Meeting whose follow-up request is running (for a dedicated loading text). */
   followUpInFlight: string | null;
+  /** Meeting whose debrief is being turned into tasks (dedicated loading text). */
+  debriefInFlight: string | null;
 }
 
 export interface AssistantHookResult extends UseAssistantResult {
@@ -154,7 +168,12 @@ export interface AssistantHookResult extends UseAssistantResult {
   pendingActionIds: string[];
   /** Confirms every pending action in order; resolves with each result. */
   confirmAll(): Promise<ActionResult[]>;
+  /** Confirms the newest reply's pending actions only (what a plain "yes" means). */
+  confirmLatest(): Promise<ActionResult[]>;
+  /** Confirms the newest reply's pending actions only (what a plain "yes" means). */
+  confirmLatest(): Promise<ActionResult[]>;
   followUpInFlight: string | null;
+  debriefInFlight: string | null;
   /** Meetings whose follow-up was already requested (the start button is hidden for them). */
   followUpsRequested: string[];
 }
@@ -166,9 +185,16 @@ export interface AssistantController {
   setUid(uid: string | null): Promise<void>;
   send(text: string, options?: { origin?: 'typed' | 'suggestion' }): Promise<void>;
   startFollowUp(meetingId: string): Promise<void>;
+  /**
+   * v7: sends a spoken (or typed) debrief of an ended meeting; the reply proposes the tasks it
+   * contains, linked to that meeting. The transcript becomes a user message in the thread.
+   */
+  startDebrief(meetingId: string, transcript: string): Promise<void>;
   retry(): Promise<void>;
   confirm(actionId: string): Promise<ActionResult>;
   confirmAll(): Promise<ActionResult[]>;
+  /** Confirms the newest reply's pending actions only (what a plain "yes" means). */
+  confirmLatest(): Promise<ActionResult[]>;
   reject(actionId: string): void;
   reset(): Promise<void>;
   /** Recomputes previews of actions that can still run (after data changes). */

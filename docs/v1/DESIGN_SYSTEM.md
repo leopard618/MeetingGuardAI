@@ -102,7 +102,58 @@ groups, identical in both schemes — see §9).
 toasts. Never border + shadow on the same element. Dark-mode shadows never hard-code `#000` —
 use `colors.shadow`.
 
-## 3. Typography (`typography` in tokens.ts; system font, no custom font)
+### 2.1 Accent, depth and motion (flat since November 1, 2026)
+
+**Client decision (November 1, 2026): no gradients, no light or spark effects, no decorative
+motion.** `GradientSurface` paints a SOLID `primary` block (name kept for API stability; text on
+it is `onPrimary`, exposed as `onGradient.*`), `PressableScale` is a plain pressed dim,
+`Reveal` renders at rest, the aurora, glow, shimmer, sparkles and orbit rings are deleted, and
+the Main group uses the default stack transition. The notes below are history.
+
+#### Superseded: gradients, depth and motion (October 30, 2026)
+
+- **Gradients** (`gradients` / `onGradient` in tokens.ts, drawn ONLY through `GradientSurface`):
+  `primary` (filled buttons, FABs, the header hairline, the active tab pill), `hero` (one banner
+  per screen: the dashboard HeroCard), `ai` (the assistant orb and assistant tiles). Two stops,
+  diagonal by default. Every stop was checked against its on-color (white on light primary / hero /
+  ai at >= 4.5:1 for text, 4.3:1 on the lightest `ai` stop which carries icons only; indigo 10 on
+  dark primary at >= 5.7:1). Never put a gradient behind body text or behind more than one block
+  per screen.
+- **Depth**: resting cards are `elevated` (`useAppTheme().elevated`): white surface with the
+  indigo-tinted `softShadow` in light, elevation level1 + outlineVariant hairline in dark (shadows
+  vanish on dark). Floating controls (GradientFab, the assistant orb) use `floatingShadow`
+  (primary-colored). `variant="outlined"` keeps the flat hairline card for dense lists.
+- **Light and spark** (decorative layers, pointerEvents none, hidden from screen readers, static
+  under "reduce motion"): `AuroraBackdrop` (three drifting indigo / violet / teal blooms fading
+  into the page, behind the dashboard greeting and stats), `Glow` (a radial bloom under the
+  assistant orb and the focal card), `Shimmer` (a white light sweep every ~4.6 s across the focal
+  card and the landing sign-in pill), `Sparkles` (four twinkling stars around the assistant orb).
+  Never more than one aurora per screen and one shimmer per viewport. The dark scheme uses the same
+  vivid indigo-to-violet ramps as light (white text) so gradients glow instead of washing out;
+  `Card variant="glass"` (white at 6 percent dark / 72 percent light, faint light border) sits
+  on the aurora. Cards never clip their own box (no `overflow: hidden` on a shadow host), so the
+  elevation renders on Android; a child view clips ripples and accent bars instead.
+- **Motion** (`motion` in tokens.ts; all of it skips under "reduce motion"): press feedback is a
+  spring to 97 percent (`PressableScale`), blocks and rows fade-rise in over 360 ms (`Reveal`,
+  rows staggered 40 ms up to index 8), the tab pill springs in, the assistant orb breathes
+  (1.00 to 1.06, 2.4 s) until the chat is open, skeletons pulse (700 ms).
+
+### 2.2 Icons (visual refresh, October 30, 2026)
+
+One thin rounded line family: **Feather** (bundled with `@expo/vector-icons`), through the kit's
+`Icon` component and its semantic names (`home`, `meetings`, `calendar`, `tasks`, `place`, `video`,
+`alert`, ...). The assistant keeps Ionicons' `sparkles` (`name="ai"`). New code never imports an icon
+family directly; MaterialCommunityIcons names survive only where Paper props or the EmptyState /
+ListRow APIs take them. Sizes: 16 meta, 20 inline, 24 bars and rows, 22 in the tab bar.
+
+## 3. Typography (`typography` in tokens.ts; Plus Jakarta Sans, loaded in AppRoot)
+
+The app typeface is **Plus Jakarta Sans** (400 / 500 / 600 / 700 / 800, `@expo-google-fonts`), the
+geometric humanist face of current planner apps. One family name per weight (`fontFamilies`); every
+style sets the family of its weight and keeps `fontWeight: '400'` (Android would fake a bold on
+top). Headlines are heavy and tight (headlineL 32/40 at -0.6, displayS 40/48 at -0.8), body relaxed.
+Paper `<Text variant>` and Paper controls (`fonts.default`) use the same families. Until the fonts
+load (a few tens of milliseconds, the native splash is still up) the system font shows.
 
 | Variant | size/line | weight | Use |
 |---|---|---|---|
@@ -209,7 +260,17 @@ Dashboard + Calendar + list screens only.
    insets, title titleL, 44×44 icon buttons with `android_ripple {onSurface@12%, borderless,
    radius:22}`, language pill surfaceVariant/r-full/labelM), `MobileSidebar` (surface bg, active
    route = secondaryContainer pill + onSecondaryContainer, inactive onSurfaceVariant, scrim
-   token, shadow via colors.shadow), `ThemeToggle` (44×44), `src/screens/shared/Section.tsx` /
+   token, shadow via colors.shadow), `BottomNavBar` (surface bg, 1px top outlineVariant, row
+   `bottomBarHeight` 64 + bottom inset; Home, Meetings, AI, Calendar, Tasks; regular tabs get a
+   56×32 r-full secondaryContainer pill that springs in behind the active icon (filled Ionicon,
+   onSecondaryContainer), labelS label onSurface / onSurfaceVariant, onSurface@12% borderless
+   ripple, role tab + selected; the AI item is a 56dp orb on the `ai` gradient raised 18dp above the
+   bar with `floatingShadow`, a white@90% 3dp ring when the chat is open, breathing otherwise; the
+   old floating assistant button is gone), the header hairline is a 2dp `primary` gradient,
+   `ThemeToggle` (44×44, in the menu and in Settings; no longer in the header), the header itself now sits
+   on the screen background with no hairline (logo or back, titleL title, EN/ES pill, 36dp gradient
+   avatar with the user initial that opens the menu); the tab bar is a floating r-xxl pill 16dp from the
+   sides on the background, `src/screens/shared/Section.tsx` /
    `ScreenBody` (bg background, gutter 16, paddingBottom insets.bottom+24; Section card = Card
    spec) — every screen inherits the new card baseline from here.
 7. `src/services/alerts/expoNotificationsPort.ts`: notification accent `#1E40AF` → `#4646D3`.
@@ -222,8 +283,12 @@ kit (retires the audit's per-screen dashed boxes / plain text / bespoke errorBox
 radii only from tokens; hierarchy = one focal element per screen.
 
 ### Group A — auth, onboarding, legal, pricing, settings, alert settings
-- **LandingScreen** (`auth/LandingScreen.tsx`): keep bg.jpg hero; scrim → `scrim` token; content
-  card surface r-xl p-24; app name headlineL, tagline bodyM onSurfaceVariant; buttons follow the
+- **LandingScreen** (`auth/LandingScreen.tsx`): bg.jpg is the brand image (mark, app name and
+  tagline baked in over a night office, 941 x 1672, always dark); the screen draws no logo or
+  headline, a spacer keeps the content card below the image's tagline (card starts at 46% of the
+  window) and the scrim is clear on top and night-dark behind the buttons; no content card, no
+  value props, no quota note: only Apple (iOS) / Google / email buttons and the Terms and Privacy
+  links sit on the image in white; buttons follow the
   MG filled/ghost spec (the sign-in stays a bespoke MG-spec Pressable — it asserts `busy`, see
   the §5 Paper Button limitation).
 - **Onboarding** (`OnboardingLayout` + 5 steps): bg background; ProgressBar themed (primary);
@@ -250,18 +315,42 @@ radii only from tokens; hierarchy = one focal element per screen.
   buttons `MGButton tonal`; preview swatches from alert tokens.
 
 ### Group B — home, insights
-- **DashboardScreen**: greeting headlineL + date bodyM onSurfaceVariant; **NextMeetingCard is the
-  single focal card**: `Card accent="primary"` (primaryContainer/onPrimaryContainer), title
-  titleM, countdown headlineS tabular-nums, meta bodyS, Join = `MGButton` filled sm; all other
-  sections stay neutral `Card`s with `SectionHeader`s (fixes audit #13 "six identical cards");
-  error box → `ErrorState` (only when nothing cached — ARCHITECTURE §13 rule), empty →
-  `EmptyState`, first load → skeleton cards.
-- **QuickActions**: 3 tiles across; icon 24 in 40px primaryContainer circle, label labelL, hint
-  bodyS onSurfaceVariant — remove the 2-line clamp and any fixed tile height (minHeight +
-  stretch) so ES + 1.3× scale wraps instead of clipping (audit #19); ripple primary@10%.
-- **TodayTimelineRow**: time rail labelM tabular-nums onSurfaceVariant (minWidth, not fixed
-  width); 8px dot in source color (§2 map; current meeting = primary dot + card tinted
-  surfaceContainerHigh); row card r-md p-12. Density exception: the timeline's meeting titles
+- **DashboardScreen** (dark reference style, 2026-11-01): the header is the "welcome" layout
+  (avatar left opens the menu, "Welcome back" + first name, EN/ES pill, bell to Settings >
+  Alerts); greeting in two headlineL lines ("Good evening," onSurface, the first name in
+  primary) + date bodyM onSurfaceVariant over the aurora; **AskBar** (surface pill, sparkles,
+  placeholder, 40px gradient send button; opens the chat with the text prefilled); "Overview"
+  SectionHeader with "View all" → meetings; **StatsRow** = three surface tiles (32px primary@14%
+  icon box with a primary Feather icon, headlineM tabular value, labelM label); **NextMeetingCard
+  is the single focal card**: a surface `Card` (charcoal in dark, white in light) with faint
+  primary `OrbitRings` top-right, primary labelL label, title titleL, range bodyS, a route row
+  (now -> start, or started -> ends while running: labelS + titleS tabular points joined by 14
+  dashes, filled in primary by the elapsed share, with a primaryContainer icon circle in the
+  middle), the countdown titleL in primary, participant initials (max 3, "+N") and ONE
+  gradient-filled button (Join with a link, else Details; Details ghost beside Join); all other
+  sections are neutral `Card`s under `SectionHeader`s (titleM onSurface); error box →
+  `ErrorState` (only when nothing cached — ARCHITECTURE §13 rule), empty → `EmptyState`,
+  first load → skeleton cards. Dark is the default appearance for a fresh install; the dark
+  neutrals are charcoal (background #0A0C11, surface #12151D, cards elevation.level1 #171B24,
+  hairline #262B36).
+- **QuickActions**: a row of four 56px round buttons with labelM labels: new meeting (primary
+  gradient, plus), new with AI (ai gradient, sparkles), WhatsApp (tonal; disabled with a
+  "Coming soon" caption until the bot is enabled), notes (tonal); PressableScale feedback, labels
+  wrap instead of clipping.
+- **TasksTodayCard**: header row titleM + neutral count pill + "View all" action; rows = 24px
+  rounded-square checkbox (error border when overdue), title bodyL, status `Badge` (error
+  "Overdue" / neutral time or "Today"), hairline between rows.
+- **AlertStatusCard**: one pressable row card (the card opens Settings > Alerts, chevron at the
+  right): bell on the primary gradient when on / bell-off on surfaceVariant when off, state
+  titleM, intensity + scheduled count bodyS, success / warning Badge; the next alert and only the
+  problem lines (permission, exact alarms, Do Not Disturb) below.
+- **InsightsSummaryCard ("Your week")**: week count headlineS + time bodyS, today count at the
+  right, `MiniBars` (7 days, today on the gradient, weekday initials), then the rest-of-week
+  lines and the two buttons.
+- **TodayTimelineRow**: an open list, no bordered cards: start time titleS tabular-nums (minWidth,
+  not fixed width), 4px accent bar in source color (§2 map; current meeting = primary bar + row
+  tinted surfaceContainerHigh; conflict = error bar), title titleS, range bodyS, state pill,
+  chevron; hairline between rows. Density exception: the timeline's meeting titles
   stay titleS (not the §3 titleM row-title default) — the compact rail rows earn the smaller
   size; the meetings list keeps titleM for the same content.
 - **OfflineBanner** → `Banner tone="warning"`; **AlertStatusCard** → Card, status via `Badge`

@@ -25,6 +25,9 @@ class AlarmSpecRecord : Record {
   @Field var deepLink: String = ""
 
   @Field var channelId: String = ""
+
+  /** Alert payload as JSON text, returned by getFired(); empty when the alarm has none. */
+  @Field var data: String = ""
 }
 
 /**
@@ -34,7 +37,9 @@ class AlarmSpecRecord : Record {
  *
  * setAlarms is DECLARATIVE: it replaces the whole pending set, which makes the module the native
  * side of the alert engine's reconcile diff. Pending alarms persist in SharedPreferences
- * (AlarmStore) and BootReceiver restores them after reboots / app updates.
+ * (AlarmStore) and BootReceiver restores them after reboots / app updates. Fired alarms are kept
+ * in FiredStore until JS reads and clears them (getFired / clearFired), so the app can show its
+ * in-app alarm screen for an alarm that fired while it was closed.
  */
 class MgFullscreenAlarmModule : Module() {
   private val reactContext: Context
@@ -43,8 +48,8 @@ class MgFullscreenAlarmModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MgFullscreenAlarm")
 
-    AsyncFunction("setAlarms") { alarms: List<AlarmSpecRecord> ->
-      setAlarmsInternal(alarms)
+    AsyncFunction("setAlarms") { alarms: List<AlarmSpecRecord>, scope: String? ->
+      setAlarmsInternal(alarms, scope)
     }
 
     AsyncFunction("clearAlarms") { ids: List<String>? ->
@@ -58,10 +63,23 @@ class MgFullscreenAlarmModule : Module() {
     AsyncFunction<Unit>("openFullScreenIntentSettings") {
       openFullScreenIntentSettingsInternal()
     }
+
+    AsyncFunction("getFired") { scope: String? ->
+      getFiredInternal(scope)
+    }
+
+    AsyncFunction("clearFired") { ids: List<String>? ->
+      clearFiredInternal(ids)
+    }
   }
 
-  /** Replace-all: alarms missing from `alarms` are cancelled, the rest are (re)scheduled. */
-  private fun setAlarmsInternal(alarms: List<AlarmSpecRecord>) {
+  /**
+   * Replace-all: alarms missing from `alarms` are cancelled, the rest are (re)scheduled. When
+   * `scope` is non-empty the replace-all is restricted to stored alarms whose id starts with it,
+   * so the meeting engine ("mg:") and the daily briefing ("mgbrief:") can each own their alarms
+   * without cancelling the other's. A null/empty scope keeps the whole-set replace-all.
+   */
+  private fun setAlarmsInternal(alarms: List<AlarmSpecRecord>, scope: String?) {
     val context = reactContext
     val now = System.currentTimeMillis()
     val nextIds = HashSet<String>()
@@ -69,7 +87,8 @@ class MgFullscreenAlarmModule : Module() {
       if (spec.id.isNotEmpty()) nextIds.add(spec.id)
     }
     for (existing in AlarmStore.all(context)) {
-      if (existing.id !in nextIds) {
+      val inScope = scope.isNullOrEmpty() || existing.id.startsWith(scope)
+      if (inScope && existing.id !in nextIds) {
         AlarmScheduler.cancel(context, existing.id)
         AlarmStore.remove(context, existing.id)
       }
@@ -84,6 +103,12 @@ class MgFullscreenAlarmModule : Module() {
           // reconcile racing the fire time cannot double-post it.
           continue
         }
+        if (previous == null && FiredStore.all(context, null).any { it.id == spec.id }) {
+          // It fired a moment ago (the receiver drops the stored entry before posting, so
+          // `previous` is gone): a reconcile planned before the fire instant must not set it
+          // again, or the alarm sounds twice.
+          continue
+        }
         if (now - atMs > AlarmScheduler.SET_PAST_GRACE_MS) {
           // Too old to fire. An outdated copy under this id is removed.
           if (previous != null) {
@@ -94,7 +119,7 @@ class MgFullscreenAlarmModule : Module() {
         }
         // Slightly past (scheduling race): AlarmManager fires it immediately.
       }
-      val stored = StoredAlarm(spec.id, atMs, spec.title, spec.body, spec.deepLink, spec.channelId)
+      val stored = StoredAlarm(spec.id, atMs, spec.title, spec.body, spec.deepLink, spec.channelId, spec.data)
       AlarmStore.put(context, stored)
       AlarmScheduler.schedule(context, stored)
     }
@@ -109,12 +134,36 @@ class MgFullscreenAlarmModule : Module() {
       AlarmScheduler.cancel(context, id)
       AlarmStore.remove(context, id)
       try {
-        manager?.cancel(id, 0)
+        manager?.cancel(id, AlarmReceiver.NOTIFY_ID)
       } catch (_: Exception) {
         // Removing a tray copy is best-effort.
       }
     }
-    if (ids == null) AlarmStore.clear(context)
+    if (ids == null) {
+      AlarmStore.clear(context)
+      FiredStore.clear(context)
+    } else {
+      FiredStore.remove(context, ids)
+    }
+  }
+
+  /** Fired alarms not yet handed to JS, oldest first; scoped by id prefix like setAlarms. */
+  private fun getFiredInternal(scope: String?): List<Map<String, Any>> =
+    FiredStore.all(reactContext, scope).map {
+      mapOf(
+        "id" to it.id,
+        "firedAtMs" to it.firedAtMs.toDouble(),
+        "title" to it.title,
+        "body" to it.body,
+        "deepLink" to it.deepLink,
+        "data" to it.data,
+      )
+    }
+
+  /** Forgets fired records (the tray copy stays; the engine dismisses it when the alert is handled). */
+  private fun clearFiredInternal(ids: List<String>?) {
+    val context = reactContext
+    if (ids == null) FiredStore.clear(context) else FiredStore.remove(context, ids)
   }
 
   private fun statusInternal(): Map<String, Boolean> {

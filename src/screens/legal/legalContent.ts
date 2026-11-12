@@ -6,12 +6,12 @@
  * The company details (LEGAL_ENTITY, legal:jurisdiction in both languages) are filled with the
  * real legal entity; have the texts reviewed by counsel before publishing material changes.
  */
-import { PLAN_DAILY_AI_LIMITS } from '../../core/aiContract';
+import { AI_ALLOWANCES } from '../../core/aiContract';
 
 export type LegalDocumentId = 'privacy' | 'terms';
 
 /** Date shown as "Last updated" (a calendar date, formatted in the UI language). */
-export const LEGAL_LAST_UPDATED = '2026-09-28';
+export const LEGAL_LAST_UPDATED = '2026-11-06';
 
 /** Legal entity that provides the app. */
 export const LEGAL_ENTITY = {
@@ -27,7 +27,10 @@ export const LEGAL_SECTIONS: Readonly<Record<LegalDocumentId, readonly string[]>
     'device',
     'use',
     'google',
+    'microsoft',
     'deviceCalendars',
+    'zoom',
+    'whatsapp',
     'ai',
     'notifications',
     'sharing',
@@ -91,7 +94,11 @@ export function legalVariables(jurisdiction: string): Record<string, string | nu
     address: LEGAL_ENTITY.address,
     email: LEGAL_ENTITY.email,
     jurisdiction,
-    freeLimit: PLAN_DAILY_AI_LIMITS.free,
+    freeLimit: AI_ALLOWANCES.free.total,
+    freeDays: AI_ALLOWANCES.free.windowDays,
+    freePerDay: AI_ALLOWANCES.free.perDay,
+    proLimit: AI_ALLOWANCES.pro.perMonth,
+    premiumLimit: AI_ALLOWANCES.premium.perMonth,
   };
 }
 

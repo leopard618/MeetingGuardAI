@@ -1,5 +1,5 @@
 /**
- * MeetingGuard AI admin dashboard v2 (build-free ES module; docs/ADMIN.md, ARCHITECTURE.md §21).
+ * Meeting Guard AI admin dashboard v2 (build-free ES module; docs/ADMIN.md, ARCHITECTURE.md §21).
  *
  * - Firebase JS SDK from the gstatic CDN (the version tracks functions/package.json devDeps).
  * - Config comes from Firebase Hosting's reserved /__/firebase/init.json; a local ./config.js
@@ -8,7 +8,7 @@
  *   `admin` custom claim travels inside the token; without the claim it only shows a block state.
  *   The real enforcement is server-side in every callable.
  * - All user data is rendered with textContent (never innerHTML): names/emails are untrusted.
- * - Four hash-routed tabs (#overview #users #ai #settings); each loads lazily on first show.
+ * - Five hash-routed tabs (#overview #users #revenue #ai #settings); each loads lazily on first show.
  * - Charts are hand-rolled SVG (./chart.js); pure page logic lives in ./format.js so
  *   scripts/admin-ui-tests.mjs can test it under plain node.
  * - SECURITY: the key pasted into the rotation card goes only into the callable payload; it is
@@ -40,6 +40,8 @@ import {
   rotationErrorDisplay,
   signupsSeries,
   tokensSeries,
+  revenueChurnSeries,
+  revenueFlowSeries,
   v2ErrorMessage,
 } from './format.js';
 
@@ -47,7 +49,7 @@ import {
 const DEFAULT_REGION = 'us-central1';
 const PLANS = ['free', 'pro', 'premium'];
 const PAGE_SIZE = 50;
-const TABS = ['overview', 'users', 'ai', 'settings'];
+const TABS = ['overview', 'users', 'revenue', 'ai', 'settings'];
 
 // ---------------------------------------------------------------------------------------------
 // Tiny DOM helpers
@@ -188,9 +190,12 @@ const usersState = {
 };
 
 const aiState = { days: 7, loading: false };
+const revenueState = { days: 30, loading: false };
 /** Tabs whose first load already ran this session (cleared on every sign-in). */
 const loadedTabs = new Set();
 let activeTab = 'overview';
+/** 'admin' (read and write) or 'viewer' (read-only), from the ID token claims at sign-in. */
+let sessionRole = null;
 
 // ---------------------------------------------------------------------------------------------
 // Tabs (hash-routed; lazy per-tab loading)
@@ -204,6 +209,7 @@ function tabFromHash() {
 const TAB_LOADERS = {
   overview: () => { void loadMetrics(); void loadOverviewStats(); },
   users: () => { void loadUsersPage(true); },
+  revenue: () => { void loadRevenue(revenueState.days); },
   ai: () => { void loadAiStats(aiState.days); },
   settings: () => { void loadHealth(false); },
 };
@@ -376,6 +382,71 @@ async function loadAiStats(days) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Revenue (adminGetRevenue: webhook events + paying users + estimated MRR)
+// ---------------------------------------------------------------------------------------------
+
+const REVENUE_TILE_IDS = ['revenue-paying', 'revenue-mrr', 'revenue-trials', 'revenue-newpaid',
+  'revenue-cancellations', 'revenue-expirations'];
+const REVENUE_DETAIL_IDS = ['revenue-paying-detail', 'revenue-mrr-detail', 'revenue-newpaid-detail',
+  'revenue-cancellations-detail', 'revenue-store-detail'];
+
+async function loadRevenue(days) {
+  if (revenueState.loading) return;
+  revenueState.loading = true;
+  revenueState.days = days;
+  const rangeButtons = document.querySelectorAll('#revenue-range .range-btn');
+  for (const button of rangeButtons) {
+    button.disabled = true;
+    button.setAttribute('aria-pressed', String(Number(button.dataset.days) === days));
+  }
+  setChartLoading('revenue-flow-chart');
+  setChartLoading('revenue-churn-chart');
+  setChartLoading('revenue-plans-chart');
+  try {
+    const { data } = await callables.getRevenue({ days });
+    const { totals, active, mrr } = data;
+    setStat('revenue-paying', active.paying);
+    $('revenue-paying-detail').textContent =
+      `${active.byPlan.pro} Pro, ${active.byPlan.premium} Premium` +
+      (active.gracePeriod ? `, ${active.gracePeriod} in grace period` : '') +
+      (active.comps ? `; ${active.comps} granted by admin` : '');
+    setStat('revenue-mrr', mrr.estimateUsd, formatUsd);
+    $('revenue-mrr-detail').textContent = mrr.defaultPriceCount === 0
+      ? 'From stored prices'
+      : `${mrr.measuredPriceCount} from stored prices, ${mrr.defaultPriceCount} at list price`;
+    setStat('revenue-trials', totals.trialsStarted);
+    setStat('revenue-newpaid', totals.newPaid);
+    $('revenue-newpaid-detail').textContent = `${totals.trialConversions} from trials, ${totals.renewals} renewals`;
+    setStat('revenue-cancellations', totals.cancellations);
+    $('revenue-cancellations-detail').textContent =
+      `${totals.refunds} refunds, ${totals.billingIssues} billing issues, ${totals.uncancellations} reactivated`;
+    setStat('revenue-expirations', totals.expirations);
+    $('revenue-store-detail').textContent =
+      `Google Play ${active.byStore.playStore}, App Store ${active.byStore.appStore}` +
+      (active.byStore.other ? `, other ${active.byStore.other}` : '');
+    drawChart('revenue-flow-chart', renderBarChart, revenueFlowSeries(data.days),
+      { ariaLabel: `New paid subscriptions and trials started per day, last ${days} days`, yFormat: intTickFormat });
+    drawChart('revenue-churn-chart', renderBarChart, revenueChurnSeries(data.days),
+      { ariaLabel: `Cancellations and expirations per day, last ${days} days`, yFormat: intTickFormat });
+    drawChart('revenue-plans-chart', renderDonutChart, [
+      { label: 'Pro', value: active.byPlan.pro, colorVar: '--primary-deep' },
+      { label: 'Premium', value: active.byPlan.premium, gradient: true },
+    ], { total: active.paying, centerLabel: 'paying', ariaLabel: 'Paying users by plan' });
+  } catch (error) {
+    const message = v2ErrorMessage(error);
+    chartStatus('revenue-flow-chart', message, true);
+    chartStatus('revenue-churn-chart', message, true);
+    chartStatus('revenue-plans-chart', message, true);
+    // The previous range's numbers would otherwise pose as the failed range's.
+    for (const id of REVENUE_TILE_IDS) $(id).textContent = '-';
+    for (const id of REVENUE_DETAIL_IDS) $(id).textContent = '-';
+  } finally {
+    revenueState.loading = false;
+    for (const button of rangeButtons) button.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // Metrics (v1 tiles)
 // ---------------------------------------------------------------------------------------------
 
@@ -496,7 +567,7 @@ function buildPlanCell(row) {
   reconcile.setAttribute('aria-label', `Reconcile entitlement of ${userLabel(row)} against RevenueCat`);
   reconcile.addEventListener('click', () => reconcileRow(row, reconcile));
   editor.append(select, expiry, apply, reconcile);
-  wrap.appendChild(editor);
+  if (sessionRole !== 'viewer') wrap.appendChild(editor); // read-only sessions see the plan, not the controls
 
   cell.appendChild(wrap);
   return cell;
@@ -565,7 +636,7 @@ function buildStatusCell(row) {
     toggle.title = 'You cannot disable your own account.';
   }
   toggle.addEventListener('click', () => toggleDisabled(row, toggle));
-  wrap.appendChild(toggle);
+  if (sessionRole !== 'viewer') wrap.appendChild(toggle);
   cell.appendChild(wrap);
   return cell;
 }
@@ -656,7 +727,9 @@ function renderHealth(data) {
   // Rotation needs the same grant (secretVersionManager rides with it): without it the attempt
   // can only fail, so gate the button instead of letting it misfire.
   const rotate = $('rotate-run');
-  rotate.disabled = !data.secretRuntime.iamReady;
+  rotate.disabled = !data.secretRuntime.iamReady || sessionRole === 'viewer';
+  $('ping-run').disabled = sessionRole === 'viewer';
+  $('rotate-key').disabled = sessionRole === 'viewer';
   rotate.title = data.secretRuntime.iamReady
     ? ''
     : 'Secret Manager grant missing - run the gcloud commands in the health card first, then Refresh.';
@@ -756,11 +829,15 @@ async function handleSignedIn(user) {
     sessionAvatar.textContent = (user.email || user.uid || '?').charAt(0).toUpperCase();
     sessionAvatar.className = `avatar avatar-sm av-${avatarIndex(user.uid)}`;
     $('session').hidden = false;
-    if (result.claims.admin !== true) {
+    const role = result.claims.admin === true ? 'admin' : result.claims.adminRole === 'viewer' ? 'viewer' : null;
+    if (role === null) {
       $('not-admin-email').textContent = user.email ?? user.uid;
       showView('view-not-admin');
       return;
     }
+    sessionRole = role;
+    document.body.dataset.role = role;
+    $('session-role').hidden = role !== 'viewer';
     currentUid = user.uid;
     usersState.rows = [];
     usersState.nextPageToken = null;
@@ -801,6 +878,9 @@ function wireEvents() {
   for (const button of document.querySelectorAll('#ai-range .range-btn')) {
     button.addEventListener('click', () => { void loadAiStats(Number(button.dataset.days)); });
   }
+  for (const button of document.querySelectorAll('#revenue-range .range-btn')) {
+    button.addEventListener('click', () => { void loadRevenue(Number(button.dataset.days)); });
+  }
   $('health-refresh').addEventListener('click', () => { void loadHealth(false); });
   $('ping-run').addEventListener('click', () => { void loadHealth(true); });
   $('rotate-run').addEventListener('click', () => { void rotateKey(); });
@@ -833,6 +913,7 @@ async function main() {
     setUserPlan: httpsCallable(functions, 'adminSetUserPlan'),
     getMetrics: httpsCallable(functions, 'adminGetMetrics'),
     getStats: httpsCallable(functions, 'adminGetStats'),
+    getRevenue: httpsCallable(functions, 'adminGetRevenue'),
     getHealth: httpsCallable(functions, 'adminGetHealth'),
     rotateOpenAiKey: httpsCallable(functions, 'adminRotateOpenAiKey'),
     reconcileEntitlement: httpsCallable(functions, 'adminReconcileEntitlement'),

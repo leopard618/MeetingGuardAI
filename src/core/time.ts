@@ -77,25 +77,57 @@ export function toUtcIso(value: DateInput): string {
   return toDate(value).toISOString();
 }
 
+/**
+ * Zone validity, memoized: constructing an Intl.DateTimeFormat is the most expensive step of every
+ * conversion and the answer never changes for a given name. Bounded so a stream of garbage names
+ * cannot grow it without limit.
+ */
+const VALID_ZONE_CACHE_MAX = 512;
+const validZoneCache = new Map<string, boolean>();
+
 export function isValidTimeZone(timeZone: string): boolean {
   if (typeof timeZone !== 'string' || timeZone.length === 0) return false;
+  const known = validZoneCache.get(timeZone);
+  if (known !== undefined) return known;
+  let valid: boolean;
   try {
     new Intl.DateTimeFormat('en-US', { timeZone }).format(0);
-    return true;
+    valid = true;
   } catch {
-    return false;
+    valid = false;
   }
+  if (validZoneCache.size >= VALID_ZONE_CACHE_MAX) validZoneCache.clear();
+  validZoneCache.set(timeZone, valid);
+  return valid;
 }
 
 let deviceTimeZoneProvider: (() => string | null | undefined) | null = null;
 
+/** The device zone is asked of the native side at most this often (formatters call it per render). */
+const DEVICE_ZONE_TTL_MS = 10_000;
+let deviceZoneCached: { value: string; atMs: number } | null = null;
+
 /** Registers the device time-zone source (i18n registers expo-localization's getCalendars()). */
 export function setDeviceTimeZoneProvider(provider: (() => string | null | undefined) | null): void {
   deviceTimeZoneProvider = provider;
+  deviceZoneCached = null;
+}
+
+/** Forgets the cached device zone (foreground return, zone change events). */
+export function invalidateDeviceTimeZone(): void {
+  deviceZoneCached = null;
 }
 
 /** Current device IANA zone ("UTC" if nothing reliable is available). */
 export function getDeviceTimeZone(): string {
+  const nowMs = Date.now();
+  if (deviceZoneCached !== null && nowMs - deviceZoneCached.atMs < DEVICE_ZONE_TTL_MS) return deviceZoneCached.value;
+  const value = readDeviceTimeZone();
+  deviceZoneCached = { value, atMs: nowMs };
+  return value;
+}
+
+function readDeviceTimeZone(): string {
   try {
     const fromProvider = deviceTimeZoneProvider?.();
     if (fromProvider && isValidTimeZone(fromProvider)) return fromProvider;

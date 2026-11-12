@@ -1,12 +1,12 @@
 {
-  "assistantFab": "Open the AI assistant",
   "header": {
     "back": "Go back",
-    "home": "Go to the dashboard",
     "openMenu": "Open menu",
     "darkMode": "Switch to dark mode",
     "lightMode": "Switch to light mode",
-    "switchLanguage": "Change language to {{language}}"
+    "switchLanguage": "Change language to {{language}}",
+    "assistant": "Open the AI assistant",
+    "assistantHint": "Long press and drag to move it"
   },
   "sidebar": {
     "close": "Close menu",
@@ -31,8 +31,8 @@
   },
   "errorBoundary": {
     "title": "Something went wrong",
-    "message": "MeetingGuard ran into an unexpected problem. Try again. If it keeps happening, close and reopen the app.",
-    "retryHint": "Reloads MeetingGuard",
+    "message": "Meeting Guard ran into an unexpected problem. Try again. If it keeps happening, close and reopen the app.",
+    "retryHint": "Reloads Meeting Guard",
     "screenMessage": "This screen ran into an unexpected problem. Try again, or go back. If it keeps happening, close and reopen the app.",
     "screenRetryHint": "Reloads the screen"
   }

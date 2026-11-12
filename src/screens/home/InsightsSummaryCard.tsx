@@ -1,43 +1,67 @@
 /**
- * Dashboard insights: honest numbers computed on the device (meetings today / this week, meeting
- * time, and what deserves a look in the rest of the week), plus "Ask the assistant" (opens the
- * chat with a prefilled question; nothing is sent until the user taps send) and a link to the
- * full insights screen. Neutral Card under a SectionHeader; values titleM tabular-nums.
+ * "Weekly summary" card (the client's mockup) under the "Your week" header. Left: the seven-day
+ * bar row of meeting time (today in primary, weekday initials in the UI language). Right, behind
+ * a divider: two stat rows, meetings and meeting time this week, each with "vs. <last week>" and a
+ * delta pill (green when the load went down, red when it went up, none without a last week).
+ * Below, compactly, what deserves a look in the rest of the week (overlaps, back-to-back, missing
+ * links, preparation tips; each line with an icon and text) and a "See all insights" link. Honest
+ * numbers computed on the device.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, ReactElement } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
-import { Card, MGButton, SectionHeader } from '../../components/ui';
+import { Card, Icon, MiniBars } from '../../components/ui';
 import { useT } from '../../i18n';
-import { componentMetrics, spacing, useAppTheme } from '../../theme';
-import type { DashboardSummary } from '../insights/meetingInsights';
+import { componentMetrics, pressedDimOpacity, radii, spacing, typography, useAppTheme } from '../../theme';
+import type { DashboardSummary, DayLoad, LoadSummary } from '../insights/meetingInsights';
 import { useFormatters } from '../shared/useFormatters';
+import { weekBars, weekDelta, weekdayInitial } from './homeModel';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 export interface InsightsSummaryCardProps {
   summary: DashboardSummary;
-  onAskAssistant(): void;
+  /** The previous calendar week, for the comparison. */
+  lastWeek: LoadSummary;
+  /** The current week, one entry per date (computePeriodInsights(..., 'week')). */
+  days: readonly DayLoad[];
+  /** Today's local date ("YYYY-MM-DD"), highlighted in the chart. */
+  todayDate: string;
+  /** BCP 47 tag for the weekday labels ("en-US", "es-ES"). */
+  locale: string;
   onSeeAll(): void;
 }
 
-function Stat({ label, count, minutes }: { label: string; count: number; minutes: number }): ReactElement {
-  const t = useT();
+function DeltaPill({ delta, testID }: { delta: number | null; testID: string }): ReactElement | null {
   const { colors } = useAppTheme();
-  const fmt = useFormatters();
+  if (delta === null) return null;
+  const down = delta <= 0;
+  const bg = down ? colors.successContainer : colors.errorContainer;
+  const fg = down ? colors.onSuccessContainer : colors.onErrorContainer;
   return (
-    <View style={styles.stat} accessible accessibilityLabel={`${label}: ${t('home:insights.meetings', { count })}, ${t('home:insights.time', { duration: fmt.duration(minutes) })}`}>
-      <Text variant="labelMedium" style={{ color: colors.onSurfaceVariant }}>
-        {label}
-      </Text>
-      <Text variant="titleMedium" style={styles.statValue}>
-        {t('home:insights.meetings', { count })}
-      </Text>
-      <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }}>
-        {t('home:insights.time', { duration: fmt.duration(minutes) })}
-      </Text>
+    <View style={[styles.pill, { backgroundColor: bg }]} testID={testID}>
+      <Icon name={down ? 'chevronDown' : 'chevronUp'} size={12} color={fg} />
+      <Text style={[styles.pillText, { color: fg }]}>{`${delta > 0 ? '+' : ''}${delta}%`}</Text>
+    </View>
+  );
+}
+
+function StatRow({ icon, value, compare, delta, testID }: { icon: 'calendar' | 'clock'; value: string; compare: string; delta: number | null; testID: string }): ReactElement {
+  const { colors } = useAppTheme();
+  return (
+    <View style={styles.statRow} accessible accessibilityLabel={`${value}, ${compare}${delta === null ? '' : `, ${delta > 0 ? '+' : ''}${delta}%`}`}>
+      <Icon name={icon} size={componentMetrics.iconInline} color={colors.onSurfaceVariant} />
+      <View style={styles.statTexts}>
+        <Text variant="titleMedium" style={styles.statValue} numberOfLines={1} testID={testID}>
+          {value}
+        </Text>
+        <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }} numberOfLines={1}>
+          {compare}
+        </Text>
+      </View>
+      <DeltaPill delta={delta} testID={`${testID}-delta`} />
     </View>
   );
 }
@@ -45,35 +69,56 @@ function Stat({ label, count, minutes }: { label: string; count: number; minutes
 function Issue({ icon, text, color, testID }: { icon: IconName; text: string; color: string; testID: string }): ReactElement {
   return (
     <View style={styles.issue} testID={testID}>
-      <MaterialCommunityIcons name={icon} size={componentMetrics.iconInline} color={color} />
-      <Text variant="bodyMedium" style={styles.issueText}>
+      <MaterialCommunityIcons name={icon} size={componentMetrics.iconMeta} color={color} />
+      <Text variant="bodySmall" style={styles.issueText}>
         {text}
       </Text>
     </View>
   );
 }
 
-export function InsightsSummaryCard({ summary, onAskAssistant, onSeeAll }: InsightsSummaryCardProps): ReactElement {
+export function InsightsSummaryCard({ summary, lastWeek, days, todayDate, locale, onSeeAll }: InsightsSummaryCardProps): ReactElement {
   const t = useT();
   const { colors } = useAppTheme();
-  const { upcoming } = summary;
+  const fmt = useFormatters();
+  const { upcoming, week } = summary;
   const hasIssues = upcoming.overlaps + upcoming.backToBack + upcoming.missingPlace + upcoming.withTips > 0;
+  const bars = weekBars(days, todayDate, locale);
+  const chartA11y = `${t('home:insights.chartA11y')}. ${days
+    .map((day) => `${weekdayInitial(day.date ?? day.key, locale)}: ${t('home:insights.meetings', { count: day.count })}`)
+    .join(', ')}`;
 
   return (
-    <View>
-      <SectionHeader title={t('home:insights.title')} />
-      <Card testID="insights-summary-card">
-        <Text variant="bodySmall" style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-          {t('home:insights.subtitle')}
-        </Text>
-        <View style={styles.stats}>
-          <Stat label={t('home:insights.today')} count={summary.today.count} minutes={summary.today.minutes} />
-          <Stat label={t('home:insights.thisWeek')} count={summary.week.count} minutes={summary.week.minutes} />
+    <Card testID="insights-summary-card">
+      <View style={styles.titleRow}>
+        <Icon name="insights" size={componentMetrics.iconInline} color={colors.primary} />
+        <Text variant="titleMedium">{t('home:insights.weeklySummary')}</Text>
+      </View>
+      <View style={styles.columns}>
+        <View style={styles.chartColumn}>
+          {bars.length > 0 ? <MiniBars bars={bars} height={72} accessibilityLabel={chartA11y} testID="week-chart" /> : null}
         </View>
+        <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
+        <View style={styles.stats}>
+          <StatRow
+            icon="calendar"
+            value={t('home:insights.meetings', { count: week.count })}
+            compare={t('home:insights.vsLastWeek', { value: String(lastWeek.count) })}
+            delta={weekDelta(week.count, lastWeek.count)}
+            testID="week-meetings"
+          />
+          <View style={[styles.statSeparator, { backgroundColor: colors.outlineVariant }]} />
+          <StatRow
+            icon="clock"
+            value={t('home:insights.total', { duration: fmt.duration(week.minutes) })}
+            compare={t('home:insights.vsLastWeek', { value: fmt.duration(lastWeek.minutes) })}
+            delta={weekDelta(week.minutes, lastWeek.minutes)}
+            testID="week-minutes"
+          />
+        </View>
+      </View>
 
-        <Text variant="titleSmall" style={[styles.heading, { color: colors.onSurfaceVariant }]}>
-          {t('home:insights.restOfWeek')}
-        </Text>
+      <View style={styles.issues}>
         {upcoming.overlaps > 0 ? (
           <Issue icon="alert-circle-outline" color={colors.error} text={t('home:insights.overlaps', { count: upcoming.overlaps })} testID="insight-overlaps" />
         ) : null}
@@ -92,56 +137,99 @@ export function InsightsSummaryCard({ summary, onAskAssistant, onSeeAll }: Insig
           <Issue icon="lightbulb-on-outline" color={colors.primary} text={t('home:insights.withTips', { count: upcoming.withTips })} testID="insight-tips" />
         ) : null}
         {!hasIssues ? (
-          <Issue icon="check-circle-outline" color={colors.primary} text={t('home:insights.allClear')} testID="insight-all-clear" />
+          <Issue icon="check-circle-outline" color={colors.success} text={t('home:insights.allClear')} testID="insight-all-clear" />
         ) : null}
-
-        <View style={styles.actions}>
-          <MGButton variant="tonal" size="sm" icon="robot-outline" onPress={onAskAssistant} style={styles.action} testID="insights-ask-assistant">
-            {t('home:insights.ask')}
-          </MGButton>
-          <MGButton variant="ghost" size="sm" icon="chart-bar" onPress={onSeeAll} style={styles.action} testID="insights-see-all">
-            {t('home:insights.seeAll')}
-          </MGButton>
-        </View>
-      </Card>
-    </View>
+      </View>
+      <Pressable
+        onPress={onSeeAll}
+        hitSlop={8}
+        style={({ pressed }) => [styles.seeAll, pressed && styles.pressed]}
+        accessibilityRole="button"
+        testID="insights-see-all"
+      >
+        <Text style={[styles.seeAllText, { color: colors.primary }]}>{t('home:insights.seeAll')}</Text>
+        <Icon name="forward" size={componentMetrics.iconMeta} color={colors.primary} />
+      </Pressable>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  subtitle: {
-    marginBottom: spacing.sm,
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  columns: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginTop: spacing.md,
+  },
+  chartColumn: {
+    flex: 1,
+    paddingRight: spacing.md,
+    justifyContent: 'flex-end',
+  },
+  divider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
   },
   stats: {
-    flexDirection: 'row',
-  },
-  stat: {
     flex: 1,
-    paddingRight: spacing.sm,
+    paddingLeft: spacing.md,
+    justifyContent: 'center',
+  },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  statTexts: {
+    flex: 1,
   },
   statValue: {
     fontVariant: ['tabular-nums'],
   },
-  heading: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.xs,
+  statSeparator: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: spacing.xs,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  pillText: {
+    ...typography.labelS,
+    fontVariant: ['tabular-nums'],
+  },
+  issues: {
+    marginTop: spacing.md,
   },
   issue: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.xs,
+    paddingVertical: 2,
   },
   issueText: {
     marginLeft: spacing.sm,
     flex: 1,
   },
-  actions: {
+  seeAll: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: spacing.md,
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    minHeight: 28,
   },
-  action: {
-    marginRight: spacing.sm,
-    marginTop: spacing.xs,
+  seeAllText: {
+    ...typography.labelL,
+  },
+  pressed: {
+    opacity: pressedDimOpacity,
   },
 });

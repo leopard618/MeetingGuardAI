@@ -2,15 +2,44 @@
  * CalendarSyncEngine (contract in src/core/contracts.ts): per-session orchestration.
  *
  * - start(uid) (session manager, also on 'session:started'): subscribes to meetings:changed /
- *   preferences:changed, AppState (pull on foreground + every 5 min while active) and connectivity.
+ *   tasks:changed / preferences:changed, AppState and connectivity.
+ * - AppState: coming back to the app pulls (autoSync, at most once per AUTO_SYNC_THROTTLE_MS) and
+ *   starts the 5 min calendar interval and the task interval again. While the calendars are
+ *   throttled, the task providers are still pulled at once (syncTasksNow, at most once per
+ *   TASK_RESUME_MIN_GAP_MS): Android pauses JS timers in the background, so the task interval
+ *   starts over on every return. Leaving the app (any other state) stops both intervals.
  * - LOCAL writes (origin 'user' | 'ai') are queued for Google and Outlook (persisted) and for the
  *   device export calendar, then pushed after a short debounce. Remote, imported and
  *   calendar-origin writes are never pushed (loop prevention).
  * - syncNow() (UI "Sync now", background task, foreground/interval/connectivity): Google flush +
  *   pull, Outlook flush + pull (when the optional provider is registered and connected), device
- *   import + export. At most one run at a time; calls made while a run is in flight
- *   are coalesced into ONE follow-up run that starts when it ends (the running one read its
- *   preferences when it started, so a settings change during it must not be lost).
+ *   import + export, Microsoft To Do and Google Tasks flush + pull (when registered and enabled).
+ *   At most one run at a time; calls made while a run is in flight are coalesced into ONE
+ *   follow-up run that starts when it ends (the running one read its preferences when it
+ *   started, so a settings change during it must not be lost).
+ * - A To Do or Google Tasks list changed on another device (preferences:changed, origin remote)
+ *   makes that provider re-read its status (refreshStatus), which also puts back this device's
+ *   list when an older build erased it (it saves the preferences as a whole document without
+ *   the list keys).
+ * - A meeting held by the push hold (core/pushHold.ts: its Zoom link is being created) stays in
+ *   the local queues until the hold is released, so attendees get one invitation email that
+ *   already has the join link. The persisted Google/Outlook queues skip held ids the same way.
+ *   The debounce also gives a hold taken a moment after the write the time to apply (the
+ *   assistant first asks the server whether Zoom is set up), so the meeting queues keep it even
+ *   when the app leaves the foreground.
+ * - Tasks (tasks:changed, origin 'user' | 'ai') are queued for Microsoft To Do and Google Tasks
+ *   the same way, except out of the foreground: on leaving the app, and for every task change
+ *   made while it is not active, the task queues are sent at once instead of after the debounce
+ *   (Android runs no JS timer in the background, so the debounce would wait for the return; only
+ *   timers stop, the flush keeps running and its network calls complete natively).
+ *   The app is also the bridge between the two task providers: an import from
+ *   Google Tasks (origin 'tasks_gtasks') is queued for To Do and an import from To Do (origin
+ *   'tasks_todo') for Google Tasks, never back to the provider it came from (taskPushTargets).
+ *   While the app is active, both are also pulled on their own every
+ *   TODO_FOREGROUND_INTERVAL_MS so a task completed there silences its reminder here within a minute.
+ * - syncTasksNow() (Tasks screen pull-to-refresh and focus, return to the app while the calendars
+ *   are throttled): the two task providers only, both attempted, failures reported per provider;
+ *   concurrent calls share one run.
  */
 import type {
   CalendarStatus,
@@ -18,11 +47,17 @@ import type {
   CalendarSyncReason,
   CalendarSyncReport,
   PreferencesRepository,
+  TaskSyncReport,
 } from '../../core/contracts';
 import { AppError, toAppError } from '../../core/errors';
-import type { AppEventMap, EventBus, MeetingsChangedEvent, PreferencesChangedEvent, Unsubscribe } from '../../core/events';
+import type { AppEventMap, EventBus, MeetingsChangedEvent, PreferencesChangedEvent, TasksChangedEvent, Unsubscribe } from '../../core/events';
 import { createLogger } from '../../core/logger';
+import type { PushHold } from '../../core/pushHold';
 import type { Preferences } from '../../core/types';
+import type { GoogleTasksSyncServiceInternal } from '../tasks/gtasks/service';
+import type { GtasksQueueItem } from '../tasks/gtasks/sync';
+import type { TodoSyncServiceInternal } from '../tasks/todo/service';
+import type { TodoQueueItem } from '../tasks/todo/sync';
 import type { DeviceCalendarServiceInternal } from './device/service';
 import type { GoogleCalendarServiceInternal } from './google/service';
 import type { OutlookCalendarServiceInternal } from './outlook/service';
@@ -32,17 +67,48 @@ const log = createLogger('calendar');
 
 export const PUSH_DEBOUNCE_MS = 2000;
 export const FOREGROUND_INTERVAL_MS = 5 * 60 * 1000;
+/** Microsoft To Do and Google Tasks are pulled on their own this often while the app is active (reminder silencing). */
+export const TODO_FOREGROUND_INTERVAL_MS = 60 * 1000;
 /** Minimum spacing of automatic (non-manual) syncs. */
 export const AUTO_SYNC_THROTTLE_MS = 2 * 60 * 1000;
+/**
+ * Minimum spacing of the task-only pulls made on return to the app while the calendars are
+ * throttled (switching back and forth between apps must not list the tasks every time).
+ */
+export const TASK_RESUME_MIN_GAP_MS = 15 * 1000;
 
 export type AppStateStatus = 'active' | 'background' | 'inactive' | 'unknown' | 'extension';
+
+/** What a flush sends: every queue, or only the To Do / Google Tasks queues (out of the foreground). */
+type FlushScope = 'all' | 'tasks';
+
+/**
+ * Whether `last` is less than `gap` ms before `now`. A clock set back (now before last) counts as
+ * not recent: otherwise the spacing would block until the clock caught up with the old time.
+ */
+function isRecent(now: number, last: number, gap: number): boolean {
+  const elapsed = now - last;
+  return elapsed >= 0 && elapsed < gap;
+}
 
 export interface EngineDeps {
   google: GoogleCalendarServiceInternal;
   device: DeviceCalendarServiceInternal;
   /** Registered only when EXPO_PUBLIC_MSAL_CLIENT_ID is set (outlookInternal.isConfigured()). */
   outlook?: OutlookCalendarServiceInternal;
+  /** Registered only when EXPO_PUBLIC_MSAL_CLIENT_ID is set (todoInternal.isConfigured()). */
+  todo?: TodoSyncServiceInternal;
+  /** Registered unless EXPO_PUBLIC_GOOGLE_TASKS_SYNC is 'off' (gtasksInternal.isConfigured()). */
+  gtasks?: GoogleTasksSyncServiceInternal;
   preferences: Pick<PreferencesRepository, 'get'>;
+  /** Meetings waiting for their Zoom link are not pushed until released (core/pushHold.ts). */
+  pushHold?: Pick<PushHold, 'isHeld' | 'onRelease'>;
+  /**
+   * Resolves once the data layer holds the server's meetings (or gives up). The session-start
+   * pull waits for it: against an empty cache a provider listing would import this user's own
+   * pushed events as foreign meetings.
+   */
+  awaitMeetingsBaseline?: () => Promise<unknown>;
   getActiveUid(): string | null;
   status: CalendarStatusStore;
   events: EventBus<AppEventMap>;
@@ -75,7 +141,43 @@ export function isPushableChange(event: MeetingsChangedEvent): boolean {
   );
 }
 
+/**
+ * Which task providers a tasks:changed event is pushed to. Local writes (user / ai) go to both.
+ * The app bridges the two providers (docs/v1/ARCHITECTURE.md section 28): an import from Google
+ * Tasks (origin tasks_gtasks) is pushed on to Microsoft To Do and an import from To Do (origin
+ * tasks_todo) on to Google Tasks, never back to the provider it came from (that provider already
+ * has it, and its link write-backs carry the same origin). Every push also skips the network when
+ * nothing visible changed, so a link write-back never costs a call.
+ */
+export function taskPushTargets(event: TasksChangedEvent): { todo: boolean; gtasks: boolean } {
+  if (event.reason === 'remote') {
+    // Server-side changes are pushed only when the website asked for it (pushPending, ARCHITECTURE
+    // section 32) or a document was deleted on the server and left provider copies behind.
+    const wanted = (event.pushRequested?.length ?? 0) > 0 || (event.removed?.length ?? 0) > 0;
+    return { todo: wanted, gtasks: wanted };
+  }
+  if (event.changedIds.length === 0) return { todo: false, gtasks: false };
+  switch (event.origin) {
+    case 'user':
+    case 'ai':
+      return { todo: true, gtasks: true };
+    case 'tasks_gtasks':
+      return { todo: true, gtasks: false };
+    case 'tasks_todo':
+      return { todo: false, gtasks: true };
+    default:
+      return { todo: false, gtasks: false };
+  }
+}
+
+export function isPushableTaskChange(event: TasksChangedEvent): boolean {
+  const targets = taskPushTargets(event);
+  return targets.todo || targets.gtasks;
+}
+
 export interface CalendarSyncEngineInternal extends CalendarSyncEngine {
+  /** Handler attached to 'tasks:changed' while started (exposed for tests / explicit calls). */
+  onTaskChanged(event: TasksChangedEvent): void;
   /** Pushes queued local changes now (tests / explicit calls). */
   flushLocalChanges(): Promise<void>;
   isStarted(): boolean;
@@ -96,19 +198,34 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
   let preferences: Preferences | null = null;
   let debounceHandle: unknown = null;
   let intervalHandle: unknown = null;
+  let todoIntervalHandle: unknown = null;
   let inflight: Promise<CalendarSyncReport> | null = null;
   /** The coalesced follow-up of the run in flight (shared by every call made meanwhile). */
   let followUp: Promise<CalendarSyncReport> | null = null;
   let followUpOptions: { reason: CalendarSyncReason; headless: boolean } | null = null;
   let lastAutoSyncAt = 0;
+  /** When the last task-only pull on return to the app started (TASK_RESUME_MIN_GAP_MS). */
+  let lastTaskResumeAt = 0;
   const pendingGoogle = new Map<string, 'upsert' | 'delete'>();
   const pendingOutlook = new Map<string, 'upsert' | 'delete'>();
   const pendingDevice = new Set<string>();
+  const pendingTodo = new Map<string, TodoQueueItem>();
+  const pendingGtasks = new Map<string, GtasksQueueItem>();
   let flushing: Promise<void> | null = null;
 
   /** Cheap connected probe (the status store is kept current by the outlook service). */
   function outlookConnected(): boolean {
     return deps.outlook !== undefined && deps.status.get().outlook?.connected === true;
+  }
+
+  /** Cheap enabled probe (the status store is kept current by the todo service). */
+  function todoEnabled(): boolean {
+    return deps.todo !== undefined && deps.status.get().todo?.enabled === true;
+  }
+
+  /** Cheap enabled probe (the status store is kept current by the gtasks service). */
+  function gtasksEnabled(): boolean {
+    return deps.gtasks !== undefined && deps.status.get().gtasks?.enabled === true;
   }
 
   function isCurrent(gen: number): boolean {
@@ -141,20 +258,59 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     }, PUSH_DEBOUNCE_MS);
   }
 
-  async function flushLocalChanges(): Promise<void> {
+  /** Without an AppState source (tests) the app counts as in the foreground. */
+  function inForeground(): boolean {
+    return deps.appState === undefined || deps.appState.currentState() === 'active';
+  }
+
+  /**
+   * Out of the foreground the task queues are sent at once instead of after the debounce: Android
+   * runs no JS timer there (not even a 0 ms one), so the debounce would only fire on the return.
+   * The flush itself keeps running (only timers stop, its network calls complete natively). The
+   * meeting queues keep their debounce: on the assistant path a Zoom meeting's push hold is taken
+   * only after an await, and Google / Outlook pushes are persisted for the next sync anyway.
+   */
+  function pushTaskQueuesNow(): void {
+    void flushLocalChanges('tasks').catch((error: unknown) =>
+      log.warn('Pushing task changes outside the app failed', { code: toAppError(error).code }),
+    );
+  }
+
+  function hasPendingPushes(scope: FlushScope): boolean {
+    if (pendingTodo.size > 0 || pendingGtasks.size > 0) return true;
+    return scope === 'all' && (pendingGoogle.size > 0 || pendingOutlook.size > 0 || pendingDevice.size > 0);
+  }
+
+  /** Held meetings (Zoom link on its way) stay queued; the hold's release flushes them. */
+  function isHeld(meetingId: string): boolean {
+    return deps.pushHold?.isHeld(meetingId) === true;
+  }
+
+  function onHoldReleased(meetingId: string): void {
+    if (uid === null) return;
+    if (pendingGoogle.has(meetingId) || pendingOutlook.has(meetingId) || pendingDevice.has(meetingId)) scheduleFlush();
+  }
+
+  /** Scope 'tasks' sends the task queues only; the meeting queues wait for their debounce. */
+  async function flushLocalChanges(scope: FlushScope = 'all'): Promise<void> {
     if (flushing) {
       await flushing;
-      if (pendingGoogle.size === 0 && pendingOutlook.size === 0 && pendingDevice.size === 0) return;
+      if (!hasPendingPushes(scope)) return;
     }
     const gen = generation;
     const run = (async () => {
       const prefs = await currentPreferences();
-      const googleBatch = [...pendingGoogle.entries()];
-      pendingGoogle.clear();
-      const outlookBatch = [...pendingOutlook.entries()];
-      pendingOutlook.clear();
-      const deviceBatch = [...pendingDevice];
-      pendingDevice.clear();
+      const meetings = scope === 'all';
+      const googleBatch = meetings ? [...pendingGoogle.entries()].filter(([id]) => !isHeld(id)) : [];
+      for (const [id] of googleBatch) pendingGoogle.delete(id);
+      const outlookBatch = meetings ? [...pendingOutlook.entries()].filter(([id]) => !isHeld(id)) : [];
+      for (const [id] of outlookBatch) pendingOutlook.delete(id);
+      const deviceBatch = meetings ? [...pendingDevice].filter((id) => !isHeld(id)) : [];
+      for (const id of deviceBatch) pendingDevice.delete(id);
+      const todoBatch = [...pendingTodo.values()];
+      pendingTodo.clear();
+      const gtasksBatch = [...pendingGtasks.values()];
+      pendingGtasks.clear();
 
       if (prefs.googleCalendarSyncEnabled && googleBatch.length > 0) {
         try {
@@ -188,6 +344,24 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
           } catch (error) {
             log.warn('Exporting local changes to the device calendar failed', { code: toAppError(error).code });
           }
+        }
+      }
+      const todo = deps.todo;
+      if (todo !== undefined && todoEnabled() && todoBatch.length > 0) {
+        try {
+          await todo.enqueue(todoBatch);
+          if (isCurrent(gen)) await todo.flushPending();
+        } catch (error) {
+          log.warn('Pushing local changes to Microsoft To Do failed', { code: toAppError(error).code });
+        }
+      }
+      const gtasks = deps.gtasks;
+      if (gtasks !== undefined && gtasksEnabled() && gtasksBatch.length > 0) {
+        try {
+          await gtasks.enqueue(gtasksBatch);
+          if (isCurrent(gen)) await gtasks.flushPending();
+        } catch (error) {
+          log.warn('Pushing local changes to Google Tasks failed', { code: toAppError(error).code });
         }
       }
     })();
@@ -226,6 +400,71 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       .catch((error: unknown) => log.warn('Could not queue local changes for Outlook', { code: toAppError(error).code }));
   }
 
+  /** Persist-first for To Do: a task change made just before the app dies still reaches Graph. */
+  function persistTodoPushes(items: readonly TodoQueueItem[]): void {
+    const todo = deps.todo;
+    if (todo === undefined || !todoEnabled()) return;
+    const gen = generation;
+    if (!isCurrent(gen)) return;
+    void todo
+      .enqueue(items)
+      .catch((error: unknown) => log.warn('Could not queue local changes for Microsoft To Do', { code: toAppError(error).code }));
+  }
+
+  /** Persist-first for Google Tasks too. */
+  function persistGtasksPushes(items: readonly GtasksQueueItem[]): void {
+    const gtasks = deps.gtasks;
+    if (gtasks === undefined || !gtasksEnabled()) return;
+    const gen = generation;
+    if (!isCurrent(gen)) return;
+    void gtasks
+      .enqueue(items)
+      .catch((error: unknown) => log.warn('Could not queue local changes for Google Tasks', { code: toAppError(error).code }));
+  }
+
+  function onTaskChanged(event: TasksChangedEvent): void {
+    if (uid === null || event.uid !== uid) return;
+    const targets = taskPushTargets(event);
+    if (!targets.todo && !targets.gtasks) return;
+    const links = new Map((event.removed ?? []).map((item) => [item.id, item.external]));
+    // Local writes: every changed id with the event's op. Remote: the website's flagged documents
+    // as upserts, plus the documents deleted on the server as deletes of their provider copies
+    // (a delete without a known link is dropped by the flush; a copy already gone answers 404,
+    // which the delete treats as done).
+    const ops: { id: string; op: 'upsert' | 'delete' }[] =
+      event.reason === 'remote'
+        ? [
+            ...(event.pushRequested ?? []).map((id) => ({ id, op: 'upsert' as const })),
+            ...(event.removed ?? []).map((item) => ({ id: item.id, op: 'delete' as const })),
+          ]
+        : event.changedIds.map((id) => ({ id, op: event.reason === 'deleted' ? ('delete' as const) : ('upsert' as const) }));
+    if (ops.length === 0) return;
+    if (targets.todo) {
+      const items: TodoQueueItem[] = ops.map(({ id, op }) => {
+        const external = links.get(id);
+        const link =
+          external && external.todoListId !== null && external.todoTaskId !== null ? { listId: external.todoListId, taskId: external.todoTaskId } : null;
+        return { id, op, link };
+      });
+      for (const item of items) pendingTodo.set(item.id, item);
+      persistTodoPushes(items);
+    }
+    if (targets.gtasks) {
+      const gtasksItems: GtasksQueueItem[] = ops.map(({ id, op }) => {
+        const external = links.get(id);
+        const link =
+          external && external.gtasksListId !== null && external.gtasksTaskId !== null ? { listId: external.gtasksListId, taskId: external.gtasksTaskId } : null;
+        return { id, op, link };
+      });
+      for (const item of gtasksItems) pendingGtasks.set(item.id, item);
+      persistGtasksPushes(gtasksItems);
+    }
+    // Saved after leaving the app (an assistant reply confirmed in the background, a relay from
+    // another device): no timer would run, so it goes out at once.
+    if (inForeground()) scheduleFlush();
+    else pushTaskQueuesNow();
+  }
+
   function onMeetingChanged(event: MeetingsChangedEvent): void {
     if (uid === null || event.uid !== uid) return;
     if (isPushableChange(event)) {
@@ -240,6 +479,34 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       persistOutlookPushes(ids, op);
       scheduleFlush();
       return;
+    }
+    // A change pulled from one provider reaches the other provider's copy of the same own
+    // meeting (moved in Google Calendar => moved in Outlook too). The push skips meetings the
+    // other provider owns (isOutlookPushable / source checks), and its write-back is a
+    // calendar-origin 'updated' event, which is never pushable: no loop.
+    if (event.reason === 'imported' && event.changedIds && event.changedIds.length > 0) {
+      if (event.origin === 'calendar_google' && deps.outlook !== undefined) {
+        for (const id of event.changedIds) pendingOutlook.set(id, 'upsert');
+        persistOutlookPushes(event.changedIds, 'upsert');
+        scheduleFlush();
+      } else if (event.origin === 'calendar_outlook') {
+        for (const id of event.changedIds) pendingGoogle.set(id, 'upsert');
+        persistGooglePushes(event.changedIds, 'upsert');
+        scheduleFlush();
+      }
+      return;
+    }
+    if (event.reason === 'remote' && event.pushRequested !== undefined && event.pushRequested.length > 0) {
+      // Written by a client that cannot reach the providers (the website flags its documents
+      // with pushPending, ARCHITECTURE section 32): pushed like a local write. A tombstone goes as
+      // an upsert too, the push turns a deleted meeting into a delete. Two phones that both see
+      // the flag push the same deterministic event id; the second one patches, never duplicates.
+      for (const id of event.pushRequested) {
+        pendingGoogle.set(id, 'upsert');
+        pendingOutlook.set(id, 'upsert');
+      }
+      persistGooglePushes(event.pushRequested, 'upsert');
+      persistOutlookPushes(event.pushRequested, 'upsert');
     }
     // Edits synced from another device: refresh this device's exported copies.
     if (event.reason === 'remote' && event.changedIds && event.changedIds.length > 0) {
@@ -274,6 +541,21 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
         log.warn('Calendar sync after a settings change failed', { code: toAppError(error).code }),
       );
     }
+    if (event.origin === 'remote') {
+      // The task list was changed on another device, or erased there by an older build (it saves
+      // the preferences as a whole document without these keys): the provider re-reads it into
+      // the status, and its refreshStatus puts back this device's list when it was erased.
+      if (keys.has('gtasksListId') || keys.has('gtasksListName')) {
+        void deps.gtasks?.refreshStatus().catch((error: unknown) =>
+          log.warn('Could not read the Google Tasks state', { code: toAppError(error).code }),
+        );
+      }
+      if (keys.has('todoListId') || keys.has('todoListName')) {
+        void deps.todo?.refreshStatus().catch((error: unknown) =>
+          log.warn('Could not read the Microsoft To Do state', { code: toAppError(error).code }),
+        );
+      }
+    }
   }
 
   // ---- sync ----------------------------------------------------------------------------------
@@ -285,6 +567,8 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     await applyPreferencesToStatus(prefs);
     const report: CalendarSyncReport = { google: null, device: null, errors: [] };
     if (deps.outlook !== undefined) report.outlook = null;
+    if (deps.todo !== undefined) report.todo = null;
+    if (deps.gtasks !== undefined) report.gtasks = null;
 
     if (prefs.googleCalendarSyncEnabled) {
       try {
@@ -310,6 +594,22 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       if (own.importIds.length > 0 || own.exportId !== null) report.device = result;
     } catch (error) {
       report.errors.push({ provider: 'device', code: toAppError(error).code });
+    }
+    if (deps.todo !== undefined) {
+      try {
+        const { enabled } = await deps.todo.refreshStatus();
+        if (enabled) report.todo = await deps.todo.sync();
+      } catch (error) {
+        report.errors.push({ provider: 'todo', code: toAppError(error).code });
+      }
+    }
+    if (deps.gtasks !== undefined) {
+      try {
+        const { enabled } = await deps.gtasks.refreshStatus();
+        if (enabled) report.gtasks = await deps.gtasks.sync();
+      } catch (error) {
+        report.errors.push({ provider: 'gtasks', code: toAppError(error).code });
+      }
     }
     log.debug('Calendar sync finished', { reason: options.reason, errors: report.errors.length });
     return report;
@@ -351,24 +651,119 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
     return followUp;
   }
 
-  function autoSync(reason: CalendarSyncReason): void {
+  /**
+   * A throttled syncNow (at most once per AUTO_SYNC_THROTTLE_MS). Returns whether it started a
+   * run (or queued the follow-up of the run in flight); false = throttled, nothing started.
+   */
+  function autoSync(reason: CalendarSyncReason): boolean {
     const now = deps.now().getTime();
-    if (now - lastAutoSyncAt < AUTO_SYNC_THROTTLE_MS) return;
+    if (isRecent(now, lastAutoSyncAt, AUTO_SYNC_THROTTLE_MS)) return false;
     lastAutoSyncAt = now;
     void syncNow({ reason }).catch((error: unknown) =>
       log.warn('Automatic calendar sync failed', { reason, code: toAppError(error).code }),
     );
+    return true;
+  }
+
+  /** The quick task pulls (not throttled with the calendars: one listing call per synced list). */
+  function todoTick(): void {
+    if (inflight !== null) return;
+    const todo = deps.todo;
+    if (todo !== undefined && todoEnabled()) {
+      void todo.sync().catch((error: unknown) => log.debug('Microsoft To Do pull failed', { code: toAppError(error).code }));
+    }
+    const gtasks = deps.gtasks;
+    if (gtasks !== undefined && gtasksEnabled()) {
+      void gtasks.sync().catch((error: unknown) => log.debug('Google Tasks pull failed', { code: toAppError(error).code }));
+    }
+  }
+
+  let tasksInflight: Promise<TaskSyncReport> | null = null;
+
+  /** The Tasks screen's sync: To Do and Google Tasks flush + pull, nothing else (contract doc). */
+  function syncTasksNow(): Promise<TaskSyncReport> {
+    if (tasksInflight !== null) return tasksInflight;
+    const run = (async (): Promise<TaskSyncReport> => {
+      const report: TaskSyncReport = { todo: null, gtasks: null, errors: [] };
+      // A calendar run pushes the same task queues: let it finish instead of racing it.
+      if (inflight !== null) await inflight.catch(() => undefined);
+      const todo = deps.todo;
+      if (todo !== undefined && todoEnabled()) {
+        try {
+          report.todo = await todo.sync();
+        } catch (error) {
+          report.errors.push({ provider: 'todo', code: toAppError(error).code });
+        }
+      }
+      const gtasks = deps.gtasks;
+      if (gtasks !== undefined && gtasksEnabled()) {
+        try {
+          report.gtasks = await gtasks.sync();
+        } catch (error) {
+          report.errors.push({ provider: 'gtasks', code: toAppError(error).code });
+        }
+      }
+      return report;
+    })().finally(() => {
+      tasksInflight = null;
+    });
+    tasksInflight = run;
+    return run;
   }
 
   function startInterval(): void {
-    if (intervalHandle !== null) return;
-    intervalHandle = timers.setInterval(() => autoSync('foreground'), FOREGROUND_INTERVAL_MS);
+    if (intervalHandle === null) intervalHandle = timers.setInterval(() => autoSync('foreground'), FOREGROUND_INTERVAL_MS);
+    if (todoIntervalHandle === null && (deps.todo !== undefined || deps.gtasks !== undefined)) {
+      todoIntervalHandle = timers.setInterval(todoTick, TODO_FOREGROUND_INTERVAL_MS);
+    }
   }
 
   function stopInterval(): void {
-    if (intervalHandle === null) return;
-    timers.clearInterval(intervalHandle);
-    intervalHandle = null;
+    if (intervalHandle !== null) {
+      timers.clearInterval(intervalHandle);
+      intervalHandle = null;
+    }
+    if (todoIntervalHandle !== null) {
+      timers.clearInterval(todoIntervalHandle);
+      todoIntervalHandle = null;
+    }
+  }
+
+  // ---- app state -----------------------------------------------------------------------------
+
+  /**
+   * Back in the app. A full run pulls the task providers too (runSync). While the calendars are
+   * throttled, the task providers are pulled on their own right away, so a task completed in
+   * Google Tasks or To Do a moment ago shows here without waiting for the task interval (it
+   * starts over on every return).
+   */
+  function onAppActive(): void {
+    startInterval();
+    void deps.device.getPermission().catch((error: unknown) =>
+      log.warn('Could not read the calendar permission', { code: toAppError(error).code }),
+    );
+    if (autoSync('foreground')) return;
+    if (!todoEnabled() && !gtasksEnabled()) return;
+    const now = deps.now().getTime();
+    if (isRecent(now, lastTaskResumeAt, TASK_RESUME_MIN_GAP_MS)) return;
+    lastTaskResumeAt = now;
+    void syncTasksNow().then(
+      (report) => {
+        if (report.errors.length > 0) log.debug('Task pull on return to the app failed', report.errors.map((e) => `${e.provider}:${e.code}`).join(','));
+      },
+      (error: unknown) => log.debug('Task pull on return to the app failed', { code: toAppError(error).code }),
+    );
+  }
+
+  /**
+   * Left the app (background, inactive). A task change still waiting for its debounce is sent now
+   * (pushTaskQueuesNow): Android pauses JS timers in the background, so it would only go out on
+   * the return. Queued meetings keep their debounce.
+   */
+  function onAppLeft(): void {
+    stopInterval();
+    if (uid === null || !hasPendingPushes('tasks')) return;
+    pushTaskQueuesNow();
   }
 
   async function initialize(gen: number): Promise<void> {
@@ -385,6 +780,24 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
         log.warn('Could not read the Outlook sync state', { code: toAppError(error).code });
       }
     }
+    if (deps.todo !== undefined) {
+      try {
+        const todoState = await deps.todo.loadState();
+        if (!isCurrent(gen)) return;
+        deps.status.patchTodo({ lastSyncAt: todoState.lastSyncAt, lastError: todoState.lastError });
+      } catch (error) {
+        log.warn('Could not read the Microsoft To Do sync state', { code: toAppError(error).code });
+      }
+    }
+    if (deps.gtasks !== undefined) {
+      try {
+        const gtasksState = await deps.gtasks.loadState();
+        if (!isCurrent(gen)) return;
+        deps.status.patchGtasks({ lastSyncAt: gtasksState.lastSyncAt, lastError: gtasksState.lastError });
+      } catch (error) {
+        log.warn('Could not read the Google Tasks sync state', { code: toAppError(error).code });
+      }
+    }
     const prefs = await currentPreferences();
     if (!isCurrent(gen)) return;
     await applyPreferencesToStatus(prefs);
@@ -395,11 +808,21 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       deps.outlook?.refreshStatus().catch((error: unknown) =>
         log.warn('Could not read the Outlook connection state', { code: toAppError(error).code }),
       ) ?? Promise.resolve(),
+      deps.todo?.refreshStatus().catch((error: unknown) =>
+        log.warn('Could not read the Microsoft To Do state', { code: toAppError(error).code }),
+      ) ?? Promise.resolve(),
+      deps.gtasks?.refreshStatus().catch((error: unknown) =>
+        log.warn('Could not read the Google Tasks state', { code: toAppError(error).code }),
+      ) ?? Promise.resolve(),
       deps.device.getPermission().catch((error: unknown) =>
         log.warn('Could not read the calendar permission', { code: toAppError(error).code }),
       ),
     ]);
     if (!isCurrent(gen)) return;
+    if (deps.awaitMeetingsBaseline) {
+      await deps.awaitMeetingsBaseline();
+      if (!isCurrent(gen)) return;
+    }
     lastAutoSyncAt = deps.now().getTime();
     await syncNow({ reason: 'session_start' });
   }
@@ -413,20 +836,15 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       const gen = generation;
       subscriptions = [
         deps.events.on('meetings:changed', (event) => onMeetingChanged(event)),
+        deps.events.on('tasks:changed', (event) => onTaskChanged(event)),
         deps.events.on('preferences:changed', (event) => onPreferencesChanged(event)),
       ];
+      if (deps.pushHold) subscriptions.push(deps.pushHold.onRelease(onHoldReleased));
       if (deps.appState) {
         subscriptions.push(
           deps.appState.subscribe((state) => {
-            if (state === 'active') {
-              startInterval();
-              void deps.device.getPermission().catch((error: unknown) =>
-                log.warn('Could not read the calendar permission', { code: toAppError(error).code }),
-              );
-              autoSync('foreground');
-            } else {
-              stopInterval();
-            }
+            if (state === 'active') onAppActive();
+            else onAppLeft();
           }),
         );
         if (deps.appState.currentState() === 'active') startInterval();
@@ -445,6 +863,9 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
           deps.onGoogleAccessChanged(() => {
             void deps.google.refreshStatus().catch((error: unknown) =>
               log.warn('Could not read the Google Calendar permission', { code: toAppError(error).code }),
+            );
+            void deps.gtasks?.refreshStatus().catch((error: unknown) =>
+              log.warn('Could not read the Google Tasks state', { code: toAppError(error).code }),
             );
           }),
         );
@@ -466,16 +887,21 @@ export function createCalendarSyncEngine(deps: EngineDeps): CalendarSyncEngineIn
       pendingGoogle.clear();
       pendingOutlook.clear();
       pendingDevice.clear();
+      pendingTodo.clear();
+      pendingGtasks.clear();
       preferences = null;
       lastAutoSyncAt = 0;
+      lastTaskResumeAt = 0;
       deps.status.reset();
     },
 
     syncNow,
+    syncTasksNow,
     onMeetingChanged,
+    onTaskChanged,
     getStatus: (): CalendarStatus => deps.status.get(),
     subscribeStatus: (listener) => deps.status.subscribe(listener),
-    flushLocalChanges,
+    flushLocalChanges: () => flushLocalChanges(),
     isStarted: () => uid !== null,
   };
   return engine;

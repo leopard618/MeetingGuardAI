@@ -1,3 +1,4 @@
+import { AppError } from '../../../core/errors';
 import { createMicrosoftTokenManager, microsoftEndpoints, type MicrosoftTokenStorePort } from '../outlook/tokenManager';
 
 const UID = 'user-1';
@@ -106,6 +107,56 @@ describe('createMicrosoftTokenManager', () => {
     await expect(manager.getAccessToken()).rejects.toMatchObject({ code: 'calendar_not_connected' });
     expect(store.tokens.has(UID)).toBe(false);
     expect(onDisconnected).toHaveBeenCalledTimes(1);
+  });
+
+  it('a refresh still in flight at sign-out never re-persists the token or serves the next user', async () => {
+    const store = memoryStore('refresh-1');
+    let uid: string | null = UID;
+    let resolveFetch: ((value: Response) => void) | undefined;
+    const fetchImpl = jest.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    const manager = createMicrosoftTokenManager({
+      clientId: 'client-1',
+      tenant: 'common',
+      getUid: () => uid,
+      store,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      now: () => new Date('2026-10-30T10:00:00.000Z'),
+    });
+
+    const pending = manager.getAccessToken();
+    for (let i = 0; i < 20 && resolveFetch === undefined; i += 1) await Promise.resolve();
+    // Sign-out while the token request is in flight: cleanup drops memory and deletes the token.
+    manager.dropMemory();
+    await store.clear(UID);
+    uid = 'user-2';
+    resolveFetch?.(jsonResponse(200, { access_token: 'access-A', refresh_token: 'refresh-2', expires_in: 3600 }));
+
+    await expect(pending).rejects.toMatchObject({ code: 'cancelled' });
+    expect(store.tokens.has(UID)).toBe(false);
+    // The next user gets their own refresh (which fails: no token of theirs), never user A's token.
+    await expect(manager.getAccessToken()).rejects.toMatchObject({ code: 'calendar_not_connected' });
+  });
+
+  it('a keystore write failure while rotating keeps the session and the previous refresh token', async () => {
+    const onDisconnected = jest.fn();
+    const store = memoryStore('refresh-1');
+    store.save = jest.fn(async () => {
+      throw new AppError('calendar_not_connected', 'Secure storage is unavailable on this device');
+    });
+    const { manager, fetchImpl } = setup({ store, onDisconnected });
+    fetchImpl.mockResolvedValueOnce(jsonResponse(200, { access_token: 'access-1', refresh_token: 'refresh-2', expires_in: 3600 }));
+
+    await expect(manager.getAccessToken()).resolves.toBe('access-1');
+    expect(onDisconnected).not.toHaveBeenCalled();
+    expect(store.tokens.get(UID)).toBe('refresh-1');
+    // The cached access token serves the session without another request.
+    await expect(manager.getAccessToken()).resolves.toBe('access-1');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('throws calendar_not_connected without a stored refresh token', async () => {

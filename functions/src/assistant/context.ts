@@ -223,6 +223,20 @@ export interface MeetingModelView {
   moved?: { date: string; start: string }[];
   /** Agenda or notes the user wrote, for meetings close enough to prepare for. */
   preparation?: string;
+  /**
+   * One-off meeting whose end is already behind "now" (all-day: the day is over). The model has
+   * repeatedly announced a finished meeting as today's or tonight's; this flag settles it without
+   * date arithmetic. Series never carry it (their start is the first occurrence).
+   */
+  ended?: true;
+}
+
+const MINUTE_MS = 60_000;
+
+/** A one-off meeting is over once its end (all-day: the end of its day) is at or before now. */
+export function meetingEnded(start: Date, doc: Pick<AiMeetingContextDoc, 'durationMinutes' | 'allDay'>, now: Date): boolean {
+  const minutes = doc.allDay ? Math.max(doc.durationMinutes, 24 * 60) : Math.max(doc.durationMinutes, 0);
+  return start.getTime() + minutes * MINUTE_MS <= now.getTime();
 }
 
 /**
@@ -284,7 +298,7 @@ export function toModelView(
   meeting: ContextMeeting,
   userTimeZone: string,
   isFollowUp: boolean,
-  options: { includePreparation?: boolean } = {},
+  options: { includePreparation?: boolean; now?: Date } = {},
 ): MeetingModelView {
   const { doc } = meeting;
   const meetingZone = isValidTimeZone(doc.timezone) ? doc.timezone : userTimeZone;
@@ -316,7 +330,9 @@ export function toModelView(
     participantsTotal: meeting.participantEmails.length,
   };
   if (meetingZone !== userTimeZone) view.meetingTimeZone = meetingZone;
-  if (doc.recurrence !== null && doc.recurrence !== undefined) {
+  if (doc.recurrence === null || doc.recurrence === undefined) {
+    if (options.now !== undefined && meetingEnded(meeting.start, doc, options.now)) view.ended = true;
+  } else {
     view.recurring = true;
     view.repeats = compactRecurrence(doc.recurrence, meetingZone);
     const exceptions = summarizeOverrides(doc.recurrenceOverrides ?? null, displayZone);

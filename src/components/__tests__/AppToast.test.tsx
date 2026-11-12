@@ -6,7 +6,7 @@ import { alertLight, darkColors } from '../../theme/tokens';
 import { AppToast, TOAST_MESSAGE_LINES, TOAST_TITLE_LINES, toastConfig } from '../AppToast';
 
 const LONG_REASON =
-  'Falló la sincronización del calendario: MeetingGuard necesita permiso para acceder a tu Google Calendar.';
+  'Falló la sincronización del calendario: Meeting Guard necesita permiso para acceder a tu Google Calendar.';
 
 it('wraps long texts instead of cutting them to one line', async () => {
   await render(

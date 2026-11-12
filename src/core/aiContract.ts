@@ -55,8 +55,15 @@ import { z } from 'zod';
  * UNLINKED task when the meeting was not created - a missing link never costs the user the task.
  * Both directions stay compatible: the key is optional, so an old server simply omits it and an
  * old client strips it and creates the task without the link.
+ *
+ * v7: spoken debrief (M8). Mode 'debrief': after a meeting the user dictates what was agreed
+ * (one spoken transcript as the trailing user message, followUpMeetingId = that meeting) and the
+ * server answers ONLY with create_task proposals linked to the meeting (owners in people, due
+ * dates resolved from the transcript) plus a short reply. Nothing is saved until the user confirms
+ * each card in the app. A v6 server rejects the unknown mode (the app shows the error); a v7
+ * server keeps every older behavior unchanged.
  */
-export const AI_CONTRACT_VERSION = 6;
+export const AI_CONTRACT_VERSION = 7;
 
 // ---------------------------------------------------------------------------------------------
 // Trusted sign-in providers (verification gate)
@@ -91,6 +98,7 @@ export function isTrustedSignInProvider(provider: string | null | undefined): bo
 export const CALLABLES = {
   assistant: 'assistant',
   deleteAccount: 'deleteAccount',
+  microsoftSignIn: 'microsoftSignIn',
   zoomStatus: 'zoomStatus',
   zoomCreateMeeting: 'zoomCreateMeeting',
   zoomSyncMeeting: 'zoomSyncMeeting',
@@ -123,12 +131,34 @@ export type Language = (typeof LANGUAGES)[number];
 export const PLANS = ['free', 'pro', 'premium'] as const;
 export type Plan = (typeof PLANS)[number];
 
-/** Daily assistant requests per plan (server-enforced; the day boundary is UTC midnight). */
-export const PLAN_DAILY_AI_LIMITS: Readonly<Record<Plan, number>> = {
-  free: 5,
-  pro: 100,
-  premium: 500,
+/**
+ * AI allowances per plan (server-enforced; functions/src/assistant/quota.ts):
+ * - free: the introductory allowance. A window of `windowDays` days that starts with the user's
+ *   first AI action, `total` actions in all, at most `perDay` per UTC day; afterwards AI needs a
+ *   subscription. Manual creation, viewing, export and scheduled reminders stay free.
+ * - pro / premium: `perMonth` actions per subscription month, renewing on the monthly
+ *   anniversary of the subscription start (yearly subscribers included; a UTC calendar month
+ *   when the start is unknown). The WhatsApp sublimits of Stage 3 count inside these numbers.
+ */
+export const AI_ALLOWANCES = {
+  free: { kind: 'introductory', windowDays: 7, total: 10, perDay: 3 },
+  pro: { kind: 'monthly', perMonth: 100 },
+  premium: { kind: 'monthly', perMonth: 400 },
+} as const;
+
+/** The headline number of each plan (free: the window total; paid: per month). */
+export const PLAN_AI_LIMITS: Readonly<Record<Plan, number>> = {
+  free: AI_ALLOWANCES.free.total,
+  pro: AI_ALLOWANCES.pro.perMonth,
+  premium: AI_ALLOWANCES.premium.perMonth,
 };
+
+/** Replies that only ask for missing details are not charged, this many times in a row. */
+export const CLARIFICATIONS_PER_ACTION = 2;
+
+/** Which allowance an AssistantUsage describes. */
+export const USAGE_PERIODS = ['day', 'window', 'month'] as const;
+export type UsagePeriod = (typeof USAGE_PERIODS)[number];
 
 export const CONFERENCE_PROVIDERS = ['zoom', 'teams', 'google_meet', 'other'] as const;
 export type ConferenceProvider = (typeof CONFERENCE_PROVIDERS)[number];
@@ -136,7 +166,7 @@ export type ConferenceProvider = (typeof CONFERENCE_PROVIDERS)[number];
 export const LOCATION_TYPES = ['physical', 'virtual', 'hybrid'] as const;
 export type LocationType = (typeof LOCATION_TYPES)[number];
 
-export const ASSISTANT_MODES = ['chat', 'followup'] as const;
+export const ASSISTANT_MODES = ['chat', 'followup', 'debrief'] as const;
 export type AssistantMode = (typeof ASSISTANT_MODES)[number];
 
 export const AI_ACTION_TYPES = [
@@ -329,7 +359,7 @@ export const assistantRequestSchema = z
     /** Client clock, informational (the server uses its own clock for quotas). */
     nowIso: isoDateTimeSchema,
     mode: z.enum(ASSISTANT_MODES),
-    /** Required in followup mode: the meeting that just ended. */
+    /** Required in followup and debrief mode: the meeting that just ended. */
     followUpMeetingId: meetingIdSchema.nullable(),
     /** v4, optional: proposals still awaiting confirmation in the app when this message was sent. */
     pendingActions: z.array(pendingActionBriefSchema).max(AI_LIMITS.maxActions).optional(),
@@ -340,13 +370,13 @@ export const assistantRequestSchema = z
      */
     contractVersion: z.number().int().min(1).max(1000).optional(),
   })
-  .refine((r) => r.mode !== 'followup' || r.followUpMeetingId !== null, {
-    message: 'followUpMeetingId is required in followup mode',
+  .refine((r) => (r.mode !== 'followup' && r.mode !== 'debrief') || r.followUpMeetingId !== null, {
+    message: 'followUpMeetingId is required in followup and debrief mode',
     path: ['followUpMeetingId'],
   })
   .refine(
-    (r) => r.mode !== 'chat' || (r.messages.length > 0 && r.messages[r.messages.length - 1]?.role === 'user'),
-    { message: 'chat mode requires a trailing user message', path: ['messages'] },
+    (r) => r.mode === 'followup' || (r.messages.length > 0 && r.messages[r.messages.length - 1]?.role === 'user'),
+    { message: 'chat and debrief mode require a trailing user message', path: ['messages'] },
   );
 export type AssistantRequest = z.infer<typeof assistantRequestSchema>;
 
@@ -636,12 +666,16 @@ export function isMutatingAction(action: AiAction): boolean {
 // ---------------------------------------------------------------------------------------------
 
 export const assistantUsageSchema = z.object({
-  /** Requests counted today, including this one. */
+  /** Actions counted in the period, including this one. */
   used: z.number().int().min(0),
   limit: z.number().int().min(0),
   plan: planSchema,
-  /** Next UTC midnight. */
+  /** When the period ends (next UTC midnight for 'day', the window end, the next cycle start). */
   resetsAt: isoDateTimeSchema,
+  /** The allowance described; absent on answers of older servers (then 'day'). */
+  period: z.enum(USAGE_PERIODS).optional(),
+  /** Free plan: the introductory allowance is over (window ended or total used); AI needs a subscription. */
+  subscriptionRequired: z.boolean().optional(),
 });
 export type AssistantUsage = z.infer<typeof assistantUsageSchema>;
 
@@ -714,6 +748,57 @@ export const deleteAccountRequestSchema = z.object({ confirm: z.literal(true) })
 export type DeleteAccountRequest = z.infer<typeof deleteAccountRequestSchema>;
 export const deleteAccountResponseSchema = z.object({ deleted: z.literal(true) });
 export type DeleteAccountResponse = z.infer<typeof deleteAccountResponseSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// Sign in with Microsoft (microsoftSignIn callable; docs/v1/ARCHITECTURE.md §31, SETUP.md §10.6)
+// ---------------------------------------------------------------------------------------------
+//
+// The app runs the Microsoft PKCE sign-in (scopes openid profile email) and sends the id_token
+// plus the raw nonce it put in the request. The callable verifies the token against Microsoft's
+// published keys (audience = the Azure client id, issuer = the token's tenant, nonce, lifetime),
+// resolves or creates the Firebase user and answers with a custom token the app signs in with.
+// Unauthenticated by design (it IS the sign-in); it never reads anything but the token.
+
+/** Client-side timeout for microsoftSignIn (one JWKS fetch at most plus a token mint). */
+export const MICROSOFT_SIGN_IN_CALL_TIMEOUT_MS = 20_000;
+
+export const microsoftSignInRequestSchema = z.object({
+  /** The Microsoft id_token from the authorization-code exchange (RS256 JWT). */
+  idToken: z.string().min(1).max(8192),
+  /** The raw nonce the app sent in the authorize request; must equal the token's nonce claim. */
+  nonce: z.string().min(16).max(128),
+  /**
+   * Website only: sign in EXISTING users and never create one. An unknown Microsoft account
+   * (no identity, no verified-email match) answers not-found / microsoft_user_not_found and
+   * nothing is written. The app omits it (first sign-in creates the account).
+   */
+  signInOnly: z.boolean().optional(),
+});
+export type MicrosoftSignInRequest = z.infer<typeof microsoftSignInRequestSchema>;
+
+export const microsoftSignInResponseSchema = z.object({
+  /** Firebase custom token for signInWithCustomToken. */
+  customToken: z.string().min(1),
+  uid: z.string().min(1),
+  /** The Firebase user was created by this call. */
+  created: z.boolean(),
+  /** The Microsoft identity was attached to an existing account with the same verified email. */
+  linked: z.boolean(),
+});
+export type MicrosoftSignInResponse = z.infer<typeof microsoftSignInResponseSchema>;
+
+/** `details.reason` values of a failed microsoftSignIn call (HttpsError codes in parentheses). */
+export const MICROSOFT_SIGN_IN_REASONS = [
+  /** failed-precondition: MICROSOFT_CLIENT_ID is not set on the functions. */
+  'microsoft_not_configured',
+  /** unauthenticated: signature, audience, issuer, nonce or lifetime check failed. */
+  'microsoft_token_invalid',
+  /** already-exists: an account with this email exists and the Microsoft email is not verified. */
+  'email_in_use',
+  /** not-found: signInOnly and no Meeting Guard account for this Microsoft account yet. */
+  'microsoft_user_not_found',
+] as const;
+export type MicrosoftSignInReason = (typeof MICROSOFT_SIGN_IN_REASONS)[number];
 
 // ---------------------------------------------------------------------------------------------
 // Zoom auto links (zoom* callables; docs/v1/ARCHITECTURE.md §24, docs/v1/SETUP.md §12)

@@ -14,7 +14,7 @@
     "empty": "Hoy no tienes reuniones ni tareas. Disfruta el día libre."
   },
   "status": {
-    "title": "MeetingGuard está activo",
+    "title": "Meeting Guard está activo",
     "next": "Siguiente: {{title}} a las {{time}}",
     "idle": "No hay reuniones próximas. Tus alertas están activas."
   },
@@ -109,6 +109,7 @@
     "snooze_one": "Posponer {{count}} min",
     "snooze_other": "Posponer {{count}} min",
     "details": "Ver detalles",
+    "runningLate": "Voy tarde",
     "minimize": "Minimizar",
     "dismiss": "Cerrar",
     "openAssistant": "Abrir asistente"
@@ -125,11 +126,16 @@
   },
   "refill": {
     "title": "Mantén al día tus alertas de reuniones",
-    "body": "Abre MeetingGuard para que programe tus próximas alertas."
+    "body": "Abre Meeting Guard para que programe tus próximas alertas."
   },
   "settings": {
-    "voiceNeedsApp": "La lectura por voz necesita la app abierta. Con la app cerrada, las alertas reproducen el sonido de la notificación.",
+    "voiceNeedsApp": "La lectura por voz suena dentro de la app. En Android la alarma a pantalla completa abre la app y lee la reunión; en iPhone, abre la alerta para escucharla. Con la app cerrada, primero suena el sonido de la notificación.",
     "saved": "Ajustes de alertas guardados.",
+    "imported": {
+      "label": "Eventos de otros calendarios",
+      "description": "Reuniones que vienen del calendario del teléfono, Google u Outlook: cumpleaños, festivos, invitaciones. Los eventos de todo el día nunca suenan. El ajuste propio de una reunión sigue mandando.",
+      "default": "Como arriba"
+    },
     "snooze": {
       "label": "Duración del aplazamiento",
       "minutes_one": "{{count}} min",
@@ -144,7 +150,9 @@
       "description": "Una vez al día, un resumen corto de ese día: tus reuniones y las tareas que vencen.",
       "time": "Hora del resumen",
       "at": "Resumen a las {{time}}",
-      "done": "Listo"
+      "done": "Listo",
+      "fullScreen": "Mostrar a pantalla completa",
+      "fullScreenHint": "A la hora fijada, el resumen ocupa toda la pantalla como una alarma de reunión. Necesita el permiso de pantalla completa (ver Entrega de alertas más abajo). Solo en Android."
     },
     "statusNotification": {
       "label": "Notificación de estado",
@@ -163,7 +171,7 @@
     "dnd": {
       "title": "No molestar",
       "androidDescription": "Las alertas máximas solo pueden sonar con No molestar activado si lo permites: abre los ajustes de las alertas máximas y activa «Ignorar No molestar».",
-      "iosDescription": "Para recibir alertas durante un modo de concentración, añade MeetingGuard a las apps permitidas en Ajustes > Concentración.",
+      "iosDescription": "Para recibir alertas durante un modo de concentración, añade Meeting Guard a las apps permitidas en Ajustes > Concentración.",
       "open": "Permitir que las alertas máximas ignoren No molestar"
     }
   }

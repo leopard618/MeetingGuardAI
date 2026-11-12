@@ -75,7 +75,7 @@ describe('pure helpers', () => {
     expect(PAPER_THEMES.light.colors.primary).toBe(lightColors.primary);
     expect(PAPER_THEMES.dark.colors.primary).toBe(darkColors.primary);
     expect(PAPER_THEMES.light.colors.elevation.level1).toBe(lightColors.elevation.level1);
-    expect(PAPER_THEMES.light.fonts.titleMedium.fontWeight).toBe('600');
+    expect(PAPER_THEMES.light.fonts.titleMedium.fontFamily).toBe('PlusJakartaSans_600SemiBold');
   });
 
   it('migrates the legacy "theme" key once', async () => {
@@ -87,9 +87,14 @@ describe('pure helpers', () => {
 });
 
 describe('ThemeProvider', () => {
-  it('follows the OS scheme by default', async () => {
+  it('opens in light on a fresh install and follows the OS scheme once asked to', async () => {
     mockColorScheme.mockReturnValue('dark');
     await renderProbe();
+    expect(screen.getByTestId('state').props.children).toBe('light|light|true|dark');
+    expect(screen.getByTestId('background').props.children).toBe(APP_COLORS.light.background);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('system'));
+    });
     expect(screen.getByTestId('state').props.children).toBe('system|dark|true|light');
     expect(screen.getByTestId('background').props.children).toBe(APP_COLORS.dark.background);
   });
@@ -136,6 +141,7 @@ describe('ThemeProvider', () => {
     await act(async () => {
       release();
     });
+    // The toggle (light -> dark) made before the stored "light" arrived still wins.
     expect(screen.getByTestId('state').props.children).toBe('dark|dark|true|light');
     getItem.mockRestore();
   });

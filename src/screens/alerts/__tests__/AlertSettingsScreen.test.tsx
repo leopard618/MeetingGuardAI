@@ -82,7 +82,7 @@ it('edits alert preferences after onboarding (vibration, follow-ups, snooze) and
   mockUpdate.mockResolvedValue({});
   await renderScreen();
   expect(screen.getByText('Snooze length')).toBeTruthy();
-  expect(screen.getByText(/voice readout needs the app open/)).toBeTruthy();
+  expect(screen.getByText(/voice readout plays inside the app/)).toBeTruthy();
 
   await act(async () => {
     fireEvent(screen.getByTestId('alerts-vibration'), 'valueChange', false);
