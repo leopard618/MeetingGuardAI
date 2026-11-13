@@ -101,7 +101,7 @@ describe('MattersScreen', () => {
 
   it('confirms with the hash it showed and reports the send', async () => {
     mockDraft.mockResolvedValueOnce(COMPLETE);
-    mockConfirm.mockResolvedValueOnce({ matterId: 'm1', status: 'active', sent: true });
+    mockConfirm.mockResolvedValueOnce({ matterId: 'm1', status: 'active', outcome: 'sent' });
     await renderScreen();
     await act(async () => {
       fireEvent.changeText(screen.getByTestId('matters-request'), 'Contact Carlos');
@@ -114,7 +114,7 @@ describe('MattersScreen', () => {
 
   it('offers a retry when the email could not go out yet (the same confirm, never a second email)', async () => {
     mockDraft.mockResolvedValueOnce(COMPLETE);
-    mockConfirm.mockResolvedValueOnce({ matterId: 'm1', status: 'active', sent: false }).mockResolvedValueOnce({ matterId: 'm1', status: 'active', sent: true });
+    mockConfirm.mockResolvedValueOnce({ matterId: 'm1', status: 'active', outcome: 'failed' }).mockResolvedValueOnce({ matterId: 'm1', status: 'active', outcome: 'sent' });
     await renderScreen();
     await act(async () => {
       fireEvent.changeText(screen.getByTestId('matters-request'), 'Contact Carlos');
@@ -125,6 +125,36 @@ describe('MattersScreen', () => {
     await press('matters-retry');
     expect(mockConfirm).toHaveBeenNthCalledWith(2, 'm1', HASH);
     expect(screen.getByTestId('matters-sent')).toBeTruthy();
+  });
+
+  it('offers no retry when it is unknown whether the email went out (it may have, so never twice)', async () => {
+    mockDraft.mockResolvedValueOnce(COMPLETE);
+    mockConfirm.mockResolvedValueOnce({ matterId: 'm1', status: 'active', outcome: 'unknown' });
+    await renderScreen();
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('matters-request'), 'Contact Carlos');
+    });
+    await press('matters-prepare');
+    await press('matters-confirm');
+    expect(screen.getByTestId('matters-unknown')).toBeTruthy();
+    expect(screen.queryByTestId('matters-retry')).toBeNull();
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('can still cancel the matter after the first email went out', async () => {
+    mockDraft.mockResolvedValueOnce(COMPLETE);
+    mockConfirm.mockResolvedValueOnce({ matterId: 'm1', status: 'active', outcome: 'sent' });
+    mockCancel.mockResolvedValueOnce({ matterId: 'm1', status: 'cancelled' });
+    await renderScreen();
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('matters-request'), 'Contact Carlos');
+    });
+    await press('matters-prepare');
+    await press('matters-confirm');
+    await press('matters-cancel');
+    expect(mockCancel).toHaveBeenCalledWith('m1');
+    expect(screen.getByTestId('matters-cancelled')).toBeTruthy();
+    expect(screen.queryByTestId('matters-cancel')).toBeNull();
   });
 
   it('cancels the matter', async () => {

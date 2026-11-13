@@ -200,6 +200,19 @@ export function draftHash(mandate: Mandate, firstEmail: FirstEmail): string {
 export const MATTER_STATUSES = ['draft', 'active', 'paused', 'done', 'cancelled'] as const;
 export type MatterStatus = (typeof MATTER_STATUSES)[number];
 
+/**
+ * Where the first email stands. matterConfirm claims the send ('sending') in the same
+ * transaction that activates the matter, so two overlapping confirms never both send.
+ * none:    not tried yet
+ * sending: claimed by one confirm call that is sending it now
+ * sent:    the provider accepted it (firstSentAt)
+ * failed:  the provider clearly refused it (setup, rejected, rate limit): a retry may send again
+ * unknown: no clear answer (timeout, lost connection, server error): it may have gone out, so it
+ *          is never sent again automatically
+ */
+export const FIRST_SEND_STATES = ['none', 'sending', 'sent', 'failed', 'unknown'] as const;
+export type FirstSendState = (typeof FIRST_SEND_STATES)[number];
+
 /** The secret part of a matter's reply address: 96 random bits, lowercase hex (case-safe in email). */
 export const REPLY_TOKEN_PATTERN = /^[a-f0-9]{24}$/;
 
@@ -232,6 +245,10 @@ export const matterDocSchema = z
     confirmedAt: isoDateTimeSchema.nullable(),
     /** When the first email went out; null until then (a repeated confirm never sends twice). */
     firstSentAt: isoDateTimeSchema.nullable(),
+    /** FIRST_SEND_STATES; matters stored before this field read as 'none'. */
+    firstSendState: z.enum(FIRST_SEND_STATES).default('none'),
+    /** When the current send was claimed ('sending'). */
+    firstSendClaimedAt: isoDateTimeSchema.nullable().default(null),
     replyToken: z.string().regex(REPLY_TOKEN_PATTERN),
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,
@@ -253,6 +270,8 @@ export const MATTER_EVENT_TYPES = [
   'mandate_confirmed',
   'email_sent',
   'email_failed',
+  /** The provider gave no clear answer: the email may have gone out (never resent automatically). */
+  'email_unconfirmed',
   'email_received',
   'status_changed',
 ] as const;
@@ -319,7 +338,11 @@ export const matterAddressSchema = z
   .object({ uid: z.string().min(1).max(128), matterId: z.string().min(1).max(128), createdAt: isoDateTimeSchema })
   .strict();
 
-/** matterMessageIds/{messageIdKey}: which matter an email we sent or received belongs to. */
+/**
+ * matterMessageIds/{messageIdKey}: which matter an email WE sent belongs to (In-Reply-To /
+ * References of a reply point at it). Only our own outgoing Message-IDs are indexed, each with
+ * create(): an inbound email never writes here, so a sender cannot re-point another user's thread.
+ */
 export const matterMessageIdSchema = z
   .object({ uid: z.string().min(1).max(128), matterId: z.string().min(1).max(128), createdAt: isoDateTimeSchema })
   .strict();

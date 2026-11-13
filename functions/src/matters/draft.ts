@@ -3,7 +3,9 @@
  *
  * One model call with one strict function tool (propose_matter). The model only PROPOSES; code
  * then decides what is complete:
- * - a contact without an email address becomes a question (an address is never guessed);
+ * - a contact without an email address becomes a question (an address is never guessed): an
+ *   address counts only when the user wrote exactly that whole address (addressesIn);
+ * - model questions that repeat a code question (email, end date) are dropped;
  * - a missing end date, one in the past or more than MATTER_LIMITS.maxMandateDays away becomes
  *   a question;
  * - meeting windows are clipped to [now, end date];
@@ -59,7 +61,10 @@ export const PROPOSE_MATTER_TOOL: ToolDefinition = {
         'The people the assistant may email (1 to 5). Only people the user named.',
       ),
       goal: str('What the matter is for, in one or two sentences, in the user\'s language.'),
-      may_ask: arr(str('One thing the assistant may ask the contacts for.'), 'What the assistant may ask for (a document, a date, a confirmation). At most 8.'),
+      may_ask: arr(
+        str('One thing the assistant may ask the contacts for, starting with a lowercase letter unless it starts with a name.'),
+        'What the assistant may ask for (a document, a date, a confirmation). At most 8.',
+      ),
       meeting: obj(
         {
           needed: { type: 'boolean', description: 'True only when the user wants a meeting set up.' },
@@ -69,7 +74,7 @@ export const PROPOSE_MATTER_TOOL: ToolDefinition = {
               start: str('ISO 8601 with the user\'s UTC offset.'),
               end: str('ISO 8601 with the user\'s UTC offset, after start.'),
             }),
-            'Only time ranges the user said they are available for; empty when they did not say.',
+            'Only days and hours the user explicitly said they are available; empty when they did not say. "Next week" alone is not a time range: leave it empty.',
           ),
         },
         'The meeting the assistant may set up.',
@@ -81,17 +86,24 @@ export const PROPOSE_MATTER_TOOL: ToolDefinition = {
         },
         'Follow-ups when there is no answer.',
       ),
-      ends_at: nullableStr('Until when the assistant works on this, ISO 8601 with the user\'s UTC offset (for "until Friday": Friday 18:00 local). Null when the user did not say.'),
+      ends_at: nullableStr(
+        'Until when the assistant works on this, ISO 8601 with the user\'s UTC offset. A day without a time ("until Friday", "until November 30") means the end of that day, 23:59 local. Null when the user did not say.',
+      ),
       copy_owner: { type: 'string', enum: ['cc', 'daily_summary'], description: 'cc (the default, and for "keep me copied"); daily_summary only when the user asked for a summary instead.' },
       email_language: { type: 'string', enum: ['en', 'es'], description: 'Language of the emails to the contacts: the one the user asked for, else the user\'s language.' },
       first_email: obj(
         {
           subject: str('Subject of the first email, short.'),
-          text: str('Body of the first email, in email_language: greet the contacts by name, say on whose behalf you write, ask for what may_ask lists (and for availability when a meeting is needed). No signature block and no footer (added automatically). Never offer or accept money, prices or anything contractual, never promise anything beyond the goal.'),
+          text: str(
+            'Body of the first email, in email_language: greet the contacts by name, say on whose behalf you write, ask for what may_ask lists (and for availability when a meeting is needed). End with a short closing such as "Best," or "Saludos," and NO name after it: the assistant\'s name and a footer are added automatically. Never offer or accept money, prices or anything contractual, never promise anything beyond the goal.',
+          ),
         },
         'The first email, written as the user\'s AI assistant.',
       ),
-      questions: arr(str('One question, in the user\'s language.'), 'Questions for details that are missing or unclear (besides missing email addresses and the end date, which are asked automatically). Empty when nothing else is missing.'),
+      questions: arr(
+        str('One question, in the user\'s language.'),
+        'Questions for details that are missing or unclear. NEVER ask for an email address or the end date: those are asked automatically. Empty when nothing else is missing.',
+      ),
     }),
   },
 };
@@ -185,6 +197,27 @@ const PLAIN = (text: string) =>
     .replace(/[\u201c\u201d]/g, '"');
 const clean = (text: string, max: number) => PLAIN(text).trim().slice(0, max);
 
+/** Characters that end an address in running text (space, brackets, quotes, separators). */
+const ADDRESS_CANDIDATE = /[^\s<>()[\]{},;:"'`]+@[^\s<>()[\]{},;:"'`]+/g;
+
+/**
+ * Every whole email address in the user's words, lowercased. Exact whole addresses only:
+ * "martinez@acme.com" is NOT in "write to ana.martinez@acme.com". Trailing sentence punctuation
+ * ("ana@acme.com.") is not part of the address.
+ */
+export function addressesIn(text: string): Set<string> {
+  const found = new Set<string>();
+  for (const raw of text.match(ADDRESS_CANDIDATE) ?? []) {
+    const address = raw.replace(/^mailto:/i, '').replace(/[.!?]+$/, '').toLowerCase();
+    if (address.indexOf('@') > 0) found.add(address);
+  }
+  return found;
+}
+
+/** A model question about an email address, or about the end date (EN and ES). */
+const EMAIL_TOPIC = /e-?mail|correo|@|direcci[oó]n/i;
+const END_TOPIC = /until when|end date|deadline|how long|hasta cu[aá]ndo|fecha (l[ií]mite|final|de fin)|cu[aá]nto tiempo/i;
+
 /** Turns the model's proposal into a draft: complete (mandate + email) or with questions. */
 export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult {
   const parsed = proposalSchema.safeParse(raw);
@@ -199,12 +232,14 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
     .filter((c) => c.name.length > 0)
     .slice(0, MATTER_LIMITS.maxContacts);
   if (contacts.length === 0) questions.push(QUESTIONS.contact(ctx.language));
+  // an address is used only when the user wrote exactly that whole address
+  const written = addressesIn(ctx.request);
+  let askedForEmail = contacts.length === 0;
   for (const c of contacts) {
-    // an address is used only when the user actually gave it (it appears in their words)
-    const given = c.email !== null && ctx.request.toLowerCase().includes(c.email.toLowerCase());
-    if (!given) {
+    if (c.email === null || !written.has(c.email.toLowerCase())) {
       questions.push(QUESTIONS.contactEmail(c.name, ctx.language));
       c.email = null;
+      askedForEmail = true;
     }
   }
 
@@ -214,9 +249,13 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
   else if (endMs <= nowMs) questions.push(QUESTIONS.endsInPast(ctx.language));
   else if (endMs - nowMs > MATTER_LIMITS.maxMandateDays * DAY_MS) questions.push(QUESTIONS.endsTooLate(MATTER_LIMITS.maxMandateDays, ctx.language));
   else endsAt = new Date(endMs).toISOString();
+  const askedForEnd = endsAt === null;
 
   for (const q of p.questions) {
     const text = clean(q, MATTER_LIMITS.itemChars);
+    // the model sometimes repeats a question the code already asks: keep each topic once
+    if (askedForEmail && EMAIL_TOPIC.test(text)) continue;
+    if (askedForEnd && END_TOPIC.test(text)) continue;
     if (text && questions.length < MATTER_LIMITS.maxQuestions) questions.push(text);
   }
 

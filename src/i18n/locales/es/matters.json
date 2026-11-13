@@ -36,6 +36,7 @@
     "sent": "Enviado. Las respuestas a este asunto se guardan con él.",
     "notSent": "El correo no se ha podido enviar todavía. Inténtalo de nuevo en un momento.",
     "retry": "Reintentar",
+    "unknown": "No hemos podido confirmar que el correo haya salido. Puede que se haya enviado, así que no se volverá a enviar. Tu copia muestra si llegó.",
     "cancelled": "Asunto cancelado. No se enviará nada más."
   },
   "errors": {

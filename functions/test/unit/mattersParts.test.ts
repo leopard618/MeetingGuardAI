@@ -1,9 +1,9 @@
-import { normalizeProposal, buildDraftMessages, draftMatter, PROPOSE_MATTER_TOOL } from '../../src/matters/draft';
+import { addressesIn, normalizeProposal, buildDraftMessages, draftMatter, PROPOSE_MATTER_TOOL } from '../../src/matters/draft';
 import { composeFirstEmail, createPostmarkSender, postmarkPayload, POSTMARK_API_URL, type EmailSendError } from '../../src/matters/email';
 import { matchInbound, parseInbound, toMatterMessage } from '../../src/matters/inbound';
 import { draftHash, matterMessageSchema, messageIdKey, type MatterDoc } from '../../src/matters/model';
 import { checkSend } from '../../src/matters/sendCheck';
-import { disclosureFooter, readBack, senderName } from '../../src/matters/text';
+import { disclosureFooter, formatWindow, readBack, senderName } from '../../src/matters/text';
 import { FakeLlm, FakeMatterStore, DOMAIN, NOW, REQUEST, TOKEN, inboundPayload, proposal } from './mattersFakes';
 
 const ctx = (overrides: Partial<Parameters<typeof normalizeProposal>[1]> = {}) => ({
@@ -39,6 +39,49 @@ describe('matters draft: the model proposes, code decides', () => {
     expect(result.mandate).toBeNull();
     expect(result.firstEmail).toBeNull();
     expect(result.questions).toEqual(['What is the email address of Carlos Ruiz?']);
+  });
+
+  it('accepts only a whole address the user wrote, never a part of a longer one', () => {
+    const asked = (email: string, request: string) =>
+      normalizeProposal(proposal({ contacts: [{ name: 'Martinez', email }] }), ctx({ request })).questions.includes('What is the email address of Martinez?');
+    // the substring trap: martinez@acme.com is not what the user wrote
+    expect(asked('martinez@acme.com', 'Write to ana.martinez@acme.com until Friday.')).toBe(true);
+    expect(asked('martinez@acme.co', 'Write to martinez@acme.com until Friday.')).toBe(true);
+    expect(asked('artinez@acme.com', 'Write to martinez@acme.com until Friday.')).toBe(true);
+    // the exact address, in any case and with sentence punctuation or brackets around it
+    expect(asked('martinez@acme.com', 'Write to martinez@acme.com.')).toBe(false);
+    expect(asked('Martinez@Acme.com', 'Write to Martinez (MARTINEZ@ACME.COM), until Friday')).toBe(false);
+    expect(asked('martinez@acme.com', 'Martinez <martinez@acme.com>; until Friday')).toBe(false);
+  });
+
+  it('finds the whole addresses in the user\'s words', () => {
+    expect([...addressesIn('Ana (ana.martinez@acme.com), Bob <BOB@x.io>; carl@y.es. Not: @nobody, mail me at')].sort()).toEqual([
+      'ana.martinez@acme.com',
+      'bob@x.io',
+      'carl@y.es',
+    ]);
+  });
+
+  it('drops model questions that repeat the code\'s own email or end date question', () => {
+    const result = normalizeProposal(
+      proposal({
+        contacts: [{ name: 'Ana', email: null }],
+        ends_at: null,
+        questions: ["What should I use as Ana's email address?", 'Until when should I follow up?', 'Should the call be on video?'],
+      }),
+      ctx({ request: 'Set up a call with Ana next week.' }),
+    );
+    expect(result.questions).toEqual(['What is the email address of Ana?', 'Until when should I keep working on this?', 'Should the call be on video?']);
+    const es = normalizeProposal(
+      proposal({ contacts: [{ name: 'Ana', email: null }], questions: ['¿Cuál es el correo de Ana?', '¿La llamada es por video?'] }),
+      ctx({ language: 'es', request: 'Organiza una llamada con Ana hasta el viernes.' }),
+    );
+    expect(es.questions).toEqual(['¿Cuál es la dirección de correo de Ana?', '¿La llamada es por video?']);
+  });
+
+  it('keeps a model question about the address when the code did not ask for one', () => {
+    const result = normalizeProposal(proposal({ questions: ['Should I also write to Carlos\'s assistant by email?'] }), ctx());
+    expect(result.questions).toEqual(["Should I also write to Carlos's assistant by email?"]);
   });
 
   it('asks for the end date when it is missing, past or too far away', () => {
@@ -142,7 +185,19 @@ describe('matters text: the read-back and the email framing', () => {
     expect(text).toContain('Voy a escribir a Carlos Ruiz (carlos@example.com) desde mi propia dirección, como tu asistente de IA.');
     expect(text).toContain('Seguimiento: si no hay respuesta, cada 1 día, como máximo 1 vez.');
     expect(text).toContain('Tu copia: un resumen al día.');
+    expect(text).toContain('no escribo a nadie más.');
     expect(text).toContain('No se envía nada hasta que lo confirmes.');
+  });
+
+  it('shows whole-day meeting windows as dates, never as 0:00', () => {
+    const z = 'America/Los_Angeles';
+    // Mon Nov 16 00:00 to Sun Nov 22 18:00 local (the end clipped to the end date)
+    expect(formatWindow({ start: '2026-11-16T08:00:00Z', end: '2026-11-23T02:00:00Z' }, z, 'es')).toBe('lun, 16 nov a dom, 22 nov, 18:00');
+    // whole days: midnight to midnight, or to 23:59
+    expect(formatWindow({ start: '2026-11-16T08:00:00Z', end: '2026-11-21T08:00:00Z' }, z, 'en')).toBe('Mon, Nov 16 to Fri, Nov 20');
+    expect(formatWindow({ start: '2026-11-16T08:00:00Z', end: '2026-11-17T07:59:00Z' }, z, 'en')).toBe('Mon, Nov 16');
+    // a window with real hours keeps them
+    expect(formatWindow({ start: '2026-11-16T17:00:00Z', end: '2026-11-16T21:00:00Z' }, z, 'en')).toBe('Mon, Nov 16, 9:00 AM to 1:00 PM');
   });
 
   it('always says it is an AI assistant, and keeps names safe in headers', () => {
@@ -173,6 +228,8 @@ function activeMatter(overrides: Partial<MatterDoc> = {}): MatterDoc {
     confirmedHash: draftHash(draft.mandate!, draft.firstEmail!),
     confirmedAt: NOW.toISOString(),
     firstSentAt: null,
+    firstSendState: 'none',
+    firstSendClaimedAt: null,
     replyToken: TOKEN,
     createdAt: NOW.toISOString(),
     updatedAt: NOW.toISOString(),
@@ -227,7 +284,8 @@ describe('matters email: composing and Postmark', () => {
       subject: 'Updated proposal',
       messageId: `<m1.r1@${DOMAIN}>`,
     });
-    expect(email.text).toMatch(/Could you send the updated proposal\?\n\n--\nI am Ana Lopez's AI assistant/);
+    // code signs under the model's closing, then the footer
+    expect(email.text).toMatch(/Could you send the updated proposal\?\n\nBest,\nAna Lopez's AI assistant\n\n--\nI am Ana Lopez's AI assistant/);
   });
 
   it('leaves the owner out of copy for a daily summary', () => {

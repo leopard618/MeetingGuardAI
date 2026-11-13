@@ -1034,11 +1034,20 @@ export const matterConfirmRequestSchema = z
   .object({ matterId: matterIdSchema, draftHash: z.string().regex(DRAFT_HASH_PATTERN) })
   .strict();
 export type MatterConfirmRequest = z.infer<typeof matterConfirmRequestSchema>;
+/**
+ * Where the first email stands after matterConfirm.
+ * sent:    it went out.
+ * failed:  the email service refused it, nothing went out; the same confirm retries it.
+ * unknown: no clear answer (or another confirm is sending it right now): it may have gone out, so
+ *          it is never sent again automatically. The user's copy (cc) shows whether it arrived.
+ */
+export const MATTER_SEND_OUTCOMES = ['sent', 'failed', 'unknown'] as const;
+export type MatterSendOutcome = (typeof MATTER_SEND_OUTCOMES)[number];
+
 export const matterConfirmResponseSchema = z.object({
   matterId: matterIdSchema,
   status: z.literal('active'),
-  /** The first email went out (false: it failed and the matter shows the failure; it can be retried). */
-  sent: z.boolean(),
+  outcome: z.enum(MATTER_SEND_OUTCOMES),
 });
 export type MatterConfirmResponse = z.infer<typeof matterConfirmResponseSchema>;
 

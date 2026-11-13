@@ -26,6 +26,11 @@ export interface MatterLookup {
 /** What a transactional update decides: write a patch (and events), or leave the matter alone. */
 export type MatterUpdate<T> = { result: T; patch?: Partial<MatterDoc>; events?: MatterEvent[] };
 
+export interface AddMessageOptions {
+  indexMessageId?: boolean;
+  patch?: Partial<MatterDoc>;
+}
+
 export interface MatterStore {
   newMatterId(): string;
   /** The matter, its first event and its reply address (matterAddresses/{token}), in one batch. */
@@ -34,8 +39,12 @@ export interface MatterStore {
   getMatter(uid: string, matterId: string): Promise<MatterDoc | null>;
   /** Reads and updates one matter in a transaction. */
   updateMatter<T>(uid: string, matterId: string, decide: (doc: MatterDoc | null) => MatterUpdate<T>): Promise<T>;
-  /** Stores an email of the matter, its event and its Message-ID in the index; resolves the message id. */
-  addMessage(uid: string, matterId: string, message: MatterMessage, event: MatterEvent): Promise<string>;
+  /**
+   * Stores an email of the matter and its event in one batch; resolves the message id.
+   * indexMessageId: also index its Message-ID (matterMessageIds, with create()). Only for our own
+   * outgoing emails; never for inbound ones. patch: fields of the matter written in the same batch.
+   */
+  addMessage(uid: string, matterId: string, message: MatterMessage, event: MatterEvent, options?: AddMessageOptions): Promise<string>;
   findByToken(token: string): Promise<MatterLookup | null>;
   findByMessageKey(key: string): Promise<MatterLookup | null>;
   /** Create-once inbound marker; false when this provider id was already processed. */
@@ -86,14 +95,17 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
         return outcome.result;
       });
     },
-    async addMessage(uid, matterId, message, event) {
+    async addMessage(uid, matterId, message, event, options = {}) {
       const ref = matterRef(uid, matterId);
       const messageRef = ref.collection(MATTER_MESSAGES_SUBCOLLECTION).doc();
       const batch = db.batch();
       batch.create(messageRef, message);
       batch.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), { ...event, messageId: messageRef.id });
-      batch.set(db.collection(MATTER_MESSAGE_IDS_COLLECTION).doc(messageIdKey(message.rfcMessageId)), { uid, matterId, createdAt: message.at });
-      batch.update(ref, { updatedAt: message.at });
+      if (options.indexMessageId) {
+        // create(): an id that is already indexed fails the batch instead of being re-pointed
+        batch.create(db.collection(MATTER_MESSAGE_IDS_COLLECTION).doc(messageIdKey(message.rfcMessageId)), { uid, matterId, createdAt: message.at });
+      }
+      batch.update(ref, { ...options.patch, updatedAt: message.at });
       await batch.commit();
       return messageRef.id;
     },

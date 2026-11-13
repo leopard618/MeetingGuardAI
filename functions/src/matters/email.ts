@@ -33,6 +33,11 @@ export interface OutboundEmail {
   references: string[];
 }
 
+/** The bare address inside a From header value ("Name" <a@b> -> a@b). */
+export function bareAddress(header: string): string {
+  return header.replace(/^.*<([^>]+)>$/, '$1');
+}
+
 export function fromAddress(domain: string, localPart: string): string {
   return `${localPart}@${domain.toLowerCase()}`;
 }
@@ -59,7 +64,8 @@ export function composeFirstEmail(input: {
     cc,
     replyTo: replyAddressFor(matter.replyToken, input.domain),
     subject: matter.firstEmail.subject,
-    text: `${matter.firstEmail.text.trim()}\n\n${disclosureFooter(matter.ownerName, language)}`,
+    // the model ends with a closing ("Best,") and no name: code signs as the assistant
+    text: `${matter.firstEmail.text.trim()}\n${senderName(matter.ownerName, language)}\n\n${disclosureFooter(matter.ownerName, language)}`,
     messageId: newMessageId(input.matterId, input.domain, input.random),
     inReplyTo: null,
     references: [],
@@ -81,6 +87,14 @@ export class EmailSendError extends Error {
     this.name = 'EmailSendError';
   }
 }
+
+/**
+ * Failures after which the email may still have gone out: the request may have reached Postmark
+ * before the timeout, the lost connection or the server error. Such a send is 'unknown' and is
+ * never repeated automatically. The other kinds (configuration, rejected, rate_limited) are clear
+ * refusals: nothing went out, so a retry may send.
+ */
+export const UNCERTAIN_SEND_KINDS: ReadonlySet<EmailSendError['kind']> = new Set(['timeout', 'connection', 'server', 'unknown']);
 
 export interface EmailSender {
   /** Resolves with Postmark's MessageID; throws EmailSendError. */

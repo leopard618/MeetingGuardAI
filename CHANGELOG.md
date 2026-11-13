@@ -26,6 +26,19 @@ to users: the assistant stays switched off in every release until its beta (A10)
   server only, removed with the account. App: Settings > AI executive assistant (route
   Matters), only with EXPO_PUBLIC_MATTERS_ENABLED. ARCHITECTURE section 36, SETUP section 15.
 
+### Fixed
+
+- **A1 review fixes** (November 13): the first email goes out at most once (the confirm
+  transaction claims the send, so overlapping confirms cannot both send; a timeout, lost
+  connection or server error is "unknown" and never resent automatically, while a clear
+  refusal can still be retried); an email address counts as the user's only when they wrote that
+  exact whole address; the Message-ID index holds only our own outgoing ids, written with
+  create(), so an inbound email cannot re-point another user's thread.
+- **A1 test on a device** (November 13): no repeated question for an email address or the end
+  date; "más" in the Spanish read-back; the email is signed with the assistant's name; a day
+  without a time ends at 23:59; whole-day meeting windows show dates instead of 0:00; the stored
+  email keeps the sender name; the matter can be cancelled after sending.
+
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 
 Stage 2 of the V2 agreement: the calendar and task integrations (Outlook, Microsoft To Do, Google

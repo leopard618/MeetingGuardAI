@@ -7,7 +7,9 @@
  * draft:   the questions (answer -> matterRevise), or the read-back of the mandate and the first
  *          email exactly as it will be sent; "Confirm and send" sends the draft's hash
  *          (matterConfirm), "Change the draft" -> matterRevise, "Cancel this matter" -> matterCancel
- * done:    sent / not sent yet (retry = the same confirm, never a second email) / cancelled
+ * done:    sent / not sent (refused: retry = the same confirm) / unknown (no clear answer: it may
+ *          have gone out, so no retry) / cancelled; until cancelled, the matter can still be
+ *          cancelled from here
  * Every string lives in the "matters" namespace (EN + ES). Nothing typed is logged.
  */
 import { useCallback, useState, type ReactElement } from 'react';
@@ -16,7 +18,7 @@ import { Text, TextInput } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { Banner, ListGroup, ListRow, MGButton } from '../../components/ui';
-import type { MatterDraftResponse } from '../../core/aiContract';
+import type { MatterDraftResponse, MatterSendOutcome } from '../../core/aiContract';
 import { errorMessageKey, toAppError, type AppError } from '../../core/errors';
 import { getDeviceTimeZone } from '../../core/time';
 import { useLanguage, useT } from '../../i18n';
@@ -26,7 +28,13 @@ import { ScreenBody, Section } from '../shared/Section';
 
 
 type Busy = 'prepare' | 'answer' | 'confirm' | 'cancel' | null;
-type Done = { kind: 'sent' } | { kind: 'not_sent' } | { kind: 'cancelled' };
+type Done = { kind: 'sent' } | { kind: 'not_sent' } | { kind: 'unknown' } | { kind: 'cancelled' };
+
+const DONE_BY_OUTCOME: Readonly<Record<MatterSendOutcome, Done>> = {
+  sent: { kind: 'sent' },
+  failed: { kind: 'not_sent' },
+  unknown: { kind: 'unknown' },
+};
 
 /** The message key for a failed action (the server's reason first, then the generic one). */
 export function matterErrorKey(error: AppError): string {
@@ -80,7 +88,7 @@ export function MattersScreen(): ReactElement {
     run('confirm', async () => {
       if (!draft?.draftHash) return;
       const result = await matterService.confirm(draft.matterId, draft.draftHash);
-      setDone(result.sent ? { kind: 'sent' } : { kind: 'not_sent' });
+      setDone(DONE_BY_OUTCOME[result.outcome]);
     });
 
   const cancel = (): Promise<void> =>
@@ -105,6 +113,20 @@ export function MattersScreen(): ReactElement {
     );
   }
 
+  const cancelRow = (
+    <ListGroup>
+      <ListRow
+        icon="close-circle-outline"
+        title={t('matters:cancel')}
+        tone="destructive"
+        onPress={() => void cancel()}
+        disabled={busy !== null}
+        accessibilityRole="button"
+        testID="matters-cancel"
+      />
+    </ListGroup>
+  );
+
   if (done) {
     return (
       <ScreenBody>
@@ -118,9 +140,12 @@ export function MattersScreen(): ReactElement {
             </MGButton>
           </>
         ) : null}
+        {/* no retry: the email may have gone out, and it is never sent twice */}
+        {done.kind === 'unknown' ? <Banner tone="warning" text={t('matters:result.unknown')} testID="matters-unknown" /> : null}
         <MGButton variant="tonal" style={styles.action} onPress={startOver} disabled={busy !== null} testID="matters-new">
           {t('matters:newMatter')}
         </MGButton>
+        {done.kind !== 'cancelled' ? cancelRow : null}
       </ScreenBody>
     );
   }
@@ -212,17 +237,7 @@ export function MattersScreen(): ReactElement {
           <View style={styles.change}>{answerBox(t('matters:change.label'), t('matters:change.send'), 'matters-change')}</View>
         </>
       ) : null}
-      <ListGroup>
-        <ListRow
-          icon="close-circle-outline"
-          title={t('matters:cancel')}
-          tone="destructive"
-          onPress={() => void cancel()}
-          disabled={busy !== null}
-          accessibilityRole="button"
-          testID="matters-cancel"
-        />
-      </ListGroup>
+      {cancelRow}
     </ScreenBody>
   );
 }

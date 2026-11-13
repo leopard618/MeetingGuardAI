@@ -1755,8 +1755,11 @@ A3 (scheduling, voice, history) build on it.
   mandate into an approval card.
 - **Drafting (draft.ts).** One model call with one strict function tool (`propose_matter`), the
   user's words fenced in `<request>` tags. The model only proposes; code decides: an email
-  address the user did not write is never used (it becomes a question), a missing, past or too
-  distant end date becomes a question, meeting windows are clipped to [now, end date],
+  address the user did not write is never used (it becomes a question; only an exact whole
+  address in the user's words counts, so `martinez@acme.com` is not taken from
+  `ana.martinez@acme.com`), a missing, past or too distant end date becomes a question, a model
+  question that repeats the code's email or end-date question is dropped, a day without a time
+  ends at 23:59 local, meeting windows are clipped to [now, end date],
   follow-ups are clamped, a copy in cc needs the owner's verified email (else one summary a
   day), fancy punctuation is replaced, and the result must pass the strict schemas. Only a
   complete draft has a mandate and a first email.
@@ -1767,8 +1770,15 @@ A3 (scheduling, voice, history) build on it.
 - **Confirmation by hash.** `draftHash` is sha256 over the canonical JSON of the mandate AND the
   first email. The app confirms by sending back the hash of the exact version it showed; a new
   draft gives a new hash, so a stale screen cannot confirm what the user did not read
-  (`stale_draft`). Confirm is idempotent: `firstSentAt` makes a repeated confirm answer
-  `sent: true` without a second email, and a failed send is retried by the same call.
+  (`stale_draft`). **The first email goes out at most once.** The transaction that activates the
+  matter also claims the send (`firstSendState: 'sending'`) after the send check passed, so of
+  two overlapping confirms only one sends. The answer's `outcome`: `sent`; `failed` (Postmark
+  clearly refused: setup, rejected, rate limit; nothing went out, so the same confirm claims it
+  again); `unknown` (timeout, lost connection, server error, or another call holds the claim:
+  it may have gone out, so it is never sent again automatically; the email is kept as an
+  outbound message with status `sending` and the event `email_unconfirmed`, and the owner's copy
+  shows whether it arrived). A call that dies after claiming leaves `sending`, which never sends
+  again either.
 - **The send check (sendCheck.ts)** is plain code, not the model: a send is allowed only while
   the assistant is switched on, for an active matter whose mandate and first email still hash
   to `confirmedHash`, before the end date, with at least one recipient, every To a contact of
@@ -1777,7 +1787,8 @@ A3 (scheduling, voice, history) build on it.
 - **The emails (email.ts).** From `"<Name>'s AI assistant" <assistant@<mail domain>>` (ES:
   "Asistente de IA de <Name>"), so the name always says it is an AI; Reply-To the matter's own
   address `m-<token>@<mail domain>`; our own Message-ID `<matterId.random@<mail domain>>`;
-  plain text; a footer added by code that says the email was written by AI on the user's
+  plain text; the model ends with a closing and no name, and code signs with the assistant's
+  name; a footer added by code that says the email was written by AI on the user's
   behalf; no open or link tracking. Sent with Postmark's REST API (`X-Postmark-Server-Token`);
   errors become categories with Postmark's numeric code, never its message text. Development:
   Postmark's public token `POSTMARK_API_TEST` accepts the request and delivers nothing.
@@ -1787,7 +1798,9 @@ A3 (scheduling, voice, history) build on it.
   again when storing fails so Postmark's retry is processed). Matching, never guessed: the reply
   token in any recipient (To, Cc, Bcc, OriginalRecipient), else In-Reply-To, then References
   (newest first) in `matterMessageIds`, else unmatched (dropped, only the provider id is
-  logged). The stored text is Postmark's StrippedTextReply when present. The sender checks
+  logged). `matterMessageIds` holds only OUR outgoing Message-IDs, each written with `create()`;
+  an inbound email is never indexed, because its sender chooses its Message-ID and could
+  otherwise re-point another user's thread. The stored text is Postmark's StrippedTextReply when present. The sender checks
   (SPF, DKIM, DMARC from the raw email) and what to do with a reply are A2: `auth` stays null.
 - **Statuses.** `draft` (being worked out, nothing sent), `active`, `paused`, `done`,
   `cancelled` (by the user, or the end date passed). `endedAt` marks the last two.
@@ -1795,11 +1808,11 @@ A3 (scheduling, voice, history) build on it.
 
   | Path | Content |
   |---|---|
-  | `users/{uid}/matters/{matterId}` | `MatterDoc`: status, language, zone, request (with the answers), title, owner name and verified email, mandate, first email, questions, read-back, version, confirmed hash and time, first-sent time, reply token |
-  | `.../matters/{matterId}/events/{id}` | the timeline: created, drafted, confirmed, email sent / failed / received, status changes (A2 and A3 add their own types) |
+  | `users/{uid}/matters/{matterId}` | `MatterDoc`: status, language, zone, request (with the answers), title, owner name and verified email, mandate, first email, questions, read-back, version, confirmed hash and time, first-sent time, first send state and claim time, reply token |
+  | `.../matters/{matterId}/events/{id}` | the timeline: created, drafted, confirmed, email sent / failed / unconfirmed / received, status changes (A2 and A3 add their own types) |
   | `.../matters/{matterId}/messages/{id}` | every email in and out: Message-ID, In-Reply-To, References, from, to, cc, subject, plain text (cut at 20,000 characters), provider id, and for inbound the SPF, DKIM and DMARC verdicts (A2) |
   | `matterAddresses/{token}` | reply token -> `{ uid, matterId }`, server only |
-  | `matterMessageIds/{sha256(Message-ID)}` | every Message-ID we sent or received -> `{ uid, matterId }`, server only |
+  | `matterMessageIds/{sha256(Message-ID)}` | every Message-ID WE sent -> `{ uid, matterId }` (create-once; inbound ids are never indexed), server only |
   | `inboundEmails/{providerId}` | inbound dedupe marker `{ receivedAt, expiresAt }`, no personal data, server only |
   | `usage/{uid}/days/{day}.matterDrafts` | drafts and revisions per UTC day (MATTERS_USER_DAILY_LIMIT, default 30) |
 
@@ -1821,7 +1834,8 @@ A3 (scheduling, voice, history) build on it.
 - **The app (A1).** `src/services/matters` (the four callables, validated with the shared
   schemas, server reasons kept in AppError details) and `src/screens/matters/MattersScreen.tsx`:
   type the matter, answer the questions, read the mandate and the first email, confirm and
-  send, change, cancel, retry a send that failed. Strings in the `matters` namespace (EN + ES).
+  send, change, cancel (also after sending), retry a send that failed; an `unknown` send has no
+  retry. Strings in the `matters` namespace (EN + ES).
   The matters list, the timeline, approval cards and voice come with A3 and A5.
 - **Contract.** `CALLABLES.matterDraft / matterRevise / matterConfirm / matterCancel`, their
   request and response schemas, `MATTER_ERROR_CODES` (not_configured, unauthenticated,
@@ -1832,8 +1846,10 @@ A3 (scheduling, voice, history) build on it.
   email). `matterAddresses`, `matterMessageIds`, `inboundEmails`: no client access at all.
 - **Tests.** functions: `mattersModel.test.ts` (schemas, hash, reply addresses, Message-ID
   keys), `mattersParts.test.ts` (drafting rules, read-back EN/ES, send check, email composing,
-  Postmark payload and errors, inbound parsing and matching), `mattersHandlers.test.ts` (draft,
-  revise, confirm once, stale hash, failed send and retry, cancel, inbound stored once,
-  unmatched, retry after a failed store, gating), `mattersIndex.test.ts` (deploy gate, secret
+  Postmark payload and errors, inbound parsing and matching, whole-address check, repeated
+  questions, whole-day windows), `mattersHandlers.test.ts` (draft, revise, confirm once,
+  overlapping confirms, timeout and the like as unknown and never resent, a call that died after
+  claiming, clear refusals as failed and retried, stale hash, cancel, inbound stored once and
+  never indexed, unmatched, retry after a failed store, gating), `mattersIndex.test.ts` (deploy gate, secret
   bindings, basic auth), `deleteAccount.test.ts`, and the rules ("executive assistant
   matters"). App: `matterService.test.ts`, `MattersScreen.test.tsx`.

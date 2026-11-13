@@ -47,13 +47,13 @@ describe('matterService', () => {
   it('revises, confirms with the hash and cancels', async () => {
     const { calls, service } = setup((name) =>
       name === CALLABLES.matterConfirm
-        ? { matterId: 'm1', status: 'active', sent: true }
+        ? { matterId: 'm1', status: 'active', outcome: 'sent' }
         : name === CALLABLES.matterCancel
           ? { matterId: 'm1', status: 'cancelled' }
           : DRAFT,
     );
     await service.revise('m1', ' carlos@example.com ');
-    await expect(service.confirm('m1', HASH)).resolves.toEqual({ matterId: 'm1', status: 'active', sent: true });
+    await expect(service.confirm('m1', HASH)).resolves.toEqual({ matterId: 'm1', status: 'active', outcome: 'sent' });
     await expect(service.cancel('m1')).resolves.toEqual({ matterId: 'm1', status: 'cancelled' });
     expect(calls.map((c) => [c.name, c.request])).toEqual([
       [CALLABLES.matterRevise, { matterId: 'm1', answer: 'carlos@example.com' }],

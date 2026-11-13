@@ -5,8 +5,9 @@
  * matterDraft   words -> a new matter in draft (the model proposes, code completes or asks)
  * matterRevise  an answer to the questions -> a new draft of the same matter
  * matterConfirm the hash of the draft the user saw -> active, then the first email, through the
- *               send check; a repeated confirm never sends twice (firstSentAt), a failed send can
- *               be retried with the same call
+ *               send check; the send is claimed in the activating transaction, so it goes out at
+ *               most once; a clearly refused send can be retried with the same call, one with no
+ *               clear answer (timeout) is never resent automatically
  * matterCancel  -> cancelled (idempotent)
  * inbound       Postmark's inbound JSON -> the email attached to its matter (inbound.ts)
  * Errors: HttpsError(MATTER_ERROR_HTTPS_CODES[reason], generic English, { reason }). Logs carry
@@ -28,17 +29,18 @@ import {
   type MatterConfirmResponse,
   type MatterDraftResponse,
   type MatterErrorCode,
+  type MatterSendOutcome,
 } from '../shared/aiContract';
 import { UpstreamError } from '../assistant/errors';
 import { safetyIdentifierFor, type LlmClient } from '../assistant/llm';
 import { isValidTimeZone } from '../assistant/time';
 import { draftMatter, type DraftResult } from './draft';
-import { composeFirstEmail, EmailSendError, type EmailSender } from './email';
+import { UNCERTAIN_SEND_KINDS, bareAddress, composeFirstEmail, EmailSendError, type EmailSender, type OutboundEmail } from './email';
 import { matchInbound, parseInbound, toMatterMessage } from './inbound';
 import { MATTER_LIMITS, draftHash, matterDocSchema, newReplyToken, type MatterDoc, type MatterEvent, type MatterMessage } from './model';
 import { checkSend } from './sendCheck';
 import type { MatterStore } from './store';
-import { readBack } from './text';
+import { readBack, senderName } from './text';
 
 export interface MatterCaller {
   uid: string;
@@ -235,67 +237,73 @@ type ConfirmOutcome =
   | { kind: 'not_found' }
   | { kind: 'stale' }
   | { kind: 'ended' }
-  | { kind: 'sent' }
-  | { kind: 'send'; doc: MatterDoc };
+  | { kind: 'refused'; reason: string }
+  /** Nothing for this call to send: the first email went out, or its fate is unknown. */
+  | { kind: 'settled'; outcome: MatterSendOutcome }
+  /** This call claimed the send ('sending') and sends exactly this email. */
+  | { kind: 'send'; doc: MatterDoc; email: OutboundEmail };
 
+/**
+ * Activates the confirmed draft and sends its first email, at most once.
+ * The send is CLAIMED in the same transaction that activates the matter (firstSendState
+ * 'sending'), so of two overlapping confirms only one sends; the other answers 'unknown'. After the
+ * call to the provider the state becomes 'sent', 'failed' (a clear refusal: the same confirm may
+ * claim it again) or 'unknown' (timeout and the like: never sent again automatically). A call that
+ * dies after claiming leaves 'sending', which also never sends again.
+ */
 export async function handleMatterConfirm(callerIn: MatterCaller | null, data: unknown, deps: MatterDeps): Promise<MatterConfirmResponse> {
   const caller = requireCaller(callerIn, deps);
   const parsed = matterConfirmRequestSchema.safeParse(data);
   if (!parsed.success) throw matterError('invalid_request');
   const { matterId, draftHash: hash } = parsed.data;
-  const nowIso = deps.now().toISOString();
+  const now = deps.now();
+  const nowIso = now.toISOString();
 
   const outcome = await deps.store.updateMatter<ConfirmOutcome>(caller.uid, matterId, (doc) => {
     if (!doc) return { result: { kind: 'not_found' } };
-    if (doc.status === 'active' && doc.confirmedHash === hash) {
-      return { result: doc.firstSentAt ? { kind: 'sent' } : { kind: 'send', doc } };
+    const retry = doc.status === 'active' && doc.confirmedHash === hash;
+    if (retry) {
+      if (doc.firstSentAt || doc.firstSendState === 'sent') return { result: { kind: 'settled', outcome: 'sent' } };
+      if (doc.firstSendState === 'sending' || doc.firstSendState === 'unknown') return { result: { kind: 'settled', outcome: 'unknown' } };
+    } else {
+      if (doc.status !== 'draft' || !doc.mandate || !doc.firstEmail) return { result: { kind: 'stale' } };
+      if (draftHash(doc.mandate, doc.firstEmail) !== hash) return { result: { kind: 'stale' } };
+      if (Date.parse(doc.mandate.endsAt) <= now.getTime()) return { result: { kind: 'ended' } };
     }
-    if (doc.status !== 'draft' || !doc.mandate || !doc.firstEmail) return { result: { kind: 'stale' } };
-    if (draftHash(doc.mandate, doc.firstEmail) !== hash) return { result: { kind: 'stale' } };
-    if (Date.parse(doc.mandate.endsAt) <= Date.parse(nowIso)) return { result: { kind: 'ended' } };
-    const active: MatterDoc = { ...doc, status: 'active', confirmedHash: hash, confirmedAt: nowIso, updatedAt: nowIso };
+    const claim = { firstSendState: 'sending' as const, firstSendClaimedAt: nowIso, updatedAt: nowIso };
+    const activation = retry ? {} : { status: 'active' as const, confirmedHash: hash, confirmedAt: nowIso };
+    const next: MatterDoc = { ...doc, ...activation, ...claim };
+    const email = composeFirstEmail({ matter: next, matterId, domain: deps.domain, fromLocalPart: deps.fromLocalPart, ...(deps.random ? { random: deps.random } : {}) });
+    // the send check runs before anything is claimed: a refused send changes nothing
+    const decision = checkSend({ matter: next, to: email.to, cc: email.cc, now, enabled: deps.enabled });
+    if (!decision.ok) return { result: { kind: 'refused', reason: decision.reason } };
     return {
-      result: { kind: 'send', doc: active },
-      patch: { status: 'active', confirmedHash: hash, confirmedAt: nowIso, updatedAt: nowIso },
-      events: [event('mandate_confirmed', nowIso)],
+      result: { kind: 'send', doc: next, email },
+      patch: { ...activation, ...claim },
+      events: retry ? [] : [event('mandate_confirmed', nowIso)],
     };
   });
   if (outcome.kind === 'not_found') throw matterError('not_found');
   if (outcome.kind === 'stale') throw matterError('stale_draft');
   if (outcome.kind === 'ended') throw matterError('not_allowed', 'The end date of this matter has passed.');
-  if (outcome.kind === 'sent') return { matterId, status: 'active', sent: true };
-
-  const sent = await sendFirstEmail(caller.uid, matterId, outcome.doc, deps);
-  return { matterId, status: 'active', sent };
-}
-
-/** Sends the first email through the send check; records it, or the failure, on the matter. */
-async function sendFirstEmail(uid: string, matterId: string, doc: MatterDoc, deps: MatterDeps): Promise<boolean> {
-  const email = composeFirstEmail({ matter: doc, matterId, domain: deps.domain, fromLocalPart: deps.fromLocalPart, ...(deps.random ? { random: deps.random } : {}) });
-  const now = deps.now();
-  const decision = checkSend({ matter: doc, to: email.to, cc: email.cc, now, enabled: deps.enabled });
-  if (!decision.ok) {
-    logger.warn('matters.send_refused', { uid, matterId, reason: decision.reason });
+  if (outcome.kind === 'refused') {
+    logger.warn('matters.send_refused', { uid: caller.uid, matterId, reason: outcome.reason });
     throw matterError('not_allowed');
   }
-  let providerId: string;
-  try {
-    ({ providerId } = await deps.sender().send(email));
-  } catch (error) {
-    if (!(error instanceof EmailSendError)) throw error;
-    (error.kind === 'configuration' ? logger.error : logger.warn)('matters.send_failed', { uid, matterId, kind: error.kind, code: error.code });
-    const at = deps.now().toISOString();
-    await deps.store.updateMatter(uid, matterId, () => ({ result: null, patch: { updatedAt: at }, events: [event('email_failed', at, error.kind)] }));
-    return false;
-  }
-  const at = deps.now().toISOString();
-  const message: MatterMessage = {
+  if (outcome.kind === 'settled') return { matterId, status: 'active', outcome: outcome.outcome };
+  return { matterId, status: 'active', outcome: await sendFirstEmail(caller.uid, matterId, outcome.doc, outcome.email, deps) };
+}
+
+/** Sends the claimed first email and records the result on the matter. */
+async function sendFirstEmail(uid: string, matterId: string, doc: MatterDoc, email: OutboundEmail, deps: MatterDeps): Promise<MatterSendOutcome> {
+  const contacts = doc.mandate!.contacts.map((c) => c.name).join(', ');
+  const message = (at: string, status: 'sent' | 'sending', providerId: string | null): MatterMessage => ({
     direction: 'outbound',
-    status: 'sent',
+    status,
     rfcMessageId: email.messageId,
     inReplyTo: null,
     references: [],
-    from: { name: null, email: email.from.replace(/^.*<([^>]+)>$/, '$1') },
+    from: { name: senderName(doc.ownerName, doc.mandate!.language), email: bareAddress(email.from) },
     to: email.to,
     cc: email.cc,
     subject: email.subject,
@@ -303,11 +311,36 @@ async function sendFirstEmail(uid: string, matterId: string, doc: MatterDoc, dep
     at,
     providerId,
     auth: null,
-  };
-  await deps.store.addMessage(uid, matterId, message, event('email_sent', at, doc.mandate!.contacts.map((c) => c.name).join(', ')));
-  await deps.store.updateMatter(uid, matterId, () => ({ result: null, patch: { firstSentAt: at, updatedAt: at } }));
+  });
+  let providerId: string;
+  try {
+    ({ providerId } = await deps.sender().send(email));
+  } catch (error) {
+    if (!(error instanceof EmailSendError)) throw error; // the claim stays 'sending': never resent
+    (error.kind === 'configuration' ? logger.error : logger.warn)('matters.send_failed', { uid, matterId, kind: error.kind, code: error.code });
+    const at = deps.now().toISOString();
+    if (UNCERTAIN_SEND_KINDS.has(error.kind)) {
+      // it may have gone out: keep it, unconfirmed, with its Message-ID so a reply still threads
+      await deps.store.addMessage(uid, matterId, message(at, 'sending', null), event('email_unconfirmed', at, contacts), {
+        indexMessageId: true,
+        patch: { firstSendState: 'unknown' },
+      });
+      return 'unknown';
+    }
+    await deps.store.updateMatter(uid, matterId, () => ({
+      result: null,
+      patch: { firstSendState: 'failed', firstSendClaimedAt: null, updatedAt: at },
+      events: [event('email_failed', at, error.kind)],
+    }));
+    return 'failed';
+  }
+  const at = deps.now().toISOString();
+  await deps.store.addMessage(uid, matterId, message(at, 'sent', providerId), event('email_sent', at, contacts), {
+    indexMessageId: true,
+    patch: { firstSendState: 'sent', firstSentAt: at },
+  });
   logger.info('matters.first_email_sent', { uid, matterId });
-  return true;
+  return 'sent';
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -357,7 +390,8 @@ export async function handleInboundEmail(
       return 'unmatched';
     }
     const sender = email.from.name ? `${email.from.name} <${email.from.email}>` : email.from.email;
-    await deps.store.addMessage(match.uid, match.matterId, toMatterMessage(email, nowIso), event('email_received', nowIso, sender));
+    // never indexed: the Message-ID index holds only our own outgoing ids (a sender chooses theirs)
+    await deps.store.addMessage(match.uid, match.matterId, toMatterMessage(email, nowIso), event('email_received', nowIso, sender), { indexMessageId: false });
     logger.info('matters.inbound_stored', { uid: match.uid, matterId: match.matterId });
     return 'stored';
   } catch (error) {

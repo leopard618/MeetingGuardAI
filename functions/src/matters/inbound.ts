@@ -4,7 +4,8 @@
  * Matching, in this order, never guessed:
  * 1. a reply address m-<token>@<mail domain> among the recipients (To, Cc, Bcc, the original
  *    recipient): matterAddresses/{token};
- * 2. else In-Reply-To, then References (newest first): matterMessageIds/{sha256(Message-ID)};
+ * 2. else In-Reply-To, then References (newest first): matterMessageIds/{sha256(Message-ID)},
+ *    which holds only the Message-IDs of emails WE sent (inbound ones are never indexed);
  * 3. else unmatched: nothing is stored (only a log line with the provider id).
  * The sender checks (SPF, DKIM, DMARC from the raw email) and what to do with the reply are A2;
  * here `auth` stays null.
@@ -111,7 +112,7 @@ export function toMatterMessage(email: InboundEmail, receivedAtIso: string): Mat
   return {
     direction: 'inbound',
     status: 'received',
-    // an email without a Message-ID still needs a unique one for the thread index
+    // an email without a Message-ID still gets one, so every stored message has an id
     rfcMessageId: email.rfcMessageId ?? `<inbound.${email.providerId}@postmark>`,
     inReplyTo: email.inReplyTo,
     references: email.references,

@@ -36,10 +36,33 @@ function sameLocalDay(a: string, b: string, timeZone: string): boolean {
   return day(a) === day(b);
 }
 
-function formatWindow(w: { start: string; end: string }, timeZone: string, language: Language): string {
-  const start = formatInstant(w.start, timeZone, language);
-  const end = sameLocalDay(w.start, w.end, timeZone) ? formatTime(w.end, timeZone, language) : formatInstant(w.end, timeZone, language);
-  return language === 'es' ? `${start} a ${end}` : `${start} to ${end}`;
+/** "Mon, Nov 16" in the zone (no time). */
+function formatDay(iso: string, timeZone: string, language: Language): string {
+  return new Intl.DateTimeFormat(LOCALES[language], { timeZone, weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(iso));
+}
+
+/** "HH:MM" (24 h) in the zone. */
+function localClock(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+}
+
+/**
+ * A meeting window in words. Whole days (from midnight, to midnight or 23:59) are shown as dates
+ * only ("Mon, Nov 16 to Fri, Nov 20"), never as "0:00".
+ */
+export function formatWindow(w: { start: string; end: string }, timeZone: string, language: Language): string {
+  const to = language === 'es' ? 'a' : 'to';
+  const fromMidnight = localClock(w.start, timeZone) === '00:00';
+  const endClock = localClock(w.end, timeZone);
+  if (fromMidnight && (endClock === '00:00' || endClock === '23:59')) {
+    // a window to midnight ends on the day before
+    const lastDay = endClock === '00:00' ? new Date(Date.parse(w.end) - 60_000).toISOString() : w.end;
+    const first = formatDay(w.start, timeZone, language);
+    return sameLocalDay(w.start, lastDay, timeZone) ? first : `${first} ${to} ${formatDay(lastDay, timeZone, language)}`;
+  }
+  const start = fromMidnight ? formatDay(w.start, timeZone, language) : formatInstant(w.start, timeZone, language);
+  const end = sameLocalDay(w.start, w.end, timeZone) && !fromMidnight ? formatTime(w.end, timeZone, language) : formatInstant(w.end, timeZone, language);
+  return `${start} ${to} ${end}`;
 }
 
 function list(items: readonly string[], language: Language): string {
@@ -75,7 +98,7 @@ export function readBack(mandate: Mandate, ownerEmail: string | null, language: 
         : 'Tu copia: un resumen al día.',
     );
     lines.push(`Los correos van en ${mandate.language === 'es' ? 'español' : 'inglés'}.`);
-    lines.push('Nunca pago ni negocio dinero, no acepto nada contractual y no escribo a nadie mas. Si algo queda fuera de esto, te pregunto primero.');
+    lines.push('Nunca pago ni negocio dinero, no acepto nada contractual y no escribo a nadie más. Si algo queda fuera de esto, te pregunto primero.');
     lines.push('No se envía nada hasta que lo confirmes.');
   } else {
     lines.push(`I will email ${who} from my own address, as your AI assistant.`);

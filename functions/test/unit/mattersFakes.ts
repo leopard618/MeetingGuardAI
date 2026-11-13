@@ -1,9 +1,8 @@
 import type { LlmClient, LlmRequest, LlmResult } from '../../src/assistant/llm';
 import type { EmailSender, OutboundEmail } from '../../src/matters/email';
-import type { EmailSendError } from '../../src/matters/email';
 import type { MatterDeps } from '../../src/matters/handlers';
 import { messageIdKey, type MatterDoc, type MatterEvent, type MatterMessage } from '../../src/matters/model';
-import type { MatterLookup, MatterStore, MatterUpdate } from '../../src/matters/store';
+import type { AddMessageOptions, MatterLookup, MatterStore, MatterUpdate } from '../../src/matters/store';
 
 export const NOW = new Date('2026-11-12T09:00:00.000Z');
 export const DOMAIN = 'assistant.meetingguard.ai';
@@ -50,15 +49,18 @@ export class FakeMatterStore implements MatterStore {
     return outcome.result;
   }
 
-  async addMessage(uid: string, matterId: string, message: MatterMessage, event: MatterEvent) {
+  async addMessage(uid: string, matterId: string, message: MatterMessage, event: MatterEvent, options: AddMessageOptions = {}) {
     const k = this.key(uid, matterId);
     const current = this.matters.get(k);
     if (!current) throw new Error('no matter');
+    const indexKey = messageIdKey(message.rfcMessageId);
+    // like Firestore's create(): an indexed id is never re-pointed (the whole batch fails)
+    if (options.indexMessageId && this.messageIds.has(indexKey)) throw new Error('already exists');
     const id = `x${this.next++}`;
     this.messages.set(k, [...(this.messages.get(k) ?? []), { ...message, id }]);
     this.events.set(k, [...(this.events.get(k) ?? []), { ...event, messageId: id }]);
-    this.messageIds.set(messageIdKey(message.rfcMessageId), { uid, matterId });
-    this.matters.set(k, { ...current, updatedAt: message.at });
+    if (options.indexMessageId) this.messageIds.set(indexKey, { uid, matterId });
+    this.matters.set(k, { ...current, ...options.patch, updatedAt: message.at });
     return id;
   }
 
@@ -114,9 +116,14 @@ export class FakeLlm implements LlmClient {
 
 export class FakeSender implements EmailSender {
   readonly sent: OutboundEmail[] = [];
-  failWith: EmailSendError | null = null;
+  /** Every call to send, including the failed ones (a timeout may still have delivered). */
+  attempts = 0;
+  failWith: Error | null = null;
 
   async send(email: OutboundEmail) {
+    this.attempts += 1;
+    // a real provider call takes time: overlapping confirms interleave here
+    await Promise.resolve();
     if (this.failWith) throw this.failWith;
     this.sent.push(email);
     return { providerId: `pm-${this.sent.length}` };
@@ -135,7 +142,7 @@ export function proposal(overrides: Record<string, unknown> = {}): Record<string
     ends_at: '2026-11-13T18:00:00+01:00',
     copy_owner: 'cc',
     email_language: 'en',
-    first_email: { subject: 'Updated proposal', text: 'Hello Carlos,\n\nI am writing on behalf of Ana Lopez. Could you send the updated proposal?' },
+    first_email: { subject: 'Updated proposal', text: 'Hello Carlos,\n\nI am writing on behalf of Ana Lopez. Could you send the updated proposal?\n\nBest,' },
     questions: [],
     ...overrides,
   };
