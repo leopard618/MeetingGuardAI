@@ -1,7 +1,7 @@
-import { addressesIn, normalizeProposal, buildDraftMessages, draftMatter, PROPOSE_MATTER_TOOL } from '../../src/matters/draft';
+import { addressesIn, normalizeProposal, buildDraftMessages, draftMatter, PROPOSE_MATTER_TOOL, stripSignature } from '../../src/matters/draft';
 import { composeFirstEmail, createPostmarkSender, postmarkPayload, POSTMARK_API_URL, type EmailSendError } from '../../src/matters/email';
-import { matchInbound, parseInbound, toMatterMessage } from '../../src/matters/inbound';
-import { draftHash, matterMessageSchema, messageIdKey, type MatterDoc } from '../../src/matters/model';
+import { matchInbound, ownMessageIdMatter, parseInbound, toMatterMessage } from '../../src/matters/inbound';
+import { MATTER_LIMITS, draftHash, isOwnDomain, matterMessageSchema, messageIdKey, type Mandate, type MatterDoc } from '../../src/matters/model';
 import { checkSend } from '../../src/matters/sendCheck';
 import { disclosureFooter, formatWindow, readBack, senderName } from '../../src/matters/text';
 import { FakeLlm, FakeMatterStore, DOMAIN, NOW, REQUEST, TOKEN, inboundPayload, proposal } from './mattersFakes';
@@ -13,6 +13,7 @@ const ctx = (overrides: Partial<Parameters<typeof normalizeProposal>[1]> = {}) =
   ownerName: 'Ana Lopez',
   ownerEmail: 'ana@example.com',
   now: NOW,
+  domain: DOMAIN,
   ...overrides,
 });
 
@@ -54,12 +55,55 @@ describe('matters draft: the model proposes, code decides', () => {
     expect(asked('martinez@acme.com', 'Martinez <martinez@acme.com>; until Friday')).toBe(false);
   });
 
+  it('keeps an apostrophe inside an address, and strips quotes and punctuation only at its ends', () => {
+    const asked = (email: string, request: string) =>
+      normalizeProposal(proposal({ contacts: [{ name: 'Sean', email }] }), ctx({ request })).questions.includes('What is the email address of Sean?');
+    expect(asked("o'brien@acme.com", "Write to Sean O'Brien at o'brien@acme.com until Friday.")).toBe(false);
+    // a different mailbox: never taken from o'brien@acme.com
+    expect(asked('brien@acme.com', "Write to Sean O'Brien at o'brien@acme.com until Friday.")).toBe(true);
+    expect(asked('ana@acme.com', 'Escribe a Sean, \u00bfana@acme.com? hasta el viernes')).toBe(false);
+    expect(asked('ana@acme.com', 'Write to \u2018ana@acme.com\u2019 until Friday')).toBe(false);
+    expect(asked('ana@acme.com', 'Write to \u00abana@acme.com\u00bb until Friday')).toBe(false);
+    expect(asked('ana@acme.com', 'Write to ana@acme.com\u2026 until Friday')).toBe(false);
+    expect(asked('ana@acme.com', "Write to 'ana@acme.com'. Until Friday")).toBe(false);
+  });
+
+  it('never takes an address on our own mail domain as a contact', () => {
+    const request = `Write to Carlos at m-${TOKEN}@${DOMAIN} until Friday.`;
+    const result = normalizeProposal(proposal({ contacts: [{ name: 'Carlos', email: `m-${TOKEN}@${DOMAIN}` }] }), ctx({ request }));
+    expect(result.mandate).toBeNull();
+    expect(result.questions[0]).toMatch(/belongs to the assistant itself, not to Carlos/);
+    expect(isOwnDomain(`x@mail.${DOMAIN}`, DOMAIN)).toBe(true);
+    expect(isOwnDomain('x@meetingguard.ai', DOMAIN)).toBe(false);
+    expect(isOwnDomain(`x@not${DOMAIN}`, DOMAIN)).toBe(false);
+  });
+
   it('finds the whole addresses in the user\'s words', () => {
     expect([...addressesIn('Ana (ana.martinez@acme.com), Bob <BOB@x.io>; carl@y.es. Not: @nobody, mail me at')].sort()).toEqual([
       'ana.martinez@acme.com',
       'bob@x.io',
       'carl@y.es',
     ]);
+    expect([...addressesIn("Sean <o'brien@acme.com>, \u00bfana@acme.com?, `x{1}@y.io`")].sort()).toEqual(['ana@acme.com', "o'brien@acme.com", 'x{1}@y.io']);
+  });
+
+  it('removes a name the model put under the closing (code signs every email)', () => {
+    const names = ['Ana Lopez', "Ana Lopez's AI assistant"];
+    expect(stripSignature('Hello Carlos,\nCould you send it?\nBest,\nAna Lopez', names)).toBe('Hello Carlos,\nCould you send it?\nBest,');
+    expect(stripSignature("Hello,\nBest,\nana lopez's ai assistant\n", names)).toBe('Hello,\nBest,');
+    expect(stripSignature('Hello Ana Lopez,\nBest,', names)).toBe('Hello Ana Lopez,\nBest,');
+    const result = normalizeProposal(proposal({ first_email: { subject: 'Proposal', text: 'Hi Carlos,\nCould you send it?\nBest,\nAna Lopez' } }), ctx());
+    expect(result.firstEmail?.text).toBe('Hi Carlos,\nCould you send it?\nBest,');
+  });
+
+  it('asks again when every meeting time the user gave is past or after the end date (never "any time")', () => {
+    const past = { start: '2026-11-01T08:00:00Z', end: '2026-11-01T12:00:00Z' };
+    const late = { start: '2026-12-01T08:00:00Z', end: '2026-12-01T12:00:00Z' };
+    const result = normalizeProposal(proposal({ meeting: { needed: true, duration_minutes: 30, windows: [past, late] } }), ctx());
+    expect(result.mandate).toBeNull();
+    expect(result.questions).toEqual(['The meeting times you gave are already past or after the end date. Which days and times work for you?']);
+    // no times given: any free time before the end date, as before
+    expect(normalizeProposal(proposal({ meeting: { needed: true, duration_minutes: 30, windows: [] } }), ctx()).mandate?.meeting?.windows).toEqual([]);
   });
 
   it('drops model questions that repeat the code\'s own email or end date question', () => {
@@ -180,6 +224,25 @@ describe('matters text: the read-back and the email framing', () => {
     expect(text).not.toMatch(NO_FANCY_PUNCTUATION);
   });
 
+  it('fits the longest possible mandate in the read-back limit, in both languages', () => {
+    const long = (n: number) => `${'a'.repeat(64)}${n}@${'b'.repeat(60)}.${'c'.repeat(60)}.${'d'.repeat(60)}.com`;
+    const longest: Mandate = {
+      ...mandate,
+      contacts: [1, 2, 3, 4, 5].map((n) => ({ name: 'N'.repeat(MATTER_LIMITS.nameChars - 1) + n, email: long(n) })),
+      goal: 'g'.repeat(MATTER_LIMITS.goalChars),
+      mayAsk: Array.from({ length: MATTER_LIMITS.maxAskItems }, () => 'm'.repeat(MATTER_LIMITS.itemChars)),
+      meeting: {
+        durationMinutes: MATTER_LIMITS.meetingMinutesMax,
+        windows: Array.from({ length: MATTER_LIMITS.maxTimeWindows }, (_, i) => ({ start: `2026-11-1${i}T09:15:00Z`, end: `2026-11-2${i}T10:45:00Z` })),
+      },
+      followUp: { everyDays: MATTER_LIMITS.followUpEveryDaysMax, maxCount: MATTER_LIMITS.followUpMaxCount },
+      timeZone: 'America/Argentina/ComodRivadavia',
+    };
+    for (const language of ['en', 'es'] as const) {
+      expect(readBack(longest, long(9), language).length).toBeLessThanOrEqual(MATTER_LIMITS.readBackChars);
+    }
+  });
+
   it('reads it back in Spanish', () => {
     const text = readBack({ ...mandate, followUp: { everyDays: 1, maxCount: 1 }, copyOwner: 'daily_summary' }, null, 'es');
     expect(text).toContain('Voy a escribir a Carlos Ruiz (carlos@example.com) desde mi propia dirección, como tu asistente de IA.');
@@ -240,7 +303,7 @@ function activeMatter(overrides: Partial<MatterDoc> = {}): MatterDoc {
 }
 
 describe('matters send check (code, never the model)', () => {
-  const send = (matter: MatterDoc, to: string[], cc: string[] = [], now = NOW, enabled = true) => checkSend({ matter, to, cc, now, enabled });
+  const send = (matter: MatterDoc, to: string[], cc: string[] = [], now = NOW, enabled = true) => checkSend({ matter, to, cc, now, enabled, domain: DOMAIN });
 
   it('allows the contacts, with the owner in copy', () => {
     expect(send(activeMatter(), ['carlos@example.com'], ['Ana@Example.com'])).toEqual({ ok: true });
@@ -251,6 +314,15 @@ describe('matters send check (code, never the model)', () => {
     expect(send(activeMatter(), ['carlos@example.com'], ['boss@company.com'])).toEqual({ ok: false, reason: 'recipient_not_allowed' });
     expect(send(activeMatter(), ['ana@example.com'])).toEqual({ ok: false, reason: 'recipient_not_allowed' });
     expect(send(activeMatter(), [])).toEqual({ ok: false, reason: 'no_recipients' });
+  });
+
+  it('never sends to our own mail domain, even a contact on it (mail loops)', () => {
+    const own = `m-${TOKEN}@${DOMAIN}`;
+    const base = activeMatter();
+    const mandate = { ...base.mandate!, contacts: [{ name: 'Loop', email: own }] };
+    const matter = { ...base, mandate, confirmedHash: draftHash(mandate, base.firstEmail!) };
+    expect(send(matter, [own])).toEqual({ ok: false, reason: 'own_domain' });
+    expect(send({ ...base, ownerEmail: `ana@sub.${DOMAIN}` }, ['carlos@example.com'], [`ana@sub.${DOMAIN}`])).toEqual({ ok: false, reason: 'own_domain' });
   });
 
   it('refuses drafts, paused or cancelled matters, the switched-off assistant and a passed end date', () => {
@@ -340,6 +412,8 @@ describe('matters email: composing and Postmark', () => {
     expect(await kinds(422, { ErrorCode: 300, Message: 'Invalid email request' })).toBe('rejected:300');
     expect(await kinds(429, {})).toBe('rate_limited:429');
     expect(await kinds(503, {})).toBe('server:503');
+    // inactive recipient: with several recipients the others may have it, so never "failed"
+    expect(await kinds(422, { ErrorCode: 406, Message: 'Message OK, but will not deliver to these inactive addresses' })).toBe('unknown:406');
     const empty = createPostmarkSender({ token: ' ', messageStream: 'outbound', timeoutMs: 1000, fetch: fakeFetch(200, {}).fn });
     await expect(empty.send(email)).rejects.toMatchObject({ kind: 'configuration' });
     const offline = createPostmarkSender({
@@ -397,5 +471,21 @@ describe('matters inbound: reading Postmark and finding the matter', () => {
 
     const otherDomain = parseInbound(inboundPayload({ ToFull: [{ Email: `m-${TOKEN}@evil.example` }], OriginalRecipient: '', Headers: [] }))!;
     expect(await matchInbound(otherDomain, DOMAIN, store)).toBeNull();
+  });
+
+  it('follows the thread only through our own Message-IDs that name the same matter', async () => {
+    const store = new FakeMatterStore();
+    // entries an older build wrote for ids a sender chose (inbound mail was indexed until Nov 13)
+    store.messageIds.set(messageIdKey('<CAF=abc@mail.gmail.com>'), { uid: 'u1', matterId: 'm1' });
+    store.messageIds.set(messageIdKey(`<m9.r1@${DOMAIN}>`), { uid: 'u1', matterId: 'm1' });
+    const reply = (id: string) =>
+      parseInbound(inboundPayload({ ToFull: [{ Email: `assistant@${DOMAIN}` }], OriginalRecipient: '', Headers: [{ Name: 'In-Reply-To', Value: id }] }))!;
+    expect(await matchInbound(reply('<CAF=abc@mail.gmail.com>'), DOMAIN, store)).toBeNull();
+    expect(await matchInbound(reply(`<m9.r1@${DOMAIN}>`), DOMAIN, store)).toBeNull();
+    store.messageIds.set(messageIdKey(`<m1.r1@${DOMAIN}>`), { uid: 'u1', matterId: 'm1' });
+    expect(await matchInbound(reply(`<m1.r1@${DOMAIN}>`), DOMAIN, store)).toEqual({ uid: 'u1', matterId: 'm1' });
+    expect(ownMessageIdMatter(`<AbC123.0f1e@${DOMAIN.toUpperCase()}>`, DOMAIN)).toBe('AbC123');
+    expect(ownMessageIdMatter('<m1.r1@evil.example>', DOMAIN)).toBeNull();
+    expect(ownMessageIdMatter(`<m1@${DOMAIN}>`, DOMAIN)).toBeNull();
   });
 });

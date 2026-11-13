@@ -64,7 +64,8 @@ export const MATTER_LIMITS = {
   maxContacts: 5,
   maxAskItems: 8,
   maxQuestions: 5,
-  readBackChars: 2000,
+  /** Written by code (text.ts readBack); the longest possible mandate fits (mattersParts.test.ts). */
+  readBackChars: 8000,
   maxTimeWindows: 10,
   meetingMinutesMin: 5,
   meetingMinutesMax: 480,
@@ -373,6 +374,13 @@ export function replyTokenFromAddress(address: string, domain: string): string |
   const at = bare.lastIndexOf('@');
   if (at <= 0 || bare.slice(at + 1) !== domain.toLowerCase()) return null;
   return REPLY_LOCAL_PATTERN.exec(bare.slice(0, at))?.[1] ?? null;
+}
+
+/** Whether an address is on our own mail domain or a subdomain of it (never a contact, never a sender). */
+export function isOwnDomain(address: string, domain: string): boolean {
+  const host = address.trim().toLowerCase().split('@').pop() ?? '';
+  const own = domain.trim().toLowerCase();
+  return own.length > 0 && (host === own || host.endsWith(`.${own}`));
 }
 
 /**

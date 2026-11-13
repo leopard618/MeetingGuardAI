@@ -8,7 +8,7 @@
  *               send check; the send is claimed in the activating transaction, so it goes out at
  *               most once; a clearly refused send can be retried with the same call, one with no
  *               clear answer (timeout) is never resent automatically
- * matterCancel  -> cancelled (idempotent)
+ * matterCancel  -> cancelled (idempotent; any signed-in owner, even off the tester list)
  * inbound       Postmark's inbound JSON -> the email attached to its matter (inbound.ts)
  * Errors: HttpsError(MATTER_ERROR_HTTPS_CODES[reason], generic English, { reason }). Logs carry
  * uid, matterId and categories only, never the user's words, addresses or email text.
@@ -37,7 +37,7 @@ import { isValidTimeZone } from '../assistant/time';
 import { draftMatter, type DraftResult } from './draft';
 import { UNCERTAIN_SEND_KINDS, bareAddress, composeFirstEmail, EmailSendError, type EmailSender, type OutboundEmail } from './email';
 import { matchInbound, parseInbound, toMatterMessage } from './inbound';
-import { MATTER_LIMITS, draftHash, matterDocSchema, newReplyToken, type MatterDoc, type MatterEvent, type MatterMessage } from './model';
+import { MATTER_LIMITS, draftHash, isOwnDomain, matterDocSchema, newReplyToken, type MatterDoc, type MatterEvent, type MatterMessage } from './model';
 import { checkSend } from './sendCheck';
 import type { MatterStore } from './store';
 import { readBack, senderName } from './text';
@@ -82,11 +82,18 @@ export function matterError(reason: MatterErrorCode, message: string = MESSAGES[
   return new HttpsError(MATTER_ERROR_HTTPS_CODES[reason], message, { reason });
 }
 
-function requireCaller(caller: MatterCaller | null, deps: MatterDeps): MatterCaller {
+/** A signed-in caller with a verified account (or a trusted sign-in provider). */
+function requireSignedIn(caller: MatterCaller | null): MatterCaller {
   if (!caller) throw matterError('unauthenticated');
   if (!(caller.emailVerified || isTrustedSignInProvider(caller.signInProvider))) throw matterError('unauthenticated');
-  if (!deps.enabled || !deps.allowed(caller.uid)) throw matterError('not_configured');
   return caller;
+}
+
+/** ...and the assistant switched on for them (MATTERS_ENABLED and MATTERS_ALLOWED_UIDS). */
+function requireCaller(caller: MatterCaller | null, deps: MatterDeps): MatterCaller {
+  const signedIn = requireSignedIn(caller);
+  if (!deps.enabled || !deps.allowed(signedIn.uid)) throw matterError('not_configured');
+  return signedIn;
 }
 
 /** The caller's email only when it is verified (it receives the copies). */
@@ -161,6 +168,7 @@ export async function handleMatterDraft(callerIn: MatterCaller | null, data: unk
     ownerName,
     ownerEmail,
     now,
+    domain: deps.domain,
   });
   const nowIso = now.toISOString();
   const doc: MatterDoc = matterDocSchema.parse({
@@ -206,6 +214,7 @@ export async function handleMatterRevise(callerIn: MatterCaller | null, data: un
     ownerName: current.ownerName,
     ownerEmail: current.ownerEmail,
     now,
+    domain: deps.domain,
   });
   const nowIso = now.toISOString();
   const updated = await deps.store.updateMatter<MatterDoc | 'not_found' | 'not_draft'>(caller.uid, matterId, (doc) => {
@@ -264,7 +273,9 @@ export async function handleMatterConfirm(callerIn: MatterCaller | null, data: u
     const retry = doc.status === 'active' && doc.confirmedHash === hash;
     if (retry) {
       if (doc.firstSentAt || doc.firstSendState === 'sent') return { result: { kind: 'settled', outcome: 'sent' } };
-      if (doc.firstSendState === 'sending' || doc.firstSendState === 'unknown') return { result: { kind: 'settled', outcome: 'unknown' } };
+      // only a clear refusal is claimed again; 'sending', 'unknown' and an active matter without
+      // a state (written before firstSendState existed) may have gone out
+      if (doc.firstSendState !== 'failed') return { result: { kind: 'settled', outcome: 'unknown' } };
     } else {
       if (doc.status !== 'draft' || !doc.mandate || !doc.firstEmail) return { result: { kind: 'stale' } };
       if (draftHash(doc.mandate, doc.firstEmail) !== hash) return { result: { kind: 'stale' } };
@@ -275,7 +286,7 @@ export async function handleMatterConfirm(callerIn: MatterCaller | null, data: u
     const next: MatterDoc = { ...doc, ...activation, ...claim };
     const email = composeFirstEmail({ matter: next, matterId, domain: deps.domain, fromLocalPart: deps.fromLocalPart, ...(deps.random ? { random: deps.random } : {}) });
     // the send check runs before anything is claimed: a refused send changes nothing
-    const decision = checkSend({ matter: next, to: email.to, cc: email.cc, now, enabled: deps.enabled });
+    const decision = checkSend({ matter: next, to: email.to, cc: email.cc, now, enabled: deps.enabled, domain: deps.domain });
     if (!decision.ok) return { result: { kind: 'refused', reason: decision.reason } };
     return {
       result: { kind: 'send', doc: next, email },
@@ -348,7 +359,9 @@ async function sendFirstEmail(uid: string, matterId: string, doc: MatterDoc, ema
 // ---------------------------------------------------------------------------------------------
 
 export async function handleMatterCancel(callerIn: MatterCaller | null, data: unknown, deps: MatterDeps): Promise<MatterCancelResponse> {
-  const caller = requireCaller(callerIn, deps);
+  // the owner can always stop their own matter: not tied to the switch or the tester list (a
+  // tester taken off MATTERS_ALLOWED_UIDS, the practical kill switch, can still cancel)
+  const caller = requireSignedIn(callerIn);
   const parsed = matterCancelRequestSchema.safeParse(data);
   if (!parsed.success) throw matterError('invalid_request');
   const { matterId } = parsed.data;
@@ -378,6 +391,11 @@ export async function handleInboundEmail(
 ): Promise<InboundOutcome> {
   const email = parseInbound(payload);
   if (!email) return 'ignored';
+  // mail from our own domain is never a contact's reply (a loop, or a forged sender)
+  if (isOwnDomain(email.from.email, deps.domain)) {
+    logger.warn('matters.inbound_own_domain', { providerId: email.providerId });
+    return 'ignored';
+  }
   const now = deps.now();
   const nowIso = now.toISOString();
   const expiresAt = new Date(now.getTime() + deps.markerTtlDays * 86_400_000).toISOString();

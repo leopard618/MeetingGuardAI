@@ -1757,9 +1757,12 @@ A3 (scheduling, voice, history) build on it.
   user's words fenced in `<request>` tags. The model only proposes; code decides: an email
   address the user did not write is never used (it becomes a question; only an exact whole
   address in the user's words counts, so `martinez@acme.com` is not taken from
-  `ana.martinez@acme.com`), a missing, past or too distant end date becomes a question, a model
+  `ana.martinez@acme.com` nor `brien@acme.com` from `o'brien@acme.com`; quotes and punctuation
+  around an address are not part of it), an address on our own mail domain becomes a question, a missing, past or too distant end date becomes a question, a model
   question that repeats the code's email or end-date question is dropped, a day without a time
-  ends at 23:59 local, meeting windows are clipped to [now, end date],
+  ends at 23:59 local, meeting windows are clipped to [now, end date] (if the user gave windows
+  and none is left, that becomes a question: an empty list would mean any free time), a name the
+  model put under the closing of the first email is removed,
   follow-ups are clamped, a copy in cc needs the owner's verified email (else one summary a
   day), fancy punctuation is replaced, and the result must pass the strict schemas. Only a
   complete draft has a mandate and a first email.
@@ -1774,15 +1777,19 @@ A3 (scheduling, voice, history) build on it.
   matter also claims the send (`firstSendState: 'sending'`) after the send check passed, so of
   two overlapping confirms only one sends. The answer's `outcome`: `sent`; `failed` (Postmark
   clearly refused: setup, rejected, rate limit; nothing went out, so the same confirm claims it
-  again); `unknown` (timeout, lost connection, server error, or another call holds the claim:
+  again, and ONLY a `failed` send is claimed again); `unknown` (timeout, lost connection, server
+  error, Postmark 406 "inactive recipient" (with several recipients the others may have it), an
+  active matter without a send state, or another call holds the claim:
   it may have gone out, so it is never sent again automatically; the email is kept as an
-  outbound message with status `sending` and the event `email_unconfirmed`, and the owner's copy
-  shows whether it arrived). A call that dies after claiming leaves `sending`, which never sends
+  outbound message with status `sending` and the event `email_unconfirmed`, and when the owner is
+  in copy their copy shows whether it arrived). A call that dies after claiming leaves `sending`, which never sends
   again either.
 - **The send check (sendCheck.ts)** is plain code, not the model: a send is allowed only while
   the assistant is switched on, for an active matter whose mandate and first email still hash
   to `confirmedHash`, before the end date, with at least one recipient, every To a contact of
-  the mandate and every Cc a contact or the owner's own verified email. Follow-ups (A2) and
+  the mandate and every Cc a contact or the owner's own verified email, and no recipient on our
+  own mail domain or a subdomain (`own_domain`: it would loop into our own inbound with our own
+  SPF and DKIM). Follow-ups (A2) and
   meeting confirmations (A3) go through the same check.
 - **The emails (email.ts).** From `"<Name>'s AI assistant" <assistant@<mail domain>>` (ES:
   "Asistente de IA de <Name>"), so the name always says it is an AI; Reply-To the matter's own
@@ -1797,8 +1804,10 @@ A3 (scheduling, voice, history) build on it.
   401 before anything else). Dedupe marker `inboundEmails/{MessageID}` (create-once, released
   again when storing fails so Postmark's retry is processed). Matching, never guessed: the reply
   token in any recipient (To, Cc, Bcc, OriginalRecipient), else In-Reply-To, then References
-  (newest first) in `matterMessageIds`, else unmatched (dropped, only the provider id is
-  logged). `matterMessageIds` holds only OUR outgoing Message-IDs, each written with `create()`;
+  (newest first) in `matterMessageIds`, only for ids of our own form `<matterId.random@<mail
+  domain>>` whose index entry names that same matterId, else unmatched (dropped, only the
+  provider id is logged). Mail from our own domain is ignored. A body over 5 MiB is answered 200
+  and logged (`matters.inbound_too_large`, provider id and size), never stored. `matterMessageIds` holds only OUR outgoing Message-IDs, each written with `create()`;
   an inbound email is never indexed, because its sender chooses its Message-ID and could
   otherwise re-point another user's thread. The stored text is Postmark's StrippedTextReply when present. The sender checks
   (SPF, DKIM, DMARC from the raw email) and what to do with a reply are A2: `auth` stays null.
@@ -1828,14 +1837,22 @@ A3 (scheduling, voice, history) build on it.
   empty = nobody, `*` = everyone) limits the prototype to its testers; `MATTERS_MAIL_DOMAIN`
   (default assistant.meetingguard.ai). Each callable binds only the secret it needs (draft and
   revise OPENAI_API_KEY, confirm POSTMARK_SERVER_TOKEN, the webhook MATTERS_INBOUND_PASSWORD).
-  Callers need a verified account (email_verified or a trusted provider). App:
+  Callers need a verified account (email_verified or a trusted provider). `matterCancel` needs
+  only that: an owner can always stop their own matter, even off the tester list. Kill switch:
+  a by-name redeploy of the five functions with `MATTERS_ALLOWED_UIDS` empty (the run-time
+  MATTERS_ENABLED check is not reachable, since the functions exist only while it is true), or
+  `functions:delete` (SETUP 15.4). Service account: the five functions run as the project's
+  default compute account like every other function, so it holds secretAccessor on
+  `POSTMARK_SERVER_TOKEN` and `MATTERS_INBOUND_PASSWORD` as on the existing secrets; a dedicated
+  account is to be decided before `MATTERS_ALLOWED_UIDS='*'`, together with the global AI budget
+  and adminStats accounting for the matter model calls. App:
   `EXPO_PUBLIC_MATTERS_ENABLED` shows Settings > AI executive assistant (route `Matters`); off
   in every store build. Owner setup: docs/v1/SETUP.md section 15.
 - **The app (A1).** `src/services/matters` (the four callables, validated with the shared
   schemas, server reasons kept in AppError details) and `src/screens/matters/MattersScreen.tsx`:
   type the matter, answer the questions, read the mandate and the first email, confirm and
   send, change, cancel (also after sending), retry a send that failed; an `unknown` send has no
-  retry. Strings in the `matters` namespace (EN + ES).
+  retry (its message mentions the owner's copy only when there is one). Strings in the `matters` namespace (EN + ES).
   The matters list, the timeline, approval cards and voice come with A3 and A5.
 - **Contract.** `CALLABLES.matterDraft / matterRevise / matterConfirm / matterCancel`, their
   request and response schemas, `MATTER_ERROR_CODES` (not_configured, unauthenticated,

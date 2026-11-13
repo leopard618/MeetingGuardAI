@@ -5,7 +5,9 @@
  * 1. a reply address m-<token>@<mail domain> among the recipients (To, Cc, Bcc, the original
  *    recipient): matterAddresses/{token};
  * 2. else In-Reply-To, then References (newest first): matterMessageIds/{sha256(Message-ID)},
- *    which holds only the Message-IDs of emails WE sent (inbound ones are never indexed);
+ *    which holds only the Message-IDs of emails WE sent (inbound ones are never indexed). Only an
+ *    id of our own form <matterId.random@mail domain> is looked up, and the entry must name that
+ *    same matterId (so an older entry written for someone else's id never resolves);
  * 3. else unmatched: nothing is stored (only a log line with the provider id).
  * The sender checks (SPF, DKIM, DMARC from the raw email) and what to do with the reply are A2;
  * here `auth` stays null.
@@ -101,10 +103,22 @@ export async function matchInbound(email: InboundEmail, domain: string, store: P
   }
   const threadIds = [email.inReplyTo, ...[...email.references].reverse()].filter((id): id is string => id !== null);
   for (const id of threadIds) {
+    const matterId = ownMessageIdMatter(id, domain);
+    if (!matterId) continue;
     const found = await store.findByMessageKey(messageIdKey(id));
-    if (found) return found;
+    if (found && found.matterId === matterId) return found;
   }
   return null;
+}
+
+/** The matterId inside one of OUR Message-IDs (email.ts newMessageId), else null. */
+export function ownMessageIdMatter(rfcMessageId: string, domain: string): string | null {
+  const bare = rfcMessageId.trim().replace(/^<|>$/g, '').trim();
+  const at = bare.lastIndexOf('@');
+  if (at <= 0 || bare.slice(at + 1).toLowerCase() !== domain.trim().toLowerCase()) return null;
+  const local = bare.slice(0, at);
+  const dot = local.lastIndexOf('.');
+  return dot > 0 && /^[A-Za-z0-9]+$/.test(local.slice(dot + 1)) ? local.slice(0, dot) : null;
 }
 
 /** The stored form of an inbound email. */

@@ -7,9 +7,11 @@
  *      record is purged after DELETION_LOG_RETENTION_DAYS;
  *   1. revoke the user's refresh tokens: no device can mint a new ID token any more, so offline
  *      devices with queued writes can only write while their current ID token lives (<= 1 h);
- *   2. users/{uid} (recursively: profile, meetings, notes, settings, assistant matters with their
- *      timelines and emails) -> entitlements/{uid} -> usage/{uid} (recursively) -> the server-only
- *      state that carries the uid (WhatsApp, Zoom, Microsoft, the matters' lookup documents);
+ *   2. users/{uid} (recursively: profile, meetings, notes, settings) -> entitlements/{uid} ->
+ *      usage/{uid} (recursively);
+ *   2a. the assistant's matters (A1): users/{uid}/matters with their timelines and emails go with
+ *      the recursive passes; their lookup documents (matterAddresses, matterMessageIds) are
+ *      deleted by uid;
  *   3. the Auth user;
  *   4. a second recursive pass over users/{uid}: writes that raced in while steps 2-3 ran (an
  *      outbox flush of this or another device, rules still accept the old ID token) are removed.

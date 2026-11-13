@@ -136,6 +136,14 @@ export const QUESTIONS = {
       : `The end date can be at most ${days} days away. Until when should I keep working on this?`,
   endsInPast: (language: Language) =>
     language === 'es' ? 'Esa fecha ya ha pasado. ¿Hasta cuándo debo seguir?' : 'That date has already passed. Until when should I keep working on this?',
+  ownDomain: (name: string, language: Language) =>
+    language === 'es'
+      ? `Esa dirección es del propio asistente, no de ${name}. ¿Cuál es la dirección de correo de ${name}?`
+      : `That address belongs to the assistant itself, not to ${name}. What is the email address of ${name}?`,
+  windowsOutside: (language: Language) =>
+    language === 'es'
+      ? 'Las horas que me diste para la reunión ya han pasado o son después de la fecha límite. ¿Qué días y horas te vienen bien?'
+      : 'The meeting times you gave are already past or after the end date. Which days and times work for you?',
   contact: (language: Language) =>
     language === 'es' ? '¿A quién debo escribir? Dime su nombre y su correo.' : 'Who should I email? Tell me their name and email address.',
   unclear: (language: Language) =>
