@@ -4,7 +4,7 @@
  */
 import type * as MattersModuleNs from '../../src/matters';
 import { MATTERS_PARAM_NAMES, isMatterUserAllowed } from '../../src/config';
-import { isInboundAuthorized } from '../../src/matters';
+import { isInboundAuthorized, providerIdOf } from '../../src/matters';
 
 jest.mock('firebase-functions/logger', () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }));
 
@@ -88,6 +88,12 @@ describe('matters functions: inbound basic auth', () => {
     expect(isInboundAuthorized('Bearer s3cret', 's3cret')).toBe(false);
     // an unset password never authorizes anything
     expect(isInboundAuthorized(basic('postmark:'), '')).toBe(false);
+  });
+
+  it('finds the provider id of a payload too large to parse, for the log line', () => {
+    const big = Buffer.from(`{"From":"a@b.c","Subject":"x","MessageID":"73e6d360-66eb-11e1-8e72-a8904824019b","RawEmail":"${'x'.repeat(200_000)}`);
+    expect(providerIdOf(big)).toBe('73e6d360-66eb-11e1-8e72-a8904824019b');
+    expect(providerIdOf(Buffer.from('{"Subject":"no id"}'))).toBeNull();
   });
 });
 

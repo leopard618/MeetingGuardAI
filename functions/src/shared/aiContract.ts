@@ -1039,7 +1039,9 @@ export type MatterConfirmRequest = z.infer<typeof matterConfirmRequestSchema>;
  * sent:    it went out.
  * failed:  the email service refused it, nothing went out; the same confirm retries it.
  * unknown: no clear answer (or another confirm is sending it right now): it may have gone out, so
- *          it is never sent again automatically. The user's copy (cc) shows whether it arrived.
+ *          it is never sent again automatically. When the owner is in copy (cc), their copy shows
+ *          whether it arrived. A Postmark 406 (inactive recipient) is also unknown: the other
+ *          recipients may have it.
  */
 export const MATTER_SEND_OUTCOMES = ['sent', 'failed', 'unknown'] as const;
 export type MatterSendOutcome = (typeof MATTER_SEND_OUTCOMES)[number];

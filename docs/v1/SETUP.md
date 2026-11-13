@@ -1205,8 +1205,10 @@ nothing below is needed for a deploy.
 1. Server `assistant` > Settings > Inbound: inbound domain `assistant.meetingguard.ai`.
 2. Webhook URL (after the first deploy with MATTERS_ENABLED, 15.4):
    `https://postmark:<MATTERS_INBOUND_PASSWORD>@<region>-<project>.cloudfunctions.net/assistantInboundEmail`
-   (HTTP basic auth; the function answers 401 to anything else). Tick "Include raw email
-   content" (A2 checks SPF, DKIM and DMARC from it).
+   (HTTP basic auth; the function answers 401 to anything else). Leave "Include raw email
+   content" OFF until A2 reads it (A2 checks SPF, DKIM and DMARC from it): with it on, a reply
+   carrying an attachment of about 2 MB is over the webhook's 5 MiB limit and is only logged
+   (`matters.inbound_too_large`), never stored.
 
 ### 15.4 Secrets, params and deploy
 
@@ -1217,7 +1219,8 @@ printf '%s' "<the API token of server assistant>" | npx firebase functions:secre
 printf '%s' "$(openssl rand -hex 24)" | npx firebase functions:secrets:set MATTERS_INBOUND_PASSWORD   # also in the webhook URL
 ```
 
-Then in your own `functions/.env.<projectId>`:
+Then in your own `functions/.env.<projectId>` (only the developer who deploys the matter
+functions has these lines until the beta; the other developer leaves them out, see below):
 
 ```
 MATTERS_ENABLED=true
@@ -1235,10 +1238,31 @@ npx firebase deploy --only functions:matterDraft,functions:matterRevise,function
 Before a Postmark account exists, the secret POSTMARK_SERVER_TOKEN can hold Postmark's public
 test token `POSTMARK_API_TEST`: sends are accepted and nothing is delivered.
 
+Replacing a secret (the test token by the real one, or a new MATTERS_INBOUND_PASSWORD): deployed
+functions keep the secret VERSION that was latest at their deploy. With only `secrets:set`,
+matterConfirm goes on using the test token and answers "sent" while nothing arrives, and after a
+new inbound password the webhook answers 401. So after `secrets:set`, either accept the CLI's
+offer to update the functions that use the secret, or redeploy them by name:
+
+```bash
+npx firebase deploy --only functions:matterConfirm,functions:assistantInboundEmail
+```
+
+Never run the `firebase deploy --only functions` the CLI prints as a hint (that is a full
+functions deploy). Then check with one real send (15.6).
+
+The MATTERS_* lines stay ONLY in the `.env.<projectId>` of the developer who deploys the matter
+functions (Sven) until the beta. The other developer does not copy them: a deploy from `v2`
+with MATTERS_ENABLED=true would redeploy the five functions from `v2` code with another tester
+list, over what was deployed from the work branch.
+
 While MATTERS_ENABLED is not `true` in a deployer's `.env.<projectId>`, the five functions and
 their params and secrets are not even declared (functions/src/config.ts `mattersParams`), so
 that deploy never asks for them. A full deploy from `v2` without the line offers to delete the
-five functions if they are deployed: answer No. Turning the assistant off for good:
+five functions if they are deployed: answer No. The quick kill switch is a by-name redeploy of
+the five functions with MATTERS_ALLOWED_UIDS empty (the run-time MATTERS_ENABLED check cannot be
+reached, since the functions only exist while it is true); matterCancel still works for every
+owner. Turning the assistant off for good:
 `npx firebase functions:delete matterDraft matterRevise matterConfirm matterCancel assistantInboundEmail`.
 
 ### 15.5 Test build of the app

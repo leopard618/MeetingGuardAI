@@ -141,7 +141,9 @@ export function MattersScreen(): ReactElement {
           </>
         ) : null}
         {/* no retry: the email may have gone out, and it is never sent twice */}
-        {done.kind === 'unknown' ? <Banner tone="warning" text={t('matters:result.unknown')} testID="matters-unknown" /> : null}
+        {done.kind === 'unknown' ? (
+          <Banner tone="warning" text={t(draft?.firstEmail?.cc.length ? 'matters:result.unknown' : 'matters:result.unknownNoCopy')} testID="matters-unknown" />
+        ) : null}
         <MGButton variant="tonal" style={styles.action} onPress={startOver} disabled={busy !== null} testID="matters-new">
           {t('matters:newMatter')}
         </MGButton>

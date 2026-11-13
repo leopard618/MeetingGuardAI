@@ -129,6 +129,12 @@ export function isInboundAuthorized(header: unknown, password: string): boolean 
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
+/** Postmark's MessageID from a payload too large to parse as a whole (it is near the start). */
+export function providerIdOf(rawBody: Buffer): string | null {
+  const match = /"MessageID"\s*:\s*"([A-Za-z0-9-]{1,128})"/.exec(rawBody.subarray(0, 64 * 1024).toString('utf8'));
+  return match?.[1] ?? null;
+}
+
 function makeInboundWebhook() {
   const { MATTERS_ENABLED, MATTERS_INBOUND_PASSWORD, MATTERS_MAIL_DOMAIN } = mattersParams();
   return onRequest(
@@ -153,7 +159,14 @@ function makeInboundWebhook() {
         res.status(401).send('Unauthorized');
         return;
       }
-      if (!req.rawBody || req.rawBody.length > MATTERS_TUNING.maxInboundBytes) {
+      if (!req.rawBody) {
+        res.status(200).send('ignored');
+        return;
+      }
+      if (req.rawBody.length > MATTERS_TUNING.maxInboundBytes) {
+        // answered 200 (Postmark would only send it again), but never dropped without a trace;
+        // keep "Include raw email content" off until A2 reads it, so ordinary replies stay small
+        logger.warn('matters.inbound_too_large', { providerId: providerIdOf(req.rawBody), sizeMiB: Math.ceil(req.rawBody.length / (1024 * 1024)) });
         res.status(200).send('ignored');
         return;
       }

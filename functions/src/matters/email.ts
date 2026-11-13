@@ -128,6 +128,8 @@ export function postmarkPayload(email: OutboundEmail, messageStream: string): Re
 
 /** Postmark error codes that mean our setup is wrong (token, sender signature, account review). */
 const CONFIGURATION_CODES = new Set([10, 400, 401, 405, 412]);
+/** Postmark "You tried to send to recipient(s) that have been marked as inactive". */
+export const INACTIVE_RECIPIENT_CODE = 406;
 
 export function createPostmarkSender(options: {
   token: string;
@@ -168,6 +170,9 @@ export function createPostmarkSender(options: {
       if (response.status === 401 || (code !== null && CONFIGURATION_CODES.has(code))) {
         throw new EmailSendError('configuration', code ?? response.status);
       }
+      // 406 "inactive recipient": with several recipients Postmark answers "Message OK, but will not
+      // deliver to these inactive addresses", so the others MAY have it; never a blind retry
+      if (code === INACTIVE_RECIPIENT_CODE) throw new EmailSendError('unknown', code);
       if (response.status === 429) throw new EmailSendError('rate_limited', code ?? 429);
       if (response.status >= 500) throw new EmailSendError('server', code ?? response.status);
       if (response.status === 422) throw new EmailSendError('rejected', code ?? 422);
