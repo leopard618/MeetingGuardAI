@@ -29,6 +29,7 @@ export const ROUTES = {
   CalendarSync: 'CalendarSync',
   Pricing: 'Pricing',
   WhatsAppConnect: 'WhatsAppConnect',
+  Matters: 'Matters',
 } as const satisfies { [K in RouteName]: K };
 
 export const AUTH_ROUTES = ['Landing', 'EmailAuth', 'Privacy', 'Terms'] as const satisfies readonly (keyof AuthStackParamList)[];

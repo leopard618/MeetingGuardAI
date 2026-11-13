@@ -49,12 +49,15 @@ function fakePorts(options: { failOn?: string; userExists?: boolean } = {}) {
     deleteMicrosoftIdentities: jest.fn(async (uid: string) => {
       calls.push(`microsoft:${uid}`);
     }),
+    deleteMatterLookups: jest.fn(async (uid: string) => {
+      calls.push(`matters:${uid}`);
+    }),
   };
   return { ports, calls };
 }
 
 describe('deleteAccount', () => {
-  it('records the deletion, revokes tokens, deletes user data, entitlement, usage, WhatsApp state, the auth user, then sweeps late writes', async () => {
+  it('records the deletion, revokes tokens, deletes user data, entitlement, usage, WhatsApp state, matter lookups, the auth user, then sweeps late writes', async () => {
     const { ports, calls } = fakePorts();
     await expect(deleteAccountData('u1', ports, new Date('2026-10-05T10:00:00.000Z'))).resolves.toEqual({ deleted: true });
     expect(calls).toEqual([
@@ -66,6 +69,7 @@ describe('deleteAccount', () => {
       'whatsapp:u1',
       'zoom:u1',
       'microsoft:u1',
+      'matters:u1',
       'auth:u1',
       'recursive:users/u1',
     ]);

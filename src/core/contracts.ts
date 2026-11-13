@@ -1412,6 +1412,7 @@ export const I18N_NAMESPACE_LIST = [
   'pricing',
   'widget',
   'whatsapp',
+  'matters',
 ] as const;
 export type I18nNamespace = (typeof I18N_NAMESPACE_LIST)[number];
 
@@ -1513,6 +1514,8 @@ export type MainStackParamList = {
   Pricing: undefined;
   /** Settings > WhatsApp: link this account to the WhatsApp bot (§27). */
   WhatsAppConnect: undefined;
+  /** Settings > AI executive assistant: hand over a matter (prototype, section 36; only with EXPO_PUBLIC_MATTERS_ENABLED). */
+  Matters: undefined;
 };
 
 export type RootStackParamList = AuthStackParamList & OnboardingStackParamList & MainStackParamList;
@@ -1938,6 +1941,11 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   whatsappLinkStart: { request: 'whatsappLinkStartRequestSchema', response: 'whatsappLinkStartResponseSchema' },
   whatsappLinkStatus: { request: 'whatsappLinkStatusRequestSchema', response: 'whatsappLinkStatusResponseSchema' },
   whatsappUnlink: { request: 'whatsappUnlinkRequestSchema', response: 'whatsappUnlinkResponseSchema' },
+  // Executive assistant (docs/v1/ARCHITECTURE.md section 36): deployed only while MATTERS_ENABLED.
+  matterDraft: { request: 'matterDraftRequestSchema', response: 'matterDraftResponseSchema' },
+  matterRevise: { request: 'matterReviseRequestSchema', response: 'matterDraftResponseSchema' },
+  matterConfirm: { request: 'matterConfirmRequestSchema', response: 'matterConfirmResponseSchema' },
+  matterCancel: { request: 'matterCancelRequestSchema', response: 'matterCancelResponseSchema' },
 };
 
 // =============================================================================================

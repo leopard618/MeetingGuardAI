@@ -53,6 +53,7 @@ import {
   TermsScreen,
   TotalMeetingsScreen,
   WhatsAppConnectScreen,
+  MattersScreen,
 } from './screens';
 import { MainSidebar, SidebarProvider, useSidebar } from './sidebar';
 import { PreferencesErrorScreen, SplashScreen } from './StatusScreens';
@@ -116,6 +117,7 @@ function MainGroup(): ReactElement {
               <Stack.Screen name="CalendarSync" component={CalendarSyncScreen} />
               <Stack.Screen name="Pricing" component={PricingScreen} />
               <Stack.Screen name="WhatsAppConnect" component={WhatsAppConnectScreen} />
+              <Stack.Screen name="Matters" component={MattersScreen} />
             </Stack.Navigator>
         <AssistantFab hidden={currentRouteName === 'AIChat'} />
       </View>

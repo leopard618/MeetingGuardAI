@@ -27,6 +27,7 @@ import enPricing from './locales/en/pricing.json';
 import enSettings from './locales/en/settings.json';
 import enShell from './locales/en/shell.json';
 import enWhatsapp from './locales/en/whatsapp.json';
+import enMatters from './locales/en/matters.json';
 import enWidget from './locales/en/widget.json';
 import esAi from './locales/es/ai.json';
 import esAlerts from './locales/es/alerts.json';
@@ -50,6 +51,7 @@ import esPricing from './locales/es/pricing.json';
 import esSettings from './locales/es/settings.json';
 import esShell from './locales/es/shell.json';
 import esWhatsapp from './locales/es/whatsapp.json';
+import esMatters from './locales/es/matters.json';
 import esWidget from './locales/es/widget.json';
 
 /** A namespace's JSON tree (nested objects, strings and string arrays). */
@@ -80,6 +82,7 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     pricing: enPricing,
     widget: enWidget,
     whatsapp: enWhatsapp,
+    matters: enMatters,
   },
   es: {
     common: esCommon,
@@ -105,5 +108,6 @@ export const RESOURCES: Readonly<Record<Language, Readonly<Record<I18nNamespace,
     pricing: esPricing,
     widget: esWidget,
     whatsapp: esWhatsapp,
+    matters: esMatters,
   },
 };

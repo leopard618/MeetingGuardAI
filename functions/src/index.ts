@@ -51,3 +51,7 @@ export { zoomCreateMeeting, zoomDeleteMeeting, zoomStatus, zoomSyncMeeting } fro
 // Same gating pattern: whatsappWebhook is `undefined` while WHATSAPP_ENABLED is false at deploy
 // time, so a deploy without the WHATSAPP_* secrets always succeeds; the callables bind none.
 export { whatsappLinkStart, whatsappLinkStatus, whatsappUnlink, whatsappWebhook } from './whatsapp';
+// Executive assistant (ARCHITECTURE section 36): every export is `undefined` while MATTERS_ENABLED
+// is false at deploy time, and its params and secrets are not even declared then (config.ts
+// mattersParams), so a deploy without the POSTMARK / inbound secrets never asks for them.
+export { assistantInboundEmail, matterCancel, matterConfirm, matterDraft, matterRevise } from './matters';

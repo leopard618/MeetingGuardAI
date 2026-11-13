@@ -1,0 +1,47 @@
+{
+  "row": {
+    "section": "AI executive assistant",
+    "title": "Hand over a matter",
+    "subtitle": "Test version: the assistant emails for you, only within what you confirm."
+  },
+  "intro": "Tell me the matter in your own words: whom to contact and their email address, what to ask for, whether to set up a meeting and until when. I read it back to you, and nothing is sent until you confirm.",
+  "request": {
+    "label": "Your matter",
+    "placeholder": "Contact Carlos at carlos@example.com, ask for the updated proposal, set up a meeting to discuss it and follow up until Friday. Keep me copied."
+  },
+  "prepare": "Prepare",
+  "questions": {
+    "title": "I need a few details",
+    "answerLabel": "Your answer",
+    "send": "Send answer"
+  },
+  "readBack": {
+    "title": "What I will do"
+  },
+  "email": {
+    "title": "The first email",
+    "from": "From: {{value}}",
+    "to": "To: {{value}}",
+    "cc": "Copy: {{value}}",
+    "subject": "Subject: {{value}}"
+  },
+  "confirm": "Confirm and send",
+  "change": {
+    "label": "What should I change?",
+    "send": "Change the draft"
+  },
+  "cancel": "Cancel this matter",
+  "newMatter": "New matter",
+  "result": {
+    "sent": "Sent. Replies to this matter are kept with it.",
+    "notSent": "The email could not be sent yet. Try again in a moment.",
+    "retry": "Try again",
+    "unknown": "We could not confirm that the email went out. It may have been sent, so it will not be sent again. Your copy shows whether it arrived.",
+    "cancelled": "Matter cancelled. Nothing more will be sent."
+  },
+  "errors": {
+    "stale": "The draft changed. Check it again before confirming.",
+    "notAllowed": "This is outside what you confirmed, so nothing was sent.",
+    "unavailable": "The assistant is not available for your account yet."
+  }
+}
