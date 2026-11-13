@@ -38,6 +38,20 @@ to users: the assistant stays switched off in every release until its beta (A10)
   date; "más" in the Spanish read-back; the email is signed with the assistant's name; a day
   without a time ends at 23:59; whole-day meeting windows show dates instead of 0:00; the stored
   email keeps the sender name; the matter can be cancelled after sending.
+- **A1 before the real Postmark token** (November 13): an apostrophe stays inside an address
+  (`o'brien@acme.com` is no longer read as `brien@acme.com`), and quotes or punctuation around an
+  address (`¿ana@acme.com?`, smart quotes, a trailing ellipsis) are not part of it; a Postmark 406
+  "inactive recipient" is "unknown" (the other recipients may have it), so Retry never sends a
+  second copy; only a send that clearly failed is claimed again; replies follow the thread only
+  through our own Message-IDs that name the same matter.
+- **A1 follow-ups from the review** (November 13): no recipient and no contact on our own mail
+  domain, and inbound mail from it is ignored; the owner can cancel a matter even off the tester
+  list; meeting times that are all past or after the end date become a question instead of "any
+  time"; a name the model wrote under the closing is removed; the read-back limit fits the longest
+  possible mandate; an inbound email over 5 MiB is logged; the "unknown" message mentions the
+  owner's copy only when there is one; the shared deleteAccount header line is restored (own
+  step 2a); SETUP and CONTRIBUTING say that a replaced secret needs a by-name redeploy and that
+  the MATTERS_* lines stay in one developer's `.env`.
 
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 

@@ -8,7 +8,10 @@
  * - model questions that repeat a code question (email, end date) are dropped;
  * - a missing end date, one in the past or more than MATTER_LIMITS.maxMandateDays away becomes
  *   a question;
- * - meeting windows are clipped to [now, end date];
+ * - an address on our own mail domain is never a contact (it becomes a question);
+ * - meeting windows are clipped to [now, end date]; if the user gave windows and none is left,
+ *   that becomes a question (an empty list would mean any free time);
+ * - a name the model put under the closing of the first email is removed (code signs it);
  * - a copy in cc needs the owner's verified email (else one summary a day);
  * - the result must pass the strict mandateSchema / firstEmailSchema, else the user is asked to
  *   say it again.
@@ -24,11 +27,12 @@ import type { ToolDefinition } from '../assistant/tools';
 import {
   MATTER_LIMITS,
   firstEmailSchema,
+  isOwnDomain,
   mandateSchema,
   type FirstEmail,
   type Mandate,
 } from './model';
-import { QUESTIONS } from './text';
+import { QUESTIONS, senderName } from './text';
 
 export const PROPOSE_TOOL = 'propose_matter';
 
@@ -136,6 +140,8 @@ export interface DraftContext {
   ownerName: string;
   ownerEmail: string | null;
   now: Date;
+  /** Our mail domain: an address on it is never a contact (mail loops). */
+  domain: string;
 }
 
 export interface DraftResult {
@@ -197,21 +203,40 @@ const PLAIN = (text: string) =>
     .replace(/[\u201c\u201d]/g, '"');
 const clean = (text: string, max: number) => PLAIN(text).trim().slice(0, max);
 
-/** Characters that end an address in running text (space, brackets, quotes, separators). */
-const ADDRESS_CANDIDATE = /[^\s<>()[\]{},;:"'`]+@[^\s<>()[\]{},;:"'`]+/g;
+/**
+ * Characters that end an address in running text: space, angle and round brackets, double quotes,
+ * commas, semicolons and colons. NOT the apostrophe, backtick or braces: they are valid in an
+ * address ("o'brien@acme.com"), so a candidate keeps them and only its ENDS are trimmed.
+ */
+const ADDRESS_CANDIDATE = /[^\s<>()[\],;:"\u201c\u201d\u00ab\u00bb]+@[^\s<>()[\],;:"\u201c\u201d\u00ab\u00bb]+/g;
+/** Quotes and punctuation around an address ("'ana@acme.com'", "¿ana@acme.com?", "ana@acme.com..."). */
+const LEADING_PUNCT = /^['`\u2018\u2019\u00bf\u00a1{]+/;
+const TRAILING_PUNCT = /['`\u2018\u2019.!?\u2026}]+$/;
 
 /**
  * Every whole email address in the user's words, lowercased. Exact whole addresses only:
- * "martinez@acme.com" is NOT in "write to ana.martinez@acme.com". Trailing sentence punctuation
- * ("ana@acme.com.") is not part of the address.
+ * "martinez@acme.com" is NOT in "write to ana.martinez@acme.com", and "brien@acme.com" is NOT in
+ * "o'brien@acme.com". Quotes and sentence punctuation around an address are not part of it.
  */
 export function addressesIn(text: string): Set<string> {
   const found = new Set<string>();
   for (const raw of text.match(ADDRESS_CANDIDATE) ?? []) {
-    const address = raw.replace(/^mailto:/i, '').replace(/[.!?]+$/, '').toLowerCase();
+    const address = raw.replace(/^mailto:/i, '').replace(LEADING_PUNCT, '').replace(TRAILING_PUNCT, '').toLowerCase();
     if (address.indexOf('@') > 0) found.add(address);
   }
   return found;
+}
+
+/**
+ * The first email's text without a signature the model added anyway: trailing lines that are only
+ * the owner's name or the assistant's name. Code signs every email (email.ts), so a name under the
+ * closing would make it look personally signed.
+ */
+export function stripSignature(text: string, names: readonly string[]): string {
+  const known = new Set(names.map((n) => n.trim().toLowerCase()).filter(Boolean));
+  const lines = text.trimEnd().split('\n');
+  while (lines.length > 1 && known.has((lines[lines.length - 1] ?? '').trim().toLowerCase())) lines.pop();
+  return lines.join('\n');
 }
 
 /** A model question about an email address, or about the end date (EN and ES). */
@@ -236,7 +261,11 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
   const written = addressesIn(ctx.request);
   let askedForEmail = contacts.length === 0;
   for (const c of contacts) {
-    if (c.email === null || !written.has(c.email.toLowerCase())) {
+    if (c.email !== null && isOwnDomain(c.email, ctx.domain)) {
+      questions.push(QUESTIONS.ownDomain(c.name, ctx.language));
+      c.email = null;
+      askedForEmail = true;
+    } else if (c.email === null || !written.has(c.email.toLowerCase())) {
       questions.push(QUESTIONS.contactEmail(c.name, ctx.language));
       c.email = null;
       askedForEmail = true;
@@ -270,6 +299,11 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
     .filter((w) => Number.isFinite(w.start) && Number.isFinite(w.end) && w.start < w.end)
     .slice(0, MATTER_LIMITS.maxTimeWindows)
     .map((w) => ({ start: new Date(w.start).toISOString(), end: new Date(w.end).toISOString() }));
+  // the user gave times and none is left (all past, after the end date or unreadable): an empty
+  // list would mean ANY free time, a wider grant than they gave, so ask instead
+  if (p.meeting.needed && p.meeting.windows.length > 0 && windows.length === 0) {
+    return { title, mandate: null, firstEmail: null, questions: [QUESTIONS.windowsOutside(ctx.language)] };
+  }
   const duration = Math.min(MATTER_LIMITS.meetingMinutesMax, Math.max(MATTER_LIMITS.meetingMinutesMin, p.meeting.duration_minutes ?? 30));
 
   const candidate = {
@@ -289,7 +323,7 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
   const mandate = mandateSchema.safeParse(candidate);
   const firstEmail = firstEmailSchema.safeParse({
     subject: clean(p.first_email.subject, MATTER_LIMITS.subjectChars),
-    text: clean(p.first_email.text, MATTER_LIMITS.firstEmailChars),
+    text: clean(stripSignature(p.first_email.text, [ctx.ownerName, senderName(ctx.ownerName, p.email_language)]), MATTER_LIMITS.firstEmailChars),
   });
   if (!mandate.success || !firstEmail.success) {
     return { title, mandate: null, firstEmail: null, questions: [QUESTIONS.unclear(ctx.language)] };

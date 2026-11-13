@@ -137,8 +137,22 @@ describe('MattersScreen', () => {
     await press('matters-prepare');
     await press('matters-confirm');
     expect(screen.getByTestId('matters-unknown')).toBeTruthy();
+    expect(screen.getByText(/Your copy shows whether it arrived/)).toBeTruthy();
     expect(screen.queryByTestId('matters-retry')).toBeNull();
     expect(mockConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not mention a copy in the unknown message when the owner is not in copy', async () => {
+    mockDraft.mockResolvedValueOnce({ ...COMPLETE, firstEmail: { ...COMPLETE.firstEmail, cc: [] } });
+    mockConfirm.mockResolvedValueOnce({ matterId: 'm1', status: 'active', outcome: 'unknown' });
+    await renderScreen();
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('matters-request'), 'Contact Carlos');
+    });
+    await press('matters-prepare');
+    await press('matters-confirm');
+    expect(screen.getByText('We could not confirm that the email went out. It may have been sent, so it will not be sent again.')).toBeTruthy();
+    expect(screen.queryByText(/Your copy/)).toBeNull();
   });
 
   it('can still cancel the matter after the first email went out', async () => {

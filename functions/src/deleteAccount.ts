@@ -12,9 +12,11 @@
  *      stops resolving at once; a delivery already past the lookup drops in its commit
  *      transaction (it re-reads the address), and users/{uid}/meetingSummaries goes with the
  *      recursive passes below;
- *   2. users/{uid} (recursively: profile, meetings, notes, settings, assistant matters with their
- *      timelines and emails) -> entitlements/{uid} -> usage/{uid} (recursively) -> the server-only
- *      state that carries the uid (WhatsApp, Zoom, Microsoft, the matters' lookup documents);
+ *   2. users/{uid} (recursively: profile, meetings, notes, settings) -> entitlements/{uid} ->
+ *      usage/{uid} (recursively);
+ *   2a. the assistant's matters (A1): users/{uid}/matters with their timelines and emails go with
+ *      the recursive passes; their lookup documents (matterAddresses, matterMessageIds) are
+ *      deleted by uid;
  *   3. the Auth user;
  *   4. a second recursive pass over users/{uid}: writes that raced in while steps 2-3 ran (an
  *      outbox flush of this or another device, rules still accept the old ID token) are removed;

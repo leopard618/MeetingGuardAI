@@ -76,6 +76,9 @@ reformat the rest, and resolve conflicts by keeping both sides:
 - `functions/.env.<projectId>` is not in git. Every developer who deploys needs every param line
   in his own copy, including the ones the other developer added; a missing line is prompted for,
   and fails a non-interactive deploy. Share non-secret values privately, never in the repo.
+  Exception: the `MATTERS_*` lines (the assistant, SETUP 15.4) go only in the copy of the developer
+  who deploys the matter functions (Sven) until the beta. The other developer leaves them out and
+  answers No when the CLI offers to delete those five functions.
 - New features ship switched off (an `*_ENABLED` param and, where needed, a pilot list) and are
   switched on only after review.
 

@@ -173,6 +173,7 @@ describe('matterConfirm', () => {
     ['timeout', new EmailSendError('timeout', null)],
     ['a lost connection', new EmailSendError('connection', null)],
     ['a server error', new EmailSendError('server', 500)],
+    ['an inactive recipient (Postmark 406: the others may have it)', new EmailSendError('unknown', 406)],
   ])('treats %s as unknown: keeps the email unconfirmed and never sends it again', async (_label, failure) => {
     const { deps, store, sender, draft } = await confirmedDraft();
     sender.failWith = failure;
@@ -196,6 +197,14 @@ describe('matterConfirm', () => {
     sender.failWith = null;
     await expect(handleMatterConfirm(CALLER, request, deps)).resolves.toMatchObject({ outcome: 'unknown' });
     expect(sender.attempts).toBe(1);
+  });
+
+  it('never claims again an active matter without a send state (written before the state existed)', async () => {
+    const { deps, store, sender, draft } = await confirmedDraft();
+    const key = `u1/${draft.matterId}`;
+    store.matters.set(key, { ...store.matters.get(key)!, status: 'active', confirmedHash: draft.draftHash, confirmedAt: NOW.toISOString(), firstSendState: 'none' });
+    await expect(handleMatterConfirm(CALLER, { matterId: draft.matterId, draftHash: draft.draftHash }, deps)).resolves.toMatchObject({ outcome: 'unknown' });
+    expect(sender.attempts).toBe(0);
   });
 
   it('refuses a hash that is not the current draft', async () => {
@@ -258,6 +267,16 @@ describe('matterCancel', () => {
     expect(store.eventTypes('u1', draft.matterId)).toEqual(['created', 'status_changed']);
     expect(await reason(handleMatterCancel({ ...CALLER, uid: 'u2' }, { matterId: draft.matterId }, deps))).toBe('not_found');
   });
+
+  it('lets the owner cancel even off the tester list (the practical kill switch), but never signed out', async () => {
+    const { deps, llm } = makeDeps();
+    llm.queue.push(proposal());
+    const draft = await handleMatterDraft(CALLER, draftRequest, deps);
+    const removed = { ...deps, allowed: () => false };
+    await expect(handleMatterCancel(CALLER, { matterId: draft.matterId }, removed)).resolves.toMatchObject({ status: 'cancelled' });
+    expect(await reason(handleMatterCancel(null, { matterId: draft.matterId }, removed))).toBe('unauthenticated');
+    expect(await reason(handleMatterCancel({ ...CALLER, emailVerified: false }, { matterId: draft.matterId }, removed))).toBe('unauthenticated');
+  });
 });
 
 describe('inbound email', () => {
@@ -309,6 +328,16 @@ describe('inbound email', () => {
     const inbound = { store, now: deps.now, domain: DOMAIN, markerTtlDays: 7 };
     await expect(handleInboundEmail(inboundPayload(), inbound)).resolves.toBe('unmatched');
     await expect(handleInboundEmail({ hello: 'world' }, inbound)).resolves.toBe('ignored');
+    expect(store.messages.size).toBe(0);
+  });
+
+  it('ignores mail from our own domain, even to a matter address (loops, forged senders)', async () => {
+    const { deps, store, llm } = makeDeps();
+    llm.queue.push(proposal());
+    await handleMatterDraft(CALLER, draftRequest, deps);
+    const inbound = { store, now: deps.now, domain: DOMAIN, markerTtlDays: 7 };
+    const looped = inboundPayload({ FromFull: { Email: `assistant@${DOMAIN}`, Name: 'Assistant' }, From: `assistant@${DOMAIN}` });
+    await expect(handleInboundEmail(looped, inbound)).resolves.toBe('ignored');
     expect(store.messages.size).toBe(0);
   });
 
