@@ -33,6 +33,7 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
+import type { NormalizedArc, SignatureResult } from '../mail/auth';
 import {
   LOCAL_DATE_KEY_PATTERN,
   MEETING_ID_PATTERN,
@@ -51,7 +52,7 @@ import {
   type SummaryTier,
 } from '../shared/aiContract';
 import { SUMMARY_CONTENT_PURPOSE, SealedError, contentDigest, open, seal, summaryAad, type Keyring } from '../shared/sealed';
-import type { Classification, NormalizedArc, SignatureResult } from './authenticity';
+import type { Classification } from './authenticity';
 import type { MatchRecord, StoredSummaryMatch, SummaryMatchCandidate } from './match';
 import { sliceSafe } from './sanitize';
 import { ITEM_FLAGS, SECTION_FLAGS, type ParsedSections, type SummaryMeta, type SummarySection } from './sections';
@@ -188,7 +189,7 @@ function normalizeSignatureValue(value: string | null | undefined): string | nul
 }
 
 export interface MessageKeyInput {
-  /** The Message-ID header value (headers.ts header.messageId), or null. */
+  /** The Message-ID header value (mail/headers.ts header.messageId), or null. */
   messageIdHeader: string | null | undefined;
   /** b= of the deciding signature (NormalizedSignature.signatureValue), or null. */
   decidingSignatureValue: string | null | undefined;

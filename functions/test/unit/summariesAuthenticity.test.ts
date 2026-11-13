@@ -1,9 +1,10 @@
 /**
- * M10 authenticity (functions/src/summaries/authenticity.ts and headers.ts), the security core:
- * the decision table rows 4 to 14 with messages signed in the test by mailauth's signer behind a
- * stub resolver (docs/v2/M10-DESIGN.md sections 5 and 12), the pure classify, header sanity and
- * the strict parsers, and the production resolver's cache and budget (fake lookup, no network).
- * All data is synthetic.
+ * M10 authenticity (functions/src/summaries/authenticity.ts, functions/src/mail/auth.ts and
+ * functions/src/mail/headers.ts), the security core: the decision table rows 4 to 14 with
+ * messages signed in the test by mailauth's signer behind a stub resolver (docs/v2/M10-DESIGN.md
+ * sections 5 and 12), the pure classify, header sanity and the strict parsers, the production
+ * resolver's cache and budget (fake lookup, no network), and the log names of the shared
+ * verifier. All data is synthetic.
  */
 let mockDkimVerifyFailure = false;
 
@@ -32,32 +33,21 @@ import * as logger from 'firebase-functions/logger';
 import { dkimVerify, type DKIMResult } from 'mailauth';
 
 import {
-  AUTHENTICITY_TUNING,
-  CLASSIFY_REASONS,
   DNS_BUDGET_CODE,
   DNS_MESSAGE_BOUND_MS,
   MAILAUTH_VERIFIER,
   NO_ARC,
-  assessAuthenticity,
-  classify,
   createDnsResolver,
-  decidingDomains,
-  dnsRouting,
   domainsAlign,
   isBudgetRefusal,
   isPassSig,
   keyRecordDomain,
-  normalizeSenders,
   normalizeSignature,
   normalizeSigningDomain,
-  runMailAuth,
-  storedAuth,
-  type AuthenticityContext,
-  type ClassifyInput,
-  type ClassifyOutcome,
-  type DecisionRow,
+  verifyMailAuth,
+  type DnsRouting,
   type NormalizedSignature,
-} from '../../src/summaries/authenticity';
+} from '../../src/mail/auth';
 import {
   HEADER_LIMITS,
   checkHeaders,
@@ -68,7 +58,22 @@ import {
   parseMailDate,
   parseStrictMailbox,
   type HeaderFacts,
-} from '../../src/summaries/headers';
+} from '../../src/mail/headers';
+import {
+  AUTHENTICITY_TUNING,
+  CLASSIFY_REASONS,
+  assessAuthenticity,
+  classify,
+  decidingDomains,
+  dnsRouting,
+  normalizeSenders,
+  runMailAuth,
+  storedAuth,
+  type AuthenticityContext,
+  type ClassifyInput,
+  type ClassifyOutcome,
+  type DecisionRow,
+} from '../../src/summaries/authenticity';
 import {
   ATTACKER_ADDRESS,
   ATTACKER_DOMAIN,
@@ -1144,6 +1149,35 @@ describe('runMailAuth', () => {
   it('MAILAUTH_VERIFIER matches the installed mailauth version', () => {
     const pkg = JSON.parse(readFileSync(join(__dirname, '../../node_modules/mailauth/package.json'), 'utf8')) as { version: string };
     expect(MAILAUTH_VERIFIER).toBe(`mailauth@${pkg.version}`);
+  });
+});
+
+describe('verifyMailAuth (functions/src/mail/auth.ts, shared with the assistant matters)', () => {
+  it('names its logs by logScope: matters.mailauth_error for the assistant, summaries.mailauth_error through runMailAuth', async () => {
+    const raw = toRaw(await vendorSigned());
+    mockDkimVerifyFailure = true;
+    const routing = (): DnsRouting => ({ priorityDomains: [], alignedDomains: [] });
+    const result = await verifyMailAuth(raw, { now: RECEIVED_AT, resolver: dns.resolver, routing, logScope: 'matters' });
+    expect(result).toEqual({ ok: false, reason: 'malformed', detail: 'verifier_error' });
+    expect(logger.warn).toHaveBeenCalledWith('matters.mailauth_error', { stage: 'dkim', errorName: 'TypeError' });
+    expect(logger.warn).not.toHaveBeenCalledWith('summaries.mailauth_error', expect.anything());
+    (logger.warn as jest.Mock).mockClear();
+    await runMailAuth(raw, { ...DECISION, resolver: dns.resolver, now: RECEIVED_AT });
+    expect(logger.warn).toHaveBeenCalledWith('summaries.mailauth_error', { stage: 'dkim', errorName: 'TypeError' });
+    expect(logger.warn).not.toHaveBeenCalledWith('matters.mailauth_error', expect.anything());
+  });
+
+  it('calls the routing only when no resolver is injected, with the strict header facts', async () => {
+    const raw = toRaw(await vendorSigned());
+    const routing = jest.fn((_header: HeaderFacts): DnsRouting => ({ priorityDomains: [], alignedDomains: [] }));
+    const injected = await verifyMailAuth(raw, { now: RECEIVED_AT, resolver: dns.resolver, routing, logScope: 'matters' });
+    expect(routing).not.toHaveBeenCalled();
+    const fresh = await verifyMailAuth(raw, { now: RECEIVED_AT, routing, logScope: 'matters', dns: { lookupTxt: dns.lookupTxt } });
+    expect(routing).toHaveBeenCalledTimes(1);
+    expect(routing.mock.calls[0]?.[0]).toMatchObject({ ok: true, from: VENDOR_ADDRESS, fromDomain: VENDOR_DOMAIN });
+    // Same verdict either way: the routing only chooses budgets.
+    expect(fresh).toEqual(injected);
+    expect(injected).toMatchObject({ ok: true, signatures: [{ domain: VENDOR_DOMAIN, result: 'pass' }] });
   });
 });
 

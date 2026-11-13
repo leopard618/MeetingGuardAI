@@ -147,7 +147,7 @@ export function parsePostmarkInbound(body: unknown): PostmarkParseResult {
       // encoding cannot survive a JSON string unchanged) and which line endings Postmark keeps
       // is day-0 check 2 (UNVERIFIED). Bare LF line endings alone do not break DKIM: mailauth
       // rewrites every bare LF to CRLF before it hashes headers and body
-      // (mailauth dist/cjs/dkim/message-parser.js ensureLinebreaks), and headers.ts accepts
+      // (mailauth dist/cjs/dkim/message-parser.js ensureLinebreaks), and mail/headers.ts accepts
       // them too.
       rawMime: Buffer.from(rawEmail, 'utf8'),
       envelopeRecipient: {

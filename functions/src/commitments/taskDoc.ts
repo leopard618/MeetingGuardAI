@@ -25,6 +25,14 @@
  *   past, the date (and stated time) kept and no reminder. A reminder that would already lie in the
  *   past is left out (at the due time instead of 60 minutes before when that is still ahead).
  *
+ * Shared by the M11 summaries (commitmentsStore.ts, whatsappCommitments.ts) and the assistant
+ * matters (functions/src/matters, A2): it imports only shared/aiContract.ts, shared/text.ts,
+ * shared/time.ts and ./text.ts, never functions/src/summaries. commitmentOriginLine is the summary
+ * wording; a matters task writes its own origin line and passes it as `description`. Deliberately
+ * NOT here: the transaction, the suggestion and its section anchor, and the keyed ids and digests
+ * of ids.ts (commitmentTaskId, taskFieldsDigest: built from summary ids and HMACs under the
+ * summaries Keyring, shared/sealed.ts).
+ *
  * Product text rule: ASCII punctuation only in this file; Spanish text keeps its accents.
  */
 import {
@@ -35,8 +43,8 @@ import {
   timeZoneSchema,
   type CommitmentMode,
 } from '../shared/aiContract';
+import { sliceSafe } from '../shared/text';
 import { addDaysToLocalDate, isLocalDate, isLocalTime, isValidTimeZone, todayInZone, zonedDateTimeToUtcIso } from '../shared/time';
-import { sliceSafe } from '../summaries/sanitize';
 import { collapseWhitespace } from './text';
 
 /** The keys of a commitment task document: a subset of firestore.rules isValidTask's hasOnly list. */

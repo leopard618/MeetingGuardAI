@@ -197,7 +197,9 @@ Steps, in order:
    mapped, because mailauth would fetch the key at a different name). Failure: refused malformed.
 7. mailauth over the raw bytes with a node:dns resolver (cached per call). Alignment is computed by
    classify itself against the step-6 From domain, not taken from mailauth's status. DNS budgets
-   per message (as built on day 1, functions/src/summaries/authenticity.ts):
+   per message (as built on day 1, functions/src/summaries/authenticity.ts; the verifier, the
+   resolver and its budgets now live in functions/src/mail/auth.ts and the strict header parser
+   in functions/src/mail/headers.ts, shared with the assistant matters):
    - Only when From is exactly a SUMMARIES_SENDERS address or a listed mailbox (or the Gmail
      confirmation sender) do any lookups get priority. Priority (16 s): key-record domains that
      EXACTLY equal a deciding domain (a sender or mailbox domain aligned with From; google.com for
@@ -325,7 +327,10 @@ Residual risks, stated in the docs:
 
 ## 6. Matching
 
-Inputs: titleLine (first meaningful body line), subjectClean (Subject without Fwd/Re/RV and vendor
+Inputs: titleLine (first meaningful body line; headings, dates, date or time fields such as "Date:
+Nov 13, 2026, 12:00 PM" or "Start time: 12:00 PM" and document labels are skipped, and a line
+"Meeting summary: X" or "Resumen de la reunion: X" at the top, below only separators, dates, date
+fields or bare labels, gives X when X is a name, not a sentence, a weekday or a date), subjectClean (Subject without Fwd/Re/RV and vendor
 prefixes), summaryDate D (YYYY-MM-DD from the first 10 lines or the Subject; ISO, "Oct 16, 2026",
 "16 de octubre de 2026"; two different dates mean none), anchor (the signed Date header for vendor
 mail, the forward wrapper's Date for user forwards), conference links in the text.

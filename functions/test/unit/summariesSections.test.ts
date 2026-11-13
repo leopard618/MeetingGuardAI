@@ -2916,6 +2916,162 @@ describe('extractSummaryMeta', () => {
     expect(extractSummaryMeta('', null).titleLine).toBeNull();
   });
 
+  const CARLOS = 'Pricing review with Carlos';
+  const titleOf = (lines: readonly string[]): string | null => extractSummaryMeta(lines.join('\n'), null).titleLine;
+
+  it('takes the title after a document label on the first line (EN and ES)', () => {
+    const reported = ['Meeting summary: Pricing review with Carlos', 'Date: November 13, 2026, 12:00 PM', '', 'Summary', 'Pricing is on track.'];
+    expect(extractSummaryMeta(reported.join('\n'), 'Meeting summary: Pricing review with Carlos')).toMatchObject({
+      titleLine: CARLOS,
+      subjectClean: CARLOS,
+      summaryDate: '2026-11-13',
+      dateLine: 'Date: November 13, 2026, 12:00 PM',
+    });
+    const cases: Array<[string, string]> = [
+      ['Meeting notes: Pricing review with Carlos', CARLOS],
+      ['**Meeting summary:** Pricing review with Carlos', CARLOS],
+      ['**Meeting summary: Pricing review with Carlos**', CARLOS],
+      ['## Meeting summary: Pricing review with Carlos', CARLOS],
+      ['MEETING SUMMARY: Pricing review with Carlos', CARLOS],
+      ['Resumen de la reunión: Revisión de precios', 'Revisión de precios'],
+      ['Resumen de la reunión: Revisión de precios con Carlos', 'Revisión de precios con Carlos'],
+      ['Resumen de la reunion: Revision de precios con Carlos', 'Revision de precios con Carlos'],
+      ['Notas de la reunión: Sincronización semanal', 'Sincronización semanal'],
+      ['Acta: Comité de precios', 'Comité de precios'],
+    ];
+    for (const [first, expected] of cases) {
+      expect([first, titleOf([first, 'Date: November 13, 2026, 12:00 PM', '', 'Summary'])]).toEqual([first, expected]);
+    }
+    // Only the first line: further down, a document label line keeps the old rule.
+    expect(titleOf(['Acme weekly sync', 'Meeting summary: Pricing review'])).toBe('Acme weekly sync');
+  });
+
+  it('a document label over a date, a heading or another label is not the title', () => {
+    expect(titleOf(['Meeting summary: November 13, 2026', CARLOS])).toBe(CARLOS);
+    expect(titleOf(['Meeting notes: Nov 13', CARLOS])).toBe(CARLOS);
+    expect(titleOf(['Meeting notes: 12:00 PM', CARLOS])).toBe(CARLOS);
+    expect(titleOf(['Meeting notes: Recap', CARLOS])).toBe(CARLOS);
+    expect(titleOf(['Meeting notes: Action items', '- Ship it'])).toBeNull();
+    // A document label alone, or with only a date and no colon, is still skipped.
+    expect(titleOf(['Meeting summary', CARLOS])).toBe(CARLOS);
+    expect(titleOf(['Meeting summary:', CARLOS])).toBe(CARLOS);
+    expect(titleOf(['Meeting notes - 2026-10-16', CARLOS])).toBe(CARLOS);
+  });
+
+  it('never takes a date or time field line as the title', () => {
+    const fields = [
+      'Date: November 13, 2026, 12:00 PM',
+      'Date: November 13, 2026',
+      'Date November 13, 2026',
+      'Date:',
+      'Date: 2026-11-13',
+      '**Date:** November 13, 2026',
+      '**Date: Nov 13**',
+      'When: Thursday, November 13, 2026 12:00pm - 1:00pm (CST)',
+      'Cuándo: jueves, 13 de noviembre de 2026 12:00',
+      'CUÁNDO: 13/11/2026',
+      'Cuando: 13/11/2026',
+      'Time: 12:00 PM - 12:45 PM CST',
+      'Hora: 15:00',
+      'Date and time: Nov 13, 2026 12:00 PM',
+      'Fecha y hora: 13 de noviembre de 2026, 12:00',
+      'Fecha: 13/11/2026',
+      'Fecha: 13 de noviembre de 2026',
+      // Any "name: value" field whose name has a date or time word, and values with a duration
+      // or Outlook's zone region.
+      'Meeting date: November 13, 2026',
+      'Start time: 12:00 PM',
+      '**Start time:** 12:00 PM',
+      'Fecha de la reunion: 13/11/2026',
+      'Fecha de la reunión: 13/11/2026',
+      'Dia: 13 de noviembre de 2026',
+      'Día: 13 de noviembre de 2026',
+      'Scheduled: Nov 13, 2026 at 12:00 PM',
+      'Date: November 13, 2026 | Duration: 45 min',
+      'When: Thursday, November 13, 2026 12:00 PM-12:45 PM (UTC-06:00) Central Time (US & Canada)',
+      'Cuándo: jueves, 13 de noviembre de 2026 12:00-12:45 (UTC-06:00) Hora central (EE. UU. y Canadá)',
+    ];
+    for (const field of fields) {
+      expect([field, titleOf([field, CARLOS, '', 'Summary'])]).toEqual([field, CARLOS]);
+      expect([field, titleOf([field])]).toEqual([field, null]);
+    }
+    const controls = [
+      'Date night planning',
+      'When to ship the beta',
+      'Timeline review',
+      'Horario de soporte',
+      'Time tracking sync',
+      'Hora de la demo',
+      'Day 2 planning: Nov 13 offsite',
+      'Start: Kickoff with Acme',
+      'Standup 9:30',
+      'Q4 2026 planning',
+    ];
+    for (const line of controls) expect([line, titleOf([line, '', 'Summary'])]).toEqual([line, line]);
+  });
+
+  it('never takes a line that is only a date, with a weekday, time, zone or duration', () => {
+    const dates = [
+      ['Meeting summary', 'Thursday, November 13, 2026 12:00 PM'],
+      ['Notes', 'Nov 13, 2026 12:00 PM'],
+      ['Meeting recap', 'Nov 13, 2026 \u00B7 12:00 PM \u00B7 45 mins'],
+      ['jueves, 13 de noviembre de 2026 12:00'],
+      ['Nov 13'],
+      ['12:00 PM - 12:45 PM CST'],
+      ['November 13, 2026 | Duration: 45 min'],
+    ];
+    for (const top of dates) expect([top, titleOf([...top, CARLOS, '', 'Summary'])]).toEqual([top, CARLOS]);
+  });
+
+  it('a sentence after a first-line document label is summary content: the line keeps the old rule', () => {
+    // "Meeting summary" and "Notes" are section headings, so the line is skipped as before.
+    const atlas = ['Meeting summary: The team agreed to ship the beta on Friday.', 'Atlas launch sync', '', 'Summary', 'Beta on Friday.'];
+    expect(extractSummaryMeta(atlas.join('\n'), 'Fwd: Your meeting notes').titleLine).toBe('Atlas launch sync');
+    expect(titleOf(['Notes: Dana will send the price sheet by Friday.', CARLOS, '', 'Summary'])).toBe(CARLOS);
+    expect(titleOf(['Resumen de la reunión: Se acordó la lista de precios.', CARLOS])).toBe(CARLOS);
+    // "Meeting notes" is no section heading: the whole line, as before.
+    expect(titleOf(['Meeting notes: The team agreed to ship the beta on Friday.', 'Atlas launch sync'])).toBe(
+      'Meeting notes: The team agreed to ship the beta on Friday.',
+    );
+  });
+
+  it('reads the document label below lines without a letter, dates, date fields and bare labels', () => {
+    const below = (top: string): string | null =>
+      titleOf([top, 'Meeting summary: Pricing review with Carlos', 'Date: November 13, 2026, 12:00 PM', '', 'Summary', 'Pricing is on track.']);
+    for (const top of ['---', '***', '====', '|', String.fromCodePoint(0x1f4dd), 'Nov 13, 2026', 'Meeting summary', 'Date: November 13, 2026, 12:00 PM']) {
+      expect([top, below(top)]).toEqual([top, CARLOS]);
+    }
+    expect(titleOf(['---', 'Meeting notes: Nov 13, 2026', 'Notas: Revisión de precios'])).toBe('Revisión de precios');
+    // A heading above ends the rule: the label line is skipped as before.
+    expect(titleOf(['Summary', 'Meeting summary: Pricing review with Carlos', 'Pricing is on track.'])).toBe('Pricing is on track.');
+  });
+
+  it('keeps the value of a document label whole: its own markup, a table cell, a quoted name', () => {
+    const cases: Array<[string, string]> = [
+      ['Meeting summary: **Pricing review with Carlos**', CARLOS],
+      ['**Meeting summary:** **Pricing review with Carlos**', CARLOS],
+      ['## Meeting summary: **Pricing review with Carlos**', CARLOS],
+      ['Meeting notes: _Pricing review with Carlos_', CARLOS],
+      ['Meeting summary: *Pricing review* with Carlos', '*Pricing review* with Carlos'],
+      // htmlText joins table cells with " | ".
+      ['Meeting summary: | Pricing review with Carlos', CARLOS],
+      ['**Meeting summary:** | Pricing review with Carlos', CARLOS],
+      // A quoted name followed by nothing or only its date (the Gemini Subject shape).
+      ['Notes: "Pricing review with Carlos" Nov 13, 2026', CARLOS],
+      ['Notes: \u201CPricing review with Carlos\u201D', CARLOS],
+      ['Meeting notes: "Pricing" review with Carlos', '"Pricing" review with Carlos'],
+    ];
+    for (const [first, expected] of cases) {
+      expect([first, titleOf([first, 'Date: November 13, 2026, 12:00 PM', '', 'Summary'])]).toEqual([first, expected]);
+    }
+  });
+
+  it('a document label over only a weekday or a relative day is not the title', () => {
+    for (const first of ['Meeting summary: Thursday', 'Meeting notes: Today', 'Notas: Mañana', 'Meeting recap: Friday 3 PM']) {
+      expect([first, titleOf([first, CARLOS, '', 'Summary'])]).toEqual([first, CARLOS]);
+    }
+  });
+
   it('collects conference links, deduplicated, without trailing punctuation', () => {
     const text = [
       'Acme weekly sync',

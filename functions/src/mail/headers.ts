@@ -1,6 +1,11 @@
 /**
- * Strict header parsing for inbound summary mail (docs/v2/M10-DESIGN.md section 4 step 6,
- * section 5, red-team findings 1 and 8). Pure: no Firebase, no DNS, no logging.
+ * Strict header parsing for inbound mail (M10 summaries, assistant matters; docs/v2/M10-DESIGN.md
+ * section 4 step 6, section 5, red-team findings 1 and 8). Pure: no Firebase, no DNS, no logging.
+ *
+ * Shared by the meeting summaries (functions/src/summaries) and the assistant matters
+ * (functions/src/matters, A2). It never imports mailauth, the logger or Firebase, so importing it
+ * never loads mailauth (keep it that way; there is no barrel in functions/src/mail), and it never
+ * logs addresses or content.
  *
  * One header splitter and ONE strict From parser, used everywhere a decision needs the author.
  * The splitter accepts only lines that every common parser reads the same way (mailauth's

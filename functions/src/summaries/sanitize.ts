@@ -17,6 +17,7 @@
  * are written as \u escapes.
  */
 import { summaryAddrSpecSchema } from '../shared/aiContract';
+import { sliceSafe } from '../shared/text';
 
 /** Hard cap on the stored text (design section 8). */
 export const SUMMARY_TEXT_MAX_CHARS = 100_000;
@@ -99,14 +100,9 @@ function trimLineEnds(text: string): string {
     .join('\n');
 }
 
-/** Cuts at `max` UTF-16 units without splitting a surrogate pair. */
-export function sliceSafe(text: string, max: number): string {
-  if (text.length <= max) return text;
-  let cut = max;
-  const code = text.charCodeAt(cut - 1);
-  if (cut > 0 && code >= 0xd800 && code <= 0xdbff) cut -= 1;
-  return text.slice(0, cut);
-}
+// sliceSafe (cut without splitting a surrogate pair) lives in ../shared/text.ts, shared with M11 and
+// the assistant matters; re-exported for the summaries importers.
+export { sliceSafe };
 
 /**
  * Normalizes a plain-text summary for storage and parsing:

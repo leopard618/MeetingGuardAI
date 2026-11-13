@@ -52,6 +52,7 @@ import {
   COLLEAGUE_ADDRESS,
   FRESH_DATE,
   GMAIL_CONFIRMATION,
+  PRICING_REVIEW_BODY,
   PRIVATE_ADDRESS,
   RECAP_BODY,
   RECEIVED_AT,
@@ -750,6 +751,17 @@ describe('rows 7 to 10: stored summaries', () => {
     expect(body.text).toBe(QUOTING_RECAP.replace(/\r\n/g, '\n').trimEnd());
     expect(body.forwardedBy).toBeNull();
     expect(doc).toMatchObject({ summaryDate: '2026-11-10', anchorAt: '2026-11-10T15:20:00.000Z' });
+  });
+
+  it('a recap that opens with "Meeting summary: <name>" and a Date line stores the name as titleLine', async () => {
+    const h = harness();
+    const subject = 'Meeting summary: Pricing review with Carlos';
+    await handleInboundRequest(postmark(await vendorSigned({ subject, body: PRICING_REVIEW_BODY })), h.deps);
+    expect(lastLine()).toMatchObject({ verdict: 'stored', row: 7, outcome: 'created' });
+    const [{ id, doc }] = summaries(h.fake) as [{ id: string; doc: StoredSummaryDoc }];
+    const head = openSummaryHead(KEYRING, { uid: UID, summaryId: id }, doc.sealedHead);
+    expect(head).toEqual({ subject, titleLine: 'Pricing review with Carlos', dateLine: 'Date: November 10, 2026, 3:20 PM' });
+    expect(doc).toMatchObject({ summaryDate: '2026-11-10' });
   });
 
   it('row 10: a forward of that quoting recap keeps the notetaker text whole, so the bound vendor copy upgrades it (step 13), one summary', async () => {

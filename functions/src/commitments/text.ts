@@ -4,6 +4,11 @@
  * Firebase, no logging, no clock.
  *
  * Generic on purpose (decision 15): nothing here knows about summaries, so Sven's A2 reuses it.
+ * Shared by the M11 summaries (grounding.ts, verify.ts, due.ts, taskDoc.ts, ids.ts and the
+ * summaries handlers) and the assistant matters (functions/src/matters, A2); it imports nothing.
+ * Deliberately NOT here: section anchors, the parser's marker syntax, and the keyed ids and digests
+ * of ids.ts (normalizeAnchorText is only the text normalization they hash; the keys themselves are
+ * HMACs under the summaries Keyring, shared/sealed.ts).
  *
  * Product text rule: ASCII punctuation only in this file; other characters are built from code
  * points (String.fromCharCode), so the file never holds a typographic character itself.

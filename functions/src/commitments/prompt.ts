@@ -25,7 +25,7 @@
  */
 import { buildDateTable, createNonce, type PromptMessage } from '../assistant/prompt';
 import { COMMITMENT_LIMITS } from '../shared/aiContract';
-import { sliceSafe } from '../summaries/sanitize';
+import { sliceSafe } from '../shared/text';
 import { weekdayOf, type ReferenceDay } from './due';
 import type { ModelInput } from './payload';
 import { PROPOSE_COMMITMENTS_TOOL_NAME } from './tool';

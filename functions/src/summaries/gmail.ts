@@ -5,9 +5,10 @@
  * When a user adds the private address as a Gmail forwarding address, Gmail mails a confirmation
  * code to it from forwarding-noreply@google.com. The inbound handler calls this parser ONLY for
  * mail classified G (From exactly GMAIL_CONFIRMATION_SENDER with a passing google.com signature,
- * functions/src/summaries/authenticity.ts), then stores {gmailAddress, code} in gmailRequests
- * keyed by gmailAddress (max 3, 2-day expiry). We never fetch, follow, store or return Google's
- * link: the user pastes the code on the Gmail settings page.
+ * functions/src/summaries/authenticity.ts over functions/src/mail/auth.ts), then stores
+ * {gmailAddress, code} in gmailRequests keyed by gmailAddress (max 3, 2-day expiry). We never
+ * fetch, follow, store or return Google's link: the user pastes the code on the Gmail settings
+ * page.
  *
  * Known English shape (UNVERIFIED until the first real message is captured):
  *   Subject: (#123456789) Gmail Forwarding Confirmation - Receive Mail from someone@gmail.com
@@ -25,15 +26,15 @@
  * - Address: the single addr-spec in the subject; only when the subject names none, the English
  *   body's "<address> has requested to automatically forward mail" line. Two different addresses
  *   in the subject, or a subject address that differs from that body line, give null. It must
- *   pass the strict parseAddrSpec (./headers.ts) and the contract's summaryAddrSpecSchema, and is
- *   returned lowercased. Any domain is accepted (Google Workspace accounts use their own).
+ *   pass the strict parseAddrSpec (../mail/headers.ts) and the contract's summaryAddrSpecSchema,
+ *   and is returned lowercased. Any domain is accepted (Google Workspace accounts use their own).
  * - Nothing is ever read from a link: codes come only from the marker and whole label lines, the
  *   address only from the subject or the requester line, and the result holds nothing else.
  *
  * Pure: no Firebase, no logging. Subject, body, address and code are content: never log them.
  */
+import { parseAddrSpec } from '../mail/headers';
 import { SUMMARY_GMAIL_CODE_PATTERN, SUMMARY_LIMITS, summaryAddrSpecSchema } from '../shared/aiContract';
-import { parseAddrSpec } from './headers';
 
 export interface GmailConfirmation {
   /** The Gmail (or Google Workspace) address that asked to forward to the private address, lowercased. */

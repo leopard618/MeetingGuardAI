@@ -53,6 +53,22 @@ export const RECAP_BODY = [
   '',
 ].join('\r\n');
 
+/**
+ * A recap that opens with a document label over the meeting name and a date field on the next
+ * line: the title is the text after the label, never the Date line.
+ */
+export const PRICING_REVIEW_BODY = [
+  'Meeting summary: Pricing review with Carlos',
+  'Date: November 10, 2026, 3:20 PM',
+  '',
+  'Summary',
+  'Pricing is on track.',
+  '',
+  'Action items',
+  '[ ] Send the price sheet to Carlos (owner: Dana)',
+  '',
+].join('\r\n');
+
 export interface TestKey {
   privateKey: string;
   /** base64 DER SubjectPublicKeyInfo, the p= value of a DKIM key record. */

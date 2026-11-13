@@ -211,6 +211,15 @@ describe('titleScore', () => {
     });
     expect(titleScore({ titleLine: null, subjectClean: null }, 'Acmepay weekly sync').score).toBe(0);
   });
+
+  it('scores the meeting name read after a first-line document label as equal', () => {
+    // extractSummaryMeta reads "Meeting summary: Pricing review with Carlos" as this titleLine.
+    expect(titleScore({ titleLine: 'Pricing review with Carlos', subjectClean: null }, 'Pricing review with Carlos')).toEqual({
+      score: 1,
+      reason: 'title_equal',
+      fromSubject: false,
+    });
+  });
 });
 
 describe('timeScore', () => {

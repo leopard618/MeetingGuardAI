@@ -3,8 +3,8 @@
  * rows 0 to 16, section 6 inputs and anchors, red-team findings 1 to 17). A pure handler over
  * injected ports, in the handleRevenueCatWebhook shape: the HTTPS shell (./inboundFunction.ts)
  * only maps the request and wires the ports. This module is loaded LAZILY by that shell on the
- * first request, because it pulls in mailauth (./authenticity), postal-mime (./mime) and parse5
- * (./htmlText).
+ * first request, because it pulls in mailauth (./authenticity and ../mail/auth), postal-mime
+ * (./mime) and parse5 (./htmlText).
  *
  * Steps, in this order (security critical; never reorder):
  *   0. Switched off: 404. Not POST: 405.
@@ -52,8 +52,8 @@
  *   Any Firestore failure or other unexpected error answers 500 (Postmark retries), after the
  *   first-seen time is recorded when the message was already routed.
  *
- * Labels and the stored fromAddress come from the strict header facts (./headers.ts), never from
- * postal-mime; the display name is never read, so fromName is always null.
+ * Labels and the stored fromAddress come from the strict header facts (../mail/headers.ts), never
+ * from postal-mime; the display name is never read, so fromName is always null.
  *
  * Logs: exactly one `summaries.inbound` line per authorized request, carrying only fixed codes and
  * counts: uid, tok8, verdict, reason, detail, row, tier, outcome, matched, ms, htmlHidden (the
@@ -66,15 +66,16 @@ import type { Auth } from 'firebase-admin/auth';
 import type { Firestore } from 'firebase-admin/firestore';
 import type { DNSResolver } from 'mailauth';
 
+import { isPassSig, type MailAuthResult } from '../mail/auth';
+import { parseMailDate, type HeaderFacts } from '../mail/headers';
 import { SUMMARY_LIMITS, type SummaryRefusedReason, type SummaryTier as ContractSummaryTier } from '../shared/aiContract';
 import { SealedError, parseKeyring, type Keyring } from '../shared/sealed';
 import { isValidTimeZone, zonedDateTimeToUtcIso } from '../shared/time';
 import { normalizeMailbox, parseAddressTemplate, readSummaryUser, resolveToken, tok8, tokenFromEnvelope, tokenHash } from './address';
-import { assessAuthenticity, isPassSig, normalizeSenders, storedAuth, type Classification, type MailAuthResult } from './authenticity';
+import { assessAuthenticity, normalizeSenders, storedAuth, type Classification } from './authenticity';
 import { candidateWindow, readPreferencesTimeZone, type CandidateWindow, type LoadCandidatesOptions, type LoadedCandidates } from './candidates';
 import { isPilotUid, parsePilotList } from './gate';
 import { parseGmailConfirmation } from './gmail';
-import { parseMailDate, type HeaderFacts } from './headers';
 import { htmlToText } from './htmlText';
 import { decide, type MatchAnchor, type MatchCandidate } from './match';
 import { parseMime, type ParsedMime } from './mime';

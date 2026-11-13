@@ -81,6 +81,7 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
+import { MONTHS, datesIn, stripDates } from '../shared/textDates';
 import { lineSpans, sanitizeLine, sliceSafe, type LineSpan } from './sanitize';
 
 /** Stored as parserVersion; bump on any change that moves offsets, kinds or ids. */
@@ -1519,7 +1520,14 @@ export function sectionsAreConsistent(text: string, sections: readonly SummarySe
 // ---------------------------------------------------------------------------------------------
 
 export interface SummaryMeta {
-  /** First meaningful line of the text (markup removed), or null. */
+  /**
+   * First meaningful line of the text (markup removed), or null. Headings, dates (with a weekday,
+   * time, zone or duration too), date or time fields ("Date: November 13, 2026, 12:00 PM",
+   * "Start time: 12:00 PM") and document labels are skipped. A document label at the top, below
+   * only lines without a letter, dates, date fields or bare labels, gives the name after its colon
+   * ("Meeting summary: Pricing review" gives "Pricing review"); a sentence there keeps the line to
+   * the rule above, and a weekday or a date there skips it.
+   */
   titleLine: string | null;
   /** Subject without Re/Fwd/RV prefixes and notetaker prefixes ("Meeting notes:"), or null. */
   subjectClean: string | null;
@@ -1531,57 +1539,14 @@ export interface SummaryMeta {
   conferenceLinks: string[];
 }
 
-/** English and Spanish month names and abbreviations (lowercase, no accents); M11's resolveDue reads them too. */
-export const MONTHS: Readonly<Record<string, number>> = {
-  january: 1, jan: 1, enero: 1, ene: 1,
-  february: 2, feb: 2, febrero: 2,
-  march: 3, mar: 3, marzo: 3,
-  april: 4, apr: 4, abril: 4, abr: 4,
-  may: 5, mayo: 5,
-  june: 6, jun: 6, junio: 6,
-  july: 7, jul: 7, julio: 7,
-  august: 8, aug: 8, agosto: 8, ago: 8,
-  september: 9, sept: 9, sep: 9, septiembre: 9, setiembre: 9, set: 9,
-  october: 10, oct: 10, octubre: 10,
-  november: 11, nov: 11, noviembre: 11,
-  december: 12, dec: 12, diciembre: 12, dic: 12,
-};
+// MONTHS, datesIn and stripDates (dates with a year: ISO, month first, day first) live in
+// ../shared/textDates.ts, shared with M11 and the assistant matters; re-exported for the existing
+// importers (commitments/asWritten.ts, test/unit/summariesSections.test.ts).
+export { MONTHS, datesIn };
+
 const MONTH_ALT = Object.keys(MONTHS)
   .sort((a, b) => b.length - a.length)
   .join('|');
-
-// 2026-10-16 or 2026/10/16.
-const ISO_DATE_RE = /(?<!\d)(\d{4})([-/])(\d{2})\2(\d{2})(?!\d)/g;
-// Oct 16, 2026 / October 16th, 2026 / Friday, October 16, 2026.
-const MONTH_FIRST_RE = new RegExp(`\\b(${MONTH_ALT})\\.?[ \\t]+(\\d{1,2})(?:st|nd|rd|th)?,?[ \\t]+(\\d{4})(?!\\d)`, 'gi');
-// 16 Oct 2026 / 16 October 2026 / 16 de octubre de 2026 / vie, 16 oct. 2026.
-const DAY_FIRST_RE = new RegExp(
-  `(?<!\\d)(\\d{1,2})(?:st|nd|rd|th)?[ \\t]+(?:de[ \\t]+)?(${MONTH_ALT})\\.?,?[ \\t]+(?:del?[ \\t]+)?(\\d{4})(?!\\d)`,
-  'gi',
-);
-
-function isoDate(year: number, month: number, day: number): string | null {
-  if (year < 2000 || year > 2099 || month < 1 || month > 12 || day < 1) return null;
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  if (day > daysInMonth) return null;
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-/** Every valid calendar date written in `s` in a supported format, as YYYY-MM-DD. */
-export function datesIn(s: string): Set<string> {
-  const out = new Set<string>();
-  const add = (d: string | null) => {
-    if (d) out.add(d);
-  };
-  for (const m of s.matchAll(ISO_DATE_RE)) add(isoDate(Number(m[1]), Number(m[3]), Number(m[4])));
-  for (const m of s.matchAll(MONTH_FIRST_RE)) add(isoDate(Number(m[3]), MONTHS[(m[1] ?? '').toLowerCase()] ?? 0, Number(m[2])));
-  for (const m of s.matchAll(DAY_FIRST_RE)) add(isoDate(Number(m[3]), MONTHS[(m[2] ?? '').toLowerCase()] ?? 0, Number(m[1])));
-  return out;
-}
-
-function stripDates(s: string): string {
-  return s.replace(ISO_DATE_RE, ' ').replace(MONTH_FIRST_RE, ' ').replace(DAY_FIRST_RE, ' ');
-}
 
 // Only for telling a date label from a heading (isDateOnly), never for summaryDate: a date
 // without a year, a month with only a year, and numeric dates in either order.
@@ -1702,6 +1667,104 @@ function conferenceLinksIn(text: string): string[] {
   return out;
 }
 
+/**
+ * A date or time field name at the start of a line, with optional markup and an optional colon:
+ * "Date", "Date and time", "Fecha", "Fecha y hora", "When", "Cuando" (accented too), "Time",
+ * "Hora". Written with escapes so this file stays ASCII.
+ */
+const DATE_FIELD_RE =
+  /^[*_]*(?:date(?:[ \t]+and[ \t]+time)?|fecha(?:[ \t]+y[ \t]+hora)?|when|cu[a\u00E1]ndo|time|hora)(?![\p{L}\p{N}])[*_]*[ \t]*(?::[*_]*[ \t]*)?/iu;
+
+/**
+ * Words that make the name of a "name: value" line a date or time field ("Meeting date", "Start
+ * time", "Fecha de la reunion", "Dia", "Scheduled"), headingKey form. titleLine only.
+ */
+const DATE_FIELD_WORDS: ReadonlySet<string> = new Set([
+  'date', 'time', 'day', 'when', 'start', 'scheduled', 'fecha', 'hora', 'dia', 'cuando', 'inicio',
+]);
+
+/** A duration label next to a date ("Nov 13, 2026 | Duration: 45 min"), headingKey form. titleLine only. */
+const DURATION_WORDS: ReadonlySet<string> = new Set(['duration', 'duracion']);
+
+/** The region Outlook writes after a zone name: "(US & Canada)", "(EE. UU. y Canada)" (accented too). */
+const OUTLOOK_ZONE_TAIL_RE = /\((?:US|EE\.?[ \t]*UU\.?)[ \t]*(?:&|and|y)[ \t]*Canad[a\u00E1]\)/giu;
+
+/**
+ * isDateOnly for titleLine, also allowing a duration label and Outlook's zone region:
+ * "Thursday, November 13, 2026 12:00 PM", "Nov 13", "12:00 PM - 12:45 PM CST",
+ * "November 13, 2026 | Duration: 45 min", "Thursday, November 13, 2026 12:00 PM-12:45 PM
+ * (UTC-06:00) Central Time (US & Canada)". The section parser keeps isDateOnly.
+ */
+function isDateValue(text: string): boolean {
+  if (!hasDatePart(text)) return false;
+  return headingKey(stripDateParts(text.replace(OUTLOOK_ZONE_TAIL_RE, ' ')))
+    .split(' ')
+    .every((w) => w === '' || DATE_TOKEN_RE.test(w) || DATE_FILLER_WORDS.has(w) || DURATION_WORDS.has(w));
+}
+
+/**
+ * A date or time field over nothing or only a date: "Date: November 13, 2026, 12:00 PM",
+ * "When: Thursday, November 13, 2026 12:00pm - 1:00pm (CST)", "Fecha: 13/11/2026", a bare
+ * "Date:", and any "name: value" line whose name has a date or time word and whose value is only
+ * a date ("Meeting date: November 13, 2026", "Start time: 12:00 PM", "Dia: 13 de noviembre de
+ * 2026"). "Date: TBD", "Date night planning" and "When to ship the beta" are not.
+ */
+function isDateFieldLine(text: string): boolean {
+  const m = DATE_FIELD_RE.exec(text);
+  if (m !== null) {
+    const rest = text.slice(m[0].length).trim();
+    if (rest === '' || isDateValue(rest)) return true;
+  }
+  const name = INLINE_DERIVED_RE.exec(text)?.[1];
+  if (name === undefined || !headingKey(name).split(' ').some((w) => DATE_FIELD_WORDS.has(w))) return false;
+  return isDateValue(text.slice(text.indexOf(':') + 1));
+}
+
+/**
+ * The value after a document label written as "label: value" ("Meeting summary: Pricing review",
+ * "Resumen de la reunion: Revision de precios"), or null when the line does not start with a
+ * document label and a colon. Only the label's closing markup, the blanks and a table cell
+ * separator (htmlText writes " | " between cells) are removed, so readLabel still removes the
+ * value's own balanced emphasis ("Meeting summary: **Pricing review**"). A quoted name followed by
+ * nothing or only a date ('Notes: "Pricing review" Nov 13, 2026') gives the quoted name.
+ */
+function documentLabelRest(label: Label): string | null {
+  const lead = INLINE_DERIVED_RE.exec(label.text)?.[1];
+  if (lead === undefined || !DOCUMENT_LABEL_KEYS.has(headingKey(lead))) return null;
+  const rest = label.text.slice(label.text.indexOf(':') + 1).replace(/^[*_]*[ \t]*(?:\|[ \t]*)?/, '');
+  const quoted = QUOTED_LEAD_RE.exec(rest);
+  if (quoted?.[1] !== undefined) {
+    const tail = rest.slice(quoted[0].length).trim();
+    if (tail === '' || isDateValue(tail)) return quoted[1];
+  }
+  return rest;
+}
+
+/** Only weekday, relative day, time or zone words, no date ("Thursday", "Today", "Manana"). */
+function isDateWordsOnly(text: string): boolean {
+  return headingKey(text)
+    .split(' ')
+    .every((w) => DATE_FILLER_WORDS.has(w) || DATE_TOKEN_RE.test(w));
+}
+
+/**
+ * A document label's value shaped like a meeting name, not a sentence of the summary ("Meeting
+ * summary: The team agreed to ship the beta on Friday." is section content): at most
+ * MAX_HEADING_CHARS and no sentence punctuation at the end, as labelShape asks of a marked label.
+ */
+function isNameShaped(text: string): boolean {
+  return text.length <= MAX_HEADING_CHARS && !/[.!?;,]$/.test(text);
+}
+
+/**
+ * A line above the meeting name that keeps the document label rule open: no letter ("---", "|",
+ * an emoji), only a date, a date or time field, or a bare document label ("Meeting summary").
+ */
+function isTitlePreamble(label: Label): boolean {
+  if (!/\p{L}/u.test(label.text) || isDateValue(label.text) || isDateFieldLine(label.text)) return true;
+  return DOCUMENT_LABEL_KEYS.has(headingKey(stripDates(label.text)));
+}
+
 function isTitleCandidate(trimmed: string, label: Label): boolean {
   if (matchItem(trimmed)) return false;
   if (!/\p{L}/u.test(label.text)) return false;
@@ -1709,6 +1772,10 @@ function isTitleCandidate(trimmed: string, label: Label): boolean {
   if (KNOWN_HEADINGS.has(key)) return false;
   const inline = INLINE_DERIVED_RE.exec(trimmed);
   if (inline?.[1] !== undefined && KNOWN_HEADINGS.has(headingKey(inline[1]))) return false;
+  // A date or time field ("Date: November 13, 2026, 12:00 PM", "Fecha: 13/11/2026", "Date:").
+  if (isDateFieldLine(label.text)) return false;
+  // Only a date, with a weekday, time, zone or duration ("Thursday, November 13, 2026 12:00 PM").
+  if (isDateValue(label.text)) return false;
   // A line that is only a date, or a document label with a date ("Meeting notes - 2026-10-16").
   const undated = headingKey(stripDates(label.text));
   return undated !== '' && !DOCUMENT_LABEL_KEYS.has(undated);
@@ -1729,12 +1796,27 @@ export function extractSummaryMeta(text: string, subject: string | null | undefi
   }
 
   let titleLine: string | null = null;
+  // True while every line so far is a preamble line (isTitlePreamble) or a skipped document label.
+  let leading = true;
   for (const trimmed of topLines) {
     const label = readLabel(trimmed);
+    // A document label at the top names the meeting after its colon. Over only a date, a heading or
+    // another label it is skipped like any document label; over a sentence the line keeps the rule
+    // below, as before.
+    const rest = leading ? documentLabelRest(label) : null;
+    if (rest !== null) {
+      const restLabel = readLabel(rest);
+      if (!isTitleCandidate(rest, restLabel) || isDateWordsOnly(restLabel.text)) continue;
+      if (isNameShaped(restLabel.text)) {
+        titleLine = sliceSafe(restLabel.text, MAX_TITLE_CHARS).trim();
+        break;
+      }
+    }
     if (isTitleCandidate(trimmed, label)) {
       titleLine = sliceSafe(label.text, MAX_TITLE_CHARS).trim();
       break;
     }
+    leading = leading && isTitlePreamble(label);
   }
 
   const subjectLine = sanitizeLine(subject, MAX_SUBJECT_CHARS);

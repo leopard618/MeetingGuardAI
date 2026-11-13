@@ -350,7 +350,8 @@ export const SUMMARIES_FUNCTION_TUNING = {
   /**
    * summaryInbound: one raw message (5 MiB at most) is parsed, DKIM-checked and sealed in memory,
    * so few requests share an instance (memory exhaustion before the token check, finding 11). The
-   * timeout covers the 32 s DNS bound of one message (summaries/authenticity.ts) with headroom.
+   * timeout covers the 32 s DNS bound of one message (mail/auth.ts DNS_MESSAGE_BOUND_MS) with
+   * headroom.
    */
   inbound: { memory: '1GiB', cpu: 1, concurrency: 2, maxInstances: 3, timeoutSeconds: 60 },
   /** summaryRead: decrypts and re-matches a page of summaries. */

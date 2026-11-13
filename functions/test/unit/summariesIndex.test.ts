@@ -10,7 +10,8 @@
  *   finding 13), and as the default account otherwise; the callables never carry it; it is a
  *   plain dotenv key read by gate.ts summariesServiceAccountAtLoad, never a declared param;
  * - loading the module never loads mailauth, postal-mime or the pipeline modules (authenticity,
- *   mime, inbound): every function instance of the project loads the whole entry point;
+ *   mime, inbound), nor the shared verifier (functions/src/mail/auth.ts): every function instance
+ *   of the project loads the whole entry point;
  * - summaryAction cannot decrypt: its modules never reference the data key or the open helpers.
  */
 jest.mock('firebase-functions/logger', () => ({
@@ -34,6 +35,12 @@ jest.mock('postal-mime', () => {
 jest.mock('../../src/summaries/authenticity', () => {
   mockLoaded.push('authenticity');
   return jest.requireActual('../../src/summaries/authenticity');
+});
+// The shared verifier (functions/src/mail/auth.ts) loads mailauth, so it must stay out of the
+// deploy-time graph too.
+jest.mock('../../src/mail/auth', () => {
+  mockLoaded.push('mailAuth');
+  return jest.requireActual('../../src/mail/auth');
 });
 jest.mock('../../src/summaries/mime', () => {
   mockLoaded.push('mime');
@@ -249,6 +256,20 @@ describe('summaries module exports (deploy gating)', () => {
     loadModule(undefined);
     jest.requireActual('../../src/summaries/authenticity');
     expect(mockLoaded).toContain('mailauth');
+  });
+
+  it('never loads the shared verifier (mail/auth) at module load, gate unset or true; the detector does see it (control)', () => {
+    for (const value of [undefined, 'true']) {
+      loadModule(value);
+      expect([value, mockLoaded.includes('mailAuth')]).toEqual([value, false]);
+    }
+    loadModule(undefined);
+    jest.requireActual('../../src/mail/auth');
+    expect(mockLoaded).toContain('mailauth');
+    // Through the summaries pipeline the detector fires as well.
+    loadModule(undefined);
+    jest.requireActual('../../src/summaries/authenticity');
+    expect(mockLoaded).toContain('mailAuth');
   });
 
   it('exports summaryRead only while SUMMARIES_ENABLED is true, binding the data key only', () => {

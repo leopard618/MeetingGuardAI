@@ -3,6 +3,13 @@
  * check 6, section 15 finding 6). PURE: no Firebase, no logging; the reference day comes from the
  * caller (the meeting's local date, see referenceDayOf), never from the clock.
  *
+ * Shared by the M11 summaries (verify.ts, asWritten.ts, prompt.ts, the commitments handler) and the
+ * assistant matters (functions/src/matters, A2): it imports only shared/textDates.ts,
+ * shared/time.ts and ./text.ts, never functions/src/summaries. Deliberately NOT here: section
+ * anchors and offsets, the summary parser's "(due: ...)" marker syntax (sections.ts DUE_PAREN_RE
+ * and DUE_INLINE_RE), and the keyed ids and digests of ids.ts (built from summary ids and HMACs
+ * under the summaries Keyring, shared/sealed.ts).
+ *
  * resolveDue(dueQuote, referenceDay, language) reads the summary's own words for a deadline:
  * - an absolute date with a year (datesIn: "2026-11-21", "Nov 21, 2026", "21 de noviembre de
  *   2026"): those dates;
@@ -25,7 +32,7 @@
  *
  * Product text rule: ASCII punctuation only in this file.
  */
-import { datesIn, MONTHS } from '../summaries/sections';
+import { datesIn, MONTHS } from '../shared/textDates';
 import { addDaysToLocalDate, isLocalDate, isValidTimeZone, toLocalDateTime, zonedDateTimeToUtcIso } from '../shared/time';
 import { collapseWhitespace, fold } from './text';
 
