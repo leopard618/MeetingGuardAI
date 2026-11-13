@@ -69,18 +69,43 @@ export function toUpstreamError(error: unknown): UpstreamError {
   return new UpstreamError('unknown', null, { cause: error });
 }
 
+/**
+ * M11 (docs/v2/M11-DESIGN.md section 2.1): per-client timeouts and token cap, so summaryCommitments
+ * sets its own (COMMITMENTS_TUNING) while the assistant keeps ASSISTANT_TUNING. Every field is
+ * optional and falls back to the assistant's value, so a client created without it is unchanged.
+ */
+export interface OpenAiClientTuning {
+  requestTimeoutMs: number;
+  deadlineMs: number;
+  maxRetries: number;
+  maxCompletionTokens: number;
+}
+
+/** The tuning a client runs with: the overrides given, else ASSISTANT_TUNING. */
+export function openAiClientTuningOf(overrides: Partial<OpenAiClientTuning> | undefined): OpenAiClientTuning {
+  return {
+    requestTimeoutMs: overrides?.requestTimeoutMs ?? ASSISTANT_TUNING.openAiRequestTimeoutMs,
+    deadlineMs: overrides?.deadlineMs ?? ASSISTANT_TUNING.openAiDeadlineMs,
+    maxRetries: overrides?.maxRetries ?? ASSISTANT_TUNING.openAiMaxRetries,
+    maxCompletionTokens: overrides?.maxCompletionTokens ?? ASSISTANT_TUNING.maxCompletionTokens,
+  };
+}
+
 export function createOpenAiClient(options: {
   apiKey: string;
   model: string;
   reasoningEffort: ReasoningEffortSetting | null;
+  /** M11: optional overrides; absent means ASSISTANT_TUNING (openAiClientTuningOf). */
+  tuning?: Partial<OpenAiClientTuning>;
 }): LlmClient {
   if (options.apiKey.trim().length === 0) {
     throw new UpstreamError('configuration', null);
   }
+  const tuning = openAiClientTuningOf(options.tuning);
   const client = new OpenAI({
     apiKey: options.apiKey,
-    timeout: ASSISTANT_TUNING.openAiRequestTimeoutMs,
-    maxRetries: ASSISTANT_TUNING.openAiMaxRetries,
+    timeout: tuning.requestTimeoutMs,
+    maxRetries: tuning.maxRetries,
   });
   return {
     async complete(request) {
@@ -91,13 +116,13 @@ export function createOpenAiClient(options: {
             messages: request.messages,
             tools: request.tools.map((tool) => ({ type: 'function', function: { ...tool.function } })),
             tool_choice: request.toolChoice,
-            max_completion_tokens: ASSISTANT_TUNING.maxCompletionTokens,
+            max_completion_tokens: tuning.maxCompletionTokens,
             ...(options.reasoningEffort ? { reasoning_effort: options.reasoningEffort } : {}),
             safety_identifier: request.safetyIdentifier,
             // Conversations contain personal data: do not keep them in the OpenAI dashboard.
             store: false,
           },
-          { signal: AbortSignal.timeout(ASSISTANT_TUNING.openAiDeadlineMs) },
+          { signal: AbortSignal.timeout(tuning.deadlineMs) },
         );
         const choice = completion.choices[0];
         if (!choice) throw new UpstreamError('unknown', null);

@@ -26,6 +26,10 @@
     "CalendarSync": "Sincronización de calendarios",
     "Pricing": "Planes",
     "WhatsAppConnect": "WhatsApp",
+    "SummaryConnect": "Minutas de reuniones",
+    "SummaryInbox": "Bandeja de minutas",
+    "SummaryView": "Minuta",
+    "SummaryCommitments": "Compromisos",
     "Matters": "Asistente ejecutivo de IA"
   },
   "meeting": {

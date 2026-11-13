@@ -26,6 +26,10 @@
     "CalendarSync": "Calendar sync",
     "Pricing": "Plans",
     "WhatsAppConnect": "WhatsApp",
+    "SummaryConnect": "Meeting summaries",
+    "SummaryInbox": "Summary inbox",
+    "SummaryView": "Summary",
+    "SummaryCommitments": "Commitments",
     "Matters": "AI executive assistant"
   },
   "meeting": {

@@ -1,0 +1,666 @@
+{
+  "row": {
+    "title": "Minutas de reuniones",
+    "subtitle": "Las minutas de tu asistente de notas, archivadas en tus reuniones",
+    "waiting_one": "{{count}} minuta espera una reunión",
+    "waiting_other": "{{count}} minutas esperan una reunión"
+  },
+  "common": {
+    "productLine": "Meeting Guard AI no se une a tus reuniones, no las graba y no las escucha.",
+    "productLineMore": "Archiva en la reunión correcta la minuta que tu propio asistente de notas ya te envía por correo.",
+    "notAttended": "Meeting Guard AI no asistió a esta reunión. Este texto viene de tu asistente de notas.",
+    "otherRecorder": "Una minuta puede venir de una reunión que grabó otra persona.",
+    "unknownSender": "un remitente desconocido",
+    "untitled": "Minuta sin título",
+    "received": "Recibida {{time}}",
+    "summaryDate": "Fecha en la minuta: {{date}}",
+    "noSummaryDate": "La minuta no tiene fecha",
+    "loading": "Cargando minutas...",
+    "retry": "Reintentar",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "copyFailed": "No se pudo copiar. Mantén pulsado el texto para copiarlo.",
+    "origin": {
+      "vendor": "Escrita por tu asistente de notas ({{domain}}), recibida {{time}}. Firma comprobada.",
+      "vendorNoDomain": "Escrita por tu asistente de notas, recibida {{time}}. Firma comprobada.",
+      "forwarded": "Reenviada desde {{address}}. No se pudo comprobar la firma del propio asistente de notas.",
+      "forwardedNoAddress": "Reenviada desde uno de tus buzones. No se pudo comprobar la firma del propio asistente de notas."
+    },
+    "chip": {
+      "vendor_verified": "De tu asistente de notas",
+      "user_forwarded": "Reenviada"
+    },
+    "status": {
+      "matched": "Archivada en una reunión",
+      "inbox": "Esperando una reunión",
+      "kept": "Guardada sin reunión",
+      "refused": "Rechazada"
+    },
+    "method": {
+      "auto": "Archivada automáticamente por título y hora",
+      "user": "Archivada por ti"
+    },
+    "inboxReason": {
+      "old_summary": "Llegó mucho después de escribirse, o no se pudo comprobar cuándo se envió, así que no se archivó automáticamente.",
+      "not_addressed_to_you": "No iba dirigida a ninguno de tus buzones, por ejemplo porque se envió directamente a tu dirección privada. Comprueba que es tuya antes de archivarla.",
+      "user_forwarded": "La reenviaste tú. Elige la reunión a la que pertenece.",
+      "needs_confirmation": "Una reunión parece la correcta. Confírmala antes de archivar la minuta.",
+      "ambiguous": "Dos reuniones se parecen. Elige la correcta.",
+      "no_candidate": "No hay ninguna reunión cerca de esa hora. Puede que esté en un calendario que no está conectado.",
+      "weak": "Ninguna reunión coincide lo suficiente con su título y su hora.",
+      "no_date": "La minuta no tiene fecha, así que no se pudo buscar su reunión."
+    },
+    "refusedReason": {
+      "too_large": {
+        "title": "Demasiado grande",
+        "body": "El correo superaba el límite de tamaño.",
+        "action": "Pide a tu asistente de notas un correo de minuta más corto, sin archivos adjuntos."
+      },
+      "malformed": {
+        "title": "Correo dañado",
+        "body": "Sus encabezados estaban dañados o repetidos, así que no se pudo comprobar.",
+        "action": "Vuelve a enviar la minuta. Si sigue pasando, puede que el correo no sea una minuta real."
+      },
+      "could_not_verify_after_forwarding": {
+        "title": "Firma perdida por el camino",
+        "body": "Tu servicio de correo modificó el correo al reenviarlo, así que la firma del asistente de notas ya no coincidía.",
+        "action": "Usa una regla de Redirigir en lugar de Reenviar (en Outlook: Redirigir a). Consulta los pasos de configuración."
+      },
+      "changed_after_sending": {
+        "title": "Modificada después del envío",
+        "body": "La firma del asistente de notas está presente, pero ya no coincide: el texto se cambió después de enviarse.",
+        "action": "Si no esperabas este correo, no tienes que hacer nada. Si era tu minuta, revisa tu regla de reenvío y vuelve a enviarla."
+      },
+      "sender_not_verified": {
+        "title": "Remitente no verificado",
+        "body": "Dice venir de tu asistente de notas o de uno de tus buzones, pero ninguna firma válida lo respalda.",
+        "action": "Si era tuya, puede que tu servicio de correo no firme los mensajes que envía. Crea una regla de Redirigir para que llegue el correo original del asistente de notas."
+      },
+      "not_from_your_notetaker": {
+        "title": "No es de tu asistente de notas",
+        "body": "No viene de un asistente de notas que aceptemos, o lo reenvió otra persona.",
+        "action": "Si sigues recibiendo correos así, pide una dirección nueva."
+      },
+      "unreadable": {
+        "title": "Sin texto legible",
+        "body": "El correo era auténtico, pero no le quedaba texto legible.",
+        "action": "Vuelve a reenviar el correo con la minuta en el cuerpo, no como archivo adjunto."
+      }
+    },
+    "refusedFrom": "De {{domain}}",
+    "refusedFromUnknown": "De un remitente desconocido",
+    "refusedNotStored": "Meeting Guard AI no guarda los correos rechazados. Solo conserva el motivo, el día, un recuento y el dominio del remitente cuando está verificado, durante 30 días.",
+    "delete": {
+      "action": "Eliminar",
+      "title": "¿Eliminar esta minuta?",
+      "body": "Sale de nuestra base de datos activa en el acto y de nuestras copias de seguridad en un plazo de 21 días. La copia de nuestro proveedor de correo caduca a los {{providerDays}} días. El correo original se queda en tu propio buzón.",
+      "confirm": "Eliminar",
+      "done": "Minuta eliminada"
+    },
+    "privacy": {
+      "title": "Privacidad",
+      "encrypted": "Google Cloud cifra tus minutas en tránsito y en reposo. Además, Meeting Guard AI cifra el texto de cada minuta, su asunto y las direcciones de correo que contiene con una clave propia, guardada en Google Secret Manager. Tu dirección privada, los buzones que indicas y datos como la fecha, el dominio del remitente y la reunión en la que está archivada no tienen esta capa adicional. No es cifrado de extremo a extremo: las personas con acceso administrativo a nuestros sistemas podrían técnicamente descifrarlas. Nuestro proveedor de correo, Postmark, recibe primero cada correo y lo conserva durante {{providerDays}} días.",
+      "yoursOnly": "Solo tú puedes ver tus minutas en la aplicación; los demás usuarios de Meeting Guard AI no pueden acceder a ellas.",
+      "deletable": "Puedes eliminar cualquier minuta, o todas, cuando quieras. Salen de nuestra base de datos activa en el acto y de nuestras copias de seguridad en un plazo de 21 días. La copia de nuestro proveedor de correo caduca a los {{providerDays}} días. El correo original se queda en tu propio buzón.",
+      "refused": "Una minuta que tu asistente de notas no firmó, que se modificó después de enviarse o que no se envió a uno de tus propios buzones se rechaza, y Meeting Guard AI no guarda su contenido. Una minuta real enviada directamente a tu dirección privada espera en tu bandeja hasta que des tu visto bueno."
+    },
+    "unavailable": {
+      "title": "Todavía no disponible",
+      "body": "Las minutas de reuniones todavía no están disponibles para tu cuenta."
+    }
+  },
+  "errors": {
+    "unauthenticated": "Vuelve a iniciar sesión con un correo verificado para usar las minutas de reuniones.",
+    "not_enabled": "Las minutas de reuniones todavía no están disponibles.",
+    "not_allowed": "Las minutas de reuniones todavía no están disponibles para tu cuenta.",
+    "not_ready": "Tu dirección privada todavía no está lista. Inténtalo de nuevo más tarde.",
+    "invalid_request": "No funcionó. Revisa lo que escribiste e inténtalo de nuevo.",
+    "not_found": "Esta minuta ya no está aquí. Puede que se haya eliminado.",
+    "invalid_meeting": "Esa reunión ya no está disponible. Elige otra.",
+    "rate_limited": "Hoy pediste demasiadas direcciones nuevas. Inténtalo de nuevo mañana.",
+    "upstream_error": "Algo falló de nuestro lado. Inténtalo de nuevo más tarde.",
+    "generic": "Algo salió mal. Inténtalo de nuevo."
+  },
+  "connect": {
+    "intro": "Envía a tu dirección privada la minuta que tu asistente de notas ya escribe. Meeting Guard AI la archiva en la reunión a la que pertenece.",
+    "notReady": "Las minutas por correo todavía se están configurando. Vuelve a mirar pronto.",
+    "create": "Crear mi dirección privada",
+    "createHint": "Recibes una dirección que solo tú conoces. Las minutas de tu asistente de notas llegan a ella mediante una regla de correo.",
+    "created": "Tu dirección privada está lista",
+    "openInbox": "Abrir la bandeja de minutas",
+    "address": {
+      "title": "Tu dirección privada",
+      "hint": "No compartas esta dirección. Nunca la añadas como invitada a una reunión ni a una lista para compartir.",
+      "copy": "Copiar",
+      "copied": "Dirección copiada",
+      "share": "Compartir",
+      "shareMessage": "Mi dirección de Meeting Guard AI para las minutas de reuniones: {{address}}",
+      "regenerate": "Obtener una dirección nueva",
+      "regenerateTitle": "¿Obtener una dirección nueva?",
+      "regenerateBody": "Tu dirección actual deja de funcionar en el acto y Meeting Guard AI ya no guarda el correo que llegue a ella. Después actualiza tu regla de reenvío; Gmail te pedirá que vuelvas a confirmar la dirección nueva.",
+      "regenerateConfirm": "Obtener una dirección nueva",
+      "regenerated": "Tu dirección nueva está lista. Actualiza tu regla de reenvío.",
+      "capped": "Hoy tu dirección recibió mucho correo basura, así que ya no se cuenta más. Obtén una dirección nueva para cortarlo."
+    },
+    "mailboxes": {
+      "title": "Dónde llegan tus minutas",
+      "hint": "Los buzones a los que tu asistente de notas envía sus minutas. Una minuta se archiva sola únicamente si se envió a uno de ellos.",
+      "empty": "Todavía no hay buzones. Añade el buzón al que tu asistente de notas envía sus minutas.",
+      "add": "Añadir un buzón",
+      "label": "Dirección de correo",
+      "placeholder": "nombre@empresa.com",
+      "remove": "Quitar {{address}}",
+      "save": "Guardar",
+      "saved": "Buzones guardados",
+      "invalid": "Escribe una sola dirección de correo, por ejemplo nombre@empresa.com.",
+      "duplicate": "Este buzón ya está en la lista.",
+      "maxReached": "Puedes indicar hasta {{max}} buzones.",
+      "reserved": "Tu dirección privada no puede ser uno de tus buzones. Escribe el buzón al que tu asistente de notas envía sus minutas.",
+      "unsaved": "Todavía sin guardar. Pulsa Guardar para conservar los cambios."
+    },
+    "gmail": {
+      "title": "Código de confirmación de Gmail",
+      "body": "Gmail pidió confirmar el reenvío desde {{address}}. Pega este código en la página de reenvío de la configuración de Gmail y pulsa Verificar.",
+      "code": "Código: {{code}}",
+      "copy": "Copiar código",
+      "copied": "Código copiado",
+      "open": "Abrir la configuración de Gmail",
+      "dismiss": "Descartar",
+      "received": "Recibido {{time}}",
+      "otherTitle": "Otra persona pidió reenviar aquí",
+      "otherBody": "{{address}} no es uno de tus buzones. Lo pidió otra persona; ignóralo.",
+      "ignore": "Ignorar"
+    },
+    "setup": {
+      "title": "Configurar el reenvío",
+      "tabs": {
+        "gmail": "Gmail",
+        "outlook": "Outlook y Microsoft 365",
+        "other": "Otro"
+      },
+      "browserHint": "Hazlo en un navegador web. Las aplicaciones del teléfono no permiten configurar el reenvío.",
+      "gmail": {
+        "steps": {
+          "step1": "Abre la configuración de Gmail, Reenvío y correo POP/IMAP, y pulsa Añadir una dirección de reenvío. Pega tu dirección privada y pulsa Siguiente y Continuar.",
+          "step2": "Gmail envía un código de confirmación a tu dirección privada. Aparece en esta pantalla en menos de un minuto. Pégalo en la misma página de Gmail y pulsa Verificar.",
+          "step3": "Deja desactivado el reenvío de todo tu correo.",
+          "step4": "Abre Filtros y direcciones bloqueadas y pulsa Crear un filtro. En De, escribe la dirección de envío de tu asistente de notas y pulsa Crear filtro.",
+          "step5": "Elige Reenviarlo a, selecciona tu dirección privada y pulsa Crear filtro."
+        },
+        "openForwarding": "Abrir la configuración de reenvío",
+        "openFilters": "Abrir la configuración de filtros",
+        "workspace": "Google Workspace: si el reenvío aparece desactivado en gris, tu administrador tiene que permitir antes el reenvío automático."
+      },
+      "outlook": {
+        "steps": {
+          "step1": "Abre Outlook en la web, Configuración, Correo, Reglas, y pulsa Agregar nueva regla.",
+          "step2": "Condición: De, la dirección de envío de tu asistente de notas. Acción: Redirigir a, tu dirección privada. Guarda la regla.",
+          "step3": "Usa Redirigir, no Reenviar. Redirigir mantiene al asistente de notas como remitente, así que su firma se puede comprobar. Reenviar no es compatible."
+        },
+        "openRules": "Abrir las reglas de Outlook",
+        "company": "Buzón de empresa: Microsoft 365 bloquea por defecto el reenvío automático a direcciones externas. Si no llega nada, comparte los pasos con tu administrador."
+      },
+      "other": {
+        "steps": {
+          "step1": "En tu servicio de correo, crea una regla para el correo de la dirección de envío de tu asistente de notas que lo envíe a tu dirección privada.",
+          "step2": "Elige Redirigir (o Rebotar) si tu servicio de correo lo ofrece. Así la firma del asistente de notas llega intacta.",
+          "step3": "También puedes reenviar a mano una minuta desde uno de tus buzones. Espera en tu bandeja de minutas hasta que la archives con un toque."
+        }
+      },
+      "admin": {
+        "title": "Pasos para tu administrador",
+        "hint": "Comparte estos pasos con quien gestione el correo de tu empresa.",
+        "share": "Compartir los pasos",
+        "mailboxFallback": "mi buzón",
+        "microsoft": "Uso Meeting Guard AI para recibir las minutas de mis reuniones. Una regla de correo en {{mailbox}} redirige a {{address}} solo los correos de minuta de mi asistente de notas. Microsoft 365 bloquea por defecto el reenvío automático a direcciones externas. Para permitirlo solo en este buzón:\n1. En el portal de Microsoft Defender (https://security.microsoft.com/antispam), crea una directiva contra correo no deseado saliente que se aplique solo a {{mailbox}}, con las reglas de reenvío automático en On - Forwarding is enabled (Activado: el reenvío está habilitado).\n2. En el Centro de administración de Exchange (https://admin.exchange.microsoft.com/#/remotedomains), comprueba que el dominio remoto Default permite el reenvío automático.\nNo se reenvía ningún otro correo.",
+        "google": "Uso Meeting Guard AI para recibir las minutas de mis reuniones. Un filtro de Gmail en {{mailbox}} reenvía a {{address}} solo los correos de minuta de mi asistente de notas. El reenvío aparece desactivado en mi configuración de Gmail. Por favor, permite el reenvío automático para mi cuenta en la Consola de administración de Google (https://admin.google.com), en Aplicaciones, Google Workspace, Gmail, Acceso de usuarios finales.\nNo se reenvía ningún otro correo."
+      }
+    },
+    "activity": {
+      "title": "Actividad",
+      "lastReceived": "Última minuta recibida {{time}}",
+      "nothingYet": "Todavía no ha llegado nada.",
+      "waiting": "Esperando tu primera minuta. Esta pantalla comprueba cada pocos segundos mientras está abierta.",
+      "lastRefused": "Último rechazo {{time}}: {{reason}}",
+      "refusedToday_one": "{{count}} correo rechazado hoy",
+      "refusedToday_other": "{{count}} correos rechazados hoy"
+    },
+    "microsoftHint": {
+      "title": "Todavía no ha llegado nada",
+      "body": "No ha llegado ninguna minuta en 24 horas. Si usas un buzón de empresa de Microsoft 365, puede que Microsoft esté bloqueando la redirección. Comparte los pasos con tu administrador.",
+      "action": "Pasos para tu administrador"
+    },
+    "checks": {
+      "title": "Qué comprobamos",
+      "signature": "La minuta lleva la firma digital de tu propio asistente de notas y no se modificó nada después de enviarse.",
+      "sender": "Viene de una dirección de asistente de notas que aceptamos.",
+      "mailbox": "Se envió a uno de los buzones que indicaste arriba.",
+      "fresh": "Es reciente: se escribió en las últimas dos semanas.",
+      "match": "Solo se archiva sola cuando su título y su hora coinciden con una de tus reuniones. Si no, espera en tu bandeja de minutas.",
+      "refused": "Una minuta que pasa las dos primeras comprobaciones pero no las demás, o una que reenvías tú a mano desde uno de tus buzones, espera en tu bandeja de minutas hasta que des tu visto bueno. Todo lo demás se rechaza, y Meeting Guard AI no guarda su contenido."
+    },
+    "disconnect": {
+      "action": "Desconectar",
+      "title": "Dejar de recibir minutas",
+      "body": "Tu dirección privada deja de funcionar en el acto. Las minutas que ya están aquí:",
+      "keep": "Conservarlas",
+      "delete": "Eliminarlas",
+      "tasksStay": "Las tareas que añadiste desde minutas se quedan en tus tareas.",
+      "cancel": "Cancelar",
+      "deleteTitle": "¿Eliminar todas tus minutas?",
+      "deleteBody": "Salen de nuestra base de datos activa en el acto y de nuestras copias de seguridad en un plazo de 21 días. La copia de nuestro proveedor de correo caduca a los {{providerDays}} días. Los correos originales se quedan en tu propio buzón. Las tareas que añadiste desde minutas se quedan en tus tareas.",
+      "deleteConfirm": "Desconectar y eliminar",
+      "doneKept": "Desconectado. Tus minutas se conservan.",
+      "doneDeleted": "Desconectado. Tus minutas se eliminaron.",
+      "disconnected": "No tienes ninguna dirección conectada. Meeting Guard AI ya no guarda el correo que llegue a tu dirección anterior, pero nuestro proveedor de correo conserva su copia durante {{providerDays}} días. Quita la regla de correo que reenvía a esa dirección.",
+      "reconnect": "Volver a crear mi dirección privada",
+      "reconnectHint": "Una dirección nueva cuenta para el límite de direcciones nuevas que puedes pedir en un día."
+    },
+    "retention": {
+      "title": "Cuánto tiempo guardamos las minutas",
+      "filed": "Minutas archivadas en una reunión o guardadas sin reunión: 12 meses desde que llegan; después se eliminan.",
+      "inbox": "Minutas que esperan en la bandeja: 60 días desde que llegan, o 60 días desde que devuelves una a la bandeja, lo que ocurra más tarde.",
+      "refused": "Correos rechazados: solo un recuento diario, el motivo y el dominio del remitente cuando está verificado, durante 30 días; nunca su contenido.",
+      "suggestions": "Las tareas sugeridas forman parte de su minuta y se eliminan con ella.",
+      "tasks": "Las tareas que añades son tuyas: se quedan hasta que las eliminas, también después de eliminar la minuta o de desconectar. Su título y las personas de la tarea se copian de la sugerencia y no tienen el cifrado adicional de la minuta.",
+      "deleting": "Al eliminar: sale en el acto de nuestra base de datos activa y de las copias de seguridad en un plazo de 21 días; la copia de nuestro proveedor de correo, a los {{providerDays}} días; el original se queda en tu buzón.",
+      "openai": "Cuando pides sugerencias, el texto de la minuta se envía a OpenAI a través de nuestro servidor.",
+      "copies": "Copias fuera de nuestra base de datos: el recordatorio de una tarea muestra su título en la pantalla de bloqueo, como cualquier tarea; en WhatsApp, la lista y las frases que cita se quedan en tu chat, en las vistas previas de las notificaciones y en tus copias de seguridad de WhatsApp hasta que las elimines allí; una sincronización con To Do o Google Tasks copia la tarea. Eliminar la minuta o desconectar no llega a esas copias."
+    }
+  },
+  "inbox": {
+    "waiting": {
+      "title": "Esperando una reunión",
+      "empty": "No hay nada esperando. Aquí aparece la minuta que no se puede archivar sola."
+    },
+    "recent": {
+      "title": "Archivadas hace poco",
+      "empty": "Todavía no hay minutas archivadas.",
+      "filedUnder": "Archivada en {{title}}",
+      "kept": "Guardada sin reunión"
+    },
+    "refused": {
+      "title": "Rechazadas",
+      "show": "Mostrar rechazadas",
+      "hide": "Ocultar rechazadas",
+      "row_one": "{{count}} rechazada el {{day}}",
+      "row_other": "{{count}} rechazadas el {{day}}",
+      "empty": "Nada rechazado en los últimos 30 días."
+    },
+    "fileUnder": "Archivar en {{title}}",
+    "fileUnderA11y": "Archivar en {{title}}, {{time}}",
+    "choose": "Elegir una reunión",
+    "keep": "Guardar sin reunión",
+    "kept": "Guardada sin reunión",
+    "filed": "Archivada en {{title}}",
+    "noSuggestions": "No hay sugerencias porque esta minuta no iba dirigida a ti. Si es tuya, elige tú su reunión.",
+    "pullToRefresh": "Desliza hacia abajo para volver a buscar reuniones que coincidan.",
+    "more": "Solo se muestran las {{count}} más recientes.",
+    "openSetup": "Dirección y configuración",
+    "empty": {
+      "title": "Todavía no hay minutas",
+      "body": "Cuando la minuta de tu asistente de notas llegue a tu dirección privada, se archivará en su reunión o esperará aquí.",
+      "action": "Configurar el reenvío"
+    }
+  },
+  "attach": {
+    "title": "Elegir una reunión",
+    "moveTitle": "Mover a otra reunión",
+    "previousDay": "Día anterior",
+    "nextDay": "Día siguiente",
+    "summaryDay": "Día de la minuta",
+    "noMeetings": "No hay reuniones ese día. Prueba con otro día.",
+    "loading": "Cargando reuniones...",
+    "allDay": "Todo el día",
+    "cancelled": "Cancelada",
+    "occurrence": "Una reunión de una serie",
+    "file": "Archivar aquí",
+    "filed": "Archivada en {{title}}",
+    "moved": "Movida a {{title}}",
+    "current": "Archivada aquí ahora",
+    "cancel": "Cancelar"
+  },
+  "view": {
+    "loading": "Cargando minuta...",
+    "notFound": "Esta minuta ya no está aquí.",
+    "match": {
+      "auto": "Archivada en {{title}}, {{time}}. Asignada automáticamente por título y hora.",
+      "user": "Archivada en {{title}}, {{time}}. La archivaste tú.",
+      "inbox": "Todavía sin archivar: esperando una reunión.",
+      "kept": "Guardada sin reunión."
+    },
+    "tldrHeading": "El resumen de tu propio asistente de notas",
+    "tldrNote": "Este resumen lo escribió el propio asistente de notas. Compáralo con los detalles de abajo.",
+    "textHeading": "Texto",
+    "owner": "Responsable: {{owner}}",
+    "due": "Fecha límite: {{due}}",
+    "checkbox": {
+      "done": "Hecho",
+      "open": "Pendiente"
+    },
+    "flag": {
+      "possible_instruction": "Parece una instrucción. Se muestra solo como texto.",
+      "has_link": "Contiene un enlace, que se muestra como texto.",
+      "truncated": "Recortado porque era demasiado largo."
+    },
+    "truncated": "Esta minuta se recortó porque era muy larga.",
+    "linksPlain": "Los enlaces se muestran como texto. Copia uno para abrirlo en tu navegador.",
+    "subject": "Asunto: {{subject}}",
+    "from": "De: {{address}}",
+    "copyText": "Copiar texto",
+    "copied": "Texto copiado",
+    "notThisMeeting": "No es esta reunión",
+    "notThisMeetingTitle": "¿No es esta reunión?",
+    "notThisMeetingBody": "La minuta vuelve a tu bandeja de minutas y esta reunión no se le vuelve a sugerir.",
+    "notThisMeetingConfirm": "Volver a la bandeja",
+    "detached": "Devuelta a tu bandeja de minutas",
+    "move": "Mover",
+    "choose": "Elegir una reunión",
+    "keep": "Guardar sin reunión",
+    "notFoundBody": "Puede que se haya eliminado, aquí o en otro dispositivo. El correo original se queda en tu propio buzón.",
+    "emailHeading": "Datos del correo",
+    "trust": {
+      "notBound": "No iba dirigida a ninguno de los buzones que indicaste. Comprueba que es tuya.",
+      "notFresh": "Llegó mucho después de escribirse, o no se pudo comprobar cuándo se envió."
+    },
+    "review": "Revisar compromisos",
+    "reviewCount": "Revisar compromisos ({{count}})",
+    "retentionLink": "Cuánto tiempo guardamos las minutas",
+    "keptUntil": "Esta minuta se guarda hasta el {{date}}.",
+    "truncatedHint": "Al llegar solo se guardó la primera parte. El correo original se queda en tu propio buzón."
+  },
+  "meeting": {
+    "title_one": "Minuta de tu asistente de notas",
+    "title_other": "Minutas de tu asistente de notas",
+    "received": "Recibida {{time}}",
+    "occurrence": "Para la reunión del {{date}}",
+    "open": "Abrir la minuta {{title}}"
+  },
+  "commitments": {
+    "title": "Tareas sugeridas",
+    "entry": {
+      "review": "Revisar compromisos",
+      "reviewCount": "Revisar compromisos ({{count}})",
+      "reviewA11y": "Revisar los compromisos de esta minuta",
+      "added_one": "{{count}} añadida a tus tareas",
+      "added_other": "{{count}} añadidas a tus tareas",
+      "empty": "No se encontraron compromisos",
+      "stale": "La minuta cambió: vuelve a preparar las sugerencias (gratis)",
+      "preparing": "En preparación"
+    },
+    "header": {
+      "count_one": "{{count}} sugerencia",
+      "count_other": "{{count}} sugerencias",
+      "open_one": "{{count}} por revisar",
+      "open_other": "{{count}} por revisar",
+      "added_one": "{{count}} en tus tareas",
+      "added_other": "{{count}} en tus tareas"
+    },
+    "mode": {
+      "ai": "Sugeridas por IA",
+      "as_written": "Tal como están escritas",
+      "switchToAi": "Sugerir tareas con IA",
+      "switchToAsWritten": "Ver las tareas tal como están escritas",
+      "aiCost": "Usa 1 acción de IA, solo la primera vez.",
+      "asWrittenFree": "Gratis. No se usa IA."
+    },
+    "notice": {
+      "title": "Antes de que Meeting Guard AI lea esta minuta",
+      "body": "Para sugerir tareas, Meeting Guard AI envía el texto de esta minuta a OpenAI a través de nuestro servidor. Por defecto, OpenAI no lo usa para entrenar sus modelos y puede conservarlo durante un tiempo limitado para detectar abusos. Nada se convierte en tarea hasta que lo aceptas.",
+      "continue": "Continuar",
+      "asWritten": "Ver las tareas tal como están escritas"
+    },
+    "start": {
+      "title": "Convierte esta minuta en tareas",
+      "body": "Meeting Guard AI puede leer la minuta de tu asistente de notas y sugerirte las tareas que menciona, cada una con la frase de la que sale. Nada se convierte en tarea hasta que lo aceptas.",
+      "ai": "Sugerir tareas con IA",
+      "asWritten": "Ver las tareas tal como están escritas",
+      "costs": "Las tareas tal como están escritas: gratis, sin IA. Con IA: 1 acción de IA, solo la primera vez."
+    },
+    "loading": {
+      "get": "Cargando las tareas sugeridas...",
+      "ai": "Leyendo la minuta de tu asistente de notas. Esto usa 1 acción de IA, solo la primera vez.",
+      "asWritten": "Leyendo las tareas de la minuta..."
+    },
+    "preparing": {
+      "title": "En preparación",
+      "body": "Las tareas sugeridas de esta minuta se están preparando. Puede tardar uno o dos minutos; aparecerán aquí cuando estén listas.",
+      "slow": "Está tardando más de lo normal. Inténtalo de nuevo en un momento."
+    },
+    "empty": {
+      "title": "No se encontraron compromisos.",
+      "ai": "Meeting Guard AI no encontró compromisos en esta minuta.",
+      "asWritten": "Esta minuta no tiene tareas que mostrar.",
+      "tryAsWritten": "Ver las tareas tal como están escritas",
+      "tryAi": "Sugerir tareas con IA"
+    },
+    "stale": {
+      "title": "Esta minuta cambió",
+      "body": "Esta minuta cambió. Vuelve a preparar las sugerencias.",
+      "free": "Volver a prepararlas es gratis.",
+      "action": "Volver a preparar",
+      "readOnly": "Esta es la lista de antes del cambio. Vuelve a prepararla para añadir o cambiar tareas."
+    },
+    "quota": {
+      "title": "Acciones de IA agotadas",
+      "body": "Ya usaste todas tus acciones de IA. Las tareas tal como están escritas siguen siendo gratis.",
+      "resets": "Tus acciones se renuevan: {{time}}.",
+      "plans": "Ver planes",
+      "asWritten": "Ver las tareas tal como están escritas"
+    },
+    "origin": {
+      "suggested": {
+        "meeting": "Sugeridas a partir de la minuta que tu asistente de notas escribió sobre {{meeting}}, {{date}}.",
+        "meetingNoDate": "Sugeridas a partir de la minuta que tu asistente de notas escribió sobre {{meeting}}.",
+        "kept": "Sugeridas a partir de la minuta de tu asistente de notas del {{date}} (no archivada en una reunión).",
+        "keptNoDate": "Sugeridas a partir de la minuta de tu asistente de notas (no archivada en una reunión).",
+        "forwarded": "Sugeridas a partir de una minuta reenviada desde {{address}}.",
+        "forwardedNoAddress": "Sugeridas a partir de una minuta reenviada desde uno de tus buzones.",
+        "notAddressed": "Sugeridas a partir de una minuta que no se envió a ninguno de tus buzones."
+      },
+      "asWritten": {
+        "meeting": "De la minuta que tu asistente de notas escribió sobre {{meeting}}, {{date}}.",
+        "meetingNoDate": "De la minuta que tu asistente de notas escribió sobre {{meeting}}.",
+        "kept": "De la minuta de tu asistente de notas del {{date}} (no archivada en una reunión).",
+        "keptNoDate": "De la minuta de tu asistente de notas (no archivada en una reunión).",
+        "forwarded": "De una minuta reenviada desde {{address}}.",
+        "forwardedNoAddress": "De una minuta reenviada desde uno de tus buzones.",
+        "notAddressed": "De una minuta que no se envió a ninguno de tus buzones."
+      },
+      "notAttended": "Meeting Guard AI no asistió a esta reunión.",
+      "aiWritten": "Sugerencias redactadas por IA a partir del texto de tu asistente de notas. Revisa los nombres, las fechas y el sentido antes de añadirlas.",
+      "asWrittenLine": "Las tareas exactamente como las escribió tu asistente de notas."
+    },
+    "banner": {
+      "old_summary": "No pudimos confirmar cuándo se envió esta minuta, así que no hay nada seleccionado.",
+      "not_addressed_to_you": "Esta minuta no se envió a ninguno de tus buzones. Puede ser de la reunión de otra persona, así que elige tú cada elemento.",
+      "forwarded": "Esta minuta se reenvió desde {{address}} y no se pudo comprobar la firma del asistente de notas, así que no hay nada seleccionado.",
+      "forwardedNoAddress": "Esta minuta se reenvió desde uno de tus buzones y no se pudo comprobar la firma del asistente de notas, así que no hay nada seleccionado.",
+      "possible_instruction": "Una parte de esta minuta parece contener instrucciones para un programa. No hay nada seleccionado; lee cada elemento.",
+      "truncated": "Solo se leyó la primera parte de una minuta larga.",
+      "meetingChanged": "Se archivó en otra reunión después de preparar estas sugerencias. Las tareas que ya añadiste siguen vinculadas a la reunión en la que las añadiste."
+    },
+    "reminder": {
+      "title": "Recordatorio para los elementos sin fecha",
+      "choice": {
+        "tomorrow": "Mañana a las {{time}}",
+        "dayAfter": "Pasado mañana a las {{time}}",
+        "nextMonday": "El próximo lunes a las {{time}}",
+        "pick": "Elegir fecha y hora",
+        "picked": "{{date}} a las {{time}}",
+        "none": "Sin recordatorio"
+      },
+      "yourChoice": "Lo eliges tú. La minuta no da ninguna fecha.",
+      "pastPick": "Esa hora ya pasó. Elige una más tarde.",
+      "group": {
+        "tomorrow_one": "{{count}} recordatorio mañana a las {{time}}",
+        "tomorrow_other": "{{count}} recordatorios mañana a las {{time}}",
+        "dayAfter_one": "{{count}} recordatorio pasado mañana a las {{time}}",
+        "dayAfter_other": "{{count}} recordatorios pasado mañana a las {{time}}",
+        "nextMonday_one": "{{count}} recordatorio el próximo lunes a las {{time}}",
+        "nextMonday_other": "{{count}} recordatorios el próximo lunes a las {{time}}",
+        "picked_one": "{{count}} recordatorio el {{date}} a las {{time}}",
+        "picked_other": "{{count}} recordatorios el {{date}} a las {{time}}",
+        "none_one": "{{count}} elemento sin recordatorio",
+        "none_other": "{{count}} elementos sin recordatorio"
+      },
+      "groupHint": "Los recordatorios a la misma hora llegan juntos."
+    },
+    "card": {
+      "selectA11y": "Seleccionar: {{title}}",
+      "fromSummary": "De la minuta:",
+      "section": "Sección: {{heading}}",
+      "edit": "Editar",
+      "drop": "Descartar",
+      "dropped": "Descartada",
+      "restore": "Recuperar",
+      "inTasks": "En tus tareas",
+      "openTask": "Abrir la tarea",
+      "undo": "Deshacer",
+      "removedFromTasks": "Quitada de tus tareas",
+      "addAgain": "Añadir de nuevo",
+      "alreadyAdded": "Ya añadida",
+      "via": {
+        "app": "Añadida en la aplicación",
+        "whatsapp": "Añadida en WhatsApp"
+      },
+      "edited": "Editada por ti",
+      "readOnly": "Vuelve a preparar las sugerencias para cambiar esta."
+    },
+    "dropped": {
+      "title_one": "{{count}} descartada",
+      "title_other": "{{count}} descartadas",
+      "show": "Mostrar las descartadas",
+      "hide": "Ocultar las descartadas"
+    },
+    "owner": {
+      "you": "Tú",
+      "guess": "¿Tú? (la minuta dice: {{name}})",
+      "named": "Responsable en la minuta: {{name}}",
+      "none": "Sin responsable",
+      "title": "{{name}}: {{what}}",
+      "followUp": "Un seguimiento para ti: el título de la tarea empieza por {{name}}."
+    },
+    "due": {
+      "date": "Vence el {{date}}",
+      "dateTime": "Vence el {{date}} a las {{time}}",
+      "says": "La minuta dice: {{quote}}",
+      "withQuote": "Vence el {{date}} (la minuta dice: {{quote}})",
+      "overdue": "Vencida: la minuta dice {{date}}",
+      "overdueQuote": "Vencida (la minuta dice: {{quote}}). Sin recordatorio hasta que elijas uno.",
+      "noReminderUntilPick": "Sin recordatorio hasta que elijas uno.",
+      "meetingTime": "{{time}}, hora de la reunión ({{zone}})",
+      "noDate": "Lo eliges tú. La minuta no da ninguna fecha.",
+      "noDateReminder": "La minuta no da ninguna fecha. Recordatorio: {{when}}, elegido por ti.",
+      "reminderChip": "Recordatorio {{when}}, elegido por ti",
+      "noReminder": "Sin recordatorio"
+    },
+    "chip": {
+      "overdue": "Vencida",
+      "payment_like": "Pago o código",
+      "possible_instruction": "Parece una instrucción",
+      "suggested": "Idea del asistente de notas",
+      "checklist": "Lista de verificación",
+      "similar_added": "Quizá ya añadida",
+      "owner_guess": "Revisa el responsable",
+      "has_link": "Tiene un enlace",
+      "truncated": "Recortado",
+      "lowConfidence": "Revisa esta"
+    },
+    "reason": {
+      "suggested": "La sugiere tu asistente de notas; no se dijo en la reunión.",
+      "checklist": "Forma parte de una lista de verificación.",
+      "payment_like": "Revisa esta: menciona un pago o un código.",
+      "similar_added": "Se parece a una tarea que ya añadiste.",
+      "possible_instruction": "Parece una instrucción para un programa. Léela antes de añadirla.",
+      "owner_guess": "Solo tu nombre de pila coincide con el del responsable. Comprueba que eres tú.",
+      "lowConfidence": "Meeting Guard AI no está seguro de que esto sea un compromiso.",
+      "has_link": "Su enlace se queda como texto en la minuta y no se añade al título de la tarea.",
+      "truncated": "Este elemento se recortó porque era demasiado largo."
+    },
+    "footer": {
+      "acceptAll": "Aceptar todas ({{count}})",
+      "acceptSelected_one": "Añadir {{count}} seleccionada",
+      "acceptSelected_other": "Añadir {{count}} seleccionadas",
+      "selectAll": "Seleccionar todas",
+      "clearSelection": "Quitar la selección",
+      "nothingSelected": "Selecciona las tareas que quieres añadir.",
+      "offline": "Conéctate a internet para añadir estas tareas.",
+      "adding": "Añadiendo tareas..."
+    },
+    "result": {
+      "added_one": "Se añadió {{count}} tarea. Su recordatorio queda programado en este teléfono.",
+      "added_other": "Se añadieron {{count}} tareas. Sus recordatorios quedan programados en este teléfono.",
+      "addedNoReminder_one": "Se añadió {{count}} tarea.",
+      "addedNoReminder_other": "Se añadieron {{count}} tareas.",
+      "addedSomeReminders_one": "Se añadió {{count}} tarea. Su recordatorio queda programado en este teléfono.",
+      "addedSomeReminders_other": "Se añadieron {{count}} tareas. Las que tienen recordatorio lo tienen programado en este teléfono.",
+      "alreadyAdded_one": "{{count}} ya estaba en tus tareas.",
+      "alreadyAdded_other": "{{count}} ya estaban en tus tareas.",
+      "notOpen_one": "{{count}} ya se había gestionado, aquí o en otro dispositivo.",
+      "notOpen_other": "{{count}} ya se habían gestionado, aquí o en otro dispositivo.",
+      "dropped": "Descartada",
+      "restored": "Recuperada",
+      "removed": "Quitada de tus tareas",
+      "changed": "Esta tarea se cambió después de añadirla, así que no se quitó. Ábrela para cambiarla o eliminarla.",
+      "stale": "Estas sugerencias cambiaron en otro dispositivo. Revísalas y vuelve a intentarlo."
+    },
+    "edit": {
+      "title": "Editar la tarea",
+      "titleLabel": "Título",
+      "titleRequired": "Escribe un título.",
+      "titleTooLong": "Usa como máximo {{max}} caracteres.",
+      "owner": "¿De quién es la tarea?",
+      "ownerYou": "Mía",
+      "ownerNamed": "{{name}}, como dice la minuta",
+      "ownerOther": "De otra persona",
+      "ownerOtherLabel": "Su nombre",
+      "ownerOtherRequired": "Escribe su nombre.",
+      "ownerNobody": "De nadie en particular",
+      "ownerHint": "Una tarea de otra persona es un seguimiento para ti: su título empieza por su nombre.",
+      "due": "Fecha límite",
+      "dueTime": "Hora",
+      "pickDate": "Elegir una fecha",
+      "pickTime": "Elegir una hora",
+      "clearDate": "Sin fecha límite",
+      "clearTime": "Sin hora",
+      "reminder": "Recordatorio",
+      "timeNeedsDate": "Elige una fecha antes de elegir una hora.",
+      "reminderNeedsTime": "Un recordatorio necesita una hora límite.",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "discardTitle": "¿Descartar los cambios?",
+      "discardBody": "Se perderán los cambios de esta tarea.",
+      "discard": "Descartar",
+      "keepEditing": "Seguir editando"
+    },
+    "leave": {
+      "title": "¿Salir sin añadir?",
+      "body": "Tus cambios solo están en esta pantalla y se perderán.",
+      "leave": "Salir",
+      "stay": "Quedarme"
+    },
+    "keep": {
+      "until": "Esta minuta se guarda hasta el {{date}}. Las tareas que añadas se quedan hasta que las elimines.",
+      "rules": "Cuánto tiempo guardamos las minutas",
+      "deleteKeepTasks": "Eliminar la minuta y conservar mis tareas",
+      "deleteTitle": "¿Eliminar la minuta y conservar tus tareas?",
+      "deleteBody": "La minuta y sus sugerencias salen de nuestra base de datos activa en el acto y de nuestras copias de seguridad en un plazo de 21 días. La copia de nuestro proveedor de correo caduca a los {{providerDays}} días. Las tareas que añadiste se quedan en tus tareas.",
+      "deleteConfirm": "Eliminar la minuta",
+      "deleted": "Minuta eliminada. Tus tareas se conservan."
+    },
+    "errors": {
+      "quota_exceeded": "Ya usaste todas tus acciones de IA. Las tareas tal como están escritas siguen siendo gratis.",
+      "stale": "Estas sugerencias cambiaron en otro dispositivo. Revísalas y vuelve a intentarlo.",
+      "upstream_error": "Las tareas sugeridas no están disponibles ahora. Inténtalo de nuevo o mira las tareas tal como están escritas.",
+      "not_found": "Esta minuta ya no está aquí. Puede que se haya eliminado o que haya vuelto a la bandeja.",
+      "invalid_request": "No funcionó. Revisa la tarea e inténtalo de nuevo.",
+      "offline": "No tienes conexión. Conéctate a internet e inténtalo de nuevo.",
+      "timeout": "Tardó demasiado. Inténtalo de nuevo.",
+      "decideUnconfirmed": "Meeting Guard AI no pudo confirmar este cambio y puede que se haya guardado. Revisa la lista antes de volver a intentarlo; volver a intentarlo nunca añade la misma tarea dos veces.",
+      "notFiled": "Esta minuta espera una reunión. Archívala o guárdala sin reunión primero y después revisa sus compromisos.",
+      "generic": "Algo salió mal. Inténtalo de nuevo.",
+      "retry": "Reintentar"
+    }
+  }
+}

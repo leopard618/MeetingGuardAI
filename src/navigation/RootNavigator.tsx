@@ -53,6 +53,10 @@ import {
   TermsScreen,
   TotalMeetingsScreen,
   WhatsAppConnectScreen,
+  SummaryConnectScreen,
+  SummaryInboxScreen,
+  SummaryViewScreen,
+  SummaryCommitmentsScreen,
   MattersScreen,
 } from './screens';
 import { MainSidebar, SidebarProvider, useSidebar } from './sidebar';
@@ -117,6 +121,10 @@ function MainGroup(): ReactElement {
               <Stack.Screen name="CalendarSync" component={CalendarSyncScreen} />
               <Stack.Screen name="Pricing" component={PricingScreen} />
               <Stack.Screen name="WhatsAppConnect" component={WhatsAppConnectScreen} />
+              <Stack.Screen name="SummaryConnect" component={SummaryConnectScreen} />
+              <Stack.Screen name="SummaryInbox" component={SummaryInboxScreen} />
+              <Stack.Screen name="SummaryView" component={SummaryViewScreen} />
+              <Stack.Screen name="SummaryCommitments" component={SummaryCommitmentsScreen} />
               <Stack.Screen name="Matters" component={MattersScreen} />
             </Stack.Navigator>
         <AssistantFab hidden={currentRouteName === 'AIChat'} />

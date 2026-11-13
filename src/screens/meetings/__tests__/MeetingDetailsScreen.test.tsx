@@ -19,6 +19,20 @@ jest.mock('../../attachments/MeetingAttachmentsSection', () => {
   const { Text: MockText } = jest.requireActual('react-native');
   return { MeetingAttachmentsSection: ({ meetingId }: { meetingId: string }) => <MockText testID={`attachments-${meetingId}`} /> };
 });
+// M10: the summaries section has its own tests and reads the summary* callables.
+jest.mock('../../summaries/MeetingSummarySection', () => {
+  const { Text: MockText } = jest.requireActual('react-native');
+  return { MeetingSummarySection: ({ meetingId }: { meetingId: string }) => <MockText testID={`summaries-${meetingId}`} /> };
+});
+// M11: "Review commitments" beside Debrief has its own tests and reads the summaries service.
+jest.mock('../../summaries/MeetingCommitmentsButton', () => {
+  const { Text: MockText } = jest.requireActual('react-native');
+  return {
+    MeetingCommitmentsButton: ({ meetingId, disabled }: { meetingId: string; disabled?: boolean }) => (
+      <MockText testID={`review-commitments-${meetingId}`}>{disabled ? 'disabled' : 'enabled'}</MockText>
+    ),
+  };
+});
 
 let mockGoogleConnected = true;
 // Absent by default, like a build without EXPO_PUBLIC_MSAL_CLIENT_ID (§22).
@@ -447,6 +461,19 @@ describe('debrief (M8)', () => {
     try {
       await renderDetails();
       expect(screen.queryByTestId('meeting-debrief')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('review commitments (M11)', () => {
+  it('places the button for this meeting beside Debrief (it hides itself without a filed summary)', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-06T17:00:00.000Z'));
+    try {
+      await renderDetails();
+      expect(screen.getByTestId('review-commitments-m1').props.children).toBe('enabled');
+      expect(screen.getByTestId('meeting-debrief')).toBeTruthy();
     } finally {
       jest.useRealTimers();
     }

@@ -1,7 +1,7 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef, type ParamListBase } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { Alert, Text } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
@@ -54,15 +54,42 @@ jest.mock('../../../services/data', () => {
   };
 });
 
+// M10: the "Meeting summaries" row reads summaryStatus (null = unknown).
+let mockSummaryStatus: { enabled: boolean; allowed: boolean; address: string | null; inboxCount: number } | null = null;
+const mockSummaryStatusOptions: unknown[] = [];
+jest.mock('../../../services/summaries', () => ({
+  useSummaryStatus: (options?: unknown) => {
+    mockSummaryStatusOptions.push(options);
+    return {
+      status: mockSummaryStatus,
+      available: mockSummaryStatus !== null && mockSummaryStatus.enabled && mockSummaryStatus.allowed,
+      error: null,
+      refresh: jest.fn(),
+    };
+  },
+}));
+
 const Stack = createStackNavigator();
+const navigationRef = createNavigationContainerRef<ParamListBase>();
+
+/** Stand-ins for the M10 screens the summaries row opens. */
+function SummaryConnectStub() {
+  return <Text testID="summary-connect-screen">connect</Text>;
+}
+
+function SummaryInboxStub() {
+  return <Text testID="summary-inbox-screen">inbox</Text>;
+}
 
 async function renderSettings() {
   await render(
     <I18nProvider>
       <PaperProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="SummaryConnect" component={SummaryConnectStub} />
+            <Stack.Screen name="SummaryInbox" component={SummaryInboxStub} />
           </Stack.Navigator>
         </NavigationContainer>
       </PaperProvider>
@@ -251,6 +278,68 @@ it('offers the WhatsApp bot link under Integrations (§27)', async () => {
   expect(row).toBeTruthy();
   expect(screen.getByText('WhatsApp assistant')).toBeTruthy();
   expect(screen.getByText('Link your account to the WhatsApp bot')).toBeTruthy();
+});
+
+describe('Meeting summaries row (M10)', () => {
+  afterEach(() => {
+    mockSummaryStatus = null;
+  });
+
+  it('is hidden while the status is unknown, the feature is off or the user is not in the pilot', async () => {
+    mockSummaryStatus = null;
+    await renderSettings();
+    expect(screen.queryByTestId('settings-summaries')).toBeNull();
+
+    mockSummaryStatus = { enabled: false, allowed: false, address: null, inboxCount: 0 };
+    await renderSettings();
+    expect(screen.queryByTestId('settings-summaries')).toBeNull();
+
+    mockSummaryStatus = { enabled: true, allowed: false, address: null, inboxCount: 0 };
+    await renderSettings();
+    expect(screen.queryByTestId('settings-summaries')).toBeNull();
+  });
+
+  it('shows under Integrations with the inbox count when enabled and allowed', async () => {
+    mockSummaryStatus = { enabled: true, allowed: true, address: null, inboxCount: 0 };
+    await renderSettings();
+    expect(screen.getByTestId('settings-summaries')).toBeTruthy();
+    expect(screen.getByText('Meeting summaries')).toBeTruthy();
+    expect(screen.getByText("Your notetaker's summaries, filed under your meetings")).toBeTruthy();
+
+    mockSummaryStatus = { enabled: true, allowed: true, address: 'abc@summaries.example.com', inboxCount: 2 };
+    await renderSettings();
+    expect(screen.getByText('2 waiting for a meeting')).toBeTruthy();
+
+    await i18n.changeLanguage('es');
+    await renderSettings();
+    expect(screen.getByText('2 minutas esperan una reunión')).toBeTruthy();
+  });
+
+  it('asks for a fresh status on focus, so the waiting count follows new mail (B3)', async () => {
+    mockSummaryStatusOptions.length = 0;
+    mockSummaryStatus = { enabled: true, allowed: true, address: null, inboxCount: 0 };
+    await renderSettings();
+    expect(mockSummaryStatusOptions.length).toBeGreaterThan(0);
+    expect(mockSummaryStatusOptions.every((options) => (options as { refreshOnFocus?: boolean } | undefined)?.refreshOnFocus === true)).toBe(true);
+  });
+
+  it('opens the setup screen while there is no address, and the inbox once there is one (T6)', async () => {
+    mockSummaryStatus = { enabled: true, allowed: true, address: null, inboxCount: 0 };
+    await renderSettings();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('settings-summaries'));
+    });
+    expect(navigationRef.getCurrentRoute()?.name).toBe('SummaryConnect');
+    expect(screen.getByTestId('summary-connect-screen')).toBeTruthy();
+
+    mockSummaryStatus = { enabled: true, allowed: true, address: 'abc@summaries.example.com', inboxCount: 1 };
+    await renderSettings();
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('settings-summaries'));
+    });
+    expect(navigationRef.getCurrentRoute()?.name).toBe('SummaryInbox');
+    expect(screen.getByTestId('summary-inbox-screen')).toBeTruthy();
+  });
 });
 
 it('sets the time format for the whole app next to the language', async () => {

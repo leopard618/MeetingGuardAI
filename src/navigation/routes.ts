@@ -29,6 +29,12 @@ export const ROUTES = {
   CalendarSync: 'CalendarSync',
   Pricing: 'Pricing',
   WhatsAppConnect: 'WhatsAppConnect',
+  // M10: meeting summaries by email.
+  SummaryConnect: 'SummaryConnect',
+  SummaryInbox: 'SummaryInbox',
+  SummaryView: 'SummaryView',
+  // M11: summaries become commitments.
+  SummaryCommitments: 'SummaryCommitments',
   Matters: 'Matters',
 } as const satisfies { [K in RouteName]: K };
 

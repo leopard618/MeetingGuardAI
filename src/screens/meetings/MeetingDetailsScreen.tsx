@@ -44,6 +44,9 @@ import { ScreenBody } from '../shared/Section';
 import { needsEmailVerification } from '../shared/VerifyEmailBanner';
 import { capitalizeFirst } from '../shared/text';
 import { useFormatters, type Formatters } from '../shared/useFormatters';
+import { MeetingSummarySection } from '../summaries/MeetingSummarySection';
+// M11: "Review commitments" beside Debrief (hidden unless the summaries pilot is on).
+import { MeetingCommitmentsButton } from '../summaries/MeetingCommitmentsButton';
 import { canDebrief } from './debrief';
 import { conferenceCardState } from './meetingForm';
 import { endNowWrite, isRunningNow, resolveRunningLateMeeting } from './runningLate';
@@ -485,6 +488,9 @@ function MeetingDetails({
         </>
       ) : null}
 
+      {/* M10: the notetaker summaries filed under this meeting (hidden unless the pilot is on). */}
+      <MeetingSummarySection meetingId={meeting.id} />
+
       <MeetingAttachmentsSection meetingId={meeting.id} />
 
       {isDevice ? (
@@ -511,6 +517,11 @@ function MeetingDetails({
           ) : null}
         </View>
       ) : null}
+      {/*
+        M11 (M11-DESIGN.md section 3.1): "Review commitments" for the newest summary filed under
+        this meeting, just above Debrief; renders nothing unless MeetingSummarySection lists one.
+      */}
+      <MeetingCommitmentsButton meetingId={meeting.id} disabled={deleting} style={styles.commitmentsButton} />
       {canDebrief(meeting, now) ? (
         <MGButton icon="text-box-check-outline" onPress={onDebrief} style={styles.debriefButton} disabled={deleting} testID="meeting-debrief">
           {t('meetings:details.debrief')}
@@ -594,6 +605,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   debriefButton: {
+    marginTop: spacing.lg,
+  },
+  // M11: "Review commitments" above Debrief.
+  commitmentsButton: {
     marginTop: spacing.lg,
   },
   liveActions: {
