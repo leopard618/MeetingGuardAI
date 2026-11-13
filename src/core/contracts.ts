@@ -1414,6 +1414,7 @@ export const I18N_NAMESPACE_LIST = [
   'whatsapp',
   // M10: meeting summaries by email (src/services/summaries, src/screens/summaries).
   'summaries',
+  'matters',
 ] as const;
 export type I18nNamespace = (typeof I18N_NAMESPACE_LIST)[number];
 
@@ -1525,6 +1526,8 @@ export type MainStackParamList = {
   // ---- M11: summaries become commitments (docs/v2/M11-DESIGN.md section 3) ----
   /** Review the suggested tasks of one filed or kept summary (summaryCommitments). */
   SummaryCommitments: { summaryId: string };
+  /** Settings > AI executive assistant: hand over a matter (prototype, section 36; only with EXPO_PUBLIC_MATTERS_ENABLED). */
+  Matters: undefined;
 };
 
 export type RootStackParamList = AuthStackParamList & OnboardingStackParamList & MainStackParamList;
@@ -1955,6 +1958,11 @@ export const FUNCTIONS_CONTRACT: Readonly<Record<CallableName, { request: string
   summaryRead: { request: 'summaryReadRequestSchema', response: 'summaryReadResponseSchema' },
   // M11: suggested tasks from a filed or kept summary (docs/v2/M11-DESIGN.md sections 3 and 6).
   summaryCommitments: { request: 'summaryCommitmentsRequestSchema', response: 'summaryCommitmentsResponseSchema' },
+  // Executive assistant (docs/v1/ARCHITECTURE.md section 36): deployed only while MATTERS_ENABLED.
+  matterDraft: { request: 'matterDraftRequestSchema', response: 'matterDraftResponseSchema' },
+  matterRevise: { request: 'matterReviseRequestSchema', response: 'matterDraftResponseSchema' },
+  matterConfirm: { request: 'matterConfirmRequestSchema', response: 'matterConfirmResponseSchema' },
+  matterCancel: { request: 'matterCancelRequestSchema', response: 'matterCancelResponseSchema' },
 };
 
 // =============================================================================================

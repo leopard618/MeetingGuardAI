@@ -12,8 +12,9 @@
  *      stops resolving at once; a delivery already past the lookup drops in its commit
  *      transaction (it re-reads the address), and users/{uid}/meetingSummaries goes with the
  *      recursive passes below;
- *   2. users/{uid} (recursively: profile, meetings, notes, settings) -> entitlements/{uid} ->
- *      usage/{uid} (recursively);
+ *   2. users/{uid} (recursively: profile, meetings, notes, settings, assistant matters with their
+ *      timelines and emails) -> entitlements/{uid} -> usage/{uid} (recursively) -> the server-only
+ *      state that carries the uid (WhatsApp, Zoom, Microsoft, the matters' lookup documents);
  *   3. the Auth user;
  *   4. a second recursive pass over users/{uid}: writes that raced in while steps 2-3 ran (an
  *      outbox flush of this or another device, rules still accept the old ID token) are removed;
@@ -35,6 +36,7 @@ import { HttpsError, onCall } from 'firebase-functions/https';
 import { FUNCTIONS_REGION } from './config';
 import { adminAuth, adminDb } from './firebase';
 import { ACCOUNT_DELETIONS_COLLECTION } from './maintenance/core';
+import { MATTER_ADDRESSES_COLLECTION, MATTER_MESSAGE_IDS_COLLECTION } from './matters/model';
 import { MICROSOFT_IDENTITIES_COLLECTION } from './microsoftSignIn';
 import { deleteAccountRequestSchema, type DeleteAccountResponse } from './shared/aiContract';
 import { deleteSummaryDataForUid } from './summaries/accountDeletion';
@@ -73,6 +75,12 @@ export interface AccountDeletionPorts {
    * any other summaryAddresses doc naming the uid (summaries/accountDeletion.ts). Idempotent.
    */
   deleteSummaryData(uid: string): Promise<void>;
+  /**
+   * Removes the lookup documents of the user's assistant matters (matterAddresses/{token} and
+   * matterMessageIds/{key} with this uid; docs/v1/ARCHITECTURE.md §36). The matters themselves
+   * live under users/{uid} and go with the recursive delete. Idempotent.
+   */
+  deleteMatterLookups(uid: string): Promise<void>;
 }
 
 export async function deleteAccountData(uid: string, ports: AccountDeletionPorts, now: Date = new Date()): Promise<DeleteAccountResponse> {
@@ -87,6 +95,7 @@ export async function deleteAccountData(uid: string, ports: AccountDeletionPorts
   await ports.deleteWhatsAppData(uid);
   await ports.deleteZoomRegistry(uid);
   await ports.deleteMicrosoftIdentities(uid);
+  await ports.deleteMatterLookups(uid);
   await ports.deleteAuthUser(uid);
   // Late writes accepted between the first pass and the Auth deletion (see the header).
   await ports.recursiveDelete(`users/${uid}`);
@@ -155,6 +164,16 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
     },
     async deleteSummaryData(uid) {
       await deleteSummaryDataForUid(uid, { db });
+    },
+    async deleteMatterLookups(uid) {
+      for (const name of [MATTER_ADDRESSES_COLLECTION, MATTER_MESSAGE_IDS_COLLECTION]) {
+        const snapshot = await db.collection(name).where('uid', '==', uid).select().get();
+        for (let start = 0; start < snapshot.docs.length; start += 400) {
+          const batch = db.batch();
+          for (const document of snapshot.docs.slice(start, start + 400)) batch.delete(document.ref);
+          await batch.commit();
+        }
+      }
     },
   };
 }

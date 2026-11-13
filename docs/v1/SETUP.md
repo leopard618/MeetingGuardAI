@@ -1169,3 +1169,86 @@ Notes: the webhook rejects unsigned requests (App Secret HMAC over the raw body)
 being public is fine. Firestore gets five new server-only collections (whatsapp*; rules deploy
 in step 5). The bot shares the assistant's per-user AI allowance, so WhatsApp traffic cannot
 multiply a user's AI spend.
+
+## 15. Executive assistant email (Postmark; prototype A1 to A3)
+
+The assistant sends from its own address on a mail subdomain and receives the replies there
+(ARCHITECTURE section 36). It stays OFF until these steps are done; with MATTERS_ENABLED false
+nothing below is needed for a deploy.
+
+### 15.1 Postmark account and server
+
+1. The client opens the Postmark account in the company's name (postmarkapp.com) and adds the
+   company card; Pro is about USD 16.50 a month and is shared with the forwarded summaries
+   (M10). Invite the developers as team members (Account > Team).
+2. Create a server named `assistant` (the summaries use their own server). Its default
+   transactional stream `outbound` is the one the functions use (MATTERS_TUNING.messageStream).
+3. Request the account approval early: until Postmark approves the account it only delivers to
+   addresses on the account's own domains.
+
+### 15.2 The mail subdomain (DNS)
+
+1. In Postmark: Sender Signatures > Domains > Add `assistant.meetingguard.ai`. Postmark shows a
+   DKIM TXT record (`<selector>._domainkey.assistant`) and a Return-Path CNAME
+   (`pm-bounces.assistant` -> `pm.mtasv.net`).
+2. Add in the DNS of meetingguard.ai (Hostinger, with the client's OK):
+   - the DKIM TXT record and the Return-Path CNAME exactly as Postmark shows them;
+   - `MX assistant` -> `inbound.postmarkapp.com`, priority 10 (replies come to Postmark);
+   - `TXT _dmarc.assistant` -> `v=DMARC1; p=none; rua=mailto:<an address that reads reports>`
+     (move to `p=quarantine` once the reports are clean).
+   These touch only the subdomain: the website and any existing mailboxes of meetingguard.ai are
+   unchanged.
+3. Back in Postmark, verify DKIM and Return-Path.
+
+### 15.3 Inbound
+
+1. Server `assistant` > Settings > Inbound: inbound domain `assistant.meetingguard.ai`.
+2. Webhook URL (after the first deploy with MATTERS_ENABLED, 15.4):
+   `https://postmark:<MATTERS_INBOUND_PASSWORD>@<region>-<project>.cloudfunctions.net/assistantInboundEmail`
+   (HTTP basic auth; the function answers 401 to anything else). Tick "Include raw email
+   content" (A2 checks SPF, DKIM and DMARC from it).
+
+### 15.4 Secrets, params and deploy
+
+From `functions/`, without typing the values at a prompt (no newline is stored):
+
+```bash
+printf '%s' "<the API token of server assistant>" | npx firebase functions:secrets:set POSTMARK_SERVER_TOKEN
+printf '%s' "$(openssl rand -hex 24)" | npx firebase functions:secrets:set MATTERS_INBOUND_PASSWORD   # also in the webhook URL
+```
+
+Then in your own `functions/.env.<projectId>`:
+
+```
+MATTERS_ENABLED=true
+MATTERS_ALLOWED_UIDS=<uid of each tester, comma-separated>
+MATTERS_MAIL_DOMAIN=assistant.meetingguard.ai
+MATTERS_USER_DAILY_LIMIT=30
+```
+
+and deploy only these five functions by name (CONTRIBUTING, "Deploying"):
+
+```bash
+npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail
+```
+
+Before a Postmark account exists, the secret POSTMARK_SERVER_TOKEN can hold Postmark's public
+test token `POSTMARK_API_TEST`: sends are accepted and nothing is delivered.
+
+While MATTERS_ENABLED is not `true` in a deployer's `.env.<projectId>`, the five functions and
+their params and secrets are not even declared (functions/src/config.ts `mattersParams`), so
+that deploy never asks for them. A full deploy from `v2` without the line offers to delete the
+five functions if they are deployed: answer No. Turning the assistant off for good:
+`npx firebase functions:delete matterDraft matterRevise matterConfirm matterCancel assistantInboundEmail`.
+
+### 15.5 Test build of the app
+
+`EXPO_PUBLIC_MATTERS_ENABLED=1` in the test build's environment shows Settings > AI executive
+assistant. Never in a store build until the beta (A10).
+
+### 15.6 Check
+
+Hand over a matter to your own second address, confirm, and check in the received email
+("Show original" in Gmail): SPF, DKIM and DMARC pass, From is the assistant's address,
+Reply-To is `m-<token>@assistant.meetingguard.ai`. Reply to it: the reply appears under the
+matter (Firestore `users/<uid>/matters/<id>/messages`).

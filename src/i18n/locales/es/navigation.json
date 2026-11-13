@@ -29,7 +29,8 @@
     "SummaryConnect": "Minutas de reuniones",
     "SummaryInbox": "Bandeja de minutas",
     "SummaryView": "Minuta",
-    "SummaryCommitments": "Compromisos"
+    "SummaryCommitments": "Compromisos",
+    "Matters": "Asistente ejecutivo de IA"
   },
   "meeting": {
     "loading": "Cargando reunión...",

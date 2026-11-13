@@ -19,6 +19,7 @@ import { SegmentedButtons, Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { Card, ListGroup, ListRow, SectionHeader } from '../../components/ui';
+import { env } from '../../config/env';
 import { THEME_MODES, useTheme, type ThemeMode } from '../../contexts/ThemeContext';
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
@@ -200,6 +201,23 @@ export function SettingsScreen(): ReactElement {
           />
         ) : null}
       </ListGroup>
+
+      {env.mattersEnabled ? (
+        <>
+          <SectionHeader title={t('matters:row.section')} />
+          <ListGroup>
+            <ListRow
+              icon="briefcase-outline"
+              title={t('matters:row.title')}
+              supporting={t('matters:row.subtitle')}
+              trailing="chevron"
+              onPress={() => navigation.navigate('Matters')}
+              accessibilityRole="button"
+              testID="settings-matters"
+            />
+          </ListGroup>
+        </>
+      ) : null}
 
       <SectionHeader title={t('settings:legal.title')} />
       <ListGroup>

@@ -29,7 +29,8 @@
     "SummaryConnect": "Meeting summaries",
     "SummaryInbox": "Summary inbox",
     "SummaryView": "Summary",
-    "SummaryCommitments": "Commitments"
+    "SummaryCommitments": "Commitments",
+    "Matters": "AI executive assistant"
   },
   "meeting": {
     "loading": "Loading meeting...",

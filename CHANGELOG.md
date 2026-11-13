@@ -3,6 +3,42 @@
 All notable changes to Meeting Guard AI. Versions follow `version` in `app.config.js`. That value is
 also the OTA runtime version.
 
+## [Unreleased] - Executive assistant prototype (A1 to A3, switched off)
+
+The AI executive assistant of the November 10, 2026 plan, built in steps. Nothing here is visible
+to users: the assistant stays switched off in every release until its beta (A10).
+
+### Added
+
+- **A1: the email identity and the mandate** (November 12): hand the assistant a matter in your
+  own words; it drafts the mandate (whom it may email, what it may ask, which times it may
+  offer, follow-ups, end date, how you are copied) and the first email, asks for anything
+  missing (never guesses an email address), and reads the mandate back in EN or ES, written by
+  code. Nothing is sent before you confirm the exact draft you saw (its hash); then the first
+  email goes out from the assistant's own address (assistant@assistant.meetingguard.ai, named
+  "<you>'s AI assistant", with an AI footer and a per-matter reply address) through a send
+  check in code that allows only the contacts of the mandate and your own copy. Replies are
+  attached to their matter by the reply address or the thread headers. Postmark for sending
+  and receiving. Functions matterDraft, matterRevise, matterConfirm, matterCancel and
+  assistantInboundEmail, all deployed only while MATTERS_ENABLED is true (their params and
+  secrets are not even declared otherwise, so no other deploy asks for them) and usable only by
+  MATTERS_ALLOWED_UIDS; data under users/{uid}/matters (owner read, server write), lookups
+  server only, removed with the account. App: Settings > AI executive assistant (route
+  Matters), only with EXPO_PUBLIC_MATTERS_ENABLED. ARCHITECTURE section 36, SETUP section 15.
+
+### Fixed
+
+- **A1 review fixes** (November 13): the first email goes out at most once (the confirm
+  transaction claims the send, so overlapping confirms cannot both send; a timeout, lost
+  connection or server error is "unknown" and never resent automatically, while a clear
+  refusal can still be retried); an email address counts as the user's only when they wrote that
+  exact whole address; the Message-ID index holds only our own outgoing ids, written with
+  create(), so an inbound email cannot re-point another user's thread.
+- **A1 test on a device** (November 13): no repeated question for an email address or the end
+  date; "más" in the Spanish read-back; the email is signed with the assistant's name; a day
+  without a time ends at 23:59; whole-day meeting windows show dates instead of 0:00; the stored
+  email keeps the sender name; the matter can be cancelled after sending.
+
 ## [1.6.0] - Unreleased (V2 Stage 2, branch `v2`)
 
 Stage 2 of the V2 agreement: the calendar and task integrations (Outlook, Microsoft To Do, Google

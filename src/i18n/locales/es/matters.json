@@ -1,0 +1,47 @@
+{
+  "row": {
+    "section": "Asistente ejecutivo de IA",
+    "title": "Encargar un asunto",
+    "subtitle": "Versión de prueba: el asistente escribe correos por ti, solo dentro de lo que confirmes."
+  },
+  "intro": "Cuéntame el asunto con tus palabras: a quién contactar y su correo, qué pedir, si hay que organizar una reunión y hasta cuándo. Te lo resumo y no se envía nada hasta que lo confirmes.",
+  "request": {
+    "label": "Tu asunto",
+    "placeholder": "Contacta a Carlos en carlos@example.com, pídele la propuesta actualizada, organiza una reunión para hablarla y haz seguimiento hasta el viernes. Ponme en copia."
+  },
+  "prepare": "Preparar",
+  "questions": {
+    "title": "Necesito algunos detalles",
+    "answerLabel": "Tu respuesta",
+    "send": "Enviar respuesta"
+  },
+  "readBack": {
+    "title": "Lo que voy a hacer"
+  },
+  "email": {
+    "title": "El primer correo",
+    "from": "De: {{value}}",
+    "to": "Para: {{value}}",
+    "cc": "Copia: {{value}}",
+    "subject": "Asunto: {{value}}"
+  },
+  "confirm": "Confirmar y enviar",
+  "change": {
+    "label": "¿Qué debo cambiar?",
+    "send": "Cambiar el borrador"
+  },
+  "cancel": "Cancelar este asunto",
+  "newMatter": "Nuevo asunto",
+  "result": {
+    "sent": "Enviado. Las respuestas a este asunto se guardan con él.",
+    "notSent": "El correo no se ha podido enviar todavía. Inténtalo de nuevo en un momento.",
+    "retry": "Reintentar",
+    "unknown": "No hemos podido confirmar que el correo haya salido. Puede que se haya enviado, así que no se volverá a enviar. Tu copia muestra si llegó.",
+    "cancelled": "Asunto cancelado. No se enviará nada más."
+  },
+  "errors": {
+    "stale": "El borrador ha cambiado. Revísalo de nuevo antes de confirmar.",
+    "notAllowed": "Esto queda fuera de lo que confirmaste, así que no se ha enviado nada.",
+    "unavailable": "El asistente todavía no está disponible para tu cuenta."
+  }
+}

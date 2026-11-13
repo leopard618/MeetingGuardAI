@@ -57,6 +57,7 @@ import {
   SummaryInboxScreen,
   SummaryViewScreen,
   SummaryCommitmentsScreen,
+  MattersScreen,
 } from './screens';
 import { MainSidebar, SidebarProvider, useSidebar } from './sidebar';
 import { PreferencesErrorScreen, SplashScreen } from './StatusScreens';
@@ -124,6 +125,7 @@ function MainGroup(): ReactElement {
               <Stack.Screen name="SummaryInbox" component={SummaryInboxScreen} />
               <Stack.Screen name="SummaryView" component={SummaryViewScreen} />
               <Stack.Screen name="SummaryCommitments" component={SummaryCommitmentsScreen} />
+              <Stack.Screen name="Matters" component={MattersScreen} />
             </Stack.Navigator>
         <AssistantFab hidden={currentRouteName === 'AIChat'} />
       </View>

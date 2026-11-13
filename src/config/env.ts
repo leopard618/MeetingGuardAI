@@ -39,7 +39,8 @@ export type EnvKey =
   | 'EXPO_PUBLIC_MSAL_CLIENT_ID'
   | 'EXPO_PUBLIC_MSAL_TENANT'
   | 'EXPO_PUBLIC_REVENUECAT_ANDROID_KEY'
-  | 'EXPO_PUBLIC_REVENUECAT_APPLE_KEY';
+  | 'EXPO_PUBLIC_REVENUECAT_APPLE_KEY'
+  | 'EXPO_PUBLIC_MATTERS_ENABLED';
 
 export type AppPlatform = 'ios' | 'android' | 'web' | 'windows' | 'macos' | 'native';
 
@@ -93,6 +94,12 @@ export interface AppEnv {
   /** Connect to the local Firebase emulators (development builds only). */
   useEmulators: boolean;
   emulatorHost: string;
+  /**
+   * EXPO_PUBLIC_MATTERS_ENABLED=1|true: shows the executive assistant's matters (prototype, A1 to
+   * A3; docs/v1/ARCHITECTURE.md section 36). Off in every store build until the beta; the server
+   * also needs MATTERS_ENABLED and the user on MATTERS_ALLOWED_UIDS.
+   */
+  mattersEnabled: boolean;
 }
 
 export const DEFAULT_FUNCTIONS_REGION = 'us-central1';
@@ -135,6 +142,7 @@ const validators: Record<EnvKey, z.ZodType<string>> = {
   EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: z.string().regex(/^goog_[A-Za-z0-9]{10,}$/),
   // RevenueCat public Apple SDK key (same dashboard page, the App Store app). Public by design.
   EXPO_PUBLIC_REVENUECAT_APPLE_KEY: z.string().regex(/^appl_[A-Za-z0-9]{10,}$/),
+  EXPO_PUBLIC_MATTERS_ENABLED: z.string(),
 };
 
 /** Keys the app cannot run without, per platform. */
@@ -186,6 +194,7 @@ export function parseEnv(raw: Partial<RawEnv>, platform: AppPlatform): AppEnv {
 
   const requiredInvalid = invalidKeys.some((key) => required.has(key));
   const useEmulatorsRaw = (values.EXPO_PUBLIC_USE_EMULATORS ?? '').toLowerCase();
+  const mattersRaw = (values.EXPO_PUBLIC_MATTERS_ENABLED ?? '').toLowerCase();
 
   return {
     isConfigured: missingKeys.length === 0 && !requiredInvalid,
@@ -211,6 +220,7 @@ export function parseEnv(raw: Partial<RawEnv>, platform: AppPlatform): AppEnv {
     functionsRegion: values.EXPO_PUBLIC_FUNCTIONS_REGION ?? DEFAULT_FUNCTIONS_REGION,
     useEmulators: useEmulatorsRaw === '1' || useEmulatorsRaw === 'true',
     emulatorHost: values.EXPO_PUBLIC_EMULATOR_HOST ?? DEFAULT_EMULATOR_HOST,
+    mattersEnabled: mattersRaw === '1' || mattersRaw === 'true',
   };
 }
 
@@ -235,6 +245,7 @@ export function readRawEnv(): RawEnv {
     EXPO_PUBLIC_EMULATOR_HOST: process.env.EXPO_PUBLIC_EMULATOR_HOST,
     EXPO_PUBLIC_MSAL_CLIENT_ID: process.env.EXPO_PUBLIC_MSAL_CLIENT_ID,
     EXPO_PUBLIC_MSAL_TENANT: process.env.EXPO_PUBLIC_MSAL_TENANT,
+    EXPO_PUBLIC_MATTERS_ENABLED: process.env.EXPO_PUBLIC_MATTERS_ENABLED,
     EXPO_PUBLIC_REVENUECAT_ANDROID_KEY: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY,
     EXPO_PUBLIC_REVENUECAT_APPLE_KEY: process.env.EXPO_PUBLIC_REVENUECAT_APPLE_KEY,
   };

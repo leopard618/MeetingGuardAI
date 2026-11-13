@@ -84,6 +84,7 @@ jest.mock('../../screens/summaries/MeetingSummarySection', () => ({ MeetingSumma
 jest.mock('../../screens/summaries/SummaryCommitmentsScreen', () => ({ SummaryCommitmentsScreen: mockScreen('SummaryCommitments').default }));
 // M11: "Review commitments" beside Debrief on the real MeetingDetails screen.
 jest.mock('../../screens/summaries/MeetingCommitmentsButton', () => ({ MeetingCommitmentsButton: () => null }));
+jest.mock('../../screens/matters/MattersScreen', () => ({ MattersScreen: mockScreen('Matters').default }));
 jest.mock('../../screens/alerts/AlertSettingsScreen', () => ({ AlertSettingsScreen: mockScreen('AlertSettings').default }));
 jest.mock('../../screens/assistant/AssistantScreen', () => ({ AssistantScreen: mockScreen('AIChat').default }));
 jest.mock('../../screens/insights/AIInsightsScreen', () => ({ AIInsightsScreen: mockScreen('AIInsights').default }));

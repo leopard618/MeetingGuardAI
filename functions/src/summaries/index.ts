@@ -93,7 +93,8 @@ export const summaryAction = onCall(CALLABLE_OPTIONS, (request): Promise<Summary
 /**
  * Exported only while SUMMARIES_ENABLED is true at deploy time, so the default deploy never
  * references the secrets (undefined exports are skipped by the functions loader). Flipping the
- * param to false again makes the next deploy OFFER to delete the function - accept it.
+ * param to false again makes the next deploy offer to delete the function: answer No (AGENTS.md
+ * rule 3, the project is shared); removing a deployed function is a separate owner decision.
  */
 export const summaryInbound = summariesEnabledAtLoad() ? makeSummaryInbound() : undefined;
 

@@ -697,3 +697,45 @@ describe('admin dashboard state (server only, read through admin callables)', ()
     });
   });
 });
+
+describe('executive assistant matters (docs/v1/ARCHITECTURE.md 36)', () => {
+  const MATTER = 'users/alice/matters/m1';
+  const matter = { status: 'draft', title: 'Proposal from Carlos', confirmedHash: null, updatedAt: ISO };
+
+  it('lets the owner read a matter, its timeline and its emails, and nobody else', async () => {
+    await seed(MATTER, matter);
+    await seed(`${MATTER}/events/e1`, { type: 'created', at: ISO, messageId: null, detail: '' });
+    await seed(`${MATTER}/messages/x1`, { direction: 'outbound', status: 'sent', subject: 'Proposal' });
+    await assertSucceeds(getDoc(doc(alice(), MATTER)));
+    await assertSucceeds(getDocs(collection(alice(), 'users/alice/matters')));
+    await assertSucceeds(getDocs(collection(alice(), `${MATTER}/events`)));
+    await assertSucceeds(getDoc(doc(alice(), `${MATTER}/messages/x1`)));
+    await assertFails(getDoc(doc(bob(), MATTER)));
+    await assertFails(getDocs(collection(bob(), 'users/alice/matters')));
+    await assertFails(getDoc(doc(bob(), `${MATTER}/events/e1`)));
+    await assertFails(getDoc(doc(bob(), `${MATTER}/messages/x1`)));
+    await assertFails(getDoc(doc(anonymous(), MATTER)));
+  });
+
+  it('never lets a client write a matter: no confirming a mandate, no fake emails or events', async () => {
+    await seed(MATTER, matter);
+    await assertFails(setDoc(doc(alice(), 'users/alice/matters/m2'), matter));
+    await assertFails(updateDoc(doc(alice(), MATTER), { status: 'active', confirmedHash: 'a'.repeat(64) }));
+    await assertFails(deleteDoc(doc(alice(), MATTER)));
+    await assertFails(setDoc(doc(alice(), `${MATTER}/events/e2`), { type: 'mandate_confirmed', at: ISO, messageId: null, detail: '' }));
+    await assertFails(setDoc(doc(alice(), `${MATTER}/messages/x2`), { direction: 'inbound', status: 'received' }));
+    await assertFails(getDoc(doc(alice(), `${MATTER}/other/z1`)));
+  });
+
+  it('keeps the reply addresses, the Message-ID index and the inbound markers server-only', async () => {
+    await seed('matterAddresses/0123456789abcdef01234567', { uid: 'alice', matterId: 'm1', createdAt: ISO });
+    await seed('matterMessageIds/' + 'b'.repeat(64), { uid: 'alice', matterId: 'm1', createdAt: ISO });
+    await seed('inboundEmails/pm-1', { receivedAt: ISO, expiresAt: ISO });
+    for (const path of ['matterAddresses/0123456789abcdef01234567', 'matterMessageIds/' + 'b'.repeat(64), 'inboundEmails/pm-1']) {
+      await assertFails(getDoc(doc(alice(), path)));
+      await assertFails(setDoc(doc(alice(), path), { uid: 'alice' }));
+      await assertFails(deleteDoc(doc(alice(), path)));
+    }
+    await assertFails(getDocs(collection(alice(), 'matterAddresses')));
+  });
+});

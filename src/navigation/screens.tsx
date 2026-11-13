@@ -35,6 +35,7 @@ import { SummaryConnectScreen as SummaryConnect } from '../screens/summaries/Sum
 import { SummaryInboxScreen as SummaryInbox } from '../screens/summaries/SummaryInboxScreen';
 import { SummaryViewScreen as SummaryView } from '../screens/summaries/SummaryViewScreen';
 import { SummaryCommitmentsScreen as SummaryCommitments } from '../screens/summaries/SummaryCommitmentsScreen';
+import { MattersScreen as Matters } from '../screens/matters/MattersScreen';
 
 // ---- Main group --------------------------------------------------------------------------------
 
@@ -62,6 +63,7 @@ export const SummaryInboxScreen = SummaryInbox;
 export const SummaryViewScreen = SummaryView;
 // M11: summaries become commitments (docs/v2/M11-DESIGN.md section 3).
 export const SummaryCommitmentsScreen = SummaryCommitments;
+export const MattersScreen = Matters;
 
 // ---- Meetings: live meeting from `meetingId` -----------------------------------------------------
 

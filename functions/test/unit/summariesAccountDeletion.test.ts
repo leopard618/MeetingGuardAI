@@ -382,6 +382,8 @@ describe('account deletion wiring', () => {
       deleteWhatsAppData: async () => undefined,
       deleteZoomRegistry: async () => undefined,
       deleteMicrosoftIdentities: async () => undefined,
+      // Assistant A1 (PR #7): its lookups live in other collections, untouched by this fake.
+      deleteMatterLookups: async () => undefined,
       deleteAuthUser: async () => {
         if (hooks.onAuthDelete) await hooks.onAuthDelete();
         return true;
