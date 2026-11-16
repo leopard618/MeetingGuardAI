@@ -419,6 +419,13 @@ describe('preferences', () => {
     await assertFails(setDoc(doc(alice(), 'users/alice/settings/preferences'), preferences(overrides)));
   });
 
+  it('accepts every app interface language (M12) and rejects others', async () => {
+    for (const language of ['pt', 'fr', 'de']) {
+      await assertSucceeds(setDoc(doc(alice(), 'users/alice/settings/preferences'), preferences({ language })));
+    }
+    await assertFails(setDoc(doc(alice(), 'users/alice/settings/preferences'), preferences({ language: 'it' })));
+  });
+
   it('only allows the preferences document', async () => {
     await assertFails(setDoc(doc(alice(), 'users/alice/settings/other'), preferences()));
   });

@@ -3,7 +3,7 @@
  * - Account: who is signed in, and "Delete account" (confirmation + identity check + the
  *   deleteAccount callable; required in-app by the App Store and Google Play).
  * - Alerts: summary + Settings > Alerts (every alert preference after onboarding).
- * - Appearance (theme), language (instant EN/ES), time format (12 h / 24 h / automatic, used for
+ * - Appearance (theme), language (instant; a radio list of the five UI languages), time format (12 h / 24 h / automatic, used for
  *   every time the app shows), calendars, the WhatsApp bot link (route WhatsAppConnect, §27),
  *   legal pages, version (and the OTA update id / channel when an EAS update is running, for
  *   support and rollback checks).
@@ -15,7 +15,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import Constants from 'expo-constants';
 import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { SegmentedButtons, Text } from 'react-native-paper';
+import { RadioButton, SegmentedButtons, Text } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 
 import { Card, ListGroup, ListRow, SectionHeader } from '../../components/ui';
@@ -24,7 +24,6 @@ import { THEME_MODES, useTheme, type ThemeMode } from '../../contexts/ThemeConte
 import type { RootStackParamList } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
-import type { Language } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import { usePreferences } from '../../services/data';
@@ -135,15 +134,27 @@ export function SettingsScreen(): ReactElement {
       </Card>
 
       <SectionHeader title={t('settings:language.title')} />
-      <Card>
-        <SegmentedButtons
-          value={language}
-          onValueChange={(value) => {
-            void setLanguage(value as Language);
-          }}
-          buttons={supportedLanguages.map((code) => ({ value: code, label: t(`common:language.${code}`) }))}
-        />
-      </Card>
+      {/* M12: five languages do not fit a segmented control on a phone, so one radio row each. */}
+      <ListGroup>
+        {supportedLanguages.map((code) => {
+          const selected = code === language;
+          const choose = (): void => {
+            void setLanguage(code);
+          };
+          return (
+            <ListRow
+              key={code}
+              title={t(`common:language.${code}`)}
+              selected={selected}
+              onPress={choose}
+              trailing={<RadioButton value={code} status={selected ? 'checked' : 'unchecked'} onPress={choose} />}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected }}
+              testID={`settings-language-${code}`}
+            />
+          );
+        })}
+      </ListGroup>
 
       <SectionHeader title={t('settings:timeFormat.title')} />
       <Card testID="settings-time-format">

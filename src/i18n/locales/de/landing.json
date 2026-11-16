@@ -1,0 +1,17 @@
+{
+  "language": "Sprache",
+  "headline": "Besprechungsalarme, die Sie nicht verpassen",
+  "signIn": {
+    "google": "Weiter mit Google",
+    "apple": "Weiter mit Apple",
+    "microsoft": "Weiter mit Microsoft",
+    "email": "Weiter mit E-Mail",
+    "busy": "Anmeldung läuft...",
+    "failedTitle": "Anmeldung fehlgeschlagen",
+    "failed": "Die Anmeldung mit Google hat nicht funktioniert. Bitte versuchen Sie es erneut."
+  },
+  "consent": {
+    "terms": "Nutzungsbedingungen",
+    "privacy": "Datenschutzerklärung"
+  }
+}

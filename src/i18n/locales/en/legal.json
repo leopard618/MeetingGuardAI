@@ -30,7 +30,8 @@
           "AI assistant usage: how many AI actions you make, when your free allowance started and when your paid allowance renews, to apply the allowance of your plan.",
           "Subscriptions: if you buy Pro or Premium, the App Store or Google Play handles the payment and we never receive your card or bank details. RevenueCat, which manages subscriptions on our behalf, sends our server a record of each subscription event, such as a purchase, renewal, plan change, billing problem, cancellation or expiry (the plan, the store, the product, the price and currency, the dates and, for a cancellation or an expiry, its reason), so we know which plan you have and when it renews or ends.",
           "Crash and error reports, and performance measurements of a sample of app sessions, when crash reporting is enabled in your version of the app: device model, operating system, app version, technical details of the error and how long screens and network requests take. We design these reports to leave out your meetings, notes and messages, and email addresses are removed from error reports before they are sent.",
-          "WhatsApp: if you link your WhatsApp number, we store that phone number, your WhatsApp profile name, the date you linked it and the conversation state: the last 10 messages of the chat, yours and the assistant's, and any proposal that waits for your confirmation (see \"WhatsApp assistant\")."
+          "WhatsApp: if you link your WhatsApp number, we store that phone number, your WhatsApp profile name, the date you linked it and the conversation state: the last 10 messages of the chat, yours and the assistant's, and any proposal that waits for your confirmation (see \"WhatsApp assistant\").",
+          "Meeting summaries: if you turn them on, we store your private summary address, the mailboxes you list, the meeting summaries that reach that address and the tasks suggested from them (see \"Meeting summaries by email\")."
         ]
       },
       "device": {
@@ -54,6 +55,7 @@
           "Provide the app: keep your meetings, tasks and notes up to date on your devices, schedule your alerts and reminders and show your agenda.",
           "Sync the calendars and task lists you connect.",
           "Answer your requests to the AI assistant, in the app or on WhatsApp, and apply the AI allowance of your plan.",
+          "File the meeting summaries you send us under your meetings and, when you ask, suggest tasks from them.",
           "Manage your subscription, if you buy one.",
           "Keep the service secure, prevent abuse and fix errors."
         ],
@@ -116,6 +118,26 @@
           "The assistant only proposes changes: nothing is created, changed, deleted or shared until you confirm it. Answers can be wrong, so check them before you confirm. Please do not send sensitive information, such as health data, to the assistant."
         ]
       },
+      "summaries": {
+        "title": "Meeting summaries by email",
+        "body": [
+          "Meeting summaries are optional and may not be available for your account yet. Meeting Guard AI does not join, record or listen to your meetings. If you turn summaries on, under Meeting summaries in Settings, you get a private email address and list the mailboxes where your notetaker's emails arrive. The meeting summary that your notetaker already emails you is then sent on to that private address, by you or by a rule in your mailbox. Meeting Guard AI checks that each email is genuine and files the summary under the matching meeting, or keeps it in your summary inbox until you file it.",
+          "Our email provider, Postmark, receives each email first, processes it in the United States and keeps its copy for {{summaryProviderDays}} days. Postmark passes the email to our server (Google Cloud Functions), which stores the summary in your Meeting Guard AI account (Google Firebase): its text, its subject, the email addresses in it, the date, the sender's domain and the meeting it is filed under. Only you can see your summaries in the app; other Meeting Guard AI users cannot reach them.",
+          "Summaries are encrypted in transit and at rest by Google Cloud. In addition, Meeting Guard AI encrypts each summary's text, subject and the email addresses in it with its own key, kept in Google Secret Manager. Your private address, the mailboxes you list, and details such as the date, the sender's domain and the meeting it is filed under do not get this extra layer. This is not end-to-end encryption: people with administrative access to our systems could technically decrypt it.",
+          "A summary that your notetaker did not sign, that was changed after it was sent, or that was not sent to one of your own mailboxes is refused, and its content is not kept by Meeting Guard AI; Postmark still keeps its copy for {{summaryProviderDays}} days. A real summary sent straight to your private address waits in your summary inbox for your OK.",
+          "The text of a summary goes to OpenAI only when you ask for AI suggestions of tasks, in the app or by replying AI on WhatsApp. Our server then sends OpenAI the summary's text, with the title of the meeting it is filed under and the date, but never its subject or your other meetings and tasks, under the conditions described in \"AI assistant (OpenAI)\". The first AI suggestions for a summary use 1 AI action; the action items as written can be shown without AI. The suggestions are stored with the summary and encrypted the same way. Nothing becomes a task until you accept it. A task you add is an ordinary task: its title and the people on it are not encrypted with our extra key, its reminder shows the title on your lock screen, and when a Microsoft To Do or Google Tasks sync is on it is copied there.",
+          "If you linked WhatsApp, you can ask there for the suggested tasks of your newest summary. Only the suggested tasks and the sentences they came from are sent to your phone, through Meta, never the whole summary, and they stay in your chat, its notification previews and your WhatsApp backups until you delete them there."
+        ],
+        "items": [
+          "Summaries filed under a meeting or kept: 12 months after they arrive, then deleted.",
+          "Summaries waiting in the inbox: 60 days after they arrive, or 60 days after you move one back to the inbox, whichever is later.",
+          "Refused emails: only a daily count, the reason and a verified sender domain, for 30 days; never their content.",
+          "Suggested tasks are part of their summary and are deleted with it. Tasks you add are yours: they stay until you delete them, also after you delete the summary or disconnect.",
+          "You can delete any summary, or all of them, at any time. They leave our live database at once and our backups within 21 days. Postmark's copy expires {{summaryProviderDays}} days after the email arrives. The original email stays in your own mailbox.",
+          "When you disconnect summaries in the app, your private address stops working at once and you choose whether to keep or delete the summaries already received. When you delete your account, your private address, the mailboxes you list and all your summaries are deleted with it.",
+          "Copies outside our database, such as a reminder on your lock screen, your WhatsApp chat or a task copied to Microsoft To Do or Google Tasks, are not reached when you delete a summary or disconnect: delete them there."
+        ]
+      },
       "notifications": {
         "title": "Notifications",
         "body": [
@@ -129,7 +151,8 @@
         ],
         "items": [
           "Google (Firebase Authentication, Cloud Firestore and Cloud Functions), which hosts your account and data and runs our server code.",
-          "OpenAI, which processes your requests to the AI assistant.",
+          "OpenAI, which processes your requests to the AI assistant and, when you ask for them, the suggested tasks from a meeting summary.",
+          "Postmark, our email provider, when you turn on meeting summaries: it receives the emails sent to your private summary address, processes them in the United States and keeps its copy for {{summaryProviderDays}} days.",
           "Microsoft, when you sign in with Microsoft or connect Outlook or To Do.",
           "Apple, when you sign in with Apple.",
           "The speech recognition service of your phone (Apple on an iPhone, usually Google on Android), when you use voice input: it may receive the audio to turn it into text.",
@@ -143,7 +166,7 @@
           "Authorities, when the law requires it, or a company that takes over the service, which must follow this policy."
         ],
         "note": [
-          "Our service providers (Google Cloud and Firebase, OpenAI, RevenueCat, Sentry, Expo, Zoom and, for WhatsApp messages, Meta) may use your information only to provide their service to us and must protect it at least as well as this policy describes. When you sign in with Google, Apple or Microsoft, connect one of their services or use your phone's speech recognition, that company also applies its own terms and privacy policy."
+          "Our service providers (Google Cloud and Firebase, OpenAI, Postmark, RevenueCat, Sentry, Expo, Zoom and, for WhatsApp messages, Meta) may use your information only to provide their service to us and must protect it at least as well as this policy describes. When you sign in with Google, Apple or Microsoft, connect one of their services or use your phone's speech recognition, that company also applies its own terms and privacy policy."
         ]
       },
       "transfers": {
@@ -158,11 +181,12 @@
           "We keep your information while your account exists."
         ],
         "items": [
-          "You can delete your account at any time in the app: Settings → Account → Delete account. This permanently deletes your account, meetings, tasks, notes, preferences, assistant usage records, subscription status, WhatsApp link and Microsoft sign-in record from our servers, signs you out and removes the app's access to your Google account or Apple account. Deleting your account does not cancel a subscription bought in the App Store or Google Play: cancel it there.",
+          "You can delete your account at any time in the app: Settings → Account → Delete account. This permanently deletes your account, meetings, tasks, notes, preferences, meeting summaries and private summary address, assistant usage records, subscription status, WhatsApp link and Microsoft sign-in record from our servers, signs you out and removes the app's access to your Google account or Apple account. Deleting your account does not cancel a subscription bought in the App Store or Google Play: cancel it there.",
           "If you can't sign in anymore, write to {{email}} from the email address of your account and ask us to delete it.",
           "When you delete a meeting, a minimal record without its content (identifiers and time) is kept for up to 60 days so the deletion reaches your other devices and calendars; after that our server erases it automatically.",
           "Events that the app added to Google Calendar, Outlook or your phone's calendar, and tasks it added to Google Tasks or Microsoft To Do, stay there until you delete them.",
           "The Zoom meetings that the app created for you (with their title, time and join link) are not deleted automatically when you delete your account: they stay on our Zoom account until you ask us to delete them at {{email}}.",
+          "Meeting summaries are kept for 12 months when they are filed under a meeting or kept, and for 60 days while they wait in your summary inbox; Postmark keeps its copy of each email for {{summaryProviderDays}} days (see \"Meeting summaries by email\").",
           "The WhatsApp link (your phone number and WhatsApp profile name) is kept until you unlink it or delete your account. The conversation state is no longer used after 15 minutes without messages and is deleted once 30 days pass without messages.",
           "If you bought a subscription, the records of its store events (purchases, renewals, plan changes, cancellations and expiry, with your anonymous user ID, the plan, the store, the product, the price and currency and the dates) are kept on our servers after you delete your account, as part of our revenue records.",
           "RevenueCat keeps its own record of your anonymous user ID, and of your purchases if you made any, after you delete your account.",
@@ -187,13 +211,13 @@
           "Access your personal data and get a copy of it.",
           "Correct inaccurate data. You can edit your meetings, tasks, notes and settings in the app.",
           "Delete your data (see above).",
-          "Object to or restrict some processing, and withdraw your consent at any time, for example by disconnecting Google Calendar, Google Tasks, Outlook or Microsoft To Do, unlinking WhatsApp, turning off calendar access or not using the AI assistant.",
+          "Object to or restrict some processing, and withdraw your consent at any time, for example by disconnecting Google Calendar, Google Tasks, Outlook or Microsoft To Do, unlinking WhatsApp, disconnecting meeting summaries, turning off calendar access or not using the AI assistant.",
           "Receive your data in a portable format.",
           "Complain to your local data protection authority."
         ],
         "note": [
           "To use these rights, write to {{email}}. We will reply within the time required by law.",
-          "We process your data to provide the service you asked for (performance of a contract), with your consent (calendar and task connections, WhatsApp and the AI assistant) and for our legitimate interests (security and fixing errors)."
+          "We process your data to provide the service you asked for (performance of a contract), with your consent (calendar and task connections, WhatsApp, meeting summaries and the AI assistant) and for our legitimate interests (security and fixing errors)."
         ]
       },
       "children": {

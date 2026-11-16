@@ -1,40 +1,45 @@
 /**
  * Locale-aware date/time formatting (owner: i18n-nav). Layer L1.
  *
- * - date-fns v4 with the enUS / es locales; the language defaults to the current UI language.
+ * - date-fns v4 with the locale of each UI language (src/i18n/locale.ts: enUS, es, ptBR, fr, de);
+ *   the language defaults to the current UI language.
  * - Time zone: `options.timeZone` (e.g. the meeting's zone) or the device zone. Wall-clock parts
  *   come from core/time (Intl), so the JS runtime zone never leaks into the output.
  * - Clock: `options.use24Hour` (Preferences.use24HourClock) when set, else the device setting
- *   (expo-localization uses24hourClock), else the language default (en 12 h, es 24 h).
+ *   (expo-localization uses24hourClock), else the language default (en 12 h; es, pt, fr, de 24 h).
  * - A "YYYY-MM-DD" string is treated as a calendar date (never shifted through UTC), which is
  *   what all-day meetings need.
  * - Invalid input throws AppError('invalid_input') (from core/time).
  */
 import { formatDistanceStrict, format as formatWithPattern, type Locale } from 'date-fns';
-import { enUS, es } from 'date-fns/locale';
 
 import type { DateValue, FormatApi, FormatOptions } from '../core/contracts';
 import { AppError } from '../core/errors';
 import { addDaysToLocalDate, getDeviceTimeZone, getZonedParts, isLocalDate, isValidTimeZone, toDate } from '../core/time';
-import type { Language, Meeting } from '../core/types';
+import type { AppLanguage, Meeting } from '../core/types';
 import { deviceUses24HourClock, isSupportedLanguage } from '../i18n/detect';
 import { getLanguage, t } from '../i18n/i18n';
-
-const DATE_FNS_LOCALES: Readonly<Record<Language, Locale>> = { en: enUS, es };
-
-/** Clock used when neither the preference nor the device says (Spanish-speaking regions use 24 h). */
-const DEFAULT_24_HOUR: Readonly<Record<Language, boolean>> = { en: false, es: true };
+import { DATE_FNS_LOCALES, DEFAULT_24_HOUR } from '../i18n/locale';
 
 /** 12-hour pattern per language: "3:00 PM" / "3:00 p.m.". */
-const TWELVE_HOUR_PATTERN: Readonly<Record<Language, string>> = { en: 'h:mm a', es: 'h:mm aaaa' };
+const TWELVE_HOUR_PATTERN: Readonly<Record<AppLanguage, string>> = {
+  en: 'h:mm a',
+  es: 'h:mm aaaa',
+  pt: 'h:mm a',
+  fr: 'h:mm a',
+  de: 'h:mm a',
+};
 
 const DATE_STYLE_PATTERNS = { short: 'P', medium: 'PP', long: 'PPP', full: 'PPPP' } as const;
 export type DateStyle = keyof typeof DATE_STYLE_PATTERNS;
 
 /** Compact day label: "Mon, Oct 5" / "lun, 5 oct" (+ year when it is not the current year). */
-const DAY_LABEL_PATTERNS: Readonly<Record<Language, { sameYear: string; otherYear: string }>> = {
+const DAY_LABEL_PATTERNS: Readonly<Record<AppLanguage, { sameYear: string; otherYear: string }>> = {
   en: { sameYear: 'EEE, MMM d', otherYear: 'EEE, MMM d, yyyy' },
   es: { sameYear: 'EEE, d MMM', otherYear: 'EEE, d MMM yyyy' },
+  pt: { sameYear: 'EEE, d MMM', otherYear: 'EEE, d MMM yyyy' },
+  fr: { sameYear: 'EEE d MMM', otherYear: 'EEE d MMM yyyy' },
+  de: { sameYear: 'EEE, d. MMM', otherYear: 'EEE, d. MMM yyyy' },
 };
 
 const RANGE_SEPARATOR = ' - ';
@@ -48,13 +53,13 @@ interface CalendarDay {
 }
 
 interface Resolved {
-  language: Language;
+  language: AppLanguage;
   locale: Locale;
   timeZone: string;
   use24Hour: boolean;
 }
 
-function resolveLanguage(language: Language | undefined): Language {
+function resolveLanguage(language: AppLanguage | undefined): AppLanguage {
   return language !== undefined && isSupportedLanguage(language) ? language : getLanguage();
 }
 
@@ -118,7 +123,7 @@ function dayLabel(day: CalendarDay, resolved: Resolved, now: Date): string {
  * 12 h / 24 h clock: explicit preference, else the device setting, else the language default.
  * (`language` is an optional extension of the contract signature.)
  */
-export function uses24HourClock(options: { preference?: boolean | null; language?: Language } = {}): boolean {
+export function uses24HourClock(options: { preference?: boolean | null; language?: AppLanguage } = {}): boolean {
   if (typeof options.preference === 'boolean') return options.preference;
   const device = deviceUses24HourClock();
   if (device !== null) return device;

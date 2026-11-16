@@ -13,7 +13,7 @@ import type { ReactElement } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { Language } from '../core/types';
+import type { AppLanguage } from '../core/types';
 import { useLanguage, useT } from '../i18n';
 import { ROUTES } from '../navigation/routes';
 import { componentMetrics, radii, spacing, stateAlpha, typography, useAppTheme, withAlpha } from '../theme';
@@ -23,9 +23,13 @@ import { Icon } from './ui';
 const HEADER_MAX_FONT_SCALE = 1.4;
 
 /** Country flag shown in the language pill (regional indicator pairs; render on iOS and Android). */
-export const LANGUAGE_FLAGS: Readonly<Record<Language, string>> = {
+export const LANGUAGE_FLAGS: Readonly<Record<AppLanguage, string>> = {
   en: '\u{1F1FA}\u{1F1F8}',
   es: '\u{1F1EA}\u{1F1F8}',
+  // M12: Brazil (pt is Brazilian Portuguese), France, Germany.
+  pt: '\u{1F1E7}\u{1F1F7}',
+  fr: '\u{1F1EB}\u{1F1F7}',
+  de: '\u{1F1E9}\u{1F1EA}',
 };
 
 export interface CustomHeaderProps {
@@ -37,7 +41,8 @@ export interface CustomHeaderProps {
   onBackPress?: () => void;
 }
 
-export function nextLanguage(language: Language, supported: readonly Language[]): Language {
+/** The next language in the cycle of the header pill (en, es, pt, fr, de, then en again). */
+export function nextLanguage(language: AppLanguage, supported: readonly AppLanguage[]): AppLanguage {
   const index = supported.indexOf(language);
   return supported[(index + 1) % supported.length] ?? language;
 }

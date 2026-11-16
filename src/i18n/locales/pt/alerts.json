@@ -1,0 +1,178 @@
+{
+  "taskReminder": {
+    "title": "Lembrete de tarefa",
+    "body": "{{title}} - vence às {{time}}"
+  },
+  "briefing": {
+    "title": "Seu dia",
+    "meetings_one": "1 reunião hoje às {{time}}: {{titles}}.",
+    "meetings_other": "{{count}} reuniões hoje, a primeira às {{time}}.",
+    "tasksDue_one": "{{count}} tarefa vence hoje.",
+    "tasksDue_other": "{{count}} tarefas vencem hoje.",
+    "tasksOverdue_one": "{{count}} tarefa ainda atrasada.",
+    "tasksOverdue_other": "{{count}} tarefas ainda atrasadas.",
+    "empty": "Nenhuma reunião e nenhuma tarefa para hoje. Aproveite o dia livre."
+  },
+  "status": {
+    "title": "Meeting Guard está ativo",
+    "next": "Próxima: {{title}} às {{time}}",
+    "idle": "Nenhuma reunião próxima. Seus alertas estão ativados."
+  },
+  "lead": {
+    "minutes_one": "em {{count}} minuto",
+    "minutes_other": "em {{count}} minutos",
+    "hours_one": "em {{count}} hora",
+    "hours_other": "em {{count}} horas",
+    "days_one": "em {{count}} dia",
+    "days_other": "em {{count}} dias"
+  },
+  "provider": {
+    "zoom": "Zoom",
+    "teams": "Microsoft Teams",
+    "google_meet": "Google Meet",
+    "other": "Reunião online"
+  },
+  "notification": {
+    "upcomingTitle": "{{title}} começa {{lead}}",
+    "nowTitle": "{{title}} está começando agora",
+    "startedTitle": "{{title}} já começou",
+    "snoozeTitle": "Lembrete: {{title}} começa {{lead}}",
+    "followUpTitle": "Como foi \"{{title}}\"?",
+    "followUpBody": "Registre notas, decisões e próximos passos com seu assistente de IA.",
+    "body": "{{time}}",
+    "bodyWithLocation": "{{time}} · {{location}}",
+    "untitled": "Reunião"
+  },
+  "channels": {
+    "max": {
+      "name": "Alertas máximos de reunião",
+      "description": "Alarme alto com vibração forte para reuniões que você não pode perder."
+    },
+    "medium": {
+      "name": "Alertas padrão de reunião",
+      "description": "Som e vibração antes das suas reuniões."
+    },
+    "light": {
+      "name": "Lembretes leves de reunião",
+      "description": "Lembretes curtos e discretos antes das suas reuniões."
+    },
+    "followup": {
+      "name": "Acompanhamento de reuniões",
+      "description": "Depois de uma reunião: registre notas e próximos passos com seu assistente de IA."
+    },
+    "briefing": {
+      "name": "Resumo do dia",
+      "description": "Uma vez por dia, um resumo daquele dia: suas reuniões e as tarefas que vencem."
+    },
+    "status": {
+      "name": "Status",
+      "description": "Uma notificação silenciosa e permanente mostrando que os alertas estão ativados."
+    },
+    "noVibrationName": "{{name}} (sem vibração)"
+  },
+  "actions": {
+    "open": "Abrir",
+    "snooze_one": "Adiar {{count}} min",
+    "snooze_other": "Adiar {{count}} min",
+    "assistant": "Abrir assistente"
+  },
+  "when": {
+    "startsIn": "Começa {{lead}}",
+    "now": "Começando agora",
+    "started_one": "Começou há {{count}} minuto",
+    "started_other": "Começou há {{count}} minutos",
+    "timeRange": "{{start}} - {{end}}"
+  },
+  "max": {
+    "heading": "Sua reunião está prestes a começar",
+    "headingNow": "Sua reunião está começando agora",
+    "headingStarted": "Sua reunião já começou",
+    "autoSnooze_one": "Adiamento automático em {{count}} segundo",
+    "autoSnooze_other": "Adiamento automático em {{count}} segundos",
+    "a11yCountdown": "O alerta será adiado automaticamente"
+  },
+  "medium": {
+    "heading": "Próxima reunião",
+    "pill": "{{title}} · {{when}}",
+    "a11yPill": "Alerta de reunião minimizado. Toque para expandir."
+  },
+  "light": {
+    "heading": "Lembrete de reunião"
+  },
+  "followUp": {
+    "heading": "Como foi?",
+    "body": "Registre notas e próximos passos de \"{{title}}\" com seu assistente de IA."
+  },
+  "buttons": {
+    "acknowledge": "Estou indo",
+    "join": "Entrar agora",
+    "snooze_one": "Adiar {{count}} min",
+    "snooze_other": "Adiar {{count}} min",
+    "details": "Detalhes da reunião",
+    "runningLate": "Vou me atrasar",
+    "minimize": "Minimizar",
+    "dismiss": "Dispensar",
+    "openAssistant": "Abrir assistente"
+  },
+  "voice": {
+    "upcoming": "Atenção. Sua reunião {{title}} começa {{lead}}, às {{time}}.",
+    "now": "Atenção. Sua reunião {{title}} está começando agora.",
+    "started": "Sua reunião {{title}} já começou.",
+    "location": "Local: {{location}}."
+  },
+  "errors": {
+    "snoozeFailed": "Não foi possível adiar o alerta.",
+    "openLinkFailed": "Não foi possível abrir o link da reunião."
+  },
+  "refill": {
+    "title": "Mantenha seus alertas de reunião atualizados",
+    "body": "Abra o Meeting Guard para que ele agende seus próximos alertas."
+  },
+  "settings": {
+    "voiceNeedsApp": "A leitura em voz alta funciona dentro do app. No Android, o alarme em tela cheia abre o app e lê a reunião; no iPhone, abra o alerta para ouvi-la. Com o app fechado, o som da notificação toca primeiro.",
+    "saved": "Configurações de alertas salvas.",
+    "imported": {
+      "label": "Eventos de outros calendários",
+      "description": "Reuniões que vêm do calendário do seu celular, do Google ou do Outlook: aniversários, feriados, convites. Eventos de dia inteiro nunca tocam. A configuração própria de uma reunião sempre prevalece.",
+      "default": "Igual ao acima"
+    },
+    "snooze": {
+      "label": "Duração do adiamento",
+      "minutes_one": "{{count}} min",
+      "minutes_other": "{{count}} min"
+    },
+    "followUp": {
+      "label": "Acompanhamento pós-reunião",
+      "description": "5 minutos após o fim de uma reunião, receba ideias de acompanhamento do assistente de IA."
+    },
+    "briefing": {
+      "label": "Resumo do dia",
+      "description": "Uma vez por dia, um breve resumo daquele dia: suas reuniões e as tarefas que vencem.",
+      "time": "Horário do resumo",
+      "at": "Resumo às {{time}}",
+      "done": "Concluído",
+      "fullScreen": "Mostrar em tela cheia",
+      "fullScreenHint": "No horário definido, o resumo ocupa a tela como um alarme de reunião. Requer a permissão de tela cheia (veja Entrega de alertas abaixo). Somente Android."
+    },
+    "statusNotification": {
+      "label": "Notificação de status",
+      "description": "Mantém uma notificação silenciosa e permanente mostrando que seus alertas estão ativados e quando é a próxima reunião."
+    },
+    "exactAlarms": {
+      "granted": "Os alarmes exatos estão permitidos. Os alertas tocam no horário certo."
+    },
+    "fullScreen": {
+      "title": "Alarmes em tela cheia",
+      "description": "Com intensidade máxima, os alarmes de reunião podem acender a tela e ocupá-la mesmo com o celular bloqueado.",
+      "allowed": "Os alarmes em tela cheia estão permitidos.",
+      "denied": "Os alarmes em tela cheia estão desativados, então os alertas máximos chegam como notificações comuns.",
+      "open": "Permitir alarmes em tela cheia"
+    },
+    "dnd": {
+      "title": "Não perturbe",
+      "androidDescription": "Os alertas máximos só podem tocar durante o Não perturbe se você permitir: abra as configurações dos alertas máximos e ative \"Ignorar Não perturbe\".",
+      "iosDescription": "Para receber alertas durante um Foco, adicione o Meeting Guard aos apps permitidos do Foco em Ajustes > Foco.",
+      "open": "Permitir que os alertas máximos ignorem o Não perturbe"
+    }
+  }
+}

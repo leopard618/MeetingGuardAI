@@ -1,0 +1,45 @@
+{
+  "title": "Anhänge",
+  "localOnly": "Nur auf diesem Gerät gespeichert. Anhänge werden nicht hochgeladen, nicht mit Ihren anderen Geräten synchronisiert und nicht mit Teilnehmern geteilt.",
+  "limits": "Dokumente, Bilder, Videos, Audio und Archive bis {{maxMb}} MB.",
+  "loading": "Anhänge werden geladen...",
+  "empty": "Noch keine Anhänge.",
+  "loadError": "Wir konnten die Anhänge auf diesem Gerät nicht lesen.",
+  "addFile": "Datei hinzufügen",
+  "addPhoto": "Foto hinzufügen",
+  "takePhoto": "Foto aufnehmen",
+  "open": "{{name}} öffnen",
+  "openHint": "Öffnet die Datei mit einer anderen App",
+  "remove": "{{name}} entfernen",
+  "removeTitle": "Diesen Anhang entfernen?",
+  "removeMessage": "\"{{name}}\" wird von diesem Gerät gelöscht.",
+  "removeConfirm": "Entfernen",
+  "removed": "Anhang entfernt",
+  "added_one": "{{count}} Datei hinzugefügt",
+  "added_other": "{{count}} Dateien hinzugefügt",
+  "failed_one": "{{count}} Datei konnte nicht hinzugefügt werden",
+  "failed_other": "{{count}} Dateien konnten nicht hinzugefügt werden",
+  "failure": {
+    "unsupported_type": "\"{{name}}\" ist kein unterstützter Dateityp.",
+    "too_large": "\"{{name}}\" ist größer als {{maxMb}} MB.",
+    "copy_failed": "\"{{name}}\" konnte nicht auf diesem Gerät gespeichert werden.",
+    "save_failed": "\"{{name}}\" konnte nicht auf diesem Gerät gespeichert werden."
+  },
+  "cameraDenied": "Der Kamerazugriff ist deaktiviert. Sie können ihn in den Einstellungen Ihres Geräts erlauben.",
+  "missing": "Diese Datei ist nicht mehr auf diesem Gerät.",
+  "openFailed": "Keine App auf diesem Gerät kann diese Datei öffnen.",
+  "meta": "{{size}} · hinzugefügt am {{date}}",
+  "size": {
+    "b": "{{value}} B",
+    "kb": "{{value}} KB",
+    "mb": "{{value}} MB",
+    "gb": "{{value}} GB"
+  },
+  "category": {
+    "documents": "Dokument",
+    "images": "Bild",
+    "videos": "Video",
+    "audio": "Audio",
+    "archives": "Archiv"
+  }
+}

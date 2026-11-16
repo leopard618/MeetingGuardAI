@@ -1,0 +1,45 @@
+{
+  "title": "Anexos",
+  "localOnly": "Armazenados apenas neste dispositivo. Os anexos não são enviados, não são sincronizados com seus outros dispositivos e não são compartilhados com os participantes.",
+  "limits": "Documentos, imagens, vídeos, áudios e arquivos compactados de até {{maxMb}} MB.",
+  "loading": "Carregando anexos...",
+  "empty": "Nenhum anexo ainda.",
+  "loadError": "Não foi possível ler os anexos neste dispositivo.",
+  "addFile": "Adicionar arquivo",
+  "addPhoto": "Adicionar foto",
+  "takePhoto": "Tirar foto",
+  "open": "Abrir {{name}}",
+  "openHint": "Abre o arquivo com outro app",
+  "remove": "Remover {{name}}",
+  "removeTitle": "Remover este anexo?",
+  "removeMessage": "\"{{name}}\" será excluído deste dispositivo.",
+  "removeConfirm": "Remover",
+  "removed": "Anexo removido",
+  "added_one": "{{count}} arquivo adicionado",
+  "added_other": "{{count}} arquivos adicionados",
+  "failed_one": "Não foi possível adicionar {{count}} arquivo",
+  "failed_other": "Não foi possível adicionar {{count}} arquivos",
+  "failure": {
+    "unsupported_type": "\"{{name}}\" não é um tipo de arquivo compatível.",
+    "too_large": "\"{{name}}\" tem mais de {{maxMb}} MB.",
+    "copy_failed": "Não foi possível salvar \"{{name}}\" neste dispositivo.",
+    "save_failed": "Não foi possível salvar \"{{name}}\" neste dispositivo."
+  },
+  "cameraDenied": "O acesso à câmera está desativado. Você pode permiti-lo nas configurações do dispositivo.",
+  "missing": "Este arquivo não está mais neste dispositivo.",
+  "openFailed": "Nenhum app neste dispositivo consegue abrir este arquivo.",
+  "meta": "{{size}} · adicionado em {{date}}",
+  "size": {
+    "b": "{{value}} B",
+    "kb": "{{value}} KB",
+    "mb": "{{value}} MB",
+    "gb": "{{value}} GB"
+  },
+  "category": {
+    "documents": "Documento",
+    "images": "Imagem",
+    "videos": "Vídeo",
+    "audio": "Áudio",
+    "archives": "Arquivo compactado"
+  }
+}

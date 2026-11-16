@@ -44,7 +44,9 @@
     "error": "La entrada por voz no funcionó esta vez. Inténtalo de nuevo o escribe tu mensaje.",
     "dismissed": "Vale, descartado. No se cambió nada.",
     "repliesOn": "Respuestas habladas activadas",
-    "repliesOff": "Respuestas habladas desactivadas"
+    "repliesOff": "Respuestas habladas desactivadas",
+    "languageUnavailable": "El reconocimiento de voz para este idioma no está instalado en este teléfono. Añádelo en los ajustes de entrada por voz de tu teléfono o escribe tu mensaje.",
+    "noVoice": "Este teléfono no tiene una voz para este idioma, así que las respuestas se muestran pero no se leen en voz alta."
   },
   "examples": {
     "e1": "Programa una reunión con Ana mañana a las 4 p. m.",

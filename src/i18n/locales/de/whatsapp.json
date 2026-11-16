@@ -1,0 +1,38 @@
+{
+  "title": "WhatsApp-Assistent",
+  "subtitle": "Besprechungen per WhatsApp-Nachricht erstellen und verwalten.",
+  "row": {
+    "section": "Integrationen",
+    "title": "WhatsApp-Assistent",
+    "subtitle": "Verknüpfen Sie Ihr Konto mit dem WhatsApp-Bot"
+  },
+  "explainer": "Verknüpfen Sie Ihre WhatsApp-Nummer, um Besprechungen per Nachricht zu erstellen. Erzeugen Sie hier einen Code und senden Sie ihn dann über WhatsApp an den Bot. Der Code funktioniert einmal und läuft nach wenigen Minuten ab.",
+  "code": {
+    "generate": "Code erzeugen",
+    "value": "Ihr Code: {{code}}",
+    "countdown": "Läuft ab in {{time}}",
+    "copy": "Code kopieren",
+    "copied": "Code kopiert",
+    "expired": "Dieser Code ist abgelaufen. Erzeugen Sie einen neuen.",
+    "sendTo": "Senden Sie diesen Code per WhatsApp an {{number}}"
+  },
+  "open": "WhatsApp öffnen",
+  "linked": {
+    "title": "Ihr WhatsApp ist verknüpft",
+    "number": "Bot-Nummer: {{number}}",
+    "yourNumber": "Verknüpfte Nummer endet auf {{last4}}"
+  },
+  "unlink": {
+    "action": "WhatsApp trennen",
+    "confirmTitle": "WhatsApp trennen?",
+    "confirmBody": "Der Bot erkennt Ihre Nummer dann nicht mehr. Sie können sie jederzeit erneut verknüpfen.",
+    "done": "WhatsApp getrennt."
+  },
+  "status": {
+    "unavailable": "Der WhatsApp-Assistent ist noch nicht verfügbar. Schauen Sie bald wieder vorbei."
+  },
+  "error": {
+    "rateLimited": "Sie haben heute zu viele Codes angefordert. Versuchen Sie es morgen erneut.",
+    "generic": "Etwas ist schiefgelaufen. Versuchen Sie es erneut."
+  }
+}

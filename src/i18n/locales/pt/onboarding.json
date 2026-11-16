@@ -1,0 +1,148 @@
+{
+  "progress": "Etapa {{current}} de {{total}}",
+  "language": {
+    "title": "Boas-vindas ao Meeting Guard AI",
+    "subtitle": "Vamos configurar tudo para você nunca mais perder uma reunião. Primeiro, escolha seu idioma.",
+    "hint": "Você pode alterá-lo a qualquer momento no menu."
+  },
+  "calendars": {
+    "title": "Conecte seus calendários",
+    "subtitle": "O Meeting Guard avisa você sobre as reuniões dos seus calendários e mantém tudo sincronizado.",
+    "later": "Você pode alterar isso depois em Configurações.",
+    "google": {
+      "title": "Google Calendar",
+      "description": "Sincronização nos dois sentidos: as reuniões que você cria aqui aparecem no Google Calendar, e seus eventos do Google recebem alertas do Meeting Guard.",
+      "connect": "Conectar Google Calendar",
+      "connected": "Conectado",
+      "success": "O Google Calendar está conectado.",
+      "cancelled": "O Google Calendar não foi conectado.",
+      "scopeDenied": "O acesso ao calendário não foi concedido. Você pode conectá-lo depois em Configurações."
+    },
+    "outlook": {
+      "title": "Calendário do Outlook",
+      "description": "Sincronização nos dois sentidos com o calendário da sua conta Microsoft (Outlook, Microsoft 365). As reuniões que você cria aqui aparecem no Outlook, e seus eventos do Outlook recebem alertas do Meeting Guard.",
+      "microsoftHint": "Você entrou com a Microsoft. Conecte a mesma conta para ver suas reuniões do Outlook aqui.",
+      "connect": "Conectar Outlook",
+      "connected": "Conectado",
+      "success": "O Calendário do Outlook está conectado.",
+      "cancelled": "O Outlook não foi conectado.",
+      "failed": "Não foi possível conectar o Outlook. Você pode tentar novamente depois em Configurações."
+    },
+    "device": {
+      "title": "Calendários neste dispositivo",
+      "description": "Importe eventos dos calendários do seu celular, como contas do iCloud ou do Outlook.",
+      "allow": "Permitir acesso ao calendário",
+      "denied": "O acesso ao calendário está desativado. Você pode ativá-lo nas configurações do dispositivo.",
+      "empty": "Nenhum calendário foi encontrado neste dispositivo.",
+      "googleNote": "Sincronizado do Google: já coberto pela sincronização do Google Calendar."
+    }
+  },
+  "alerts": {
+    "title": "Como devemos alertar você?",
+    "subtitle": "Escolha o quanto o Meeting Guard se esforça para chamar sua atenção antes de uma reunião.",
+    "enabled": "Alertas de reunião",
+    "intensity": {
+      "label": "Intensidade do alerta",
+      "max": {
+        "title": "Máxima",
+        "description": "Som de alarme e vibração. Com o app aberto, ocupa a tela, lê o alerta em voz alta e espera sua resposta. Com o app fechado ou o celular bloqueado, é uma notificação de alarme de alta prioridade."
+      },
+      "medium": {
+        "title": "Média",
+        "description": "Um banner persistente com som. Você pode minimizá-lo, mas ele fica até você agir."
+      },
+      "light": {
+        "title": "Leve",
+        "description": "Uma notificação curta com um som breve."
+      }
+    },
+    "preview": {
+      "label": "Prévia",
+      "meetingTitle": "Reunião semanal da equipe",
+      "startsIn": "Começa em 5 minutos",
+      "acknowledge": "Estou a caminho",
+      "snooze": "Adiar",
+      "lightText": "Reunião semanal da equipe começa em 5 minutos",
+      "play": "Tocar um exemplo",
+      "stop": "Parar"
+    },
+    "sound": {
+      "label": "Som",
+      "voice_and_sound": "Voz + som",
+      "voice_only": "Somente voz",
+      "sound_only": "Somente som"
+    },
+    "volume": "Volume",
+    "vibration": "Vibrar",
+    "times": {
+      "label": "Lembrar-me",
+      "hint": "Escolha um ou mais.",
+      "atStart": "No início",
+      "minutesBefore": "{{count}} min antes",
+      "hoursBefore": "{{count}} h antes",
+      "required": "Escolha pelo menos um horário de lembrete."
+    },
+    "permission": {
+      "title": "Notificações",
+      "description": "O Meeting Guard precisa de notificações para alertar você, mesmo com o app fechado.",
+      "allow": "Permitir notificações",
+      "granted": "As notificações estão ativadas.",
+      "denied": "As notificações estão desativadas. Ative-as nas configurações do dispositivo para que os alertas cheguem até você.",
+      "provisional": "As notificações são entregues silenciosamente. Permita-as totalmente em Ajustes para receber som e banners."
+    },
+    "exactAlarms": {
+      "title": "Alarmes exatos (Android)",
+      "description": "O Android pode atrasar os alertas, a menos que o Meeting Guard tenha permissão para usar alarmes exatos. Ative \"Alarmes e lembretes\" para o Meeting Guard para que os alertas toquem no horário certo.",
+      "open": "Abrir configurações de alarmes"
+    },
+    "timeSensitive": {
+      "title": "Alertas urgentes (iPhone)",
+      "description": "Os alertas de reunião são marcados como Urgentes para que possam passar pelo Foco. Se você usa o Foco, permita notificações Urgentes para o Meeting Guard."
+    }
+  },
+  "assistant": {
+    "title": "Conheça seu assistente de IA",
+    "subtitle": "Diga ao assistente o que você precisa com suas próprias palavras.",
+    "capabilitiesTitle": "Ele pode:",
+    "capabilities": {
+      "create": "Criar reuniões a partir de uma única frase",
+      "update": "Mover, renomear ou alterar reuniões",
+      "delete": "Cancelar reuniões",
+      "share": "Compartilhar detalhes de reuniões com outras pessoas",
+      "bulk": "Alterar várias reuniões de uma vez"
+    },
+    "confirm": "O assistente nunca altera nada por conta própria: você sempre vê primeiro um cartão de confirmação.",
+    "examplesTitle": "Experimente dizer",
+    "examples": {
+      "create": "Agende uma reunião diária da equipe amanhã às 9h com um link do Google Meet",
+      "move": "Mude minha reunião das 16h para as 17h",
+      "share": "Envie o link da reunião de marketing para john@company.com",
+      "bulk": "Adie todas as minhas reuniões de amanhã em 30 minutos"
+    },
+    "quotaIntro": "Seus primeiros {{days}} dias incluem {{total}} ações de IA grátis, até {{perDay}} por dia. Criar reuniões e tarefas manualmente, seus lembretes e a exportação são sempre grátis.",
+    "quotaMonth": "Seu plano {{plan}} inclui {{count}} ações de IA por mês.",
+    "plans": {
+      "free": "Grátis",
+      "pro": "Pro",
+      "premium": "Premium"
+    },
+    "privacyTitle": "Privacidade",
+    "privacy": "Suas mensagens, junto com suas próximas reuniões, são enviadas ao nosso servidor e processadas pela OpenAI para entender seu pedido.",
+    "privacyLink": "Ler a Política de Privacidade"
+  },
+  "firstMeeting": {
+    "title": "Crie sua primeira reunião",
+    "subtitle": "Escolha o jeito que preferir. Você sempre pode usar o outro depois.",
+    "manual": {
+      "title": "Preencher um formulário",
+      "description": "Informe você mesmo o título, a data, o horário e os alertas."
+    },
+    "ai": {
+      "title": "Pedir ao assistente de IA",
+      "description": "Descreva a reunião e o assistente a prepara para você confirmar."
+    },
+    "skip": "Pular e ir para o meu painel",
+    "aiPrompt": "Agende uma reunião com minha equipe amanhã às 10h por 30 minutos",
+    "finishing": "Finalizando a configuração..."
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "todo": {
+    "untitledTask": "(Ohne Titel)"
+  },
+  "add": "Neue Aufgabe",
+  "addA11y": "Neue Aufgabe erstellen",
+  "list": {
+    "refreshFailed": "Ihre Aufgaben konnten nicht synchronisiert werden",
+    "loading": "Ihre Aufgaben werden geladen...",
+    "count_one": "{{count}} Aufgabe",
+    "count_other": "{{count}} Aufgaben"
+  },
+  "search": {
+    "placeholder": "Aufgaben durchsuchen",
+    "clear": "Suche löschen"
+  },
+  "filters": {
+    "label": "Aufgaben filtern",
+    "withCount": "{{label}} ({{count}})",
+    "open": "Offen",
+    "today": "Heute",
+    "overdue": "Überfällig",
+    "done": "Erledigt",
+    "all": "Alle"
+  },
+  "empty": {
+    "title": "Noch keine Aufgaben",
+    "body": "Behalten Sie im Blick, was zu erledigen ist: eigenständig oder mit einer Besprechung verknüpft. Sie können es auch einfach dem Assistenten sagen.",
+    "action": "Erste Aufgabe hinzufügen"
+  },
+  "noMatches": {
+    "title": "Keine passenden Aufgaben",
+    "body": "Nichts passt zur aktuellen Suche oder zum Filter.",
+    "action": "Filter zurücksetzen"
+  },
+  "loadError": {
+    "title": "Aufgaben konnten nicht geladen werden"
+  },
+  "toast": {
+    "saved": "Aufgabe gespeichert",
+    "deleted": "Aufgabe gelöscht",
+    "completed": "Aufgabe erledigt",
+    "reopened": "Aufgabe wieder geöffnet"
+  },
+  "delete": {
+    "title": "\"{{title}}\" löschen?",
+    "message": "Die Aufgabe wird von allen Ihren Geräten entfernt.",
+    "confirm": "Löschen"
+  },
+  "card": {
+    "open": "Aufgabe {{title}} öffnen",
+    "complete": "{{title}} als erledigt markieren",
+    "reopen": "{{title}} wieder öffnen",
+    "delete": "{{title}} löschen",
+    "dueOn": "Fällig am {{date}}",
+    "dueAt": "Fällig am {{date}} um {{time}}",
+    "completed": "Erledigt am {{when}}",
+    "meeting": "Besprechung {{title}} öffnen",
+    "meetingUnavailable": "Die verknüpfte Besprechung existiert nicht mehr"
+  },
+  "editor": {
+    "newTitle": "Neue Aufgabe",
+    "editTitle": "Aufgabe bearbeiten",
+    "save": "Speichern",
+    "close": "Schließen",
+    "titleLabel": "Titel",
+    "descriptionLabel": "Beschreibung",
+    "descriptionPlaceholder": "Was genau muss passieren?",
+    "dueSection": "Fällig",
+    "noDueDate": "Kein Fälligkeitsdatum",
+    "dueAt": "{{date}} um {{time}}",
+    "pickDate": "Datum wählen",
+    "changeDate": "Datum ändern",
+    "pickTime": "Uhrzeit hinzufügen",
+    "changeTime": "Uhrzeit ändern",
+    "clearDue": "Entfernen",
+    "pickerDone": "Fertig",
+    "reminder": "Erinnerung",
+    "reminderNeedsTime": "Fügen Sie eine Fälligkeitszeit hinzu, um eine Erinnerung festzulegen.",
+    "reminderNone": "Keine",
+    "reminderAtDue": "Zur Fälligkeitszeit",
+    "reminderMinutes": "{{count}} Min. vorher",
+    "reminderDayBefore": "1 Tag vorher",
+    "people": "Personen",
+    "meeting": "Verknüpfte Besprechung",
+    "meetingNone": "Nicht mit einer Besprechung verknüpft",
+    "linkMeeting": "Besprechung verknüpfen",
+    "changeMeeting": "Besprechung ändern",
+    "unlinkMeeting": "Trennen",
+    "unlinkA11y": "Verknüpfung zur Besprechung entfernen",
+    "todoSection": "Microsoft To Do",
+    "todoListDefault": "{{name}} (Standardliste)",
+    "todoNoList": "Keine Liste gewählt",
+    "todoOtherList": "Andere Liste",
+    "todoLoading": "Listen werden geladen...",
+    "todoListsFailed": "Die Listen konnten nicht geladen werden.",
+    "todoChangeList": "Liste ändern",
+    "todoHint": "Mit To Do synchronisiert: Titel, Notizen, Fälligkeitsdatum, Erinnerung, erledigt. Nur in Meeting Guard: eine Fälligkeitszeit ohne Erinnerung, Personen und die verknüpfte Besprechung.",
+    "gtasksSection": "Google Tasks",
+    "gtasksListDefault": "{{name}} (Standardliste)",
+    "gtasksNoList": "Keine Liste gewählt",
+    "gtasksOtherList": "Andere Liste",
+    "gtasksLoading": "Listen werden geladen...",
+    "gtasksListsFailed": "Die Listen konnten nicht geladen werden.",
+    "gtasksChangeList": "Liste ändern",
+    "gtasksHint": "Mit Google Tasks synchronisiert: Titel, Notizen, Fälligkeitsdatum, erledigt. Nur in Meeting Guard: die Fälligkeitszeit, die Erinnerung, Personen und die verknüpfte Besprechung.",
+    "delete": "Aufgabe löschen",
+    "discardTitle": "Änderungen verwerfen?",
+    "discardMessage": "Ihre Änderungen wurden nicht gespeichert.",
+    "keepEditing": "Weiter bearbeiten",
+    "discard": "Verwerfen"
+  },
+  "errors": {
+    "titleRequired": "Geben Sie der Aufgabe einen Titel.",
+    "titleTooLong": "Der Titel darf höchstens {{max}} Zeichen haben.",
+    "descriptionTooLong": "Die Beschreibung darf höchstens {{max}} Zeichen haben."
+  }
+}

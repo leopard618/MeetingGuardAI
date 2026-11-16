@@ -1,0 +1,96 @@
+{
+  "subtitle": "Calculado neste dispositivo a partir das reuniões no Meeting Guard. Nada é enviado a lugar nenhum, a menos que você peça ao assistente.",
+  "period": {
+    "week": "Esta semana",
+    "month": "Este mês"
+  },
+  "range": "{{from}} - {{to}}",
+  "loading": "Carregando suas reuniões...",
+  "loadError": "Não foi possível carregar suas reuniões: {{reason}}",
+  "empty": "Nenhuma reunião neste período",
+  "emptyHint": "Os insights aparecem quando houver reuniões aqui. Crie uma ou conecte um calendário.",
+  "meetings_one": "{{count}} reunião",
+  "meetings_other": "{{count}} reuniões",
+  "stats": {
+    "meetings": "Reuniões",
+    "time": "Tempo em reuniões",
+    "average": "Duração média",
+    "averageNone": "Nenhuma reunião com horário",
+    "allDay_one": "Inclui {{count}} evento de dia inteiro (tempo não contado)",
+    "allDay_other": "Inclui {{count}} eventos de dia inteiro (tempo não contado)",
+    "busiest": "Dia mais cheio",
+    "busiestValue": "{{date}} · {{meetings}} · {{duration}}"
+  },
+  "load": {
+    "title": "Carga por dia",
+    "monthHint": "Totais do mês para cada dia da semana.",
+    "rowA11y": "{{day}}: {{meetings}}, {{duration}}"
+  },
+  "weekday": {
+    "0": "Dom",
+    "1": "Seg",
+    "2": "Ter",
+    "3": "Qua",
+    "4": "Qui",
+    "5": "Sex",
+    "6": "Sáb"
+  },
+  "weekdayLong": {
+    "0": "Domingo",
+    "1": "Segunda-feira",
+    "2": "Terça-feira",
+    "3": "Quarta-feira",
+    "4": "Quinta-feira",
+    "5": "Sexta-feira",
+    "6": "Sábado"
+  },
+  "sources": {
+    "title": "De onde vêm suas reuniões",
+    "manual": "Criadas no Meeting Guard",
+    "ai_chat": "Assistente de IA",
+    "whatsapp": "WhatsApp",
+    "google": "Google Calendar",
+    "device": "Calendário do dispositivo",
+    "outlook": "Calendário do Outlook"
+  },
+  "conflicts": {
+    "title": "Reuniões sobrepostas",
+    "none": "Nenhuma reunião sobreposta neste período.",
+    "pair": "{{first}} e {{second}}",
+    "openA11y": "Abrir {{title}}"
+  },
+  "backToBack": {
+    "title": "Reuniões seguidas",
+    "hint": "Menos de 5 minutos entre o fim de uma reunião e o início da próxima.",
+    "none": "Nenhuma reunião seguida neste período.",
+    "item": "{{second}} começa logo depois de {{first}}"
+  },
+  "attention": {
+    "title": "Em breve: vale a pena conferir",
+    "missingPlace_one": "{{count}} reunião não tem link nem local",
+    "missingPlace_other": "{{count}} reuniões não têm link nem local",
+    "withTips_one": "{{count}} reunião tem dicas de preparação",
+    "withTips_other": "{{count}} reuniões têm dicas de preparação",
+    "none": "Todas as próximas reuniões deste período têm um link ou um local."
+  },
+  "ai": {
+    "title": "Sugestões da IA",
+    "description": "Opcional. O assistente lê suas reuniões e sugere como lidar com conflitos, intervalos e preparação. Nada muda até você confirmar no assistente.",
+    "button": "Obter sugestões da IA",
+    "confirmTitle": "Obter sugestões da IA?",
+    "confirmUsage": "Isso envia uma solicitação ao assistente de IA e conta para o seu limite diário de IA ({{usage}}).",
+    "confirmNoUsage": "Isso envia uma solicitação ao assistente de IA e conta para o seu limite diário de IA.",
+    "confirmPrivacy": "Suas reuniões dos últimos 7 dias e dos próximos 60 dias são processadas pela OpenAI por meio do nosso servidor para escrever as sugestões.",
+    "confirm": "Obter sugestões",
+    "sending": "Consultando o assistente...",
+    "busy": "O assistente está respondendo a outra solicitação. Tente novamente em instantes.",
+    "offline": "As sugestões da IA precisam de conexão com a internet.",
+    "promptWeek": "Revise minhas reuniões desta semana. Sugira como resolver sobreposições, onde incluir intervalos entre reuniões seguidas e o que devo preparar. Não altere nada ainda.",
+    "promptMonth": "Revise minhas reuniões deste mês. Sugira como resolver sobreposições, onde incluir intervalos entre reuniões seguidas e o que devo preparar. Não altere nada ainda.",
+    "replyTitle": "O assistente diz",
+    "proposed_one": "O assistente propôs {{count}} alteração. Revise no assistente; nada é salvo até você confirmar.",
+    "proposed_other": "O assistente propôs {{count}} alterações. Revise no assistente; nada é salvo até você confirmar.",
+    "openChat": "Continuar no assistente",
+    "retry": "Tentar novamente"
+  }
+}

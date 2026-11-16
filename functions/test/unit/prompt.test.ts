@@ -6,7 +6,10 @@ import {
   buildSystemPrompt,
   collectUserText,
   fallbackReply,
+  listAnswerReply,
+  type FallbackKind,
 } from '../../src/assistant/prompt';
+import { APP_LANGUAGES } from '../../src/shared/aiContract';
 import { meetingDoc } from './fakes';
 
 const NOW = new Date('2026-09-28T14:15:00.000Z');
@@ -208,6 +211,60 @@ describe('helpers', () => {
     expect(fallbackReply('es', 'actions')).toMatch(/confírmalo/);
     expect(fallbackReply('es', 'followup')).toMatch(/reunión/);
     expect(fallbackReply('es', 'empty')).toMatch(/respuesta/);
+  });
+});
+
+describe('app languages (M12: pt-BR, fr, de)', () => {
+  const BANNED = /[\u2013\u2014\u2026\u2018\u2019\u201a\u201c\u201d\u201e\u00a0\u202f\u00ab\u00bb]/;
+  const KINDS: FallbackKind[] = [
+    'actions', 'followup', 'debrief', 'debrief_empty', 'empty', 'need_details', 'resolve_confirm', 'resolve_reject', 'resolve_tap',
+  ];
+
+  it('names the reply language with its code', () => {
+    const prompt = (language: 'pt' | 'fr' | 'de') =>
+      buildSystemPrompt({ language, timeZone: 'Europe/Madrid', now: NOW, mode: 'chat', followUpRef: null, nonce: 'n0nce' });
+    expect(prompt('pt')).toContain('Reply language: Portuguese (Brazil) (code "pt")');
+    expect(prompt('fr')).toContain('Reply language: French (code "fr")');
+    expect(prompt('de')).toContain('Reply language: German (code "de")');
+  });
+
+  it('understands date phrases in any language and bans guillemets and low quotes', () => {
+    const prompt = buildSystemPrompt({ language: 'de', timeZone: 'Europe/Madrid', now: NOW, mode: 'chat', followUpRef: null, nonce: 'n0nce' });
+    expect(prompt).toContain('The user may write or speak in any language, or mix languages.');
+    expect(prompt).toContain("'halb vier' = 3:30");
+    expect(prompt).toContain('"nächsten Dienstag"');
+    expect(prompt).toContain('no guillemets');
+    const debrief = buildSystemPrompt({ language: 'fr', timeZone: 'Europe/Madrid', now: NOW, mode: 'debrief', followUpRef: 'm1', nonce: 'n0nce' });
+    expect(debrief).toContain('it may be in any language, or mix languages');
+  });
+
+  it('has every fallback text in every app language, in plain punctuation', () => {
+    for (const language of APP_LANGUAGES) {
+      for (const kind of KINDS) {
+        const text = fallbackReply(language, kind);
+        expect(text.trim().length).toBeGreaterThan(0);
+        expect(text).not.toMatch(BANNED);
+      }
+    }
+    expect(fallbackReply('pt', 'need_details')).toContain('"amanhã às 16h"');
+    expect(fallbackReply('fr', 'resolve_tap')).toContain('Confirmer');
+    expect(fallbackReply('de', 'resolve_tap')).toContain('Bestätigen');
+  });
+
+  it('has the list answer texts in every app language, in plain punctuation', () => {
+    const items = Array.from({ length: 7 }, (_, index) => ({ title: `T${index}`, start: '2026-09-29 10:00' }));
+    for (const language of APP_LANGUAGES) {
+      for (const kind of ['list', 'list_tasks'] as const) {
+        const nothing = listAnswerReply(language, kind, []);
+        expect(nothing.length).toBeGreaterThan(0);
+        expect(nothing).not.toMatch(BANNED);
+      }
+      expect(listAnswerReply(language, 'list', items)).not.toMatch(BANNED);
+    }
+    expect(listAnswerReply('pt', 'list', items)).toContain(', e mais 2.');
+    expect(listAnswerReply('fr', 'list', items)).toContain(', et 2 de plus.');
+    expect(listAnswerReply('de', 'list', items)).toContain(', und 2 weitere.');
+    expect(listAnswerReply('de', 'list_tasks', [])).toBe('Keine Aufgabe passt dazu.');
   });
 });
 

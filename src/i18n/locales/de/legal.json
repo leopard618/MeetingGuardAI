@@ -1,0 +1,351 @@
+{
+  "updated": "Zuletzt aktualisiert: {{date}}",
+  "jurisdiction": "dem Recht von England und Wales, und für alle Streitigkeiten sind die Gerichte von England und Wales zuständig",
+  "back": "Zurück",
+  "contact": {
+    "title": "Kontakt",
+    "body": "Wenn Sie Fragen zu diesem Dokument oder zu Ihren Daten haben, kontaktieren Sie uns:",
+    "emailHint": "Öffnet Ihre E-Mail-App"
+  },
+  "privacy": {
+    "title": "Datenschutzerklärung",
+    "intro": "Diese Erklärung beschreibt, welche Informationen die App Meeting Guard AI erhebt, wie wir sie verwenden, an wen wir sie weitergeben und welche Wahlmöglichkeiten Sie haben. Meeting Guard AI wird von {{company}} (\"wir\", \"uns\") bereitgestellt. Dies ist eine Übersetzung. Weicht sie von der englischen Fassung ab, ist die englische Fassung maßgeblich.",
+    "sections": {
+      "controller": {
+        "title": "Wer für Ihre Daten verantwortlich ist",
+        "body": [
+          "{{company}} (Company No. 14085985), eingetragen unter der Anschrift {{address}}, ist für die über Meeting Guard AI verarbeiteten personenbezogenen Daten verantwortlich. Sie erreichen uns unter {{email}}."
+        ]
+      },
+      "collect": {
+        "title": "Welche Informationen wir erheben",
+        "body": [
+          "Wir erheben nur, was die App zum Funktionieren braucht:"
+        ],
+        "items": [
+          "Kontoinformationen: Wenn Sie sich mit Google, Apple oder Microsoft anmelden, erhalten wir den Namen und die E-Mail-Adresse, die der Anbieter uns übermittelt, und, sofern er eines bereitstellt, Ihr Profilfoto, zusammen mit Ihrer Konto-ID bei diesem Anbieter. Wenn Ihr Konto eine E-Mail-Adresse und ein Passwort verwendet, wird das Passwort von Firebase Authentication verwaltet und wir sehen es nie.",
+          "Besprechungen und Notizen, die Sie erstellen, importieren oder bearbeiten: Titel, Beschreibungen, Daten, Uhrzeiten und Zeitzonen, Orte, Videoanruf-Links und Kenncodes, Namen und E-Mail-Adressen der Teilnehmer, Vorbereitungstipps, Erinnerungseinstellungen und Notizen.",
+          "Aufgaben, die Sie erstellen, importieren oder bearbeiten: Titel, Beschreibung (Notizen), Fälligkeitsdatum und -uhrzeit, Erinnerung, die Personen der Aufgabe (ein Name und, falls Sie eine hinzufügen, eine E-Mail-Adresse) und die Besprechung, zu der sie gehört.",
+          "Präferenzen: Sprache, Zeitzone, Uhrzeitformat, Alarmeinstellungen sowie die Kalender und Aufgabenlisten, die Sie synchronisieren möchten.",
+          "Nutzung des KI-Assistenten: wie viele KI-Aktionen Sie ausführen, wann Ihr kostenloses Kontingent begonnen hat und wann sich Ihr bezahltes Kontingent erneuert, um das Kontingent Ihres Tarifs anzuwenden.",
+          "Abonnements: Wenn Sie Pro oder Premium kaufen, wickeln der App Store oder Google Play die Zahlung ab und wir erhalten nie Ihre Karten- oder Bankdaten. RevenueCat, das die Abonnements in unserem Auftrag verwaltet, sendet unserem Server einen Datensatz zu jedem Abonnementereignis, etwa einem Kauf, einer Verlängerung, einem Tarifwechsel, einem Abrechnungsproblem, einer Kündigung oder einem Ablauf (der Tarif, der Store, das Produkt, der Preis und die Währung, die Daten und, bei einer Kündigung oder einem Ablauf, der Grund), damit wir wissen, welchen Tarif Sie haben und wann er sich verlängert oder endet.",
+          "Absturz- und Fehlerberichte sowie Leistungsmessungen einer Stichprobe von App-Sitzungen, wenn die Absturzberichterstattung in Ihrer App-Version aktiviert ist: Gerätemodell, Betriebssystem, App-Version, technische Details des Fehlers und wie lange Bildschirme und Netzwerkanfragen dauern. Wir gestalten diese Berichte so, dass Ihre Besprechungen, Notizen und Nachrichten nicht enthalten sind, und E-Mail-Adressen werden vor dem Senden aus Fehlerberichten entfernt.",
+          "WhatsApp: Wenn Sie Ihre WhatsApp-Nummer verknüpfen, speichern wir diese Telefonnummer, Ihren WhatsApp-Profilnamen, das Datum der Verknüpfung und den Gesprächsstatus: die letzten 10 Nachrichten des Chats, Ihre und die des Assistenten, sowie jeden Vorschlag, der auf Ihre Bestätigung wartet (siehe \"WhatsApp-Assistent\").",
+          "Besprechungsprotokolle: Wenn Sie sie aktivieren, speichern wir Ihre private Adresse für Protokolle, die von Ihnen angegebenen Postfächer, die Besprechungsprotokolle, die an dieser Adresse eingehen, und die daraus vorgeschlagenen Aufgaben (siehe \"Besprechungsprotokolle per E-Mail\")."
+        ]
+      },
+      "device": {
+        "title": "Informationen, die auf Ihrem Gerät bleiben",
+        "body": [
+          "Einige Informationen werden nur auf Ihrem Telefon gespeichert:"
+        ],
+        "items": [
+          "Dateien, die Sie an Besprechungen anhängen. Sie werden nicht auf unsere Server hochgeladen und sind auf Ihren anderen Geräten nicht verfügbar.",
+          "Ihr Gespräch mit dem KI-Assistenten, damit Sie es später fortsetzen können. Die letzten Nachrichten werden mit jeder neuen Anfrage gesendet (siehe \"KI-Assistent\").",
+          "Eine Kopie Ihrer Besprechungen, Aufgaben, Notizen und Präferenzen, damit die App offline funktioniert. Sie wird gelöscht, wenn Sie sich abmelden.",
+          "Ihre Erinnerungen, die vom Betriebssystem Ihres Telefons geplant werden."
+        ]
+      },
+      "use": {
+        "title": "Wie wir Ihre Informationen verwenden",
+        "body": [
+          "Wir verwenden Ihre Informationen, um:"
+        ],
+        "items": [
+          "die App bereitzustellen: Ihre Besprechungen, Aufgaben und Notizen auf Ihren Geräten aktuell zu halten, Ihre Alarme und Erinnerungen zu planen und Ihren Terminplan anzuzeigen.",
+          "die Kalender und Aufgabenlisten zu synchronisieren, die Sie verbinden.",
+          "Ihre Anfragen an den KI-Assistenten in der App oder auf WhatsApp zu beantworten und das KI-Kontingent Ihres Tarifs anzuwenden.",
+          "die Besprechungsprotokolle, die Sie uns senden, Ihren Besprechungen zuzuordnen und, wenn Sie es wünschen, daraus Aufgaben vorzuschlagen.",
+          "Ihr Abonnement zu verwalten, falls Sie eines kaufen.",
+          "den Dienst sicher zu halten, Missbrauch zu verhindern und Fehler zu beheben."
+        ],
+        "note": [
+          "Wir verkaufen Ihre personenbezogenen Informationen nicht, wir verwenden sie nicht für Werbung und wir verfolgen Sie nicht über andere Apps oder Websites hinweg."
+        ]
+      },
+      "google": {
+        "title": "Google Calendar und Google Tasks",
+        "body": [
+          "Wenn Sie Google Calendar verbinden, erlauben Sie Meeting Guard AI, die Termine Ihrer Google-Kalender anzuzeigen und zu bearbeiten (die Berechtigung \"calendar.events\"). Die App nutzt diese Berechtigung, um die Termine Ihres Hauptkalenders in Meeting Guard AI zu übernehmen, damit Sie Alarme dafür erhalten, und um die Termine, die Sie in Meeting Guard AI verwalten, hinzuzufügen, zu ändern oder zu löschen, einschließlich der Erstellung von Google-Meet-Links und des Versands von Einladungen an Teilnehmer, wenn Sie dies wünschen.",
+          "Wenn Sie die Synchronisierung mit Google Tasks aktivieren, erlauben Sie Meeting Guard AI, alle Ihre Aufgaben zu erstellen, zu bearbeiten, zu organisieren und zu löschen (die Berechtigung \"tasks\"). Die App arbeitet nur mit den Aufgabenlisten, die Sie auswählen: Sie übernimmt deren Aufgaben in Meeting Guard AI und schreibt die Aufgaben, die Sie in der App erstellen, erledigen, ändern oder löschen, in diese Listen, sodass beide übereinstimmen. Titel, Notizen, Fälligkeitsdatum und Erledigungsstatus werden synchronisiert; Fälligkeitsuhrzeit, Erinnerung, Personen und verknüpfte Besprechung bleiben in Meeting Guard AI. Wenn zusätzlich die Synchronisierung mit Microsoft To Do aktiviert ist, werden die Aufgaben aus Google Tasks auch in Ihre To-Do-Liste geschrieben (siehe \"Microsoft: Anmeldung, Outlook und To Do\").",
+          "Termine aus Google Calendar und Aufgaben aus Google Tasks werden in Ihrem Meeting Guard AI-Konto (Google Firebase) gespeichert, damit sie auf Ihren Geräten verfügbar sind, damit Sie Alarme und Erinnerungen dafür erhalten und damit der KI-Assistent Fragen zu Ihrem Terminplan und Ihren Aufgaben beantworten kann, wenn Sie ihn nutzen.",
+          "Das Zugriffstoken, mit dem die App mit Google Calendar und Google Tasks kommuniziert, bleibt auf Ihrem Gerät, wird von Google Sign-In verwaltet und nie auf unseren Servern gespeichert. Sie können Google Calendar oder Google Tasks jederzeit in der App trennen, auf dem Bildschirm \"Kalendersynchronisierung\" in den Einstellungen, oder den Zugriff von Meeting Guard AI in Ihrem Google-Konto entfernen (myaccount.google.com/permissions). Wenn Sie eine Synchronisierung beenden, werden die aus diesem Google-Dienst importierten Termine oder Aufgaben aus Meeting Guard AI entfernt; bei Google wird nichts gelöscht.",
+          "Die Nutzung und Übertragung von Informationen, die Meeting Guard AI von Google APIs erhält, an andere Apps erfolgt gemäß der Google API Services User Data Policy, einschließlich der Anforderungen zur eingeschränkten Nutzung (Limited Use)."
+        ],
+        "items": [
+          "Wir verwenden Google-Nutzerdaten nur, um die in dieser Erklärung beschriebenen Funktionen bereitzustellen und zu verbessern.",
+          "Wir übertragen sie nur dann an andere, wenn dies für diese Funktionen nötig ist (zum Beispiel an OpenAI, wenn Sie den KI-Assistenten zu Ihren Besprechungen oder Aufgaben fragen, an Meta, wenn der WhatsApp-Assistent Ihnen dazu antwortet, an Zoom, wenn Sie einem Termin aus Google Calendar einen Zoom-Link hinzufügen, oder an Outlook und Microsoft To Do, wenn Sie diese ebenfalls verbinden), aus Sicherheitsgründen, zur Einhaltung von Gesetzen oder im Rahmen einer Fusion oder Übernahme mit Benachrichtigung an Sie.",
+          "Wir verwenden sie nicht für Werbung, wir verkaufen sie nicht und wir verwenden sie nicht zum Training allgemeiner KI- oder Machine-Learning-Modelle.",
+          "Menschen lesen sie nicht, es sei denn, Sie erteilen uns die Erlaubnis (zum Beispiel für den Support), es ist aus Sicherheitsgründen nötig oder es ist gesetzlich vorgeschrieben."
+        ]
+      },
+      "microsoft": {
+        "title": "Microsoft: Anmeldung, Outlook und To Do",
+        "body": [
+          "Mit Microsoft fortfahren: Die App öffnet die Anmeldeseite von Microsoft und sendet unserem Server den signierten Identitätsnachweis, den Microsoft ausstellt (Name, E-Mail-Adresse und Konto-ID). Unser Server prüft ihn und meldet Sie bei Ihrem Meeting Guard AI-Konto an: Er erstellt das Konto bei Ihrer ersten Anmeldung oder verknüpft ein bestehendes Konto mit derselben E-Mail-Adresse, wenn Microsoft bestätigt, dass die Adresse Ihnen gehört. Wir speichern die Microsoft-Konto-ID, das Verzeichnis (Mandant), zu dem sie gehört, die E-Mail-Adresse sowie das Datum Ihrer ersten und letzten Anmeldung, damit Sie sich erneut anmelden können.",
+          "Outlook: Wenn Sie Outlook verbinden, erlauben Sie Meeting Guard AI, Ihre Outlook-Kalendertermine und Ihre Microsoft To Do-Aufgaben über Microsoft Graph zu lesen und zu schreiben (die Berechtigungen \"Calendars.ReadWrite\" und \"Tasks.ReadWrite\", die zusammen angefragt werden, dazu \"User.Read\" für Ihr Basisprofil und \"offline_access\", damit die Verbindung zwischen Sitzungen bestehen bleibt). Die App übernimmt die Termine Ihres Outlook-Hauptkalenders in Meeting Guard AI, damit Sie Alarme dafür erhalten. Wenn Sie in Meeting Guard AI eine Besprechung erstellen, ändern oder löschen, nimmt die App dieselbe Änderung in Outlook vor (außer bei Terminen aus Google Calendar oder dem Kalender Ihres Telefons), und Outlook sendet die Einladungen an die Teilnehmer. Wenn Sie einen Microsoft Teams-Link anfordern, wird die Besprechung in Outlook als Onlinebesprechung erstellt und Microsoft erstellt den Link.",
+          "Microsoft To Do: Wenn Sie zusätzlich die Synchronisierung mit To Do aktivieren, arbeitet die App nur mit den To-Do-Listen, die Sie auswählen: Sie übernimmt deren Aufgaben in Meeting Guard AI und schreibt die Aufgaben, die Sie in der App erstellen, erledigen, ändern oder löschen, in diese Listen. Titel, Notizen, Fälligkeitsdatum, Erinnerung und Erledigungsstatus werden synchronisiert; eine Fälligkeitsuhrzeit ohne Erinnerung, die Personen und die verknüpfte Besprechung bleiben in Meeting Guard AI. Wenn zusätzlich die Synchronisierung mit Google Tasks aktiviert ist, werden die Aufgaben aus To Do auch in Ihre Google Tasks-Liste geschrieben und die Aufgaben aus Google Tasks auch in Ihre To-Do-Liste.",
+          "Termine und Aufgaben von Microsoft werden in Ihrem Meeting Guard AI-Konto (Google Firebase) gespeichert, damit sie auf Ihren Geräten verfügbar sind, damit Sie Alarme und Erinnerungen dafür erhalten und damit der KI-Assistent Fragen dazu beantworten kann, wenn Sie ihn nutzen. Die Microsoft-Token, mit denen die App mit Outlook und To Do kommuniziert, bleiben auf Ihrem Gerät und werden nie an unsere Server gesendet; das Token, das die App zwischen Sitzungen behält, wird im sicheren Speicher des Betriebssystems abgelegt und gelöscht, wenn Sie sich abmelden oder die Outlook-Synchronisierung beenden. Sie können die Synchronisierung mit Outlook oder To Do jederzeit auf dem Bildschirm \"Kalendersynchronisierung\" in den Einstellungen beenden oder den Zugriff von Meeting Guard AI in Ihrem Microsoft-Konto entfernen (account.live.com/consent/Manage für ein privates Konto). Wenn Sie eine Synchronisierung beenden, werden die daraus importierten Termine oder Aufgaben aus Meeting Guard AI entfernt; in Outlook oder To Do wird nichts gelöscht."
+        ]
+      },
+      "deviceCalendars": {
+        "title": "Kalender auf Ihrem Telefon",
+        "body": [
+          "Wenn Sie den Kalenderzugriff erlauben, liest Meeting Guard AI die Termine der von Ihnen ausgewählten Telefonkalender und speichert sie in Ihrem Konto, damit Sie Alarme dafür erhalten. Wenn Sie zusätzlich einen Kalender für den Export auswählen, schreibt die App Ihre Meeting Guard AI-Besprechungen in diesen Kalender. Sie können diese Auswahl in der App ändern oder den Kalenderzugriff in den Einstellungen Ihres Telefons deaktivieren."
+        ]
+      },
+      "zoom": {
+        "title": "Zoom-Links",
+        "body": [
+          "Wenn Sie Zoom als Videoanruf einer Besprechung wählen, erstellt unser Server die Zoom-Besprechung über das eigene Zoom-Konto von Meeting Guard AI und speichert den Beitrittslink und, falls vorhanden, den Kenncode bei Ihrer Besprechung. Unser Server sendet Zoom nur den Titel, die Startzeit, die Dauer und die Zeitzone der Besprechung (bei einer wiederkehrenden Besprechung nur den Titel). Wenn Sie die Besprechung in der App ändern oder löschen, aktualisiert oder löscht unser Server sie bei Zoom. Sie benötigen kein Zoom-Konto, und Ihr eigenes Zoom-Konto wird nie verbunden.",
+          "Die Besprechung wird über unser Zoom-Konto ausgerichtet. Wenn jemand daran teilnimmt, wickelt Zoom den Anruf daher nach seinen eigenen Bedingungen und seiner eigenen Datenschutzerklärung ab und kann uns als Gastgeber seine üblichen Besprechungsberichte (zum Beispiel, wer wann teilgenommen hat) zur Verfügung stellen."
+        ]
+      },
+      "whatsapp": {
+        "title": "WhatsApp-Assistent",
+        "body": [
+          "Der WhatsApp-Assistent ist optional. Um ihn zu nutzen, verknüpfen Sie Ihre WhatsApp-Nummer mit einem Einmalcode, den Sie in der App auf dem Bildschirm \"WhatsApp-Assistent\" in den Einstellungen erhalten. Ab dann erreichen die Nachrichten, die Sie an die WhatsApp-Nummer von Meeting Guard AI senden, unseren Server über Meta (WhatsApp Business Platform). Unser Server behandelt sie wie Anfragen an den KI-Assistenten in der App: Er sendet OpenAI die letzten Nachrichten des Chats und dieselbe eingeschränkte Sicht auf Ihre Besprechungen und Aufgaben, die unter \"KI-Assistent (OpenAI)\" beschrieben ist. Nichts wird erstellt, geändert oder gelöscht, bevor Sie es im Chat bestätigen. Die Antworten, einschließlich der Besprechungen und Aufgaben, nach denen Sie fragen (mit Titel, Datum, Uhrzeit und Videoanruf-Link oder Adresse), erreichen Sie ebenfalls über Meta. Für Ihre Nutzung von WhatsApp selbst gelten die eigenen Bedingungen und die Datenschutzerklärung von WhatsApp.",
+          "Um dem Gespräch folgen zu können, speichert unser Server die letzten 10 Nachrichten des Chats, Ihre und die des Assistenten, sowie jeden Vorschlag, der auf Ihre Bestätigung wartet. Nach 15 Minuten ohne Nachrichten werden sie nicht mehr verwendet und Ihre nächste Nachricht beginnt ein neues Gespräch; der Gesprächsstatus wird gelöscht, sobald 30 Tage ohne Nachrichten vergangen sind. Unsere Serverlogs enthalten nie den Text Ihrer Nachrichten oder Ihre Telefonnummer. Sie können die Verknüpfung Ihrer Nummer jederzeit auf demselben Bildschirm aufheben, wodurch die Verknüpfung und der Gesprächsstatus gelöscht werden."
+        ]
+      },
+      "ai": {
+        "title": "KI-Assistent (OpenAI)",
+        "body": [
+          "Der KI-Assistent ist optional. Wenn Sie ihm eine Anfrage senden, sendet unser Server (Google Cloud Functions) OpenAI die letzten Nachrichten Ihres Gesprächs und eine eingeschränkte Sicht auf Ihre Besprechungen der letzten 7 Tage bis zu den nächsten 60 Tagen und auf Ihre wiederkehrenden Besprechungen: Titel, Daten und Uhrzeiten, Orte sowie bis zu 10 Namen und E-Mail-Adressen von Teilnehmern pro Besprechung. Die Beschreibung einer Besprechung wird nur gekürzt einbezogen, und zwar für die Besprechungen der letzten 7 Tage und der nächsten 2 Tage und für wiederkehrende Besprechungen, die bereits begonnen haben, damit der Assistent Ihnen sagen kann, was Sie vorbereiten sollten, sowie für die Besprechung, zu der Sie Ideen zur Nachbereitung oder eine Nachbesprechung anfordern. Notizen werden nie gesendet, ebenso wenig der bei einer Besprechung gespeicherte Videoanruf-Link und Kenncode; eine Beschreibung wird jedoch so gesendet, wie sie geschrieben ist, sodass ein darin enthaltener Link oder Kenncode (viele Einladungen enthalten sie) mitgesendet wird.",
+          "In Chats und Nachbesprechungen erhält der Assistent außerdem Ihre offenen Aufgaben und die Aufgaben, die Sie in den letzten 7 Tagen erledigt haben, bis zu 100: Titel, Status, Fälligkeitsdatum und -uhrzeit, Erinnerung, die Namen der Personen der Aufgabe und die Besprechung, zu der sie gehört. Aufgabenbeschreibungen (Notizen) werden nie gesendet.",
+          "OpenAI verarbeitet diese Informationen, um die Antwort zu verfassen, die unser Server an die App zurückgibt. Mit jeder Anfrage sendet unser Server OpenAI außerdem eine codierte Kennung, die aus Ihrem Konto abgeleitet ist (nicht Ihren Namen oder Ihre E-Mail-Adresse), damit OpenAI Missbrauch erkennen kann. Gemäß den API-Datenrichtlinien von OpenAI verwendet OpenAI über seine API gesendete Daten standardmäßig nicht zum Training seiner Modelle und kann die Daten für begrenzte Zeit speichern, um Missbrauch zu überwachen. Die App enthält nie einen OpenAI-Schlüssel und kontaktiert OpenAI nie direkt.",
+          "Die Spracheingabe ist optional. Das Mikrofon wird erst verwendet, nachdem Sie im Assistenten oder in einer Nachbesprechung auf die Mikrofontaste getippt haben, und nur, bis das Zuhören endet. Die Spracherkennung Ihres Telefons (die von Apple auf einem iPhone, unter Android meist die von Google) wandelt das Gesagte in Text um und kann die Audioaufnahme dafür an ihre eigenen Server senden. Die App speichert die Audioaufnahme nicht und sendet sie nie an unsere Server: Nur der erkannte Text wird gesendet, wie eine getippte Nachricht.",
+          "Der Assistent schlägt Änderungen nur vor: Nichts wird erstellt, geändert, gelöscht oder geteilt, bevor Sie es bestätigen. Antworten können falsch sein, prüfen Sie sie daher, bevor Sie bestätigen. Bitte senden Sie dem Assistenten keine sensiblen Informationen wie Gesundheitsdaten."
+        ]
+      },
+      "summaries": {
+        "title": "Besprechungsprotokolle per E-Mail",
+        "body": [
+          "Besprechungsprotokolle sind optional und für Ihr Konto möglicherweise noch nicht verfügbar. Meeting Guard AI nimmt nicht an Ihren Besprechungen teil, zeichnet sie nicht auf und hört nicht mit. Wenn Sie Protokolle unter \"Besprechungsprotokolle\" in den Einstellungen aktivieren, erhalten Sie eine private E-Mail-Adresse und geben die Postfächer an, in denen die E-Mails Ihres Notizassistenten eingehen. Das Besprechungsprotokoll, das Ihr Notizassistent Ihnen bereits per E-Mail sendet, wird dann an diese private Adresse weitergeleitet, von Ihnen oder durch eine Regel in Ihrem Postfach. Meeting Guard AI prüft, ob jede E-Mail echt ist, und ordnet das Protokoll der passenden Besprechung zu oder behält es in Ihrem Posteingang für Protokolle, bis Sie es zuordnen.",
+          "Unser E-Mail-Anbieter Postmark empfängt jede E-Mail zuerst, verarbeitet sie in den Vereinigten Staaten und bewahrt seine Kopie {{summaryProviderDays}} Tage lang auf. Postmark leitet die E-Mail an unseren Server (Google Cloud Functions) weiter, der das Protokoll in Ihrem Meeting Guard AI-Konto (Google Firebase) speichert: seinen Text, seinen Betreff, die darin enthaltenen E-Mail-Adressen, das Datum, die Domain des Absenders und die Besprechung, der es zugeordnet ist. Nur Sie können Ihre Protokolle in der App sehen; andere Nutzer von Meeting Guard AI haben keinen Zugriff darauf.",
+          "Protokolle werden von Google Cloud bei der Übertragung und im Ruhezustand verschlüsselt. Zusätzlich verschlüsselt Meeting Guard AI den Text, den Betreff und die enthaltenen E-Mail-Adressen jedes Protokolls mit einem eigenen Schlüssel, der im Google Secret Manager aufbewahrt wird. Ihre private Adresse, die von Ihnen angegebenen Postfächer und Angaben wie das Datum, die Domain des Absenders und die Besprechung, der das Protokoll zugeordnet ist, erhalten diese zusätzliche Schicht nicht. Dies ist keine Ende-zu-Ende-Verschlüsselung: Personen mit Administratorzugriff auf unsere Systeme könnten sie technisch entschlüsseln.",
+          "Ein Protokoll, das Ihr Notizassistent nicht signiert hat, das nach dem Senden verändert wurde oder das nicht an eines Ihrer eigenen Postfächer gesendet wurde, wird abgelehnt, und sein Inhalt wird von Meeting Guard AI nicht gespeichert; Postmark bewahrt seine Kopie dennoch {{summaryProviderDays}} Tage lang auf. Ein echtes Protokoll, das direkt an Ihre private Adresse gesendet wurde, wartet in Ihrem Posteingang für Protokolle auf Ihre Freigabe.",
+          "Der Text eines Protokolls geht nur dann an OpenAI, wenn Sie KI-Vorschläge für Aufgaben anfordern, in der App oder indem Sie auf WhatsApp mit AI antworten. Unser Server sendet OpenAI dann den Text des Protokolls mit dem Titel der Besprechung, der es zugeordnet ist, und dem Datum, aber nie seinen Betreff oder Ihre anderen Besprechungen und Aufgaben, zu den unter \"KI-Assistent (OpenAI)\" beschriebenen Bedingungen. Die ersten KI-Vorschläge für ein Protokoll verbrauchen 1 KI-Aktion; die Aufgabenpunkte, wie sie geschrieben sind, können ohne KI angezeigt werden. Die Vorschläge werden mit dem Protokoll gespeichert und auf dieselbe Weise verschlüsselt. Nichts wird zur Aufgabe, bevor Sie es annehmen. Eine Aufgabe, die Sie hinzufügen, ist eine gewöhnliche Aufgabe: Ihr Titel und ihre Personen werden nicht mit unserem zusätzlichen Schlüssel verschlüsselt, ihre Erinnerung zeigt den Titel auf Ihrem Sperrbildschirm, und wenn eine Synchronisierung mit Microsoft To Do oder Google Tasks aktiviert ist, wird sie dorthin kopiert.",
+          "Wenn Sie WhatsApp verknüpft haben, können Sie dort nach den vorgeschlagenen Aufgaben Ihres neuesten Protokolls fragen. Nur die vorgeschlagenen Aufgaben und die Sätze, aus denen sie stammen, werden über Meta an Ihr Telefon gesendet, nie das ganze Protokoll, und sie bleiben in Ihrem Chat, in dessen Benachrichtigungsvorschauen und in Ihren WhatsApp-Backups, bis Sie sie dort löschen."
+        ],
+        "items": [
+          "Protokolle, die einer Besprechung zugeordnet oder behalten wurden: 12 Monate nach Eingang, danach werden sie gelöscht.",
+          "Protokolle, die im Posteingang warten: 60 Tage nach Eingang oder 60 Tage, nachdem Sie eines in den Posteingang zurückverschoben haben, je nachdem, was später ist.",
+          "Abgelehnte E-Mails: nur eine tägliche Anzahl, der Grund und eine verifizierte Absenderdomain, 30 Tage lang; nie ihr Inhalt.",
+          "Vorgeschlagene Aufgaben sind Teil ihres Protokolls und werden mit ihm gelöscht. Aufgaben, die Sie hinzufügen, gehören Ihnen: Sie bleiben, bis Sie sie löschen, auch nachdem Sie das Protokoll löschen oder die Verbindung trennen.",
+          "Sie können jedes Protokoll oder alle Protokolle jederzeit löschen. Sie verlassen unsere Live-Datenbank sofort und unsere Backups innerhalb von 21 Tagen. Die Kopie bei Postmark läuft {{summaryProviderDays}} Tage nach Eingang der E-Mail ab. Die ursprüngliche E-Mail bleibt in Ihrem eigenen Postfach.",
+          "Wenn Sie die Protokolle in der App trennen, funktioniert Ihre private Adresse sofort nicht mehr und Sie entscheiden, ob die bereits empfangenen Protokolle behalten oder gelöscht werden. Wenn Sie Ihr Konto löschen, werden Ihre private Adresse, die von Ihnen angegebenen Postfächer und alle Ihre Protokolle mit gelöscht.",
+          "Kopien außerhalb unserer Datenbank, etwa eine Erinnerung auf Ihrem Sperrbildschirm, Ihr WhatsApp-Chat oder eine nach Microsoft To Do oder Google Tasks kopierte Aufgabe, werden nicht erfasst, wenn Sie ein Protokoll löschen oder die Verbindung trennen: Löschen Sie sie dort."
+        ]
+      },
+      "notifications": {
+        "title": "Benachrichtigungen",
+        "body": [
+          "Besprechungsalarme, Aufgabenerinnerungen, die Erinnerung zur Nachbereitung nach dem Ende einer Besprechung und, wenn Sie ihn aktivieren, der Tagesüberblick werden vom Betriebssystem auf Ihrem Gerät geplant, basierend auf Ihren Besprechungen, Aufgaben und Alarmeinstellungen. Sie zeigen Details wie den Titel und die Uhrzeit der Besprechung oder Aufgabe, je nach den Benachrichtigungseinstellungen Ihres Telefons auch auf dem Sperrbildschirm. Wir senden keine Push-Benachrichtigungen von einem Server und verwenden Benachrichtigungen nicht für Marketing."
+        ]
+      },
+      "sharing": {
+        "title": "An wen wir Informationen weitergeben",
+        "body": [
+          "Wir geben personenbezogene Informationen nur weiter an:"
+        ],
+        "items": [
+          "Google (Firebase Authentication, Cloud Firestore und Cloud Functions), das Ihr Konto und Ihre Daten hostet und unseren Servercode ausführt.",
+          "OpenAI, das Ihre Anfragen an den KI-Assistenten verarbeitet und, wenn Sie sie anfordern, die vorgeschlagenen Aufgaben aus einem Besprechungsprotokoll.",
+          "Postmark, unseren E-Mail-Anbieter, wenn Sie Besprechungsprotokolle aktivieren: Es empfängt die an Ihre private Adresse für Protokolle gesendeten E-Mails, verarbeitet sie in den Vereinigten Staaten und bewahrt seine Kopie {{summaryProviderDays}} Tage lang auf.",
+          "Microsoft, wenn Sie sich mit Microsoft anmelden oder Outlook oder To Do verbinden.",
+          "Apple, wenn Sie sich mit Apple anmelden.",
+          "Den Spracherkennungsdienst Ihres Telefons (Apple auf einem iPhone, unter Android meist Google), wenn Sie die Spracheingabe nutzen: Er kann die Audioaufnahme erhalten, um sie in Text umzuwandeln.",
+          "Zoom, wenn Sie einen Zoom-Link anfordern: Unser Server sendet nur den Titel, die Uhrzeit, die Dauer und die Zeitzone der Besprechung.",
+          "Meta (WhatsApp Business Platform), wenn Sie Ihre WhatsApp-Nummer verknüpfen: Meta überträgt die Nachrichten zwischen Ihnen und unserer WhatsApp-Nummer.",
+          "RevenueCat, das die Abonnements in unserem Auftrag verwaltet: Wenn Sie sich anmelden, identifiziert die App Sie gegenüber RevenueCat mit Ihrer anonymen Nutzer-ID (zusammen mit den technischen Daten, die seine Software sendet, etwa die App-Version und das Betriebssystem), damit ein Kauf mit Ihrem Konto verknüpft werden kann; wenn Sie im App Store oder bei Google Play ein Abonnement kaufen, erhält RevenueCat außerdem die Aufzeichnungen des Stores zu Ihren Käufen.",
+          "Sentry (Functional Software, Inc.), das Absturz- und Fehlerberichte sowie Leistungsmessungen erhält, wenn die Absturzberichterstattung aktiviert ist.",
+          "Expo (650 Industries, Inc.), das App-Updates ausliefert: Beim Start fragt die App bei Expo, ob es eine neuere Version gibt, wodurch die IP-Adresse des Geräts, die App-Version und eine zufällige Installationskennung übermittelt werden.",
+          "Google Calendar, Google Tasks, Outlook, Microsoft To Do und die Kalender auf Ihrem Telefon, nur wenn Sie sie verbinden.",
+          "Die Personen, die Sie einladen: Wenn Sie die App bitten, Einladungen zu senden oder eine Besprechung zu teilen, erhalten die Empfänger die Details der Besprechung.",
+          "Behörden, wenn das Gesetz es verlangt, oder ein Unternehmen, das den Dienst übernimmt und diese Erklärung einhalten muss."
+        ],
+        "note": [
+          "Unsere Dienstleister (Google Cloud und Firebase, OpenAI, Postmark, RevenueCat, Sentry, Expo, Zoom und, für WhatsApp-Nachrichten, Meta) dürfen Ihre Informationen nur verwenden, um ihren Dienst für uns zu erbringen, und müssen sie mindestens so gut schützen, wie diese Erklärung es beschreibt. Wenn Sie sich mit Google, Apple oder Microsoft anmelden, einen ihrer Dienste verbinden oder die Spracherkennung Ihres Telefons nutzen, wendet das jeweilige Unternehmen außerdem seine eigenen Bedingungen und seine eigene Datenschutzerklärung an."
+        ]
+      },
+      "transfers": {
+        "title": "Wo Ihre Informationen verarbeitet werden",
+        "body": [
+          "Unsere Dienstleister können Ihre Informationen auf Servern in den Vereinigten Staaten und anderen Ländern verarbeiten. Wenn das Gesetz es verlangt, sind diese Übermittlungen durch geeignete Garantien geschützt, etwa durch die Standardvertragsklauseln der Europäischen Kommission."
+        ]
+      },
+      "retention": {
+        "title": "Wie lange wir Ihre Informationen aufbewahren und wie Sie sie löschen",
+        "body": [
+          "Wir bewahren Ihre Informationen auf, solange Ihr Konto besteht."
+        ],
+        "items": [
+          "Sie können Ihr Konto jederzeit in der App löschen: Einstellungen → Konto → Konto löschen. Dadurch werden Ihr Konto, Ihre Besprechungen, Aufgaben, Notizen, Präferenzen, Besprechungsprotokolle und Ihre private Adresse für Protokolle, die Nutzungsdaten des Assistenten, der Abonnementstatus, die WhatsApp-Verknüpfung und der Microsoft-Anmeldedatensatz dauerhaft von unseren Servern gelöscht, Sie werden abgemeldet und der Zugriff der App auf Ihr Google-Konto oder Apple-Konto wird entfernt. Das Löschen Ihres Kontos kündigt kein im App Store oder bei Google Play gekauftes Abonnement: Kündigen Sie es dort.",
+          "Wenn Sie sich nicht mehr anmelden können, schreiben Sie von der E-Mail-Adresse Ihres Kontos an {{email}} und bitten Sie uns, es zu löschen.",
+          "Wenn Sie eine Besprechung löschen, wird ein minimaler Datensatz ohne ihren Inhalt (Kennungen und Uhrzeit) bis zu 60 Tage lang aufbewahrt, damit die Löschung Ihre anderen Geräte und Kalender erreicht; danach löscht unser Server ihn automatisch.",
+          "Termine, die die App zu Google Calendar, Outlook oder dem Kalender Ihres Telefons hinzugefügt hat, und Aufgaben, die sie zu Google Tasks oder Microsoft To Do hinzugefügt hat, bleiben dort, bis Sie sie löschen.",
+          "Die Zoom-Besprechungen, die die App für Sie erstellt hat (mit Titel, Uhrzeit und Beitrittslink), werden nicht automatisch gelöscht, wenn Sie Ihr Konto löschen: Sie bleiben in unserem Zoom-Konto, bis Sie uns unter {{email}} bitten, sie zu löschen.",
+          "Besprechungsprotokolle werden 12 Monate lang aufbewahrt, wenn sie einer Besprechung zugeordnet oder behalten wurden, und 60 Tage lang, solange sie in Ihrem Posteingang für Protokolle warten; Postmark bewahrt seine Kopie jeder E-Mail {{summaryProviderDays}} Tage lang auf (siehe \"Besprechungsprotokolle per E-Mail\").",
+          "Die WhatsApp-Verknüpfung (Ihre Telefonnummer und Ihr WhatsApp-Profilname) wird aufbewahrt, bis Sie die Verknüpfung aufheben oder Ihr Konto löschen. Der Gesprächsstatus wird nach 15 Minuten ohne Nachrichten nicht mehr verwendet und gelöscht, sobald 30 Tage ohne Nachrichten vergangen sind.",
+          "Wenn Sie ein Abonnement gekauft haben, werden die Aufzeichnungen seiner Store-Ereignisse (Käufe, Verlängerungen, Tarifwechsel, Kündigungen und Ablauf, mit Ihrer anonymen Nutzer-ID, dem Tarif, dem Store, dem Produkt, dem Preis und der Währung sowie den Daten) nach dem Löschen Ihres Kontos als Teil unserer Umsatzaufzeichnungen auf unseren Servern aufbewahrt.",
+          "RevenueCat bewahrt nach dem Löschen Ihres Kontos einen eigenen Datensatz Ihrer anonymen Nutzer-ID und, falls Sie Käufe getätigt haben, Ihrer Käufe auf.",
+          "Serverlogs enthalten Ihre anonyme Nutzer-ID, technische Kennungen (etwa Besprechungs- und Nachrichtenkennungen), die Anfragedetails, die Google Cloud automatisch erfasst (etwa die IP-Adresse und die Art der App), und bei WhatsApp einen aus Ihrer Telefonnummer abgeleiteten Code anstelle der Nummer selbst. Sie werden bis zu 30 Tage lang aufbewahrt.",
+          "Unsere Datenbank-Backups, die vor Datenverlust schützen, enthalten gelöschte Informationen, bis sie ablaufen: Tägliche Backups werden bis zu 14 Tage lang aufbewahrt und die Wiederherstellung zu einem bestimmten Zeitpunkt umfasst die letzten 7 Tage. Backups werden für nichts anderes verwendet.",
+          "Wenn Sie Ihr Konto löschen, bewahren wir 30 Tage lang einen Datensatz auf, der nur Ihre anonyme Nutzer-ID, das Datum und, falls Zoom-Besprechungen für Sie erstellt wurden, deren Zoom-Besprechungsnummern enthält. Falls wir jemals ein Backup wiederherstellen müssen, verwenden wir diesen Datensatz, um Ihre Daten erneut zu löschen, damit ein gelöschtes Konto gelöscht bleibt.",
+          "Die auf Ihrem Gerät gespeicherte Kopie wird gelöscht, wenn Sie sich abmelden oder Ihr Konto löschen."
+        ]
+      },
+      "security": {
+        "title": "Sicherheit",
+        "body": [
+          "Ihre Informationen werden von Google Cloud bei der Übertragung (TLS) und im Ruhezustand verschlüsselt. Sicherheitsregeln erlauben nur Ihrem eigenen Konto, Ihre Daten zu lesen und zu schreiben, und die Schlüssel für den KI-Dienst bleiben auf unserem Server. Kein System ist vollkommen sicher, daher können wir keine absolute Sicherheit garantieren, aber wir arbeiten daran, Ihre Informationen zu schützen, und informieren Sie wie gesetzlich vorgeschrieben, wenn eine Datenschutzverletzung Sie betrifft."
+        ]
+      },
+      "rights": {
+        "title": "Ihre Rechte",
+        "body": [
+          "Je nachdem, wo Sie leben (zum Beispiel nach der DSGVO in der Europäischen Union oder dem CCPA in Kalifornien), haben Sie möglicherweise das Recht:"
+        ],
+        "items": [
+          "auf Ihre personenbezogenen Daten zuzugreifen und eine Kopie davon zu erhalten.",
+          "unrichtige Daten zu berichtigen. Sie können Ihre Besprechungen, Aufgaben, Notizen und Einstellungen in der App bearbeiten.",
+          "Ihre Daten zu löschen (siehe oben).",
+          "einer Verarbeitung zu widersprechen oder sie einschränken zu lassen und Ihre Einwilligung jederzeit zu widerrufen, zum Beispiel indem Sie Google Calendar, Google Tasks, Outlook oder Microsoft To Do trennen, die Verknüpfung mit WhatsApp aufheben, die Besprechungsprotokolle trennen, den Kalenderzugriff deaktivieren oder den KI-Assistenten nicht nutzen.",
+          "Ihre Daten in einem übertragbaren Format zu erhalten.",
+          "sich bei Ihrer örtlichen Datenschutzbehörde zu beschweren."
+        ],
+        "note": [
+          "Um diese Rechte auszuüben, schreiben Sie an {{email}}. Wir antworten innerhalb der gesetzlich vorgeschriebenen Frist.",
+          "Wir verarbeiten Ihre Daten, um den von Ihnen gewünschten Dienst bereitzustellen (Vertragserfüllung), mit Ihrer Einwilligung (Kalender- und Aufgabenverbindungen, WhatsApp, Besprechungsprotokolle und der KI-Assistent) und aufgrund unserer berechtigten Interessen (Sicherheit und Fehlerbehebung)."
+        ]
+      },
+      "children": {
+        "title": "Kinder",
+        "body": [
+          "Meeting Guard AI ist nicht für Kinder unter 16 Jahren bestimmt, und wir erheben nicht wissentlich personenbezogene Informationen von ihnen. Wenn Sie glauben, dass ein Kind uns personenbezogene Informationen gegeben hat, kontaktieren Sie uns unter {{email}}, und wir löschen sie."
+        ]
+      },
+      "changes": {
+        "title": "Änderungen dieser Erklärung",
+        "body": [
+          "Wenn wir diese Erklärung ändern, aktualisieren wir das Datum oben und informieren Sie bei wichtigen Änderungen in der App, bevor sie gelten."
+        ]
+      }
+    }
+  },
+  "terms": {
+    "title": "Nutzungsbedingungen",
+    "intro": "Bitte lesen Sie diese Bedingungen sorgfältig. Sie erklären die Regeln für die Nutzung von Meeting Guard AI und was Sie von uns erwarten können. Dies ist eine Übersetzung. Weicht sie von der englischen Fassung ab, ist die englische Fassung maßgeblich.",
+    "sections": {
+      "agreement": {
+        "title": "Vereinbarung",
+        "body": [
+          "Diese Nutzungsbedingungen sind eine Vereinbarung zwischen Ihnen und {{company}} (\"wir\", \"uns\"), einem in England und Wales unter der Company No. 14085985 eingetragenen Unternehmen mit eingetragenem Sitz unter der Anschrift {{address}}, über die Nutzung der App Meeting Guard AI. Indem Sie ein Konto erstellen oder die App nutzen, akzeptieren Sie diese Bedingungen und unsere Datenschutzerklärung. Wenn Sie nicht einverstanden sind, nutzen Sie die App bitte nicht."
+        ]
+      },
+      "service": {
+        "title": "Der Dienst",
+        "body": [
+          "Meeting Guard AI hilft Ihnen, Ihre Besprechungen und Aufgaben zu verwalten. Die App speichert Ihre Besprechungen, Aufgaben und Notizen und plant Erinnerungen auf Ihrem Gerät. Wenn Sie Google Calendar, Outlook, die Kalender auf Ihrem Telefon, Google Tasks oder Microsoft To Do verbinden, synchronisiert sich die App mit ihnen. Ihr KI-Assistent schlägt Änderungen vor, die Sie bestätigen, zum Beispiel die Aufgaben aus einer Nachbesprechung, die Sie nach einer Besprechung sprechen oder tippen. Wenn Sie sich verspäten, bereitet die App eine Nachricht mit der neuen Uhrzeit vor, die Sie von Ihrem Telefon senden, und sie verschiebt die Besprechung nur, wenn Sie das wünschen. Wir können im Laufe der Zeit Funktionen hinzufügen, ändern oder entfernen. Funktionen, die noch nicht verfügbar sind, sind in der App entsprechend gekennzeichnet."
+        ]
+      },
+      "account": {
+        "title": "Ihr Konto",
+        "body": [
+          "Um Meeting Guard AI zu nutzen:"
+        ],
+        "items": [
+          "Sie müssen mindestens 16 Jahre alt sein, oder älter, wenn Ihr Land dies für die Nutzung von Onlinediensten ohne Zustimmung eines Elternteils verlangt.",
+          "Machen Sie zutreffende Angaben und schützen Sie Ihr Google-, Apple- oder Microsoft-Konto oder Ihr Passwort.",
+          "Sie sind für die Aktivitäten in Ihrem Konto verantwortlich. Teilen Sie uns unter {{email}} mit, wenn Sie glauben, dass jemand anderes es nutzt."
+        ]
+      },
+      "alerts": {
+        "title": "Alarme und Erinnerungen",
+        "body": [
+          "Wir arbeiten intensiv daran, dass Alarme zuverlässig sind, aber ihre Zustellung hängt von Ihrem Gerät ab: Benachrichtigungsberechtigungen, Akkuoptimierung, die Modi \"Nicht stören\" und \"Fokus\", Lautlosmodus, ob das Gerät eingeschaltet ist und ob die App ihren Zeitplan aktualisieren kann. Alarme können verspätet oder gar nicht ankommen. Behalten Sie für wichtige Besprechungen zusätzlich eine andere Erinnerung bei."
+        ]
+      },
+      "ai": {
+        "title": "KI-Assistent",
+        "body": [
+          "Wenn Sie den KI-Assistenten nutzen:"
+        ],
+        "items": [
+          "Antworten und Vorschläge werden automatisch erzeugt und können falsch oder unvollständig sein. Prüfen Sie jeden Vorschlag, bevor Sie ihn bestätigen. Sie sind für die Änderungen verantwortlich, die Sie bestätigen, und für die Nachrichten, die Sie an andere Personen senden.",
+          "Jeder Tarif umfasst eine Anzahl von KI-Aktionen. Der kostenlose Tarif umfasst {{freeLimit}} Aktionen in den {{freeDays}} Tagen nach Ihrer ersten KI-Aktion, höchstens {{freePerDay}} pro Tag (Tage wechseln um Mitternacht UTC); danach benötigen der Assistent und die Terminplanung über WhatsApp ein Abonnement, während das manuelle Erstellen von Besprechungen und Aufgaben, Ihre geplanten Erinnerungen, die Anzeige und der Export kostenlos bleiben. Pro umfasst {{proLimit}} und Premium {{premiumLimit}} KI-Aktionen pro Monat, die sich jeden Monat an dem Tag erneuern, an dem Ihr Abonnement begonnen hat. Eine Antwort, die Sie nur nach fehlenden Angaben fragt, wird bis zu zweimal hintereinander nicht gezählt.",
+          "Verwenden Sie den Assistenten nicht für rechtswidrige Zwecke oder auf eine Weise, die gegen die Nutzungsrichtlinien von OpenAI verstößt."
+        ]
+      },
+      "plans": {
+        "title": "Tarife und Zahlungen",
+        "body": [
+          "Der kostenlose Tarif erfordert keine Zahlung. Pro und Premium sind Abonnements, die Sie in der App über den App Store oder Google Play kaufen; die KI-Aktionen, die jeder Tarif umfasst, sind oben unter \"KI-Assistent\" beschrieben.",
+          "Abonnements laufen monatlich oder jährlich und verlängern sich automatisch zum gleichen Preis, bis Sie sie bei Google Play oder in Ihren App Store-Einstellungen kündigen, spätestens 24 Stunden vor Ende des Zeitraums. Vor dem Kauf zeigt der Store den Endpreis in Ihrer Währung einschließlich Steuern an. Die Zahlung wird Ihrem Google Play- oder App Store-Konto belastet, wenn Sie den Kauf bestätigen, und erneut bei jeder Verlängerung.",
+          "Der Store wickelt Abrechnung, Kündigungen und Erstattungen nach seinen eigenen Regeln ab. Wenn Sie kündigen, bleibt Ihr Tarif bis zum Ende des bezahlten Zeitraums aktiv und kehrt dann zum kostenlosen Tarif zurück; wenn der Store ein Abonnement erstattet, endet der Tarif. Ein Wechsel des Tarifs oder des Abrechnungszeitraums wird ebenfalls vom Store durchgeführt, und manche Änderungen beginnen mit Ihrer nächsten Verlängerung. Das Löschen der App oder Ihres Meeting Guard AI-Kontos kündigt kein Abonnement: Kündigen Sie es zuerst im Store, sonst verlängert es sich weiter."
+        ]
+      },
+      "content": {
+        "title": "Ihre Inhalte",
+        "body": [
+          "Sie bleiben Eigentümer der Besprechungen, Notizen und anderen Inhalte, die Sie hinzufügen. Sie erlauben uns, sie nur so weit zu speichern, zu kopieren und zu verarbeiten, wie es nötig ist, um den Dienst für Sie zu betreiben, zum Beispiel um sie zu synchronisieren, Ihre Alarme zu planen oder Ihre Anfragen an den Assistenten zu beantworten. Sie sind dafür verantwortlich, dass Sie berechtigt sind, die Kontaktdaten anderer Personen zu Ihren Besprechungen hinzuzufügen und ihnen Einladungen zu senden."
+        ]
+      },
+      "thirdParty": {
+        "title": "Dienste Dritter",
+        "body": [
+          "Die App arbeitet mit Diensten anderer Unternehmen zusammen, etwa Google (Anmeldung, Kalender, Tasks, Firebase und Google Play), Apple (Mit Apple anmelden und der App Store), Microsoft (Anmeldung, Outlook und To Do), Zoom, Meta (WhatsApp), OpenAI und RevenueCat (Abonnements). Wenn Sie diese nutzen, gelten deren eigene Bedingungen und Datenschutzerklärungen, und wir sind für diese Dienste nicht verantwortlich."
+        ]
+      },
+      "acceptableUse": {
+        "title": "Zulässige Nutzung",
+        "body": [
+          "Sie verpflichten sich, Folgendes zu unterlassen:"
+        ],
+        "items": [
+          "Die App zu nutzen, um gegen Gesetze oder die Rechte anderer zu verstoßen.",
+          "Über die App Spam oder unerwünschte Einladungen zu senden.",
+          "Zu versuchen, auf eine von uns nicht erlaubte Weise auf Daten anderer Nutzer, unsere Server oder den KI-Dienst zuzugreifen, oder Nutzungsgrenzen zu umgehen.",
+          "Den Dienst zu stören, ihn mit automatisierten Anfragen zu überlasten oder die App zu kopieren oder zurückzuentwickeln, soweit das Gesetz dies nicht erlaubt."
+        ]
+      },
+      "ip": {
+        "title": "Geistiges Eigentum",
+        "body": [
+          "Die App, ihr Design und ihre Marke gehören {{company}} oder seinen Lizenzgebern. Diese Bedingungen geben Ihnen nur das Recht, die App wie hier beschrieben zu nutzen."
+        ]
+      },
+      "termination": {
+        "title": "Beendigung Ihrer Nutzung der App",
+        "body": [
+          "Sie können die Nutzung der App jederzeit beenden und Ihr Konto löschen, unter Einstellungen → Konto → Konto löschen. Wir können Konten sperren oder schließen, die schwerwiegend oder wiederholt gegen diese Bedingungen verstoßen, oder wenn das Gesetz es verlangt. Wenn möglich, informieren wir Sie vorher und erklären den Grund."
+        ]
+      },
+      "disclaimers": {
+        "title": "Haftungsausschlüsse",
+        "body": [
+          "Die App wird \"wie besehen\" und \"wie verfügbar\" bereitgestellt. Soweit gesetzlich zulässig, versprechen wir nicht, dass sie ohne Unterbrechungen oder Fehler funktioniert oder dass Alarme, Kalendersynchronisierung und KI-Antworten immer korrekt oder rechtzeitig sind. Nichts in diesen Bedingungen schränkt die Rechte ein, die Ihnen nach unabdingbaren Verbraucherschutzgesetzen zustehen."
+        ]
+      },
+      "liability": {
+        "title": "Haftungsbeschränkung",
+        "body": [
+          "Soweit gesetzlich zulässig, haftet {{company}} nicht für indirekte Schäden oder Folgeschäden, etwa verpasste Besprechungen, entgangene Chancen oder verlorene Daten, und unsere Gesamthaftung für jeden Anspruch im Zusammenhang mit der App ist auf den Betrag begrenzt, den Sie uns in den 12 Monaten vor dem Anspruch dafür gezahlt haben. Dies schränkt keine Haftung ein, die gesetzlich nicht beschränkt werden kann."
+        ]
+      },
+      "law": {
+        "title": "Anwendbares Recht",
+        "body": [
+          "Diese Bedingungen unterliegen {{jurisdiction}}. Wenn Sie Verbraucher sind, behalten Sie außerdem den Schutz der zwingenden Gesetze des Landes, in dem Sie leben, und können sich an dessen Gerichte wenden."
+        ]
+      },
+      "changes": {
+        "title": "Änderungen dieser Bedingungen",
+        "body": [
+          "Wir können diese Bedingungen aktualisieren. Wir ändern dann das Datum oben und informieren Sie bei wichtigen Änderungen in der App, bevor sie gelten. Wenn Sie die App danach weiter nutzen, gelten die neuen Bedingungen; wenn Sie damit nicht einverstanden sind, können Sie Ihr Konto löschen."
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "previousMonth": "Vorheriger Monat",
+  "nextMonth": "Nächster Monat",
+  "today": "Heute",
+  "goToToday": "Zu heute springen",
+  "todayMarker": "heute",
+  "relation": {
+    "today": "Heute",
+    "tomorrow": "Morgen",
+    "yesterday": "Gestern"
+  },
+  "meetingCount_one": "{{count}} Besprechung",
+  "meetingCount_other": "{{count}} Besprechungen",
+  "noMeetings": "Keine Besprechungen",
+  "legend": {
+    "label": "Punktfarben: {{sources}}",
+    "meetingguard": "Meeting Guard",
+    "google": "Google Calendar",
+    "outlook": "Outlook",
+    "device": "Gerätekalender",
+    "tasks": "Aufgaben"
+  },
+  "emptyDay": "Keine Besprechungen an diesem Tag.",
+  "createOnDay": "Neue Besprechung am {{date}}",
+  "createOnDayHint": "Öffnet das Besprechungsformular für diesen Tag",
+  "loading": "Ihre Besprechungen werden geladen...",
+  "errorTitle": "Ihre Besprechungen konnten nicht geladen werden",
+  "hasTasks": "mit Aufgaben",
+  "taskCount_one": "{{count}} Aufgabe",
+  "taskCount_other": "{{count}} Aufgaben"
+}

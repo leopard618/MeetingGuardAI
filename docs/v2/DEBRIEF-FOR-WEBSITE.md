@@ -61,6 +61,9 @@ There is no automatic recording and no listening in the background. Say that pla
 ## Languages and limits
 
 - English and Spanish: panel, speech recognition and the proposed titles follow the app language.
+  From version 1.7.0 (M12) the same holds in Portuguese, French and German. Publish that on the
+  website only after the debrief passes in those languages on a phone (TEST-GUIDE-M12.md B9);
+  until then the website keeps "English and Spanish".
 - One debrief is one AI action of the user's plan (same allowance as any assistant request).
 - If the phone is offline when "Create tasks" is tapped, the message shows "Not sent" with Retry;
   the same text is sent again when back online.

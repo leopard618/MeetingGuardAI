@@ -1,0 +1,17 @@
+{
+  "language": "Langue",
+  "headline": "Des alertes de réunion impossibles à manquer",
+  "signIn": {
+    "google": "Continuer avec Google",
+    "apple": "Continuer avec Apple",
+    "microsoft": "Continuer avec Microsoft",
+    "email": "Continuer avec un e-mail",
+    "busy": "Connexion...",
+    "failedTitle": "Connexion impossible",
+    "failed": "La connexion avec Google n'a pas fonctionné. Veuillez réessayer."
+  },
+  "consent": {
+    "terms": "Conditions d'utilisation",
+    "privacy": "Politique de confidentialité"
+  }
+}

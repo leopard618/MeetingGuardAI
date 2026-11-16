@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { CONFERENCE_PROVIDERS } from '../../../../core/aiContract';
-import { MEETING_SOURCES } from '../../../../core/types';
+import { APP_LANGUAGES, MEETING_SOURCES, type AppLanguage } from '../../../../core/types';
 import { RESOURCES } from '../../../../i18n/resources';
 import { CREATION_METHODS } from '../../../create/ChooseCreationMethodScreen';
 import { SOURCE_FILTERS, TIME_FILTERS } from '../meetingListModel';
@@ -47,13 +47,13 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-function lookup(language: 'en' | 'es', key: string): unknown {
+function lookup(language: AppLanguage, key: string): unknown {
   const [namespace, rest] = key.split(':') as [string, string];
   const tree = (RESOURCES[language] as Record<string, Tree>)[namespace];
   return rest.split('.').reduce<unknown>((node, part) => (node && typeof node === 'object' ? (node as Tree)[part] : undefined), tree);
 }
 
-function defined(language: 'en' | 'es', key: string): boolean {
+function defined(language: AppLanguage, key: string): boolean {
   if (typeof lookup(language, key) === 'string') return true;
   return typeof lookup(language, `${key}_one`) === 'string' && typeof lookup(language, `${key}_other`) === 'string';
 }
@@ -80,7 +80,7 @@ describe('meetings / calendar / create screens i18n', () => {
     expect(keys.size).toBeGreaterThan(40);
   });
 
-  it.each(['en', 'es'] as const)('defines every key in %s', (language) => {
+  it.each(APP_LANGUAGES)('defines every key in %s', (language) => {
     expect([...keys].filter((key) => !defined(language, key))).toEqual([]);
   });
 });

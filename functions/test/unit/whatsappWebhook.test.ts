@@ -13,11 +13,14 @@ jest.mock('firebase-functions/logger', () => ({
 import { HttpsError } from 'firebase-functions/https';
 
 import { WHATSAPP_TUNING } from '../../src/config';
-import type { AiAction, AssistantRequest, AssistantResponse, Language } from '../../src/shared/aiContract';
+import type { Firestore } from 'firebase-admin/firestore';
+
+import type { AiAction, AppLanguage, AssistantRequest, AssistantResponse, Language } from '../../src/shared/aiContract';
 import { BOT_STRINGS } from '../../src/whatsapp/messages';
 import { eventDocId, hashLinkCode } from '../../src/whatsapp/signature';
 import {
   emptySession,
+  firestoreWhatsappStore,
   rolledCounts,
   type ClaimResult,
   type PendingProposal,
@@ -39,6 +42,7 @@ import {
   type InboundMessage,
   type WebhookDeps,
 } from '../../src/whatsapp/webhook';
+import { FakeFirestore } from './summariesFakeFirestore';
 
 const NOW = new Date('2026-10-05T12:00:00.000Z');
 const PHONE = '15551234567';
@@ -48,7 +52,8 @@ class FakeStore implements WhatsappStore {
   links = new Map<string, string>();
   codes = new Map<string, { uid: string; expiresAt: string }>();
   sessions = new Map<string, WhatsappSession>();
-  prefs = new Map<string, { language: Language; timezone: string }>();
+  /** uiLanguage (M12) defaults to `language` when a test does not set it. */
+  prefs = new Map<string, { language: Language; uiLanguage?: AppLanguage; timezone: string }>();
 
   async claimEvent(eventId: string): Promise<boolean> {
     if (this.events.has(eventId)) return false;
@@ -136,8 +141,9 @@ class FakeStore implements WhatsappStore {
     if (!Number.isFinite(expiresMs) || expiresMs < now.getTime()) return { status: 'expired' };
     return { status: 'claimed', uid, actions: pendingActions, promptMsgId };
   }
-  async getPreferences(uid: string): Promise<{ language: Language; timezone: string }> {
-    return this.prefs.get(uid) ?? { language: 'en', timezone: 'UTC' };
+  async getPreferences(uid: string): Promise<{ language: Language; uiLanguage: AppLanguage; timezone: string }> {
+    const prefs = this.prefs.get(uid) ?? { language: 'en', timezone: 'UTC' };
+    return { language: prefs.language, uiLanguage: prefs.uiLanguage ?? prefs.language, timezone: prefs.timezone };
   }
 }
 
@@ -409,6 +415,42 @@ describe('assistant bridge (linked phones)', () => {
     await processInboundMessage(textMessage({ text: 'and friday?' }), deps);
     expect(requests[1]?.request.messages).toHaveLength(3);
     expect(requests[1]?.request.messages[1]).toEqual({ role: 'assistant', content: 'Here you go.' });
+  });
+
+  it('M12: a pt, fr or de user keeps the en assistant frame (request language, bot strings)', async () => {
+    for (const uiLanguage of ['pt', 'fr', 'de'] as const) {
+      const store = linkedStore();
+      store.prefs.set('u1', { language: 'en', uiLanguage, timezone: 'Europe/Paris' });
+      const sender = new FakeSender();
+      const quotaError = new HttpsError('resource-exhausted', 'limit', { reason: 'quota_exceeded', usage });
+      const { deps, requests } = makeDeps(store, sender);
+      await processInboundMessage(textMessage({ text: 'What do I have tomorrow?' }), deps);
+      expect([uiLanguage, requests[0]?.request.language]).toEqual([uiLanguage, 'en']);
+      const refused = makeDeps(store, sender, async () => {
+        throw quotaError;
+      });
+      await processInboundMessage(textMessage({ wamid: `wamid.quota.${uiLanguage}` }), refused.deps);
+      expect(sender.sent.at(-1)?.body).toBe(BOT_STRINGS.en.quotaExceeded);
+    }
+  });
+
+  it('M12: getPreferences reads the app language as uiLanguage and its en/es base as language', async () => {
+    const db = new FakeFirestore();
+    const store = firestoreWhatsappStore(db as unknown as Firestore);
+    const cases: [unknown, Language, AppLanguage][] = [
+      ['en', 'en', 'en'],
+      ['es', 'es', 'es'],
+      ['pt', 'en', 'pt'],
+      ['fr', 'en', 'fr'],
+      ['de', 'en', 'de'],
+      ['it', 'en', 'en'],
+      [42, 'en', 'en'],
+    ];
+    for (const [stored, language, uiLanguage] of cases) {
+      db.seed('users/u1/settings/preferences', { language: stored, timezone: 'Europe/Berlin' });
+      expect(await store.getPreferences('u1')).toEqual({ language, uiLanguage, timezone: 'Europe/Berlin' });
+    }
+    expect(await store.getPreferences('nobody')).toEqual({ language: 'en', uiLanguage: 'en', timezone: 'UTC' });
   });
 
   it('answers the localized quota message on quota_exceeded (same counters as the app callable)', async () => {

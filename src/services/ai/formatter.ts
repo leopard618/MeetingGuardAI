@@ -6,7 +6,7 @@
  */
 import type { TranslateFn } from '../../core/contracts';
 import { getDeviceTimeZone } from '../../core/time';
-import type { Language } from '../../core/types';
+import type { AppLanguage } from '../../core/types';
 import { getLanguage, t as translate } from '../../i18n';
 import {
   formatDate,
@@ -20,7 +20,7 @@ import {
 import type { AssistantFormatter } from './types';
 
 export function createAssistantFormatter(
-  options: { t?: TranslateFn; language?: Language; timeZone?: string; use24Hour?: boolean | null } = {},
+  options: { t?: TranslateFn; language?: AppLanguage; timeZone?: string; use24Hour?: boolean | null } = {},
 ): AssistantFormatter {
   const language = options.language ?? getLanguage();
   const timeZone = options.timeZone ?? getDeviceTimeZone();

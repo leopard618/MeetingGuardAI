@@ -5,12 +5,17 @@
  *
  * - Pilot users only (allowed(uid), read per message). Everyone else, and these words from non-pilot
  *   users, reach the assistant exactly as before: both functions answer false and change nothing.
- * - Trigger: "commitments" or "compromisos" (also "tasks from my summary", "tareas de mi minuta"),
- *   exact phrases after normalizing (lowercase, accents and a trailing . ! or ? removed, spaces
+ * - Trigger: "commitments" or "compromisos" (also "tasks from my summary", "tareas de mi minuta");
+ *   M12: pt "compromissos" ("tarefas do meu resumo"), fr "engagements" ("taches de mon compte
+ *   rendu"), de "zusagen" ("aufgaben aus meinem protokoll"). Every language's words work for every
+ *   user. Exact phrases after normalizing (lowercase, accents and a trailing . ! or ? removed, spaces
  *   collapsed). The worker answers the list and the offer to store.
- * - While an offer lives (its own expiresAt, made for this uid): ALL or TODOS, numbers ("1 3",
- *   "1,3", "1 y 3"), DROP or QUITAR plus numbers, NONE or NINGUNO, and AI or IA when the offer
- *   offers it, go to the worker. NO, CANCEL and CANCELAR close the offer here and change nothing.
+ * - While an offer lives (its own expiresAt, made for this uid): ALL (TODOS, TODAS, TOUS, TOUTES,
+ *   ALLE), numbers ("1 3", "1,3", "1 y 3", "1 e 3", "1 et 3", "1 und 3"), DROP (QUITAR, REMOVER,
+ *   TIRAR, RETIRER, SUPPRIMER, ENTFERNEN) plus numbers, NONE (NINGUNO, NENHUMA, AUCUNE, KEINE), and
+ *   AI (IA, KI) when the offer offers it, go to the worker. NO, CANCEL, CANCELAR, NAO, NON, ANNULER,
+ *   NEIN and ABBRECHEN close the offer here and change nothing. The words of whatsappRender.ts
+ *   footers must stay in these sets (test/unit/whatsappSummaryRoute.test.ts checks it).
  *   ALL with nothing marked answers "Nothing is marked" without a call. Any other text leaves the
  *   offer alone and goes to the assistant. A bare "2" is item 2: no pending proposal can be armed
  *   while an offer is (each arming write clears the other).
@@ -23,7 +28,7 @@
  */
 import * as logger from 'firebase-functions/logger';
 
-import type { Language } from '../shared/aiContract';
+import type { AppLanguage } from '../shared/aiContract';
 import {
   SUMMARY_ALL_BUTTON_PREFIX,
   SUMMARY_NONE_BUTTON_PREFIX,
@@ -57,8 +62,20 @@ export function normalizeSummaryText(text: string): string {
     .trim();
 }
 
-/** The phrases that ask for the suggested tasks (EN and ES). */
-export const SUMMARY_TRIGGER_PHRASES: ReadonlySet<string> = new Set(['commitments', 'compromisos', 'tasks from my summary', 'tareas de mi minuta']);
+/** The phrases that ask for the suggested tasks (EN, ES, PT, FR, DE), normalized. */
+export const SUMMARY_TRIGGER_PHRASES: ReadonlySet<string> = new Set([
+  'commitments',
+  'compromisos',
+  'tasks from my summary',
+  'tareas de mi minuta',
+  // M12: pt-BR, fr, de (accents are removed before the lookup).
+  'compromissos',
+  'tarefas do meu resumo',
+  'engagements',
+  'taches de mon compte rendu',
+  'zusagen',
+  'aufgaben aus meinem protokoll',
+]);
 
 export function isSummaryTrigger(text: string): boolean {
   return SUMMARY_TRIGGER_PHRASES.has(normalizeSummaryText(text));
@@ -72,12 +89,14 @@ export type SummaryReply =
   | { kind: 'numbers'; numbers: number[] }
   | { kind: 'drop'; numbers: number[] };
 
-const ALL_WORDS = new Set(['all', 'todos', 'todas']);
-const NONE_WORDS = new Set(['none', 'ninguno', 'ninguna']);
-const CLOSE_WORDS = new Set(['no', 'cancel', 'cancelar', 'cancela']);
-const AI_WORDS = new Set(['ai', 'ia']);
-const DROP_WORDS = new Set(['drop', 'quitar']);
-const JOINERS = new Set(['y', 'and', 'e', '&']);
+// M12: the pt, fr and de words are folded like the text (lowercase, no accents: 'nao' is "nao").
+// 'non' and 'nein' act only while an offer lives, exactly like 'no'.
+export const ALL_WORDS: ReadonlySet<string> = new Set(['all', 'todos', 'todas', 'tous', 'toutes', 'alle']);
+export const NONE_WORDS: ReadonlySet<string> = new Set(['none', 'ninguno', 'ninguna', 'nenhum', 'nenhuma', 'aucun', 'aucune', 'keine', 'keiner']);
+export const CLOSE_WORDS: ReadonlySet<string> = new Set(['no', 'cancel', 'cancelar', 'cancela', 'nao', 'non', 'annuler', 'nein', 'abbrechen']);
+export const AI_WORDS: ReadonlySet<string> = new Set(['ai', 'ia', 'ki']);
+export const DROP_WORDS: ReadonlySet<string> = new Set(['drop', 'quitar', 'remover', 'tirar', 'retirer', 'supprimer', 'entfernen']);
+const JOINERS = new Set(['y', 'and', 'e', '&', 'et', 'und']);
 /** At most this many numbers in one reply (one decide call). */
 const MAX_REPLY_NUMBERS = 30;
 
@@ -123,7 +142,8 @@ export interface SummaryRouteInput {
   message: InboundMessage;
   session: WhatsappSession;
   uid: string;
-  language: Language;
+  /** The app language (M12: en, es, pt, fr or de); only the suggested-tasks texts use it. */
+  language: AppLanguage;
   /** When the webhook batch started (epoch ms), for the port timeout; null when unknown. */
   batchStartedMs: number | null;
 }

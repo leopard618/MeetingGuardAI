@@ -1,0 +1,24 @@
+{
+  "title": "Wie möchten Sie sie erstellen?",
+  "subtitle": "Wählen Sie eine Option. Sie können die Besprechung danach bearbeiten.",
+  "comingSoon": "Demnächst verfügbar",
+  "methods": {
+    "manual": {
+      "title": "Formular ausfüllen",
+      "description": "Geben Sie Titel, Datum und Uhrzeit, Ort, Videoanruf, Teilnehmer und Erinnerungen selbst ein.",
+      "hint": "Öffnet das Besprechungsformular"
+    },
+    "ai": {
+      "title": "KI-Assistenten fragen",
+      "description": "Beschreiben Sie sie in Ihren eigenen Worten, zum Beispiel \"Mittagessen mit Ana morgen um 14 Uhr\". Sie prüfen alles, bevor etwas gespeichert wird. Jede Nachricht verbraucht eine Ihrer täglichen KI-Anfragen.",
+      "hint": "Öffnet den KI-Assistenten"
+    },
+    "whatsapp": {
+      "title": "WhatsApp",
+      "description": "Das Erstellen von Besprechungen per WhatsApp-Nachricht ist noch nicht verfügbar.",
+      "hint": "Noch nicht verfügbar",
+      "readyDescription": "Senden Sie dem Bot eine Nachricht wie \"Mittagessen mit Ana morgen um 14 Uhr\". Sie bestätigen, bevor etwas gespeichert wird.",
+      "readyHint": "Öffnet die WhatsApp-Einrichtung"
+    }
+  }
+}

@@ -111,6 +111,11 @@ service cloud.firestore {
       return v in ['en', 'es'];
     }
 
+    // M12: the app interface language (Preferences.language only). Meetings keep isLanguage.
+    function isAppLanguage(v) {
+      return v in ['en', 'es', 'pt', 'fr', 'de'];
+    }
+
     function unchanged(field) {
       return request.resource.data.get(field, null) == resource.data.get(field, null);
     }
@@ -323,7 +328,7 @@ service cloud.firestore {
                                'googleCalendarSyncEnabled', 'deviceCalendarImportIds',
                                'deviceCalendarExportId', 'todoListId', 'todoListName',
                                'gtasksListId', 'gtasksListName', 'updatedAt'])
-        && isLanguage(d.get('language', 'en'))
+        && isAppLanguage(d.get('language', 'en'))
         && (d.get('timezone', null) == null || isTimeZone(d.timezone))
         && d.get('alertEnabled', true) is bool
         && d.get('alertIntensity', 'max') in ['max', 'medium', 'light']

@@ -1,0 +1,39 @@
+{
+  "header": {
+    "back": "Voltar",
+    "openMenu": "Abrir menu",
+    "darkMode": "Mudar para o modo escuro",
+    "lightMode": "Mudar para o modo claro",
+    "switchLanguage": "Mudar o idioma para {{language}}",
+    "assistant": "Abrir o assistente de IA",
+    "assistantHint": "Toque e segure, depois arraste para movê-lo"
+  },
+  "sidebar": {
+    "close": "Fechar menu",
+    "language": "Idioma",
+    "theme": "Aparência",
+    "themeModes": {
+      "system": "Sistema",
+      "light": "Claro",
+      "dark": "Escuro"
+    },
+    "items": {
+      "Dashboard": "Painel",
+      "ChooseCreationMethod": "Nova reunião",
+      "TotalMeetings": "Todas as reuniões",
+      "Calendar": "Calendário",
+      "Notes": "Notas",
+      "Tasks": "Tarefas",
+      "AIChat": "Assistente de IA",
+      "Pricing": "Planos",
+      "Settings": "Configurações"
+    }
+  },
+  "errorBoundary": {
+    "title": "Algo deu errado",
+    "message": "O Meeting Guard encontrou um problema inesperado. Tente novamente. Se continuar acontecendo, feche e abra o app de novo.",
+    "retryHint": "Recarrega o Meeting Guard",
+    "screenMessage": "Esta tela encontrou um problema inesperado. Tente novamente ou volte. Se continuar acontecendo, feche e abra o app de novo.",
+    "screenRetryHint": "Recarrega a tela"
+  }
+}

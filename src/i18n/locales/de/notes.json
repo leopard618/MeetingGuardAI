@@ -1,0 +1,100 @@
+{
+  "search": {
+    "placeholder": "Notizen durchsuchen",
+    "clear": "Suche löschen"
+  },
+  "filters": {
+    "label": "Nach Kategorie filtern",
+    "all": "Alle",
+    "withCount": "{{label}} ({{count}})"
+  },
+  "categories": {
+    "general": "Allgemein",
+    "work": "Arbeit",
+    "ideas": "Ideen",
+    "personal": "Privat"
+  },
+  "list": {
+    "loading": "Ihre Notizen werden geladen...",
+    "count_one": "{{count}} Notiz",
+    "count_other": "{{count}} Notizen"
+  },
+  "empty": {
+    "title": "Noch keine Notizen",
+    "body": "Halten Sie Tagesordnungen, Ideen und Nachbereitungen fest. Sie können eine Notiz mit einer Ihrer Besprechungen verknüpfen.",
+    "action": "Erste Notiz schreiben"
+  },
+  "noMatches": {
+    "title": "Keine passenden Notizen",
+    "body": "Versuchen Sie eine andere Suche oder Kategorie.",
+    "action": "Filter zurücksetzen"
+  },
+  "loadError": {
+    "title": "Wir konnten Ihre Notizen nicht laden"
+  },
+  "add": "Neue Notiz",
+  "addA11y": "Neue Notiz erstellen",
+  "card": {
+    "open": "Notiz bearbeiten: {{title}}",
+    "openHint": "Öffnet die Notiz zum Bearbeiten",
+    "pinned": "Angeheftet",
+    "pin": "Notiz anheften: {{title}}",
+    "unpin": "Notiz lösen: {{title}}",
+    "delete": "Notiz löschen: {{title}}",
+    "updated": "Aktualisiert {{when}}",
+    "meeting": "Besprechung öffnen: {{title}}",
+    "meetingUnavailable": "Die verknüpfte Besprechung ist nicht mehr verfügbar"
+  },
+  "editor": {
+    "newTitle": "Neue Notiz",
+    "editTitle": "Notiz bearbeiten",
+    "close": "Schließen",
+    "save": "Speichern",
+    "titleLabel": "Titel",
+    "contentLabel": "Notiz",
+    "contentPlaceholder": "Schreiben Sie Ihre Notiz...",
+    "characters": "{{count}} / {{max}} Zeichen",
+    "category": "Kategorie",
+    "pin": "Oben anheften",
+    "pinHint": "Angeheftete Notizen stehen ganz oben in der Liste.",
+    "meeting": "Verknüpfte Besprechung",
+    "meetingNone": "Diese Notiz ist mit keiner Besprechung verknüpft.",
+    "linkMeeting": "Mit Besprechung verknüpfen",
+    "changeMeeting": "Ändern",
+    "unlinkMeeting": "Verknüpfung entfernen",
+    "unlinkA11y": "Verknüpfung zur Besprechung entfernen",
+    "delete": "Notiz löschen",
+    "discardTitle": "Änderungen verwerfen?",
+    "discardMessage": "Die Änderungen an dieser Notiz gehen verloren.",
+    "keepEditing": "Weiter bearbeiten",
+    "discard": "Verwerfen"
+  },
+  "errors": {
+    "titleRequired": "Fügen Sie einen Titel für die Notiz hinzu.",
+    "titleTooLong": "Der Titel darf bis zu {{max}} Zeichen haben.",
+    "contentTooLong": "Die Notiz darf bis zu {{max}} Zeichen haben."
+  },
+  "picker": {
+    "title": "Besprechung verknüpfen",
+    "back": "Zurück zur Notiz",
+    "search": "Besprechungen durchsuchen",
+    "upcoming": "Anstehend",
+    "past": "Vergangen",
+    "empty": "Sie haben noch keine Besprechungen zum Verknüpfen.",
+    "noMatches": "Keine Besprechungen passen zu Ihrer Suche.",
+    "select": "Mit {{title}} verknüpfen, {{when}}",
+    "cancelled": "Abgesagt",
+    "linked": "Verknüpft"
+  },
+  "delete": {
+    "title": "\"{{title}}\" löschen?",
+    "message": "Die Notiz wird von allen Ihren Geräten gelöscht. Dies kann nicht rückgängig gemacht werden.",
+    "confirm": "Löschen"
+  },
+  "toast": {
+    "saved": "Notiz gespeichert",
+    "deleted": "Notiz gelöscht",
+    "pinned": "Notiz angeheftet",
+    "unpinned": "Notiz gelöst"
+  }
+}

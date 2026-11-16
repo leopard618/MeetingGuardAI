@@ -18,7 +18,10 @@
   "language": {
     "label": "Idioma",
     "en": "English",
-    "es": "Español"
+    "es": "Español",
+    "pt": "Português",
+    "fr": "Français",
+    "de": "Deutsch"
   },
   "format": {
     "now": "ahora",

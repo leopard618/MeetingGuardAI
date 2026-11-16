@@ -1,0 +1,82 @@
+{
+  "app": {
+    "name": "Meeting Guard AI",
+    "shortName": "Meeting Guard"
+  },
+  "actions": {
+    "continue": "Weiter",
+    "back": "Zurück",
+    "skipForNow": "Vorerst überspringen",
+    "done": "Fertig",
+    "retry": "Erneut versuchen",
+    "cancel": "Abbrechen",
+    "openSettings": "Einstellungen öffnen",
+    "signOut": "Abmelden",
+    "signOutAnyway": "Trotzdem abmelden",
+    "save": "Speichern"
+  },
+  "language": {
+    "label": "Sprache",
+    "en": "English",
+    "es": "Español",
+    "pt": "Português",
+    "fr": "Français",
+    "de": "Deutsch"
+  },
+  "format": {
+    "now": "jetzt",
+    "tomorrow": "morgen",
+    "yesterday": "gestern",
+    "allDay": "Ganztägig",
+    "days_one": "{{count}} Tag",
+    "days_other": "{{count}} Tage"
+  },
+  "splash": {
+    "loading": "Wird geladen...",
+    "slow": "Das dauert länger als üblich. Prüfen Sie Ihre Internetverbindung."
+  },
+  "session": {
+    "signOutTitle": "Abmelden",
+    "signOutMessage": "Möchten Sie sich wirklich abmelden?",
+    "pendingWritesTitle": "Nicht synchronisierte Änderungen",
+    "pendingWritesMessage": "Einige Ihrer Änderungen haben den Server noch nicht erreicht. Wenn Sie sich jetzt abmelden, gehen sie verloren.",
+    "signOutFailed": "Wir konnten Sie nicht abmelden. Bitte versuchen Sie es erneut.",
+    "prefsErrorTitle": "Wir konnten Ihre Einstellungen nicht laden",
+    "prefsErrorMessage": "Prüfen Sie Ihre Internetverbindung und öffnen Sie die App erneut, oder melden Sie sich ab."
+  },
+  "consent": {
+    "prefix": "Wenn Sie fortfahren, akzeptieren Sie unsere",
+    "terms": "Nutzungsbedingungen",
+    "and": "und",
+    "privacy": "Datenschutzerklärung"
+  },
+  "errors": {
+    "not_configured": "Diese App ist nicht richtig konfiguriert. Bitte aktualisieren Sie auf die neueste Version.",
+    "not_implemented": "Diese Funktion ist noch nicht verfügbar.",
+    "unauthenticated": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+    "permission_denied": "Sie haben keine Berechtigung dafür.",
+    "offline": "Sie sind offline. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    "timeout": "Die Anfrage hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+    "not_found": "Wir konnten das Gesuchte nicht finden.",
+    "invalid_input": "Einige Angaben sind ungültig. Bitte prüfen Sie sie und versuchen Sie es erneut.",
+    "conflict": "Dieses Element wurde an anderer Stelle geändert. Bitte versuchen Sie es erneut.",
+    "quota_exceeded": "Sie haben Ihr Limit vorerst erreicht. Bitte versuchen Sie es später erneut.",
+    "upstream_error": "Bei uns ist etwas schiefgelaufen. Bitte versuchen Sie es gleich noch einmal.",
+    "cancelled": "Die Aktion wurde abgebrochen.",
+    "unsupported": "Diese Aktion wird nicht unterstützt.",
+    "pending_writes": "Einige Änderungen wurden noch nicht synchronisiert.",
+    "google_not_signed_in": "Melden Sie sich mit Google an, um diese Funktion zu nutzen.",
+    "calendar_scope_missing": "Meeting Guard benötigt die Berechtigung, auf Ihren Google Calendar zuzugreifen.",
+    "tasks_scope_missing": "Meeting Guard benötigt die Berechtigung, auf Ihre Google Tasks zuzugreifen.",
+    "calendar_not_connected": "Google Calendar ist nicht verbunden.",
+    "calendar_permission_denied": "Der Kalenderzugriff wurde verweigert. Sie können ihn in den Einstellungen Ihres Geräts erlauben.",
+    "notification_permission_denied": "Benachrichtigungen sind deaktiviert. Aktivieren Sie sie in den Einstellungen Ihres Geräts, damit Sie keine Besprechung verpassen.",
+    "unknown": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut."
+  },
+  "discard": {
+    "title": "Änderungen verwerfen?",
+    "message": "Ihre Änderungen sind nicht gespeichert. Wenn Sie den Bildschirm jetzt verlassen, gehen sie verloren.",
+    "keepEditing": "Weiter bearbeiten",
+    "discard": "Verwerfen"
+  }
+}

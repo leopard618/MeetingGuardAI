@@ -4,31 +4,32 @@
  */
 import { getCalendars, getLocales } from 'expo-localization';
 
-import { LANGUAGES, type Language } from '../core/types';
+import { APP_LANGUAGES, type AppLanguage } from '../core/types';
 
-const SUPPORTED: ReadonlySet<string> = new Set(LANGUAGES);
+const SUPPORTED: ReadonlySet<string> = new Set(APP_LANGUAGES);
 
-export function isSupportedLanguage(value: unknown): value is Language {
+export function isSupportedLanguage(value: unknown): value is AppLanguage {
   return typeof value === 'string' && SUPPORTED.has(value);
 }
 
 /**
- * Maps a language code or BCP-47 tag ("es", "es-MX", "es_ES", "EN-us") to a supported language;
- * null when it is not English or Spanish.
+ * Maps a language code or BCP-47 tag ("es", "es-MX", "es_ES", "EN-us", "pt-BR", "fr_CA",
+ * "de-CH") to a supported app language through its primary subtag; null when it is not one of
+ * APP_LANGUAGES.
  */
-export function normalizeLanguage(value: unknown): Language | null {
+export function normalizeLanguage(value: unknown): AppLanguage | null {
   if (typeof value !== 'string') return null;
   const primary = value.trim().toLowerCase().split(/[-_]/)[0] ?? '';
   return isSupportedLanguage(primary) ? primary : null;
 }
 
-/** Product rule: a Spanish device (es-*) gets Spanish, every other device gets English. */
-export function languageFromLocaleCode(code: string | null | undefined): Language {
-  return normalizeLanguage(code) === 'es' ? 'es' : 'en';
+/** Product rule: a device in a supported language (es-*, pt-*, fr-*, de-*, en-*) gets it, every other device gets English. */
+export function languageFromLocaleCode(code: string | null | undefined): AppLanguage {
+  return normalizeLanguage(code) ?? 'en';
 }
 
-/** Language of the device's primary locale (es* -> 'es', anything else -> 'en'). */
-export function detectDeviceLanguage(): Language {
+/** Language of the device's primary locale (es* -> 'es', pt* -> 'pt', fr* -> 'fr', de* -> 'de', anything else -> 'en'). */
+export function detectDeviceLanguage(): AppLanguage {
   try {
     const [primary] = getLocales();
     return languageFromLocaleCode(primary?.languageCode ?? primary?.languageTag);

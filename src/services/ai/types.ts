@@ -5,9 +5,9 @@
  */
 import type {
   AiAction,
+  AppLanguage,
   AssistantUsage,
   ConferenceDetails,
-  Language,
 } from '../../core/aiContract';
 import type {
   ActionPreview,
@@ -129,7 +129,8 @@ export type MeetingsPort = Pick<MeetingRepository, 'get' | 'list' | 'create' | '
 /** Formatting + translation used by the pure presentation / share builders. */
 export interface AssistantFormatter {
   t: TranslateFn;
-  language: Language;
+  /** UI language (M12: en, es, pt, fr, de); card dates and labels follow it. */
+  language: AppLanguage;
   /** Zone used for display (device zone). */
   timeZone: string;
   meetingTime(meeting: Pick<Meeting, 'startAt' | 'durationMinutes' | 'allDay' | 'date'>): string;

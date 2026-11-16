@@ -1,0 +1,47 @@
+{
+  "account": {
+    "title": "Conta",
+    "signedInAs": "Conectado como {{email}}",
+    "signedIn": "Conectado",
+    "deleteDescription": "Excluir permanentemente sua conta e todos os seus dados",
+    "confirmIdentityTitle": "Confirme que é você",
+    "confirmIdentityPassword": "Para sua segurança, digite sua senha para excluir sua conta.",
+    "passwordLabel": "Senha"
+  },
+  "alerts": {
+    "title": "Alertas",
+    "open": "Configurações de alertas",
+    "summaryOn": "{{intensity}} · {{times}}",
+    "summaryOff": "Os alertas estão desativados"
+  },
+  "appearance": {
+    "title": "Aparência",
+    "system": "Sistema",
+    "light": "Claro",
+    "dark": "Escuro"
+  },
+  "language": {
+    "title": "Idioma"
+  },
+  "calendar": {
+    "title": "Calendários",
+    "sync": "Sincronização de calendários",
+    "syncDescription": "Google Calendar, Outlook, suas listas de tarefas e os calendários deste dispositivo"
+  },
+  "legal": {
+    "title": "Jurídico",
+    "privacy": "Política de Privacidade",
+    "terms": "Termos de Serviço"
+  },
+  "about": {
+    "version": "Meeting Guard AI {{version}}",
+    "update": "Atualização {{id}} · {{channel}}"
+  },
+  "timeFormat": {
+    "12": "12 horas",
+    "24": "24 horas",
+    "title": "Formato de hora",
+    "auto": "Automático",
+    "hint": "Usado em todos os horários do app e nos seus alertas, por exemplo {{example}}."
+  }
+}

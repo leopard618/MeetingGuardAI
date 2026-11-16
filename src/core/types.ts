@@ -14,6 +14,7 @@ import { z } from 'zod';
 
 import {
   alertTimesSchema,
+  appLanguageSchema,
   conferenceDetailsSchema,
   durationMinutesSchema,
   emailSchema,
@@ -23,6 +24,7 @@ import {
   meetingLocationSchema,
   planSchema,
   timeZoneSchema,
+  type AppLanguage,
   type ConferenceDetails,
   type Language,
   type MeetingLocation,
@@ -38,19 +40,23 @@ import {
 import { isValidTimeZone, toDate, toLocalDateTime, type DateInput } from './time';
 
 export {
+  APP_LANGUAGES,
   CONFERENCE_PROVIDERS,
   LANGUAGES,
   LOCATION_TYPES,
   PLANS,
   PLAN_AI_LIMITS,
   alertTimesSchema,
+  appLanguageSchema,
   conferenceDetailsSchema,
   languageSchema,
   meetingIdSchema,
   meetingLocationSchema,
   planSchema,
   timeZoneSchema,
+  toBaseLanguage,
 } from './aiContract';
+export type { AppLanguage } from './aiContract';
 export type { ConferenceDetails, ConferenceProvider, Language, LocationType, MeetingLocation, Plan } from './aiContract';
 export {
   CANCELLED_OVERRIDE,
@@ -669,7 +675,8 @@ export function isActiveMeeting(meeting: Meeting): boolean {
 // ---------------------------------------------------------------------------------------------
 
 export interface Preferences {
-  language: Language;
+  /** M12: the UI language (en, es, pt, fr, de). Meetings keep the en/es Language. */
+  language: AppLanguage;
   timezone: string;
   alertEnabled: boolean;
   alertIntensity: AlertIntensity;
@@ -721,7 +728,7 @@ export interface Preferences {
 }
 
 export const preferencesSchema = z.object({
-  language: languageSchema,
+  language: appLanguageSchema,
   timezone: timeZoneSchema,
   alertEnabled: z.boolean(),
   alertIntensity: alertIntensitySchema,

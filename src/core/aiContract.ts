@@ -62,6 +62,12 @@ import { z } from 'zod';
  * dates resolved from the transcript) plus a short reply. Nothing is saved until the user confirms
  * each card in the app. A v6 server rejects the unknown mode (the app shows the error); a v7
  * server keeps every older behavior unchanged.
+ *
+ * M12 (no version bump, ADDITIVE only): app interface languages. APP_LANGUAGES (en, es, pt, fr,
+ * de) is the UI language; LANGUAGES stays en/es for meetings, the executive assistant and the
+ * WhatsApp frame (toBaseLanguage maps one to the other). Only assistantRequestSchema.language
+ * widens, so the in-app AI chat can answer in pt/fr/de. A 1.6.0 client only sends en/es, and
+ * meeting drafts (aiMeetingDraftSchema.language) stay en/es in every response.
  */
 export const AI_CONTRACT_VERSION = 7;
 
@@ -158,6 +164,19 @@ export const MATTER_CALL_TIMEOUT_MS = 70_000;
 
 export const LANGUAGES = ['en', 'es'] as const;
 export type Language = (typeof LANGUAGES)[number];
+
+/**
+ * M12: app interface languages. The UI (and the in-app AI chat reply) can be any of these; the
+ * surfaces that stay en/es (the meeting `language` field, the executive assistant, the WhatsApp
+ * assistant frame) take `toBaseLanguage(...)` of it. Do not widen LANGUAGES instead.
+ */
+export const APP_LANGUAGES = ['en', 'es', 'pt', 'fr', 'de'] as const;
+export type AppLanguage = (typeof APP_LANGUAGES)[number];
+
+/** The en/es language for a surface that stays en/es: 'es' stays 'es', everything else is 'en'. */
+export function toBaseLanguage(language: AppLanguage | string): Language {
+  return language === 'es' ? 'es' : 'en';
+}
 
 export const PLANS = ['free', 'pro', 'premium'] as const;
 export type Plan = (typeof PLANS)[number];
@@ -282,6 +301,8 @@ export const TIME_ZONE_PATTERN = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*
 export const MEETING_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
 export const languageSchema = z.enum(LANGUAGES);
+/** M12: the UI language (APP_LANGUAGES). Used only where a surface really speaks all five. */
+export const appLanguageSchema = z.enum(APP_LANGUAGES);
 export const planSchema = z.enum(PLANS);
 export const conferenceProviderSchema = z.enum(CONFERENCE_PROVIDERS);
 export const locationTypeSchema = z.enum(LOCATION_TYPES);
@@ -383,8 +404,8 @@ export const assistantRequestSchema = z
   .object({
     /** Conversation so far, oldest first. In chat mode the last message must be from the user. */
     messages: z.array(assistantMessageSchema).max(AI_LIMITS.maxMessages),
-    /** Reply language (UI language). */
-    language: languageSchema,
+    /** Reply language (UI language). M12: any APP_LANGUAGES entry. */
+    language: appLanguageSchema,
     /** User's IANA time zone; relative dates ("tomorrow 4pm") are resolved in it. */
     timezone: timeZoneSchema,
     /** Client clock, informational (the server uses its own clock for quotas). */

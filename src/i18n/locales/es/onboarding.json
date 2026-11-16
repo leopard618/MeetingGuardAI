@@ -102,7 +102,7 @@
   },
   "assistant": {
     "title": "Conoce a tu asistente de IA",
-    "subtitle": "Dile al asistente lo que necesitas con tus propias palabras, en español o en inglés.",
+    "subtitle": "Dile al asistente lo que necesitas con tus propias palabras.",
     "capabilitiesTitle": "Puede:",
     "capabilities": {
       "create": "Crear reuniones a partir de una sola frase",

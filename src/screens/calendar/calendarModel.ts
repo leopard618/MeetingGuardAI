@@ -3,17 +3,18 @@
  * so neither the JS runtime zone nor DST can shift a day).
  *
  * - Month grid: always 6 weeks (42 cells, stable height), starting on the locale's first weekday
- *   (Sunday in English, Monday in Spanish).
+ *   (src/i18n/locale.ts weekStartsOnFor: Sunday in English and Portuguese, Monday in Spanish,
+ *   French and German).
  * - Day index: every local day a meeting touches in the user's zone (a timed meeting that runs
  *   past midnight, or a multi-day all-day event, marks each of its days). All-day meetings use
  *   their own dates, never shifted through UTC.
  * - Dots: one per source category present on the day (Meeting Guard, Google Calendar, device).
  */
-import { format, type Locale } from 'date-fns';
-import { enUS, es } from 'date-fns/locale';
+import { format } from 'date-fns';
 
 import { addDaysToLocalDate, isLocalDate, toLocalDateTime } from '../../core/time';
-import type { Language, Meeting } from '../../core/types';
+import type { AppLanguage, Meeting } from '../../core/types';
+import { DATE_FNS_LOCALES, weekStartsOnFor } from '../../i18n/locale';
 import { compareWithinDay, meetingEndMs, sourceCategory, type SourceCategory } from '../meetings/list/meetingListModel';
 import { capitalizeFirst } from '../shared/text';
 
@@ -36,8 +37,6 @@ export const GRID_DAYS = 42;
 export const MAX_MEETING_DAYS = 62;
 const MINUTES_PER_DAY = 1440;
 const DOT_ORDER: readonly SourceCategory[] = ['meetingguard', 'google', 'outlook', 'device'];
-
-const LOCALES: Readonly<Record<Language, Locale>> = { en: enUS, es };
 
 function pad2(value: number): string {
   return String(value).padStart(2, '0');
@@ -77,8 +76,8 @@ export function daysInMonth(ref: MonthRef): number {
 }
 
 /** Locale's first day of the week (0 = Sunday). */
-export function weekStartsOn(language: Language): number {
-  return LOCALES[language].options?.weekStartsOn ?? 0;
+export function weekStartsOn(language: AppLanguage): number {
+  return weekStartsOnFor(language);
 }
 
 /** 42 cells covering `ref`, starting on `firstWeekday`. */
@@ -136,19 +135,19 @@ export function dayDots(meetings: readonly Meeting[] | undefined): SourceCategor
 }
 
 /** "October 2026" / "Octubre 2026". */
-export function monthTitle(ref: MonthRef, language: Language): string {
-  return capitalizeFirst(format(new Date(ref.year, ref.month - 1, 1, 12), 'LLLL yyyy', { locale: LOCALES[language] }));
+export function monthTitle(ref: MonthRef, language: AppLanguage): string {
+  return capitalizeFirst(format(new Date(ref.year, ref.month - 1, 1, 12), 'LLLL yyyy', { locale: DATE_FNS_LOCALES[language] }));
 }
 
 /** Weekday column labels in grid order: short ("Mo" / "Lu") and full ("Monday" / "lunes"). */
-export function weekdayLabels(firstWeekday: number, language: Language): { short: string; full: string }[] {
+export function weekdayLabels(firstWeekday: number, language: AppLanguage): { short: string; full: string }[] {
   // 2026-01-04 is a Sunday; local noon never falls into a DST gap.
   return Array.from({ length: 7 }, (_, index) => {
     const weekday = (firstWeekday + index) % 7;
     const date = new Date(2026, 0, 4 + weekday, 12);
     return {
-      short: capitalizeFirst(format(date, 'EEEEEE', { locale: LOCALES[language] })),
-      full: format(date, 'EEEE', { locale: LOCALES[language] }),
+      short: capitalizeFirst(format(date, 'EEEEEE', { locale: DATE_FNS_LOCALES[language] })),
+      full: format(date, 'EEEE', { locale: DATE_FNS_LOCALES[language] }),
     };
   });
 }

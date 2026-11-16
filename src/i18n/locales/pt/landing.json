@@ -1,0 +1,17 @@
+{
+  "language": "Idioma",
+  "headline": "Alertas de reunião impossíveis de perder",
+  "signIn": {
+    "google": "Continuar com o Google",
+    "apple": "Continuar com a Apple",
+    "microsoft": "Continuar com a Microsoft",
+    "email": "Continuar com e-mail",
+    "busy": "Entrando...",
+    "failedTitle": "Não foi possível entrar",
+    "failed": "O login com o Google não funcionou. Tente novamente."
+  },
+  "consent": {
+    "terms": "Termos de Serviço",
+    "privacy": "Política de Privacidade"
+  }
+}

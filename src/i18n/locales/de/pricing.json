@@ -1,0 +1,117 @@
+{
+  "comingSoonTitle": "Abos in Kürze verfügbar",
+  "comingSoonBody": "Bezahlte Tarife können noch nicht gekauft werden. Bis dahin funktioniert alles im kostenlosen Tarif weiter.",
+  "comingSoon": "Demnächst",
+  "comingSoonA11y": "{{plan}}: demnächst, noch nicht käuflich",
+  "currentPlan": "Aktueller Tarif",
+  "popular": "Am beliebtesten",
+  "perMonth": "Monat",
+  "perYear": "Jahr",
+  "priceA11y": "{{price}} pro {{period}}",
+  "monthlyEquivalent": "Jährliche Abrechnung · {{price}} pro Monat",
+  "save": "{{percent}} % sparen",
+  "cycle": {
+    "monthly": "Monatlich",
+    "yearly": "Jährlich",
+    "monthlyA11y": "Monatspreise anzeigen",
+    "yearlyA11y": "Jahrespreise anzeigen"
+  },
+  "plans": {
+    "free": {
+      "name": "Kostenlos",
+      "description": "Alles, was Sie für den Start brauchen."
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "Für einen vollen Terminkalender und die tägliche Nutzung des Assistenten."
+    },
+    "premium": {
+      "name": "Premium",
+      "description": "Für die intensive Nutzung des KI-Assistenten."
+    }
+  },
+  "features": {
+    "introductory": "10 kostenlose KI-Aktionen in Ihren ersten 7 Tagen, bis zu 3 pro Tag",
+    "actionsPerMonth": "{{count}} KI-Aktionen pro Monat",
+    "meetings": "Besprechungen, Notizen und Alarme",
+    "calendars": "Synchronisierung mit Google Calendar und dem Telefonkalender",
+    "everythingFree": "Alles aus dem kostenlosen Tarif"
+  },
+  "usage": {
+    "title": "KI-Assistent",
+    "plan": "Ihr Tarif: {{plan}}",
+    "used": {
+      "day": "{{used}} von {{limit}} Aktionen heute genutzt",
+      "window": "{{used}} von {{limit}} kostenlosen Aktionen genutzt",
+      "month": "{{used}} von {{limit}} Aktionen diesen Monat genutzt"
+    },
+    "resets": {
+      "day": "Wird zurückgesetzt: {{time}}",
+      "window": "Kostenloses Kontingent bis: {{time}}",
+      "month": "Verlängerung: {{time}}"
+    },
+    "exhausted": {
+      "day": "Sie haben die kostenlosen Aktionen für heute aufgebraucht. Weitere: {{time}}.",
+      "window": "Sie haben alle kostenlosen Aktionen aufgebraucht.",
+      "month": "Sie haben alle Aktionen dieses Monats aufgebraucht. Verlängerung: {{time}}."
+    },
+    "subscriptionRequired": "Ihre kostenlosen Aktionen sind aufgebraucht. Ein Abo schaltet den Assistenten und die Planung per WhatsApp frei; Erstellen von Hand, Erinnerungen und Export bleiben kostenlos.",
+    "thisDevice": "Wird mit jeder Anfrage an den Assistenten von diesem Gerät aktualisiert.",
+    "introductory": "10 kostenlose KI-Aktionen in Ihren ersten 7 Tagen, bis zu 3 pro Tag",
+    "perMonth": "{{count}} KI-Aktionen pro Monat",
+    "unknownYet": "Ihr Zähler erscheint, sobald Sie den Assistenten nutzen."
+  },
+  "store": {
+    "loading": "Preise werden von Google Play geladen...",
+    "loadErrorTitle": "Preise nicht verfügbar",
+    "loadError": "Wir konnten die Preise nicht von Google Play laden, daher sind Käufe vorerst pausiert. Die folgenden Preise dienen nur zur Orientierung.",
+    "retry": "Erneut versuchen",
+    "retryA11y": "Preise von Google Play erneut laden",
+    "buy": "{{plan}} abonnieren",
+    "buyA11y": "Den {{plan}}-Tarif für {{price}} pro {{period}} kaufen",
+    "trial": "3 Tage kostenlos testen",
+    "purchaseFailed": "Der Kauf ist nicht zustande gekommen",
+    "activatingTitle": "Fast geschafft",
+    "activating": "Zahlung erhalten. Ihr Tarif wird aktiviert...",
+    "activatingSlow": "Das dauert länger als üblich. Ihr Tarif wird in wenigen Minuten automatisch aktiviert; Sie können diesen Bildschirm verlassen.",
+    "activated": "Ihr {{plan}}-Tarif ist jetzt aktiv.",
+    "restore": "Käufe wiederherstellen",
+    "restoreA11y": "Mit diesem Google-Konto getätigte Käufe wiederherstellen",
+    "restored": "Kauf gefunden. Ihr Tarif wird aktualisiert...",
+    "nothingToRestore": "Für dieses Konto wurden keine früheren Käufe gefunden.",
+    "restoreFailed": "Käufe konnten nicht wiederhergestellt werden",
+    "manage": "Abo verwalten",
+    "manageA11y": "Ihr Abo in Google Play öffnen",
+    "activationTimeoutTitle": "Wird noch verarbeitet",
+    "activationTimeout": "Ihr Kauf ist bestätigt, aber Ihr Tarif wurde hier noch nicht aktualisiert. Das geschieht automatisch, sobald die Verarbeitung abgeschlossen ist - Sie müssen nicht erneut kaufen.",
+    "loadingIos": "Preise werden aus dem App Store geladen...",
+    "loadErrorIos": "Wir konnten die Preise nicht aus dem App Store laden, daher sind Käufe vorerst pausiert. Die folgenden Preise dienen nur zur Orientierung.",
+    "retryA11yIos": "Preise aus dem App Store erneut laden",
+    "restoreA11yIos": "Mit diesem Apple-Konto getätigte Käufe wiederherstellen",
+    "manageA11yIos": "Ihr Abo im App Store öffnen",
+    "trialIos": "Neue Abonnenten: 3 Tage kostenlos testen",
+    "switchToMonthly": "Zur monatlichen Abrechnung wechseln",
+    "switchToYearly": "Zur jährlichen Abrechnung wechseln",
+    "switchTier": "Zu {{plan}} wechseln",
+    "switchA11y": "Ihr Abo für {{price}} pro {{period}} auf {{plan}} umstellen",
+    "changeConfirmedTitle": "Änderung bestätigt",
+    "changeConfirmedBody": "Ihre Tarifänderung ist in Google Play erfasst. Ungenutzte Zeit wird automatisch gutgeschrieben; manche Änderungen gelten ab Ihrer nächsten Verlängerung.",
+    "changeConfirmedBodyIos": "Ihre Tarifänderung ist im App Store erfasst. Sie gilt ab Ihrer nächsten Verlängerung.",
+    "managedInPlay": "Dieses Abo wurde in Google Play gekauft und kann nur dort geändert werden.",
+    "managedInAppStore": "Dieses Abo wurde im App Store gekauft und kann nur dort geändert werden."
+  },
+  "footer": "Die Preise sind in US-Dollar angegeben. Vor jedem Kauf zeigt Google Play den Endpreis in Ihrer Währung inklusive Steuern an.",
+  "footerIos": "Die Preise sind in US-Dollar angegeben. Vor jedem Kauf zeigt der App Store den Endpreis in Ihrer Währung inklusive Steuern an.",
+  "renewal": "Abos laufen monatlich oder jährlich und verlängern sich automatisch zum gleichen Preis, bis Sie spätestens 24 Stunden vor Ablauf des Zeitraums in Google Play kündigen.",
+  "renewalIos": "Abos laufen monatlich oder jährlich und verlängern sich automatisch zum gleichen Preis, bis Sie spätestens 24 Stunden vor Ablauf des Zeitraums in den Einstellungen des App Store kündigen.",
+  "legal": {
+    "privacy": "Datenschutzerklärung",
+    "terms": "Nutzungsbedingungen"
+  },
+  "planChanged": {
+    "title": "Tarif aktualisiert",
+    "body": "Ihr Tarif ist jetzt {{plan}}"
+  },
+  "grantedTitle": "Ihr {{plan}}-Tarif ist aktiv",
+  "grantedBody": "Käufe sind noch nicht möglich; dieser Tarif wurde Ihrem Konto direkt zugewiesen. Alle seine Funktionen sind verfügbar."
+}

@@ -41,7 +41,7 @@ import { useLanguage, useT } from '../../i18n';
 import type { RootStackParamList, TranslateFn } from '../../core/contracts';
 import { useAssistant } from '../../services/ai';
 import { useAuth } from '../../services/auth';
-import { effectivePlan } from '../../core/types';
+import { effectivePlan, type AppLanguage } from '../../core/types';
 import { useEntitlement, userRepository } from '../../services/data';
 import { purchasesService } from '../../services/purchases';
 import { componentMetrics, pressedDimOpacity, pressedOpacity, radii, spacing, typography } from '../../theme';
@@ -113,7 +113,7 @@ function UsageCard({ summary, colors }: { summary: UsageSummary; colors: AppColo
 interface PlanCardViewProps {
   card: PlanCard;
   colors: AppColors;
-  language: 'en' | 'es';
+  language: AppLanguage;
   configured: boolean;
   busy: boolean;
   purchasingThis: boolean;

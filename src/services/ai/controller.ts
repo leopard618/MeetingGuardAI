@@ -15,8 +15,8 @@ import {
   AI_LIMITS,
   MEETING_ID_PATTERN,
   type AiAction,
+  type AppLanguage,
   type AssistantRequest,
-  type Language,
 } from '../../core/aiContract';
 import type { ActionResult, AssistantClient, Unsubscribe } from '../../core/contracts';
 import { AppError, toAppError } from '../../core/errors';
@@ -51,7 +51,8 @@ export interface AssistantControllerDeps {
   executor: Pick<AiActionExecutor, 'preview' | 'execute'>;
   store: ThreadStore;
   /** Request context at send time. */
-  getContext(): { language: Language; timezone: string; now: Date };
+  /** M12: `language` is the UI language (the in-app AI chat answers in any APP_LANGUAGES entry). */
+  getContext(): { language: AppLanguage; timezone: string; now: Date };
   session?: SessionSource;
   createId?: (prefix: string) => string;
 }

@@ -3,6 +3,7 @@ import { HttpsError } from 'firebase-functions/https';
 
 import { UpstreamError } from '../../src/assistant/errors';
 import { handleAssistant, type AssistantCaller, type AssistantDeps } from '../../src/assistant/handler';
+import { plainClip, plainText } from '../../src/assistant/plainText';
 import type { LlmClient, LlmRequest, LlmResult } from '../../src/assistant/llm';
 import { assistantErrorDetailsSchema, assistantResponseSchema, type AssistantRequest } from '../../src/shared/aiContract';
 import { FakeMeetingReader, FakeQuotaStore } from './fakes';
@@ -1030,5 +1031,97 @@ describe('clarification credits (allowances)', () => {
     answer.quota.roots.set('u1', { introStartedAt: '2026-09-27T10:00:00.000Z', introUsed: 1, clarifications: 2 });
     await handleAssistant(caller(), chatRequest(), answer.deps);
     expect(answer.quota.root('u1')).toMatchObject({ introUsed: 2, clarifications: 0 });
+  });
+});
+
+describe('app languages (M12: pt-BR, fr, de)', () => {
+  const createCall = (summary: string) => ({
+    name: 'create_meeting',
+    arguments: JSON.stringify({
+      title: 'Reunião com Ana', description: '', date: '2026-09-29', time: '10:00', all_day: false,
+      duration_minutes: null, timezone: null, location: null, conference: null,
+      participants: [], preparation_tips: [], alert_minutes_before: null, recurrence: null,
+      summary, confidence: 80,
+    }),
+  });
+  const PENDING = [{ type: 'create_meeting' as const, summary: 'Reunião amanhã às 16h.' }];
+
+  it('accepts a pt request, prompts in Portuguese and keeps the meeting itself in en/es', async () => {
+    const { deps, llm } = setup(result({ content: '', toolCalls: [createCall('')] }));
+    const response = await handleAssistant(caller(), chatRequest({ language: 'pt' }), deps);
+    expect(llm.requests[0]!.messages[0]!.content).toContain('Reply language: Portuguese (Brazil) (code "pt")');
+    expect(response.reply).toBe('Preparei o seguinte para você. Revise e confirme.');
+    expect(response.actions).toHaveLength(1);
+    expect(response.actions[0]).toMatchObject({ type: 'create_meeting', summary: 'Criar uma reunião', meeting: { language: 'en' } });
+    expect(assistantResponseSchema.safeParse(response).success).toBe(true);
+  });
+
+  it('uses the fallback texts of the UI language', async () => {
+    const fr = setup(result({ content: '', toolCalls: [] }));
+    expect((await handleAssistant(caller(), chatRequest({ language: 'fr' }), fr.deps)).reply).toBe(
+      "Désolé, je n'ai pas pu trouver de réponse. Pouvez-vous reformuler votre demande ?",
+    );
+    const de = setup(result({ content: '', toolCalls: [] }));
+    expect((await handleAssistant(caller(), chatRequest({ language: 'de' }), de.deps)).reply).toContain('anders formulieren');
+  });
+
+  it('never resolves a qualified yes in pt, fr or de (safety critical)', async () => {
+    for (const [language, text, expected] of [
+      ['pt', 'sim, mas às 5', 'Toque em Confirmar'],
+      ['fr', 'oui mais à 17h', 'Touchez Confirmer'],
+      ['de', 'ja aber um 5', 'auf Bestätigen'],
+    ] as const) {
+      const { deps } = setup(result({ content: 'ok', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"confirm"}' }] }));
+      const response = await handleAssistant(
+        caller(),
+        chatRequest({ language, pendingActions: PENDING, messages: [{ role: 'user', content: text }] }),
+        deps,
+      );
+      expect(response.resolution).toBeUndefined();
+      expect(response.reply).toContain(expected);
+    }
+  });
+
+  it('resolves a plain yes in pt, fr and de', async () => {
+    for (const [language, text] of [['pt', 'sim, confirmo'], ['fr', "oui d'accord"], ['de', 'ja bitte']] as const) {
+      const { deps } = setup(result({ content: '', toolCalls: [{ name: 'resolve_pending', arguments: '{"decision":"confirm"}' }] }));
+      const response = await handleAssistant(
+        caller(),
+        chatRequest({ language, pendingActions: PENDING, messages: [{ role: 'user', content: text }] }),
+        deps,
+      );
+      expect(response.resolution).toBe('confirm');
+    }
+  });
+
+  it('sends the reply, the summaries and the suggestions in plain punctuation', async () => {
+    const { deps } = setup(
+      result({
+        content: 'C\u2019est prêt \u00ab\u00a0demain\u00a0\u00bb \u2013 voilà\u2026 Er sagt \u201eja\u201c.',
+        toolCalls: [
+          createCall('Créer \u00ab Point \u00bb \u2014 l\u2019heure'),
+          { name: 'suggest_replies', arguments: JSON.stringify({ suggestions: ['C\u2019est bon\u2026'] }) },
+        ],
+      }),
+    );
+    const response = await handleAssistant(caller(), chatRequest({ language: 'fr' }), deps);
+    expect(response.reply).toBe(`C'est prêt "demain" - voilà... Er sagt "ja".`);
+    expect(response.actions[0]!.summary).toBe(`Créer "Point" - l'heure`);
+    expect(response.suggestions).toEqual(["C'est bon..."]);
+  });
+});
+
+describe('plainText', () => {
+  it('maps typographic punctuation to plain characters and leaves the rest alone', () => {
+    expect(plainText('\u2018x\u2019 \u201cy\u201d \u201az\u2019 \u201ew\u201c')).toBe(`'x' "y" 'z' "w"`);
+    expect(plainText('a \u2013 b \u2014 c\u2026')).toBe('a - b - c...');
+    expect(plainText('\u00ab\u00a0oui\u00a0\u00bb \u2039non\u203a')).toBe(`"oui" 'non'`);
+    expect(plainText('Pourquoi\u202f?')).toBe('Pourquoi ?');
+    expect(plainText('Ação às 16h, ÄÖÜß, ¿Qué?')).toBe('Ação às 16h, ÄÖÜß, ¿Qué?');
+  });
+
+  it('clips after mapping, because "..." is longer than the ellipsis character', () => {
+    expect(plainClip('ab\u2026', 4)).toBe('ab..');
+    expect(plainClip('abc', 10)).toBe('abc');
   });
 });

@@ -44,8 +44,12 @@ What they cover:
   logic lives in a pure model with unit tests (`homeModel`, `meetingForm`, `chatModel`,
   `calendarSyncModel`, ...).
 - **Guards:**
-  - `src/i18n/__tests__/resources.test.ts` fails when a key exists in only one language, or a value is
-    empty.
+  - `src/i18n/__tests__/resources.test.ts` fails when a translated language (es, pt, fr, de) does not
+    have exactly the English keys of a namespace, drops an English `{{placeholder}}`, or has an empty
+    value. pt, fr and de leave out the en/es-only namespaces (`matters`), which fall back to English.
+  - `src/i18n/__tests__/nativeStrings.test.ts` fails when the iOS permission prompts in
+    `src/i18n/native/*.json` differ in keys between languages, contain a double quote, backslash,
+    line break or banned character, or no longer match `app.config.js`.
   - `src/i18n/__tests__/keysUsed.test.ts` fails when code uses a key that is missing in EN or ES, or
     calls `t()` without a namespace.
   - `src/navigation/__tests__/routeTitles.test.ts` fails when routes, titles and sidebar labels
@@ -261,6 +265,10 @@ it again after a change.
   (Spain)** -> download. Back on the Text-to-speech page, pick Spanish (Spain) as the language and tap
   **Play** to hear a sample. If the engine is missing, install "Speech Recognition and Synthesis from
   Google" from the Play Store.
+- **Portuguese, French and German voices** (1.7.0, M12): the same steps, installing **Portuguese
+  (Brazil)**, **French (France)** and **German (Germany)**. The app speaks and listens in `pt-BR`,
+  `fr-FR` and `de-DE` when the app language is pt, fr or de. For voice input offline, also add
+  the languages in the Google app -> Settings -> Voice -> Offline speech recognition.
 - **Sound** plays through the PC speakers. Check the emulator volume (side toolbar) and that Windows
   is not muted.
 
@@ -508,7 +516,10 @@ Focus allows it. There is no exact-alarm setting on iOS.
 | 5 | Deny the calendar permission. | An explanation with a way to open the settings. No crash. |
 | 6 | With an export calendar chosen, create a repeating meeting in the app (or add a repeat rule to an already exported one). | Repeating meetings are NOT exported to the phone calendar in this version (documented in `docs/v1/ARCHITECTURE.md` §16); a copy exported before the repeat was added is removed on the next sync. One-off meetings keep exporting. |
 
-### T10. Language switch EN/ES, notifications and date formats
+### T10. Language switch (EN, ES, PT, FR, DE), notifications and date formats
+
+Rows 1 to 6 use Spanish; rows 7 and 8 repeat the key checks in Portuguese, French and German
+(1.7.0). The full pt, fr and de device pass is `docs/v2/TEST-GUIDE-M12.md`.
 
 | # | Step | Expected result |
 |---|---|---|
@@ -518,6 +529,8 @@ Focus allows it. There is no exact-alarm setting on iOS.
 | 4 | Assistant in ES: "¿Qué tengo mañana?" | The reply is in Spanish and uses your time zone. |
 | 5 | Alert settings -> clock -> 24-hour (then 12-hour). | Times show as 14:30 (then 2:30 PM) in the lists, the details and the calendar. |
 | 6 | Restart the app, and sign in on a second phone. | The language choice is kept on both. |
+| 7 | Settings -> Language -> Português, then Français, then Deutsch; for each, rows 1 to 4 (assistant: "O que eu tenho amanhã?", "Qu'est-ce que j'ai demain ?", "Was habe ich morgen?"). | Screens, notifications, the MAX alert voice and the assistant reply are in that language. Times are 24-hour by default; the month calendar starts on Sunday in Portuguese and on Monday in French and German. The executive assistant (matters) stays in English. |
+| 8 | iPhone 1.7.0 build: Settings -> Meeting Guard AI -> Language; Android 13+: Settings -> Apps -> Meeting Guard AI -> Language. | The five languages are listed and picking one opens the app in it. The iOS permission prompts appear in the language iOS uses for the app (the per-app choice, else the phone's). |
 
 ### T11. Account deletion
 

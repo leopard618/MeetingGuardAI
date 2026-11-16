@@ -1,0 +1,100 @@
+{
+  "search": {
+    "placeholder": "Pesquisar notas",
+    "clear": "Limpar pesquisa"
+  },
+  "filters": {
+    "label": "Filtrar por categoria",
+    "all": "Todas",
+    "withCount": "{{label}} ({{count}})"
+  },
+  "categories": {
+    "general": "Geral",
+    "work": "Trabalho",
+    "ideas": "Ideias",
+    "personal": "Pessoal"
+  },
+  "list": {
+    "loading": "Carregando suas notas...",
+    "count_one": "{{count}} nota",
+    "count_other": "{{count}} notas"
+  },
+  "empty": {
+    "title": "Nenhuma nota ainda",
+    "body": "Anote pautas, ideias e acompanhamentos. Você pode vincular uma nota a uma das suas reuniões.",
+    "action": "Escrever sua primeira nota"
+  },
+  "noMatches": {
+    "title": "Nenhuma nota encontrada",
+    "body": "Tente outra pesquisa ou categoria.",
+    "action": "Limpar filtros"
+  },
+  "loadError": {
+    "title": "Não foi possível carregar suas notas"
+  },
+  "add": "Nova nota",
+  "addA11y": "Criar uma nova nota",
+  "card": {
+    "open": "Editar nota: {{title}}",
+    "openHint": "Abre a nota para edição",
+    "pinned": "Fixada",
+    "pin": "Fixar nota: {{title}}",
+    "unpin": "Desafixar nota: {{title}}",
+    "delete": "Excluir nota: {{title}}",
+    "updated": "Atualizada {{when}}",
+    "meeting": "Abrir reunião: {{title}}",
+    "meetingUnavailable": "A reunião vinculada não está mais disponível"
+  },
+  "editor": {
+    "newTitle": "Nova nota",
+    "editTitle": "Editar nota",
+    "close": "Fechar",
+    "save": "Salvar",
+    "titleLabel": "Título",
+    "contentLabel": "Nota",
+    "contentPlaceholder": "Escreva sua nota...",
+    "characters": "{{count}} / {{max}} caracteres",
+    "category": "Categoria",
+    "pin": "Fixar no topo",
+    "pinHint": "As notas fixadas aparecem primeiro na lista.",
+    "meeting": "Reunião vinculada",
+    "meetingNone": "Esta nota não está vinculada a uma reunião.",
+    "linkMeeting": "Vincular a uma reunião",
+    "changeMeeting": "Alterar",
+    "unlinkMeeting": "Remover vínculo",
+    "unlinkA11y": "Remover o vínculo com a reunião",
+    "delete": "Excluir nota",
+    "discardTitle": "Descartar suas alterações?",
+    "discardMessage": "As alterações feitas nesta nota serão perdidas.",
+    "keepEditing": "Continuar editando",
+    "discard": "Descartar"
+  },
+  "errors": {
+    "titleRequired": "Adicione um título à nota.",
+    "titleTooLong": "O título pode ter até {{max}} caracteres.",
+    "contentTooLong": "A nota pode ter até {{max}} caracteres."
+  },
+  "picker": {
+    "title": "Vincular uma reunião",
+    "back": "Voltar à nota",
+    "search": "Pesquisar reuniões",
+    "upcoming": "Próximas",
+    "past": "Anteriores",
+    "empty": "Você ainda não tem reuniões para vincular.",
+    "noMatches": "Nenhuma reunião corresponde à sua pesquisa.",
+    "select": "Vincular a {{title}}, {{when}}",
+    "cancelled": "Cancelada",
+    "linked": "Vinculada"
+  },
+  "delete": {
+    "title": "Excluir \"{{title}}\"?",
+    "message": "A nota será excluída de todos os seus dispositivos. Isso não pode ser desfeito.",
+    "confirm": "Excluir"
+  },
+  "toast": {
+    "saved": "Nota salva",
+    "deleted": "Nota excluída",
+    "pinned": "Nota fixada",
+    "unpinned": "Nota desafixada"
+  }
+}

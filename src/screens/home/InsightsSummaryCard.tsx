@@ -29,7 +29,7 @@ export interface InsightsSummaryCardProps {
   days: readonly DayLoad[];
   /** Today's local date ("YYYY-MM-DD"), highlighted in the chart. */
   todayDate: string;
-  /** BCP 47 tag for the weekday labels ("en-US", "es-ES"). */
+  /** BCP 47 tag for the weekday labels (LOCALE_TAGS: "en-US", "es-ES", "pt-BR", "fr-FR", "de-DE"). */
   locale: string;
   onSeeAll(): void;
 }

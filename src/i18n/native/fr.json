@@ -1,0 +1,10 @@
+{
+  "ios": {
+    "NSCalendarsUsageDescription": "Meeting Guard AI utilise votre calendrier pour afficher, créer et mettre à jour vos réunions et pour programmer les alertes de réunion.",
+    "NSCalendarsFullAccessUsageDescription": "Meeting Guard AI utilise votre calendrier pour afficher, créer et mettre à jour vos réunions et pour programmer les alertes de réunion.",
+    "NSPhotoLibraryUsageDescription": "Meeting Guard AI vous permet de joindre à une réunion des photos de votre photothèque.",
+    "NSCameraUsageDescription": "Meeting Guard AI vous permet de prendre une photo et de la joindre à une réunion.",
+    "NSMicrophoneUsageDescription": "Meeting Guard AI utilise le microphone pour que vous puissiez parler à l'assistant au lieu d'écrire.",
+    "NSSpeechRecognitionUsageDescription": "Meeting Guard AI utilise la reconnaissance vocale pour transformer vos paroles en texte pour l'assistant. Vous voyez toujours le texte avant que quoi que ce soit ne se passe."
+  }
+}

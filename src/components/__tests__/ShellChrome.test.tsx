@@ -101,6 +101,9 @@ describe('CustomHeader', () => {
   it('cycles through the supported languages', () => {
     expect(nextLanguage('en', ['en', 'es'])).toBe('es');
     expect(nextLanguage('es', ['en', 'es'])).toBe('en');
+    // M12: five languages, in order, then back to English.
+    const five = ['en', 'es', 'pt', 'fr', 'de'] as const;
+    expect(five.map((language) => nextLanguage(language, five))).toEqual(['es', 'pt', 'fr', 'de', 'en']);
   });
 });
 

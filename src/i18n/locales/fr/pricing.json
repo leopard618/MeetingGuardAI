@@ -1,0 +1,117 @@
+{
+  "comingSoonTitle": "Abonnements bientôt disponibles",
+  "comingSoonBody": "Les offres payantes ne peuvent pas encore être achetées. En attendant, tout ce qu'inclut l'offre Gratuit continue de fonctionner.",
+  "comingSoon": "Bientôt disponible",
+  "comingSoonA11y": "{{plan}} : bientôt disponible, pas encore en vente",
+  "currentPlan": "Offre actuelle",
+  "popular": "La plus populaire",
+  "perMonth": "mois",
+  "perYear": "an",
+  "priceA11y": "{{price}} par {{period}}",
+  "monthlyEquivalent": "Facturé annuellement · {{price}} par mois",
+  "save": "Économisez {{percent}} %",
+  "cycle": {
+    "monthly": "Mensuel",
+    "yearly": "Annuel",
+    "monthlyA11y": "Afficher les prix mensuels",
+    "yearlyA11y": "Afficher les prix annuels"
+  },
+  "plans": {
+    "free": {
+      "name": "Gratuit",
+      "description": "Tout ce qu'il faut pour commencer."
+    },
+    "pro": {
+      "name": "Pro",
+      "description": "Pour un agenda chargé et un usage quotidien de l'assistant."
+    },
+    "premium": {
+      "name": "Premium",
+      "description": "Pour un usage intensif de l'assistant IA."
+    }
+  },
+  "features": {
+    "introductory": "10 actions IA gratuites pendant vos 7 premiers jours, jusqu'à 3 par jour",
+    "actionsPerMonth": "{{count}} actions IA par mois",
+    "meetings": "Réunions, notes et alertes",
+    "calendars": "Synchronisation avec Google Calendar et le calendrier du téléphone",
+    "everythingFree": "Tout ce qu'inclut Gratuit"
+  },
+  "usage": {
+    "title": "Assistant IA",
+    "plan": "Votre offre : {{plan}}",
+    "used": {
+      "day": "{{used}} sur {{limit}} actions utilisées aujourd'hui",
+      "window": "{{used}} sur {{limit}} actions gratuites utilisées",
+      "month": "{{used}} sur {{limit}} actions utilisées ce mois-ci"
+    },
+    "resets": {
+      "day": "Réinitialisation : {{time}}",
+      "window": "Actions gratuites jusqu'au {{time}}",
+      "month": "Renouvellement : {{time}}"
+    },
+    "exhausted": {
+      "day": "Vous avez utilisé les actions gratuites du jour. Nouvelles actions : {{time}}.",
+      "window": "Vous avez utilisé toutes les actions gratuites.",
+      "month": "Vous avez utilisé toutes les actions de ce mois. Renouvellement : {{time}}."
+    },
+    "subscriptionRequired": "Vos actions gratuites sont épuisées. Un abonnement débloque l'assistant et la planification par WhatsApp ; la création manuelle, les rappels et l'export restent gratuits.",
+    "thisDevice": "Mis à jour à chaque demande à l'assistant depuis cet appareil.",
+    "introductory": "10 actions IA gratuites pendant vos 7 premiers jours, jusqu'à 3 par jour",
+    "perMonth": "{{count}} actions IA par mois",
+    "unknownYet": "Votre compteur s'affiche une fois que vous avez utilisé l'assistant."
+  },
+  "store": {
+    "loading": "Chargement des prix depuis Google Play...",
+    "loadErrorTitle": "Prix indisponibles",
+    "loadError": "Impossible de charger les prix depuis Google Play : les achats sont donc suspendus pour le moment. Les prix ci-dessous sont donnés à titre indicatif.",
+    "retry": "Réessayer",
+    "retryA11y": "Réessayer de charger les prix Google Play",
+    "buy": "Obtenir {{plan}}",
+    "buyA11y": "Acheter l'offre {{plan}} pour {{price}} par {{period}}",
+    "trial": "Essai gratuit de 3 jours",
+    "purchaseFailed": "L'achat n'a pas abouti",
+    "activatingTitle": "Presque terminé",
+    "activating": "Paiement reçu. Activation de votre offre...",
+    "activatingSlow": "Cela prend plus de temps que d'habitude. Votre offre s'activera d'elle-même dans quelques minutes ; vous pouvez quitter cet écran.",
+    "activated": "Votre offre {{plan}} est maintenant active.",
+    "restore": "Restaurer les achats",
+    "restoreA11y": "Restaurer les achats effectués avec ce compte Google",
+    "restored": "Achat trouvé. Mise à jour de votre offre...",
+    "nothingToRestore": "Aucun achat précédent trouvé pour ce compte.",
+    "restoreFailed": "Impossible de restaurer les achats",
+    "manage": "Gérer l'abonnement",
+    "manageA11y": "Ouvrir votre abonnement dans Google Play",
+    "activationTimeoutTitle": "Traitement en cours",
+    "activationTimeout": "Votre achat est confirmé, mais votre offre n'est pas encore mise à jour ici. Elle se mettra à jour automatiquement à la fin du traitement - inutile d'acheter à nouveau.",
+    "loadingIos": "Chargement des prix depuis l'App Store...",
+    "loadErrorIos": "Impossible de charger les prix depuis l'App Store : les achats sont donc suspendus pour le moment. Les prix ci-dessous sont donnés à titre indicatif.",
+    "retryA11yIos": "Réessayer de charger les prix de l'App Store",
+    "restoreA11yIos": "Restaurer les achats effectués avec ce compte Apple",
+    "manageA11yIos": "Ouvrir votre abonnement dans l'App Store",
+    "trialIos": "Nouveaux abonnés : essai gratuit de 3 jours",
+    "switchToMonthly": "Passer à la facturation mensuelle",
+    "switchToYearly": "Passer à la facturation annuelle",
+    "switchTier": "Passer à {{plan}}",
+    "switchA11y": "Passer votre abonnement à {{plan}} pour {{price}} par {{period}}",
+    "changeConfirmedTitle": "Changement confirmé",
+    "changeConfirmedBody": "Votre changement d'offre est enregistré dans Google Play. Le temps non utilisé est crédité automatiquement ; certains changements prennent effet à votre prochain renouvellement.",
+    "changeConfirmedBodyIos": "Votre changement d'offre est enregistré dans l'App Store. Il prend effet à votre prochain renouvellement.",
+    "managedInPlay": "Cet abonnement a été acheté dans Google Play et ne peut être modifié que là-bas.",
+    "managedInAppStore": "Cet abonnement a été acheté dans l'App Store et ne peut être modifié que là-bas."
+  },
+  "footer": "Les prix sont en dollars américains. Avant tout achat, Google Play affichera le prix final dans votre devise, taxes comprises.",
+  "footerIos": "Les prix sont en dollars américains. Avant tout achat, l'App Store affichera le prix final dans votre devise, taxes comprises.",
+  "renewal": "Les abonnements sont mensuels ou annuels et se renouvellent automatiquement au même prix jusqu'à leur résiliation dans Google Play, au moins 24 heures avant la fin de la période.",
+  "renewalIos": "Les abonnements sont mensuels ou annuels et se renouvellent automatiquement au même prix jusqu'à leur résiliation dans vos réglages App Store, au moins 24 heures avant la fin de la période.",
+  "legal": {
+    "privacy": "Politique de confidentialité",
+    "terms": "Conditions d'utilisation"
+  },
+  "planChanged": {
+    "title": "Offre mise à jour",
+    "body": "Votre offre est maintenant {{plan}}"
+  },
+  "grantedTitle": "Votre offre {{plan}} est active",
+  "grantedBody": "Les achats ne sont pas encore ouverts ; cette offre a été attribuée directement à votre compte. Toutes ses fonctionnalités sont disponibles."
+}

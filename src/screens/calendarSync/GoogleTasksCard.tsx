@@ -12,7 +12,7 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import type { CalendarStatus, TaskListInfo, TranslateFn } from '../../core/contracts';
 import { errorMessageKey, toAppError } from '../../core/errors';
-import type { Language } from '../../core/types';
+import type { AppLanguage } from '../../core/types';
 import { componentMetrics, radii, spacing, typography } from '../../theme/tokens';
 import { gtasksStateView } from './calendarSyncModel';
 import { InlineProgress, PrimaryButton, RadioRow, SyncLine, partStyles } from './CalendarSyncParts';
@@ -27,7 +27,7 @@ export interface GoogleTasksCardProps {
   working: GtasksWork;
   palette: CalendarPalette;
   t: TranslateFn;
-  language: Language;
+  language: AppLanguage;
   now: Date;
   loadLists(): Promise<TaskListInfo[]>;
   onEnable(list: TaskListInfo): void;

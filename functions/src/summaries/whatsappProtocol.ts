@@ -5,7 +5,8 @@
  * summaryRoute.ts) and the session (whatsapp/session.ts) import this file, so it must never import
  * the sealing code, the data key, the reader or anything that opens a summary.
  *
- * - The webhook sends {op 'offer'} when a linked pilot user writes "commitments" (or "compromisos"),
+ * - The webhook sends {op 'offer'} when a linked pilot user writes "commitments" (or its word in the
+ *   user's language: "compromisos", "engagements", "zusagen"),
  *   and {op 'reply', offer, selection} for a reply to a live offer. The worker resolves the uid from
  *   whatsappLinks/{phone} itself; nothing in the request names a uid.
  * - The worker answers the text to send, the buttons (only when something is marked) and what to do
@@ -23,10 +24,10 @@ import { z } from 'zod';
 import {
   COMMITMENT_LIMITS,
   WHATSAPP_PHONE_PATTERN,
+  appLanguageSchema,
   commitmentAnchorIdSchema,
   commitmentKeySchema,
   isoDateTimeSchema,
-  languageSchema,
   summaryIdSchema,
 } from '../shared/aiContract';
 import { MAX_BUTTONS, MAX_BUTTON_TITLE_CHARS, MAX_INTERACTIVE_BODY_CHARS, MAX_TEXT_CHARS } from '../whatsapp/send';
@@ -105,9 +106,14 @@ export type SummarySelection = z.infer<typeof summarySelectionSchema>;
 
 const phoneSchema = z.string().regex(WHATSAPP_PHONE_PATTERN);
 
+/**
+ * `language` is the user's app language (M12: en, es, pt, fr or de), the language of the texts the
+ * worker renders. Deploy order: the summaryWhatsApp worker before whatsappWebhook, because an older
+ * worker refuses 'pt', 'fr' and 'de' as a bad request.
+ */
 export const summaryWhatsAppRequestSchema = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('offer'), phoneE164: phoneSchema, language: languageSchema }),
-  z.object({ op: z.literal('reply'), phoneE164: phoneSchema, language: languageSchema, offer: summaryOfferSchema, selection: summarySelectionSchema }),
+  z.object({ op: z.literal('offer'), phoneE164: phoneSchema, language: appLanguageSchema }),
+  z.object({ op: z.literal('reply'), phoneE164: phoneSchema, language: appLanguageSchema, offer: summaryOfferSchema, selection: summarySelectionSchema }),
 ]);
 export type SummaryWhatsAppRequest = z.infer<typeof summaryWhatsAppRequestSchema>;
 

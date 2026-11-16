@@ -22,16 +22,17 @@ import { appEvents, type LanguageChangedEvent, type PreferencesChangedEvent } fr
 import { GLOBAL_STORAGE_KEYS } from '../core/identifiers';
 import { createLogger } from '../core/logger';
 import { setDeviceTimeZoneProvider } from '../core/time';
-import { LANGUAGES, type Language } from '../core/types';
+import { APP_LANGUAGES, type AppLanguage } from '../core/types';
 import { detectDeviceLanguage, detectDeviceTimeZone, isSupportedLanguage, normalizeLanguage } from './detect';
 import { RESOURCES } from './resources';
 
 const log = createLogger('i18n');
 
-export const SUPPORTED_LANGUAGES: readonly Language[] = LANGUAGES;
+export const SUPPORTED_LANGUAGES: readonly AppLanguage[] = APP_LANGUAGES;
 export const I18N_NAMESPACES = I18N_NAMESPACE_LIST;
 export const DEFAULT_NAMESPACE = 'common';
-export const FALLBACK_LANGUAGE: Language = 'en';
+/** Also what pt/fr/de users see for the en/es-only namespaces (I18N_EN_ES_ONLY_NAMESPACES) and for a missing key. */
+export const FALLBACK_LANGUAGE: AppLanguage = 'en';
 
 export type LanguageSource = LanguageChangedEvent['source'];
 
@@ -71,7 +72,7 @@ function initializeSync(): void {
     resources: RESOURCES as unknown as Resource,
     lng: detectDeviceLanguage(),
     fallbackLng: FALLBACK_LANGUAGE,
-    supportedLngs: [...LANGUAGES],
+    supportedLngs: [...APP_LANGUAGES],
     load: 'languageOnly',
     ns: [...I18N_NAMESPACE_LIST],
     defaultNS: DEFAULT_NAMESPACE,
@@ -93,7 +94,7 @@ function initializeSync(): void {
 initializeSync();
 
 /** Current UI language (always a supported language). */
-export function getLanguage(): Language {
+export function getLanguage(): AppLanguage {
   return normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ?? FALLBACK_LANGUAGE;
 }
 
@@ -106,7 +107,7 @@ export const t: TranslateFn = (key, options) => {
   return typeof result === 'string' ? result : key;
 };
 
-async function persistLanguage(language: Language): Promise<void> {
+async function persistLanguage(language: AppLanguage): Promise<void> {
   try {
     await AsyncStorage.setItem(GLOBAL_STORAGE_KEYS.language, language);
   } catch (error) {
@@ -123,7 +124,7 @@ async function persistLanguage(language: Language): Promise<void> {
  * Emits `language:changed` when the language actually changes.
  */
 export async function setLanguage(
-  language: Language,
+  language: AppLanguage,
   options: { source?: LanguageSource } = {},
 ): Promise<void> {
   const source = options.source ?? 'user';
@@ -201,7 +202,7 @@ export async function syncDeviceLanguage(): Promise<void> {
  * - remote changes: only when `language` is among the changed keys;
  * - cache (session start): the account's saved language wins over the device default.
  */
-export function languageFromPreferencesEvent(event: PreferencesChangedEvent, current: Language): Language | null {
+export function languageFromPreferencesEvent(event: PreferencesChangedEvent, current: AppLanguage): AppLanguage | null {
   if (event.origin === 'local') return null;
   const language = event.preferences.language;
   if (!isSupportedLanguage(language) || language === current) return null;

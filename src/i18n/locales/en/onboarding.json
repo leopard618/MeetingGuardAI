@@ -102,7 +102,7 @@
   },
   "assistant": {
     "title": "Meet your AI assistant",
-    "subtitle": "Tell the assistant what you need in your own words, in English or Spanish.",
+    "subtitle": "Tell the assistant what you need in your own words.",
     "capabilitiesTitle": "It can:",
     "capabilities": {
       "create": "Create meetings from a single sentence",

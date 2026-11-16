@@ -1,0 +1,41 @@
+{
+  "screens": {
+    "Landing": "Willkommen",
+    "EmailAuth": "Anmeldung per E-Mail",
+    "Privacy": "Datenschutzerklärung",
+    "Terms": "Nutzungsbedingungen",
+    "OnboardingLanguage": "Sprache",
+    "OnboardingCalendars": "Kalender",
+    "OnboardingAlerts": "Alarme",
+    "OnboardingAssistant": "KI-Assistent",
+    "OnboardingFirstMeeting": "Erste Besprechung",
+    "Dashboard": "Meeting Guard",
+    "ChooseCreationMethod": "Neue Besprechung",
+    "CreateMeeting": "Besprechung erstellen",
+    "TotalMeetings": "Alle Besprechungen",
+    "MeetingDetails": "Besprechungsdetails",
+    "EditMeeting": "Besprechung bearbeiten",
+    "Calendar": "Kalender",
+    "Notes": "Notizen",
+    "Tasks": "Aufgaben",
+    "Settings": "Einstellungen",
+    "AlertSettings": "Alarmeinstellungen",
+    "Profile": "Profil",
+    "AIChat": "KI-Assistent",
+    "AIInsights": "Einblicke",
+    "CalendarSync": "Kalendersynchronisierung",
+    "Pricing": "Tarife",
+    "WhatsAppConnect": "WhatsApp",
+    "SummaryConnect": "Besprechungsprotokolle",
+    "SummaryInbox": "Protokoll-Posteingang",
+    "SummaryView": "Protokoll",
+    "SummaryCommitments": "Zusagen",
+    "Matters": "AI executive assistant"
+  },
+  "meeting": {
+    "loading": "Besprechung wird geladen...",
+    "notFoundTitle": "Besprechung nicht gefunden",
+    "notFoundMessage": "Sie wurde möglicherweise gelöscht oder ist noch nicht mit diesem Gerät synchronisiert.",
+    "backToDashboard": "Zur Übersicht"
+  }
+}

@@ -30,7 +30,7 @@ import { errorMessageKey, toAppError } from '../../core/errors';
 import { createLogger } from '../../core/logger';
 import { addDaysToLocalDate, getDeviceTimeZone, getZonedParts, todayInZone } from '../../core/time';
 import type { Meeting, Task } from '../../core/types';
-import { useLanguage, useT } from '../../i18n';
+import { LOCALE_TAGS, useLanguage, useT } from '../../i18n';
 import { useAuth } from '../../services/auth';
 import { calendarSyncEngine } from '../../services/calendar';
 import { useMeetings, useTasks } from '../../services/data';
@@ -342,7 +342,7 @@ export function DashboardScreen({ navigation }: Props): ReactElement {
             lastWeek={lastWeek}
             days={week.days}
             todayDate={todayKey}
-            locale={language === 'es' ? 'es-ES' : 'en-US'}
+            locale={LOCALE_TAGS[language]}
             onSeeAll={() => navigation.navigate('AIInsights')}
           />
         </>

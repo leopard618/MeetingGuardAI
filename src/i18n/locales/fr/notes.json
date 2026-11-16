@@ -1,0 +1,100 @@
+{
+  "search": {
+    "placeholder": "Rechercher des notes",
+    "clear": "Effacer la recherche"
+  },
+  "filters": {
+    "label": "Filtrer par catégorie",
+    "all": "Toutes",
+    "withCount": "{{label}} ({{count}})"
+  },
+  "categories": {
+    "general": "Général",
+    "work": "Travail",
+    "ideas": "Idées",
+    "personal": "Personnel"
+  },
+  "list": {
+    "loading": "Chargement de vos notes...",
+    "count_one": "{{count}} note",
+    "count_other": "{{count}} notes"
+  },
+  "empty": {
+    "title": "Aucune note pour l'instant",
+    "body": "Notez vos ordres du jour, vos idées et vos suivis. Vous pouvez lier une note à l'une de vos réunions.",
+    "action": "Écrire votre première note"
+  },
+  "noMatches": {
+    "title": "Aucune note correspondante",
+    "body": "Essayez une autre recherche ou catégorie.",
+    "action": "Effacer les filtres"
+  },
+  "loadError": {
+    "title": "Impossible de charger vos notes"
+  },
+  "add": "Nouvelle note",
+  "addA11y": "Créer une note",
+  "card": {
+    "open": "Modifier la note : {{title}}",
+    "openHint": "Ouvre la note pour la modifier",
+    "pinned": "Épinglée",
+    "pin": "Épingler la note : {{title}}",
+    "unpin": "Désépingler la note : {{title}}",
+    "delete": "Supprimer la note : {{title}}",
+    "updated": "Modifiée {{when}}",
+    "meeting": "Ouvrir la réunion : {{title}}",
+    "meetingUnavailable": "La réunion liée n'est plus disponible"
+  },
+  "editor": {
+    "newTitle": "Nouvelle note",
+    "editTitle": "Modifier la note",
+    "close": "Fermer",
+    "save": "Enregistrer",
+    "titleLabel": "Titre",
+    "contentLabel": "Note",
+    "contentPlaceholder": "Écrivez votre note...",
+    "characters": "{{count}} / {{max}} caractères",
+    "category": "Catégorie",
+    "pin": "Épingler en haut",
+    "pinHint": "Les notes épinglées apparaissent en premier dans la liste.",
+    "meeting": "Réunion liée",
+    "meetingNone": "Cette note n'est liée à aucune réunion.",
+    "linkMeeting": "Lier à une réunion",
+    "changeMeeting": "Changer",
+    "unlinkMeeting": "Supprimer le lien",
+    "unlinkA11y": "Supprimer le lien avec la réunion",
+    "delete": "Supprimer la note",
+    "discardTitle": "Abandonner vos modifications ?",
+    "discardMessage": "Les modifications apportées à cette note seront perdues.",
+    "keepEditing": "Continuer à modifier",
+    "discard": "Abandonner"
+  },
+  "errors": {
+    "titleRequired": "Ajoutez un titre à la note.",
+    "titleTooLong": "Le titre peut contenir jusqu'à {{max}} caractères.",
+    "contentTooLong": "La note peut contenir jusqu'à {{max}} caractères."
+  },
+  "picker": {
+    "title": "Lier une réunion",
+    "back": "Retour à la note",
+    "search": "Rechercher des réunions",
+    "upcoming": "À venir",
+    "past": "Passées",
+    "empty": "Vous n'avez encore aucune réunion à lier.",
+    "noMatches": "Aucune réunion ne correspond à votre recherche.",
+    "select": "Lier à {{title}}, {{when}}",
+    "cancelled": "Annulée",
+    "linked": "Liée"
+  },
+  "delete": {
+    "title": "Supprimer \"{{title}}\" ?",
+    "message": "La note sera supprimée de tous vos appareils. Cette action est irréversible.",
+    "confirm": "Supprimer"
+  },
+  "toast": {
+    "saved": "Note enregistrée",
+    "deleted": "Note supprimée",
+    "pinned": "Note épinglée",
+    "unpinned": "Note désépinglée"
+  }
+}

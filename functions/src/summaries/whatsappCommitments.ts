@@ -41,9 +41,9 @@ import {
   isTrustedSignInProvider,
   summaryIdSchema,
   usageDayKey,
+  type AppLanguage,
   type AssistantUsage,
   type CommitmentErrorCode,
-  type Language,
   type SummaryCommitmentsResponse,
 } from '../shared/aiContract';
 import { EXTRACTOR_VERSION, extractionListFactsOf, EXTRACTION_LIST_FIELDS, parserVersionInUse } from '../commitments/extraction';
@@ -289,7 +289,8 @@ export function countOffer(db: Firestore, uid: string, summaryId: string, now: D
 interface Ctx {
   uid: string;
   tokenName: string | null;
-  language: Language;
+  /** The user's app language (M12: en, es, pt, fr or de): every text this worker renders. */
+  language: AppLanguage;
   now: Date;
   deps: SummaryWhatsAppDeps;
   tuning: SummaryWhatsAppTuning;
@@ -524,7 +525,7 @@ export async function handleSummaryWhatsApp(body: unknown, deps: SummaryWhatsApp
     return { status: 400, body: 'Bad Request' };
   }
   const request = parsed.data;
-  const language: Language = request.language;
+  const language: AppLanguage = request.language;
   const texts = workerTexts(language);
   const tuning: SummaryWhatsAppTuning = { ...SUMMARY_WHATSAPP_TUNING, ...deps.tuning };
   const fields: Record<string, unknown> = {};

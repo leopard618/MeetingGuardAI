@@ -44,7 +44,9 @@
     "error": "Voice input didn't work that time. Please try again or type your message.",
     "dismissed": "Okay, dismissed. Nothing was changed.",
     "repliesOn": "Spoken replies are on",
-    "repliesOff": "Spoken replies are off"
+    "repliesOff": "Spoken replies are off",
+    "languageUnavailable": "Speech recognition for this language is not installed on this phone. Add it in your phone's voice input settings, or type your message.",
+    "noVoice": "This phone has no voice for this language, so replies are shown but not read aloud."
   },
   "examples": {
     "e1": "Schedule a meeting with Ana tomorrow at 4pm",

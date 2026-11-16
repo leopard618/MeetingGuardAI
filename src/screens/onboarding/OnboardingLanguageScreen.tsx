@@ -3,13 +3,20 @@ import type { ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { RadioButton, Text, TouchableRipple } from 'react-native-paper';
 
-import type { Language } from '../../core/types';
+import type { AppLanguage } from '../../core/types';
 import { useLanguage, useT } from '../../i18n';
 import { ConsentNotice } from '../../navigation/ConsentNotice';
 import { componentMetrics, radii, spacing, useAppTheme } from '../../theme';
 import { OnboardingLayout, useOnboardingNavigation } from './OnboardingLayout';
 
-const FLAGS: Readonly<Record<Language, string>> = { en: '🇬🇧', es: '🇪🇸' };
+/** Same flags as the header language pill (components/CustomHeader LANGUAGE_FLAGS): US for English, Brazil for Portuguese. */
+const FLAGS: Readonly<Record<AppLanguage, string>> = {
+  en: '\u{1F1FA}\u{1F1F8}',
+  es: '\u{1F1EA}\u{1F1F8}',
+  pt: '\u{1F1E7}\u{1F1F7}',
+  fr: '\u{1F1EB}\u{1F1F7}',
+  de: '\u{1F1E9}\u{1F1EA}',
+};
 
 export function OnboardingLanguageScreen(): ReactElement {
   const t = useT();
@@ -28,7 +35,7 @@ export function OnboardingLanguageScreen(): ReactElement {
       <RadioButton.Group
         value={language}
         onValueChange={(value) => {
-          void setLanguage(value as Language);
+          void setLanguage(value as AppLanguage);
         }}
       >
         {supportedLanguages.map((code) => {

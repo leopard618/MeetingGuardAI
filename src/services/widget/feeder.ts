@@ -18,7 +18,7 @@ import type { AppEventMap, EventBus } from '../../core/events';
 import { meetingDeepLink } from '../../core/identifiers';
 import type { Logger } from '../../core/logger';
 import { addDaysToLocalDate, toLocalDateTime, todayInZone } from '../../core/time';
-import type { Language, Meeting, Preferences } from '../../core/types';
+import type { AppLanguage, Meeting, Preferences } from '../../core/types';
 import type { MgWidgetMeetingData, MgWidgetStrings } from '../../../modules/mg-next-meeting-widget';
 import { WIDGET_HORIZON_DAYS, computeNextWidgetEntry, type NextWidgetEntry } from './model';
 
@@ -39,7 +39,7 @@ export interface WidgetDataPort {
 
 export interface WidgetI18nPort {
   t: TranslateFn;
-  getLanguage(): Language;
+  getLanguage(): AppLanguage;
 }
 
 export interface WidgetFormatPort {

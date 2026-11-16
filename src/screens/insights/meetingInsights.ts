@@ -13,7 +13,8 @@
  * - Weeks start on `weekStartsOn` (0 Sunday, 1 Monday).
  */
 import { addDaysToLocalDate, isLocalDate, toLocalDateTime } from '../../core/time';
-import { MEETING_SOURCES, type Meeting, type MeetingSource } from '../../core/types';
+import { APP_LANGUAGES, MEETING_SOURCES, type AppLanguage, type Meeting, type MeetingSource } from '../../core/types';
+import { weekStartsOnFor } from '../../i18n/locale';
 
 /** A meeting that starts at most this many minutes after another one ends is "back-to-back". */
 export const BACK_TO_BACK_GAP_MINUTES = 5;
@@ -397,7 +398,10 @@ export function barFraction(day: DayLoad, days: readonly DayLoad[]): number {
   return maxCount > 0 ? day.count / maxCount : 0;
 }
 
-/** Week start for a UI language: Sunday for English (US), Monday for Spanish. */
+/**
+ * Week start for a UI language (src/i18n/locale.ts, the same as the calendar): Sunday for English
+ * (US) and Portuguese (Brazil), Monday for Spanish, French and German. Unknown values: Sunday.
+ */
 export function weekStartForLanguage(language: string): WeekStart {
-  return language === 'es' ? 1 : 0;
+  return (APP_LANGUAGES as readonly string[]).includes(language) ? weekStartsOnFor(language as AppLanguage) : 0;
 }

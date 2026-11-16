@@ -1,0 +1,41 @@
+{
+  "screens": {
+    "Landing": "Bienvenue",
+    "EmailAuth": "Connexion par e-mail",
+    "Privacy": "Politique de confidentialité",
+    "Terms": "Conditions d'utilisation",
+    "OnboardingLanguage": "Langue",
+    "OnboardingCalendars": "Calendriers",
+    "OnboardingAlerts": "Alertes",
+    "OnboardingAssistant": "Assistant IA",
+    "OnboardingFirstMeeting": "Première réunion",
+    "Dashboard": "Meeting Guard",
+    "ChooseCreationMethod": "Nouvelle réunion",
+    "CreateMeeting": "Créer une réunion",
+    "TotalMeetings": "Toutes les réunions",
+    "MeetingDetails": "Détails de la réunion",
+    "EditMeeting": "Modifier la réunion",
+    "Calendar": "Calendrier",
+    "Notes": "Notes",
+    "Tasks": "Tâches",
+    "Settings": "Paramètres",
+    "AlertSettings": "Paramètres des alertes",
+    "Profile": "Profil",
+    "AIChat": "Assistant IA",
+    "AIInsights": "Statistiques",
+    "CalendarSync": "Synchronisation des calendriers",
+    "Pricing": "Offres",
+    "WhatsAppConnect": "WhatsApp",
+    "SummaryConnect": "Comptes rendus de réunion",
+    "SummaryInbox": "Boîte de réception",
+    "SummaryView": "Compte rendu",
+    "SummaryCommitments": "Engagements",
+    "Matters": "AI executive assistant"
+  },
+  "meeting": {
+    "loading": "Chargement de la réunion...",
+    "notFoundTitle": "Réunion introuvable",
+    "notFoundMessage": "Elle a peut-être été supprimée, ou elle n'est pas encore synchronisée sur cet appareil.",
+    "backToDashboard": "Aller au tableau de bord"
+  }
+}

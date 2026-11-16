@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Portuguese (Brazil) fallback (system locale); mirrors src/i18n/locales/pt/widget.json. -->
+<resources>
+  <string name="mg_widget_label">Próxima reunião</string>
+  <string name="mg_widget_description">Mostra sua próxima reunião no Meeting Guard AI</string>
+  <string name="mg_widget_empty_title">Nenhuma reunião próxima</string>
+  <string name="mg_widget_empty_body">Abra o Meeting Guard para planejar uma</string>
+  <string name="mg_widget_now">Acontecendo agora</string>
+</resources>

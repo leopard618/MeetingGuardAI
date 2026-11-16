@@ -1,0 +1,82 @@
+{
+  "app": {
+    "name": "Meeting Guard AI",
+    "shortName": "Meeting Guard"
+  },
+  "actions": {
+    "continue": "Continuer",
+    "back": "Retour",
+    "skipForNow": "Passer pour l'instant",
+    "done": "Terminé",
+    "retry": "Réessayer",
+    "cancel": "Annuler",
+    "openSettings": "Ouvrir les paramètres",
+    "signOut": "Se déconnecter",
+    "signOutAnyway": "Se déconnecter quand même",
+    "save": "Enregistrer"
+  },
+  "language": {
+    "label": "Langue",
+    "en": "English",
+    "es": "Español",
+    "pt": "Português",
+    "fr": "Français",
+    "de": "Deutsch"
+  },
+  "format": {
+    "now": "maintenant",
+    "tomorrow": "demain",
+    "yesterday": "hier",
+    "allDay": "Toute la journée",
+    "days_one": "{{count}} jour",
+    "days_other": "{{count}} jours"
+  },
+  "splash": {
+    "loading": "Chargement...",
+    "slow": "Cela prend plus de temps que d'habitude. Vérifiez votre connexion Internet."
+  },
+  "session": {
+    "signOutTitle": "Se déconnecter",
+    "signOutMessage": "Voulez-vous vraiment vous déconnecter ?",
+    "pendingWritesTitle": "Modifications non synchronisées",
+    "pendingWritesMessage": "Certaines de vos modifications n'ont pas encore atteint le serveur. Si vous vous déconnectez maintenant, elles seront perdues.",
+    "signOutFailed": "Impossible de vous déconnecter. Veuillez réessayer.",
+    "prefsErrorTitle": "Impossible de charger vos paramètres",
+    "prefsErrorMessage": "Vérifiez votre connexion Internet et rouvrez l'application, ou déconnectez-vous."
+  },
+  "consent": {
+    "prefix": "En continuant, vous acceptez nos",
+    "terms": "Conditions d'utilisation",
+    "and": "et notre",
+    "privacy": "Politique de confidentialité"
+  },
+  "errors": {
+    "not_configured": "Cette application n'est pas configurée correctement. Veuillez installer la dernière version.",
+    "not_implemented": "Cette fonctionnalité n'est pas encore disponible.",
+    "unauthenticated": "Votre session a expiré. Veuillez vous reconnecter.",
+    "permission_denied": "Vous n'avez pas l'autorisation d'effectuer cette action.",
+    "offline": "Vous êtes hors ligne. Vérifiez votre connexion et réessayez.",
+    "timeout": "La requête a pris trop de temps. Veuillez réessayer.",
+    "not_found": "Nous n'avons pas trouvé ce que vous cherchiez.",
+    "invalid_input": "Certaines informations ne sont pas valides. Vérifiez-les et réessayez.",
+    "conflict": "Cet élément a été modifié ailleurs. Veuillez réessayer.",
+    "quota_exceeded": "Vous avez atteint votre limite pour le moment. Réessayez plus tard.",
+    "upstream_error": "Un problème est survenu de notre côté. Réessayez dans un instant.",
+    "cancelled": "L'action a été annulée.",
+    "unsupported": "Cette action n'est pas prise en charge.",
+    "pending_writes": "Certaines modifications n'ont pas encore été synchronisées.",
+    "google_not_signed_in": "Connectez-vous avec Google pour utiliser cette fonctionnalité.",
+    "calendar_scope_missing": "Meeting Guard a besoin de l'autorisation d'accéder à votre Google Calendar.",
+    "tasks_scope_missing": "Meeting Guard a besoin de l'autorisation d'accéder à vos Google Tasks.",
+    "calendar_not_connected": "Google Calendar n'est pas connecté.",
+    "calendar_permission_denied": "L'accès au calendrier a été refusé. Vous pouvez l'autoriser dans les réglages de votre appareil.",
+    "notification_permission_denied": "Les notifications sont désactivées. Activez-les dans les réglages de votre appareil pour ne jamais manquer une réunion.",
+    "unknown": "Un problème est survenu. Veuillez réessayer."
+  },
+  "discard": {
+    "title": "Abandonner les modifications ?",
+    "message": "Vos modifications ne sont pas enregistrées. Si vous quittez maintenant, elles seront perdues.",
+    "keepEditing": "Continuer à modifier",
+    "discard": "Abandonner"
+  }
+}
