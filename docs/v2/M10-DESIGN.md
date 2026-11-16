@@ -471,7 +471,8 @@ Sealed content:
   the heading kept ("Launch Readiness"); no heading at all gives one body section.
 - items[] {id, text, start, end, checked, owner, dueText, flags[]}: id `i_` + 12 hex of sha256(kind,
   heading, line), stable across re-parses; text verbatim, with text.slice(start, end) === item.text
-  enforced by a test; owner from "(owner: Bish)" or "(responsable: ...)"; dueText only when present,
+  enforced by a test; owner from "(owner: Bish)" or "(responsable: ...)", else from a bulleted
+  owner group above it ("- Bish:" over indented items, Fathom; parser version 2); dueText only when present,
   never invented; flags possible_instruction (scanned over the whole text and every section, not
   only items), has_link, truncated.
 - derived is true for tldr and summary: M11 never extracts a commitment from the TLDR alone.
@@ -1019,3 +1020,52 @@ Open:
   MeetingSummarySection rows, at the top of SummaryView and beside Debrief; strings go under
   summaries.commitments.
 - The commit still needs to go on dev_dusko.
+
+## 21. Calibration on the first real recap: Fathom (November 16, 2026)
+
+Source: one Fathom recap forwarded as an attachment by Francisco (kept outside the repository and
+deleted after this run; no content of it is in the code, the tests or this file). Run locally
+through the real pipeline (parseMime, assessAuthenticity, htmlText, sanitize, parseSections,
+extractSummaryMeta, asWrittenProposals, decide) with DNS over HTTPS, because this machine's
+resolver returned an empty answer for the Fathom key while Gmail's own result was dkim=pass.
+
+Authenticity (the calibration list, section 17):
+- From `no-reply@fathom.video`; sent through Postmark (Return-Path pm-bounces.fathom.video).
+- Two DKIM signatures: d=fathom.video (aligned, rsa-sha256, 1024-bit key) and d=pm.mtasv.net
+  (Postmark's, unaligned). The aligned one signs from, to, cc, date, subject and message-id; no
+  l=. So V passes on the vendor's own domain; no (sender, signing domain) pair is needed.
+- x= is 48 hours after t=: a Fathom signature expires two days after sending. Mail rules forward
+  within seconds, so this only affects a recap that reaches us later (it is then refused
+  sender_not_verified, row 13; a hand forward from the user's own mailbox is row 10 as before).
+- One copy per attendee: To holds only the recipient, so B works on the signed To.
+- HTML only, no text/plain part; htmlText removed 34 hidden elements (preheader, tracking).
+- Result with the sender listed: row 7, vendor_verified, recipient bound, fresh, anchor = the
+  signed Date (sent about when the meeting ended). Without it: row 14, not_from_your_notetaker.
+- Setting: `SUMMARIES_SENDERS=no-reply@fathom.video`, then summaryInbound redeployed by name (the
+  only function that reads it).
+
+Layout and the fixes (parser version 2):
+- Header lines: a free-plan banner ("Get your own FREE AI Meeting Assistant"), a participants
+  line ("Meeting with <name>"), the meeting name, then "<date> * <duration> * View Meeting". The
+  title rule took the banner. titleLine now skips known notetaker banners (NOTETAKER_BANNER_KEYS)
+  and, for a participants line directly followed by a name-shaped line and then a line with a
+  date, takes that next line (participantTitle). The Subject is "Recap of your meeting with
+  <name>", so the meeting name comes only from the body. Matching check: with the old title the
+  recap waited in the inbox (weak, S 0.35); with the new one it files under the meeting (S 1.0).
+- Sections: "Action Items" (can say "No action items detected in this meeting"), "Meeting
+  Summary", "Key Takeaways" (derived), "Topics" with sub-topics (custom), "Next Steps", and a
+  footer ("View Meeting", sign-up and referral lines) that stays in the text as a custom section
+  without items.
+- Next Steps groups items by owner as bullets: "- <name>:" over indented items. Before, the owner
+  line became a task ("<name>") and the tasks had no owner. Now a bulleted owner group is no item
+  and owns the items under it when it names a person (ownerGroupOf, isOwnerGroupName: name-shaped,
+  no stopword, verb, collective or topic word first or last). A team label ("Dev Team") or a group
+  word heads items without an owner ("team" is never an owner, NOT_A_NAME). Any other label over
+  sub-points ("- Decide on pricing:") stays an item, as in version 1. The outermost named group
+  wins, and a label line between items ends every group.
+- participantTitle is strict: only names after "with" or "con", the next line not a field, link,
+  host, list of names or conferencing or notetaker line, and the line after it starting with a
+  date. Reviewed by an independent agent; its cases are regression tests.
+- Email addresses and host names in an item are removed from the task title (cleanTitle), as
+  designed; the source quote keeps them.
+

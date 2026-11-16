@@ -3100,3 +3100,165 @@ describe('parseLocalDateTime', () => {
     expect(parseLocalDateTime(null)).toBeNull();
   });
 });
+
+describe('parseSections: bulleted owner groups (Fathom Next Steps)', () => {
+  it('drops the group lines and takes the owner only from a name-shaped group', () => {
+    const { text, parsed } = parseSanitized(
+      [
+        'Acme weekly sync',
+        '',
+        'Next Steps',
+        '- Dana:',
+        '  - Send the revised deck to the board.',
+        '  - Book the venue (owner: Lee)',
+        '- Ops Team:',
+        '  - Renew the certificate.',
+        '- Next week:',
+        '  - Draft the launch email.',
+        '- Sam Ortiz:',
+        '',
+        '  - Call the printer.',
+      ].join('\n'),
+    );
+    expectInvariants(text, parsed);
+    expect(kindsAndHeadings(parsed)).toEqual([
+      ['preamble', null],
+      ['next_steps', 'Next Steps'],
+    ]);
+    // An own "(owner: ...)" wins; a team label and a group word head items without an owner.
+    expect(itemsWithOwners(parsed, 1)).toEqual([
+      ['Send the revised deck to the board.', 'Dana'],
+      ['Book the venue (owner: Lee)', 'Lee'],
+      ['Renew the certificate.', null],
+      ['Draft the launch email.', null],
+      ['Call the printer.', 'Sam Ortiz'],
+    ]);
+  });
+
+  it('closes a group at an item indented at or left of it', () => {
+    const { parsed } = parseSanitized(['Acme weekly sync', '', 'Action items', '- Dana:', '  - Send the deck', '- Review the budget'].join('\n'));
+    expect(itemsWithOwners(parsed, 1)).toEqual([
+      ['Send the deck', 'Dana'],
+      ['Review the budget', null],
+    ]);
+  });
+
+  it('keeps the line as an item without deeper items, as a checkbox or a number, and outside list sections', () => {
+    const flat = parseSanitized(['Acme weekly sync', '', 'Next Steps', '- Dana:', '- Send the deck'].join('\n')).parsed;
+    expect(itemsWithOwners(flat, 1)).toEqual([
+      ['Dana:', null],
+      ['Send the deck', null],
+    ]);
+    const box = parseSanitized(['Acme weekly sync', '', 'Action items', '- [ ] Dana:', '  - [ ] Send the deck'].join('\n')).parsed;
+    expect(itemsWithOwners(box, 1)).toEqual([
+      ['Dana:', null],
+      ['Send the deck', null],
+    ]);
+    const numbered = parseSanitized(['Acme weekly sync', '', 'Next Steps', '1. Dana:', '   - Send the deck'].join('\n')).parsed;
+    expect(itemsWithOwners(numbered, 1)?.map(([itemText]) => itemText)).toEqual(['Dana:', 'Send the deck']);
+    const topics = parseSanitized(['Acme weekly sync', '', '**Topics**', '- Workflow:', '  - Connect the account'].join('\n')).parsed;
+    expect(kindsAndHeadings(topics)[1]).toEqual(['custom', 'Topics']);
+    expect(itemsWithOwners(topics, 1)).toEqual([
+      ['Workflow:', null],
+      ['Connect the account', null],
+    ]);
+  });
+});
+
+describe('extractSummaryMeta: notetaker banner and participants line (Fathom)', () => {
+  const titleOf = (lines: readonly string[]): string | null => extractSummaryMeta(lines.join('\n'), null).titleLine;
+  const FATHOM_DATE = 'October 16, 2026  •  28 mins  • View Meeting';
+
+  it('skips the banner and takes the meeting name under the participants line', () => {
+    expect(titleOf(['Get your own FREE AI Meeting Assistant', 'Meeting with Dana Lee', 'Acme - Weekly sync', FATHOM_DATE, 'Action Items'])).toBe(
+      'Acme - Weekly sync',
+    );
+    expect(titleOf(['Meeting with Dana Lee', 'Acme - Weekly sync', 'October 16, 2026', 'Action Items'])).toBe('Acme - Weekly sync');
+    expect(titleOf(['Call with Dana Lee', 'Acme pricing review', FATHOM_DATE])).toBe('Acme pricing review');
+    expect(titleOf(['Reunión con Dana Lee', 'Revisión semanal', '16 de octubre de 2026', 'Tareas'])).toBe('Revisión semanal');
+    expect(titleOf(['Get your own FREE AI Meeting Assistant', 'Acme - Weekly sync', FATHOM_DATE])).toBe('Acme - Weekly sync');
+    expect(extractSummaryMeta(['Meeting with Dana Lee', 'Acme - Weekly sync', FATHOM_DATE].join('\n'), null)).toMatchObject({
+      summaryDate: '2026-10-16',
+      dateLine: FATHOM_DATE,
+    });
+  });
+
+  it('keeps the participants line as the title outside that exact shape', () => {
+    expect(titleOf(['Meeting with Dana Lee', 'October 16, 2026', 'Action Items'])).toBe('Meeting with Dana Lee');
+    expect(titleOf(['Meeting with Dana Lee', 'Acme - Weekly sync', 'Summary', 'October 16, 2026'])).toBe('Meeting with Dana Lee');
+    expect(titleOf(['Meeting with Dana Lee', 'We reviewed the launch plan.', 'October 16, 2026'])).toBe('Meeting with Dana Lee');
+    expect(titleOf(['Meeting with Dana Lee', 'Meeting with Sam Ortiz', 'October 16, 2026'])).toBe('Meeting with Dana Lee');
+    expect(titleOf(['Meetings with customers', 'Acme - Weekly sync', 'October 16, 2026'])).toBe('Meetings with customers');
+  });
+});
+
+describe('parseSections: owner groups, review cases', () => {
+  const itemsOf = (lines: readonly string[]) => itemsWithOwners(parseSanitized(['Acme weekly sync', '', ...lines].join('\n')).parsed, 1);
+
+  it('keeps a task line ending in a colon over sub-points as an item', () => {
+    for (const task of ['Decide on pricing:', 'Follow up with Acme:', 'Email the client:', 'Bish to send the contract to Acme:', 'Review PR:']) {
+      expect([task, itemsOf(['Action items', `- ${task}`, '  - include the deck'])]).toEqual([
+        task,
+        [
+          [task, null],
+          ['include the deck', null],
+        ],
+      ]);
+    }
+  });
+
+  it('never takes an owner from a verb, a collective word or a topic word', () => {
+    for (const label of ['Prep', 'Android', 'Backend', 'Customer', 'Optional', 'Others', 'Email John', 'Call Sarah', 'Everyone', 'TBD']) {
+      const items = itemsOf(['Next Steps', `- ${label}:`, '  - book the room']);
+      expect([label, items?.map(([, owner]) => owner)]).toEqual([label, [null, null]]);
+      expect(items?.[0]?.[0]).toBe(`${label}:`);
+    }
+  });
+
+  it('heads the items of a team label without an owner', () => {
+    for (const label of ['Dev Team', 'Ops team', 'Team', 'Equipo de ventas']) {
+      expect([label, itemsOf(['Next Steps', `- ${label}:`, '  - book the room'])]).toEqual([label, [['book the room', null]]]);
+    }
+  });
+
+  it('keeps the outer owner over a nested group and ends groups at a label line', () => {
+    expect(itemsOf(['Next Steps', '- Dana:', '  - Next week:', '    - book the room'])).toEqual([['book the room', 'Dana']]);
+    expect(itemsOf(['Next Steps', '- Dana Lee:', '  - Sam Ortiz:', '    - fix the crash'])).toEqual([['fix the crash', 'Dana Lee']]);
+    expect(itemsOf(['Next Steps', '- Dana:', '  - send the deck', 'Bish Kumar', '  - call the printer'])).toEqual([
+      ['send the deck', 'Dana'],
+      ['call the printer', null],
+    ]);
+  });
+});
+
+describe('extractSummaryMeta: participants line, review cases', () => {
+  const titleOf = (lines: readonly string[]): string | null => extractSummaryMeta(lines.join('\n'), null).titleLine;
+
+  it('keeps the participants line when the next line is a field, a link, names or a notetaker line', () => {
+    const seconds = [
+      'Organizer: Bish Kumar',
+      'Attendees: Dana Lee, Bish Kumar',
+      'Duration: 28 mins',
+      'https://zoom.us/j/123456',
+      'Dana Lee, Bish Kumar',
+      'Dana Lee and Bish Kumar',
+      'Hosted by Bish Kumar',
+      'Recorded by Bish',
+      'Zoom Meeting',
+      'Google Meet',
+      'View Meeting',
+      'Watch the recording',
+      'Summary generated by Otter',
+      'Acme Corp (acme.com)',
+    ];
+    for (const second of seconds) {
+      expect([second, titleOf(['Meeting with Dana Lee', second, 'Nov 16, 2026'])]).toEqual([second, 'Meeting with Dana Lee']);
+    }
+  });
+
+  it('needs only names after "with" and a line that starts with the date', () => {
+    expect(titleOf(['Meeting with Dana Lee - Read.ai Report', 'Meeting Report', 'Nov 16, 2026'])).toBe('Meeting with Dana Lee - Read.ai Report');
+    expect(titleOf(['Meeting with Dana Lee', 'Dana and Bish discussed the pricing for Q4', 'Next call Nov 20'])).toBe('Meeting with Dana Lee');
+    expect(titleOf(['Meeting with Dana Lee and Sam Ortiz', 'Acme - Weekly sync', 'October 16, 2026 | 28 mins'])).toBe('Acme - Weekly sync');
+  });
+});

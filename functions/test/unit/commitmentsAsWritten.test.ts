@@ -227,3 +227,13 @@ describe('selectAllTargets', () => {
     expect(selectAllTargets(items, summaryPreselect(ROW_10, false))).toEqual([0, 2]);
   });
 });
+
+describe('asWrittenProposals: bulleted owner groups (Fathom Next Steps)', () => {
+  it('prefixes the group owner and never offers the group line; the own group of the user gets no prefix', () => {
+    const list = asWritten(['Acme weekly sync', '', 'Next Steps', '- Sam Ortiz:', '  - Send the revised deck.', '- Dana Lee:', '  - Book the venue.'].join('\n'));
+    expect(list.map((c) => [c.title, c.owner])).toEqual([
+      ['Sam Ortiz: Send the revised deck.', 'Sam Ortiz'],
+      ['Book the venue.', 'Dana Lee'],
+    ]);
+  });
+});

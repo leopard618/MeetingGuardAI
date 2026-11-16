@@ -49,7 +49,9 @@
  *   "Insights", "Links") opens a custom section. Inside a custom section whose heading is directly
  *   followed by a short marked label ("Launch Readiness", "**Android**"), later short marked labels
  *   right under the previous line are sub-labels too. A sub-label never sets an owner: an item's
- *   owner comes only from "(owner: ...)" or "(responsable: ...)" in its own text (design section 8).
+ *   owner comes from "(owner: ...)" or "(responsable: ...)" in its own text (design section 8), else
+ *   from a bulleted owner group above it ("- Dana:" over indented items, Fathom's Next Steps; the
+ *   group line itself is not an item; collectItems).
  * - Item continuations follow one column rule, applied by the heading-detection loop and joined
  *   by collectItems from the lines that loop marked, so the two never disagree. Under an open item
  *   (marker column M, text column T measured right after the bullet or number, before any
@@ -81,11 +83,15 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
+import { NOT_A_NAME, STOPWORDS, TITLE_VERBS, fold } from '../commitments/text';
 import { MONTHS, datesIn, stripDates } from '../shared/textDates';
 import { lineSpans, sanitizeLine, sliceSafe, type LineSpan } from './sanitize';
 
-/** Stored as parserVersion; bump on any change that moves offsets, kinds or ids. */
-export const SECTIONS_PARSER_VERSION = 1;
+/**
+ * Stored as parserVersion; bump on any change that moves offsets, kinds or ids. 2: a bulleted owner
+ * group ("- Dana:" over indented items) is no item and owns the items under it.
+ */
+export const SECTIONS_PARSER_VERSION = 2;
 
 export const MAX_SECTIONS = 40;
 export const MAX_ITEMS = 400;
@@ -151,8 +157,9 @@ export const summaryItemSchema = z.object({
   /** true / false for a checkbox line, null for a plain bullet or number. */
   checked: z.boolean().nullable(),
   /**
-   * Only from "(owner: Name)" or "(responsable: Name)" inside the item's own text; never from a
-   * sub-label above it, never invented.
+   * From "(owner: Name)" or "(responsable: Name)" inside the item's own text, else from the
+   * bulleted owner group the item is indented under ("- Dana:", then "  - Send the deck"); never
+   * from a plain sub-label above it, never invented.
    */
   owner: z.string().min(1).max(MAX_OWNER_CHARS).nullable(),
   /** Only when an explicit due marker is present; never invented. */
@@ -1283,11 +1290,82 @@ interface ParseState {
 }
 
 /**
+ * One-word labels that head items but never name a person ("- Android:", "- Prep:"), headingKey
+ * form. ownerGroupOf only; NOT_A_NAME, STOPWORDS and TITLE_VERBS (commitments/text.ts) apply too.
+ */
+const OWNER_GROUP_NOT_A_NAME: ReadonlySet<string> = new Set([
+  'prep', 'android', 'ios', 'web', 'mobile', 'backend', 'frontend', 'design', 'customer', 'customers', 'client', 'clients',
+  'optional', 'internal', 'external', 'other', 'others', 'general', 'misc', 'notes', 'blockers', 'risks', 'followups',
+  'cliente', 'clientes', 'interno', 'externo', 'otros', 'otras', 'notas', 'riesgos',
+  // Verbs that start a task ("- Email John:"), beyond TITLE_VERBS.
+  'email', 'book', 'meet', 'contact', 'ping', 'text', 'message', 'write', 'draft', 'plan', 'decide', 'discuss', 'escribir',
+  'contactar', 'reservar', 'decidir', 'hablar',
+]);
+
+/** The last word of a team label ("- Dev Team:", "- Ops team:"), or the first ("- Equipo de ventas:"). */
+const TEAM_LAST_WORDS: ReadonlySet<string> = new Set(['team', 'teams', 'squad', 'crew']);
+const TEAM_FIRST_WORDS: ReadonlySet<string> = new Set(['equipo']);
+
+/** A short team label: at most 4 words, the first capitalized, a team word last (or "Equipo" first). */
+function isTeamLabel(label: string): boolean {
+  const words = wordsOf(label);
+  if (words.length === 0 || words.length > 4 || !/^\p{Lu}/u.test(words[0] ?? '')) return false;
+  const first = fold(words[0] ?? '');
+  const last = fold(words[words.length - 1] ?? '').replace(/[^\p{L}]+/gu, '');
+  return TEAM_LAST_WORDS.has(last) || (TEAM_FIRST_WORDS.has(first) && words.length > 1);
+}
+
+/**
+ * True when an owner group label can name a person or people: nameWordCount, and neither its first
+ * nor its last word a stopword, a title verb ("- Email John:"), a collective word ("- Team:") or an
+ * OWNER_GROUP_NOT_A_NAME word ("- Android:"), as verify.isNameLike asks of owners.
+ */
+function isOwnerGroupName(label: string, key: string): boolean {
+  if (KNOWN_HEADINGS.has(key) || GROUP_LABELS.has(key) || nameWordCount(label) === 0) return false;
+  const words = wordsOf(label).map((w) => fold(w).replace(/[^\p{L}]+/gu, ''));
+  const reject = (w: string | undefined): boolean =>
+    w === undefined || w === '' || STOPWORDS.has(w) || TITLE_VERBS.has(w) || NOT_A_NAME.has(w) || OWNER_GROUP_NOT_A_NAME.has(w);
+  return !reject(words[0]) && !reject(words[words.length - 1]);
+}
+
+/**
+ * A bulleted owner group (Fathom's Next Steps: "- Dana:" over "  - Send the deck"): inside a list
+ * section, a plain bullet (no number, no checkbox) whose whole text is a label and a colon, with no
+ * continuation line, followed (blank lines allowed) by an item indented deeper. It is a header, not
+ * an item, only when its label names a person (isOwnerGroupName, which then owns the items under
+ * it), is a group word ("- Next week:") or a team label ("- Dev Team:"); those two own nothing.
+ * Any other label ("- Decide on pricing:" over sub-points) stays an item, as in parser version 1.
+ */
+function ownerGroupOf(
+  text: string,
+  spans: readonly LineSpan[],
+  i: number,
+  to: number,
+  m: ItemMatch,
+  continuations: ReadonlySet<number>,
+): { owner: string | null } | null {
+  if (m.checked !== null || m.numbered || continuations.has(i + 1)) return null;
+  const content = lineAt(text, spans, i).slice(m.contentOffset).trim();
+  if (!/:[*_]*$/.test(content)) return null;
+  const label = readLabel(content).text.replace(/:$/, '').trim();
+  if (label === '' || label.length > MAX_OWNER_CHARS || label.includes(':')) return null;
+  const j = nextNonBlankIndex(text, spans, i + 1);
+  if (j === null || j >= to) return null;
+  const next = matchItem(lineAt(text, spans, j));
+  if (next === null || next.indent <= m.indent) return null;
+  const key = headingKey(label);
+  if (isOwnerGroupName(label, key)) return { owner: label };
+  // A group word or a team label heads its items without an owner ("team" is never an owner).
+  return GROUP_LABELS.has(key) || isTeamLabel(label) ? { owner: null } : null;
+}
+
+/**
  * Items in lines [from, to): bullet, number or checkbox lines plus their continuation lines, which
  * are exactly the lines the detection loop marked (`continuations`, the one column rule of
- * underItem), so a line is never a heading there and a continuation here. The owner comes only
- * from "(owner: ...)" or "(responsable: ...)" inside the item's own text (design section 8), never
- * from a sub-label above it. Ids are [kind, heading, item line].
+ * underItem), so a line is never a heading there and a continuation here. The owner comes from
+ * "(owner: ...)" or "(responsable: ...)" inside the item's own text (design section 8), else from
+ * the nearest bulleted owner group above it (ownerGroupOf: "- Dana:" over indented items), never
+ * from a plain sub-label. An owner group line is not an item. Ids are [kind, heading, item line].
  */
 function collectItems(
   text: string,
@@ -1301,11 +1379,23 @@ function collectItems(
 ): { items: SummaryItem[]; cut: boolean } {
   const items: SummaryItem[] = [];
   let cut = false;
+  /** Open owner groups, outermost first; a group closes at an item indented at or left of it. */
+  const groups: Array<{ indent: number; owner: string | null }> = [];
   for (let i = from; i < to; i++) {
     const span = spans[i];
     if (!span) break;
     const m = matchItem(rawLine(text, span));
-    if (!m) continue;
+    if (!m) {
+      // A label or a sentence between items ends every open owner group.
+      if (rawLine(text, span).trim() !== '' && !continuations.has(i)) groups.length = 0;
+      continue;
+    }
+    while (groups.length > 0 && (groups[groups.length - 1]?.indent ?? -1) >= m.indent) groups.pop();
+    const group = LIST_KINDS.has(kind) ? ownerGroupOf(text, spans, i, to, m, continuations) : null;
+    if (group !== null) {
+      groups.push({ indent: m.indent, owner: group.owner });
+      continue;
+    }
     let lastLine = i;
     while (lastLine + 1 < to && continuations.has(lastLine + 1)) lastLine += 1;
     if (state.itemCount >= MAX_ITEMS) {
@@ -1333,7 +1423,7 @@ function collectItems(
       start,
       end,
       checked: m.checked,
-      owner: ownerOf(itemText),
+      owner: ownerOf(itemText) ?? groupOwner(groups),
       dueText: dueTextOf(itemText),
       flags,
     });
@@ -1342,6 +1432,14 @@ function collectItems(
     i = lastLine;
   }
   return { items, cut };
+}
+
+/** The owner of the outermost open owner group that has one ("- Dana:" over "  - Prep:"), or null. */
+function groupOwner(groups: ReadonlyArray<{ owner: string | null }>): string | null {
+  for (const group of groups) {
+    if (group.owner !== null) return group.owner;
+  }
+  return null;
 }
 
 interface SectionPlan {
@@ -1765,6 +1863,61 @@ function isTitlePreamble(label: Label): boolean {
   return DOCUMENT_LABEL_KEYS.has(headingKey(stripDates(label.text)));
 }
 
+/**
+ * A notetaker's own banner above the recap, headingKey form (Fathom's free plan: "Get your own FREE
+ * AI Meeting Assistant"). titleLine skips it and keeps the document label rule open.
+ */
+const NOTETAKER_BANNER_KEYS: ReadonlySet<string> = new Set(['get your own free ai meeting assistant']);
+
+/** A participants line ("Meeting with Dana Lee", "Reunion con Dana Lee"): group 1 is the names. */
+const PARTICIPANT_LINE_RE = /^(?:(?:meeting|call)[ \t]+with|(?:reuni[o\u00F3]n|llamada)[ \t]+con)[ \t]+(\S.*)$/iu;
+
+/** Splits a list of names: commas, "&", "and", "y". */
+const NAME_LIST_SPLIT_RE = /[ \t]*(?:,|&|\band\b|\by\b)[ \t]*/iu;
+
+/** A host name anywhere ("Acme Corp (acme.com)"). */
+const HOST_IN_LINE_RE = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/i;
+
+/** Conferencing and notetaker lines that are never the meeting name, headingKey form. */
+const NOT_MEETING_NAME_KEYS: ReadonlySet<string> = new Set([
+  'zoom meeting', 'google meet', 'microsoft teams meeting', 'teams meeting', 'view meeting', 'watch the recording',
+  'meeting report', 'meeting recap', 'meeting notes', 'meeting summary',
+]);
+const NOT_MEETING_NAME_RE = /^(?:hosted|recorded|organi[sz]ed|scheduled|generated|powered|summary[ \t]+generated|notes[ \t]+taken)[ \t]+by\b/i;
+
+/** Only names: every part of a comma or "and" list is shaped like a name ("Dana Lee, Sam Ortiz"). */
+function isNamesOnly(text: string): boolean {
+  const parts = text.split(NAME_LIST_SPLIT_RE).filter((part) => part.trim() !== '');
+  return parts.length > 0 && parts.every((part) => nameWordCount(part) > 0);
+}
+
+/**
+ * Fathom's header: a participants line, the meeting name, then a line that starts with the date
+ * ("Meeting with Dana Lee", "Acme - Weekly sync", "October 16, 2026 * 28 mins * View Meeting").
+ * Gives the meeting name (the line after the participants line) only in that exact shape:
+ * - the participants line holds only names after "with" or "con";
+ * - the next line is a name-shaped title candidate and not a field ("Organizer: Bish"), a link or a
+ *   host, a list of names, a conferencing or notetaker line ("Zoom Meeting", "Hosted by Bish");
+ * - the line after it starts with a date (its part before the first bullet, "|" or "*" is a date).
+ * Otherwise null, and the participants line stays the title as before.
+ */
+function participantTitle(topLines: readonly string[], k: number): string | null {
+  const line = topLines[k];
+  const next = topLines[k + 1];
+  const after = topLines[k + 2];
+  if (line === undefined || next === undefined || after === undefined) return null;
+  const names = PARTICIPANT_LINE_RE.exec(readLabel(line).text)?.[1];
+  if (names === undefined || !isNamesOnly(names)) return null;
+  const nextLabel = readLabel(next);
+  const name = nextLabel.text;
+  if (!isTitleCandidate(next, nextLabel) || !isNameShaped(name) || PARTICIPANT_LINE_RE.test(name)) return null;
+  if (/^[^:\n]{1,40}:[ \t]/.test(name) || LINK_RE.test(name) || HOST_IN_LINE_RE.test(name)) return null;
+  if (isNamesOnly(name) && NAME_LIST_SPLIT_RE.test(name)) return null;
+  if (NOT_MEETING_NAME_KEYS.has(headingKey(name)) || NOT_MEETING_NAME_RE.test(name)) return null;
+  const head = after.split(/[\u2022|*]/)[0]?.trim() ?? '';
+  return head !== '' && isDateValue(head) ? name : null;
+}
+
 function isTitleCandidate(trimmed: string, label: Label): boolean {
   if (matchItem(trimmed)) return false;
   if (!/\p{L}/u.test(label.text)) return false;
@@ -1798,8 +1951,10 @@ export function extractSummaryMeta(text: string, subject: string | null | undefi
   let titleLine: string | null = null;
   // True while every line so far is a preamble line (isTitlePreamble) or a skipped document label.
   let leading = true;
-  for (const trimmed of topLines) {
+  for (let k = 0; k < topLines.length; k++) {
+    const trimmed = topLines[k] ?? '';
     const label = readLabel(trimmed);
+    if (NOTETAKER_BANNER_KEYS.has(headingKey(label.text))) continue;
     // A document label at the top names the meeting after its colon. Over only a date, a heading or
     // another label it is skipped like any document label; over a sentence the line keeps the rule
     // below, as before.
@@ -1813,7 +1968,7 @@ export function extractSummaryMeta(text: string, subject: string | null | undefi
       }
     }
     if (isTitleCandidate(trimmed, label)) {
-      titleLine = sliceSafe(label.text, MAX_TITLE_CHARS).trim();
+      titleLine = sliceSafe(participantTitle(topLines, k) ?? label.text, MAX_TITLE_CHARS).trim();
       break;
     }
     leading = leading && isTitlePreamble(label);
