@@ -49,7 +49,7 @@ describe('htmlToPlainText', () => {
   });
 
   it('decodes numeric entities and folds typographic ones to plain punctuation', () => {
-    expect(htmlToPlainText('<p>Caf&#233; &#x2013; 5&nbsp;min &mdash; &ldquo;ok&rdquo;&hellip;</p>')).toBe('Café – 5 min - "ok"...');
+    expect(htmlToPlainText('<p>Caf&#233; &#x2013; 5&nbsp;min &mdash; &ldquo;ok&rdquo;&hellip;</p>')).toBe('Caf\u00E9 \u2013 5 min - "ok"...');
   });
 
   it('drops scripts, styles and comments with their content, and keeps a mailto address', () => {
