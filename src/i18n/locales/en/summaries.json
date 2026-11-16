@@ -171,6 +171,16 @@
       "otherBody": "{{address}} is not one of your mailboxes. Someone else asked; ignore it.",
       "ignore": "Ignore"
     },
+    "notetakers": {
+      "title": "Notetakers that file by themselves",
+      "hint": "In your mail rule, use the sender address of your notetaker below. Its summaries are checked and filed under their meeting.",
+      "item": "{{name}}: {{sender}}",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyLabel": "Copy the sender address of {{name}}",
+      "none": "No notetaker files by itself yet.",
+      "other": "Another notetaker, or none? Forward a summary to your private address by hand. It waits in your inbox, and one tap files it."
+    },
     "setup": {
       "title": "Set up forwarding",
       "tabs": {

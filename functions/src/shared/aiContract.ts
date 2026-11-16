@@ -1031,6 +1031,8 @@ export const SUMMARY_LIMITS = {
    * the app to suggest a new address. Accepted and inbox mail is never capped.
    */
   maxRefusalsPerDay: 40,
+  /** Notetakers listed in summaryStatus (SUMMARIES_SENDERS entries). */
+  maxNotetakers: 20,
   /** Sanitized plain text of one summary. */
   maxTextChars: 100_000,
   maxSections: 40,
@@ -1202,6 +1204,16 @@ export const SUMMARY_ADDR_SPEC_PATTERN =
   /^(?=[^@]{1,64}@)[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 export const summaryAddrSpecSchema = z.string().max(254).regex(SUMMARY_ADDR_SPEC_PATTERN);
 
+/**
+ * A notetaker whose signed summaries are accepted and can file by themselves (one
+ * SUMMARIES_SENDERS entry): the name shown and the exact sender address a mail rule filters on.
+ */
+export const summaryNotetakerSchema = z.object({
+  name: z.string().min(1).max(40),
+  sender: summaryAddrSpecSchema,
+});
+export type SummaryNotetaker = z.infer<typeof summaryNotetakerSchema>;
+
 /** A DNS name (IDNA ASCII, at least two labels): the d= of a passing signature. */
 export const SUMMARY_DOMAIN_PATTERN =
   /^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
@@ -1276,6 +1288,11 @@ export const summaryStatusResponseSchema = z.object({
    * every answer of an M10 server.
    */
   addressCreatedAt: isoDateTimeSchema.nullable().optional(),
+  /**
+   * Optional: the accepted notetakers (SUMMARIES_SENDERS), for the setup steps. Only for an
+   * allowed caller; absent on every answer of an older server.
+   */
+  notetakers: z.array(summaryNotetakerSchema).max(SUMMARY_LIMITS.maxNotetakers).optional(),
 });
 export type SummaryStatusResponse = z.infer<typeof summaryStatusResponseSchema>;
 

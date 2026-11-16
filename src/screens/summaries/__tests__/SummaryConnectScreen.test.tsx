@@ -215,6 +215,24 @@ describe('the address', () => {
     expect(Share.share).toHaveBeenCalledWith({ message: `My Meeting Guard AI address for meeting summaries: ${ADDRESS}` });
   });
 
+  it('lists the notetakers that file by themselves and copies a sender address', async () => {
+    mockStatus = { ...CONNECTED, notetakers: [{ name: 'Fathom', sender: 'no-reply@fathom.video' }] };
+    await renderScreen();
+    expect(screen.getByText('Notetakers that file by themselves')).toBeTruthy();
+    expect(screen.getByText('Fathom: no-reply@fathom.video')).toBeTruthy();
+    await press('summary-connect-notetaker-copy-no-reply@fathom.video');
+    expect(mockCopyText).toHaveBeenCalledWith('no-reply@fathom.video');
+    expect(screen.getByText(/Another notetaker, or none\?/)).toBeTruthy();
+  });
+
+  it('says that no notetaker files by itself yet when the list is empty or absent', async () => {
+    for (const status of [CONNECTED, { ...CONNECTED, notetakers: [] }]) {
+      mockStatus = status;
+      await renderScreen();
+      expect(screen.getByTestId('summary-connect-notetakers-none')).toBeTruthy();
+    }
+  });
+
   it('says so when the clipboard fails', async () => {
     mockCopyText.mockReturnValueOnce(false);
     await renderScreen();

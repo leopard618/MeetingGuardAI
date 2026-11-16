@@ -1614,7 +1614,7 @@ describe('makeSummaryInbound (HTTPS shell)', () => {
       availableMemoryMb: 1024,
       cpu: 1,
       concurrency: 2,
-      maxInstances: 3,
+      maxInstances: 20,
       timeoutSeconds: 60,
       httpsTrigger: { invoker: ['public'] },
     });

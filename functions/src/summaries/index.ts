@@ -29,6 +29,7 @@ import {
   SUMMARIES_ENABLED,
   SUMMARIES_FUNCTION_TUNING,
   SUMMARIES_PILOT_UIDS,
+  SUMMARIES_SENDERS,
 } from '../config';
 import { adminDb } from '../firebase';
 import type { SummaryActionResponse, SummaryStatusResponse } from '../shared/aiContract';
@@ -53,6 +54,8 @@ const CALLABLE_OPTIONS: CallableOptions = {
   enforceAppCheck: false,
   timeoutSeconds: SUMMARIES_FUNCTION_TUNING.callables.timeoutSeconds,
   memory: SUMMARIES_FUNCTION_TUNING.callables.memory,
+  cpu: SUMMARIES_FUNCTION_TUNING.callables.cpu,
+  concurrency: SUMMARIES_FUNCTION_TUNING.callables.concurrency,
   maxInstances: SUMMARIES_FUNCTION_TUNING.callables.maxInstances,
 };
 
@@ -65,6 +68,7 @@ function callableDeps(): SummaryCallableDeps {
       enabled: SUMMARIES_ENABLED.value() === true,
       pilotUids: SUMMARIES_PILOT_UIDS.value(),
       template: SUMMARIES_ADDRESS_TEMPLATE.value(),
+      senders: SUMMARIES_SENDERS.value(),
     },
   };
 }

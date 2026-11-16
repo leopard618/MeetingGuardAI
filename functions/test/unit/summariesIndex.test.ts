@@ -72,6 +72,8 @@ interface EndpointView {
     availableMemoryMb?: unknown;
     timeoutSeconds?: unknown;
     maxInstances?: unknown;
+    cpu?: unknown;
+    concurrency?: unknown;
     /** The runtime service account (firebase-functions 7 optionsToEndpoint: serviceAccount). */
     serviceAccountEmail?: unknown;
   };
@@ -234,7 +236,9 @@ describe('summaries module exports (deploy gating)', () => {
     for (const fn of [mod.summaryStatus, mod.summaryAction]) {
       const endpoint = endpointOf(fn);
       expect(endpoint.callableTrigger).toBeDefined();
-      expect(endpoint.availableMemoryMb).toBe(256);
+      expect(endpoint.availableMemoryMb).toBe(512);
+      expect(endpoint.cpu).toBe(1);
+      expect(endpoint.concurrency).toBe(40);
       expect(endpoint.timeoutSeconds).toBe(10);
       expect(endpoint.maxInstances).toBe(10);
     }
@@ -285,7 +289,7 @@ describe('summaries module exports (deploy gating)', () => {
     expect(endpoint.httpsTrigger).toBeUndefined();
     expect(endpoint.availableMemoryMb).toBe(512);
     expect(endpoint.timeoutSeconds).toBe(30);
-    expect(endpoint.maxInstances).toBe(10);
+    expect(endpoint.maxInstances).toBe(20);
   });
 
   it('runs summaryRead as SUMMARIES_SERVICE_ACCOUNT when it is set at deploy time, and as the default account otherwise', () => {

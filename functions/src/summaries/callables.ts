@@ -69,6 +69,7 @@ import {
   type SummaryOpResult,
 } from './actions';
 import { isPilotUid } from './gate';
+import { notetakersOf } from './notetakers';
 import { utcDayOf } from './model';
 import { activeGmailRequests, countInbox, prunedGmailRequests, pruneGmailRequests } from './store';
 
@@ -155,6 +156,8 @@ export interface SummaryCallableConfig {
   pilotUids: string;
   /** SUMMARIES_ADDRESS_TEMPLATE (empty = being set up). Never logged. */
   template: string;
+  /** SUMMARIES_SENDERS (raw comma list), for the status's notetakers; absent = none listed. */
+  senders?: string;
 }
 
 export interface SummaryCallableLogger {
@@ -281,6 +284,7 @@ export async function allowedSummaryStatus(uid: string, deps: SummaryCallableDep
     lastRefused: user !== null ? lastRefusedOrNull(user.lastRefused) : null,
     refusedToday: user !== null ? refusedTodayOf(user, now) : null,
     addressCreatedAt: user !== null && address !== null ? await addressCreatedAtOrNull(uid, user, deps) : null,
+    notetakers: notetakersOf(deps.config.senders),
   };
   return summaryStatusResponseSchema.parse(status);
 }

@@ -298,13 +298,13 @@ export const SUMMARIES_ENABLED = defineBoolean('SUMMARIES_ENABLED', {
 
 /**
  * Ship dark: comma-separated Firebase uids allowed to use summaries while the feature is in its
- * pilot (functions/src/summaries/gate.ts parsePilotUids). Empty = nobody, even with
- * SUMMARIES_ENABLED true. Entries that are not a plain uid ([A-Za-z0-9_-], 1 to 128 characters)
- * are ignored.
+ * pilot (functions/src/summaries/gate.ts parsePilotList). Empty = nobody, even with
+ * SUMMARIES_ENABLED true; an entry "*" = every user (the launch setting, like MATTERS_ALLOWED_UIDS).
+ * Other entries that are not a plain uid ([A-Za-z0-9_-], 1 to 128 characters) are ignored.
  */
 export const SUMMARIES_PILOT_UIDS = defineString('SUMMARIES_PILOT_UIDS', {
   default: '',
-  description: 'Comma-separated Firebase uids allowed to use meeting summaries (empty = nobody).',
+  description: 'Comma-separated Firebase uids allowed to use meeting summaries (empty = nobody, * = everyone).',
 });
 
 /**
@@ -351,13 +351,18 @@ export const SUMMARIES_FUNCTION_TUNING = {
    * summaryInbound: one raw message (5 MiB at most) is parsed, DKIM-checked and sealed in memory,
    * so few requests share an instance (memory exhaustion before the token check, finding 11). The
    * timeout covers the 32 s DNS bound of one message (mail/auth.ts DNS_MESSAGE_BOUND_MS) with
-   * headroom.
+   * headroom. 20 instances (40 messages at once) for every user: recaps arrive in bursts at the
+   * end of the hour, and Postmark retries a 429 or 5xx.
    */
-  inbound: { memory: '1GiB', cpu: 1, concurrency: 2, maxInstances: 3, timeoutSeconds: 60 },
-  /** summaryRead: decrypts and re-matches a page of summaries. */
-  read: { memory: '512MiB', timeoutSeconds: 30, maxInstances: 10 },
-  /** summaryStatus and summaryAction: small Firestore reads and transactions, no secret. */
-  callables: { memory: '256MiB', timeoutSeconds: 10, maxInstances: 10 },
+  inbound: { memory: '1GiB', cpu: 1, concurrency: 2, maxInstances: 20, timeoutSeconds: 60 },
+  /** summaryRead: decrypts and re-matches a page of summaries (1 vCPU for concurrency above 1). */
+  read: { memory: '512MiB', cpu: 1, concurrency: 20, timeoutSeconds: 30, maxInstances: 20 },
+  /**
+   * summaryStatus and summaryAction: small Firestore reads and transactions, no secret. The app
+   * polls summaryStatus every 8 s while it waits for a Gmail code, so one instance serves many
+   * calls (1 vCPU for concurrency above 1).
+   */
+  callables: { memory: '512MiB', cpu: 1, concurrency: 40, timeoutSeconds: 10, maxInstances: 10 },
 } as const;
 
 // Executive assistant matters (matter* callables + assistantInboundEmail; ARCHITECTURE section 36)
