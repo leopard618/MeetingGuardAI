@@ -25,6 +25,20 @@ function meeting(overrides: Partial<Parameters<typeof buildMeeting>[0]> = {}): M
 }
 
 describe('googleEventToMeetingInput', () => {
+  it('turns an HTML description into plain text', () => {
+    const input = googleEventToMeetingInput(
+      {
+        id: 'e2',
+        summary: 'Flight',
+        description: 'Check in online:<br><a href="https://air.example.com/c?pnr=ABC">Check in</a>',
+        start: { dateTime: '2026-10-05T09:30:00-07:00', timeZone: 'America/Los_Angeles' },
+        end: { dateTime: '2026-10-05T10:15:00-07:00', timeZone: 'America/Los_Angeles' },
+      },
+      ctx,
+    );
+    expect(input?.description).toBe('Check in online:\nCheck in (https://air.example.com/c?pnr=ABC)');
+  });
+
   it('maps a timed event with its own zone', () => {
     const input = googleEventToMeetingInput(
       {

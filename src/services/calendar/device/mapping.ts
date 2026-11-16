@@ -20,6 +20,7 @@ import {
   zonedDateTimeToUtcIso,
 } from '../../../core/time';
 import type { Meeting } from '../../../core/types';
+import { htmlToPlainText } from '../../../utils/htmlText';
 import {
   clampDuration,
   deriveLocationFromText,
@@ -204,7 +205,8 @@ export function deviceEventToMeetingInput(event: DeviceEventLike, ctx: DeviceMap
   const title = truncate((event.title ?? '').trim(), TITLE_MAX).trim();
   return {
     title: title.length > 0 ? title : ctx.untitledTitle,
-    description: truncate(event.notes ?? '', DESCRIPTION_MAX),
+    // Phone calendars pass HTML notes through as they arrived (an airline itinerary): plain text here.
+    description: truncate(htmlToPlainText(event.notes ?? ''), DESCRIPTION_MAX),
     startAt,
     durationMinutes,
     timezone,

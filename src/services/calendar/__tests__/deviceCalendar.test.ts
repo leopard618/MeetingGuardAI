@@ -59,6 +59,12 @@ describe('device-scoped ids', () => {
 describe('device event mapping', () => {
   const ctx = { platform: 'android' as const, deviceTimeZone: 'America/Los_Angeles', untitledTitle: '(No title)' };
 
+  it('turns HTML notes (an airline itinerary) into plain text and keeps plain notes as they are', () => {
+    const html = '<html><head><meta charset="utf-8"></head><body><div>Flight 2026<br>Code: ABC123</div><div>&nbsp;</div><div><b>Departs</b> 13:00</div></body></html>';
+    expect(deviceEventToMeetingInput(event({ notes: html }), ctx)?.description).toBe('Flight 2026\nCode: ABC123\n\nDeparts 13:00');
+    expect(deviceEventToMeetingInput(event({ notes: 'Bring the < 5 page deck' }), ctx)?.description).toBe('Bring the < 5 page deck');
+  });
+
   it('maps timed events and ignores non-IANA zone names (iOS)', () => {
     expect(deviceEventToMeetingInput(event(), ctx)).toMatchObject({
       title: 'Dentist',
