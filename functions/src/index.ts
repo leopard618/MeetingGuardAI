@@ -16,6 +16,11 @@
  *   (src/zoom, docs/v1/ARCHITECTURE.md §24, SETUP §12).
  * - whatsappLinkStart / whatsappLinkStatus / whatsappUnlink (always deployed, no secrets):
  *   WhatsApp account linking (src/whatsapp, docs/v1/ARCHITECTURE.md §27, SETUP §14).
+ * - summaryStatus / summaryAction (always deployed, no secrets; summaryAction never decrypts):
+ *   meeting summaries status, private address, mailboxes and filing (src/summaries,
+ *   docs/v2/M10-DESIGN.md section 4; SUMMARIES_ENABLED plus the SUMMARIES_PILOT_UIDS pilot list).
+ * - summaryRead: meeting summary lists and the full view (deployed only while
+ *   SUMMARIES_ENABLED=true; binds SUMMARIES_DATA_KEY only; src/summaries/read.ts).
  * - adminReconcileEntitlement (deployed only while REVENUECAT_RECONCILE_ENABLED=true; the ONLY
  *   function binding REVENUECAT_SECRET_KEY): heals entitlements/{uid} against the RevenueCat
  *   REST API (src/revenuecat/reconcile.ts, docs/v1/ARCHITECTURE.md §20).
@@ -23,6 +28,9 @@
  * - revenuecatWebhook: RevenueCat -> entitlements/{uid} writer (secret Authorization header).
  * - whatsappWebhook: the WhatsApp bot (deployed only while WHATSAPP_ENABLED=true; the ONLY
  *   function binding the WHATSAPP_* secrets).
+ * - summaryInbound: notetaker summary emails forwarded through Postmark (deployed only while
+ *   SUMMARIES_ENABLED=true; binds SUMMARIES_WEBHOOK_AUTH and SUMMARIES_DATA_KEY, the callables
+ *   bind neither; src/summaries, docs/v2/M10-DESIGN.md section 4).
  * Scheduled:
  * - dailyMaintenance: purges expired meeting tombstones, old account deletion records and
  *   expired WhatsApp bot state.
@@ -51,6 +59,18 @@ export { zoomCreateMeeting, zoomDeleteMeeting, zoomStatus, zoomSyncMeeting } fro
 // Same gating pattern: whatsappWebhook is `undefined` while WHATSAPP_ENABLED is false at deploy
 // time, so a deploy without the WHATSAPP_* secrets always succeeds; the callables bind none.
 export { whatsappLinkStart, whatsappLinkStatus, whatsappUnlink, whatsappWebhook } from './whatsapp';
+// Same gating pattern: summaryInbound and summaryRead are `undefined` while SUMMARIES_ENABLED is
+// false at deploy time, so a deploy without the SUMMARIES_* secrets always succeeds; the callables
+// bind none.
+export { summaryAction, summaryInbound, summaryRead, summaryStatus } from './summaries';
+// M11: summaryCommitments is `undefined` unless SUMMARIES_ENABLED is true AND the
+// SUMMARIES_SERVICE_ACCOUNT line is set at deploy time (binds SUMMARIES_DATA_KEY and OPENAI_API_KEY;
+// src/summaries/commitmentsFunction.ts, docs/v2/M11-DESIGN.md section 2.1).
+export { summaryCommitments } from './summaries';
+// M11: summaryWhatsApp (the WhatsApp worker) is `undefined` unless SUMMARIES_ENABLED and
+// WHATSAPP_ENABLED are true AND the summaries service account and SUMMARIES_WHATSAPP_INVOKER are set
+// and differ at deploy time (src/summaries/whatsappFunction.ts, docs/v2/M11-DESIGN.md section 4.3).
+export { summaryWhatsApp } from './summaries';
 // Executive assistant (ARCHITECTURE section 36): every export is `undefined` while MATTERS_ENABLED
 // is false at deploy time, and its params and secrets are not even declared then (config.ts
 // mattersParams), so a deploy without the POSTMARK / inbound secrets never asks for them.

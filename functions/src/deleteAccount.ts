@@ -7,6 +7,11 @@
  *      record is purged after DELETION_LOG_RETENTION_DAYS;
  *   1. revoke the user's refresh tokens: no device can mint a new ID token any more, so offline
  *      devices with queued writes can only write while their current ID token lives (<= 1 h);
+ *   1a. the meeting summaries address (M10, docs/v2/M10-DESIGN.md section 7): summaryUsers/{uid}
+ *      and every summaryAddresses doc naming the uid, before the first recursive pass, so new mail
+ *      stops resolving at once; a delivery already past the lookup drops in its commit
+ *      transaction (it re-reads the address), and users/{uid}/meetingSummaries goes with the
+ *      recursive passes below;
  *   2. users/{uid} (recursively: profile, meetings, notes, settings) -> entitlements/{uid} ->
  *      usage/{uid} (recursively);
  *   2a. the assistant's matters (A1): users/{uid}/matters with their timelines and emails go with
@@ -14,7 +19,8 @@
  *      deleted by uid;
  *   3. the Auth user;
  *   4. a second recursive pass over users/{uid}: writes that raced in while steps 2-3 ran (an
- *      outbox flush of this or another device, rules still accept the old ID token) are removed.
+ *      outbox flush of this or another device, rules still accept the old ID token) are removed;
+ *      then step 1a again, for an address created by a summaryAction call that raced in.
  * Idempotent: every step tolerates data or users that are already gone, so the app can retry
  * after a partial failure (the caller's ID token stays valid for up to an hour).
  *
@@ -35,6 +41,7 @@ import { ACCOUNT_DELETIONS_COLLECTION } from './maintenance/core';
 import { MATTER_ADDRESSES_COLLECTION, MATTER_MESSAGE_IDS_COLLECTION } from './matters/model';
 import { MICROSOFT_IDENTITIES_COLLECTION } from './microsoftSignIn';
 import { deleteAccountRequestSchema, type DeleteAccountResponse } from './shared/aiContract';
+import { deleteSummaryDataForUid } from './summaries/accountDeletion';
 import { deleteWhatsAppDataForUid, firestoreLinkStore } from './whatsapp/link';
 import { ZOOM_OWNERS_COLLECTION } from './zoom/handler';
 
@@ -65,6 +72,12 @@ export interface AccountDeletionPorts {
    */
   deleteMicrosoftIdentities(uid: string): Promise<void>;
   /**
+   * Removes the user's meeting summaries address (M10, docs/v2/M10-DESIGN.md section 7):
+   * summaryUsers/{uid} with no tombstone left, the summaryAddresses/{tokenHash} it points at, and
+   * any other summaryAddresses doc naming the uid (summaries/accountDeletion.ts). Idempotent.
+   */
+  deleteSummaryData(uid: string): Promise<void>;
+  /**
    * Removes the lookup documents of the user's assistant matters (matterAddresses/{token} and
    * matterMessageIds/{key} with this uid; docs/v1/ARCHITECTURE.md §36). The matters themselves
    * live under users/{uid} and go with the recursive delete. Idempotent.
@@ -76,6 +89,8 @@ export async function deleteAccountData(uid: string, ports: AccountDeletionPorts
   // First, so a restore can always re-apply this deletion (even after a partial failure).
   await ports.recordDeletion(uid, now.toISOString());
   await ports.revokeRefreshTokens(uid);
+  // M10: before the first recursive pass, so mail to the private address stops resolving at once.
+  await ports.deleteSummaryData(uid);
   await ports.recursiveDelete(`users/${uid}`);
   await ports.deleteDocument(`entitlements/${uid}`);
   await ports.recursiveDelete(`usage/${uid}`);
@@ -86,6 +101,8 @@ export async function deleteAccountData(uid: string, ports: AccountDeletionPorts
   await ports.deleteAuthUser(uid);
   // Late writes accepted between the first pass and the Auth deletion (see the header).
   await ports.recursiveDelete(`users/${uid}`);
+  // M10: the same for a summaryAction create_address that raced in (summaryUsers is a root doc).
+  await ports.deleteSummaryData(uid);
   return { deleted: true };
 }
 
@@ -146,6 +163,9 @@ export function firebaseAccountDeletionPorts(): AccountDeletionPorts {
         for (const document of snapshot.docs.slice(start, start + 400)) batch.delete(document.ref);
         await batch.commit();
       }
+    },
+    async deleteSummaryData(uid) {
+      await deleteSummaryDataForUid(uid, { db });
     },
     async deleteMatterLookups(uid) {
       for (const name of [MATTER_ADDRESSES_COLLECTION, MATTER_MESSAGE_IDS_COLLECTION]) {

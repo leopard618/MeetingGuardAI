@@ -104,6 +104,15 @@ Day-0 checks, in Postmark's activity view and our logs (2 hours):
    Roles" without saying, and the team-roles help article answers 404, so check it when inviting
    Sven. If not, Sven stays off the account and uses only the Assistant server's token, which the
    owner gives him.
+   Decided 2026-11-11 (Dusko): Sven opens and administers the whole account (Aeternum Tech's name,
+   Francisco adds the card), creates both servers and invites Dusko to the Summaries server. As
+   the admin he can read the Summaries server's inbound mail for the retention period, so
+   Francisco is told so in the proposal and may ask for another setup.
+   Changed 2026-11-12: Postmark accepts sign-ups only with a company email (no Gmail), so
+   Francisco opens the account himself with his Aeternum Tech email, chooses Pro, adds the card,
+   turns on two-factor login and invites Sven and Dusko as Admins (Sven's request in the group).
+   Sven then creates both servers, the domains and the approval request. Both admins can read the
+   Summaries server's mail for the retention period.
 8. Partly resolved 2026-11-11: activity history defaults to 45 days. The retention add-on (Pro and
    up, from about USD 5 a month) sets 7 to 365 days for the whole account, every server included;
    below 45 days Postmark removes expired data within 24 hours. So [N] in section 14 is 45 unless
@@ -138,8 +147,12 @@ Day-0 checks, in Postmark's activity view and our logs (2 hours):
 - Mailboxes (op set_mailboxes): up to 5 addresses where the user's recaps arrive. Ownership is not
   proven: a listed mailbox only lets mail addressed to it into THIS user's account, so listing a
   stranger's address harms only the lister. A Gmail confirmation never adds a mailbox by itself.
-- Disconnect (op disconnect {deleteSummaries}): deletes both docs and optionally every summary. Built
-  in M10 because account deletion reuses it; the button can wait for M11's connect screen.
+- Disconnect (op disconnect {deleteSummaries}): deletes the index doc and replaces summaryUsers/{uid}
+  with a counters-only tombstone {rotationDay, rotationsToday, updatedAt}, so disconnect followed by
+  create still counts against the 5-a-day rotation cap (review finding, Nov 11); optionally deletes
+  every summary. deleteAddressDocs takes a REQUIRED mode: 'disconnect' or 'account_deletion' (the
+  second removes summaryUsers/{uid} entirely). Built in M10 because account deletion reuses it; the
+  button can wait for M11's connect screen.
 - Logs carry the uid, the first 8 hex characters of tokenHash, the verdict and the reason. Never an
   address, a token or a code.
 
@@ -151,10 +164,14 @@ mime.ts, authenticity.ts (runMailAuth plus a pure classify), sanitize.ts, sectio
 candidates.ts, match.ts, store.ts, callables.ts, read.ts. Plus `functions/src/shared/sealed.ts` and
 verbatim copies of `src/core/errors.ts`, `time.ts` and `recurrence.ts` under the drift check.
 
-New dependencies, pinned exact, loaded lazily inside summaryInbound only: mailauth 8.x (MIT) and
-one MIME parser (postal-mime or mailparser). The functions build is CommonJS and Jest already stubs
-the ESM-only jose (functions/jest.config.js:13-14); whichever parser loads in both without a stub
-wins (day-1 check). npm audit after install; never `npm audit fix --omit=dev`.
+New dependencies, pinned exact, loaded lazily inside summaryInbound only: mailauth 8.0.4 (MIT) and
+postal-mime 4.1.4 (MIT-0, no dependencies). Day-1 spike (2026-11-11): both ship CommonJS builds and
+types, and load under plain Node, tsc and Jest 29 without a stub; a message signed in the test with
+dkimSign verifies, a changed body fails, postal-mime parses it. Both releases were at least two weeks
+old when pinned (8.0.5, 8.0.6 and postal-mime 4.2.1 were a day old). mailauth 8.0.4 pins joi 18.3.0
+(GHSA-4528-x5fx-h6hg, high, in `string().email({ multiple: true })`, which mailauth never calls), so
+functions/package.json overrides joi to 18.3.1 for mailauth only. The remaining new audit entry is
+fast-xml-parser (low), used only by the BIMI code we never load. Never `npm audit fix --omit=dev`.
 
 Options: onRequest, FUNCTIONS_REGION, invoker "public" set explicitly
 (functions/src/revenuecat/index.ts:352), secrets SUMMARIES_WEBHOOK_AUTH and SUMMARIES_DATA_KEY,
@@ -175,12 +192,26 @@ Steps, in order:
 6. Header sanity on the raw header block: exactly one From with one mailbox; at most one To, Cc,
    Date, Subject, Message-ID and Sender. From is parsed ONCE with one strict parser and must be a
    plain addr-spec: no comments, groups, route syntax, encoded words in the address or second "@"
-   (finding 8). Failure: refused malformed.
-7. mailauth over the raw bytes with a node:dns resolver (4 s timeout, 2 tries, cached per call).
-   Alignment is computed by classify itself against the step-6 From domain, not taken from
-   mailauth's status. A DNS temperror counts as deciding only for a signature whose d= is an
-   allowlisted sender domain or a listed mailbox's domain; then 500 while the Date header is under
-   5 hours old, after that a failure.
+   (finding 8). At most 5 DKIM-Signature fields, checked before any DNS work. Every domain (From,
+   To, Cc, d=, ARC sealer) must be plain ASCII LDH; a non-ASCII d= gives no domain (it is never
+   mapped, because mailauth would fetch the key at a different name). Failure: refused malformed.
+7. mailauth over the raw bytes with a node:dns resolver (cached per call). Alignment is computed by
+   classify itself against the step-6 From domain, not taken from mailauth's status. DNS budgets
+   per message (as built on day 1, functions/src/summaries/authenticity.ts; the verifier, the
+   resolver and its budgets now live in functions/src/mail/auth.ts and the strict header parser
+   in functions/src/mail/headers.ts, shared with the assistant matters):
+   - Only when From is exactly a SUMMARIES_SENDERS address or a listed mailbox (or the Gmail
+     confirmation sender) do any lookups get priority. Priority (16 s): key-record domains that
+     EXACTLY equal a deciding domain (a sender or mailbox domain aligned with From; google.com for
+     the Gmail sender) and the trusted ARC sealers' key names. Aligned (8 s): domains that align
+     with the From domain without being equal (a vendor signing as mg.<vendor>). Shared (8 s):
+     everything else. Each lookup is cut at 8 s; the bound is 32 s of DNS per message.
+   - A lookup refused because its budget is spent fails as EBUDGET and counts as no signature,
+     never as a temperror, so an attacker's slow DNS cannot turn a forgery into a retry.
+   - A temperror is deciding only when its d= EXACTLY equals a sender or listed mailbox domain that
+     aligns with From, the From is exactly listed, the Date is 0 to 5 hours before receipt (no
+     future skew), and a pass of that signature could change the outcome. Then 500 (retry);
+     otherwise the message is classified without it.
 8. classify (pure; section 5) returns {outcome, tier, reason, anchor, trust facts}.
 9. Refused: one row per uid and UTC day with a count (section 7). The refused counter is the only
    daily cap: 40 refusals a day, deduped by Postmark MessageID so a redelivery never counts twice;
@@ -204,7 +235,8 @@ Steps, in order:
 
 Callables (onCall, FUNCTIONS_REGION, verified caller plus pilot):
 - summaryStatus (always deployed, no secret): {enabled, allowed, ready, address, mailboxes,
-  gmailRequests, inboxCount, lastReceivedAt, lastRefused}.
+  gmailRequests, inboxCount, lastReceivedAt, lastRefused, refusedToday {day, count, capped}} (the
+  app suggests a new address when capped; SUMMARY_LIMITS.maxRefusalsPerDay is 40).
 - summaryAction (always deployed, no secret): create_address, regenerate_address, set_mailboxes,
   dismiss_gmail, attach {summaryId, meetingId, occurrenceDate}, detach, keep, delete, disconnect.
   attach validates the meeting exists, is not a tombstone, belongs to the caller, and for a series
@@ -248,13 +280,13 @@ Decision table, evaluated in order; every email gets exactly one result:
 | 2 | Oversize body, unparsable JSON, no RawEmail | 200 | ignored |
 | 3 | Unknown or regenerated token, user missing, disabled or not in pilot | 200 | dropped |
 | 4 | Raw too large, too many parts, header sanity or strict From fails | 200 | refused too_large / malformed |
-| 5 | Deciding DNS temperror, Date under 5 h old | 500 | retry |
+| 5 | Deciding DNS temperror (step 7), Date 0 to 5 h before receipt | 500 | retry |
 | 6 | G | 200 | Gmail code request stored |
 | 7 | V and B and Fresh | 200 | ACCEPT vendor_verified; auto-filed only on match rule A, else inbox |
 | 8 | V and B, not Fresh | 200 | INBOX old_summary |
 | 9 | V, not B (sent straight to the private address, Bcc, or To/Cc unsigned) | 200 | INBOX not_addressed_to_you; no one-tap suggestions |
 | 10 | U | 200 | INBOX user_forwarded; one-tap suggestions; "Forwarded from <address>" |
-| 11 | T behind a valid ARC chain from Google or Microsoft | 200 | REFUSE could_not_verify_after_forwarding; the app shows the fix (Redirect, or forward as attachment) |
+| 11 | T behind a valid ARC chain from Google or Microsoft | 200 | REFUSE could_not_verify_after_forwarding; the app shows the fix (a Redirect rule; an attached recap is not verified yet, section 10) |
 | 12 | T | 200 | REFUSE changed_after_sending |
 | 13 | From is a listed sender or a user mailbox, but no passSig | 200 | REFUSE sender_not_verified |
 | 14 | Everything else: unlisted signer, unsigned mail, display-name spoof, someone else's forward | 200 | REFUSE not_from_your_notetaker |
@@ -295,7 +327,10 @@ Residual risks, stated in the docs:
 
 ## 6. Matching
 
-Inputs: titleLine (first meaningful body line), subjectClean (Subject without Fwd/Re/RV and vendor
+Inputs: titleLine (first meaningful body line; headings, dates, date or time fields such as "Date:
+Nov 13, 2026, 12:00 PM" or "Start time: 12:00 PM" and document labels are skipped, and a line
+"Meeting summary: X" or "Resumen de la reunion: X" at the top, below only separators, dates, date
+fields or bare labels, gives X when X is a name, not a sentence, a weekday or a date), subjectClean (Subject without Fwd/Re/RV and vendor
 prefixes), summaryDate D (YYYY-MM-DD from the first 10 lines or the Subject; ISO, "Oct 16, 2026",
 "16 de octubre de 2026"; two different dates mean none), anchor (the signed Date header for vendor
 mail, the forward wrapper's Date for user forwards), conference links in the text.
@@ -380,10 +415,13 @@ dailyMaintenance gains two purge ports (functions/src/maintenance/core.ts:42-65)
 only.
 
 Deletion:
-- One summary: summaryAction delete, a hard delete; the markers stay so a Postmark retry cannot
-  recreate it.
+- One summary: summaryAction delete, a hard delete. In the same transaction it writes a deletion
+  marker for the summary id and a digest marker for its content, plus the ids and digests merged
+  into it by earlier upgrades, so for 35 days neither a Postmark retry, nor a resend at row 8 or 9,
+  nor a better row 7 copy of the same content recreates it (review findings, Nov 12).
 - All: summaryAction disconnect {deleteSummaries: true}.
-- Account: AccountDeletionPorts gains deleteSummaryData(uid), called right after revokeRefreshTokens
+- Account: AccountDeletionPorts gains deleteSummaryData(uid) (deleteAddressDocs with mode
+  'account_deletion', so no tombstone survives), called right after revokeRefreshTokens
   and before the first recursiveDelete, so new mail stops resolving at once; the commit
   transaction's re-read and the second recursive pass close the race. Also in the deletion replay
   (maintenance/core.ts:117-139) and functions/scripts/replay-account-deletions.mjs. Deployed after
@@ -399,6 +437,15 @@ Encryption (`functions/src/shared/sealed.ts`, node:crypto only):
 - The summary functions run under a dedicated service account, the only one granted secretAccessor
   on SUMMARIES_DATA_KEY (finding 13; owner IAM step). Today every function runs as the default
   compute account. If that step slips, the claim wording drops "kept apart".
+  Built Nov 12: summaryInbound (and summaryRead on day 3) run as the account named by the plain
+  key SUMMARIES_SERVICE_ACCOUNT in functions/.env.<projectId>, read at deploy and load time. It is
+  deliberately NOT a declared param: the CLI resolves declared params after discovery, so a value
+  typed at a deploy prompt would be ignored and the default account would get the secret grant.
+  Empty means the default compute account (and no "kept apart" claim). The account needs
+  roles/datastore.user and roles/firebaseauth.viewer plus log writing; the CLI grants the secret
+  access at deploy. The default compute account must hold no project-wide Secret Manager accessor
+  role (nor roles/owner); the CLI never revokes an earlier grant, so remove one by hand if
+  summaryInbound ever deployed without the account.
 - Owner step, in bash so no newline is stored:
   `printf '%s' "k1:$(openssl rand -base64 32)" | npx firebase functions:secrets:set SUMMARIES_DATA_KEY`.
   A lost key makes stored summaries unreadable; the originals still exist in the user's email.
@@ -510,7 +557,10 @@ Microsoft 365 company mailbox:
   a day with nothing received.
 - Whether Safe Links or a disclaimer breaks the vendor signature on redirect is UNVERIFIED; if it
   does (row 11), base scope adds verification of a recap forwarded as an attachment (the attached
-  message keeps the vendor's bytes and signature; the outer forward proves who sent it).
+  message keeps the vendor's bytes and signature; the outer forward proves who sent it). Until
+  then a user forward that carries an attached message is refused unreadable (detail
+  attached_message) unless its inline wrapper is the notetaker's own, and the app never suggests
+  forwarding as an attachment.
 
 The notetaker itself: keep "email me the summary" on, to the mailbox with the rule. Never add the
 private address as a meeting guest or to a share list.
@@ -518,13 +568,27 @@ private address as a meeting guest or to a share list.
 By hand, any time: forwarding a summary from a listed mailbox works; it waits in the inbox for one
 tap.
 
-Owner steps (Dusko; SETUP.md section 15): Postmark Summaries server with raw content on and spam
-blocking off; webhook `https://postmark:<secret>@<region>-meetingguard-ai-app.cloudfunctions.net/summaryInbound`
+Owner steps (Dusko; SETUP.md section 15): Sven creates the Postmark Summaries server with raw
+content on and spam blocking off and invites Dusko; Dusko sets the webhook `https://postmark:<secret>@<region>-meetingguard-ai-app.cloudfunctions.net/summaryInbound`
 (region UNVERIFIED); secrets SUMMARIES_WEBHOOK_AUTH and SUMMARIES_DATA_KEY; params in
 functions/.env.meetingguard-ai-app (SUMMARIES_ENABLED, SUMMARIES_PILOT_UIDS,
-SUMMARIES_ADDRESS_TEMPLATE, SUMMARIES_SENDERS, SUMMARIES_TRUSTED_FORWARDERS empty); the dedicated
-service account; then the selective functions deploy, the webhook URL, the inbound domain after the
-MX record (Sven adds it in Hostinger: host summaries, MX, inbound.postmarkapp.com, priority 10).
+SUMMARIES_ADDRESS_TEMPLATE, SUMMARIES_SENDERS, plus the plain key SUMMARIES_SERVICE_ACCOUNT); the
+dedicated service account; then the selective functions deploy, the webhook URL, the inbound
+domain after the MX record (Sven adds it in Hostinger: host summaries, MX, inbound.postmarkapp.com,
+priority 10).
+
+Deploy hazards (checked in firebase-tools 15.32.0, Nov 12):
+- Every secret declared anywhere in functions/src (defineSecret) is in the deploy manifest, gated or
+  not, and the CLI checks each one exists. So both summary secrets must exist BEFORE the first deploy
+  of any function from code that contains M10, by either developer; otherwise the CLI asks for a
+  value at the prompt (never type one there: abort and use the printf commands) and a
+  non-interactive deploy fails.
+- Every declared string or boolean param missing from functions/.env.<projectId> is prompted for
+  (or fails a non-interactive deploy) even when it has a default. That file is gitignored, so each
+  developer who deploys needs the SUMMARIES_* lines (and Sven's new lines) in his own copy.
+- The webhook secret: `printf '%s' "$(openssl rand -hex 32)" | npx firebase functions:secrets:set
+  SUMMARIES_WEBHOOK_AUTH` (hex needs no escaping in the URL; printf so no newline is stored, which
+  would answer 401 to every request).
 
 ## 11. Demo (about 12 minutes, Android test APK, laptop mail client recorded alongside)
 
@@ -555,6 +619,20 @@ MeetingGuardAI-1.6.0-m10-test-YYYYMMDD-HHMM.apk installed after uninstalling the
 
 Close: no server push until A8, so a summary appears when the app is opened; nothing becomes a task
 until M11.
+
+Test posts before Postmark exists (functions/scripts/send-test-inbound.mjs, November 12): from
+functions/, after `npm run build`, run `node scripts/send-test-inbound.mjs --url <summaryInbound
+URL> --to <private address> --eml <file.eml> [--from-envelope <addr>] [--dry-run]`. It posts the
+exact bytes of the .eml as RawEmail, the private address as OriginalRecipient and To (MailboxHash
+is the part after "+"), a random MessageID, and From, Subject and Date read from the headers. The
+Basic auth pair comes only from the shell variable SUMMARIES_TEST_WEBHOOK_AUTH, set for that
+session to `postmark:<the SUMMARIES_WEBHOOK_AUTH value>` (Git Bash: `read -rs S && export
+SUMMARIES_TEST_WEBHOOK_AUTH="postmark:$S"; unset S`), never in a file or an argument; --dry-run
+needs none and sends nothing. Save the message with Gmail's "Download message" so its bytes are
+untouched (a file that is not valid UTF-8 cannot stay byte-exact in RawEmail, and the script warns).
+It prints the HTTP status and a hint only, never the message: the webhook answers 200 for every
+deliberate outcome, so the verdict and reason are in the summaries.inbound log line
+(https://console.cloud.google.com/logs/query?project=meetingguard-ai-app).
 
 ## 12. Tests
 
@@ -669,7 +747,7 @@ attend" line.
 | 1 | high | Recipient binding met through an unsigned Cc or a display name | B counts a mailbox only from a signed header, addr-spec only (section 5) |
 | 2 | high | An Outlook "Forward to" rule re-sends forged mail as the user | U never auto-files; "Forward to" unsupported, Redirect only; label "Forwarded from" (decision 5) |
 | 3 | high | Mail to random local parts burns the shared Postmark allowance | Day-0 check 6; usage alerts; Pro arrives with A1 anyway; claim removed |
-| 4 | high | Everyone on the shared Postmark account can read M10 mail | Day-0 check 7 (per-server access, else Sven off the account, server token only); shortest retention; Postmark named in the policy |
+| 4 | high | Everyone on the shared Postmark account can read M10 mail | Decided Nov 11, changed Nov 12: Francisco owns the account, Sven and Dusko are Admins (day-0 check 7), Francisco told in the proposal; Dusko sets the webhook himself so its secret never passes through chat; shortest retention; Postmark named in the policy |
 | 5 | medium | Junk counted before authentication silently drops real recaps | Only refusals count, deduped by Postmark MessageID; banner suggests a new address (step 9) |
 | 6 | medium | A genuine recap of an attacker's meeting files automatically | Exact sender addresses; auto-file on rule A only; reader line (sections 5, 6) |
 | 7 | medium | Trust facts lost after filing from the inbox | Immutable trust facts; M11 never pre-selects such items; no one-tap on not_addressed_to_you |
@@ -689,8 +767,10 @@ attend" line.
 - Sven, answered Nov 11 in the group: Postmark with two servers, assistant.meetingguard.ai for A1;
   the DNS is at Hostinger and Francisco gave Sven admin access to the Hostinger account, so Sven
   adds the summaries MX record together with his own; DMARC reports for his subdomain go to a new
-  dmarc@meetingguard.ai mailbox. Still open: Sven's OK on the proposal that Dusko opens the account
-  in Aeternum Tech's name and Sven gets the Assistant server only, and Francisco's OK on Pro.
+  dmarc@meetingguard.ai mailbox. Decided Nov 11 by Dusko: Sven opens and runs the account in
+  Aeternum Tech's name (day-0 check 7). Nov 12: Sven agreed; Postmark refused a Gmail sign-up, so
+  Francisco opens the account with his company email and invites Sven and Dusko as Admins. Still
+  open: Francisco's sign-up and his OK on Pro.
 - Francisco: which notetaker; which mailbox (Gmail, Workspace, Microsoft 365, Outlook.com); is it his
   sign-in email; one recap as an attachment; for Microsoft 365, his administrator.
 - Postmark day-0 checks 1 to 8 (section 2).
@@ -704,3 +784,238 @@ attend" line.
 - The App Store privacy category and Play Data safety type for forwarded email content, before the
   pilot opens to everyone.
 - Retention periods (12 months, 60 days, 30 days) for Francisco's confirmation in M11.
+
+## 17. Day 1 status (November 11, 2026) and the calibration list
+
+Built on branch m10-summaries (0b4a68c, a5f558a, 63f636c), provider-independent, nothing deployed:
+the contract and the four shared copies under the drift check; sealed.ts; address.ts; match.ts;
+headers.ts and authenticity.ts (rows 4 to 14); sanitize.ts and sections.ts; the rules deny blocks
+and the meetingSummaries.expiresAt index entry (tests written; the rules tests need Java and have
+not run here). Functions 38 suites and 1194 tests, the app 173 suites and 2173 tests, typecheck and
+lint clean. Each module went through an independent review and adversarial re-checks: two security
+holes were closed (an attacker's slow DNS turning a forgery into a retry; a Unicode d= that aligns
+with the vendor while the key is fetched elsewhere), and the section parser went through six rounds,
+ending with no strict failure on a 6.2 million case heading matrix and 448 vendor-style layouts.
+
+Day 2 wiring notes (from the builders):
+- inbound.ts calls assessAuthenticity(raw, {receivedAt, now: attempt time, senders, mailboxes});
+  labels and the stored fromAddress come from the strict header.from, never from postal-mime;
+  messageKey from header.messageId, else the deciding signatureValue; the auth block from
+  storedAuth(). index.ts loads the summaries modules lazily (mailauth only in summaryInbound).
+- Order: sanitizeText, stripForwardWrapper, parseSections and extractSummaryMeta on the inner text;
+  empty sections refuse as unreadable; HTML-only mail refuses as unreadable until an HTML-to-text
+  converter is chosen (never strip tags with regexes).
+- A forward wrapper's Date is wall-clock text: turn it into an unsigned anchor with the
+  preferences zone. Keep one conference-link parser (extractSummaryMeta or match.ts, not both).
+- Check the sealed blob size before the commit transaction (the 1 MiB document limit) and degrade
+  by dropping item text in favour of offsets, never by failing the transaction.
+- Callables validate their output with the contract response schemas; summaryAction never returns
+  decrypted fields; createAddress may now return rate_limited (tombstone); SealedError maps to a
+  contract code and logs only its reason. The app maps functions/not-found on summaryRead to
+  not_enabled.
+- contentDigest uses the first key, so a key rotation lets one redelivery pass the digest marker
+  for up to 35 days (the Message-ID marker still catches it); say so in the rotation runbook.
+
+Calibration list (decide on Francisco's real recap, day 2 and day 5, not on guessed layouts):
+- Authenticity: how many DKIM-Signature fields the real path carries (cap 5); whether the vendor
+  signs with its own domain, an aligned subdomain (no row 5 retry then) or only its email service
+  (unaligned, so V cannot pass: then the (sender, signing domain) pair decision); whether From is a
+  subdomain with a parent d=; the Gmail confirmation sender and its google.com signature (a google
+  temperror there is refused, not retried).
+- Sections: lowercase indented known headings under a derived item join it; a custom label at a
+  derived item's text column joins; a double-spaced custom label after a wrapped open derived tail
+  stays derived; a list heading indented two spaces after an item ending in a lowercase noun joins;
+  one-word team labels count as names inside list sections; first names ending in -cion count as
+  topics; 'Attendees' followed by 'Name, Role' lines gives custom sections without items. Any
+  change that moves kinds, offsets or ids bumps SECTIONS_PARSER_VERSION.
+
+## 18. Day 2 status (November 12, 2026)
+
+Built on dev_dusko (renamed from m10-summaries; nothing deployed): config params and the ship-dark
+gate (gate.ts), the Postmark adapter (provider/postmark.ts), mime.ts, gmail.ts, model.ts, store.ts,
+candidates.ts (moved forward from day 3), inbound.ts and its lazy-loading HTTPS shell
+(inboundFunction.ts), actions.ts, callables.ts and the summaries entry point (index.ts), exported
+from functions/src/index.ts. summaryStatus and summaryAction always deploy and bind no secret;
+summaryInbound exists only with SUMMARIES_ENABLED true at deploy. Functions 46 suites and 1554 tests,
+the app 173 suites and 2173 tests, typecheck, lint and the four-pair contract check clean.
+
+Review: two independent reviewers, then two fix rounds, each checked by adversarial verifiers, then
+two last fixes by the lead. What changed against the text above:
+- Sealed content is two fields, sealedHead {subject, titleLine, dateLine} and sealedBody (the rest),
+  AAD summaryAad + ':head' or ':body', so lists never open the large blob; both are exempt from
+  indexing (firestore.indexes.json).
+- The forward wrapper is stripped only for user forwards (row 10), and stripping stops at a wrapper
+  whose From is a configured notetaker sender, so a quoted From/Date/Subject block inside a recap
+  never cuts it and a forward plus the vendor copy stay one summary (when the bytes match).
+- A user forward carrying an attached message (.eml, .msg, message/rfc822 and relatives) is refused
+  unreadable (detail attached_message) unless its inline wrapper is the notetaker's own.
+- Nesting deeper than 10 levels is too_large, as the contract says.
+- Deletion writes a deletion marker for the id, the digest marker, and markers for every id and
+  digest merged into the summary (upgrades and deduplicated copies), so a delete stays a delete.
+- Gmail codes: requests from listed mailboxes or the verified account email are never evicted by
+  unlisted requesters, and an older redelivery never replaces a newer code ('stale').
+- The first-seen time is recorded on any 500 once the payload parses, so a retry keeps the original
+  receipt time even after an Auth or Firestore read failure before routing.
+- summaryStatus gains refusedToday {day, count, capped}; SUMMARY_LIMITS.maxRefusalsPerDay = 40.
+- candidates.ts never offers a meeting that starts after receipt plus 15 minutes; tombstones and
+  unreadable meeting documents are skipped; attach accepts a one-off whose zone Intl does not know.
+- SUMMARIES_SERVICE_ACCOUNT is a plain dotenv key, not a param (section 7).
+
+Day 3 (next): summaryRead with the inbox re-match (never re-file a summary with a userAction, keep
+rejectedMeetingIds, row 9 without suggestions; bind the data key with the same service account
+option from gate.ts), deleteAccount, the deletion replay and the maintenance purges (meetingSummaries
+and summaryEvents by expiresAt), and the HTML-to-text decision.
+
+Open, to check on the first deploy or the first real mail:
+- The Functions Framework body parser may answer 413 or 400 before the handler for a huge or broken
+  JSON body, so Postmark would retry instead of getting 200 ignored.
+- The compiled lazy load was checked on Node 24 only (Node 22 is not installed here).
+- The Postmark field names and MessageID format, the real Gmail confirmation wording (EN and ES),
+  and whether a real inline forward keeps the recap bytes (otherwise the forward and the vendor copy
+  stay two summaries).
+- rejectedMeetingIds holds the series master id, so "Not this meeting" on one occurrence stops the
+  whole series being suggested for that summary (Choose a meeting still works).
+- An .eml sent as text/plain without a disposition is read as inline text by postal-mime.
+- Log-based alerts for summaries.setup_alarm, summaries.mime_parser_shape and inbound errors.
+
+## 19. Day 3 status (November 12, 2026)
+
+Built on dev_dusko (not committed yet, nothing deployed, no Postmark credentials; everything runs
+against fakes): summaryRead (read.ts) with its lazy onCall shell (readFunction.ts, data key only,
+the summaries service account, exported only while SUMMARIES_ENABLED is true): list views inbox,
+recent, refused (one row per UTC day, no content) and meeting (also as a duplicateMeetingIds
+member), newest first, at most 100 rows with hasMore, lists open sealedHead only; get opens both
+blobs. Before the inbox answers, up to 10 of the newest eligible inbox items are matched again
+(candidates.ts with the receipt time as the bound, decide(), rule A on a row 7 copy only), each
+write in a transaction that re-reads the document. loadSummaryForExtraction(uid, summaryId,
+{db, keyring}) is M11's way in. Account deletion: summaries/accountDeletion.ts
+deleteSummaryDataForUid (address docs with no tombstone, plus any summaryAddresses doc still
+naming the uid), wired into deleteAccount, the deletion replay and
+scripts/replay-account-deletions.mjs. dailyMaintenance purges users/{uid}/meetingSummaries and
+summaryEvents by their own expiresAt. The HTML-to-text converter (htmlText.ts, CSS in
+htmlStyle.ts) on parse5 7.3.0, pinned exact (CommonJS build; it loads only with the inbound
+pipeline), wired into row 15. Functions 49 suites and 1877 tests, the app 185 suites and 2366
+tests (the shared tree, other builders' app work included; one app suite, AppleSignInButton,
+failed once under full parallel load and passed alone and on the rerun), typecheck, lint and the
+four-pair contract check clean.
+
+Review: two independent reviewers, 13 findings. All 13 were confirmed against the code (the HTML
+ones reproduced on a compiled build) and fixed, each with a regression test; none rejected, none
+deferred. What changed against the text above:
+- Section 8, HTML-only mail. Text is dropped when it is invisible in ANY light rendering. A rule
+  matched with certainty sets colors as before. A rule that only possibly applies (a relaxed
+  selector, an attribute test, a class matching only by case, a list a browser may drop for one
+  invalid entry, a digit-leading identifier, anything inside @media other than plain all or
+  screen, @supports, @layer and the like) is tried both ways, in every combination, so neither a
+  guessed match, a decoy rule nor a mobile-only rescue keeps hidden text. Dark-mode blocks are only
+  @media whose every query requires prefers-color-scheme: dark. Attribute selectors are evaluated,
+  so the Gmail iOS fix ([class="gmail-fix"]) no longer wipes out a recap. Rules on ::before,
+  ::after, ::marker and :empty are ignored; ::first-line and ::first-letter colors count but never
+  hide. Escaped at-rule names are decoded and unknown at-rules are read as conditional. The hiding
+  list gains washed-out filters, masks, any clip-path but the whole box, mix-blend-mode, skew,
+  matrix3d and perspective transforms, the rotate property, large positive offsets (right and
+  bottom from 500px, left, top and text-indent from 2000px or 100%), nested opacities under 0.1,
+  popovers, meter and progress fallback text and declarative shadow hosts. Background images
+  paint behind the text: a gradient shows its stops and their midpoints, an image is unknown, so
+  white text over a header image is now dropped. Linked and @imported style sheets: a data: URL is
+  read like a style block, a web-font host (fonts.googleapis.com, fonts.bunny.net,
+  use.typekit.net) is skipped, and any other refuses the part as unreadable with the new detail
+  html_external_css. New limits: 32 data: sheets and 2 MiB of their CSS, 5,000,000 look
+  combinations per document.
+- Section 8, hand-off: the plain context also carries originalInboxReason and textFromHtml.
+- Sections 4 and 9, summaryRead: inbox and recent are ordered by receivedAt descending in Firestore
+  on a new composite index (meetingSummaries, status ascending, receivedAt descending) in
+  firestore.indexes.json, so a flood of inbox mail can no longer hide the newest items or empty
+  the recent view; recent reads status matched or kept only (101 rows).
+- Section 7, retention: each purge delete re-reads expiresAt in its own transaction, so a summary
+  filed or kept (or a marker claimed again) after the listing survives. Both M10 purges are
+  non-fatal: a failure is kept as purgeErrors {purge: errorName}, logged as
+  dailyMaintenance.purge_failed, and the run still completes (complete false). 12 months is coded
+  as 365 days.
+- Section 7, deletion: create_address answers not_allowed and writes nothing once
+  accountDeletions/{uid} exists (an ID token outlives the Auth user by up to an hour), and
+  deleteAccount also calls deleteSummaryData after the second recursive pass.
+
+Open:
+- Deploy order: firestore.indexes.json (the meetingSummaries expiresAt fieldOverride and the new
+  status plus receivedAt composite index) goes out with the rules BEFORE summaryRead, and before
+  the first dailyMaintenance deploy that carries the M10 purges. Until it is deployed the
+  meetingSummaries purge logs dailyMaintenance.purge_failed every day (FAILED_PRECONDITION) and
+  the rest of the run is unaffected.
+- A log-based alert for dailyMaintenance.purge_failed and summaryRead upstream errors.
+- Converter gaps, all fail closed or backed by the text/plain preference and the instruction scan:
+  dark-mode renderings are not modeled; a custom font with blank glyphs, an ancestor perspective
+  and layout overlays are not modeled; possible rules combine per element, so a responsive color
+  scheme set in one @media block can drop its text; an HTML-only recap that links a remote style
+  sheet is refused. Check all of it on Francisco's real recap if it arrives HTML-only.
+- The rules tests (npm run test:rules) still need Java and have not run here.
+
+## 20. Day 4 status (November 12, 2026)
+
+Built on dev_dusko (the app side; not committed yet, nothing deployed; JavaScript only, so it can
+ride the next store build or an EAS Update to runtime 1.6.0): the service src/services/summaries/
+(injected transport, zod on both sides, the section 4 error mapping with a missing function read
+as not_enabled, a memory-only session cache; no AsyncStorage, no listener, no outbox) with the
+hooks useSummaryStatus, useSummaryList and useSummary; the routes SummaryConnect, SummaryInbox and
+SummaryView with EN and ES titles; the Settings > Integrations row "Meeting summaries" with "N
+waiting for a meeting"; SummaryConnectScreen, SummaryInboxScreen, AttachMeetingSheet and
+SummaryViewScreen, each over a pure model; MeetingSummarySection on Meeting details between Notes
+and Attachments; the summaries namespace in EN and ES. Every surface shows only when summaryStatus
+says enabled and allowed. App lint, typecheck and 185 suites with 2382 tests pass (the shared tree,
+other builders' work included).
+
+Review: 15 findings. 14 were confirmed against the code and fixed, each with a regression test;
+one (B8) is deferred as a contract decision; none rejected. What changed:
+- Service: an ask in flight when a summaryAction answers never undoes it. A status ask keeps the
+  action's status (a poll no longer puts back the old address after "Get a new address", or the
+  old mailbox list after Save), and a list or get answer gets the action's patches before it is
+  cached (a filed, kept or deleted card no longer comes back; a get of a summary deleted meanwhile
+  answers not_found); the inbox count is then left to the action.
+- useSummaryStatus refreshOnFocus (getStatus takes an optional maxAgeMs): on focus or return to
+  the foreground it asks again when the answer is older than 60 s, or 30 minutes while the feature
+  is off for the user. Settings uses it, so the waiting count and the row itself follow during a
+  session. A failed ask's error shows only while the status it failed next to is still the cached
+  one, so a successful poll clears the connect screen's error banner.
+- Move on a filed series summary passes currentOccurrenceDate: the sheet marks and disables that
+  occurrence. MeetingSummarySection shows the day the occurrence took place (the snapshot start),
+  not the original series date. The sheet offers cancelled meetings with a "Cancelled" badge
+  (section 6 suggests them and attach accepts them); cancelled occurrences and tombstones still
+  drop out.
+- Section 14 wording: "What we check" no longer says that anything else is refused; it says an
+  unbound or old vendor summary and a hand forward from a listed mailbox wait in the inbox for an
+  OK, and the privacy card now shows the approved "refused" text too. The delete confirmation uses
+  the "Deletable" text with {{providerDays}}. "Get a new address" says Meeting Guard AI no longer
+  stores mail sent to the old address (not "dropped", ES not "se descarta"). Three Spanish strings
+  corrected.
+
+Deviations from section 9:
+- Microsoft 365 hint: summaryStatus has no address creation time, so the hint dates the address
+  by the last refusal or a Gmail code and stays hidden when nothing at all reached the address,
+  which is its main case. The Outlook tab always shows the company note and the administrator
+  steps.
+- The Settings row opens SummaryConnect while there is no address, SummaryInbox after.
+- MeetingSummarySection lives in src/screens/summaries/ and asks summaryRead 350 ms after Meeting
+  details opens.
+- The sheet files on pick then "File here", and opens on the local day of receivedAt when the
+  summary has no date. Setup tabs are chips. Notices are Cards (Banner animates); confirmations use
+  Alert.alert as elsewhere in the app.
+- A Gmail code card is prominent only when the requesting Gmail is a listed mailbox (the verified
+  sign-in email is not added on the phone).
+- The view's "cut short" notice is guessed from the caps (the contract has no truncated flag).
+
+Open:
+- B8, lead decision: an additive nullable addressCreatedAt in summaryStatusResponseSchema (default
+  null, like refusedToday), read first by addressInUseSince. Also an optional summary-level
+  truncated in summaryDetailSchema.
+- SUMMARY_PROVIDER_RETENTION_DAYS stays 45 until the retention add-on decision.
+- The Google Workspace admin menu path is UNVERIFIED; the Microsoft share text quotes the English
+  console label in ES too.
+- not_ready from regenerate_address or set_mailboxes after a disconnect on another device reads
+  "being set up", then the screen asks again and shows the create view.
+- One-tap suggestions on needs_confirmation cards are neither highlighted nor confirmed.
+- The sheet lists only meetings the local engine holds; far back it may show "No meetings that
+  day". MEETING_SUMMARIES_DEFER_MS (350) to tune on a device.
+- M11 hooks: the SummaryConnectScreen footer prop (Disconnect, the retention card), marked spots in
+  MeetingSummarySection rows, at the top of SummaryView and beside Debrief; strings go under
+  summaries.commitments.
+- The commit still needs to go on dev_dusko.

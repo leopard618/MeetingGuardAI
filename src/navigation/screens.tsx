@@ -31,6 +31,10 @@ import { TasksScreen as TasksView } from '../screens/tasks/TasksScreen';
 import { PricingScreen as Pricing } from '../screens/pricing/PricingScreen';
 import { SettingsScreen as Settings } from '../screens/settings/SettingsScreen';
 import { WhatsAppConnectScreen as WhatsAppConnect } from '../screens/settings/WhatsAppConnectScreen';
+import { SummaryConnectScreen as SummaryConnect } from '../screens/summaries/SummaryConnectScreen';
+import { SummaryInboxScreen as SummaryInbox } from '../screens/summaries/SummaryInboxScreen';
+import { SummaryViewScreen as SummaryView } from '../screens/summaries/SummaryViewScreen';
+import { SummaryCommitmentsScreen as SummaryCommitments } from '../screens/summaries/SummaryCommitmentsScreen';
 import { MattersScreen as Matters } from '../screens/matters/MattersScreen';
 
 // ---- Main group --------------------------------------------------------------------------------
@@ -53,6 +57,12 @@ export const TermsScreen = Terms;
 export const CalendarSyncScreen = CalendarSync;
 export const PricingScreen = Pricing;
 export const WhatsAppConnectScreen = WhatsAppConnect;
+// M10: meeting summaries by email (docs/v2/M10-DESIGN.md section 9).
+export const SummaryConnectScreen = SummaryConnect;
+export const SummaryInboxScreen = SummaryInbox;
+export const SummaryViewScreen = SummaryView;
+// M11: summaries become commitments (docs/v2/M11-DESIGN.md section 3).
+export const SummaryCommitmentsScreen = SummaryCommitments;
 export const MattersScreen = Matters;
 
 // ---- Meetings: live meeting from `meetingId` -----------------------------------------------------

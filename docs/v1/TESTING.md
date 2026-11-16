@@ -64,7 +64,7 @@ cd functions
 npm ci
 npm test                 # unit tests: quota, entitlement, time zones, context, prompt, tools, actions, handler, deleteAccount
 npm run test:rules       # Firestore security rules on the emulator (needs Java 21)
-npm run check:contract   # functions/src/shared/aiContract.ts must equal src/core/aiContract.ts
+npm run check:contract   # functions/src/shared/{aiContract,errors,time,recurrence}.ts must equal src/core/
 npm run typecheck
 npm run lint
 npm run build

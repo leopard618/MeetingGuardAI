@@ -10,7 +10,7 @@
  * em/en dashes, no ellipsis character, no curly quotes. Spanish accents, inverted marks and
  * guillemets are fine (and expected: the app's ES voice uses them, so the bot matches it).
  */
-import type { Language } from '../shared/aiContract';
+import { AI_ALLOWANCES, type Language } from '../shared/aiContract';
 import { MAX_INTERACTIVE_BODY_CHARS } from './send';
 
 export interface BotMeetingSummaryInput {
@@ -53,7 +53,8 @@ const EN: BotStrings = {
   linkSuccess: 'Your WhatsApp is now linked to Meeting Guard. Ask me about your meetings, for example "What do I have tomorrow?"',
   linkPrompt: 'Hi! To use the Meeting Guard assistant here, open the app, go to Settings > WhatsApp, and send me the 6 digit code it shows you.',
   codeExpired: 'That code is not valid anymore. Open the app and generate a new one.',
-  quotaExceeded: 'You reached your daily assistant limit. It resets at midnight UTC.',
+  // M11 (docs/v2/M11-DESIGN.md section 4.2): the allowance wording of ALLOWANCES-2026-11-05.md, not a daily limit.
+  quotaExceeded: `You reached your AI action limit for now. The free allowance is ${AI_ALLOWANCES.free.total} actions in your first ${AI_ALLOWANCES.free.windowDays} days, up to ${AI_ALLOWANCES.free.perDay} a day; Pro and Premium renew each month on the day you subscribed. See your usage in the app.`,
   confirmPrompt: 'Should I apply this? Reply 1 to confirm or 2 to cancel.',
   confirmMore: 'and {count} more',
   buttons: { confirm: 'Confirm', cancel: 'Cancel' },
@@ -74,7 +75,7 @@ const ES: BotStrings = {
   linkSuccess: 'Tu WhatsApp quedó vinculado a Meeting Guard. Pregúntame por tus reuniones, por ejemplo «¿Qué tengo mañana?»',
   linkPrompt: '¡Hola! Para usar el asistente de Meeting Guard aquí, abre la app, entra en Ajustes > WhatsApp y envíame el código de 6 dígitos que te muestra.',
   codeExpired: 'Ese código ya no es válido. Abre la app y genera uno nuevo.',
-  quotaExceeded: 'Alcanzaste tu límite diario del asistente. Se reinicia a medianoche UTC.',
+  quotaExceeded: `Alcanzaste tu límite de acciones de IA por ahora. La asignación gratuita es de ${AI_ALLOWANCES.free.total} acciones en tus primeros ${AI_ALLOWANCES.free.windowDays} días, hasta ${AI_ALLOWANCES.free.perDay} al día; Pro y Premium se renuevan cada mes el día en que te suscribiste. Consulta tu uso en la app.`,
   confirmPrompt: '¿Lo aplico? Responde 1 para confirmar o 2 para cancelar.',
   confirmMore: 'y {count} más',
   buttons: { confirm: 'Confirmar', cancel: 'Cancelar' },
@@ -140,4 +141,49 @@ export function formatConfirmPrompt(language: Language, summaries: readonly stri
     shown -= 1;
   }
   return `${block}\n\n${s.confirmPrompt}`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// M11: suggested tasks from summaries (docs/v2/M11-DESIGN.md sections 4.1 to 4.3). The webhook's
+// own texts; the list and its results come from the summaryWhatsApp worker
+// (functions/src/summaries/whatsappRender.ts). Kept apart from BOT_STRINGS so its snapshots stay.
+// ---------------------------------------------------------------------------------------------
+
+export interface SummaryBotStrings {
+  /** The worker could not be reached. */
+  unavailable: string;
+  /** The port gave up on an offer or the reply AI: the worker keeps running and stores its result. */
+  stillPreparing: string;
+  /** The port gave up on a reply (numbers, ALL, DROP, NONE). */
+  replyTimeout: string;
+  /** NO, CANCEL or CANCELAR closed the offer. */
+  closed: string;
+  /** ALL while nothing is marked. */
+  nothingMarked: string;
+  /** A button of an offer that is no longer the live one. */
+  expired: string;
+}
+
+const SUMMARY_EN: SummaryBotStrings = {
+  unavailable: 'Suggested tasks are not available right now. Open the app to review them.',
+  stillPreparing: 'Still preparing your suggested tasks. Write commitments again in a minute.',
+  replyTimeout: 'This is taking longer than usual. Write commitments again in a minute to see what was added.',
+  closed: 'Closed. Nothing was changed.',
+  nothingMarked: 'Nothing is marked. Reply with the numbers you want.',
+  expired: 'That list expired. Write commitments for a new one.',
+};
+
+const SUMMARY_ES: SummaryBotStrings = {
+  unavailable: 'Las tareas sugeridas no están disponibles ahora. Revísalas en la app.',
+  stillPreparing: 'Sigo preparando tus tareas sugeridas. Escribe compromisos otra vez en un minuto.',
+  replyTimeout: 'Esto está tardando más de lo normal. Escribe compromisos otra vez en un minuto para ver qué se agregó.',
+  closed: 'Cerrado. No cambié nada.',
+  nothingMarked: 'No hay nada marcado. Responde con los números que quieras.',
+  expired: 'Esa lista expiró. Escribe compromisos para ver una nueva.',
+};
+
+export const SUMMARY_BOT_STRINGS: Readonly<Record<Language, SummaryBotStrings>> = { en: SUMMARY_EN, es: SUMMARY_ES };
+
+export function summaryBotStrings(language: Language): SummaryBotStrings {
+  return SUMMARY_BOT_STRINGS[language] ?? SUMMARY_BOT_STRINGS.en;
 }

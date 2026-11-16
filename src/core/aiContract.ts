@@ -106,6 +106,11 @@ export const CALLABLES = {
   whatsappLinkStart: 'whatsappLinkStart',
   whatsappLinkStatus: 'whatsappLinkStatus',
   whatsappUnlink: 'whatsappUnlink',
+  summaryStatus: 'summaryStatus',
+  summaryAction: 'summaryAction',
+  summaryRead: 'summaryRead',
+  /** M11: equals SUMMARY_COMMITMENTS_CALLABLE (a test keeps them equal); FUNCTIONS_CONTRACT has its row. */
+  summaryCommitments: 'summaryCommitments',
   matterDraft: 'matterDraft',
   matterRevise: 'matterRevise',
   matterConfirm: 'matterConfirm',
@@ -125,6 +130,25 @@ export const ZOOM_CALL_TIMEOUT_MS = 20_000;
 /** Client-side timeout for the whatsapp* callables (Firestore work only, no external calls). */
 export const WHATSAPP_CALL_TIMEOUT_MS = 15_000;
 
+/** Client-side timeout for summaryStatus and summaryAction (Firestore work only, no external calls). */
+export const SUMMARIES_CALL_TIMEOUT_MS = 15_000;
+
+/** Client-side timeout for summaryRead (the function itself times out at 30 s: decrypt plus re-match). */
+export const SUMMARIES_READ_TIMEOUT_MS = 35_000;
+
+/**
+ * M11: the summaryCommitments callable (suggested tasks from a filed or kept summary). Kept as its
+ * own name for the server code that already uses it; since the app's service landed (M11 day 4)
+ * CALLABLES.summaryCommitments holds the same value, with its FUNCTIONS_CONTRACT row in
+ * src/core/contracts.ts (a missing row is a compile error).
+ */
+export const SUMMARY_COMMITMENTS_CALLABLE = 'summaryCommitments' as const;
+
+/**
+ * Client-side timeout for summaryCommitments (the function times out at 90 s: one OpenAI call of
+ * at most 70 s plus the reads, the checks and the transaction).
+ */
+export const SUMMARY_COMMITMENTS_TIMEOUT_MS = 100_000;
 /** Client-side timeout for the matter* callables (one model call, plus one email for confirm). */
 export const MATTER_CALL_TIMEOUT_MS = 70_000;
 
@@ -969,6 +993,903 @@ export const whatsappErrorDetailsSchema = z.object({ reason: z.enum(WHATSAPP_ERR
 export type WhatsappErrorDetails = z.infer<typeof whatsappErrorDetailsSchema>;
 
 // ---------------------------------------------------------------------------------------------
+// Meeting summaries (summary* callables; M10, docs/v2/M10-DESIGN.md sections 4 to 9)
+// ---------------------------------------------------------------------------------------------
+//
+// Meeting Guard AI never joins, records or listens to a meeting. The user's own notetaker emails
+// its summary to a private forwarding address; the summaryInbound webhook (HTTP, not a callable)
+// checks the DKIM signature itself, then files the summary under the meeting it matches by title
+// AND time, holds it in the summary inbox, or refuses it without keeping its content. Summary
+// documents are server-only and their content is sealed with a server key, so the app reads and
+// changes them ONLY through these three callables:
+// - summaryStatus (always deployed, no secret): whether the feature is on for the caller, the
+//   private address, the mailboxes, pending Gmail confirmation codes, the inbox count, the last
+//   refusal and today's refusal count. It answers enabled / allowed false instead of throwing
+//   not_enabled / not_allowed, so the Settings row can hide itself; a signed-out caller still
+//   gets unauthenticated.
+// - summaryAction (always deployed, no secret): address, mailbox and filing changes. It cannot
+//   decrypt, so it never returns summary content (titles included).
+// - summaryRead (deployed only with SUMMARIES_ENABLED, binds the data key): the lists and the full
+//   view. A missing summaryRead function reaches the app as functions/not-found WITHOUT details;
+//   the app treats that as not_enabled (details.reason 'not_found' means a missing summary).
+// Every op except summaryStatus requires a verified caller (the assistant's rule) in the pilot
+// list. ADDITIVE: AI_CONTRACT_VERSION is unchanged and no older client sends these requests.
+
+export const SUMMARY_LIMITS = {
+  /** Mailboxes where the user's recaps arrive (lowercased by the server). */
+  maxMailboxes: 5,
+  /** Pending Gmail forwarding confirmations, one per requesting Gmail address (2-day expiry). */
+  maxGmailRequests: 3,
+  /**
+   * New private addresses per UTC day; regenerate_address answers rate_limited after this, and so
+   * does create_address after a disconnect (that create counts as a rotation).
+   */
+  maxRotationsPerDay: 5,
+  /**
+   * Refusals counted per UTC day (the only daily cap, deduped by the provider's delivery id).
+   * Past it, further junk that day is dropped uncounted; summaryStatus refusedToday.capped tells
+   * the app to suggest a new address. Accepted and inbox mail is never capped.
+   */
+  maxRefusalsPerDay: 40,
+  /** Sanitized plain text of one summary. */
+  maxTextChars: 100_000,
+  maxSections: 40,
+  /** Items across ALL sections of one summary (not per section). */
+  maxItems: 400,
+  maxItemChars: 1_000,
+  /** owner and dueText of an item, as written ("(owner: Bish)"). */
+  maxItemFieldChars: 200,
+  maxHeadingChars: 200,
+  /** Summary titles and meeting titles in snapshots and suggestions (the server truncates). */
+  maxTitleChars: 500,
+  maxSubjectChars: 1_000,
+  /** One-tap "File under ..." suggestions on an inbox card. */
+  maxSuggestions: 3,
+  /** Rows in one summaryRead list answer, newest first (hasMore says more exist). */
+  maxListItems: 100,
+} as const;
+
+/** Where a summary stands (plain text on the server: structure, not content). */
+export const SUMMARY_STATUSES = [
+  /** Filed under a meeting: automatically (rule A, vendor_verified only) or by the user. */
+  'matched',
+  /** Genuine, waiting in the summary inbox for the user; inboxReason says why. */
+  'inbox',
+  /** The user chose "Keep without a meeting". */
+  'kept',
+  /** Not accepted. The row keeps only the reason, a day, a count and a verified sender domain. */
+  'refused',
+] as const;
+export type SummaryStatus = (typeof SUMMARY_STATUSES)[number];
+
+/** How a summary reached the account (immutable trust fact, set at receipt). */
+export const SUMMARY_TIERS = [
+  /** Signed (aligned DKIM pass) by an allowlisted notetaker sender address. */
+  'vendor_verified',
+  /** Forwarded by hand from one of the user's own mailboxes; never filed automatically. */
+  'user_forwarded',
+] as const;
+export type SummaryTier = (typeof SUMMARY_TIERS)[number];
+
+/** Why a genuine summary waits in the inbox instead of being filed. */
+export const SUMMARY_INBOX_REASONS = [
+  /** Vendor-signed and addressed to the user, but the signed Date is stale or not signed. */
+  'old_summary',
+  /**
+   * Vendor-signed, but none of the user's mailboxes is in a SIGNED To or Cc (sent straight to the
+   * private address, Bcc, or To/Cc unsigned). Never gets one-tap suggestions.
+   */
+  'not_addressed_to_you',
+  /** Forwarded by hand from a listed mailbox; one-tap suggestions, never filed automatically. */
+  'user_forwarded',
+  /**
+   * One plausible meeting (rule B), or the best meeting is cancelled or all-day: suggested first,
+   * never filed automatically.
+   */
+  'needs_confirmation',
+  /** Two meetings scored too close to tell apart; both suggested. */
+  'ambiguous',
+  /** No meeting in the time window (it may be on a calendar that is not connected). */
+  'no_candidate',
+  /** Meetings in the window, none above the filing thresholds. */
+  'weak',
+  /** No date in the summary and no signed time to search by. */
+  'no_date',
+] as const;
+export type SummaryInboxReason = (typeof SUMMARY_INBOX_REASONS)[number];
+
+/** Why an email was refused (its content is not stored by Meeting Guard AI). */
+export const SUMMARY_REFUSED_REASONS = [
+  /** Over the size limits: 5 MiB raw, 100 MIME parts or 10 levels of nesting. */
+  'too_large',
+  /** Broken structure or headers: a repeated From, To, Cc, Date, Subject, Message-ID or Sender, or a From that is not one plain address. */
+  'malformed',
+  /** The notetaker's signature broke on the way, behind a valid Google or Microsoft forwarding seal (the fix is a Redirect rule; an attached recap is not verified yet). */
+  'could_not_verify_after_forwarding',
+  /** The notetaker's signature is present but no longer matches: changed after it was sent. */
+  'changed_after_sending',
+  /** From names the notetaker or one of the user's mailboxes, but no valid signature backs it. */
+  'sender_not_verified',
+  /** Anything else: an unlisted or missing signer, a display-name spoof, someone else's forward. */
+  'not_from_your_notetaker',
+  /** Genuine, but no readable text was left after parsing. */
+  'unreadable',
+] as const;
+export type SummaryRefusedReason = (typeof SUMMARY_REFUSED_REASONS)[number];
+
+/** Section kinds (headings recognized in English and Spanish; design section 8). */
+export const SUMMARY_SECTION_KINDS = [
+  /** Lines before the first heading (title line, date line). */
+  'preamble',
+  /** The notetaker's own digest; derived, never ground truth. */
+  'tldr',
+  /** A "Summary" or "Overview" section; derived, like tldr. */
+  'summary',
+  'updates',
+  'decisions',
+  'action_items',
+  'next_steps',
+  'waiting_on',
+  'open_questions',
+  'notes',
+  /** An unknown short heading, kept verbatim ("Launch Readiness"). */
+  'custom',
+  /** No heading at all: the whole text as one section. */
+  'body',
+] as const;
+export type SummarySectionKind = (typeof SUMMARY_SECTION_KINDS)[number];
+
+export const SUMMARY_ITEM_FLAGS = [
+  /** The text reads like an instruction to an AI or to the reader; never pre-selected in M11. */
+  'possible_instruction',
+  /** Contains a link; links are shown as plain text and never become actions. */
+  'has_link',
+  /** Cut at SUMMARY_LIMITS.maxItemChars. */
+  'truncated',
+] as const;
+export type SummaryItemFlag = (typeof SUMMARY_ITEM_FLAGS)[number];
+
+/** Who filed a summary under its meeting. */
+export const SUMMARY_MATCH_METHODS = ['auto', 'user'] as const;
+export type SummaryMatchMethod = (typeof SUMMARY_MATCH_METHODS)[number];
+
+/** summaryRead list views. */
+export const SUMMARY_LIST_VIEWS = [
+  /** Waiting for a meeting (status inbox). */
+  'inbox',
+  /** Filed recently (status matched or kept). */
+  'recent',
+  /** Refused rows, one per UTC day with a count. */
+  'refused',
+  /** Summaries filed under one meeting (meetingId required; the master id for a series). */
+  'meeting',
+] as const;
+export type SummaryListView = (typeof SUMMARY_LIST_VIEWS)[number];
+
+/** summaryAction ops (the discriminant of summaryActionRequestSchema, same order). */
+export const SUMMARY_ACTION_OPS = [
+  'create_address',
+  'regenerate_address',
+  'set_mailboxes',
+  'dismiss_gmail',
+  'attach',
+  'detach',
+  'keep',
+  'delete',
+  'disconnect',
+] as const;
+export type SummaryActionOp = (typeof SUMMARY_ACTION_OPS)[number];
+
+// ---- Primitives ------------------------------------------------------------------------------
+
+/**
+ * Summary, section and item ids: Firestore-safe, never ':'. Accepted summaries use 64 lowercase
+ * hex characters (sha256), items "i_" plus 12 hex.
+ */
+export const SUMMARY_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+export const summaryIdSchema = z.string().regex(SUMMARY_ID_PATTERN);
+
+/**
+ * One plain addr-spec (dot-atom local part, LDH domain labels, no display name, no quotes): the
+ * private address, the user's mailboxes, a Gmail requester, a sender. Lowercased IDNA ASCII when
+ * the server returns it; any case accepted in requests. The local part takes the full RFC 5322
+ * atext set (letters, digits and ! # $ % & ' * + - / = ? ^ _ ` { | } ~) so every mailbox the
+ * server normalizes (functions/src/summaries/address.ts normalizeMailbox checks its output against
+ * this pattern) parses here; no spaces, quotes, commas, angle brackets, a second "@", leading,
+ * trailing or consecutive dots.
+ */
+export const SUMMARY_ADDR_SPEC_PATTERN =
+  /^(?=[^@]{1,64}@)[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
+export const summaryAddrSpecSchema = z.string().max(254).regex(SUMMARY_ADDR_SPEC_PATTERN);
+
+/** A DNS name (IDNA ASCII, at least two labels): the d= of a passing signature. */
+export const SUMMARY_DOMAIN_PATTERN =
+  /^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
+export const summaryDomainSchema = z.string().regex(SUMMARY_DOMAIN_PATTERN);
+
+/** Gmail's forwarding confirmation code (letters and digits only; exact format UNVERIFIED). */
+export const SUMMARY_GMAIL_CODE_PATTERN = /^[A-Za-z0-9]{1,32}$/;
+export const summaryGmailCodeSchema = z.string().regex(SUMMARY_GMAIL_CODE_PATTERN);
+
+/** A character offset into a summary's text. */
+const summaryOffsetSchema = z.number().int().min(0).max(SUMMARY_LIMITS.maxTextChars);
+
+// ---- summaryStatus ---------------------------------------------------------------------------
+
+/** A Gmail "confirm forwarding" mail that reached the private address (we never open its link). */
+export const summaryGmailRequestSchema = z.object({
+  /** The Gmail address that asked to forward here; the app makes the card prominent only when it is a listed mailbox. */
+  gmailAddress: summaryAddrSpecSchema,
+  /** The code the user pastes on the Gmail settings page. */
+  code: summaryGmailCodeSchema,
+  receivedAt: isoDateTimeSchema,
+});
+export type SummaryGmailRequest = z.infer<typeof summaryGmailRequestSchema>;
+
+export const summaryLastRefusedSchema = z.object({
+  reason: z.enum(SUMMARY_REFUSED_REASONS),
+  at: isoDateTimeSchema,
+  /** The d= of a PASSING signature only; null means the app says "an unknown sender". */
+  senderDomain: summaryDomainSchema.nullable(),
+});
+export type SummaryLastRefused = z.infer<typeof summaryLastRefusedSchema>;
+
+/** Today's refusal counter (UTC day). capped: SUMMARY_LIMITS.maxRefusalsPerDay was reached. */
+export const summaryRefusedTodaySchema = z.object({
+  /** The UTC day, YYYY-MM-DD. */
+  day: localDateKeySchema,
+  /** Refusals counted that day (redeliveries count once). */
+  count: z.number().int().min(1),
+  /** Over the cap: later junk that day is dropped uncounted; the app suggests a new address. */
+  capped: z.boolean(),
+});
+export type SummaryRefusedToday = z.infer<typeof summaryRefusedTodaySchema>;
+
+export const summaryStatusRequestSchema = z.object({});
+export type SummaryStatusRequest = z.infer<typeof summaryStatusRequestSchema>;
+export const summaryStatusResponseSchema = z.object({
+  /** SUMMARIES_ENABLED: the summary functions are deployed and switched on. */
+  enabled: z.boolean(),
+  /** The caller is verified and in the pilot list. When false, every field below is empty. */
+  allowed: z.boolean(),
+  /** The server can hand out addresses (SUMMARIES_ADDRESS_TEMPLATE set); false means "being set up". */
+  ready: z.boolean(),
+  /** The caller's private forwarding address, or null before create_address (or while not ready). */
+  address: summaryAddrSpecSchema.nullable(),
+  /** Where the user's recaps arrive; starts as the verified sign-in email. */
+  mailboxes: z.array(summaryAddrSpecSchema).max(SUMMARY_LIMITS.maxMailboxes),
+  /** Unexpired Gmail confirmation codes, newest first. */
+  gmailRequests: z.array(summaryGmailRequestSchema).max(SUMMARY_LIMITS.maxGmailRequests),
+  /** Summaries waiting in the inbox ("2 waiting for a meeting"). */
+  inboxCount: z.number().int().min(0),
+  lastReceivedAt: isoDateTimeSchema.nullable(),
+  lastRefused: summaryLastRefusedSchema.nullable(),
+  /**
+   * Today's refusals (UTC), or null when none were counted today. Added after the first day-2
+   * build: a status without it parses as null.
+   */
+  refusedToday: summaryRefusedTodaySchema.nullable().default(null),
+  /**
+   * M11, optional: when the current private address was created (its summaryAddresses document;
+   * a new address after "Get a new address" or a disconnect has its own time), for the "nothing
+   * arrived in 24 hours" Microsoft 365 hint. null without an address or when unknown; absent on
+   * every answer of an M10 server.
+   */
+  addressCreatedAt: isoDateTimeSchema.nullable().optional(),
+});
+export type SummaryStatusResponse = z.infer<typeof summaryStatusResponseSchema>;
+
+// ---- summaryCommitments enums and limits (M11, docs/v2/M11-DESIGN.md sections 2, 3 and 6) ----
+//
+// M11 turns a filed or kept summary into suggested tasks ("commitments"): the model proposes, code
+// checks every proposal against the stored text, and nothing becomes a task until the user accepts
+// it (the server writes the task). ADDITIVE: no 1.6.0 client calls summaryCommitments,
+// AI_CONTRACT_VERSION is unchanged, and the M10 shapes only gain optional fields.
+
+export const COMMITMENT_LIMITS = {
+  /** Suggestions in one extraction (AI proposals that survived the checks, or the items as written). */
+  maxProposals: 30,
+  /** Decisions in one decide call. */
+  maxDecisionsPerCall: 30,
+  /** A sentence quote (a commitment from a section without items) is a whole sentence of at most this. */
+  maxQuoteChars: 300,
+  /** A sentence quote shorter than this is dropped. Item quotes are always the whole item (maxItemChars). */
+  minSentenceQuoteChars: 20,
+  /** Suggested and accepted task titles (TASK_LIMITS.maxTitleChars). */
+  maxTitleChars: 200,
+  /** The person a suggestion names (the task's people entry). */
+  maxOwnerChars: 100,
+} as const;
+
+/** How the suggestions were made: AI over the whole text, or the action items exactly as written (no AI, free). */
+export const COMMITMENT_MODES = ['ai', 'as_written'] as const;
+export type CommitmentMode = (typeof COMMITMENT_MODES)[number];
+
+/** Where a summary's suggestions stand. */
+export const COMMITMENT_STATES = [
+  /** Nothing prepared yet (get never calls the model). */
+  'none',
+  /** Another device or WhatsApp is preparing them right now; ask again in a few seconds. */
+  'preparing',
+  'ready',
+  /** Prepared, and nothing survived the checks (or there were no action items). */
+  'empty',
+  /** The summary changed since (content, parser or extractor): the old decisions are read-only; prepare again, free. */
+  'stale',
+] as const;
+export type CommitmentState = (typeof COMMITMENT_STATES)[number];
+
+/** What a suggestion quotes: one whole item of a list, or one whole sentence of a section without items. */
+export const COMMITMENT_ANCHOR_KINDS = ['item', 'sentence'] as const;
+export type CommitmentAnchorKind = (typeof COMMITMENT_ANCHOR_KINDS)[number];
+
+/**
+ * Flags on a suggestion, computed by code, never by the model. The first three are the summary
+ * item flags. payment_like: amounts, account-like numbers, pay, wire, passwords. suggested: under a
+ * "Suggested next steps" heading (the notetaker's idea, not a promise). checklist: a checkbox of a
+ * custom section. owner_guess: "You?" because only the first name matched. similar_added: looks
+ * like a task already added from another summary of the meeting. A later server may add values:
+ * commitmentFlagsSchema drops unknown ones instead of failing the whole answer.
+ */
+export const COMMITMENT_FLAGS = [
+  'possible_instruction',
+  'has_link',
+  'truncated',
+  'payment_like',
+  'suggested',
+  'checklist',
+  'owner_guess',
+  'similar_added',
+] as const;
+export type CommitmentFlag = (typeof COMMITMENT_FLAGS)[number];
+
+/** A suggestion's state (shared by the app, other devices and WhatsApp). */
+export const COMMITMENT_STATUSES = ['open', 'accepted', 'dropped'] as const;
+export type CommitmentStatus = (typeof COMMITMENT_STATUSES)[number];
+
+/** Where an accepted suggestion was accepted. */
+export const COMMITMENT_CHANNELS = ['app', 'whatsapp'] as const;
+export type CommitmentChannel = (typeof COMMITMENT_CHANNELS)[number];
+
+/**
+ * Why nothing is pre-selected (the banner). old_summary: vendor signed and addressed to the user,
+ * but not fresh. not_addressed_to_you: no "Select all" either. forwarded: a hand forward, the
+ * notetaker's signature could not be checked. possible_instruction: part of the text reads like
+ * instructions to software ("Select all" never ticks a flagged item).
+ */
+export const COMMITMENT_PRESELECT_REASONS = ['old_summary', 'not_addressed_to_you', 'forwarded', 'possible_instruction'] as const;
+export type CommitmentPreselectReason = (typeof COMMITMENT_PRESELECT_REASONS)[number];
+
+/** decide: accept (create the task), drop, restore (a dropped one), remove (Undo of an accept). */
+export const COMMITMENT_DECISIONS = ['accept', 'drop', 'restore', 'remove'] as const;
+export type CommitmentDecisionKind = (typeof COMMITMENT_DECISIONS)[number];
+
+/** What one decision did. "Added" is said only from this answer. */
+export const COMMITMENT_OUTCOMES = [
+  /** The task was created now. */
+  'added',
+  /** Its task already exists (a second tap, device or WhatsApp reply): nothing created. */
+  'already_added',
+  'dropped',
+  'restored',
+  /** Undo: the task was deleted and the suggestion is open again. */
+  'removed',
+  /** Undo refused: the task was changed since it was added; the app opens the task instead. */
+  'changed',
+  /** The suggestion is not in a state this decision applies to. */
+  'not_open',
+] as const;
+export type CommitmentOutcome = (typeof COMMITMENT_OUTCOMES)[number];
+
+/**
+ * A filed or kept summary's suggestions on a summaryRead row ("Review commitments (5)"). Absent
+ * when nothing was prepared, and on every answer of an M10 server.
+ */
+export const summaryListCommitmentsSchema = z.object({
+  state: z.enum(COMMITMENT_STATES),
+  /** Suggestions still open (neither accepted nor dropped). */
+  open: z.number().int().min(0).max(COMMITMENT_LIMITS.maxProposals),
+  accepted: z.number().int().min(0).max(COMMITMENT_LIMITS.maxProposals),
+});
+export type SummaryListCommitments = z.infer<typeof summaryListCommitmentsSchema>;
+
+// ---- Shared row shapes -----------------------------------------------------------------------
+
+/** The meeting as it was when the summary was filed (plain text: the user's own calendar data). */
+export const summaryMeetingSnapshotSchema = z.object({
+  title: z.string().max(SUMMARY_LIMITS.maxTitleChars),
+  startAt: isoDateTimeSchema,
+  endAt: isoDateTimeSchema,
+  timezone: timeZoneSchema,
+});
+export type SummaryMeetingSnapshot = z.infer<typeof summaryMeetingSnapshotSchema>;
+
+export const summaryMatchSchema = z.object({
+  /** The master id for a series. */
+  meetingId: meetingIdSchema,
+  /** For a series: the ORIGINAL local date of the occurrence (the recurrenceOverrides key); else null. */
+  occurrenceDate: localDateKeySchema.nullable(),
+  method: z.enum(SUMMARY_MATCH_METHODS),
+  meetingSnapshot: summaryMeetingSnapshotSchema,
+});
+export type SummaryMatch = z.infer<typeof summaryMatchSchema>;
+
+/** A one-tap "File under ..." suggestion (never on not_addressed_to_you items). */
+export const summarySuggestionSchema = z.object({
+  meetingId: meetingIdSchema,
+  occurrenceDate: localDateKeySchema.nullable(),
+  title: z.string().max(SUMMARY_LIMITS.maxTitleChars),
+  startAt: isoDateTimeSchema,
+  /** Match score S, 0 to 1. */
+  score: z.number().min(0).max(1),
+});
+export type SummarySuggestion = z.infer<typeof summarySuggestionSchema>;
+
+/** One row of a summaryRead list (titles are the only decrypted field). */
+export const summaryListItemSchema = z.object({
+  summaryId: summaryIdSchema,
+  status: z.enum(SUMMARY_STATUSES),
+  /** The summary's title line, else its cleaned subject; null for refused rows (no content kept). */
+  title: z.string().max(SUMMARY_LIMITS.maxTitleChars).nullable(),
+  /** The date written in the summary (YYYY-MM-DD), or null when none was found. */
+  summaryDate: localDateKeySchema.nullable(),
+  /** When it arrived; for a refused row, the latest refusal that day. */
+  receivedAt: isoDateTimeSchema,
+  /** Trust facts, fixed at receipt (filing or keeping never changes them). tier is null for refused rows. */
+  tier: z.enum(SUMMARY_TIERS).nullable(),
+  /** A listed mailbox was in a signed To or Cc. */
+  recipientBound: z.boolean(),
+  /** The signed Date was within 14 days before and 24 hours after receipt. */
+  fresh: z.boolean(),
+  /** Why it waits (status inbox); null otherwise. */
+  inboxReason: z.enum(SUMMARY_INBOX_REASONS).nullable(),
+  /** Why it was refused (status refused); null otherwise. */
+  refusedReason: z.enum(SUMMARY_REFUSED_REASONS).nullable(),
+  /** The d= of a passing signature only; null shows as "an unknown sender". */
+  senderDomain: summaryDomainSchema.nullable(),
+  /** Refused rows: how many refusals that UTC day. null for every other status. */
+  count: z.number().int().min(1).nullable(),
+  /** Status matched: the meeting it is filed under; null otherwise. */
+  match: summaryMatchSchema.nullable(),
+  /** Inbox items: up to 3 meetings to file under with one tap, best first. Empty otherwise. */
+  suggestions: z.array(summarySuggestionSchema).max(SUMMARY_LIMITS.maxSuggestions),
+  /** M11, optional: the suggested tasks' state and counts, once prepared (filed or kept summaries only). */
+  commitments: summaryListCommitmentsSchema.optional(),
+});
+export type SummaryListItem = z.infer<typeof summaryListItemSchema>;
+
+/** An item of a section, verbatim: text === summary.text.slice(start, end) unless truncated. */
+export const summaryItemSchema = z.object({
+  /** "i_" plus 12 hex, stable across re-parses (M11 cites items by this id). */
+  id: summaryIdSchema,
+  text: z.string().max(SUMMARY_LIMITS.maxItemChars),
+  start: summaryOffsetSchema,
+  end: summaryOffsetSchema,
+  /** "[x]" true, "[ ]" false, null when the line has no checkbox. */
+  checked: z.boolean().nullable(),
+  /** As written ("(owner: Bish)", "(responsable: ...)"); null when absent. */
+  owner: z.string().max(SUMMARY_LIMITS.maxItemFieldChars).nullable(),
+  /** Only when the summary states one; never invented. */
+  dueText: z.string().max(SUMMARY_LIMITS.maxItemFieldChars).nullable(),
+  flags: z.array(z.enum(SUMMARY_ITEM_FLAGS)).max(SUMMARY_ITEM_FLAGS.length),
+});
+export type SummaryItem = z.infer<typeof summaryItemSchema>;
+
+export const summarySectionSchema = z.object({
+  id: summaryIdSchema,
+  kind: z.enum(SUMMARY_SECTION_KINDS),
+  /** The heading exactly as written; null for preamble and body. */
+  heading: z.string().max(SUMMARY_LIMITS.maxHeadingChars).nullable(),
+  /** true for tldr and summary: the notetaker's own digest, never ground truth. */
+  derived: z.boolean(),
+  /** The section's span of summary.text (heading included). */
+  start: summaryOffsetSchema,
+  end: summaryOffsetSchema,
+  items: z.array(summaryItemSchema).max(SUMMARY_LIMITS.maxItems),
+});
+export type SummarySection = z.infer<typeof summarySectionSchema>;
+
+/** Offsets inside the text and in order, and at most SUMMARY_LIMITS.maxItems items in total. */
+function summarySpansAreValid(value: { text: string; sections: readonly SummarySection[] }): boolean {
+  const length = value.text.length;
+  let items = 0;
+  for (const section of value.sections) {
+    if (section.start > section.end || section.end > length) return false;
+    for (const item of section.items) {
+      if (item.start > item.end || item.end > length) return false;
+      items += 1;
+    }
+  }
+  return items <= SUMMARY_LIMITS.maxItems;
+}
+
+/** The full view (summaryRead get). Refused rows have no full view (not_found). */
+export const summaryDetailSchema = summaryListItemSchema
+  .extend({
+    subject: z.string().max(SUMMARY_LIMITS.maxSubjectChars).nullable(),
+    /** The first meaningful line of the body. */
+    titleLine: z.string().max(SUMMARY_LIMITS.maxTitleChars).nullable(),
+    /** The From address (the notetaker sender, or the user's mailbox for a hand forward). */
+    fromAddress: summaryAddrSpecSchema.nullable(),
+    /** user_forwarded: the mailbox it was forwarded from ("Forwarded from <address>"); else null. */
+    forwardedBy: summaryAddrSpecSchema.nullable(),
+    /** The sanitized plain text; links stay plain text. */
+    text: z.string().min(1).max(SUMMARY_LIMITS.maxTextChars),
+    sections: z.array(summarySectionSchema).max(SUMMARY_LIMITS.maxSections),
+    /**
+     * M11, optional: the stored text was cut at receipt (the text, section or item caps, or the
+     * size fallback), so the view says only the first part was kept. Absent on every answer of an
+     * M10 server (the app then guesses from the caps).
+     */
+    truncated: z.boolean().optional(),
+  })
+  .refine(summarySpansAreValid, {
+    message: 'section and item offsets must lie inside the text, and items are capped in total',
+    path: ['sections'],
+  });
+export type SummaryDetail = z.infer<typeof summaryDetailSchema>;
+
+// ---- summaryAction ---------------------------------------------------------------------------
+
+export const summaryActionRequestSchema = z.discriminatedUnion('op', [
+  /**
+   * Idempotent: an existing address is returned unchanged (changed: false). Needs ready. After a
+   * disconnect the new address counts as a rotation (rate_limited past maxRotationsPerDay).
+   */
+  z.object({ op: z.literal('create_address') }),
+  /** Confirmed in the app. Mail to the old address is dropped from then on. Needs ready. */
+  z.object({ op: z.literal('regenerate_address') }),
+  /** Replaces the whole list (the server lowercases and removes duplicates). */
+  z.object({
+    op: z.literal('set_mailboxes'),
+    mailboxes: z.array(summaryAddrSpecSchema).max(SUMMARY_LIMITS.maxMailboxes),
+  }),
+  /** Removes a pending Gmail confirmation code. */
+  z.object({ op: z.literal('dismiss_gmail'), gmailAddress: summaryAddrSpecSchema }),
+  /** Files an inbox or kept summary (or moves a filed one) under the caller's meeting. */
+  z.object({
+    op: z.literal('attach'),
+    summaryId: summaryIdSchema,
+    meetingId: meetingIdSchema,
+    /** Required for a series: the ORIGINAL local date of the occurrence; null for a one-off meeting. */
+    occurrenceDate: localDateKeySchema.nullable(),
+  }),
+  /** "Not this meeting": back to the inbox; that meeting is not suggested again. */
+  z.object({ op: z.literal('detach'), summaryId: summaryIdSchema }),
+  /** "Keep without a meeting". */
+  z.object({ op: z.literal('keep'), summaryId: summaryIdSchema }),
+  /** Hard delete; an already deleted summary answers changed: false. */
+  z.object({ op: z.literal('delete'), summaryId: summaryIdSchema }),
+  /**
+   * Deletes the address and the mailbox settings, and every summary when deleteSummaries. Only the
+   * day's rotation count is kept, so disconnect plus create cannot reset the daily cap.
+   */
+  z.object({ op: z.literal('disconnect'), deleteSummaries: z.boolean() }),
+]);
+export type SummaryActionRequest = z.infer<typeof summaryActionRequestSchema>;
+
+/** A summary's state after attach, detach or keep (no content: summaryAction holds no key). */
+export const summaryStateSchema = z.object({
+  summaryId: summaryIdSchema,
+  status: z.enum(SUMMARY_STATUSES),
+  inboxReason: z.enum(SUMMARY_INBOX_REASONS).nullable(),
+  match: summaryMatchSchema.nullable(),
+});
+export type SummaryState = z.infer<typeof summaryStateSchema>;
+
+export const summaryActionResponseSchema = z.object({
+  /** false when there was nothing to change (an idempotent repeat). */
+  changed: z.boolean(),
+  /** The caller's status after the op, so the screens update without a second call. */
+  status: summaryStatusResponseSchema,
+  /** attach, detach and keep: the summary after the op; null for every other op. */
+  summary: summaryStateSchema.nullable(),
+});
+export type SummaryActionResponse = z.infer<typeof summaryActionResponseSchema>;
+
+// ---- summaryRead -----------------------------------------------------------------------------
+
+export const summaryReadRequestSchema = z.discriminatedUnion('op', [
+  /** A list view; inbox first re-matches up to 10 recent unmatched items. */
+  z
+    .object({
+      op: z.literal('list'),
+      view: z.enum(SUMMARY_LIST_VIEWS),
+      /** Required for view 'meeting' and only for it. */
+      meetingId: meetingIdSchema.optional(),
+    })
+    .refine((request) => (request.view === 'meeting') === (request.meetingId !== undefined), {
+      message: 'meetingId is required for view "meeting" and not allowed for the other views',
+      path: ['meetingId'],
+    }),
+  /** The full view of one summary. */
+  z.object({ op: z.literal('get'), summaryId: summaryIdSchema }),
+]);
+export type SummaryReadRequest = z.infer<typeof summaryReadRequestSchema>;
+
+export const summaryReadListResponseSchema = z.object({
+  op: z.literal('list'),
+  view: z.enum(SUMMARY_LIST_VIEWS),
+  /** Newest first. */
+  items: z.array(summaryListItemSchema).max(SUMMARY_LIMITS.maxListItems),
+  /** More rows exist than fit in one answer. */
+  hasMore: z.boolean(),
+});
+export type SummaryReadListResponse = z.infer<typeof summaryReadListResponseSchema>;
+
+export const summaryReadGetResponseSchema = z.object({
+  op: z.literal('get'),
+  summary: summaryDetailSchema,
+});
+export type SummaryReadGetResponse = z.infer<typeof summaryReadGetResponseSchema>;
+
+export const summaryReadResponseSchema = z.discriminatedUnion('op', [
+  summaryReadListResponseSchema,
+  summaryReadGetResponseSchema,
+]);
+export type SummaryReadResponse = z.infer<typeof summaryReadResponseSchema>;
+
+// ---- Errors ----------------------------------------------------------------------------------
+
+/** Error taxonomy of the summary* callables (details.reason; HttpsError codes in parentheses). */
+export const SUMMARY_ERROR_CODES = [
+  /** (unauthenticated) Signed out, or the email is not verified (the assistant's rule). */
+  'unauthenticated',
+  /** (failed-precondition) SUMMARIES_ENABLED is off. */
+  'not_enabled',
+  /** (permission-denied) The caller is not in the pilot list. */
+  'not_allowed',
+  /**
+   * (failed-precondition) No address can be used yet: the server's address template is empty
+   * (being set up), or the op needs an address the caller has not created.
+   */
+  'not_ready',
+  /** (invalid-argument) The request does not match the schema. */
+  'invalid_request',
+  /** (not-found) No such summary for this caller, or a refused row asked for its full view. */
+  'not_found',
+  /**
+   * (failed-precondition) attach: the meeting is missing, deleted or not the caller's, or
+   * occurrenceDate is not a real occurrence of the series (or is missing for a series).
+   */
+  'invalid_meeting',
+  /** (resource-exhausted) Over SUMMARY_LIMITS.maxRotationsPerDay new addresses in one UTC day. */
+  'rate_limited',
+  /** (unavailable) Storage or the data key failed; try again later. */
+  'upstream_error',
+] as const;
+export type SummaryErrorCode = (typeof SUMMARY_ERROR_CODES)[number];
+
+/** Firebase HttpsError code the summary* callables throw for each error. */
+export const SUMMARY_ERROR_HTTPS_CODES = {
+  unauthenticated: 'unauthenticated',
+  not_enabled: 'failed-precondition',
+  not_allowed: 'permission-denied',
+  not_ready: 'failed-precondition',
+  invalid_request: 'invalid-argument',
+  not_found: 'not-found',
+  invalid_meeting: 'failed-precondition',
+  rate_limited: 'resource-exhausted',
+  upstream_error: 'unavailable',
+} as const satisfies Record<SummaryErrorCode, string>;
+
+/** `HttpsError.details` payload the summary* callables attach to every error. */
+export const summaryErrorDetailsSchema = z.object({ reason: z.enum(SUMMARY_ERROR_CODES) });
+export type SummaryErrorDetails = z.infer<typeof summaryErrorDetailsSchema>;
+
+// ---- summaryCommitments (M11, docs/v2/M11-DESIGN.md sections 2 to 4 and 6) -------------------
+//
+// One gated callable (SUMMARY_COMMITMENTS_CALLABLE), deployed like summaryRead, with three ops:
+// - get {summaryId}: the current suggestions; never calls the model, never charges.
+// - prepare {summaryId, mode}: builds them when none are valid. Mode 'ai' sends the text to OpenAI
+//   through the server (one AI action per summary, the first time only); 'as_written' lists the
+//   action items exactly as written (free, no AI).
+// - decide {summaryId, key, timezone, language, decisions}: accept (the server creates the task in
+//   one transaction, with a deterministic id, so a second tap, device or WhatsApp reply never
+//   duplicates it), drop, restore, remove (Undo).
+// The summary is only ever filed (matched) or kept; anything else answers not_found. Every quote is
+// the summary's own text (a whole item or a whole sentence); titles, owners and dates are checked
+// against it by code.
+
+/** An extraction's key ("x_" + 16 hex): decide must name the key it was shown. */
+export const commitmentKeySchema = z.string().regex(/^x_[0-9a-f]{16}$/);
+
+/** A suggestion's anchor: the summary item id ("i_" + 12 hex) or a sentence id ("q_" + 12 hex). */
+export const commitmentAnchorIdSchema = z.string().regex(/^[iq]_[0-9a-f]{12}$/);
+
+/** COMMITMENT_FLAGS, leniently: an unknown value a later server adds is dropped, never a failed parse. */
+export const commitmentFlagsSchema = z
+  .array(z.enum(COMMITMENT_FLAGS).nullable().catch(null))
+  .max(32)
+  .transform((flags) => [...new Set(flags.filter((flag): flag is CommitmentFlag => flag !== null))]);
+
+/** The person a suggestion names, as written in the summary. isUser: it is the user ("You"); guess: only the first name matched ("You?"). */
+export const commitmentOwnerSchema = z.object({
+  name: z.string().min(1).max(COMMITMENT_LIMITS.maxOwnerChars),
+  isUser: z.boolean(),
+  guess: z.boolean(),
+});
+export type CommitmentOwner = z.infer<typeof commitmentOwnerSchema>;
+
+/** A deadline the summary states (read by code from its own words); null on the item when none. */
+export const commitmentDueSchema = z.object({
+  /** Local date YYYY-MM-DD. */
+  date: localDateKeySchema,
+  /** HH:MM, only when the summary writes a clock time. */
+  time: localTimeKeySchema.nullable(),
+  /** The zone a stated time is in (the meeting's); null for a date only. */
+  zone: timeZoneSchema.nullable(),
+  /** The summary's own words for it ("by Friday"), or null. */
+  quote: z.string().min(1).max(COMMITMENT_LIMITS.maxQuoteChars).nullable(),
+  /** The date has passed: shown as overdue, with no reminder until the user picks one. */
+  overdue: z.boolean(),
+});
+export type CommitmentDue = z.infer<typeof commitmentDueSchema>;
+
+/** One suggestion. */
+export const commitmentItemSchema = z.object({
+  anchorId: commitmentAnchorIdSchema,
+  /** Stable 1-based number within this extraction, never reused (WhatsApp replies name it). */
+  number: z.number().int().min(1).max(999),
+  anchorKind: z.enum(COMMITMENT_ANCHOR_KINDS),
+  sectionKind: z.enum(SUMMARY_SECTION_KINDS),
+  /** The section heading as written; null for a body section. */
+  sectionHeading: z.string().max(SUMMARY_LIMITS.maxHeadingChars).nullable(),
+  /** "From the summary:" the whole item or the whole sentence, verbatim, plain text. */
+  quote: z.string().min(1).max(SUMMARY_LIMITS.maxItemChars),
+  /** The proposed task title (cleaned; "<owner>: ..." for someone else's commitment). */
+  title: z.string().min(1).max(COMMITMENT_LIMITS.maxTitleChars),
+  owner: commitmentOwnerSchema.nullable(),
+  due: commitmentDueSchema.nullable(),
+  /** The model's confidence 0 to 100; null for the items as written. */
+  confidence: z.number().int().min(0).max(100).nullable(),
+  flags: commitmentFlagsSchema,
+  /** Ticked when the screen opens (computed when answered, from the current trust facts). */
+  preselected: z.boolean(),
+  status: z.enum(COMMITMENT_STATUSES),
+  /** Accepted: the task's id; null otherwise. */
+  taskId: meetingIdSchema.nullable(),
+  /** Accepted: whether that task still exists ("Removed from your tasks" with Add again); null otherwise. */
+  taskExists: z.boolean().nullable(),
+  /** Accepted: where; null otherwise. */
+  via: z.enum(COMMITMENT_CHANNELS).nullable(),
+});
+export type CommitmentItem = z.infer<typeof commitmentItemSchema>;
+
+/** Summary-level pre-selection (docs/v2/M11-DESIGN.md section 2.6). */
+export const commitmentPreselectSchema = z.object({
+  /** Clean action-list items may be ticked (a fully trusted recap only). */
+  allowed: z.boolean(),
+  /** "Select all" is offered (never for a summary not addressed to the user). */
+  selectAll: z.boolean(),
+  /** The banner; null when pre-selection is allowed. */
+  reason: z.enum(COMMITMENT_PRESELECT_REASONS).nullable().catch(null),
+});
+export type CommitmentPreselect = z.infer<typeof commitmentPreselectSchema>;
+
+/** Where the suggestions come from (the origin block, always shown first). */
+export const commitmentOriginSchema = z.object({
+  /** The meeting it is filed under (the master id for a series); null for a kept summary. */
+  meetingId: meetingIdSchema.nullable(),
+  /** The user's own calendar title of that meeting; null for a kept summary. */
+  meetingTitle: z.string().max(SUMMARY_LIMITS.maxTitleChars).nullable(),
+  /** For a series: the ORIGINAL local date of the occurrence; else null. */
+  occurrenceDate: localDateKeySchema.nullable(),
+  /** The meeting's local date (else the summary's date), or null. */
+  localDate: localDateKeySchema.nullable(),
+  tier: z.enum(SUMMARY_TIERS),
+  /** The d= of a passing signature only, or null. */
+  senderDomain: summaryDomainSchema.nullable(),
+  /** user_forwarded: the mailbox it was forwarded from; else null. */
+  forwardedBy: summaryAddrSpecSchema.nullable(),
+});
+export type CommitmentOrigin = z.infer<typeof commitmentOriginSchema>;
+
+/** A summary's suggestions (prepared or stale). */
+export const summaryCommitmentsSchema = z.object({
+  key: commitmentKeySchema,
+  mode: z.enum(COMMITMENT_MODES),
+  preparedAt: isoDateTimeSchema,
+  preselect: commitmentPreselectSchema,
+  origin: commitmentOriginSchema,
+  /** Only the first part of a long summary was read. */
+  truncated: z.boolean(),
+  /** Filed under another meeting since the suggestions were prepared. */
+  meetingChanged: z.boolean(),
+  /** In document order. */
+  items: z.array(commitmentItemSchema).max(COMMITMENT_LIMITS.maxProposals),
+});
+export type SummaryCommitments = z.infer<typeof summaryCommitmentsSchema>;
+
+/** The task as the user accepts it (the app checked the task invariants first, as the server does). */
+export const commitmentDraftSchema = z
+  .object({
+    title: z.string().min(1).max(COMMITMENT_LIMITS.maxTitleChars),
+    dueDate: localDateKeySchema.nullable(),
+    dueTime: localTimeKeySchema.nullable(),
+    reminderMinutesBefore: z.number().int().min(0).max(AI_TASK_LIMITS.maxReminderMinutes).nullable(),
+    /** null: nobody; isUser true: the user (no people entry); else that person on the task. */
+    owner: z.object({ name: z.string().min(1).max(COMMITMENT_LIMITS.maxOwnerChars), isUser: z.boolean() }).nullable(),
+  })
+  .refine((d) => d.dueTime === null || d.dueDate !== null, { message: 'dueTime needs a dueDate', path: ['dueTime'] })
+  .refine((d) => d.reminderMinutesBefore === null || d.dueTime !== null, {
+    message: 'a reminder needs a due time',
+    path: ['reminderMinutesBefore'],
+  });
+export type CommitmentDraft = z.infer<typeof commitmentDraftSchema>;
+
+export const commitmentDecisionSchema = z.discriminatedUnion('decision', [
+  z.object({ anchorId: commitmentAnchorIdSchema, decision: z.literal('accept'), draft: commitmentDraftSchema }),
+  z.object({ anchorId: commitmentAnchorIdSchema, decision: z.literal('drop') }),
+  z.object({ anchorId: commitmentAnchorIdSchema, decision: z.literal('restore') }),
+  z.object({ anchorId: commitmentAnchorIdSchema, decision: z.literal('remove') }),
+]);
+export type CommitmentDecision = z.infer<typeof commitmentDecisionSchema>;
+
+export const summaryCommitmentsRequestSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('get'), summaryId: summaryIdSchema }),
+  z.object({ op: z.literal('prepare'), summaryId: summaryIdSchema, mode: z.enum(COMMITMENT_MODES) }),
+  z
+    .object({
+      op: z.literal('decide'),
+      summaryId: summaryIdSchema,
+      /** The extraction key the screen shows (stale when it is no longer current). */
+      key: commitmentKeySchema,
+      /** The device zone, for the tasks' zone and the reminders. */
+      timezone: timeZoneSchema,
+      /** The language of the task's origin line (EN fallback). */
+      language: z.string().min(1).max(35),
+      decisions: z.array(commitmentDecisionSchema).min(1).max(COMMITMENT_LIMITS.maxDecisionsPerCall),
+    })
+    .refine((request) => new Set(request.decisions.map((d) => d.anchorId)).size === request.decisions.length, {
+      message: 'one decision per anchorId',
+      path: ['decisions'],
+    }),
+]);
+export type SummaryCommitmentsRequest = z.infer<typeof summaryCommitmentsRequestSchema>;
+
+/** What one decision did. */
+export const commitmentDecisionResultSchema = z.object({
+  anchorId: commitmentAnchorIdSchema,
+  outcome: z.enum(COMMITMENT_OUTCOMES),
+  /** The task concerned (added, already added, removed or changed); else null. */
+  taskId: meetingIdSchema.nullable(),
+});
+export type CommitmentDecisionResult = z.infer<typeof commitmentDecisionResultSchema>;
+
+export const summaryCommitmentsResponseSchema = z.object({
+  op: z.enum(['get', 'prepare', 'decide']),
+  state: z.enum(COMMITMENT_STATES),
+  /** ready, empty and stale: the suggestions (stale: the old decisions, read-only); none and preparing: null. */
+  commitments: summaryCommitmentsSchema.nullable(),
+  /** decide only, one per decision. */
+  results: z.array(commitmentDecisionResultSchema).max(COMMITMENT_LIMITS.maxDecisionsPerCall).optional(),
+  /** prepare in mode 'ai' when it was charged: the allowance after it. */
+  usage: assistantUsageSchema.optional(),
+});
+export type SummaryCommitmentsResponse = z.infer<typeof summaryCommitmentsResponseSchema>;
+
+/**
+ * summaryCommitments error taxonomy: every SUMMARY_ERROR_CODES value plus quota_exceeded
+ * (resource-exhausted; details.usage set, the app offers the items as written) and stale
+ * (failed-precondition; decide named an old key, the app reloads). A separate list, so the
+ * exhaustive M10 maps of SUMMARY_ERROR_CODES stay as they are.
+ */
+export const COMMITMENT_ERROR_CODES = [...SUMMARY_ERROR_CODES, 'quota_exceeded', 'stale'] as const;
+export type CommitmentErrorCode = (typeof COMMITMENT_ERROR_CODES)[number];
+
+export const COMMITMENT_ERROR_HTTPS_CODES = {
+  ...SUMMARY_ERROR_HTTPS_CODES,
+  quota_exceeded: 'resource-exhausted',
+  stale: 'failed-precondition',
+} as const satisfies Record<CommitmentErrorCode, string>;
+
+/** `HttpsError.details` of every summaryCommitments error; usage only for quota_exceeded. */
+export const commitmentErrorDetailsSchema = z.object({
+  reason: z.enum(COMMITMENT_ERROR_CODES),
+  usage: assistantUsageSchema.optional(),
+});
+export type CommitmentErrorDetails = z.infer<typeof commitmentErrorDetailsSchema>;
 // Executive assistant matters (matter* callables; docs/v1/ARCHITECTURE.md section 36)
 // ---------------------------------------------------------------------------------------------
 //

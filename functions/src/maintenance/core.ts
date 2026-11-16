@@ -14,6 +14,22 @@
  *    runbook replays every deletion recorded since the backup time (docs/v1/DEPLOYMENT.md §7), so a
  *    deleted account stays deleted. The record holds only the anonymous user id and the time, and
  *    is itself deleted after DELETION_LOG_RETENTION_DAYS (longer than any backup is kept).
+ *
+ * 3. Meeting summaries (M10, docs/v2/M10-DESIGN.md section 7). Every document carries its own
+ *    `expiresAt`, set when it is written (functions/src/summaries/model.ts SUMMARY_RETENTION_DAYS):
+ *    users/{uid}/meetingSummaries summaries (filed or kept 365 days, inbox 60 days, from receipt)
+ *    and refused rows (30 days after the latest refusal), and the root summaryEvents markers
+ *    (35 days) and first-seen records (2 days). The daily run deletes them once `expiresAt` passed.
+ *    Gmail confirmation requests are not documents of their own: they live in
+ *    summaryUsers/{uid}.gmailRequests and are pruned when that document is written.
+ *    Two differences from the purges above (review findings P5 and S6, Nov 12):
+ *    - Each M10 purge is NON-FATAL: its error is caught, recorded by error name only in
+ *      purgeErrors, and the run goes on (complete false). The meetingSummaries purge is a
+ *      collection-group query that needs the expiresAt fieldOverride, which is deployed with the
+ *      rules after Apple's decision (design section 7); until then it fails every day and must
+ *      not stop the summaryEvents purge or the completion log.
+ *    - The delete re-checks expiresAt (deleteIfExpired): a summary filed or kept, or a marker
+ *      claimed again, between the listing and the delete keeps its new expiry and is not deleted.
  */
 
 /** Must equal TOMBSTONE_RETENTION_DAYS in src/core/types.ts (checked by a unit test). */
@@ -50,9 +66,25 @@ export interface MaintenancePorts {
   listExpiredWhatsappCodes(nowIso: string, limit: number): Promise<string[]>;
   /** Paths of whatsappSessions whose `updatedAt` (ISO) is before `cutoffIso`. */
   listStaleWhatsappSessions(cutoffIso: string, limit: number): Promise<string[]>;
+  /**
+   * Paths of users/{uid}/meetingSummaries documents of any user (summaries and refused rows) whose
+   * `expiresAt` (ISO) is before `nowIso` (M10; collection-group query).
+   */
+  listExpiredMeetingSummaries(nowIso: string, limit: number): Promise<string[]>;
+  /** Paths of summaryEvents markers and first-seen records whose `expiresAt` (ISO) is before `nowIso` (M10). */
+  listExpiredSummaryEvents(nowIso: string, limit: number): Promise<string[]>;
   /** Deletes the documents (missing ones are fine). */
   deleteDocuments(paths: readonly string[]): Promise<void>;
+  /**
+   * M10: deletes each document whose `expiresAt` (ISO) is STILL before `nowIso` when it is deleted
+   * (re-read in the same transaction); a missing one, or one whose expiry moved meanwhile, is left
+   * alone. Resolves the number deleted.
+   */
+  deleteIfExpired(paths: readonly string[], nowIso: string): Promise<number>;
 }
+
+/** The M10 purges that may fail without failing the run (MaintenanceResult.purgeErrors). */
+export type SummaryPurge = 'meetingSummaries' | 'summaryEvents';
 
 export interface MaintenanceResult {
   tombstonesPurged: number;
@@ -60,31 +92,75 @@ export interface MaintenanceResult {
   whatsappEventsPurged: number;
   whatsappCodesPurged: number;
   whatsappSessionsPurged: number;
-  /** false when a page limit stopped the run early (the rest is done on the next run). */
+  /** M10: expired users/{uid}/meetingSummaries documents (summaries and refused rows). */
+  meetingSummariesPurged: number;
+  /** M10: expired summaryEvents documents (markers and first-seen records). */
+  summaryEventsPurged: number;
+  /** false when a page limit stopped the run early (the rest is done on the next run), or an M10 purge failed. */
   complete: boolean;
+  /**
+   * Present only when an M10 purge failed: the purge and the error's name (never its message,
+   * which can carry project ids or paths). The documents it purged before failing are counted.
+   */
+  purgeErrors?: Partial<Record<SummaryPurge, string>>;
 }
 
 export function cutoffIso(now: Date, days: number): string {
   return new Date(now.getTime() - days * DAY_MS).toISOString();
 }
 
+interface PurgeProgress {
+  purged: number;
+  complete: boolean;
+}
+
 async function purgeInPages(
   list: (cutoff: string, limit: number) => Promise<string[]>,
   cutoff: string,
   ports: MaintenancePorts,
-): Promise<{ purged: number; complete: boolean }> {
-  let purged = 0;
+  remove: (paths: readonly string[]) => Promise<number> = async (paths) => {
+    await ports.deleteDocuments(paths);
+    return paths.length;
+  },
+  progress: PurgeProgress = { purged: 0, complete: false },
+): Promise<PurgeProgress> {
   for (let page = 0; page < MAINTENANCE_MAX_PAGES; page += 1) {
     const paths = await list(cutoff, MAINTENANCE_PAGE_SIZE);
-    if (paths.length === 0) return { purged, complete: true };
-    await ports.deleteDocuments(paths);
-    purged += paths.length;
-    if (paths.length < MAINTENANCE_PAGE_SIZE) return { purged, complete: true };
+    if (paths.length === 0) return { purged: progress.purged, complete: true };
+    progress.purged += await remove(paths);
+    if (paths.length < MAINTENANCE_PAGE_SIZE) return { purged: progress.purged, complete: true };
   }
-  return { purged, complete: false };
+  return { purged: progress.purged, complete: false };
 }
 
-/** The daily run: expired tombstones, deletion records, then the WhatsApp bot state (§27). */
+function errorNameOf(error: unknown): string {
+  return error instanceof Error ? error.name : typeof error;
+}
+
+/**
+ * An M10 purge (see the file comment): expiresAt re-checked at delete time, and an error is
+ * recorded in `errors` instead of failing the run. What was purged before the error still counts.
+ */
+async function purgeSummaryState(
+  purge: SummaryPurge,
+  list: (cutoff: string, limit: number) => Promise<string[]>,
+  nowIso: string,
+  ports: MaintenancePorts,
+  errors: Partial<Record<SummaryPurge, string>>,
+): Promise<PurgeProgress> {
+  const progress: PurgeProgress = { purged: 0, complete: false };
+  try {
+    return await purgeInPages(list, nowIso, ports, (paths) => ports.deleteIfExpired(paths, nowIso), progress);
+  } catch (error) {
+    errors[purge] = errorNameOf(error);
+    return { purged: progress.purged, complete: false };
+  }
+}
+
+/**
+ * The daily run: expired tombstones, deletion records, then the WhatsApp bot state (§27), then the
+ * meeting summaries state (M10, by its own expiresAt).
+ */
 export async function runDailyMaintenance(ports: MaintenancePorts, now: Date): Promise<MaintenanceResult> {
   const tombstones = await purgeInPages(
     (cutoff, limit) => ports.listExpiredTombstones(cutoff, limit),
@@ -104,13 +180,39 @@ export async function runDailyMaintenance(ports: MaintenancePorts, now: Date): P
     cutoffIso(now, WHATSAPP_SESSION_RETENTION_DAYS),
     ports,
   );
+  // M10: both carry their own expiresAt, so they purge against now itself; neither can fail the run.
+  const purgeErrors: Partial<Record<SummaryPurge, string>> = {};
+  const summaries = await purgeSummaryState(
+    'meetingSummaries',
+    (cutoff, limit) => ports.listExpiredMeetingSummaries(cutoff, limit),
+    nowIso,
+    ports,
+    purgeErrors,
+  );
+  const summaryEvents = await purgeSummaryState(
+    'summaryEvents',
+    (cutoff, limit) => ports.listExpiredSummaryEvents(cutoff, limit),
+    nowIso,
+    ports,
+    purgeErrors,
+  );
   return {
     tombstonesPurged: tombstones.purged,
     deletionRecordsPurged: records.purged,
     whatsappEventsPurged: events.purged,
     whatsappCodesPurged: codes.purged,
     whatsappSessionsPurged: sessions.purged,
-    complete: tombstones.complete && records.complete && events.complete && codes.complete && sessions.complete,
+    meetingSummariesPurged: summaries.purged,
+    summaryEventsPurged: summaryEvents.purged,
+    complete:
+      tombstones.complete &&
+      records.complete &&
+      events.complete &&
+      codes.complete &&
+      sessions.complete &&
+      summaries.complete &&
+      summaryEvents.complete,
+    ...(Object.keys(purgeErrors).length > 0 ? { purgeErrors } : {}),
   };
 }
 
@@ -123,13 +225,21 @@ export interface DeletionReplayPorts {
   deleteDocument(path: string): Promise<void>;
   /** Removes the WhatsApp link, session and user documents of the uid (restored by the backup). */
   deleteWhatsAppData?(uid: string): Promise<void>;
+  /**
+   * M10: removes summaryUsers/{uid} and every summaryAddresses doc naming the uid (restored by the
+   * backup; summaries/accountDeletion.ts deleteSummaryDataForUid). Required, so no caller can skip it.
+   */
+  deleteSummaryData(uid: string): Promise<void>;
 }
 
 /** The server data of one deleted account (the Auth user is already gone: Auth is not restored). */
 export async function deleteAccountDocuments(
   uid: string,
-  ports: Pick<DeletionReplayPorts, 'recursiveDelete' | 'deleteDocument' | 'deleteWhatsAppData'>,
+  ports: Pick<DeletionReplayPorts, 'recursiveDelete' | 'deleteDocument' | 'deleteWhatsAppData' | 'deleteSummaryData'>,
 ): Promise<void> {
+  // First, as in deleteAccount: a restored private address stops resolving before anything else.
+  // (The inbound pipeline also refuses a uid without an Auth user, and Auth is not restored.)
+  await ports.deleteSummaryData(uid);
   await ports.recursiveDelete(`users/${uid}`);
   await ports.deleteDocument(`entitlements/${uid}`);
   await ports.recursiveDelete(`usage/${uid}`);

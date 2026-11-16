@@ -88,7 +88,9 @@ Changes here need a reviewer even for a one-line fix, and the author says in the
 what was tested on a real phone:
 
 - the alert engine: `src/services/alerts/**` and `modules/mg-fullscreen-alarm/**`
-- the AI contract and its server mirror: `src/core/aiContract.ts`, `functions/src/shared/aiContract.ts`
+- the AI contract and its server mirror: `src/core/aiContract.ts`, `functions/src/shared/aiContract.ts`,
+  plus the server copies of `src/core/errors.ts`, `time.ts` and `recurrence.ts` in `functions/src/shared/`
+  (each copy must stay identical; `npm run check:contract` in `functions/` verifies all four)
 - Firestore rules and indexes: `firestore.rules`, `firestore.indexes.json`
 - everything under `functions/` (billing webhooks, WhatsApp, the assistant handler, admin callables,
   the meeting summaries in `functions/src/summaries/`, the executive assistant's matters in

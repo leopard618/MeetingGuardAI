@@ -18,8 +18,10 @@ security rules and the public account-deletion page.
 | `dailyMaintenance` | Every day at 03:30 UTC: hard-deletes meeting tombstones older than 60 days (a collection-group query on `deletedAt`; the index is in `../firestore.indexes.json`) and account deletion records older than 30 days. The privacy policy promises both. The first deploy enables Cloud Scheduler. |
 
 The request/response contract is `src/shared/aiContract.ts`, a **verbatim copy** of the app's
-`src/core/aiContract.ts`. `npm run check:contract`, a unit test and CI fail when the two differ. To
-change the contract, edit `src/core/aiContract.ts` in the app and copy it over.
+`src/core/aiContract.ts`. `src/shared/errors.ts`, `time.ts` and `recurrence.ts` are verbatim copies of
+the app's `src/core` files of the same name (M10 matching uses them). `npm run check:contract`, a unit
+test and CI fail when any of the four pairs differ. To change one, edit the file in the app's
+`src/core` and copy it over.
 
 ```
 functions/
@@ -32,7 +34,7 @@ functions/
   src/deleteAccount.ts
   src/microsoftSignIn.ts       Sign in with Microsoft: id_token verification (RS256, JWKS cache), identity resolution, custom token
   src/maintenance/             retention: tombstone purge, deletion log (core.ts pure, index.ts schedule)
-  src/shared/aiContract.ts     verbatim copy of src/core/aiContract.ts
+  src/shared/aiContract.ts     verbatim copy of src/core/aiContract.ts (also errors.ts, time.ts, recurrence.ts)
   scripts/replay-account-deletions.mjs   re-applies account deletions after a Firestore restore
   test/unit/                   Jest unit tests (no network, no emulator)
   test/rules/                  Firestore rules tests (emulator)
@@ -187,7 +189,7 @@ npm run lint             # ESLint (typescript-eslint)
 npm run typecheck        # tsc on sources and tests
 npm run build            # tsc -> lib/
 npm test                 # unit tests: quota, entitlement, time zones, context, prompt, tools, action mapping, handler (incl. stats hook), admin v1+v2, openaiKey (secret REST mocked), deleteAccount, maintenance, contract copy
-npm run check:contract   # src/shared/aiContract.ts == ../src/core/aiContract.ts
+npm run check:contract   # src/shared/{aiContract,errors,time,recurrence}.ts == ../src/core/ copies
 npm run test:rules       # Firestore rules tests inside `firebase emulators:exec` (Java 21+)
 ```
 

@@ -255,8 +255,12 @@ gcloud firestore export gs://<bucket>/manual-<date>
    node scripts/replay-account-deletions.mjs --project <project-id> --since <backup time>
    ```
 
-   It deletes `users/{uid}` (recursively), `entitlements/{uid}` and `usage/{uid}` of each of those
-   accounts again. The Auth users stay deleted (Firebase Auth is not part of a Firestore restore).
+   It deletes `users/{uid}` (recursively, so the meeting summaries under it too), `entitlements/{uid}`
+   and `usage/{uid}` of each of those accounts again, plus their WhatsApp link, session and user
+   documents and their meeting summary documents outside users/{uid} (`summaryUsers/{uid}` and every
+   `summaryAddresses` document naming the uid). The Auth users stay deleted (Firebase Auth is not part
+   of a Firestore restore). Not yet covered: `microsoftIdentities` and `zoomMeetings`
+   (docs/v2/LEGAL-CLAIMS-1.6.0.md item 6).
 5. Delete the temporary database: `npx firebase firestore:databases:delete restore-<date>`.
 
 **Retention of deleted data.** Deleted accounts and meetings stay in backups until those expire

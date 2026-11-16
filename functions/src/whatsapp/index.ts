@@ -58,6 +58,8 @@ import { firestoreLinkStore, handleLinkStart, handleLinkStatus, handleUnlink, wh
 import { createGraphSender } from './send';
 import { firestoreWhatsappStore } from './session';
 import { SIGNATURE_HEADER, verifyHandshake, verifyWebhookSignature } from './signature';
+// M11 (docs/v2/M11-DESIGN.md section 4.3): the port to the summaryWhatsApp worker (no data key here).
+import { summaryRouteDepsAtLoad } from './summaryPort';
 import { processWebhookPayload, type WebhookDeps } from './webhook';
 
 export { whatsappError } from './link';
@@ -182,6 +184,8 @@ function webhookDeps(): WebhookDeps {
   const executor: ExecutorDeps = { store: firestoreMeetingStore(db), tasks: firestoreTaskStore(db), now: () => new Date() };
   const hooks = zoomHooks();
   if (hooks) executor.zoom = hooks;
+  // M11: present only while SUMMARIES_ENABLED is true at load; used for pilot uids only.
+  const summaries = summaryRouteDepsAtLoad(db);
   return {
     store: firestoreWhatsappStore(db),
     sender: createGraphSender({
@@ -193,6 +197,7 @@ function webhookDeps(): WebhookDeps {
     dailyLimit: WHATSAPP_USER_DAILY_LIMIT.value(),
     displayNumber: WHATSAPP_DISPLAY_NUMBER.value().replace(/[^0-9]/g, ''),
     now: () => new Date(),
+    ...(summaries === undefined ? {} : { summaries }),
   };
 }
 

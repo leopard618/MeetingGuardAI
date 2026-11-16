@@ -19,7 +19,7 @@ exports[`bot strings EN snapshot 1`] = `
   "linkSuccess": "Your WhatsApp is now linked to Meeting Guard. Ask me about your meetings, for example "What do I have tomorrow?"",
   "listEmpty": "I found no matching meetings.",
   "partialFailure": "Some changes could not be applied. Please check in the app.",
-  "quotaExceeded": "You reached your daily assistant limit. It resets at midnight UTC.",
+  "quotaExceeded": "You reached your AI action limit for now. The free allowance is 10 actions in your first 7 days, up to 3 a day; Pro and Premium renew each month on the day you subscribed. See your usage in the app.",
   "summaryLabels": {
     "allDay": "all day",
     "duration": "Duration",
@@ -51,7 +51,7 @@ exports[`bot strings ES snapshot 1`] = `
   "linkSuccess": "Tu WhatsApp quedó vinculado a Meeting Guard. Pregúntame por tus reuniones, por ejemplo «¿Qué tengo mañana?»",
   "listEmpty": "No encontré reuniones que coincidan.",
   "partialFailure": "Algunos cambios no se pudieron aplicar. Revísalo en la app.",
-  "quotaExceeded": "Alcanzaste tu límite diario del asistente. Se reinicia a medianoche UTC.",
+  "quotaExceeded": "Alcanzaste tu límite de acciones de IA por ahora. La asignación gratuita es de 10 acciones en tus primeros 7 días, hasta 3 al día; Pro y Premium se renuevan cada mes el día en que te suscribiste. Consulta tu uso en la app.",
   "summaryLabels": {
     "allDay": "todo el día",
     "duration": "Duración",

@@ -6,6 +6,7 @@
  *   whatsappUsers/{uid}           reverse index + code rate limit (see link.ts)
  *   whatsappLinkCodes/{sha256}    { uid, expiresAt }  one-time link codes (never stored plain)
  *   whatsappSessions/{phoneE164}  conversation state + per-phone daily counters
+ *                                 + summaryOffer (M11, ids only; ../summaries/whatsappProtocol.ts)
  *   whatsappEvents/{sha256(wamid)} { receivedAt, expiresAt }  webhook dedupe markers
  *
  * phoneE164 is the digits-only wa_id from the Cloud API (Firestore-safe doc id). Phone numbers
@@ -16,6 +17,8 @@ import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 
 import { WHATSAPP_TUNING } from '../config';
 import { aiActionSchema, usageDayKey, type AiAction, type Language } from '../shared/aiContract';
+// M11 (docs/v2/M11-DESIGN.md section 4.1 step 4): the summary offer's shape, ids only.
+import { parseSummaryOffer, type SummaryOffer } from '../summaries/whatsappProtocol';
 
 export const WHATSAPP_LINKS_COLLECTION = 'whatsappLinks';
 export const WHATSAPP_USERS_COLLECTION = 'whatsappUsers';
@@ -52,6 +55,12 @@ export interface WhatsappSession {
   /** wamid of the inbound message that produced the proposal (execution idempotency key). */
   promptMsgId: string | null;
   actionsExpireAt: string | null;
+  /**
+   * M11: the live suggested-tasks offer (ids only, its own expiresAt; never cleared by the idle
+   * context reset). At most one of summaryOffer and pendingActions is armed: each arming write
+   * clears the other in the same merge write.
+   */
+  summaryOffer: SummaryOffer | null;
   counts: SessionCounts;
   updatedAt: string;
 }
@@ -64,6 +73,7 @@ export function emptySession(now: Date): WhatsappSession {
     pendingNonce: null,
     promptMsgId: null,
     actionsExpireAt: null,
+    summaryOffer: null,
     counts: { day: usageDayKey(now), inbound: 0, unlinkedReplies: 0, codeFailures: 0 },
     updatedAt: now.toISOString(),
   };
@@ -214,6 +224,7 @@ export function parseSession(raw: unknown, now: Date): WhatsappSession {
     pendingNonce: nullableString(data.pendingNonce),
     promptMsgId: nullableString(data.promptMsgId),
     actionsExpireAt: nullableString(data.actionsExpireAt),
+    summaryOffer: parseSummaryOffer(data.summaryOffer),
     counts: {
       day: typeof counts.day === 'string' ? counts.day : usageDayKey(now),
       inbound: nonNegativeInt(counts.inbound),
@@ -317,7 +328,7 @@ export function firestoreWhatsappStore(db: Firestore): WhatsappStore {
         // pending under a previous uid (it must never execute against the new account).
         tx.set(
           sessionRef(phoneE164),
-          { uid, pendingActions: null, pendingNonce: null, promptMsgId: null, actionsExpireAt: null, updatedAt: nowIso },
+          { uid, pendingActions: null, pendingNonce: null, promptMsgId: null, actionsExpireAt: null, summaryOffer: null, updatedAt: nowIso },
           { merge: true },
         );
         tx.delete(codeRef(codeHash));
@@ -347,7 +358,8 @@ export function firestoreWhatsappStore(db: Firestore): WhatsappStore {
     },
 
     async savePendingProposal(phoneE164, patch, proposal) {
-      await sessionRef(phoneE164).set({ ...patch, ...proposal }, { merge: true });
+      // M11: arming a proposal disarms the summary offer in the same write (one armed at a time).
+      await sessionRef(phoneE164).set({ ...patch, ...proposal, summaryOffer: null }, { merge: true });
     },
 
     clearStalePending(phoneE164, patch, expectedNonce) {
@@ -390,6 +402,57 @@ export function firestoreWhatsappStore(db: Firestore): WhatsappStore {
       const language: Language = data.language === 'es' ? 'es' : 'en';
       const timezone = typeof data.timezone === 'string' && data.timezone.length > 0 ? data.timezone : 'UTC';
       return { language, timezone };
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// M11: the suggested-tasks offer (docs/v2/M11-DESIGN.md section 4.1 steps 4 and 5)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The writes of session.summaryOffer. Ids only (../summaries/whatsappProtocol.ts). None of them
+ * touches turns, updatedAt or the counters: nothing of the commitments exchange enters the
+ * conversation (section 15 finding 9).
+ */
+export interface SummaryOfferStore {
+  /**
+   * Arms a new offer and disarms any pending proposal in the SAME merge write, as
+   * savePendingProposal disarms the offer: concurrent invocations always leave exactly one armed.
+   */
+  armSummaryOffer(phoneE164: string, offer: SummaryOffer): Promise<void>;
+  /** Replaces the stored offer only while it is still this offerId (a transaction); false otherwise. */
+  refreshSummaryOffer(phoneE164: string, offer: SummaryOffer): Promise<boolean>;
+  /** Clears the stored offer only while it is still `offerId` (a transaction); false otherwise. */
+  clearSummaryOffer(phoneE164: string, offerId: string): Promise<boolean>;
+}
+
+export function firestoreSummaryOfferStore(db: Firestore): SummaryOfferStore {
+  const sessionRef = (phone: string) => db.doc(`${WHATSAPP_SESSIONS_COLLECTION}/${phone}`);
+
+  function conditional(phoneE164: string, offerId: string, next: SummaryOffer | null): Promise<boolean> {
+    return db.runTransaction(async (tx): Promise<boolean> => {
+      const snapshot = await tx.get(sessionRef(phoneE164));
+      if (!snapshot.exists) return false;
+      const current = parseSummaryOffer((snapshot.data() as Record<string, unknown> | undefined)?.summaryOffer);
+      if (current === null || current.offerId !== offerId) return false;
+      tx.set(sessionRef(phoneE164), { summaryOffer: next }, { merge: true });
+      return true;
+    });
+  }
+
+  return {
+    async armSummaryOffer(phoneE164, offer) {
+      await sessionRef(phoneE164).set(
+        { summaryOffer: offer, pendingActions: null, pendingNonce: null, promptMsgId: null, actionsExpireAt: null },
+        { merge: true },
+      );
+    },
+    refreshSummaryOffer(phoneE164, offer) {
+      return conditional(phoneE164, offer.offerId, offer);
+    },
+    clearSummaryOffer(phoneE164, offerId) {
+      return conditional(phoneE164, offerId, null);
     },
   };
 }
