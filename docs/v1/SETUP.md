@@ -1215,7 +1215,7 @@ nothing below is needed for a deploy.
 From `functions/`, without typing the values at a prompt (no newline is stored):
 
 ```bash
-printf '%s' "<the API token of server assistant>" | npx firebase functions:secrets:set POSTMARK_SERVER_TOKEN
+printf '%s' "<the API token of server assistant>" | npx firebase functions:secrets:set MATTERS_POSTMARK_TOKEN
 printf '%s' "$(openssl rand -hex 24)" | npx firebase functions:secrets:set MATTERS_INBOUND_PASSWORD   # also in the webhook URL
 ```
 
@@ -1227,7 +1227,14 @@ MATTERS_ENABLED=true
 MATTERS_ALLOWED_UIDS=<uid of each tester, comma-separated>
 MATTERS_MAIL_DOMAIN=assistant.meetingguard.ai
 MATTERS_USER_DAILY_LIMIT=30
+MATTERS_SERVICE_ACCOUNT=matters-functions@
 ```
+
+`MATTERS_SERVICE_ACCOUNT` is the runtime account of the five functions (`name@` is expanded with
+the project id). The project owner creates it once, without a key: Cloud Datastore User and Logs
+Writer on the project, and Service Account User on the account for whoever deploys. The deploy
+then grants it access to the secrets it binds. Without the line the functions run as the default
+compute account.
 
 and deploy only these five functions by name (CONTRIBUTING, "Deploying"):
 
@@ -1235,8 +1242,13 @@ and deploy only these five functions by name (CONTRIBUTING, "Deploying"):
 npx firebase deploy --only functions:matterDraft,functions:matterRevise,functions:matterConfirm,functions:matterCancel,functions:assistantInboundEmail
 ```
 
-Before a Postmark account exists, the secret POSTMARK_SERVER_TOKEN can hold Postmark's public
-test token `POSTMARK_API_TEST`: sends are accepted and nothing is delivered.
+Before a Postmark account exists, the secret MATTERS_POSTMARK_TOKEN can hold Postmark's public
+test token `POSTMARK_API_TEST`: sends are accepted and nothing is delivered (the matter records
+the send as `test`, never as sent).
+
+The secret was called POSTMARK_SERVER_TOKEN until A2.0. Delete that old secret only after the
+rename is merged into `v2` and no deployed function binds it any more, so a deploy from `v2`
+never asks for a secret that is gone.
 
 Replacing a secret (the test token by the real one, or a new MATTERS_INBOUND_PASSWORD): deployed
 functions keep the secret VERSION that was latest at their deploy. With only `secrets:set`,

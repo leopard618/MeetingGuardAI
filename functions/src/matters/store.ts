@@ -2,7 +2,10 @@
  * Firestore access of the matters module, behind a small port so the handlers are tested with
  * an in-memory fake (test/unit/mattersHandlers.test.ts). Layout: model.ts.
  */
+import * as logger from 'firebase-functions/logger';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+
+import { ACCOUNT_DELETIONS_COLLECTION } from '../maintenance/core';
 
 import {
   INBOUND_EMAILS_COLLECTION,
@@ -10,7 +13,7 @@ import {
   MATTER_EVENTS_SUBCOLLECTION,
   MATTER_MESSAGES_SUBCOLLECTION,
   MATTER_MESSAGE_IDS_COLLECTION,
-  matterDocSchema,
+  matterDocReadSchema,
   matterPath,
   messageIdKey,
   type MatterDoc,
@@ -31,11 +34,38 @@ export interface AddMessageOptions {
   patch?: Partial<MatterDoc>;
 }
 
+/** The inbound dedupe marker inboundEmails/{providerId}, written with create(). */
+export interface InboundMarker {
+  providerId: string;
+  receivedAt: string;
+  expiresAt: string;
+}
+
+/**
+ * A matter document exists but does not parse (a damaged or hand-edited document). Never reported
+ * as not_found: it is logged as its own outcome (matters.unreadable).
+ */
+export class MatterUnreadableError extends Error {
+  constructor(
+    readonly uid: string,
+    readonly matterId: string,
+    /** The failing field paths (names only, never values). */
+    readonly fields: string[],
+  ) {
+    super('The matter document cannot be read.');
+    this.name = 'MatterUnreadableError';
+  }
+}
+
 export interface MatterStore {
   newMatterId(): string;
-  /** The matter, its first event and its reply address (matterAddresses/{token}), in one batch. */
-  createMatter(uid: string, matterId: string, doc: MatterDoc, event: MatterEvent): Promise<void>;
-  /** The matter, or null when missing or unreadable. */
+  /**
+   * The matter, its first event and its reply address (matterAddresses/{token}), in one
+   * transaction that first checks accountDeletions/{uid}: false (nothing written) when the account
+   * is being deleted, so a draft racing a deletion never outlives it.
+   */
+  createMatter(uid: string, matterId: string, doc: MatterDoc, event: MatterEvent): Promise<boolean>;
+  /** The matter, or null when missing; throws MatterUnreadableError when it does not parse. */
   getMatter(uid: string, matterId: string): Promise<MatterDoc | null>;
   /** Reads and updates one matter in a transaction. */
   updateMatter<T>(uid: string, matterId: string, decide: (doc: MatterDoc | null) => MatterUpdate<T>): Promise<T>;
@@ -45,19 +75,28 @@ export interface MatterStore {
    * outgoing emails; never for inbound ones. patch: fields of the matter written in the same batch.
    */
   addMessage(uid: string, matterId: string, message: MatterMessage, event: MatterEvent, options?: AddMessageOptions): Promise<string>;
+  /**
+   * An inbound email: the message, its event and the dedupe marker (create()) in ONE batch.
+   * 'duplicate' when the marker exists (this provider id was stored before): nothing is written.
+   * When the batch fails for any other reason nothing is written either, so the provider's retry
+   * is processed normally (there is no claim to release).
+   */
+  addInboundMessage(uid: string, matterId: string, message: MatterMessage, event: MatterEvent, marker: InboundMarker): Promise<'stored' | 'duplicate'>;
+  /** The dedupe marker alone, for mail that is not stored (unmatched); false = seen before. */
+  markInbound(marker: InboundMarker): Promise<boolean>;
   findByToken(token: string): Promise<MatterLookup | null>;
   findByMessageKey(key: string): Promise<MatterLookup | null>;
-  /** Create-once inbound marker; false when this provider id was already processed. */
-  claimInbound(providerId: string, receivedAtIso: string, expiresAtIso: string): Promise<boolean>;
-  /** Removes the marker again when storing failed, so the provider's retry is processed. */
-  releaseInbound(providerId: string): Promise<void>;
   /** Counts one draft or revision on usage/{uid}/days/{day}.matterDrafts; false = over the cap. */
   consumeDaily(uid: string, dayKey: string, limit: number, nowIso: string): Promise<boolean>;
 }
 
-function parseMatter(data: unknown): MatterDoc | null {
-  const parsed = matterDocSchema.safeParse(data);
-  return parsed.success ? parsed.data : null;
+/** Reads tolerate fields this version does not know (matterDocReadSchema); a real mismatch throws. */
+function parseMatter(uid: string, matterId: string, data: unknown): MatterDoc {
+  const parsed = matterDocReadSchema.safeParse(data);
+  if (parsed.success) return parsed.data;
+  const fields = [...new Set(parsed.error.issues.map((issue) => issue.path.join('.') || '(root)'))].slice(0, 10);
+  logger.error('matters.unreadable', { uid, matterId, fields });
+  throw new MatterUnreadableError(uid, matterId, fields);
 }
 
 function asLookup(data: unknown): MatterLookup | null {
@@ -74,22 +113,25 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
       return db.collection('_').doc().id;
     },
     async createMatter(uid, matterId, doc, event) {
-      const batch = db.batch();
       const ref = matterRef(uid, matterId);
-      batch.create(ref, doc);
-      batch.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), event);
-      batch.create(db.collection(MATTER_ADDRESSES_COLLECTION).doc(doc.replyToken), { uid, matterId, createdAt: doc.createdAt });
-      await batch.commit();
+      const deletion = db.collection(ACCOUNT_DELETIONS_COLLECTION).doc(uid);
+      return db.runTransaction(async (tx) => {
+        if ((await tx.get(deletion)).exists) return false;
+        tx.create(ref, doc);
+        tx.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), event);
+        tx.create(db.collection(MATTER_ADDRESSES_COLLECTION).doc(doc.replyToken), { uid, matterId, createdAt: doc.createdAt });
+        return true;
+      });
     },
     async getMatter(uid, matterId) {
       const snapshot = await matterRef(uid, matterId).get();
-      return snapshot.exists ? parseMatter(snapshot.data()) : null;
+      return snapshot.exists ? parseMatter(uid, matterId, snapshot.data()) : null;
     },
     async updateMatter(uid, matterId, decide) {
       const ref = matterRef(uid, matterId);
       return db.runTransaction(async (tx) => {
         const snapshot = await tx.get(ref);
-        const outcome = decide(snapshot.exists ? parseMatter(snapshot.data()) : null);
+        const outcome = decide(snapshot.exists ? parseMatter(uid, matterId, snapshot.data()) : null);
         if (outcome.patch) tx.update(ref, outcome.patch);
         for (const event of outcome.events ?? []) tx.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), event);
         return outcome.result;
@@ -117,17 +159,31 @@ export function firestoreMatterStore(db: Firestore): MatterStore {
       const snapshot = await db.collection(MATTER_MESSAGE_IDS_COLLECTION).doc(key).get();
       return snapshot.exists ? asLookup(snapshot.data()) : null;
     },
-    async claimInbound(providerId, receivedAtIso, expiresAtIso) {
+    async addInboundMessage(uid, matterId, message, event, marker) {
+      const ref = matterRef(uid, matterId);
+      const messageRef = ref.collection(MATTER_MESSAGES_SUBCOLLECTION).doc();
+      const batch = db.batch();
+      // create(): a provider id seen before fails the whole batch, so a retry never stores twice
+      batch.create(db.collection(INBOUND_EMAILS_COLLECTION).doc(marker.providerId), { receivedAt: marker.receivedAt, expiresAt: marker.expiresAt });
+      batch.create(messageRef, message);
+      batch.create(ref.collection(MATTER_EVENTS_SUBCOLLECTION).doc(), { ...event, messageId: messageRef.id });
+      batch.update(ref, { updatedAt: message.at });
       try {
-        await db.collection(INBOUND_EMAILS_COLLECTION).doc(providerId).create({ receivedAt: receivedAtIso, expiresAt: expiresAtIso });
+        await batch.commit();
+        return 'stored';
+      } catch (error) {
+        if (isAlreadyExists(error)) return 'duplicate';
+        throw error;
+      }
+    },
+    async markInbound(marker) {
+      try {
+        await db.collection(INBOUND_EMAILS_COLLECTION).doc(marker.providerId).create({ receivedAt: marker.receivedAt, expiresAt: marker.expiresAt });
         return true;
       } catch (error) {
         if (isAlreadyExists(error)) return false;
         throw error;
       }
-    },
-    async releaseInbound(providerId) {
-      await db.collection(INBOUND_EMAILS_COLLECTION).doc(providerId).delete();
     },
     async consumeDaily(uid, dayKey, limit, nowIso) {
       const ref = db.doc(`usage/${uid}/days/${dayKey}`);

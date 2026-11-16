@@ -6,12 +6,18 @@
  * `undefined` unless MATTERS_ENABLED is true while this module is loaded at deploy time, and the
  * matter params and secrets (config.ts mattersParams) are DECLARED only then. firebase-functions
  * puts every declared param and secret in the deploy manifest whether a function uses it or not,
- * so with the assistant off a deploy never asks for POSTMARK_SERVER_TOKEN,
+ * so with the assistant off a deploy never asks for MATTERS_POSTMARK_TOKEN,
  * MATTERS_INBOUND_PASSWORD or a MATTERS_* line. Handlers re-check MATTERS_ENABLED and
  * MATTERS_ALLOWED_UIDS at run time.
  *
+ * Runtime identity: every function here runs as the service account named by the
+ * MATTERS_SERVICE_ACCOUNT line in functions/.env.<projectId> (mattersServiceAccountAtLoad), so
+ * the deploy grants the secrets to that account and not to the shared default compute account.
+ * Without the line (or with a value that is not one service account address) they deploy under
+ * the default account, as before.
+ *
  * - matterDraft / matterRevise: one model call each (OPENAI_API_KEY).
- * - matterConfirm: the first email (POSTMARK_SERVER_TOKEN).
+ * - matterConfirm: the first email (MATTERS_POSTMARK_TOKEN).
  * - matterCancel: Firestore only.
  * - assistantInboundEmail: Postmark's inbound webhook (HTTP basic auth, user "postmark", password
  *   MATTERS_INBOUND_PASSWORD); 401 before the body is read when it does not match. Every other
@@ -54,6 +60,35 @@ export function mattersEnabledAtLoad(): boolean {
   return typeof raw === 'string' && raw.trim().toLowerCase() === 'true';
 }
 
+/** A service account address ("name@project.iam.gserviceaccount.com") or the "name@" shorthand. */
+const SERVICE_ACCOUNT_RE = /^[a-z0-9][a-z0-9._-]{0,99}@(?:(?:[a-z0-9-]+\.)+gserviceaccount\.com)?$/i;
+
+/**
+ * The MATTERS_SERVICE_ACCOUNT value while this module is LOADED: a PLAIN KEY in
+ * functions/.env.<projectId>, read at deploy time (CLI discovery) and load time, never at request
+ * time, and deliberately not a declared param (firebase-tools resolves declared params after
+ * discovery; the same reasoning as summaries/gate.ts summariesServiceAccountAtLoad). Trimmed; the
+ * "name@" shorthand is expanded with GCLOUD_PROJECT, because the CLI grants the secrets to the
+ * value as written. Null when unset, blank or not one service account address (never "public",
+ * a user or a group). Never logged.
+ */
+export function mattersServiceAccountAtLoad(): string | null {
+  const raw = process.env.MATTERS_SERVICE_ACCOUNT;
+  if (typeof raw !== 'string') return null;
+  const value = raw.trim();
+  if (value.length === 0) return null;
+  const project = process.env.GCLOUD_PROJECT?.trim() ?? '';
+  const shorthand = value.length > 1 && value.indexOf('@') === value.length - 1;
+  const expanded = shorthand && project.length > 0 ? `${value}${project}.iam.gserviceaccount.com` : value;
+  return SERVICE_ACCOUNT_RE.test(expanded) ? expanded : null;
+}
+
+/** The runtime identity option of every matter function (empty: the default account). */
+function runtimeIdentity(): { serviceAccount?: string } {
+  const serviceAccount = mattersServiceAccountAtLoad();
+  return serviceAccount !== null ? { serviceAccount } : {};
+}
+
 function callerOf(auth: { uid: string; token: Record<string, unknown> } | undefined): MatterCaller | null {
   if (!auth) return null;
   const firebaseClaims = auth.token.firebase as { sign_in_provider?: unknown } | undefined;
@@ -78,7 +113,7 @@ function deps(): MatterDeps {
     sender: () => {
       try {
         return createPostmarkSender({
-          token: params.POSTMARK_SERVER_TOKEN.value(),
+          token: params.MATTERS_POSTMARK_TOKEN.value(),
           messageStream: MATTERS_TUNING.messageStream,
           timeoutMs: MATTERS_TUNING.postmarkTimeoutMs,
         });
@@ -95,18 +130,22 @@ function deps(): MatterDeps {
   };
 }
 
-const CALLABLE_BASE: CallableOptions = {
-  region: FUNCTIONS_REGION,
-  enforceAppCheck: false,
-  timeoutSeconds: MATTERS_TUNING.functionTimeoutSeconds,
-  memory: MATTERS_TUNING.memory,
-  cpu: MATTERS_TUNING.cpu,
-  concurrency: MATTERS_TUNING.concurrency,
-  maxInstances: MATTERS_TUNING.maxInstances,
-};
+function callableBase(): CallableOptions {
+  return {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: false,
+    timeoutSeconds: MATTERS_TUNING.functionTimeoutSeconds,
+    memory: MATTERS_TUNING.memory,
+    cpu: MATTERS_TUNING.cpu,
+    concurrency: MATTERS_TUNING.concurrency,
+    maxInstances: MATTERS_TUNING.maxInstances,
+    ...runtimeIdentity(),
+  };
+}
 
 function makeCallables() {
-  const { POSTMARK_SERVER_TOKEN } = mattersParams();
+  const { MATTERS_POSTMARK_TOKEN } = mattersParams();
+  const CALLABLE_BASE = callableBase();
   return {
     matterDraft: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterDraftResponse> =>
       handleMatterDraft(callerOf(request.auth), request.data, deps()),
@@ -114,7 +153,7 @@ function makeCallables() {
     matterRevise: onCall({ ...CALLABLE_BASE, secrets: [OPENAI_API_KEY] }, (request): Promise<MatterDraftResponse> =>
       handleMatterRevise(callerOf(request.auth), request.data, deps()),
     ),
-    matterConfirm: onCall({ ...CALLABLE_BASE, secrets: [POSTMARK_SERVER_TOKEN] }, (request): Promise<MatterConfirmResponse> =>
+    matterConfirm: onCall({ ...CALLABLE_BASE, secrets: [MATTERS_POSTMARK_TOKEN] }, (request): Promise<MatterConfirmResponse> =>
       handleMatterConfirm(callerOf(request.auth), request.data, deps()),
     ),
     matterCancel: onCall(CALLABLE_BASE, (request): Promise<MatterCancelResponse> => handleMatterCancel(callerOf(request.auth), request.data, deps())),
@@ -144,6 +183,7 @@ function makeInboundWebhook() {
       timeoutSeconds: 30,
       memory: '256MiB',
       maxInstances: MATTERS_TUNING.maxInstances,
+      ...runtimeIdentity(),
     },
     async (req, res) => {
       if (MATTERS_ENABLED.value() !== true) {

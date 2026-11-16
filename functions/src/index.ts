@@ -73,5 +73,6 @@ export { summaryCommitments } from './summaries';
 export { summaryWhatsApp } from './summaries';
 // Executive assistant (ARCHITECTURE section 36): every export is `undefined` while MATTERS_ENABLED
 // is false at deploy time, and its params and secrets are not even declared then (config.ts
-// mattersParams), so a deploy without the POSTMARK / inbound secrets never asks for them.
+// mattersParams), so a deploy without the MATTERS_* secrets never asks for them. With the
+// MATTERS_SERVICE_ACCOUNT line set at deploy time they run as that account (src/matters/index.ts).
 export { assistantInboundEmail, matterCancel, matterConfirm, matterDraft, matterRevise } from './matters';

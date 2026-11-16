@@ -97,9 +97,15 @@ export class EmailSendError extends Error {
 export const UNCERTAIN_SEND_KINDS: ReadonlySet<EmailSendError['kind']> = new Set(['timeout', 'connection', 'server', 'unknown']);
 
 export interface EmailSender {
-  /** Resolves with Postmark's MessageID; throws EmailSendError. */
-  send(email: OutboundEmail): Promise<{ providerId: string }>;
+  /**
+   * Resolves with Postmark's MessageID, and test: true when it was sent with the public test
+   * token (accepted, delivered to nobody); throws EmailSendError.
+   */
+  send(email: OutboundEmail): Promise<{ providerId: string; test?: boolean }>;
 }
+
+/** Postmark's public test token: every send is accepted and nothing is delivered. */
+export const POSTMARK_TEST_TOKEN = 'POSTMARK_API_TEST';
 
 export const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
 
@@ -165,7 +171,7 @@ export function createPostmarkSender(options: {
       }
       const code = typeof body.ErrorCode === 'number' ? body.ErrorCode : null;
       if (response.status === 200 && code === 0 && typeof body.MessageID === 'string' && body.MessageID) {
-        return { providerId: body.MessageID };
+        return { providerId: body.MessageID, test: options.token.trim() === POSTMARK_TEST_TOKEN };
       }
       if (response.status === 401 || (code !== null && CONFIGURATION_CODES.has(code))) {
         throw new EmailSendError('configuration', code ?? response.status);

@@ -1757,9 +1757,13 @@ A3 (scheduling, voice, history) build on it.
   user's words fenced in `<request>` tags. The model only proposes; code decides: an email
   address the user did not write is never used (it becomes a question; only an exact whole
   address in the user's words counts, so `martinez@acme.com` is not taken from
-  `ana.martinez@acme.com` nor `brien@acme.com` from `o'brien@acme.com`; quotes and punctuation
-  around an address are not part of it), an address on our own mail domain becomes a question, a missing, past or too distant end date becomes a question, a model
-  question that repeats the code's email or end-date question is dropped, a day without a time
+  `ana.martinez@acme.com` nor `brien@acme.com` from `o'brien@acme.com`; the curly apostrophes a
+  phone keyboard types are folded to `'`, and only those, never dashes; quotes, punctuation and a
+  possessive `'s` around an address are not part of it), an address on our own mail domain becomes
+  a question, a missing, past or too distant end date becomes a question, a model question whose
+  `topic` (email, end_date, other) the code already asks is dropped, every date and time is a
+  local wall-clock time the model writes without an offset and code resolves in the user's zone
+  (an offset it adds anyway is ignored; unreadable means the question again), a day without a time
   ends at 23:59 local, meeting windows are clipped to [now, end date] (if the user gave windows
   and none is left, that becomes a question: an empty list would mean any free time), a name the
   model put under the closing of the first email is removed,
@@ -1775,11 +1779,17 @@ A3 (scheduling, voice, history) build on it.
   draft gives a new hash, so a stale screen cannot confirm what the user did not read
   (`stale_draft`). **The first email goes out at most once.** The transaction that activates the
   matter also claims the send (`firstSendState: 'sending'`) after the send check passed, so of
-  two overlapping confirms only one sends. The answer's `outcome`: `sent`; `failed` (Postmark
+  two overlapping confirms only one sends. The answer's `outcome`: `sent` (also for Postmark's
+  test token, but then the state is `test`, the message status `test` and there is no
+  `firstSentAt`, so nothing later builds on it); `sending` (another call holds a claim younger
+  than SENDING_WINDOW_MS, 2 minutes: the app offers "Check again", the same confirm, which never
+  sends); `failed` (Postmark
   clearly refused: setup, rejected, rate limit; nothing went out, so the same confirm claims it
   again, and ONLY a `failed` send is claimed again); `unknown` (timeout, lost connection, server
-  error, Postmark 406 "inactive recipient" (with several recipients the others may have it), an
-  active matter without a send state, or another call holds the claim:
+  error, Postmark 406 "inactive recipient" (with several recipients the others may have it; the
+  answer then carries `unknownCause: 'inactive_recipient'`, also on later confirms, and the app
+  leaves out the copy sentence), an active matter without a send state, or a claim older than
+  SENDING_WINDOW_MS:
   it may have gone out, so it is never sent again automatically; the email is kept as an
   outbound message with status `sending` and the event `email_unconfirmed`, and when the owner is
   in copy their copy shows whether it arrived). A call that dies after claiming leaves `sending`, which never sends
@@ -1791,8 +1801,11 @@ A3 (scheduling, voice, history) build on it.
   own mail domain or a subdomain (`own_domain`: it would loop into our own inbound with our own
   SPF and DKIM). Follow-ups (A2) and
   meeting confirmations (A3) go through the same check.
-- **The emails (email.ts).** From `"<Name>'s AI assistant" <assistant@<mail domain>>` (ES:
-  "Asistente de IA de <Name>"), so the name always says it is an AI; Reply-To the matter's own
+- **The emails (email.ts).** From `"AI assistant for <Name>" <assistant@<mail domain>>` (ES:
+  "Asistente de IA de <Name>"), so the name always says it is an AI, first; the name is the
+  account's display name without control, format or bidi characters, at most 40 characters, and
+  the generic "Meeting Guard AI assistant" when it contains "Meeting Guard" or our mail domain
+  (text.ts ownerDisplayName); Reply-To the matter's own
   address `m-<token>@<mail domain>`; our own Message-ID `<matterId.random@<mail domain>>`;
   plain text; the model ends with a closing and no name, and code signs with the assistant's
   name; a footer added by code that says the email was written by AI on the user's
@@ -1801,9 +1814,12 @@ A3 (scheduling, voice, history) build on it.
   Postmark's public token `POSTMARK_API_TEST` accepts the request and delivers nothing.
 - **Replies attached to the right matter (inbound.ts).** Postmark's inbound webhook posts the
   parsed email to `assistantInboundEmail` (HTTP basic auth `postmark:<MATTERS_INBOUND_PASSWORD>`,
-  401 before anything else). Dedupe marker `inboundEmails/{MessageID}` (create-once, released
-  again when storing fails so Postmark's retry is processed). Matching, never guessed: the reply
-  token in any recipient (To, Cc, Bcc, OriginalRecipient), else In-Reply-To, then References
+  401 before anything else). Dedupe marker `inboundEmails/{MessageID}`, created in the SAME batch
+  as the message and its event (ALREADY_EXISTS = duplicate; a failed batch leaves nothing, so
+  Postmark's retry is processed normally); mail that is not stored gets the marker alone. Stored
+  only for an `active` or `paused` matter, or up to 7 days after a `done` or `cancelled` one
+  (kept, never acted on); never for a draft. Matching, never guessed: the reply token in any
+  recipient (To, Cc, Bcc, OriginalRecipient; at most 5 distinct tokens looked up), else In-Reply-To, then References
   (newest first) in `matterMessageIds`, only for ids of our own form `<matterId.random@<mail
   domain>>` whose index entry names that same matterId, else unmatched (dropped, only the
   provider id is logged). Mail from our own domain is ignored. A body over 5 MiB is answered 200
@@ -1813,6 +1829,13 @@ A3 (scheduling, voice, history) build on it.
   (SPF, DKIM, DMARC from the raw email) and what to do with a reply are A2: `auth` stays null.
 - **Statuses.** `draft` (being worked out, nothing sent), `active`, `paused`, `done`,
   `cancelled` (by the user, or the end date passed). `endedAt` marks the last two.
+- **Reads and races.** Writes use the strict `matterDocSchema`; reads use `matterDocReadSchema`
+  (the same fields, an unknown field dropped, so a document written by a newer version still
+  reads, and updates are patches that keep it). A document that does not parse throws
+  `MatterUnreadableError`, logged as `matters.unreadable` with the field names, answered
+  `upstream_error`, never `not_found`. `matterRevise` writes only if `mandateVersion` is still the
+  one it drafted from (else `stale_draft`), and `matterDraft` creates the matter in a transaction
+  that first checks `accountDeletions/{uid}`.
 - **Data.** All written ONLY by the matter functions through the Admin SDK; the owner reads:
 
   | Path | Content |
@@ -1832,19 +1855,24 @@ A3 (scheduling, voice, history) build on it.
   functions, like WHATSAPP_ENABLED, read from process.env at load. The matter params and secrets
   are declared only then (config.ts `mattersParams`): firebase-functions puts every declared
   param and secret in the deploy manifest even when no deployed function uses it, so while it
-  is false a deploy never asks for `POSTMARK_SERVER_TOKEN`, `MATTERS_INBOUND_PASSWORD` or a
+  is false a deploy never asks for `MATTERS_POSTMARK_TOKEN`, `MATTERS_INBOUND_PASSWORD` or a
   `MATTERS_*` line (a test checks the declared names); `MATTERS_ALLOWED_UIDS` (comma-separated uids,
   empty = nobody, `*` = everyone) limits the prototype to its testers; `MATTERS_MAIL_DOMAIN`
   (default assistant.meetingguard.ai). Each callable binds only the secret it needs (draft and
-  revise OPENAI_API_KEY, confirm POSTMARK_SERVER_TOKEN, the webhook MATTERS_INBOUND_PASSWORD).
-  Callers need a verified account (email_verified or a trusted provider). `matterCancel` needs
-  only that: an owner can always stop their own matter, even off the tester list. Kill switch:
+  revise OPENAI_API_KEY, confirm MATTERS_POSTMARK_TOKEN, the webhook MATTERS_INBOUND_PASSWORD).
+  Callers need a verified account (email_verified or a trusted provider); the owner's copies
+  go only to an email whose token says `email_verified`. `matterCancel` needs only that: an owner can always stop their own matter, even off the tester list. Kill switch:
   a by-name redeploy of the five functions with `MATTERS_ALLOWED_UIDS` empty (the run-time
   MATTERS_ENABLED check is not reachable, since the functions exist only while it is true), or
-  `functions:delete` (SETUP 15.4). Service account: the five functions run as the project's
-  default compute account like every other function, so it holds secretAccessor on
-  `POSTMARK_SERVER_TOKEN` and `MATTERS_INBOUND_PASSWORD` as on the existing secrets; a dedicated
-  account is to be decided before `MATTERS_ALLOWED_UIDS='*'`, together with the global AI budget
+  `functions:delete` (SETUP 15.4). Service account: the five functions run as the dedicated
+  `matters-functions` account named by the `MATTERS_SERVICE_ACCOUNT` line in
+  `functions/.env.<projectId>` (a plain key read at load like SUMMARIES_SERVICE_ACCOUNT, never a
+  declared param; the `name@` shorthand is expanded with the project; anything that is not one
+  service account address reads as unset). Its project roles: Cloud Datastore User and Logs
+  Writer (the matter code takes the owner's email from the sign-in token and never calls Firebase
+  Auth); the deploy grants it secretAccessor on `MATTERS_POSTMARK_TOKEN`,
+  `MATTERS_INBOUND_PASSWORD` and OPENAI_API_KEY. Without the line they deploy under the default
+  compute account. Still to be decided before `MATTERS_ALLOWED_UIDS='*'`: the global AI budget
   and adminStats accounting for the matter model calls. App:
   `EXPO_PUBLIC_MATTERS_ENABLED` shows Settings > AI executive assistant (route `Matters`); off
   in every store build. Owner setup: docs/v1/SETUP.md section 15.
