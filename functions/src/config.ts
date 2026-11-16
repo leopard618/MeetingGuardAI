@@ -383,7 +383,7 @@ export function mattersParams() {
     /** Master switch, re-checked at run time by every handler. */
     MATTERS_ENABLED: defineBoolean('MATTERS_ENABLED', {
       default: false,
-      description: 'Enables the executive assistant (matters). Set POSTMARK_SERVER_TOKEN and MATTERS_INBOUND_PASSWORD BEFORE setting this to true.',
+      description: 'Enables the executive assistant (matters). Set MATTERS_POSTMARK_TOKEN and MATTERS_INBOUND_PASSWORD BEFORE setting this to true.',
     }),
     /**
      * Who may use it while it is a prototype: comma-separated Firebase uids. Empty = nobody,
@@ -408,7 +408,7 @@ export function mattersParams() {
      * without an account, Postmark's public test token POSTMARK_API_TEST accepts sends and
      * delivers nothing.
      */
-    POSTMARK_SERVER_TOKEN: defineSecret('POSTMARK_SERVER_TOKEN'),
+    MATTERS_POSTMARK_TOKEN: defineSecret('MATTERS_POSTMARK_TOKEN'),
     /**
      * Password of the inbound webhook: Postmark calls
      * https://postmark:<password>@<region>-<project>.cloudfunctions.net/assistantInboundEmail
@@ -425,7 +425,7 @@ export const MATTERS_PARAM_NAMES = [
   'MATTERS_ALLOWED_UIDS',
   'MATTERS_MAIL_DOMAIN',
   'MATTERS_USER_DAILY_LIMIT',
-  'POSTMARK_SERVER_TOKEN',
+  'MATTERS_POSTMARK_TOKEN',
   'MATTERS_INBOUND_PASSWORD',
 ] as const;
 
@@ -434,7 +434,7 @@ type MattersParams = {
   MATTERS_ALLOWED_UIDS: ReturnType<typeof defineString>;
   MATTERS_MAIL_DOMAIN: ReturnType<typeof defineString>;
   MATTERS_USER_DAILY_LIMIT: ReturnType<typeof defineInt>;
-  POSTMARK_SERVER_TOKEN: ReturnType<typeof defineSecret>;
+  MATTERS_POSTMARK_TOKEN: ReturnType<typeof defineSecret>;
   MATTERS_INBOUND_PASSWORD: ReturnType<typeof defineSecret>;
 };
 let mattersParamsCache: MattersParams | undefined;

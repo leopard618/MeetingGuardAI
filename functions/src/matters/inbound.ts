@@ -93,11 +93,15 @@ export function parseInbound(payload: unknown): InboundEmail | null {
   };
 }
 
+/** Reply-address tokens looked up per email. */
+export const MAX_TOKEN_LOOKUPS = 5;
+
 /** Which matter the email belongs to (see the header for the order); null = unmatched. */
 export async function matchInbound(email: InboundEmail, domain: string, store: Pick<MatterStore, 'findByToken' | 'findByMessageKey'>): Promise<MatterLookup | null> {
-  for (const address of email.recipients) {
-    const token = replyTokenFromAddress(address, domain);
-    if (!token) continue;
+  // at most MAX_TOKEN_LOOKUPS distinct tokens: an email listing hundreds of made-up reply
+  // addresses costs a handful of reads, not hundreds
+  const tokens = [...new Set(email.recipients.map((address) => replyTokenFromAddress(address, domain)).filter((t): t is string => t !== null))];
+  for (const token of tokens.slice(0, MAX_TOKEN_LOOKUPS)) {
     const found = await store.findByToken(token);
     if (found) return found;
   }

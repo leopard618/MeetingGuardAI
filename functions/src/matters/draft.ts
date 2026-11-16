@@ -24,6 +24,7 @@ import type { Language } from '../shared/aiContract';
 import type { LlmClient, LlmRequest } from '../assistant/llm';
 import type { PromptMessage } from '../assistant/prompt';
 import type { ToolDefinition } from '../assistant/tools';
+import { zonedDateTimeToInstant } from '../assistant/time';
 import {
   MATTER_LIMITS,
   firstEmailSchema,
@@ -75,8 +76,8 @@ export const PROPOSE_MATTER_TOOL: ToolDefinition = {
           duration_minutes: { type: ['integer', 'null'], description: 'Meeting length in minutes (5 to 480); 30 when a meeting is needed but no length was said; null when no meeting.' },
           windows: arr(
             obj({
-              start: str('ISO 8601 with the user\'s UTC offset.'),
-              end: str('ISO 8601 with the user\'s UTC offset, after start.'),
+              start: str('Local date and time in the user\'s time zone, YYYY-MM-DDTHH:MM, with NO UTC offset.'),
+              end: str('Local date and time in the user\'s time zone, YYYY-MM-DDTHH:MM, with NO UTC offset, after start.'),
             }),
             'Only days and hours the user explicitly said they are available; empty when they did not say. "Next week" alone is not a time range: leave it empty.',
           ),
@@ -91,7 +92,7 @@ export const PROPOSE_MATTER_TOOL: ToolDefinition = {
         'Follow-ups when there is no answer.',
       ),
       ends_at: nullableStr(
-        'Until when the assistant works on this, ISO 8601 with the user\'s UTC offset. A day without a time ("until Friday", "until November 30") means the end of that day, 23:59 local. Null when the user did not say.',
+        'Until when the assistant works on this: local date and time in the user\'s time zone, YYYY-MM-DDTHH:MM, with NO UTC offset. A day without a time ("until Friday", "until November 30") means the end of that day, T23:59. Null when the user did not say.',
       ),
       copy_owner: { type: 'string', enum: ['cc', 'daily_summary'], description: 'cc (the default, and for "keep me copied"); daily_summary only when the user asked for a summary instead.' },
       email_language: { type: 'string', enum: ['en', 'es'], description: 'Language of the emails to the contacts: the one the user asked for, else the user\'s language.' },
@@ -105,12 +106,22 @@ export const PROPOSE_MATTER_TOOL: ToolDefinition = {
         'The first email, written as the user\'s AI assistant.',
       ),
       questions: arr(
-        str('One question, in the user\'s language.'),
-        'Questions for details that are missing or unclear. NEVER ask for an email address or the end date: those are asked automatically. Empty when nothing else is missing.',
+        obj({
+          text: str('One question, in the user\'s language.'),
+          topic: {
+            type: 'string',
+            enum: ['email', 'end_date', 'other'],
+            description: 'email: about an email address; end_date: about until when; other: anything else.',
+          },
+        }),
+        'Questions for details that are missing or unclear. Email addresses and the end date are asked automatically, so you rarely need those topics. Empty when nothing else is missing.',
       ),
     }),
   },
 };
+
+/** What a model question is about: code drops one whose topic it already asks about. */
+export const QUESTION_TOPICS = ['email', 'end_date', 'other'] as const;
 
 /** The model's arguments, re-validated (the tool's JSON Schema has no value constraints). */
 const proposalSchema = z.object({
@@ -128,7 +139,7 @@ const proposalSchema = z.object({
   copy_owner: z.enum(['cc', 'daily_summary']),
   email_language: z.enum(['en', 'es']),
   first_email: z.object({ subject: z.string(), text: z.string() }),
-  questions: z.array(z.string()),
+  questions: z.array(z.object({ text: z.string(), topic: z.enum(QUESTION_TOPICS) })),
 });
 export type Proposal = z.infer<typeof proposalSchema>;
 
@@ -178,7 +189,7 @@ export function buildDraftMessages(ctx: DraftContext): PromptMessage[] {
     `Call ${PROPOSE_TOOL} exactly once with your proposal.`,
     'Rules:',
     '1. Only include people the user named. Never invent or guess an email address: if it was not given, set it to null.',
-    '2. Resolve relative dates ("Friday", "next week") against now, in the user\'s time zone, with the UTC offset.',
+    '2. Resolve relative dates ("Friday", "next week") against now, and write every date and time as the user\'s local wall-clock time, YYYY-MM-DDTHH:MM, without a UTC offset (the offset is worked out for you, also across a daylight saving change).',
     '3. You never pay, accept a price, negotiate money, agree to anything contractual or contact anyone else. Do not put any of that in the goal, in may_ask or in the email; if the user asks for it, add a question saying you can only ask them to decide it.',
     '4. Write the first email as the user\'s AI assistant, polite and short. Do not pretend to be the user.',
     '5. Plain punctuation only: no em dashes, en dashes, ellipsis characters or curly quotes.',
@@ -209,22 +220,54 @@ const clean = (text: string, max: number) => PLAIN(text).trim().slice(0, max);
  * address ("o'brien@acme.com"), so a candidate keeps them and only its ENDS are trimmed.
  */
 const ADDRESS_CANDIDATE = /[^\s<>()[\],;:"\u201c\u201d\u00ab\u00bb]+@[^\s<>()[\],;:"\u201c\u201d\u00ab\u00bb]+/g;
-/** Quotes and punctuation around an address ("'ana@acme.com'", "¿ana@acme.com?", "ana@acme.com..."). */
-const LEADING_PUNCT = /^['`\u2018\u2019\u00bf\u00a1{]+/;
-const TRAILING_PUNCT = /['`\u2018\u2019.!?\u2026}]+$/;
+/** Quotes and punctuation around an address ("'ana@acme.com'", "\u00bfana@acme.com?", "ana@acme.com..."). */
+const LEADING_PUNCT = /^['`\u00bf\u00a1{]+/;
+const TRAILING_PUNCT = /['`.!?\u2026}]+$/;
+/** A possessive right after the domain ("ana@acme.com's office"); a domain never holds an apostrophe. */
+const POSSESSIVE_AFTER_DOMAIN = /'s(?=['`.!?\u2026}]*$)/i;
+
+/**
+ * The apostrophes iOS Smart Punctuation (and other keyboards) type instead of ' (U+2018, U+2019,
+ * U+02BC), folded to '. ONLY these: dashes are left alone, because iOS turns the two hyphens in
+ * "ana--lopez" into an em dash, and folding that to "-" would give the different mailbox ana-lopez.
+ */
+export function foldApostrophes(text: string): string {
+  return text.replace(/[\u2018\u2019\u02bc]/g, "'");
+}
 
 /**
  * Every whole email address in the user's words, lowercased. Exact whole addresses only:
  * "martinez@acme.com" is NOT in "write to ana.martinez@acme.com", and "brien@acme.com" is NOT in
- * "o'brien@acme.com". Quotes and sentence punctuation around an address are not part of it.
+ * "o'brien@acme.com" (typed with a curly apostrophe or not). Quotes, sentence punctuation and a
+ * possessive "'s" around an address are not part of it.
  */
 export function addressesIn(text: string): Set<string> {
   const found = new Set<string>();
-  for (const raw of text.match(ADDRESS_CANDIDATE) ?? []) {
-    const address = raw.replace(/^mailto:/i, '').replace(LEADING_PUNCT, '').replace(TRAILING_PUNCT, '').toLowerCase();
-    if (address.indexOf('@') > 0) found.add(address);
+  for (const raw of foldApostrophes(text).match(ADDRESS_CANDIDATE) ?? []) {
+    const trimmed = raw.replace(/^mailto:/i, '').replace(LEADING_PUNCT, '');
+    const at = trimmed.lastIndexOf('@');
+    if (at <= 0) continue;
+    const domain = trimmed.slice(at + 1).replace(POSSESSIVE_AFTER_DOMAIN, '');
+    const address = `${trimmed.slice(0, at)}@${domain}`.replace(TRAILING_PUNCT, '').toLowerCase();
+    if (!address.endsWith('@')) found.add(address);
   }
   return found;
+}
+
+/**
+ * A local date-time the model wrote (YYYY-MM-DDTHH:MM, optional seconds) as an instant in the
+ * user's zone. An offset or Z the model added anyway is ignored: the wall-clock time is re-read in
+ * the zone, so the end of a day after a daylight saving change is still 23:59 local. null when it
+ * cannot be read (the question is asked again).
+ */
+export function resolveLocalDateTime(value: string, timeZone: string): Date | null {
+  const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d{1,9})?)?\s*(?:Z|[+-]\d{2}(?::?\d{2})?)?$/i.exec(value.trim());
+  if (!match) return null;
+  try {
+    return zonedDateTimeToInstant(match[1]!, match[2]!, timeZone);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -239,10 +282,6 @@ export function stripSignature(text: string, names: readonly string[]): string {
   return lines.join('\n');
 }
 
-/** A model question about an email address, or about the end date (EN and ES). */
-const EMAIL_TOPIC = /e-?mail|correo|@|direcci[oó]n/i;
-const END_TOPIC = /until when|end date|deadline|how long|hasta cu[aá]ndo|fecha (l[ií]mite|final|de fin)|cu[aá]nto tiempo/i;
-
 /** Turns the model's proposal into a draft: complete (mandate + email) or with questions. */
 export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult {
   const parsed = proposalSchema.safeParse(raw);
@@ -253,7 +292,7 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
   const nowMs = ctx.now.getTime();
 
   const contacts = p.contacts
-    .map((c) => ({ name: clean(c.name, MATTER_LIMITS.nameChars), email: c.email ? c.email.trim() : null }))
+    .map((c) => ({ name: clean(c.name, MATTER_LIMITS.nameChars), email: c.email ? foldApostrophes(c.email.trim()) : null }))
     .filter((c) => c.name.length > 0)
     .slice(0, MATTER_LIMITS.maxContacts);
   if (contacts.length === 0) questions.push(QUESTIONS.contact(ctx.language));
@@ -273,7 +312,7 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
   }
 
   let endsAt: string | null = null;
-  const endMs = p.ends_at ? Date.parse(p.ends_at) : NaN;
+  const endMs = p.ends_at ? (resolveLocalDateTime(p.ends_at, ctx.timeZone)?.getTime() ?? NaN) : NaN;
   if (!p.ends_at || !Number.isFinite(endMs)) questions.push(QUESTIONS.endsAt(ctx.language));
   else if (endMs <= nowMs) questions.push(QUESTIONS.endsInPast(ctx.language));
   else if (endMs - nowMs > MATTER_LIMITS.maxMandateDays * DAY_MS) questions.push(QUESTIONS.endsTooLate(MATTER_LIMITS.maxMandateDays, ctx.language));
@@ -281,10 +320,10 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
   const askedForEnd = endsAt === null;
 
   for (const q of p.questions) {
-    const text = clean(q, MATTER_LIMITS.itemChars);
+    const text = clean(q.text, MATTER_LIMITS.itemChars);
     // the model sometimes repeats a question the code already asks: keep each topic once
-    if (askedForEmail && EMAIL_TOPIC.test(text)) continue;
-    if (askedForEnd && END_TOPIC.test(text)) continue;
+    if (askedForEmail && q.topic === 'email') continue;
+    if (askedForEnd && q.topic === 'end_date') continue;
     if (text && questions.length < MATTER_LIMITS.maxQuestions) questions.push(text);
   }
 
@@ -295,7 +334,10 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
 
   const endLimit = Date.parse(endsAt);
   const windows = p.meeting.windows
-    .map((w) => ({ start: Math.max(Date.parse(w.start), nowMs), end: Math.min(Date.parse(w.end), endLimit) }))
+    .map((w) => ({
+      start: Math.max(resolveLocalDateTime(w.start, ctx.timeZone)?.getTime() ?? NaN, nowMs),
+      end: Math.min(resolveLocalDateTime(w.end, ctx.timeZone)?.getTime() ?? NaN, endLimit),
+    }))
     .filter((w) => Number.isFinite(w.start) && Number.isFinite(w.end) && w.start < w.end)
     .slice(0, MATTER_LIMITS.maxTimeWindows)
     .map((w) => ({ start: new Date(w.start).toISOString(), end: new Date(w.end).toISOString() }));
@@ -323,7 +365,11 @@ export function normalizeProposal(raw: unknown, ctx: DraftContext): DraftResult 
   const mandate = mandateSchema.safeParse(candidate);
   const firstEmail = firstEmailSchema.safeParse({
     subject: clean(p.first_email.subject, MATTER_LIMITS.subjectChars),
-    text: clean(stripSignature(p.first_email.text, [ctx.ownerName, senderName(ctx.ownerName, p.email_language)]), MATTER_LIMITS.firstEmailChars),
+    // the possessive form too: the model may sign "Ana Lopez's AI assistant" on its own
+    text: clean(
+      stripSignature(p.first_email.text, [ctx.ownerName, senderName(ctx.ownerName, p.email_language), `${ctx.ownerName}'s AI assistant`]),
+      MATTER_LIMITS.firstEmailChars,
+    ),
   });
   if (!mandate.success || !firstEmail.success) {
     return { title, mandate: null, firstEmail: null, questions: [QUESTIONS.unclear(ctx.language)] };

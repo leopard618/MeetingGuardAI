@@ -1958,19 +1958,27 @@ export type MatterConfirmRequest = z.infer<typeof matterConfirmRequestSchema>;
 /**
  * Where the first email stands after matterConfirm.
  * sent:    it went out.
+ * sending: another confirm is sending it right now; the same confirm, called again a little later,
+ *          answers how it ended (it never sends a second time).
  * failed:  the email service refused it, nothing went out; the same confirm retries it.
- * unknown: no clear answer (or another confirm is sending it right now): it may have gone out, so
- *          it is never sent again automatically. When the owner is in copy (cc), their copy shows
- *          whether it arrived. A Postmark 406 (inactive recipient) is also unknown: the other
- *          recipients may have it.
+ * unknown: no clear answer: it may have gone out, so it is never sent again automatically. When
+ *          the owner is in copy (cc), their copy shows whether it arrived, except after a Postmark
+ *          406 (unknownCause 'inactive_recipient'): then the copy arrives but the contact's email
+ *          does not, while other recipients may have it.
  */
-export const MATTER_SEND_OUTCOMES = ['sent', 'failed', 'unknown'] as const;
+export const MATTER_SEND_OUTCOMES = ['sent', 'sending', 'failed', 'unknown'] as const;
 export type MatterSendOutcome = (typeof MATTER_SEND_OUTCOMES)[number];
+
+/** Why an outcome is 'unknown', when the server knows more. */
+export const MATTER_UNKNOWN_CAUSES = ['inactive_recipient'] as const;
+export type MatterUnknownCause = (typeof MATTER_UNKNOWN_CAUSES)[number];
 
 export const matterConfirmResponseSchema = z.object({
   matterId: matterIdSchema,
   status: z.literal('active'),
   outcome: z.enum(MATTER_SEND_OUTCOMES),
+  /** Only with outcome 'unknown', and only when the cause is known. */
+  unknownCause: z.enum(MATTER_UNKNOWN_CAUSES).nullable().optional(),
 });
 export type MatterConfirmResponse = z.infer<typeof matterConfirmResponseSchema>;
 

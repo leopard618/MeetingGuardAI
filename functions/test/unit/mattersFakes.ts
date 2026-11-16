@@ -2,7 +2,7 @@ import type { LlmClient, LlmRequest, LlmResult } from '../../src/assistant/llm';
 import type { EmailSender, OutboundEmail } from '../../src/matters/email';
 import type { MatterDeps } from '../../src/matters/handlers';
 import { messageIdKey, type MatterDoc, type MatterEvent, type MatterMessage } from '../../src/matters/model';
-import type { AddMessageOptions, MatterLookup, MatterStore, MatterUpdate } from '../../src/matters/store';
+import type { AddMessageOptions, InboundMarker, MatterLookup, MatterStore, MatterUpdate } from '../../src/matters/store';
 
 export const NOW = new Date('2026-11-12T09:00:00.000Z');
 export const DOMAIN = 'assistant.meetingguard.ai';
@@ -17,6 +17,10 @@ export class FakeMatterStore implements MatterStore {
   readonly messageIds = new Map<string, MatterLookup>();
   readonly inbound = new Set<string>();
   readonly daily = new Map<string, number>();
+  /** accountDeletions/{uid}: createMatter refuses these uids. */
+  readonly deletions = new Set<string>();
+  /** Makes the next addInboundMessage batch fail (nothing written), like a Firestore error. */
+  failNextInboundWrite = false;
   private next = 1;
 
   private key(uid: string, matterId: string) {
@@ -29,10 +33,12 @@ export class FakeMatterStore implements MatterStore {
 
   async createMatter(uid: string, matterId: string, doc: MatterDoc, event: MatterEvent) {
     const k = this.key(uid, matterId);
+    if (this.deletions.has(uid)) return false;
     if (this.matters.has(k)) throw new Error('exists');
     this.matters.set(k, structuredClone(doc));
     this.events.set(k, [event]);
     this.addresses.set(doc.replyToken, { uid, matterId });
+    return true;
   }
 
   async getMatter(uid: string, matterId: string) {
@@ -72,14 +78,28 @@ export class FakeMatterStore implements MatterStore {
     return this.messageIds.get(key) ?? null;
   }
 
-  async claimInbound(providerId: string) {
-    if (this.inbound.has(providerId)) return false;
-    this.inbound.add(providerId);
-    return true;
+  async addInboundMessage(uid: string, matterId: string, message: MatterMessage, event: MatterEvent, marker: InboundMarker) {
+    const k = this.key(uid, matterId);
+    const current = this.matters.get(k);
+    if (!current) throw new Error('no matter');
+    // one batch: the marker's create() fails the whole write when it exists
+    if (this.inbound.has(marker.providerId)) return 'duplicate' as const;
+    if (this.failNextInboundWrite) {
+      this.failNextInboundWrite = false;
+      throw new Error('write failed');
+    }
+    const id = `x${this.next++}`;
+    this.inbound.add(marker.providerId);
+    this.messages.set(k, [...(this.messages.get(k) ?? []), { ...message, id }]);
+    this.events.set(k, [...(this.events.get(k) ?? []), { ...event, messageId: id }]);
+    this.matters.set(k, { ...current, updatedAt: message.at });
+    return 'stored' as const;
   }
 
-  async releaseInbound(providerId: string) {
-    this.inbound.delete(providerId);
+  async markInbound(marker: InboundMarker) {
+    if (this.inbound.has(marker.providerId)) return false;
+    this.inbound.add(marker.providerId);
+    return true;
   }
 
   async consumeDaily(uid: string, dayKey: string, limit: number) {
@@ -119,6 +139,8 @@ export class FakeSender implements EmailSender {
   /** Every call to send, including the failed ones (a timeout may still have delivered). */
   attempts = 0;
   failWith: Error | null = null;
+  /** Answer like Postmark's test token (accepted, delivered to nobody). */
+  test = false;
 
   async send(email: OutboundEmail) {
     this.attempts += 1;
@@ -126,7 +148,7 @@ export class FakeSender implements EmailSender {
     await Promise.resolve();
     if (this.failWith) throw this.failWith;
     this.sent.push(email);
-    return { providerId: `pm-${this.sent.length}` };
+    return { providerId: `pm-${this.sent.length}`, ...(this.test ? { test: true } : {}) };
   }
 }
 

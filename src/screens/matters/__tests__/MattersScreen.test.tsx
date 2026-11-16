@@ -155,6 +155,35 @@ describe('MattersScreen', () => {
     expect(screen.queryByText(/Your copy/)).toBeNull();
   });
 
+  it('leaves out the copy sentence after a 406: the copy arrives, the contact\'s email does not', async () => {
+    mockDraft.mockResolvedValueOnce(COMPLETE);
+    mockConfirm.mockResolvedValueOnce({ matterId: 'm1', status: 'active', outcome: 'unknown', unknownCause: 'inactive_recipient' });
+    await renderScreen();
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('matters-request'), 'Contact Carlos');
+    });
+    await press('matters-prepare');
+    await press('matters-confirm');
+    expect(screen.getByText('We could not confirm that the email went out. It may have been sent, so it will not be sent again.')).toBeTruthy();
+    expect(screen.queryByText(/Your copy/)).toBeNull();
+    expect(screen.queryByTestId('matters-retry')).toBeNull();
+  });
+
+  it('says another request is sending it, and checks again with the same confirm', async () => {
+    mockDraft.mockResolvedValueOnce(COMPLETE);
+    mockConfirm.mockResolvedValueOnce({ matterId: 'm1', status: 'active', outcome: 'sending' }).mockResolvedValueOnce({ matterId: 'm1', status: 'active', outcome: 'sent' });
+    await renderScreen();
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('matters-request'), 'Contact Carlos');
+    });
+    await press('matters-prepare');
+    await press('matters-confirm');
+    expect(screen.getByTestId('matters-sending')).toBeTruthy();
+    await press('matters-check-again');
+    expect(mockConfirm).toHaveBeenNthCalledWith(2, 'm1', HASH);
+    expect(screen.getByTestId('matters-sent')).toBeTruthy();
+  });
+
   it('can still cancel the matter after the first email went out', async () => {
     mockDraft.mockResolvedValueOnce(COMPLETE);
     mockConfirm.mockResolvedValueOnce({ matterId: 'm1', status: 'active', outcome: 'sent' });
